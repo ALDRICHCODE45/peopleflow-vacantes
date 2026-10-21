@@ -51,11 +51,14 @@ func reachedCandidates(ctx context.Context, tx pgx.Tx, id uuid.UUID, cutoff *str
 	if cutoff == nil {
 		return out, nil
 	}
-	rows, err := tx.Query(ctx, `SELECT p.id,u.id,u.full_name,min(h.created_at) AS reached_at
- FROM process_participations p JOIN users u ON u.id=p.candidate_id
+	rows, err := tx.Query(ctx, `SELECT p.id,COALESCE(cc.id,u.id),COALESCE(cc.full_name,u.full_name),min(h.created_at) AS reached_at
+ FROM process_participations p
+ JOIN vacancy_processes vp ON vp.id=p.process_id
+ LEFT JOIN users u ON u.id=p.candidate_id
+ LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
  JOIN participation_stage_history h ON h.participation_id=p.id
  WHERE p.process_id=$1 AND h.stage_id=$2::uuid AND h.event_kind IN ('intake','move','recovery')
- GROUP BY p.id,u.id,u.full_name ORDER BY reached_at,p.id`, id, *cutoff)
+ GROUP BY p.id,u.id,u.full_name,cc.id,cc.full_name ORDER BY reached_at,p.id`, id, *cutoff)
 	if err != nil {
 		return nil, err
 	}

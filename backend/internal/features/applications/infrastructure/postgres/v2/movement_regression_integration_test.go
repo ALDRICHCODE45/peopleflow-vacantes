@@ -84,7 +84,7 @@ func movementKeys(t *testing.T, value any, want ...string) map[string]any {
 }
 func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	t.Helper()
-	keys := []string{"id", "stage_id", "version", "etag", "candidate", "applied_at", "source", "cv", "moved_at", "discard", "substate_id"}
+	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id"}
 	mutation := false
 	for _, key := range extra {
 		if key == "coverage" {
@@ -95,7 +95,10 @@ func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 		keys = append(keys, "profile", "screening_answers")
 	}
 	movementKeys(t, obj, append(keys, extra...)...)
-	movementKeys(t, obj["candidate"], "id", "full_name")
+	movementKeys(t, obj["candidate"], "id", "full_name", "kind")
+	if obj["source"] == "organic" && (obj["added_by"] != nil || obj["candidate"].(map[string]any)["kind"] != "organic") {
+		t.Fatal("organic origin changed", obj)
+	}
 	movementKeys(t, obj["cv"], "id", "name")
 	if !mutation {
 		profile := movementKeys(t, obj["profile"], "location", "skills", "years_of_experience", "education_level")

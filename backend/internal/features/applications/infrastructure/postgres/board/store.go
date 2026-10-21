@@ -80,20 +80,30 @@ func (s *Store) beginMutation(ctx context.Context, company, actor, id uuid.UUID)
 	return tx, p, nil
 }
 
-const itemSQL = `SELECT p.id,p.stage_id,p.version,u.id,u.full_name,p.created_at,p.source,l.id,l.name,
+const itemSQL = `SELECT p.id,p.stage_id,p.version,COALESCE(cc.id,u.id),COALESCE(cc.full_name,u.full_name),p.created_at,p.source,COALESCE(mc.id,l.id),COALESCE(mc.file_name,l.name),
  COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id AND h.event_kind<>'not_applicable'),p.created_at),
  p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id,
- CASE WHEN p.profile_snapshot->'location' IS NULL OR p.profile_snapshot->'location' = 'null'::jsonb THEN p.profile_snapshot
- ELSE jsonb_set(p.profile_snapshot,'{location}',jsonb_build_object(
- 'country',jsonb_build_object('id',p.profile_snapshot->'location'->>'country','name',gc.name_es),
- 'state',CASE WHEN p.profile_snapshot->'location'->>'state' IS NULL THEN NULL ELSE jsonb_build_object('id',p.profile_snapshot->'location'->>'state','name',gs.name) END,
- 'municipality',CASE WHEN p.profile_snapshot->'location'->>'municipality' IS NULL THEN NULL ELSE jsonb_build_object('id',p.profile_snapshot->'location'->>'municipality','name',gm.name) END,
- 'postal_code',NULL,'label',CASE WHEN gm.code IS NOT NULL THEN gm.name || ', ' || gs.name WHEN gs.code IS NOT NULL THEN gs.name ELSE gc.name_es END)) END,
- p.questions_snapshot,p.answers_snapshot
- FROM process_participations p JOIN users u ON u.id=p.candidate_id JOIN candidate_cv_library l ON l.version_id=p.cv_version_id
- LEFT JOIN geo_countries gc ON gc.code=p.profile_snapshot->'location'->>'country'
- LEFT JOIN geo_states gs ON gs.country_code=gc.code AND gs.code=p.profile_snapshot->'location'->>'state'
- LEFT JOIN geo_municipalities gm ON gm.country_code=gc.code AND gm.state_code=gs.code AND gm.code=p.profile_snapshot->'location'->>'municipality' `
+ CASE WHEN snap.profile->'location' IS NULL OR snap.profile->'location' = 'null'::jsonb THEN snap.profile
+ ELSE jsonb_set(snap.profile,'{location}',jsonb_build_object(
+ 'country',jsonb_build_object('id',snap.profile->'location'->>'country','name',gc.name_es),
+ 'state',CASE WHEN snap.profile->'location'->>'state' IS NULL THEN NULL ELSE jsonb_build_object('id',snap.profile->'location'->>'state','name',gs.name) END,
+ 'municipality',CASE WHEN snap.profile->'location'->>'municipality' IS NULL THEN NULL ELSE jsonb_build_object('id',snap.profile->'location'->>'municipality','name',gm.name) END,
+ 'postal_code',cc.postal_code,'label',CASE WHEN gm.code IS NOT NULL THEN gm.name || ', ' || gs.name WHEN gs.code IS NOT NULL THEN gs.name ELSE gc.name_es END)) END,
+ p.questions_snapshot,p.answers_snapshot,
+ CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END, ad.id,ad.full_name
+ FROM process_participations p
+ JOIN vacancy_processes vp ON vp.id=p.process_id
+ LEFT JOIN users u ON u.id=p.candidate_id
+ LEFT JOIN candidate_cv_library l ON l.version_id=p.cv_version_id
+ LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
+ LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=vp.company_id
+ LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'
+ CROSS JOIN LATERAL (SELECT CASE WHEN p.company_candidate_id IS NULL THEN p.profile_snapshot ELSE jsonb_build_object(
+ 'location',jsonb_build_object('country',cc.country_code,'state',cc.state_code,'municipality',cc.municipality_code),
+ 'skills',cc.skills,'years_of_experience',cc.experience_years,'education_level',cc.education_level) END AS profile) snap
+ LEFT JOIN geo_countries gc ON gc.code=snap.profile->'location'->>'country'
+ LEFT JOIN geo_states gs ON gs.country_code=gc.code AND gs.code=snap.profile->'location'->>'state'
+ LEFT JOIN geo_municipalities gm ON gm.country_code=gc.code AND gm.state_code=gs.code AND gm.code=snap.profile->'location'->>'municipality' `
 
 func readItem(row pgx.Row) (app.Item, int64, error) {
 	var i app.Item
@@ -101,7 +111,9 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 	var previous, group, code *string
 	var discardedAt *time.Time
 	var profile, questions, answers []byte
-	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID, &profile, &questions, &answers)
+	var addedID *uuid.UUID
+	var addedName *string
+	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID, &profile, &questions, &answers, &i.Candidate.Kind, &addedID, &addedName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return i, 0, app.ErrNotFound
 	}
@@ -130,7 +142,13 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 		return i, 0, err
 	}
 	i.ScreeningAnswers = app.ChoiceAnswers(qs, as)
-	if version < 1 || i.Source != "organic" {
+	if i.Source == "manual" {
+		if addedID == nil || addedName == nil {
+			return i, 0, errors.New("manual participation missing actor")
+		}
+		i.AddedBy = &app.AddedBy{ID: *addedID, Name: *addedName}
+	}
+	if version < 1 || (i.Source != "organic" && i.Source != "manual") {
 		return i, 0, errors.New("invalid stored participation")
 	}
 	if discardedAt != nil {
@@ -416,7 +434,7 @@ func (s *Store) File(ctx context.Context, company, actor, id, pid uuid.UUID) (ap
 	defer tx.Rollback(ctx)
 	var file app.File
 	var key string
-	err = tx.QueryRow(ctx, `SELECT l.name,v.content_type,v.size,v.storage_key FROM process_participations p JOIN candidate_cv_versions v ON v.id=p.cv_version_id JOIN candidate_cv_library l ON l.version_id=v.id WHERE p.process_id=$1 AND p.id=$2`, id, pid).Scan(&file.Name, &file.ContentType, &file.Size, &key)
+	err = tx.QueryRow(ctx, `SELECT COALESCE(mc.file_name,l.name),COALESCE(mc.content_type,v.content_type),COALESCE(mc.size,v.size),COALESCE(mc.storage_key,v.storage_key) FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id LEFT JOIN candidate_cv_library l ON l.version_id=v.id LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=vp.company_id WHERE p.process_id=$1 AND p.id=$2`, id, pid).Scan(&file.Name, &file.ContentType, &file.Size, &key)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return file, app.ErrNotFound
 	}

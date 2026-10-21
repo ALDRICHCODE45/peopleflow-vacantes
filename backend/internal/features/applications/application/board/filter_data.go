@@ -52,7 +52,8 @@ func (m Moved) MarshalJSON() ([]byte, error) {
 		StageID    string    `json:"stage_id"`
 		Version    string    `json:"version"`
 		ETag       string    `json:"etag"`
-		Candidate  Person    `json:"candidate"`
+		Candidate  Candidate `json:"candidate"`
+		AddedBy    *AddedBy  `json:"added_by"`
 		AppliedAt  time.Time `json:"applied_at"`
 		Source     string    `json:"source"`
 		CV         CV        `json:"cv"`
@@ -60,7 +61,7 @@ func (m Moved) MarshalJSON() ([]byte, error) {
 		Discard    *Discard  `json:"discard"`
 		Coverage   Coverage  `json:"coverage"`
 		Delivery   Delivery  `json:"delivery"`
-	}{SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, Coverage: m.Coverage, Delivery: m.Delivery})
+	}{SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AddedBy: m.AddedBy, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, Coverage: m.Coverage, Delivery: m.Delivery})
 }
 
 func ChoiceFilters(form intake.Screening) []ScreeningFilter {

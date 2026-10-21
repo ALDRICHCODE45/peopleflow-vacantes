@@ -6,7 +6,7 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00034** with `make db-migrate` before running this API.
+1. Apply migrations through **00038** with `make db-migrate` before running this API.
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -47,7 +47,8 @@ An item is exactly:
 ```json
 {
   "id": "…", "stage_id": "…", "version": "1", "etag": "\"opaque\"",
-  "candidate": {"id": "…", "full_name": "Ana Pérez"},
+  "candidate": {"id": "…", "full_name": "Ana Pérez", "kind": "organic"},
+  "added_by": null,
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
   "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
   "discard": null, "substate_id": null,
@@ -56,12 +57,23 @@ An item is exactly:
 }
 ```
 
-`source` is the closed enum `organic`. `version` is a decimal string for display,
+`source` is the closed enum `organic | manual`. `added_by` is always present:
+null for organic intake, or exactly `{id,name}` for the recruiter who added a
+manual participation. `candidate.kind` is always `organic | manual`: manual
+company records use their own ID and full name; reused user accounts retain their
+user ID/name and `kind:organic`, even with `source:manual`. `applied_at` is the
+intake date (display manual intake as “Ingreso manual”, never as an application).
+These origin fields are also present on detail and move/discard/recover/substate
+responses. Manual participation never appears in the candidate application list.
+
+ `version` is a decimal string for display,
 not a precondition clients construct. Participation tags are strong and
 domain-separated from draft/pipeline/other tags. The board itself has no ETag.
 Default stage IDs remain the deterministic cut-1 UUIDv5 identities.
-`profile` is the immutable application-time four-field snapshot (legacy rows:
-nulls/empty skills). Its `location` is null or the expanded five-key geo read shape
+For organic identities, `profile` is the immutable application-time four-field
+snapshot (legacy rows: nulls/empty skills). For company candidates, its location,
+skills, years of experience and education level are projected from the private
+company record; the geo read shape includes its stored postal code. Its `location` is null or the expanded five-key geo read shape
 (country/state/municipality `{id,name}`, `postal_code:null`, server label); G4 replaces
 city filtering with state/municipality. See [G4](geo-apply.md). `screening_answers` is exactly `[{question_id,option_id}]`,
 only single-choice answers from the frozen snapshots in stored answer order;
@@ -136,7 +148,8 @@ History entries are exactly `{kind, from_stage_id, to_stage_id, hire, departure,
 actor, at}` for `intake | move | recovery`. Discard entries additionally carry
 `reason`, `comment`, `candidate_message`; see the exact discriminated union in
 [pipeline-discard.md](pipeline-discard.md). `actor` is always
-`{kind: "candidate" | "recruiter", id, full_name}`. Intake's actor is the candidate,
+`{kind: "candidate" | "recruiter", id, full_name}`. Organic intake's actor is the candidate;
+manual intake's actor is the recruiter. For either intake,
 `from_stage_id` is null and both flags are false. Moves have recruiter actors.
 Names of stages come from current or retired board stages.
 Cut 6 adds a distinct `substate` history member with exactly
@@ -151,6 +164,10 @@ Screening uses the participation's frozen safe questions and answers, never curr
 questionnaire content. Open answers are `{text}`; choice answers are
 `{option_id,label}`. No score, answer key, correctness or evaluation flag is returned.
 CV removal from the candidate library does not remove a participation's version.
+Manual participations use the same authorized CV route and private storage adapter,
+but reference `company_candidate_cvs`; their `{id,name}` uses that row's ID and
+`file_name`, including when reusing an organic account. These files never enter
+the candidate's CV library or public APIs.
 The recruiter file route remains owner/principal scoped even when storage is
 unconfigured; an authorized existing participation then receives
 `503 cv_storage_unavailable`. Storage keys and paths are never returned.

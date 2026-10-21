@@ -41,7 +41,7 @@ func TestMovementScreeningChoiceSnapshotNoScoring(t *testing.T) {
 	}
 	// Cut 5 (§13.6) adds discard, comment and candidate_message, null unless discarded;
 	// cut 6 (§15.2) adds substate_id; §19 adds profile and screening_answers.
-	if len(out) != 16 || out["discard"] != nil || out["comment"] != nil || out["candidate_message"] != nil || out["substate_id"] != nil {
+	if len(out) != 17 || out["discard"] != nil || out["comment"] != nil || out["candidate_message"] != nil || out["substate_id"] != nil {
 		t.Fatal("detail keys drifted", string(raw))
 	}
 	screening := out["screening"].([]any)

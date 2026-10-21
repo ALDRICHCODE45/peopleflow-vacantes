@@ -75,6 +75,15 @@ type Person struct {
 	ID       uuid.UUID `json:"id"`
 	FullName string    `json:"full_name"`
 }
+type Candidate struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
+	Kind     string    `json:"kind"`
+}
+type AddedBy struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
 type CV struct {
 	ID   uuid.UUID `json:"id"`
 	Name string    `json:"name"`
@@ -92,7 +101,8 @@ type Item struct {
 	StageID          string            `json:"stage_id"`
 	Version          string            `json:"version"`
 	ETag             string            `json:"etag"`
-	Candidate        Person            `json:"candidate"`
+	Candidate        Candidate         `json:"candidate"`
+	AddedBy          *AddedBy          `json:"added_by"`
 	AppliedAt        time.Time         `json:"applied_at"`
 	Source           string            `json:"source"`
 	CV               CV                `json:"cv"`
