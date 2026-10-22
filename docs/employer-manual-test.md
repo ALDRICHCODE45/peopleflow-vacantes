@@ -723,3 +723,15 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     marco de empresa y de candidato es el mismo (card redondeada, tu cuenta al pie del menú,
     botón de tema redondo) y en el navbar público «Mi cuenta» muestra tus iniciales. Probalo en
     celular y en oscuro.
+87. **Pendientes menores: cuenta real, vacantes reales, teléfono y habilidades.** Frontend en
+    `feat/frontend-followups`, backend en `fix/profile-phone-validation` (sin migración). Como
+    empresa: el pie del menú lateral muestra tu nombre, tu correo y el nombre de tu empresa (ya
+    no «Tomás Ríos · Nexo Labs»); «Vacantes» lista solo las vacantes y borradores reales de tu
+    empresa, y los contadores de arriba salen solo de ellos. Como candidato, en «Perfil»:
+    «Contacto» tiene «Lada de país» + «Teléfono» como el ingreso manual; «55 1234» al guardar
+    marca «Escribe los 10 dígitos del teléfono en México.»; «55 1234 5678» con +52 se guarda
+    como `+525512345678`. Un teléfono viejo de 10 dígitos sin lada carga con «+52». En
+    «Educación», «Habilidades» ya no repite la etiqueta y explica cómo separarlas. En cualquier
+    idioma o ubicación ya elegidos, borrar el texto y salir del campo vuelve a mostrar el nombre
+    elegido. **Esperado:** todo eso, en celular y en oscuro (las iniciales del avatar del perfil
+    se leen en oscuro).
