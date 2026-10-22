@@ -165,6 +165,41 @@ func TestBuildProjectionGeographyCodesAndModeSuppression(t *testing.T) {
 	}
 }
 
+func TestBuildProjectionRequirementsProfile(t *testing.T) {
+	for _, fields := range []string{`{}`, `{"seniority":"semi_senior","languages":[{"code":"en","min_level":"B2"}],"min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true}`} {
+		draft, err := draftinput.DecodeCreateV2([]byte(`{"fields":` + fields + `}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := BuildProjection(draft.Fingerprint())
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		want := `{"languages":[],"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false}`
+		if fields != `{}` {
+			want = `{"languages":[{"code":"en","min_level":"B2"}],"min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true}`
+		}
+		var expected any
+		if err := json.Unmarshal([]byte(want), &expected); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got["requirements_profile"], expected) {
+			t.Fatalf("requirements_profile=%v want %s", got["requirements_profile"], want)
+		}
+		if fields != `{}` && got["seniority"] != "semi_senior" {
+			t.Fatal(got["seniority"])
+		}
+	}
+}
+
 func TestBuildProjectionRejectsInvalidPersistedDocument(t *testing.T) {
 	if _, err := BuildProjection([]byte(`{"schema_version":2,"fields":{}}`)); err == nil {
 		t.Fatal("invalid persisted document accepted")

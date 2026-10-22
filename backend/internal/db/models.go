@@ -489,4 +489,5 @@ type VacancyPublicProjection struct {
 	PostalCode            pgtype.Text        `json:"postal_code"`
 	RemoteScopeKind       pgtype.Text        `json:"remote_scope_kind"`
 	RemoteCountries       []string           `json:"remote_countries"`
+	RequirementsProfile   []byte             `json:"requirements_profile"`
 }

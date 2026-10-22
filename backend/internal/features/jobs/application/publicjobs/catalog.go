@@ -37,6 +37,7 @@ type LegacySalary struct {
 	Currency string  `json:"currency"`
 }
 type Item struct {
+	RequirementsProfile  RequirementsProfile         `json:"requirements_profile"`
 	ID                   uuid.UUID                   `json:"id"`
 	Source               string                      `json:"source"`
 	Title                string                      `json:"title"`

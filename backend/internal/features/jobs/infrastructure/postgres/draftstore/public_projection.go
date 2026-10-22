@@ -54,6 +54,10 @@ func writePublicProjection(ctx context.Context, tx pgx.Tx, record draftRecord, a
 	if err != nil {
 		return err
 	}
+	profile, err := json.Marshal(p.RequirementsProfile)
+	if err != nil {
+		return fmt.Errorf("encode public requirements profile: %w", err)
+	}
 	benefits, err := json.Marshal(p.Benefits)
 	if err != nil {
 		return fmt.Errorf("encode public benefits: %w", err)
@@ -85,7 +89,7 @@ func writePublicProjection(ctx context.Context, tx pgx.Tx, record draftRecord, a
 		CountryCode: optional(country), StateCode: optional(state), MunicipalityCode: optional(municipality), PostalCode: optional(postal), RemoteScopeKind: optional(scope), RemoteCountries: countries,
 		WorkMode: *p.WorkMode, WorkSchedule: *p.WorkSchedule, ContractType: *p.ContractType, ProfessionalArea: *p.ProfessionalArea,
 		Seniority: text(p.Seniority), RequiredRequirements: text(p.Requirements.Required), PreferredRequirements: text(p.Requirements.Preferred),
-		Skills: p.Skills, ScreeningQuestions: int32(p.ScreeningQuestions),
+		Skills: p.Skills, ScreeningQuestions: int32(p.ScreeningQuestions), RequirementsProfile: profile,
 		Benefits: benefits, Compensation: compensation, PublishedAt: pgtype.Timestamptz{Time: at, Valid: true}, SourceDraftVersion: record.version,
 	})
 	if err != nil {

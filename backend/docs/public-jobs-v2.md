@@ -98,7 +98,7 @@ legacy jobs also require `deleted_at IS NULL`.
 
 ## Exact shared item
 
-List items contain exactly these 24 keys. Detail includes them unchanged:
+List items contain exactly these 25 keys. Detail includes them unchanged:
 
 ```json
 {
@@ -113,7 +113,8 @@ List items contain exactly these 24 keys. Detail includes them unchanged:
   "work_schedule": "full_time",
   "contract_type": "indefinite",
   "professional_area": "technology_systems",
-  "seniority": "mid",
+  "seniority": "semi_senior",
+  "requirements_profile": {"languages":[{"code":"en","min_level":"B2"}],"min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true},
   "legacy_employment_type": null,
   "compensation": {"mode":"range","amount":null,"min":"30000.00","max":"40000.00","currency":"MXN","pay_period":"monthly","basis":"gross"},
   "legacy_salary": null,
@@ -140,8 +141,19 @@ List items contain exactly these 24 keys. Detail includes them unchanged:
 - `remote_scope`: null unless a remote vacancy; `{kind:"anywhere"}` or
   `{kind:"countries",countries:[{id,name}]}` in submitted order. Legacy is null.
   See [geo-vacancy.md](geo-vacancy.md) for G2's exact contract and migration.
-- `seniority`: `intern | junior | mid | senior | lead`, never null for legacy;
-  nullable for vacancies (optional at publication).
+- `seniority`: `intern | junior | semi_senior | senior | lead | manager | director`,
+  nullable for vacancies (optional at publication). Legacy `mid` maps to
+  `semi_senior`; every other legacy literal is unchanged.
+- `requirements_profile`: always an object with exactly `languages`,
+  `min_years_of_experience`, `min_education_level`, `accepts_in_progress_education`.
+  Languages are an ordered array (never null) of exactly `{code,min_level}`;
+  codes come from the language catalog and levels are `A1|A2|B1|B2|C1|C2|native`.
+  Minimum years is a canonical decimal string in 0–60 or null (e.g. `"1.5"`,
+  `"2"`). Minimum education is `secondary|high_school|technical|tsu|bachelor|specialty|master|phd`
+  or null; accepting ongoing education is boolean. Legacy always returns
+  `{"languages":[],"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false}`.
+  Vacancy values come only from the published projection. These requirements
+  inform; they do not reject applications. Public profile filters are deferred to H5.
 - Legacy: `work_schedule`, `contract_type`, `professional_area`, `compensation`
   are null. `legacy_employment_type` preserves the original value.
 - Vacancy: `legacy_employment_type` and `legacy_salary` are null.
@@ -188,7 +200,7 @@ state, discard reason or answer is serialized.
 
 ## Detail
 
-`GET /v2/jobs/{id}` → `200` with the shared shape plus exactly five keys (29 total):
+`GET /v2/jobs/{id}` → `200` with the shared shape plus exactly five keys (30 total):
 
 | Key | Vacancy | Legacy |
 | --- | --- | --- |
@@ -259,6 +271,19 @@ remain visible with null geography; edits must satisfy mode-dependent readiness.
 Draft string locations are cleared, remote scope defaults to null, and draft
 versions advance. See [G2 migration and test map](geo-vacancy.md).
 
+Migration `00042_public_requirements_profile.sql` adds checked, NOT NULL JSONB
+without a default. It backfills every projection from its canonical BYTEA draft,
+rejecting corrupt or ambiguous sources atomically. Historical objects preserved
+by 00031/00041 (bare objects, schema markers, schema-1 and partial envelopes)
+remain supported: missing requirement keys or old-shape languages produce the
+entire empty profile, rather than inferred partial minima. Complete modern
+requirements are validated and copied regardless of the historical schema marker.
+Only selected requirement values become JSONB, so escaped NUL and literal
+NUL-marker text in unrelated draft fields remain valid.
+Publish and published saves update the profile in the existing transaction.
+Down removes only the derived column and its validation function; source drafts
+remain untouched, and dependency guards prevent cascading removal.
+
 ## Test-to-contract map
 
 Paths below are relative to `backend/`.
@@ -266,8 +291,12 @@ Paths below are relative to `backend/`.
 | Test | §10 rules/effects |
 | --- | --- |
 | `application/publicjobs/projection_test.go` | §10.2 VAC-4 allowlist; shared plain derivation; §10.3 fixed/range/hidden/incomplete compensation and canonical decimals; rejects invalid persisted source |
+| `application/publicjobs/projection_test.go` — `TestBuildProjectionRequirementsProfile` | H3b exact requirement keys, populated/default values and new seniority vocabulary |
+| `cmd/api/public_requirements_profile_integration_test.go` — `TestPublicRequirementsProfileListDetailAndPublishedSave` | H3b exact list/detail shape per source; legacy defaults and mid mapping, other literals unchanged; published saves clear and restore requirements with source-version sync |
+| `db/migrations/public_requirements_historical_integration_test.go` — `TestMigration00042PublicRequirementsHistoricalFixtureDatabase` | H3b compatibility with 00025/00031/00041 fixture shapes after actual 00041 rewrite; bare/schema-1/partial envelopes, each missing requirement key, old languages, NUL/marker strings; all projections backfilled without source mutation |
+| `db/migrations/public_requirements_profile*_test.go` — `TestMigration00042PublicRequirementsDefinition`, `TestMigration00042PublicRequirementsBackfillChecksAndDown` | H3b populated/empty backfill, escaped NUL outside requirements, validation checks, source preservation, clean Down, corrupt/duplicate source atomic rollback |
 | `application/publication/published_write_test.go` | §10.2 stable missing-code order, only past-date exemption, input unchanged |
-| `application/publicjobs/catalog_test.go` | §10.3 strict params/default/boundaries; last-visible cursor across sources, exact rank/time, filter binding, limit+1; exact 24/29-key shape and nulls |
+| `application/publicjobs/catalog_test.go` | §10.3 strict params/default/boundaries; last-visible cursor across sources, exact rank/time, filter binding, limit+1; exact 25/30-key shape and nulls |
 | `infrastructure/http/publicJobsHandler_test.go` | §10.3 anonymous 200/400/404/500; exact envelopes; no ETag/no-store; invalid params do not reach reader; no raw internal error |
 | `application/publicjobs/salary_filter_test.go` | SAL-8 salary keys: accepted one-sided/two-sided/zero/max amounts and every unit, each `invalid_filter` case, normalized cursor binding, unchanged binding without salary keys |
 | `cmd/api/public_salary_search_integration_test.go` | SAL-5..SAL-8 over real SQL: the SAL-7 example, inclusive bounds, one-sided bounds, exact cents, identical units, hidden/absent/legacy excluded only while active, HTTP `invalid_filter`, paging with equivalent amounts and rejected changed or dropped filters |
@@ -298,7 +327,8 @@ From `backend/`:
 go tool sqlc generate
 go test ./internal/features/jobs/application/publicjobs ./internal/features/jobs/application/publication ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/postgres/publicjobs ./internal/features/jobs/infrastructure/http ./cmd/api ./db/migrations -count=1
 go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run 'TestPublicProjection|TestPublicJobsFlow|TestPublication' -count=1 -v
-go test -tags=integration ./cmd/api -run TestPublicListingEnrichment -count=1 -v
+go test -tags=integration ./cmd/api -run 'TestPublicRequirementsProfile|TestPublicListingEnrichment' -count=1 -v
+go test -tags=integration ./db/migrations -run TestMigration00042 -count=1 -v
 go test -tags=integration ./cmd/api -run TestPublicSalarySearchFilters -count=1 -v
 go test -tags=integration ./db/migrations -run 'TestMigration00020|TestMigration00025' -count=1 -v
 go test ./... -count=1

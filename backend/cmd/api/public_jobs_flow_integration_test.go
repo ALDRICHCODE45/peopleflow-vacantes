@@ -76,7 +76,7 @@ func publicFlowLocation(t *testing.T, h *draftFlowHarness, label string) map[str
 
 func publicFlowAssertKeys(t *testing.T, item map[string]any, detail bool) {
 	t.Helper()
-	want := []string{"id", "source", "title", "company", "location", "location_label", "remote_scope", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
+	want := []string{"id", "source", "title", "company", "location", "location_label", "remote_scope", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions", "requirements_profile"}
 	if detail {
 		want = append(want, "description", "description_plain", "requirements", "benefits", "skills")
 	}

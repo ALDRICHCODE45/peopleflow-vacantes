@@ -9,6 +9,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
 )
 
 type Compensation struct {
@@ -24,6 +25,12 @@ type Requirements struct {
 	Required  *string `json:"required"`
 	Preferred *string `json:"preferred"`
 }
+type RequirementsProfile struct {
+	Languages                  []languages.Requirement `json:"languages"`
+	MinYearsOfExperience       *string                 `json:"min_years_of_experience"`
+	MinEducationLevel          *string                 `json:"min_education_level"`
+	AcceptsInProgressEducation bool                    `json:"accepts_in_progress_education"`
+}
 type Benefits struct {
 	Predefined []string `json:"predefined"`
 	Custom     []string `json:"custom"`
@@ -32,21 +39,22 @@ type Benefits struct {
 // Projection is an allowlist, never a copy of the private fields object.
 // Identity, publication time and source version are supplied by the transaction.
 type Projection struct {
-	Title              string                  `json:"title"`
-	Description        json.RawMessage         `json:"description"`
-	DescriptionPlain   string                  `json:"description_plain"`
-	Location           *vacancygeo.Location    `json:"location"`
-	RemoteScope        *vacancygeo.RemoteScope `json:"remote_scope"`
-	WorkMode           *string                 `json:"work_mode"`
-	WorkSchedule       *string                 `json:"work_schedule"`
-	ContractType       *string                 `json:"contract_type"`
-	ProfessionalArea   *string                 `json:"professional_area"`
-	Seniority          *string                 `json:"seniority"`
-	Requirements       Requirements            `json:"requirements"`
-	Benefits           Benefits                `json:"benefits"`
-	Compensation       *Compensation           `json:"compensation"`
-	Skills             []string                `json:"skills"`
-	ScreeningQuestions int                     `json:"screening_questions"`
+	Title               string                  `json:"title"`
+	Description         json.RawMessage         `json:"description"`
+	DescriptionPlain    string                  `json:"description_plain"`
+	Location            *vacancygeo.Location    `json:"location"`
+	RemoteScope         *vacancygeo.RemoteScope `json:"remote_scope"`
+	WorkMode            *string                 `json:"work_mode"`
+	WorkSchedule        *string                 `json:"work_schedule"`
+	ContractType        *string                 `json:"contract_type"`
+	ProfessionalArea    *string                 `json:"professional_area"`
+	Seniority           *string                 `json:"seniority"`
+	RequirementsProfile RequirementsProfile     `json:"requirements_profile"`
+	Requirements        Requirements            `json:"requirements"`
+	Benefits            Benefits                `json:"benefits"`
+	Compensation        *Compensation           `json:"compensation"`
+	Skills              []string                `json:"skills"`
+	ScreeningQuestions  int                     `json:"screening_questions"`
 }
 
 // BuildProjection accepts only a validated complete persisted v2 document.
@@ -78,6 +86,9 @@ func BuildProjection(stored []byte) (Projection, error) {
 	}
 	raw, err := json.Marshal(fields)
 	if err != nil {
+		return Projection{}, err
+	}
+	if err := json.Unmarshal(raw, &out.RequirementsProfile); err != nil {
 		return Projection{}, err
 	}
 	// The private representation stores requirements/benefits under different keys.

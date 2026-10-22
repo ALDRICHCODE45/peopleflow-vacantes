@@ -207,11 +207,11 @@ func TestPublicJobsHTTPStrictAnonymousAndCacheHeaders(t *testing.T) {
 					t.Fatal("list envelope")
 				}
 				item := body["items"].([]any)[0].(map[string]any)
-				if len(item) != 24 {
+				if len(item) != 25 {
 					t.Fatalf("list keys=%v", item)
 				}
 			}
-			if tc.name == "detail" && len(body) != 29 {
+			if tc.name == "detail" && len(body) != 30 {
 				t.Fatalf("detail keys=%v", body)
 			}
 		})

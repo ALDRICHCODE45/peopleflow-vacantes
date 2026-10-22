@@ -11,7 +11,9 @@ WITH catalog AS (
           'company',jsonb_build_object('id',c.id,'name',c.name,'logo_url',c.logo_url),
           'location',NULL,'location_label',j.location,'remote_scope',NULL,'work_mode',j.work_mode,
           'work_schedule',NULL,'contract_type',NULL,'professional_area',NULL,
-          'seniority',j.seniority,'legacy_employment_type',j.employment_type,
+          'seniority',CASE WHEN j.seniority='mid' THEN 'semi_senior' ELSE j.seniority END,
+          'requirements_profile',jsonb_build_object('languages','[]'::jsonb,'min_years_of_experience',NULL,'min_education_level',NULL,'accepts_in_progress_education',false),
+          'legacy_employment_type',j.employment_type,
           'compensation',NULL,
           'legacy_salary',CASE WHEN j.salary_min IS NULL AND j.salary_max IS NULL THEN NULL
             ELSE jsonb_build_object('min',CASE WHEN j.salary_min IS NULL THEN NULL ELSE j.salary_min::text || '.00' END,
@@ -53,6 +55,7 @@ WITH catalog AS (
           'work_mode',p.work_mode,
           'work_schedule',p.work_schedule,'contract_type',p.contract_type,
           'professional_area',p.professional_area,'seniority',p.seniority,
+          'requirements_profile',p.requirements_profile,
           'legacy_employment_type',NULL,'compensation',p.compensation,'legacy_salary',NULL,
           'published_at',p.published_at,'description',p.description,
           'description_plain',p.description_plain,
