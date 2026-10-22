@@ -166,7 +166,7 @@ func TestGeoSnapshotMissingCatalogReferenceFailsClosed(t *testing.T) {
 		`{"country":"MX","state":"99","municipality":null}`,
 		`{"country":"MX","state":"14","municipality":"14999"}`,
 	} {
-		raw := `{"location":` + location + `,"skills":[],"years_of_experience":null,"education_level":null}`
+		raw := `{"location":` + location + `,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]}`
 		if _, err := m.pool.Exec(context.Background(), `UPDATE process_participations SET profile_snapshot=$2 WHERE id=$1`, m.item.ID, []byte(raw)); err != nil {
 			t.Fatal(err)
 		}
@@ -223,7 +223,7 @@ func TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire(t *testing.T) {
 			if err = m.pool.QueryRow(ctx, `SELECT profile_snapshot FROM process_participations WHERE id=$1`, submitted.ID).Scan(&snapshot); err != nil {
 				t.Fatal(err)
 			}
-			stored := movementKeys(t, movementObject(t, snapshot), "location", "skills", "years_of_experience", "education_level")
+			stored := movementKeys(t, movementObject(t, snapshot), "location", "skills", "years_of_experience", "seniority", "education", "languages")
 			wantCodes := map[string]any{"country": tc.country, "state": tc.state, "municipality": tc.municipality}
 			if !reflect.DeepEqual(stored["location"], wantCodes) {
 				t.Fatal(stored)
@@ -233,14 +233,23 @@ func TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire(t *testing.T) {
 			if _, err = m.pool.Exec(ctx, `UPDATE candidate_profiles SET country_code='US',state_code=NULL,municipality_code=NULL,skills=ARRAY['Rust'] WHERE user_id=$1`, candidate); err != nil {
 				t.Fatal(err)
 			}
-			wantLocation := map[string]any{"country": map[string]any{"id": tc.country, "name": tc.countryName}, "state": nil, "municipality": nil, "postal_code": nil, "label": tc.label}
+			// Other packages' fixtures may rename shared catalog countries (e.g. CO);
+			// read the current catalog name instead of assuming the seeded one.
+			countryName, label := tc.countryName, tc.label
+			if tc.state == nil {
+				if err = m.pool.QueryRow(ctx, `SELECT name_es FROM geo_countries WHERE code=$1`, tc.country).Scan(&countryName); err != nil {
+					t.Fatal(err)
+				}
+				label = countryName
+			}
+			wantLocation := map[string]any{"country": map[string]any{"id": tc.country, "name": countryName}, "state": nil, "municipality": nil, "postal_code": nil, "label": label}
 			if tc.state != nil {
 				wantLocation["state"] = map[string]any{"id": tc.state, "name": "Jalisco"}
 			}
 			if tc.municipality != nil {
 				wantLocation["municipality"] = map[string]any{"id": tc.municipality, "name": "Guadalajara"}
 			}
-			want := map[string]any{"location": wantLocation, "skills": []any{"Go", "SQL", "Go"}, "years_of_experience": float64(0), "education_level": "master"}
+			want := map[string]any{"location": wantLocation, "skills": []any{"Go", "SQL", "Go"}, "years_of_experience": "0", "seniority": nil, "education": map[string]any{"highest_completed": "master", "in_progress": nil}, "languages": []any{}}
 			detail := movementRequest(t, m, "GET", m.vacancy, submitted.ID, "", "", "")
 			if detail.Code != 200 {
 				t.Fatal(detail.Code, detail.Body.String())

@@ -176,11 +176,15 @@ Manual file-first writes must use the matching shared advisory lock.
 Participation identity is XOR
 candidate_id/company_candidate_id, source is manual, added_by is the recruiter,
 version is 1, and profile snapshot comes from the selected record.
-Until H4, both stored snapshots and live manual board profiles retain exactly
-`location`, `skills`, `years_of_experience`, `education_level`. Years are truncated
-to an integer; education is the highest completed record among the four legacy
-levels (`high_school`, `bachelor`, `master`, `phd`), or null. In-progress studies
-never count. New seniority/languages are persisted but not added to this snapshot. Intake history
+After migration 00043 (H4), stored snapshots and live manual board profiles contain
+exactly `location`, `skills`, `years_of_experience`, `seniority`, `education`,
+`languages`. Years remain decimal strings; education is
+`{highest_completed,in_progress}`, each the highest level among studies with that
+status (all eight levels, null when absent). In-progress levels never count as
+completed; paused/incomplete studies contribute to neither summary.
+Languages are `{code,level}` pairs ordered by code. Reused organic identities freeze
+the selected user's harmonized profile; company candidates remain live on reads.
+See [board filter data](board-filter-data.md). Intake history
 has the recruiter actor and null from-stage. Record delivery using the existing
 move path when entering at or beyond the cutoff. Emit
 `VacancyCandidateAddedManually` without PII metadata. No notification, account
@@ -203,9 +207,9 @@ H2 coverage:
 - `TestManualHarmonizationContract`, `TestManualEducationProfileParity`,
   `TestManualEducationShapeAndCount`, `TestManualYearsSeniorityAndLanguagesParity`:
   exact shape, six required study keys, enum/value boundaries and profile parity.
-- `TestManualLegacyProfileProjection`: integer truncation and highest completed
-  legacy education, including null when no legacy qualification exists.
-- `TestManualHarmonizationPersistenceReuseAndLegacySnapshot` (integration):
+- `TestManualHarmonizedEducation`: highest completed education across all eight
+  levels, highest in-progress level, and paused/incomplete exclusions.
+- `TestManualHarmonizationPersistenceReuseAndSnapshot` (integration):
   persisted decimal/seniority/education/languages, manual reuse, live board
   projection and 201/GET equality.
 - Existing create/reuse/read and HTTP-flow integration fixtures use harmonized

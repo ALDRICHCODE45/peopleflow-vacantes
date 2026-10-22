@@ -11,7 +11,7 @@ import (
 )
 
 func TestFilterDataOnlyOnBoardAndDetailNotMutations(t *testing.T) {
-	item := app.Item{Profile: app.Profile{Location: &geo.ReadLocation{Country: geo.LocationReference{ID: "MX", Name: "México"}, State: &geo.LocationReference{ID: "14", Name: "Jalisco"}, Municipality: &geo.LocationReference{ID: "14039", Name: "Guadalajara"}, Label: "Guadalajara, Jalisco"}, Skills: []string{"PRIVATE SKILL"}}, ScreeningAnswers: []app.ScreeningAnswer{{QuestionID: "q", OptionID: "o"}}}
+	item := app.Item{Profile: app.Profile{Location: &geo.ReadLocation{Country: geo.LocationReference{ID: "MX", Name: "México"}, State: &geo.LocationReference{ID: "14", Name: "Jalisco"}, Municipality: &geo.LocationReference{ID: "14039", Name: "Guadalajara"}, Label: "Guadalajara, Jalisco"}, Skills: []string{"PRIVATE SKILL"}, Languages: []intake.SnapshotLanguage{}}, ScreeningAnswers: []app.ScreeningAnswer{{QuestionID: "q", OptionID: "o"}}}
 	for _, tc := range []struct {
 		name  string
 		value any
@@ -31,7 +31,7 @@ func TestFilterDataOnlyOnBoardAndDetailNotMutations(t *testing.T) {
 			if tc.want {
 				want := map[string]any{
 					"location": map[string]any{"country": map[string]any{"id": "MX", "name": "México"}, "state": map[string]any{"id": "14", "name": "Jalisco"}, "municipality": map[string]any{"id": "14039", "name": "Guadalajara"}, "postal_code": nil, "label": "Guadalajara, Jalisco"},
-					"skills":   []any{"PRIVATE SKILL"}, "years_of_experience": nil, "education_level": nil,
+					"skills":   []any{"PRIVATE SKILL"}, "years_of_experience": nil, "seniority": nil, "education": map[string]any{"highest_completed": nil, "in_progress": nil}, "languages": []any{},
 				}
 				if !reflect.DeepEqual(obj["profile"], want) {
 					t.Fatal(obj["profile"])

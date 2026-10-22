@@ -52,7 +52,7 @@ An item is exactly:
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
   "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
   "discard": null, "substate_id": null,
-  "profile": {"location": null, "skills": [], "years_of_experience": null, "education_level": null},
+  "profile": {"location": null, "skills": [], "years_of_experience": null, "seniority": null, "education": {"highest_completed": null, "in_progress": null}, "languages": []},
   "screening_answers": []
 }
 ```
@@ -70,9 +70,13 @@ responses. Manual participation never appears in the candidate application list.
 not a precondition clients construct. Participation tags are strong and
 domain-separated from draft/pipeline/other tags. The board itself has no ETag.
 Default stage IDs remain the deterministic cut-1 UUIDv5 identities.
-For organic identities, `profile` is the immutable application-time four-field
-snapshot (legacy rows: nulls/empty skills). For company candidates, its location,
-skills, years of experience and education level are projected from the private
+For organic identities, `profile` is the immutable application-time six-field
+snapshot (legacy SQL NULL rows use the empty profile above). Years are decimal
+strings or null; education carries the highest completed and highest in-progress
+levels separately (each nullable, never boolean);
+seniority is nullable and languages are code/level pairs. See
+[board filter data](board-filter-data.md) for H4 filter semantics and migration 00043.
+For company candidates, these fields are projected live from the private
 company record; the geo read shape includes its stored postal code. Its `location` is null or the expanded five-key geo read shape
 (country/state/municipality `{id,name}`, `postal_code:null`, server label); G4 replaces
 city filtering with state/municipality. See [G4](geo-apply.md). `screening_answers` is exactly `[{question_id,option_id}]`,

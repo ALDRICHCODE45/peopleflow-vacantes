@@ -20,11 +20,13 @@ func TestProfileSnapshotNormalization(t *testing.T) {
 		{"municipality", &app.SnapshotLocation{Country: "MX", State: str("14"), Municipality: str("14039")}, map[string]any{"country": "MX", "state": "14", "municipality": "14039"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			years, education := 0, "bachelor"
+			years, education, seniority := "1.5", "bachelor", "junior"
+			languages := []app.SnapshotLanguage{{Code: "en", Level: "B2"}}
 			skills := []string{" Go ", "SQL", "Go"}
-			got := app.SnapshotProfile(tc.location, skills, &years, &education)
+			got := app.SnapshotProfile(tc.location, skills, &years, &seniority, app.SnapshotEducation{HighestCompleted: &education, InProgress: &education}, languages)
 			skills[0] = "edited"
-			years, education = 9, "phd"
+			years, education, seniority = "9", "phd", "senior"
+			languages[0].Level = "native"
 			if tc.location != nil {
 				tc.location.Country = "US"
 				if tc.location.State != nil {
@@ -42,7 +44,7 @@ func TestProfileSnapshotNormalization(t *testing.T) {
 			if err = json.Unmarshal(raw, &obj); err != nil {
 				t.Fatal(err)
 			}
-			want := map[string]any{"location": tc.want, "skills": []any{" Go ", "SQL", "Go"}, "years_of_experience": float64(0), "education_level": "bachelor"}
+			want := map[string]any{"location": tc.want, "skills": []any{" Go ", "SQL", "Go"}, "years_of_experience": "1.5", "seniority": "junior", "education": map[string]any{"highest_completed": "bachelor", "in_progress": "bachelor"}, "languages": []any{map[string]any{"code": "en", "level": "B2"}}}
 			if !reflect.DeepEqual(obj, want) {
 				t.Fatalf("got %s", raw)
 			}

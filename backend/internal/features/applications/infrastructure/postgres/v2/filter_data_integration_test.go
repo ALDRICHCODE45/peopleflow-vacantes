@@ -30,7 +30,7 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			f := setup(t)
 			ctx := context.Background()
 			if tc.profile {
-				if _, err := f.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,skills,years_of_experience) VALUES($1,ARRAY['Go','SQL','Go'],5.9) RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'master','completed' FROM p`, f.actor); err != nil {
+				if _, err := f.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,skills,years_of_experience,seniority) VALUES($1,ARRAY['Go','SQL','Go'],5.9,'semi_senior') RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'master','completed' FROM p`, f.actor); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() {
@@ -38,6 +38,12 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 						t.Error("profile fixture cleanup failed")
 					}
 				})
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_educations(user_id,position,level,status) VALUES($1,1,'phd','in_progress'),($1,2,'specialty','completed'),($1,3,'technical','in_progress'),($1,4,'phd','paused')`, f.actor); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_languages(user_id,code,level) VALUES($1,'es','native'),($1,'en','B2')`, f.actor); err != nil {
+					t.Fatal(err)
+				}
 			}
 			cv, err := f.library.Upload(ctx, f.sub, "CV", "cv.pdf", []byte("%PDF-1"))
 			if err != nil {
@@ -83,11 +89,13 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			before := read()
 			obj := movementObject(t, before)
 			// A profile may omit location without losing its other data.
-			want := map[string]any{"location": nil, "skills": []any{}, "years_of_experience": nil, "education_level": nil}
+			want := map[string]any{"location": nil, "skills": []any{}, "years_of_experience": nil, "seniority": nil, "education": map[string]any{"highest_completed": nil, "in_progress": nil}, "languages": []any{}}
 			if tc.profile {
 				want["skills"] = []any{"Go", "SQL", "Go"}
-				want["years_of_experience"] = float64(5)
-				want["education_level"] = "master"
+				want["years_of_experience"] = "5.9"
+				want["seniority"] = "semi_senior"
+				want["education"] = map[string]any{"highest_completed": "master", "in_progress": "phd"}
+				want["languages"] = []any{map[string]any{"code": "en", "level": "B2"}, map[string]any{"code": "es", "level": "native"}}
 			}
 			if !reflect.DeepEqual(obj, want) {
 				t.Fatal("snapshot does not match normalized allowlist")
@@ -154,8 +162,9 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 	root := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters", "lifecycle")
 	item := root["participations"].([]any)[0].(map[string]any)
 	movementItemKeys(t, item)
-	profile := movementKeys(t, item["profile"], "location", "skills", "years_of_experience", "education_level")
-	if profile["location"] != nil || profile["years_of_experience"] != nil || profile["education_level"] != nil || len(profile["skills"].([]any)) != 0 {
+	profile := movementKeys(t, item["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
+	education := movementKeys(t, profile["education"], "highest_completed", "in_progress")
+	if profile["location"] != nil || profile["years_of_experience"] != nil || profile["seniority"] != nil || education["highest_completed"] != nil || education["in_progress"] != nil || len(profile["languages"].([]any)) != 0 || len(profile["skills"].([]any)) != 0 {
 		t.Fatal("legacy profile must be no-data")
 	}
 	gotAnswers := item["screening_answers"].([]any)
@@ -233,9 +242,9 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 		if r.Code != 200 {
 			t.Fatal(r.Code)
 		}
-		return movementKeys(t, movementObject(t, r.Body.Bytes())["profile"], "location", "skills", "years_of_experience", "education_level")
+		return movementKeys(t, movementObject(t, r.Body.Bytes())["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
 	}
-	expected := map[string]any{"location": nil, "skills": []any{"Go", "SQL"}, "years_of_experience": float64(0), "education_level": "bachelor"}
+	expected := map[string]any{"location": nil, "skills": []any{"Go", "SQL"}, "years_of_experience": "0", "seniority": nil, "education": map[string]any{"highest_completed": "bachelor", "in_progress": nil}, "languages": []any{}}
 	if !reflect.DeepEqual(readProfile(), expected) {
 		t.Fatal("detail lost applied profile")
 	}

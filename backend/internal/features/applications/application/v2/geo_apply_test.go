@@ -8,11 +8,11 @@ import (
 )
 
 func TestGeoSnapshotMissingProfileWire(t *testing.T) {
-	raw, err := json.Marshal(app.SnapshotProfile(nil, nil, nil, nil))
+	raw, err := json.Marshal(app.SnapshotProfile(nil, nil, nil, nil, app.SnapshotEducation{}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(raw) != `{"location":null,"skills":[],"years_of_experience":null,"education_level":null}` {
+	if string(raw) != `{"location":null,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]}` {
 		t.Fatalf("snapshot: %s", raw)
 	}
 }

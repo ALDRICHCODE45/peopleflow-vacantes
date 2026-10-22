@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
@@ -274,11 +275,14 @@ func TestManualCreateExistingReuseAndAlreadyInProcess(t *testing.T) {
 			identity := f.actor
 			if kind == "organic" {
 				ctx := context.Background()
-				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,years_of_experience) VALUES($1,7.9)`, identity); err != nil {
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,seniority) VALUES($1,'{}',7.9,'senior')`, identity); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() { _, _ = f.pool.Exec(ctx, `DELETE FROM candidate_profiles WHERE user_id=$1`, identity) })
-				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_educations(user_id,position,level,status) VALUES($1,0,'bachelor','completed'),($1,1,'master','completed'),($1,2,'phd','in_progress'),($1,3,'specialty','completed')`, identity); err != nil {
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_educations(user_id,position,level,status) VALUES($1,0,'bachelor','completed'),($1,1,'master','completed'),($1,2,'phd','in_progress'),($1,3,'specialty','completed'),($1,4,'technical','in_progress'),($1,5,'phd','incomplete')`, identity); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_languages(user_id,code,level) VALUES($1,'es','native'),($1,'en','B2')`, identity); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -308,8 +312,10 @@ func TestManualCreateExistingReuseAndAlreadyInProcess(t *testing.T) {
 				if err := f.pool.QueryRow(context.Background(), `SELECT profile_snapshot FROM process_participations WHERE id=$1`, item.ID).Scan(&raw); err != nil {
 					t.Fatal(err)
 				}
-				snapshot := movementKeys(t, movementObject(t, raw), "location", "skills", "years_of_experience", "education_level")
-				if snapshot["years_of_experience"] != float64(7) || snapshot["education_level"] != "master" {
+				snapshot := movementKeys(t, movementObject(t, raw), "location", "skills", "years_of_experience", "seniority", "education", "languages")
+				education := movementKeys(t, snapshot["education"], "highest_completed", "in_progress")
+				wantLanguages := []any{map[string]any{"code": "en", "level": "B2"}, map[string]any{"code": "es", "level": "native"}}
+				if snapshot["years_of_experience"] != "7.9" || snapshot["seniority"] != "senior" || education["highest_completed"] != "master" || education["in_progress"] != "phd" || !reflect.DeepEqual(snapshot["languages"], wantLanguages) {
 					t.Fatal(snapshot)
 				}
 			}

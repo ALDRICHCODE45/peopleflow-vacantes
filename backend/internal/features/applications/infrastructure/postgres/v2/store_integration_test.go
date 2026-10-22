@@ -220,7 +220,7 @@ func setup(t *testing.T) fixture {
 		cleanupCtx := context.Background()
 		tx, err := pool.Begin(cleanupCtx)
 		if err != nil {
-			t.Error("fixture cleanup could not begin")
+			t.Errorf("fixture cleanup could not begin: %v", err)
 			return
 		}
 		defer tx.Rollback(cleanupCtx)
@@ -229,6 +229,10 @@ func setup(t *testing.T) fixture {
 			`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes v ON v.id=p.process_id WHERE v.company_id=$1)`,
 			`DELETE FROM participation_idempotency WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM process_participations WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+			`DELETE FROM company_candidate_cvs WHERE company_id=$1`,
+			`DELETE FROM company_candidate_languages WHERE company_candidate_id IN (SELECT id FROM company_candidates WHERE company_id=$1)`,
+			`DELETE FROM company_candidate_educations WHERE company_candidate_id IN (SELECT id FROM company_candidates WHERE company_id=$1)`,
+			`DELETE FROM company_candidates WHERE company_id=$1`,
 			`DELETE FROM process_delivery_fulfillments WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM audit_events WHERE event_type='VacancyDeliveryFulfilled' AND entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
@@ -246,16 +250,22 @@ func setup(t *testing.T) fixture {
 		}
 		for _, table := range []string{"candidate_cv_library", "candidate_cv_versions"} {
 			if _, err = tx.Exec(cleanupCtx, `DELETE FROM `+table+` WHERE candidate_id IN ($1,$2)`, f.actor, otherID); err != nil {
-				t.Error("CV fixture cleanup failed")
+				t.Errorf("CV fixture cleanup failed: %v", err)
+				return
+			}
+		}
+		for _, table := range []string{"candidate_languages", "candidate_educations", "candidate_profiles"} {
+			if _, err = tx.Exec(cleanupCtx, `DELETE FROM `+table+` WHERE user_id IN ($1,$2,$3)`, f.actor, otherID, recruiter); err != nil {
+				t.Errorf("profile fixture cleanup %s failed: %v", table, err)
 				return
 			}
 		}
 		if _, err = tx.Exec(cleanupCtx, `DELETE FROM users WHERE id IN ($1,$2,$3)`, f.actor, otherID, recruiter); err != nil {
-			t.Error("user fixture cleanup failed")
+			t.Errorf("user fixture cleanup failed: %v", err)
 			return
 		}
 		if err = tx.Commit(cleanupCtx); err != nil {
-			t.Error("fixture cleanup commit failed")
+			t.Errorf("fixture cleanup commit failed: %v", err)
 		}
 	})
 	exec(`INSERT INTO users(id,cognito_sub,email,full_name,user_type) VALUES($1,$2,$3,'Candidate','candidate'),($4,$5,$6,'Other','candidate'),($7,$8,$9,'Recruiter','recruiter')`, f.actor, f.sub, f.sub+"@example.test", otherID, f.other, f.other+"@example.test", recruiter, uuid.NewString(), uuid.NewString()+"@example.test")

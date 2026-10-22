@@ -130,7 +130,7 @@ func manualReadFixture(t *testing.T, reuse bool) movementFixture {
 			t.Fatal("reused identity/profile changed", detail)
 		}
 	} else {
-		if detail.Candidate.Kind != "manual" || detail.Candidate.ID != cc || detail.Candidate.FullName != "Manual Person" || detail.Profile.Location == nil || detail.Profile.Location.PostalCode == nil || *detail.Profile.Location.PostalCode != "44100" || detail.Profile.YearsOfExperience == nil || *detail.Profile.YearsOfExperience != 7 || detail.Profile.EducationLevel == nil || *detail.Profile.EducationLevel != "bachelor" || !reflect.DeepEqual(detail.Profile.Skills, []string{"Go"}) {
+		if detail.Candidate.Kind != "manual" || detail.Candidate.ID != cc || detail.Candidate.FullName != "Manual Person" || detail.Profile.Location == nil || detail.Profile.Location.PostalCode == nil || *detail.Profile.Location.PostalCode != "44100" || detail.Profile.YearsOfExperience == nil || *detail.Profile.YearsOfExperience != "7.9" || detail.Profile.Education.HighestCompleted == nil || *detail.Profile.Education.HighestCompleted != "bachelor" || detail.Profile.Education.InProgress == nil || *detail.Profile.Education.InProgress != "phd" || !reflect.DeepEqual(detail.Profile.Skills, []string{"Go"}) {
 			t.Fatalf("manual identity/profile: %+v", detail)
 		}
 	}

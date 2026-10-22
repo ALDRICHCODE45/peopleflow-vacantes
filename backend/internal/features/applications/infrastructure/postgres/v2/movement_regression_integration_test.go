@@ -101,7 +101,11 @@ func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	}
 	movementKeys(t, obj["cv"], "id", "name")
 	if !mutation {
-		profile := movementKeys(t, obj["profile"], "location", "skills", "years_of_experience", "education_level")
+		profile := movementKeys(t, obj["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
+		movementKeys(t, profile["education"], "highest_completed", "in_progress")
+		for _, language := range profile["languages"].([]any) {
+			movementKeys(t, language, "code", "level")
+		}
 		if profile["location"] != nil {
 			location := movementKeys(t, profile["location"], "country", "state", "municipality", "postal_code", "label")
 			if location["postal_code"] != nil {

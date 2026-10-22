@@ -11,10 +11,12 @@ import (
 
 // Profile is a recruiter-only read projection of the immutable code snapshot.
 type Profile struct {
-	Location          *geo.ReadLocation `json:"location"`
-	Skills            []string          `json:"skills"`
-	YearsOfExperience *int              `json:"years_of_experience"`
-	EducationLevel    *string           `json:"education_level"`
+	Location          *geo.ReadLocation         `json:"location"`
+	Skills            []string                  `json:"skills"`
+	YearsOfExperience *string                   `json:"years_of_experience"`
+	Seniority         *string                   `json:"seniority"`
+	Education         intake.SnapshotEducation  `json:"education"`
+	Languages         []intake.SnapshotLanguage `json:"languages"`
 }
 
 type ScreeningAnswer struct {

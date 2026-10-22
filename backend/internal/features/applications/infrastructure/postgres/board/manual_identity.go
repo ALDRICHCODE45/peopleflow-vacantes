@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
+	"slices"
 	"strings"
+
+	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
@@ -24,16 +27,21 @@ func manualIdentity(ctx context.Context, tx pgx.Tx, company, process uuid.UUID, 
 			return uuid.Nil, nil, &app.PossibleDuplicates{Matches: matches.Matches}
 		}
 		c := r.Candidate
-		profile, err := json.Marshal(map[string]any{"location": map[string]any{"country": c.Residence.Country, "state": manualNullable(c.Residence.State), "municipality": manualNullable(c.Residence.Municipality)}, "skills": c.Skills, "years_of_experience": manualLegacyYears(c.YearsOfExperience), "education_level": manualLegacyEducation(c.Education)})
+		spoken := make([]intake.SnapshotLanguage, 0, len(c.Languages))
+		for _, l := range c.Languages {
+			spoken = append(spoken, intake.SnapshotLanguage{Code: l.Code, Level: l.Level})
+		}
+		slices.SortFunc(spoken, func(a, b intake.SnapshotLanguage) int { return strings.Compare(a.Code, b.Code) })
+		profile, err := json.Marshal(intake.SnapshotProfile(&intake.SnapshotLocation{Country: c.Residence.Country, State: manualNullable(c.Residence.State), Municipality: manualNullable(c.Residence.Municipality)}, c.Skills, c.YearsOfExperience, c.Seniority, manualEducation(c.Education), spoken))
 		return uuid.New(), profile, err
 	}
 	identity := r.Existing.ID
 	var profile []byte
 	var err error
 	if r.Existing.Kind == "manual" {
-		err = tx.QueryRow(ctx, `SELECT jsonb_build_object('location',jsonb_build_object('country',country_code,'state',state_code,'municipality',municipality_code),'skills',skills,'years_of_experience',trunc(years_of_experience)::integer,'education_level',(SELECT level FROM company_candidate_educations e WHERE e.company_candidate_id=company_candidates.id AND e.status='completed' AND e.level IN ('high_school','bachelor','master','phd') ORDER BY CASE e.level WHEN 'phd' THEN 4 WHEN 'master' THEN 3 WHEN 'bachelor' THEN 2 ELSE 1 END DESC,e.position,e.id LIMIT 1)) FROM company_candidates WHERE company_id=$1 AND id=$2 FOR SHARE`, company, identity).Scan(&profile)
+		err = tx.QueryRow(ctx, `SELECT `+manualProfileSQL+` FROM company_candidates cc WHERE company_id=$1 AND id=$2 FOR SHARE`, company, identity).Scan(&profile)
 	} else {
-		err = tx.QueryRow(ctx, `SELECT jsonb_build_object('location',CASE WHEN cp.country_code IS NULL THEN NULL ELSE jsonb_build_object('country',cp.country_code,'state',cp.state_code,'municipality',cp.municipality_code) END,'skills',COALESCE(cp.skills,'{}'::text[]),'years_of_experience',trunc(cp.years_of_experience)::integer,'education_level',(SELECT level FROM candidate_educations e WHERE e.user_id=cp.user_id AND e.status='completed' AND e.level IN ('high_school','bachelor','master','phd') ORDER BY CASE e.level WHEN 'phd' THEN 4 WHEN 'master' THEN 3 WHEN 'bachelor' THEN 2 ELSE 1 END DESC,e.position,e.id LIMIT 1)) FROM users u LEFT JOIN candidate_profiles cp ON cp.user_id=u.id WHERE u.id=$2 AND EXISTS(SELECT 1 FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1 AND p.candidate_id=u.id) FOR SHARE OF u`, company, identity).Scan(&profile)
+		err = tx.QueryRow(ctx, `SELECT `+organicProfileSQL+` FROM users u LEFT JOIN candidate_profiles cp ON cp.user_id=u.id WHERE u.id=$2 AND EXISTS(SELECT 1 FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1 AND p.candidate_id=u.id) FOR SHARE OF u`, company, identity).Scan(&profile)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, nil, &app.ManualValidationError{Fields: []app.ManualFieldError{{Field: "existing", Code: "invalid"}}}
@@ -52,25 +60,28 @@ func manualIdentity(ctx context.Context, tx pgx.Tx, company, process uuid.UUID, 
 	return identity, profile, nil
 }
 
-// Until H4, participation profiles retain the four-key legacy shape.
-func manualLegacyYears(value *string) *int {
-	if value == nil {
-		return nil
-	}
-	whole, _, _ := strings.Cut(*value, ".")
-	years, _ := strconv.Atoi(whole)
-	return &years
-}
-func manualLegacyEducation(education []app.ManualEducation) *string {
-	ranks := map[string]int{"high_school": 1, "bachelor": 2, "master": 3, "phd": 4}
-	var highest *string
+func manualEducation(education []app.ManualEducation) intake.SnapshotEducation {
+	var out intake.SnapshotEducation
 	for _, e := range education {
-		if e.Status == "completed" && ranks[e.Level] > 0 && (highest == nil || ranks[e.Level] > ranks[*highest]) {
-			level := e.Level
-			highest = &level
+		var highest **string
+		switch e.Status {
+		case "completed":
+			highest = &out.HighestCompleted
+		case "in_progress":
+			highest = &out.InProgress
+		default:
+			continue
 		}
+		if *highest != nil {
+			order, valid := languages.CompareEducationLevels(e.Level, **highest)
+			if !valid || order <= 0 {
+				continue
+			}
+		}
+		level := e.Level
+		*highest = &level
 	}
-	return highest
+	return out
 }
 
 func manualNullable(s string) *string {
