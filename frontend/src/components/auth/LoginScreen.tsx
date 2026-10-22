@@ -77,12 +77,14 @@ export function LoginScreen({ variant, authControls }: { variant: LoginVariant; 
           PeopleFlowLogo supplies one mark per theme instead of a permanently
           white wordmark. The OGL leaf owns breakpoint gating, reduced motion,
           theme blending and WebGL-failure containment itself; the static tint
-          and the wordmark stay underneath/above it. */}
+          and the wordmark stay underneath/above it. The animation renders dark in
+          both themes, so the panel wordmark is always the white one, with a soft
+          shadow that keeps it legible over the light fallback base. */}
       <div aria-hidden="true" data-login-visual-panel="" className={`${styles.visualPanel} ${styles.visualPanel} relative hidden overflow-hidden border-r border-border lg:block`}>
         <FloatingLines variant={variant} />
         <div className="pointer-events-none relative z-10 p-12">
           <span className="inline-block w-fit">
-            <PeopleFlowLogo className="h-7 w-auto" />
+            <PeopleFlowLogo tone="onDark" className="h-7 w-auto drop-shadow-[0_1px_2px_rgb(0_0_0/0.35)]" />
           </span>
         </div>
       </div>

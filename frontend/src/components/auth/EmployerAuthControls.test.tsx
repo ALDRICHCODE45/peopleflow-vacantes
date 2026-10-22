@@ -75,6 +75,13 @@ describe("employer managed login", () => {
   });
 });
 
+describe("employer login shape", () => {
+  it("uses the shared pill button shape like the candidate login, never a hard-coded rounded-lg", () => {
+    render(<EmployerAuthControls />);
+    expect(screen.getByRole("button", { name: "Ingresar con Cognito" }).className).not.toContain("rounded-lg");
+  });
+});
+
 describe("employer return path", () => {
   it("returns to the requested employer page after signing in", async () => {
     auth.query = new URLSearchParams("callbackUrl=%2Fempresa%2Fequipo");

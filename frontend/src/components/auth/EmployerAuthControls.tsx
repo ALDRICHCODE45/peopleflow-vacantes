@@ -66,7 +66,7 @@ function ManagedLoginControls() {
         <>
           <p role="status" className="text-sm text-muted-foreground">Sesión iniciada.</p>
           <Button nativeButton={false} role="link" render={<Link href="/empresa/dashboard" />}
-            className="h-12 w-full rounded-lg text-[15px] font-semibold">
+            className="h-12 w-full text-[15px] font-semibold">
             Ir a mi panel
           </Button>
         </>
@@ -74,14 +74,14 @@ function ManagedLoginControls() {
         <>
           <p className="text-sm text-muted-foreground">Ingresa de forma segura con tu cuenta de empresa.</p>
           <Button type="button" onClick={login} disabled={pending || status === "loading"}
-            className="h-12 w-full rounded-lg text-[15px] font-semibold">
+            className="h-12 w-full text-[15px] font-semibold">
             Ingresar con Cognito
           </Button>
         </>
       )}
       {(authenticated || expired) && (
         <Button type="button" variant="outline" onClick={logout} disabled={pending}
-          className="h-12 w-full rounded-lg text-[15px]">
+          className="h-12 w-full text-[15px]">
           Cerrar sesión
         </Button>
       )}
