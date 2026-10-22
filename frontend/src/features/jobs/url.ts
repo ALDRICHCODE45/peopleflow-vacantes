@@ -1,25 +1,26 @@
 /** URL-owned public search. Codes are exact; catalog membership is server-owned. */
+import { EDUCATION_LEVELS, SENIORITIES, yearsOfExperienceSchema } from "../candidate/model";
 import { countryCodeSchema, municipalityCodeSchema, stateCodeSchema } from "../geo/model";
 import { COMPENSATION_BASES, COMPENSATION_CURRENCIES, COMPENSATION_MONEY_PATTERN, COMPENSATION_PAY_PERIODS } from "./drafts/compensation";
 import { CONTRACT_TYPES, PROFESSIONAL_AREAS, WORK_MODES, WORK_SCHEDULES } from "./drafts/scalars";
 
-export const MULTI_KEYS = ["state", "municipality", "work_mode"] as const;
+export const MULTI_KEYS = ["state", "municipality", "work_mode", "language", "seniority"] as const;
 type MultiKey = (typeof MULTI_KEYS)[number];
 export const SALARY_AMOUNT_KEYS = ["salary_min", "salary_max"] as const;
 export const SALARY_UNIT_KEYS = ["salary_currency", "salary_period", "salary_basis"] as const;
 const SALARY_KEYS = [...SALARY_AMOUNT_KEYS, ...SALARY_UNIT_KEYS] as const;
-const SINGLE_KEYS = ["q", "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "cursor"] as const;
+const SINGLE_KEYS = ["q", "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "years_of_experience", "education_level", "cursor"] as const;
 type SingleKey = (typeof SINGLE_KEYS)[number];
 export type JobsQueryKey = MultiKey | SingleKey;
 // Scalar inputs remain accepted for existing single-value links and callers.
 export type JobsQuery = Partial<Record<SingleKey, string> & Record<MultiKey, string | readonly string[]>>;
 export type JobsFilterPatch = Omit<JobsQuery, "cursor">;
-const ORDER: readonly JobsQueryKey[] = ["q", ...MULTI_KEYS, "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "cursor"];
+const ORDER: readonly JobsQueryKey[] = ["q", ...MULTI_KEYS, "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "years_of_experience", "education_level", "cursor"];
 /** SAL-8: units a salary amount falls back to when the link omits them. */
 export const DEFAULT_SALARY_UNITS = { salary_currency: "MXN", salary_period: "monthly", salary_basis: "gross" } as const;
 // Salary units and amounts use the compensation catalogs and money grammar
 // (contract §4.6), the same ones `GET /v2/jobs` validates.
-const ENUMS = { work_mode: WORK_MODES, work_schedule: WORK_SCHEDULES, contract_type: CONTRACT_TYPES, professional_area: PROFESSIONAL_AREAS, salary_currency: COMPENSATION_CURRENCIES, salary_period: COMPENSATION_PAY_PERIODS, salary_basis: COMPENSATION_BASES };
+const ENUMS = { seniority: SENIORITIES, education_level: EDUCATION_LEVELS, work_mode: WORK_MODES, work_schedule: WORK_SCHEDULES, contract_type: CONTRACT_TYPES, professional_area: PROFESSIONAL_AREAS, salary_currency: COMPENSATION_CURRENCIES, salary_period: COMPENSATION_PAY_PERIODS, salary_basis: COMPENSATION_BASES };
 export function selectedValues(value: string | readonly string[] | undefined): readonly string[] {
   return value === undefined ? [] : typeof value === "string" ? [value] : value;
 }
@@ -27,6 +28,9 @@ function validState(value: string) { return stateCodeSchema.safeParse(value).suc
 function canonicalValue(key: JobsQueryKey, value: string): string | undefined {
   if (key === "q") return value.trim() || undefined;
   if (key === "cursor") return value || undefined;
+  // Codes stay opaque; as with geography, catalog membership is server-owned.
+  if (key === "language") return /^[a-z]{2,3}$/.test(value) ? value : undefined;
+  if (key === "years_of_experience") return yearsOfExperienceSchema.safeParse(value).success ? value : undefined;
   if (key === "state") return validState(value) ? value : undefined;
   if (key === "municipality") return municipalityCodeSchema.safeParse(value).success && validState(value.slice(0, 2)) && Number(value.slice(2)) > 0 ? value : undefined;
   if (key === "applicant_country") return countryCodeSchema.safeParse(value).success ? value : undefined;
