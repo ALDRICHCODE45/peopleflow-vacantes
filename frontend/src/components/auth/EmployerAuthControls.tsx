@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
 
@@ -16,8 +17,9 @@ function ManagedLoginControls() {
   const expired = Boolean(sessionError);
   const authenticated = status === "authenticated" && !expired;
   const error = actionError ?? (expired
-    ? "Tu sesión venció. Volvé a ingresar."
-    : params.has("error") ? "No pudimos completar el acceso. Intentá nuevamente." : null);
+    ? "Tu sesión venció. Vuelve a ingresar."
+    // A callback error left in the URL is stale once a later attempt signed in.
+    : params.has("error") && !authenticated ? "No pudimos completar el acceso. Inténtalo de nuevo." : null);
 
   async function login() {
     if (pending || status === "loading") return;
@@ -26,7 +28,7 @@ function ManagedLoginControls() {
     try {
       await signIn("cognito", { callbackUrl: "/empresa/login" });
     } catch {
-      setActionError("No pudimos iniciar el acceso. Intentá nuevamente.");
+      setActionError("No pudimos iniciar el acceso. Inténtalo de nuevo.");
     } finally {
       setPending(false);
     }
@@ -41,7 +43,7 @@ function ManagedLoginControls() {
       // same-origin endpoint, which then exits Cognito's managed-login cookie.
       await signOut({ callbackUrl: "/api/auth/cognito/logout" });
     } catch {
-      setActionError("No pudimos cerrar la sesión. Intentá nuevamente.");
+      setActionError("No pudimos cerrar la sesión. Inténtalo de nuevo.");
     } finally {
       setPending(false);
     }
@@ -51,10 +53,16 @@ function ManagedLoginControls() {
     <div className="mt-8 flex flex-col gap-5" aria-busy={pending || status === "loading"}>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {authenticated ? (
-        <p role="status" className="text-sm text-muted-foreground">Sesión iniciada.</p>
+        <>
+          <p role="status" className="text-sm text-muted-foreground">Sesión iniciada.</p>
+          <Button nativeButton={false} role="link" render={<Link href="/empresa/dashboard" />}
+            className="h-12 w-full rounded-lg text-[15px] font-semibold">
+            Ir a mi panel
+          </Button>
+        </>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">Ingresá de forma segura con tu cuenta de empresa.</p>
+          <p className="text-sm text-muted-foreground">Ingresa de forma segura con tu cuenta de empresa.</p>
           <Button type="button" onClick={login} disabled={pending || status === "loading"}
             className="h-12 w-full rounded-lg text-[15px] font-semibold">
             Ingresar con Cognito

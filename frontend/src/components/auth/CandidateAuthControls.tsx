@@ -18,7 +18,7 @@ function ManagedCandidateLogin() {
   const [actionError, setActionError] = React.useState<string | null>(null);
   const expired = Boolean(session?.error);
   const authenticated = status === "authenticated" && !expired;
-  const error = actionError ?? (expired ? "Tu sesión venció. Volvé a ingresar." : params.has("error") ? "No pudimos completar el acceso. Intentá nuevamente." : null);
+  const error = actionError ?? (expired ? "Tu sesión venció. Vuelve a ingresar." : params.has("error") && !authenticated ? "No pudimos completar el acceso. Inténtalo de nuevo." : null);
   async function start(logout = false) {
     if (lock.current || status === "loading") return;
     lock.current = true; setPending(true); setActionError(null);
@@ -28,7 +28,7 @@ function ManagedCandidateLogin() {
       // configured Cognito hosted UI generation; both buttons use the same flow.
       else await signIn("cognito", { callbackUrl: "/candidato/ingresar" });
     } catch {
-      const message = logout ? "No pudimos cerrar la sesión. Intentá nuevamente." : "No pudimos iniciar el acceso. Intentá nuevamente.";
+      const message = logout ? "No pudimos cerrar la sesión. Inténtalo de nuevo." : "No pudimos iniciar el acceso. Inténtalo de nuevo.";
       setActionError(message);
       notifyActionResult({ key: "candidate-login", type: "error", title: logout ? "No pudimos cerrar la sesión" : "No pudimos iniciar el acceso", description: message, reference: { at: new Date().toISOString() } });
     } finally { lock.current = false; setPending(false); }
