@@ -53,6 +53,8 @@ func Resolve(code Code) Definition {
 	switch code {
 	case CodeInvalidRequest:
 		return Definition{code, http.StatusBadRequest, "invalid request"}
+	case CodeInvalidCursor:
+		return Definition{code, http.StatusBadRequest, "invalid cursor"}
 	case CodeValidationError:
 		return Definition{code, http.StatusBadRequest, "validation failed"}
 	case CodeEmptyPatch:
