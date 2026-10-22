@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ProfileWorkspace } from "./profile-workspace";
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "./prototype-candidate";
@@ -25,6 +25,76 @@ async function ready() { const view = render(<ProfileWorkspace />); await screen
 beforeEach(() => { vi.resetAllMocks(); mocks.load.mockResolvedValue(loaded); mocks.save.mockResolvedValue({ kind: "saved", profile: { ...wire, phone: "12345678" } }); });
 afterEach(cleanup);
 describe("live candidate profile", () => {
+  it("groups identity before icon metadata and leaves only progress in the right column", async () => {
+    const { container } = await ready();
+    const hero = container.querySelector('[data-pf-profile-identity]')!;
+    const title = hero.querySelector('[data-slot="card-title"]')!;
+    expect(within(title as HTMLElement).getByRole("heading", { name: CANDIDATE_IDENTITY.fullName })).toHaveAttribute("id", "pf-profile-identity-heading");
+    expect(title).toHaveTextContent(CANDIDATE_PROFILE.professionalTitle!);
+    const meta = hero.querySelector('[data-slot="card-description"]')!;
+    expect(meta).toHaveTextContent(`Trabaja en ${CANDIDATE_PROFILE.currentCompany}`);
+    expect(meta.querySelectorAll("svg")).toHaveLength(3);
+    expect(hero.textContent!.indexOf(CANDIDATE_PROFILE.professionalTitle!)).toBeLessThan(hero.textContent!.indexOf(CANDIDATE_IDENTITY.email));
+    const progress = hero.querySelector('[data-slot="card-action"]')!;
+    expect(progress).toHaveTextContent("Avance del perfil");
+    expect(progress).not.toHaveTextContent(CANDIDATE_PROFILE.professionalTitle!);
+    expect(hero.querySelector('[data-slot="avatar"]')).toHaveClass("size-14", "md:size-20");
+    expect(title).toHaveClass("min-w-0", "grid-cols-[auto_minmax(0,1fr)]");
+    expect(meta).toHaveClass("flex-wrap", "md:pl-25");
+  });
+  it("omits missing metadata and offers a title shortcut that switches and focuses", async () => {
+    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, professional_title: null, current_company: null, location: null } } });
+    const { container } = await ready();
+    expect(container).not.toHaveTextContent(/sin definir/i);
+    expect(screen.queryByText(/Trabaja en/)).not.toBeInTheDocument();
+    const addTitle = screen.getByRole("button", { name: "Agrega tu título profesional" });
+    // Aligned with the name column at every width, with no link padding pushing it inward.
+    expect(addTitle).toHaveClass("col-start-2", "px-0", "has-data-[icon=inline-start]:pl-0");
+    expect(addTitle).not.toHaveClass("col-span-2");
+    fireEvent.click(addTitle);
+    expect(screen.getByRole("tab", { name: "Experiencia" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByLabelText("Título profesional")).toHaveFocus());
+    change("Título profesional", "Diseñadora");
+    expect(container.querySelector('[data-pf-profile-headline]')).toHaveTextContent("Diseñadora");
+  });
+  it("keeps personal data together outside the location card", async () => {
+    await ready();
+    const contact = screen.getByRole("group", { name: "Contacto" });
+    for (const label of ["Teléfono", "Fecha de nacimiento", "Perfil de LinkedIn", "Portafolio o sitio web"]) expect(within(contact).getByLabelText(label)).toBeInTheDocument();
+  });
+  it("focuses birth date before LinkedIn errors in the new visual order", async () => {
+    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: {}, fields: [{ field: "linkedin_url", code: "invalid" }, { field: "birth_date", code: "invalid" }] } });
+    await ready(); change("Teléfono", "12345678"); save();
+    await waitFor(() => expect(screen.getByLabelText("Fecha de nacimiento")).toHaveFocus());
+  });
+  it("associates eligibility help with País", async () => {
+    await ready();
+    const country = screen.getByRole("combobox", { name: "País" });
+    const help = screen.getByText("Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.");
+    expect(country.closest('[data-slot="field"]')).toContainElement(help);
+    expect(country).toHaveAccessibleDescription(help.textContent!);
+  });
+  it("offers a right-aligned destructive remove action", async () => {
+    await ready();
+    const remove = screen.getByRole("button", { name: "Quitar ubicación" });
+    expect(remove).toHaveTextContent(/^Quitar$/);
+    expect(remove).toHaveClass("text-destructive");
+    expect(remove.querySelector("svg.lucide-trash-2")).not.toBeNull();
+    // The remove action sits in the «Ubicación» card header, not on its own row above País.
+    expect(remove.closest('[data-slot="card-header"]')).toHaveTextContent("Ubicación");
+    // The 40px target does not make this header taller than «Contacto».
+    expect(remove.closest('[data-slot="card-action"]')).toHaveClass("row-span-1", "-my-2");
+  });
+  it("signals mobile tab overflow with an edge fade, without a native scrollbar or hint text", async () => {
+    await ready();
+    const tabs = screen.getByRole("tablist");
+    expect(tabs).toHaveClass("[scrollbar-width:none]");
+    expect(tabs.className).toMatch(/mask-image/);
+    // Room past the last tab so «Idiomas» leaves the fade once scrolled to the end.
+    expect(tabs).toHaveClass("max-md:pr-12");
+    expect(screen.queryByText(/Desliza para ver más secciones/)).not.toBeInTheDocument();
+  });
+
   it("loads a form-shaped skeleton without fixture data, then the server profile", async () => {
     let resolve!: (value: unknown) => void; mocks.load.mockReturnValue(new Promise(r => { resolve = r; }));
     const { container } = render(<ProfileWorkspace />);
@@ -106,7 +176,7 @@ describe("live candidate profile", () => {
     expect(container.querySelector('[data-slot="tabs-list"]')).toHaveAttribute("data-variant", "line");
     expect(container.querySelector('[data-pf-profile-completeness-value]')).toHaveTextContent("10 de 10 datos clave");
     const expected = [
-      ["Personal", ["phone", "linkedinUrl", "portfolioUrl", "birthDate", "location"]],
+      ["Personal", ["phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"]],
       ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"]],
       ["Educación", ["education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "skills"]],
       ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],

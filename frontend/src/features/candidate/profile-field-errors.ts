@@ -1,7 +1,7 @@
 import type { ProfileDraftIssue } from "./profile-draft";
 import type { ProfileFailure } from "./profile-api";
 const wireNames: Record<string, string> = { linkedin_url: "linkedinUrl", portfolio_url: "portfolioUrl", professional_title: "professionalTitle", current_company: "currentCompany", years_of_experience: "yearsOfExperience", profile_summary: "summary", birth_date: "birthDate", current_salary_gross: "currentSalaryGross", current_salary_net: "currentSalaryNet", expected_salary: "expectedSalary", salary_currency: "salaryCurrency", expected_salary_period: "expectedSalaryPeriod" };
-const order = ["phone", "linkedinUrl", "portfolioUrl", "birthDate", "location", "professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary", "education", "skills", "currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod", "languages"];
+const order = ["phone", "birthDate", "linkedinUrl", "portfolioUrl", "location", "professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary", "education", "skills", "currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod", "languages"];
 const nestedOrder = ["level", "institution", "field", "status", "start_year", "end_year"];
 export function sortProfileIssues(issues: readonly ProfileDraftIssue[]): ProfileDraftIssue[] {
   return [...issues].sort((a, b) => {

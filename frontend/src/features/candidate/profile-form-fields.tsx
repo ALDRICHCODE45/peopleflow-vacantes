@@ -2,10 +2,11 @@
 
 import { LanguageListEditor } from "@/features/languages/language-field";
 import { EducationFields } from "@/features/candidate/education-fields";
-import { OptionalLocationField } from "@/features/geo/optional-location-field";
+import { OptionalLocationField, RemoveLocationButton } from "@/features/geo/optional-location-field";
+import { locationReadToValue } from "@/features/geo/model";
 import { locationErrorMessages, type LocationIssue } from "@/features/geo/model";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText, InputGroupTextarea } from "@/components/ui/input-group";
@@ -62,12 +63,11 @@ const currencyOf = (draft: CandidateProfileDraft): string => (draft.salaryCurren
 const SECTIONS: readonly Section[] = [
   { slug: "contact", legend: "Contacto", category: "personal", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
     { path: "phone", label: "Teléfono", type: "tel", maxLength: 30 },
+    { path: "birthDate", label: "Fecha de nacimiento" },
     { path: "linkedinUrl", label: "Perfil de LinkedIn", type: "url", maxLength: 300 },
     { path: "portfolioUrl", label: "Portafolio o sitio web", type: "url", maxLength: 300, span: "sm:col-span-2" },
   ] },
   { slug: "location", legend: "Ubicación", category: "personal", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
-    { path: "birthDate", label: "Fecha de nacimiento", span: "sm:col-span-2" },
-
   ] },
   { slug: "professional", legend: "Perfil profesional", category: "experience", grid: "grid grid-cols-1 gap-4 sm:grid-cols-6", fields: [
     { path: "professionalTitle", label: "Título profesional", maxLength: 120, span: "sm:col-span-6" },
@@ -142,11 +142,12 @@ function ScalarField({ spec, draft, error, onChange }: Readonly<{ spec: ScalarSp
 }
 
 /** One scalar section: a quiet Card whose native header titles the sr-only fieldset legend. */
-function ScalarSection({ section, draft, errorFor, onChange, location }: Readonly<{ section: Section; draft: CandidateProfileDraft; errorFor: (path: string) => string | null; onChange: (path: ScalarPath, value: string) => void; location?: React.ReactNode }>) {
+function ScalarSection({ section, draft, errorFor, onChange, location, headerAction }: Readonly<{ section: Section; draft: CandidateProfileDraft; errorFor: (path: string) => string | null; onChange: (path: ScalarPath, value: string) => void; location?: React.ReactNode; headerAction?: React.ReactNode }>) {
   return (
     <Card size="sm" data-pf-profile-section-card="" className={SECTION_CARD}>
       <CardHeader className={SECTION_HEADER}>
         <CardTitle aria-hidden="true"><h3>{section.legend}</h3></CardTitle>
+        {headerAction && <CardAction className="row-span-1 -my-2">{headerAction}</CardAction>}
       </CardHeader>
       <CardContent className={SECTION_CONTENT}>
         <FieldSet data-pf-profile-group={section.slug} className={SECTION}>
@@ -189,7 +190,7 @@ export function ProfileFormFields({ draft, issues, onChange, category, disabled 
   return (
     <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
       {sections.map((section) => section.slug === "education" ? <EducationFields key={section.slug} value={draft.education} onChange={education => onChange({ ...draft, education })} issues={issues} disabled={disabled} /> : (
-        <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} location={<div className="sm:col-span-2" data-pf-profile-field="location"><OptionalLocationField value={draft.location} onChange={location => onChange({ ...draft, location })} depth="municipality" postalCode={false} label="Ubicación" hideLegend description="Opcional. Algunas vacantes solo aceptan postulantes de ciertos países." disabled={disabled} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9) as LocationIssue["field"], reason: (Object.keys(locationErrorMessages) as LocationIssue["reason"][]).find(reason => locationErrorMessages[reason] === issue.message) ?? "unknown" }))} /></div>} />
+        <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} headerAction={section.slug === "location" && draft.location.country !== null ? <RemoveLocationButton disabled={disabled} onRemove={() => onChange({ ...draft, location: locationReadToValue(null) })} /> : undefined} location={<div className="sm:col-span-2" data-pf-profile-field="location"><OptionalLocationField inlineRemove={false} value={draft.location} onChange={location => onChange({ ...draft, location })} depth="municipality" postalCode={false} label="Ubicación" hideLegend countryDescription="Opcional. Algunas vacantes solo aceptan postulantes de ciertos países." disabled={disabled} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9) as LocationIssue["field"], reason: (Object.keys(locationErrorMessages) as LocationIssue["reason"][]).find(reason => locationErrorMessages[reason] === issue.message) ?? "unknown" }))} /></div>} />
       ))}
       {withLanguages ? languagesCard : null}
     </FieldGroup>

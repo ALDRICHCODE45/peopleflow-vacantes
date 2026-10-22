@@ -22,15 +22,17 @@ export type LocationFieldProps = {
   layout?: "stack" | "grid";
   defaultCountry?: "MX" | null;
   description?: string;
+  /** Help specific to country eligibility, rendered and announced with País. */
+  countryDescription?: string;
   disabled?: boolean;
   errors?: readonly { field: string; reason: "required" | "unknown" | "mismatch" | "not_allowed"; message?: string }[];
 };
 const removedPostal = "Quitamos el código postal porque no corresponde al municipio elegido.";
 type CatalogState = { status: string; data?: Catalog; retry: () => void };
 
-function CatalogField({ label, code, catalog, onChange, disabled, required, requiredIndicator, error }: {
+function CatalogField({ label, code, catalog, onChange, disabled, required, requiredIndicator, error, description }: {
   label: string; code: string | null; catalog: CatalogState; onChange: (code: string | null) => void;
-  disabled?: boolean; required?: boolean; requiredIndicator?: ReactNode; error?: string;
+  disabled?: boolean; required?: boolean; requiredIndicator?: ReactNode; error?: string; description?: string;
 }) {
   const id = useId();
   const loading = catalog.status === "loading" || catalog.status === "idle" && !disabled;
@@ -47,9 +49,10 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, requ
       <Combobox items={items} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
         value={selected} onValueChange={item => { if (item) onChange(item.id); }} inputValue={text} onInputValueChange={ignoreEscapeClear(setText)} disabled={disabled} autoHighlight>
         {/* Selecting the shown name on focus lets typing replace it instead of appending to it. */}
-        <ComboboxInput id={id} placeholder={label === "País" ? "Elige un país" : `Elige ${label.toLowerCase()}`} className="min-h-10" onFocus={event => event.currentTarget.select()} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={error ? `${id}-error` : undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
+        <ComboboxInput id={id} placeholder={label === "País" ? "Elige un país" : `Elige ${label.toLowerCase()}`} className="min-h-10" onFocus={event => event.currentTarget.select()} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={[description && `${id}-help`, error && `${id}-error`].filter(Boolean).join(" ") || undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
         <ComboboxContent><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(item: GeoReference) => <ComboboxItem key={item.id} value={item}>{item.name}</ComboboxItem>}</ComboboxList></ComboboxContent>
       </Combobox>}
+    {description && <FieldDescription id={`${id}-help`}>{description}</FieldDescription>}
     {catalog.status === "error" && <><FieldError>No pudimos cargar {label.toLowerCase()}.</FieldError><Button type="button" variant="outline" className="min-h-10" disabled={disabled} onClick={catalog.retry}>Reintentar</Button></>}
     {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
   </Field>;
@@ -59,7 +62,7 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, requ
  * Postal resolution is offered only at municipality depth: a valid CP needs a pair.
  * Catalog labels never become write values; typing filters, it never creates an option.
  */
-export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", hideLegend = false, requiredIndicator, layout = "stack", defaultCountry = "MX", description, disabled = false, errors = [] }: LocationFieldProps) {
+export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", hideLegend = false, requiredIndicator, layout = "stack", defaultCountry = "MX", description, countryDescription, disabled = false, errors = [] }: LocationFieldProps) {
   const cpId = useId();
   const mx = value.country === "MX";
   const detailed = mx && depth !== "country";
@@ -103,7 +106,7 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
     <FieldLegend className={hideLegend ? "sr-only" : undefined}>{label}</FieldLegend>
     {description && <FieldDescription>{description}</FieldDescription>}
     <FieldGroup className={layout === "grid" ? "grid gap-6 sm:grid-cols-2 [&>*]:min-w-0" : undefined}>
-      <CatalogField requiredIndicator={requiredIndicator} label="País" code={value.country} catalog={catalog.countries} disabled={disabled} required={required.includes("country")} error={error("country")}
+      <CatalogField requiredIndicator={requiredIndicator} label="País" description={countryDescription} code={value.country} catalog={catalog.countries} disabled={disabled} required={required.includes("country")} error={error("country")}
         onChange={country => { setNote(false); onChange({ country, state: null, municipality: null, postal_code: null }); }} />
       {value.country && !mx && <FieldDescription className={layout === "grid" ? "sm:col-span-2" : undefined}>Por ahora solo detallamos ubicaciones en México.</FieldDescription>}
       {showPostal && <Field data-invalid={!!postalError} data-disabled={disabled}>

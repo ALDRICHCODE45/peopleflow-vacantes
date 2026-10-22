@@ -13,7 +13,7 @@ import { draftValueFromSelect, ProfileFormFields, toSelectItems } from "./profil
 
 const locationSpy = vi.hoisted(() => vi.fn());
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "es", name: "Español" }, { code: "en", name: "Inglés" }] }, retry: vi.fn() }) }));
-vi.mock("@/features/geo/optional-location-field", () => ({ OptionalLocationField: (props: unknown) => { locationSpy(props); return null; } }));
+vi.mock("@/features/geo/optional-location-field", () => ({ OptionalLocationField: (props: unknown) => { locationSpy(props); return null; }, RemoveLocationButton: ({ onRemove }: { onRemove: () => void }) => <button type="button" className="min-h-10 focus-visible:ring-3" aria-label="Quitar ubicación" onClick={onRemove}>Quitar</button> }));
 
 // Source as text, so the coupling, token and side-effect contracts stay asserted here.
 const SOURCE = readFileSync(join(process.cwd(), "src/features/candidate", "profile-form-fields.tsx"), "utf8");
@@ -156,7 +156,7 @@ describe("profile form fields emissions", () => {
   it("uses optional municipality selection without postal and emits a complete draft when cleared", () => {
     const base = draft(); const { onChange } = renderFields({ draft: base });
     const props = locationSpy.mock.calls.at(-1)![0];
-    expect(props).toMatchObject({ depth: "municipality", postalCode: false, label: "Ubicación", description: "Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.", value: base.location });
+    expect(props).toMatchObject({ depth: "municipality", postalCode: false, label: "Ubicación", countryDescription: "Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.", value: base.location });
     const empty = { country: null, state: null, municipality: null, postal_code: null };
     props.onChange(empty);
     expect(emitted(onChange)).toEqual({ ...base, location: empty });
@@ -350,9 +350,9 @@ describe("profile form fields contract", () => {
     for (const grid of grids) expect([classes(grid).includes("grid-cols-1"), /sm:grid-cols-(?:\d+|\[[^\]]+\])/u.test(classes(grid))]).toEqual([true, true]);
     const columns = grids.map((grid) => classes(grid).match(/sm:grid-cols-(?:\d+|\[[^\]]+\])/u)?.[0] ?? "");
     expect(new Set(columns).size).toBeGreaterThanOrEqual(3);
-    // Date gets its own full-width row; city and country remain comparable without shrinking controls.
+    // Birth date belongs beside phone in Contacto, not in the location grid.
     expect(classes(grids[1])).toContain("sm:grid-cols-2");
-    expect(input(container, "birthDate").closest('[data-slot="field"]')).toHaveClass("sm:col-span-2");
+    expect(input(container, "birthDate").closest('[data-pf-profile-group]')).toHaveAttribute("data-pf-profile-group", "contact");
     for (const grid of grids) expect(classes(grid)).not.toMatch(/(?:^|\s)flex(?:\s|$)/u);
     const row = container.querySelector("[data-pf-profile-language-row]") as HTMLElement;
     const rowGrid = row.querySelector("[data-pf-profile-language-grid]") as HTMLElement;
