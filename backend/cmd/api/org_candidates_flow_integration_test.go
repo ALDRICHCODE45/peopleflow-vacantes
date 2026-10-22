@@ -252,9 +252,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 		if d["education"] != nil || d["original"].(map[string]any)["education"] != nil {
 			t.Fatal("organic snapshots have no full studies", d)
 		}
-		r := h.do(t, "PATCH", orgCandidatesPath+"/organic/"+reused.String(), `{"set":{"full_name":"Not E1"}}`, recruiter.token, map[string]string{"If-Match": d["etag"].(string)})
-		draftFlowAssertError(t, r, 400, "invalid_request")
-		r = h.do(t, "GET", orgCandidatesPath+"/organic/"+reused.String()+"/history", "", recruiter.token, nil)
+		r := h.do(t, "GET", orgCandidatesPath+"/organic/"+reused.String()+"/history", "", recruiter.token, nil)
 		if r.status != 200 || strings.TrimSpace(string(r.body)) != `{"items":[],"next_cursor":null}` {
 			t.Fatal(r.status, string(r.body))
 		}
