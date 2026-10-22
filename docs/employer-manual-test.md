@@ -705,3 +705,21 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     el panel con datos pide «Tienes cambios sin guardar». En la ficha de cualquier candidato
     (manual u orgánico) la sección «Contacto» muestra «Correo» y «Teléfono» como enlaces
     (o «Sin dato»). Probalo en celular y en oscuro.
+86. **Perfil armonizado: idiomas, seniority, años con decimales y varios estudios.** Frontend en
+    `feat/profile-harmonization-ui` (apilado sobre el paso 85), backend en
+    `feat/profile-harmonization` (migraciones 00039–00043; `make db-migrate`). Como candidato,
+    en «Perfil»: «Años de experiencia» acepta decimales («3.5»), «Seniority» ofrece de Becario a
+    Director, «Educación» permite varios estudios con nivel y estatus (en «En curso» no aparece
+    «Año de fin») y «Idiomas» busca en el catálogo con nivel A1–C2 o Nativo. **Esperado:** al
+    guardar y recargar todo persiste y sube «Avance del perfil». Como empresa: «Agregar
+    candidato» pide lo mismo (al menos un estudio); en la ficha del tablero, «Perfil» muestra
+    «3.5 años», la seniority, «Licenciatura o Ingeniería · Maestría en curso» y los idiomas como
+    píldoras («Inglés C1»). En «Filtros» del tablero hay Seniority, Nivel de estudios (con
+    «Incluye estudios en curso») e Idiomas (con «Nivel mínimo»). En el editor de la vacante,
+    «Descripción y perfil» tiene Experiencia mínima, Estudios mínimos («Acepta estudios en
+    curso» solo con un nivel elegido) e Idiomas con nivel mínimo; el detalle público los muestra
+    como fichas con ícono. En `/vacantes`, «Tu perfil» filtra por idiomas, seniority, tus años y
+    tu nivel de estudios, con chips cortos («Estudios: …», «Experiencia: 3.5 años»). Además: el
+    marco de empresa y de candidato es el mismo (card redondeada, tu cuenta al pie del menú,
+    botón de tema redondo) y en el navbar público «Mi cuenta» muestra tus iniciales. Probalo en
+    celular y en oscuro.
