@@ -65,7 +65,7 @@ const CandidateNavbar = React.memo(function CandidateNavbar() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <ThemeToggle className="size-11 rounded-lg" />
+          <ThemeToggle className="size-11" />
         </div>
       </div>
     </header>
@@ -131,7 +131,7 @@ const MarketingNavbar = React.memo(function MarketingNavbar({ candidate = false 
         </div>
         <div className="flex items-center gap-1.5 sm:gap-4">
           <IngresarMenu className="text-[15px] font-normal text-muted hover:text-ink" />
-          <ThemeToggle className="size-10 rounded-lg border-line bg-surface/40 text-muted hover:border-brand/60 hover:bg-surface/60 hover:text-ink" />
+          <ThemeToggle className="size-10 border-line bg-surface/40 text-muted hover:border-brand/60 hover:bg-surface/60 hover:text-ink" />
           <a
             href={candidate ? "/vacantes" : "#empezar"}
             className="btn btn-primary min-h-10 whitespace-nowrap rounded-xl bg-brand px-3 py-2.5 text-[13px] font-semibold text-white sm:px-5 sm:text-[14px]"
@@ -198,7 +198,7 @@ const PublicNavbar = React.memo(function PublicNavbar() {
         <div className="flex items-center gap-1.5 sm:gap-3">
           {/* Shared dual-login menu: one visible trigger for both audiences. */}
           <IngresarMenu className={focusRing} />
-          <ThemeToggle className="size-10 rounded-lg" />
+          <ThemeToggle className="size-10" />
           {/* Below sm the CTA compacts its padding/typography, never its label,
               so the public capsule fits 375px without overflow. */}
           <Link
