@@ -21,12 +21,15 @@ const count = z.number().int().nonnegative().safe();
 export const etagSchema = z.string().regex(/^"[\x21\x23-\x7e\x80-\xff]+"$(?![\s\S])/);
 export const stageKindSchema = z.enum(["new", "screening", "screening_ok", "in_process", "placement", "custom"]);
 const discardSchema = z.object({ reason: discardReasonSchema, discarded_at: timestamp, previous_stage_id: uuidSchema, recovery_stage_id: uuidSchema }).strict();
-// Writes retain their original allowlist; snapshot fields belong only to reads.
+export const correctedFieldSchema = z.enum(["full_name", "email", "phone", "location", "professional_title", "current_company", "seniority", "years_of_experience", "education", "languages", "skills", "linkedin_url", "portfolio_url"]);
+export type CorrectedField = z.infer<typeof correctedFieldSchema>;
+// Item-embedding writes also return effective identity/CV and correction markers (E4).
 const mutationParticipationSchema = z.object({
   id: uuidSchema, stage_id: uuidSchema, version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), etag: etagSchema,
   candidate: z.object({ id: uuidSchema, full_name: text, kind: z.enum(["organic", "manual"]) }).strict(), applied_at: timestamp, source: z.enum(["organic", "manual"]),
   added_by: z.object({ id: uuidSchema, name: text }).strict().nullable(),
-  cv: z.object({ id: uuidSchema, name: text }).strict(), moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
+  cv: z.object({ id: uuidSchema, name: text, source: z.enum(["candidate", "company"]) }).strict(), corrected_fields: z.array(correctedFieldSchema),
+  moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
 }).strict();
 export const profileSchema = z.object({
   location: locationReadSchema.refine(location => location === null || location.postal_code === null), skills: z.array(z.string()),
@@ -64,7 +67,15 @@ const screeningAnswer = z.discriminatedUnion("type", [
 ]);
 // Contact appears only in the detail read (user decision, 2026-10-21): manual → company record; organic → account email + profile phone.
 export const contactSchema = z.object({ email: z.string().nullable(), phone: z.string().nullable() }).strict();
-export const detailSchema = participationSchema.extend({ contact: contactSchema, screening: z.array(screeningAnswer), comment: discardTextSchema(1000).nullable(), candidate_message: discardTextSchema(500).nullable() }).strict().refine(item => item.discard !== null || (item.comment === null && item.candidate_message === null));
+const originalSchema = z.object({
+  full_name: z.string(), contact: contactSchema, professional_title: z.string().nullable(), current_company: z.string().nullable(),
+  profile: profileSchema, education: z.null(), linkedin_url: z.string().nullable(), portfolio_url: z.string().nullable(),
+}).strict();
+export const detailSchema = participationSchema.extend({
+  contact: contactSchema, original: originalSchema.nullable(),
+  original_cv: z.object({ file_name: text, uploaded_at: timestamp }).strict().nullable(),
+  screening: z.array(screeningAnswer), comment: discardTextSchema(1000).nullable(), candidate_message: discardTextSchema(500).nullable(),
+}).strict().refine(item => item.discard !== null || (item.comment === null && item.candidate_message === null));
 const historyBase = {
   from_stage_id: uuidSchema.nullable(), to_stage_id: uuidSchema, hire: z.boolean(), departure: z.boolean(),
   actor: z.object({ kind: z.enum(["candidate", "recruiter"]), id: uuidSchema, full_name: text }).strict(), at: timestamp,
