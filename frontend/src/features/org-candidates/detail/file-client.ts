@@ -7,7 +7,7 @@ import { uuidSchema } from "@/features/pipeline-movement/model";
 import { orgCandidateIdentitySchema, type OrgCandidateIdentity } from "./detail-model";
 
 /** Same streaming safeguards as the board; authorization uses the organization pool endpoint. */
-export async function downloadOrgCandidateCv(token: string, candidate: OrgCandidateIdentity, participationId: string): Promise<{ ok: true; data: Download } | ClientFailure> {
+export async function downloadOrgCandidateCv(token: string, candidate: OrgCandidateIdentity, participationId: string, version: "current" | "original" = "current"): Promise<{ ok: true; data: Download } | ClientFailure> {
   if (!token?.trim()) return { ok: false, error: { kind: "missing_token" } };
   const identity = orgCandidateIdentitySchema.safeParse(candidate);
   if (!identity.success || !uuidSchema.safeParse(participationId).success) return { ok: false, error: { kind: "invalid_request" } };
@@ -17,7 +17,7 @@ export async function downloadOrgCandidateCv(token: string, candidate: OrgCandid
     timer = setTimeout(() => { timedOut = true; controller.abort(); }, serverEnv.apiTimeoutMs);
     const base = new URL(serverEnv.apiBaseUrl);
     const { kind, id } = identity.data;
-    const url = new URL(`/v2/me/company/candidates/${kind}/${id}/participations/${participationId}/cv`, base);
+    const url = new URL(`/v2/me/company/candidates/${kind}/${id}/participations/${participationId}/cv${version === "original" ? "/original" : ""}`, base);
     if (!["http:", "https:"].includes(url.protocol) || url.origin !== base.origin || url.username || url.password) return { ok: false, error: { kind: "invalid_request" } };
     const response = await fetch(url, { method: "GET", headers: { authorization: `Bearer ${token.trim()}` }, cache: "no-store", redirect: "error", signal: controller.signal });
     if (!response.ok) {

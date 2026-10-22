@@ -1,0 +1,190 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { OrgCandidateDetailSheet } from "./detail-sheet";
+import { loadOrgCandidateDetailAction } from "./detail-actions";
+import { detailFixture, id } from "./test-fixtures";
+import { orgCandidateDetailSchema } from "./detail-model";
+import { loadOrgCandidateHistoryAction } from "../history/history-actions";
+vi.mock("../edit/edit-actions", () => ({ saveOrgCandidateEditAction: vi.fn() }));
+vi.mock("../history/history-actions", () => ({ loadOrgCandidateHistoryAction: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+vi.mock("./detail-actions", () => ({ loadOrgCandidateDetailAction: vi.fn() }));
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ data: { items: [] } }) }));
+const fetch = vi.fn();
+const identity = { kind: "manual" as const, id: id(1) };
+const corrected = (kind: "manual" | "organic" = "manual") => {
+ const data = detailFixture(kind);
+ return { ...data, etag: '"v2"', participations: [{ ...data.participations[0], cv: { ...data.participations[0].cv!, source: "company", file_name: "corregido.pdf" }, original_cv: data.participations[0].cv }] };
+};
+beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal("fetch", fetch); vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: detailFixture() }); vi.mocked(loadOrgCandidateHistoryAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } }); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+const open = () => render(<OrgCandidateDetailSheet candidate={identity} onOpenChange={vi.fn()} />);
+async function pick(file = new File(["%PDF-test"], "corregido.pdf", { type: "application/pdf" })) {
+ await screen.findByRole("heading", { name: "Lucía Ramírez Torres" });
+ const input = screen.getByLabelText("CV corregido para Frontend");
+ fireEvent.change(input, { target: { files: [file] } });
+ return input;
+}
+it("accepts additive source/original metadata while retaining legacy fixtures", () => {
+ expect(orgCandidateDetailSchema.safeParse(detailFixture()).success).toBe(true);
+ expect(orgCandidateDetailSchema.safeParse(corrected()).success).toBe(true);
+ const data = corrected(); data.participations[0].cv.source = "unknown";
+ expect(orgCandidateDetailSchema.safeParse(data).success).toBe(false);
+});
+it.each(["manual", "organic"] as const)("groups the %s corrected CV actions in one wrapping footer without stretching the controls", async kind => {
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: orgCandidateDetailSchema.parse(corrected(kind)) });
+ render(<OrgCandidateDetailSheet candidate={{ ...identity, kind }} onOpenChange={vi.fn()} />);
+ const processes = await screen.findByRole("region", { name: "Procesos" });
+ const actions = [
+  within(processes).getByRole("link", { name: "Descargar CV de Frontend" }),
+  within(processes).getByRole("link", { name: "Descargar CV original de Frontend" }),
+  within(processes).getByRole("button", { name: "Subir CV corregido" }),
+ ];
+ const groups = processes.querySelectorAll("[data-pf-action-bar-actions]");
+ expect(groups).toHaveLength(1);
+ const group = groups[0];
+ expect(Array.from(group.querySelectorAll("a, button"))).toEqual(actions);
+ expect(group).toHaveClass("flex", "flex-wrap");
+ const footer = group.closest('[data-slot="item-footer"]');
+ expect(footer).not.toBeNull();
+ expect(footer?.firstElementChild).toHaveClass("[&_[data-pf-action-bar-actions]]:min-w-0", "[&_[data-pf-action-bar-actions]]:shrink");
+ for (const action of actions) {
+  expect(action.parentElement).toBe(group);
+  expect(action).not.toHaveClass("w-full");
+  expect(action).toHaveClass("min-h-10", "border-border");
+  expect(action.querySelector('svg[data-icon="inline-start"]')).not.toBeNull();
+ }
+ const bar = group.closest("[data-pf-action-bar]")!;
+ expect(bar.querySelector("[data-pf-action-status-slot]")).toBeInTheDocument();
+ expect(bar.querySelector(".order-first")).toContainElement(bar.querySelector("[data-pf-action-status-slot]"));
+ const badge = within(processes).getByText("CV corregido por tu empresa");
+ expect(badge).toHaveClass("bg-primary/12");
+ expect(badge.parentElement).toContainElement(within(processes).getByText("corregido.pdf"));
+});
+it.each([undefined, "candidate"] as const)("shows only the current download for uncorrected CV source %s", async source => {
+ const data = detailFixture(); data.participations[0].cv!.source = source;
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); open(); const processes = await screen.findByRole("region", { name: "Procesos" });
+ expect(within(processes).getByRole("link", { name: "Descargar CV de Frontend" })).toHaveAttribute("href", `/api/company/candidates/manual/${id(1)}/participations/${id(2)}/cv`);
+ expect(screen.queryByText("Descargar CV original")).not.toBeInTheDocument();
+ expect(screen.queryByText("CV corregido por tu empresa")).not.toBeInTheDocument();
+ const upload = screen.getByRole("button", { name: "Subir CV corregido" });
+ expect(upload).toBeEnabled();
+ const group = processes.querySelector("[data-pf-action-bar-actions]")!;
+ expect(Array.from(group.querySelectorAll("a, button"))).toEqual([
+  within(processes).getByRole("link", { name: "Descargar CV de Frontend" }), upload,
+ ]);
+});
+it("does not offer an original download when the corrected CV has no original", async () => {
+ const data = orgCandidateDetailSchema.parse(corrected()); data.participations[0].original_cv = null;
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); open();
+ await screen.findByText("CV corregido por tu empresa");
+ expect(screen.queryByRole("link", { name: "Descargar CV original de Frontend" })).not.toBeInTheDocument();
+ expect(screen.getByRole("link", { name: "Descargar CV de Frontend" })).toHaveAttribute("download");
+});
+it("keeps a single upload action and its reserved status slot when there is no CV", async () => {
+ const data = detailFixture(); data.participations[0].cv = null;
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); open();
+ const processes = await screen.findByRole("region", { name: "Procesos" });
+ expect(within(processes).getByText("Sin CV")).toBeVisible();
+ expect(within(processes).queryByRole("link", { name: /Descargar CV/ })).not.toBeInTheDocument();
+ const group = processes.querySelector("[data-pf-action-bar-actions]")!;
+ expect(Array.from(group.querySelectorAll("a, button"))).toEqual([within(processes).getByRole("button", { name: "Subir CV corregido" })]);
+ expect(group.closest("[data-pf-action-bar]")?.querySelector("[data-pf-action-status-slot]")).toBeInTheDocument();
+});
+it("shows the company badge and both real downloads", async () => {
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: orgCandidateDetailSchema.parse(corrected()) }); open();
+ expect(await screen.findByText("CV corregido por tu empresa")).toHaveAttribute("data-slot", "badge");
+ expect(screen.getByRole("link", { name: "Descargar CV original de Frontend" })).toHaveAttribute("href", `/api/company/candidates/manual/${id(1)}/participations/${id(2)}/cv/original`);
+ // Outline links must keep a visible border: `buttonVariants` is not twMerged, so the base
+ // `border-transparent` used to override `border-border` on plain anchors (QA L21).
+ for (const name of ["Descargar CV de Frontend", "Descargar CV original de Frontend"]) expect(screen.getByRole("link", { name })).not.toHaveClass("border-transparent");
+ expect(screen.getByRole("link", { name: "Descargar CV de Frontend" })).toHaveAttribute("download");
+});
+it.each(["manual", "organic"] as const)("confirms the %s file before transport and refreshes detail/history on success", async kind => {
+ const data = detailFixture(kind); vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data });
+ const updated = { ...data, etag: '"v2"' }; fetch.mockResolvedValue(Response.json(updated));
+ const onUpdated = vi.fn(); render(<OrgCandidateDetailSheet candidate={{ ...identity, kind }} onOpenChange={vi.fn()} onCandidateUpdated={onUpdated} />);
+ await pick(); const dialog = await screen.findByRole("alertdialog");
+ expect(within(dialog).getByRole("heading")).toHaveTextContent("¿Subir CV corregido de Lucía Ramírez Torres?");
+ expect(within(dialog).getByText(kind === "organic" ? "El candidato conserva su CV original; tu empresa verá el corregido." : "Reemplaza el CV de este proceso; el CV de ingreso se conserva como original.")).toBeVisible();
+ expect(dialog.querySelector('[data-slot="alert-dialog-media"] svg')).not.toBeNull();
+ expect(dialog.querySelector('[data-slot="confirm-action-details"]')).toHaveTextContent("corregido.pdf");
+ expect(dialog.querySelector('[data-slot="confirm-action-details"]')).toHaveTextContent("9 B");
+ expect(fetch).not.toHaveBeenCalled();
+ fireEvent.click(within(dialog).getByRole("button", { name: "Subir CV corregido" }));
+ await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(updated));
+ await waitFor(() => expect(loadOrgCandidateHistoryAction).toHaveBeenCalledTimes(2));
+ expect(fetch.mock.calls[0][1].headers).toEqual({ "If-Match": '"v1"' });
+ const { notifyActionResult } = await import("@/components/feedback/notify");
+ expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "CV corregido guardado" }));
+});
+it("opens the file picker before confirmation and lets the user choose a different file", async () => {
+ open(); await screen.findByRole("region", { name: "Procesos" });
+ const input = screen.getByLabelText("CV corregido para Frontend"); const click = vi.spyOn(input, "click");
+ fireEvent.click(screen.getByRole("button", { name: "Subir CV corregido" }));
+ expect(click).toHaveBeenCalledTimes(1); expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(); expect(fetch).not.toHaveBeenCalled();
+ await pick(); fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Elegir otro archivo" }));
+ expect(click).toHaveBeenCalledTimes(2);
+ fireEvent.change(input, { target: { files: [new File(["PDF"], "otro.pdf", { type: "application/pdf" })] } });
+ expect(screen.getByRole("alertdialog")).toHaveTextContent("otro.pdf");
+});
+it("canceling the dialog never uploads", async () => {
+ open(); await pick(); fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancelar" }));
+ await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()); expect(fetch).not.toHaveBeenCalled();
+});
+it("retains the file on 412, refreshes without unmounting and retries with the fresh etag", async () => {
+ open(); await pick();
+ fetch.mockResolvedValueOnce(Response.json({ error: "private", code: "precondition_failed" }, { status: 412 })).mockResolvedValueOnce(Response.json({ ...detailFixture(), etag: '"v3"' }));
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), etag: '"v2"' } });
+ fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Subir CV corregido" }));
+ await waitFor(() => expect(loadOrgCandidateDetailAction).toHaveBeenCalledTimes(2));
+ expect(await screen.findByRole("status", { name: "" })).toHaveTextContent("Esto cambió en otro lugar");
+ fireEvent.click(screen.getByRole("button", { name: "Subir CV corregido" }));
+ expect(await screen.findByRole("alertdialog")).toHaveTextContent("corregido.pdf");
+ fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Subir CV corregido" }));
+ await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2)); expect(fetch.mock.calls[1][1].headers).toEqual({ "If-Match": '"v2"' });
+});
+it("blocks duplicate confirmation and editing while the upload is pending", async () => {
+ let resolve!: (value: Response) => void; fetch.mockReturnValue(new Promise(yes => { resolve = yes; }));
+ open(); await pick(); const dialog = await screen.findByRole("alertdialog");
+ expect(dialog.querySelector('[data-slot="alert-dialog-header"] [data-slot="alert-dialog-media"]')).not.toBeNull();
+ expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
+ const confirm = within(dialog).getByRole("button", { name: "Subir CV corregido" });
+ fireEvent.click(confirm); fireEvent.click(confirm);
+ expect(fetch).toHaveBeenCalledTimes(1);
+ expect(within(dialog).getByRole("button", { name: "Subiendo…" })).toBeDisabled();
+ expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeDisabled();
+ await act(async () => resolve(Response.json({ ...detailFixture(), etag: '\"v2\"' })));
+ await waitFor(() => expect(screen.getByRole("button", { name: "Editar datos" })).toBeEnabled());
+});
+it("keeps the picked file and only retries the read if conflict refresh fails", async () => {
+ open(); await pick(); fetch.mockResolvedValue(Response.json({ code: "precondition_failed" }, { status: 412 }));
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValueOnce({ ok: true, data: { ...detailFixture(), etag: '\"v2\"' } });
+ fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Subir CV corregido" }));
+ const refresh = await screen.findByRole("button", { name: "Actualizar ficha" });
+ await waitFor(() => expect(refresh).toBeEnabled()); fireEvent.click(refresh);
+ await waitFor(() => expect(screen.getByRole("button", { name: "Subir CV corregido" })).toBeEnabled());
+ expect(fetch).toHaveBeenCalledTimes(1);
+ fireEvent.click(screen.getByRole("button", { name: "Subir CV corregido" }));
+ expect(await screen.findByRole("alertdialog")).toHaveTextContent("corregido.pdf");
+});
+it("reconciles an uncertain response before offering another upload", async () => {
+ open(); await pick(); fetch.mockRejectedValue(new Error("private network error"));
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), etag: '\"v2\"' } });
+ fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Subir CV corregido" }));
+ await waitFor(() => expect(loadOrgCandidateDetailAction).toHaveBeenCalledTimes(2));
+ expect(fetch).toHaveBeenCalledTimes(1);
+ expect(screen.getByRole("status")).toHaveTextContent("No pudimos confirmar el guardado");
+});
+it("shows file and server validation in the card's reserved ActionStatus", async () => {
+ open(); const input = await pick(new File(["doc"], "cv.doc", { type: "application/msword" }));
+ expect(screen.getByRole("status")).toHaveTextContent("Sube un PDF o un documento de Word (.docx).");
+ expect(screen.getByRole("status").closest("[data-pf-action-bar]")).not.toBeNull();
+ expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(); expect(fetch).not.toHaveBeenCalled();
+ fireEvent.change(input, { target: { files: [new File(["%PDF"], "good.pdf", { type: "application/pdf" })] } });
+ fetch.mockResolvedValue(Response.json({ code: "validation_error", error: "private" }, { status: 400 }));
+ fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Subir CV corregido" }));
+ await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Revisa el archivo e intenta de nuevo."));
+ expect(screen.queryByText("private")).not.toBeInTheDocument();
+});

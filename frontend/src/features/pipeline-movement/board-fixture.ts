@@ -15,11 +15,11 @@ export function boardFixture(): Board {
     ],
     exit: { id: "exit", kind: "discarded", name: "Descartados", count: 0 },
     coverage: { covered: 0, required: 2, full_coverage_reached_at: null },
-    participations: [{ profile: { location: null, skills: [], years_of_experience: null, seniority: null, education: { highest_completed: null, in_progress: null }, languages: [] }, screening_answers: [], substate_id: null, discard: null, id: "person", stage_id: "new", version: "4", etag: '"opaque-item-tag"', added_by: null, candidate: { id: "candidate", full_name: "Ana Pérez", kind: "organic" }, applied_at: "2026-10-16T12:00:00Z", source: "organic", cv: { id: "cv", name: "CV Ana.pdf" }, moved_at: "2026-10-16T12:00:00Z" }],
+    participations: [{ corrected_fields: [], profile: { location: null, skills: [], years_of_experience: null, seniority: null, education: { highest_completed: null, in_progress: null }, languages: [] }, screening_answers: [], substate_id: null, discard: null, id: "person", stage_id: "new", version: "4", etag: '"opaque-item-tag"', added_by: null, candidate: { id: "candidate", full_name: "Ana Pérez", kind: "organic" }, applied_at: "2026-10-16T12:00:00Z", source: "organic", cv: { id: "cv", name: "CV Ana.pdf", source: "candidate" }, moved_at: "2026-10-16T12:00:00Z" }],
   };
 }
 export function detailFixture(): ParticipationDetail {
-  return { ...boardFixture().participations[0], contact: { email: "ana@example.com" as string | null, phone: null as string | null }, comment: null, candidate_message: null, screening: [
+  return { ...boardFixture().participations[0], original: null, original_cv: null, contact: { email: "ana@example.com" as string | null, phone: null as string | null }, comment: null, candidate_message: null, screening: [
     { question_id: "q1", prompt: "¿Disponibilidad?", type: "single_choice", answer: { option_id: "o1", label: "Inmediata" } },
     { question_id: "q2", prompt: "¿Por qué te interesa?", type: "open", answer: { text: "Quiero aportar al equipo." } },
   ] };

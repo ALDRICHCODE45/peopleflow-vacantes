@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { listCandidatesAction } from "../actions";
 import type { CandidateFailure, CandidatePage, CandidateResult } from "../model";
+import type { OrgCandidateDetail } from "../detail/detail-model";
 import { parseUrlState, serializeFilters, serializeUrlState, toListQuery, type UrlState } from "../url-state";
 const changed = "org-candidates-url-change";
 function subscribe(listener: () => void) {
@@ -16,6 +17,18 @@ export function useCandidates() {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ key: string; cursor?: string; page: CandidatePage } | null>(null);
   const loadedRef = useRef(loaded); loadedRef.current = loaded;
+  // A confirmed edit updates only its row, preserving accumulated pages and URL cursors.
+  // Keep patches during an in-flight page read so an older response cannot undo a save.
+  const patches = useRef(new Map<string, OrgCandidateDetail>());
+  const patchItems = useCallback((page: CandidatePage): CandidatePage => ({ ...page, items: page.items.map(item => {
+    const detail = patches.current.get(`${item.kind}:${item.id}`);
+    return detail ? { ...item, full_name: detail.full_name, professional_title: detail.professional_title,
+      current_company: detail.current_company, profile: { ...detail.profile, skills: detail.skills } } : item;
+  }) }), []);
+  const patchCandidate = useCallback((detail: OrgCandidateDetail) => {
+    patches.current.set(`${detail.kind}:${detail.id}`, detail);
+    setLoaded(previous => previous ? { ...previous, page: patchItems(previous.page) } : previous);
+  }, [patchItems]);
   const [pending, setPending] = useState(true);
   const [failure, setFailure] = useState<CandidateFailure | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -29,6 +42,8 @@ export function useCandidates() {
   useEffect(() => {
     let current = true;
     const requestState = stateRef.current;
+    // Reads started after a save are authoritative; only protect reads already in flight.
+    patches.current.clear();
     setPending(true); setFailure(null);
     async function load() {
       let result: CandidateResult;
@@ -50,15 +65,15 @@ export function useCandidates() {
       const append = requestState.cursor && previous?.key === filterKey && previous.page.next_cursor === requestState.cursor;
       const items = append ? [...previous.page.items, ...result.data.items] : result.data.items;
       const seen = new Set<string>();
-      setLoaded({ key: filterKey, cursor: requestState.cursor, page: { ...result.data, items: items.filter(item => {
+      setLoaded({ key: filterKey, cursor: requestState.cursor, page: patchItems({ ...result.data, items: items.filter(item => {
         const identity = `${item.kind}:${item.id}`; if (seen.has(identity)) return false; seen.add(identity); return true;
-      }) } });
+      }) }) });
     }
     void load(); return () => { current = false; };
-  }, [filterKey, state.cursor, attempt, update]);
+  }, [filterKey, state.cursor, attempt, update, patchItems]);
   const page = loaded?.key === filterKey ? loaded.page : null;
   return { state, update, page, pending: pending || (!failure && loaded?.key !== filterKey), failure, notice,
-    retry: () => setAttempt(value => value + 1), clearNotice,
+    retry: () => setAttempt(value => value + 1), clearNotice, patchCandidate,
     loadMore: () => { if (!pending && page?.next_cursor) update({ ...stateRef.current, cursor: page.next_cursor }); },
   };
 }

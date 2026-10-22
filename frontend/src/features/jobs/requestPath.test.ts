@@ -30,6 +30,8 @@ describe("single application-facing request path", () => {
       "features/languages/use-language-catalog.ts",
       "features/manual-intake/file-client.ts",
       "features/manual-intake/upload.ts",
+      "features/org-candidates/cv/cv-client.ts",
+      "features/org-candidates/cv/upload.ts",
       "features/org-candidates/detail/file-client.ts",
       "features/pipeline-movement/file-client.ts",
       "lib/api/requestJson.ts",
@@ -76,7 +78,7 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
-  it.each(["features/employer-team/client.ts", "features/org-candidates/detail/file-client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
+  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
     const adapter = source(join(SRC, file));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');
@@ -99,6 +101,26 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('redirect: "error"');
     expect(adapter).toContain('cache: "no-store"');
     expect(source(join(SRC, "app/api/company/manual-candidates/[vacancyId]/route.ts"))).not.toMatch(/\bfetch\(/);
+  });
+
+  it.each(["features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts"])("keeps %s server-only through the shared transport", file => {
+    const client = source(join(SRC, file));
+    expect(client).toContain('import "server-only"');
+    expect(client).toContain('from "@/lib/api/server"');
+    expect(client).not.toMatch(/\bfetch\(/);
+  });
+
+  it("keeps corrected CV uploads on the bounded same-origin route and server actions behind the file client", () => {
+    const upload = source(join(SRC, "features/org-candidates/cv/upload.ts"));
+    expect(upload).toContain("fetch(candidateCvHref(candidate, participationId)");
+    expect(upload).toContain('credentials: "same-origin"');
+    expect(upload).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:/);
+    const actions = source(join(SRC, "features/org-candidates/cv/cv-actions.ts"));
+    expect(actions).toContain('from "./cv-client"');
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+    const route = source(join(SRC, "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts"));
+    expect(route).toContain("readBoundedBody(request.body, CV_ENVELOPE_CAP");
+    expect(route).not.toMatch(/\bfetch\(/);
   });
 
   it("reaches the transport only through the guarded API functions", () => {
@@ -129,6 +151,8 @@ describe("single application-facing request path", () => {
       "features/manual-intake/client.ts",
       "features/org-candidates/client.ts",
       "features/org-candidates/detail/detail-client.ts",
+      "features/org-candidates/edit/edit-client.ts",
+      "features/org-candidates/history/history-client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/auth/backend-check.ts",
@@ -163,6 +187,8 @@ describe("single application-facing request path", () => {
       "features/manual-intake/client.ts",
       "features/org-candidates/client.ts",
       "features/org-candidates/detail/detail-client.ts",
+      "features/org-candidates/edit/edit-client.ts",
+      "features/org-candidates/history/history-client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/api/server.ts",
@@ -182,8 +208,10 @@ describe("single application-facing request path", () => {
       "app/api/candidate/cvs/[id]/file/route.ts",
       "app/api/candidate/cvs/route.ts",
       "app/api/catalogs/languages/route.ts",
+      "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts",
       "app/api/company/manual-candidates/[vacancyId]/route.ts",
+      "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",
       "app/api/geo/countries/mx/postal-codes/[cp]/route.ts",
       "app/api/geo/countries/mx/states/[state]/municipalities/route.ts",

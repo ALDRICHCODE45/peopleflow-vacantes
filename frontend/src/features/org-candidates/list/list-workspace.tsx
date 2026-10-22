@@ -18,10 +18,12 @@ import { changeFilters, changeView, parseUrlState, type CandidateFilters } from 
 import { CandidateResults, CandidateResultsSkeleton, type OpenCandidate } from "./candidate-results";
 import { CandidateFiltersBar } from "./candidate-filters";
 import { useCandidates } from "./use-candidates";
+import type { OrgCandidateDetail } from "../detail/detail-model";
 
 /** Internal organization pool. Both views consume the same accumulated server page. */
-export function OrgCandidatesWorkspace({ onOpenCandidate }: { onOpenCandidate?: OpenCandidate }) {
-  const { state, update, page, pending, failure, notice, retry, clearNotice, loadMore } = useCandidates();
+export function OrgCandidatesWorkspace({ onOpenCandidate, updatedCandidate }: { onOpenCandidate?: OpenCandidate; updatedCandidate?: OrgCandidateDetail | null }) {
+  const { state, update, page, pending, failure, notice, retry, clearNotice, loadMore, patchCandidate } = useCandidates();
+  useEffect(() => { if (updatedCandidate) patchCandidate(updatedCandidate); }, [updatedCandidate, patchCandidate]);
   const languages = useLanguageCatalog();
   // Presentation only: resizing never changes the saved URL view or refetches.
   const isMobile = useIsMobile();

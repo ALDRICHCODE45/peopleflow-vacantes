@@ -1,6 +1,10 @@
 import { expect, it } from "vitest";
 import { orgCandidateDetailSchema } from "./detail-model";
 import { detailFixture } from "./test-fixtures";
+import { editFixture } from "../edit/test-fixtures";
+it.each(["manual", "organic"] as const)("accepts the %s edit metadata in full detail responses", kind => {
+  expect(orgCandidateDetailSchema.safeParse(editFixture(kind)).success).toBe(true);
+});
 
 it.each(["manual", "organic"] as const)("accepts the frozen %s contract", kind => {
   expect(orgCandidateDetailSchema.parse(detailFixture(kind))).toEqual(detailFixture(kind));

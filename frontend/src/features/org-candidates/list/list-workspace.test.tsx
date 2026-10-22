@@ -9,6 +9,7 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ state
 import { listCandidatesAction } from "../actions";
 import { OrgCandidatesWorkspace } from "./list-workspace";
 import { candidate, page } from "./test-fixtures";
+import { detailFixture } from "../detail/test-fixtures";
 beforeEach(() => {
  vi.resetAllMocks(); localStorage.clear();
  vi.stubGlobal("innerWidth", 1440);
@@ -59,6 +60,36 @@ it("appends load-more results without replacing the first page", async () => {
  vi.mocked(listCandidatesAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: true, data: { ...page, items: [{ ...candidate, kind: "organic", full_name: "Ana Ríos" }] } });
  render(<OrgCandidatesWorkspace />); fireEvent.click(await screen.findByRole("button", { name: "Cargar más" })); await screen.findByText("Ana Ríos"); expect(screen.getByText(candidate.full_name)).toBeTruthy();
  expect(listCandidatesAction).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: "opaque" }));
+});
+it("patches a saved candidate across accumulated pages without losing pagination or URL state", async () => {
+ window.history.replaceState(null, "", "/empresa/talento?view=cards&origin=manual");
+ const second = { ...candidate, id: detailFixture().id, full_name: "Nombre anterior" };
+ vi.mocked(listCandidatesAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: true, data: { ...page, items: [second], next_cursor: "next" } });
+ const view = render(<OrgCandidatesWorkspace />);
+ fireEvent.click(await screen.findByRole("button", { name: "Cargar más" })); await screen.findByText(second.full_name);
+ const url = window.location.search;
+ const updated = { ...detailFixture(), full_name: "Nombre actualizado", professional_title: "Ingeniera", profile: { ...detailFixture().profile, skills: ["Go"] } };
+ view.rerender(<OrgCandidatesWorkspace updatedCandidate={updated} />);
+ expect(await screen.findByText(updated.full_name)).toBeVisible();
+ expect(screen.getByText(candidate.full_name)).toBeVisible();
+ expect(screen.queryByText(second.full_name)).not.toBeInTheDocument();
+ expect(screen.getByText("Ingeniera")).toBeVisible();
+ expect(screen.getByRole("button", { name: "Cargar más" })).toBeEnabled();
+ expect(window.location.search).toBe(url);
+ expect(listCandidatesAction).toHaveBeenCalledTimes(2);
+});
+it("does not let an in-flight page overwrite a confirmed row edit", async () => {
+ let finish!: (value: Awaited<ReturnType<typeof listCandidatesAction>>) => void;
+ vi.mocked(listCandidatesAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+ const view = render(<OrgCandidatesWorkspace />);
+ fireEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
+ const updated = { ...detailFixture(), id: candidate.id, full_name: "Nombre actualizado" };
+ view.rerender(<OrgCandidatesWorkspace updatedCandidate={updated} />);
+ await screen.findByText(updated.full_name);
+ await act(async () => finish({ ok: true, data: { ...page, items: [candidate, { ...candidate, kind: "organic" }] } }));
+ expect(screen.getByText(updated.full_name)).toBeVisible();
+ // The same UUID in a different kind is a different row, not another patch target.
+ expect(screen.getByText(candidate.full_name)).toBeVisible();
 });
 it("drops invalid vacancy from URL with explicit copy", async () => {
  window.history.replaceState(null, "", "/empresa/talento?vacancy=gone&q=Ana"); vi.mocked(listCandidatesAction).mockResolvedValueOnce({ ok: false, reason: "invalid_filter", fields: [{ field: "vacancy", code: "not_found" }], reference: {} });
