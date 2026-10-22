@@ -338,7 +338,7 @@ describe("profile form fields composition", () => {
 describe("profile form fields contract", () => {
   it("keeps 40px targets, visible focus, token-only paint and responsive grids", () => {
     const { container } = renderFields();
-    for (const node of container.querySelectorAll("input:not([aria-hidden='true']), button")) expect(`${classes(node)} ${classes(node.closest('[data-slot="input-group"]'))}`).toContain("min-h-10");
+    for (const node of container.querySelectorAll("input:not([aria-hidden='true']), button")) expect(`${classes(node)} ${classes(node.closest('[data-slot="input-group"]'))}`).toMatch(/(?:min-h-10|size-10)/u);
     for (const node of container.querySelectorAll("textarea")) expect(classes(node)).toContain("min-h-24");
     // Every editable control carries the visible focus ring itself, or inherits it from its input-group frame.
     for (const node of container.querySelectorAll("input:not([aria-hidden='true']), textarea, button")) {
@@ -357,7 +357,7 @@ describe("profile form fields contract", () => {
     const row = container.querySelector("[data-pf-profile-language-row]") as HTMLElement;
     const rowGrid = row.querySelector("[data-pf-profile-language-grid]") as HTMLElement;
     expect(row).toHaveAttribute("data-slot", "field-set");
-    expect([classes(rowGrid).includes("grid-cols-1"), classes(rowGrid).includes("sm:grid-cols-2")]).toEqual([true, true]);
+    expect(rowGrid).toHaveClass("grid-cols-[minmax(0,1fr)_auto]", "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]");
     expect(SOURCE).toContain("motion-reduce:transition-none");
     expect(container.querySelector("[data-pf-profile-language-add]")).toHaveTextContent("Agregar idioma");
     expect(container.querySelectorAll("[data-slot='select-trigger']")).toHaveLength(2 + draft().languages.length + 2 * draft().education.length);

@@ -8,6 +8,11 @@ vi.mock("@/components/ui/select", async importOriginal => ({
   ...await importOriginal<typeof import("@/components/ui/select")>(),
   SelectContent: ({ children }: { children: ReactNode }) => <div data-slot="select-content">{children}</div>,
 }));
+// jsdom has no layout for the anchored tooltip positioner; preserve its real root/trigger.
+vi.mock("@/components/ui/tooltip", async importOriginal => ({
+  ...await importOriginal<typeof import("@/components/ui/tooltip")>(),
+  TooltipContent: ({ children }: { children: ReactNode }) => <div role="tooltip">{children}</div>,
+}));
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
@@ -41,6 +46,20 @@ it("overrides the vacancy limit and gives each minimum level a unique name", () 
   expect(screen.getByRole("combobox", { name: "Nivel mínimo del idioma 10" })).toBeTruthy();
   rerender(<LanguageListEditor value={rows} onChange={vi.fn()} maxItems={20} levelLabel="Nivel mínimo del idioma" />);
   expect((screen.getByRole("button", { name: "Agregar idioma" }) as HTMLButtonElement).disabled).toBe(true);
+});
+it("keeps language, level and icon removal in one responsive row, with dividers and a tooltip", async () => {
+  const user = userEvent.setup();
+  const { container } = render(<LanguageListEditor value={[{ code: "es", level: "B2" }, { code: "", level: "" }]} onChange={vi.fn()} />);
+  const remove = screen.getByRole("button", { name: "Quitar idioma 1" });
+  expect(remove.textContent).toBe("");
+  expect(remove.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  const grid = remove.closest('[data-pf-profile-language-grid]');
+  expect(grid?.contains(screen.getByLabelText("Idioma 1"))).toBe(true);
+  expect(grid?.contains(screen.getByLabelText("Nivel del idioma 1"))).toBe(true);
+  expect(grid?.className).toContain("sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]");
+  expect(container.querySelectorAll('[data-slot="separator"]')).toHaveLength(1);
+  await user.hover(remove);
+  expect(screen.getAllByRole("tooltip")[0]).toHaveProperty("textContent", "Quitar");
 });
 it("disables adding at ten languages", () => {
   render(<LanguageListEditor value={Array.from({ length: 10 }, (_, i) => ({ code: String(i), level: "A1" }))} onChange={vi.fn()} />);

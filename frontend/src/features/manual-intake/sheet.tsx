@@ -74,8 +74,9 @@ export function ManualIntakeSheet({ vacancyId, stages, onClose, onSuccess, onVie
  }
  function firstInvalid() {
   const first = bodyRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
-  // Collection errors belong at the editor's first actionable control, before later sections.
-  return first?.matches("[data-intake-education], [data-intake-languages]") ? first.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)') ?? first : first;
+  // Prefer an editable field for collection errors, not the header's remove action.
+  // An empty collection falls back to its add button.
+  return first?.matches("[data-intake-education], [data-intake-languages]") ? first.querySelector<HTMLElement>('[data-pf-profile-field]:not(:disabled)') ?? first.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)') ?? first : first;
  }
  function focusInvalid() { requestAnimationFrame(() => firstInvalid()?.focus()); }
  function validate() {

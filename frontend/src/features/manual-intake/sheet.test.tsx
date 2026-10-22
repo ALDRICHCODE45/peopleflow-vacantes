@@ -243,6 +243,26 @@ it("sends harmonized studies, decimal experience, seniority and catalog language
  expect(candidate).toMatchObject({ years_of_experience: "1.5", seniority: "semi_senior", education: [{ level: "bachelor", institution: "UNAM", field: "Computación", status: "completed", start_year: 2015, end_year: 2020 }], languages: [{ code: "nah", level: "native" }] });
  for (const key of ["education_level", "field_of_study", "experience_years"]) expect(candidate).not.toHaveProperty(key);
 });
+it("clears the end year on switching to ongoing and preserves the embedded intake editors", async () => {
+ mount(); fill(); change("Año de fin", "2024");
+ change("Estatus", "in_progress");
+ expect(screen.queryByLabelText("Año de fin")).toBeNull();
+ change("Estatus", "paused");
+ expect(screen.getByLabelText("Año de fin")).toHaveValue(null);
+ change("Estatus", "incomplete"); change("Año de fin", "2023");
+ expect(screen.getByLabelText("Año de fin")).toHaveValue(2023);
+ change("Estatus", "in_progress");
+ const study = screen.getByRole("group", { name: "Estudio 1" });
+ expect(study.closest('[data-slot="card"]')).toBeNull();
+ expect(within(study).getByRole("button", { name: "Quitar estudio 1" })).toHaveTextContent(/^Quitar$/);
+ fireEvent.click(screen.getByRole("button", { name: /Perfil profesional/ }));
+ fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
+ change("Idioma 1", "es"); change("Nivel del idioma 1", "native");
+ expect(screen.getByRole("button", { name: "Quitar idioma 1" }).closest('[data-pf-profile-language-grid]')).toContainElement(screen.getByLabelText("Idioma 1"));
+ vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+ await submit();
+ expect(vi.mocked(submitManualCandidate).mock.calls[0][1].candidate).toMatchObject({ education: [expect.objectContaining({ status: "in_progress", end_year: null })], languages: [{ code: "es", level: "native" }] });
+});
 it("focuses the education add action when there are no studies", async () => {
  mount(); fill(); fireEvent.click(screen.getByRole("button", { name: "Quitar estudio 1" }));
  fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
@@ -269,7 +289,7 @@ it("limits studies to ten and lets a removed slot be reused", () => {
  expect(screen.getByRole("button", { name: "Agregar estudio" })).toBeEnabled();
 });
 it.each([
- ["in_progress", "2024", "2025"], ["completed", "2025", "2020"], ["paused", "1949", ""], ["incomplete", "", "2101"],
+ ["completed", "2025", "2020"], ["paused", "1949", ""], ["incomplete", "", "2101"],
 ])("rejects invalid study dates for %s (%s–%s)", async (status, start, end) => {
  mount(); fill(); change("Estatus", status); change("Año de inicio", start); change("Año de fin", end);
  fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
@@ -356,5 +376,6 @@ it("remounts the field block on the new/existing switch so Chromium lays out sta
 });
 it("opens with one study ready because at least one is required", () => {
  mount();
- expect(screen.getByText("Estudio 1")).toBeVisible();
+ expect(screen.getByRole("group", { name: "Estudio 1" })).toBeVisible();
+ expect(screen.getByText("Estudio 1", { selector: "span" })).toBeVisible();
 });

@@ -1,5 +1,9 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { Fragment, useEffect, useId, useState, type ReactNode } from "react";
+import { Trash2 } from "lucide-react";
+import { cn } from "cn";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -16,9 +20,9 @@ type Issue = { path: string; message: string };
 const levels = CEFR_LEVELS.map(value => ({ value, label: CEFR_LEVEL_LABELS[value] }));
 
 /** Simple Combobox composition, matching LocationField: input text filters only. */
-export function LanguageField({ value, onChange, excludedCodes = [], index = 0, disabled, issues = [], idPrefix, levelLabel = "Nivel del idioma" }: {
+export function LanguageField({ value, onChange, excludedCodes = [], index = 0, disabled, issues = [], idPrefix, levelLabel = "Nivel del idioma", removeAction }: {
   value: LanguageValue; onChange: (next: LanguageValue) => void; excludedCodes?: readonly string[];
-  index?: number; disabled?: boolean; issues?: readonly Issue[]; idPrefix?: string; levelLabel?: string;
+  index?: number; disabled?: boolean; issues?: readonly Issue[]; idPrefix?: string; levelLabel?: string; removeAction?: ReactNode;
 }) {
   const generatedId = useId();
   const id = idPrefix ?? generatedId;
@@ -30,8 +34,8 @@ export function LanguageField({ value, onChange, excludedCodes = [], index = 0, 
   useEffect(() => { setText(shown); }, [shown]);
   const error = (key: "code" | "level") => issues.find(issue => issue.path === `languages.${index}.${key}`)?.message;
   const loading = catalog.status === "idle" || catalog.status === "loading";
-  return <FieldGroup data-pf-profile-language-grid="" className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
-    <Field data-invalid={!!error("code")} aria-busy={loading}>
+  return <FieldGroup data-pf-profile-language-grid="" className={cn("grid gap-3 [&>*]:min-w-0", removeAction ? "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" : "grid-cols-1 sm:grid-cols-2")}>
+    <Field data-invalid={!!error("code")} aria-busy={loading} className={removeAction ? "col-span-2 sm:col-span-1" : undefined}>
       <FieldLabel htmlFor={`${id}-code`}>Idioma {index + 1}</FieldLabel>
       {loading ? <><Skeleton className="h-10 w-full" /><span role="status" className="sr-only">Cargando idiomas</span></> : <Combobox items={items} value={selected}
         itemToStringLabel={(item: LanguageOption) => item.name} itemToStringValue={(item: LanguageOption) => item.code} isItemEqualToValue={(a, b) => a.code === b.code}
@@ -51,17 +55,22 @@ export function LanguageField({ value, onChange, excludedCodes = [], index = 0, 
       </Select>
       {error("level") && <FieldError id={`${id}-level-error`}>{error("level")}</FieldError>}
     </Field>
+    {removeAction && <div className="self-start pt-7">{removeAction}</div>}
   </FieldGroup>;
 }
 export function LanguageListEditor({ value, onChange, disabled, issues = [], maxItems = 10, levelLabel }: { value: readonly LanguageValue[]; onChange: (next: LanguageValue[]) => void; disabled?: boolean; issues?: readonly Issue[]; maxItems?: number; levelLabel?: string }) {
   return <FieldGroup>
     {!value.length && <p className="text-sm text-muted-foreground">Sin idiomas agregados.</p>}
     {issues.find(issue => issue.path === "languages") && <FieldError>{issues.find(issue => issue.path === "languages")!.message}</FieldError>}
-    {value.map((row, index) => <FieldSet key={index} data-pf-profile-language-row={index} disabled={disabled}>
+    {value.map((row, index) => <Fragment key={index}>
+      {index > 0 && <Separator />}
+      <FieldSet data-pf-profile-language-row={index} disabled={disabled}>
       <FieldLegend className="sr-only">Idioma {index + 1}</FieldLegend>
-      <LanguageField value={row} index={index} levelLabel={levelLabel} disabled={disabled} issues={issues} idPrefix={`profile-language-${index}`} excludedCodes={value.filter((_, i) => i !== index).map(item => item.code)} onChange={next => onChange(value.map((item, i) => i === index ? next : item))} />
-      <Button type="button" variant="ghost" className="min-h-10 w-fit" aria-label={`Quitar idioma ${index + 1}`} data-pf-profile-language-remove disabled={disabled} onClick={() => onChange(value.filter((_, i) => i !== index))}>Quitar</Button>
-    </FieldSet>)}
+      <LanguageField removeAction={<Tooltip>
+        <TooltipTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10 text-destructive hover:text-destructive" aria-label={`Quitar idioma ${index + 1}`} data-pf-profile-language-remove disabled={disabled} onClick={() => onChange(value.filter((_, i) => i !== index))} />}><Trash2 aria-hidden="true" /></TooltipTrigger>
+        <TooltipContent>Quitar</TooltipContent>
+      </Tooltip>} value={row} index={index} levelLabel={levelLabel} disabled={disabled} issues={issues} idPrefix={`profile-language-${index}`} excludedCodes={value.filter((_, i) => i !== index).map(item => item.code)} onChange={next => onChange(value.map((item, i) => i === index ? next : item))} />
+    </FieldSet></Fragment>)}
     <Button type="button" variant="outline" className="min-h-10 w-fit" data-pf-profile-language-add disabled={disabled || value.length >= maxItems} onClick={() => onChange([...value, { code: "", level: "" }])}>Agregar idioma</Button>
   </FieldGroup>;
 }

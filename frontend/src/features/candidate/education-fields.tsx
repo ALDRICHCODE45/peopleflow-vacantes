@@ -1,5 +1,7 @@
 "use client";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
+import { Trash2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -15,13 +17,20 @@ export function EducationFields({ value, onChange, issues, disabled, embedded = 
   const fields = <FieldSet data-pf-profile-group="education" disabled={disabled} className="gap-4">
       <FieldLegend className="sr-only">Formación académica</FieldLegend>
       {errorFor("education") && <FieldError>{errorFor("education")}</FieldError>}
-      <FieldGroup>{value.map((study, index) => <FieldSet key={index}>
-        <FieldLegend>Estudio {index + 1}</FieldLegend>
+      <FieldGroup>{value.map((study, index) => <Fragment key={index}>
+        {index > 0 && <Separator />}
+        <FieldSet className="gap-4">
+        <FieldLegend className="sr-only">Estudio {index + 1}</FieldLegend>
+        <div className="flex items-center justify-between gap-3">
+          <span aria-hidden="true" className="text-sm font-medium">Estudio {index + 1}</span>
+          <Button type="button" variant="ghost" className="min-h-10 text-destructive hover:text-destructive" aria-label={`Quitar estudio ${index + 1}`} disabled={disabled} onClick={() => onChange(value.filter((_, i) => i !== index))}><Trash2 data-icon="inline-start" aria-hidden="true" />Quitar</Button>
+        </div>
         <FieldGroup data-pf-profile-fields-grid="" className="grid grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">{keys.map(key => {
+          if (key === "end_year" && study.status === "in_progress") return null;
           const path = `education.${index}.${key}`;
           const id = `profile-education-${index}-${key}`;
           const error = errorFor(path);
-          const update = (next: string) => onChange(value.map((row, i) => i === index ? { ...row, [key]: next } : row));
+          const update = (next: string) => onChange(value.map((row, i) => i === index ? { ...row, [key]: next, ...(key === "status" && next === "in_progress" ? { end_year: "" } : {}) } : row));
           // Level and status are required for every study: ask to choose, never offer «Sin especificar».
           const items = key === "level" || key === "status" ? options[key] : null;
           const year = key === "start_year" || key === "end_year";
@@ -34,8 +43,7 @@ export function EducationFields({ value, onChange, issues, disabled, embedded = 
             {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
           </Field>;
         })}</FieldGroup>
-        <Button type="button" variant="ghost" className="min-h-10 w-fit" aria-label={`Quitar estudio ${index + 1}`} disabled={disabled} onClick={() => onChange(value.filter((_, i) => i !== index))}>Quitar estudio</Button>
-      </FieldSet>)}</FieldGroup>
+      </FieldSet></Fragment>)}</FieldGroup>
       <Button type="button" variant="outline" data-pf-profile-education-add className="min-h-10 w-fit" disabled={disabled || value.length >= 10} onClick={() => onChange([...value, { level: "", institution: "", field: "", status: "", start_year: "", end_year: "" }])}>Agregar estudio</Button>
     </FieldSet>;
   if (embedded) return fields;
