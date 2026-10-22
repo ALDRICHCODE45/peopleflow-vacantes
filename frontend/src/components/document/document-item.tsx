@@ -11,12 +11,12 @@ type DocumentItemProps = {
   actions: ReactNode;
 };
 
-/** Official Item anatomy. The content keeps a 14rem basis so, in a narrow card, the Item's native
+/** Official Item anatomy. The content keeps a 10rem basis (icon + name still fit one row at 390px) so, in a narrow card, the Item's native
  * flex-wrap moves the actions under the text instead of squeezing the description. */
 export function DocumentItem({ icon: Icon = FileText, title, description, badge, actions }: DocumentItemProps) {
   return <Item variant="outline" size="sm">
     <ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia>
-    <ItemContent className="min-w-0 basis-56">
+    <ItemContent className="min-w-0 basis-40">
       <ItemTitle title={title}><span className="truncate">{title}</span></ItemTitle>
       <ItemDescription className="line-clamp-none flex flex-wrap items-center gap-x-2 gap-y-1">{description}{badge}</ItemDescription>
     </ItemContent>
