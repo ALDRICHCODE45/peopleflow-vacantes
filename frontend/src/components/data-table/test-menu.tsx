@@ -12,6 +12,7 @@ export const menuDouble = {
   },
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => React.useContext(Context).open ? <div role="menu">{children}</div> : null,
   DropdownMenuGroup: ({ children }: { children: React.ReactNode }) => <div role="group">{children}</div>,
+  DropdownMenuSeparator: () => <div role="separator" />,
   DropdownMenuItem: ({ onClick, disabled, render, ...props }: React.ComponentProps<"button"> & { render?: React.ReactElement<React.ComponentProps<"button">> }) => {
     const { setOpen } = React.useContext(Context);
     const itemProps: React.ComponentProps<"button"> = { ...props, disabled, "aria-disabled": disabled || undefined, role: "menuitem", onClick: event => { onClick?.(event); setOpen(false); } };

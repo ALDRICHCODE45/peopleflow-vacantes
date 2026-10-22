@@ -29,8 +29,23 @@ it("renders the nine L20 columns, two-line hierarchy, fixed widths and default p
   const widths = screen.getAllByRole("columnheader").map(header => parseInt(header.style.width));
   expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(1250);
   expect(widths.at(-1)).toBe(56);
+  // Short-label columns keep room for their label plus the 24px options button («Proces…» was cut at 104px).
+  const widthOf = (name: string) => parseInt((screen.getByRole("columnheader", { name }) as HTMLElement).style.width);
+  expect(widthOf("Procesos")).toBeGreaterThanOrEqual(116);
+  expect(widthOf("Actividad")).toBeGreaterThanOrEqual(120);
   expect(screen.getByText("Acciones")).toHaveClass("sr-only");
   expect(screen.queryByRole("button", { name: "Opciones de Acciones" })).not.toBeInTheDocument();
+});
+it("reserves 202px for common education and grows the vacancy column without changing fixed widths", () => {
+  show();
+  expect(screen.getByRole("columnheader", { name: "Estudios" })).toHaveStyle({ width: "202px" });
+  const viewport = screen.getByRole("region", { name: "Tabla con desplazamiento horizontal" });
+  Object.defineProperty(viewport, "clientWidth", { value: 1400 });
+  fireEvent(window, new Event("resize"));
+  expect(screen.getByRole("table")).toHaveStyle({ width: "1400px" });
+  expect(screen.getByRole("columnheader", { name: "Última vacante" })).toHaveStyle({ width: "308px" });
+  expect(screen.getByRole("columnheader", { name: "Estudios" })).toHaveStyle({ width: "202px" });
+  expect(screen.getByRole("columnheader", { name: "Acciones" })).toHaveStyle({ width: "56px" });
 });
 it("truncates long text instead of wrapping, including the candidate name", () => {
   show();

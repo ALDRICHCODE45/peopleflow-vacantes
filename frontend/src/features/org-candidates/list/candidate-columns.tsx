@@ -63,27 +63,27 @@ function CandidateActions({ item, onOpen }: { item: OrgCandidate; onOpen?: OpenC
 /** Keep the existing avatar, cell padding and visual density; each datum has at most two single-line tiers. */
 export function candidateColumns(languages: LanguageCatalog["items"], onOpen?: OpenCandidate): RichColumnDef<OrgCandidate>[] {
   return [
-    { id: "candidate", size: 250, meta: { label: "Candidato" }, enableHiding: false, cell: ({ row }) => {
+    { id: "candidate", size: 216, meta: { label: "Candidato" }, enableHiding: false, cell: ({ row }) => {
       const item = row.original;
       return <div className="flex min-w-0 items-center gap-3"><Avatar className="size-10 shrink-0"><AvatarFallback>{initials(item.full_name)}</AvatarFallback></Avatar><div className="min-w-0 flex-1"><TwoLineCell primary={item.full_name} secondary={normalizedProfileLabel(item.professional_title ?? "") || (item.kind === "manual" ? "Manual" : "Orgánico")} /></div></div>;
     } },
-    { id: "location", size: 140, meta: { label: "Ubicación" }, cell: ({ row }) => {
+    { id: "location", size: 146, meta: { label: "Ubicación" }, cell: ({ row }) => {
       const location = row.original.profile.location;
       const primary = [location?.municipality?.name, location?.state?.name].filter(Boolean).join(", ") || location?.label || location?.country?.name;
       return <TwoLineCell primary={primary || "Sin dato"} secondary={location?.country?.name !== primary ? location?.country?.name : null} missing={!primary} />;
     } },
-    { id: "experience", size: 112, meta: { label: "Experiencia" }, cell: ({ row }) => {
+    { id: "experience", size: 124, meta: { label: "Experiencia" }, cell: ({ row }) => {
       const { years_of_experience: years, seniority } = row.original.profile;
       return <TwoLineCell primary={years !== null ? `${years} ${Number(years) === 1 ? "año" : "años"}` : "Sin dato"} secondary={seniority ? SENIORITY_LABELS[seniority] : null} missing={years === null} />;
     } },
-    { id: "education", size: 180, meta: { label: "Estudios" }, cell: ({ row }) => {
+    { id: "education", size: 202, meta: { label: "Estudios" }, cell: ({ row }) => {
       const education = row.original.profile.education;
       return <TwoLineCell primary={education.highest_completed ? educationLabels[education.highest_completed] : "Sin dato"} secondary={education.in_progress ? `${educationLabels[education.in_progress]} en curso` : null} missing={!education.highest_completed} />;
     } },
-    { id: "languages", size: 120, meta: { label: "Idiomas" }, cell: ({ row }) => <CandidateLanguages item={row.original} languages={languages} /> },
-    { id: "vacancy", size: 180, meta: { label: "Última vacante" }, cell: ({ row }) => <LatestVacancyCell item={row.original} /> },
-    { id: "processes", size: 100, meta: { label: "Procesos" }, cell: ({ row }) => <TwoLineCell primary={`${row.original.participations.total} ${row.original.participations.total === 1 ? "proceso" : "procesos"}`} secondary={`${row.original.participations.active} ${row.original.participations.active === 1 ? "activo" : "activos"}`} /> },
-    { id: "activity", size: 112, meta: { label: "Actividad" }, cell: ({ row }) => <time dateTime={row.original.last_activity_at}><TwoLineCell primary={dateFormat.format(new Date(row.original.last_activity_at))} secondary={relativeActivity(row.original.last_activity_at)} /></time> },
+    { id: "languages", size: 112, meta: { label: "Idiomas" }, cell: ({ row }) => <CandidateLanguages item={row.original} languages={languages} /> },
+    { id: "vacancy", size: 158, meta: { label: "Última vacante", grow: true }, cell: ({ row }) => <LatestVacancyCell item={row.original} /> },
+    { id: "processes", size: 116, meta: { label: "Procesos" }, cell: ({ row }) => <TwoLineCell primary={`${row.original.participations.total} ${row.original.participations.total === 1 ? "proceso" : "procesos"}`} secondary={`${row.original.participations.active} ${row.original.participations.active === 1 ? "activo" : "activos"}`} /> },
+    { id: "activity", size: 120, meta: { label: "Actividad" }, cell: ({ row }) => <time dateTime={row.original.last_activity_at}><TwoLineCell primary={dateFormat.format(new Date(row.original.last_activity_at))} secondary={relativeActivity(row.original.last_activity_at)} /></time> },
     { id: "actions", size: 56, header: () => <span className="sr-only">Acciones</span>, meta: { label: "Acciones", align: "center" }, enablePinning: false, enableHiding: false, enableReorder: false, cell: ({ row }) => <CandidateActions item={row.original} onOpen={onOpen} /> },
   ];
 }

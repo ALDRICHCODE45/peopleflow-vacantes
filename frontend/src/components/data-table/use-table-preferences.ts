@@ -64,5 +64,13 @@ export function useTablePreferences(id: string, defaults: TableDefaults) {
   const setPinning = useCallback((value: Updater<ColumnPinningState>) => setState(previous => ({ ...previous, preferences: { ...previous.preferences, pinning: apply(value, previous.preferences.pinning) } })), []);
   const setVisibility = useCallback((value: Updater<ColumnVisibilityState>) => setState(previous => ({ ...previous, preferences: { ...previous.preferences, visibility: apply(value, previous.preferences.visibility) } })), []);
   const reset = useCallback(() => setState({ identity, ready: true, preferences: reconcile({ v: 1, ...stableDefaults, pinning: { start: stableDefaults.pinning.start ?? [], end: stableDefaults.pinning.end ?? [] } }, stableDefaults) }), [identity, stableDefaults]);
-  return { preferences: state.preferences, setOrder, setPinning, setVisibility, reset };
+  const isDefault = useMemo(() => {
+    const baseline = reconcile({ v: 1, ...stableDefaults }, stableDefaults);
+    const current = state.preferences;
+    return JSON.stringify(current.order) === JSON.stringify(baseline.order)
+      && JSON.stringify(current.pinning.start) === JSON.stringify(baseline.pinning.start)
+      && JSON.stringify(current.pinning.end) === JSON.stringify(baseline.pinning.end)
+      && stableDefaults.order.every(id => (current.visibility[id] !== false) === (baseline.visibility[id] !== false));
+  }, [stableDefaults, state.preferences]);
+  return { preferences: state.preferences, setOrder, setPinning, setVisibility, reset, isDefault };
 }

@@ -33,6 +33,20 @@ it("resets all preferences and persists defaults", () => {
   expect(result.current.preferences).toEqual({ v: 1, ...defaults });
   expect(JSON.parse(localStorage.getItem("pf.table.test")!)).toEqual({ v: 1, ...defaults });
 });
+it("compares effective layouts, treating explicit true visibility as the default", () => {
+  const { result } = renderHook(() => useTablePreferences("test", defaults));
+  expect(result.current).toMatchObject({ isDefault: true });
+  act(() => result.current.setOrder(["city", "name", "actions"]));
+  expect(result.current).toMatchObject({ isDefault: false });
+  act(() => result.current.reset());
+  act(() => result.current.setPinning({ start: ["city"], end: ["actions"] }));
+  expect(result.current).toMatchObject({ isDefault: false });
+  act(() => result.current.reset());
+  act(() => result.current.setVisibility({ city: false }));
+  expect(result.current).toMatchObject({ isDefault: false });
+  act(() => result.current.setVisibility({ city: true }));
+  expect(result.current).toMatchObject({ isDefault: true });
+});
 it("does not throw when storage reads or writes are denied", () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("denied"); });
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
