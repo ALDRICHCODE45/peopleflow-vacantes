@@ -157,6 +157,15 @@ type CompanyCandidate struct {
 	UpdatedBy         pgtype.UUID        `json:"updated_by"`
 }
 
+type CompanyCandidateCorrection struct {
+	CompanyID   uuid.UUID          `json:"company_id"`
+	UserID      uuid.UUID          `json:"user_id"`
+	Corrections []byte             `json:"corrections"`
+	Version     int64              `json:"version"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	UpdatedBy   pgtype.UUID        `json:"updated_by"`
+}
+
 type CompanyCandidateCv struct {
 	ID                 uuid.UUID          `json:"id"`
 	CompanyID          uuid.UUID          `json:"company_id"`
