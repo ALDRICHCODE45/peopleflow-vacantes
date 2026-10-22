@@ -25,8 +25,13 @@ el backend va en su rama indicada, con `make db-migrate`.
    empresa, lista de vacantes sin filas de ejemplo, teléfono E.164 en el perfil, tarjeta
    «Habilidades», combobox de idioma/ubicación que ya no queda vacío y avatar legible en oscuro.
 
+2. **Equipo real y candidatos de mi organización** (paso 88 de `docs/employer-manual-test.md`):
+   frontend `feat/team-and-org-candidates-ui`, backend `feat/org-candidates`. Incluye el acceso
+   de empresa (sin sesión va al login y vuelve a la página pedida) y el arreglo del aviso de
+   error tras un ingreso correcto con Cognito.
+
 Pendientes postergados que siguen abiertos: «Crear cuenta» de candidato cae en el login de
-Cognito; faltan las URLs de cierre de sesión en Cognito; el dashboard de empresa
+Cognito; faltan las URLs de cierre de sesión en Cognito; invitar miembros por correo (no hay endpoint); el backend permite degradar o quitar al último dueño (la UI lo evita); `features/employer-talent` (prototipo) sigue usado por el respaldo del tablero; al cargar un teléfono con lada distinta de +52/+1 se separa con un prefijo fijo de 3 dígitos (`src/lib/phone.ts:30`); el dashboard de empresa
 («Vacantes activas») y el respaldo del tablero todavía usan vacantes de ejemplo; el teléfono del
 formulario de postulación heredado sigue como texto libre (5–30 caracteres) hasta tener el
 control de lada; filtros Estado/Municipio del tablero con una postulación nueva; ver como
