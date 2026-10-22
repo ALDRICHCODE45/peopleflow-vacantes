@@ -17,6 +17,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftfields"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
 	"github.com/google/uuid"
 )
 
@@ -84,6 +85,8 @@ type Position struct {
 type Query struct {
 	Q, WorkSchedule, ContractType, ProfessionalArea, ApplicantCountry string
 	States, Municipalities, WorkModes                                 []string
+	Languages, Seniorities                                            []string
+	YearsOfExperience, EducationLevel                                 string
 	Salary                                                            *SalaryFilter
 	Limit                                                             int
 	After                                                             *Position
@@ -152,7 +155,7 @@ func ParseQuery(raw string) (Query, error) {
 		for _, pair := range strings.Split(raw, "&") {
 			key, value, _ := strings.Cut(pair, "=")
 			key, _ = url.QueryUnescape(key)
-			if isGeoFilter(key) || isSalaryFilter(key) {
+			if isGeoFilter(key) || isSalaryFilter(key) || isProfileFilter(key) {
 				if _, err := url.QueryUnescape(value); err != nil || strings.Contains(pair, ";") {
 					return Query{}, ErrInvalidFilter
 				}
@@ -163,6 +166,12 @@ func ParseQuery(raw string) (Query, error) {
 	q := Query{Limit: 20}
 	salary := map[string]string{}
 	for key, vs := range values {
+		if isProfileFilter(key) {
+			if err := parseProfileFilter(&q, key, vs); err != nil {
+				return Query{}, err
+			}
+			continue
+		}
 		if isSalaryFilter(key) {
 			if len(vs) != 1 || vs[0] == "" || !utf8.ValidString(vs[0]) || strings.ContainsRune(vs[0], 0) {
 				return Query{}, ErrInvalidFilter
@@ -224,6 +233,52 @@ func ParseQuery(raw string) (Query, error) {
 		q.After = &p
 	}
 	return q, nil
+}
+
+func isProfileFilter(key string) bool {
+	return key == "language" || key == "seniority" || key == "years_of_experience" || key == "education_level"
+}
+
+func parseProfileFilter(q *Query, key string, values []string) error {
+	if (key == "years_of_experience" || key == "education_level") && len(values) != 1 {
+		return ErrInvalidFilter
+	}
+	selected := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || slices.Contains(selected, value) {
+			return ErrInvalidFilter
+		}
+		switch key {
+		case "language":
+			if _, ok := languages.Lookup(value); !ok {
+				return ErrInvalidFilter
+			}
+		case "seniority":
+			if !languages.ValidSeniority(value) {
+				return ErrInvalidFilter
+			}
+		case "years_of_experience":
+			normalized, ok := languages.NormalizeYears(value)
+			if !ok {
+				return ErrInvalidFilter
+			}
+			q.YearsOfExperience = normalized
+		case "education_level":
+			if !languages.ValidEducationLevel(value) {
+				return ErrInvalidFilter
+			}
+			q.EducationLevel = value
+		}
+		selected = append(selected, value)
+	}
+	slices.Sort(selected)
+	switch key {
+	case "language":
+		q.Languages = selected
+	case "seniority":
+		q.Seniorities = selected
+	}
+	return nil
 }
 
 func isGeoFilter(key string) bool {
@@ -349,6 +404,21 @@ func filterHash(q Query) string {
 	// their binding.
 	if s := q.Salary; s != nil {
 		filters = append(filters, []string{s.Min, s.Max, s.Currency, s.Period, s.Basis})
+	}
+	// Keyed suffixes distinguish dimensions and preserve all pre-H5 bindings
+	// (including salary cursors) when no profile filter is selected.
+	if len(q.Languages) > 0 {
+		filters = append(filters, []any{"language", canonical(q.Languages)})
+	}
+	if len(q.Seniorities) > 0 {
+		filters = append(filters, []any{"seniority", canonical(q.Seniorities)})
+	}
+	if q.YearsOfExperience != "" {
+		years, _ := languages.NormalizeYears(q.YearsOfExperience)
+		filters = append(filters, []string{"years_of_experience", years})
+	}
+	if q.EducationLevel != "" {
+		filters = append(filters, []string{"education_level", q.EducationLevel})
 	}
 	raw, _ := json.Marshal(filters)
 	sum := sha256.Sum256(raw)

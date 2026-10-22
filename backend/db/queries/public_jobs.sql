@@ -34,6 +34,8 @@ WITH catalog AS (
    AND (sqlc.arg('applicant_country')::text='' OR j.work_mode<>'remote')
    -- Legacy salaries have no pay period or gross/net basis (SAL-6).
    AND sqlc.arg('salary_currency')::text=''
+   -- Legacy has no language requirements; years/education minima are absent.
+   AND COALESCE(cardinality(sqlc.arg('languages')::text[]),0)=0
  UNION ALL
  SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
         p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
@@ -82,6 +84,18 @@ WITH catalog AS (
    AND (sqlc.arg('applicant_country')::text='' OR p.work_mode<>'remote' OR
         p.remote_scope_kind='anywhere' OR
         (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[sqlc.arg('applicant_country')::text::char(2)]))
+   AND (COALESCE(cardinality(sqlc.arg('languages')::text[]),0)=0 OR EXISTS (
+        SELECT 1 FROM jsonb_array_elements(p.requirements_profile->'languages') AS required_language
+        WHERE required_language->>'code'=ANY(sqlc.arg('languages')::text[])))
+   -- "What I have": an absent minimum matches; equality is inclusive.
+   -- NULLIF prevents casting the inactive empty parameter to numeric.
+   AND (NULLIF(sqlc.arg('years_of_experience')::text,'')::numeric IS NULL OR
+        p.requirements_profile->>'min_years_of_experience' IS NULL OR
+        (p.requirements_profile->>'min_years_of_experience')::numeric <= NULLIF(sqlc.arg('years_of_experience')::text,'')::numeric)
+   AND (sqlc.arg('education_level')::text='' OR
+        p.requirements_profile->>'min_education_level' IS NULL OR
+        array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], p.requirements_profile->>'min_education_level') <=
+        array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], sqlc.arg('education_level')::text))
    -- SAL-5..SAL-8: compare only the published projection compensation, which
    -- is NULL when hidden or incomplete, in identical units. Offer [lo,hi]
    -- (fixed: lo=hi=amount) overlaps the requested bounds inclusively; an empty
@@ -103,6 +117,8 @@ WITH catalog AS (
    AND (sqlc.arg('work_schedule')::text='' OR work_schedule=sqlc.arg('work_schedule')::text)
    AND (sqlc.arg('contract_type')::text='' OR contract_type=sqlc.arg('contract_type')::text)
    AND (sqlc.arg('professional_area')::text='' OR professional_area=sqlc.arg('professional_area')::text)
+   -- The UNION body already maps legacy mid to semi_senior.
+   AND (COALESCE(cardinality(sqlc.arg('seniorities')::text[]),0)=0 OR body->>'seniority'=ANY(sqlc.arg('seniorities')::text[]))
    AND (sqlc.narg('detail_id')::uuid IS NULL OR id=sqlc.narg('detail_id')::uuid)
 )
 SELECT body,search_rank FROM ranked

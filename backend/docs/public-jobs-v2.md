@@ -10,7 +10,7 @@ legacy applications remain unchanged. Applying to a vacancy is P2b, not this cut
 `GET /v2/jobs` → `200 {"items": [...], "next_cursor": string | null}`.
 Both keys are always present; empty items is `[]`, never null.
 
-Every query key is optional. Only `state`, `municipality`, and `work_mode` may
+Every query key is optional. Only `state`, `municipality`, `work_mode`, `language`, and `seniority` may
 repeat (one exact value per parameter, not comma-separated):
 
 | Key | Accepted value |
@@ -28,11 +28,15 @@ repeat (one exact value per parameter, not comma-separated):
 | `salary_currency` | `MXN`, `USD` |
 | `salary_period` | `hourly`, `weekly`, `semimonthly`, `monthly`, `yearly` |
 | `salary_basis` | `gross`, `net` |
+| `language` | Repeatable distinct catalog codes (see [language catalog](language-catalog.md)), e.g. `en`, `nah` |
+| `seniority` | Repeatable distinct `intern`, `junior`, `semi_senior`, `senior`, `lead`, `manager`, `director` |
+| `years_of_experience` | One decimal string, `^(0\|[1-9][0-9]?)(\.[0-9])?$`, inclusive 0–60; “what I have” |
+| `education_level` | One of `secondary`, `high_school`, `technical`, `tsu`, `bachelor`, `specialty`, `master`, `phd`; “what I have” |
 | `limit` | Decimal integer 1–50, default 20 |
 | `cursor` | Opaque `next_cursor` from the previous page |
 
 The old `location` substring parameter is removed (now `400 invalid_request`).
-Unknown keys, repeated single-valued keys (except `applicant_country`), invalid
+Unknown keys, repeated single-valued keys (except the filters documented below), invalid
 `q`/enum/limit/cursor encoding or values return `400 invalid_request`. Invalid
 `state`, `municipality`, `work_mode`, or `applicant_country` values/encoding return
 `400 invalid_filter`, including unknown catalog codes, blanks, duplicate selected
@@ -41,6 +45,35 @@ no whitespace trimming, case folding, comma splitting or coercion. `none` is
 reserved by §18 and is not an offered public-search option (400). Blank `q` means
 no text filter; omit an unselected dimension rather than sending a blank value.
 Catalog lookup failures return generic 500, never `invalid_filter` or empty 200.
+
+### Profile filters (H5)
+
+```text
+GET /v2/jobs?language=en&language=fr&seniority=junior&seniority=semi_senior&years_of_experience=1.5&education_level=bachelor
+```
+
+Language and seniority selections combine with OR within their dimension; all
+four dimensions combine with AND with each other and every existing filter.
+Language matches any required code at any `min_level`, excluding legacy rows and
+vacancies without languages. Seniority matches the exact selected literals;
+legacy `mid` matches `semi_senior`, and null seniority is excluded.
+
+Years and education mean **what I have**, not a requested vacancy minimum:
+`min_years_of_experience` must be null or ≤ the supplied years;
+`min_education_level` must be null or ≤ the supplied level in this order:
+`secondary < high_school < technical < tsu < bachelor < specialty < master < phd`.
+Equality matches. Legacy rows match both dimensions because their minima are
+absent. `accepts_in_progress_education` does not participate in public search.
+
+All four keys return `400 invalid_filter` for blank or unknown values, malformed
+encoding, duplicate repeatable selections, or repeated single-valued keys (even
+identical). Values are exact, never trimmed or case-folded. Years reject signs,
+leading zeroes, exponents, more than one decimal digit and values above 60
+(`01`, `1.50`, `60.1` are invalid).
+
+Selections are sorted before cursor binding; `2` and `2.0` normalize to `2` and
+continue the same cursor. Profile dimensions enter the hash only when present,
+so pre-H5 cursors, including salary-filter cursors, keep their binding.
 
 ### Salary filter (SAL-5..SAL-8)
 
@@ -153,7 +186,7 @@ List items contain exactly these 25 keys. Detail includes them unchanged:
   or null; accepting ongoing education is boolean. Legacy always returns
   `{"languages":[],"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false}`.
   Vacancy values come only from the published projection. These requirements
-  inform; they do not reject applications. Public profile filters are deferred to H5.
+  inform; they do not reject applications. Public profile filters use the H5 semantics above.
 - Legacy: `work_schedule`, `contract_type`, `professional_area`, `compensation`
   are null. `legacy_employment_type` preserves the original value.
 - Vacancy: `legacy_employment_type` and `legacy_salary` are null.
@@ -298,6 +331,8 @@ Paths below are relative to `backend/`.
 | `application/publication/published_write_test.go` | §10.2 stable missing-code order, only past-date exemption, input unchanged |
 | `application/publicjobs/catalog_test.go` | §10.3 strict params/default/boundaries; last-visible cursor across sources, exact rank/time, filter binding, limit+1; exact 25/30-key shape and nulls |
 | `infrastructure/http/publicJobsHandler_test.go` | §10.3 anonymous 200/400/404/500; exact envelopes; no ETag/no-store; invalid params do not reach reader; no raw internal error |
+| `application/publicjobs/profile_filter_test.go` — `TestParseQueryProfileFilters`, `TestProfileCursorBindingIsCanonicalAndBackwardCompatible` | H5 accepted vocabularies/decimals, strict invalid_filter cases, canonical selection/year cursor binding, changed/dropped dimensions rejected, frozen pre-H5 hashes with and without salary |
+| `cmd/api/public_profile_search_integration_test.go` — `TestPublicProfileSearchFilters` | H5 real-router/SQL per-dimension matches, OR/AND, legacy mapping and minima, nulls, inclusive year/education boundaries, education ordering and ongoing exclusion, invalid_filter bodies, equivalent-years paging |
 | `application/publicjobs/salary_filter_test.go` | SAL-8 salary keys: accepted one-sided/two-sided/zero/max amounts and every unit, each `invalid_filter` case, normalized cursor binding, unchanged binding without salary keys |
 | `cmd/api/public_salary_search_integration_test.go` | SAL-5..SAL-8 over real SQL: the SAL-7 example, inclusive bounds, one-sided bounds, exact cents, identical units, hidden/absent/legacy excluded only while active, HTTP `invalid_filter`, paging with equivalent amounts and rejected changed or dropped filters |
 | `application/publicjobs/filters_test.go` | G5 imported-catalog membership, independent dimensions, fail-closed catalog outages |
@@ -329,7 +364,7 @@ go test ./internal/features/jobs/application/publicjobs ./internal/features/jobs
 go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run 'TestPublicProjection|TestPublicJobsFlow|TestPublication' -count=1 -v
 go test -tags=integration ./cmd/api -run 'TestPublicRequirementsProfile|TestPublicListingEnrichment' -count=1 -v
 go test -tags=integration ./db/migrations -run TestMigration00042 -count=1 -v
-go test -tags=integration ./cmd/api -run TestPublicSalarySearchFilters -count=1 -v
+go test -tags=integration ./cmd/api -run 'TestPublicSalarySearchFilters|TestPublicProfileSearchFilters' -count=1 -v
 go test -tags=integration ./db/migrations -run 'TestMigration00020|TestMigration00025' -count=1 -v
 go test ./... -count=1
 go vet ./...

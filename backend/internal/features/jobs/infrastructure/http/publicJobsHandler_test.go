@@ -170,7 +170,9 @@ func TestPublicJobsHTTPStrictAnonymousAndCacheHeaders(t *testing.T) {
 	}{
 		{"list", "/v2/jobs", 200, ""}, {"detail", "/v2/jobs/" + id.String(), 200, ""},
 		{"repeated filters", "/v2/jobs?state=09&state=14&municipality=14039&work_mode=remote&work_mode=hybrid&applicant_country=MX", 200, ""},
-		{"unknown param", "/v2/jobs?seniority=senior", 400, "invalid_request"},
+		{"profile filters", "/v2/jobs?seniority=senior&language=en&years_of_experience=2.0&education_level=bachelor", 200, ""},
+		{"unknown param", "/v2/jobs?unknown=senior", 400, "invalid_request"},
+		{"invalid profile filter", "/v2/jobs?seniority=mid", 400, "invalid_filter"},
 		{"duplicate", "/v2/jobs?limit=1&limit=2", 400, "invalid_request"},
 		{"invalid enum", "/v2/jobs?contract_type=contract", 400, "invalid_request"},
 		{"bad cursor", "/v2/jobs?cursor=bad", 400, "invalid_request"},

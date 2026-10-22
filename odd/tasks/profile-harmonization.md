@@ -16,7 +16,7 @@ Branch `feat/profile-harmonization` stacked on `feat/manual-intake` 14a4439. Des
 - [x] T3 — H2: manual intake fields — 00040 + contract commits (L12)
 - [x] T4 — H3: vacancy requirements + public exposure — b04d984 (00041), e4c0656 (draft fields), 00042 + public exposure commits (L17)
 - [x] T5 — H4: participation snapshot + board filter data — a0de8a2, 2b38707 (00043), 8d32389
-- [ ] T6 — S3 / H5: public search filters language, seniority, years_of_experience, education_level — pending
+- [x] T6 — S3 / H5: public search filters language, seniority, years_of_experience, education_level — this commit (L21)
 
 ## Log
 
@@ -40,3 +40,4 @@ Branch `feat/profile-harmonization` stacked on `feat/manual-intake` 14a4439. Des
 - **L18.** H4 first integration: weak 00043 CHECK (accepted a language without level), user cleanup blocked by new profile dependents, and down-migration tests (draftstore 00031/00041) failing because they roll back the SHARED draft_test while other tests leave harmonized snapshots — 00043's guard is right; fix is isolation: tests that migrate down get their own disposable draft_test_mig_<random> database. Legacy packages identical to baseline; TestListByJob (v1 integer years) passes.
 - **L19.** Frontend request accepted (intercom 492c7c36): snapshot `education.in_progress` is the highest in-progress level (paused/incomplete excluded) or null, not a boolean; board filter semantics documented in §6. Sent live to the H4 worker.
 - **L20.** H4 done. Second integration (fresh DB, -race): TestMigration00043SnapshotRewriteChecksAndGuardedDown, apply/manual/reuse snapshot tests, TestManualCreateHTTPFlow, the isolated 00009/00031/00041 rollback tests pass; no leftover draft_test_mig_* databases; legacy packages identical to baseline. Parent fixed one order-dependent test (TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire assumed the seeded CO name, which another package's fixture renames in the shared catalog) and re-ran it green against the contaminated DB. Migration tests now use disposable draft_test_mig_* databases and never roll back an ambient DATABASE_URL or the shared harness.
+- **L21.** H5 done (worker mviu25ru-18-3a3i), green on the first integration run: TestPublicProfileSearchFilters plus every earlier public search test (geo, salary, flow, requirements) pass with -race on a fresh DB; 88 packages ok; only the two environmental failures; no leftover disposable DBs; legacy packages identical to baseline. Feature backend complete (H1–H5); frontend browser QA of H3–H5 pending.
