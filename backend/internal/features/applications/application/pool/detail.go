@@ -12,10 +12,7 @@ type Creator struct {
 	ID   uuid.UUID `json:"id"`
 	Name *string   `json:"name"`
 }
-type CV struct {
-	FileName   string    `json:"file_name"`
-	UploadedAt time.Time `json:"uploaded_at"`
-}
+type CV = board.CVMetadata
 type CurrentCV struct {
 	CV
 	Source string `json:"source"`

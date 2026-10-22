@@ -119,11 +119,15 @@ func organicDetail(ctx context.Context, tx pgx.Tx, company, id uuid.UUID, out *a
 		out.CorrectedFields = append(out.CorrectedFields, key)
 	}
 	sort.Strings(out.CorrectedFields)
+	out.Contact, err = app.CorrectedContact(out.Original.Contact, corrections)
+	if err != nil {
+		return err
+	}
 	for _, field := range []struct {
 		key    string
 		target any
 	}{
-		{"email", &out.Contact.Email}, {"phone", &out.Contact.Phone}, {"education", &out.Education}, {"linkedin_url", &out.LinkedInURL}, {"portfolio_url", &out.PortfolioURL},
+		{"education", &out.Education}, {"linkedin_url", &out.LinkedInURL}, {"portfolio_url", &out.PortfolioURL},
 	} {
 		if value, present := corrections[field.key]; present {
 			if err = json.Unmarshal(value, field.target); err != nil {

@@ -12,7 +12,9 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
+	poolapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
 	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/candidateview"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditport "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	"github.com/google/uuid"
@@ -38,7 +40,10 @@ func NewStore(pool *pgxpool.Pool, audit auditport.AuditEventRepository, vacancy 
 var _ app.Store = (*Store)(nil)
 
 func (s *Store) begin(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx, app.Pipeline, error) {
-	tx, err := s.pool.Begin(ctx)
+	return s.beginTx(ctx, company, actor, id, pgx.TxOptions{})
+}
+func (s *Store) beginTx(ctx context.Context, company, actor, id uuid.UUID, options pgx.TxOptions) (pgx.Tx, app.Pipeline, error) {
+	tx, err := s.pool.BeginTx(ctx, options)
 	if err != nil {
 		return nil, app.Pipeline{}, err
 	}
@@ -80,7 +85,11 @@ func (s *Store) beginMutation(ctx context.Context, company, actor, id uuid.UUID)
 	return tx, p, nil
 }
 
-const itemSQL = `SELECT p.id,p.stage_id,p.version,COALESCE(cc.id,u.id),COALESCE(cc.full_name,u.full_name),p.created_at,p.source,COALESCE(mc.id,l.id),COALESCE(mc.file_name,l.name),
+var itemSQL = itemProjectionSQL(true)
+var originalItemSQL = itemProjectionSQL(false)
+
+func itemProjectionSQL(effective bool) string {
+	return `SELECT p.id,p.stage_id,p.version,COALESCE(cc.id,u.id),CASE WHEN o.corrections ? 'full_name' THEN o.corrections->>'full_name' ELSE COALESCE(cc.full_name,u.full_name) END,p.created_at,p.source,COALESCE(corrected.id,mc.id,l.id),COALESCE(corrected.file_name,mc.file_name,l.name),
  COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id AND h.event_kind<>'not_applicable'),p.created_at),
  p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id,
  CASE WHEN snap.profile->'location' IS NULL OR snap.profile->'location' = 'null'::jsonb THEN snap.profile
@@ -88,34 +97,43 @@ const itemSQL = `SELECT p.id,p.stage_id,p.version,COALESCE(cc.id,u.id),COALESCE(
  'country',jsonb_build_object('id',snap.profile->'location'->>'country','name',gc.name_es),
  'state',CASE WHEN snap.profile->'location'->>'state' IS NULL THEN NULL ELSE jsonb_build_object('id',snap.profile->'location'->>'state','name',gs.name) END,
  'municipality',CASE WHEN snap.profile->'location'->>'municipality' IS NULL THEN NULL ELSE jsonb_build_object('id',snap.profile->'location'->>'municipality','name',gm.name) END,
- 'postal_code',cc.postal_code,'label',CASE WHEN gm.code IS NOT NULL THEN gm.name || ', ' || gs.name WHEN gs.code IS NOT NULL THEN gs.name ELSE gc.name_es END)) END,
+ 'postal_code',CASE WHEN o.corrections ? 'location' THEN o.corrections#>>'{location,postal_code}' ELSE cc.postal_code END,'label',CASE WHEN gm.code IS NOT NULL THEN gm.name || ', ' || gs.name WHEN gs.code IS NOT NULL THEN gs.name ELSE gc.name_es END)) END,
  p.questions_snapshot,p.answers_snapshot,
- CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END, ad.id,ad.full_name
+ CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END, ad.id,ad.full_name,
+ COALESCE((SELECT jsonb_agg(key ORDER BY key) FROM jsonb_object_keys(COALESCE(o.corrections,'{}'::jsonb)) key),'[]'::jsonb),
+ CASE WHEN corrected.id IS NULL THEN 'candidate' ELSE 'company' END
  FROM process_participations p
  JOIN vacancy_processes vp ON vp.id=p.process_id
  LEFT JOIN users u ON u.id=p.candidate_id
  LEFT JOIN candidate_cv_library l ON l.version_id=p.cv_version_id
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
  LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=vp.company_id
+ LEFT JOIN company_candidate_cvs corrected ON corrected.id=p.corrected_company_cv_id AND corrected.company_id=vp.company_id
+ LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id=p.candidate_id AND o.company_id=vp.company_id AND ` + strconv.FormatBool(effective) + `
  LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'
- CROSS JOIN LATERAL (SELECT CASE WHEN p.company_candidate_id IS NULL THEN p.profile_snapshot ELSE ` + manualProfileSQL + ` END AS profile) snap
+ CROSS JOIN LATERAL (SELECT ` + candidateview.EffectiveProfileSQL(`CASE WHEN p.company_candidate_id IS NULL THEN COALESCE(p.profile_snapshot,`+candidateview.EmptyProfileSQL+`) ELSE `+manualProfileSQL+` END`) + ` AS profile) snap
  LEFT JOIN geo_countries gc ON gc.code=snap.profile->'location'->>'country'
  LEFT JOIN geo_states gs ON gs.country_code=gc.code AND gs.code=snap.profile->'location'->>'state'
  LEFT JOIN geo_municipalities gm ON gm.country_code=gc.code AND gm.state_code=gs.code AND gm.code=snap.profile->'location'->>'municipality' `
+}
 
 func readItem(row pgx.Row) (app.Item, int64, error) {
 	var i app.Item
 	var version int64
 	var previous, group, code *string
 	var discardedAt *time.Time
-	var profile, questions, answers []byte
+	var profile, questions, answers, corrections []byte
 	var addedID *uuid.UUID
 	var addedName *string
-	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID, &profile, &questions, &answers, &i.Candidate.Kind, &addedID, &addedName)
+	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID, &profile, &questions, &answers, &i.Candidate.Kind, &addedID, &addedName, &corrections, &i.CV.Source)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return i, 0, app.ErrNotFound
 	}
 	if err != nil {
+		return i, 0, err
+	}
+	i.CorrectedFields = []string{}
+	if err := json.Unmarshal(corrections, &i.CorrectedFields); err != nil {
 		return i, 0, err
 	}
 	i.Profile = app.Profile{Skills: []string{}, Languages: []intake.SnapshotLanguage{}}
@@ -361,7 +379,9 @@ func (s *Store) History(ctx context.Context, company, actor, id, pid uuid.UUID) 
 	return out, rows.Err()
 }
 func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (app.Detail, error) {
-	tx, p, err := s.begin(ctx, company, actor, id)
+	// All effective/original/contact/CV reads share one snapshot while pool edits
+	// run independently. Mutation transactions retain their existing lock rules.
+	tx, p, err := s.beginTx(ctx, company, actor, id, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return app.Detail{}, err
 	}
@@ -373,19 +393,25 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 	if err := setRecoveryStage(&item, p); err != nil {
 		return app.Detail{}, err
 	}
-	var questions, answers []byte
+	var questions, answers, corrections, originalCV []byte
 	var comment, candidateMessage *string
 	var contact app.Contact
 	// Company records are read only through this process's company.
 	if err = tx.QueryRow(ctx, `SELECT p.questions_snapshot,p.answers_snapshot,p.comment,p.candidate_message,
  CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.email ELSE u.email END,
- CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.phone ELSE NULLIF(btrim(cp.phone),'') END
+ CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.phone ELSE NULLIF(btrim(cp.phone),'') END,
+ COALESCE(o.corrections,'{}'::jsonb),`+candidateview.OriginalCVSQL+`
  FROM process_participations p
  JOIN vacancy_processes vp ON vp.id=p.process_id
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
  LEFT JOIN users u ON u.id=p.candidate_id
  LEFT JOIN candidate_profiles cp ON cp.user_id=p.candidate_id
- WHERE p.process_id=$1 AND p.id=$2`, id, pid).Scan(&questions, &answers, &comment, &candidateMessage, &contact.Email, &contact.Phone); err != nil {
+ LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id=p.candidate_id AND o.company_id=vp.company_id
+ LEFT JOIN company_candidate_cvs corrected ON corrected.id=p.corrected_company_cv_id AND corrected.company_id=vp.company_id
+ LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=vp.company_id
+ LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id
+ LEFT JOIN candidate_cv_library l ON l.version_id=v.id
+ WHERE p.process_id=$1 AND p.id=$2`, id, pid).Scan(&questions, &answers, &comment, &candidateMessage, &contact.Email, &contact.Phone, &corrections, &originalCV); err != nil {
 		return app.Detail{}, err
 	}
 	var qs []intake.Question
@@ -397,6 +423,34 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 		return app.Detail{}, err
 	}
 	out := app.Detail{Item: item, Screening: []app.Screening{}, Contact: contact}
+	if originalCV != nil {
+		if err = json.Unmarshal(originalCV, &out.OriginalCV); err != nil {
+			return out, err
+		}
+		if out.OriginalCV != nil {
+			out.OriginalCV.UploadedAt = out.OriginalCV.UploadedAt.UTC()
+		}
+	}
+	if item.Candidate.Kind == "organic" && len(item.CorrectedFields) > 0 {
+		// Use THIS participation's frozen profile, not the pool's latest snapshot.
+		// Disable only the correction join; shared hydration and normalization stay identical.
+		original, _, readErr := readItem(tx.QueryRow(ctx, originalItemSQL+`WHERE p.process_id=$1 AND p.id=$2`, id, pid))
+		if readErr != nil {
+			return out, readErr
+		}
+		out.Original, err = json.Marshal(poolapp.Original{FullName: original.Candidate.FullName, Profile: original.Profile, Contact: contact})
+		if err != nil {
+			return out, err
+		}
+	}
+	var correctionMap map[string]json.RawMessage
+	if err = json.Unmarshal(corrections, &correctionMap); err != nil {
+		return out, err
+	}
+	out.Contact, err = poolapp.CorrectedContact(contact, correctionMap)
+	if err != nil {
+		return out, err
+	}
 	if item.Discard != nil {
 		out.Comment, out.CandidateMessage = comment, candidateMessage
 	}
@@ -435,23 +489,34 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 	return out, nil
 }
 func (s *Store) File(ctx context.Context, company, actor, id, pid uuid.UUID) (app.File, error) {
+	return s.file(ctx, company, actor, id, pid, false)
+}
+func (s *Store) OriginalFile(ctx context.Context, company, actor, id, pid uuid.UUID) (app.File, error) {
+	return s.file(ctx, company, actor, id, pid, true)
+}
+func (s *Store) file(ctx context.Context, company, actor, id, pid uuid.UUID, original bool) (app.File, error) {
 	tx, _, err := s.begin(ctx, company, actor, id)
 	if err != nil {
 		return app.File{}, err
 	}
 	defer tx.Rollback(ctx)
 	var file app.File
-	var key string
-	err = tx.QueryRow(ctx, `SELECT COALESCE(mc.file_name,l.name),COALESCE(mc.content_type,v.content_type),COALESCE(mc.size,v.size),COALESCE(mc.storage_key,v.storage_key) FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id LEFT JOIN candidate_cv_library l ON l.version_id=v.id LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=vp.company_id WHERE p.process_id=$1 AND p.id=$2`, id, pid).Scan(&file.Name, &file.ContentType, &file.Size, &key)
+	var key, name, contentType *string
+	var size *int64
+	err = tx.QueryRow(ctx, `SELECT `+candidateview.CVFileSQL+` FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id LEFT JOIN candidate_cv_library l ON l.version_id=v.id LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=vp.company_id LEFT JOIN company_candidate_cvs corrected ON corrected.id=p.corrected_company_cv_id AND corrected.company_id=vp.company_id AND NOT $3::boolean WHERE p.process_id=$1 AND p.id=$2`, id, pid, original).Scan(&name, &contentType, &size, &key, &file.CompanyCorrected)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return file, app.ErrNotFound
 	}
 	if err != nil {
 		return file, err
 	}
+	if key == nil || name == nil || contentType == nil || size == nil {
+		return file, app.ErrNotFound
+	}
 	if s.storage == nil {
 		return file, app.ErrStorageUnavailable
 	}
-	file.Reader, err = s.storage.Open(ctx, key)
+	file.Name, file.ContentType, file.Size = *name, *contentType, *size
+	file.Reader, err = s.storage.Open(ctx, *key)
 	return file, err
 }

@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-// Profile is a recruiter-only read projection of the immutable code snapshot.
+// Profile is the recruiter-only effective projection: a frozen organic snapshot
+// with company corrections applied, or the live manual company record.
 type Profile struct {
 	Location          *geo.ReadLocation         `json:"location"`
 	Skills            []string                  `json:"skills"`
@@ -48,22 +49,27 @@ func ChoiceAnswers(questions []intake.Question, answers []intake.Answer) []Scree
 // MarshalJSON keeps mutation responses on their pre-§19 allowlist. Private
 // filter data belongs only on board/detail reads, not every item-shaped response.
 func (m Moved) MarshalJSON() ([]byte, error) {
+	fields := m.CorrectedFields
+	if fields == nil {
+		fields = []string{}
+	}
 	return json.Marshal(struct {
-		SubstateID *string   `json:"substate_id"`
-		ID         uuid.UUID `json:"id"`
-		StageID    string    `json:"stage_id"`
-		Version    string    `json:"version"`
-		ETag       string    `json:"etag"`
-		Candidate  Candidate `json:"candidate"`
-		AddedBy    *AddedBy  `json:"added_by"`
-		AppliedAt  time.Time `json:"applied_at"`
-		Source     string    `json:"source"`
-		CV         CV        `json:"cv"`
-		MovedAt    time.Time `json:"moved_at"`
-		Discard    *Discard  `json:"discard"`
-		Coverage   Coverage  `json:"coverage"`
-		Delivery   Delivery  `json:"delivery"`
-	}{SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AddedBy: m.AddedBy, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, Coverage: m.Coverage, Delivery: m.Delivery})
+		CorrectedFields []string  `json:"corrected_fields"`
+		SubstateID      *string   `json:"substate_id"`
+		ID              uuid.UUID `json:"id"`
+		StageID         string    `json:"stage_id"`
+		Version         string    `json:"version"`
+		ETag            string    `json:"etag"`
+		Candidate       Candidate `json:"candidate"`
+		AddedBy         *AddedBy  `json:"added_by"`
+		AppliedAt       time.Time `json:"applied_at"`
+		Source          string    `json:"source"`
+		CV              CV        `json:"cv"`
+		MovedAt         time.Time `json:"moved_at"`
+		Discard         *Discard  `json:"discard"`
+		Coverage        Coverage  `json:"coverage"`
+		Delivery        Delivery  `json:"delivery"`
+	}{CorrectedFields: fields, SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AddedBy: m.AddedBy, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, Coverage: m.Coverage, Delivery: m.Delivery})
 }
 
 func ChoiceFilters(form intake.Screening) []ScreeningFilter {

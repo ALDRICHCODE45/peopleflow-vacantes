@@ -7,6 +7,7 @@ import (
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/candidateview"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -147,8 +148,8 @@ const detailParticipationsSQL = `SELECT jsonb_build_object(
  'discard',CASE WHEN p.discarded_at IS NULL THEN NULL ELSE jsonb_build_object('reason',jsonb_build_object('group',p.reason_group,'key',p.reason_code),'comment',p.comment,'discarded_at',p.discarded_at) END,
  'source',p.source,'applied_at',p.created_at,
  'added_by',CASE WHEN p.source='manual' AND ad.id IS NOT NULL THEN jsonb_build_object('id',ad.id,'name',ad.full_name) ELSE NULL END,
- 'cv',CASE WHEN COALESCE(corrected.file_name,mc.file_name,l.name) IS NULL THEN NULL ELSE jsonb_build_object('file_name',COALESCE(corrected.file_name,mc.file_name,l.name),'uploaded_at',COALESCE(corrected.uploaded_at,mc.uploaded_at,v.uploaded_at),'source',CASE WHEN corrected.id IS NULL THEN 'candidate' ELSE 'company' END) END,
- 'original_cv',CASE WHEN corrected.id IS NULL OR COALESCE(mc.file_name,l.name) IS NULL THEN NULL ELSE jsonb_build_object('file_name',COALESCE(mc.file_name,l.name),'uploaded_at',COALESCE(mc.uploaded_at,v.uploaded_at)) END),
+ 'cv',` + candidateview.CurrentCVSQL + `,
+ 'original_cv',` + candidateview.OriginalCVSQL + `),
  CASE WHEN c.configuration IS NULL THEN NULL ELSE convert_from(c.configuration,'UTF8')::jsonb END
  FROM process_participations p
  JOIN vacancy_processes vp ON vp.id=p.process_id AND vp.company_id=$1
@@ -177,14 +178,14 @@ func (s *Store) file(ctx context.Context, company uuid.UUID, kind string, id, pi
 	var key *string
 	var name, contentType *string
 	var size *int64
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(corrected.file_name,mc.file_name,l.name),COALESCE(corrected.content_type,mc.content_type,v.content_type),COALESCE(corrected.size,mc.size,v.size),COALESCE(corrected.storage_key,mc.storage_key,v.storage_key)
+	err := s.pool.QueryRow(ctx, `SELECT `+candidateview.CVFileSQL+`
  FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id AND vp.company_id=$1
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=$1
  LEFT JOIN company_candidate_cvs corrected ON corrected.id=p.corrected_company_cv_id AND corrected.company_id=$1 AND NOT $5::boolean
  LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=$1
  LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id
  LEFT JOIN candidate_cv_library l ON l.version_id=v.id
- WHERE p.id=$4 AND (($2='manual' AND cc.id=$3) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3))`, company, kind, id, pid, original).Scan(&name, &contentType, &size, &key)
+ WHERE p.id=$4 AND (($2='manual' AND cc.id=$3) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3))`, company, kind, id, pid, original).Scan(&name, &contentType, &size, &key, &out.CompanyCorrected)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, board.ErrNotFound
 	}

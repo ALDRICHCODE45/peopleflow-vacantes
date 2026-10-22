@@ -43,7 +43,7 @@ func (s *movementRouteStore) Move(_ context.Context, c, a, v, p uuid.UUID, tag s
 	s.tag = tag
 	s.present = present
 	s.body = body
-	return app.Moved{Item: app.Item{ID: p, ETag: `"item-tag"`, Version: "2"}}, s.err
+	return app.Moved{Item: app.Item{ID: p, ETag: `"item-tag"`, Version: "2", CorrectedFields: []string{}, CV: app.CV{Source: "candidate"}}}, s.err
 }
 func (s *movementRouteStore) Discard(ctx context.Context, c, a, v, p uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
 	out, err := s.Move(ctx, c, a, v, p, tag, present, body)
@@ -62,7 +62,7 @@ func (s *movementRouteStore) SetSubstate(ctx context.Context, c, a, v, p uuid.UU
 }
 func (s *movementRouteStore) Detail(_ context.Context, c, a, v, p uuid.UUID) (app.Detail, error) {
 	s.record(c, a, v, p)
-	return app.Detail{Item: app.Item{ID: p, ETag: `"item-tag"`, Version: "1"}, Screening: []app.Screening{}}, s.err
+	return app.Detail{Item: app.Item{ID: p, ETag: `"item-tag"`, Version: "1", CorrectedFields: []string{}, CV: app.CV{Source: "candidate"}}, Screening: []app.Screening{}}, s.err
 }
 func (s *movementRouteStore) History(_ context.Context, c, a, v, p uuid.UUID) (app.History, error) {
 	s.record(c, a, v, p)

@@ -171,12 +171,23 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 	httpjson.WriteJSON(w, 200, out)
 }
-func (h *Handler) File(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) File(w http.ResponseWriter, r *http.Request)         { h.file(w, r, false) }
+func (h *Handler) OriginalFile(w http.ResponseWriter, r *http.Request) { h.file(w, r, true) }
+func (h *Handler) file(w http.ResponseWriter, r *http.Request, original bool) {
 	cc, id, pid, ok := h.params(w, r, true)
 	if !ok {
 		return
 	}
-	out, err := h.store.File(r.Context(), cc.CompanyID, cc.UserID, id, pid)
+	operation := h.store.File
+	if original {
+		reader, ok := h.store.(app.OriginalFileReader)
+		if !ok {
+			writeError(w, app.ErrStorageUnavailable)
+			return
+		}
+		operation = reader.OriginalFile
+	}
+	out, err := operation(r.Context(), cc.CompanyID, cc.UserID, id, pid)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -186,8 +197,14 @@ func (h *Handler) File(w http.ResponseWriter, r *http.Request) {
 	if out.ContentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
 		extension = ".docx"
 	}
+	// Keep legacy board names byte-identical for candidate/manual-intake CVs
+	// and the original route. Only company corrections need suffix deduplication.
+	filename := out.Name + extension
+	if out.CompanyCorrected && !original {
+		filename = httpjson.AttachmentFilename(out.Name, extension)
+	}
 	w.Header().Set("Content-Type", out.ContentType)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": out.Name + extension}))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	w.Header().Set("Content-Length", strconv.FormatInt(out.Size, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(200)

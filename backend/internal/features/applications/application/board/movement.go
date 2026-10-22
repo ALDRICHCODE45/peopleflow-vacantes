@@ -85,8 +85,14 @@ type AddedBy struct {
 	Name string    `json:"name"`
 }
 type CV struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Source string    `json:"source"`
+}
+
+type CVMetadata struct {
+	FileName   string    `json:"file_name"`
+	UploadedAt time.Time `json:"uploaded_at"`
 }
 type Substate struct {
 	ID   string `json:"id"`
@@ -94,6 +100,7 @@ type Substate struct {
 }
 
 type Item struct {
+	CorrectedFields  []string          `json:"corrected_fields"`
 	Profile          Profile           `json:"profile"`
 	ScreeningAnswers []ScreeningAnswer `json:"screening_answers"`
 	SubstateID       *string           `json:"substate_id"`
@@ -175,20 +182,24 @@ type Screening struct {
 }
 type Detail struct {
 	Item
-	Screening        []Screening `json:"screening"`
-	Comment          *string     `json:"comment"`
-	CandidateMessage *string     `json:"candidate_message"`
-	Contact          Contact     `json:"contact"`
+	Screening        []Screening     `json:"screening"`
+	Comment          *string         `json:"comment"`
+	CandidateMessage *string         `json:"candidate_message"`
+	Contact          Contact         `json:"contact"`
+	Original         json.RawMessage `json:"original"`
+	OriginalCV       *CVMetadata     `json:"original_cv"`
 }
 
 // Contact is every available way to reach the candidate, shown only on the
 // participation detail: the company record for manual candidates, the account
-// email and profile phone for organic ones (including organic reuse).
+// email and profile phone with company corrections for organic ones (including reuse).
 type Contact struct {
 	Email *string `json:"email"`
 	Phone *string `json:"phone"`
 }
 type File struct {
+	// CompanyCorrected is internal download provenance, never a public filename or key.
+	CompanyCorrected  bool
 	Name, ContentType string
 	Size              int64
 	Reader            io.ReadCloser
@@ -202,6 +213,11 @@ type Store interface {
 	History(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (History, error)
 	Detail(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (Detail, error)
 	File(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (File, error)
+}
+
+// OriginalFileReader is separate so existing read-only adapters remain usable.
+type OriginalFileReader interface {
+	OriginalFile(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (File, error)
 }
 type JSONDecoder func([]byte) (any, error)
 

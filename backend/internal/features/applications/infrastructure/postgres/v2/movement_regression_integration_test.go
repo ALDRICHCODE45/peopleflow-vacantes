@@ -84,11 +84,14 @@ func movementKeys(t *testing.T, value any, want ...string) map[string]any {
 }
 func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	t.Helper()
-	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id"}
+	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "corrected_fields"}
 	mutation := false
 	for _, key := range extra {
 		if key == "coverage" {
 			mutation = true
+		}
+		if key == "contact" {
+			keys = append(keys, "original", "original_cv")
 		}
 	}
 	if !mutation {
@@ -99,7 +102,13 @@ func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	if obj["source"] == "organic" && (obj["added_by"] != nil || obj["candidate"].(map[string]any)["kind"] != "organic") {
 		t.Fatal("organic origin changed", obj)
 	}
-	movementKeys(t, obj["cv"], "id", "name")
+	movementKeys(t, obj["cv"], "id", "name", "source")
+	if obj["cv"].(map[string]any)["source"] != "candidate" {
+		t.Fatal("uncorrected CV source changed", obj["cv"])
+	}
+	if fields, ok := obj["corrected_fields"].([]any); !ok || len(fields) != 0 {
+		t.Fatal("uncorrected fields must be []", obj["corrected_fields"])
+	}
 	if !mutation {
 		profile := movementKeys(t, obj["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
 		movementKeys(t, profile["education"], "highest_completed", "in_progress")

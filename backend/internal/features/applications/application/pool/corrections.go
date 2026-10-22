@@ -12,6 +12,30 @@ import (
 
 // OrganicETag binds the independent correction version to its company as well
 // as the candidate. A token from another company cannot authorize this edit.
+// CorrectedContact returns independent values so unmarshalling a correction can
+// never overwrite an original pointer (shared by pool and board detail).
+func CorrectedContact(original board.Contact, corrections map[string]json.RawMessage) (board.Contact, error) {
+	var out board.Contact
+	raw, err := json.Marshal(original)
+	if err != nil {
+		return out, err
+	}
+	if err = json.Unmarshal(raw, &out); err != nil {
+		return out, err
+	}
+	for _, field := range []struct {
+		key    string
+		target any
+	}{{"email", &out.Email}, {"phone", &out.Phone}} {
+		if value, ok := corrections[field.key]; ok {
+			if err = json.Unmarshal(value, field.target); err != nil {
+				return out, err
+			}
+		}
+	}
+	return out, nil
+}
+
 func OrganicETag(company, id uuid.UUID, version int64) string {
 	return ETag("organic-"+company.String(), id, version)
 }

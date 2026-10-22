@@ -79,7 +79,7 @@ func (h *Handler) file(w http.ResponseWriter, r *http.Request, original bool) {
 		extension = ".docx"
 	}
 	w.Header().Set("Content-Type", out.ContentType)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": out.Name + extension}))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": httpjson.AttachmentFilename(out.Name, extension)}))
 	w.Header().Set("Content-Length", strconv.FormatInt(out.Size, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)

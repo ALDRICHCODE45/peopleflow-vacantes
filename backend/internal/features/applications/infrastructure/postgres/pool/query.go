@@ -1,5 +1,7 @@
 package pool
 
+import "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/candidateview"
+
 // Manual reads are live, with the same six-key projection as board/profile_sql.go.
 // There is deliberately no query of candidate_profiles or candidate contact tables.
 const manualProfileSQL = `jsonb_build_object(
@@ -11,17 +13,11 @@ const manualProfileSQL = `jsonb_build_object(
    'in_progress',(SELECT level FROM company_candidate_educations e WHERE e.company_candidate_id=cc.id AND e.status='in_progress' ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e.level) DESC,e.position,e.id LIMIT 1)),
  'languages',COALESCE((SELECT jsonb_agg(jsonb_build_object('code',l.code,'level',l.level) ORDER BY l.code)
    FROM company_candidate_languages l WHERE l.company_candidate_id=cc.id),'[]'::jsonb))`
-const emptyProfileSQL = `'{"location":null,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]}'::jsonb`
-
-// Same rank/status rule as the board's manual education projection: paused and
-// incomplete studies do not contribute. The full corrected list stays private.
-const correctedEducationSQL = `jsonb_build_object('highest_completed',
- (SELECT e->>'level' FROM jsonb_array_elements(COALESCE(NULLIF(o.corrections->'education','null'::jsonb),'[]'::jsonb)) e WHERE e->>'status'='completed' ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e->>'level') DESC LIMIT 1),
- 'in_progress',(SELECT e->>'level' FROM jsonb_array_elements(COALESCE(NULLIF(o.corrections->'education','null'::jsonb),'[]'::jsonb)) e WHERE e->>'status'='in_progress' ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e->>'level') DESC LIMIT 1))`
+const emptyProfileSQL = candidateview.EmptyProfileSQL
 
 // The identity set and snapshot choice are company-scoped before filtering.
 // source does not determine identity kind, and discarded rows are not removed.
-const poolSQL = `WITH participations AS MATERIALIZED (
+var poolSQL = `WITH participations AS MATERIALIZED (
  SELECT p.id,p.process_id,p.stage_id,p.created_at,p.discarded_at,p.profile_snapshot,
  CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END AS kind,
  COALESCE(p.company_candidate_id,p.candidate_id) AS person_id,
@@ -51,8 +47,7 @@ const poolSQL = `WITH participations AS MATERIALIZED (
  CASE WHEN o.corrections ? 'professional_title' THEN o.corrections->>'professional_title' ELSE b.professional_title END AS professional_title,
  CASE WHEN o.corrections ? 'current_company' THEN o.corrections->>'current_company' ELSE b.current_company END AS current_company,
  CASE WHEN o.corrections ? 'location' THEN o.corrections#>>'{location,postal_code}' ELSE b.postal_code END AS postal_code,
- b.profile || COALESCE((SELECT jsonb_object_agg(key,value) FROM jsonb_each(COALESCE(o.corrections,'{}'::jsonb)) WHERE key IN ('location','skills','years_of_experience','seniority','languages')),'{}'::jsonb)
- || CASE WHEN o.corrections ? 'education' THEN jsonb_build_object('education',` + correctedEducationSQL + `) ELSE '{}'::jsonb END AS profile,
+ ` + candidateview.EffectiveProfileSQL("b.profile") + ` AS profile,
  b.full_name AS original_full_name,b.profile AS original_profile,
  b.last_activity_at,b.total,b.active,b.process_id,b.stage_id,b.discarded_at,b.applied_at
  FROM uncorrected b LEFT JOIN company_candidate_corrections o ON b.kind='organic' AND o.company_id=$1 AND o.user_id=b.id
