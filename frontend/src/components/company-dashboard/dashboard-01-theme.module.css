@@ -69,8 +69,8 @@ body:has(.root) :global([data-slot="card"]) {
   border-radius: var(--radius-xl);
 }
 
-.root :global([data-slot="button"]),
-body:has(.root) :global([data-slot="button"]) {
+.root :global([data-slot="button"]:not([data-pf-theme-toggle])),
+body:has(.root) :global([data-slot="button"]:not([data-pf-theme-toggle])) {
   border-radius: var(--radius-md);
 }
 

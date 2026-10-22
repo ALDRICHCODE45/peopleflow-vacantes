@@ -68,7 +68,8 @@ describe("candidate shell frame", () => {
     expect(wrapper.className).toContain("bg-primary/5");
     expect(inset.className).toContain("overflow-x-clip");
     expect(inset.className).not.toContain("overflow-x-hidden");
-    for (const token of ["md:mt-3", "md:mr-3", "md:mb-3", "md:rounded-3xl", "md:ring-1", "md:ring-primary/15", "md:shadow-md"]) {
+    expect(wrapper).toHaveClass("md:py-3");
+    for (const token of ["md:peer-data-[variant=inset]:my-0", "md:peer-data-[variant=inset]:mr-3", "md:peer-data-[variant=inset]:rounded-3xl", "md:ring-1", "md:ring-primary/15", "md:peer-data-[variant=inset]:shadow-md"]) {
       expect(inset.className).toContain(token);
     }
     expect(SHELL).toContain('"--sidebar-width": "calc(var(--spacing) * 72)"');
@@ -197,6 +198,8 @@ describe("candidate identity", () => {
     // and not a hand-rolled initials span.
     expect(within(footer).queryByRole("link", { name: /Ana Pérez/ })).toBeNull();
     expect(within(footer).getByRole("button", { name: /Ana Pérez/ })).toBeInTheDocument();
+    expect(footer.querySelector("[data-pf-action-status-slot]")).toBeNull();
+    expect(within(footer).queryByRole("status")).toBeNull();
     expect(footer.querySelector("[data-slot='avatar']")).not.toBeNull();
     expect(within(footer).getByText("AP")).toBeInTheDocument();
     expect(within(footer).getByText("ana@example.com")).toBeInTheDocument();
@@ -264,6 +267,7 @@ describe("candidate PeopleFlow violet primary", () => {
     for (const file of SOURCES) expect(file.toLowerCase()).not.toMatch(/#0e7490|#22d3ee|#0c0912/u);
     expect(SHELL).not.toContain("--primary");
     // The frame keeps its tint, which now derives from the peopleflow violet primary.
-    expect(SHELL).toContain("bg-primary/5");
+    renderShell();
+    expect(document.querySelector("[data-slot='sidebar-wrapper']")).toHaveClass("bg-primary/5");
   });
 });

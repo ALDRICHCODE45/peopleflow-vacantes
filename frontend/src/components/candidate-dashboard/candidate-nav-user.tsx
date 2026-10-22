@@ -4,7 +4,7 @@ import * as React from "react";
 import { signOut } from "next-auth/react";
 import { IconFileCv, IconSettings, IconUserCircle } from "@tabler/icons-react";
 import { NavUser } from "@/components/company-dashboard/nav-user";
-import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { useIdentity } from "@/features/identity/identity-session";
 
@@ -33,6 +33,6 @@ export function CandidateNavUser() {
   }
   return <>
     <NavUser user={{ name: user?.full_name ?? "Mi cuenta", email: user?.email ?? "", role, company: role === "Empresa" ? "Empresa" : "Espacio personal" }} secondaryText={user?.email ?? ""} menuItems={candidateAccountMenu} onLogout={() => void logout()} logoutPending={pending} logoutStatusId={failed ? statusId : undefined} />
-    <ActionStatusSlot>{failed && <ActionStatus id={statusId} tone="error" text="No se cerró la sesión. Intenta nuevamente desde el menú." />}</ActionStatusSlot>
+    {failed && <ActionStatus id={statusId} tone="error" text="No se cerró la sesión. Intenta nuevamente desde el menú." />}
   </>;
 }
