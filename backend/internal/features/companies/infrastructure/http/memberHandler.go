@@ -493,6 +493,7 @@ func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecu
 //	ErrNotAMember          → CodeNotFound          (404) + "company member not found"
 //	ErrMemberExists        → CodeAlreadyExists     (409) + "user already has a company membership"
 //	ErrMemberNotFound      → CodeNotFound          (404) + "company member not found"
+//	ErrLastOwner           → CodeLastOwner         (409) + "company must retain at least one owner"
 //	ErrUserNotFound        → CodeNotFound          (404) + "user not found"
 //	ErrTargetNotRecruiter  → CodeInvalidRequest    (400) + "target user is not a recruiter"
 //	ErrInvalidMemberRole   → CodeInvalidRequest    (400) + "invalid member role"
@@ -514,6 +515,8 @@ func classifyMemberError(err error) httpjson.Definition {
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "company member not found")
 	case errors.Is(err, entities.ErrMemberExists):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeAlreadyExists), "user already has a company membership")
+	case errors.Is(err, entities.ErrLastOwner):
+		return httpjson.Resolve(httpjson.CodeLastOwner)
 	case errors.Is(err, entities.ErrMemberNotFound):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "company member not found")
 	case errors.Is(err, entities.ErrUserNotFound), errors.Is(err, identityentities.ErrUserNotFound):

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/google/uuid"
 )
 
@@ -27,7 +26,7 @@ func TestListByCompanyID_EnrichesUserAndNullsDeleted(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
 
-	repo := NewCompanyMemberRepository(db.New(tx))
+	repo := NewCompanyMemberRepository(tx)
 
 	suffix := uuid.NewString()[:6]
 	industryID := "list-join-industry"

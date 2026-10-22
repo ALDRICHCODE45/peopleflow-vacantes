@@ -169,7 +169,7 @@ func run() error {
 	// (design D6 — IDOR-resistant boundary). The companies repo is the
 	// existing one above; the member handler's GetMyMembership fetches
 	// the company record through it.
-	memberRepo := postgres.NewCompanyMemberRepository(queries)
+	memberRepo := postgres.NewCompanyMemberRepository(pool)
 	memberService := usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geography)
 	memberHandler := companieshttp.NewMemberHandler(memberService)
 

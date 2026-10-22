@@ -56,7 +56,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
@@ -1430,7 +1429,7 @@ func TestGetMyMembership_HidesTombstonedCompany(t *testing.T) {
 	})
 
 	companyRepo := newTestCompanyRepository(pool)
-	memberRepo := NewCompanyMemberRepository(db.New(pool))
+	memberRepo := NewCompanyMemberRepository(pool)
 	svc := usecases.NewCompanyMemberService(memberRepo, stubIdentityUserRepo{sub: sub, userID: userID}, companyRepo)
 
 	if _, _, err := svc.GetMyMembership(ctx, sub); !errors.Is(err, entities.ErrCompanyNotFound) {

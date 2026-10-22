@@ -257,7 +257,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 	queries := db.New(pool)
 	auditRepo := auditpostgres.NewAuditEventRepository()
 	identityUserRepo := identitypostgres.NewUserRepository(queries)
-	memberRepo := companiespostgres.NewCompanyMemberRepository(queries)
+	memberRepo := companiespostgres.NewCompanyMemberRepository(pool)
 	companyRepo := companiespostgres.NewCompanyRepository(pool, auditRepo)
 
 	store := draftstore.NewStore(pool, auditRepo)

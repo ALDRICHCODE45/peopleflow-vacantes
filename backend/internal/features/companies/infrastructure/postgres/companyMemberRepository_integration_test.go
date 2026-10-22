@@ -31,24 +31,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	"github.com/google/uuid"
 )
 
 // setupMembershipFixture opens a transaction, applies the company-members
-// fixture (industry + 2 companies + 3 users + TWO member rows), and returns
+// fixture (industry + 2 companies + 3 users + three member rows), and returns
 // the adapter bound to that transaction.
 //
 // The fixture is intentionally DESTRUCTIVE: it DELETEs every company_members
 // row in the developer's database so the assertions can match exact IDs
 // without fuzzy counts. Safe — the cleanup rolls back the transaction.
 //
-// Two membership rows are seeded:
+// Three membership rows are seeded (two owners allow same-company mutations):
 //
 //   - callerRow:  callerUser on callerCompany, role=owner
 //   - foreignRow: targetUser on foreignCompany, role=recruiter
+//   - remaining owner: another user on callerCompany, role=owner
 //
 // The cross-company tests target foreignRow but pass callerCompanyID —
 // the SQL guard `WHERE id=$1 AND company_id=$2` then rejects the UPDATE
@@ -86,6 +86,8 @@ func setupMembershipFixture(t *testing.T) (context.Context, *CompanyMemberReposi
 	targetUserID := uuid.MustParse("018f0000-0000-7000-8000-0000000000a4")
 	callerRowID := uuid.MustParse("018f0000-0000-7000-8000-0000000000a5")
 	foreignRowID := uuid.MustParse("018f0000-0000-7000-8000-0000000000a6")
+	remainingOwnerID := uuid.MustParse("018f0000-0000-7000-8000-0000000000a7")
+	remainingOwnerRowID := uuid.MustParse("018f0000-0000-7000-8000-0000000000a8")
 
 	seeds := []struct {
 		name string
@@ -107,6 +109,12 @@ func setupMembershipFixture(t *testing.T) (context.Context, *CompanyMemberReposi
 		{"target user", `INSERT INTO users (id, cognito_sub, email, full_name, user_type)
 		                 VALUES ($1, 'target-sub', 'target@example.com', 'Target', 'recruiter')`,
 			[]any{targetUserID}},
+		{"remaining owner user", `INSERT INTO users (id, cognito_sub, email, full_name, user_type)
+		                 VALUES ($1, 'remaining-owner-sub', 'remaining-owner@example.com', 'Remaining Owner', 'recruiter')`,
+			[]any{remainingOwnerID}},
+		{"remaining owner row", `INSERT INTO company_members (id, user_id, company_id, role)
+		                VALUES ($1, $2, $3, 'owner')`,
+			[]any{remainingOwnerRowID, remainingOwnerID, callerCompanyID}},
 		{"caller row", `INSERT INTO company_members (id, user_id, company_id, role)
 		                VALUES ($1, $2, $3, 'owner')`,
 			[]any{callerRowID, callerUserID, callerCompanyID}},
@@ -120,7 +128,7 @@ func setupMembershipFixture(t *testing.T) (context.Context, *CompanyMemberReposi
 		}
 	}
 
-	return ctx, NewCompanyMemberRepository(db.New(tx)),
+	return ctx, NewCompanyMemberRepository(tx),
 		callerUserID, callerCompanyID, foreignCompanyID, callerRowID, foreignRowID
 }
 
@@ -233,7 +241,7 @@ func TestRemove_SameCompanyDeletesRow(t *testing.T) {
 		t.Fatalf("Remove(same company): unexpected error: %v", err)
 	}
 
-	if post := countMemberRows(ctx, t, repo, callerCompanyID); post != 0 {
-		t.Errorf("after Remove, want 0 rows, got %d", post)
+	if post := countMemberRows(ctx, t, repo, callerCompanyID); post != 1 {
+		t.Errorf("after Remove, want the remaining owner row, got %d rows", post)
 	}
 }
