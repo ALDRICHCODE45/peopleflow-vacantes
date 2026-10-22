@@ -16,7 +16,7 @@ export const candidateSchema = z.object({
     state: z.enum(["active", "discarded"]), applied_at: timestamp,
   }).strict().nullable(),
   last_activity_at: timestamp,
-}).strict().refine(item => item.kind !== "organic" || (item.professional_title === null && item.current_company === null));
+}).strict();
 export const listSchema = z.object({ items: z.array(candidateSchema).max(50), total: count, next_cursor: z.string().nullable() }).strict();
 export const filterIssueSchema = z.object({ field: text, code: z.enum(["unknown", "invalid", "duplicate", "required", "not_found"]) }).strict();
 export const errorEnvelopeSchema = z.union([

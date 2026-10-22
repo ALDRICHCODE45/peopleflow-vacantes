@@ -1,4 +1,5 @@
 "use client";
+import { relativeTime } from "../relative-time";
 
 import Link from "next/link";
 import { Ellipsis } from "lucide-react";
@@ -17,14 +18,6 @@ import type { OrgCandidate } from "../model";
 import type { OpenCandidate } from "./candidate-results";
 
 const dateFormat = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
-const relativeFormat = new Intl.RelativeTimeFormat("es-MX", { numeric: "always" });
-function relativeActivity(value: string) {
-  const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
-  if (Math.abs(seconds) < 60) return relativeFormat.format(seconds, "second");
-  if (Math.abs(seconds) < 3600) return relativeFormat.format(Math.trunc(seconds / 60), "minute");
-  if (Math.abs(seconds) < 86400) return relativeFormat.format(Math.trunc(seconds / 3600), "hour");
-  return relativeFormat.format(Math.trunc(seconds / 86400), "day");
-}
 function CandidateLanguages({ item, languages }: { item: OrgCandidate; languages: LanguageCatalog["items"] }) {
   const labels = item.profile.languages.map(language => `${languages.find(entry => entry.code === language.code)?.name ?? "Idioma no disponible"} ${language.level === "native" ? "Nativo" : language.level}`);
   if (!labels.length) return <TwoLineCell primary="Sin dato" missing />;
@@ -83,7 +76,7 @@ export function candidateColumns(languages: LanguageCatalog["items"], onOpen?: O
     { id: "languages", size: 112, meta: { label: "Idiomas" }, cell: ({ row }) => <CandidateLanguages item={row.original} languages={languages} /> },
     { id: "vacancy", size: 158, meta: { label: "Última vacante", grow: true }, cell: ({ row }) => <LatestVacancyCell item={row.original} /> },
     { id: "processes", size: 116, meta: { label: "Procesos" }, cell: ({ row }) => <TwoLineCell primary={`${row.original.participations.total} ${row.original.participations.total === 1 ? "proceso" : "procesos"}`} secondary={`${row.original.participations.active} ${row.original.participations.active === 1 ? "activo" : "activos"}`} /> },
-    { id: "activity", size: 120, meta: { label: "Actividad" }, cell: ({ row }) => <time dateTime={row.original.last_activity_at}><TwoLineCell primary={dateFormat.format(new Date(row.original.last_activity_at))} secondary={relativeActivity(row.original.last_activity_at)} /></time> },
+    { id: "activity", size: 120, meta: { label: "Actividad" }, cell: ({ row }) => <time dateTime={row.original.last_activity_at}><TwoLineCell primary={dateFormat.format(new Date(row.original.last_activity_at))} secondary={relativeTime(row.original.last_activity_at)} /></time> },
     { id: "actions", size: 56, header: () => <span className="sr-only">Acciones</span>, meta: { label: "Acciones", align: "center" }, enablePinning: false, enableHiding: false, enableReorder: false, cell: ({ row }) => <CandidateActions item={row.original} onOpen={onOpen} /> },
   ];
 }
