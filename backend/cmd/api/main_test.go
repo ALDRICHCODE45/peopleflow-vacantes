@@ -1520,6 +1520,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 	want := []string{
 		"Get /v2/me/company/candidates",
 		"Get /v2/me/company/candidates/{kind}/{id}",
+		"Patch /v2/me/company/candidates/{kind}/{id}",
+		"Get /v2/me/company/candidates/{kind}/{id}/history",
 		"Get /v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv",
 		"Get /v2/catalogs/languages",
 		"Get /v2/me/company/job-drafts/{id}/board",

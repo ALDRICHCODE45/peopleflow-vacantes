@@ -28,6 +28,7 @@ const (
 	CodeIdempotencyConflict     Code = "idempotency_conflict"
 	CodeVersionConflict         Code = "version_conflict"
 	CodePreconditionRequired    Code = "precondition_required"
+	CodePreconditionFailed      Code = "precondition_failed"
 	CodeRequesterAlreadyExists  Code = "requester_already_exists"
 )
 
@@ -67,6 +68,8 @@ func Resolve(code Code) Definition {
 		return Definition{code, http.StatusConflict, "idempotency conflict"}
 	case CodeVersionConflict:
 		return Definition{code, http.StatusPreconditionFailed, "draft version conflict"}
+	case CodePreconditionFailed:
+		return Definition{code, http.StatusPreconditionFailed, "precondition failed"}
 	case CodePreconditionRequired:
 		return Definition{code, http.StatusPreconditionRequired, "precondition required"}
 	case CodeInvalidStatusTransition:

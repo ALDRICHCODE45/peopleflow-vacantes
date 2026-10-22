@@ -34,6 +34,12 @@ func (s *orgDetailReader) Detail(_ context.Context, c uuid.UUID, kind string, id
 	raw := `{"kind":"` + kind + `","id":"` + id.String() + `","full_name":"Candidate","professional_title":null,"current_company":null,"contact":{"email":"contact@example.test","phone":null},"profile":{"location":null,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]},"participations":[],"created_by":null,"created_at":"2026-01-01T00:00:00Z"}`
 	var d pool.Detail
 	err := json.Unmarshal([]byte(raw), &d)
+	d.ETag = pool.ETag(kind, id, 1)
+	d.CorrectedFields = []string{}
+	d.Skills = []string{}
+	if kind == "manual" {
+		d.Education = []pool.Study{}
+	}
 	return d, err
 }
 func (s *orgDetailReader) File(_ context.Context, c uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
@@ -71,7 +77,13 @@ func TestOrgCandidatesDetailHTTP(t *testing.T) {
 			}
 			var keys map[string]any
 			_ = json.Unmarshal(w.Body.Bytes(), &keys)
-			if len(keys) != 10 {
+			if len(keys) != 19 || w.Header().Get("ETag") != got.ETag {
+				t.Fatal(keys)
+			}
+			if kind == "organic" && keys["education"] != nil {
+				t.Fatal(keys)
+			}
+			if kind == "manual" && len(keys["education"].([]any)) != 0 {
 				t.Fatal(keys)
 			}
 		})

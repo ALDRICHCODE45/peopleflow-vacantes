@@ -48,6 +48,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 		detailError(w, err)
 		return
 	}
+	w.Header().Set("ETag", out.ETag)
 	httpjson.WriteJSON(w, http.StatusOK, out)
 }
 func (h *Handler) File(w http.ResponseWriter, r *http.Request) {

@@ -41,6 +41,28 @@ type Detail struct {
 	Participations    []DetailParticipation `json:"participations"`
 	CreatedBy         *Creator              `json:"created_by"`
 	CreatedAt         time.Time             `json:"created_at"`
+	ETag              string                `json:"etag"`
+	UpdatedAt         *time.Time            `json:"updated_at"`
+	UpdatedBy         *Creator              `json:"updated_by"`
+	CorrectedFields   []string              `json:"corrected_fields"`
+	Original          *Original             `json:"original"`
+	Skills            []string              `json:"skills"`
+	LinkedInURL       *string               `json:"linkedin_url"`
+	PortfolioURL      *string               `json:"portfolio_url"`
+	Education         []Study               `json:"education"`
+}
+
+// Original is the uncorrected organic projection. Studies are unavailable in
+// frozen snapshots, which contain only the education summary.
+type Original struct {
+	FullName          string        `json:"full_name"`
+	Contact           board.Contact `json:"contact"`
+	ProfessionalTitle *string       `json:"professional_title"`
+	CurrentCompany    *string       `json:"current_company"`
+	Profile           board.Profile `json:"profile"`
+	LinkedInURL       *string       `json:"linkedin_url"`
+	PortfolioURL      *string       `json:"portfolio_url"`
+	Education         []Study       `json:"education"`
 }
 
 func (s *Service) Detail(ctx context.Context, company uuid.UUID, kind string, id uuid.UUID) (Detail, error) {

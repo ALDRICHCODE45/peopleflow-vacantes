@@ -20,9 +20,20 @@ func (s *Store) Detail(ctx context.Context, company uuid.UUID, kind string, id u
 		return out, err
 	}
 	defer tx.Rollback(ctx)
+	out, err = s.detail(ctx, tx, company, kind, id)
+	if err != nil {
+		return out, err
+	}
+	return out, tx.Commit(ctx)
+}
+
+// detail also runs inside Edit's write transaction: response and ETag describe
+// exactly that edit, not a racing read after commit.
+func (s *Store) detail(ctx context.Context, tx pgx.Tx, company uuid.UUID, kind string, id uuid.UUID) (app.Detail, error) {
+	var out app.Detail
 	var raw []byte
 	query := poolSQL + ` AND kind=$2 AND id=$3), page AS (SELECT * FROM filtered) SELECT to_jsonb(r) FROM (` + projectionSQL + `) r`
-	err = tx.QueryRow(ctx, query, company, kind, id).Scan(&raw)
+	err := tx.QueryRow(ctx, query, company, kind, id).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, board.ErrNotFound
 	}
@@ -95,7 +106,31 @@ func (s *Store) Detail(ctx context.Context, company uuid.UUID, kind string, id u
 		out.CreatedAt = out.Participations[len(out.Participations)-1].AppliedAt
 	}
 	out.CreatedAt = out.CreatedAt.UTC()
-	return out, tx.Commit(ctx)
+	out.CorrectedFields = []string{}
+	out.Skills = out.Profile.Skills
+	if out.Skills == nil {
+		out.Skills = []string{}
+	}
+	out.ETag = app.ETag(kind, id, 1)
+	if kind == "manual" {
+		var version int64
+		var updatedID *uuid.UUID
+		var updatedName *string
+		err = tx.QueryRow(ctx, `SELECT cc.version,COALESCE(cc.updated_at,cc.created_at),COALESCE(cc.updated_by,cc.created_by),u.full_name,cc.linkedin_url,cc.portfolio_url,COALESCE((SELECT jsonb_agg(jsonb_build_object('level',e.level,'institution',e.institution,'field',e.field,'status',e.status,'start_year',e.start_year,'end_year',e.end_year) ORDER BY e.position,e.id) FROM company_candidate_educations e WHERE e.company_candidate_id=cc.id),'[]'::jsonb) FROM company_candidates cc LEFT JOIN users u ON u.id=COALESCE(cc.updated_by,cc.created_by) AND u.deleted_at IS NULL WHERE cc.company_id=$1 AND cc.id=$2`, company, id).Scan(&version, &out.UpdatedAt, &updatedID, &updatedName, &out.LinkedInURL, &out.PortfolioURL, &raw)
+		if err != nil {
+			return out, err
+		}
+		if updatedID != nil {
+			out.UpdatedBy = &app.Creator{ID: *updatedID, Name: updatedName}
+		}
+		if err = json.Unmarshal(raw, &out.Education); err != nil {
+			return out, err
+		}
+		out.ETag = app.ETag(kind, id, version)
+	} else {
+		out.Original = &app.Original{FullName: out.FullName, Contact: out.Contact, Profile: out.Profile}
+	}
+	return out, nil
 }
 
 const detailParticipationsSQL = `SELECT jsonb_build_object(
