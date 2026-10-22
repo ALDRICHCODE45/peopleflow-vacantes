@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowDownToLine, FileText, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { CardContent, CardFooter } from "@/components/ui/card";
+import { DocumentItem } from "@/components/document/document-item";
+import { filePresentation } from "@/features/pipeline-movement/pipeline-presentation";
 import { Input } from "@/components/ui/input";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
@@ -17,15 +19,15 @@ export type CvConfirmation = {
  onConfirm: () => void; onChooseFile: () => void; finalFocus: RefObject<HTMLButtonElement | null>;
 };
 type Props = {
- candidate: OrgCandidateDetail; item: OrgCandidateParticipation; busy: boolean;
+ candidate: OrgCandidateDetail; item: OrgCandidateParticipation; busy: boolean; children?: ReactNode;
  onConfirmationChange: (confirmation: CvConfirmation | null) => void;
  onBusyChange: (busy: boolean) => void;
  onSaved: (detail: OrgCandidateDetail) => void;
  onConflict: () => Promise<void>;
 };
 const fileSize = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 }).format(bytes / 1024)} KB` : `${new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 }).format(bytes / 1024 / 1024)} MB`;
-/** File metadata followed by one ActionBar (§12). Its action group can shrink to wrap in the sheet. */
-export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, onConflict, onConfirmationChange }: Props) {
+/** Card body and footer stay in one mounted session so refreshes retain the selected file. */
+export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, onConflict, onConfirmationChange, children }: Props) {
  const input = useRef<HTMLInputElement>(null), button = useRef<HTMLButtonElement>(null);
  const alive = useRef(true), locked = useRef(false);
  const [file, setFile] = useState<File | null>(null);
@@ -75,8 +77,15 @@ export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, 
    }
   } finally { locked.current = false; if (alive.current) { setPending(false); onBusyChange(false); } }
  }
- return <div className="flex min-w-0 flex-1 flex-col gap-3 [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink">
-  {item.cv ? <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm"><FileText aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 break-all">{item.cv.file_name}</span>{item.cv.source === "company" && <Badge variant="accent">CV corregido por tu empresa</Badge>}</p> : <p className="text-sm text-muted-foreground">Sin CV</p>}
+ return <><CardContent className="flex min-w-0 flex-col gap-3">
+  {children}
+  {item.cv ? <DocumentItem title={item.cv.file_name}
+   description={<>{filePresentation(item.cv.file_name) === "pdf" ? "Documento PDF" : "Documento Word"}{item.cv.source === "company" && <> · <Badge variant="accent">CV corregido por tu empresa</Badge></>}</>}
+   actions={<>
+    <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={candidateCvHref(identity, item.id)} download role="link" />} aria-label={`Descargar CV de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</Button>
+    {item.cv.source === "company" && item.original_cv && <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={candidateCvHref(identity, item.id, "original")} download role="link" />} aria-label={`Descargar CV original de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</Button>}
+   </>} /> : <p className="text-sm text-muted-foreground">Sin CV en este proceso</p>}
+ </CardContent><CardFooter>
   {/* Native hidden file selection is exposed through the labeled upload button. No binary Server Action call. */}
   <Input ref={input} type="file" className="hidden" accept={CV_ACCEPT} aria-label={`CV corregido para ${item.vacancy.title}`} onChange={event => {
    const picked = event.target.files?.[0]; event.target.value = "";
@@ -86,14 +95,12 @@ export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, 
    setFile(picked); setStatus(null); confirmFile(picked);
   }} />
   <ActionBar status={status && <ActionStatus id={statusId} tone={status.tone} text={status.text} />}>
-   {item.cv && <a className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href={candidateCvHref(identity, item.id)} download aria-label={`Descargar CV de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</a>}
-   {item.cv?.source === "company" && item.original_cv && <a className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href={candidateCvHref(identity, item.id, "original")} download aria-label={`Descargar CV original de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</a>}
    <Button ref={button} type="button" variant="outline" className="min-h-10" disabled={busy || pending} aria-busy={pending || undefined} aria-describedby={status ? statusId : undefined} onClick={() => {
     if (needsRefresh) { void refresh(); return; }
     if (file) confirmFile(file); else input.current?.click();
    }}><Upload aria-hidden="true" data-icon="inline-start" />{needsRefresh ? "Actualizar ficha" : "Subir CV corregido"}</Button>
   </ActionBar>
- </div>;
+ </CardFooter></>;
 }
 /** A sibling of the Sheet root (§23), so Base UI keeps the confirmation's own backdrop. */
 export function CvConfirmationDialog({ confirmation, pending, onClose }: { confirmation: CvConfirmation | null; pending: boolean; onClose: () => void }) {

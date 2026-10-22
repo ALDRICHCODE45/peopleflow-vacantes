@@ -58,7 +58,14 @@ it("orders participations newest first and shows lifecycle, substate, discard, s
   const section = await screen.findByRole("region", { name: "Procesos" });
   expect(within(section).getAllByRole("link").filter(a => a.getAttribute("href")?.endsWith("/pipeline")).map(a => a.textContent)).toEqual(["Frontend", "Backend"]);
   expect(within(section).getByRole("link", { name: "Frontend" })).toHaveAttribute("href", `/empresa/vacantes/${id(3)}/pipeline`);
-  ["Entrevista · Esperando respuesta", "Publicada", "Cerrada", "Proceso finalizado", "Descartado · Sin respuesta del candidato", "No respondió al correo", "Ingreso manual", "Postulación", "Agregado por Tomás Ríos", "cv.pdf", "Sin CV"].forEach(text => expect(within(section).getByText(text)).toBeVisible());
+  ["Publicada", "Cerrada", "Proceso finalizado", "Descartado · Sin respuesta del candidato", "No respondió al correo", "cv.pdf", "Sin CV en este proceso"].forEach(text => expect(within(section).getByText(text)).toBeVisible());
+  const frontend = within(section).getByRole("link", { name: "Frontend" }).closest('[data-slot="card"]')!;
+  const backend = within(section).getByRole("link", { name: "Backend" }).closest('[data-slot="card"]')!;
+  expect(section.querySelectorAll('[data-slot="card"]')).toHaveLength(2);
+  expect(frontend.querySelector('[data-slot="card-description"]')).toHaveTextContent("Entrevista · Esperando respuesta · Ingreso manual 21 oct 2026 · Agregado por Tomás Ríos");
+  expect(backend.querySelector('[data-slot="card-description"]')).toHaveTextContent("Entrevista · Postulación 20 oct 2026");
+  expect(backend.querySelector('[data-slot="card-action"]')).toHaveTextContent("CerradaProceso finalizado");
+  expect(backend.querySelector('[data-slot="card-content"]')).toContainElement(within(section).getByText("No respondió al correo"));
   const download = within(section).getByRole("link", { name: /Descargar CV/ });
   expect(download).toHaveAttribute("href", `/api/company/candidates/manual/${id(1)}/participations/${id(2)}/cv`);
   expect(download).toHaveAttribute("download");

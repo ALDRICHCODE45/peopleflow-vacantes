@@ -1,11 +1,12 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
-import { BriefcaseBusiness, CalendarDays, GraduationCap, Info, Languages, Link, Mail, MapPin, Pencil, Phone, Sparkles, TrendingUp, X } from "lucide-react";
+import { BriefcaseBusiness, GraduationCap, Info, Languages, Link, Mail, MapPin, Pencil, Phone, Sparkles, TrendingUp, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Item, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -181,22 +182,23 @@ function Profile({ detail }: { detail: OrgCandidateDetail }) {
 type CvCallbacks = { busy: boolean; onBusyChange: (busy: boolean) => void; onConfirmationChange: (confirmation: CvConfirmation | null) => void; onCvSaved: (detail: OrgCandidateDetail) => void; onCvConflict: () => Promise<void> };
 function Processes({ detail, ...cvCallbacks }: { detail: OrgCandidateDetail } & CvCallbacks) {
   const items = [...detail.participations].sort((a, b) => Date.parse(b.applied_at) - Date.parse(a.applied_at));
-  return <section aria-label="Procesos" className="flex flex-col gap-5"><SectionTitle>Procesos</SectionTitle>{items.length ? <ItemGroup>{items.map(item => <ParticipationItem key={item.id} item={item} candidate={detail} {...cvCallbacks} />)}</ItemGroup> : <p className="text-sm text-muted-foreground">Sin procesos</p>}</section>;
+  return <section aria-label="Procesos" className="flex flex-col gap-5"><SectionTitle>Procesos</SectionTitle>{items.length ? <div role="list" className="flex flex-col gap-4">{items.map(item => <ParticipationItem key={item.id} item={item} candidate={detail} {...cvCallbacks} />)}</div> : <p className="text-sm text-muted-foreground">Sin procesos</p>}</section>;
 }
 function ParticipationItem({ item, candidate, busy, onBusyChange, onCvSaved, onCvConflict, onConfirmationChange }: { item: OrgCandidateParticipation; candidate: OrgCandidateDetail } & CvCallbacks) {
   const publication = item.vacancy.lifecycle.publication;
-  return <Item variant="outline"><ItemContent className="min-w-0 gap-3">
-    <ItemTitle><a className="break-words underline underline-offset-4" href={`/empresa/vacantes/${encodeURIComponent(item.vacancy.id)}/pipeline`}>{item.vacancy.title}</a></ItemTitle>
-    <ItemDescription>{item.stage.name}{item.substate ? ` · ${item.substate.name}` : ""}</ItemDescription>
-    <div className="flex flex-wrap gap-2"><Badge variant={publication === "published" ? "success" : publication === "paused" ? "review" : "neutral"} dot>{publication === "published" ? "Publicada" : publication === "paused" ? "Pausada" : publication === "closed" ? "Cerrada" : "Borrador"}</Badge>{item.vacancy.lifecycle.process === "finished" && <Badge variant="neutral">Proceso finalizado</Badge>}</div>
-    {item.discard && <><p className="text-sm font-medium">Descartado · {discardReasonLabel(item.discard.reason)}</p>{item.discard.comment && <p className="whitespace-pre-wrap break-words text-sm">{item.discard.comment}</p>}</>}
-    <div className="flex flex-col gap-1 text-xs text-muted-foreground"><p>{item.source === "manual" ? "Ingreso manual" : "Postulación"}</p>{item.added_by && <p>Agregado por {item.added_by.name}</p>}<p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-4 shrink-0" /><MovementDate value={item.applied_at} /></p></div>
-  </ItemContent><ItemFooter>
-    <ParticipationCv item={item} candidate={candidate} busy={busy} onBusyChange={onBusyChange} onConfirmationChange={onConfirmationChange} onSaved={onCvSaved} onConflict={onCvConflict} />
-  </ItemFooter></Item>;
+  return <Card role="listitem" size="sm">
+    <CardHeader>
+      <CardTitle className="min-w-0"><h4><a className="break-words underline underline-offset-4" href={`/empresa/vacantes/${encodeURIComponent(item.vacancy.id)}/pipeline`}>{item.vacancy.title}</a></h4></CardTitle>
+      <CardDescription>{item.stage.name}{item.substate ? ` · ${item.substate.name}` : ""} · {item.source === "manual" ? "Ingreso manual" : "Postulación"} <MovementDate value={item.applied_at} />{item.source === "manual" && item.added_by && <> · Agregado por {item.added_by.name}</>}</CardDescription>
+      <CardAction className="flex flex-col items-end gap-2"><Badge variant={publication === "published" ? "success" : publication === "paused" ? "review" : "neutral"} dot>{publication === "published" ? "Publicada" : publication === "paused" ? "Pausada" : publication === "closed" ? "Cerrada" : "Borrador"}</Badge>{item.vacancy.lifecycle.process === "finished" && <Badge variant="neutral">Proceso finalizado</Badge>}</CardAction>
+    </CardHeader>
+    <ParticipationCv item={item} candidate={candidate} busy={busy} onBusyChange={onBusyChange} onConfirmationChange={onConfirmationChange} onSaved={onCvSaved} onConflict={onCvConflict}>
+      {item.discard && <><p className="text-sm font-medium">Descartado · {discardReasonLabel(item.discard.reason)}</p>{item.discard.comment && <p className="whitespace-pre-wrap break-words text-sm">{item.discard.comment}</p>}</>}
+    </ParticipationCv>
+  </Card>;
 }
 function DetailSkeleton() {
   return <div data-org-detail-skeleton className="flex flex-col gap-7"><span role="status" className="sr-only">Cargando detalle</span>
-    {[2, 6, 1].map((rows, section) => <div key={section} className="contents">{section > 0 && <Separator />}<section aria-hidden="true" className="flex flex-col gap-5"><Skeleton className="h-4 w-24" />{section === 2 ? <ItemGroup><Item variant="outline"><ItemContent className="gap-3"><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle><Skeleton className="h-4 w-32"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton><Skeleton className="h-6 w-24" /><Skeleton className="h-10 w-full" /></ItemContent></Item></ItemGroup> : <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{Array.from({ length: rows }, (_, index) => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl>}</section></div>)}
+    {[2, 6, 1].map((rows, section) => <div key={section} className="contents">{section > 0 && <Separator />}<section aria-hidden="true" className="flex flex-col gap-5"><Skeleton className="h-4 w-24" />{section === 2 ? <div role="list"><Card role="listitem" size="sm"><CardHeader><CardTitle><Skeleton className="h-5 w-40 max-w-full" /></CardTitle><CardDescription><Skeleton className="h-8 w-full" /></CardDescription><CardAction><Skeleton className="h-5 w-20" /></CardAction></CardHeader><CardContent><Item variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32 max-w-full" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions className="flex-wrap"><Skeleton className="h-10 w-32" /></ItemActions></Item></CardContent><CardFooter><Skeleton className="ml-auto h-10 w-44" /></CardFooter></Card></div> : <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{Array.from({ length: rows }, (_, index) => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl>}</section></div>)}
   </div>;
 }

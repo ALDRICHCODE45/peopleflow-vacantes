@@ -6,7 +6,8 @@ import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { DocumentItem } from "@/components/document/document-item";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { StateCard } from "@/components/feedback/state-card";
@@ -121,14 +122,12 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
               </section><Separator />
               <CandidateContact contact={loaded.detail.contact} correctedFields={loaded.detail.corrected_fields} /><Separator />
               <CandidateProfile profile={loaded.detail.profile} manual={manual} correctedFields={loaded.detail.corrected_fields} /><Separator />
-              <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><Item variant="outline">
-                <ItemMedia><div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><FileIcon aria-hidden="true" className="size-5" /></div></ItemMedia>
-                <ItemContent className="min-w-0"><ItemTitle className="max-w-full"><Hint text={detail.cv.name}><span className="truncate">{detail.cv.name}</span></Hint></ItemTitle><ItemDescription>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}</ItemDescription>{detail.cv.source === "company" && <Badge variant="accent">CV corregido por tu empresa</Badge>}</ItemContent>
-                <ItemActions className="basis-full flex-wrap">
-                  <a className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href={participationCvHref(vacancyId, item.id)} download><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</a>
-                  {detail.cv.source === "company" && loaded.detail.original_cv && <a className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href={participationCvHref(vacancyId, item.id, "original")} download><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</a>}
-                </ItemActions>
-              </Item></section>
+              <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><DocumentItem icon={FileIcon} title={detail.cv.name}
+                description={<>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}{detail.cv.source === "company" && <> · <Badge variant="accent">CV corregido por tu empresa</Badge></>}</>}
+                actions={<>
+                  <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={participationCvHref(vacancyId, item.id)} download role="link" />}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</Button>
+                  {detail.cv.source === "company" && loaded.detail.original_cv && <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={participationCvHref(vacancyId, item.id, "original")} download role="link" />}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</Button>}
+                </>} /></section>
               {loaded.detail.discard && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><SectionTitle>Descarte</SectionTitle></CardTitle><CardDescription><p className="text-sm font-medium text-status-danger">{discardReasonLabel(loaded.detail.discard.reason)}</p><p className="text-xs">{discardGroupLabel(loaded.detail.discard.reason)}</p></CardDescription></CardHeader>
                 <CardContent className="flex flex-col gap-4"><p className="text-xs text-muted-foreground">Etapa anterior: <strong className="text-foreground">{stageName(loaded.detail.discard.previous_stage_id)}</strong></p>
                 <DiscardNotes comment={loaded.detail.comment} message={loaded.detail.candidate_message} showEmpty /></CardContent>
@@ -172,7 +171,7 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
     <Separator />
     <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3, 4, 5].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
     <Separator />
-    <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions className="basis-full flex-wrap"><Skeleton className="h-10 w-32" /></ItemActions></Item></section>
+    <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions className="flex-wrap"><Skeleton className="h-10 w-32" /></ItemActions></Item></section>
     {discarded && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><Skeleton className="h-4 w-20" /></CardTitle><CardDescription><Skeleton className="h-5 w-44" /><Skeleton className="h-4 w-32" /></CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><Skeleton className="h-4 w-40" /><dl className="flex flex-col gap-4">{[0, 1].map(index => <div key={index} className="flex flex-col gap-1"><dt><Skeleton className="h-4 w-32" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>}
     <Skeleton className="h-16 w-full rounded-lg" />
   </div>;

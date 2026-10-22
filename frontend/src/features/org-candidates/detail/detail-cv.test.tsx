@@ -32,7 +32,7 @@ it("accepts additive source/original metadata while retaining legacy fixtures", 
  const data = corrected(); data.participations[0].cv.source = "unknown";
  expect(orgCandidateDetailSchema.safeParse(data).success).toBe(false);
 });
-it.each(["manual", "organic"] as const)("groups the %s corrected CV actions in one wrapping footer without stretching the controls", async kind => {
+it.each(["manual", "organic"] as const)("composes the %s process Card with document downloads in content and upload/status in its footer", async kind => {
  vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: orgCandidateDetailSchema.parse(corrected(kind)) });
  render(<OrgCandidateDetailSheet candidate={{ ...identity, kind }} onOpenChange={vi.fn()} />);
  const processes = await screen.findByRole("region", { name: "Procesos" });
@@ -41,16 +41,30 @@ it.each(["manual", "organic"] as const)("groups the %s corrected CV actions in o
   within(processes).getByRole("link", { name: "Descargar CV original de Frontend" }),
   within(processes).getByRole("button", { name: "Subir CV corregido" }),
  ];
+ const card = actions[2].closest('[data-slot="card"]')!;
+ expect(card).not.toBeNull();
+ for (const slot of ["card-header", "card-title", "card-description", "card-action", "card-content", "card-footer"]) expect(card.querySelector(`[data-slot="${slot}"]`)).toBeInTheDocument();
+ expect(card.querySelector('[data-slot="card-title"]')).toContainElement(within(processes).getByRole("link", { name: "Frontend" }));
+ expect(card.querySelector('[data-slot="card-description"]')).toHaveTextContent(/Entrevista · Esperando respuesta · Ingreso manual .* · Agregado por Tomás Ríos/);
+ expect(card.querySelector('[data-slot="card-action"]')).toContainElement(within(processes).getByText("Publicada"));
+ const document = actions[0].closest<HTMLElement>('[data-slot="item"]')!;
+ expect(card.querySelector('[data-slot="card-content"]')).toContainElement(document);
+ expect(document.querySelector('[data-slot="item-media"]')).toHaveAttribute("data-variant", "icon");
+ expect(document.querySelector('[data-slot="item-title"]')).toHaveTextContent("corregido.pdf");
+ expect(document.querySelector('[data-slot="item-description"]')).toHaveTextContent("Documento PDF · CV corregido por tu empresa");
+ const downloads = document.querySelector('[data-slot="item-actions"]')!;
+ expect(Array.from(downloads.querySelectorAll("a"))).toEqual(actions.slice(0, 2));
+ expect(downloads).toHaveClass("flex-wrap");
+ expect(document.querySelector('[class*="basis-full"]')).toBeNull();
  const groups = processes.querySelectorAll("[data-pf-action-bar-actions]");
  expect(groups).toHaveLength(1);
  const group = groups[0];
- expect(Array.from(group.querySelectorAll("a, button"))).toEqual(actions);
+ expect(Array.from(group.querySelectorAll("a, button"))).toEqual([actions[2]]);
  expect(group).toHaveClass("flex", "flex-wrap");
- const footer = group.closest('[data-slot="item-footer"]');
+ const footer = group.closest('[data-slot="card-footer"]');
  expect(footer).not.toBeNull();
- expect(footer?.firstElementChild).toHaveClass("[&_[data-pf-action-bar-actions]]:min-w-0", "[&_[data-pf-action-bar-actions]]:shrink");
+ expect(footer).toContainElement(actions[2]);
  for (const action of actions) {
-  expect(action.parentElement).toBe(group);
   expect(action).not.toHaveClass("w-full");
   expect(action).toHaveClass("min-h-10", "border-border");
   expect(action.querySelector('svg[data-icon="inline-start"]')).not.toBeNull();
@@ -60,7 +74,7 @@ it.each(["manual", "organic"] as const)("groups the %s corrected CV actions in o
  expect(bar.querySelector(".order-first")).toContainElement(bar.querySelector("[data-pf-action-status-slot]"));
  const badge = within(processes).getByText("CV corregido por tu empresa");
  expect(badge).toHaveClass("bg-primary/12");
- expect(badge.parentElement).toContainElement(within(processes).getByText("corregido.pdf"));
+ expect(document.querySelector('[data-slot="item-description"]')).toContainElement(badge);
 });
 it.each([undefined, "candidate"] as const)("shows only the current download for uncorrected CV source %s", async source => {
  const data = detailFixture(); data.participations[0].cv!.source = source;
@@ -71,9 +85,9 @@ it.each([undefined, "candidate"] as const)("shows only the current download for 
  const upload = screen.getByRole("button", { name: "Subir CV corregido" });
  expect(upload).toBeEnabled();
  const group = processes.querySelector("[data-pf-action-bar-actions]")!;
- expect(Array.from(group.querySelectorAll("a, button"))).toEqual([
-  within(processes).getByRole("link", { name: "Descargar CV de Frontend" }), upload,
- ]);
+ expect(Array.from(group.querySelectorAll("a, button"))).toEqual([upload]);
+ expect(upload.closest('[data-slot="card-footer"]')).not.toBeNull();
+ expect(within(processes).getByRole("link", { name: "Descargar CV de Frontend" }).closest('[data-slot="item-actions"]')).not.toBeNull();
 });
 it("does not offer an original download when the corrected CV has no original", async () => {
  const data = orgCandidateDetailSchema.parse(corrected()); data.participations[0].original_cv = null;
@@ -86,7 +100,11 @@ it("keeps a single upload action and its reserved status slot when there is no C
  const data = detailFixture(); data.participations[0].cv = null;
  vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); open();
  const processes = await screen.findByRole("region", { name: "Procesos" });
- expect(within(processes).getByText("Sin CV")).toBeVisible();
+ const empty = within(processes).getByText("Sin CV en este proceso");
+ expect(empty).toBeVisible();
+ expect(empty).toHaveClass("text-muted-foreground");
+ expect(empty.closest('[data-slot="card-content"]')).not.toBeNull();
+ expect(within(processes).getByRole("button", { name: "Subir CV corregido" }).closest('[data-slot="card-footer"]')).not.toBeNull();
  expect(within(processes).queryByRole("link", { name: /Descargar CV/ })).not.toBeInTheDocument();
  const group = processes.querySelector("[data-pf-action-bar-actions]")!;
  expect(Array.from(group.querySelectorAll("a, button"))).toEqual([within(processes).getByRole("button", { name: "Subir CV corregido" })]);

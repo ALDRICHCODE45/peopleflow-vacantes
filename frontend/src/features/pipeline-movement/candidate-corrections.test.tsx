@@ -64,10 +64,22 @@ it.each(["candidate", "company"] as const)("shows the %s CV downloads in one wra
   expect(current.querySelector('svg[data-icon="inline-start"]')).not.toBeNull();
   const row = current.closest('[data-slot="item-actions"]')!;
   expect(row).toHaveClass("flex-wrap");
+  const document = row.closest('[data-slot="item"]')!;
+  expect(document).toHaveAttribute("data-size", "sm");
+  expect(document.querySelector('[data-slot="item-media"]')).toHaveAttribute("data-variant", "icon");
+  expect(document.querySelector('[data-slot="item-media"] > svg')).not.toBeNull();
+  expect(document.querySelector('[data-slot="item-title"]')).toHaveTextContent(detail.cv.name);
+  expect(within(document as HTMLElement).getByTitle(detail.cv.name)).toHaveTextContent(detail.cv.name);
+  expect(document.querySelector('[class*="basis-full"]')).toBeNull();
+  expect(document.querySelector('[data-slot="item-description"]')).toHaveTextContent("Documento PDF");
+  expect(current).toHaveAttribute("data-slot", "button");
+  expect(current).toHaveClass("h-7");
   // Outline download links keep their border (cva is not twMerged; QA L24).
   for (const link of row.querySelectorAll("a")) expect(link).not.toHaveClass("border-transparent");
   if (source === "company") {
-    expect(screen.getByText("CV corregido por tu empresa")).toHaveAttribute("data-variant", "accent");
+    const badge = screen.getByText("CV corregido por tu empresa");
+    expect(badge).toHaveAttribute("data-variant", "accent");
+    expect(document.querySelector('[data-slot="item-description"]')).toContainElement(badge);
     const original = screen.getByRole("link", { name: "Descargar CV original" });
     expect(original.closest('[data-slot="item-actions"]')).toBe(row);
     expect(original).toHaveAttribute("href", `/api/company/vacancies/${vacancyId}/participations/person/cv/original`);
