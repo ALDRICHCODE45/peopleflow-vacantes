@@ -1,6 +1,8 @@
 import type { LocationValue } from "@/features/geo/model";
 import { uploadValidation } from "@/features/candidate-cvs/model";
-import { candidateSchema, phoneSchema, cvLimits, type Candidate, type FieldIssue, type IntakeBody } from "./model";
+import { candidateSchema, cvLimits, type Candidate, type FieldIssue, type IntakeBody } from "./model";
+import { phoneValue, phoneError } from "@/lib/phone";
+export { phoneValue } from "@/lib/phone";
 import type { EducationDraft } from "@/features/candidate/profile-draft";
 import type { LanguageValue } from "@/features/languages/language-field";
 export type Draft = {
@@ -9,12 +11,6 @@ export type Draft = {
   languages: LanguageValue[]; linkedin_url: string; portfolio_url: string;
 };
 export const emptyDraft = (): Draft => ({ full_name: "", email: "", phone: "", dial: "+52", education: [{ level: "", institution: "", field: "", status: "", start_year: "", end_year: "" }], residence: { country: null, state: null, municipality: null, postal_code: null }, professional_title: "", current_company: "", years_of_experience: "", seniority: "", summary: "", skills: "", languages: [], linkedin_url: "", portfolio_url: "" });
-export function phoneValue(dial: string, phone: string): string | null {
-  if (!phone.trim()) return null;
-  const digits = phone.replace(/[\s()-]/g, "");
-  if (!/^\+[1-9]\d{0,2}$/.test(dial) || !/^\d+$/.test(digits) || !phoneSchema.safeParse(dial + digits).success) return null;
-  return dial + digits;
-}
 export function contact(draft: Draft) { return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim()) ? draft.email.trim() : null, phone: phoneValue(draft.dial, draft.phone) }; }
 export type Errors = Record<string, string>;
 export function serverErrors(issues: FieldIssue[]): Errors {
@@ -45,7 +41,7 @@ export function prepare(draft: Draft, stage: string, existing: IntakeBody["exist
  if (!existing) {
   if (!raw.full_name) errors.full_name = "Escribe el nombre completo.";
   if (!draft.email.trim() && !draft.phone.trim()) errors.contact = "Agrega un correo o un teléfono.";
-  if (draft.phone.trim() && !raw.phone) errors.phone = draft.dial === "+52" ? "Escribe los 10 dígitos del teléfono en México." : "Escribe una lada y un número válidos, de 8 a 15 dígitos en total.";
+  if (draft.phone.trim() && !raw.phone) errors.phone = phoneError(draft.dial);
   if (!draft.education.length) errors.education = "Agrega al menos un estudio.";
   if (!draft.residence.country) errors["residence.country"] = "Elige un país.";
   if (draft.residence.country === "MX") {

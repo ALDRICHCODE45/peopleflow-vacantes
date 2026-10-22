@@ -172,10 +172,9 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
     const parsed = parseProfileDraft(draft, baseline);
     if (!parsed.ok) { markIssues(parsed.issues); announce("Revisa los datos marcados", "error"); return; }
     const base = parseProfileDraft(baseDraft, baseline);
-    if (!base.ok) { announce("No pudimos preparar el perfil", "error"); return; }
     const profile = profileToWrite(parsed.profile);
     const languages = { languages: parsed.profile.languages };
-    const input = { ...(isNew || !equal(profile, profileToWrite(base.profile)) ? { profile } : {}), ...(!equal(languages.languages, baseline.languages) ? { languages } : {}) };
+    const input = { ...(isNew || !base.ok || !equal(profile, profileToWrite(base.profile)) ? { profile } : {}), ...(!equal(languages.languages, baseline.languages) ? { languages } : {}) };
     busy.current = true; setPending(true); setIssues([]); dismissActionResult("candidate-profile");
     let outcome: ProfileSaveOutcome;
     try { outcome = await saveProfileAction(input); }
@@ -184,13 +183,13 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
     adopt(outcome);
     if (outcome.kind === "saved") announce(isNew ? "Perfil creado." : "Perfil guardado.", "success");
     else if (outcome.kind === "partial") {
-      if (outcome.failure.fields) markIssues(profileFieldIssues(outcome.failure.fields));
+      if (outcome.failure.fields) markIssues(profileFieldIssues(outcome.failure.fields, draft.dial));
       announce(PARTIAL, "warning", outcome.failure);
     }
     else if (outcome.kind === "uncertain") { setUncertain(true); announce(UNCERTAIN, "error", outcome.failure); }
     else if (outcome.kind === "invalid") { markIssues(outcome.issues); announce("Revisa los datos marcados", "error"); }
     else if (outcome.kind === "failed") {
-      if (outcome.failure.fields) markIssues(profileFieldIssues(outcome.failure.fields));
+      if (outcome.failure.fields) markIssues(profileFieldIssues(outcome.failure.fields, draft.dial));
       if (outcome.failure.locationIssues) markIssues(outcome.failure.locationIssues.map(issue => ({ path: `location.${issue.field}`, message: locationErrorMessages[issue.reason] })));
       announce(outcome.failure.reason === "unauthenticated" ? "Tu sesión expiró" : "No se guardó el perfil", "error", outcome.failure);
     } else { setDraft(baseDraft); announce("No hay cambios para guardar", "info"); }
@@ -228,7 +227,7 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
     <Card data-pf-profile-card className={CARD}>
       <CardHeader data-pf-profile-identity className={HERO}>
         <CardTitle className={IDENTITY}>
-          <Avatar className={cn(AVATAR, draft.professionalTitle.trim() ? "row-span-2" : "md:row-span-2")}><AvatarFallback className="bg-primary/10 font-semibold text-primary">{initials}</AvatarFallback></Avatar>
+          <Avatar className={cn(AVATAR, draft.professionalTitle.trim() ? "row-span-2" : "md:row-span-2")}><AvatarFallback className="bg-primary/10 font-semibold text-primary dark:bg-primary/25 dark:text-foreground">{initials}</AvatarFallback></Avatar>
           <h2 id="pf-profile-identity-heading" className={NAME}>{identity.fullName}</h2>
           {draft.professionalTitle.trim()
             ? <p data-pf-profile-headline className={`${HEADLINE} col-start-2`}>{draft.professionalTitle.trim()}</p>

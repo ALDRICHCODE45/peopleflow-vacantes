@@ -42,6 +42,7 @@ type ScalarSpec = Readonly<{
   path: ScalarPath; label: string; span?: string;
   type?: "text" | "tel" | "url" | "number"; min?: number; max?: number; step?: number; maxLength?: number;
   multiline?: boolean; options?: readonly Option[]; unit?: (draft: CandidateProfileDraft) => string;
+  hideLabel?: boolean; description?: string;
 }>;
 type Section = Readonly<{ slug: string; legend: string; category: ProfileCategory; grid: string; fields: readonly ScalarSpec[] }>;
 
@@ -62,7 +63,7 @@ const currencyOf = (draft: CandidateProfileDraft): string => (draft.salaryCurren
 
 const SECTIONS: readonly Section[] = [
   { slug: "contact", legend: "Contacto", category: "personal", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
-    { path: "phone", label: "Teléfono", type: "tel", maxLength: 30 },
+    { path: "phone", label: "Teléfono", type: "tel", maxLength: 30, span: "sm:col-span-2" },
     { path: "birthDate", label: "Fecha de nacimiento" },
     { path: "linkedinUrl", label: "Perfil de LinkedIn", type: "url", maxLength: 300 },
     { path: "portfolioUrl", label: "Portafolio o sitio web", type: "url", maxLength: 300, span: "sm:col-span-2" },
@@ -82,7 +83,7 @@ const SECTIONS: readonly Section[] = [
 
   ] },
   { slug: "skills", legend: "Habilidades", category: "education", grid: "grid grid-cols-1 gap-4 sm:grid-cols-1", fields: [
-    { path: "skills", label: "Habilidades", multiline: true },
+    { path: "skills", label: "Habilidades", multiline: true, hideLabel: true, description: "Separa cada habilidad con una coma o un salto de línea. Ejemplo: React, SQL, Atención a clientes. Máximo 60 habilidades, de 60 caracteres cada una." },
   ] },
   { slug: "compensation", legend: "Salario actual", category: "compensation", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
     { path: "currentSalaryGross", label: "Salario bruto actual", type: "number", min: 0, max: 100_000_000, step: 1, unit: currencyOf },
@@ -107,17 +108,18 @@ const SECTION_CONTENT = "flex flex-col gap-4";
 const LEGEND = "sr-only";
 
 /** One labelled control: schema-aligned frame, optional adornment and error-only aria wiring. */
-function ScalarField({ spec, draft, error, onChange }: Readonly<{ spec: ScalarSpec; draft: CandidateProfileDraft; error: string | null; onChange: (value: string) => void }>) {
+function ScalarField({ spec, draft, error, onChange, describedBy }: Readonly<{ spec: ScalarSpec; draft: CandidateProfileDraft; error: string | null; onChange: (value: string) => void; describedBy?: string }>) {
   const id = `profile-${spec.path}`;
   const invalid = error === null ? undefined : true;
   const value = draft[spec.path];
   const items = spec.options === undefined ? null : toSelectItems(spec.options);
   const handle = (event: { readonly target: { readonly value: string } }): void => onChange(event.target.value);
-  const aria = { id, "data-pf-profile-field": spec.path, "aria-invalid": invalid, "aria-describedby": error === null ? undefined : `${id}-error` };
+  const description = [describedBy, spec.description ? `${id}-help` : null, error === null ? null : `${id}-error`].filter(Boolean).join(" ") || undefined;
+  const aria = { id, "data-pf-profile-field": spec.path, "aria-invalid": invalid, "aria-describedby": description };
   const isBirthDate = spec.path === "birthDate";
   return (
     <Field data-invalid={invalid} className={spec.span}>
-      <FieldLabel htmlFor={id}>{spec.label}</FieldLabel>
+      <FieldLabel htmlFor={id} className={spec.hideLabel ? "sr-only" : undefined}>{spec.label}</FieldLabel>
       {isBirthDate
         ? <DatePickerField id={id} value={value} onChange={onChange} allowPast error={error ?? undefined} data-pf-profile-field="birthDate" className="w-full" />
         : items === null
@@ -135,6 +137,7 @@ function ScalarField({ spec, draft, error, onChange }: Readonly<{ spec: ScalarSp
               </SelectGroup>
             </SelectContent>
           </Select>}
+      {spec.description && <FieldDescription id={`${id}-help`}>{spec.description}</FieldDescription>}
       {spec.path === "yearsOfExperience" && <FieldDescription>Puedes usar decimales, por ejemplo 1.5.</FieldDescription>}
       {error === null || isBirthDate ? null : <FieldError id={`${id}-error`}>{error}</FieldError>}
     </Field>
@@ -153,7 +156,15 @@ function ScalarSection({ section, draft, errorFor, onChange, location, headerAct
         <FieldSet data-pf-profile-group={section.slug} className={SECTION}>
           <FieldLegend className={LEGEND}>{section.legend}</FieldLegend>
           <FieldGroup data-pf-profile-fields-grid="" className={section.grid}>
-            {section.fields.map((spec) => (
+            {section.fields.map((spec) => spec.path === "phone" ? (
+              <FieldGroup key={spec.path} className={spec.span}>
+                <div data-pf-profile-phone="" className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
+                  <ScalarField spec={{ path: "dial", label: "Lada de país", type: "tel" }} draft={draft} error={null} describedBy="profile-phone-help" onChange={value => onChange("dial", value)} />
+                  <ScalarField spec={{ ...spec, span: undefined }} draft={draft} error={errorFor("phone")} describedBy="profile-phone-help" onChange={value => onChange("phone", value)} />
+                </div>
+                <FieldDescription id="profile-phone-help">México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.</FieldDescription>
+              </FieldGroup>
+            ) : (
               <ScalarField key={spec.path} spec={spec} draft={draft} error={errorFor(spec.path)} onChange={(value) => onChange(spec.path, value)} />
             ))}
             {section.slug === "location" && location}

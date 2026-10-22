@@ -8,9 +8,9 @@ import type { EditedProfile, CandidateLanguageDraft, CandidateProfileDraft, Prof
 
 const SOURCE = readFileSync(join(process.cwd(), "src", "features", "candidate", "profile-draft.ts"), "utf8");
 /** Every editable draft key, sorted: the form fields and nothing else. */
-const DRAFT_KEYS = ["birthDate", "location", "currentCompany", "currentSalaryGross", "currentSalaryNet", "education", "expectedSalary", "expectedSalaryPeriod", "seniority", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
+const DRAFT_KEYS = ["dial", "birthDate", "location", "currentCompany", "currentSalaryGross", "currentSalaryNet", "education", "expectedSalary", "expectedSalaryPeriod", "seniority", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
 /** The validated profile keys: the draft plus the two server-owned timestamps. */
-const PROFILE_KEYS = [...DRAFT_KEYS, "createdAt", "updatedAt"].sort();
+const PROFILE_KEYS = [...DRAFT_KEYS.filter(key => key !== "dial"), "createdAt", "updatedAt"].sort();
 /** Nullable profile fields a blank draft value must clear. */
 const NULLABLE_KEYS = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "location", "seniority", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod"] as const;
 /** A valid profile with every nullable field unset; it also proves baseline timestamp ownership. */
@@ -64,7 +64,8 @@ describe("candidate profile draft adapter", () => {
   it("maps nulls to empty strings, numbers to decimal strings, and hides timestamps", () => {
     const empty = profileToDraft(EMPTY_PROFILE);
     expect(Object.keys(empty).sort()).toEqual(DRAFT_KEYS);
-    expect(Object.entries(empty).filter(([key]) => key !== "salaryCurrency" && key !== "languages" && key !== "location" && key !== "education").every(([, value]) => value === "")).toBe(true);
+    expect(empty.dial).toBe("+52");
+    expect(Object.entries(empty).filter(([key]) => key !== "dial" && key !== "salaryCurrency" && key !== "languages" && key !== "location" && key !== "education").every(([, value]) => value === "")).toBe(true);
     expect(empty.languages).toEqual([]);
     const fixture = profileToDraft(CANDIDATE_PROFILE);
     expect(fixture.yearsOfExperience).toBe("9");
@@ -81,7 +82,7 @@ describe("candidate profile draft adapter", () => {
     draft.languages[0].code = "cambiado";
     draft.languages[0].level = "A1";
     expect(JSON.stringify(CANDIDATE_PROFILE)).toBe(before);
-    expect(CANDIDATE_PROFILE.phone).toBe("+52 55 4821 7790");
+    expect(CANDIDATE_PROFILE.phone).toBe("+525548217790");
     expect(CANDIDATE_PROFILE.languages[0]).toEqual({ code: "es", level: "C2" });
   });
   it("clears blank nullable fields to null and never mutates its inputs", () => {
@@ -193,7 +194,7 @@ describe("candidate profile draft adapter", () => {
     }
   });
   it("stays free of fixture, React, browser, and side-effect coupling", () => {
-    expect([...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))]).toEqual(["./model", "@/features/geo/model"]);
+    expect([...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))]).toEqual(["./model", "@/lib/phone", "@/features/geo/model"]);
     expect(SOURCE).not.toMatch(/prototype-candidate|CANDIDATE_PROFILE/u);
     for (const pattern of [/\bfetch\(|XMLHttpRequest|axios/u, /localStorage|sessionStorage|indexedDB/u, /document\.|window\.|navigator\.|from "react"|"use client"|useRouter/u, /Math\.random|new Date\(|Date\.now|randomUUID/u]) expect(SOURCE).not.toMatch(pattern);
   });
