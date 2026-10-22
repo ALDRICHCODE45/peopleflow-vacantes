@@ -52,8 +52,8 @@ export function JobsProfileFilterChips({ query, languages, onRemove }: { query: 
   const dimensions = [
     { key: "language", label: "Idiomas", icon: LanguagesIcon, options: (languages.data?.items ?? []).map(item => ({ id: item.code, name: item.name })), multiple: true },
     { key: "seniority", label: "Seniority", icon: TrendingUpIcon, options: seniorities, multiple: true },
-    { key: "years_of_experience", label: "Tus años de experiencia", icon: UserRoundIcon, options: query.years_of_experience ? [{ id: query.years_of_experience, name: query.years_of_experience }] : [], multiple: false },
-    { key: "education_level", label: "Tu nivel de estudios", icon: GraduationCapIcon, options: EDUCATION_LEVELS.map(id => ({ id, name: EDUCATION_LEVEL_LABELS[id] })), multiple: false },
+    { key: "years_of_experience", label: "Experiencia", icon: UserRoundIcon, options: query.years_of_experience ? [{ id: query.years_of_experience, name: `${query.years_of_experience} ${Number(query.years_of_experience) === 1 ? "año" : "años"}` }] : [], multiple: false },
+    { key: "education_level", label: "Estudios", icon: GraduationCapIcon, options: EDUCATION_LEVELS.map(id => ({ id, name: EDUCATION_LEVEL_LABELS[id] })), multiple: false },
   ] as const;
   return dimensions.flatMap(({ key, label, icon: Icon, options, multiple }) => selectedValues(query[key]).map(value => {
     const text = `${label}: ${options.find(item => item.id === value)?.name ?? "Nombre no disponible"}`;

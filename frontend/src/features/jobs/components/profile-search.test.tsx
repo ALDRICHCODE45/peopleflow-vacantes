@@ -38,7 +38,9 @@ it("blocks invalid years inline and focuses the field without sending a request"
 it("shows named profile chips, removes one selection and clears all with Todas", () => {
   const routeKey = "/vacantes?language=en&language=nah&seniority=junior&years_of_experience=2&education_level=bachelor&cursor=old";
   render(<JobsNavigationIsland routeKey={routeKey} query={{ language: ["en", "nah"], seniority: ["junior"], years_of_experience: "2", education_level: "bachelor" }}><p>Results</p></JobsNavigationIsland>);
-  expect(screen.getByRole("button", { name: "Quitar filtro Tu nivel de estudios: Licenciatura o Ingeniería" })).toBeTruthy();
+  // Short chip names keep the value visible instead of truncating it («Tu nivel de estudios: Licenciatur…»).
+  expect(screen.getByRole("button", { name: "Quitar filtro Estudios: Licenciatura o Ingeniería" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Quitar filtro Experiencia: 2 años" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Quitar filtro Idiomas: Inglés" }));
   const params = new URLSearchParams(push.mock.calls[0][0].split("?")[1]);
   expect(params.getAll("language")).toEqual(["nah"]);
