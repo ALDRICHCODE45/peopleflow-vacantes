@@ -128,11 +128,11 @@ Participation `profile` (snapshot for organic, live record for manual — unchan
 
 ```json
 {"location":{…},"skills":["Go"],"years_of_experience":"1.5","seniority":"junior",
- "education":{"highest_completed":"bachelor","in_progress":true},
+ "education":{"highest_completed":"bachelor","in_progress":"master"},
  "languages":[{"code":"en","level":"B2"}]}
 ```
 
-`education.in_progress` is true when any record is `in_progress`. The board's
+`education.in_progress` is the highest level among records with status `in_progress` (`paused` and `incomplete` never count), or null. Board filters (client-side): education minimum X matches `highest_completed ≥ X`, and with «include in-progress» also `in_progress ≥ X`; languages are a multiselect (OR) with an optional minimum level applied to the selected languages (`native` > `C2`). The board's
 client-side filters gain seniority, languages (code + minimum level, CEFR order with
 `native` highest) and education (highest completed ≥ X, optionally counting
 in-progress), and experience buckets become decimal-aware.
