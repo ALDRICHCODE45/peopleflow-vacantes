@@ -10,11 +10,12 @@ import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet 
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { plural } from "@/features/employer-vacancies/pipeline-board";
 import { cn } from "@/lib/utils";
 import type { BoardFilterDimension } from "./board-filter-dimensions";
-import { activeFilterCount, clearFilters, filterChips, optionCount, toggleFilter, type FilterSelection } from "./filters";
+import { activeFilterCount, clearFilters, filterChips, dimensionOptions, optionCount, toggleFilter, type FilterSelection } from "./filters";
 
 type Props<Item> = { items: readonly Item[]; dimensions: BoardFilterDimension<Item>[]; selection: FilterSelection; onChange: (selection: FilterSelection) => void; resultCount: number };
 
@@ -23,12 +24,16 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
   const searchInput = useRef<HTMLInputElement>(null);
   const presentation = dimension.presentation;
   const label = presentation?.label ?? dimension.label;
-  const selected = dimension.options.filter(option => selection[dimension.key]?.has(option.value));
+  const selected = dimensionOptions(dimension).filter(option => selection[dimension.key]?.has(option.value));
   const summary = selected.length > 2
     ? plural(selected.length, presentation?.singular ?? "opción", presentation?.plural ?? "opciones")
     : selected.map(option => option.label).join(", ");
   const options = dimension.options.filter(option => option.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const id = `filter-${dimension.key}`;
+  const modifiers = dimension.modifiers;
+  const minimum = modifiers?.minimum;
+  const toggle = modifiers?.toggle;
+  const minimumValue = minimum?.options.find(option => selection[dimension.key]?.has(option.value))?.value ?? "any";
   return <Field>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
     <Popover onOpenChange={() => setSearch("")}>
@@ -47,7 +52,7 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
               <FieldLegend variant="label" className="px-2 text-muted-foreground">{group ?? "Opciones"}</FieldLegend>
               <FieldGroup className="gap-0">
                 {options.filter(option => option.group === group).map(option => {
-                  const count = optionCount(items, dimension, option.value);
+                  const count = optionCount(items, dimension, option.value, selection[dimension.key]);
                   return <Field key={option.value} orientation="horizontal">
                     {/* Menu-like row: rounded highlight with inner padding on hover and when checked.
                         Overrides FieldLabel's default square checked tint, meant for choice cards. */}
@@ -63,6 +68,25 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
             {!options.length && <p className="py-3 text-sm text-muted-foreground">No se encontraron opciones.</p>}
           </FieldGroup>
         </div>
+        {(minimum || toggle) && <>
+          <Separator />
+          {toggle && <Field orientation="horizontal" className="px-2">
+            <Checkbox id={`${id}-ongoing`} checked={selection[dimension.key]?.has(toggle.value) ?? false} onCheckedChange={() => onChange(toggleFilter(selection, dimension.key, toggle.value))} />
+            <FieldLabel htmlFor={`${id}-ongoing`}>{toggle.label}</FieldLabel>
+          </Field>}
+          {minimum && <Field className="px-2">
+            <FieldLabel htmlFor={`${id}-minimum`}>{minimum.label}</FieldLabel>
+            <Select items={[{ value: "any", label: "Cualquier nivel" }, ...minimum.options]} value={minimumValue} onValueChange={value => {
+              const values = new Set(selection[dimension.key]);
+              minimum.options.forEach(option => values.delete(option.value));
+              if (value && value !== "any") values.add(value);
+              onChange({ ...selection, [dimension.key]: values });
+            }}>
+              <SelectTrigger id={`${id}-minimum`} aria-label={minimum.label} className="min-h-10 w-full"><SelectValue>{minimum.options.find(option => option.value === minimumValue)?.label ?? "Cualquier nivel"}</SelectValue></SelectTrigger>
+              <SelectContent><SelectGroup><SelectItem value="any">Cualquier nivel</SelectItem>{minimum.options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+          </Field>}
+        </>}
         <Separator />
         <p className="shrink-0 px-2 pb-1 text-xs text-muted-foreground">Puedes seleccionar más de una opción.</p>
       </PopoverContent>
@@ -141,7 +165,7 @@ function BoardFilterChips<Item>({ dimensions, selection, onChange, onEdit }: Pic
   return <TooltipProvider><div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto p-1 [scrollbar-width:thin]" aria-label="Filtros activos">
     {filterChips(dimensions, selection).map(chip => {
       const dimension = dimensions.find(dimension => dimension.key === chip.key)!;
-      const value = dimension.options.find(option => option.value === chip.value)!.label;
+      const value = dimensionOptions(dimension).find(option => option.value === chip.value)!.label;
       const Icon = chip.key.startsWith("screening:") ? MessageSquareText : chipIcons[chip.key as keyof typeof chipIcons] ?? SlidersHorizontal;
       return <div key={`${chip.key}-${chip.value}`} className="flex max-w-[300px] shrink-0 items-center rounded-lg border">
         <Tooltip>

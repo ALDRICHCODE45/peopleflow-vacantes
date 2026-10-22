@@ -8,6 +8,7 @@ import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-
 import type { History, Result } from "./model";
 vi.mock("./actions", () => ({ loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }, { code: "es", name: "Español" }] } }) }));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detailFixture() });
@@ -19,28 +20,41 @@ function SheetHarness() {
   const board = boardFixture();
   return open ? <CandidateSheet vacancyId={vacancyId} vacancyTitle="Software Developer" item={board.participations[0]} board={board} onClose={() => setOpen(false)} /> : null;
 }
-it.each([0, 1, 3, null])("profile shows exact years %s and honest missing data", async years => {
+it.each(["0", "1", "2.5", null])("profile shows exact years %s and honest missing data", async years => {
   const detail = detailFixture();
-  detail.profile = { location: null, skills: [], years_of_experience: years, education_level: null };
+  detail.profile = { location: null, skills: [], years_of_experience: years, seniority: null, education: { highest_completed: null, in_progress: null }, languages: [] };
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
   render(<SheetHarness />);
   const profile = await screen.findByRole("region", { name: "Perfil" });
   expect(within(profile).getByText("Copiado del perfil al postularse.")).toBeVisible();
-  expect(within(profile).getAllByText("Sin dato")).toHaveLength(years === null ? 4 : 3);
+  expect(within(profile).getAllByText("Sin dato")).toHaveLength(years === null ? 6 : 5);
   within(profile).getAllByText("Sin dato").forEach(value => expect(value).toHaveClass("text-muted-foreground"));
-  expect(Array.from(profile.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Ubicación", "Habilidades", "Años de experiencia", "Nivel de estudios"]);
-  expect(profile.querySelectorAll("dt svg")).toHaveLength(4);
-  if (years !== null) expect(within(profile).getByText(`${years} ${years === 1 ? "año" : "años"}`)).toBeVisible();
+  expect(Array.from(profile.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Ubicación", "Habilidades", "Años de experiencia", "Seniority", "Nivel de estudios", "Idiomas"]);
+  expect(profile.querySelectorAll("dt svg")).toHaveLength(6);
+  if (years !== null) expect(within(profile).getByText(`${years} ${Number(years) === 1 ? "año" : "años"}`)).toBeVisible();
 });
 it("profile uses actual location, skill badges and education label", async () => {
   const detail = detailFixture();
-  detail.profile = { location: { country: { id: "MX", name: "México" }, state: { id: "21", name: "Puebla" }, municipality: null, postal_code: null, label: "Puebla" }, skills: ["Go", "SQL"], years_of_experience: 5, education_level: "high_school" };
+  detail.profile = { location: { country: { id: "MX", name: "México" }, state: { id: "21", name: "Puebla" }, municipality: null, postal_code: null, label: "Puebla" }, skills: ["Go", "SQL"], years_of_experience: "5", seniority: "junior", education: { highest_completed: "bachelor", in_progress: "master" }, languages: [{ code: "en", level: "B2" }, { code: "es", level: "native" }] };
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
   render(<SheetHarness />);
   const profile = await screen.findByRole("region", { name: "Perfil" });
   expect(within(profile).getByText("Puebla")).toBeVisible();
-  expect(within(profile).getByText("Preparatoria")).toBeVisible();
+  expect(within(profile).getByText("Licenciatura o Ingeniería · Maestría en curso")).toBeVisible();
+  expect(within(profile).getByText("Junior")).toBeVisible();
+  expect(within(profile).getByText("Inglés · B2 · Español · Nativo")).toBeVisible();
   expect(Array.from(profile.querySelectorAll('[data-slot="badge"]')).map(badge => badge.textContent)).toEqual(["Go", "SQL"]);
+});
+it.each([
+  [{ highest_completed: "bachelor" as const, in_progress: null }, "Licenciatura o Ingeniería"],
+  [{ highest_completed: null, in_progress: "master" as const }, "Maestría en curso"],
+])("shows completed-only and ongoing-only studies without inventing completion: %s", async (education, label) => {
+  const detail = detailFixture();
+  detail.profile.education = education;
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
+  render(<SheetHarness />);
+  const profile = await screen.findByRole("region", { name: "Perfil" });
+  expect(within(profile).getByText(label)).toBeVisible();
 });
 it("sheet loading is independent, closes with a Spanish button, and ignores the late read", async () => {
   let resolve!: (value: Result<History>) => void;
@@ -48,7 +62,7 @@ it("sheet loading is independent, closes with a Spanish button, and ignores the 
   render(<SheetHarness />);
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   expect(within(sheet).getByRole("status")).toHaveTextContent("Cargando detalle e historial");
-  expect(sheet.querySelector('[data-pf-detail-skeleton="summary"] dl')?.querySelectorAll('dt')).toHaveLength(4);
+  expect(sheet.querySelectorAll('[data-pf-detail-skeleton="summary"] dl')[2]?.querySelectorAll('dt')).toHaveLength(6);
   expect(sheet.querySelector('[data-pf-detail-skeleton="summary"] [data-slot="item"] [data-slot="item-actions"] [data-slot="skeleton"]')).not.toBeNull();
   fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar ficha" }));
   await act(async () => resolve({ ok: true, data: historyFixture() }));

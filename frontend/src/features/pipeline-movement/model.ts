@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EDUCATION_LEVELS, SENIORITIES, candidateLanguageSchema, yearsOfExperienceSchema } from "@/features/candidate/model";
 import { lifecycleSchema, type Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { locationReadSchema } from "@/features/geo/model";
 import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillment-model";
@@ -29,8 +30,10 @@ const mutationParticipationSchema = z.object({
 }).strict();
 export const profileSchema = z.object({
   location: locationReadSchema.refine(location => location === null || location.postal_code === null), skills: z.array(z.string()),
-  years_of_experience: count.nullable(),
-  education_level: z.enum(["high_school", "bachelor", "master", "phd"]).nullable(),
+  years_of_experience: yearsOfExperienceSchema.refine(value => !/\s/.test(value)).nullable(),
+  seniority: z.enum(SENIORITIES).nullable(),
+  education: z.object({ highest_completed: z.enum(EDUCATION_LEVELS).nullable(), in_progress: z.enum(EDUCATION_LEVELS).nullable() }).strict(),
+  languages: z.array(candidateLanguageSchema).max(10).refine(items => new Set(items.map(item => item.code)).size === items.length),
 }).strict();
 export const participationSchema = mutationParticipationSchema.extend({
   profile: profileSchema,

@@ -25,6 +25,8 @@ import { filePresentation, Hint, initials, stageClass } from "./pipeline-present
 import type { Notice } from "./board-feedback";
 import { plural } from "@/features/employer-vacancies/pipeline-board";
 import { educationLabels, normalizedProfileLabel } from "./profile-filter-dimensions";
+import { SENIORITY_LABELS } from "@/features/candidate/model";
+import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import type { Board, Failure, History, Participation, ParticipationDetail } from "./model";
 
 type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
@@ -164,7 +166,7 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
     <Separator />
     <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
     <Separator />
-    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
+    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3, 4, 5].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
     <Separator />
     <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions><Skeleton className="size-10" /></ItemActions></Item></section>
     {discarded && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><Skeleton className="h-4 w-20" /></CardTitle><CardDescription><Skeleton className="h-5 w-44" /><Skeleton className="h-4 w-32" /></CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><Skeleton className="h-4 w-40" /><dl className="flex flex-col gap-4">{[0, 1].map(index => <div key={index} className="flex flex-col gap-1"><dt><Skeleton className="h-4 w-32" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>}
@@ -172,13 +174,18 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
   </div>;
 }
 function CandidateProfile({ profile, manual }: { profile: Participation["profile"]; manual: boolean }) {
+  const catalog = useLanguageCatalog();
+  const education = [profile.education.highest_completed && educationLabels[profile.education.highest_completed], profile.education.in_progress && `${educationLabels[profile.education.in_progress]} en curso`].filter(Boolean).join(" · ");
+  const languages = profile.languages.map(language => `${catalog.data?.items.find(item => item.code === language.code)?.name ?? "Idioma no disponible"} · ${language.level === "native" ? "Nativo" : language.level}`).join(" · ");
   const missing = <span className="text-muted-foreground">Sin dato</span>;
   const skills = profile.skills.filter(skill => normalizedProfileLabel(skill));
   const rows = [
     { label: "Ubicación", icon: MapPin, value: profile.location?.label ?? missing },
     { label: "Habilidades", icon: Sparkles, value: skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={index} variant="outline">{skill}</Badge>)}</div> : missing },
-    { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(profile.years_of_experience, "año", "años") },
-    { label: "Nivel de estudios", icon: GraduationCap, value: profile.education_level === null ? missing : educationLabels[profile.education_level] },
+    { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(Number(profile.years_of_experience), "año", "años") },
+    { label: "Seniority", icon: BriefcaseBusiness, value: profile.seniority === null ? missing : SENIORITY_LABELS[profile.seniority] },
+    { label: "Nivel de estudios", icon: GraduationCap, value: education || missing },
+    { label: "Idiomas", icon: GraduationCap, value: languages || missing },
   ];
   return <section aria-label="Perfil" className="flex flex-col gap-5"><SectionTitle>Perfil</SectionTitle>
     <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">

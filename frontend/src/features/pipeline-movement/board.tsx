@@ -25,6 +25,7 @@ import { useMovementBoard } from "./use-movement-board";
 import { BoardFilters } from "./board-filters";
 import { activeFilterCount, applyFilters, type FilterSelection } from "./filters";
 import { boardFilterDimensions } from "./board-filter-dimensions";
+import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
 type Props = { vacancyId: string; vacancyTitle?: string; publishedAt?: string | null; onLifecycleChange?: (lifecycle: Lifecycle) => void };
@@ -33,6 +34,7 @@ export function MovementBoard(props: Props) {
 }
 function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange }: Props) {
   const state = useMovementBoard(vacancyId);
+  const languages = useLanguageCatalog();
   const [filters, setFilters] = useState<FilterSelection>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [intake, setIntake] = useState(false);
@@ -40,7 +42,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange 
   const { board, confirmation, pending, stale } = state;
   useEffect(() => { if (board) onLifecycleChange?.(board.lifecycle); }, [board?.lifecycle, onLifecycleChange]);
   const readOnly = board?.lifecycle.process === "finished";
-  const dimensions = board ? boardFilterDimensions(board) : [];
+  const dimensions = board ? boardFilterDimensions(board, languages.data?.items) : [];
   const visibleItems = applyFilters(board?.participations ?? [], dimensions, filters);
   const restoreFocus = useRef<string | null>(null);
   useEffect(() => {
