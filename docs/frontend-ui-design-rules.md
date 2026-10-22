@@ -179,6 +179,34 @@ encabezado. El código de producto debe aportar la semántica real:
   `FieldLegend` en `sr-only` (semántica de grupo para lectores de pantalla) y el
   `CardTitle` visible se marca `aria-hidden` para no duplicar el anuncio.
 
+**Oficial vs. política del producto.** Los ejemplos *base* oficiales
+(`docs/design/shadcn-reference/examples/card-example.tsx.txt` e `item-example.tsx.txt`) muestran
+cards sin header o sin content, footers con dos botones, `Item` `muted`, tamaños `sm`/`xs`, varias
+acciones y `ItemHeader`/`ItemFooter`. Lo que sigue en esta sección sobre «una acción» o «sin muted»
+es **política del producto**, no un requisito de shadcn; se cita como tal.
+
+**Una card no mezcla dos objetos** (diseño, usuario 2026-10-22: «las cards de "procesos" […] estan
+muuy mal disenadas»). Cada card representa una cosa: el proceso (vacante, etapa, fechas, estado)
+va en `CardHeader`/`CardContent`; un documento dentro de ella es su propio `Item` dentro de
+`CardContent`, nunca un párrafo con ícono + `ActionBar` metido en `ItemFooter`/`CardFooter`. Las
+acciones del proceso van en `CardFooter`.
+
+**Documento (CV, archivo): `DocumentItem`** (`components/document/document-item.tsx`), una sola
+composición para la ficha de la organización, el tablero y Talento:
+
+```tsx
+<Item variant="outline" size="sm">
+  <ItemMedia variant="icon"><FileText /></ItemMedia>
+  <ItemContent>
+    <ItemTitle>CV-Ana.pdf</ItemTitle>
+    <ItemDescription>Documento PDF · <Badge variant="accent">CV corregido por tu empresa</Badge></ItemDescription>
+  </ItemContent>
+  <ItemActions>{/* descargas: Button outline sm como enlace */}</ItemActions>
+</Item>
+```
+
+Sin tiles propios dentro de `ItemMedia`, sin `basis-full` ni anchos manuales en `ItemActions`.
+
 **Un CTA directo o un menú contextual, nunca una bandeja de botones.** El `CardFooter`
 puede llevar metadatos y, como máximo, **una** acción primaria o directa; una sola acción
 visible sigue siendo válida en el footer. Cuando la misma entidad tiene **dos o más acciones
@@ -1243,11 +1271,16 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
 - **Excepciones documentadas en `components/ui` (aprobadas por el usuario):** `tabs.tsx` pasa
   `orientation` a Base UI (el registro solo ponía `data-orientation`, así que las pestañas
   verticales seguían siendo horizontales para el teclado y los lectores de pantalla), con su test
-  `tabs.test.tsx`. Cualquier otra corrección en `components/ui` necesita la misma aprobación.
+  `tabs.test.tsx`. `alert-dialog.tsx` y `dialog.tsx` dibujan su overlay con `forceRender`
+  (aprobado 2026-10-22): Base UI omite el fondo de un diálogo anidado, y nuestras confirmaciones se
+  abren desde fichas laterales; sin esto salían sin oscurecer ni desenfocar. Test:
+  `nested-overlay.test.tsx`. Cualquier otra corrección en `components/ui` necesita la misma aprobación.
 - **Biblioteca local de referencias:** `docs/design/shadcn-reference/<componente>.md` guarda la
   página oficial (uso, composición, API y ejemplo del registro) de cada componente que usamos. Antes
   de usar un componente nuevo se agrega su archivo; los subagentes leen esa carpeta (no tienen
-  acceso a la web) y se frenan si falta un componente.
+  acceso a la web) y se frenan si falta un componente. Los ejemplos *base* completos (el estilo del
+  proyecto es `base-rhea`, sobre Base UI) están en `docs/design/shadcn-reference/examples/`; los del
+  MCP de shadcn son de `new-york-v4` (Radix) y solo sirven como orientación.
 - **Elegir el ejemplo que corresponde al caso y copiar su forma**, no solo sus partes: el primer
   ejemplo («Basic» / `*-demo`) es la forma por defecto. Una variante (`size="sm"`, `orientation`,
   `variant`) solo se usa si su propósito coincide con el caso (por ejemplo, `size="sm"` en
@@ -1350,6 +1383,9 @@ y Base UI no dibuja el fondo (`Backdrop`) de un diálogo que considera anidado.
 
 - La raíz de un `Sheet`, `Dialog` o `AlertDialog` envuelve solo su disparador y su contenido; nunca
   una pantalla entera ni otras superficies modales.
+- Desde 2026-10-22 el overlay de `AlertDialogContent`/`DialogContent` se dibuja también cuando el
+  diálogo está anidado (`forceRender`, §19): una confirmación abierta desde una ficha lateral oscurece
+  y desenfoca la ficha. La regla anterior sigue valiendo para no envolver pantallas enteras.
 - Todo diálogo nuevo se prueba abierto: su overlay (`data-slot="dialog-overlay"` o
   `alert-dialog-overlay`) existe y la página de atrás queda oscurecida y desenfocada.
 - Un diálogo con contenido variable tiene alto máximo, encabezado y pie fijos y una sola zona con
