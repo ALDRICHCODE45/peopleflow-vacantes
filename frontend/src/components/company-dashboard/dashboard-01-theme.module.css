@@ -59,20 +59,16 @@
  * vendors round them with `--radius-4xl` / `--radius-2xl` instead.
  *
  *   card   : `rounded-xl`  -> var(--radius-xl)  (14px at --radius: 0.625rem)
- *   button : `rounded-md`  -> var(--radius-md)  (8px  at --radius: 0.625rem)
  *
- * Both selectors are listed so portal-rendered buttons (drawer footer) inherit
- * the same geometry as the provider subtree.
+ * Buttons are deliberately NOT restated: the employer area keeps the shared
+ * primitive's pill shape, the same as the candidate area. Both card selectors
+ * are listed so portal-rendered cards inherit the same geometry.
  */
 .root :global([data-slot="card"]),
 body:has(.root) :global([data-slot="card"]) {
   border-radius: var(--radius-xl);
 }
 
-.root :global([data-slot="button"]:not([data-pf-theme-toggle])),
-body:has(.root) :global([data-slot="button"]:not([data-pf-theme-toggle])) {
-  border-radius: var(--radius-md);
-}
 
 /*
  * Measured vertical geometry at the 1460x1013 reference.

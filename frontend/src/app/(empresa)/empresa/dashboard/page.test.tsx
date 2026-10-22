@@ -1080,10 +1080,8 @@ describe("dashboard-01 screenshot-era geometry and portal theming", () => {
     expect(themeModuleSource).toMatch(
       /:global\(\[data-slot=['"]card['"]\]\)[^{]*\{[^}]*border-radius: var\(--radius-xl\)/,
     );
-    expect(themeModuleSource).toMatch(
-      // The theme toggle keeps its round shape, like in the candidate area.
-      /:global\(\[data-slot=['"]button['"]\]:not\(\[data-pf-theme-toggle\]\)\)[^{]*\{[^}]*border-radius: var\(--radius-md\)/,
-    );
+    // Buttons keep the shared primitive's pill shape, like in the candidate area (user request).
+    expect(themeModuleSource).not.toMatch(/\[data-slot=['"]button['"]/);
     // The over-wide global card spacing is gone: the two measured card surfaces
     // now carry their own values instead of one shared 6-step value.
     expect(themeModuleSource).not.toContain(

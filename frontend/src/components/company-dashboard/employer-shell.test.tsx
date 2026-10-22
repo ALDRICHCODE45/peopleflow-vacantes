@@ -51,6 +51,10 @@ describe("EmployerShell shared employer frame", () => {
     const employerInset = document.querySelector("[data-slot='sidebar-inset']")!.className;
     const employerProvider = document.querySelector("[data-slot='sidebar-wrapper']")!;
     expect(employerProvider).toHaveClass("bg-primary/5", "md:py-3");
+    // The inset frame keeps the sidebar colour behind the rail, so the collapsed sidebar
+    // blends into it instead of showing as a separate square-cornered panel.
+    expect(employerProvider).toHaveClass("has-data-[variant=inset]:bg-sidebar");
+    expect(employerProvider).not.toHaveClass("has-data-[variant=inset]:bg-primary/5");
     const providerClasses = employerProvider.className.split(" ").filter(token => token !== dashboardTheme.root);
     cleanup();
     render(<CandidateShell defaultOpen={defaultOpen}><p>contenido</p></CandidateShell>);
@@ -63,8 +67,8 @@ describe("EmployerShell shared employer frame", () => {
 
   it("exempts only the theme toggle from provider and portal button radii", () => {
     const css = readFileSync(join(process.cwd(), "src/components/company-dashboard/dashboard-01-theme.module.css"), "utf8");
-    expect(css).toContain('.root :global([data-slot="button"]:not([data-pf-theme-toggle])),');
-    expect(css).toContain('body:has(.root) :global([data-slot="button"]:not([data-pf-theme-toggle])) {\n  border-radius: var(--radius-md);');
+    // Employer buttons keep the shared pill shape, toggle included, like the candidate area.
+    expect(css).not.toMatch(/\[data-slot="button"\]/);
     expect(css).not.toContain(':global([data-slot="button"])');
   });
   it("toggles the single committed frame with the route trigger and persists the cookie", async () => {
