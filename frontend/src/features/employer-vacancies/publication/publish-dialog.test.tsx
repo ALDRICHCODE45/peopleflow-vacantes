@@ -52,11 +52,30 @@ it("requires a named alert confirmation with safe initial focus before publishin
  expect(onOpenChange).toHaveBeenCalledWith(false);
  expect(publishDraftAction).not.toHaveBeenCalled();
 });
-it("uses ItemDescription for summary labels", async () => {
+it.each([
+ ["Vacante", draftEditSeedFromRead(draft).model.fields.title || "Sin título"],
+ ["Columna de corte", "Lista para entrevista"],
+ ["Objetivo de entrega", "5 candidatos"],
+ ["Fecha compromiso", "30 de noviembre de 2026"],
+])("uses the official title then description order for %s", async (label, value) => {
  mount(); await screen.findByText("Lista para entrevista");
- for (const label of ["Vacante", "Columna de corte", "Objetivo de entrega", "Fecha compromiso"]) {
-  expect(screen.getByText(label)).toHaveAttribute("data-slot", "item-description");
-  expect(screen.getByText(label).parentElement).toHaveAttribute("data-slot", "item-content");
+ const title = screen.getByText(label);
+ expect(title).toHaveAttribute("data-slot", "item-title");
+ const content = title.parentElement!;
+ expect(content).toHaveAttribute("data-slot", "item-content");
+ expect([...content.children].map(node => node.getAttribute("data-slot"))).toEqual(["item-title", "item-description"]);
+ expect(content.querySelector('[data-slot="item-description"]')).toHaveTextContent(value);
+});
+it("keeps summary loading slots in the same official title then description order", () => {
+ vi.mocked(loadDraftPublicationAction).mockReturnValue(new Promise(() => {})); mount();
+ const contents = document.querySelectorAll('[data-slot="item-content"]');
+ expect(contents).toHaveLength(4);
+ for (const content of contents) {
+  expect([...content.querySelectorAll('[data-slot="item-title"], [data-slot="item-description"]')].map(node => node.getAttribute("data-slot"))).toEqual(["item-title", "item-description"]);
+  expect(content.querySelector('[data-slot="item-title"] [data-slot="skeleton"]')).not.toBeNull();
+  // ItemDescription renders a paragraph; Skeleton's div must wrap it, not nest inside it.
+  expect(content.querySelector('[data-slot="item-description"] div')).toBeNull();
+  expect(content.querySelector('[data-slot="skeleton"] > [data-slot="item-description"]')).not.toBeNull();
  }
 });
 it("blocks unsaved changes before reads or publish", async () => { mount(true); expect(await screen.findByText("Guarda los cambios antes de publicar")).toBeVisible(); expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument(); expect(loadDraftForEditAction).not.toHaveBeenCalled(); });

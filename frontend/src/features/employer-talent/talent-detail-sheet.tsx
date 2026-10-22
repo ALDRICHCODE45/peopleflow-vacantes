@@ -7,7 +7,6 @@ import {
   IconClock,
   IconDownload,
   IconEye,
-  IconFileTypePdf,
   IconLanguage,
   IconMail,
   IconMapPin,
@@ -19,7 +18,7 @@ import { cn } from "cn";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item";
+import { DocumentItem } from "@/components/document/document-item";
 import {
   Sheet,
   SheetClose,
@@ -402,63 +401,23 @@ export function TalentDetailSheet({
                 toast or success message — exactly as the durable rules require
                 for presentation placeholders, with no disclaimer copy.
 
-                The card composes from its own local width, never from a viewport
-                breakpoint: the floating Sheet panel is capped at 24rem even on a
-                wide desktop viewport, so a `sm:` row would squeeze the filename
-                into a few-letters vertical column next to the intrinsic-width
-                buttons. It is instead one compact column — a text row with the
-                decorative medallion plus the flexible, truncating filename, then
-                a separate equal-column action row that wraps safely on the
-                narrowest panel. */}
+                DocumentItem owns the official media/content/actions anatomy and
+                responsive wrapping. No file metadata is invented. */}
             <DetailSection id="talento-detalle-curriculum" title="Currículum">
-              <Item
-                data-pf-talento-curriculum=""
-                variant="muted"
-                size="sm"
-                className="flex-col items-stretch"
-              >
-                <div
-                  data-pf-talento-curriculum-text=""
-                  className="flex min-w-0 items-center gap-3"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
-                  >
-                    <IconFileTypePdf className="size-6" />
-                  </span>
-                  <ItemContent className="min-w-0">
-                    <ItemTitle
-                      data-pf-talento-curriculum-filename=""
-                      title={talentCvDemoFileName(person.fullName)}
-                      className="min-w-0 truncate text-sm font-medium text-foreground"
-                    >
-                      {talentCvDemoFileName(person.fullName)}
-                    </ItemTitle>
-                  </ItemContent>
-                </div>
-                <ItemActions
-                  data-pf-talento-curriculum-actions=""
-                  className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2"
-                >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-full min-w-0"
-                  >
-                    <IconEye aria-hidden="true" />
+              <DocumentItem
+                title={talentCvDemoFileName(person.fullName)}
+                description={null}
+                actions={<>
+                  <Button type="button" variant="outline" size="sm" className="min-h-10">
+                    <IconEye aria-hidden="true" data-icon="inline-start" />
                     Ver CV
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-full min-w-0"
-                  >
-                    <IconDownload aria-hidden="true" />
+                  <Button type="button" variant="outline" size="sm" className="min-h-10">
+                    <IconDownload aria-hidden="true" data-icon="inline-start" />
                     Descargar
                   </Button>
-                </ItemActions>
-              </Item>
+                </>}
+              />
             </DetailSection>
 
             {applications.length === 0 ? null : (

@@ -111,6 +111,24 @@ describe("real CV workspace", () => {
     expect(title.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
     expect(screen.getAllByRole("button", { name: "Subir CV" })).toHaveLength(1);
   });
+  it("keeps document identity in the official CardHeader slots without a custom medallion or offset", async () => {
+    const { container } = await ready();
+    const header = container.querySelector('[data-pf-cv-card] > [data-slot="card-header"]')!;
+    expect([...header.children].map(node => node.getAttribute("data-slot"))).toEqual(["card-title", "card-description", "card-action"]);
+    const title = header.querySelector('[data-slot="card-title"]')!;
+    expect([...title.children].map(node => node.tagName)).toEqual(["H3"]);
+    expect(title).toHaveTextContent(cv.name);
+    expect(header.querySelector('[data-slot="card-description"]')).not.toHaveClass("pl-14");
+    expect(header.querySelector('[data-slot="card-action"] button')).toHaveAccessibleName(`Acciones de ${cv.name}`);
+  });
+  it("mirrors the plain document identity in loading headers without medallions or offsets", () => {
+    vi.mocked(loadCvsAction).mockReturnValue(new Promise(() => {}));
+    const { container } = render(<CvWorkspace />);
+    for (const header of container.querySelectorAll('[data-slot="card-header"]')) {
+      expect(header.querySelectorAll('[data-slot="card-title"] > [data-slot="skeleton"]')).toHaveLength(1);
+      expect(header.querySelector('[data-slot="card-description"]')).not.toHaveClass("pl-14");
+    }
+  });
   it("shows actual name, type, size, es-MX date and neutral in-use badge in the approved cards", async () => {
     const { container } = await ready();
     const card = container.querySelector('[data-pf-cv-card]')!;

@@ -30,11 +30,8 @@ function CvCard({ cv, onEdit }: { cv: Cv; onEdit: (mode: "rename" | "delete") =>
   const [download, rename, remove] = cvRowActions(cv);
   return <li className="min-w-0"><Card data-pf-cv-card={cv.id}>
     <CardHeader className="border-b">
-      <CardTitle className="flex min-w-0 items-start gap-3">
-        <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/12 text-foreground ring-1 ring-primary/40"><FileText className="size-5" /></span>
-        <h3 className="min-w-0 break-words font-heading text-base font-semibold">{cv.name}</h3>
-      </CardTitle>
-      <CardDescription className="pl-14">{cv.content_type === "application/pdf" ? "PDF" : "Word"} · {formatSize(cv.size)}</CardDescription>
+      <CardTitle><h3 className="break-words">{cv.name}</h3></CardTitle>
+      <CardDescription>{cv.content_type === "application/pdf" ? "PDF" : "Word"} · {formatSize(cv.size)}</CardDescription>
       <CardAction><DropdownMenu>
         <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de ${cv.name}`} data-pf-cv-actions-trigger={cv.id} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-44">
@@ -67,8 +64,8 @@ function LoadingCvs() {
     <ul className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{[0, 1].map(key => <li key={key} className="min-w-0">
       <Card aria-hidden="true">
         <CardHeader className="border-b">
-          <CardTitle className="flex min-w-0 items-start gap-3"><Skeleton className="size-11 shrink-0 rounded-full" /><Skeleton className="h-6 w-44 max-w-full" /></CardTitle>
-          <CardDescription className="pl-14"><Skeleton className="h-5 w-28" /></CardDescription>
+          <CardTitle><Skeleton className="h-6 w-44 max-w-full" /></CardTitle>
+          <CardDescription><Skeleton className="h-5 w-28" /></CardDescription>
           <CardAction><Skeleton><Button type="button" variant="ghost" size="icon" disabled tabIndex={-1} className="invisible size-10"><Ellipsis aria-hidden="true" /></Button></Skeleton></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

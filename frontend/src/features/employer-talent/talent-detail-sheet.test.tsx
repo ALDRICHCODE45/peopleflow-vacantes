@@ -355,90 +355,43 @@ describe("TalentDetailSheet interior", () => {
     expect(section.querySelector("[target]")).toBeNull();
   });
 
-  it("gives the Currículum filename a usable width and moves its actions to a separate equal-column row", () => {
+  it("uses the canonical document slots with the icon in ItemMedia and wrapping actions", () => {
     renderSheet();
 
     const section = screen
       .getByRole("heading", { level: 3, name: "Currículum" })
       .closest("section") as HTMLElement;
-    const card = section.querySelector<HTMLElement>(
-      "[data-pf-talento-curriculum]",
-    );
-    expect(card, "curriculum item").toHaveAttribute("data-slot", "item");
-    expect(card!.querySelector('[data-slot="item-content"] [data-slot="item-title"]')).not.toBeNull();
-
-    // The card composes from its own local width. A `sm:` viewport row is the
-    // regression: the floating Sheet panel is capped at 24rem even on a wide
-    // desktop viewport, so a viewport breakpoint squeezes the filename into a
-    // few-letters vertical column while the buttons keep their intrinsic width.
-    expect(card!.className).toContain("flex-col");
-    expect(card!.className).not.toContain("sm:flex-row");
-    expect(card!.className).not.toContain("sm:items-center");
-
-    const textRow = card!.querySelector<HTMLElement>(
-      "[data-pf-talento-curriculum-text]",
-    );
-    const actionsRow = card!.querySelector<HTMLElement>(
-      "[data-pf-talento-curriculum-actions]",
-    );
-    expect(textRow, "curriculum text row").not.toBeNull();
-    expect(actionsRow, "curriculum actions row").toHaveAttribute("data-slot", "item-actions");
-
-    // The actions are a sibling row below the text, not a third column in the
-    // same horizontal row as the icon and filename.
-    expect(textRow!.contains(actionsRow)).toBe(false);
-    expect(
-      textRow!.compareDocumentPosition(actionsRow!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(textRow!.className).toContain("min-w-0");
-
-    // The filename owns the flexible width and can shrink below its intrinsic
-    // size; the full name stays available through the title and the text node.
-    const filename = card!.querySelector<HTMLElement>(
-      "[data-pf-talento-curriculum-filename]",
-    );
-    expect(filename, "curriculum filename").not.toBeNull();
-    expect(filename!.className).toContain("min-w-0");
-    expect(filename!.className).toContain("truncate");
-    expect(filename).toHaveTextContent("CV-Gabriela-Soto.pdf");
-    expect(filename).toHaveAttribute("title", "CV-Gabriela-Soto.pdf");
-
-    const textColumn = filename!.parentElement as HTMLElement;
-    expect(textColumn.className).toContain("min-w-0");
-    expect(textColumn.className).toContain("flex-1");
-    // The filename rides alone in the flexible column: no disclaimer copy sits
-    // beneath it.
-    expect(textColumn).toContainElement(filename);
-    expect(card!.querySelector("#talento-detalle-curriculum-demo")).toBeNull();
-
-    // The action row is an equal-column wrapping grid: no intrinsic-width row
-    // can push the panel wide, and both controls stay full-width targets.
-    expect(actionsRow!.className).toContain("grid");
-    expect(actionsRow!.className).toContain(
-      "grid-cols-[repeat(auto-fit,minmax(7rem,1fr))]",
-    );
-    expect(actionsRow!.className).toContain("min-w-0");
-    const verCv = within(card!).getByRole("button", { name: "Ver CV" });
-    const descargar = within(card!).getByRole("button", {
-      name: "Descargar",
-    });
-    for (const control of [verCv, descargar]) {
-      expect(actionsRow).toContainElement(control);
-      expect(control.className).toContain("w-full");
-      expect(control.className).toContain("min-w-0");
+    const item = section.querySelector('[data-slot="item"]')!;
+    expect(item).toHaveAttribute("data-variant", "outline");
+    expect(item).toHaveAttribute("data-size", "sm");
+    expect([...item.children].map(node => node.getAttribute("data-slot"))).toEqual([
+      "item-media", "item-content", "item-actions",
+    ]);
+    const media = item.querySelector('[data-slot="item-media"]')!;
+    expect(media).toHaveAttribute("data-variant", "icon");
+    expect(media.querySelector(":scope > svg")).toHaveAttribute("aria-hidden", "true");
+    const content = item.querySelector('[data-slot="item-content"]')!;
+    expect([...content.children].map(node => node.getAttribute("data-slot"))).toEqual(["item-title", "item-description"]);
+    expect(content).toHaveClass("min-w-0", "basis-40");
+    expect(content.querySelector('[data-slot="item-title"]')).toHaveTextContent("CV-Gabriela-Soto.pdf");
+    // The placeholder cannot invent file size, date or type metadata.
+    expect(content.querySelector('[data-slot="item-description"]')).toBeEmptyDOMElement();
+    const actions = item.querySelector('[data-slot="item-actions"]')!;
+    expect(actions).toHaveClass("flex-wrap");
+    expect(actions).not.toHaveClass("grid", "basis-full");
+    for (const name of ["Ver CV", "Descargar"]) {
+      expect(within(actions as HTMLElement).getByRole("button", { name })).toBeEnabled();
     }
   });
 
   it("keeps the demo filename from forcing the panel wide for an unbroken name", () => {
     renderSheet(LONG_PERSON, { "long-vacancy": LONG_WORD });
 
-    const filename = document.querySelector<HTMLElement>(
-      "[data-pf-talento-curriculum-filename]",
-    );
+    const section = screen.getByRole("heading", { level: 3, name: "Currículum" }).closest("section")!;
+    const filename = section.querySelector<HTMLElement>('[data-slot="item-title"]');
     expect(filename, "curriculum filename").not.toBeNull();
-    expect(filename!.className).toContain("min-w-0");
-    expect(filename!.className).toContain("truncate");
+    expect(filename!.querySelector(".truncate")).not.toBeNull();
+    expect(filename!.closest('[data-slot="item-content"]')).toHaveClass("min-w-0", "basis-40");
     const expected = `CV-${LONG_WORD}.pdf`;
     expect(filename).toHaveTextContent(expected);
     expect(filename).toHaveAttribute("title", expected);
