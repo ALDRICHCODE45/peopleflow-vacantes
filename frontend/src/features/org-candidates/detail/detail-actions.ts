@@ -1,11 +1,9 @@
 "use server";
 
-import { z } from "zod";
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { requestJson } from "@/lib/api/server";
-import { orgCandidateDetailSchema, orgCandidateIdentitySchema, type DetailResult, type DetailFailure, type OrgCandidateIdentity } from "./detail-model";
+import { fetchOrgCandidateDetail } from "./detail-client";
+import { orgCandidateIdentitySchema, type DetailResult, type DetailFailure, type OrgCandidateIdentity } from "./detail-model";
 
-const envelopeSchema = z.object({ error: z.string(), code: z.string() }).strict();
 const safeCodes = new Set(["not_found", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "internal_error"]);
 /** Only validated detail and safe classifications cross the server boundary. */
 export async function loadOrgCandidateDetailAction(candidate: OrgCandidateIdentity): Promise<DetailResult> {
@@ -14,13 +12,8 @@ export async function loadOrgCandidateDetailAction(candidate: OrgCandidateIdenti
     if (!token?.trim()) return { ok: false, reason: "unauthenticated", reference: {} };
     const identity = orgCandidateIdentitySchema.safeParse(candidate);
     if (!identity.success) return { ok: false, reason: "not_found", reference: {} };
-    const { serverEnv } = await import("@/lib/env/server");
     const { kind, id } = identity.data;
-    const result = await requestJson(new URL(`/v2/me/company/candidates/${kind}/${id}`, serverEnv.apiBaseUrl).toString(), {
-      method: "GET", headers: { authorization: `Bearer ${token.trim()}` }, redirect: "error", expectedStatus: 200,
-      timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
-      decoder: value => orgCandidateDetailSchema.parse(value), errorDecoder: value => envelopeSchema.parse(value),
-    });
+    const result = await fetchOrgCandidateDetail(token, identity.data);
     if (result.ok) {
       if (result.data.kind !== kind || result.data.id.toLowerCase() !== id.toLowerCase()) return { ok: false, reason: "unrecognized_response", reference: {} };
       return { ok: true, data: result.data };
