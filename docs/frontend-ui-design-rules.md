@@ -1416,3 +1416,76 @@ compuestos). Ninguno se habría entregado con estas comprobaciones.
 - **Los subagentes reciben** la referencia visual, la ruta de `docs/design/shadcn-reference/` y la
   instrucción de no cambiar nada fuera de su alcance; al terminar, el padre revisa sus diferencias
   contra la referencia antes de commitear.
+
+## 26. Tablas ricas
+
+Origen: el usuario rechazó la primera tabla de «Candidatos de mi organización» (2026-10-22): «hay
+columnas que tienen mucho texto, hacen doble fila, no me gusta que ocupes los badges por defecto
+en idiomas … lo que quiero es algo mejor». La referencia aprobada es una tabla de una línea por
+dato, con jerarquía tipográfica, estados con color y acciones por fila, más las capacidades de la
+tabla rica de peopleflow2 (reordenar, fijar, ocultar, guardar la vista).
+
+**Componente canónico:** `RichDataTable` en `frontend/src/components/data-table/` (TanStack Table
+v9 + `@dnd-kit/core` + primitives de shadcn). Toda tabla de listado con más de cinco columnas o
+con datos de personas la usa; no se arma otra tabla a mano.
+
+### 26.1 Contenido de las celdas
+
+- **Dos renglones como máximo, nunca más:** principal (`text-sm font-medium text-foreground`) y
+  secundario (`text-[12.5px] text-muted-foreground`). Cada renglón es de una línea y se trunca;
+  ninguna celda hace doble fila por el largo del texto.
+- **Texto largo:** `TruncatedText`. Corta con «…» y muestra el texto completo en un tooltip **solo
+  si de verdad se cortó**; el texto completo queda disponible para lectores de pantalla.
+- **Faltante:** «Sin dato» en `text-muted-foreground`, nunca un guion suelto ni una celda vacía.
+- **Listas cortas** (idiomas, habilidades): texto plano con el primer valor y un «+N» atenuado
+  con tooltip que lista todos. Nada de badges por defecto apilados.
+- **Estado:** punto de color + texto («• Cerrada»), con tonos semánticos: `success` activo,
+  `warning` pausado, `destructive` descartado, `muted-foreground` cerrado o finalizado. El color
+  nunca es la única señal: siempre va el texto.
+- **Fechas:** fecha corta como principal y relativa («hace 2 días») como secundaria.
+- **Números con unidad:** número y unidad no se separan («4.5 años» va junto).
+
+### 26.2 Columnas y vista
+
+- **Anchos fijos en px** por columna (`size`) y tabla `table-fixed`; la suma por defecto cabe en el
+  ancho de contenido habitual (1250 px en «Base de talento» con el menú colapsado) sin scroll
+  horizontal. Una sola columna marcada `meta.grow` absorbe el espacio sobrante: la tabla siempre
+  llena su card, aunque se oculten columnas. Con más columnas o pantallas angostas aparece el
+  scroll horizontal, nunca celdas aplastadas.
+- **Encabezado:** el título se lee completo con el ancho por defecto. El menú «⋯» de la columna
+  se ve al pasar el mouse o con foco de teclado y nunca tapa el título. El nombre accesible del
+  encabezado es solo su título.
+- **Menú de columna** (DropdownMenu con íconos): «Fijar a la izquierda», «Fijar a la derecha»,
+  «Desfijar», «Mover a la izquierda», «Mover a la derecha», «Ocultar columna». Mover desde el menú
+  es la alternativa de teclado al arrastre.
+- **Reordenar:** se arrastra el encabezado (no fijado), con indicador de destino y vista previa.
+- **Fijar:** columnas fijas a la izquierda o derecha con desplazamientos reales de TanStack (no
+  estimados), fondo sólido y sombra solo cuando hay contenido pasando por debajo. La columna de
+  identidad va fija a la izquierda por defecto y las acciones, fijas a la derecha.
+- **Acciones por fila:** última columna de 56 px, fija a la derecha, botón fantasma «⋯» con
+  DropdownMenu; encabezado vacío con nombre solo para lectores de pantalla; no se puede ocultar,
+  mover ni fijar distinto. Abrir el menú nunca dispara la acción de la fila.
+- **Fila:** clic o Enter abre el detalle (Sheet); altura y estilo actuales (radio, colores,
+  bordes) de la tabla de candidatos.
+- **Barra:** «Columnas» (checklist de las columnas ocultables, con contador de ocultas) y
+  «Restablecer vista» (deshabilitado si la vista ya es la de fábrica) junto al selector de vista.
+
+### 26.3 Persistencia
+
+- `useTablePreferences(id)` guarda en `localStorage["pf.table.<id>"]` el objeto
+  `{ v: 1, order, pinning, visibility }`.
+- Al leer valida contra las columnas actuales: descarta ids desconocidos, agrega las columnas
+  nuevas en su lugar por defecto, ignora JSON corrupto u otra versión y nunca rompe si el
+  almacenamiento falla. Cambiar la forma del objeto sube `v`.
+- Filtros, búsqueda y vista (tabla/tarjetas) no van acá: viven en la URL.
+
+### 26.4 Celular
+
+Debajo de `md` no hay tabla: se muestran tarjetas con los mismos datos (omitiendo los faltantes) y
+el selector de vista se oculta sin tocar el parámetro `view` de la URL.
+
+### 26.5 Verificación
+
+Además de la sección 25: en navegador real se prueban fijar, ocultar, mover con teclado,
+arrastrar con el mouse, recargar la página (la vista se conserva), «Restablecer vista», textos
+largos con tooltip, claro, oscuro y celular. jsdom no calcula anchos ni sticky: eso se mira.

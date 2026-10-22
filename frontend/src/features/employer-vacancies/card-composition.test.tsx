@@ -23,7 +23,7 @@ vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraf
 afterEach(cleanup);
 
 it.each([
-  ["team", <TeamWorkspace key="team" members={[]} />, "data-pf-team-metric", 4],
+  ["team", <TeamWorkspace key="team" members={[]} />, "data-pf-team-metric", 3],
   ["vacancies", <VacancyPortfolio key="vacancies" />, "data-pf-vacancy-metric", 5],
   ["talent", <TalentSummary key="talent" people={[]} />, "data-pf-talento-stat", 4],
   ["dashboard", <SectionCards key="dashboard" />, "data-slot=card", 4],

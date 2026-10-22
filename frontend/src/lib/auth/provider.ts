@@ -5,6 +5,12 @@ import type { AuthEnv } from "./env";
 
 export const COGNITO_AUTH_CHECKS = ["pkce", "state"] as const;
 export const COGNITO_SCOPES = "openid email profile";
+/**
+ * Timeout for the server-side requests to Cognito (token exchange, JWKS). The
+ * openid-client default of 3500 ms timed out locally and sent a successful
+ * sign-in back to the login page with `error=OAuthCallback`.
+ */
+export const COGNITO_HTTP_TIMEOUT_MS = 10_000;
 
 export type CognitoProviderConfig = Pick<
   AuthEnv,
@@ -30,5 +36,6 @@ export function buildCognitoProvider(
     issuer: config.issuer,
     checks: [...COGNITO_AUTH_CHECKS],
     authorization: { params: { scope: COGNITO_SCOPES } },
+    httpOptions: { timeout: COGNITO_HTTP_TIMEOUT_MS },
   });
 }

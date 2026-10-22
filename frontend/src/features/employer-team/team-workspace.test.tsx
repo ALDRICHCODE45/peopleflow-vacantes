@@ -1,256 +1,240 @@
 import * as React from "react";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-
-import { TEAM_MEMBER_ROLE_LABELS, TEAM_MEMBER_STATUS_LABELS } from "./model";
-import type { TeamMember } from "./model";
-import { NEXO_TEAM_MEMBERS } from "./prototype-team";
-import { TeamWorkspace } from "./team-workspace";
-
-const source = readFileSync(join(process.cwd(), "src/features/employer-team/team-workspace.tsx"), "utf8");
-/** Every literal paint a token-only surface must never carry in a class list. */
-const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
-/** Every class list rendered inside `root`, to prove the surface stays token-only. */
-const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
-const renderTeam = (members: readonly TeamMember[] = NEXO_TEAM_MEMBERS) => render(<TeamWorkspace members={members} />);
-const metric = (root: HTMLElement, key: string) => root.querySelector(`[data-pf-team-metric="${key}"]`) as HTMLElement;
-const rowIds = (root: Element) => Array.from(root.querySelectorAll("[data-pf-team-row]")).map((node) => node.getAttribute("data-pf-team-row"));
-const rowOf = (root: HTMLElement, id: string) => root.querySelector(`[data-pf-team-row="${id}"]`) as HTMLElement;
-const rowText = (root: HTMLElement, id: string) => rowOf(root, id).textContent ?? "";
-const filterButton = (name: RegExp) => screen.getByRole("button", { name });
-const searchInput = () => screen.getByLabelText("Buscar miembro");
-afterEach(() => cleanup());
-it("keeps empty-team guidance honest without duplicating the page invitation", () => {
-  const { container } = renderTeam([]);
-  const empty = container.querySelector('[data-pf-team-empty]')!;
-  expect(empty.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
-  expect(empty).toHaveAttribute("data-slot", "card");
-  expect(empty.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
-  expect(empty).not.toHaveClass("bg-card/40");
-  expect(empty).toHaveTextContent("Aquí se muestran los miembros y su carga de trabajo cuando haya personas en tu equipo.");
+// Base UI menu positioning cannot settle in jsdom (§13.7). This suite tests the
+// controller through a deterministic menu double; team-menu.test.tsx checks the real trigger.
+vi.mock("@/components/ui/dropdown-menu", async () => {
+  const React = await import("react");
+  const Context = React.createContext({ open: false, setOpen: (open: boolean) => { void open; } });
+  return {
+    DropdownMenu: ({ children }: { children: React.ReactNode }) => {
+      const [open, setOpen] = React.useState(false);
+      return <Context.Provider value={{ open, setOpen }}>{children}</Context.Provider>;
+    },
+    DropdownMenuTrigger: ({ render: _render, ...props }: React.ComponentProps<"button"> & { render: React.ReactNode }) => {
+      void _render;
+      const { open, setOpen } = React.useContext(Context);
+      return <button {...props} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} />;
+    },
+    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => React.useContext(Context).open ? <div role="menu">{children}</div> : null,
+    DropdownMenuGroup: ({ children }: { children: React.ReactNode }) => <div role="group">{children}</div>,
+    DropdownMenuSeparator: () => <div role="separator" />,
+    DropdownMenuItem: ({ onClick, variant: _variant, ...props }: React.ComponentProps<"button"> & { variant?: string }) => {
+      void _variant;
+      const { setOpen } = React.useContext(Context);
+      return <button {...props} role="menuitem" onClick={event => { onClick?.(event); setOpen(false); }} />;
+    },
+  };
 });
-
-it("wraps member identity instead of reducing or clipping it on narrow screens", () => {
-  const { container } = renderTeam();
-  const member = NEXO_TEAM_MEMBERS[0];
-  const row = rowOf(container, member.id);
-  expect(screen.getByText(member.fullName)).toHaveClass("break-words");
-  expect(screen.getByText(member.email)).toHaveClass("break-all");
-  expect(row.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
+vi.mock("./actions", () => ({ listTeamMembersAction: vi.fn(), changeTeamRoleAction: vi.fn(), removeTeamMemberAction: vi.fn() }));
+vi.mock("@/features/employer-company/use-company-membership", () => ({ useCompanyMembership: vi.fn() }));
+vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
+import { TeamPage } from "@/features/employer-team/team-page";
+import { listTeamMembersAction, changeTeamRoleAction, removeTeamMemberAction } from "@/features/employer-team/actions";
+import { useCompanyMembership } from "@/features/employer-company/use-company-membership";
+import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
+import { IdentityContext, type IdentityState } from "@/features/identity/identity-session";
+import { notifyActionResult } from "@/components/feedback/notify";
+import { members, selfId, draft } from "./test-fixtures";
+const identity: IdentityState = { status: "ready", result: { ok: true, data: { role: "recruiter", user: { id: selfId, full_name: "Ana Real", email: "ana@example.test" } } }, email: "ana@example.test", retry() {}, update() {} };
+const membership = { kind: "exists", role: "owner", company: { id: members[0].company_id } } as ReturnType<typeof useCompanyMembership>;
+function mount(value = identity) { return render(<IdentityContext.Provider value={value}><TeamPage /></IdentityContext.Provider>); }
+function row(id: string) { return document.querySelector(`[data-pf-team-row="${id}"]`) as HTMLElement; }
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(useCompanyMembership).mockReturnValue(membership);
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members });
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [draft("a"), draft("b", { status: "paused" }), draft("c", { status: "closed" }), draft("d", { process: "finished" })], nextCursor: null });
+  vi.mocked(changeTeamRoleAction).mockResolvedValue({ ok: true });
+  vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: true });
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 });
-
-describe("TeamWorkspace summary metrics", () => {
-  it("renders the four derived metrics over the exact six default members", () => {
-    const { container } = renderTeam();
-    expect(container.querySelectorAll("[data-pf-team-metric]")).toHaveLength(4);
-    // Derived, not hardcoded: 6 members, 1 owner, 5 recruiters, 1 invited; every label agrees with its value.
-    expect(["total", "owners", "recruiters", "invited"].map((key) => metric(container, key).textContent)).toEqual([
-      "6Miembros", "1Propietario", "5Reclutadores", "1Invitación pendiente",
-    ]);
-    expect(rowIds(container)).toEqual(NEXO_TEAM_MEMBERS.map((member) => member.id));
-  });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("renders only real members, role labels, dates and three factual summaries", async () => {
+  mount();
+  expect(await screen.findByText("José Real")).toBeInTheDocument();
+  expect(screen.getByText("jose@example.test")).toBeInTheDocument();
+  expect(within(row(members[0].id)).getByText("Dueño")).toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText(/Miembro desde/)).toHaveTextContent(/2026/);
+  expect(document.querySelectorAll("[data-pf-team-metric]")).toHaveLength(3);
+  expect(screen.queryByRole("group", { name: "Filtrar por estado" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/Tomás Ríos|Valeria Ortiz|Invitación pendiente/)).not.toBeInTheDocument();
 });
-
-describe("TeamWorkspace search and status filters", () => {
-  it("searches full name and email ignoring case and diacritics", async () => {
-    const user = userEvent.setup();
-    const { container } = renderTeam();
-    expect(searchInput()).toHaveAttribute("data-pf-team-search");
-    expect(searchInput()).toHaveAttribute("placeholder", "Buscar por nombre o correo…");
-    await user.type(searchInput(), "LUCIA");
-    expect(rowIds(container)).toEqual(["lucia-navarro"]);
-    await user.clear(searchInput());
-    await user.type(searchInput(), "peña");
-    expect(rowIds(container)).toEqual(["andrea-pena"]);
-    await user.clear(searchInput());
-    await user.type(searchInput(), "CAMILA.DUARTE@");
-    expect(rowIds(container)).toEqual(["camila-duarte"]);
-  });
-
-  it("counts each status filter, exposes its pressed state, and composes with the search", async () => {
-    const user = userEvent.setup();
-    const { container } = renderTeam();
-    const filters = Array.from(container.querySelectorAll("[data-pf-team-filter]")) as HTMLElement[];
-    expect(filters.map((filter) => filter.getAttribute("data-pf-team-filter"))).toEqual(["all", "active", "invited"]);
-    expect(filters.map((filter) => filter.textContent)).toEqual(["Todas6", "Activas5", "Pendientes1"]);
-    expect(filters.map((filter) => filter.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"]);
-    await user.click(filterButton(/^Pendientes/));
-    expect(rowIds(container)).toEqual(["lucia-navarro"]);
-    expect(filterButton(/^Pendientes/)).toHaveAttribute("aria-pressed", "true");
-    await user.click(filterButton(/^Activas/));
-    expect(rowIds(container)).toHaveLength(5);
-    await user.type(searchInput(), "valeria");
-    expect(rowIds(container)).toEqual(["valeria-ortiz"]);
-    await user.type(searchInput(), "lucia");
-    expect(rowIds(container)).toEqual([]);
-  });
-
-  it("reports an honest visible result count with natural singular and plural", async () => {
-    const user = userEvent.setup();
-    const { container } = renderTeam();
-    const count = () => (container.querySelector("[data-pf-team-count]") as HTMLElement).textContent;
-    expect(count()).toBe("6 miembros");
-    await user.click(filterButton(/^Pendientes/));
-    expect(count()).toBe("1 miembro");
-    expect(count()).not.toBe("1 miembros");
-  });
+it("reserves no empty status row between the search and the results until an action reports", async () => {
+  mount();
+  await screen.findByText("José Real");
+  expect(document.querySelector("[data-pf-action-status-slot]")).toBeNull();
 });
-
-describe("TeamWorkspace member rows", () => {
-  it("states the complete role, status, and workload facts with natural plurals", () => {
-    const { container } = renderTeam();
-    expect(rowText(container, "tomas-rios")).toContain("Tomás Ríos");
-    expect(rowText(container, "tomas-rios")).toContain("tomas.rios@nexolabs.mx");
-    expect(rowText(container, "tomas-rios")).toContain(TEAM_MEMBER_ROLE_LABELS.owner);
-    expect(rowText(container, "tomas-rios")).toContain(TEAM_MEMBER_STATUS_LABELS.active);
-    expect(rowText(container, "tomas-rios")).toContain("Sin vacantes asignadas");
-    expect(rowText(container, "valeria-ortiz")).toContain(TEAM_MEMBER_ROLE_LABELS.recruiter);
-    expect(rowText(container, "valeria-ortiz")).toContain("2 vacantes · 10 candidatos en proceso");
-    expect(rowText(container, "andrea-pena")).toContain("Sin vacantes asignadas");
-    expect(rowText(container, "lucia-navarro")).toContain(TEAM_MEMBER_STATUS_LABELS.invited);
-    expect(rowText(container, "lucia-navarro")).toContain("Sin vacantes asignadas");
-    // Meaning lives in the text; the dot is the shared Badge `::before` and the
-    // avatar stays decorative, so neither adds accessible copy.
-    const valeriaBadge = rowOf(container, "valeria-ortiz").querySelector("[data-slot='badge']") as HTMLElement;
-    expect(valeriaBadge).toHaveAttribute("data-dot");
-    expect(valeriaBadge.querySelectorAll("*")).toHaveLength(0);
-    expect(rowOf(container, "valeria-ortiz").querySelector("[data-pf-team-avatar][aria-hidden='true']")).not.toBeNull();
-    expect(rowText(container, "valeria-ortiz")).not.toContain("1 vacantes");
-  });
-
-  it("agrees in number for a single vacancy and a single candidate", () => {
-    const solo: readonly TeamMember[] = [
-      { id: "solo-reclutador", fullName: "Solo Reclutador", email: "solo.reclutador@nexolabs.mx", role: "recruiter", status: "active", workload: { ownedVacancies: 1, inProcessCandidates: 1 } },
-    ];
-    const { container } = renderTeam(solo);
-    const copy = rowText(container, "solo-reclutador");
-    expect(rowIds(container)).toEqual(["solo-reclutador"]);
-    expect(copy).toContain("1 vacante · 1 candidato en proceso");
-    expect(copy).not.toContain("1 vacantes");
-    expect(copy).not.toContain("1 candidatos");
-    // Singular metric labels over the same one-member input; zero stays plural.
-    expect(["total", "owners", "recruiters", "invited"].map((key) => metric(container, key).textContent)).toEqual(["1Miembro", "0Propietarios", "1Reclutador", "0Invitaciones pendientes"]);
-  });
-
-  it("never hides in-process candidates when a member owns no vacancies", () => {
-    const idle: readonly TeamMember[] = [
-      { id: "sin-vacantes", fullName: "Sin Vacantes", email: "sin.vacantes@nexolabs.mx", role: "recruiter", status: "active", workload: { ownedVacancies: 0, inProcessCandidates: 5 } },
-    ];
-    const barely: readonly TeamMember[] = [
-      { id: "un-candidato", fullName: "Un Candidato", email: "un.candidato@nexolabs.mx", role: "recruiter", status: "active", workload: { ownedVacancies: 0, inProcessCandidates: 1 } },
-    ];
-    // Only a true 0/0 member loses the exact "Sin vacantes asignadas" copy; a nonzero count is always visible.
-    expect(rowText(renderTeam(idle).container, "sin-vacantes")).toContain("Sin vacantes asignadas · 5 candidatos en proceso");
-    expect(rowText(renderTeam(barely).container, "un-candidato")).toContain("Sin vacantes asignadas · 1 candidato en proceso");
-  });
-
-  it("renders one semantic non-interactive row per member in input order", () => {
-    const { container } = renderTeam();
-    const list = container.querySelector("[data-pf-team-list]") as HTMLElement;
-    expect([list.tagName, list.querySelectorAll("li").length]).toEqual(["UL", 6]);
-    const rows = Array.from(container.querySelectorAll("[data-pf-team-row]"));
-    expect(rows.map((row) => row.getAttribute("data-pf-team-row"))).toEqual([...NEXO_TEAM_MEMBERS].map((member) => member.id));
-    for (const row of rows) {
-      expect([row.tagName, row.closest("a"), row.closest("button"), row.querySelectorAll("a, button, input, select, textarea, [tabindex]").length]).toEqual(["LI", null, null, 0]);
-    }
-  });
+it("keeps diacritic-insensitive name/email search and clears empty results", async () => {
+  const user = userEvent.setup(); mount(); await screen.findByText("José Real");
+  await user.type(screen.getByRole("searchbox"), "JOSE");
+  expect(screen.queryByText("Ana Real")).not.toBeInTheDocument();
+  await user.clear(screen.getByRole("searchbox")); await user.type(screen.getByRole("searchbox"), "missing");
+  expect(screen.getByText("Sin resultados")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+  expect(screen.getByText("Ana Real")).toBeInTheDocument();
 });
-
-describe("TeamWorkspace status Badges", () => {
-  const STATUS_VARIANTS = { active: "success", invited: "review" } as const;
-
-  it("maps each member status onto the shared semantic Badge with a decorative dot", () => {
-    const { container } = renderTeam();
-    for (const member of NEXO_TEAM_MEMBERS) {
-      const badge = rowOf(container, member.id).querySelector("[data-slot='badge']") as HTMLElement;
-      expect(badge, member.id).not.toBeNull();
-      expect(badge).toHaveAttribute("data-variant", STATUS_VARIANTS[member.status]);
-      expect(badge).toHaveAttribute("data-dot");
-      expect(badge).toHaveTextContent(TEAM_MEMBER_STATUS_LABELS[member.status]);
-      // The leading dot is the shared recipe's `::before`, never a manual child.
-      expect(badge.childNodes).toHaveLength(1);
-      expect(badge.querySelectorAll("*")).toHaveLength(0);
-    }
-  });
-
-  it("deletes the duplicated local tone and dot class maps", () => {
-    expect(source).toContain("type BadgeVariant");
-    expect(source).toMatch(/STATUS_VARIANT: Readonly<Record<TeamMemberStatus, BadgeVariant>>/u);
-    expect(source).not.toContain("STATUS_BADGE");
-    expect(source).not.toContain("STATUS_DOT");
-    expect(source).not.toContain("border-border bg-secondary text-foreground");
-  });
+it("shows deleted users without inventing contact or workload", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [{ ...members[1], user: null }] });
+  mount(); await screen.findByText("Usuario dado de baja");
+  expect(screen.queryByText("jose@example.test")).not.toBeInTheDocument();
+  expect(screen.getByText("Carga no disponible")).toBeInTheDocument();
 });
-
-describe("TeamWorkspace empty states", () => {
-  it("recovers from an empty result through a clear action that resets search and status", async () => {
-    const user = userEvent.setup();
-    const { container } = renderTeam();
-    await user.type(searchInput(), "sin coincidencias");
-    expect(rowIds(container)).toEqual([]);
-    expect(container.querySelector("[data-pf-team-empty]")).not.toBeNull();
-    const clear = screen.getByRole("button", { name: "Limpiar filtros" });
-    expect(clear).toHaveAttribute("data-pf-team-clear");
-    await user.click(clear);
-    expect(rowIds(container)).toHaveLength(6);
-    expect(searchInput()).toHaveValue("");
-    expect(filterButton(/^Todas/)).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("shows the true empty-team state without offering a misleading clear action", async () => {
-    const user = userEvent.setup();
-    const { container } = renderTeam([]);
-    expect(container.querySelector("[data-pf-team-empty]")).toHaveTextContent("Todavía no hay miembros del equipo");
-    expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
-    expect(container.querySelectorAll("[data-pf-team-metric]")).toHaveLength(4);
-    await user.type(searchInput(), "algo");
-    await user.click(filterButton(/^Activas/));
-    expect(container.querySelector("[data-pf-team-empty]")).toHaveTextContent("Todavía no hay miembros del equipo");
-    expect(rowIds(container)).toEqual([]);
-    expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
-  });
+it("derives workload from all draft pages by user id", async () => {
+  vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: true, items: [draft("a")], nextCursor: "opaque" }).mockResolvedValueOnce({ ok: true, items: [draft("b", { status: "paused" }), draft("c", { status: "closed" }), draft("d", { process: "finished" })], nextCursor: null });
+  mount();
+  expect(await screen.findByText("2 vacantes · 6 candidatos en proceso")).toBeInTheDocument();
+  expect(listDraftsAction).toHaveBeenNthCalledWith(2, { limit: 50, cursor: "opaque" });
 });
-
-describe("TeamWorkspace interaction and source contract", () => {
-  it("keeps every interactive target at least 40px, focus-visible, and token-only", () => {
-    const { container } = renderTeam();
-    expect(searchInput().className).toContain("h-10");
-    for (const filter of container.querySelectorAll("[data-pf-team-filter]")) {
-      const classes = filter.getAttribute("class") ?? "";
-      expect([classes.includes("min-h-10"), classes.includes("focus-visible:ring-3")]).toEqual([true, true]);
-    }
-    expect(RAW_COLOR.test(classesOf(container))).toBe(false);
-    expect(container.querySelectorAll("[style]")).toHaveLength(0);
-  });
-
-  it("keeps narrow fact labels accessible, the header decorative, and the count announceable", () => {
-    const { container } = renderTeam();
-    const row = container.querySelector("[data-pf-team-row]") as HTMLElement;
-    const grid = row.className;
-    expect([grid.includes("grid-cols-1"), /lg:grid-cols-\[/u.test(grid), grid.includes("min-w-0") || row.querySelectorAll(".min-w-0").length > 0]).toEqual([true, true, true]);
-    const labels = Array.from(row.querySelectorAll("[class*='lg:sr-only']"));
-    expect(labels.map((label) => label.textContent)).toEqual(["Rol", "Estado", "Carga"]);
-    // The labels collapse visually at desktop but must stay in the accessibility tree.
-    expect(labels.every((label) => label.getAttribute("aria-hidden") === null)).toBe(true);
-    const header = container.querySelector("[data-pf-team-header]") as HTMLElement;
-    expect([header.className.includes("lg:grid"), header.getAttribute("aria-hidden"), header.querySelectorAll("[class*='lg:sr-only']").length]).toEqual([true, "true", 0]);
-    expect((container.querySelector("[data-pf-team-results]") as HTMLElement).className).toContain("overflow-hidden");
-    const count = container.querySelector("[data-pf-team-count]") as HTMLElement;
-    expect([count.getAttribute("role"), count.getAttribute("aria-live")]).toEqual(["status", "polite"]);
-  });
-
-  it("stays a read-only client surface that never imports the Nexo fixture", () => {
-    expect(source).toMatch(/^\s*["']use client["']/mu);
-    expect(source).toContain("./model");
-    for (const primitive of ["@/components/ui/badge", "@/components/ui/avatar", "@/components/ui/input", "@/components/ui/button", "@/components/feedback/state-card"]) {
-      expect(source, `team-workspace.tsx must reuse ${primitive}`).toContain(primitive);
-    }
-    for (const forbidden of ["./prototype-team", "NEXO_TEAM_MEMBERS", "features/employer-vacancies", "prototype-vacancies", "next/link", "href", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "onDrag", "onDrop", "draggable", ".css"]) {
-      expect(source, `team-workspace.tsx must not declare ${forbidden}`).not.toContain(forbidden);
-    }
-  });
+it("shows a skeleton, never zero workload, until drafts finish loading", async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof listDraftsAction>>) => void;
+  vi.mocked(listDraftsAction).mockReturnValue(new Promise(done => { resolve = done; }));
+  mount(); await screen.findByText("José Real");
+  expect(row(members[1].id).querySelector('[data-pf-team-workload] [data-slot="skeleton"]')).toBeInTheDocument();
+  expect(within(row(members[1].id)).queryByText(/Sin vacantes/)).not.toBeInTheDocument();
+  await act(async () => resolve({ ok: true, items: [], nextCursor: null }));
+  expect(within(row(members[1].id)).getByText("Sin vacantes asignadas")).toBeInTheDocument();
+});
+it("does not report partial/failed drafts as zero and offers a read retry", async () => {
+  vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 500 } });
+  mount(); await screen.findByText("José Real");
+  expect(await screen.findByText("No pudimos cargar la carga de trabajo")).toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("Carga no disponible")).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar carga" }));
+  expect(await screen.findByText("2 vacantes · 6 candidatos en proceso")).toBeInTheDocument();
+});
+it("owners get other-member menus, never their own", async () => {
+  mount(); await screen.findByText("José Real");
+  expect(screen.getByRole("button", { name: "Acciones de José Real" })).toHaveAttribute("aria-haspopup", "menu");
+  expect(screen.queryByRole("button", { name: "Acciones de Ana Real" })).not.toBeInTheDocument();
+});
+it.each(["recruiter", null] as const)("hides all actions for membership %s", async role => {
+  vi.mocked(useCompanyMembership).mockReturnValue(role ? { ...membership!, role } : null);
+  mount(); await screen.findByText("José Real");
+  expect(screen.queryByRole("button", { name: /Acciones de/ })).not.toBeInTheDocument();
+});
+it("hides the only owner's menu even if the current membership says owner", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [members[1], { ...members[0], user: { ...members[0].user, id: "10000000-0000-4000-8000-000000000099" } }] });
+  mount(); await screen.findByText("Ana Real");
+  expect(screen.queryByRole("button", { name: "Acciones de Ana Real" })).not.toBeInTheDocument();
+});
+it("confirms role change, writes member id, disables pending controls and refreshes", async () => {
+  const user = userEvent.setup(); let resolve!: (value: { ok: true }) => void;
+  vi.mocked(changeTeamRoleAction).mockReturnValue(new Promise(done => { resolve = done; }));
+  vi.mocked(listTeamMembersAction).mockResolvedValueOnce({ ok: true, members }).mockResolvedValueOnce({ ok: true, members: members.map(member => ({ ...member, role: "owner" })) });
+  mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Cambiar a Dueño" }));
+  const dialog = screen.getByRole("alertdialog");
+  expect(within(dialog).getByText(/José Real/)).toBeInTheDocument();
+  expect(changeTeamRoleAction).not.toHaveBeenCalled();
+  await user.click(within(dialog).getByRole("button", { name: "Cambiar rol" }));
+  expect(changeTeamRoleAction).toHaveBeenCalledExactlyOnceWith(members[1].id, "owner");
+  expect(within(dialog).getByRole("button", { name: "Guardando…" })).toBeDisabled();
+  await act(async () => resolve({ ok: true }));
+  await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("Rol actualizado")).toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("Dueño")).toBeInTheDocument();
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success" }));
+});
+it("confirms removal naming the person and refreshes after DELETE", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValueOnce({ ok: true, members }).mockResolvedValueOnce({ ok: true, members: [members[0]] });
+  const user = userEvent.setup(); mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Quitar del equipo" }));
+  const dialog = screen.getByRole("alertdialog");
+  expect(within(dialog).getByRole("heading")).toHaveTextContent("José Real");
+  expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).toBeInTheDocument();
+  expect(removeTeamMemberAction).not.toHaveBeenCalled();
+  await user.click(within(dialog).getByRole("button", { name: "Quitar del equipo" }));
+  expect(removeTeamMemberAction).toHaveBeenCalledExactlyOnceWith(members[1].id);
+  await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText("José Real")).not.toBeInTheDocument();
+  expect(screen.getByText("Miembro quitado del equipo")).toBeInTheDocument();
+});
+it("cancel never writes; failed writes keep persistent feedback and do not claim success", async () => {
+  const user = userEvent.setup(); mount(); await screen.findByText("José Real");
+  async function open() { await user.click(screen.getByRole("button", { name: "Acciones de José Real" })); await user.click(await screen.findByRole("menuitem", { name: "Quitar del equipo" })); }
+  await open(); await user.click(screen.getByRole("button", { name: "Cancelar" }));
+  expect(removeTeamMemberAction).not.toHaveBeenCalled();
+  vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: false, reason: "forbidden", reference: { status: 403 } });
+  await open(); await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Quitar del equipo" }));
+  expect(await screen.findByText("No tienes permiso para esta acción")).toBeInTheDocument();
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", reference: expect.objectContaining({ status: 403 }) }));
+  expect(listTeamMembersAction).toHaveBeenCalledTimes(1);
+});
+it.each([["unauthenticated", "Tu sesión expiró"], ["not_member", "No perteneces a esta empresa"], ["server_error", "No pudimos cargar el equipo"]] as const)("renders %s failure with retry", async (reason, title) => {
+  vi.mocked(listTeamMembersAction).mockResolvedValueOnce({ ok: false, reason, reference: {} });
+  mount(); expect(await screen.findByText(title)).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" }));
+  expect(await screen.findByText("José Real")).toBeInTheDocument();
+});
+it("shows loading skeletons and a genuine empty state", async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof listTeamMembersAction>>) => void;
+  vi.mocked(listTeamMembersAction).mockReturnValue(new Promise(done => { resolve = done; }));
+  mount(); expect(screen.getByText("Cargando equipo")).toBeInTheDocument();
+  expect(document.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
+  await act(async () => resolve({ ok: true, members: [] }));
+  expect(screen.getByText("Todavía no hay miembros del equipo")).toBeInTheDocument();
+  expect(document.querySelector('[data-slot="card"] [data-slot="card"]')).not.toBeInTheDocument();
+});
+it("does not reference an absent action status from the row menu", async () => {
+  mount(); await screen.findByText("José Real");
+  const trigger = screen.getByRole("button", { name: "Acciones de José Real" });
+  const statusId = trigger.getAttribute("aria-describedby");
+  expect(statusId === null || document.getElementById(statusId) !== null).toBe(true);
+});
+it("a disappeared member is not misreported as lost company membership", async () => {
+  const user = userEvent.setup();
+  vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: false, reason: "not_member", reference: { status: 404 } });
+  mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Quitar del equipo" }));
+  expect(await screen.findByText("El miembro ya no está disponible")).toBeInTheDocument();
+  await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));
+});
+it("reconciles an uncertain mutation once without replaying it", async () => {
+  const user = userEvent.setup();
+  vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+  mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Quitar del equipo" }));
+  expect(await screen.findByText("No pudimos confirmar el cambio")).toBeInTheDocument();
+  expect(listTeamMembersAction).toHaveBeenCalledTimes(2);
+  expect(removeTeamMemberAction).toHaveBeenCalledTimes(1);
+});
+it("clears prior account content synchronously and ignores its late reads", async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof listTeamMembersAction>>) => void;
+  vi.mocked(listTeamMembersAction).mockReturnValueOnce(new Promise(done => { resolve = done; })).mockResolvedValueOnce({ ok: true, members: [members[1]] });
+  const view = mount();
+  const nextIdentity: IdentityState = { ...identity, result: { ok: true, data: { role: "recruiter", user: members[1].user } } };
+  view.rerender(<IdentityContext.Provider value={nextIdentity}><TeamPage /></IdentityContext.Provider>);
+  await screen.findByText("José Real");
+  await act(async () => resolve({ ok: true, members }));
+  expect(screen.queryByText("Ana Real")).not.toBeInTheDocument();
+  view.rerender(<IdentityContext.Provider value={{ ...identity, status: "unauthenticated" }}><TeamPage /></IdentityContext.Provider>);
+  expect(screen.queryByText("José Real")).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/empresa/login");
+});
+it("does not show workload totals when the reused drafts reader reaches its cap", async () => {
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [draft("a")], nextCursor: "more" });
+  mount();
+  expect(await screen.findByText("La consulta no incluye todas las vacantes. No mostramos conteos incompletos.")).toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("Carga no disponible")).toBeInTheDocument();
+  expect(listDraftsAction).toHaveBeenCalledTimes(10);
+});
+it("explains the backend's last-owner guard and refreshes the list", async () => {
+  const user = userEvent.setup();
+  vi.mocked(changeTeamRoleAction).mockResolvedValue({ ok: false, reason: "last_owner", reference: { status: 409, code: "last_owner" } });
+  mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Cambiar a Dueño" }));
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cambiar rol" }));
+  expect(await screen.findByText("La empresa debe conservar al menos un dueño")).toBeInTheDocument();
+  await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));
 });

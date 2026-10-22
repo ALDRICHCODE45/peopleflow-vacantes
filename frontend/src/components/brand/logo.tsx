@@ -61,7 +61,15 @@ export function PeopleFlowSidebarLogo({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-export function PeopleFlowLogo({ className }: { className?: string }) {
+/**
+ * `onDark` renders only the dark-scheme (white) wordmark for surfaces that stay
+ * dark in both themes, such as the animated login panel; `auto` swaps by theme.
+ */
+export function PeopleFlowLogo({ className, tone = "auto" }: { className?: string; tone?: "auto" | "onDark" }) {
+  if (tone === "onDark") {
+    const mark = BRAND_MARKS[1];
+    return <Image src={mark.src} alt="PeopleFlow" width={1584} height={396} className={cn("h-8 w-auto", className)} />;
+  }
   return (
     <>
       {BRAND_MARKS.map(({ src, schemeClass, priority }) => (

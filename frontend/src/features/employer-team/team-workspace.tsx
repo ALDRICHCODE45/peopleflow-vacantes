@@ -1,167 +1,121 @@
 "use client";
 
 import * as React from "react";
-import { SearchIcon } from "lucide-react";
-
+import { Ellipsis, SearchIcon, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { StateCard } from "@/components/feedback/state-card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StateCard } from "@/components/feedback/state-card";
+import type { DraftListRow } from "@/features/jobs/drafts/list/client";
 import { cn } from "@/lib/utils";
+import { TEAM_MEMBER_ROLE_LABELS, type TeamMemberRole } from "./model";
+import { memberName, memberRowActions, memberWorkload, type CompanyMember, type MemberRowAction } from "./members-model";
 
-import { TEAM_MEMBER_ROLE_LABELS, TEAM_MEMBER_STATUS_LABELS, summarizeTeam } from "./model";
-import type { TeamMember, TeamMemberStatus } from "./model";
-
-/** Status filter: `all` is not a member status, so it stays surface-local. */
-type StatusFilter = "all" | TeamMemberStatus;
-
-const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
-  { value: "all", label: "Todas" }, { value: "active", label: "Activas" }, { value: "invited", label: "Pendientes" },
-];
-/** Member-status variant: the label text always carries the meaning and the
-    shared Badge variant only supplements it. */
-const STATUS_VARIANT: Readonly<Record<TeamMemberStatus, BadgeVariant>> = { active: "success", invited: "review" };
-
-const FOCUS = "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none";
-const FILTER = `inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors duration-200 ${FOCUS}`;
 const META = "text-[12.5px] text-muted-foreground";
-const CELL = "min-w-0";
-const GRID = "grid grid-cols-1 gap-3 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)] lg:items-center lg:gap-4";
-const HEADER = "hidden grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)] items-center gap-4 border-b border-border px-5 py-3 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase lg:grid";
-/** Narrow-visible fact label: visually hidden at desktop, never removed from the accessibility tree. */
+const GRID_COLUMNS = "lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_2.5rem]";
+const GRID = cn("grid grid-cols-1 gap-3 px-4 py-4 sm:px-5 lg:items-center lg:gap-4", GRID_COLUMNS);
+const HEADER = cn("hidden items-center gap-4 border-b border-border px-5 py-3 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase lg:grid", GRID_COLUMNS);
 const NARROW_LABEL = "text-[11px] font-semibold tracking-wide text-muted-foreground uppercase lg:sr-only";
-
-/** Diacritic- and case-insensitive needle, so "LUCIA" and "lucía" both match. */
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
-/** Two-letter monogram of a member name; purely decorative next to the full name. */
-const initials = (name: string) => name.split(/\s+/u).slice(0, 2).map((word) => word.charAt(0)).join("").toUpperCase();
-/** Spanish count agreement: singular for exactly one, plural otherwise. */
+const initials = (name: string) => name.split(/\s+/u).slice(0, 2).map(word => word.charAt(0)).join("").toUpperCase();
 const plural = (count: number, singular: string, pluralForm: string) => `${count} ${count === 1 ? singular : pluralForm}`;
-/** In-process copy kept separate so a nonzero count can never be hidden by the vacancy copy. */
-const inProcessCopy = (count: number) => `${plural(count, "candidato", "candidatos")} en proceso`;
-/** Truthful workload copy: only a 0/0 member reads exactly "Sin vacantes asignadas". */
-const workloadCopy = (workload: TeamMember["workload"]) => workload.ownedVacancies === 0
-  ? workload.inProcessCandidates === 0 ? "Sin vacantes asignadas" : `Sin vacantes asignadas · ${inProcessCopy(workload.inProcessCandidates)}`
-  : `${plural(workload.ownedVacancies, "vacante", "vacantes")} · ${inProcessCopy(workload.inProcessCandidates)}`;
-/** Name or email match against the normalized needle. */
-const matchesQuery = (member: TeamMember, needle: string) => normalize(member.fullName).includes(needle) || normalize(member.email).includes(needle);
+const dateFormat = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
+const workloadCopy = (workload: NonNullable<ReturnType<typeof memberWorkload>>) => workload.ownedVacancies === 0
+  ? "Sin vacantes asignadas"
+  : `${plural(workload.ownedVacancies, "vacante", "vacantes")} · ${plural(workload.inProcessCandidates, "candidato", "candidatos")} en proceso`;
 
-/**
- * One member as a non-clickable list row: the truthful facts and the status
- * meaning in text, with the avatar and status dot as decorative supplements.
- * The row is never a link or a button and holds zero interactive descendants.
- */
-function TeamMemberRow({ member }: { member: TeamMember }) {
-  return (
-    <li data-pf-team-row={member.id} className={GRID}>
-      <div className={cn(CELL, "flex items-start gap-3")}>
-        <Avatar data-pf-team-avatar={member.id} aria-hidden="true" size="lg">
-          <AvatarFallback>{initials(member.fullName)}</AvatarFallback>
-        </Avatar>
-        <div className={CELL}>
-          <p className="break-words text-[14.5px] font-semibold text-foreground">{member.fullName}</p>
-          <p className={cn(META, "mt-0.5 break-all")}>{member.email}</p>
-        </div>
-      </div>
-      <div className={CELL}>
-        <span className={NARROW_LABEL}>Rol</span>
-        <p className="mt-0.5 text-[13px] text-foreground lg:mt-0">{TEAM_MEMBER_ROLE_LABELS[member.role]}</p>
-      </div>
-      <div className={CELL}>
-        <span className={NARROW_LABEL}>Estado</span>
-        <div className="mt-0.5 lg:mt-0">
-          <Badge variant={STATUS_VARIANT[member.status]} dot>
-            {TEAM_MEMBER_STATUS_LABELS[member.status]}
-          </Badge>
-        </div>
-      </div>
-      <div className={CELL}>
-        <span className={NARROW_LABEL}>Carga</span>
-        <p className={cn(META, "mt-0.5 lg:mt-0")}>{workloadCopy(member.workload)}</p>
-      </div>
-    </li>
-  );
-}
+type Props = {
+  members: readonly CompanyMember[];
+  drafts?: readonly DraftListRow[];
+  workloadPending?: boolean;
+  workloadUnavailable?: boolean;
+  role?: TeamMemberRole | null;
+  userId?: string | null;
+  disabled?: boolean;
+  loading?: boolean;
+  onAction?: (member: CompanyMember, action: MemberRowAction) => void;
+  feedback?: React.ReactNode;
+  actionStatusId?: string;
+};
 
-/**
- * Employer team workspace: a fully local, read-only client surface over the
- * validated members it receives as props. It derives its four metrics from the
- * model helper, composes a labelled name/email search with the status filters,
- * and renders one truthful row per filtered member in input order. It owns no
- * fetch, router, auth/session, storage, or mutation, offers no invitation
- * affordance or member-detail link yet, and it never imports the Nexo fixture:
- * fixtures arrive as props.
- */
-export function TeamWorkspace({ members }: { members: readonly TeamMember[] }) {
+/** Existing row layout, now over the strict server read. The menu follows shadcn Basic
+ * (Trigger render=Button → Content → Group → Item); avatars have no invented image. */
+export function TeamWorkspace({ members, drafts = [], workloadPending = false, workloadUnavailable = false, role = null, userId = null, disabled = false, loading = false, onAction, feedback, actionStatusId }: Props) {
   const [query, setQuery] = React.useState("");
-  const [status, setStatus] = React.useState<StatusFilter>("all");
-  const summary = summarizeTeam(members);
-  const counts: Readonly<Record<StatusFilter, number>> = { all: summary.total, active: summary.active, invited: summary.invited };
-  const cards = [
-    { key: "total", singular: "Miembro", plural: "Miembros", value: summary.total },
-    { key: "owners", singular: "Propietario", plural: "Propietarios", value: summary.owners },
-    { key: "recruiters", singular: "Reclutador", plural: "Reclutadores", value: summary.recruiters },
-    { key: "invited", singular: "Invitación pendiente", plural: "Invitaciones pendientes", value: summary.invited },
-  ] as const;
   const needle = normalize(query);
-  const results = members.filter((member) => (status === "all" || member.status === status) && (needle === "" || matchesQuery(member, needle)));
-  const filtersActive = query.trim() !== "" || status !== "all";
-  const clearFilters = () => { setQuery(""); setStatus("all"); };
+  const results = members.filter(member => normalize(memberName(member)).includes(needle) || normalize(member.user?.email ?? "").includes(needle));
+  const cards = [
+    { key: "total", singular: "Miembro", plural: "Miembros", value: members.length },
+    { key: "owners", singular: "Dueño", plural: "Dueños", value: members.filter(member => member.role === "owner").length },
+    { key: "recruiters", singular: "Reclutador", plural: "Reclutadores", value: members.filter(member => member.role === "recruiter").length },
+  ];
   return (
-    <div data-pf-team-workspace className="flex flex-col gap-5">
-      <section data-pf-team-summary aria-label="Resumen del equipo" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {cards.map((card) => (
+    <div data-pf-team-workspace aria-busy={loading || undefined} className="flex flex-col gap-5">
+      {loading && <span role="status" className="sr-only">Cargando equipo</span>}
+      <section data-pf-team-summary aria-label="Resumen del equipo" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {cards.map(card => (
           <Card key={card.key} data-pf-team-metric={card.key} size="sm">
             <CardHeader>
-              <CardTitle><h3 className="text-[22px] font-bold tabular-nums">{card.value}</h3></CardTitle>
-              <CardDescription>{card.value === 1 ? card.singular : card.plural}</CardDescription>
+              <CardTitle>{loading ? <Skeleton aria-hidden="true" className="h-7 w-10" /> : <h3 className="text-[22px] font-bold tabular-nums">{card.value}</h3>}</CardTitle>
+              <CardDescription>{loading ? <Skeleton aria-hidden="true" className="h-5 w-24" /> : card.value === 1 ? card.singular : card.plural}</CardDescription>
             </CardHeader>
           </Card>
         ))}
       </section>
       <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="team-workspace-search" className="text-[12.5px] font-medium text-foreground">Buscar miembro</label>
+        <Field className="lg:w-72">
+          <FieldLabel htmlFor="team-workspace-search">Buscar miembro</FieldLabel>
           <div className="relative">
             <SearchIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="team-workspace-search" data-pf-team-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre o correo…" className="h-10 pl-9 lg:w-72" />
+            <Input id="team-workspace-search" data-pf-team-search type="search" value={query} disabled={loading} onChange={event => setQuery(event.target.value)} placeholder="Buscar por nombre o correo…" className="h-10 pl-9" />
           </div>
-        </div>
-        <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap items-center gap-2">
-          {STATUS_FILTERS.map((filter) => {
-            const active = status === filter.value;
-            return (
-              <button key={filter.value} type="button" data-pf-team-filter={filter.value} aria-pressed={active} onClick={() => setStatus(filter.value)} className={cn(FILTER, active ? "border-primary/60 bg-primary/12 text-foreground" : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground")}>
-                {filter.label}
-                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground tabular-nums">{counts[filter.value]}</span>
-              </button>
-            );
-          })}
-        </div>
+        </Field>
       </div>
-      <p data-pf-team-count role="status" aria-live="polite" className={META}>{plural(results.length, "miembro", "miembros")}</p>
-      <Card data-pf-team-results>
+      {feedback}
+      <div data-pf-team-count role={loading ? undefined : "status"} aria-live="polite" className={META}>{loading ? <Skeleton aria-hidden="true" className="h-4 w-24" /> : plural(results.length, "miembro", "miembros")}</div>
+      {!loading && results.length === 0 ? (
+        <StateCard icon={Users} tone="empty" title={members.length === 0 ? "Todavía no hay miembros del equipo" : "Sin resultados"}
+          description={members.length === 0 ? "Aquí se mostrarán las personas de tu equipo y su carga de trabajo." : "No hay miembros que coincidan con la búsqueda. Limpia la búsqueda para volver a ver tu equipo."}
+          primaryAction={members.length > 0 ? { label: "Limpiar búsqueda", onClick: () => setQuery("") } : undefined} />
+      ) : <Card data-pf-team-results>
+        {/* The existing visual column header stays unchanged; this title names the list for AT. */}
+        <CardHeader className="sr-only"><CardTitle><h2>Miembros del equipo</h2></CardTitle><CardDescription>Personas, roles y carga de trabajo</CardDescription></CardHeader>
         <CardContent className="-mx-(--card-spacing)">
-        <div data-pf-team-header aria-hidden="true" className={HEADER}>
-          <span>Miembro</span><span>Rol</span><span>Estado</span><span>Carga</span>
-        </div>
-        {results.length === 0 ? (
-          <div className="p-4">
-            <StateCard data-pf-team-empty icon={SearchIcon} tone="empty"
-              title={members.length === 0 ? "Todavía no hay miembros del equipo" : "Sin resultados"}
-              description={members.length === 0 ? "Aquí se muestran los miembros y su carga de trabajo cuando haya personas en tu equipo." : "No hay miembros que coincidan con la búsqueda y el estado seleccionados. Limpia los filtros para volver a ver tu equipo."}>
-              {filtersActive && members.length > 0 && <Button type="button" data-pf-team-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}
-            </StateCard>
-          </div>
-        ) : (
-          <ul data-pf-team-list className="divide-y divide-border">
-            {results.map((member) => (<TeamMemberRow key={member.id} member={member} />))}
-          </ul>
-        )}
+          <div data-pf-team-header aria-hidden="true" className={HEADER}><span>Miembro</span><span>Rol</span><span>Antigüedad</span><span>Carga</span><span /></div>
+          {loading ? <ul aria-hidden="true" className="divide-y divide-border">{[0, 1, 2].map(key => <li key={key} className={GRID}>
+            <div className="flex items-start gap-3"><Skeleton className="size-10 shrink-0 rounded-full" /><div className="flex min-w-0 flex-col gap-2"><Skeleton className="h-5 w-32" /><Skeleton className="h-4 w-40" /></div></div>
+            <Skeleton className="h-5 w-20" /><Skeleton className="h-4 w-32" /><Skeleton className="h-4 w-full" /><span />
+          </li>)}</ul> : <ul data-pf-team-list className="divide-y divide-border">{results.map(member => {
+            const name = memberName(member);
+            const workload = workloadUnavailable ? null : memberWorkload(member, drafts);
+            const actions = memberRowActions(member, members, role, userId);
+            return <li key={member.id} data-pf-team-row={member.id} className={GRID}>
+              <div className="flex min-w-0 items-start gap-3">
+                <Avatar data-pf-team-avatar={member.id} aria-hidden="true" size="lg"><AvatarFallback>{initials(name)}</AvatarFallback></Avatar>
+                <div className="min-w-0"><p className="break-words text-[14.5px] font-semibold text-foreground">{name}</p>{member.user && <p className={cn(META, "mt-0.5 break-all")}>{member.user.email}</p>}</div>
+              </div>
+              <div className="min-w-0"><span className={NARROW_LABEL}>Rol</span><div className="mt-0.5 lg:mt-0"><Badge variant={member.role === "owner" ? "accent" : "secondary"}>{TEAM_MEMBER_ROLE_LABELS[member.role]}</Badge></div></div>
+              <time dateTime={member.created_at} className={META}>Miembro desde {dateFormat.format(new Date(member.created_at))}</time>
+              <div data-pf-team-workload aria-busy={workloadPending || undefined} className="min-w-0">
+                <span className={NARROW_LABEL}>Carga</span>
+                {workloadPending ? <><span className="sr-only">Cargando carga de trabajo</span><Skeleton aria-hidden="true" className="h-4 w-full" /></> : <p className={cn(META, "mt-0.5 lg:mt-0")}>{workload ? workloadCopy(workload) : "Carga no disponible"}</p>}
+              </div>
+              <div className="flex justify-end">{actions.length > 0 && onAction && <DropdownMenu>
+                <DropdownMenuTrigger disabled={disabled} aria-label={`Acciones de ${name}`} aria-describedby={actionStatusId} render={<Button type="button" variant="ghost" size="icon" className="size-10" />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
+                <DropdownMenuContent align="end"><DropdownMenuGroup>{actions.map(action => <React.Fragment key={action.kind}>
+                  {action.kind === "remove" && <DropdownMenuSeparator />}
+                  <DropdownMenuItem className="min-h-10" variant={action.kind === "remove" ? "destructive" : "default"} disabled={disabled} onClick={() => onAction(member, action)}>{action.label}</DropdownMenuItem>
+                </React.Fragment>)}</DropdownMenuGroup></DropdownMenuContent>
+              </DropdownMenu>}</div>
+            </li>;
+          })}</ul>}
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

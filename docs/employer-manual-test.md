@@ -735,3 +735,17 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     idioma o ubicación ya elegidos, borrar el texto y salir del campo vuelve a mostrar el nombre
     elegido. **Esperado:** todo eso, en celular y en oscuro (las iniciales del avatar del perfil
     se leen en oscuro).
+88. **Equipo real, candidatos de mi organización y acceso de empresa.** Frontend en
+    `feat/team-and-org-candidates-ui`, backend en `feat/org-candidates` (sin migración). Sin
+    sesión, abrí `/empresa/equipo`: te lleva a `/empresa/login` y, al ingresar con Cognito,
+    vuelve a «Equipo» sin el aviso «No pudimos completar el acceso». En «Equipo» ves a los
+    miembros reales (nombre, correo, «Dueño»/«Reclutador», «Miembro desde …») y su carga
+    («2 vacantes · 3 candidatos en proceso»); si sos dueño, el menú de cada otra persona permite
+    cambiar su rol o quitarla del equipo (con confirmación); en tu fila y en el único dueño no hay
+    acciones. En «Base de talento» → «Candidatos de mi organización»: altas manuales y postulantes
+    de tus vacantes, en «Tabla» o «Tarjetas» (en celular siempre tarjetas), con búsqueda por nombre
+    o correo y «Filtros» (origen, vacante, estado, municipio, seniority, años, idiomas con nivel
+    mínimo, estudios con «en curso»), todo en la URL; «Cargar más» trae la siguiente página.
+    **Esperado:** al hacer clic en una persona se abre su ficha con contacto, perfil, cada proceso
+    (vacante, etapa, «Publicada/Pausada/Cerrada», descarte con motivo) y «Descargar CV». Probalo
+    en celular y en oscuro.

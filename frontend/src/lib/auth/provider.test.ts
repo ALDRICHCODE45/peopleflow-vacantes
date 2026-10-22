@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COGNITO_AUTH_CHECKS, COGNITO_SCOPES, buildCognitoProvider } from "./provider";
+import { COGNITO_AUTH_CHECKS, COGNITO_HTTP_TIMEOUT_MS, COGNITO_SCOPES, buildCognitoProvider } from "./provider";
 
 const config = {
   clientId: "18a05uprp34uosfg1ov6lvvkbu",
@@ -31,5 +31,12 @@ describe("buildCognitoProvider", () => {
     expect(effectiveProvider().authorization).toMatchObject({
       params: { scope: "openid email profile" },
     });
+  });
+
+  it("gives the code exchange with Cognito 10 seconds instead of the library's 3.5", () => {
+    // The 3500 ms openid-client default timed out the token request in local runs,
+    // sending a successful Cognito sign-in back to the login with error=OAuthCallback.
+    expect(COGNITO_HTTP_TIMEOUT_MS).toBe(10_000);
+    expect(effectiveProvider().httpOptions).toEqual({ timeout: 10_000 });
   });
 });

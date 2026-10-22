@@ -62,7 +62,7 @@ describe("employer managed login", () => {
     auth.signIn.mockRejectedValue(new Error("secret-provider-response"));
     render(<EmployerAuthControls />);
     fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No pudimos iniciar el acceso. Intentá nuevamente."));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No pudimos iniciar el acceso. Inténtalo de nuevo."));
     expect(screen.queryByText(/secret-provider-response/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ingresar con Cognito" })).toBeEnabled();
   });
@@ -70,8 +70,31 @@ describe("employer managed login", () => {
   it("renders generic callback error feedback without reflecting untrusted query text", () => {
     auth.query = new URLSearchParams("error=private-token-from-query");
     render(<EmployerAuthControls />);
-    expect(screen.getByRole("alert")).toHaveTextContent("No pudimos completar el acceso. Intentá nuevamente.");
+    expect(screen.getByRole("alert")).toHaveTextContent("No pudimos completar el acceso. Inténtalo de nuevo.");
     expect(screen.queryByText(/private-token-from-query/)).not.toBeInTheDocument();
+  });
+});
+
+describe("employer login shape", () => {
+  it("uses the shared pill button shape like the candidate login, never a hard-coded rounded-lg", () => {
+    render(<EmployerAuthControls />);
+    expect(screen.getByRole("button", { name: "Ingresar con Cognito" }).className).not.toContain("rounded-lg");
+  });
+});
+
+describe("employer return path", () => {
+  it("returns to the requested employer page after signing in", async () => {
+    auth.query = new URLSearchParams("callbackUrl=%2Fempresa%2Fequipo");
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/equipo" }));
+  });
+
+  it.each(["https://evil.example/empresa", "//evil.example/empresa", "/candidato/perfil", "/empresa/../api/x", "/empresa\\evil", "empresa/equipo", "http://localhost:3000/empresa/login"])("never follows an unsafe return path %s", async callbackUrl => {
+    auth.query = new URLSearchParams({ callbackUrl });
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/login" }));
   });
 });
 
@@ -83,6 +106,16 @@ describe("employer session and logout", () => {
     expect(screen.queryByRole("button", { name: /ingresar/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeEnabled();
     expect(screen.queryByText(/permisos confirmados|empresa verificada/i)).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale callback error once signed in and links to the company panel", () => {
+    // A slow first token exchange can leave ?error=OAuthCallback in the URL even
+    // though a later attempt signed in: the page must not claim the access failed.
+    auth.session = { status: "authenticated", data: { user: { name: "Recruiter" } } };
+    auth.query = new URLSearchParams("error=OAuthCallback");
+    render(<EmployerAuthControls />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ir a mi panel" })).toHaveAttribute("href", "/empresa/dashboard");
   });
 
   it("clears the local session via NextAuth before its redirect to the same-origin federated logout endpoint", async () => {
@@ -97,7 +130,7 @@ describe("employer session and logout", () => {
     auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } };
     render(<EmployerAuthControls />);
     expect(screen.queryByText("Sesión iniciada.")).not.toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Tu sesión venció. Volvé a ingresar.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Tu sesión venció. Vuelve a ingresar.");
     expect(screen.getByRole("button", { name: "Ingresar con Cognito" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeEnabled();
   });
@@ -107,7 +140,7 @@ describe("employer session and logout", () => {
     auth.signOut.mockRejectedValue(new Error("private-refresh-token"));
     render(<EmployerAuthControls />);
     fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No pudimos cerrar la sesión. Intentá nuevamente."));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No pudimos cerrar la sesión. Inténtalo de nuevo."));
     expect(screen.queryByText(/private-refresh-token/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeEnabled();
   });

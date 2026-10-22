@@ -25,9 +25,9 @@ it("disables both controls while loading", () => {
 it("uses generic callback and expired messages", () => {
   auth.query = new URLSearchParams("error=private-value");
   const view = render(<CandidateAuthControls />);
-  expect(screen.getByRole("alert")).toHaveTextContent("No pudimos completar el acceso. Intentá nuevamente.");
+  expect(screen.getByRole("alert")).toHaveTextContent("No pudimos completar el acceso. Inténtalo de nuevo.");
   auth.session = { status: "authenticated", data: { error: "RefreshAccessTokenError" } }; view.rerender(<CandidateAuthControls />);
-  expect(screen.getByRole("alert")).toHaveTextContent("Tu sesión venció. Volvé a ingresar.");
+  expect(screen.getByRole("alert")).toHaveTextContent("Tu sesión venció. Vuelve a ingresar.");
   expect(screen.queryByText(/private-value/)).toBeNull();
 });
 it("keeps a signed-in route exit and candidate logout", async () => {
@@ -39,8 +39,15 @@ it("keeps a signed-in route exit and candidate logout", async () => {
 it("does not disclose sign-in exception details", async () => {
   auth.signIn.mockRejectedValueOnce(new Error("secret")); render(<CandidateAuthControls />);
   fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
-  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No pudimos iniciar el acceso. Intentá nuevamente."));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No pudimos iniciar el acceso. Inténtalo de nuevo."));
   expect(auth.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "error", reference: expect.any(Object) }));
   expect(screen.getByRole("button", { name: "Ingresar" })).toHaveAttribute("aria-describedby");
   expect(screen.queryByText("secret")).toBeNull();
+});
+it("ignores a stale callback error once signed in", () => {
+  auth.session = { status: "authenticated", data: {} };
+  auth.query = new URLSearchParams("error=OAuthCallback");
+  render(<CandidateAuthControls />);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Ir a mi cuenta" })).toBeInTheDocument();
 });

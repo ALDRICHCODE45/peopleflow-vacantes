@@ -180,7 +180,7 @@ describe("LoginScreen navigation and theme control", () => {
 });
 
 describe("LoginScreen static visual panel", () => {
-  it("renders one decorative desktop-only panel with both approved theme marks", () => {
+  it("renders one decorative desktop-only panel with the white wordmark the animation needs in both themes", () => {
     const { container } = render(<LoginScreen variant="employer" />);
     const panel = container.querySelector("[data-login-visual-panel]");
     expect(panel).not.toBeNull();
@@ -188,16 +188,16 @@ describe("LoginScreen static visual panel", () => {
     // Desktop-only: hidden below lg, visible from lg up.
     expect(panel?.className).toContain("hidden");
     expect(panel?.className).toContain("lg:block");
-    // Both approved marks, swapped by theme through the canonical brand
-    // classes instead of a hard-coded, permanently white wordmark.
+    // The animated panel renders dark in both themes, so the panel always uses the
+    // dark-scheme (white) wordmark; the theme-swapped black one read as «flow» alone.
     const marks = Array.from(panel!.querySelectorAll("img"));
-    expect(marks).toHaveLength(2);
-    expect(marks[0]!.getAttribute("src") ?? "").toContain("peopleflow-light.webp");
-    expect(marks[1]!.getAttribute("src") ?? "").toContain("peopleflow-dark.webp");
-    expect(marks[0]!.className).toContain("brand-mark-light");
-    expect(marks[1]!.className).toContain("brand-mark-dark");
-    // The panel stays decorative: the marks live inside the aria-hidden stage.
-    for (const mark of marks) expect(mark.closest("[aria-hidden='true']")).not.toBeNull();
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.getAttribute("src") ?? "").toContain("peopleflow-dark.webp");
+    expect(marks[0]!.className).not.toMatch(/brand-mark-(light|dark)/);
+    expect(marks[0]!.closest("[aria-hidden='true']")).not.toBeNull();
+    // The mobile wordmark outside the panel keeps following the theme.
+    const mobile = Array.from(container.querySelectorAll("a[href='/'] img"));
+    expect(mobile.map(mark => mark.className.match(/brand-mark-(light|dark)/)?.[0])).toEqual(["brand-mark-light", "brand-mark-dark"]);
   });
 
   it("keeps a theme-aware panel fallback: warm light base over the dark baseline", () => {

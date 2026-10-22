@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useIdentity } from "./identity-session";
 import { IdentityCheck, IdentityError, RoleBlocked } from "./identity-states";
 
@@ -33,16 +33,18 @@ export function CandidateGuard({ children }: { children: React.ReactNode }) {
 
 export function EmployerGuard({ children }: { children: React.ReactNode }) {
   const identity = useIdentity();
-  if (identity.status === "loading") return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
-  // Preserve the existing unauthenticated employer UI and its backend gates,
-  // including the local bootstrap flow. This is not API authorization.
-  if (identity.status === "unauthenticated") return <>{children}</>;
+  const router = useRouter();
+  const pathname = usePathname();
   const result = identity.result;
+  // No session: go to the employer login and come back to the requested page.
+  const login = identity.status === "unauthenticated" || (result && !result.ok && result.reason === "unauthenticated")
+    ? `/empresa/login?callbackUrl=${encodeURIComponent(pathname ?? "/empresa/dashboard")}` : null;
+  React.useEffect(() => { if (login) router.replace(login); }, [login, router]);
+  if (identity.status === "loading" || login) return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
   if (!result?.ok) {
     // Additive identity check only: a transient /v2/me outage must not lock an
     // existing recruiter out. Fail open ONLY for no_response/server_error;
     // existing company endpoints still enforce membership server-side.
-    if (result?.reason === "unauthenticated") return <>{children}</>; // Existing no-session behavior, not transient fail-open.
     if (result && ["no_response", "server_error"].includes(result.reason)) return <>{children}</>;
     return <IdentityFrame area="employer"><IdentityError retry={identity.retry} /></IdentityFrame>;
   }
