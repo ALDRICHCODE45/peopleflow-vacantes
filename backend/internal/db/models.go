@@ -190,13 +190,16 @@ type CompanyCandidateEducation struct {
 }
 
 type CompanyCandidateHistory struct {
-	ID            uuid.UUID          `json:"id"`
-	CompanyID     uuid.UUID          `json:"company_id"`
-	CandidateKind string             `json:"candidate_kind"`
-	CandidateID   uuid.UUID          `json:"candidate_id"`
-	ActorID       uuid.UUID          `json:"actor_id"`
-	At            pgtype.Timestamptz `json:"at"`
-	Changes       []byte             `json:"changes"`
+	ID              uuid.UUID          `json:"id"`
+	CompanyID       uuid.UUID          `json:"company_id"`
+	CandidateKind   string             `json:"candidate_kind"`
+	CandidateID     uuid.UUID          `json:"candidate_id"`
+	ActorID         uuid.UUID          `json:"actor_id"`
+	At              pgtype.Timestamptz `json:"at"`
+	Changes         []byte             `json:"changes"`
+	Kind            string             `json:"kind"`
+	ParticipationID pgtype.UUID        `json:"participation_id"`
+	FileName        pgtype.Text        `json:"file_name"`
 }
 
 type CompanyCandidateLanguage struct {
@@ -425,6 +428,7 @@ type ProcessParticipation struct {
 	CompanyCandidateID   pgtype.UUID        `json:"company_candidate_id"`
 	CompanyCandidateCvID pgtype.UUID        `json:"company_candidate_cv_id"`
 	AddedBy              pgtype.UUID        `json:"added_by"`
+	CorrectedCompanyCvID pgtype.UUID        `json:"corrected_company_cv_id"`
 }
 
 type ProfileLanguageName struct {
