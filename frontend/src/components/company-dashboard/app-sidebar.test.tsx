@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -8,10 +8,14 @@ import { join } from "node:path";
 // Route awareness comes from the App Router pathname hook; the suite drives it
 // directly instead of mounting the router. The create action still navigates
 // through a native GET form, so no imperative navigation is exercised here.
-const { pathnameMock } = vi.hoisted(() => ({
+const { pathnameMock, identityMock, companyMock } = vi.hoisted(() => ({
   pathnameMock: vi.fn<() => string | null>(() => "/empresa/dashboard"),
+  identityMock: vi.fn(),
+  companyMock: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
+vi.mock("@/features/identity/identity-session", () => ({ useIdentity: identityMock }));
+vi.mock("@/features/employer-company/actions", () => ({ loadCompanyStateAction: companyMock }));
 
 import { AppSidebar } from "./app-sidebar";
 import { SidebarProvider } from "./ui/sidebar";
@@ -120,6 +124,19 @@ function groupDestinations(label: string): string[] {
     .filter((node) => node.closest("form") === null)
     .map((node) => node.textContent?.trim() ?? "");
 }
+
+const realIdentity = {
+  status: "ready",
+  result: { ok: true, data: { role: "recruiter", user: { id: "user-1", full_name: "Ana Pérez", email: "ana@empresa.mx" } } },
+};
+const realCompany = {
+  kind: "exists", role: "owner", industryLabel: "Tecnología",
+  company: { id: "company-1", name: "Empresa Real", rfc: "ABC123456789", industry_id: "i", status: "active", location: null, updated_at: "2026-10-20T12:00:00Z" },
+};
+beforeEach(() => {
+  identityMock.mockReturnValue(realIdentity);
+  companyMock.mockReset().mockReturnValue(new Promise(() => {}));
+});
 
 afterEach(() => {
   cleanup();
@@ -423,7 +440,7 @@ describe("company dashboard sidebar create action", () => {
   it("supplies useful account destinations instead of the generic placeholder menu", () => {
     // Base UI menu positioning cannot settle in jsdom (see nav-user.test).
     // Browser coverage exercises the actual portal and keyboard navigation.
-    expect(source).toContain("<NavUser user={data.user} menuItems={ACCOUNT_MENU} />");
+    expect(source).toContain("menuItems={ACCOUNT_MENU}");
     for (const [label, href] of [["Configuración", "/empresa/configuracion"], ["Equipo", "/empresa/equipo"], ["Sitio de empleo", "/empresa/sitio"]]) {
       expect(source).toContain(`title: "${label}", href: "${href}"`);
     }
@@ -433,31 +450,101 @@ describe("company dashboard sidebar create action", () => {
 describe("company dashboard sidebar account identity", () => {
   beforeEach(stubBrowserApis);
 
-  it("identifies the agreed employer account instead of the retained demo account", () => {
+  it("renders the signed-in name, email, initials and real company, never the prototype account", async () => {
+    companyMock.mockResolvedValue(realCompany);
     renderSidebar();
 
-    expect(screen.getByText("Tomás Ríos")).toBeInTheDocument();
-    // The account summary carries the agreed role and employer as real text, so
-    // the role is part of the trigger's accessible name.
-    expect(screen.getByText("Talent Lead · Nexo Labs")).toBeInTheDocument();
-    // The account fallback lives in the sidebar footer primitive and stays
-    // coherent with the account name.
-    expect(screen.getByText("TR")).toBeInTheDocument();
-
-    expect(screen.queryByText("Camila Núñez")).toBeNull();
-    expect(screen.queryByText("camila.nunez@nexolabs.com")).toBeNull();
-    expect(screen.queryByText("CN")).toBeNull();
-    expect(screen.queryByText("shadcn")).toBeNull();
-    expect(screen.queryByText("m@example.com")).toBeNull();
+    const trigger = screen.getByRole("button", { name: /Ana Pérez/ });
+    expect(trigger).toHaveTextContent("ana@empresa.mx");
+    expect(await screen.findByText("Empresa Real")).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Empresa Real");
+    expect(screen.getByText("AP")).toHaveAttribute("data-slot", "avatar-fallback");
+    expect(document.body).not.toHaveTextContent(/Tomás Ríos|tomas\.rios|Talent Lead|Nexo Labs/);
+    expect(companyMock).toHaveBeenCalledTimes(1);
   });
 
-  it("binds the agreed employer identity from its account data source", () => {
-    expect(source).toContain('name: "Tomás Ríos"');
-    expect(source).toContain('email: "tomas.rios@nexolabs.mx"');
-    expect(source).toContain('role: "Talent Lead"');
-    expect(source).toContain('company: "Nexo Labs"');
-    expect(source).not.toContain("Camila");
-    expect(source).not.toContain("camila.nunez");
+  it("uses the candidate account's neutral treatment while identity is loading", () => {
+    identityMock.mockReturnValue({ status: "loading" });
+    renderSidebar();
+    expect(screen.getByRole("button", { name: /Mi cuenta/ })).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/Ana Pérez|ana@empresa.mx|Tomás|Nexo Labs|Talent Lead/);
+    expect(companyMock).not.toHaveBeenCalled();
+  });
+
+  it("stays neutral when an identity result has no user", () => {
+    identityMock.mockReturnValue({ status: "ready", result: { ok: true, data: { role: "recruiter" } } });
+    renderSidebar();
+    expect(screen.getByRole("button", { name: /Mi cuenta/ })).toBeInTheDocument();
+    expect(companyMock).not.toHaveBeenCalled();
+  });
+
+  it("shows real identity without a company line while membership is loading", () => {
+    companyMock.mockReturnValue(new Promise(() => {}));
+    renderSidebar();
+    expect(screen.getByRole("button", { name: /Ana Pérez/ })).toHaveTextContent("ana@empresa.mx");
+    expect(document.body).not.toHaveTextContent(/Empresa Real|Nexo Labs|Talent Lead/);
+  });
+
+  it("omits the company line for a non-member", async () => {
+    companyMock.mockResolvedValue({ kind: "none", industries: [] });
+    await act(async () => { renderSidebar(); });
+    const trigger = screen.getByRole("button", { name: /Ana Pérez/ });
+    expect(trigger).toHaveTextContent("ana@empresa.mx");
+    expect(trigger.querySelectorAll(".grid > span")).toHaveLength(2);
+    expect(document.body).not.toHaveTextContent(/Empresa Real|Nexo Labs|Talent Lead| · /);
+  });
+
+  it.each(["none", "unauthenticated", "server_error", "no_response", "unrecognized_response"])("keeps identity without inventing a company on %s", async kind => {
+    companyMock.mockResolvedValue({ kind, reference: {} });
+    await act(async () => { renderSidebar(); });
+    expect(screen.getByRole("button", { name: /Ana Pérez/ })).toHaveTextContent("ana@empresa.mx");
+    expect(document.body).not.toHaveTextContent(/Empresa Real|Nexo Labs|Talent Lead/);
+  });
+
+  it("keeps identity and omits company when the company request rejects", async () => {
+    companyMock.mockRejectedValue(new Error("private upstream detail"));
+    await act(async () => { renderSidebar(); });
+    expect(screen.getByRole("button", { name: /Ana Pérez/ })).toHaveTextContent("ana@empresa.mx");
+    expect(document.body).not.toHaveTextContent(/Empresa Real|Nexo Labs|private upstream detail/);
+  });
+
+  it("shows a signed-in candidate's identity without company lookup or employer navigation", () => {
+    identityMock.mockReturnValue({ ...realIdentity, result: { ok: true, data: { ...realIdentity.result.data, role: "candidate" } } });
+    renderSidebar();
+    expect(screen.getByRole("button", { name: /Ana Pérez/ })).toHaveTextContent("ana@empresa.mx");
+    expect(screen.queryByRole("link", { name: "Vacantes" })).toBeNull();
+    expect(companyMock).not.toHaveBeenCalled();
+  });
+
+  it("discards a previous account's company and ignores its late response after switching accounts", async () => {
+    let resolvePrevious!: (state: typeof realCompany) => void;
+    companyMock.mockReturnValueOnce(new Promise(resolve => { resolvePrevious = resolve; }));
+    const view = renderSidebar();
+    identityMock.mockReturnValue({ ...realIdentity, result: { ok: true, data: { ...realIdentity.result.data, user: { id: "user-2", full_name: "Luz Díaz", email: "luz@otra.mx" } } } });
+    companyMock.mockResolvedValue({ kind: "none", industries: [] });
+    await act(async () => { view.rerender(<SidebarProvider><AppSidebar /></SidebarProvider>); });
+    await act(async () => { resolvePrevious(realCompany); });
+    expect(screen.getByRole("button", { name: /Luz Díaz/ })).toHaveTextContent("luz@otra.mx");
+    expect(document.body).not.toHaveTextContent(/Ana Pérez|Empresa Real/);
+    expect(companyMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears membership through sign-out even when the same account signs back in", async () => {
+    companyMock.mockResolvedValueOnce(realCompany);
+    const view = renderSidebar();
+    expect(await screen.findByText("Empresa Real")).toBeInTheDocument();
+    identityMock.mockReturnValue({ status: "unauthenticated" });
+    view.rerender(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    expect(screen.getByRole("button", { name: /Mi cuenta/ })).toBeInTheDocument();
+    expect(screen.queryByText("Empresa Real")).toBeNull();
+    identityMock.mockReturnValue(realIdentity);
+    view.rerender(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    expect(screen.getByRole("button", { name: /Ana Pérez/ })).toHaveTextContent("ana@empresa.mx");
+    expect(screen.queryByText("Empresa Real")).toBeNull();
+  });
+
+  it("never embeds prototype account data in the sidebar", () => {
+    expect(source).not.toMatch(/Tomás Ríos|tomas\.rios|Talent Lead|Nexo Labs/);
   });
 
   it("carries no stock avatar in the account data source", () => {
@@ -476,7 +563,7 @@ describe("company dashboard sidebar account identity", () => {
       document.querySelectorAll("img[src*='avatars']"),
     ).toHaveLength(0);
 
-    const fallback = screen.getByText("TR");
+    const fallback = screen.getByText("AP");
     expect(fallback).toHaveAttribute("data-slot", "avatar-fallback");
     expect(fallback.className).toContain("bg-primary");
     expect(fallback.className).toContain("text-primary-foreground");

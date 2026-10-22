@@ -94,6 +94,22 @@ describe("company dashboard account summary identity", () => {
     expect(source).toContain("{user.email}");
   });
 
+  it("can show email and a separate company line without changing default callers", () => {
+    render(<SidebarProvider><NavUser user={{ name: "Ana Pérez", email: "ana@empresa.mx", role: "Propietario", company: "Empresa Real" }} secondaryText="ana@empresa.mx" showCompany /></SidebarProvider>);
+    const trigger = screen.getByRole("button", { name: /Ana Pérez/ });
+    expect(trigger).toHaveTextContent("ana@empresa.mx");
+    expect(trigger).toHaveTextContent("Empresa Real");
+    expect(trigger).not.toHaveTextContent(" · ");
+    expect(trigger.className).toContain("h-auto");
+  });
+
+  it("omits an empty company instead of showing a trailing separator", () => {
+    render(<SidebarProvider><NavUser user={{ name: "Ana Pérez", email: "ana@empresa.mx", role: "Empresa", company: "" }} showCompany /></SidebarProvider>);
+    const trigger = screen.getByRole("button", { name: /Ana Pérez/ });
+    expect(trigger).toHaveTextContent("Empresa");
+    expect(trigger).not.toHaveTextContent(" · ");
+  });
+
   it("keeps no trace of the retained demo account", () => {
     expect(source).not.toContain(">CN<");
     expect(source).not.toContain("camila");

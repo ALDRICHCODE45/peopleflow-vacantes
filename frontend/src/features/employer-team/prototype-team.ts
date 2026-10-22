@@ -9,9 +9,9 @@ import type { TeamMember } from "./model";
  *
  * The member-account status is prototype-local demo state: the backend has no
  * member-account-status vocabulary, so `active` and `invited` describe this
- * prototype only. Tomás Ríos is the workspace owner account already shown in
- * the sidebar; his system role is `owner` while his employment title is Talent
- * Lead. Recruiter workloads mirror the fictional Nexo Labs vacancy portfolio.
+ * prototype only. Tomás Ríos is this fictional team's owner, not the signed-in
+ * account shown in the sidebar; his prototype role is `owner` while his
+ * employment title is Talent Lead. Recruiter workloads are fictional too.
  */
 const NEXO_TEAM_SOURCE: readonly TeamMember[] = [
   {

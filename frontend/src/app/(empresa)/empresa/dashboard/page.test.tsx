@@ -185,25 +185,16 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
     }
   });
 
-  it("renders the employer account in the sidebar footer", () => {
+  it("renders the signed-in account in the sidebar footer, never a prototype account", () => {
     render(<EmployerDashboardPage />);
 
-    expect(screen.getByText("Tomás Ríos")).toBeInTheDocument();
-    expect(screen.getByText("Talent Lead · Nexo Labs")).toBeInTheDocument();
-
-    // The footer identity is an Avatar + DropdownMenuTrigger composition: the
-    // trigger exposes the identity, and the avatar slot is present with its
-    // required fallback (jsdom never loads the remote image, so the fallback is
-    // what actually renders here).
+    // Without a resolved identity the footer stays neutral; the real name,
+    // email and company come from /v2/me and /me/company (app-sidebar tests).
+    expect(screen.getByRole("button", { name: /Mi cuenta/ })).toBeInTheDocument();
     expect(document.querySelectorAll("[data-slot='avatar']").length).toBeGreaterThan(0);
-    expect(screen.getByText("TR")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Tomás Ríos/ }),
-    ).toBeInTheDocument();
-
-    expect(screen.queryByText("Camila Núñez")).toBeNull();
-    expect(screen.queryByText("shadcn")).toBeNull();
-    expect(screen.queryByText("m@example.com")).toBeNull();
+    for (const prototype of ["Tomás Ríos", "Talent Lead · Nexo Labs", "tomas.rios@nexolabs.mx", "Camila Núñez", "shadcn", "m@example.com"]) {
+      expect(screen.queryByText(prototype)).toBeNull();
+    }
   });
 
   it("renders the block's header with its section heading", () => {
@@ -708,7 +699,7 @@ describe("dashboard-01 account avatar identity", () => {
     expect(fallbacks.length).toBeGreaterThan(0);
 
     for (const fallback of fallbacks) {
-      expect(fallback.textContent?.trim()).toBe("TR");
+      expect(fallback.textContent?.trim()).toBe("MC");
       expect(fallback.className).toContain("bg-primary");
       expect(fallback.className).toContain("text-primary-foreground");
       expect(fallback.className).not.toMatch(/oklch\(|#[0-9a-fA-F]{3,8}\b|rgba?\(/);
