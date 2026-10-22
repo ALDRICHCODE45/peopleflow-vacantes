@@ -15,7 +15,7 @@ Branch `feat/profile-harmonization` stacked on `feat/manual-intake` 14a4439. Des
 - [x] T2 — H1: language catalog + candidate profile — 346858c (H1a), 0cfc17e (00039), c80e6b6 (storage), this commit (API)
 - [x] T3 — H2: manual intake fields — 00040 + contract commits (L12)
 - [x] T4 — H3: vacancy requirements + public exposure — b04d984 (00041), e4c0656 (draft fields), 00042 + public exposure commits (L17)
-- [ ] T5 — H4: participation snapshot + board filter data — pending
+- [x] T5 — H4: participation snapshot + board filter data — a0de8a2, 2b38707 (00043), 8d32389
 - [ ] T6 — S3 / H5: public search filters language, seniority, years_of_experience, education_level — pending
 
 ## Log
