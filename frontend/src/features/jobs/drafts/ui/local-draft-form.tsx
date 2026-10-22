@@ -747,15 +747,16 @@ export function LocalDraftForm({
                       <FieldDescription id="draft-min-years-help">Mínimo requerido; puedes usar decimales, por ejemplo 1.5.</FieldDescription>
                       <FieldError id="draft-min-years-error">{errors.min_years_of_experience}</FieldError>
                     </Field>
-                    <DraftSelectField id="draft-min-education" label="Estudios mínimos" placeholder="Sin especificar" options={[{ value: "", label: "Sin especificar" }, ...EDUCATION_LEVELS.map(value => ({ value, label: EDUCATION_LEVEL_LABELS[value] }))]} value={state.min_education_level} error={errors.min_education_level} onChange={value => applyState(previous => ({ ...previous, min_education_level: value }), ["min_education_level"])} />
+                    <DraftSelectField id="draft-min-education" label="Estudios mínimos" placeholder="Sin especificar" options={[{ value: "", label: "Sin especificar" }, ...EDUCATION_LEVELS.map(value => ({ value, label: EDUCATION_LEVEL_LABELS[value] }))]} value={state.min_education_level} error={errors.min_education_level} onChange={value => applyState(previous => ({ ...previous, min_education_level: value, accepts_in_progress_education: value ? previous.accepts_in_progress_education : false }), ["min_education_level", "accepts_in_progress_education"])} />
                   </FieldGroup>
-                  <Field data-invalid={!!errors.accepts_in_progress_education}>
+                  {/* Only meaningful once a minimum level exists; kept visible when checked or reported by the server. */}
+                  {(state.min_education_level || state.accepts_in_progress_education || errors.accepts_in_progress_education) && <Field data-invalid={!!errors.accepts_in_progress_education}>
                     <Field orientation="horizontal">
                       <Checkbox id="draft-accepts-in-progress" checked={state.accepts_in_progress_education} aria-invalid={!!errors.accepts_in_progress_education} aria-describedby="draft-accepts-in-progress-error" onCheckedChange={checked => applyState(previous => ({ ...previous, accepts_in_progress_education: checked }), ["accepts_in_progress_education"])} />
                       <FieldLabel htmlFor="draft-accepts-in-progress">Acepta estudios en curso</FieldLabel>
                     </Field>
                     <FieldError id="draft-accepts-in-progress-error">{errors.accepts_in_progress_education}</FieldError>
-                  </Field>
+                  </Field>}
                 </FieldGroup>
               </DraftStepSection>
 

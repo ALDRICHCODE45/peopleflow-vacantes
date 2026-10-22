@@ -24,7 +24,8 @@ it("places minimum experience and education in requirements without publication 
   expect(screen.getByLabelText("Experiencia mínima (años)")).toHaveValue("");
   expect(screen.getByText("Mínimo requerido; puedes usar decimales, por ejemplo 1.5.")).toBeVisible();
   expect(screen.getByRole("combobox", { name: "Estudios mínimos" })).toBeVisible();
-  expect(screen.getByRole("checkbox", { name: "Acepta estudios en curso" })).not.toBeChecked();
+  // Without a minimum education level there is nothing to accept in progress.
+  expect(screen.queryByRole("checkbox", { name: "Acepta estudios en curso" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
   expect(screen.getByRole("combobox", { name: "Idioma 1" })).toBeVisible();
   expect(screen.getByRole("combobox", { name: "Nivel mínimo del idioma 1" })).toBeVisible();
@@ -37,22 +38,28 @@ it("lets an optional minimum education be cleared after selection", () => {
   const field = control.closest('[data-slot="field"]') as HTMLElement;
   expect(within(field).getByRole("option", { name: "Sin especificar" })).toBeTruthy();
 });
+/** Requirements read like the glance facts: a `dl` row with an icon in the term and the value in its `dd`. */
+function fact(label: string) {
+  const term = screen.getByText(label, { selector: "[data-requirements-profile] dt" });
+  expect(term.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+  return term.nextElementSibling as HTMLElement;
+}
 it("projects requirements into the draft public preview and handles singular/native", () => {
   const model = createDraftModel();
   Object.assign(model.fields, { seniority: "director", languages: [{ code: "en", min_level: "native" }], min_years_of_experience: "1.0", min_education_level: "bachelor", accepts_in_progress_education: false });
   render(<PublicJobDetailView preview job={draftToPublicDetail(initialDraftFormState(model))} />);
   expect(screen.getByText("Director")).toBeVisible();
-  expect(screen.getByText("Idiomas: Inglés Nativo")).toBeVisible();
-  expect(screen.getByText("Experiencia mínima: 1 año")).toBeVisible();
-  expect(screen.getByText("Estudios: Licenciatura o Ingeniería concluida")).toBeVisible();
+  expect(fact("Idiomas")).toHaveTextContent("Inglés Nativo");
+  expect(fact("Experiencia mínima")).toHaveTextContent("1 año");
+  expect(fact("Estudios mínimos")).toHaveTextContent("Licenciatura o Ingeniería concluida");
 });
 it("shows catalog language minima, decimal years and completed education publicly", () => {
   const job = { ...vacancyDetail, seniority: "semi_senior" as const, requirements_profile: { languages: [{ code: "en", min_level: "B2" as const }], min_years_of_experience: "1.5", min_education_level: "bachelor" as const, accepts_in_progress_education: true } };
   render(<PublicJobDetailView job={job} />);
   expect(screen.getByText("Semi-senior")).toBeVisible();
-  expect(screen.getByText("Idiomas: Inglés B2 o más")).toBeVisible();
-  expect(screen.getByText("Experiencia mínima: 1.5 años")).toBeVisible();
-  expect(screen.getByText("Estudios: Licenciatura o Ingeniería concluida (acepta en curso)")).toBeVisible();
+  expect(fact("Idiomas")).toHaveTextContent("Inglés B2 o más");
+  expect(fact("Experiencia mínima")).toHaveTextContent("1.5 años");
+  expect(fact("Estudios mínimos")).toHaveTextContent("Licenciatura o Ingeniería concluida (acepta en curso)");
 });
 it.each([
   ["fields.seniority", "Nivel"],
@@ -79,4 +86,10 @@ it("routes server requirement errors and focuses the first visually invalid cont
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalled());
   await waitFor(() => expect(screen.getByLabelText("Experiencia mínima (años)")).toHaveFocus());
   expect(screen.getByLabelText("Experiencia mínima (años)")).toHaveAttribute("aria-invalid", "true");
+});
+it("offers «Acepta estudios en curso» only once a minimum education level is chosen", () => {
+  const model = createDraftModel(); model.fields.min_education_level = "bachelor"; model.fields.accepts_in_progress_education = true;
+  render(<LocalDraftForm initialModel={model} />);
+  fireEvent.click(screen.getByRole("tab", { name: "Descripción y perfil" }));
+  expect(screen.getByRole("checkbox", { name: "Acepta estudios en curso" })).toBeChecked();
 });
