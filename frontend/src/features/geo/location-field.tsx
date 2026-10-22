@@ -43,13 +43,14 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, requ
   const [text, setText] = useState(selected?.name ?? "");
   const shown = selected?.name ?? "";
   useEffect(() => { setText(shown); }, [shown]);
+  // Text left by typing or clearing without choosing must not hide the stored selection: restore it on blur.
   return <Field data-invalid={!!error} data-disabled={disabled} aria-busy={loading}>
     <FieldLabel htmlFor={id}>{label}{required && requiredIndicator}</FieldLabel>
     {loading ? <><Skeleton aria-hidden="true" className="h-10 w-full" /><span role="status" className="sr-only">Cargando {label.toLowerCase()}</span></> :
       <Combobox items={items} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
         value={selected} onValueChange={item => { if (item) onChange(item.id); }} inputValue={text} onInputValueChange={ignoreEscapeClear(setText)} disabled={disabled} autoHighlight>
         {/* Selecting the shown name on focus lets typing replace it instead of appending to it. */}
-        <ComboboxInput id={id} placeholder={label === "País" ? "Elige un país" : `Elige ${label.toLowerCase()}`} className="min-h-10" onFocus={event => event.currentTarget.select()} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={[description && `${id}-help`, error && `${id}-error`].filter(Boolean).join(" ") || undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
+        <ComboboxInput id={id} placeholder={label === "País" ? "Elige un país" : `Elige ${label.toLowerCase()}`} className="min-h-10" onFocus={event => event.currentTarget.select()} onBlur={() => setText(shown)} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={[description && `${id}-help`, error && `${id}-error`].filter(Boolean).join(" ") || undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
         <ComboboxContent><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(item: GeoReference) => <ComboboxItem key={item.id} value={item}>{item.name}</ComboboxItem>}</ComboboxList></ComboboxContent>
       </Combobox>}
     {description && <FieldDescription id={`${id}-help`}>{description}</FieldDescription>}

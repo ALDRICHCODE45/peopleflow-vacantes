@@ -70,3 +70,13 @@ it("asks to choose a level for each language instead of offering «Sin especific
   expect(screen.queryByText("Sin especificar")).toBeNull();
   expect(screen.getByLabelText("Nivel del idioma 1").textContent).toContain("Elige un nivel");
 });
+it("restores the chosen language name when its text is cleared and the field loses focus", async () => {
+  const user = userEvent.setup(); render(<><Editor /><button type="button">Fuera</button></>);
+  await user.click(screen.getByRole("button", { name: "Agregar idioma" }));
+  await user.type(screen.getByRole("combobox", { name: "Idioma 1" }), "Esp");
+  await user.click(await screen.findByRole("option", { name: "Español" }));
+  await user.clear(screen.getByRole("combobox", { name: "Idioma 1" }));
+  await user.click(screen.getByRole("button", { name: "Fuera" }));
+  expect(screen.getByRole("status", { name: "Valores" }).textContent).toContain('"code":"es"');
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Idioma 1" }) as HTMLInputElement).value).toBe("Español"));
+});

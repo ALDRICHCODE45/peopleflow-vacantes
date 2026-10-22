@@ -218,3 +218,12 @@ it("never rewrites a saved location whose postal code already matches its state 
   await new Promise(resolve => setTimeout(resolve, 50));
   expect(onChange).not.toHaveBeenCalled();
 });
+it("restores the chosen name when its text is cleared and the field loses focus", async () => {
+  render(<><Harness /><button type="button">Fuera</button></>);
+  const country = await screen.findByRole("combobox", { name: "País" });
+  await waitFor(() => expect(country).toHaveValue("México"));
+  await userEvent.clear(country);
+  await userEvent.click(screen.getByRole("button", { name: "Fuera" }));
+  expect(value().country).toBe("MX");
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "País" })).toHaveValue("México"));
+});
