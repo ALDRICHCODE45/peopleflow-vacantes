@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/google/uuid"
 )
 
@@ -18,9 +19,9 @@ type candidateEditFixture struct {
 	path                      string
 }
 
-func newCandidateEditFixture(t *testing.T) *candidateEditFixture {
+func newCandidateEditFixture(t *testing.T, files ...*cvstorage.Local) *candidateEditFixture {
 	t.Helper()
-	h := newDraftFlowHarness(t)
+	h := newDraftFlowHarness(t, files...)
 	company, ownerID, ownerSub := draftFlowNewPrincipal(t, h.pool, "active")
 	rid, rsub := company.addUser(t, "recruiter")
 	_, fid, fsub := draftFlowNewPrincipal(t, h.pool, "active")

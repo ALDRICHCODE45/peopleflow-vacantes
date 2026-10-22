@@ -7,15 +7,16 @@ import (
 	"strings"
 	"testing"
 
+	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 )
 
 const organicEditSnapshot = `{"location":{"country":"US","state":null,"municipality":null},"skills":["frozen"],"years_of_experience":"2","seniority":"junior","education":{"highest_completed":"bachelor","in_progress":null},"languages":[{"code":"en","level":"B1"}]}`
 
-func newOrganicEditFixture(t *testing.T) *candidateEditFixture {
+func newOrganicEditFixture(t *testing.T, files ...*cvstorage.Local) *candidateEditFixture {
 	t.Helper()
-	base := newCandidateEditFixture(t)
+	base := newCandidateEditFixture(t, files...)
 	copy := *base
 	f := &copy
 	f.id = uuid.New()

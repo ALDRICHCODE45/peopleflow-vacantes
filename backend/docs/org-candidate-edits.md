@@ -1,7 +1,7 @@
 # Org candidate edits — audited internal corrections (DRAFT)
 
-Status: **contract approved; E1 implemented; E2 implemented pending parent DB acceptance**.
-E3 (corrected CV) and E4 (board projections) remain later cuts. Extends
+Status: **contract approved; E1/E2 accepted; E3 implemented pending parent DB acceptance**.
+E4 (board projections) remains the next cut. Extends
 [org-candidates.md](org-candidates.md) (SRCH-4, AUD-1). Feature document:
 `odd/tasks/org-candidate-edits.md`.
 
@@ -215,6 +215,76 @@ go test -tags=integration ./cmd/api -run '^Test(OrgCandidatesFlow$|ManualCreateH
 
 Migration tests create their own loopback `draft_test_mig_*` database and require
 CREATEDB. All fixtures clean up only their own rows/catalog additions.
+
+## E3 implementation notes
+
+Apply migration **00046** before these pool reads/writes. The nullable
+`process_participations.corrected_company_cv_id` is an additive company-owned
+reference: neither original CV reference is overwritten. Old corrected objects
+remain stored, and each upload keeps a private `cv_corrected` history entry.
+The guarded Down refuses corrected references or CV history, preserving ordinary
+edit history through a clean Down/Up round trip.
+
+- POST accepts exactly one multipart `cv`, using intake's in-memory 5,242,880-byte
+  file and 64 KiB envelope budgets. The **same composition-root inspector and
+  storage ports** as manual intake enforce PDF/DOCX content sniffing and storage
+  policy. Missing CV uses `validation_error` (`cv` / `required`); malformed,
+  unknown or repeated parts use `invalid_request`. Inspection errors have no
+  fields: 400 `cv_content_mismatch`, 415 `cv_unsupported_type`, 413 `cv_too_large`;
+  disabled storage is 503 `cv_storage_unavailable`.
+- Candidate/company/participation membership is checked before private storage.
+  Missing If-Match is 428; the exact strong token is compared under the **same
+  manual candidate / organic correction lock and version** as profile edits.
+  Uploads serialize with profile edits and each other, including first organic
+  writes. Successful POST returns 200, full pool detail and matching header/body
+  ETag. Every upload advances provenance/version, even for repeated bytes.
+- The object is stored before the CV reference/version/history/audit co-write.
+  Storage shares reconciliation advisory lock `75210410021`. Definite pre-commit
+  failures compensate the new object, joining cleanup failures with the cause;
+  uncertain Commit failures retain it for reconciliation, as manual intake does.
+- Detail's current `cv` has `source:"candidate"` without a correction (including
+  company-owned manual-intake originals), or `source:"company"` with one.
+  `original_cv` is a separate two-key value, null when never corrected or when
+  original metadata is absent. Current/original downloads retain today's MIME,
+  filename-extension, length, nosniff and no-store headers. Original download
+  works even before a correction and is 404 when no original is available.
+- CV history uses the existing company-bound pagination and omits `changes`;
+  it contains `participation_id`, `file_name`, `at` and `actor`. Shared
+  `CompanyCandidateCVCorrected` audit metadata contains only participation ID,
+  never filenames or CV content. Candidate CV library/version rows and original
+  company CV objects remain untouched. **Board routes/shapes are unchanged.**
+
+### E3 validation boundary
+
+Observed RED: five absent-route/no-store HTTP checks and missing migration
+00046. GREEN: those six checks; manual/organic HTTP validation/composition,
+PDF/DOCX, gates, 428/412/404/503, current/original headers; focused pool regression,
+full unit suite, both vet modes, sqlc regeneration and archguard. Initial full
+suite exposed expected route-topology, formatting and generated-model drift;
+these were fixed without changing board registrations. No new log calls or
+dependencies.
+
+**DB tests are authored and vetted, not executed by the writer.** They cover
+real HTTP uploads/re-uploads, exact detail/history/pagination, current/original
+bytes/headers, unchanged originals/library/snapshots, company isolation, rejected
+uploads without side effects, rollback at CV/history/audit writes with file
+compensation, and deterministic first/existing manual/organic If-Match contention.
+Migration tests cover default/backfilled values, history CHECKs, both retention
+guards, and safe Down/Up preserving ordinary history and original CV references.
+
+Parent runs from `backend/`, injecting guarded `DRAFT_TEST_DATABASE_URL` for
+isolated `draft_test` externally; never source or print `.env`:
+
+```sh
+go test -tags=integration ./cmd/api -run '^TestOrgCandidateCV(Flow|Rejections|AtomicRollback|ConcurrentIfMatch)$' -count=1 -v
+go test -tags=integration ./cmd/api -run '^TestOrgCandidateCVConcurrentIfMatch$' -count=4 -v
+go test -tags=integration ./db/migrations -run '^TestOrgCandidateCVGuardedDown$' -count=1 -v
+go test -tags=integration ./db/migrations -run '^TestOrgCandidate(EditsBackfillAndGuardedDown|CorrectionsGuardedDown)$' -count=1 -v
+go test -tags=integration ./cmd/api -run '^Test(OrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidateCorrections(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+```
+
+Migration tests require CREATEDB and create isolated loopback `draft_test_mig_*`
+databases. Compilation/vet are not database acceptance; T4 awaits parent results.
 
 ## E2 implementation notes
 

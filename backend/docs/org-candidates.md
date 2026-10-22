@@ -9,7 +9,8 @@ The list, detail and participation-CV routes are wired. Feature document:
 
 - Routes: `GET /v2/me/company/candidates` (list) and
   `GET /v2/me/company/candidates/{kind}/{id}` (detail), plus
-  `GET /v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv`.
+  `GET /v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv`,
+  `GET …/cv/original` and `POST …/cv` (corrected upload; candidate If-Match).
 - Gates: `NoStore → RequireAuth → requireRecruiter`. **Every recruiter of the
   company sees the whole pool** (user decision); no owner-or-principal check,
   unlike the board. Another company's candidate, or an unknown one, is 404.
@@ -23,7 +24,7 @@ The list, detail and participation-CV routes are wired. Feature document:
   v1 never merges them (duplicates stay advisory, as in manual intake).
 - Nothing here leaves the company (SRCH-7). v1 was read-only; audited manual edits
   and company-only organic corrections are now implemented by
-  [org-candidate-edits.md](org-candidate-edits.md) (SRCH-4; E2 parent DB acceptance pending).
+  [org-candidate-edits.md](org-candidate-edits.md) (SRCH-4; E3 parent DB acceptance pending).
   That additive contract makes all pool values/search/filters effective.
 
 ## Profile source
@@ -122,7 +123,8 @@ filter options come from the existing catalogs (vacancy list, geo, languages).
                "discarded_at":"…"}|null,
     "source":"manual"|"organic","applied_at":"…",
     "added_by":{"id":"…","name":"…"}|null,
-    "cv":{"file_name":"cv.pdf","uploaded_at":"…"}|null}],
+    "cv":{"file_name":"cv.pdf","uploaded_at":"…","source":"candidate"|"company"}|null,
+    "original_cv":{"file_name":"original.pdf","uploaded_at":"…"}|null}],
  "created_by":{"id":"…","name":"Tomás Ríos"|null}|null,
  "created_at":"…"}
 ```
@@ -135,9 +137,14 @@ filter options come from the existing catalogs (vacancy list, geo, languages).
 - `created_by` / `created_at`: manual → the recruiter who created the record (name null
   if the account no longer exists) and its creation time; organic → `created_by` null and
   `created_at` = first participation `applied_at` in the company.
-- CV download: `…/participations/{participationId}/cv` streams the exact CV that
-  participation references (company CV or candidate CV version), after checking the
-  participation belongs to this candidate and company; 404 otherwise.
+- CV download: `…/participations/{participationId}/cv` streams the current CV
+  (corrected company CV if present, otherwise the original company CV or candidate
+  CV version). `…/cv/original` always streams the original, 404 if none. Both check
+  participation/candidate/company membership. `cv.source` is `company` only for
+  a correction, otherwise `candidate`; `original_cv` is null until corrected
+  (and when original metadata is absent). Upload/history rules and parent DB
+  commands are in [org-candidate-edits.md](org-candidate-edits.md), E3 notes.
+  These changes are pool-only; vacancy-board routes/shapes remain unchanged.
 - Unknown `kind` or malformed id: 404.
 
 ## T2 implementation notes and test map

@@ -283,7 +283,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,
 		draftListHandler:     jobshttp.NewDraftListHandler(store),
-		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(files))),
+		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(files))).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		pipelineHandler:      jobshttp.NewPipelineHandler(store),
 		substatesHandler:     jobshttp.NewSubstatesHandler(store),
 		deliveryHandler:      jobshttp.NewDeliveryHandler(store),

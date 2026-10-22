@@ -228,7 +228,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			}
 			orgCandidateKeys(t, d["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
 			for _, raw := range d["participations"].([]any) {
-				p := orgCandidateKeys(t, raw, "id", "vacancy", "stage", "state", "substate", "discard", "source", "applied_at", "added_by", "cv")
+				p := orgCandidateKeys(t, raw, "id", "vacancy", "stage", "state", "substate", "discard", "source", "applied_at", "added_by", "cv", "original_cv")
 				v := orgCandidateKeys(t, p["vacancy"], "id", "title", "lifecycle")
 				orgCandidateKeys(t, v["lifecycle"], "publication", "process")
 				orgCandidateKeys(t, p["stage"], "id", "name")
@@ -236,7 +236,10 @@ func TestOrgCandidatesFlow(t *testing.T) {
 					orgCandidateKeys(t, p["substate"], "id", "name")
 				}
 				if p["cv"] != nil {
-					orgCandidateKeys(t, p["cv"], "file_name", "uploaded_at")
+					cv := orgCandidateKeys(t, p["cv"], "file_name", "uploaded_at", "source")
+					if cv["source"] != "candidate" || p["original_cv"] != nil {
+						t.Fatal(p)
+					}
 				}
 				if p["added_by"] != nil {
 					orgCandidateKeys(t, p["added_by"], "id", "name")
