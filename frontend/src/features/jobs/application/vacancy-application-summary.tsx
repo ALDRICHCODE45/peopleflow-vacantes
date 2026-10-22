@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ApplicationSalary } from "./application-salary";
 
 import { companyInitials } from "../components/prototype-ui";
-import type { PrototypeJobView } from "../enrich";
+import type { ApplicationJobView } from "../enrich";
 import {
   employmentTypeLabel,
   seniorityLabel,
@@ -21,7 +21,7 @@ import {
  * can slot it into the client wizard rail without shipping it twice.
  */
 type VacancyApplicationSummaryProps = {
-  job: PrototypeJobView;
+  job: ApplicationJobView;
 };
 
 /** Shared shape of one term/value row in the summary rail. */

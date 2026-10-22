@@ -2,11 +2,12 @@
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { getLifecycle, transitionLifecycle, type LifecycleResult, type TransitionInput } from "./client";
+import type { CloseBody } from "./model";
 import { mapLifecycleFailure, type LifecycleActionFailure } from "./failure";
 
 export type LifecycleActionResult = Extract<LifecycleResult, { ok: true }> | LifecycleActionFailure;
 export type LifecycleTransitionActionInput = Omit<TransitionInput, "token" | "action" | "body"> & (
-  | { action: "close"; body: { process: "continue" | "finish" } }
+  | { action: "close"; body: CloseBody }
   | { action: "pause" | "resume" | "finish_process" | "reopen"; body: Record<string, never> }
 );
 async function withSession(run: (token: string) => Promise<LifecycleResult>): Promise<LifecycleActionResult> {

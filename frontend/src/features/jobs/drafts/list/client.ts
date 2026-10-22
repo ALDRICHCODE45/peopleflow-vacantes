@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { closeReasonSchema } from "@/features/vacancy-lifecycle/model";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
@@ -29,6 +30,8 @@ const rowSchema = z.object({
   published_at: timestamp.nullable(),
   paused_at: timestamp.nullable(),
   closed_at: timestamp.nullable(),
+  close_reason: closeReasonSchema.nullable(),
+  close_reason_note: z.string().nullable(),
   process_finished_at: timestamp.nullable(),
   candidates: candidatesSchema.nullable(),
   work_mode: z.enum(["onsite", "remote", "hybrid"]).nullable(),

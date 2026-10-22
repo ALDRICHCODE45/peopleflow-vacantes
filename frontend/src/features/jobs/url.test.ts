@@ -12,7 +12,7 @@ describe("canonical v2 public query", () => {
     expect(buildJobsUrl({})).toBe("/vacantes");
   });
   it("omits unknown, obsolete, invalid, empty and repeated values", () => {
-    expect(parseJobsQuery("foo=bar&seniority=senior&currency=MXN&employment_type=full_time&language=en&q=&work_mode=remote&contract_type=bad&work_schedule=bad&professional_area=bad")).toEqual({ work_mode: ["remote"] });
+    expect(parseJobsQuery("foo=bar&seniority=mid&currency=MXN&employment_type=full_time&language=EN&q=&work_mode=remote&contract_type=bad&work_schedule=bad&professional_area=bad")).toEqual({ work_mode: ["remote"] });
     for (const [key, value] of Object.entries(filters)) {
       expect(parseJobsQuery(`${key}=${value}&${key}=${value}`)).toEqual(["state", "work_mode"].includes(key) ? { [key]: [value] } : {});
     }
@@ -34,7 +34,7 @@ describe("canonical v2 public query", () => {
   it("canonical checking rejects stale links before any request, independent of key order", () => {
     expect(isCanonicalJobsQuery(raw)).toBe(true);
     expect(isCanonicalJobsQuery("work_mode=hybrid&q=Go")).toBe(true);
-    for (const text of ["currency=MXN", "language=en", "employment_type=full_time", "limit=51", "q=%20Go", "q=a&q=b", "contract_type=contract"]) expect(isCanonicalJobsQuery(text)).toBe(false);
+    for (const text of ["currency=MXN", "language=EN", "employment_type=full_time", "limit=51", "q=%20Go", "q=a&q=b", "contract_type=contract"]) expect(isCanonicalJobsQuery(text)).toBe(false);
   });
   it("clears the cursor on every filter add/change/clear and preserves all other filters", () => {
     const values = { q: "React", state: "19", work_mode: "remote", work_schedule: "part_time", contract_type: "project", professional_area: "engineering" };

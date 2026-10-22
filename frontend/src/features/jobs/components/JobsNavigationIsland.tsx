@@ -18,6 +18,9 @@ import { buildFilterCommitUrl, selectedValues, type JobsQuery, type JobsFilterPa
 import { JobsGeoFields, JobsFilterChips, useJobsGeo } from "./JobsGeoFilters";
 import { CLEAR_SALARY_FILTER, hasSalaryFilter, JobsSalaryFilter, JobsSalaryFilterChip, validateSalaryFilter, type SalaryErrors } from "./JobsSalaryFilter";
 
+import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
+import { CLEAR_PROFILE_FILTERS, JobsProfileFilters, JobsProfileFilterChips, validateProfileFilters, type ProfileErrors } from "./JobsProfileFilters";
+
 /** URL-owned navigation; server-rendered results remain mounted during navigation. */
 export function JobsNavigationIsland({ children, routeKey, query }: { children: React.ReactNode; routeKey: string; query?: JobsQuery }) {
   const router = useRouter();
@@ -26,11 +29,14 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<JobsQuery>(query ?? {});
   const [draftRoute, setDraftRoute] = React.useState(routeKey);
+  const languages = useLanguageCatalog();
+  const [profileErrors, setProfileErrors] = React.useState<ProfileErrors>({});
   const [salaryErrors, setSalaryErrors] = React.useState<SalaryErrors>({});
   if (draftRoute !== routeKey) {
     setDraftRoute(routeKey);
     setDraft(query ?? {});
     setSalaryErrors({});
+    setProfileErrors({});
   }
   const geo = useJobsGeo(query ?? {}, draft);
   const updateDraft = (patch: JobsFilterPatch) => setDraft(old => ({ ...old, ...patch }));
@@ -60,8 +66,11 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
       if (typeof value === "string" && key !== "cursor") patch[key as keyof JobsFilterPatch] = value;
     }
     if (form.dataset.navIntent !== "search") {
-      const errors = validateSalaryFilter(patch);
-      setSalaryErrors(errors);
+      const salary = validateSalaryFilter(patch);
+      const profile = validateProfileFilters(patch);
+      const errors = { ...salary, ...profile };
+      setSalaryErrors(salary);
+      setProfileErrors(profile);
       const firstInvalidKey = Object.keys(errors)[0];
       if (firstInvalidKey) {
         form.querySelector<HTMLInputElement>(`[name="${firstInvalidKey}"]`)?.focus();
@@ -89,7 +98,7 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
   const status = <p role="status" aria-live="polite" className="min-h-6 text-sm text-muted-foreground">{pending ? "Cargando…" : ""}</p>;
   if (query === undefined) return <div onSubmitCapture={handleRootSubmitCapture} onClickCapture={handleRootClickCapture}>{status}{children}</div>;
 
-  const excludesLegacy = Boolean(query.work_schedule || query.contract_type || query.professional_area || selectedValues(query.state).length || selectedValues(query.municipality).length || hasSalaryFilter(query));
+  const excludesLegacy = Boolean(query.work_schedule || query.contract_type || query.professional_area || selectedValues(query.state).length || selectedValues(query.municipality).length || selectedValues(query.language).length || hasSalaryFilter(query));
   const activeCount = Object.entries(query).filter(([key]) => key !== "cursor" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).length, 0) + Number(hasSalaryFilter(query));
   const draftCount = Object.entries(draft).filter(([key]) => key !== "cursor" && key !== "q" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).filter(Boolean).length, 0) + Number(hasSalaryFilter(draft));
   const filterFields = (idPrefix: string) => <FieldGroup className="gap-4">
@@ -98,6 +107,8 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
     <FieldSet><FieldLegend variant="label"><BriefcaseBusinessIcon aria-hidden="true" className="inline size-4" /> Condiciones</FieldLegend><FieldGroup><FilterFields idPrefix={idPrefix} query={draft} onChange={updateDraft} /></FieldGroup></FieldSet>
     <Separator />
     <JobsSalaryFilter idPrefix={idPrefix} query={draft} onChange={updateDraft} errors={salaryErrors} />
+    <Separator />
+    <JobsProfileFilters idPrefix={idPrefix} query={draft} onChange={updateDraft} languages={languages} errors={profileErrors} />
     <p className="text-sm text-muted-foreground">Las opciones de un mismo filtro se suman. Entre filtros, las vacantes deben cumplir ambas condiciones.</p>
   </FieldGroup>;
   return <div data-jobs-navigation-island onSubmitCapture={handleRootSubmitCapture} onClickCapture={handleRootClickCapture} className="flex flex-col gap-6 md:-mx-[7px]">
@@ -117,6 +128,7 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
         {QUICK_FILTERS.map((item) => <ToggleGroupItem key={item.label} value={item.label} className="min-h-10" onClick={(event) => startNavigation(buildFilterCommitUrl(routeKey, item.patch), event.currentTarget, null)}>{item.label}</ToggleGroupItem>)}
       </ToggleGroup>
       <JobsFilterChips query={query} geo={geo} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)}>
+        <JobsProfileFilterChips query={query} languages={languages} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
         <JobsSalaryFilterChip query={query} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
       </JobsFilterChips>
       {geo.loaders}
@@ -168,7 +180,7 @@ function ComposedSearchField({ icon: Icon, id, label, name, defaultValue, placeh
 }
 
 const QUICK_FILTERS = [
-  { label: "Todas", patch: { ...CLEAR_SALARY_FILTER, q: "", state: [], municipality: [], applicant_country: "", work_mode: [], work_schedule: "", contract_type: "", professional_area: "" }, isActive: (query: JobsQuery) => Object.keys(query).length === 0 },
+  { label: "Todas", patch: { ...CLEAR_SALARY_FILTER, ...CLEAR_PROFILE_FILTERS, q: "", state: [], municipality: [], applicant_country: "", work_mode: [], work_schedule: "", contract_type: "", professional_area: "" }, isActive: (query: JobsQuery) => Object.keys(query).length === 0 },
   { label: "Remoto", patch: { work_mode: "remote" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("remote") },
   { label: "Híbrido", patch: { work_mode: "hybrid" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("hybrid") },
   { label: "Tiempo completo", patch: { work_schedule: "full_time" }, isActive: (query: JobsQuery) => query.work_schedule === "full_time" },

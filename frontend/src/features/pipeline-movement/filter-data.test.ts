@@ -7,7 +7,7 @@ import { applyFilters, filterChips, optionCount } from "./filters";
 import { applyParticipationToBoard } from "./helpers";
 
 const location = { country: { id: "MX", name: "México" }, state: { id: "14", name: "Jalisco" }, municipality: { id: "14039", name: "Guadalajara" }, postal_code: null, label: "Guadalajara, Jalisco" };
-const profile = { location, skills: ["Go", "Go"], years_of_experience: 0, education_level: "bachelor" as const };
+const profile = { location, skills: ["Go", "Go"], years_of_experience: "0", seniority: null, education: { highest_completed: "bachelor" as const, in_progress: null }, languages: [] };
 const screening_answers = [{ question_id: id(23), option_id: id(24) }, { question_id: id(21), option_id: id(22) }];
 const screening_filters = [{ question_id: id(21), prompt: "¿Disponible?", options: [{ id: id(25), label: "No" }, { id: id(22), label: "Sí" }] }, { question_id: id(23), prompt: "¿Viajar?", options: [{ id: id(24), label: "Sí" }] }];
 const wireItem = { ...item, profile, screening_answers };
@@ -30,7 +30,7 @@ it("strict board/detail decoders require filter data and preserve catalog/snapsh
     [{ ...screening_filters[0], score: 2 }],
     [{ ...screening_filters[0], options: [{ ...screening_filters[0].options[0], correct: true }] }],
   ]) expect(boardSchema.safeParse({ ...board, screening_filters: invalid, participations: [wireItem] }).success).toBe(false);
-  expect(participationSchema.safeParse({ ...wireItem, profile: { location: null, skills: [], years_of_experience: null, education_level: null }, screening_answers: [] }).success).toBe(true);
+  expect(participationSchema.safeParse({ ...wireItem, profile: { location: null, skills: [], years_of_experience: null, seniority: null, education: { highest_completed: null, in_progress: null }, languages: [] }, screening_answers: [] }).success).toBe(true);
 });
 it("country-only and state-only reads retain exact locations and missing subdivisions filter as none", () => {
   const locations = [null, { ...location, state: null, municipality: null, label: "México" }, { ...location, municipality: null, label: "Jalisco" }, location];
@@ -59,7 +59,7 @@ function filterBoard() {
   const board = boardFixture();
   board.screening_filters = [{ question_id: "q", prompt: "¿Disponible?", options: [{ id: "yes", label: "Sí" }, { id: "no", label: "No" }] }];
   board.participations = [0, 1, 3, 5, null].map((years, index) => ({ ...board.participations[0], id: String(index),
-    profile: { location: index === 4 ? null : location, skills: index === 4 ? [] : index === 0 ? [" Go ", " SQL "] : ["go"], years_of_experience: years, education_level: index === 4 ? null : "bachelor" },
+    profile: { location: index === 4 ? null : location, skills: index === 4 ? [] : index === 0 ? [" Go ", " SQL "] : ["go"], years_of_experience: years === null ? null : String(years), seniority: null, education: { highest_completed: index === 4 ? null : "bachelor", in_progress: null }, languages: [] },
     screening_answers: index === 4 ? [] : [{ question_id: "q", option_id: index === 3 ? "removed" : index === 0 ? "no" : "yes" }],
   }));
   return board;
@@ -75,7 +75,7 @@ it("profile options normalize, deduplicate, sort and retain first labels; bucket
   expect(dimension("skills").options).toEqual([{ value: "go", label: "Go" }, { value: "sql", label: "SQL" }, { value: "none", label: "Sin dato" }]);
   expect(dimension("experience").options.map(o => o.label)).toEqual(["Menos de 1 año", "1 a 3 años", "3 a 5 años", "5 años o más", "Sin dato"]);
   for (const [index, option] of dimension("experience").options.entries()) expect(board.participations.filter(p => dimension("experience").match(p, new Set([option.value]))).map(p => p.id)).toEqual([String(index)]);
-  expect(dimension("education").options).toEqual([{ value: "bachelor", label: "Licenciatura" }, { value: "none", label: "Sin dato" }]);
+  expect(dimension("education").options.map(option => option.value)).toEqual(["secondary", "high_school", "technical", "tsu", "bachelor", "specialty", "master", "phd", "none"]);
   expect(optionCount(board.participations, dimension("skills"), "go")).toBe(4);
   expect(filterChips(dimensions, { skills: new Set(["sql"]) })[0].label).toBe("Habilidades: SQL");
   expect(applyFilters(board.participations, dimensions, { skills: new Set(["sql", "go"]), state: new Set(["01", "14"]), municipality: new Set(["01001"]) }).map(p => p.id)).toEqual(["1"]);
@@ -91,9 +91,9 @@ it("casefolds Unicode labels without changing first-seen spelling", () => {
 });
 it("empty profile values use none and education follows its canonical order", () => {
   const board = boardFixture();
-  board.participations = (["phd", "master", "bachelor", "high_school"] as const).map(education_level => ({ ...board.participations[0], profile: { location: null, skills: ["\t", " "], years_of_experience: null, education_level } }));
+  board.participations = (["phd", "master", "bachelor", "high_school"] as const).map(education_level => ({ ...board.participations[0], profile: { location: null, skills: ["\t", " "], years_of_experience: null, seniority: null, education: { highest_completed: education_level, in_progress: null }, languages: [] } }));
   const dimensions = boardFilterDimensions(board);
-  expect(dimensions.find(d => d.key === "education")?.options.map(o => o.label)).toEqual(["Preparatoria", "Licenciatura", "Maestría", "Doctorado", "Sin dato"]);
+  expect(dimensions.find(d => d.key === "education")?.options.map(o => o.value)).toEqual(["secondary", "high_school", "technical", "tsu", "bachelor", "specialty", "master", "phd", "none"]);
   for (const key of ["state", "municipality", "skills", "experience"]) {
     const dimension = dimensions.find(d => d.key === key)!;
     expect(dimension.options).toEqual([{ value: "none", label: "Sin dato" }]);

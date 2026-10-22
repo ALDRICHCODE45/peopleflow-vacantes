@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, MapPin, Sparkles, BriefcaseBusiness, RotateCcw, UserRoundX, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, Languages, Mail, MapPin, Phone, Sparkles, BriefcaseBusiness, RotateCcw, TrendingUp, UserRoundX, X } from "lucide-react";
 import { cn } from "cn";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -25,6 +25,8 @@ import { filePresentation, Hint, initials, stageClass } from "./pipeline-present
 import type { Notice } from "./board-feedback";
 import { plural } from "@/features/employer-vacancies/pipeline-board";
 import { educationLabels, normalizedProfileLabel } from "./profile-filter-dimensions";
+import { SENIORITY_LABELS } from "@/features/candidate/model";
+import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import type { Board, Failure, History, Participation, ParticipationDetail } from "./model";
 
 type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
@@ -32,6 +34,7 @@ export function CandidateSheet(props: Props) {
   return <Sheet open onOpenChange={open => { if (!open) props.onClose(); }}><CandidateSession key={props.item.id} {...props} /></Sheet>;
 }
 function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, children }: Props) {
+  const manual = item.source === "manual";
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [tab, setTab] = useState("summary");
   const [attempt, setAttempt] = useState(0);
@@ -56,7 +59,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
         const next: Notice = result.ok ? { tone: "info", text: "Detalle actualizado" } : { tone: "error", text: "No pudimos cargar el detalle" };
         setNotice(next);
         notifyActionResult({ key: "pipeline-detail-read", type: next.tone, title: next.text,
-          description: result.ok ? "Las respuestas y el historial están actualizados." : "No se modificó ninguna postulación. Es seguro volver a cargar el detalle.",
+          description: result.ok ? "Las respuestas y el historial están actualizados." : "No se modificó ningún candidato. Es seguro volver a cargar el detalle.",
           ...(!result.ok ? { reference: { ...result.reference, at: new Date().toISOString() } } : {}) });
       }
     }
@@ -81,7 +84,8 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
           {stage && <Badge variant="neutral" dot className={cn("stage-badge max-w-full", stageClass(stage.kind))}><span className="truncate">{stage.name}</span></Badge>}
         </div>
       </div>
-      <SheetDescription className="text-xs">Postuló el <MovementDate value={detail.applied_at} /> <span className="px-1">·</span> Fuente: Orgánica</SheetDescription>
+      {manual && <Badge variant="accent">Ingreso manual</Badge>}
+      <SheetDescription className="text-xs">{manual ? <>Agregado{detail.added_by ? ` por ${detail.added_by.name}` : ""} el <MovementDate value={detail.applied_at} /></> : <>Postuló el <MovementDate value={detail.applied_at} /> <span className="px-1">·</span> Fuente: Orgánica</>}</SheetDescription>
       {/* Evaluation context and its action stay together above the scrolling tabs. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-wrap">
         {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
@@ -101,20 +105,21 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
         <TabsContent value={tab} className="p-6" aria-busy={reading}>
           {reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
-            description={failure.reason === "unauthenticated" ? "Tu sesión expiró. No se modificó la postulación; inicia sesión de nuevo." : "No se modificó la postulación. Puedes volver a cargar las respuestas y el historial."}
+            description={failure.reason === "unauthenticated" ? "Tu sesión expiró. No se modificó el candidato; inicia sesión de nuevo." : "No se modificó el candidato. Puedes volver a cargar las respuestas y el historial."}
             primaryAction={{ label: "Reintentar", disabled: reading, "aria-describedby": notice ? "detail-read-status" : undefined, onClick: () => { setReading(true); setNotice(null); setAttempt(value => value + 1); } }}>
             {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}
           </StateCard> : loaded && <>
             {tab === "summary" && <div className="flex flex-col gap-7">
-              <section className="flex flex-col gap-5"><SectionTitle>Información de la postulación</SectionTitle>
+              <section className="flex flex-col gap-5"><SectionTitle>{manual ? "Información del ingreso" : "Información de la postulación"}</SectionTitle>
                 <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />Etapa actual</dt><dd className="break-words text-sm font-medium">{stageName(item.stage_id)}</dd>
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 aria-hidden="true" className="size-4 shrink-0" />En la etapa desde</dt><dd className="text-sm font-medium tabular-nums"><MovementDate value={item.moved_at} /></dd>
-                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-4 shrink-0" />Postulación</dt><dd className="text-sm font-medium tabular-nums"><MovementDate value={detail.applied_at} /></dd>
-                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Globe2 aria-hidden="true" className="size-4 shrink-0" />Fuente</dt><dd className="text-sm font-medium">Orgánica</dd>
+                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-4 shrink-0" />{manual ? "Ingreso" : "Postulación"}</dt><dd className="text-sm font-medium tabular-nums"><MovementDate value={detail.applied_at} /></dd>
+                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Globe2 aria-hidden="true" className="size-4 shrink-0" />Fuente</dt><dd className="text-sm font-medium">{manual ? "Ingreso manual" : "Orgánica"}</dd>
                 </dl>
               </section><Separator />
-              <CandidateProfile profile={loaded.detail.profile} /><Separator />
+              <CandidateContact contact={loaded.detail.contact} /><Separator />
+              <CandidateProfile profile={loaded.detail.profile} manual={manual} /><Separator />
               <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><Item variant="outline">
                 <ItemMedia><div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><FileIcon aria-hidden="true" className="size-5" /></div></ItemMedia>
                 <ItemContent className="min-w-0"><ItemTitle className="max-w-full"><Hint text={detail.cv.name}><span className="truncate">{detail.cv.name}</span></Hint></ItemTitle><ItemDescription>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}</ItemDescription></ItemContent>
@@ -123,18 +128,18 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
               {loaded.detail.discard && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><SectionTitle>Descarte</SectionTitle></CardTitle><CardDescription><p className="text-sm font-medium text-status-danger">{discardReasonLabel(loaded.detail.discard.reason)}</p><p className="text-xs">{discardGroupLabel(loaded.detail.discard.reason)}</p></CardDescription></CardHeader>
                 <CardContent className="flex flex-col gap-4"><p className="text-xs text-muted-foreground">Etapa anterior: <strong className="text-foreground">{stageName(loaded.detail.discard.previous_stage_id)}</strong></p>
                 <DiscardNotes comment={loaded.detail.comment} message={loaded.detail.candidate_message} showEmpty /></CardContent>
-                <CardFooter><p className="text-xs text-muted-foreground">El candidato ve este mensaje con el estado Finalizada.</p></CardFooter>
+                <CardFooter><p className="text-xs text-muted-foreground">{manual ? "Este registro es interno; no se envían avisos al candidato." : "El candidato ve este mensaje con el estado Finalizada."}</p></CardFooter>
               </Card>}
               <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-xs leading-5 text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />Esta información es visible únicamente para tu equipo de reclutamiento.</p>
             </div>}
             {tab === "answers" && <section className="flex flex-col gap-6"><SectionTitle>Preguntas de filtro</SectionTitle>
-              {loaded.detail.screening.length ? <dl className="flex flex-col gap-6">{loaded.detail.screening.map(answer => <div key={answer.question_id} className="flex flex-col gap-2 border-b pb-5"><dt className="break-words text-[13px] text-muted-foreground">{answer.prompt}</dt><dd className="whitespace-pre-wrap break-words text-sm leading-6">{answer.type === "open" ? answer.answer.text : answer.answer.label}</dd></div>)}</dl> : <p className="text-sm text-muted-foreground">Esta postulación no tiene preguntas de screening.</p>}
+              {loaded.detail.screening.length ? <dl className="flex flex-col gap-6">{loaded.detail.screening.map(answer => <div key={answer.question_id} className="flex flex-col gap-2 border-b pb-5"><dt className="break-words text-[13px] text-muted-foreground">{answer.prompt}</dt><dd className="whitespace-pre-wrap break-words text-sm leading-6">{answer.type === "open" ? answer.answer.text : answer.answer.label}</dd></div>)}</dl> : <p className="text-sm text-muted-foreground">No hay respuestas a preguntas de filtro.</p>}
             </section>}
-            {tab === "history" && <section className="flex flex-col gap-6"><SectionTitle>Actividad de la postulación</SectionTitle>
+            {tab === "history" && <section className="flex flex-col gap-6"><SectionTitle>{manual ? "Actividad del candidato" : "Actividad de la postulación"}</SectionTitle>
               {events.length ? <ol>{events.map((entry, index) => <li key={`${entry.at}-${index}`} className="relative flex gap-4 pb-7 last:pb-0">
                 <div className="flex flex-col items-center"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", entry.kind === "not_applicable" ? "bg-muted text-muted-foreground" : entry.kind === "discard" ? "bg-status-danger/10 text-status-danger" : entry.kind === "recovery" ? "bg-status-info/10 text-status-info" : "bg-status-success/10 text-status-success")}>{entry.kind === "not_applicable" ? <CircleMinus aria-hidden="true" className="size-3" /> : entry.kind === "recovery" ? <RotateCcw aria-hidden="true" className="size-3" /> : entry.kind === "discard" ? <UserRoundX aria-hidden="true" className="size-3" /> : <Check aria-hidden="true" className="size-3" />}</span>{index < events.length - 1 && <span aria-hidden="true" className="w-px flex-1 bg-border" />}</div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <p className="break-words text-sm font-medium">{entry.kind === "not_applicable" ? `No aplica por cambio de proceso · ${stageName(entry.stage_id)}` : entry.kind === "intake" ? "Postulación recibida" : entry.kind === "discard" ? "Descarte" : entry.kind === "recovery" ? "Recuperación" : entry.kind === "substate" ? `Subestado: ${entry.from_substate_name ?? "Sin subestado"} → ${entry.to_substate_name ?? "Sin subestado"}` : `${entry.from_stage_id ? stageName(entry.from_stage_id) : "Etapa no disponible"} → ${stageName(entry.to_stage_id)}`}</p>
+                  <p className="break-words text-sm font-medium">{entry.kind === "not_applicable" ? `No aplica por cambio de proceso · ${stageName(entry.stage_id)}` : entry.kind === "intake" ? (manual ? "Ingreso manual" : "Postulación recibida") : entry.kind === "discard" ? "Descarte" : entry.kind === "recovery" ? "Recuperación" : entry.kind === "substate" ? `Subestado: ${entry.from_substate_name ?? "Sin subestado"} → ${entry.to_substate_name ?? "Sin subestado"}` : `${entry.from_stage_id ? stageName(entry.from_stage_id) : "Etapa no disponible"} → ${stageName(entry.to_stage_id)}`}</p>
                   {(entry.kind === "discard" || entry.kind === "recovery") && <p className="text-xs text-muted-foreground">{stageName(entry.from_stage_id)} → {stageName(entry.to_stage_id)}</p>}
                   {entry.kind === "discard" && <><p className="text-sm">{discardGroupLabel(entry.reason)} · {discardReasonLabel(entry.reason)}</p><DiscardNotes comment={entry.comment} message={entry.candidate_message} /></>}
                   {entry.kind === "intake" && <p className="text-xs text-muted-foreground">Ingreso a {stageName(entry.to_stage_id)}</p>}
@@ -159,27 +164,58 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
   return <div aria-hidden="true" data-pf-detail-skeleton="summary" className="flex flex-col gap-7">
     <section className="flex flex-col gap-5"><Skeleton className="h-4 w-56 max-w-full" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl></section>
     <Separator />
-    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
+    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
+    <Separator />
+    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3, 4, 5].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
     <Separator />
     <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions><Skeleton className="size-10" /></ItemActions></Item></section>
     {discarded && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><Skeleton className="h-4 w-20" /></CardTitle><CardDescription><Skeleton className="h-5 w-44" /><Skeleton className="h-4 w-32" /></CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><Skeleton className="h-4 w-40" /><dl className="flex flex-col gap-4">{[0, 1].map(index => <div key={index} className="flex flex-col gap-1"><dt><Skeleton className="h-4 w-32" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>}
     <Skeleton className="h-16 w-full rounded-lg" />
   </div>;
 }
-function CandidateProfile({ profile }: { profile: Participation["profile"] }) {
+function CandidateProfile({ profile, manual }: { profile: Participation["profile"]; manual: boolean }) {
+  const catalog = useLanguageCatalog();
+  const education = [profile.education.highest_completed && educationLabels[profile.education.highest_completed], profile.education.in_progress && `${educationLabels[profile.education.in_progress]} en curso`].filter(Boolean).join(" · ");
+  // One pill per language («Inglés B2»), like skills; a joined string made the levels ambiguous.
+  const languages = profile.languages.length ? <div className="flex flex-wrap gap-2">{profile.languages.map(language => <Badge key={language.code} variant="outline">{`${catalog.data?.items.find(item => item.code === language.code)?.name ?? "Idioma no disponible"} ${language.level === "native" ? "Nativo" : language.level}`}</Badge>)}</div> : null;
   const missing = <span className="text-muted-foreground">Sin dato</span>;
   const skills = profile.skills.filter(skill => normalizedProfileLabel(skill));
   const rows = [
     { label: "Ubicación", icon: MapPin, value: profile.location?.label ?? missing },
     { label: "Habilidades", icon: Sparkles, value: skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={index} variant="outline">{skill}</Badge>)}</div> : missing },
-    { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(profile.years_of_experience, "año", "años") },
-    { label: "Nivel de estudios", icon: GraduationCap, value: profile.education_level === null ? missing : educationLabels[profile.education_level] },
+    { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(Number(profile.years_of_experience), "año", "años") },
+    { label: "Seniority", icon: TrendingUp, value: profile.seniority === null ? missing : SENIORITY_LABELS[profile.seniority] },
+    { label: "Nivel de estudios", icon: GraduationCap, value: education || missing },
+    { label: "Idiomas", icon: Languages, value: languages || missing },
   ];
   return <section aria-label="Perfil" className="flex flex-col gap-5"><SectionTitle>Perfil</SectionTitle>
     <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">
       <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
     </div>)}</dl>
-    <p className="text-xs text-muted-foreground">Copiado del perfil al postularse.</p>
+    <p className="text-xs text-muted-foreground">{manual ? "Registrado al agregar al candidato." : "Copiado del perfil al postularse."}</p>
+  </section>;
+}
+/** E.164 for display: «+52 55 1234 5678» for Mexico; anything else (other countries, or the free-text
+ * phone of organic profiles) stays as written. The tel: link keeps only digits and «+». */
+function displayPhone(phone: string) {
+  const mx = /^\+52(\d{2})(\d{4})(\d{4})$/.exec(phone);
+  return mx ? `+52 ${mx[1]} ${mx[2]} ${mx[3]}` : phone;
+}
+/** Narrow sheets: let a long address wrap after «@» instead of mid-word. */
+function emailWithBreak(email: string) {
+  const at = email.lastIndexOf("@");
+  return at < 0 ? email : <>{email.slice(0, at + 1)}<wbr />{email.slice(at + 1)}</>;
+}
+function CandidateContact({ contact }: { contact: ParticipationDetail["contact"] }) {
+  const missing = <span className="text-muted-foreground">Sin dato</span>;
+  const rows = [
+    { label: "Correo", icon: Mail, value: contact.email ? <a className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`mailto:${contact.email}`} aria-label={contact.email}>{emailWithBreak(contact.email)}</a> : missing },
+    { label: "Teléfono", icon: Phone, value: contact.phone ? <a className="tabular-nums underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{displayPhone(contact.phone)}</a> : missing },
+  ];
+  return <section aria-label="Contacto" className="flex flex-col gap-5"><SectionTitle>Contacto</SectionTitle>
+    <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">
+      <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
+    </div>)}</dl>
   </section>;
 }
 function SectionTitle({ children }: { children: ReactNode }) {

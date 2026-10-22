@@ -11,7 +11,18 @@ vi.mock("@/components/ui/tooltip", async importOriginal => {
   const { Tooltip } = await import("@base-ui/react/tooltip");
   return { ...actual, TooltipContent: ({ children }: { children: React.ReactNode }) => <Tooltip.Portal><div data-slot="tooltip-content">{children}</div></Tooltip.Portal> };
 });
+// jsdom has no nested Select positioning/focus geometry (same boundary as intake tests).
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  const Context = React.createContext({ value: "", items: [] as { value: string; label: string }[], change: (value: string) => { void value; } });
+  return {
+    Select: ({ value, items, onValueChange, children }: { value: string; items: { value: string; label: string }[]; onValueChange: (value: string) => void; children: React.ReactNode }) => <Context.Provider value={{ value, items, change: onValueChange }}>{children}</Context.Provider>,
+    SelectTrigger: (props: React.ComponentProps<"select">) => { const state = React.useContext(Context); return <select {...props} value={state.value} onChange={event => state.change(event.target.value)}>{state.items.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>; },
+    SelectValue: () => null, SelectContent: () => null, SelectGroup: () => null, SelectItem: () => null,
+  };
+});
 vi.mock("./actions", () => ({ loadBoardAction: vi.fn() }));
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }, { code: "es", name: "Español" }] } }) }));
 vi.mock("./use-board-column-order", () => ({ useBoardColumnOrder: (_id: string, board: unknown) => ({ board, locked: true, structureLocked: true }) }));
 vi.mock("@/features/jobs/drafts/pipeline/delivery-actions", () => ({ loadDeliveryStatusAction: vi.fn(async () => ({ ok: false })) }));
 beforeEach(() => {
@@ -43,7 +54,7 @@ it("screening and profile sections share compact searchable fields and dimension
   fireEvent.click(await screen.findByRole("button", { name: "Filtros" }));
   const sheet = await screen.findByRole("dialog", { name: "Filtrar candidatos" });
   expect(within(sheet).getByRole("region", { name: "PREGUNTAS DE FILTRO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(1);
-  expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(5);
+  expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(7);
   expect(within(sheet).getByRole("button", { name: "Estado" })).toBeVisible();
   expect(within(sheet).getByRole("button", { name: "Municipio" })).toBeVisible();
   expect(within(sheet).queryByRole("button", { name: "Ciudad" })).not.toBeInTheDocument();
@@ -52,6 +63,30 @@ it("screening and profile sections share compact searchable fields and dimension
   fireEvent.click(within(sheet).getByRole("button", { name: "¿Disponible?" }));
   fireEvent.click(within(sheet).getByRole("button", { name: "Ver 1 candidato" }));
   expect(await screen.findByRole("button", { name: "Quitar filtro ¿Disponible?: Sin respuesta" })).toBeVisible();
+});
+it("profile modifiers stay inside compact dropdowns and filter the rendered board", async () => {
+  const board = boardFixture();
+  board.participations[0].profile = { location: null, skills: [], years_of_experience: "2.5", seniority: "junior", education: { highest_completed: "bachelor", in_progress: "master" }, languages: [{ code: "en", level: "B2" }] };
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
+  render(<MovementBoard vacancyId="vacancy" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Filtros" }));
+  const sheet = await screen.findByRole("dialog", { name: "Filtrar candidatos" });
+  expect(screen.queryByRole("combobox", { name: "Nivel mínimo" })).not.toBeInTheDocument();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Nivel de estudios" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Maestría 0" }));
+  expect(within(sheet).getByRole("button", { name: "Ver 0 candidatos" })).toBeVisible();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Incluye estudios en curso" }));
+  expect(within(sheet).getByRole("button", { name: "Ver 1 candidato" })).toBeVisible();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Nivel de estudios" }));
+  fireEvent.click(within(sheet).getByRole("button", { name: "Idiomas" }));
+  expect(screen.getByRole("checkbox", { name: "Inglés 1" })).toBeVisible();
+  expect(screen.queryByRole("checkbox", { name: /Español/ })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Inglés 1" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Nivel mínimo" }), { target: { value: "@min:C1" } });
+  expect(within(sheet).getByRole("button", { name: "Ver 0 candidatos" })).toBeVisible();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Idiomas" }));
+  fireEvent.click(within(sheet).getByRole("button", { name: "Ver 0 candidatos" }));
+  expect(await screen.findByRole("button", { name: "Quitar filtro Idiomas: Nivel mínimo: C1" })).toBeVisible();
 });
 it("toolbar keeps long chips in one scrolling row and exposes full text", async () => {
   const board = boardFixture();
@@ -107,7 +142,7 @@ it("compact reference anatomy hides options until opened and agrees singular cou
   expect(within(sheet).getByRole("button", { name: "Etapa del pipeline" })).toHaveTextContent("Todas las etapas");
   expect(within(sheet).getByRole("button", { name: "Motivo de descarte" })).toHaveTextContent("Todos los motivos");
   expect(within(sheet).queryByRole("button", { name: "Subestado" })).not.toBeInTheDocument();
-  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(7);
+  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(9);
   expect(within(sheet).queryByRole("region", { name: "PREGUNTAS DE FILTRO" })).not.toBeInTheDocument();
   expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" })).toBeVisible();
   expect(within(sheet).queryAllByRole("checkbox")).toHaveLength(0);
@@ -119,7 +154,7 @@ it("compact reference anatomy hides options until opened and agrees singular cou
 });
 it("searchable multiselect applies live, keeps quiet zero counts, clears chips and returns focus", async () => {
   const { trigger, sheet } = await openBoard(true);
-  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(8);
+  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(10);
   expect(within(sheet).getByText(/Las opciones de un mismo filtro se suman/)).toHaveTextContent("todas las condiciones");
   fireEvent.click(within(sheet).getByRole("button", { name: "Subestado" }));
   const search = screen.getByRole("textbox", { name: "Buscar opciones…" });

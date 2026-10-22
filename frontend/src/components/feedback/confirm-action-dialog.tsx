@@ -52,7 +52,9 @@ export function ConfirmActionDialog({
 }: ConfirmActionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(next, details) => { if (!pending) onOpenChange(next, details); }}>
-      <AlertDialogContent finalFocus={finalFocus}>
+      {/* With details, the dialog is capped to the viewport and only the details row scrolls,
+          so a tall mobile header and stacked footer never push it off screen (§23). */}
+      <AlertDialogContent finalFocus={finalFocus} className={children ? "max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto]" : undefined}>
         <AlertDialogHeader>
           <AlertDialogMedia className={tone === "destructive" ? "bg-destructive/10 text-destructive dark:bg-destructive/20" : "bg-primary/10 text-primary"}>
             <Icon aria-hidden="true" />
@@ -60,7 +62,7 @@ export function ConfirmActionDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {children && <div data-slot="confirm-action-details" className="-mx-1 flex max-h-[calc(100dvh-16rem)] min-w-0 flex-col gap-4 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">{children}</div>}
+        {children && <div data-slot="confirm-action-details" className="-mx-1 flex max-h-[calc(100dvh-16rem)] min-h-0 min-w-0 flex-col gap-4 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">{children}</div>}
         <AlertDialogFooter>
           <AlertDialogCancel autoFocus className="min-h-10" disabled={pending}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction

@@ -27,15 +27,15 @@ function emptyProfile(): CandidateProfile {
   return candidateProfileSchema.parse({
     ...CANDIDATE_PROFILE,
     phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null, currentCompany: null,
-    yearsOfExperience: null, summary: null, birthDate: null, location: null, educationLevel: null,
-    fieldOfStudy: null, skills: [], currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null,
+    yearsOfExperience: null, summary: null, birthDate: null, location: null, seniority: null,
+    education: [], skills: [], currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null,
     expectedSalaryPeriod: null, languages: [],
   });
 }
 
 /** One valid profile with only the chosen fields unset, so boundaries stay isolated. */
 function profileWithout(...missing: readonly (keyof CandidateProfile)[]): CandidateProfile {
-  const overrides = Object.fromEntries(missing.map((key) => [key, key === "skills" || key === "languages" ? [] : null]));
+  const overrides = Object.fromEntries(missing.map((key) => [key, key === "skills" || key === "languages" || key === "education" ? [] : null]));
   return candidateProfileSchema.parse({ ...CANDIDATE_PROFILE, ...overrides });
 }
 
@@ -466,4 +466,10 @@ describe("recent application messages", () => {
     expect(screen.queryByText("Nuevo mensaje")).toBeNull();
     expect(screen.queryByRole("button", { name: "Ver mensaje" })).toBeNull();
   });
+});
+
+it("scores studies and seniority from the harmonized profile (INT-29)", () => {
+  expect(profileCompleteness(profileWithout("education", "seniority")).missing).toEqual(expect.arrayContaining(["Estudios", "Seniority"]));
+  expect(profileCompleteness(profileWithout("education", "seniority")).missing).not.toContain("Nivel educativo");
+  expect(profileCompleteness(emptyProfile()).total).toBe(12);
 });

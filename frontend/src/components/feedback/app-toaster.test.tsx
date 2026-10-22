@@ -49,6 +49,9 @@ describe("toast placement styles", () => {
     expect(block).toContain("bottom: env(safe-area-inset-bottom, 0px)");
     expect(block).not.toMatch(/\btop:/);
   });
+  it("stacks toasts above modal backdrops so errors raised with a dialog open stay readable", () => {
+    expect(block).toMatch(/z-index: \d{3,};/);
+  });
   it("lifts toasts above the editor's floating save bar", () => {
     expect(css).toMatch(/body:has\(\[data-pf-draft-save-bar\]\) \[data-pf-toaster\] \[data-sileo-viewport\] \{[^}]*bottom:/);
   });

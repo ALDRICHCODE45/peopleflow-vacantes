@@ -12,7 +12,7 @@ vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn(
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const candidates = { total: 4, in_process: 2, discarded: 1, by_stage: [{ id, kind: "custom" as const, name: "Prueba técnica", count: 2 }, { id: "223e4567-e89b-42d3-a456-426614174000", kind: "new" as const, name: "Nuevos", count: 1 }, { id: "323e4567-e89b-42d3-a456-426614174000", kind: "screening" as const, name: "Revisión", count: 0 }] };
-const row = { candidates: null, paused_at: null, closed_at: null, process_finished_at: null, id, status: "draft" as const, process: null, published_at: null, title: "Diseñador de producto", work_mode: "remote" as const, work_schedule: "full_time" as const, requester: { kind: "client" as const, id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "1", created_at: "2026-10-14T12:00:00Z", updated_at: "2026-10-15T12:00:00Z" };
+const row = { close_reason: null, close_reason_note: null, candidates: null, paused_at: null, closed_at: null, process_finished_at: null, id, status: "draft" as const, process: null, published_at: null, title: "Diseñador de producto", work_mode: "remote" as const, work_schedule: "full_time" as const, requester: { kind: "client" as const, id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "1", created_at: "2026-10-14T12:00:00Z", updated_at: "2026-10-15T12:00:00Z" };
 const unnamed = { ...row, id: "223e4567-e89b-42d3-a456-426614174000", title: null, work_mode: null, work_schedule: null, requester: null, principal_recruiter: { id, name: null }, updated_at: "2026-10-16T12:00:00Z" };
 beforeEach(() => {
  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -20,6 +20,12 @@ beforeEach(() => {
  vi.resetAllMocks(); vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, unnamed], nextCursor: null }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const renderPortfolio = () => render(<VacancyPortfolio vacancies={NEXO_VACANCIES} />);
+it.each([["filled", "Cubierta"], ["cancelled", "Cancelada"], ["other", "Otro"], [null, "Sin motivo registrado"]] as const)("shows list close reason %s", async (reason, label) => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "closed", process: "active", candidates, close_reason: reason, close_reason_note: reason === "other" ? "Cambio de planes" : null }], nextCursor: null });
+ render(<VacancyPortfolio vacancies={[]} />);
+ expect(await screen.findByText(`Cerrada · ${label}`)).toBeVisible();
+ if (reason === "other") expect(screen.getByText("Cambio de planes")).toBeVisible();
+});
 it("published private rows leave draft counts and enter active counts with real publication metadata", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, { ...unnamed, candidates, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z" }], nextCursor: null });
  const { container } = renderPortfolio(); await screen.findByText(row.title);
@@ -33,8 +39,8 @@ it("published private rows leave draft counts and enter active counts with real 
 });
 it.each([
  ["draft", null, "Borrador", "Borradores"], ["published", "active", "Activa", "Activas"],
- ["paused", "active", "Pausada", "Pausadas"], ["closed", "active", "Cerrada · proceso en curso", "Cerradas"],
- ["closed", "finished", "Cerrada · proceso finalizado", "Cerradas"],
+ ["paused", "active", "Pausada", "Pausadas"], ["closed", "active", "Cerrada · Sin motivo registrado", "Cerradas"],
+ ["closed", "finished", "Cerrada · Sin motivo registrado", "Cerradas"],
 ] as const)("maps real %s/%s badge and filter", async (status, process, label, filter) => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, candidates: status === "draft" ? null : candidates, status, process }], nextCursor: null });
  render(<VacancyPortfolio vacancies={[]} />); await screen.findByText(row.title);
@@ -101,9 +107,9 @@ it("copies transition timestamps in place without losing candidate counts", asyn
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, candidates, status: "published", process: "active" }], nextCursor: null });
  const { result } = renderHook(() => usePortfolioDrafts());
  await waitFor(() => expect(result.current.pending).toBe(false));
- const view = { publication: "closed" as const, process: "finished" as const, version: "5", allowed_actions: [], published_at: "2026-10-16T12:00:00Z", paused_at: "2026-10-17T12:00:00Z", closed_at: "2026-10-18T12:00:00Z", process_finished_at: "2026-10-19T12:00:00Z" };
+ const view = { close_reason: "cancelled" as const, close_reason_note: null, publication: "closed" as const, process: "finished" as const, version: "5", allowed_actions: [], published_at: "2026-10-16T12:00:00Z", paused_at: "2026-10-17T12:00:00Z", closed_at: "2026-10-18T12:00:00Z", process_finished_at: "2026-10-19T12:00:00Z" };
  act(() => result.current.lifecycleChanged(id, view));
- expect(result.current.items[0]).toMatchObject({ status: "closed", process: "finished", candidates, paused_at: view.paused_at, closed_at: view.closed_at, process_finished_at: view.process_finished_at });
+ expect(result.current.items[0]).toMatchObject({ status: "closed", process: "finished", close_reason: "cancelled", close_reason_note: null, candidates, paused_at: view.paused_at, closed_at: view.closed_at, process_finished_at: view.process_finished_at });
  act(() => result.current.lifecycleChanged(id, { ...view, publication: "published", process: "active", published_at: "2026-10-20T12:00:00Z" }));
  expect(result.current.items[0]).toMatchObject({ status: "published", published_at: "2026-10-20T12:00:00Z", closed_at: view.closed_at, candidates });
  expect(listDraftsAction).toHaveBeenCalledTimes(1);

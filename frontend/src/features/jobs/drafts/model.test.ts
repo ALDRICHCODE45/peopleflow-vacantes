@@ -24,6 +24,7 @@ const WRITABLE_FIELD_KEYS = [
   "work_schedule",
   "contract_type",
   "seniority",
+  "min_years_of_experience", "min_education_level", "accepts_in_progress_education",
   "professional_area",
   "required_requirements",
   "preferred_requirements",
@@ -103,7 +104,7 @@ const populatedWriteFields = () =>
       benefits: ["annual_bonus", "health_insurance"],
       screening_questions: [{ prompt: " Why? " }],
       requester: { kind: "client" as const, id: ID },
-      languages: [{ language: "other" as const, custom_name: " French ", level: "basic" as const }],
+      languages: [{ code: "fr", min_level: "A2" as const }],
       compensation: {
         mode: "range" as const,
         amount: null,
@@ -149,7 +150,7 @@ describe("createDraftModel", () => {
       requesterName: null,
       descriptionPlain: null,
     });
-    expect(Object.keys(model.fields)).toHaveLength(18);
+    expect(Object.keys(model.fields)).toHaveLength(21);
     expect(Object.keys(model)).toStrictEqual(["fields", "requesterName", "descriptionPlain"]);
   });
 
@@ -185,7 +186,7 @@ describe("createDraftModel", () => {
 describe("hydrateDraftModel", () => {
   it("projects exactly the 17 writable fields and strips server-derived text", () => {
     const model = hydrateDraftModel(populatedEnvelope());
-    expect(Object.keys(model.fields)).toHaveLength(18);
+    expect(Object.keys(model.fields)).toHaveLength(21);
     expect(model.fields).toStrictEqual(populatedWriteFields());
     expect("description_plain" in model.fields).toBe(false);
     expect(model.fields.requester).toStrictEqual({ kind: "client", id: ID });
@@ -241,10 +242,9 @@ describe("hydrateDraftModel", () => {
     const skills = Array.from({ length: 100 }, (_, index) => `skill-${index}`);
     const customBenefits = Array.from({ length: 100 }, (_, index) => `benefit-${index}`);
     const screeningQuestions = Array.from({ length: 100 }, (_, index) => ({ prompt: `Q${index}?` }));
-    const languages = Array.from({ length: 100 }, (_, index) => ({
-      language: "other",
-      custom_name: `Lang ${index}`,
-      level: null,
+    const languages = Array.from({ length: 20 }, (_, index) => ({
+      code: `opaque${index}`,
+      min_level: "A2",
     }));
     const benefits = [...BENEFITS].reverse();
     const normalized = draftPostBodySchema.parse({
@@ -311,8 +311,8 @@ describe("draftModelToPostBody / draftModelToPatchBody", () => {
     const patch = draftModelToPatchBody(model);
     expect(post).toStrictEqual(expected);
     expect(patch).toStrictEqual(expected);
-    expect(Object.keys(post.fields)).toHaveLength(18);
-    expect(Object.keys(patch.fields)).toHaveLength(18);
+    expect(Object.keys(post.fields)).toHaveLength(21);
+    expect(Object.keys(patch.fields)).toHaveLength(21);
     expect(draftPostBodySchema.parse(post).fields).toStrictEqual(model.fields);
     expect(draftPatchBodySchema.parse(patch).fields).toStrictEqual(model.fields);
   });

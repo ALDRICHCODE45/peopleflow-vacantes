@@ -4,6 +4,7 @@ import type { FilterDimension } from "./filters";
 import { discardCatalog } from "./discard-text";
 import { substateDimension } from "./substates";
 import { filterDataDimensions } from "./profile-filter-dimensions";
+import type { LanguageCatalog } from "@/features/languages/model";
 
 export type BoardFilterDimension<Item> = FilterDimension<Item> & {
   presentation?: {
@@ -19,7 +20,7 @@ const process = { key: "process", label: "PROCESO DE SELECCIÓN", icon: GitBranc
 const discarded = { key: "discarded", label: "CANDIDATOS DESCARTADOS", icon: Users };
 
 /** Adding a filter requires only a declaration; UI and filtering share this catalog. */
-export function boardFilterDimensions(board: Board): BoardFilterDimension<Participation>[] {
+export function boardFilterDimensions(board: Board, languages: LanguageCatalog["items"] = []): BoardFilterDimension<Participation>[] {
   return [{
     key: "column", label: "Columna",
     presentation: { section: process, label: "Etapa del pipeline", placeholder: "Todas las etapas", helper: "Elige una o varias etapas del proceso.", singular: "etapa", plural: "etapas" },
@@ -33,5 +34,5 @@ export function boardFilterDimensions(board: Board): BoardFilterDimension<Partic
     presentation: { section: discarded, label: "Motivo de descarte", placeholder: "Todos los motivos", helper: "Agrupados por decisión de la empresa o del candidato.", singular: "motivo", plural: "motivos" },
     options: discardCatalog.flatMap(group => group.reasons.map(reason => ({ value: `${group.group}:${reason.key}`, label: reason.label, group: group.label }))),
     match: (item, selected) => !!item.discard && selected.has(`${item.discard.reason.group}:${item.discard.reason.key}`),
-  }, ...filterDataDimensions(board)];
+  }, ...filterDataDimensions(board, languages)];
 }

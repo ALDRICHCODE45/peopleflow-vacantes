@@ -4,6 +4,10 @@ export type FilterDimension<Item> = {
   label: string;
   options: { value: string; label: string; group?: string }[];
   match: (item: Item, selected: ReadonlySet<string>) => boolean;
+  modifiers?: {
+    toggle?: { value: string; label: string };
+    minimum?: { label: string; options: { value: string; label: string }[] };
+  };
 };
 export type FilterSelection = Record<string, Set<string>>;
 export function applyFilters<Item>(items: readonly Item[], dimensions: readonly FilterDimension<Item>[], selection: FilterSelection): Item[] {
@@ -21,10 +25,14 @@ export function clearFilters(selection: FilterSelection, key?: string): FilterSe
   if (key === undefined) return {};
   return Object.fromEntries(Object.entries(selection).filter(([dimension]) => dimension !== key));
 }
+export function dimensionOptions<Item>(dimension: FilterDimension<Item>): FilterDimension<Item>["options"] {
+  const { toggle, minimum } = dimension.modifiers ?? {};
+  return [...dimension.options, ...(toggle ? [toggle] : []), ...(minimum?.options.map(option => ({ ...option, label: `${minimum.label}: ${option.label}` })) ?? [])];
+}
 export function filterChips<Item>(dimensions: readonly FilterDimension<Item>[], selection: FilterSelection) {
-  return dimensions.flatMap(dimension => dimension.options.filter(option => selection[dimension.key]?.has(option.value)).map(option => ({ key: dimension.key, value: option.value, label: `${dimension.label}: ${option.group ? `${option.group} · ` : ""}${option.label}` })));
+  return dimensions.flatMap(dimension => dimensionOptions(dimension).filter(option => selection[dimension.key]?.has(option.value)).map(option => ({ key: dimension.key, value: option.value, label: `${dimension.label}: ${option.group ? `${option.group} · ` : ""}${option.label}` })));
 }
 /** Counts always describe the full current board, not the filtered subset. */
-export function optionCount<Item>(items: readonly Item[], dimension: FilterDimension<Item>, value: string): number {
-  return items.filter(item => dimension.match(item, new Set([value]))).length;
+export function optionCount<Item>(items: readonly Item[], dimension: FilterDimension<Item>, value: string, selected: ReadonlySet<string> = new Set()): number {
+  return items.filter(item => dimension.match(item, new Set([...selected].filter(value => value.startsWith("@")).concat(value)))).length;
 }

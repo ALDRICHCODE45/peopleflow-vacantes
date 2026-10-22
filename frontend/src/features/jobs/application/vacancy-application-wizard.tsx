@@ -34,7 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
 import type { CandidateIdentity, CandidateProfile } from "@/features/candidate/model";
-import type { PrototypeJobView } from "../enrich";
+import type { ApplicationJobView } from "../enrich";
 import {
   APPLICATION_CANDIDATE_FIELDS,
   APPLICATION_CANDIDATE_FIELD_IDS,
@@ -74,7 +74,7 @@ import {
  * login link, because sending requires an authenticated candidate.
  */
 type VacancyApplicationWizardProps = {
-  job: PrototypeJobView;
+  job: ApplicationJobView;
   identity: CandidateIdentity;
   profile: CandidateProfile;
   avatarSrc: string;

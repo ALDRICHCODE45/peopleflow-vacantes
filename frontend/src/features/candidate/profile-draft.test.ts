@@ -8,15 +8,15 @@ import type { EditedProfile, CandidateLanguageDraft, CandidateProfileDraft, Prof
 
 const SOURCE = readFileSync(join(process.cwd(), "src", "features", "candidate", "profile-draft.ts"), "utf8");
 /** Every editable draft key, sorted: the form fields and nothing else. */
-const DRAFT_KEYS = ["birthDate", "location", "currentCompany", "currentSalaryGross", "currentSalaryNet", "educationLevel", "expectedSalary", "expectedSalaryPeriod", "fieldOfStudy", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
+const DRAFT_KEYS = ["birthDate", "location", "currentCompany", "currentSalaryGross", "currentSalaryNet", "education", "expectedSalary", "expectedSalaryPeriod", "seniority", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
 /** The validated profile keys: the draft plus the two server-owned timestamps. */
 const PROFILE_KEYS = [...DRAFT_KEYS, "createdAt", "updatedAt"].sort();
 /** Nullable profile fields a blank draft value must clear. */
-const NULLABLE_KEYS = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "location", "educationLevel", "fieldOfStudy", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod"] as const;
+const NULLABLE_KEYS = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "location", "seniority", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod"] as const;
 /** A valid profile with every nullable field unset; it also proves baseline timestamp ownership. */
 const EMPTY_PROFILE: CandidateProfile = {
   phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null, currentCompany: null, yearsOfExperience: null,
-  summary: null, birthDate: null, location: null, educationLevel: null, fieldOfStudy: null, skills: [],
+  summary: null, birthDate: null, location: null, seniority: null, education: [], skills: [],
   currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null, salaryCurrency: "MXN", expectedSalaryPeriod: null,
   languages: [], createdAt: "2020-01-02T03:04:05+00:00", updatedAt: "2021-02-03T04:05:06+00:00",
 };
@@ -54,9 +54,9 @@ describe("candidate profile draft adapter", () => {
   it("exposes a discriminated result and form-safe field types", () => {
     expectTypeOf<CandidateProfileDraft["phone"]>().toEqualTypeOf<string>();
     expectTypeOf<CandidateProfileDraft["yearsOfExperience"]>().toEqualTypeOf<string>();
-    expectTypeOf<CandidateProfileDraft["educationLevel"]>().toEqualTypeOf<"" | EducationLevel>();
+    expectTypeOf<CandidateProfileDraft["education"][number]["level"]>().toEqualTypeOf<"" | EducationLevel>();
     expectTypeOf<CandidateProfileDraft["expectedSalaryPeriod"]>().toEqualTypeOf<"" | SalaryPeriod>();
-    expectTypeOf<CandidateLanguageDraft>().toEqualTypeOf<{ name: string; level: "" | CefrLevel }>();
+    expectTypeOf<CandidateLanguageDraft>().toEqualTypeOf<{ code: string; level: "" | CefrLevel }>();
     expectTypeOf<CandidateProfileDraft["languages"]>().toEqualTypeOf<readonly CandidateLanguageDraft[]>();
     expectTypeOf<ProfileDraftIssue>().toEqualTypeOf<{ path: string; message: string }>();
     expectTypeOf(parseProfileDraft(freshDraft(), EMPTY_PROFILE)).toEqualTypeOf<ProfileDraftParseResult>();
@@ -64,13 +64,13 @@ describe("candidate profile draft adapter", () => {
   it("maps nulls to empty strings, numbers to decimal strings, and hides timestamps", () => {
     const empty = profileToDraft(EMPTY_PROFILE);
     expect(Object.keys(empty).sort()).toEqual(DRAFT_KEYS);
-    expect(Object.entries(empty).filter(([key]) => key !== "salaryCurrency" && key !== "languages" && key !== "location").every(([, value]) => value === "")).toBe(true);
+    expect(Object.entries(empty).filter(([key]) => key !== "salaryCurrency" && key !== "languages" && key !== "location" && key !== "education").every(([, value]) => value === "")).toBe(true);
     expect(empty.languages).toEqual([]);
     const fixture = profileToDraft(CANDIDATE_PROFILE);
     expect(fixture.yearsOfExperience).toBe("9");
     expect(fixture.currentSalaryGross).toBe("62000");
     expect(fixture.skills).toBe("react, typescript, node.js, design systems");
-    expect(fixture.languages).toEqual([{ name: "español", level: "C2" }, { name: "inglés", level: "B2" }]);
+    expect(fixture.languages).toEqual([{ code: "es", level: "C2" }, { code: "en", level: "B2" }]);
   });
   it("isolates the draft, the profile, and the baseline", () => {
     const before = JSON.stringify(CANDIDATE_PROFILE);
@@ -78,18 +78,18 @@ describe("candidate profile draft adapter", () => {
     expect(draft.languages).not.toBe(CANDIDATE_PROFILE.languages);
     expect(draft.languages[0]).not.toBe(CANDIDATE_PROFILE.languages[0]);
     draft.phone = "cambiado";
-    draft.languages[0].name = "cambiado";
+    draft.languages[0].code = "cambiado";
     draft.languages[0].level = "A1";
     expect(JSON.stringify(CANDIDATE_PROFILE)).toBe(before);
     expect(CANDIDATE_PROFILE.phone).toBe("+52 55 4821 7790");
-    expect(CANDIDATE_PROFILE.languages[0]).toEqual({ name: "español", level: "C2" });
+    expect(CANDIDATE_PROFILE.languages[0]).toEqual({ code: "es", level: "C2" });
   });
   it("clears blank nullable fields to null and never mutates its inputs", () => {
     const blank: Partial<CandidateProfileDraft> = {
-      phone: "  ", linkedinUrl: "  ", portfolioUrl: "  ", professionalTitle: "  ", currentCompany: "  ", fieldOfStudy: "  ",
-      yearsOfExperience: "  ", summary: "  ", birthDate: "  ", location: { country: null, state: null, municipality: null, postal_code: null }, skills: "   ",
-      currentSalaryGross: "  ", currentSalaryNet: "  ", expectedSalary: "  ", languages: [{ name: "  ", level: "" }],
-      educationLevel: "  " as CandidateProfileDraft["educationLevel"],
+      phone: "  ", linkedinUrl: "  ", portfolioUrl: "  ", professionalTitle: "  ", currentCompany: "  ", education: [],
+      yearsOfExperience: "", summary: "  ", birthDate: "  ", location: { country: null, state: null, municipality: null, postal_code: null }, skills: "   ",
+      currentSalaryGross: "  ", currentSalaryNet: "  ", expectedSalary: "  ", languages: [],
+      seniority: "",
       expectedSalaryPeriod: "  " as CandidateProfileDraft["expectedSalaryPeriod"],
     };
     const draft = draftWith(blank);
@@ -104,14 +104,14 @@ describe("candidate profile draft adapter", () => {
     expect(JSON.stringify(CANDIDATE_PROFILE)).toBe(baselineBefore);
   });
   it("parses integer drafts and reports off-spec numbers as field issues", () => {
-    const parsed = profileOf({ yearsOfExperience: " 12 ", expectedSalary: "75000", currentSalaryGross: "0" });
-    expect(parsed.yearsOfExperience).toBe(12);
+    const parsed = profileOf({ yearsOfExperience: "12.5", expectedSalary: "75000", currentSalaryGross: "0" });
+    expect(parsed.yearsOfExperience).toBe("12.5");
     expect(parsed.expectedSalary).toBe(75000);
     expect(parsed.currentSalaryGross).toBe(0);
-    for (const bad of ["9.5", "-1", "1e3", "1E3", "+5", "abc", "5 0", "٣"]) {
+    for (const bad of ["9.55", "-1", "1e3", "1E3", "+5", "abc", "5 0", "٣"]) {
       const issues = issuesOf({ yearsOfExperience: bad });
       expect(issues.map((issue) => issue.path), bad).toEqual(["yearsOfExperience"]);
-      expect(issues[0].message, bad).toContain("entero");
+      expect(issues[0].message, bad).toContain("decimal");
     }
     expect(issuesOf({ yearsOfExperience: "61" }).map((issue) => issue.path)).toEqual(["yearsOfExperience"]);
     expect(issuesOf({ expectedSalary: "100000001" }).map((issue) => issue.path)).toEqual(["expectedSalary"]);
@@ -130,25 +130,26 @@ describe("candidate profile draft adapter", () => {
     expect(issuesOf({ skills: ["a".repeat(61), "react"].join(",") }).map((issue) => issue.path)).toEqual(["skills"]);
     expect(issuesOf({ skills: Array.from({ length: 61 }, (_, index) => `s${index}`).join(",") }).map((issue) => issue.path)).toEqual(["skills"]);
   });
-  it("drops blank language rows and defers completed rows to the schema", () => {
-    const parsed = profileOf({ languages: [{ name: "  ", level: "" }, { name: " INGLÉS ", level: "C1" }, { name: "Español", level: "C2" }] });
-    expect(parsed.languages).toEqual([{ name: "inglés", level: "C1" }, { name: "español", level: "C2" }]);
+  it("preserves opaque language codes and rejects empty added rows", () => {
+    const parsed = profileOf({ languages: [{ code: "local:any", level: "C1" }, { code: "es", level: "native" }] });
+    expect(parsed.languages).toEqual([{ code: "local:any", level: "C1" }, { code: "es", level: "native" }]);
+    expect(issuesOf({ languages: [{ code: "", level: "" }] }).map(issue => issue.path)).toEqual(["languages.0.code", "languages.0.level"]);
   });
   it("reports partial language rows with field-precise paths", () => {
-    const issues = issuesOf({ languages: [{ name: "Inglés", level: "" }, { name: " ", level: "B1" }] });
-    expect(issues.map((issue) => issue.path)).toEqual(["languages.0.level", "languages.1.name"]);
+    const issues = issuesOf({ languages: [{ code: "en", level: "" }, { code: "", level: "B1" }] });
+    expect(issues.map((issue) => issue.path)).toEqual(["languages.0.level", "languages.1.code"]);
     expect(issues[0].message).toContain("nivel");
     expect(issues[1].message).toContain("idioma");
-    const tooMany = Array.from({ length: 21 }, (_, index) => ({ name: `idioma ${index}`, level: "C2" as CefrLevel }));
+    const tooMany = Array.from({ length: 11 }, (_, index) => ({ code: `idioma ${index}`, level: "C2" as CefrLevel }));
     expect(issuesOf({ languages: tooMany }).map((issue) => issue.path)).toEqual(["languages"]);
   });
   it("requires exact uppercase CEFR levels and translates duplicate-language issues", () => {
-    const lowercase = issuesOf({ languages: [{ name: "Inglés", level: "b2" as CefrLevel }] });
+    const lowercase = issuesOf({ languages: [{ code: "en", level: "b2" as CefrLevel }] });
     expect(lowercase.map((issue) => issue.path)).toEqual(["languages.0.level"]);
-    expect(lowercase[0].message).toContain("A1");
-    const duplicate = issuesOf({ languages: [{ name: "Español", level: "C2" }, { name: "español", level: "B1" }] });
-    expect(duplicate.map((issue) => issue.path)).toEqual(["languages.1.name"]);
-    expect(duplicate[0].message).toBe('El idioma "español" ya está registrado.');
+    expect(lowercase[0].message).toContain("opción");
+    const duplicate = issuesOf({ languages: [{ code: "es", level: "C2" }, { code: "es", level: "B1" }] });
+    expect(duplicate.map((issue) => issue.path)).toEqual(["languages.1.code"]);
+    expect(duplicate[0].message).toBe("Este idioma ya está agregado.");
   });
   it("rejects bad URLs, dates, enums, and oversized text in Spanish", () => {
     const badUrl = issuesOf({ linkedinUrl: "not-a-url" });
@@ -160,17 +161,17 @@ describe("candidate profile draft adapter", () => {
       expect(issues.map((issue) => issue.path), date).toEqual(["birthDate"]);
       expect(issues[0].message, date).toContain("AAAA-MM-DD");
     }
-    expect(issuesOf({ educationLevel: "vocational" as EducationLevel })[0].message).toContain("nivel educativo");
+    expect(issuesOf({ education: [{ ...freshDraft().education[0], level: "vocational" as EducationLevel }] })[0].path).toBe("education.0.level");
     expect(issuesOf({ expectedSalaryPeriod: "weekly" as SalaryPeriod })[0].message).toContain("periodo");
     expect(issuesOf({ professionalTitle: "x".repeat(121) })[0].message).toContain("120");
     expect(issuesOf({ summary: "x".repeat(2001) })[0].message).toContain("2000");
   });
   it("returns one deterministic issue per failing path in schema order", () => {
     const issues = issuesOf({
-      phone: "123", summary: "x".repeat(2001), educationLevel: "vocational" as EducationLevel, expectedSalary: "1.5",
-      salaryCurrency: "mx", languages: [{ name: " ", level: "B1" }, { name: "Inglés", level: "" }],
+      phone: "123", summary: "x".repeat(2001), education: [{ ...freshDraft().education[0], level: "vocational" as EducationLevel }], expectedSalary: "1.5",
+      salaryCurrency: "mx", languages: [{ code: "", level: "B1" }, { code: "en", level: "" }],
     });
-    expect(issues.map((issue) => issue.path)).toEqual(["phone", "summary", "educationLevel", "expectedSalary", "salaryCurrency", "languages.0.name", "languages.1.level"]);
+    expect(issues.map((issue) => issue.path)).toEqual(["phone", "summary", "education.0.level", "expectedSalary", "salaryCurrency", "languages.0.code", "languages.1.level"]);
     expect(new Set(issues.map((issue) => issue.path)).size).toBe(issues.length);
     expect(issues.every((issue) => issue.message.length > 0)).toBe(true);
     expect(issuesOf({ linkedinUrl: `not a url ${"x".repeat(300)}` }).map((issue) => issue.path)).toEqual(["linkedinUrl"]);
@@ -186,7 +187,7 @@ describe("candidate profile draft adapter", () => {
   });
   it("never throws and always answers for hostile string input", () => {
     for (const value of ["", "   ", "🙂", "not-a-url", "999999999999999999999", "1e309", "\u0000", "<script>", "-0", "mxn"]) {
-      const result = parseProfileDraft(draftWith({ phone: value, linkedinUrl: value, birthDate: value, yearsOfExperience: value, salaryCurrency: value, skills: value, languages: [{ name: value, level: "C1" }] }), CANDIDATE_PROFILE);
+      const result = parseProfileDraft(draftWith({ phone: value, linkedinUrl: value, birthDate: value, yearsOfExperience: value, salaryCurrency: value, skills: value, languages: [{ code: value, level: "C1" }] }), CANDIDATE_PROFILE);
       expect(result.ok, value).toBeTypeOf("boolean");
       if (!result.ok) expect(new Set(result.issues.map((issue) => issue.path)).size, value).toBe(result.issues.length);
     }

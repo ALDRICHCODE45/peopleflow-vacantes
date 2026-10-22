@@ -484,6 +484,8 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
      stretched the viewport to full height and stacked toasts at the top. */
   bottom: env(safe-area-inset-bottom, 0px);
   right: env(safe-area-inset-right, 0px);
+  /* Above modal backdrops (z-50): a toast raised while a dialog is open must stay readable. */
+  z-index: 100;
   font-family: var(--font-sans), sans-serif;
 }
 

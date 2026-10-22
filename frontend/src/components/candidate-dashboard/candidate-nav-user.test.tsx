@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ notify: vi.fn(), logout: vi.fn(), identity: { 
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => mocks.identity }));
 vi.mock("next-auth/react", () => ({ signOut: mocks.logout }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notify }));
-vi.mock("@/components/company-dashboard/nav-user", () => ({ NavUser: ({ user, onLogout }: { user: { name: string; email: string }; onLogout?: () => void }) => <><p>{user.name}</p><p>{user.email}</p><button onClick={onLogout}>Cerrar sesión</button></> }));
+vi.mock("@/components/company-dashboard/nav-user", () => ({ NavUser: ({ user, onLogout, logoutStatusId }: { user: { name: string; email: string }; onLogout?: () => void; logoutStatusId?: string }) => <><p>{user.name}</p><p>{user.email}</p><button onClick={onLogout} aria-describedby={logoutStatusId}>Cerrar sesión</button></> }));
 import { CandidateNavUser, candidateAccountMenu } from "@/components/candidate-dashboard/candidate-nav-user";
 afterEach(cleanup);
 it("renders the loaded name and email, never prototype identity, and federated candidate logout", async () => {
@@ -19,7 +19,10 @@ it("reports a logout failure without disclosing the exception", async () => {
   mocks.logout.mockRejectedValueOnce(new Error("private-token"));
   render(<CandidateNavUser />);
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" })); });
-  expect(screen.getByRole("status")).toHaveTextContent("No se cerró la sesión");
+  const status = screen.getByRole("status");
+  expect(status).toHaveTextContent("No se cerró la sesión");
+  expect(screen.getByRole("button", { name: "Cerrar sesión" })).toHaveAttribute("aria-describedby", status.id);
+  expect(document.querySelector("[data-pf-action-status-slot]")).toBeNull();
   expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
   expect(screen.queryByText(/private-token/)).toBeNull();
 });

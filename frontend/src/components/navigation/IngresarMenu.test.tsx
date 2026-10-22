@@ -100,18 +100,37 @@ describe("IngresarMenu identity entry", () => {
     ["candidate", "/candidato/dashboard"],
     ["recruiter", "/empresa/dashboard"],
   ])("links %s to their own dashboard instead of login", (role, href) => {
-    identity.useIdentity.mockReturnValue({ status: "ready", result: { ok: true, data: { role } } });
+    identity.useIdentity.mockReturnValue({ status: "ready", result: { ok: true, data: { role, user: { full_name: "Flores Vazquez Bryan", email: "bryan@example.com" } } } });
     render(<IngresarMenu className="h-11 px-5" />);
 
+    // A bordered pill with the sidebar's initials avatar, so it reads as «your account» and not as a stray link.
     const link = screen.getByRole("link", { name: "Mi cuenta" });
     expect(link).toHaveAttribute("href", href);
-    expect(link).toHaveClass("hover:bg-muted", "hover:text-foreground");
-    expect(link).toHaveClass("min-h-10", "max-sm:min-w-10", "h-11", "px-5");
+    expect(link).toHaveClass("border-border");
+    expect(link).toHaveClass("rounded-full", "min-h-10", "max-sm:min-w-10", "h-11", "px-5");
+    const avatar = link.querySelector('[data-slot="avatar"]');
+    expect(avatar).toHaveAttribute("aria-hidden", "true");
+    expect(avatar).toHaveTextContent("FV");
+    expect(link.firstElementChild).toBe(avatar);
     expect(screen.getByText("Mi cuenta")).toHaveClass("max-sm:sr-only");
-    expect(link.querySelectorAll("svg")).toHaveLength(1);
-    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(link.querySelectorAll("svg")).toHaveLength(0);
     expect(link).not.toHaveAttribute("aria-haspopup");
     expect(screen.queryByRole("button", { name: "Ingresar" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the account pill round even when the navbar passes its rounded focus ring", () => {
+    identity.useIdentity.mockReturnValue({ status: "ready", result: { ok: true, data: { role: "candidate", user: { full_name: "Ana Pérez", email: "" } } } });
+    render(<IngresarMenu className="rounded-md focus-visible:outline-2" />);
+    const link = screen.getByRole("link", { name: "Mi cuenta" });
+    expect(link).toHaveClass("rounded-full", "focus-visible:outline-2");
+    expect(link).not.toHaveClass("rounded-md");
+  });
+
+  it("falls back to a user icon in the avatar when the account has no name", () => {
+    identity.useIdentity.mockReturnValue({ status: "ready", result: { ok: true, data: { role: "candidate", user: { full_name: "", email: "" } } } });
+    render(<IngresarMenu />);
+    const avatar = screen.getByRole("link", { name: "Mi cuenta" }).querySelector('[data-slot="avatar"]');
+    expect(avatar?.querySelectorAll("svg")).toHaveLength(1);
   });
 
   it.each([

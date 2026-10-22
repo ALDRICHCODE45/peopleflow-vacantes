@@ -148,6 +148,12 @@ it("ignores a late postal response after a newer code and rejects non-digits", a
   await act(async () => { resolve(Response.json({ postal_code: "05000", matches: [pair()] })); });
   expect(value().postal_code).toBe("06000"); expect(value().municipality).toBe("01002");
 });
+it("uses custom error copy and preserves the default when omitted", async () => {
+  const { rerender } = render(<Harness depth="country" errors={[{ field: "country", reason: "required", message: "Elige un país." }]} />);
+  expect(await screen.findByText("Elige un país.")).toHaveAttribute("data-slot", "field-error");
+  rerender(<Harness depth="country" errors={[{ field: "country", reason: "required" }]} />);
+  expect(screen.getByText("Completa este dato.")).toBeVisible();
+});
 it("honors depth, postal flag, disabled and field-level errors", async () => {
   const { rerender } = render(<Harness depth="country" postalCode={false} />);
   await screen.findByRole("combobox", { name: "País" });

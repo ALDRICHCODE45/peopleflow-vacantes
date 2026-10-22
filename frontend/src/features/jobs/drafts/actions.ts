@@ -1,5 +1,6 @@
 "use server";
 
+import type { DraftValidationIssue } from "./validation-errors";
 import type { GeographyErrors } from "@/features/geo/model";
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { createDraftV2, saveDraftV2, type DraftV2Failure } from "./api/client-v2";
@@ -9,7 +10,7 @@ type ExistingDraftSaveReason = "unauthenticated" | "forbidden" | "company_inacti
 export type DraftSaveReason = ExistingDraftSaveReason | "publication_incomplete";
 export type DraftSaveResult =
   | { ok: true; draftId: string; etag: string; version: string; savedAt: string; replayed?: boolean }
-  | { ok: false; reason: ExistingDraftSaveReason; geography?: GeographyErrors; reference: { status?: number; code?: string } }
+  | { ok: false; reason: ExistingDraftSaveReason; geography?: GeographyErrors; fields?: DraftValidationIssue[]; reference: { status?: number; code?: string } }
   | PublicationIncompleteFailure;
 export type SaveDraftV2ActionInput = { draftId?: string; etag?: string; idempotencyKey?: string; body: unknown };
 
@@ -49,7 +50,7 @@ export async function saveDraftV2Action(input: SaveDraftV2ActionInput): Promise<
       if (result.error.kind === "status" && result.error.status === 422 && result.envelope?.geography) {
         return { ok: false, reason: "invalid_request", geography: result.envelope.geography, reference: { status: 422, code: result.envelope.code } };
       }
-      return { ok: false, reason: failureReason(result), reference: {
+      return { ok: false, reason: failureReason(result), ...(result.error.kind === "status" && result.error.status === 400 && result.envelope?.fields ? { fields: result.envelope.fields } : {}), reference: {
         ...("status" in result.error ? { status: result.error.status } : {}),
         ...(result.envelope ? { code: result.envelope.code } : {}),
       } };

@@ -4,7 +4,7 @@ import * as React from "react";
 import { signOut } from "next-auth/react";
 import { IconFileCv, IconSettings, IconUserCircle } from "@tabler/icons-react";
 import { NavUser } from "@/components/company-dashboard/nav-user";
-import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { useIdentity } from "@/features/identity/identity-session";
 
@@ -16,7 +16,8 @@ export const candidateAccountMenu = [
 
 export function CandidateNavUser() {
   const { result } = useIdentity();
-  const user = result?.ok && result.data.role === "candidate" ? result.data.user : null;
+  const user = result?.ok ? result.data.user : null;
+  const role = result?.ok && result.data.role === "recruiter" ? "Empresa" : "Candidato";
   const [pending, setPending] = React.useState(false);
   const lock = React.useRef(false);
   const [failed, setFailed] = React.useState(false);
@@ -31,7 +32,7 @@ export function CandidateNavUser() {
     } finally { lock.current = false; setPending(false); }
   }
   return <>
-    <NavUser user={{ name: user?.full_name ?? "Mi cuenta", email: user?.email ?? "", role: "Candidato", company: "Espacio personal" }} secondaryText={user?.email ?? ""} menuItems={candidateAccountMenu} onLogout={() => void logout()} logoutPending={pending} logoutStatusId={failed ? statusId : undefined} />
-    <ActionStatusSlot>{failed && <ActionStatus id={statusId} tone="error" text="No se cerró la sesión. Intenta nuevamente desde el menú." />}</ActionStatusSlot>
+    <NavUser user={{ name: user?.full_name ?? "Mi cuenta", email: user?.email ?? "", role, company: role === "Empresa" ? "Empresa" : "Espacio personal" }} secondaryText={user?.email ?? ""} menuItems={candidateAccountMenu} onLogout={() => void logout()} logoutPending={pending} logoutStatusId={failed ? statusId : undefined} />
+    {failed && <ActionStatus id={statusId} tone="error" text="No se cerró la sesión. Intenta nuevamente desde el menú." />}
   </>;
 }

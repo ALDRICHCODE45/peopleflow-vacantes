@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
+import { useIdentity } from "@/features/identity/identity-session"
 import { CandidateNavUser } from "./candidate-nav-user"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -35,6 +36,8 @@ export function isActiveCandidateDestination(url: string, pathname: string | nul
 
 export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const { result } = useIdentity()
+  const showNavigation = !result?.ok || result.data.role === "candidate"
   const { state, isMobile } = useSidebar()
 
   return (
@@ -51,7 +54,7 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {CANDIDATE_NAV_GROUPS.map((group, index) => (
+        {showNavigation && CANDIDATE_NAV_GROUPS.map((group, index) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent className={index === 0 ? "flex flex-col gap-2" : undefined}>

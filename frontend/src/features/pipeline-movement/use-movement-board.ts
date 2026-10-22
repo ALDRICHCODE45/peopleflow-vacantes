@@ -249,5 +249,14 @@ export function useMovementBoard(vacancyId: string) {
       void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation, ...(recovery.required ? { target } : {}) });
     }
   }
-  return { updateLifecycle, board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, substateConfirmation, closeSubstateConfirmation, confirmSubstate, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
+  function addCandidate(value: import("@/features/manual-intake/model").IntakeResponse) {
+    const current = snapshot.current;
+    if (!current) return;
+    const { coverage, delivery, ...item } = value;
+    const participations = [...current.participations.filter(entry => entry.id !== item.id), item];
+    adopt({ ...current, coverage, delivery, participations, stages: current.stages.map(stage => ({ ...stage, count: participations.filter(entry => entry.stage_id === stage.id).length })) });
+    // A concurrently pending card mutation has no global coverage version.
+    if (locks.current.size) overlapping.current = true;
+  }
+  return { addCandidate, updateLifecycle, board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, substateConfirmation, closeSubstateConfirmation, confirmSubstate, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
 }

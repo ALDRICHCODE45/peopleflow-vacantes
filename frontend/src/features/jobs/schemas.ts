@@ -2,6 +2,14 @@ import { z } from "zod";
 import { locationReadSchema, remoteScopeReadSchema } from "../geo/model";
 import { COMPENSATION_BASES, COMPENSATION_CURRENCIES, COMPENSATION_MONEY_PATTERN, COMPENSATION_PAY_PERIODS, compensationSchema } from "./drafts/compensation";
 import { BENEFITS } from "./drafts/lists";
+import { draftLanguagesSchema } from "./drafts/nested";
+import { draftMinEducationSchema, draftMinYearsSchema } from "./drafts/scalars";
+export const requirementsProfileSchema = z.object({
+  languages: draftLanguagesSchema,
+  min_years_of_experience: draftMinYearsSchema,
+  min_education_level: draftMinEducationSchema,
+  accepts_in_progress_education: z.boolean(),
+}).strict();
 import { draftRichDescriptionSchema } from "./drafts/rich/description";
 import { CONTRACT_TYPES, PROFESSIONAL_AREAS, SENIORITIES, WORK_MODES, WORK_SCHEDULES } from "./drafts/scalars";
 
@@ -81,6 +89,7 @@ const emptyBenefitsSchema = z.object({
 const publicLocationSchema = locationReadSchema;
 const publicRemoteScopeSchema = remoteScopeReadSchema;
 const publicCommon = {
+  requirements_profile: requirementsProfileSchema,
   location: publicLocationSchema,
   location_label: z.string().nullable(),
   remote_scope: publicRemoteScopeSchema,

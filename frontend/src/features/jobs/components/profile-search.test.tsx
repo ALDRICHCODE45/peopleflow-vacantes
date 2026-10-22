@@ -1,0 +1,64 @@
+import React from "react";
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { JobsNavigationIsland } from "./JobsNavigationIsland";
+vi.mock("@/components/ui/combobox", async importOriginal => ({ ...await importOriginal<typeof import("@/components/ui/combobox")>(), ComboboxContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("../../geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [] } }, states: { status: "success", data: { items: [] } } }) }));
+vi.mock("../../languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }, { code: "nah", name: "Náhuatl" }] }, retry: vi.fn() }) }));
+afterEach(() => { cleanup(); push.mockReset(); });
+it("renders searchable OR selections, candidate help and commits decimal years", () => {
+  render(<JobsNavigationIsland routeKey="/vacantes?cursor=old" query={{}}><p>Results</p></JobsNavigationIsland>);
+  expect(screen.getByLabelText("Idiomas")).toBeTruthy();
+  expect(screen.getByLabelText("Buscar idiomas")).toBeTruthy();
+  expect(screen.getByText("Vacantes que piden alguno de estos idiomas.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("option", { name: "Inglés" }));
+  fireEvent.click(screen.getByRole("option", { name: "Náhuatl" }));
+  fireEvent.click(screen.getByRole("option", { name: "Junior" }));
+  fireEvent.click(screen.getByRole("option", { name: "Semi-senior" }));
+  fireEvent.change(screen.getByLabelText("Tus años de experiencia"), { target: { value: "1.5" } });
+  fireEvent.submit(screen.getByRole("form", { name: "Filtros" }));
+  const params = new URLSearchParams(push.mock.calls[0][0].split("?")[1]);
+  expect(params.getAll("language")).toEqual(["en", "nah"]);
+  expect(params.getAll("seniority")).toEqual(["junior", "semi_senior"]);
+  expect(params.get("years_of_experience")).toBe("1.5");
+  expect(params.has("cursor")).toBe(false);
+});
+it("blocks invalid years inline and focuses the field without sending a request", () => {
+  render(<JobsNavigationIsland routeKey="/vacantes" query={{}}><p>Results</p></JobsNavigationIsland>);
+  const field = screen.getByLabelText("Tus años de experiencia");
+  fireEvent.change(field, { target: { value: "60.1" } });
+  fireEvent.submit(screen.getByRole("form", { name: "Filtros" }));
+  expect(field.getAttribute("aria-invalid")).toBe("true");
+  expect(document.activeElement).toBe(field);
+  expect(screen.getByText("Escribe de 0 a 60 años, con hasta un decimal y sin signos ni ceros iniciales.")).toBeTruthy();
+  expect(push).not.toHaveBeenCalled();
+});
+it("shows named profile chips, removes one selection and clears all with Todas", () => {
+  const routeKey = "/vacantes?language=en&language=nah&seniority=junior&years_of_experience=2&education_level=bachelor&cursor=old";
+  render(<JobsNavigationIsland routeKey={routeKey} query={{ language: ["en", "nah"], seniority: ["junior"], years_of_experience: "2", education_level: "bachelor" }}><p>Results</p></JobsNavigationIsland>);
+  // Short chip names keep the value visible instead of truncating it («Tu nivel de estudios: Licenciatur…»).
+  expect(screen.getByRole("button", { name: "Quitar filtro Estudios: Licenciatura o Ingeniería" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Quitar filtro Experiencia: 2 años" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Quitar filtro Idiomas: Inglés" }));
+  const params = new URLSearchParams(push.mock.calls[0][0].split("?")[1]);
+  expect(params.getAll("language")).toEqual(["nah"]);
+  expect(params.has("cursor")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Todas" }));
+  expect(push).toHaveBeenLastCalledWith("/vacantes");
+});
+it("shares the four controls and selection counts with the mobile sheet", async () => {
+  render(<JobsNavigationIsland routeKey="/vacantes?language=nah&seniority=director&years_of_experience=60&education_level=phd" query={{ language: ["nah"], seniority: ["director"], years_of_experience: "60", education_level: "phd" }}><p>Results</p></JobsNavigationIsland>);
+  fireEvent.click(screen.getByRole("button", { name: "Filtros (4)" }));
+  const sheet = within(await screen.findByRole("dialog"));
+  expect(sheet.getByLabelText("Idiomas")).toBeTruthy();
+  expect(sheet.getByLabelText("Seniority")).toBeTruthy();
+  expect(sheet.getByLabelText("Tu nivel de estudios").textContent).toContain("Doctorado");
+  expect(sheet.getByText("4 valores seleccionados. Aplica los filtros para consultar los resultados.")).toBeTruthy();
+  fireEvent.change(sheet.getByLabelText("Tus años de experiencia"), { target: { value: "59.9" } });
+  fireEvent.click(sheet.getByRole("button", { name: "Aplicar filtros" }));
+  const params = new URLSearchParams(push.mock.calls[0][0].split("?")[1]);
+  expect(params.get("years_of_experience")).toBe("59.9");
+  expect(params.get("education_level")).toBe("phd");
+});

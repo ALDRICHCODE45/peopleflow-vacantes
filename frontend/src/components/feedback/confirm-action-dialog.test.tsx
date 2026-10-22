@@ -88,6 +88,12 @@ it("uses the default size and a single details slot between header and footer wh
   expect(details.className).toContain("overflow-y-auto");
   expect(details.className).toContain("max-h-");
   expect(dialog.querySelector('[data-slot="alert-dialog-media"]')!.className).toContain("text-destructive");
+
+  // Mobile: a tall header and stacked footer must never push the dialog off screen. The dialog
+  // is capped to the viewport and the details row takes only the space left (§23).
+  expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]");
+  expect(dialog.className).toContain("grid-rows-[auto_minmax(0,1fr)_auto]");
+  expect(details.className).toContain("min-h-0");
 });
 
 it("lets the cancel action carry the decision when «Cancelar» is not the right word", () => {

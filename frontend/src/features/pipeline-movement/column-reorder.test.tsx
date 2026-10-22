@@ -226,7 +226,7 @@ it("failed initial config offers read-only recovery, not a false candidate restr
 });
 it("large impact uses one scrolling details slot with official header/media/footer composition", async () => {
   const impact = preview();
-  impact.not_applicable = Array.from({ length: 50 }, (_, index) => ({ ...impact.not_applicable[0], participation_id: `person-${index}`, candidate: { id: `candidate-${index}`, full_name: `Nombre extenso del candidato ${index}` } }));
+  impact.not_applicable = Array.from({ length: 50 }, (_, index) => ({ ...impact.not_applicable[0], participation_id: `person-${index}`, candidate: { id: `candidate-${index}`, full_name: `Nombre extenso del candidato ${index}`, kind: "organic" } }));
   vi.mocked(previewPipelineAction).mockResolvedValue({ ok: true, preview: impact });
   await mount(); drop(); const dialog = await screen.findByRole("alertdialog");
   const details = dialog.querySelector('[data-slot="confirm-action-details"]')!;

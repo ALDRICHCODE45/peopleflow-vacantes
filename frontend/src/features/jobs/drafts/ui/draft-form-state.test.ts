@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { draftPostBodySchema } from "../fields";
 import type { DraftModel } from "../model";
 import { BENEFITS } from "../lists";
-import { LANGUAGE_LEVELS } from "../nested";
+import { CEFR_LEVELS } from "@/features/candidate/model";
 import {
   addLanguageRow,
   addListRow,
@@ -62,7 +62,7 @@ function populatedModel(): DraftModel {
       benefits: ["annual_bonus", "health_insurance"],
       screening_questions: [{ prompt: "¿Cuántos años de experiencia tienes?" }],
       requester: { kind: "client", id: ID },
-      languages: [{ language: "other", custom_name: "Francés", level: "basic" }],
+      languages: [{ code: "fr", min_level: "A2" }],
       compensation: {
         mode: "range",
         amount: null,
@@ -120,9 +120,8 @@ describe("initialDraftFormState", () => {
     expect(state.requester.name).toBe("Cliente Ejemplo");
     expect(state.requester.changed).toBe(false);
     expect(state.languages).toHaveLength(1);
-    expect(state.languages[0].language).toBe("other");
-    expect(state.languages[0].customName).toBe("Francés");
-    expect(state.languages[0].level).toBe("basic");
+    expect(state.languages[0].code).toBe("fr");
+    expect(state.languages[0].min_level).toBe("A2");
     expect(state.compensation).toEqual({
       mode: "range",
       amount: "",
@@ -214,18 +213,18 @@ describe("composeDraftFields", () => {
     expect(none.max).toBeNull();
   });
 
-  it("sends custom_name only for the other language and null for es/en", () => {
+  it("sends only code and minimum level for every language", () => {
     const state = initialDraftFormState(populatedModel());
     state.languages = [
-      { id: "language-1", language: "other", customName: "Francés", level: "" },
-      { id: "language-2", language: "es", customName: "buffer ignorado", level: "native" },
+      { id: "language-1", code: "fr", min_level: "A2" },
+      { id: "language-2", code: "es", min_level: "native" },
     ];
 
     const languages = composeDraftFields(state).languages as Record<string, unknown>[];
 
     expect(languages).toEqual([
-      { language: "other", custom_name: "Francés", level: null },
-      { language: "es", custom_name: null, level: "native" },
+      { code: "fr", min_level: "A2" },
+      { code: "es", min_level: "native" },
     ]);
   });
 
@@ -429,17 +428,17 @@ describe("row and catalog helpers", () => {
     expect(rows).toHaveLength(1);
     const [row] = rows;
 
-    rows = updateLanguageRow(rows, row.id, { language: "other", customName: " Alemán " });
-    expect(rows[0]).toMatchObject({ language: "other", customName: " Alemán " });
+    rows = updateLanguageRow(rows, row.id, { code: "de", min_level: "B2" });
+    expect(rows[0]).toMatchObject({ code: "de", min_level: "B2" });
 
-    rows = updateLanguageRow(rows, row.id, { language: "en" });
-    expect(rows[0].customName).toBe(" Alemán ");
+    rows = updateLanguageRow(rows, row.id, { code: "en" });
+    expect(rows[0].min_level).toBe("B2");
 
     rows = removeLanguageRow(rows, row.id);
     expect(rows).toHaveLength(0);
   });
 
   it("publishes exactly the contract language levels and no CEFR mapping", () => {
-    expect([...LANGUAGE_LEVELS]).toEqual(["basic", "intermediate", "advanced", "native"]);
+    expect([...CEFR_LEVELS]).toEqual(["A1", "A2", "B1", "B2", "C1", "C2", "native"]);
   });
 });

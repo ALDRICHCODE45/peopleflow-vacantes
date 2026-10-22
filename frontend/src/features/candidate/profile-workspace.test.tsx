@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ProfileWorkspace } from "./profile-workspace";
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "./prototype-candidate";
@@ -13,6 +13,7 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({
   useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }] }, retry: vi.fn() }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }] }, retry: vi.fn() }, municipalities: { status: "success", data: { items: [] }, retry: vi.fn() } }),
   useGeoPostalCode: () => ({ status: "idle" }),
 }));
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "es", name: "Español" }, { code: "en", name: "Inglés" }, { code: "fr", name: "Francés" }] }, retry: vi.fn() }) }));
 const valid = parseProfileDraft(profileToDraft(CANDIDATE_PROFILE), CANDIDATE_PROFILE);
 if (!valid.ok) throw new Error("Invalid fixture");
 const wire = { ...profileToWrite(valid.profile), user_id: CANDIDATE_IDENTITY.userId, location: CANDIDATE_PROFILE.location, created_at: CANDIDATE_PROFILE.createdAt, updated_at: CANDIDATE_PROFILE.updatedAt };
@@ -24,6 +25,76 @@ async function ready() { const view = render(<ProfileWorkspace />); await screen
 beforeEach(() => { vi.resetAllMocks(); mocks.load.mockResolvedValue(loaded); mocks.save.mockResolvedValue({ kind: "saved", profile: { ...wire, phone: "12345678" } }); });
 afterEach(cleanup);
 describe("live candidate profile", () => {
+  it("groups identity before icon metadata and leaves only progress in the right column", async () => {
+    const { container } = await ready();
+    const hero = container.querySelector('[data-pf-profile-identity]')!;
+    const title = hero.querySelector('[data-slot="card-title"]')!;
+    expect(within(title as HTMLElement).getByRole("heading", { name: CANDIDATE_IDENTITY.fullName })).toHaveAttribute("id", "pf-profile-identity-heading");
+    expect(title).toHaveTextContent(CANDIDATE_PROFILE.professionalTitle!);
+    const meta = hero.querySelector('[data-slot="card-description"]')!;
+    expect(meta).toHaveTextContent(`Trabaja en ${CANDIDATE_PROFILE.currentCompany}`);
+    expect(meta.querySelectorAll("svg")).toHaveLength(3);
+    expect(hero.textContent!.indexOf(CANDIDATE_PROFILE.professionalTitle!)).toBeLessThan(hero.textContent!.indexOf(CANDIDATE_IDENTITY.email));
+    const progress = hero.querySelector('[data-slot="card-action"]')!;
+    expect(progress).toHaveTextContent("Avance del perfil");
+    expect(progress).not.toHaveTextContent(CANDIDATE_PROFILE.professionalTitle!);
+    expect(hero.querySelector('[data-slot="avatar"]')).toHaveClass("size-14", "md:size-20");
+    expect(title).toHaveClass("min-w-0", "grid-cols-[auto_minmax(0,1fr)]");
+    expect(meta).toHaveClass("flex-wrap", "md:pl-25");
+  });
+  it("omits missing metadata and offers a title shortcut that switches and focuses", async () => {
+    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, professional_title: null, current_company: null, location: null } } });
+    const { container } = await ready();
+    expect(container).not.toHaveTextContent(/sin definir/i);
+    expect(screen.queryByText(/Trabaja en/)).not.toBeInTheDocument();
+    const addTitle = screen.getByRole("button", { name: "Agrega tu título profesional" });
+    // Aligned with the name column at every width, with no link padding pushing it inward.
+    expect(addTitle).toHaveClass("col-start-2", "px-0", "has-data-[icon=inline-start]:pl-0");
+    expect(addTitle).not.toHaveClass("col-span-2");
+    fireEvent.click(addTitle);
+    expect(screen.getByRole("tab", { name: "Experiencia" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByLabelText("Título profesional")).toHaveFocus());
+    change("Título profesional", "Diseñadora");
+    expect(container.querySelector('[data-pf-profile-headline]')).toHaveTextContent("Diseñadora");
+  });
+  it("keeps personal data together outside the location card", async () => {
+    await ready();
+    const contact = screen.getByRole("group", { name: "Contacto" });
+    for (const label of ["Teléfono", "Fecha de nacimiento", "Perfil de LinkedIn", "Portafolio o sitio web"]) expect(within(contact).getByLabelText(label)).toBeInTheDocument();
+  });
+  it("focuses birth date before LinkedIn errors in the new visual order", async () => {
+    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: {}, fields: [{ field: "linkedin_url", code: "invalid" }, { field: "birth_date", code: "invalid" }] } });
+    await ready(); change("Teléfono", "12345678"); save();
+    await waitFor(() => expect(screen.getByLabelText("Fecha de nacimiento")).toHaveFocus());
+  });
+  it("associates eligibility help with País", async () => {
+    await ready();
+    const country = screen.getByRole("combobox", { name: "País" });
+    const help = screen.getByText("Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.");
+    expect(country.closest('[data-slot="field"]')).toContainElement(help);
+    expect(country).toHaveAccessibleDescription(help.textContent!);
+  });
+  it("offers a right-aligned destructive remove action", async () => {
+    await ready();
+    const remove = screen.getByRole("button", { name: "Quitar ubicación" });
+    expect(remove).toHaveTextContent(/^Quitar$/);
+    expect(remove).toHaveClass("text-destructive");
+    expect(remove.querySelector("svg.lucide-trash-2")).not.toBeNull();
+    // The remove action sits in the «Ubicación» card header, not on its own row above País.
+    expect(remove.closest('[data-slot="card-header"]')).toHaveTextContent("Ubicación");
+    // The 40px target does not make this header taller than «Contacto».
+    expect(remove.closest('[data-slot="card-action"]')).toHaveClass("row-span-1", "-my-2");
+  });
+  it("signals mobile tab overflow with an edge fade, without a native scrollbar or hint text", async () => {
+    await ready();
+    const tabs = screen.getByRole("tablist");
+    expect(tabs).toHaveClass("[scrollbar-width:none]");
+    expect(tabs.className).toMatch(/mask-image/);
+    // Room past the last tab so «Idiomas» leaves the fade once scrolled to the end.
+    expect(tabs).toHaveClass("max-md:pr-12");
+    expect(screen.queryByText(/Desliza para ver más secciones/)).not.toBeInTheDocument();
+  });
+
   it("loads a form-shaped skeleton without fixture data, then the server profile", async () => {
     let resolve!: (value: unknown) => void; mocks.load.mockReturnValue(new Promise(r => { resolve = r; }));
     const { container } = render(<ProfileWorkspace />);
@@ -41,19 +112,19 @@ describe("live candidate profile", () => {
     expect(mocks.notify).not.toHaveBeenCalled();
   });
   it("opens an empty editor for a missing profile and creates it even with only language changes", async () => {
-    mocks.load.mockResolvedValue({ ok: true, data: { profile: null, languages: { languages: [{ name: "english", level: "B2" }] } } });
-    const empty = Object.fromEntries(Object.keys(profileToWrite(valid.profile)).map(key => [key, key === "skills" ? [] : key === "salary_currency" ? "MXN" : null]));
+    mocks.load.mockResolvedValue({ ok: true, data: { profile: null, languages: { languages: [{ code: "en", level: "B2" }] } } });
+    const empty = Object.fromEntries(Object.keys(profileToWrite(valid.profile)).map(key => [key, key === "skills" || key === "education" ? [] : key === "salary_currency" ? "MXN" : null]));
     const created = { ...wire, ...empty };
-    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: created, languages: { languages: [{ name: "french", level: "B2" }] } });
+    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: created, languages: { languages: [] } });
     await ready();
     expect(screen.getByText("Completa tu perfil para postularte más rápido. Se crea al guardar por primera vez.")).toBeInTheDocument();
     expect(screen.queryByText("Todavía no tienes perfil")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Teléfono")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
     tab("Compensación"); expect(screen.getByLabelText("Moneda")).toHaveValue("MXN");
-    tab("Idiomas"); change("Nombre del idioma 1", "French"); save();
+    tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 1" })); save();
     await screen.findByText("Perfil creado.");
-    expect(mocks.save).toHaveBeenCalledWith({ profile: empty, languages: { languages: [{ name: "french", level: "B2" }] } });
+    expect(mocks.save).toHaveBeenCalledWith({ profile: empty, languages: { languages: [] } });
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil creado." }));
     expect(screen.queryByText(/Se crea al guardar por primera vez/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
@@ -105,11 +176,11 @@ describe("live candidate profile", () => {
     expect(container.querySelector('[data-slot="tabs-list"]')).toHaveAttribute("data-variant", "line");
     expect(container.querySelector('[data-pf-profile-completeness-value]')).toHaveTextContent("10 de 10 datos clave");
     const expected = [
-      ["Personal", ["phone", "linkedinUrl", "portfolioUrl", "birthDate", "location"]],
-      ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "summary"]],
-      ["Educación", ["educationLevel", "fieldOfStudy", "skills"]],
+      ["Personal", ["phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"]],
+      ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"]],
+      ["Educación", ["education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "skills"]],
       ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],
-      ["Idiomas", ["languages"]],
+      ["Idiomas", ["languages.0.code", "languages.0.level", "languages.1.code", "languages.1.level"]],
     ] as const;
     for (const [name, fields] of expected) {
       tab(name);
@@ -145,10 +216,10 @@ describe("live candidate profile", () => {
     expect(screen.getByLabelText("Perfil de LinkedIn")).toHaveAttribute("aria-invalid", "true");
     expect(mocks.save).not.toHaveBeenCalled();
   });
-  it("rejects a language with empty level before writing either block", async () => {
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); change("Nombre del idioma 3", "French"); save();
+  it("rejects a language with empty code and level before writing either block", async () => {
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); save();
     expect(screen.getByLabelText("Nivel del idioma 3")).toHaveAttribute("aria-invalid", "true");
-    expect(document.querySelector("#profile-language-2-level")).toHaveFocus(); expect(mocks.save).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Idioma 3")).toHaveFocus(); expect(mocks.save).not.toHaveBeenCalled();
   });
   it("locks controls and double submissions during a write", async () => {
     let resolve!: (value: unknown) => void; mocks.save.mockReturnValue(new Promise(r => { resolve = r; }));
@@ -159,45 +230,47 @@ describe("live candidate profile", () => {
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it("keeps only language edits dirty after partial success and retries only that block", async () => {
-    mocks.save.mockResolvedValueOnce({ kind: "partial", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } }).mockResolvedValueOnce({ kind: "saved", languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); change("Nombre del idioma 2", "english"); save();
+    const languages = { languages: [CANDIDATE_PROFILE.languages[0]] };
+    mocks.save.mockResolvedValueOnce({ kind: "partial", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } }).mockResolvedValueOnce({ kind: "saved", languages });
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("Guardamos tu perfil, pero no los idiomas. Revisa y vuelve a guardar.");
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "warning" }));
     save(); await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
-    expect(mocks.save.mock.calls[1][0]).toEqual({ languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
+    expect(mocks.save.mock.calls[1][0]).toEqual({ languages });
     await screen.findByText("Perfil guardado.");
   });
   it("saves language-only changes without sending a profile replacement", async () => {
-    mocks.save.mockResolvedValue({ kind: "saved", languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
-    await ready(); tab("Idiomas"); change("Nombre del idioma 2", "English"); save();
+    const languages = { languages: [CANDIDATE_PROFILE.languages[0]] };
+    mocks.save.mockResolvedValue({ kind: "saved", languages });
+    await ready(); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("Perfil guardado.");
-    expect(mocks.save.mock.calls[0][0]).toEqual({ languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(mocks.save.mock.calls[0][0]).toEqual({ languages });
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
   });
   it("preserves both edited blocks after a definite profile failure", async () => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); change("Nombre del idioma 2", "english"); save();
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No se guardó el perfil");
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     tab("Personal"); expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
     fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
     expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
-    tab("Idiomas"); expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("inglés");
+    tab("Idiomas"); expect(screen.getByLabelText("Idioma 2")).toHaveValue("Inglés");
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it("reconciles uncertain language writes without discarding rows that were not saved", async () => {
     mocks.save.mockResolvedValue({ kind: "uncertain", part: "languages", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "no_response", reference: {} } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); change("Nombre del idioma 2", "english"); save();
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No pudimos confirmar si se guardó");
     mocks.load.mockResolvedValue({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "12345678" } } });
     fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
     await screen.findByText("Perfil comprobado.");
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
-    mocks.save.mockResolvedValue({ kind: "saved", languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
+    mocks.save.mockResolvedValue({ kind: "saved", languages: { languages: [CANDIDATE_PROFILE.languages[0]] } });
     save(); await screen.findByText("Perfil guardado.");
     expect(mocks.save.mock.calls[1][0]).not.toHaveProperty("profile");
   });
@@ -225,6 +298,14 @@ describe("live candidate profile", () => {
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
+});
+
+it("maps bracketed server paths and focuses the first invalid field in visual order", async () => {
+  mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400, code: "validation_error" }, fields: [{ field: "education[0].status", code: "invalid" }, { field: "years_of_experience", code: "invalid" }] } });
+  await ready(); change("Teléfono", "12345678"); save();
+  expect(await screen.findByLabelText("Años de experiencia")).toHaveFocus();
+  expect(screen.getByLabelText("Años de experiencia")).toHaveAttribute("aria-invalid", "true");
+  tab("Educación"); expect(screen.getByLabelText("Estatus")).toHaveAttribute("aria-invalid", "true");
 });
 
 it("lets the section tabs scroll sideways only (no 1px vertical scrollbar next to «Idiomas»)", async () => {

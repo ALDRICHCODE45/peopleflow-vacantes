@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderUI, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { IdentityResult } from "./model";
 import userEvent from "@testing-library/user-event";
@@ -12,11 +12,13 @@ vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notif
 import CandidateEntryPage from "@/app/(auth)/candidato/ingresar/page";
 import { IdentitySessionProvider } from "./identity-session";
 import { CandidateGuard, EmployerGuard } from "./area-guards";
+import { SidebarProvider } from "@/components/company-dashboard/ui/sidebar";
+function render(ui: React.ReactNode) { return renderUI(ui, { wrapper: ({ children }) => <SidebarProvider>{children}</SidebarProvider> }); }
 const user = { id: "id", email: "api@example.com", full_name: "Ana Pérez" };
 function result(role: "candidate" | "recruiter" | null): IdentityResult { return role === null ? { ok: true, data: { role, user: null } } : { ok: true, data: { role, user } }; }
 const failure = (reason: string) => ({ ok: false, reason, reference: { status: 503 } });
 afterEach(cleanup);
-beforeEach(() => { vi.clearAllMocks(); mocks.session = { status: "authenticated", data: { user: { email: "session@example.com" } } }; mocks.load.mockResolvedValue(result(null)); });
+beforeEach(() => { vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })); vi.clearAllMocks(); mocks.session = { status: "authenticated", data: { user: { email: "session@example.com" } } }; mocks.load.mockResolvedValue(result(null)); });
 describe("post-sign-in router", () => {
   it.each([["candidate", "/candidato/dashboard"], [null, null], ["recruiter", null]] as const)("routes %s without an implicit write", async (role, target) => {
     mocks.load.mockResolvedValue(result(role)); render(<CandidateEntryPage />);
@@ -143,8 +145,9 @@ describe("area role guards", () => {
     expect(status).toHaveClass("sr-only");
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(1);
     const busy = status.closest('[aria-busy="true"]')!;
-    expect(busy).toHaveClass("flex-1", "items-center", "justify-center", "min-h-svh");
-    expect(busy).toHaveClass(area === "candidate" ? "md:min-h-[calc(100svh-var(--spacing)*6)]" : "md:min-h-[calc(100svh-var(--spacing)*4)]");
+    expect(busy).toHaveClass("flex-1", "items-center", "justify-center");
+    expect(busy.closest('[data-pf-page-content]')).toHaveClass("flex-1", "items-center", "justify-center");
+    expect(screen.getByRole("heading", { name: "Tu cuenta" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: `${area} shell` })).toBeVisible();
     expect(container.querySelector('[data-slot="spinner"]')).toHaveAttribute("aria-hidden", "true");
     expect(container.querySelector('[data-slot="skeleton"]')).toBeNull();

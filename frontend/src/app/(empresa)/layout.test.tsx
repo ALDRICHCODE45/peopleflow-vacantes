@@ -11,7 +11,7 @@ vi.mock("next/headers", () => ({
 }));
 
 // SSR frame tests; real role guards are exercised in identity/flow.test.tsx.
-vi.mock("@/features/identity/identity-session", () => ({ IdentitySessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ result: { ok: true, data: { role: "recruiter" } } }), IdentitySessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/features/identity/area-guards", () => ({ EmployerGuard: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 
 import EmployerLayout from "./layout";

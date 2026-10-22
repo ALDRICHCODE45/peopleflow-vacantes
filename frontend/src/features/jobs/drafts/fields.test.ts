@@ -10,6 +10,9 @@ const defaults = () => ({
   work_schedule: null,
   contract_type: null,
   seniority: null,
+  min_years_of_experience: null,
+  min_education_level: null,
+  accepts_in_progress_education: false,
   professional_area: null,
   required_requirements: null,
   preferred_requirements: null,
@@ -39,7 +42,7 @@ const fieldCases: Array<[string, unknown, unknown, unknown]> = [
   ["work_mode", "remote", "remote", " remote "],
   ["work_schedule", "part_time", "part_time", "contract"],
   ["contract_type", "professional_services", "professional_services", "full_time"],
-  ["seniority", "mid", "mid", "expert"],
+  ["seniority", "semi_senior", "semi_senior", "mid"],
   ["professional_area", "technology_systems", "technology_systems", "IT"],
   ["required_requirements", " Go ", "Go", "x".repeat(16385)],
   ["preferred_requirements", " SQL ", "SQL", "x".repeat(16385)],
@@ -48,7 +51,7 @@ const fieldCases: Array<[string, unknown, unknown, unknown]> = [
   ["benefits", ["annual_bonus", "health_insurance"], ["annual_bonus", "health_insurance"], ["unknown"]],
   ["screening_questions", [{ prompt: " Why? " }], [{ prompt: "Why?" }], [{ prompt: "Why?", id: "ui" }]],
   ["requester", { kind: "client", id: null }, { kind: "client", id: null }, { kind: "client", id: null, name: "readonly" }],
-  ["languages", [{ language: "other", custom_name: " French ", level: null }], [{ language: "other", custom_name: "French", level: null }], [{ language: "en", custom_name: "French", level: null }]],
+  ["languages", [{ code: "fr", min_level: "A2" }], [{ code: "fr", min_level: "A2" }], [{ code: "en", min_level: null }]],
   ["compensation", { ...defaults().compensation, mode: "fixed", amount: "12.3" }, { ...defaults().compensation, mode: "fixed", amount: "12.30" }, { mode: "fixed" }],
   ["description", rich("  <>&\u2028  "), rich("  <>&\u2028  "), rich("x".repeat(65420))],
 ];
@@ -135,7 +138,7 @@ for (const [method, schema] of schemas) {
 describe("POST defaults versus PATCH omission", () => {
   it("fills exactly all 17 writable fields on empty POST", () => {
     expect(draftPostBodySchema.parse({ fields: {} })).toStrictEqual({ fields: defaults() });
-    expect(Object.keys(defaults())).toHaveLength(18);
+    expect(Object.keys(defaults())).toHaveLength(21);
   });
 
   it("returns independent arrays and compensation defaults for every POST", () => {

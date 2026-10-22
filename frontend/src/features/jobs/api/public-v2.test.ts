@@ -59,7 +59,7 @@ describe("public v2 contract", () => {
     }
   });
   it("drops stale, repeated and invalid URL values before the strict request", async () => {
-    const raw = "q=Go&location=CDMX&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque&currency=MXN&salary_min=1e3&language=en&seniority=senior&employment_type=contract&limit=900";
+    const raw = "q=Go&location=CDMX&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque&currency=MXN&salary_min=1e3&language=EN&seniority=mid&employment_type=contract&limit=900";
     const query = parseJobsQuery(raw);
     const url = buildJobsUrl(query);
     expect(url).toBe("/vacantes?q=Go&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque");

@@ -672,3 +672,54 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     todo el filtro; el contador de «Filtros» lo cuenta una vez y aparece el aviso de que las
     vacantes del catálogo anterior no aparecen con este filtro. Sin monto, el salario no
     filtra nada. Probalo también en el Sheet de celular.
+
+84. **Motivo de cierre, fecha de publicación que no se reinicia y CV siempre obligatorio.**
+    Frontend en `feat/intake-prep-ui`, backend en `feat/intake-prep` (migración 00035;
+    `make db-migrate`). En «Tus vacantes», «Acciones» → «Cerrar» de una vacante activa.
+    **Esperado:** «Motivo de cierre» con «Cubierta», «Cancelada» y «Otro»; sin elegir uno,
+    «Cerrar vacante» muestra «Elige un motivo de cierre.». «Cubierta» solo se puede usar con
+    las posiciones cubiertas: si no, queda deshabilitada o explica «Hay 0 de 1 posición
+    cubierta.» sin cerrar nada. «Otro» pide un motivo de hasta 200 caracteres con contador.
+    Al cerrar, la fila dice «Cerrada · Cancelada» (o «Cerrada · Otro» con el motivo cortado
+    con «…» y completo al pasar el mouse), «Proceso en curso» o «Proceso finalizado» y
+    «Cerrada el …»; las vacantes cerradas antes de este cambio dicen «Sin motivo
+    registrado». Reabrí o reanudá una vacante: conserva su «Publicada el …» original. En
+    Configuración → Reclutamiento ya no existe «Permitir postulaciones sin CV». Probá el
+    diálogo en celular (entra completo en la pantalla, solo el centro hace scroll) y en
+    modo oscuro (el motivo elegido se ve resaltado).
+
+85. **Ingreso manual de candidatos (sin postulación ni cuenta).** Frontend en
+    `feat/manual-intake-ui`, backend en `feat/manual-intake` (migraciones 00036–00038;
+    `make db-migrate`; el CV usa el mismo almacenamiento privado que los CVs de candidato).
+    En el tablero de una vacante publicada, «Agregar candidato». **Esperado:** panel lateral
+    con «* Obligatorio», «Etapa de ingreso» (primera etapa por defecto; sin Placement ni
+    Descartados), datos de contacto (correo o teléfono; México +52 y 10 dígitos), residencia
+    (en México estado y municipio), nivel de estudios, «Perfil profesional (opcional)»
+    plegado y el CV con «Elegir archivo». Sin datos, «Agregar candidato» marca cada campo y
+    el pie dice «Revisa N datos marcados.». Completo, pide confirmación («¿Agregar a …?
+    Entrará a … No recibe ningún aviso.») y la tarjeta aparece en la etapa elegida con
+    «Ingreso manual» y «Agregado …»; su ficha dice «Agregado por … el …». Escribí el mismo
+    correo otra vez: bajo el contacto aparece «Posibles coincidencias» con el contacto
+    enmascarado y la última vacante; en la misma vacante dice «Ya está en este proceso». En
+    otra vacante, «Usar el existente» deja solo etapa y CV y reutiliza a la persona. Cerrar
+    el panel con datos pide «Tienes cambios sin guardar». En la ficha de cualquier candidato
+    (manual u orgánico) la sección «Contacto» muestra «Correo» y «Teléfono» como enlaces
+    (o «Sin dato»). Probalo en celular y en oscuro.
+86. **Perfil armonizado: idiomas, seniority, años con decimales y varios estudios.** Frontend en
+    `feat/profile-harmonization-ui` (apilado sobre el paso 85), backend en
+    `feat/profile-harmonization` (migraciones 00039–00043; `make db-migrate`). Como candidato,
+    en «Perfil»: «Años de experiencia» acepta decimales («3.5»), «Seniority» ofrece de Becario a
+    Director, «Educación» permite varios estudios con nivel y estatus (en «En curso» no aparece
+    «Año de fin») y «Idiomas» busca en el catálogo con nivel A1–C2 o Nativo. **Esperado:** al
+    guardar y recargar todo persiste y sube «Avance del perfil». Como empresa: «Agregar
+    candidato» pide lo mismo (al menos un estudio); en la ficha del tablero, «Perfil» muestra
+    «3.5 años», la seniority, «Licenciatura o Ingeniería · Maestría en curso» y los idiomas como
+    píldoras («Inglés C1»). En «Filtros» del tablero hay Seniority, Nivel de estudios (con
+    «Incluye estudios en curso») e Idiomas (con «Nivel mínimo»). En el editor de la vacante,
+    «Descripción y perfil» tiene Experiencia mínima, Estudios mínimos («Acepta estudios en
+    curso» solo con un nivel elegido) e Idiomas con nivel mínimo; el detalle público los muestra
+    como fichas con ícono. En `/vacantes`, «Tu perfil» filtra por idiomas, seniority, tus años y
+    tu nivel de estudios, con chips cortos («Estudios: …», «Experiencia: 3.5 años»). Además: el
+    marco de empresa y de candidato es el mismo (card redondeada, tu cuenta al pie del menú,
+    botón de tema redondo) y en el navbar público «Mi cuenta» muestra tus iniciales. Probalo en
+    celular y en oscuro.

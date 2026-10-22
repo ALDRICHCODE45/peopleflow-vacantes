@@ -1,12 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
-const { pathnameMock } = vi.hoisted(() => ({ pathnameMock: vi.fn(() => "/empresa/vacantes") }));
+const { pathnameMock, identityMock } = vi.hoisted(() => ({ pathnameMock: vi.fn(() => "/empresa/vacantes"), identityMock: { role: "candidate" } }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 vi.mock("@/features/identity/identity-session", () => ({
-  useIdentity: () => ({ result: { ok: true, data: { role: "candidate", user: {
+  useIdentity: () => ({ result: { ok: true, data: { role: identityMock.role, user: {
     id: "id", full_name: "Ana Pérez", email: "ana@example.com",
   } } } }),
 }));
@@ -29,6 +29,7 @@ describe.each([
   ["employer", EmployerShell, "Nueva vacante"],
   ["candidate", CandidateShell, "Explorar vacantes"],
 ] as const)("%s sidebar rail", (_name, Shell, actionLabel) => {
+  beforeEach(() => { identityMock.role = _name === "employer" ? "recruiter" : "candidate"; });
   it("replaces the wordmark with one accessible, unsqueezed compact brand mark", () => {
     stubBrowserApis();
     render(<Shell defaultOpen={false}>contenido</Shell>);

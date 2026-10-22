@@ -17,7 +17,8 @@ import type { DraftListRow } from "@/features/jobs/drafts/list/client";
 import { cn } from "@/lib/utils";
 import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_VACANCY_STATE_LABELS, EMPLOYER_WORK_MODE_LABELS, VACANCY_PIPELINE_STAGES, summarizeEmployerVacancies, vacancyCandidateTotal, vacancyInProcessCount, vacancyPipelineHref } from "./model";
 import type { EmployerVacancy, EmployerVacancyState, VacancyPipelineStage } from "./model";
-import { lifecycleLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { CloseReasonNote } from "@/features/vacancy-lifecycle/ui/close-reason-note";
+import { closeReasonLabel, lifecycleLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
 import { PublishDialog } from "./publication/publish-dialog";
 import { portfolioRowActions } from "./model";
@@ -71,8 +72,12 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
           {draft?.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
         </div>
       </div>
-      <div data-pf-vacancy-zone="conditions" className="flex flex-col items-start gap-2">
-        <Badge variant={vacancy.state === "draft" ? "info" : STATUS_VARIANT[vacancy.state]} dot>{draft ? lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process }) : vacancy.state === "draft" ? "Borrador" : EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
+      <div data-pf-vacancy-zone="conditions" className="flex min-w-0 flex-col items-start gap-2">
+        <Badge variant={vacancy.state === "draft" ? "info" : STATUS_VARIANT[vacancy.state]} dot>{draft ? draft.status === "closed" ? `Cerrada · ${closeReasonLabel(draft.close_reason)}` : lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process }) : vacancy.state === "draft" ? "Borrador" : EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
+        {draft?.status === "closed" && <>
+          <p className={META}>{draft.process === "finished" ? "Proceso finalizado" : "Proceso en curso"}</p>
+          {draft.close_reason === "other" && <CloseReasonNote note={draft.close_reason_note} />}
+        </>}
         <p className={META}>{meta}</p>
       </div>
       <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2">

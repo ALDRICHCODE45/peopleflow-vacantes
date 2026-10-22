@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "cn";
-import { BellRing, BriefcaseBusiness, Building2, CalendarClock, ClipboardList, FileText, Globe2, KeyRound, Palette, ShieldCheck, UsersRound } from "lucide-react";
+import { BellRing, BriefcaseBusiness, Building2, CalendarClock, ClipboardList, Globe2, KeyRound, Palette, ShieldCheck, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -25,7 +25,6 @@ const SECTIONS = [
 
 type Section = (typeof SECTIONS)[number];
 const RECRUITMENT = [
-  { key: "optional_cv", title: "Permitir postulaciones sin CV", description: "Recibe perfiles sin un CV adjunto.", icon: FileText },
   { key: "screening_questions", title: "Incluir preguntas de filtro", description: "Considera preguntas iniciales al preparar una vacante.", icon: ClipboardList },
 ] as const;
 const NOTIFICATIONS = [
@@ -37,7 +36,7 @@ const NOTIFICATIONS = [
 type PreferenceKey = (typeof RECRUITMENT)[number]["key"] | (typeof NOTIFICATIONS)[number]["key"];
 type Preference = Readonly<{ key: PreferenceKey; title: string; description: string; icon: LucideIcon }>;
 const DEFAULT_PREFERENCES: Readonly<Record<PreferenceKey, boolean>> = {
-  optional_cv: true, screening_questions: false, new_applications: true,
+  screening_questions: false, new_applications: true,
   interviews: true, team_activity: true, weekly_summary: false,
 };
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [

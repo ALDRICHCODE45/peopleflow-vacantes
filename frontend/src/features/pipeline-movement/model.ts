@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EDUCATION_LEVELS, SENIORITIES, candidateLanguageSchema, yearsOfExperienceSchema } from "@/features/candidate/model";
 import { lifecycleSchema, type Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { locationReadSchema } from "@/features/geo/model";
 import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillment-model";
@@ -23,13 +24,16 @@ const discardSchema = z.object({ reason: discardReasonSchema, discarded_at: time
 // Writes retain their original allowlist; snapshot fields belong only to reads.
 const mutationParticipationSchema = z.object({
   id: uuidSchema, stage_id: uuidSchema, version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), etag: etagSchema,
-  candidate: z.object({ id: uuidSchema, full_name: text }).strict(), applied_at: timestamp, source: z.literal("organic"),
+  candidate: z.object({ id: uuidSchema, full_name: text, kind: z.enum(["organic", "manual"]) }).strict(), applied_at: timestamp, source: z.enum(["organic", "manual"]),
+  added_by: z.object({ id: uuidSchema, name: text }).strict().nullable(),
   cv: z.object({ id: uuidSchema, name: text }).strict(), moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
 }).strict();
 export const profileSchema = z.object({
   location: locationReadSchema.refine(location => location === null || location.postal_code === null), skills: z.array(z.string()),
-  years_of_experience: count.nullable(),
-  education_level: z.enum(["high_school", "bachelor", "master", "phd"]).nullable(),
+  years_of_experience: yearsOfExperienceSchema.refine(value => !/\s/.test(value)).nullable(),
+  seniority: z.enum(SENIORITIES).nullable(),
+  education: z.object({ highest_completed: z.enum(EDUCATION_LEVELS).nullable(), in_progress: z.enum(EDUCATION_LEVELS).nullable() }).strict(),
+  languages: z.array(candidateLanguageSchema).max(10).refine(items => new Set(items.map(item => item.code)).size === items.length),
 }).strict();
 export const participationSchema = mutationParticipationSchema.extend({
   profile: profileSchema,
@@ -58,7 +62,9 @@ const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("single_choice"), answer: z.object({ option_id: uuidSchema, label: text }).strict() }).strict(),
 ]);
-export const detailSchema = participationSchema.extend({ screening: z.array(screeningAnswer), comment: discardTextSchema(1000).nullable(), candidate_message: discardTextSchema(500).nullable() }).strict().refine(item => item.discard !== null || (item.comment === null && item.candidate_message === null));
+// Contact appears only in the detail read (user decision, 2026-10-21): manual → company record; organic → account email + profile phone.
+export const contactSchema = z.object({ email: z.string().nullable(), phone: z.string().nullable() }).strict();
+export const detailSchema = participationSchema.extend({ contact: contactSchema, screening: z.array(screeningAnswer), comment: discardTextSchema(1000).nullable(), candidate_message: discardTextSchema(500).nullable() }).strict().refine(item => item.discard !== null || (item.comment === null && item.candidate_message === null));
 const historyBase = {
   from_stage_id: uuidSchema.nullable(), to_stage_id: uuidSchema, hire: z.boolean(), departure: z.boolean(),
   actor: z.object({ kind: z.enum(["candidate", "recruiter"]), id: uuidSchema, full_name: text }).strict(), at: timestamp,

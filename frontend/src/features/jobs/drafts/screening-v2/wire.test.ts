@@ -79,6 +79,7 @@ const snapshotFields = (): LocalDraftV2Snapshot["fields"] => ({
   work_schedule: null,
   contract_type: null,
   seniority: null,
+  min_years_of_experience: null, min_education_level: null, accepts_in_progress_education: false,
   professional_area: null,
   required_requirements: null,
   preferred_requirements: null,
@@ -158,6 +159,7 @@ describe("draftV2PostBodySchema composition", () => {
       work_schedule: null,
       contract_type: null,
       seniority: null,
+      min_years_of_experience: null, min_education_level: null, accepts_in_progress_education: false,
       professional_area: null,
       required_requirements: null,
       preferred_requirements: null,
@@ -179,7 +181,7 @@ describe("draftV2PostBodySchema composition", () => {
       },
       description: null,
     });
-    expect(Object.keys(body.fields)).toHaveLength(18);
+    expect(Object.keys(body.fields)).toHaveLength(21);
   });
 
   it("matches the v1 POST defaults for every shared field", () => {
@@ -377,7 +379,7 @@ describe("local snapshot adapter", () => {
       }),
     );
     expect(Object.keys(body)).toStrictEqual(["fields"]);
-    expect(Object.keys(body.fields)).toHaveLength(18);
+    expect(Object.keys(body.fields)).toHaveLength(21);
     expect(body.fields.title).toBe("Backend Go");
     expect(body.fields.screening_questions).toStrictEqual(questions);
     expect(body.fields).not.toHaveProperty("requesterName");

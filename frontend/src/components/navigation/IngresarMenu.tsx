@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronDownIcon, UserRoundIcon } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { IdentitySessionProvider, useIdentity } from "@/features/identity/identity-session";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,8 @@ export function IngresarMenu({ className }: IngresarMenuProps) {
 function IdentityMenu({ className }: IngresarMenuProps) {
   const { status, result } = useIdentity();
   const role = status === "ready" && result?.ok ? result.data.role : null;
+  const name = status === "ready" && result?.ok ? result.data.user?.full_name ?? "" : "";
+  const initials = name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part.charAt(0).toUpperCase()).join("");
   const href = role === "candidate" ? "/candidato/dashboard"
     : role === "recruiter" ? "/empresa/dashboard" : null;
 
@@ -51,12 +54,17 @@ function IdentityMenu({ className }: IngresarMenuProps) {
       <Button
         nativeButton={false}
         role="link"
-        variant="ghost"
+        variant="outline"
         render={<Link href={href} />}
-        className={cn("min-h-10 gap-1.5 px-3 max-sm:min-w-10 max-sm:px-0", className)}
+        className={cn("min-h-10 gap-2 py-1 pr-4 pl-1 max-sm:min-w-10 max-sm:p-1", className, "rounded-full")}
       >
+        {/* Same initials avatar as the dashboard sidebar account row; decorative, the label names the link. */}
+        <Avatar aria-hidden="true" className="size-8">
+          <AvatarFallback className="bg-primary text-xs font-medium text-primary-foreground">
+            {initials || <UserRoundIcon className="size-4" />}
+          </AvatarFallback>
+        </Avatar>
         <span className="max-sm:sr-only">Mi cuenta</span>
-        <UserRoundIcon aria-hidden="true" className="opacity-60" />
       </Button>
     );
   }

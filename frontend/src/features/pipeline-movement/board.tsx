@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Settings2, Tags, UsersRound } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Settings2, Tags, UserPlus, UsersRound } from "lucide-react";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
@@ -10,6 +10,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
 import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { ManualIntakeSheet } from "@/features/manual-intake/sheet";
+import { loadParticipationAction } from "./actions";
+import type { Participation } from "./model";
 import { BoardDelivery } from "./board-delivery";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { BoardLifecycle } from "./board-lifecycle";
@@ -22,6 +25,7 @@ import { useMovementBoard } from "./use-movement-board";
 import { BoardFilters } from "./board-filters";
 import { activeFilterCount, applyFilters, type FilterSelection } from "./filters";
 import { boardFilterDimensions } from "./board-filter-dimensions";
+import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
 type Props = { vacancyId: string; vacancyTitle?: string; publishedAt?: string | null; onLifecycleChange?: (lifecycle: Lifecycle) => void };
@@ -30,12 +34,15 @@ export function MovementBoard(props: Props) {
 }
 function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange }: Props) {
   const state = useMovementBoard(vacancyId);
+  const languages = useLanguageCatalog();
   const [filters, setFilters] = useState<FilterSelection>({});
   const [selected, setSelected] = useState<string | null>(null);
+  const [intake, setIntake] = useState(false);
+  const [externalItem, setExternalItem] = useState<Participation | null>(null);
   const { board, confirmation, pending, stale } = state;
   useEffect(() => { if (board) onLifecycleChange?.(board.lifecycle); }, [board?.lifecycle, onLifecycleChange]);
   const readOnly = board?.lifecycle.process === "finished";
-  const dimensions = board ? boardFilterDimensions(board) : [];
+  const dimensions = board ? boardFilterDimensions(board, languages.data?.items) : [];
   const visibleItems = applyFilters(board?.participations ?? [], dimensions, filters);
   const restoreFocus = useRef<string | null>(null);
   useEffect(() => {
@@ -55,7 +62,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange 
     if (!document.activeElement?.closest('[data-slot="sheet-content"]')) restoreFocus.current = id;
     state.setSubstate(id, value);
   }
-  const selectedItem = board?.participations.find(item => item.id === selected);
+  const selectedItem = board?.participations.find(item => item.id === selected) ?? (externalItem?.id === selected ? externalItem : undefined);
   const from = board?.stages.find(stage => stage.id === confirmation?.item.stage_id)?.name ?? "Placement";
   const to = board?.stages.find(stage => stage.id === confirmation?.target)?.name ?? "la etapa seleccionada";
   const confirming = !!confirmation && state.pending.has(confirmation.item.id);
@@ -84,7 +91,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange 
   return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-busy={state.reading}>
     <div className="flex shrink-0 flex-col items-start justify-between gap-4 pb-2 lg:flex-row lg:items-center">
       <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{board ? <BoardLifecycle lifecycle={board.lifecycle} publishedAt={publishedAt} /> : publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
-      <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto">{board && board.lifecycle.allowed_actions.some(action => action !== "publish") && <LifecycleActionsMenu draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} />}{board && <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-start gap-4"><BoardCoverage coverage={board.coverage} /><Separator orientation="vertical" className="hidden sm:block" /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} finished={readOnly} /></div>}<Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
+      <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto">{board && !readOnly && board.lifecycle.publication !== null && <Button id="manual-intake-open" type="button" className="min-h-10" disabled={stale || state.reading || pending.size > 0 || state.columns.busy} onClick={() => setIntake(true)}><UserPlus aria-hidden="true" data-icon="inline-start" />Agregar candidato</Button>}{board && board.lifecycle.allowed_actions.some(action => action !== "publish") && <LifecycleActionsMenu coverage={board.coverage} draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} />}{board && <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-start gap-4"><BoardCoverage coverage={board.coverage} /><Separator orientation="vertical" className="hidden sm:block" /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} finished={readOnly} /></div>}<Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
     </div>
     {readOnly && <ActionStatus id="board-process-finished" tone="info" text={`El proceso de esta vacante finalizó. El tablero está en solo lectura${board.lifecycle.allowed_actions.includes("reopen") ? "; reábrela para volver a editarlo." : "."}`} />}
     {!board && state.reading && !state.failure && <BoardSkeleton columnCount={state.columns.editor ? state.columns.editor.stages.length + 1 : undefined} />}
@@ -102,6 +109,12 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange 
       <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
       {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
+      {intake && <ManualIntakeSheet vacancyId={vacancyId} stages={board.stages} disabled={readOnly || stale} onClose={() => setIntake(false)} onSuccess={value => { state.addCandidate(value); setFilters({}); }} onViewExisting={async id => {
+        const known = board.participations.find(item => item.id === id);
+        if (known) { setSelected(id); setIntake(false); return; }
+        const result = await loadParticipationAction(vacancyId, id);
+        if (result.ok) { setExternalItem(result.data); setSelected(id); setIntake(false); }
+      }} />}
       {!selectedItem && dispositionDialog}
     </>}
     {!selectedItem && placementDialog}

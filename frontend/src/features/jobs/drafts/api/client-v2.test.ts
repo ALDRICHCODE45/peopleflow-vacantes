@@ -97,6 +97,13 @@ function response(status: number, body: unknown, headers: Record<string, string>
   };
 }
 
+it.each(["create", "save"])("preserves H3 validation paths for %s", async method => {
+  const envelope = { error: "invalid", code: "validation_error", fields: [{ field: "fields.languages[0].code", code: "invalid" }] };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(400, envelope)));
+  const result = method === "create" ? await createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body: { fields: {} } }) : await saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: "Draft" } } });
+  expect(result).toMatchObject({ ok: false, envelope });
+});
+
 function lastCall(fetchMock: ReturnType<typeof vi.fn>): [string, RequestInit] {
   return fetchMock.mock.calls[0] as [string, RequestInit];
 }

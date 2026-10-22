@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { dashboardInsetClassName, dashboardProviderClassName } from "@/components/dashboard-frame/frame-classes"
+
 import { AppSidebar } from "./app-sidebar"
 import { SidebarInset, SidebarProvider } from "./ui/sidebar"
 import dashboardTheme from "./dashboard-01-theme.module.css"
@@ -16,7 +18,7 @@ export function EmployerShell({
   return (
     <SidebarProvider
       defaultOpen={defaultOpen}
-      className={dashboardTheme.root}
+      className={`${dashboardTheme.root} ${dashboardProviderClassName}`}
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -25,7 +27,7 @@ export function EmployerShell({
       }
     >
       <AppSidebar variant="inset" collapsible="icon" />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset className={dashboardInsetClassName}>{children}</SidebarInset>
     </SidebarProvider>
   )
 }

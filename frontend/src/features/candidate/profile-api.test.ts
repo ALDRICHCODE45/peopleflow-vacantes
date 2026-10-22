@@ -34,9 +34,9 @@ describe("candidate profile wire boundary", () => {
     expect(profileWriteSchema.safeParse({ city: "Old" }).success).toBe(false);
   });
   it("validates language levels and duplicates before writing", () => {
-    expect(languagesSchema.safeParse({ languages: [{ name: "English", level: "" }] }).success).toBe(false);
-    expect(languagesSchema.safeParse({ languages: [{ name: "English", level: "B2" }, { name: " english ", level: "C1" }] }).success).toBe(false);
-    expect(languagesSchema.parse({ languages: [{ name: " English ", level: "B2" }] })).toEqual({ languages: [{ name: "english", level: "B2" }] });
+    expect(languagesSchema.safeParse({ languages: [{ code: "en", level: "" }] }).success).toBe(false);
+    expect(languagesSchema.safeParse({ languages: [{ code: "en", level: "B2" }, { code: "en", level: "C1" }] }).success).toBe(false);
+    expect(languagesSchema.parse({ languages: [{ code: "en", level: "B2" }] })).toEqual({ languages: [{ code: "en", level: "B2" }] });
   });
   it.each(["country", "state", "municipality", "postal_code"])("adapts the profile %s error to the shared geo parser", field => {
     expect(profileLocationErrors(422, { error: "invalid location", code: "invalid_location", details: [{ field: `location.${field}`, reason: "unknown" }] })).toEqual([{ field, reason: "unknown" }]);

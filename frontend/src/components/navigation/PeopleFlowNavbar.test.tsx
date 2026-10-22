@@ -1,7 +1,7 @@
 import * as React from "react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -526,5 +526,14 @@ describe("PeopleFlowNavbar shared behavior", () => {
     for (const anchor of anchors) {
       expect(anchor.getAttribute("href")).not.toBeNull();
     }
+  });
+});
+
+describe("PeopleFlowNavbar theme toggle shape", () => {
+  beforeEach(stubMatchMedia);
+  // The user asked for the round theme toggle everywhere, like in the dashboards.
+  it.each(["candidate", "marketing", "public"] as const)("keeps the toggle round in %s mode", (mode) => {
+    render(<PeopleFlowNavbar mode={mode} />);
+    for (const toggle of document.querySelectorAll("[data-pf-theme-toggle]")) expect(toggle).not.toHaveClass("rounded-lg");
   });
 });

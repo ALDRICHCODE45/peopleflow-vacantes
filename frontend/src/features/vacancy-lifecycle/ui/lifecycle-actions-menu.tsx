@@ -7,12 +7,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { getLifecycleAction } from "../actions";
-import type { Lifecycle } from "../model";
+import type { CloseCoverage, Lifecycle } from "../model";
 import { LifecycleActionDialog, LIFECYCLE_ACTION_UI, type LifecycleSnapshot, type TransitionAction } from "./lifecycle-action-dialog";
 
 /** No local role/transition table: every opening gets the current actor's allowed_actions. */
-export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPublish }: {
-  draftId: string; title: string; onChanged: (view: Lifecycle) => void; children?: ReactNode; onPublish?: () => void;
+export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPublish, coverage }: {
+  coverage?: CloseCoverage; draftId: string; title: string; onChanged: (view: Lifecycle) => void; children?: ReactNode; onPublish?: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<LifecycleSnapshot | null>(null);
   const [selected, setSelected] = useState<TransitionAction | null>(null);
@@ -51,6 +51,6 @@ export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPu
       </DropdownMenuContent>
     </DropdownMenu>
     {message && <ActionStatus id={`lifecycle-menu-${draftId}`} tone="error" text={message} />}
-    {selected && snapshot && <LifecycleActionDialog draftId={draftId} title={title} action={selected} snapshot={snapshot} open onOpenChange={open => { if (!open) { setSelected(null); setSnapshot(null); } }} onChanged={onChanged} />}
+    {selected && snapshot && <LifecycleActionDialog coverage={coverage} draftId={draftId} title={title} action={selected} snapshot={snapshot} open onOpenChange={open => { if (!open) { setSelected(null); setSnapshot(null); } }} onChanged={onChanged} />}
   </>;
 }

@@ -4,6 +4,11 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
+import candidateTheme from "@/components/candidate-dashboard/candidate-theme.module.css";
+import dashboardTheme from "./dashboard-01-theme.module.css";
 import { EmployerShell } from "./employer-shell";
 import { SidebarTrigger } from "./ui/sidebar";
 
@@ -41,6 +46,31 @@ afterEach(() => {
 });
 
 describe("EmployerShell shared employer frame", () => {
+  it.each([true, false])("shares the candidate frame surface and viewport gutters (open=%s)", (defaultOpen) => {
+    renderShell(defaultOpen);
+    const employerInset = document.querySelector("[data-slot='sidebar-inset']")!.className;
+    const employerProvider = document.querySelector("[data-slot='sidebar-wrapper']")!;
+    expect(employerProvider).toHaveClass("bg-primary/5", "md:py-3");
+    // The inset frame keeps the sidebar colour behind the rail, so the collapsed sidebar
+    // blends into it instead of showing as a separate square-cornered panel.
+    expect(employerProvider).toHaveClass("has-data-[variant=inset]:bg-sidebar");
+    expect(employerProvider).not.toHaveClass("has-data-[variant=inset]:bg-primary/5");
+    const providerClasses = employerProvider.className.split(" ").filter(token => token !== dashboardTheme.root);
+    cleanup();
+    render(<CandidateShell defaultOpen={defaultOpen}><p>contenido</p></CandidateShell>);
+    expect(document.querySelector("[data-slot='sidebar-inset']")!.className).toBe(employerInset);
+    expect(document.querySelector("[data-slot='sidebar-wrapper']")!.className.split(" ").filter(token => token !== candidateTheme.root)).toEqual(providerClasses);
+    // Vertical gutters belong inside the provider's viewport minimum, not to
+    // outer inset margins; peer specificity must override the primitive's m-2.
+    expect(employerInset).toContain("md:peer-data-[variant=inset]:my-0");
+  });
+
+  it("exempts only the theme toggle from provider and portal button radii", () => {
+    const css = readFileSync(join(process.cwd(), "src/components/company-dashboard/dashboard-01-theme.module.css"), "utf8");
+    // Employer buttons keep the shared pill shape, toggle included, like the candidate area.
+    expect(css).not.toMatch(/\[data-slot="button"\]/);
+    expect(css).not.toContain(':global([data-slot="button"])');
+  });
   it("toggles the single committed frame with the route trigger and persists the cookie", async () => {
     const user = userEvent.setup();
     renderShell();

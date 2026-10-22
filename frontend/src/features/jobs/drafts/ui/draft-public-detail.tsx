@@ -3,7 +3,7 @@
 import { useGeoCatalog } from "@/features/geo/use-geo-catalog";
 import { PublicJobDetailView } from "../../components/PublicJobDetailView";
 import type { DraftPublicDetail } from "../../components/public-detail-presentation";
-import { publicJobDetailSchema } from "../../schemas";
+import { publicJobDetailSchema, requirementsProfileSchema } from "../../schemas";
 import { BENEFITS } from "../lists";
 import { CONTRACT_TYPES, PROFESSIONAL_AREAS, SENIORITIES, WORK_MODES, WORK_SCHEDULES } from "../scalars";
 import { deriveDraftDescriptionPlain } from "../rich/plain";
@@ -38,6 +38,15 @@ export function draftToPublicDetail(state: DraftFormState, locationLabel = state
     compensation: compensation?.success ? compensation.data : null,
     description: description.kind === "ready" ? description.description : null,
     description_plain: description.kind === "ready" ? deriveDraftDescriptionPlain(description.description) ?? "" : "",
+    requirements_profile: {
+      languages: state.languages.flatMap(row => {
+        const parsed = requirementsProfileSchema.shape.languages.safeParse([{ code: row.code, min_level: row.min_level }]);
+        return parsed.success ? parsed.data : [];
+      }),
+      min_years_of_experience: requirementsProfileSchema.shape.min_years_of_experience.safeParse(state.min_years_of_experience).success ? state.min_years_of_experience : null,
+      min_education_level: selected(requirementsProfileSchema.shape.min_education_level.unwrap().options, state.min_education_level),
+      accepts_in_progress_education: state.accepts_in_progress_education,
+    },
     requirements: { required: state.required_requirements || null, preferred: state.preferred_requirements || null },
     benefits, benefits_total: benefits.predefined.length + benefits.custom.length,
     benefits_preview: { predefined: benefits.predefined.slice(0, 3), custom: benefits.custom.slice(0, Math.max(0, 3 - benefits.predefined.length)) },

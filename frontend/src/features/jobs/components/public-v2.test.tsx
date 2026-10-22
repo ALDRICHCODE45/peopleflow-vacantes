@@ -104,6 +104,6 @@ describe("v2 filters", () => {
     render(<JobsNavigationIsland routeKey="/vacantes" query={{ q: "Go", work_mode: "remote" }}><p>resultados</p></JobsNavigationIsland>);
     expect(screen.queryByRole("note")).toBeNull();
     const form = screen.getByRole("form", { name: "Filtros" });
-    expect(within(form).getAllByRole("combobox")).toHaveLength(10);
+    expect(within(form).getAllByRole("combobox")).toHaveLength(13);
   });
 });

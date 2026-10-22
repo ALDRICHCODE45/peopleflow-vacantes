@@ -27,7 +27,7 @@ function MunicipalityFeedback({ state, name }: { state: string; name: string }) 
   const resource = useGeoResource(`countries/mx/states/${state}/municipalities`, municipalitiesSchema);
   return <CatalogFeedback resource={resource} label={`municipios de ${name}`} />;
 }
-function CatalogFeedback({ resource, label }: { resource: Resource; label: string }) {
+export function CatalogFeedback({ resource, label }: { resource: Pick<Resource, "status" | "retry">; label: string }) {
   if (resource.status === "error") return <><FieldError>No pudimos cargar {label}.</FieldError><Button type="button" variant="outline" className="min-h-10" onClick={resource.retry}>Reintentar {label}</Button></>;
   if (resource.status === "idle" || resource.status === "loading") return <div role="status" aria-label={`Cargando ${label}`}><Skeleton aria-hidden="true" className="h-10 w-full" /></div>;
   return null;
@@ -48,7 +48,7 @@ export function statePatch(query: JobsQuery, states: readonly string[]): JobsFil
 
 /** Official popup Combobox composition: one compact trigger per dimension.
  * Selection indicators and keyboard multiselect are owned by ComboboxItem. */
-function MultiFilter({ id, label, options, value, onChange, disabled = false, helper }: { id: string; label: string; options: GeoReference[]; value: readonly string[]; onChange: (values: string[]) => void; disabled?: boolean; helper?: string }) {
+export function MultiFilter({ id, label, options, value, onChange, disabled = false, helper }: { id: string; label: string; options: GeoReference[]; value: readonly string[]; onChange: (values: string[]) => void; disabled?: boolean; helper?: string }) {
   const selected = options.filter(item => value.includes(item.id));
   return <Field data-disabled={disabled}>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>

@@ -16,13 +16,13 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 }));
 beforeEach(() => vi.resetAllMocks()); afterEach(cleanup);
 it.each([["pause", "Pausar"], ["resume", "Reanudar"], ["close", "Cerrar"], ["finish_process", "Finalizar proceso"], ["reopen", "Reabrir"]] as const)("shows only server-allowed %s", async (action, label) => {
- vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "etag", data: { publication: "closed", process: "active", version: "1", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: [action] } });
+ vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "etag", data: { close_reason: null, close_reason_note: null, publication: "closed", process: "active", version: "1", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: [action] } });
  render(<LifecycleActionsMenu draftId="id" title="Analista" onChanged={vi.fn()} />);
  expect(getLifecycleAction).not.toHaveBeenCalled(); fireEvent.click(screen.getByText("Abrir"));
  expect(await screen.findByRole("menuitem", { name: label })).toBeVisible(); expect(screen.getAllByRole("menuitem")).toHaveLength(1);
 });
 it("non-actors receive no lifecycle actions", async () => {
- vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "etag", data: { publication: "published", process: "active", version: "1", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: [] } });
+ vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "etag", data: { close_reason: null, close_reason_note: null, publication: "published", process: "active", version: "1", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: [] } });
  render(<LifecycleActionsMenu draftId="id" title="Analista" onChanged={vi.fn()} />); fireEvent.click(screen.getByText("Abrir"));
  await waitFor(() => expect(getLifecycleAction).toHaveBeenCalled()); expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
 });

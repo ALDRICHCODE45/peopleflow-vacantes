@@ -41,7 +41,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   const error = notice && notice.tone !== "success" ? notice : undefined;
   const statusId = error ? `move-status-${item.id}` : undefined;
   const FileIcon = filePresentation(item.cv.name) === "pdf" ? FileText : FileType2;
-  return <Card ref={setNodeRef} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3", (isDragging || pending) && "opacity-55")}
+  return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55")}
     onClick={event => {
       if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu']")) return;
       onDetail(item.id);
@@ -55,8 +55,9 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
       <CardAction className="row-span-1 self-center"><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
+      {item.source === "manual" && <Badge variant="accent">Ingreso manual</Badge>}
       {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}
-      <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span>Postuló <MovementDate value={item.applied_at} compact /></span></p>
+      <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span>{item.source === "manual" ? "Agregado" : "Postuló"} <MovementDate value={item.applied_at} compact /></span></p>
       <p className="flex items-center gap-2"><Clock3 aria-hidden="true" className="size-3.5 shrink-0" /><span>En la etapa desde <MovementDate value={item.moved_at} compact /></span></p>
     </CardContent>
     <Separator />
