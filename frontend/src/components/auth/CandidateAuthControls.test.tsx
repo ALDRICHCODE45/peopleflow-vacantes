@@ -45,7 +45,7 @@ it("does not disclose sign-in exception details", async () => {
   expect(screen.queryByText("secret")).toBeNull();
 });
 it("ignores a stale callback error once signed in", () => {
-  auth.session = { status: "authenticated", data: { user: {} } };
+  auth.session = { status: "authenticated", data: {} };
   auth.query = new URLSearchParams("error=OAuthCallback");
   render(<CandidateAuthControls />);
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
