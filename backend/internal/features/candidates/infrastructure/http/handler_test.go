@@ -814,7 +814,7 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 	t.Run("server-managed fields are rejected", func(t *testing.T) {
 		cRepo := &stubCandidateRepo{}
 		router := newTestRouter(newTestHandler(cRepo, uRepo))
-		body := `{"user_id": "` + uuid.New().String() + `", "created_at": "1999-01-01T00:00:00Z", "updated_at": "1999-01-01T00:00:00Z", "phone": "555"}`
+		body := `{"user_id": "` + uuid.New().String() + `", "created_at": "1999-01-01T00:00:00Z", "updated_at": "1999-01-01T00:00:00Z", "phone": "+525512345678"}`
 		rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
 		assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 		if cRepo.upsertCalls != 0 {

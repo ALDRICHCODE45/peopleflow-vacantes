@@ -9,6 +9,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
 	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+	sharedvo "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 )
 
 // ErrInvalidBirthDate is returned when birth_date does not parse as
@@ -38,9 +39,20 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 		return nil, err
 	}
 
+	phone, phoneErr := validateProfilePhone(params.Phone)
 	years, seniority, education, err := ValidateProfileFields(params.YearsOfExperience, params.Seniority, params.Education)
-	if err != nil {
+	var fieldErrs *ValidationError
+	if err != nil && !errors.As(err, &fieldErrs) {
 		return nil, err
+	}
+	if phoneErr != nil {
+		if fieldErrs == nil {
+			fieldErrs = &ValidationError{}
+		}
+		fieldErrs.Fields = append([]FieldError{*phoneErr}, fieldErrs.Fields...)
+	}
+	if fieldErrs != nil {
+		return nil, fieldErrs
 	}
 	if err := geo.ValidateLocation(ctx, s.geography, params.Location, false); err != nil {
 		return nil, err
@@ -65,9 +77,7 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 
 	// Copy optional fields. We assign AFTER the factory so the use case
 	// owns the optional vs required split, matching companies/createCompany.
-	if params.Phone != nil {
-		profile.Phone = params.Phone
-	}
+	profile.Phone = phone
 	if params.LinkedInURL != nil {
 		profile.LinkedInURL = params.LinkedInURL
 	}
@@ -123,6 +133,20 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 		return nil, err
 	}
 	return &ProfileWriteResult{CandidateProfile: persisted, LocationRead: location}, nil
+}
+
+// validateProfilePhone applies the manual-intake E.164 rule (sharedvo.NewPhone)
+// to the profile phone. nil and "" clear the phone; any other value must be
+// exact E.164, with no whitespace or separator normalization.
+func validateProfilePhone(raw *string) (*string, *FieldError) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	if _, err := sharedvo.NewPhone(*raw); err != nil {
+		return nil, &FieldError{Field: "phone", Code: "invalid"}
+	}
+	phone := *raw
+	return &phone, nil
 }
 
 // emptyAsBlank turns a non-nil pointer whose value is "" into the empty

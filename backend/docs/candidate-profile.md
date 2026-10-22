@@ -25,6 +25,11 @@ unknown request keys. PUT does not replace languages or overwrite reserved CV da
  "location":{"country":"MX","state":"14","municipality":"14039"}}
 ```
 
+- `phone`: null, `""` (both clear it) or exact E.164, the same rule as
+  [manual intake](manual-intake.md): `+`, then 8–15 digits with a nonzero first
+  digit; `+52` requires exactly ten national digits (`+525512345678`). Spaces,
+  dashes and other separators are invalid, never normalized. Anything else
+  produces `phone` / `invalid`.
 - `years_of_experience`: decimal string or null, matching
   `^(0|[1-9][0-9]?)(\.[0-9])?$`, value 0–60. Numbers, whitespace, leading zeroes,
   and extra decimal places are invalid. Canonical responses drop a zero fraction:
@@ -79,7 +84,7 @@ Invalid harmonized fields return the shared HTTP 400 envelope, for example:
 
 The catalog owns the human-readable `error` message. Clients should use `code`
 and `fields`. Field codes are `required`, `invalid`, `too_long`, `not_allowed`,
-and `duplicate`; paths include `years_of_experience`, `seniority`,
+and `duplicate`; paths include `phone`, `years_of_experience`, `seniority`,
 `education[i].status`, and `languages[i].code`. Validation completes before any
 write. Profile and education replacement share a transaction; language replacement
 is also transactional. Rejection leaves previously stored data unchanged.
@@ -92,6 +97,7 @@ this API switch does not rewrite previously captured application snapshots.
 | Contract | Evidence |
 | --- | --- |
 | Field errors, missing study keys, limits | `TestHarmonizedProfileValidation`, `TestHarmonizedLanguagesValidation`, `TestProfileFieldsRejectBeforePersistence` |
+| Phone E.164 rule, clearing with null/omitted/empty | `TestProfilePhoneValidation` |
 | Vocabulary, code points, year boundaries, duplicate studies | `TestProfileFieldsVocabulariesAndBoundaries`, `TestLanguagesCatalogLevelsAndBoundaries` |
 | Exact response shape, removed/unknown keys | `TestHarmonizedProfileExactShape`, `TestHarmonizedUnknownFields` |
 | DB-backed PUT/GET and replacement | `TestProfileHTTPHarmonizationRoundTripAndReplacement` |

@@ -216,7 +216,7 @@ func TestUpsertMyProfile_CreatesProfile(t *testing.T) {
 	uRepo := &stubUserRepository{resolved: makeUser(userID, "sub-abc")}
 	svc := newSvc(cRepo, uRepo)
 
-	phone := "+52 55 1234 5678"
+	phone := "+525512345678"
 	title := "Senior Backend Engineer"
 	edu := []byte(`[{"level":"bachelor","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}]`)
 	period := "monthly"

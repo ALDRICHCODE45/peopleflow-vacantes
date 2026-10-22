@@ -30,7 +30,7 @@ func exactKeys(t *testing.T, object map[string]any, want ...string) {
 func TestHarmonizedProfileExactShape(t *testing.T) {
 	repo := &stubCandidateRepo{}
 	router := newTestRouter(newTestHandler(repo, &stubUserRepo{resolved: &identityentities.User{ID: uuid.New()}}))
-	body := `{"phone":"555","linkedin_url":"https://example.test/in/test","portfolio_url":"https://example.test","professional_title":"Engineer","current_company":"Company","years_of_experience":"2.0","profile_summary":"Summary","birth_date":"2000-01-01","seniority":"semi_senior","education":[{"level":"technical","institution":" School ","field":" Computing ","status":"completed","start_year":null,"end_year":null}],"skills":["Go"],"current_salary_gross":100,"current_salary_net":90,"expected_salary":110,"salary_currency":"MXN","expected_salary_period":"monthly"}`
+	body := `{"phone":"+525512345678","linkedin_url":"https://example.test/in/test","portfolio_url":"https://example.test","professional_title":"Engineer","current_company":"Company","years_of_experience":"2.0","profile_summary":"Summary","birth_date":"2000-01-01","seniority":"semi_senior","education":[{"level":"technical","institution":" School ","field":" Computing ","status":"completed","start_year":null,"end_year":null}],"skills":["Go"],"current_salary_gross":100,"current_salary_net":90,"expected_salary":110,"salary_currency":"MXN","expected_salary_period":"monthly"}`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub"))
 	if rec.Code != 200 {
 		t.Fatalf("%d: %s", rec.Code, rec.Body.String())
