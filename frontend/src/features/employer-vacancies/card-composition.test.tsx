@@ -24,7 +24,7 @@ afterEach(cleanup);
 
 it.each([
   ["team", <TeamWorkspace key="team" members={[]} />, "data-pf-team-metric", 4],
-  ["vacancies", <VacancyPortfolio key="vacancies" vacancies={[]} />, "data-pf-vacancy-metric", 5],
+  ["vacancies", <VacancyPortfolio key="vacancies" />, "data-pf-vacancy-metric", 5],
   ["talent", <TalentSummary key="talent" people={[]} />, "data-pf-talento-stat", 4],
   ["dashboard", <SectionCards key="dashboard" />, "data-slot=card", 4],
 ] as const)("composes %s metrics with title headings and supporting labels", (_name, view, attribute, count) => {
