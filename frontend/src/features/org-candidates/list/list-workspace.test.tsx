@@ -10,7 +10,7 @@ import { listCandidatesAction } from "../actions";
 import { OrgCandidatesWorkspace } from "./list-workspace";
 import { candidate, page } from "./test-fixtures";
 beforeEach(() => {
- vi.resetAllMocks();
+ vi.resetAllMocks(); localStorage.clear();
  vi.stubGlobal("innerWidth", 1440);
  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, media: "", addEventListener: vi.fn(), removeEventListener: vi.fn() })));
  window.history.replaceState(null, "", "/empresa/talento"); vi.mocked(listCandidatesAction).mockResolvedValue({ ok: true, data: page });
@@ -19,13 +19,20 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 it.each(["table", "cards"])("renders the same profile and vacancy facts in %s, with a real candidate action", async view => {
  window.history.replaceState(null, "", `/empresa/talento?view=${view}`); const open = vi.fn(); render(<OrgCandidatesWorkspace onOpenCandidate={open} />);
  await screen.findByText("Mariana Ortega Silva");
- for (const fact of ["37 candidatos", "Desarrolladora Frontend", "Manual", "Guadalajara, Jalisco", "Licenciatura o Ingeniería", "Maestría · En curso", "Inglés C1", "Backend Go", "Entrevista"]) expect(screen.getByText(fact)).toBeTruthy();
- expect(document.body.textContent).toContain("Senior · 4.5 años");
- fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" })); expect(open).toHaveBeenCalledWith({ kind: "manual", id: candidate.id });
- if (view === "cards") expect(screen.getByText("2 procesos · 1 activo")).toBeTruthy();
+ for (const fact of ["37 candidatos", "Desarrolladora Frontend", "Guadalajara, Jalisco", "Licenciatura o Ingeniería", "Inglés C1", "Backend Go"]) expect(screen.getByText(fact)).toBeTruthy();
+ if (view === "cards") {
+   expect(screen.getByText("Manual")).toBeTruthy(); expect(screen.getByText("Maestría · En curso")).toBeTruthy();
+   expect(document.body.textContent).toContain("Senior · 4.5 años");
+   fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" })); expect(screen.getByText("2 procesos · 1 activo")).toBeTruthy();
+ } else {
+   expect(screen.getByText("Maestría en curso")).toBeTruthy(); expect(screen.getByText("4.5 años")).toBeTruthy();
+   fireEvent.click(screen.getByText(candidate.full_name).closest("tr")!);
+ }
+ expect(open).toHaveBeenCalledWith({ kind: "manual", id: candidate.id });
 });
 it.each([["paused", "active", "Pausada"], ["closed", "active", "Cerrada"], ["closed", "finished", "Proceso finalizado"]] as const)("shows %s/%s lifecycle and discarded state", async (publication, process, label) => {
  vi.mocked(listCandidatesAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...candidate, latest_participation: { ...candidate.latest_participation, state: "discarded", vacancy: { ...candidate.latest_participation.vacancy, lifecycle: { publication, process } } } }] } });
+ window.history.replaceState(null, "", "/empresa/talento?view=cards");
  render(<OrgCandidatesWorkspace />); expect(await screen.findByText(label)).toBeTruthy(); expect(screen.getByText("Descartado")).toBeTruthy();
 });
 it.each(["table", "cards"])("initial loading mirrors %s", async view => {
@@ -69,7 +76,8 @@ it("view switching preserves query and loaded results without fetching again", a
 it.each(["table", "cards"])("opens %s candidates with the keyboard", async view => {
  window.history.replaceState(null, "", `/empresa/talento?view=${view}`); const open = vi.fn(); const user = userEvent.setup();
  render(<OrgCandidatesWorkspace onOpenCandidate={open} />);
- const action = await screen.findByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" }); action.focus(); await user.keyboard("{Enter}");
+ const name = await screen.findByText(candidate.full_name);
+ const action = view === "cards" ? screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" }) : name.closest("tr")!; action.focus(); await user.keyboard("{Enter}");
  expect(open).toHaveBeenCalledWith({ kind: "manual", id: candidate.id });
 });
 it("removing an active filter resets the URL cursor and requests page one", async () => {
@@ -112,6 +120,8 @@ it("groups search, filters and view in one desktop toolbar and puts the count ab
  const toggle = screen.getByRole("button", { name: "Tabla" });
  const row = search.closest('[data-candidates-toolbar]');
  expect(row).toContainElement(filters); expect(row).toContainElement(toggle);
+ expect(row).toContainElement(screen.getByRole("button", { name: "Columnas" }));
+ expect(row).toContainElement(screen.getByRole("button", { name: "Restablecer vista" }));
  expect(row).toHaveClass("md:flex-nowrap");
  expect(search.closest('[data-slot="field"]')).toHaveClass("w-full", "md:flex-1");
  expect(screen.getByRole("region", { name: "Resultados de candidatos" })).toContainElement(screen.getByText("37 candidatos"));

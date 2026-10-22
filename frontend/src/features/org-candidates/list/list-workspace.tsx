@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { LayoutGrid, Search, Table2, Users } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { StateCard } from "@/components/feedback/state-card";
@@ -25,6 +26,7 @@ export function OrgCandidatesWorkspace({ onOpenCandidate }: { onOpenCandidate?: 
   // Presentation only: resizing never changes the saved URL view or refetches.
   const isMobile = useIsMobile();
   const resultView = isMobile ? "cards" : state.view;
+  const [tableToolbar, setTableToolbar] = useState<HTMLDivElement | null>(null);
   const [search, setSearch] = useState(state.filters.q ?? "");
   useEffect(() => { setSearch(state.filters.q ?? ""); }, [state.filters.q]);
   useEffect(() => {
@@ -50,12 +52,12 @@ export function OrgCandidatesWorkspace({ onOpenCandidate }: { onOpenCandidate?: 
     <Card size="sm"><CardContent>
       <CandidateFiltersBar filters={state.filters} onChange={patch} onClear={clear} languages={languages.data?.items ?? []}
         search={<Field className="w-full min-w-0 md:max-w-sm md:flex-1"><FieldLabel htmlFor="org-candidates-search">Buscar candidatos</FieldLabel><InputGroup className="min-h-10"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon><InputGroupInput id="org-candidates-search" type="search" value={search} onChange={event => setSearch(Array.from(event.target.value).slice(0, 100).join(""))} placeholder="Buscar por nombre o correo…" /></InputGroup></Field>}
-        viewToggle={<ToggleGroup aria-label="Vista de candidatos" value={[state.view]} onValueChange={(values: string[]) => { const view = values[0]; if (view === "cards" || view === "table") update(changeView(state, view)); }} variant="outline" size="sm" className="hidden md:flex">
+        viewToggle={<div className="flex min-w-0 flex-wrap items-center justify-end gap-2"><div ref={setTableToolbar} className="hidden md:block" /><ToggleGroup aria-label="Vista de candidatos" value={[state.view]} onValueChange={(values: string[]) => { const view = values[0]; if (view === "cards" || view === "table") update(changeView(state, view)); }} variant="outline" size="sm" className="hidden md:flex">
           {/* Base UI exposes aria-pressed (not Radix's data-state). Semantic
               selected fill + border remain distinct from hover in both themes. */}
           <ToggleGroupItem value="table" className="aria-pressed:border-foreground/30 aria-pressed:bg-secondary aria-pressed:text-secondary-foreground"><Table2 aria-hidden="true" />Tabla</ToggleGroupItem>
           <ToggleGroupItem value="cards" className="aria-pressed:border-foreground/30 aria-pressed:bg-secondary aria-pressed:text-secondary-foreground"><LayoutGrid aria-hidden="true" />Tarjetas</ToggleGroupItem>
-        </ToggleGroup>} />
+        </ToggleGroup></div>} />
     </CardContent></Card>
     {languages.status === "error" && <div className="flex flex-wrap items-center gap-2"><p className="text-xs text-muted-foreground">No pudimos cargar el catálogo de idiomas.</p><Button type="button" variant="link" className="min-h-10" onClick={languages.retry}>Reintentar idiomas</Button></div>}
     {notice && <ActionStatus id="org-candidates-notice" tone="info" text={notice} />}
@@ -64,7 +66,7 @@ export function OrgCandidatesWorkspace({ onOpenCandidate }: { onOpenCandidate?: 
       {initial ? <CandidateResultsSkeleton view={resultView} /> : <>
         {failure && <StateCard icon={Users} tone={failure.reason === "forbidden" ? "forbidden" : "error"} title={filterError ? "No pudimos aplicar los filtros" : "No pudimos cargar los candidatos"} description={errorDescription} primaryAction={{ label: filterError ? "Limpiar filtros" : "Reintentar", onClick: filterError ? clear : retry }} />}
         {!failure && page && page.items.length === 0 && <StateCard icon={Users} tone="empty" title={filtered ? "Sin resultados" : "Todavía no hay candidatos en tu organización"} description={filtered ? "No hay candidatos que coincidan con estos filtros." : "Agrega un candidato desde el tablero de una vacante para comenzar."} primaryAction={filtered ? { label: "Limpiar filtros", onClick: clear } : undefined} />}
-        {!!page?.items.length && <CandidateResults items={page.items} view={resultView} languages={languages.data?.items ?? []} onOpen={onOpenCandidate} />}
+        {!!page?.items.length && <CandidateResults items={page.items} view={resultView} languages={languages.data?.items ?? []} onOpen={onOpenCandidate} toolbar={controls => tableToolbar && resultView === "table" ? createPortal(controls, tableToolbar) : null} />}
         {page?.next_cursor && <div className="flex justify-center"><Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={loadMore}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}Cargar más</Button></div>}
       </>}
     </section>

@@ -4,7 +4,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RichDataTable, type RichDataTableProps } from "@/components/data-table/rich-data-table";
+import { candidateColumns } from "./candidate-columns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { educationLabels, normalizedProfileLabel } from "@/features/pipeline-movement/profile-filter-dimensions";
@@ -14,29 +16,12 @@ import type { OrgCandidate } from "../model";
 import { cn } from "@/lib/utils";
 
 export type OpenCandidate = (candidate: Pick<OrgCandidate, "kind" | "id">) => void;
-// Fixed proportions, not intrinsic minimum widths: all seven columns fit beside
-// the expanded sidebar. Location yields space on smaller desktop viewports.
-const columns = [
-  { label: "Nombre", width: "w-[24%]" },
-  { label: "Ubicación", width: "hidden w-[13%] xl:table-cell" },
-  { label: "Experiencia", width: "w-[12%]" },
-  { label: "Estudios", width: "w-[14%]" },
-  { label: "Idiomas", width: "w-[12%]" },
-  { label: "Última vacante", width: "w-[16%]" },
-  { label: "Actividad", width: "w-[9%]" },
-];
-const cellClass = "whitespace-normal break-words";
+const defaultPinning = { start: ["candidate"], end: ["actions"] };
 const missing = <span className="text-muted-foreground">Sin dato</span>;
 const dateFormat = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
 function experience(item: OrgCandidate) {
   const { seniority, years_of_experience: years } = item.profile;
   return [seniority && SENIORITY_LABELS[seniority], years !== null && `${years} ${Number(years) === 1 ? "año" : "años"}`].filter(Boolean).join(" · ");
-}
-/** Experience parts never break inside («4.5» and «años» stay together); only the « · » joint may wrap. */
-function Experience({ item }: { item: OrgCandidate }) {
-  const parts = experience(item).split(" · ").filter(Boolean);
-  if (!parts.length) return missing;
-  return <>{parts.map((part, index) => <React.Fragment key={part}>{index > 0 && " · "}<span className="whitespace-nowrap">{part}</span></React.Fragment>)}</>;
 }
 function hasEducation(item: OrgCandidate) {
   return !!(item.profile.education.highest_completed || item.profile.education.in_progress);
@@ -89,19 +74,14 @@ function CandidateCard({ item, languages, onOpen }: { item: OrgCandidate; langua
     <CardFooter className="flex flex-wrap justify-between gap-2"><span className="text-xs text-muted-foreground">{item.participations.total} {item.participations.total === 1 ? "proceso" : "procesos"} · {item.participations.active} {item.participations.active === 1 ? "activo" : "activos"}</span><Activity item={item} /></CardFooter>
   </Card>;
 }
-export function CandidateResults({ items, view, languages, onOpen }: { items: OrgCandidate[]; view: "table" | "cards"; languages: LanguageCatalog["items"]; onOpen?: OpenCandidate }) {
+export function CandidateResults({ items, view, languages, onOpen, toolbar }: { items: OrgCandidate[]; view: "table" | "cards"; languages: LanguageCatalog["items"]; onOpen?: OpenCandidate; toolbar?: RichDataTableProps<OrgCandidate>["toolbar"] }) {
+  const richColumns = React.useMemo(() => candidateColumns(languages, onOpen), [languages, onOpen]);
   if (view === "cards") return <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Tarjetas de candidatos">{items.map(item => <CandidateCard key={`${item.kind}:${item.id}`} item={item} languages={languages} onOpen={onOpen} />)}</div>;
-  return <Card className="min-w-0"><CardContent><Table className="table-fixed"><TableCaption className="sr-only">Candidatos de mi organización</TableCaption><TableHeader><TableRow>{columns.map(column => <TableHead key={column.label} className={cn(column.width, "whitespace-normal")}>{column.label}</TableHead>)}</TableRow></TableHeader><TableBody>{items.map(item => <TableRow key={`${item.kind}:${item.id}`} className="cursor-pointer" onClick={event => { if (!(event.target as HTMLElement).closest("button")) onOpen?.({ kind: item.kind, id: item.id }); }}>
-    <TableCell className={cellClass}><Identity item={item} onOpen={onOpen} /></TableCell>
-    <TableCell className={cn(cellClass, "hidden xl:table-cell")}>{item.profile.location?.label || missing}</TableCell>
-    <TableCell className={cellClass}><Experience item={item} /></TableCell>
-    <TableCell className={cellClass}><Education item={item} /></TableCell>
-    <TableCell className={cellClass}><Languages item={item} languages={languages} /></TableCell>
-    <TableCell className={cellClass}><LatestVacancy item={item} /></TableCell>
-    <TableCell className={cellClass}><Activity item={item} /></TableCell>
-  </TableRow>)}</TableBody></Table></CardContent></Card>;
+  return <Card className="min-w-0"><CardContent><RichDataTable id="org-candidates" columns={richColumns} data={items} getRowId={item => `${item.kind}:${item.id}`} defaultPinning={defaultPinning} onRowActivate={onOpen ? item => onOpen({ kind: item.kind, id: item.id }) : undefined} emptyState="Sin candidatos" toolbar={toolbar} /></CardContent></Card>;
 }
 export function CandidateResultsSkeleton({ view }: { view: "table" | "cards" }) {
   if (view === "cards") return <div data-candidates-skeleton="cards" aria-hidden="true" className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Card key={index}><CardHeader><CardTitle><Skeleton className="h-6 w-40 max-w-full" /></CardTitle><CardDescription><Skeleton className="h-4 w-32 max-w-full" /></CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-5 w-32 max-w-full" /><Skeleton className="h-16 w-full" /></CardContent><CardFooter><Skeleton className="h-4 w-40 max-w-full" /></CardFooter></Card>)}</div>;
-  return <Card data-candidates-skeleton="table" aria-hidden="true"><CardContent><Table className="table-fixed"><TableHeader><TableRow>{columns.map(column => <TableHead key={column.label} className={cn(column.width, "whitespace-normal")}>{column.label}</TableHead>)}</TableRow></TableHeader><TableBody>{Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{columns.map((column, columnIndex) => <TableCell key={column.label} className={cn(cellClass, columnIndex === 1 && "hidden xl:table-cell")}><div className="flex min-w-0 items-center gap-2">{columnIndex === 0 && <Skeleton className="size-10 shrink-0 rounded-full" />}<Skeleton className="h-10 w-28 max-w-full" /></div></TableCell>)}</TableRow>)}</TableBody></Table></CardContent></Card>;
+  const columns = candidateColumns([]);
+  const width = columns.reduce((sum, column) => sum + column.size, 0);
+  return <Card data-candidates-skeleton="table" aria-hidden="true"><CardContent><Table className="table-fixed" style={{ width, minWidth: width }}><TableHeader><TableRow>{columns.map(column => <TableHead key={column.id} style={{ width: column.size }}>{column.meta.label}</TableHead>)}</TableRow></TableHeader><TableBody>{Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{columns.map((column, columnIndex) => <TableCell key={column.id}><div className="flex min-w-0 items-center gap-2">{columnIndex === 0 && <Skeleton className="size-10 shrink-0 rounded-full" />}<Skeleton className="h-10 w-28 max-w-full" /></div></TableCell>)}</TableRow>)}</TableBody></Table></CardContent></Card>;
 }

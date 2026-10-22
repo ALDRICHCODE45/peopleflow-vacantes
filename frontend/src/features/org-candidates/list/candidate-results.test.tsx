@@ -1,99 +1,112 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { CandidateResults, CandidateResultsSkeleton } from "./candidate-results";
 import { candidate } from "./test-fixtures";
 import type { OrgCandidate } from "../model";
-
-const languages = [{ code: "en", name: "Inglés" }];
-const empty: OrgCandidate = { ...candidate, professional_title: null, profile: {
-  location: null, skills: [], seniority: null, years_of_experience: null,
-  education: { highest_completed: null, in_progress: null }, languages: [],
-} };
-afterEach(cleanup);
+vi.mock("@/components/ui/dropdown-menu", async () => (await import("@/components/data-table/test-menu")).menuDouble);
+vi.mock("@/components/ui/tooltip", async () => (await import("@/components/data-table/test-menu")).tooltipDouble);
+const languages = [{ code: "en", name: "Inglés" }, { code: "es", name: "Español" }];
+const empty: OrgCandidate = { ...candidate, professional_title: null, profile: { location: null, skills: [], seniority: null, years_of_experience: null, education: { highest_completed: null, in_progress: null }, languages: [] } };
+beforeEach(() => localStorage.clear());
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 function show(item: OrgCandidate = candidate, view: "table" | "cards" = "table") {
   return render(<CandidateResults items={[item]} view={view} languages={languages} />);
 }
-it("merges seniority and years into one experience column", () => {
+it("renders the nine L20 columns, two-line hierarchy, fixed widths and default pins", () => {
   show();
-  expect(screen.queryByRole("columnheader", { name: "Seniority" })).not.toBeInTheDocument();
-  expect(screen.getAllByRole("columnheader")).toHaveLength(7);
-  expect(screen.getByRole("cell", { name: "Senior · 4.5 años" })).toBeInTheDocument();
-  // The number and its unit never wrap apart («4.5» / «años» on separate lines).
-  expect(screen.getByText("4.5 años")).toHaveClass("whitespace-nowrap");
-});
-it("constrains the table without minimum-width cells and wraps vacancy titles and language pills", () => {
-  show({ ...candidate, latest_participation: { ...candidate.latest_participation!, vacancy: { ...candidate.latest_participation!.vacancy, title: "Desarrollador Web Full Stack" } } });
+  expect(screen.getAllByRole("columnheader").map(header => header.querySelector('[data-header-label]')?.textContent)).toEqual(["Candidato", "Ubicación", "Experiencia", "Estudios", "Idiomas", "Última vacante", "Procesos", "Actividad", "Acciones"]);
   expect(screen.getByRole("table")).toHaveClass("table-fixed");
-  for (const cell of screen.getAllByRole("cell")) {
-    expect(cell.className).not.toMatch(/min-w-(?:\d|\[)/u);
-    expect(cell).toHaveClass("whitespace-normal");
-  }
-  expect(screen.getByText("Desarrollador Web Full Stack")).toHaveClass("break-words");
-  expect(screen.getByRole("columnheader", { name: "Actividad" })).not.toHaveClass("hidden");
+  expect(screen.getByText("4.5 años")).toHaveClass("truncate", "font-medium");
+  expect(screen.getByText("Senior")).toHaveClass("truncate", "text-muted-foreground");
+  expect(screen.getByText("Maestría en curso")).toHaveClass("truncate");
+  expect(screen.getByText("México")).toBeInTheDocument();
+  expect(screen.getByText("2 procesos")).toBeInTheDocument(); expect(screen.getByText("1 activo")).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: /Candidato/u })).toHaveAttribute("data-pinned", "start");
+  expect(screen.getByRole("columnheader", { name: /Acciones/u })).toHaveAttribute("data-pinned", "end");
+  expect(JSON.parse(localStorage.getItem("pf.table.org-candidates")!).v).toBe(1);
+  const widths = screen.getAllByRole("columnheader").map(header => parseInt(header.style.width));
+  expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(1250);
+  expect(widths.at(-1)).toBe(56);
+  expect(screen.getByText("Acciones")).toHaveClass("sr-only");
+  expect(screen.queryByRole("button", { name: "Opciones de Acciones" })).not.toBeInTheDocument();
 });
-it("keeps the origin and title inside the name text block, beside the avatar", () => {
+it("truncates long text instead of wrapping, including the candidate name", () => {
   show();
-  const name = screen.getByRole("button", { name: `Abrir ficha de ${candidate.full_name}` });
-  const block = name.parentElement!.parentElement!;
-  expect(block).toContainElement(screen.getByText("Manual"));
-  expect(block).toContainElement(screen.getByText(candidate.professional_title));
-  expect(block.querySelector('[data-slot="avatar"]')).toBeNull();
+  expect(screen.getByText(candidate.full_name)).toHaveClass("truncate", "text-foreground");
+  expect(screen.getByText(candidate.professional_title)).toHaveClass("truncate");
+  expect(screen.getByText("Backend Go")).toHaveClass("truncate");
+  for (const cell of screen.getAllByRole("cell")) expect(cell).not.toHaveClass("whitespace-normal");
 });
-it.each(["table", "cards"] as const)("uses neutral, focusable name actions in %s", view => {
-  show(candidate, view);
-  const name = screen.getByRole("button", { name: `Abrir ficha de ${candidate.full_name}` });
-  expect(name).toHaveClass("text-foreground", "font-medium", "hover:underline");
-  expect(name).not.toHaveClass("text-primary");
-  expect(name.className).toMatch(/focus-visible:ring/u);
+it("shows languages as plain text and a muted +N tooltip listing all languages", async () => {
+  show({ ...candidate, profile: { ...candidate.profile, languages: [{ code: "en", level: "C1" }, { code: "es", level: "native" }] } });
+  expect(screen.getByText("Inglés C1").closest('[data-slot="badge"]')).toBeNull();
+  const more = screen.getByText("+1"); expect(more).toHaveClass("text-muted-foreground");
+  fireEvent.focus(more);
+  const tooltip = await screen.findByRole("tooltip");
+  expect(tooltip).toHaveTextContent("Inglés C1"); expect(tooltip).toHaveTextContent("Español Nativo");
 });
-it.each(["table", "cards"] as const)("matches the sheet's language pills in %s, including native and catalog failure", view => {
-  show({ ...candidate, profile: { ...candidate.profile, languages: [{ code: "en", level: "C1" }, { code: "es", level: "native" }] } }, view);
-  const pill = screen.getByText("Inglés C1");
-  expect(pill).toHaveAttribute("data-variant", "outline");
-  expect(pill.parentElement).toHaveClass("flex-wrap");
-  expect(screen.getByText("Idioma no disponible Nativo")).toBeInTheDocument();
+it.each([
+  ["closed", "active", "active", "Cerrada"], ["paused", "active", "active", "Pausada"],
+  ["published", "finished", "active", "Proceso finalizado"], ["published", "active", "discarded", "Descartado"],
+  ["published", "active", "active", "Activa"],
+] as const)("renders stage and dot status (%s / %s / %s)", (publication, process, state, text) => {
+  show({ ...candidate, latest_participation: { ...candidate.latest_participation!, state, vacancy: { ...candidate.latest_participation!.vacancy, lifecycle: { publication, process } } } });
+  expect(screen.getByText(new RegExp(`Entrevista.*${text}`, "u"))).toHaveClass("truncate");
+  const dot = document.querySelector('[data-status-dot]');
+  expect(dot).toHaveAttribute("aria-hidden", "true");
+  expect(dot).toHaveClass(text === "Cerrada" || text === "Proceso finalizado" ? "bg-muted-foreground" : text === "Pausada" ? "bg-status-review" : text === "Descartado" ? "bg-destructive" : "bg-status-success");
 });
-it("mutes every missing fact in the table", () => {
-  show(empty);
-  const missing = screen.getAllByText("Sin dato");
-  expect(missing).toHaveLength(4);
-  for (const fact of missing) expect(fact).toHaveClass("text-muted-foreground");
+it("trims stage labels in the vacancy secondary line", () => {
+  show({ ...candidate, latest_participation: { ...candidate.latest_participation!, stage: { ...candidate.latest_participation!.stage, name: " Nuevos " } } });
+  expect(screen.getByText(/Nuevos.*Activa/u).textContent).toBe("Nuevos · Activa");
 });
-it("cards omit missing facts and show only one incomplete-profile message", () => {
-  show(empty, "cards");
-  expect(screen.queryAllByText(/Sin dato/u)).toHaveLength(0);
-  expect(screen.getAllByText("Perfil sin completar")).toHaveLength(1);
-  expect(screen.getByText("Perfil sin completar")).toHaveClass("text-muted-foreground");
-  expect(screen.getByText("Backend Go")).toBeInTheDocument();
+it("shows activity date and relative time", () => {
+  vi.spyOn(Date, "now").mockReturnValue(new Date("2026-10-23T18:02:11Z").getTime());
+  show(); expect(screen.getByText(/21 oct.*2026/u)).toBeInTheDocument(); expect(screen.getByText("hace 2 días")).toBeInTheDocument();
+});
+it("opens the sheet by row click or Enter, but never by opening or using row menus", async () => {
+  const onOpen = vi.fn();
+  render(<CandidateResults items={[candidate]} view="table" languages={languages} onOpen={onOpen} />);
+  const row = screen.getByText(candidate.full_name).closest("tr")!;
+  fireEvent.click(row); fireEvent.keyDown(row, { key: "Enter" }); expect(onOpen).toHaveBeenCalledTimes(2); onOpen.mockClear();
+  await userEvent.click(screen.getByRole("button", { name: `Acciones de ${candidate.full_name}` })); expect(onOpen).not.toHaveBeenCalled();
+  expect(screen.getByRole("menuitem", { name: "Abrir tablero de la vacante" })).toHaveAttribute("href", `/empresa/vacantes/${candidate.latest_participation!.vacancy.id}/pipeline`);
+  await userEvent.click(screen.getByRole("menuitem", { name: "Ver ficha" })); expect(onOpen).toHaveBeenCalledExactlyOnceWith({ kind: candidate.kind, id: candidate.id });
+});
+it("does not offer a board without a latest participation", async () => {
+  show({ ...empty, latest_participation: null });
+  expect(screen.getByText("Sin participaciones")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: `Acciones de ${candidate.full_name}` }));
+  expect(screen.queryByText("Abrir tablero de la vacante")).not.toBeInTheDocument();
+});
+it("mutes missing profile facts without inventing values", () => {
+  show(empty); for (const missing of screen.getAllByText("Sin dato")) expect(missing).toHaveClass("text-muted-foreground");
+});
+it("keeps cards unchanged: language pills, origin badge, neutral name action and incomplete-profile fallback", () => {
+  const { rerender } = show(candidate, "cards");
+  expect(screen.getByText("Inglés C1")).toHaveAttribute("data-variant", "outline");
+  expect(screen.getByText("Manual")).toHaveAttribute("data-variant", "accent");
+  expect(screen.getByRole("button", { name: `Abrir ficha de ${candidate.full_name}` })).toHaveClass("text-foreground", "font-medium");
+  rerender(<CandidateResults items={[empty]} view="cards" languages={languages} />);
+  expect(screen.queryAllByText(/Sin dato/u)).toHaveLength(0); expect(screen.getByText("Perfil sin completar")).toBeInTheDocument();
 });
 it.each([
   { seniority: "senior" as const, years_of_experience: null, text: "Senior" },
   { seniority: null, years_of_experience: "0", text: "0 años" },
   { seniority: null, years_of_experience: "1", text: "1 año" },
-])("cards retain partial experience without empty separators: $text", ({ text, ...experience }) => {
-  show({ ...empty, profile: { ...empty.profile, ...experience } }, "cards");
-  expect(screen.getByText(text)).toBeInTheDocument();
-  expect(screen.queryAllByText(/Sin dato|Perfil sin completar/u)).toHaveLength(0);
+])("cards retain partial experience: $text", ({ text, ...experience }) => {
+  show({ ...empty, profile: { ...empty.profile, ...experience } }, "cards"); expect(screen.getByText(text)).toBeInTheDocument(); expect(screen.queryByText("Perfil sin completar")).not.toBeInTheDocument();
 });
 it.each([
   { profile: { ...empty.profile, location: candidate.profile.location }, text: "Guadalajara, Jalisco" },
   { profile: { ...empty.profile, education: candidate.profile.education }, text: "Licenciatura o Ingeniería" },
   { profile: { ...empty.profile, languages: candidate.profile.languages }, text: "Inglés C1" },
   { profile: { ...empty.profile, skills: ["Go"] }, text: "Go" },
-])("cards retain an isolated profile fact without inventing missing data: $text", ({ profile, text }) => {
-  show({ ...empty, profile }, "cards");
-  expect(screen.getByText(text)).toBeInTheDocument();
-  expect(screen.queryAllByText(/Sin dato|Perfil sin completar/u)).toHaveLength(0);
+])("cards retain isolated facts: $text", ({ profile, text }) => {
+  show({ ...empty, profile }, "cards"); expect(screen.getByText(text)).toBeInTheDocument(); expect(screen.queryByText("Perfil sin completar")).not.toBeInTheDocument();
 });
-it.each(["table", "cards"] as const)("uses the sheet's accent origin variant for both origins in %s", view => {
-  render(<CandidateResults items={[candidate, { ...candidate, kind: "organic", full_name: "Ana Ríos" }]} view={view} languages={languages} />);
-  expect(screen.getByText("Manual")).toHaveAttribute("data-variant", "accent");
-  expect(screen.getByText("Orgánico")).toHaveAttribute("data-variant", "accent");
-  expect(screen.getByText("Manual").className).toBe(screen.getByText("Orgánico").className);
-});
-it("keeps loading columns aligned with the merged results table", () => {
-  const { container } = render(<CandidateResultsSkeleton view="table" />);
-  expect(within(container).queryByText("Seniority")).not.toBeInTheDocument();
-  expect(container.querySelectorAll("th")).toHaveLength(7);
+it("keeps loading columns aligned with the rich table", () => {
+  const { container } = render(<CandidateResultsSkeleton view="table" />); expect(within(container).queryByText("Seniority")).not.toBeInTheDocument(); expect(container.querySelectorAll("th")).toHaveLength(9);
 });

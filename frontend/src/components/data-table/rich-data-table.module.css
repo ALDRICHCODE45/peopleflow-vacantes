@@ -1,0 +1,22 @@
+.cell {
+  background: var(--rich-row-background, var(--card));
+}
+.cell[data-pinned] { z-index: 1; }
+.header[data-pinned] { z-index: 2; }
+.row:hover, .row:focus-within { --rich-row-background: var(--muted); }
+.cell[data-shadow]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  pointer-events: none;
+}
+.cell[data-shadow="start"]::after {
+  right: -6px;
+  background: linear-gradient(to right, var(--border), transparent);
+}
+.cell[data-shadow="end"]::after {
+  left: -6px;
+  background: linear-gradient(to left, var(--border), transparent);
+}
