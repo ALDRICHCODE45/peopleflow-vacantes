@@ -6,7 +6,7 @@ import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { StateCard } from "@/components/feedback/state-card";
@@ -21,13 +21,14 @@ import { CandidateMenu } from "./candidate-menu";
 import { SubstateSelect } from "./substate-controls";
 import { discardGroupLabel, discardReasonLabel } from "./discard-text";
 import { allowedMoveTargets } from "./helpers";
+import { participationCvHref } from "./cv-href";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import type { Notice } from "./board-feedback";
 import { plural } from "@/features/employer-vacancies/pipeline-board";
 import { educationLabels, normalizedProfileLabel } from "./profile-filter-dimensions";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
-import type { Board, Failure, History, Participation, ParticipationDetail } from "./model";
+import type { Board, CorrectedField, Failure, History, Participation, ParticipationDetail } from "./model";
 
 type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
 export function CandidateSheet(props: Props) {
@@ -79,8 +80,8 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       <Hint text="Cerrar ficha"><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Cerrar ficha" onClick={onClose}><X aria-hidden="true" /></Button></Hint>
     </div>
     <SheetHeader className="gap-4">
-      <div className="flex items-center gap-3"><Avatar className="size-12 shrink-0"><AvatarFallback className="bg-secondary text-lg text-muted-foreground">{initials(item.candidate.full_name)}</AvatarFallback></Avatar>
-        <div className="flex min-w-0 flex-col gap-1.5"><SheetTitle ref={titleRef} tabIndex={-1} title={item.candidate.full_name} className="break-words text-lg font-semibold outline-none">{item.candidate.full_name}</SheetTitle>
+      <div className="flex items-center gap-3"><Avatar className="size-12 shrink-0"><AvatarFallback className="bg-secondary text-lg text-muted-foreground">{initials(detail.candidate.full_name)}</AvatarFallback></Avatar>
+        <div className="flex min-w-0 flex-col gap-1.5"><div className="flex min-w-0 flex-wrap items-center gap-2"><SheetTitle ref={titleRef} tabIndex={-1} title={detail.candidate.full_name} className="min-w-0 break-words text-lg font-semibold outline-none">{detail.candidate.full_name}</SheetTitle>{detail.corrected_fields.includes("full_name") && <Badge variant="accent">Corregido</Badge>}</div>
           {stage && <Badge variant="neutral" dot className={cn("stage-badge max-w-full", stageClass(stage.kind))}><span className="truncate">{stage.name}</span></Badge>}
         </div>
       </div>
@@ -118,12 +119,15 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Globe2 aria-hidden="true" className="size-4 shrink-0" />Fuente</dt><dd className="text-sm font-medium">{manual ? "Ingreso manual" : "Orgánica"}</dd>
                 </dl>
               </section><Separator />
-              <CandidateContact contact={loaded.detail.contact} /><Separator />
-              <CandidateProfile profile={loaded.detail.profile} manual={manual} /><Separator />
+              <CandidateContact contact={loaded.detail.contact} correctedFields={loaded.detail.corrected_fields} /><Separator />
+              <CandidateProfile profile={loaded.detail.profile} manual={manual} correctedFields={loaded.detail.corrected_fields} /><Separator />
               <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><Item variant="outline">
                 <ItemMedia><div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><FileIcon aria-hidden="true" className="size-5" /></div></ItemMedia>
-                <ItemContent className="min-w-0"><ItemTitle className="max-w-full"><Hint text={detail.cv.name}><span className="truncate">{detail.cv.name}</span></Hint></ItemTitle><ItemDescription>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}</ItemDescription></ItemContent>
-                <ItemActions><Hint text="Descargar CV"><Button nativeButton={false} role="link" render={<a href={`/api/company/vacancies/${encodeURIComponent(vacancyId)}/participations/${encodeURIComponent(item.id)}/cv`} download />} variant="ghost" size="icon" className="size-10" aria-label="Descargar CV"><ArrowDownToLine aria-hidden="true" /></Button></Hint></ItemActions>
+                <ItemContent className="min-w-0"><ItemTitle className="max-w-full"><Hint text={detail.cv.name}><span className="truncate">{detail.cv.name}</span></Hint></ItemTitle><ItemDescription>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}</ItemDescription>{detail.cv.source === "company" && <Badge variant="accent">CV corregido por tu empresa</Badge>}</ItemContent>
+                <ItemActions className="basis-full flex-wrap">
+                  <a className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href={participationCvHref(vacancyId, item.id)} download><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</a>
+                  {detail.cv.source === "company" && loaded.detail.original_cv && <a className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href={participationCvHref(vacancyId, item.id, "original")} download><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</a>}
+                </ItemActions>
               </Item></section>
               {loaded.detail.discard && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><SectionTitle>Descarte</SectionTitle></CardTitle><CardDescription><p className="text-sm font-medium text-status-danger">{discardReasonLabel(loaded.detail.discard.reason)}</p><p className="text-xs">{discardGroupLabel(loaded.detail.discard.reason)}</p></CardDescription></CardHeader>
                 <CardContent className="flex flex-col gap-4"><p className="text-xs text-muted-foreground">Etapa anterior: <strong className="text-foreground">{stageName(loaded.detail.discard.previous_stage_id)}</strong></p>
@@ -168,31 +172,31 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
     <Separator />
     <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3, 4, 5].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
     <Separator />
-    <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions><Skeleton className="size-10" /></ItemActions></Item></section>
+    <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions className="basis-full flex-wrap"><Skeleton className="h-10 w-32" /></ItemActions></Item></section>
     {discarded && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><Skeleton className="h-4 w-20" /></CardTitle><CardDescription><Skeleton className="h-5 w-44" /><Skeleton className="h-4 w-32" /></CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><Skeleton className="h-4 w-40" /><dl className="flex flex-col gap-4">{[0, 1].map(index => <div key={index} className="flex flex-col gap-1"><dt><Skeleton className="h-4 w-32" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>}
     <Skeleton className="h-16 w-full rounded-lg" />
   </div>;
 }
-function CandidateProfile({ profile, manual }: { profile: Participation["profile"]; manual: boolean }) {
+function CandidateProfile({ profile, manual, correctedFields }: { profile: Participation["profile"]; manual: boolean; correctedFields: CorrectedField[] }) {
   const catalog = useLanguageCatalog();
   const education = [profile.education.highest_completed && educationLabels[profile.education.highest_completed], profile.education.in_progress && `${educationLabels[profile.education.in_progress]} en curso`].filter(Boolean).join(" · ");
   // One pill per language («Inglés B2»), like skills; a joined string made the levels ambiguous.
   const languages = profile.languages.length ? <div className="flex flex-wrap gap-2">{profile.languages.map(language => <Badge key={language.code} variant="outline">{`${catalog.data?.items.find(item => item.code === language.code)?.name ?? "Idioma no disponible"} ${language.level === "native" ? "Nativo" : language.level}`}</Badge>)}</div> : null;
   const missing = <span className="text-muted-foreground">Sin dato</span>;
   const skills = profile.skills.filter(skill => normalizedProfileLabel(skill));
-  const rows = [
-    { label: "Ubicación", icon: MapPin, value: profile.location?.label ?? missing },
-    { label: "Habilidades", icon: Sparkles, value: skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={index} variant="outline">{skill}</Badge>)}</div> : missing },
-    { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(Number(profile.years_of_experience), "año", "años") },
-    { label: "Seniority", icon: TrendingUp, value: profile.seniority === null ? missing : SENIORITY_LABELS[profile.seniority] },
-    { label: "Nivel de estudios", icon: GraduationCap, value: education || missing },
-    { label: "Idiomas", icon: Languages, value: languages || missing },
+  const rows: { field: CorrectedField; label: string; icon: typeof Mail; value: ReactNode }[] = [
+    { field: "location", label: "Ubicación", icon: MapPin, value: profile.location?.label ?? missing },
+    { field: "skills", label: "Habilidades", icon: Sparkles, value: skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={index} variant="outline">{skill}</Badge>)}</div> : missing },
+    { field: "years_of_experience", label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(Number(profile.years_of_experience), "año", "años") },
+    { field: "seniority", label: "Seniority", icon: TrendingUp, value: profile.seniority === null ? missing : SENIORITY_LABELS[profile.seniority] },
+    { field: "education", label: "Nivel de estudios", icon: GraduationCap, value: education || missing },
+    { field: "languages", label: "Idiomas", icon: Languages, value: languages || missing },
   ];
   return <section aria-label="Perfil" className="flex flex-col gap-5"><SectionTitle>Perfil</SectionTitle>
-    <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">
-      <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
+    <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ field, label, icon: Icon, value }) => <div key={label} className="contents">
+      <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium"><CorrectedValue corrected={correctedFields.includes(field)}>{value}</CorrectedValue></dd>
     </div>)}</dl>
-    <p className="text-xs text-muted-foreground">{manual ? "Registrado al agregar al candidato." : "Copiado del perfil al postularse."}</p>
+    <p className="text-xs text-muted-foreground">{rows.some(row => correctedFields.includes(row.field)) ? "Incluye correcciones de tu empresa." : manual ? "Registrado al agregar al candidato." : "Copiado del perfil al postularse."}</p>
   </section>;
 }
 /** E.164 for display: «+52 55 1234 5678» for Mexico; anything else (other countries, or the free-text
@@ -206,17 +210,20 @@ function emailWithBreak(email: string) {
   const at = email.lastIndexOf("@");
   return at < 0 ? email : <>{email.slice(0, at + 1)}<wbr />{email.slice(at + 1)}</>;
 }
-function CandidateContact({ contact }: { contact: ParticipationDetail["contact"] }) {
+function CandidateContact({ contact, correctedFields }: { contact: ParticipationDetail["contact"]; correctedFields: CorrectedField[] }) {
   const missing = <span className="text-muted-foreground">Sin dato</span>;
-  const rows = [
-    { label: "Correo", icon: Mail, value: contact.email ? <a className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`mailto:${contact.email}`} aria-label={contact.email}>{emailWithBreak(contact.email)}</a> : missing },
-    { label: "Teléfono", icon: Phone, value: contact.phone ? <a className="tabular-nums underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{displayPhone(contact.phone)}</a> : missing },
+  const rows: { field: CorrectedField; label: string; icon: typeof Mail; value: ReactNode }[] = [
+    { field: "email", label: "Correo", icon: Mail, value: contact.email ? <a className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`mailto:${contact.email}`} aria-label={contact.email}>{emailWithBreak(contact.email)}</a> : missing },
+    { field: "phone", label: "Teléfono", icon: Phone, value: contact.phone ? <a className="tabular-nums underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{displayPhone(contact.phone)}</a> : missing },
   ];
   return <section aria-label="Contacto" className="flex flex-col gap-5"><SectionTitle>Contacto</SectionTitle>
-    <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">
-      <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
+    <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ field, label, icon: Icon, value }) => <div key={label} className="contents">
+      <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium"><CorrectedValue corrected={correctedFields.includes(field)}>{value}</CorrectedValue></dd>
     </div>)}</dl>
   </section>;
+}
+function CorrectedValue({ corrected, children }: { corrected: boolean; children: ReactNode }) {
+  return corrected ? <div className="flex min-w-0 flex-wrap items-center gap-2">{children}<Badge variant="accent">Corregido</Badge></div> : children;
 }
 function SectionTitle({ children }: { children: ReactNode }) {
   return <h3 className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{children}</h3>;
