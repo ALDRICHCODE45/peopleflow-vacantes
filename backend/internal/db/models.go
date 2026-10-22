@@ -152,6 +152,9 @@ type CompanyCandidate struct {
 	CreatedBy         uuid.UUID          `json:"created_by"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	Seniority         pgtype.Text        `json:"seniority"`
+	Version           int64              `json:"version"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	UpdatedBy         pgtype.UUID        `json:"updated_by"`
 }
 
 type CompanyCandidateCv struct {
@@ -175,6 +178,16 @@ type CompanyCandidateEducation struct {
 	Status             string      `json:"status"`
 	StartYear          pgtype.Int2 `json:"start_year"`
 	EndYear            pgtype.Int2 `json:"end_year"`
+}
+
+type CompanyCandidateHistory struct {
+	ID            uuid.UUID          `json:"id"`
+	CompanyID     uuid.UUID          `json:"company_id"`
+	CandidateKind string             `json:"candidate_kind"`
+	CandidateID   uuid.UUID          `json:"candidate_id"`
+	ActorID       uuid.UUID          `json:"actor_id"`
+	At            pgtype.Timestamptz `json:"at"`
+	Changes       []byte             `json:"changes"`
 }
 
 type CompanyCandidateLanguage struct {
