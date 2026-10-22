@@ -12,6 +12,11 @@ const { pathnameMock } = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 
+// The organization list and its sheet own their transport and tests; the route only mounts them.
+vi.mock("@/features/org-candidates/org-candidates-page", () => ({
+  OrgCandidatesPage: () => <section data-pf-org-candidates=""><h2>Candidatos de mi organización</h2></section>,
+}));
+
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
 
 import PageContent, { metadata } from "./page";
@@ -103,47 +108,20 @@ describe("/empresa/talento employer route", () => {
     expect(header.querySelector("[aria-label='Ruta de navegación']")).toBeNull();
   });
 
-  it("names the workspace with a real H2 under the single H1", () => {
+  it("names the organization candidates with a real H2 under the single H1", () => {
     render(<Page />);
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(
-      screen.getByRole("heading", {
-        level: 2,
-        name: "Explora tu base de talento",
-      }),
-    ).toBeVisible();
-  });
-
-  it("mounts one workspace inside the single padded page-content wrapper", () => {
-    const { container } = render(<Page />);
-    const content = container.querySelector(
-      "[data-pf-talento-content]",
-    ) as HTMLElement;
-
-    expect(content).not.toBeNull();
-    expect(content.hasAttribute("data-pf-page-content")).toBe(true);
-    for (const token of ["mx-auto", "w-full", "max-w-screen-2xl"]) {
-      expect(content.className).toContain(token);
-    }
-    expect(content.className).toContain("px-4");
-    expect(content.className).toContain("py-4");
-    expect(content.className).toContain("md:py-6");
-    expect(content.className).toContain("lg:px-6");
-
-    const workspaces = document.querySelectorAll("[data-pf-talento-workspace]");
-    expect(workspaces).toHaveLength(1);
-    expect(content.contains(workspaces[0])).toBe(true);
-    // One padding owner: the workspace adds no second page-level inset.
-    expect((workspaces[0] as HTMLElement).className).not.toContain("px-4");
+    expect(screen.getByRole("heading", { level: 2, name: "Candidatos de mi organización" })).toBeVisible();
+    expect(document.querySelectorAll("[data-pf-org-candidates]")).toHaveLength(1);
   });
 });
 
 describe("/empresa/talento composition boundary", () => {
   it("mounts the shared header, the page-content wrapper and the workspace", () => {
     expect(pageSource).toContain('<SiteHeader title="Base de talento" />');
-    expect(pageSource).toContain("<TalentWorkspace");
-    expect(pageSource).toContain("<DashboardPageContent");
+    expect(pageSource).toContain("<OrgCandidatesPage />");
+    expect(pageSource).not.toMatch(/employer-talent|TALENT_PEOPLE|prototype/u);
   });
 
   it("stays a server component", () => {
@@ -186,8 +164,7 @@ describe("/empresa/talento composition boundary", () => {
   it("reuses the agreed feature entry points", () => {
     for (const reuse of [
       'from "@/components/company-dashboard/site-header"',
-      'from "@/components/dashboard-page-content"',
-      'from "@/features/employer-talent/talent-workspace"',
+      'from "@/features/org-candidates/org-candidates-page"',
     ]) {
       expect(pageSource, `page.tsx must reuse ${reuse}`).toContain(reuse);
     }
