@@ -14,12 +14,15 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	poolapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
 	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
 	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
+	poolhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/pool"
 	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	applicationspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres"
 	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
+	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	applicationsv2postgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/v2"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
@@ -211,6 +214,7 @@ func run() error {
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
 	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualStorage)
+	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames)))
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 	draftListHandler := jobshttp.NewDraftListHandler(draftStore)
@@ -281,7 +285,8 @@ func run() error {
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		requireCandidate: requireCandidate, identityHandler: identityHandler,
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
-		companyHandler: companyHandler, memberHandler: memberHandler,
+		candidatePoolHandler: candidatePoolHandler,
+		companyHandler:       companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
 		pipelineHandler:    pipelineHandler,

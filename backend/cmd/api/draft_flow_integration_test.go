@@ -38,8 +38,11 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/db/migrations"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	poolapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
 	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
+	poolhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/pool"
 	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
+	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
@@ -273,19 +276,20 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 		manualFiles = manualCVStorage{local: cvFiles[0]}
 	}
 	router := newRouter(routerDeps{
-		requireAuth:        requireAuth,
-		requireRecruiter:   requireRecruiter,
-		requireOwner:       requireOwner,
-		jobHandler:         jobHandler,
-		draftHandler:       draftHandler,
-		draftV2Handler:     draftV2Handler,
-		draftListHandler:   jobshttp.NewDraftListHandler(store),
-		pipelineHandler:    jobshttp.NewPipelineHandler(store),
-		substatesHandler:   jobshttp.NewSubstatesHandler(store),
-		deliveryHandler:    jobshttp.NewDeliveryHandler(store),
-		managementHandler:  jobshttp.NewManagementHandler(store),
-		publicationHandler: jobshttp.NewPublicationHandler(store),
-		lifecycleHandler:   jobshttp.NewLifecycleHandler(store),
+		requireAuth:          requireAuth,
+		requireRecruiter:     requireRecruiter,
+		requireOwner:         requireOwner,
+		jobHandler:           jobHandler,
+		draftHandler:         draftHandler,
+		draftV2Handler:       draftV2Handler,
+		draftListHandler:     jobshttp.NewDraftListHandler(store),
+		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames))),
+		pipelineHandler:      jobshttp.NewPipelineHandler(store),
+		substatesHandler:     jobshttp.NewSubstatesHandler(store),
+		deliveryHandler:      jobshttp.NewDeliveryHandler(store),
+		managementHandler:    jobshttp.NewManagementHandler(store),
+		publicationHandler:   jobshttp.NewPublicationHandler(store),
+		lifecycleHandler:     jobshttp.NewLifecycleHandler(store),
 		// Match main.go; tests that upload CVs supply their own temporary storage.
 		movementHandler:   movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{store}, files, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		publicJobsHandler: jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries))),

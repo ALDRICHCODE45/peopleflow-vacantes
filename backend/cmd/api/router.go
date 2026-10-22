@@ -10,6 +10,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
 	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
+	poolhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/pool"
 	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
@@ -54,6 +55,7 @@ type routerDeps struct {
 	cvHandler            *cvshttp.Handler
 	participationHandler *applicationsv2http.Handler
 	movementHandler      *movementhttp.Handler
+	candidatePoolHandler *poolhttp.Handler
 	queries              *db.Queries
 	pool                 health.Pinger
 	readinessTimeout     time.Duration
@@ -228,6 +230,10 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/close", lifecycleHandlers.Close)
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/finish-process", lifecycleHandlers.FinishProcess)
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/reopen", lifecycleHandlers.Reopen)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Get("/v2/me/company/candidates", d.candidatePoolHandler.List)
 	})
 	// Requester catalog (contract §7): private like the drafts, so NoStore runs
 	// before both gates. The store re-checks user, company and membership.

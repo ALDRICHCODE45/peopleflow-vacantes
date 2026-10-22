@@ -1,6 +1,7 @@
 # Org candidates API — «Candidatos de mi organización» v1 (DRAFT)
 
-Status: **draft for frontend review**, not implemented. Feature document:
+Status: **contract approved; list implementation awaiting parent DB acceptance**.
+Detail and CV routes remain T3, not implemented here. Feature document:
 `odd/tasks/org-candidates.md`. Business rules: SRCH-2/3/4/7 in
 `docs/recruitment-business-rules.md` §12.
 
@@ -132,3 +133,48 @@ filter options come from the existing catalogs (vacancy list, geo, languages).
   participation references (company CV or candidate CV version), after checking the
   participation belongs to this candidate and company; 404 otherwise.
 - Unknown `kind` or malformed id: 404.
+
+## T2 implementation notes and test map
+
+Only the list route is wired. The applications-owned `application/pool`,
+`infrastructure/http/pool` and `infrastructure/postgres/pool` slices do not invoke
+board owner/principal authorization. `cmd/api/pool_context.go` projects jobs-owned
+pipeline names (defaults or stored configuration), without authorizing a vacancy.
+
+The SQL scopes participations to the company before identity aggregation and
+latest-snapshot selection. Filters and the exact total precede the cursor;
+count and page share a statement snapshot in a read-only repeatable-read
+transaction. Lookahead is `limit+1`. The cursor is company/filter-bound, strict
+versioned base64url JSON, bounded to 4096 encoded bytes, with microsecond UTC
+positions. Repeatable selections are sorted/deduplicated; search text is trimmed
+and lowercased for binding. `limit` is not part of the filter hash.
+
+Shared `httpjson.WriteInvalidFilterFields` explicitly adds the validation array;
+the generic public-jobs error writer is unchanged. `invalid_cursor` is additive;
+existing draft-list errors retain their existing `invalid_request` code.
+
+| Test | Evidence covered |
+| --- | --- |
+| `cmd/api/org_candidates_routes_test.go` — `TestOrgCandidates*` | Real router/service; no-store gates; exact item/empty-profile JSON; default 20/max 50; total and continuation; normalized filter binding; all syntax error categories and sorted fields; strict cursor mutations, bounds, and generic internal errors. Reader fake does **not** prove SQL matching. |
+| `cmd/api/org_candidates_flow_integration_test.go` — `TestOrgCandidatesFlow` | Real JWT/gates/SQL: whole-company visibility for non-principal recruiters; manual without participation; organic/manual reuse deduplication; discarded membership; foreign-company exclusion; latest company snapshot including timestamp ties; no live organic profile/contact leakage; every filter and `none`, OR/AND, decimal buckets, all education/language threshold pairs, in-progress/paused/incomplete education, live manual reads; full ordered traversal, exact filtered totals, canonical cursor continuation and company/filter mismatch; catalog errors even on empty results; stored pipeline names and lifecycle pair. |
+| `internal/shared/httpjson/pool_errors_test.go` | Exact fields/cursor envelopes and unchanged generic public invalid_filter bytes. |
+| `cmd/api/public_jobs_routes_test.go` — `TestPublicJobsInvalidFilterBytesUnchanged` | Actual GET /v2/jobs invalid_filter bytes and public cache headers unchanged. |
+| `cmd/api/main_test.go`, `task63_logging_security_a1h_test.go` | Updated exact route topology and bounded logging census. |
+
+Validation from `backend/`: `go test ./cmd/api -run '^TestOrgCandidates' -count=1`,
+`go test ./... -count=1`, `go vet ./...`, `go vet -tags=integration ./...`,
+`go run ./cmd/archguard`, and scoped gofmt passed. RED evidence: 34 absent-route
+HTTP subtests; later one missing cursor catalog test and two cursor-normalization
+subtests failed as intended before their respective fixes.
+
+**DB execution is assigned to the parent**, not established by compilation or
+skips. With the guarded loopback `DRAFT_TEST_DATABASE_URL` harness already injected,
+run (no DSN should be printed):
+
+```sh
+go test -tags=integration ./cmd/api -run '^TestOrgCandidatesFlow$' -count=1 -v
+go test -tags=integration ./cmd/api -run '^Test(DraftFlow_|DraftListFlow_|ManualCreateHTTPFlow$)' -count=1 -v
+```
+
+The second command exercises existing flows sharing the modified router harness.
+T2 remains in progress until these database tests pass and the parent reviews it.

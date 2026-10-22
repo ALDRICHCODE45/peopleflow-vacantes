@@ -19,6 +19,15 @@ func (publicRouteReader) Search(context.Context, publicjobs.Query) ([]publicjobs
 func (publicRouteReader) Get(context.Context, uuid.UUID) (publicjobs.Detail, error) {
 	return publicjobs.Detail{}, publicjobs.ErrNotFound
 }
+func TestPublicJobsInvalidFilterBytesUnchanged(t *testing.T) {
+	r := newRouter(routerDeps{requireAuth: routeRequireAuth, requireRecruiter: routeRequireAuth, requireOwner: routeRequireAuth, publicJobsHandler: jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicRouteReader{}))})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v2/jobs?seniority=not-a-level", nil))
+	if w.Code != 400 || w.Body.String() != `{"error":"invalid filter","code":"invalid_filter"}`+"\n" || w.Header().Get("Cache-Control") != "" {
+		t.Fatal(w.Code, w.Body.String(), w.Header())
+	}
+}
+
 func TestPublicJobsRoutesAnonymousWithoutPrivateHeaders(t *testing.T) {
 	r := newRouter(routerDeps{requireAuth: routeRequireAuth, requireRecruiter: routeRequireAuth, requireOwner: routeRequireAuth, publicJobsHandler: jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicRouteReader{}))})
 	for _, tc := range []struct {
