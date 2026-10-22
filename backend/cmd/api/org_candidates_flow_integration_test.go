@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 )
@@ -38,7 +39,12 @@ func orgCandidateKeys(t *testing.T, value any, keys ...string) map[string]any {
 
 // Fixtures own their rows; auth, router, pool query and pagination are production.
 func TestOrgCandidatesFlow(t *testing.T) {
-	h := newDraftFlowHarness(t)
+	local, err := cvstorage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = local.Close() })
+	h := newDraftFlowHarness(t, local)
 	company, ownerID, ownerSub := draftFlowNewPrincipal(t, h.pool, "active")
 	owner := h.actor(t, ownerID, ownerSub)
 	recruiterID, recruiterSub := company.addUser(t, "recruiter")
@@ -74,7 +80,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			}
 		}
 		for _, id := range users {
-			for _, sql := range []string{`DELETE FROM candidate_profiles WHERE user_id=$1`, `DELETE FROM candidate_cv_versions WHERE candidate_id=$1`, `DELETE FROM users WHERE id=$1`} {
+			for _, sql := range []string{`DELETE FROM candidate_profiles WHERE user_id=$1`, `DELETE FROM candidate_cv_library WHERE candidate_id=$1`, `DELETE FROM candidate_cv_versions WHERE candidate_id=$1`, `DELETE FROM users WHERE id=$1`} {
 				if _, err := h.pool.Exec(ctx, sql, id); err != nil {
 					t.Error(err)
 				}
@@ -134,7 +140,12 @@ func TestOrgCandidatesFlow(t *testing.T) {
 		}
 		if source == "organic" {
 			cv = uuid.New()
-			exec(`INSERT INTO candidate_cv_versions(id,candidate_id,storage_key,size,content_type) VALUES($1,$2,$3,6,'application/pdf')`, cv, person, strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", ""))
+			key, err := local.Put(ctx, []byte("%PDF-o"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			exec(`INSERT INTO candidate_cv_versions(id,candidate_id,storage_key,size,content_type) VALUES($1,$2,$3,6,'application/pdf')`, cv, person, key)
+			exec(`INSERT INTO candidate_cv_library(id,candidate_id,version_id,name,removed_at) VALUES($1,$2,$3,'Frozen CV',now())`, uuid.New(), person, cv)
 		} else {
 			manualCV = uuid.New()
 			added = ownerID
@@ -143,7 +154,11 @@ func TestOrgCandidatesFlow(t *testing.T) {
 				c = other.companyID
 				added = otherID
 			}
-			exec(`INSERT INTO company_candidate_cvs(id,company_id,company_candidate_id,storage_key,size,content_type,file_name) VALUES($1,$2,$3,$4,6,'application/pdf','private.pdf')`, manualCV, c, manualID, strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", ""))
+			key, err := local.Put(ctx, []byte("%PDF-m"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			exec(`INSERT INTO company_candidate_cvs(id,company_id,company_candidate_id,storage_key,size,content_type,file_name) VALUES($1,$2,$3,$4,6,'application/pdf','private.pdf')`, manualCV, c, manualID, key)
 		}
 		var snap any
 		if snapshot != "" {
@@ -167,11 +182,11 @@ func TestOrgCandidatesFlow(t *testing.T) {
 		return id
 	}
 	reused := organic("Reused")
-	addParticipation(reused, "organic", vacancy1, "organic", profile("0.9", "junior", "bachelor", nil, []any{map[string]any{"code": "en", "level": "C2"}}), "2026-02-01T00:00:00Z", false)
+	firstPID := addParticipation(reused, "organic", vacancy1, "organic", profile("0.9", "junior", "bachelor", nil, []any{map[string]any{"code": "en", "level": "C2"}}), "2026-02-01T00:00:00Z", false)
 	latest := profile("1.5", "senior", "technical", "master", []any{map[string]any{"code": "es", "level": "native"}, map[string]any{"code": "en", "level": "B2"}})
 	reusedPID := addParticipation(reused, "organic", vacancy2, "manual", latest, "2026-03-01T00:00:00Z", true)
 	// A still-newer participation in another company cannot choose the profile.
-	addParticipation(reused, "organic", vacancy3, "organic", empty, "2026-12-01T00:00:00Z", false)
+	foreignPID := addParticipation(reused, "organic", vacancy3, "organic", empty, "2026-12-01T00:00:00Z", false)
 	noProfile := organic("No Profile")
 	addParticipation(noProfile, "organic", vacancy1, "organic", "", "2026-03-01T00:00:00Z", false)
 	_ = organic("Never Applied")
@@ -183,9 +198,106 @@ func TestOrgCandidatesFlow(t *testing.T) {
 		yearsIDs[year] = id.String()
 		addParticipation(id, "organic", vacancy1, "organic", profile(year, "junior", "bachelor", nil, []any{map[string]any{"code": "en", "level": "C2"}}), "2026-02-01T00:00:00Z", false)
 	}
-	addParticipation(standalone, "manual", vacancy1, "manual", empty, "2026-01-01T00:00:00Z", false)
+	manualPID := addParticipation(standalone, "manual", vacancy1, "manual", empty, "2026-01-01T00:00:00Z", false)
 	// Live organic private information is deliberately different from the snapshot.
 	exec(`INSERT INTO candidate_profiles(user_id,professional_title,current_company,skills) VALUES($1,'LIVE PRIVATE TITLE','LIVE PRIVATE COMPANY',ARRAY['LIVE PRIVATE SKILL'])`, reused)
+	t.Run("detail and exact CV", func(t *testing.T) {
+		exec(`UPDATE candidate_profiles SET phone='  +523312345678  ' WHERE user_id=$1`, reused)
+		exec(`UPDATE company_candidates SET phone='+523311111111' WHERE id=$1`, standalone)
+		exec(`UPDATE process_participations SET comment='Private discard' WHERE id=$1`, reusedPID)
+		config := pipelineconfig.Defaults(uuid.MustParse(vacancy1))
+		subID := uuid.NewString()
+		catalog, _ := json.Marshal(map[string]any{"substates": []any{map[string]any{"id": subID, "name": "Waiting"}}})
+		exec(`INSERT INTO job_draft_substate_catalogs(draft_id,version,catalog) VALUES($1,1,$2) ON CONFLICT(draft_id) DO UPDATE SET catalog=excluded.catalog`, vacancy1, catalog)
+		exec(`UPDATE process_participations SET stage_id=$2,substate_id=$3 WHERE id=$1`, firstPID, config.Stages[3].ID, subID)
+		// This detail-only placement must not change the later T2 pipeline PUT's impact.
+		t.Cleanup(func() {
+			exec(`UPDATE process_participations SET stage_id=$2,substate_id=NULL WHERE id=$1`, firstPID, config.Stages[0].ID)
+		})
+		detail := func(kind string, id uuid.UUID) map[string]any {
+			t.Helper()
+			r := h.do(t, "GET", orgCandidatesPath+"/"+kind+"/"+id.String(), "", recruiter.token, nil)
+			draftFlowAssertNoStore(t, r)
+			if r.status != 200 {
+				t.Fatalf("%d %s", r.status, r.body)
+			}
+			d := orgCandidateKeys(t, draftFlowObject(t, r.body), "kind", "id", "full_name", "professional_title", "current_company", "contact", "profile", "participations", "created_by", "created_at")
+			orgCandidateKeys(t, d["contact"], "email", "phone")
+			if d["created_by"] != nil {
+				orgCandidateKeys(t, d["created_by"], "id", "name")
+			}
+			orgCandidateKeys(t, d["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
+			for _, raw := range d["participations"].([]any) {
+				p := orgCandidateKeys(t, raw, "id", "vacancy", "stage", "state", "substate", "discard", "source", "applied_at", "added_by", "cv")
+				v := orgCandidateKeys(t, p["vacancy"], "id", "title", "lifecycle")
+				orgCandidateKeys(t, v["lifecycle"], "publication", "process")
+				orgCandidateKeys(t, p["stage"], "id", "name")
+				if p["substate"] != nil {
+					orgCandidateKeys(t, p["substate"], "id", "name")
+				}
+				if p["cv"] != nil {
+					orgCandidateKeys(t, p["cv"], "file_name", "uploaded_at")
+				}
+				if p["added_by"] != nil {
+					orgCandidateKeys(t, p["added_by"], "id", "name")
+				}
+				if p["discard"] != nil {
+					disc := orgCandidateKeys(t, p["discard"], "reason", "comment", "discarded_at")
+					orgCandidateKeys(t, disc["reason"], "group", "key")
+				}
+			}
+			return d
+		}
+		d := detail("organic", reused)
+		ps := d["participations"].([]any)
+		if len(ps) != 2 || ps[0].(map[string]any)["id"] != reusedPID || ps[1].(map[string]any)["id"] != firstPID || d["created_by"] != nil || d["created_at"] != "2026-02-01T00:00:00Z" || d["professional_title"] != nil || d["current_company"] != nil {
+			t.Fatal(d)
+		}
+		if d["contact"].(map[string]any)["phone"] != "+523312345678" || d["contact"].(map[string]any)["email"] != "reused@example.test" || d["profile"].(map[string]any)["skills"].([]any)[0] != "Frozen Go" || d["profile"].(map[string]any)["years_of_experience"] != "1.5" {
+			t.Fatal(d)
+		}
+		recent, first := ps[0].(map[string]any), ps[1].(map[string]any)
+		if recent["source"] != "manual" || recent["state"] != "discarded" || recent["substate"] != nil || recent["discard"].(map[string]any)["comment"] != "Private discard" || first["discard"] != nil || first["substate"].(map[string]any)["name"] != "Waiting" || first["added_by"] != nil {
+			t.Fatal(ps)
+		}
+		m := detail("manual", standalone)
+		if m["contact"].(map[string]any)["phone"] != "+523311111111" || m["contact"].(map[string]any)["email"] != "standalone@example.test" || m["created_at"] != "2026-01-01T00:00:00Z" || m["created_by"].(map[string]any)["id"] != ownerID.String() || m["professional_title"] != "Engineer" || m["current_company"] != "Live Company" {
+			t.Fatal(m)
+		}
+		if !reflect.DeepEqual(detail("organic", noProfile)["contact"], map[string]any{"email": "no.profile@example.test", "phone": nil}) {
+			t.Fatal("missing live profile contact rule")
+		}
+		if len(detail("manual", missingManual)["participations"].([]any)) != 0 {
+			t.Fatal("standalone participation")
+		}
+		exec(`UPDATE users SET deleted_at=now() WHERE id=$1`, ownerID)
+		if detail("manual", missingManual)["created_by"].(map[string]any)["name"] != nil {
+			t.Fatal("deleted creator leaked")
+		}
+		exec(`UPDATE users SET deleted_at=NULL WHERE id=$1`, ownerID)
+		for _, tc := range []struct {
+			kind                string
+			id                  uuid.UUID
+			pid, body, filename string
+		}{{"manual", standalone, manualPID, "%PDF-m", "private.pdf.pdf"}, {"organic", reused, reusedPID, "%PDF-m", "private.pdf.pdf"}, {"organic", reused, firstPID, "%PDF-o", `"Frozen CV.pdf"`}} {
+			r := h.do(t, "GET", orgCandidatesPath+"/"+tc.kind+"/"+tc.id.String()+"/participations/"+tc.pid+"/cv", "", recruiter.token, nil)
+			draftFlowAssertNoStore(t, r)
+			if r.status != 200 || string(r.body) != tc.body || r.header.Get("Content-Type") != "application/pdf" || r.header.Get("Content-Length") != "6" || r.header.Get("X-Content-Type-Options") != "nosniff" || r.header.Get("Content-Disposition") != "attachment; filename="+tc.filename {
+				t.Fatal(r.status, string(r.body), r.header)
+			}
+		}
+		for _, suffix := range []string{"/unknown/" + reused.String(), "/manual/bad", "/organic/" + foreignOnly.String(), "/manual/" + standalone.String() + "/participations/" + firstPID + "/cv", "/organic/" + reused.String() + "/participations/" + manualPID + "/cv", "/organic/" + reused.String() + "/participations/" + foreignPID + "/cv"} {
+			r := h.do(t, "GET", orgCandidatesPath+suffix, "", recruiter.token, nil)
+			draftFlowAssertNoStore(t, r)
+			if r.status != 404 || draftFlowCatalogCode(t, r.body) != "not_found" {
+				t.Fatal(r.status, string(r.body))
+			}
+		}
+		r := h.do(t, "GET", orgCandidatesPath+"/manual/"+standalone.String(), "", foreign.token, nil)
+		if r.status != 404 {
+			t.Fatal(r.status, string(r.body))
+		}
+	})
 	get := func(t *testing.T, actor draftFlowActor, query string) map[string]any {
 		t.Helper()
 		r := h.do(t, "GET", orgCandidatesPath+query, "", actor.token, nil)

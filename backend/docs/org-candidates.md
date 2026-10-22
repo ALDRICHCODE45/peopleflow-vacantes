@@ -1,7 +1,7 @@
 # Org candidates API — «Candidatos de mi organización» v1 (DRAFT)
 
-Status: **contract approved; list implementation awaiting parent DB acceptance**.
-Detail and CV routes remain T3, not implemented here. Feature document:
+Status: **contract approved; list accepted; detail/CV awaiting parent DB acceptance**.
+The list, detail and participation-CV routes are wired. Feature document:
 `odd/tasks/org-candidates.md`. Business rules: SRCH-2/3/4/7 in
 `docs/recruitment-business-rules.md` §12.
 
@@ -136,7 +136,7 @@ filter options come from the existing catalogs (vacancy list, geo, languages).
 
 ## T2 implementation notes and test map
 
-Only the list route is wired. The applications-owned `application/pool`,
+T2 introduced the list route. The applications-owned `application/pool`,
 `infrastructure/http/pool` and `infrastructure/postgres/pool` slices do not invoke
 board owner/principal authorization. `cmd/api/pool_context.go` projects jobs-owned
 pipeline names (defaults or stored configuration), without authorizing a vacancy.
@@ -177,4 +177,39 @@ go test -tags=integration ./cmd/api -run '^Test(DraftFlow_|DraftListFlow_|Manual
 ```
 
 The second command exercises existing flows sharing the modified router harness.
-T2 remains in progress until these database tests pass and the parent reviews it.
+Parent T2 DB acceptance and the fixture corrections are recorded in the task log (L7).
+
+## T3 implementation notes and test map
+
+Detail reuses the list's company-scoped identity/latest-profile SQL inside one
+read-only repeatable-read transaction. All company participations are ordered by
+`applied_at DESC, id DESC`; stage labels include retired stages, and substate
+names come from the current vacancy catalog. Only contact reads the current
+organic phone; no live organic profile attributes enter the six-key projection.
+Manual creators retain their ID with a null name for soft-deleted accounts.
+
+CV membership is checked against company, candidate kind/ID and participation ID
+before storage is opened. Reads use the exact referenced candidate version or
+company CV, including removed candidate-library entries, matching the board.
+Headers also match the board: its filename label receives the content-type
+extension (including an already-suffixed company filename); no storage keys enter
+responses. Storage absence returns the existing `cv_storage_unavailable` error.
+No new logging calls, migrations or dependencies were added.
+
+- `cmd/api/org_candidates_detail_routes_test.go`: 15 new HTTP subtests observed
+  absent-route RED, then GREEN: both gates/no-store, manual/organic JSON,
+  malformed/unknown identities, missing candidate/wrong participation, file
+  bytes/headers and sanitized internal/storage errors.
+- `TestOrgCandidatesFlow/detail_and_exact_CV`: real SQL/auth/private storage;
+  exact detail and nested key allowlists, manual contact/creator, manual without
+  participation, deleted creator name, organic account email/current phone vs
+  frozen profile, manual reuse, ordering, discard/substate/added-by, company
+  isolation, exact company and removed-library candidate CV versions/headers.
+  Its temporary stage/substate placement is restored before T2 pipeline tests.
+- `cmd/api/main_test.go`: both additive registrations are pinned in topology.
+
+Parent runs the same DB command above. Initial parent runs exposed a missing
+fixture catalog version and an incorrectly unquoted filename expectation; the
+fixtures were corrected. A detail-only stage placement also triggered T2's
+pipeline impact guard and is now restored in subtest cleanup. Do not infer SQL
+acceptance from unit tests, vet or a skipped integration run.
