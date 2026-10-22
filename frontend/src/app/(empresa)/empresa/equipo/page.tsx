@@ -2,19 +2,15 @@ import type { Metadata } from "next"
 
 import { SiteHeader } from "@/components/company-dashboard/site-header"
 import { DashboardPageContent } from "@/components/dashboard-page-content"
-import { TeamInvitation } from "@/features/employer-team/team-invitation"
-import { NEXO_TEAM_MEMBERS } from "@/features/employer-team/prototype-team"
-import { TeamWorkspace } from "@/features/employer-team/team-workspace"
+import { TeamPage } from "@/features/employer-team/team-page"
 
 /**
  * Employer team workspace route content.
  *
  * The shared `(empresa)` layout owns the single EmployerShell, the sidebar
  * provider and the theme module, so this route contributes only its header,
- * intro and the mounted invitation + workspace surfaces. It stays
- * a server component and owns no fetch, credential, storage or mutation
- * concern; both interactive surfaces arrive as client components over the
- * frozen local fixtures.
+ * intro and the connected team surface. Data access and member actions live
+ * in the client feature; this route remains server composition.
  */
 export const metadata: Metadata = {
   title: "Equipo",
@@ -40,8 +36,7 @@ export default function Page() {
               reclutamiento.
             </p>
           </section>
-          <TeamInvitation />
-          <TeamWorkspace members={NEXO_TEAM_MEMBERS} />
+          <TeamPage />
         </DashboardPageContent>
       </div>
     </>
