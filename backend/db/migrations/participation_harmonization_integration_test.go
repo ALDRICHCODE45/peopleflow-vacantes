@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
@@ -165,4 +166,73 @@ func TestMigration00043SnapshotRewriteChecksAndGuardedDown(t *testing.T) {
 		t.Fatal("Down changed null or unrelated fields")
 	}
 	gooseUpTo(t, db, 43)
+}
+
+// A writer that commits a non-representable snapshot while Down is running must
+// make Down refuse, never have its data silently rewritten (review R4-rollback-race).
+func TestMigration00043DownLocksBeforeGuard(t *testing.T) {
+	db, pool, cleanup := isolatedMigrationDB(t)
+	defer cleanup()
+	gooseUpAll(t, db)
+	ctx := context.Background()
+	_, company, actor := seedPrereqs(ctx, t, pool)
+	process, id, user, cv := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insertDraftAt(t, pool, company, actor, process, []byte(`{}`))
+	exec(`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',now(),$3)`, process, company, actor)
+	exec(`INSERT INTO users(id,cognito_sub,email,full_name,user_type) VALUES($1,$2,$3,'Race candidate','candidate')`, user, uuid.NewString(), uuid.NewString()+"@example.test")
+	exec(`INSERT INTO candidate_cv_versions(id,candidate_id,storage_key,size,content_type) VALUES($1,$2,$3,6,'application/pdf')`, cv, user, strings.Repeat(strings.ReplaceAll(cv.String(), "-", ""), 2))
+	representable := `{"location":null,"skills":[],"years_of_experience":"3","seniority":null,"education":{"highest_completed":"bachelor","in_progress":null},"languages":[]}`
+	exec(`INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,profile_snapshot) VALUES($1,$2,$3,$4,$5,'[]','[]','organic',$6::jsonb)`, id, process, user, uuid.New(), cv, representable)
+	defer func() {
+		gooseUpAll(t, db)
+		exec(`DELETE FROM process_participations WHERE id=$1`, id)
+		exec(`DELETE FROM candidate_cv_versions WHERE id=$1`, cv)
+		exec(`DELETE FROM users WHERE id=$1`, user)
+		exec(`DELETE FROM vacancy_processes WHERE id=$1`, process)
+		exec(`DELETE FROM job_drafts WHERE id=$1`, process)
+	}()
+
+	writer, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Rollback(ctx)
+	if _, err = writer.Exec(ctx, `UPDATE process_participations SET profile_snapshot=jsonb_set(profile_snapshot,'{seniority}','"junior"') WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	down := make(chan error, 1)
+	go func() { down <- goose.DownTo(db, ".", 42) }()
+	// Wait until Down is blocked on the writer's lock, then commit the write.
+	for i := 0; ; i++ {
+		var waiting bool
+		if err = pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock')`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		if i == 200 {
+			t.Fatal("Down never waited for the concurrent writer")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err = writer.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-down; err == nil || !strings.Contains(err.Error(), "00043 Down refuses") {
+		t.Fatal("Down rewrote a concurrently committed snapshot", err)
+	}
+	var seniority string
+	if err = pool.QueryRow(ctx, `SELECT profile_snapshot->>'seniority' FROM process_participations WHERE id=$1`, id).Scan(&seniority); err != nil || seniority != "junior" {
+		t.Fatal("committed snapshot was lost", seniority, err)
+	}
+	if version, err := goose.GetDBVersion(db); err != nil || version != 43 {
+		t.Fatal("refused Down changed the version", version, err)
+	}
 }

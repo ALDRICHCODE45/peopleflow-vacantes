@@ -67,6 +67,10 @@ ALTER TABLE process_participations ADD CONSTRAINT participation_profile_snapshot
 
 -- +goose Down
 -- +goose StatementBegin
+-- Exclude concurrent writers BEFORE the guard: otherwise a snapshot committed
+-- between the check and the rewrite below would be silently truncated. The
+-- later ALTER TABLE upgrades this lock within the same transaction.
+LOCK TABLE process_participations IN SHARE ROW EXCLUSIVE MODE;
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM process_participations WHERE profile_snapshot IS NOT NULL AND (
         CASE WHEN profile_snapshot->>'years_of_experience' IS NULL THEN false

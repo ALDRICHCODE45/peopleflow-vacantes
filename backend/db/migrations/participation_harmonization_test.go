@@ -25,6 +25,12 @@ func TestParticipationHarmonizationMigrationDefinition(t *testing.T) {
 			t.Errorf("Down missing %s", s)
 		}
 	}
+	// The guard must run under a lock that excludes concurrent writers, or a
+	// snapshot committed between the check and the rewrite is silently lost.
+	lock := strings.Index(parts[1], "LOCK TABLE process_participations IN SHARE ROW EXCLUSIVE MODE")
+	if lock < 0 || lock > strings.Index(parts[1], "RAISE EXCEPTION") {
+		t.Fatal("Down must lock process_participations before evaluating its guard")
+	}
 	previous, err := fs.ReadFile(MigrationsFS, "00033_apply_geography.sql")
 	if err != nil {
 		t.Fatal(err)
