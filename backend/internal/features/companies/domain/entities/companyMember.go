@@ -38,6 +38,8 @@ var (
 	// target scenario intentionally hides the existence of the foreign
 	// row — design D7 / spec scenario "cross-company target is rejected").
 	ErrMemberNotFound = errors.New("company member not found")
+	// ErrLastOwner rejects mutations that would leave a company without owners.
+	ErrLastOwner = errors.New("company must retain at least one owner")
 	// ErrUserNotFound is returned by AddMember when the target user_id
 	// does not match any live users row (FK violation 23503). The HTTP
 	// layer maps this to 404.

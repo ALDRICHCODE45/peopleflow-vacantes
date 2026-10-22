@@ -41,6 +41,19 @@ WHERE cm.company_id = $1
 ORDER BY cm.created_at ASC, cm.id ASC;
 
 
+-- name: LockCompanyForMemberMutation :one
+-- Serialize membership mutations on a stable parent row. The adapter MUST
+-- execute this in the same READ COMMITTED transaction as the target lookup,
+-- owner count, and mutation; subsequent statements see the previous commit.
+SELECT id FROM companies WHERE id = $1 FOR UPDATE;
+
+-- name: GetMemberRoleForMutation :one
+-- The company scope is checked before the last-owner rule (foreign IDs → 404).
+SELECT role FROM company_members WHERE id = $1 AND company_id = $2;
+
+-- name: CountCompanyOwners :one
+SELECT count(*) FROM company_members WHERE company_id = $1 AND role = 'owner';
+
 -- name: UpdateMemberRole :execrows
 -- Same-company guard (design D7): the SQL predicate
 -- `id = $1 AND company_id = $2` is the race-free, IDOR-proof boundary for

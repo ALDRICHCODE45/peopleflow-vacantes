@@ -12,6 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCompanyOwners = `-- name: CountCompanyOwners :one
+SELECT count(*) FROM company_members WHERE company_id = $1 AND role = 'owner'
+`
+
+func (q *Queries) CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCompanyOwners, companyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCompanyMember = `-- name: CreateCompanyMember :one
 INSERT INTO company_members (id, user_id, company_id, role)
 VALUES ($1, $2, $3, $4)
@@ -47,6 +58,23 @@ func (q *Queries) CreateCompanyMember(ctx context.Context, arg CreateCompanyMemb
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getMemberRoleForMutation = `-- name: GetMemberRoleForMutation :one
+SELECT role FROM company_members WHERE id = $1 AND company_id = $2
+`
+
+type GetMemberRoleForMutationParams struct {
+	ID        uuid.UUID `json:"id"`
+	CompanyID uuid.UUID `json:"company_id"`
+}
+
+// The company scope is checked before the last-owner rule (foreign IDs → 404).
+func (q *Queries) GetMemberRoleForMutation(ctx context.Context, arg GetMemberRoleForMutationParams) (string, error) {
+	row := q.db.QueryRow(ctx, getMemberRoleForMutation, arg.ID, arg.CompanyID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
 }
 
 const getMembershipByUserID = `-- name: GetMembershipByUserID :one
@@ -133,6 +161,20 @@ func (q *Queries) ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockCompanyForMemberMutation = `-- name: LockCompanyForMemberMutation :one
+SELECT id FROM companies WHERE id = $1 FOR UPDATE
+`
+
+// Serialize membership mutations on a stable parent row. The adapter MUST
+// execute this in the same READ COMMITTED transaction as the target lookup,
+// owner count, and mutation; subsequent statements see the previous commit.
+func (q *Queries) LockCompanyForMemberMutation(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockCompanyForMemberMutation, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const removeCompanyMember = `-- name: RemoveCompanyMember :execrows

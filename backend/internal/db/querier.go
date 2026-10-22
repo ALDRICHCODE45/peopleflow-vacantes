@@ -39,6 +39,7 @@ type Querier interface {
 	// use case does NOT branch on it; `0 rows closed` is a legitimate success
 	// ("this company had no non-closed jobs at delete time").
 	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
+	CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error)
 	// Atomic apply + eligibility gate for POST /jobs/{jobId}/applications
 	// (design D1).
 	//
@@ -168,6 +169,8 @@ type Querier interface {
 	// so the use case can CAS-compare against `If-Unmodified-Since`.
 	GetJobForUpdate(ctx context.Context, arg GetJobForUpdateParams) (GetJobForUpdateRow, error)
 	GetLegacyCandidateEducation(ctx context.Context, userID uuid.UUID) (GetLegacyCandidateEducationRow, error)
+	// The company scope is checked before the last-owner rule (foreign IDs → 404).
+	GetMemberRoleForMutation(ctx context.Context, arg GetMemberRoleForMutationParams) (string, error)
 	// Single membership lookup for the membership-resolver chain
 	// (`sub → users.id → company_members`) — see design D6. Returns
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
@@ -234,6 +237,10 @@ type Querier interface {
 	//
 	// Hard cap 100 (no pagination in this slice).
 	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
+	// Serialize membership mutations on a stable parent row. The adapter MUST
+	// execute this in the same READ COMMITTED transaction as the target lookup,
+	// owner count, and mutation; subsequent statements see the previous commit.
+	LockCompanyForMemberMutation(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
 	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)

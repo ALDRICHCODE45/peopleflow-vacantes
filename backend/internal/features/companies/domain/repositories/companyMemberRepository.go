@@ -42,11 +42,14 @@ type CompanyMemberRepository interface {
 	// pair is the same-company guard (design D7): cross-company targets
 	// affect 0 rows and surface as entities.ErrMemberNotFound. The
 	// adapter MUST touch `updated_at` so callers never have to remember.
+	// Atomically rejects demoting the final owner with entities.ErrLastOwner;
+	// same-company/not-found validation takes precedence.
 	UpdateRole(ctx context.Context, id, companyID uuid.UUID, role valueobjects.MemberRole) error
 
 	// Remove hard-deletes the row (design D2: no soft-delete). The
 	// (id, companyID) pair is the same-company guard: cross-company
 	// targets affect 0 rows and surface as entities.ErrMemberNotFound.
-	// HARD DELETE frees `user_id` for re-assignment.
+	// HARD DELETE frees `user_id` for re-assignment. Atomically rejects
+	// removing the final owner with entities.ErrLastOwner, after the scope check.
 	Remove(ctx context.Context, id, companyID uuid.UUID) error
 }

@@ -40,7 +40,7 @@ func identityFlowHarness(t *testing.T, provider identityusecases.UserInfoProvide
 	signer := newDraftFlowSigner(t)
 	q := db.New(pool)
 	users := identitypostgres.NewUserRepository(q)
-	members := companiespostgres.NewCompanyMemberRepository(q)
+	members := companiespostgres.NewCompanyMemberRepository(pool)
 	companies := companiespostgres.NewCompanyRepository(pool, audit)
 	r := newRouter(routerDeps{
 		requireAuth: identityhttp.RequireAuth(signer.verifier), requireCandidate: identityhttp.RequireCandidateRole(users),

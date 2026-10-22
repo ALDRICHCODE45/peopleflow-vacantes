@@ -35,42 +35,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// Querier is the slice of the sqlc data layer this adapter needs. Defining
-// it here keeps the adapter's dependency on the *db package narrow and
-// makes the adapter tests stubbable without spinning up Postgres.
-//
-// Note: every method MUST appear in db.Querier (sqlc-generated); a future
-// sqlc regen that drops one of these breaks the build at the adapter seam,
-// not at the call site.
-//
-// UpdateMemberRole and RemoveCompanyMember return (int64, error) — the
-// int64 is the rows-affected count from sqlc's `:execrows` annotation.
-// The adapter inspects rows-affected to surface the design D7 same-company
-// guard (0 rows → ErrMemberNotFound); the rest of the surface returns the
-// standard (T, error) pair.
-type memberQuerier interface {
-	CreateCompanyMember(ctx context.Context, arg db.CreateCompanyMemberParams) (db.CompanyMember, error)
-	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (db.CompanyMember, error)
-	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]db.ListByCompanyIDRow, error)
-	UpdateMemberRole(ctx context.Context, arg db.UpdateMemberRoleParams) (int64, error)
-	RemoveCompanyMember(ctx context.Context, arg db.RemoveCompanyMemberParams) (int64, error)
+// memberDatabase accepts a pool in production and a transaction in rollback
+// fixtures (pgx implements nested Begin with savepoints).
+type memberDatabase interface {
+	db.DBTX
+	Begin(context.Context) (pgx.Tx, error)
 }
 
-// Compile-time assertion that *db.Queries satisfies the adapter's seam.
-var _ memberQuerier = (*db.Queries)(nil)
-
-// CompanyMemberRepository is the PostgreSQL adapter for the
-// repositories.CompanyMemberRepository port. It wraps the sqlc data layer
-// directly — the membership slice has no transactional paths that need
-// the raw pgxpool.Pool (unlike candidates, which needs an atomic language
-// replace), so *db.Queries is sufficient.
+// CompanyMemberRepository owns membership mutation transactions.
 type CompanyMemberRepository struct {
-	queries memberQuerier
+	database memberDatabase
+	queries  *db.Queries
 }
 
-// NewCompanyMemberRepository wraps the sqlc-generated data layer.
-func NewCompanyMemberRepository(queries memberQuerier) *CompanyMemberRepository {
-	return &CompanyMemberRepository{queries: queries}
+// NewCompanyMemberRepository wraps a transaction-capable PostgreSQL handle.
+func NewCompanyMemberRepository(database memberDatabase) *CompanyMemberRepository {
+	return &CompanyMemberRepository{database: database, queries: db.New(database)}
 }
 
 // Compile-time assertion that the adapter satisfies the domain port.
@@ -144,33 +124,73 @@ func (r *CompanyMemberRepository) ListByCompanyID(ctx context.Context, companyID
 // information-leak fix — a foreign target is intentionally indistinguishable
 // from "does not exist").
 func (r *CompanyMemberRepository) UpdateRole(ctx context.Context, id, companyID uuid.UUID, role valueobjects.MemberRole) error {
-	rows, err := r.queries.UpdateMemberRole(ctx, db.UpdateMemberRoleParams{
-		ID:        id,
-		CompanyID: companyID,
-		Role:      role.String(),
+	return r.mutateMember(ctx, id, companyID, role == valueobjects.OwnerRole, func(q *db.Queries) (int64, error) {
+		return q.UpdateMemberRole(ctx, db.UpdateMemberRoleParams{ID: id, CompanyID: companyID, Role: role.String()})
 	})
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return entities.ErrMemberNotFound
-	}
-	return nil
 }
 
 // Remove hard-deletes the row (design D2: no soft-delete) gated by the
 // (id, companyID) pair. Same contract as UpdateRole for the 0-rows
 // case: ErrMemberNotFound. HARD DELETE frees `user_id` for re-assignment.
 func (r *CompanyMemberRepository) Remove(ctx context.Context, id, companyID uuid.UUID) error {
-	rows, err := r.queries.RemoveCompanyMember(ctx, db.RemoveCompanyMemberParams{
-		ID:        id,
-		CompanyID: companyID,
+	return r.mutateMember(ctx, id, companyID, false, func(q *db.Queries) (int64, error) {
+		return q.RemoveCompanyMember(ctx, db.RemoveCompanyMemberParams{ID: id, CompanyID: companyID})
 	})
+}
+
+func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyID uuid.UUID, retainsOwner bool, write func(*db.Queries) (int64, error)) error {
+	// Pools support explicit isolation; rollback fixtures use pgx savepoints,
+	// which inherit their outer transaction's READ COMMITTED isolation.
+	var tx pgx.Tx
+	var err error
+	if pool, ok := r.database.(interface {
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+	}); ok {
+		tx, err = pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	} else {
+		tx, err = r.database.Begin(ctx)
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("begin member mutation: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	q := db.New(tx)
+
+	// All role changes and removals lock the SAME stable company row first.
+	// Under READ COMMITTED, the following separate statements get fresh
+	// snapshots after a waiting writer commits. Locking/counting in one CTE
+	// would retain its old statement snapshot and permit write skew.
+	if _, err := q.LockCompanyForMemberMutation(ctx, companyID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return entities.ErrMemberNotFound
+		}
+		return fmt.Errorf("lock member company: %w", err)
+	}
+	role, err := q.GetMemberRoleForMutation(ctx, db.GetMemberRoleForMutationParams{ID: id, CompanyID: companyID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return entities.ErrMemberNotFound
+		}
+		return fmt.Errorf("get member role: %w", err)
+	}
+	if role == valueobjects.OwnerRole.String() && !retainsOwner {
+		owners, err := q.CountCompanyOwners(ctx, companyID)
+		if err != nil {
+			return fmt.Errorf("count company owners: %w", err)
+		}
+		if owners <= 1 {
+			return entities.ErrLastOwner
+		}
+	}
+	rows, err := write(q)
+	if err != nil {
+		return fmt.Errorf("mutate member: %w", err)
 	}
 	if rows == 0 {
 		return entities.ErrMemberNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit member mutation: %w", err)
 	}
 	return nil
 }
