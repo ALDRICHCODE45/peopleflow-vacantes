@@ -214,7 +214,7 @@ func run() error {
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
 	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualStorage)
-	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(movementStorage)))
+	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(movementStorage))).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 	draftListHandler := jobshttp.NewDraftListHandler(draftStore)

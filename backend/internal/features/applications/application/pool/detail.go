@@ -16,6 +16,10 @@ type CV struct {
 	FileName   string    `json:"file_name"`
 	UploadedAt time.Time `json:"uploaded_at"`
 }
+type CurrentCV struct {
+	CV
+	Source string `json:"source"`
+}
 type Discard struct {
 	Reason      board.Reason `json:"reason"`
 	Comment     *string      `json:"comment"`
@@ -24,11 +28,12 @@ type Discard struct {
 type DetailParticipation struct {
 	ID uuid.UUID `json:"id"`
 	Participation
-	Substate *Stage         `json:"substate"`
-	Discard  *Discard       `json:"discard"`
-	Source   string         `json:"source"`
-	AddedBy  *board.AddedBy `json:"added_by"`
-	CV       *CV            `json:"cv"`
+	Substate   *Stage         `json:"substate"`
+	Discard    *Discard       `json:"discard"`
+	Source     string         `json:"source"`
+	AddedBy    *board.AddedBy `json:"added_by"`
+	CV         *CurrentCV     `json:"cv"`
+	OriginalCV *CV            `json:"original_cv"`
 }
 type Detail struct {
 	Kind              string                `json:"kind"`

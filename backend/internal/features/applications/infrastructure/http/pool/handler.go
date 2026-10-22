@@ -6,13 +6,24 @@ import (
 	"log/slog"
 	"net/http"
 
+	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/google/uuid"
 )
 
-type Handler struct{ service *app.Service }
+type Handler struct {
+	service   *app.Service
+	inspector board.ManualCVInspector
+	storage   board.ManualFileStorage
+}
+
+func (h *Handler) WithManualCVPorts(inspector board.ManualCVInspector, storage board.ManualFileStorage) *Handler {
+	h.inspector = inspector
+	h.storage = storage
+	return h
+}
 
 func NewHandler(service *app.Service) *Handler { return &Handler{service: service} }
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

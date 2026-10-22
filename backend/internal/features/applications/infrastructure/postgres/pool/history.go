@@ -31,7 +31,7 @@ func (s *Store) History(ctx context.Context, company uuid.UUID, kind string, id 
 		at = q.After.At
 		idAfter = q.After.ID
 	}
-	rows, err := tx.Query(ctx, `SELECT h.id,h.at,h.actor_id,u.full_name,h.changes FROM company_candidate_history h LEFT JOIN users u ON u.id=h.actor_id AND u.deleted_at IS NULL WHERE h.company_id=$1 AND h.candidate_kind=$2 AND h.candidate_id=$3 AND ($4::timestamptz IS NULL OR (h.at,h.id)<($4::timestamptz,$5::uuid)) ORDER BY h.at DESC,h.id DESC LIMIT $6`, company, kind, id, at, idAfter, q.Limit+1)
+	rows, err := tx.Query(ctx, `SELECT h.id,h.at,h.actor_id,u.full_name,h.changes,h.kind,h.participation_id,h.file_name FROM company_candidate_history h LEFT JOIN users u ON u.id=h.actor_id AND u.deleted_at IS NULL WHERE h.company_id=$1 AND h.candidate_kind=$2 AND h.candidate_id=$3 AND ($4::timestamptz IS NULL OR (h.at,h.id)<($4::timestamptz,$5::uuid)) ORDER BY h.at DESC,h.id DESC LIMIT $6`, company, kind, id, at, idAfter, q.Limit+1)
 	if err != nil {
 		return out, err
 	}
@@ -39,7 +39,7 @@ func (s *Store) History(ctx context.Context, company uuid.UUID, kind string, id 
 	for rows.Next() {
 		entry := app.HistoryEntry{Kind: "edit"}
 		var raw []byte
-		if err = rows.Scan(&entry.ID, &entry.At, &entry.Actor.ID, &entry.Actor.Name, &raw); err != nil {
+		if err = rows.Scan(&entry.ID, &entry.At, &entry.Actor.ID, &entry.Actor.Name, &raw, &entry.Kind, &entry.ParticipationID, &entry.FileName); err != nil {
 			return out, err
 		}
 		if err = json.Unmarshal(raw, &entry.Changes); err != nil {

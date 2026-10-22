@@ -238,6 +238,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Patch("/v2/me/company/candidates/{kind}/{id}", d.candidatePoolHandler.Edit)
 		r.Get("/v2/me/company/candidates/{kind}/{id}/history", d.candidatePoolHandler.History)
 		r.Get("/v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv", d.candidatePoolHandler.File)
+		r.Get("/v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv/original", d.candidatePoolHandler.OriginalFile)
+		r.Post("/v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv", d.candidatePoolHandler.CorrectCV)
 	})
 	// Requester catalog (contract §7): private like the drafts, so NoStore runs
 	// before both gates. The store re-checks user, company and membership.

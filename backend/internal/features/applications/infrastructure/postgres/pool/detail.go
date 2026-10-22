@@ -93,6 +93,9 @@ func (s *Store) detail(ctx context.Context, tx pgx.Tx, company uuid.UUID, kind s
 		if p.CV != nil {
 			p.CV.UploadedAt = p.CV.UploadedAt.UTC()
 		}
+		if p.OriginalCV != nil {
+			p.OriginalCV.UploadedAt = p.OriginalCV.UploadedAt.UTC()
+		}
 		if p.Discard != nil {
 			p.Discard.DiscardedAt = p.Discard.DiscardedAt.UTC()
 		}
@@ -144,7 +147,8 @@ const detailParticipationsSQL = `SELECT jsonb_build_object(
  'discard',CASE WHEN p.discarded_at IS NULL THEN NULL ELSE jsonb_build_object('reason',jsonb_build_object('group',p.reason_group,'key',p.reason_code),'comment',p.comment,'discarded_at',p.discarded_at) END,
  'source',p.source,'applied_at',p.created_at,
  'added_by',CASE WHEN p.source='manual' AND ad.id IS NOT NULL THEN jsonb_build_object('id',ad.id,'name',ad.full_name) ELSE NULL END,
- 'cv',CASE WHEN COALESCE(mc.file_name,l.name) IS NULL THEN NULL ELSE jsonb_build_object('file_name',COALESCE(mc.file_name,l.name),'uploaded_at',COALESCE(mc.uploaded_at,v.uploaded_at)) END),
+ 'cv',CASE WHEN COALESCE(corrected.file_name,mc.file_name,l.name) IS NULL THEN NULL ELSE jsonb_build_object('file_name',COALESCE(corrected.file_name,mc.file_name,l.name),'uploaded_at',COALESCE(corrected.uploaded_at,mc.uploaded_at,v.uploaded_at),'source',CASE WHEN corrected.id IS NULL THEN 'candidate' ELSE 'company' END) END,
+ 'original_cv',CASE WHEN corrected.id IS NULL OR COALESCE(mc.file_name,l.name) IS NULL THEN NULL ELSE jsonb_build_object('file_name',COALESCE(mc.file_name,l.name),'uploaded_at',COALESCE(mc.uploaded_at,v.uploaded_at)) END),
  CASE WHEN c.configuration IS NULL THEN NULL ELSE convert_from(c.configuration,'UTF8')::jsonb END
  FROM process_participations p
  JOIN vacancy_processes vp ON vp.id=p.process_id AND vp.company_id=$1
@@ -154,6 +158,7 @@ const detailParticipationsSQL = `SELECT jsonb_build_object(
  LEFT JOIN LATERAL (SELECT value FROM jsonb_array_elements(convert_from(sc.catalog,'UTF8')::jsonb->'substates') WHERE value->>'id'=p.substate_id::text) sub ON true
  LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'
  LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=$1
+ LEFT JOIN company_candidate_cvs corrected ON corrected.id=p.corrected_company_cv_id AND corrected.company_id=$1
  LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id
  LEFT JOIN candidate_cv_library l ON l.version_id=v.id
  WHERE (($2='manual' AND p.company_candidate_id=$3) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3))
@@ -162,17 +167,24 @@ const detailParticipationsSQL = `SELECT jsonb_build_object(
 // Scope the exact participation before opening private storage. No board Load:
 // every recruiter in the company can download these referenced versions.
 func (s *Store) File(ctx context.Context, company uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
+	return s.file(ctx, company, kind, id, pid, false)
+}
+func (s *Store) OriginalFile(ctx context.Context, company uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
+	return s.file(ctx, company, kind, id, pid, true)
+}
+func (s *Store) file(ctx context.Context, company uuid.UUID, kind string, id, pid uuid.UUID, original bool) (board.File, error) {
 	var out board.File
 	var key *string
 	var name, contentType *string
 	var size *int64
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(mc.file_name,l.name),COALESCE(mc.content_type,v.content_type),COALESCE(mc.size,v.size),COALESCE(mc.storage_key,v.storage_key)
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(corrected.file_name,mc.file_name,l.name),COALESCE(corrected.content_type,mc.content_type,v.content_type),COALESCE(corrected.size,mc.size,v.size),COALESCE(corrected.storage_key,mc.storage_key,v.storage_key)
  FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id AND vp.company_id=$1
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=$1
+ LEFT JOIN company_candidate_cvs corrected ON corrected.id=p.corrected_company_cv_id AND corrected.company_id=$1 AND NOT $5::boolean
  LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=$1
  LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id
  LEFT JOIN candidate_cv_library l ON l.version_id=v.id
- WHERE p.id=$4 AND (($2='manual' AND cc.id=$3) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3))`, company, kind, id, pid).Scan(&name, &contentType, &size, &key)
+ WHERE p.id=$4 AND (($2='manual' AND cc.id=$3) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3))`, company, kind, id, pid, original).Scan(&name, &contentType, &size, &key)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, board.ErrNotFound
 	}

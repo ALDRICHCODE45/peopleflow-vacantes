@@ -51,7 +51,9 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", out.ETag)
 	httpjson.WriteJSON(w, http.StatusOK, out)
 }
-func (h *Handler) File(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) File(w http.ResponseWriter, r *http.Request)         { h.file(w, r, false) }
+func (h *Handler) OriginalFile(w http.ResponseWriter, r *http.Request) { h.file(w, r, true) }
+func (h *Handler) file(w http.ResponseWriter, r *http.Request, original bool) {
 	cc, kind, id, ok := detailParams(w, r)
 	if !ok {
 		return
@@ -61,7 +63,12 @@ func (h *Handler) File(w http.ResponseWriter, r *http.Request) {
 		detailError(w, board.ErrNotFound)
 		return
 	}
-	out, err := h.service.File(r.Context(), cc.CompanyID, kind, id, pid)
+	var out board.File
+	if original {
+		out, err = h.service.OriginalFile(r.Context(), cc.CompanyID, kind, id, pid)
+	} else {
+		out, err = h.service.File(r.Context(), cc.CompanyID, kind, id, pid)
+	}
 	if err != nil {
 		detailError(w, err)
 		return

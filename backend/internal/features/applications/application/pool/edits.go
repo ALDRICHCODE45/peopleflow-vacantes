@@ -32,11 +32,13 @@ type Change struct {
 	To      json.RawMessage `json:"to,omitempty"`
 }
 type HistoryEntry struct {
-	ID      uuid.UUID `json:"id"`
-	At      time.Time `json:"at"`
-	Actor   Creator   `json:"actor"`
-	Kind    string    `json:"kind"`
-	Changes []Change  `json:"changes"`
+	ID              uuid.UUID  `json:"id"`
+	At              time.Time  `json:"at"`
+	Actor           Creator    `json:"actor"`
+	Kind            string     `json:"kind"`
+	Changes         []Change   `json:"changes,omitempty"`
+	ParticipationID *uuid.UUID `json:"participation_id,omitempty"`
+	FileName        *string    `json:"file_name,omitempty"`
 }
 type HistoryPage struct {
 	Items      []HistoryEntry `json:"items"`
