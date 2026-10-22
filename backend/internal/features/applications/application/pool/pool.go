@@ -66,6 +66,7 @@ type Page struct {
 // It performs no authorization or IO: every recruiter sees every company vacancy.
 type StageNames func(uuid.UUID, json.RawMessage) (map[string]string, error)
 type Reader interface {
+	DetailReader
 	Search(context.Context, uuid.UUID, Query) (Page, error)
 }
 type Service struct{ reader Reader }

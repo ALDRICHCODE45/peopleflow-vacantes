@@ -65,6 +65,13 @@ func (s *orgCandidatesReader) Search(_ context.Context, company uuid.UUID, q poo
 	return out, nil
 }
 
+func (s *orgCandidatesReader) Detail(context.Context, uuid.UUID, string, uuid.UUID) (poolapp.Detail, error) {
+	return poolapp.Detail{}, boardapp.ErrNotFound
+}
+func (s *orgCandidatesReader) File(context.Context, uuid.UUID, string, uuid.UUID, uuid.UUID) (boardapp.File, error) {
+	return boardapp.File{}, boardapp.ErrNotFound
+}
+
 func TestOrgCandidatesRouteGates(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

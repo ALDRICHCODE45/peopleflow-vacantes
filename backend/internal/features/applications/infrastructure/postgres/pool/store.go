@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
@@ -18,9 +19,18 @@ import (
 type Store struct {
 	pool       *pgxpool.Pool
 	stageNames app.StageNames
+	storage    Storage
 }
 
-func NewStore(pool *pgxpool.Pool, stageNames app.StageNames) *Store { return &Store{pool, stageNames} }
+type Storage interface {
+	Open(context.Context, string) (io.ReadCloser, error)
+}
+
+func (s *Store) WithStorage(storage Storage) *Store { s.storage = storage; return s }
+
+func NewStore(pool *pgxpool.Pool, stageNames app.StageNames) *Store {
+	return &Store{pool: pool, stageNames: stageNames}
+}
 
 var _ app.Reader = (*Store)(nil)
 
