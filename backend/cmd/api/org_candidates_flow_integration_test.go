@@ -221,7 +221,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			if r.status != 200 {
 				t.Fatalf("%d %s", r.status, r.body)
 			}
-			d := orgCandidateKeys(t, draftFlowObject(t, r.body), "kind", "id", "full_name", "professional_title", "current_company", "contact", "profile", "participations", "created_by", "created_at")
+			d := orgCandidateKeys(t, draftFlowObject(t, r.body), "kind", "id", "full_name", "professional_title", "current_company", "contact", "profile", "participations", "created_by", "created_at", "etag", "updated_at", "updated_by", "corrected_fields", "original", "skills", "linkedin_url", "portfolio_url", "education")
 			orgCandidateKeys(t, d["contact"], "email", "phone")
 			if d["created_by"] != nil {
 				orgCandidateKeys(t, d["created_by"], "id", "name")
@@ -249,6 +249,15 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			return d
 		}
 		d := detail("organic", reused)
+		if d["education"] != nil || d["original"].(map[string]any)["education"] != nil {
+			t.Fatal("organic snapshots have no full studies", d)
+		}
+		r := h.do(t, "PATCH", orgCandidatesPath+"/organic/"+reused.String(), `{"set":{"full_name":"Not E1"}}`, recruiter.token, map[string]string{"If-Match": d["etag"].(string)})
+		draftFlowAssertError(t, r, 400, "invalid_request")
+		r = h.do(t, "GET", orgCandidatesPath+"/organic/"+reused.String()+"/history", "", recruiter.token, nil)
+		if r.status != 200 || strings.TrimSpace(string(r.body)) != `{"items":[],"next_cursor":null}` {
+			t.Fatal(r.status, string(r.body))
+		}
 		ps := d["participations"].([]any)
 		if len(ps) != 2 || ps[0].(map[string]any)["id"] != reusedPID || ps[1].(map[string]any)["id"] != firstPID || d["created_by"] != nil || d["created_at"] != "2026-02-01T00:00:00Z" || d["professional_title"] != nil || d["current_company"] != nil {
 			t.Fatal(d)
@@ -293,7 +302,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 				t.Fatal(r.status, string(r.body))
 			}
 		}
-		r := h.do(t, "GET", orgCandidatesPath+"/manual/"+standalone.String(), "", foreign.token, nil)
+		r = h.do(t, "GET", orgCandidatesPath+"/manual/"+standalone.String(), "", foreign.token, nil)
 		if r.status != 404 {
 			t.Fatal(r.status, string(r.body))
 		}

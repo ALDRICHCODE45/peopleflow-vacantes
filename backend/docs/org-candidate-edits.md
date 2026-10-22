@@ -69,6 +69,16 @@ Detail gains:
   fields with a correction; always `[]` for manual.
 - New top-level `skills`, `linkedin_url`, `portfolio_url` are added to the detail
   (the six-key `profile.skills` stays as is).
+- New top-level `education`: the full study list (six-key studies, as in manual
+  intake) or null. Manual → the stored list. Organic → the corrected list when
+  `education` is corrected, otherwise **null**: the organic snapshot keeps only the
+  summary `profile.education {highest_completed, in_progress}`, never the list.
+  `original.education` is therefore always null; the original summary is
+  `original.profile.education`. Editing an uncorrected organic candidate's studies
+  starts from an empty list (show the original summary as reference); once set, the
+  corrected list drives the effective `profile.education` summary.
+- `languages` and `location` are already complete in `profile` (effective) and
+  `original.profile` (organic); no extra keys.
 - List items show effective values; filters and `q` match effective values.
 - Organic `professional_title`/`current_company` are no longer always null: they are
   the correction, if any.
@@ -132,3 +142,74 @@ Board routes keep their owner-or-principal authorization.
 - E2: organic correction layer (`set`/`reset`, `original`, effective list/filters).
 - E3: corrected CV per participation.
 - E4: vacancy board reads corrections (profile, contact, CV).
+
+## E1 implementation notes
+
+Implemented for **manual** candidates; parent DB acceptance is still required.
+Migration **00044** must be applied before using these reads/writes.
+
+- **Temporary E1 restriction:** PATCH for a company-visible `kind=organic`
+  returns `400 invalid_request` (with If-Match supplied); its history is an empty
+  page. Unknown/foreign organic identities remain 404. E2 will enable corrections.
+  E3 corrected CVs and E4 board projections are not implemented by this cut.
+- Detail adds all read fields above, including full manual `education` in stored
+  position order (each study has exactly six keys). Organic `education` and
+  `original.education` remain null. Manual `original` is null and
+  `corrected_fields` is always `[]`. Existing profile and participation keys stay.
+- Manual ETags are strong, candidate/version-specific tokens. Missing If-Match
+  is 428; a stale/weak/wildcard/list token is 412 with only `{error,code}`.
+  GET and successful PATCH return the same ETag in header and body.
+- The candidate row is locked before version comparison, parsing and validation.
+  Manual-intake validators are reused; paths omit `candidate.` and the edit's
+  `location` corresponds to intake's `residence`. Unchanged legacy fields need
+  not be repaired to edit another field. Required name/location/studies cannot
+  clear to null; optional null values clear and null skills/languages become `[]`.
+- Language order normalizes by code before no-op detection. Arrays replace.
+  No-op PATCH does not advance provenance/version or append history/audit.
+- The live record, child arrays, private history and PII-free audit event commit
+  in one transaction. PATCH builds its detail inside that transaction, avoiding
+  a racing post-commit reload. Contact history contains field names plus
+  `contact:true`, never values; other changes use edit-value shapes (location
+  codes, full studies, decimal-string years). Audit metadata contains only the
+  changed field names; actor/entity IDs are audit columns.
+- Existing rows backfill version 1 and creation provenance deterministically.
+  Never-edited new rows project creation provenance when update columns are null.
+  Down locks both tables and refuses retained history or advanced provenance/version.
+- History is ordered by `at DESC,id DESC`; its strict versioned base64url cursor
+  binds company/kind/candidate, uses microsecond UTC positions, and is bounded
+  to 4096 encoded bytes. Limit is not bound, allowing page-size changes.
+
+### E1 validation boundary
+
+- `org_candidate_edits_{routes,validation,history_routes}_test.go`: real router,
+  gates/no-store, 44 invalid-body/field cases, contact invariant, no-op and null
+  clears, contact-redacted history, limits/defaults, strict cursor mutations.
+- `TestOrgCandidateEditsFlow`: all 13 fields through real HTTP/SQL, six-key
+  studies/order, live list/filter reads, replacements, no-op, rejection rollback,
+  privacy, history pagination/ties, company isolation and nullable actor names.
+- `TestOrgCandidateEditsAtomicRollback`: fixture-specific PostgreSQL constraint
+  failures at history and audit writes must roll back record and child arrays.
+- `TestOrgCandidateEditsConcurrentIfMatch`: holds the row externally, observes
+  both database waiters before release, then requires exactly one 200 and one 412.
+- `TestOrgCandidateEditsBackfillAndGuardedDown`: isolated migration database;
+  deterministic backfill/index, atomic guarded Down and safe Down/Up round trip.
+
+Observed RED: five absent-route/no-store HTTP subtests, one missing migration
+check, one language-order no-op and one noncanonical base64 cursor rejection.
+Focused tests, full `go test ./... -count=1`, both vet modes and archguard pass.
+The initial full-suite SQLc drift failure was resolved by `make sqlc` (the new
+schema changes generated models even without changes to query files).
+No new log calls or dependencies. **DB tests have not been executed by the
+implementation writer**; compilation/vet are not SQL/concurrency acceptance.
+
+Parent runs from `backend/`, with guarded `DRAFT_TEST_DATABASE_URL` injected
+externally (do not source or print `.env`):
+
+```sh
+go test -tags=integration ./cmd/api -run '^TestOrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$' -count=1 -v
+go test -tags=integration ./db/migrations -run '^TestOrgCandidateEditsBackfillAndGuardedDown$' -count=1 -v
+go test -tags=integration ./cmd/api -run '^Test(OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+```
+
+Migration tests create their own loopback `draft_test_mig_*` database and require
+CREATEDB. All fixtures clean up only their own rows/catalog additions.
