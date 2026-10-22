@@ -228,3 +228,13 @@ it("does not show workload totals when the reused drafts reader reaches its cap"
   expect(within(row(members[1].id)).getByText("Carga no disponible")).toBeInTheDocument();
   expect(listDraftsAction).toHaveBeenCalledTimes(10);
 });
+it("explains the backend's last-owner guard and refreshes the list", async () => {
+  const user = userEvent.setup();
+  vi.mocked(changeTeamRoleAction).mockResolvedValue({ ok: false, reason: "last_owner", reference: { status: 409, code: "last_owner" } });
+  mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Cambiar a Dueño" }));
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cambiar rol" }));
+  expect(await screen.findByText("La empresa debe conservar al menos un dueño")).toBeInTheDocument();
+  await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));
+});

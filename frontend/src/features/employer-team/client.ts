@@ -3,7 +3,8 @@ import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import { memberIdSchema, membersSchema, type CompanyMember } from "./members-model";
 import type { TeamMemberRole } from "./model";
 
-export type TeamClientFailure = { ok: false; error: RequestJsonError };
+/** `code` is read only from a 409 body, where the backend names its last-owner guard. */
+export type TeamClientFailure = { ok: false; error: RequestJsonError; code?: string };
 export type TeamClientResult<T> = { ok: true; data: T } | TeamClientFailure;
 export async function listTeamMembers(token: string): Promise<TeamClientResult<CompanyMember[]>> {
   const { serverEnv } = await import("@/lib/env/server");
@@ -35,6 +36,11 @@ export async function mutateTeamMember(token: string, id: string, role?: TeamMem
       ...(role ? { body: JSON.stringify({ role }) } : {}),
       cache: "no-store", redirect: "error", signal: controller.signal,
     });
+    if (response.status === 409) {
+      const body: unknown = await response.json().catch(() => null);
+      const code = body && typeof body === "object" && typeof (body as { code?: unknown }).code === "string" ? (body as { code: string }).code : undefined;
+      return { ok: false, error: { kind: "status", status: 409, retryable: false }, ...(code ? { code } : {}) };
+    }
     void response.body?.cancel().catch(() => {});
     if (response.status === (role === undefined ? 204 : 200)) return { ok: true, data: null };
     return { ok: false, error: response.ok ? { kind: "invalid_response", retryable: false } : { kind: "status", status: response.status, retryable: false } };

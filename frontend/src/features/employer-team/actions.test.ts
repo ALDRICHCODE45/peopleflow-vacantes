@@ -62,3 +62,11 @@ it("requires exact mutation success statuses", async () => {
   fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
   expect(await changeTeamRoleAction(members[1].id, "owner")).toMatchObject({ ok: false, reason: "unrecognized_response" });
 });
+it.each([["change", () => changeTeamRoleAction(members[1].id, "recruiter")], ["remove", () => removeTeamMemberAction(members[1].id)]])("classifies the backend's last-owner guard on %s", async (_name, call) => {
+  fetchMock.mockResolvedValue(Response.json({ error: "the company must keep at least one owner", code: "last_owner" }, { status: 409 }));
+  expect(await call()).toEqual({ ok: false, reason: "last_owner", reference: { status: 409, code: "last_owner" } });
+});
+it("keeps any other conflict unrecognized", async () => {
+  fetchMock.mockResolvedValue(Response.json({ error: "x", code: "something_else" }, { status: 409 }));
+  expect(await removeTeamMemberAction(members[1].id)).toMatchObject({ ok: false, reason: "unrecognized_response" });
+});

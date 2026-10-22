@@ -20,6 +20,7 @@ const messages: Record<TeamFailure["reason"], { title: string; description: stri
   not_member: { title: "No perteneces a esta empresa", description: "No encontramos tu acceso al equipo. Revisa la configuración de tu empresa o vuelve a comprobarlo." },
   forbidden: { title: "No tienes permiso para esta acción", description: "Solo una cuenta con rol de dueño puede administrar el equipo. Tus datos no cambiaron." },
   invalid_request: { title: "No pudimos completar la acción", description: "Actualiza la lista antes de volver a intentarlo." },
+  last_owner: { title: "La empresa debe conservar al menos un dueño", description: "Asigna a otra persona como dueña antes de cambiar este rol o quitarla del equipo." },
   server_error: { title: "No pudimos cargar el equipo", description: "El servidor tuvo un problema. Es seguro reintentar esta consulta; no cambia los datos del equipo." },
   no_response: { title: "No pudimos cargar el equipo", description: "No hubo respuesta del servidor. Puedes reintentar la consulta sin cambiar los datos del equipo." },
   unrecognized_response: { title: "No pudimos cargar el equipo", description: "No pudimos leer la respuesta del servidor. Puedes volver a consultar sin cambiar los datos del equipo." },
@@ -79,7 +80,7 @@ function ConnectedTeam({ userId, role, companyId }: { userId: string; role: Team
         description: uncertain ? "El cambio puede haberse aplicado. Consulta la lista antes de intentarlo otra vez; no repetiremos la acción automáticamente." : result.reason === "not_member" ? "Actualizamos el equipo para comprobar quién sigue perteneciendo a la empresa." : messages[result.reason].description,
         reference: { ...result.reference, at: new Date().toISOString() } });
       // Reconcile uncertain outcomes by reading once, never replaying a write.
-      if (uncertain || result.reason === "not_member") await team.refresh();
+      if (uncertain || result.reason === "not_member" || result.reason === "last_owner") await team.refresh();
       if (!active.current) return;
       setSelection(null);
     }
