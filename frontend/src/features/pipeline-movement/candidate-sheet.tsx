@@ -123,7 +123,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
               <CandidateContact contact={loaded.detail.contact} correctedFields={loaded.detail.corrected_fields} /><Separator />
               <CandidateProfile profile={loaded.detail.profile} manual={manual} correctedFields={loaded.detail.corrected_fields} /><Separator />
               <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><DocumentItem icon={FileIcon} title={detail.cv.name}
-                description={<>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}{detail.cv.source === "company" && <> · <Badge variant="accent">CV corregido por tu empresa</Badge></>}</>}
+                description={filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"} badge={detail.cv.source === "company" && <Badge variant="accent">CV corregido por tu empresa</Badge>}
                 actions={<>
                   <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={participationCvHref(vacancyId, item.id)} download role="link" />}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</Button>
                   {detail.cv.source === "company" && loaded.detail.original_cv && <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={participationCvHref(vacancyId, item.id, "original")} download role="link" />}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</Button>}

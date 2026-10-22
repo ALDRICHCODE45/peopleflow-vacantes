@@ -188,7 +188,7 @@ function ParticipationItem({ item, candidate, busy, onBusyChange, onCvSaved, onC
   const publication = item.vacancy.lifecycle.publication;
   return <Card role="listitem" size="sm">
     <CardHeader>
-      <CardTitle className="min-w-0"><h4><a className="break-words underline underline-offset-4" href={`/empresa/vacantes/${encodeURIComponent(item.vacancy.id)}/pipeline`}>{item.vacancy.title}</a></h4></CardTitle>
+      <CardTitle className="min-w-0"><h4><a className="break-words underline-offset-4 hover:underline" href={`/empresa/vacantes/${encodeURIComponent(item.vacancy.id)}/pipeline`}>{item.vacancy.title}</a></h4></CardTitle>
       <CardDescription>{item.stage.name}{item.substate ? ` · ${item.substate.name}` : ""} · {item.source === "manual" ? "Ingreso manual" : "Postulación"} <MovementDate value={item.applied_at} />{item.source === "manual" && item.added_by && <> · Agregado por {item.added_by.name}</>}</CardDescription>
       <CardAction className="flex flex-col items-end gap-2"><Badge variant={publication === "published" ? "success" : publication === "paused" ? "review" : "neutral"} dot>{publication === "published" ? "Publicada" : publication === "paused" ? "Pausada" : publication === "closed" ? "Cerrada" : "Borrador"}</Badge>{item.vacancy.lifecycle.process === "finished" && <Badge variant="neutral">Proceso finalizado</Badge>}</CardAction>
     </CardHeader>

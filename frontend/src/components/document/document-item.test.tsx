@@ -38,3 +38,13 @@ it("accepts an alternate document icon and arbitrary description/actions", () =>
   expect(container.querySelector('[data-slot="item-title"]')).toHaveTextContent("cv.docx");
   expect(container.querySelector('[data-slot="item-actions"]')).toContainElement(screen.getByRole("link", { name: "Descargar Word" }));
 });
+it("lets the actions wrap below the content instead of squeezing it, and keeps the badge on its own wrap (QA L8)", () => {
+  render(<DocumentItem title="CV.pdf" description="Documento PDF" badge={<Badge variant="accent">CV corregido por tu empresa</Badge>} actions={<a href="/cv">Descargar CV</a>} />);
+  const content = document.querySelector('[data-slot="item-content"]')!;
+  expect(content).toHaveClass("basis-56");
+  const description = document.querySelector('[data-slot="item-description"]')!;
+  expect(description).toHaveClass("flex", "flex-wrap");
+  expect(description.textContent).not.toContain("·");
+  expect(description).toHaveTextContent("Documento PDF");
+  expect(screen.getByText("CV corregido por tu empresa")).toHaveAttribute("data-slot", "badge");
+});

@@ -51,7 +51,9 @@ it.each(["manual", "organic"] as const)("composes the %s process Card with docum
  expect(card.querySelector('[data-slot="card-content"]')).toContainElement(document);
  expect(document.querySelector('[data-slot="item-media"]')).toHaveAttribute("data-variant", "icon");
  expect(document.querySelector('[data-slot="item-title"]')).toHaveTextContent("corregido.pdf");
- expect(document.querySelector('[data-slot="item-description"]')).toHaveTextContent("Documento PDF · CV corregido por tu empresa");
+ const description = document.querySelector('[data-slot="item-description"]')!;
+ expect(description).toHaveTextContent(/^Documento PDF/);
+ expect(within(description as HTMLElement).getByText("CV corregido por tu empresa")).toHaveAttribute("data-slot", "badge");
  const downloads = document.querySelector('[data-slot="item-actions"]')!;
  expect(Array.from(downloads.querySelectorAll("a"))).toEqual(actions.slice(0, 2));
  expect(downloads).toHaveClass("flex-wrap");

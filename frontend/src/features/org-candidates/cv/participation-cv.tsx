@@ -80,7 +80,7 @@ export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, 
  return <><CardContent className="flex min-w-0 flex-col gap-3">
   {children}
   {item.cv ? <DocumentItem title={item.cv.file_name}
-   description={<>{filePresentation(item.cv.file_name) === "pdf" ? "Documento PDF" : "Documento Word"}{item.cv.source === "company" && <> · <Badge variant="accent">CV corregido por tu empresa</Badge></>}</>}
+   description={filePresentation(item.cv.file_name) === "pdf" ? "Documento PDF" : "Documento Word"} badge={item.cv.source === "company" && <Badge variant="accent">CV corregido por tu empresa</Badge>}
    actions={<>
     <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={candidateCvHref(identity, item.id)} download role="link" />} aria-label={`Descargar CV de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</Button>
     {item.cv.source === "company" && item.original_cv && <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={candidateCvHref(identity, item.id, "original")} download role="link" />} aria-label={`Descargar CV original de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</Button>}

@@ -121,3 +121,11 @@ it("does not request until opened and discards a stale candidate response", asyn
   await act(async () => resolve({ ok: true, data: { ...detailFixture(), full_name: "Viejo" } }));
   expect(screen.queryByText("Viejo")).not.toBeInTheDocument();
 });
+
+it("underlines the process vacancy link only on hover (QA L8)", async () => {
+  open();
+  const section = await screen.findByRole("region", { name: "Procesos" });
+  const link = within(section).getByRole("link", { name: "Frontend" });
+  expect(link).not.toHaveClass("underline");
+  expect(link).toHaveClass("hover:underline");
+});
