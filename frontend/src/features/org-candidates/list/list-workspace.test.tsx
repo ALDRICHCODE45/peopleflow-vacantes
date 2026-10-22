@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom/vitest";
 vi.mock("../actions", () => ({ listCandidatesAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn().mockResolvedValue({ ok: true, items: [], nextCursor: null }) }));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }] } }) }));
@@ -8,12 +9,18 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ state
 import { listCandidatesAction } from "../actions";
 import { OrgCandidatesWorkspace } from "./list-workspace";
 import { candidate, page } from "./test-fixtures";
-beforeEach(() => { vi.resetAllMocks(); window.history.replaceState(null, "", "/empresa/talento"); vi.mocked(listCandidatesAction).mockResolvedValue({ ok: true, data: page }); });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+beforeEach(() => {
+ vi.resetAllMocks();
+ vi.stubGlobal("innerWidth", 1440);
+ vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, media: "", addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+ window.history.replaceState(null, "", "/empresa/talento"); vi.mocked(listCandidatesAction).mockResolvedValue({ ok: true, data: page });
+});
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 it.each(["table", "cards"])("renders the same profile and vacancy facts in %s, with a real candidate action", async view => {
  window.history.replaceState(null, "", `/empresa/talento?view=${view}`); const open = vi.fn(); render(<OrgCandidatesWorkspace onOpenCandidate={open} />);
  await screen.findByText("Mariana Ortega Silva");
- for (const fact of ["37 candidatos", "Desarrolladora Frontend", "Manual", "Guadalajara, Jalisco", "Senior", "4.5 años", "Licenciatura o Ingeniería", "Maestría · En curso", "Inglés · C1", "Backend Go", "Entrevista"]) expect(screen.getByText(fact)).toBeTruthy();
+ for (const fact of ["37 candidatos", "Desarrolladora Frontend", "Manual", "Guadalajara, Jalisco", "Licenciatura o Ingeniería", "Maestría · En curso", "Inglés C1", "Backend Go", "Entrevista"]) expect(screen.getByText(fact)).toBeTruthy();
+ expect(document.body.textContent).toContain("Senior · 4.5 años");
  fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" })); expect(open).toHaveBeenCalledWith({ kind: "manual", id: candidate.id });
  if (view === "cards") expect(screen.getByText("2 procesos · 1 activo")).toBeTruthy();
 });
@@ -84,6 +91,68 @@ it("ignores an obsolete request after filters change", async () => {
  render(<OrgCandidatesWorkspace />); fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Ana" } });
  await screen.findByText("Ana Ríos"); await act(async () => { finish({ ok: true, data: page }); });
  expect(screen.queryByText(candidate.full_name)).toBeNull(); expect(screen.getByText("Ana Ríos")).toBeTruthy();
+});
+it("provides a compact outline toggle with a distinct pressed state in the toolbar", async () => {
+ render(<OrgCandidatesWorkspace />); await screen.findByText(candidate.full_name);
+ const table = screen.getByRole("button", { name: "Tabla" });
+ const cards = screen.getByRole("button", { name: "Tarjetas" });
+ expect(table.closest('[data-slot="toggle-group"]')).toHaveAttribute("data-size", "sm");
+ expect(table.closest('[data-slot="toggle-group"]')).toHaveAttribute("data-variant", "outline");
+ expect(table).toHaveAttribute("aria-pressed", "true");
+ expect(cards).toHaveAttribute("aria-pressed", "false");
+ expect(table).toHaveClass("aria-pressed:bg-secondary", "aria-pressed:text-secondary-foreground", "aria-pressed:border-foreground/30");
+ fireEvent.click(cards);
+ expect(cards).toHaveAttribute("aria-pressed", "true");
+ expect(table).toHaveAttribute("aria-pressed", "false");
+});
+it("groups search, filters and view in one desktop toolbar and puts the count above results", async () => {
+ render(<OrgCandidatesWorkspace />); await screen.findByText(candidate.full_name);
+ const search = screen.getByRole("searchbox");
+ const filters = screen.getByRole("button", { name: "Filtros" });
+ const toggle = screen.getByRole("button", { name: "Tabla" });
+ const row = search.closest('[data-candidates-toolbar]');
+ expect(row).toContainElement(filters); expect(row).toContainElement(toggle);
+ expect(row).toHaveClass("md:flex-nowrap");
+ expect(search.closest('[data-slot="field"]')).toHaveClass("w-full", "md:flex-1");
+ expect(screen.getByRole("region", { name: "Resultados de candidatos" })).toContainElement(screen.getByText("37 candidatos"));
+});
+it.each(["table", "cards"])("forces mobile cards without rewriting the %s URL preference or filters", async view => {
+ vi.stubGlobal("innerWidth", 390);
+ vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, media: "", addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+ const query = `?view=${view}&q=Mariana&seniority=senior`;
+ window.history.replaceState(null, "", `/empresa/talento${query}`);
+ render(<OrgCandidatesWorkspace />); await screen.findByText(candidate.full_name);
+ expect(screen.queryByRole("table")).not.toBeInTheDocument();
+ expect(screen.getByLabelText("Tarjetas de candidatos")).toBeInTheDocument();
+ expect(screen.getByRole("button", { name: "Tabla" }).closest('[data-slot="toggle-group"]')).toHaveClass("hidden", "md:flex");
+ expect(window.location.search).toBe(query);
+ expect(listCandidatesAction).toHaveBeenCalledTimes(1);
+});
+it("keeps mobile keyboard activation and restores the saved table on desktop without fetching", async () => {
+ let resize: (() => void) | undefined;
+ vi.stubGlobal("innerWidth", 390);
+ vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, media: "", addEventListener: (_: string, listener: () => void) => { resize = listener; }, removeEventListener: vi.fn() })));
+ window.history.replaceState(null, "", "/empresa/talento?view=table&q=Mariana");
+ const open = vi.fn(); const user = userEvent.setup();
+ render(<OrgCandidatesWorkspace onOpenCandidate={open} />);
+ const name = await screen.findByRole("button", { name: `Abrir ficha de ${candidate.full_name}` });
+ name.focus(); await user.keyboard("{Enter}");
+ expect(open).toHaveBeenCalledWith({ kind: candidate.kind, id: candidate.id });
+ expect(screen.queryByRole("table")).not.toBeInTheDocument();
+ act(() => { vi.stubGlobal("innerWidth", 1440); resize?.(); });
+ expect(screen.getByRole("table")).toBeInTheDocument();
+ expect(window.location.search).toBe("?view=table&q=Mariana");
+ expect(listCandidatesAction).toHaveBeenCalledTimes(1);
+});
+it("uses cards for the mobile loading state while retaining the table preference", async () => {
+ vi.stubGlobal("innerWidth", 390);
+ vi.mocked(listCandidatesAction).mockReturnValue(new Promise(() => {}));
+ window.history.replaceState(null, "", "/empresa/talento?view=table");
+ const { container } = render(<OrgCandidatesWorkspace />);
+ expect(container.querySelector('[data-candidates-skeleton="cards"]')).toBeTruthy();
+ expect(container.querySelector("table")).toBeNull();
+ expect(window.location.search).toBe("?view=table");
+ await act(async () => {});
 });
 it("debounces search and resets pagination", async () => {
  render(<OrgCandidatesWorkspace />); await screen.findByText(candidate.full_name); vi.useFakeTimers();
