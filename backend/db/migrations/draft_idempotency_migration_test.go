@@ -5,12 +5,10 @@
 // down refuses transactionally while any non-legacy row exists, and a
 // legacy-only table drops cleanly.
 //
-// These tests run only against the dedicated disposable database named by
-// DRAFT_TEST_DATABASE_URL and refuse any DSN whose database is not `draft_test`
-// or whose host is not loopback, so they can never migrate an ambient
-// DATABASE_URL. Each test drives goose itself and leaves the schema at the
-// highest version for the packages that run after it; a failed test still
-// leaves a recoverable schema because every migration step is transactional.
+// DRAFT_TEST_DATABASE_URL must identify loopback + draft_test. Each test creates
+// a separate draft_test_mig_* database on that server and drops only its own
+// database at cleanup. Rollbacks never migrate the shared harness or an ambient
+// DATABASE_URL. The connection role needs CREATEDB.
 package migrations_test
 
 import (
@@ -18,10 +16,13 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -34,9 +35,9 @@ const (
 	sha256AlgorithmTag      = "go-json-v1+sha256"
 )
 
-// isolatedMigrationDB opens the disposable isolated database named by
-// DRAFT_TEST_DATABASE_URL, refusing any non-loopback host or non-`draft_test`
-// database, and skips when the DSN is unset.
+// isolatedMigrationDB uses the guarded shared DSN only to create a unique
+// draft_test_mig_* database. Rollbacks never touch the shared harness database.
+// Both deferred cleanup and t.Cleanup are supported, including setup failures.
 func isolatedMigrationDB(t *testing.T) (*sql.DB, *pgxpool.Pool, func()) {
 	t.Helper()
 
@@ -54,23 +55,50 @@ func isolatedMigrationDB(t *testing.T) (*sql.DB, *pgxpool.Pool, func()) {
 			cfg.ConnConfig.Host, cfg.ConnConfig.Database, migrationIsolatedDBName)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	admin, err := pgxpool.NewWithConfig(ctx, cfg.Copy())
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Fatalf("connect bootstrap: %v", err)
 	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		t.Fatalf("ping: %v", err)
+	t.Cleanup(admin.Close)
+	name := "draft_test_mig_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	cfg = cfg.Copy()
+	cfg.ConnConfig.Database = name
+	if !migrationLoopback(cfg.ConnConfig.Host) || !strings.HasPrefix(name, "draft_test_") || name == migrationIsolatedDBName {
+		t.Fatal("refusing unsafe disposable database")
 	}
-
-	sqlDB := stdlib.OpenDBFromPool(pool)
+	quoted := pgx.Identifier{name}.Sanitize()
+	if _, err := admin.Exec(ctx, "CREATE DATABASE "+quoted); err != nil {
+		t.Fatalf("create migration database (CREATEDB required): %v", err)
+	}
+	var pool *pgxpool.Pool
+	var sqlDB *sql.DB
+	var once sync.Once
 	cleanup := func() {
-		_ = sqlDB.Close()
-		pool.Close()
+		once.Do(func() {
+			if sqlDB != nil {
+				if err := sqlDB.Close(); err != nil {
+					t.Errorf("close migration SQL wrapper: %v", err)
+				}
+			}
+			if pool != nil {
+				pool.Close()
+			}
+			cleanupCtx, stop := context.WithTimeout(context.Background(), 30*time.Second)
+			defer stop()
+			if _, err := admin.Exec(cleanupCtx, "DROP DATABASE "+quoted); err != nil {
+				t.Errorf("drop owned migration database %s: %v", name, err)
+			}
+		})
 	}
+	t.Cleanup(cleanup)
+	pool, err = pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("connect migration database: %v", err)
+	}
+	sqlDB = stdlib.OpenDBFromPool(pool)
+	gooseUpAll(t, sqlDB)
 	return sqlDB, pool, cleanup
 }
 

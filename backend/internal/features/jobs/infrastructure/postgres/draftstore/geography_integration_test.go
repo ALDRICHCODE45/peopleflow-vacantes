@@ -148,7 +148,7 @@ func TestGeographyDraftValidationReplacementNoopPublishAndRefresh(t *testing.T) 
 }
 
 func TestMigration00031RealV1V2CreateAndSaveDocuments(t *testing.T) {
-	pool := requireDraftPool(t)
+	pool := requireMigrationPool(t)
 	p := newPrincipal(t, pool)
 	s := newStore(t, pool)
 	ctx := context.Background()
@@ -222,7 +222,7 @@ const geographyDefaultRequirementsPatch = `{"fields":{"min_years_of_experience":
 // lifecycle test, then explicitly reset the shared fixture's non-default
 // requirements. A post-Up row in this shape must reverse-map without a backup.
 func TestMigration00041GeographyCreateDefaultsRollback(t *testing.T) {
-	pool := requireDraftPool(t)
+	pool := requireMigrationPool(t)
 	s, p, draft := readyPublication(t, pool)
 	ctx := context.Background()
 	id := draftIDOf(t, draft)
@@ -276,7 +276,7 @@ func TestMigration00031RewrittenDraftReadsNoopPatchesAndPublishes(t *testing.T) 
 
 func assertMigration00031DraftLifecycle(t *testing.T, retainedNUL bool) {
 	t.Helper()
-	pool := requireDraftPool(t)
+	pool := requireMigrationPool(t)
 	s, p, draft := readyPublication(t, pool)
 	id := draftIDOf(t, draft)
 	ctx := context.Background()

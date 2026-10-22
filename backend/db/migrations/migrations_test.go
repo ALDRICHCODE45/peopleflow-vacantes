@@ -1,9 +1,9 @@
 //go:build integration
 
 // Package migrations_test exercises migration 00009 (`company_members`) against
-// a real PostgreSQL instance. It runs only when the integration build tag is
-// set and a DATABASE_URL is provided; `make test-integration` is the canonical
-// invocation (it sources `backend/.env` first).
+// a real PostgreSQL instance. With the integration build tag and a guarded
+// DRAFT_TEST_DATABASE_URL, each test gets a fresh draft_test_mig_* database.
+// CREATEDB is required; ambient DATABASE_URL is never migrated.
 //
 // These tests cover the four scenarios from the spec requirement
 // `company_members Schema Migration`:
@@ -18,74 +18,28 @@
 //   - "second membership for same user is rejected": inserting a second row
 //     with a duplicate `user_id` returns SQLSTATE 23505 (unique_violation).
 //
-// Each test leaves the schema at version 9 (`00009` applied) so the
-// next test in the file — and the rest of the integration suite — finds a
-// usable `company_members` table.
+// Each test owns its schema history and drops its database at cleanup.
 package migrations_test
 
 import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
-// skipIfNoDatabase opens a pgxpool against DATABASE_URL, wraps it as a
-// database/sql.DB (goose uses the stdlib driver), and skips (rather than
-// fails) the test when the database is unavailable. Returns the *sql.DB
-// handle and a cleanup func that closes both the pool and the wrapper.
-func skipIfNoDatabase(t *testing.T) (*sql.DB, func()) {
+// version9Database gives historical constraint tests their own database too;
+// never roll an ambient DATABASE_URL or the shared draft harness backward.
+func version9Database(t *testing.T) (*sql.DB, *pgxpool.Pool) {
 	t.Helper()
-
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		t.Skip("DATABASE_URL not set; skipping integration test")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cfg, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Skipf("cannot parse DSN: %v", err)
-	}
-
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Skipf("cannot connect to Postgres: %v", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		t.Skipf("cannot ping Postgres: %v", err)
-	}
-
-	sqlDB := stdlib.OpenDBFromPool(pool)
-	cleanup := func() {
-		_ = sqlDB.Close()
-		pool.Close()
-	}
-	return sqlDB, cleanup
-}
-
-// pgxPool opens a fresh pgxpool (independent from the stdlib wrapper used
-// by goose) so individual tests can issue plain SQL against the live DB
-// without sharing state with goose's migration connection.
-func pgxPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dsn := os.Getenv("DATABASE_URL")
-	pool, err := pgxpool.New(context.Background(), dsn)
-	if err != nil {
-		t.Fatalf("open pgxpool: %v", err)
-	}
-	return pool
+	db, pool, _ := isolatedMigrationDB(t)
+	gooseDownTo(t, db, 9)
+	return db, pool
 }
 
 // gooseUpTo applies every migration from 00001 through `version` (inclusive).
@@ -102,8 +56,7 @@ func gooseUpTo(t *testing.T, db *sql.DB, version int64) {
 }
 
 // gooseUpAll applies every pending migration, restoring the schema to its
-// highest applied version. Used by cleanups that must leave the shared dev DB
-// in a fully-migrated state for the suites that run afterwards.
+// highest applied version. Used before fixture cleanup that needs current tables.
 func gooseUpAll(t *testing.T, db *sql.DB) {
 	t.Helper()
 	if err := goose.SetDialect("postgres"); err != nil {
@@ -193,17 +146,13 @@ func seedPrereqs(ctx context.Context, t *testing.T, pool *pgxpool.Pool) (industr
 // and the UNIQUE on `user_id` all exist in `information_schema` /
 // `pg_indexes`.
 func TestMigration00009UpCreatesNamedObjects(t *testing.T) {
-	db, cleanup := skipIfNoDatabase(t)
-	defer cleanup()
+	db, pool := version9Database(t)
 
 	// Apply 00009 (idempotent — earlier migrations may already be applied).
 	// In the RED phase this fails because migration 00009 does not yet
 	// exist on disk; that failure is the spec's "production code does not
 	// exist yet" signal.
 	gooseUpTo(t, db, 9)
-
-	pool := pgxPool(t)
-	defer pool.Close()
 
 	ctx := context.Background()
 
@@ -267,14 +216,10 @@ func TestMigration00009UpCreatesNamedObjects(t *testing.T) {
 // exactly what the up test catches). Both halves must be exercised for
 // the contract "down drops the table" to mean anything.
 func TestMigration00009DownDropsTable(t *testing.T) {
-	db, cleanup := skipIfNoDatabase(t)
-	defer cleanup()
+	db, pool := version9Database(t)
 
 	// Make sure 00009 is applied before we test down.
 	gooseUpTo(t, db, 9)
-
-	pool := pgxPool(t)
-	defer pool.Close()
 
 	ctx := context.Background()
 
@@ -292,20 +237,7 @@ func TestMigration00009DownDropsTable(t *testing.T) {
 
 	// Run the down half of 00009 only — land at version 8.
 	gooseDownTo(t, db, 8)
-	// Restore 00009 for downstream tests in this run.
-	t.Cleanup(func() {
-		db2, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
-		if err != nil {
-			t.Logf("cleanup: reopen db: %v", err)
-			return
-		}
-		defer db2.Close()
-		// Restore every migration, not just 00009: a later migration
-		// (00010 applications) may already be applied, and goose reflects
-		// the highest applied version. Subbing only to 9 would leave
-		// `applications` dropped for the suites that run after this one.
-		gooseUpAll(t, db2)
-	})
+	// The owned database is dropped at cleanup; no shared schema needs restoration.
 
 	var hasTableAfterDown bool
 	if err := pool.QueryRow(ctx,
@@ -328,14 +260,10 @@ func TestMigration00009DownDropsTable(t *testing.T) {
 // 23514 (check_violation) because the named CHECK only allows
 // 'owner' | 'recruiter'.
 func TestMigration00009RejectsInvalidRole(t *testing.T) {
-	db, cleanup := skipIfNoDatabase(t)
-	defer cleanup()
+	db, pool := version9Database(t)
 
 	// Make sure 00009 is applied before we test the constraint.
 	gooseUpTo(t, db, 9)
-
-	pool := pgxPool(t)
-	defer pool.Close()
 
 	ctx := context.Background()
 	requireUsersAndCompaniesTables(ctx, t, pool)
@@ -367,13 +295,8 @@ func TestMigration00009RejectsInvalidRole(t *testing.T) {
 // CHECK), the second insert uses a valid role but a DIFFERENT company_id —
 // the only thing that can collide is the UNIQUE(user_id) constraint.
 func TestMigration00009RejectsDuplicateUserID(t *testing.T) {
-	db, cleanup := skipIfNoDatabase(t)
-	defer cleanup()
-
+	db, pool := version9Database(t)
 	gooseUpTo(t, db, 9)
-
-	pool := pgxPool(t)
-	defer pool.Close()
 
 	ctx := context.Background()
 	requireUsersAndCompaniesTables(ctx, t, pool)
