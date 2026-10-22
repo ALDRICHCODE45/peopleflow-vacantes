@@ -6,7 +6,8 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00038** with `make db-migrate` before running this API.
+1. Apply migrations through **00046** with `make db-migrate` before running this API
+   (company corrections/CVs; see [org candidate edits](org-candidate-edits.md)).
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -50,8 +51,8 @@ An item is exactly:
   "candidate": {"id": "…", "full_name": "Ana Pérez", "kind": "organic"},
   "added_by": null,
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
-  "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
-  "discard": null, "substate_id": null,
+  "cv": {"id": "…", "name": "CV", "source": "candidate"}, "moved_at": "2026-10-16T18:00:00Z",
+  "discard": null, "substate_id": null, "corrected_fields": [],
   "profile": {"location": null, "skills": [], "years_of_experience": null, "seniority": null, "education": {"highest_completed": null, "in_progress": null}, "languages": []},
   "screening_answers": []
 }
@@ -71,7 +72,10 @@ not a precondition clients construct. Participation tags are strong and
 domain-separated from draft/pipeline/other tags. The board itself has no ETag.
 Default stage IDs remain the deterministic cut-1 UUIDv5 identities.
 For organic identities, `profile` is the immutable application-time six-field
-snapshot (legacy SQL NULL rows use the empty profile above). Years are decimal
+snapshot **overlaid at read time with this company's corrections** (E4).
+Legacy SQL NULL rows use the empty profile above. `candidate.full_name` is also
+effective; `corrected_fields` is the sorted correction-key list, or `[]` for manual
+and uncorrected organic identities. Stored snapshots never change. Years are decimal
 strings or null; education carries the highest completed and highest in-progress
 levels separately (each nullable, never boolean);
 seniority is nullable and languages are code/level pairs. See
@@ -145,8 +149,24 @@ reports the first. Headcount edits alone do not synthesize hire milestones.
 | Route | 200 response |
 | --- | --- |
 | `GET …/participations/{participationId}/history` | `{items:[entry]}`, oldest first, then history ID |
-| `GET …/participations/{participationId}` | Item plus `screening:[{question_id,prompt,type,answer}]`, `comment`, `candidate_message` (last two null unless currently discarded), and always-present `contact:{email,phone}` (each string or null): the company record for manual candidates, the account email and profile phone for organic ones, including organic reuse. Contact appears only on this detail, never on board list items or mutation responses |
-| `GET …/participations/{participationId}/cv` | Exact referenced CV version as an attachment with its stored content type |
+| `GET …/participations/{participationId}` | Item plus `screening:[{question_id,prompt,type,answer}]`, `comment`, `candidate_message` (last two null unless currently discarded), effective `contact:{email,phone}`, `original` and `original_cv`. Contact/originals appear only on detail, never board items or mutations |
+| `GET …/participations/{participationId}/cv` | Current CV (company correction if any, otherwise the original) as an attachment with its stored content type |
+| `GET …/participations/{participationId}/cv/original` | Original candidate/manual-intake CV; works before any correction, 404 only when no original reference/metadata is available |
+
+E4 detail's `original` has the [pool original shape](org-candidate-edits.md),
+using **this participation's** snapshot rather than the pool's latest one; null
+for manual candidates or no corrected fields. Effective contact overlays the same
+company's corrections on account email/profile phone (manual remains live).
+Current `cv` is `{id,name,source:"candidate"|"company"}`; `original_cv` is
+`{file_name,uploaded_at}|null` (null when never corrected or no original metadata).
+Mutation responses also carry effective candidate/current-CV metadata and
+`corrected_fields`, but retain the existing profile/screening/contact exclusions.
+Manual 201 retains byte equality with the effective GET item; replays stay frozen.
+Corrected-current CV downloads do not double an existing MIME suffix (including
+uppercase `.PDF`/`.DOCX`). For compatibility, non-corrected/current and original
+board downloads retain legacy extension appending byte-for-byte, including
+already-suffixed original filenames. Pool downloads deduplicate the suffix on
+both current and original routes; stored filenames and metadata are unchanged.
 
 History entries are exactly `{kind, from_stage_id, to_stage_id, hire, departure,
 actor, at}` for `intake | move | recovery`. Discard entries additionally carry

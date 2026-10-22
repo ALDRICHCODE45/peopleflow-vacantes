@@ -1,7 +1,7 @@
 # Org candidate edits — audited internal corrections (DRAFT)
 
-Status: **contract approved; E1/E2 accepted; E3 implemented pending parent DB acceptance**.
-E4 (board projections) remains the next cut. Extends
+Status: **contract approved; E1–E3 accepted; E4 implemented pending parent DB acceptance**.
+E4 validation and review remain open. Extends
 [org-candidates.md](org-candidates.md) (SRCH-4, AUD-1). Feature document:
 `odd/tasks/org-candidate-edits.md`.
 
@@ -137,6 +137,15 @@ Board routes keep their owner-or-principal authorization.
   uploaded_at}|null`; `GET …/participations/{participationId}/cv` returns the current
   CV and `GET …/participations/{participationId}/cv/original` the candidate's original.
 - Snapshots stay frozen in storage: corrections are applied at read time only.
+- `original` uses this participation's frozen profile (the same shape as the pool
+  original, which uses the latest company participation). It is null for manual
+  candidates and organic candidates without corrected fields, including CV-only edits.
+- Original CV download follows E3 exactly: it works **before** any correction;
+  404 means no original metadata/file reference, not «never corrected».
+- Mutation items keep their existing privacy allowlist: effective name/current CV
+  and additive `corrected_fields`/`cv.source`, never contact, original, profile or
+  screening filter data. Manual 201 retains the full effective board item;
+  idempotent replays remain frozen.
 
 ## Delivery cuts (backend)
 
@@ -144,6 +153,70 @@ Board routes keep their owner-or-principal authorization.
 - E2: organic correction layer (`set`/`reset`, `original`, effective list/filters).
 - E3: corrected CV per participation.
 - E4: vacancy board reads corrections (profile, contact, CV).
+
+## E4 implementation notes
+
+No new migration: apply through **00046**. Board item SQL overlays corrections
+using the participation process's company and organic identity (not intake source).
+The pool and board share the E2 profile/education SQL and E3 CV expressions in
+`applications/infrastructure/postgres/candidateview`; contact correction also
+shares a pointer-independent projector. Manual records remain live.
+
+- Board/detail, move/discard/recover/substate and manual 201 all use the same item
+  projector. Movement responses keep the pre-existing private-field exclusions.
+- Detail reads effective and participation-local original values in one repeatable
+  snapshot; mutation transaction isolation/authorization/locks are unchanged.
+- Current CV item metadata identifies the corrected object, if present. Only detail
+  gains `original_cv`; its two-key shape is shared with the pool. Downloads keep
+  MIME, length, nosniff and no-store behavior. Corrected-current board filenames
+  retain an existing `.pdf`/`.docx` suffix case-insensitively. Non-corrected and
+  original board downloads deliberately retain legacy extension appending, even
+  for already-suffixed names; no filename or stored metadata is rewritten.
+- Owner-or-principal checks run before CV lookup/storage, for both downloads.
+  No snapshots, candidate accounts/profiles or original CV references are written.
+
+### E4 validation boundary
+
+Observed RED: 10 HTTP subtests (five missing additive-wire checks and five missing
+original-route/no-store checks). GREEN: all 10; full unit suite, both vet modes and
+archguard. Contact tests exercise set/null/unchanged pointer independence; a golden
+pins uncorrected item bytes after stripping only the two additive E4 keys. Existing
+exact-wire expectations change only for additive keys/new route. No new logging,
+dependencies or generated schema changes.
+
+**Parent DB round 1:** the v2 board/movement/filter-data suite passed. The new
+HTTP flow assertions passed up to fixture cleanup, which failed on retained stage
+history; leftover rows then caused unique-email failures in later suites. This is
+not E4 DB acceptance. Fixture cleanup now removes private edit/CV history, audit,
+stage history, idempotency and process counters before participations, then CV
+objects/library/versions and candidates. Shared manual/organic seed emails include
+the fixture UUID. CV cleanup is registered before setup writes, including partial
+construction failures. Existing dirty rows are not removed by these changes;
+parent-owned cleanup of the isolated harness is required before rerunning.
+
+**DB tests are authored/vetted, not executed by the writer.**
+`TestBoardCorrectionsFlow` covers manual and organic profiles/contact/studies,
+set/null/reset, company isolation (byte-identical uncorrected and foreign boards),
+frozen snapshots, participation-local originals, owner/principal privacy,
+current/original CV bytes/headers, all four mutation responses and corrected
+manual/organic reuse 201/GET byte equality. `TestBoardCorrectionsCVOnly` pins
+`corrected_fields:[]`, `original:null` and preserved original downloads for CV-only
+edits of both kinds.
+
+Parent runs sequentially from `backend/`, injecting guarded
+`DRAFT_TEST_DATABASE_URL` for isolated `draft_test` externally; never source or
+print `.env`. Existing board/movement/filter-data suites are included:
+
+```sh
+go test -tags=integration ./cmd/api -run '^TestBoardCorrections(Flow|CVOnly)$' -count=1 -v
+go test -tags=integration ./internal/features/applications/infrastructure/postgres/v2 -run '^Test(Movement|Manual|FilterData|GeoSnapshot|DetailContact|Discard|Substate|LifecycleBoard)' -count=1 -v
+go test -tags=integration ./cmd/api -run '^Test(OrgCandidate(Edits|Corrections|CV)(Flow|Rejections|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+```
+
+Do not run shared-DB packages concurrently with each other or migration rollback
+suites. Compilation and unit fakes are not SQL acceptance; T6 awaits parent results.
+For repeated-run cleanup evidence, rerun the first command with `-count=2` after
+the three acceptance commands succeed.
 
 ## E1 implementation notes
 
@@ -245,9 +318,12 @@ edit history through a clean Down/Up round trip.
 - Detail's current `cv` has `source:"candidate"` without a correction (including
   company-owned manual-intake originals), or `source:"company"` with one.
   `original_cv` is a separate two-key value, null when never corrected or when
-  original metadata is absent. Current/original downloads retain today's MIME,
-  filename-extension, length, nosniff and no-store headers. Original download
-  works even before a correction and is 404 when no original is available.
+  original metadata is absent. Current/original downloads retain MIME, length,
+  nosniff and no-store headers. Pool attachment filenames now append the MIME
+  extension only if it is absent (case-insensitive), so `cv` becomes `cv.pdf`
+  and `corrected.PDF` stays `corrected.PDF`, never `.pdf.pdf`. This applies to
+  both current and original pool downloads. Original download works even before
+  a correction and is 404 when no original is available.
 - CV history uses the existing company-bound pagination and omits `changes`;
   it contains `participation_id`, `file_name`, `at` and `actor`. Shared
   `CompanyCandidateCVCorrected` audit metadata contains only participation ID,
@@ -255,6 +331,11 @@ edit history through a clean Down/Up round trip.
   company CV objects remain untouched. **Board routes/shapes are unchanged.**
 
 ### E3 validation boundary
+
+QA filename regression: observed RED in 16 of 36 HTTP filename cases; all 36
+now pass, covering pool/board current/original, PDF/DOCX, suffix case and plain
+names. Board original/non-corrected filename bytes remain pinned to the legacy
+rule. DB flow attachment expectations now reflect the corrected naming policy.
 
 Observed RED: five absent-route/no-store HTTP checks and missing migration
 00046. GREEN: those six checks; manual/organic HTTP validation/composition,

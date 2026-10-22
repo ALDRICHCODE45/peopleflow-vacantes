@@ -21,13 +21,15 @@ func newOrganicEditFixture(t *testing.T, files ...*cvstorage.Local) *candidateEd
 	f := &copy
 	f.id = uuid.New()
 	f.path = orgCandidatesPath + "/organic/" + f.id.String()
+	f.email = "original-" + f.id.String() + "@example.test"
 	// Cleanup is registered last: private correction rows go before account/company.
 	t.Cleanup(func() {
+		f.cleanupParticipations(t)
 		for _, q := range []string{
 			`DELETE FROM company_candidate_history WHERE candidate_id=$1`,
 			`DELETE FROM audit_events WHERE entity_id=$1`,
 			`DELETE FROM company_candidate_corrections WHERE user_id=$1`,
-			`DELETE FROM process_participations WHERE candidate_id=$1`,
+			`DELETE FROM candidate_cv_library WHERE candidate_id=$1`,
 			`DELETE FROM candidate_cv_versions WHERE candidate_id=$1`,
 			`DELETE FROM candidate_languages WHERE user_id=$1`,
 			`DELETE FROM candidate_educations WHERE user_id=$1`,
@@ -39,7 +41,7 @@ func newOrganicEditFixture(t *testing.T, files ...*cvstorage.Local) *candidateEd
 			}
 		}
 	})
-	f.exec(t, `INSERT INTO users(id,cognito_sub,email,full_name,user_type) VALUES($1,$2,'original@example.test','Original Candidate','candidate')`, f.id, uuid.NewString())
+	f.exec(t, `INSERT INTO users(id,cognito_sub,email,full_name,user_type) VALUES($1,$2,$3,'Original Candidate','candidate')`, f.id, uuid.NewString(), f.email)
 	f.exec(t, `INSERT INTO candidate_profiles(user_id,phone,professional_title,current_company,skills,years_of_experience,seniority) VALUES($1,' +523311111111 ','PRIVATE TITLE','PRIVATE COMPANY',ARRAY['private'],8,'senior')`, f.id)
 	f.exec(t, `INSERT INTO candidate_educations(user_id,position,level,status) VALUES($1,0,'phd','completed')`, f.id)
 	f.exec(t, `INSERT INTO candidate_languages(user_id,code,level) VALUES($1,'fr','C2')`, f.id)

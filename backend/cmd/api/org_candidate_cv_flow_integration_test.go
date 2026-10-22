@@ -36,6 +36,15 @@ func newCandidateCVFixture(t *testing.T, kind string) *candidateCVFixture {
 		f = newOrganicEditFixture(t, local)
 	}
 	out := &candidateCVFixture{candidateEditFixture: f, local: local, kind: kind}
+	// Register before setup writes too, so partial fixture construction is safe.
+	t.Cleanup(func() {
+		// Deleting participations releases both original and corrected CV references.
+		f.cleanupParticipations(t)
+		if kind == "organic" {
+			f.exec(t, `DELETE FROM candidate_cv_library WHERE candidate_id=$1`, f.id)
+		}
+		f.exec(t, `DELETE FROM company_candidate_cvs WHERE company_id=$1 AND (company_candidate_id=$2 OR company_candidate_id IS NULL)`, f.company.companyID, f.id)
+	})
 	ctx := context.Background()
 	key, err := local.Put(ctx, []byte("%PDF-original"))
 	if err != nil {
@@ -59,18 +68,6 @@ func newCandidateCVFixture(t *testing.T, kind string) *candidateCVFixture {
 		f.exec(t, `INSERT INTO candidate_cv_library(id,candidate_id,version_id,name,removed_at) VALUES($1,$2,$3,'original.pdf',now())`, uuid.New(), f.id, cv)
 	}
 	out.pathCV = f.path + "/participations/" + out.pid.String() + "/cv"
-	t.Cleanup(func() {
-		// Must release history FKs before deleting participations and CV rows; other
-		// fixture cleanup runs afterward and owns candidate/accounts/catalogs.
-		f.exec(t, `DELETE FROM company_candidate_history WHERE candidate_id=$1`, f.id)
-		if kind == "manual" {
-			f.exec(t, `DELETE FROM process_participations WHERE company_candidate_id=$1`, f.id)
-		} else {
-			f.exec(t, `UPDATE process_participations SET corrected_company_cv_id=NULL WHERE candidate_id=$1`, f.id)
-			f.exec(t, `DELETE FROM candidate_cv_library WHERE candidate_id=$1`, f.id)
-		}
-		f.exec(t, `DELETE FROM company_candidate_cvs WHERE company_id=$1 AND (company_candidate_id=$2 OR company_candidate_id IS NULL)`, f.company.companyID, f.id)
-	})
 	return out
 }
 func (f *candidateCVFixture) upload(t *testing.T, name, data, tag string) draftFlowResponse {
@@ -156,7 +153,7 @@ func TestOrgCandidateCVRejections(t *testing.T) {
 			}
 			r = f.h.do(t, "GET", f.pathCV, "", f.recruiter.token, nil)
 			draftFlowAssertNoStore(t, r)
-			if r.status != 200 || string(r.body) != string(docx) || r.header.Get("Content-Type") != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || r.header.Get("Content-Disposition") != "attachment; filename=corrected.docx.docx" || r.header.Get("Content-Length") != fmt.Sprint(len(docx)) || r.header.Get("X-Content-Type-Options") != "nosniff" {
+			if r.status != 200 || string(r.body) != string(docx) || r.header.Get("Content-Type") != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || r.header.Get("Content-Disposition") != "attachment; filename=corrected.docx" || r.header.Get("Content-Length") != fmt.Sprint(len(docx)) || r.header.Get("X-Content-Type-Options") != "nosniff" {
 				t.Fatal(r.status, r.header)
 			}
 			if kind == "organic" {
@@ -189,7 +186,7 @@ func TestOrgCandidateCVFlow(t *testing.T) {
 				t.Helper()
 				r := f.h.do(t, "GET", path, "", f.recruiter.token, nil)
 				draftFlowAssertNoStore(t, r)
-				if r.status != 200 || string(r.body) != data || r.header.Get("Content-Type") != "application/pdf" || r.header.Get("Content-Length") != fmt.Sprint(len(data)) || r.header.Get("Content-Disposition") != mime.FormatMediaType("attachment", map[string]string{"filename": name + ".pdf"}) || r.header.Get("X-Content-Type-Options") != "nosniff" {
+				if r.status != 200 || string(r.body) != data || r.header.Get("Content-Type") != "application/pdf" || r.header.Get("Content-Length") != fmt.Sprint(len(data)) || r.header.Get("Content-Disposition") != mime.FormatMediaType("attachment", map[string]string{"filename": name}) || r.header.Get("X-Content-Type-Options") != "nosniff" {
 					t.Fatal(r.status, r.header, string(r.body))
 				}
 			}

@@ -26,7 +26,7 @@ func TestOrgCandidateCorrectionsFlow(t *testing.T) {
 	if original["full_name"] != "Original Candidate" || original["education"] != nil || d["education"] != nil || len(d["corrected_fields"].([]any)) != 0 || d["updated_at"] != nil || d["updated_by"] != nil {
 		t.Fatal(d)
 	}
-	editJSONEqual(t, original["contact"], map[string]any{"email": "original@example.test", "phone": "+523311111111"})
+	editJSONEqual(t, original["contact"], map[string]any{"email": f.email, "phone": "+523311111111"})
 	for _, k := range []string{"professional_title", "current_company", "linkedin_url", "portfolio_url"} {
 		if original[k] != nil {
 			t.Fatal(original)

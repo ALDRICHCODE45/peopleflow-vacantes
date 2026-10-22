@@ -289,7 +289,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			kind                string
 			id                  uuid.UUID
 			pid, body, filename string
-		}{{"manual", standalone, manualPID, "%PDF-m", "private.pdf.pdf"}, {"organic", reused, reusedPID, "%PDF-m", "private.pdf.pdf"}, {"organic", reused, firstPID, "%PDF-o", `"Frozen CV.pdf"`}} {
+		}{{"manual", standalone, manualPID, "%PDF-m", "private.pdf"}, {"organic", reused, reusedPID, "%PDF-m", "private.pdf"}, {"organic", reused, firstPID, "%PDF-o", `"Frozen CV.pdf"`}} {
 			r := h.do(t, "GET", orgCandidatesPath+"/"+tc.kind+"/"+tc.id.String()+"/participations/"+tc.pid+"/cv", "", recruiter.token, nil)
 			draftFlowAssertNoStore(t, r)
 			if r.status != 200 || string(r.body) != tc.body || r.header.Get("Content-Type") != "application/pdf" || r.header.Get("Content-Length") != "6" || r.header.Get("X-Content-Type-Options") != "nosniff" || r.header.Get("Content-Disposition") != "attachment; filename="+tc.filename {

@@ -17,6 +17,7 @@ type candidateEditFixture struct {
 	owner, recruiter, foreign draftFlowActor
 	id                        uuid.UUID
 	path                      string
+	email                     string
 }
 
 func newCandidateEditFixture(t *testing.T, files ...*cvstorage.Local) *candidateEditFixture {
@@ -27,13 +28,16 @@ func newCandidateEditFixture(t *testing.T, files ...*cvstorage.Local) *candidate
 	_, fid, fsub := draftFlowNewPrincipal(t, h.pool, "active")
 	f := &candidateEditFixture{h: h, company: company, owner: h.actor(t, ownerID, ownerSub), recruiter: h.actor(t, rid, rsub), foreign: h.actor(t, fid, fsub), id: uuid.New()}
 	f.path = orgCandidatesPath + "/manual/" + f.id.String()
+	f.email = "initial-" + f.id.String() + "@example.test"
 	ctx := context.Background()
 	var geoCleanup []string
 	// Clean only this fixture's private rows before company/actor cleanup.
 	t.Cleanup(func() {
+		f.cleanupParticipations(t)
 		for _, query := range []string{
 			`DELETE FROM company_candidate_history WHERE candidate_id=$1`,
 			`DELETE FROM audit_events WHERE entity_id=$1`,
+			`DELETE FROM company_candidate_cvs WHERE company_candidate_id=$1`,
 			`DELETE FROM company_candidate_languages WHERE company_candidate_id=$1`,
 			`DELETE FROM company_candidate_educations WHERE company_candidate_id=$1`,
 			`DELETE FROM company_candidates WHERE id=$1`,
@@ -62,11 +66,32 @@ func newCandidateEditFixture(t *testing.T, files ...*cvstorage.Local) *candidate
 			geoCleanup = append(geoCleanup, row.cleanup)
 		}
 	}
-	f.exec(t, `INSERT INTO company_candidates(id,company_id,created_by,full_name,email,email_normalized,country_code,professional_title,current_company,seniority,years_of_experience,skills,linkedin_url,portfolio_url) VALUES($1,$2,$3,'Initial Candidate','initial@example.test','initial@example.test','US','Engineer','Initial Company','junior',2,ARRAY['go','sql'],'https://example.test/in/initial','https://example.test/initial')`, f.id, company.companyID, ownerID)
+	f.exec(t, `INSERT INTO company_candidates(id,company_id,created_by,full_name,email,email_normalized,country_code,professional_title,current_company,seniority,years_of_experience,skills,linkedin_url,portfolio_url) VALUES($1,$2,$3,'Initial Candidate',$4,$4,'US','Engineer','Initial Company','junior',2,ARRAY['go','sql'],'https://example.test/in/initial','https://example.test/initial')`, f.id, company.companyID, ownerID, f.email)
 	f.exec(t, `INSERT INTO company_candidate_educations(company_candidate_id,position,level,institution,field,status,start_year,end_year) VALUES($1,0,'bachelor','UNAM','Computación','completed',2015,2019)`, f.id)
 	f.exec(t, `INSERT INTO company_candidate_languages VALUES($1,'en','B1')`, f.id)
 	return f
 }
+
+// Every participation created or reused for this fixture identity is private to
+// its owned vacancies. Release dependent history and process counters before the
+// participation, then let callers remove CV objects/versions and the identity.
+func (f *candidateEditFixture) cleanupParticipations(t *testing.T) {
+	t.Helper()
+	for _, query := range []string{
+		`DELETE FROM company_candidate_history WHERE candidate_id=$1 OR participation_id IN (SELECT id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
+		`DELETE FROM audit_events WHERE entity_id=$1 OR entity_id IN (SELECT id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
+		`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
+		`DELETE FROM participation_idempotency WHERE candidate_id=$1`,
+		`DELETE FROM process_delivery_fulfillments WHERE process_id IN (SELECT process_id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
+		`DELETE FROM process_coverage_milestones WHERE process_id IN (SELECT process_id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
+		`DELETE FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1`,
+	} {
+		if _, err := f.h.pool.Exec(context.Background(), query, f.id); err != nil {
+			t.Errorf("candidate fixture dependent cleanup: %v", err)
+		}
+	}
+}
+
 func (f *candidateEditFixture) exec(t *testing.T, query string, args ...any) {
 	t.Helper()
 	if _, err := f.h.pool.Exec(context.Background(), query, args...); err != nil {

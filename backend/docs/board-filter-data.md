@@ -1,6 +1,7 @@
 # Board filter data (§19, H4 harmonized profiles)
 
-Apply migrations through **00043** before running this API. Binding contract:
+Apply migrations through **00046** before running this API (E4 company
+corrections/CVs; [contract](org-candidate-edits.md#vacancy-board-e4)). Binding contract:
 `docs/profile-harmonization-design.md` §1/§6; geography remains governed by
 `docs/geo-location-design.md` §20.2/§20.6.
 
@@ -38,8 +39,14 @@ replace a completed bachelor's degree.
 
 Country-only/state-only locations have null lower subdivisions. Labels use
 municipality + state, otherwise state, otherwise country. References are exactly
-`{id,name}`. Organic reads expand frozen codes, never the current candidate profile;
-postal code is null. Manual company profiles are live, including their stored postal code.
+`{id,name}`. Organic reads expand frozen codes **with this company's corrections applied at
+read time**, never the current candidate profile. Uncorrected organic postal code
+is null; corrected locations include their stored postal code. Manual company
+profiles remain live, including their stored postal code. Corrected education lists
+use the shared pool summary rule (highest completed/ongoing separately).
+Board/detail `candidate.full_name` is effective too; `corrected_fields` is always
+present (`[]` when none). Detail-only contact/original/CV additions are documented
+in [movement](pipeline-movement.md#history-detail-and-cv).
 
 Move/discard/recover/substate responses **never** include `profile` or
 `screening_answers`. Candidate apply/list, public APIs, history, CV metadata,
@@ -82,6 +89,10 @@ to integers there only.
 ## Client-side filters
 
 Filtering remains client-side on the ≤1,000 board, with no new server parameters.
+Every dimension uses the **effective** `profile`, so company corrections immediately
+change matching; stored snapshots remain frozen. No company-private corrections
+are exposed in candidate/public APIs, movement history, audit or request logs
+(the pool's company-private edit history is unchanged).
 OR within a multi-select dimension, AND across dimensions, empty selection = no filter.
 Missing values use `none` («Sin dato») rather than zero or a completed qualification.
 
@@ -109,6 +120,12 @@ Removed screening identities match no current option; missing answers use `none`
 - `TestManualHarmonizationPersistenceReuseAndSnapshot`,
   `TestManualCreateExistingReuseAndAlreadyInProcess`, `TestManualCreateHTTPFlow` (DB):
   new/manual/organic reuse, live manual education, decimal years, 201/GET equality.
+- `TestBoardCorrectionsFlow` / `TestBoardCorrectionsCVOnly` (DB HTTP): effective
+  manual/organic filter values, education set/reset, company isolation, original
+  alias safety, mutation privacy and corrected reuse 201/GET byte equality.
+  `TestUncorrectedBoardItemRetainsLegacyBytes` pins unchanged legacy bytes after
+  stripping only E4's additive keys. Parent DB commands are in
+  [org candidate edits](org-candidate-edits.md#e4-validation-boundary).
 - `TestParticipationHarmonizationMigrationDefinition` and
   `TestMigration00043SnapshotRewriteChecksAndGuardedDown` (DB): rewrite, historical
   shapes, SQL NULL, literal NUL escape preservation/actual NUL rejection, exact
