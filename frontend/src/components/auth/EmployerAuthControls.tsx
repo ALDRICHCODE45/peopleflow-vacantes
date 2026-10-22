@@ -7,6 +7,16 @@ import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
 
 import { Button } from "../ui/button";
 
+/**
+ * Where to land after signing in: only a same-site employer page the area guard
+ * sent us from (`/empresa/...`, no scheme, host, backslash or dot segment);
+ * anything else falls back to this login page.
+ */
+function employerReturnPath(value: string | null): string {
+  if (!value || !/^\/empresa(\/[A-Za-z0-9_-]+)*\/?$/u.test(value)) return "/empresa/login";
+  return value;
+}
+
 // Identity here is not proof of company membership or API authorization.
 function ManagedLoginControls() {
   const { data: session, status } = useSession();
@@ -26,7 +36,7 @@ function ManagedLoginControls() {
     setActionError(null);
     setPending(true);
     try {
-      await signIn("cognito", { callbackUrl: "/empresa/login" });
+      await signIn("cognito", { callbackUrl: employerReturnPath(params.get("callbackUrl")) });
     } catch {
       setActionError("No pudimos iniciar el acceso. Inténtalo de nuevo.");
     } finally {

@@ -75,6 +75,22 @@ describe("employer managed login", () => {
   });
 });
 
+describe("employer return path", () => {
+  it("returns to the requested employer page after signing in", async () => {
+    auth.query = new URLSearchParams("callbackUrl=%2Fempresa%2Fequipo");
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/equipo" }));
+  });
+
+  it.each(["https://evil.example/empresa", "//evil.example/empresa", "/candidato/perfil", "/empresa/../api/x", "/empresa\\evil", "empresa/equipo", "http://localhost:3000/empresa/login"])("never follows an unsafe return path %s", async callbackUrl => {
+    auth.query = new URLSearchParams({ callbackUrl });
+    render(<EmployerAuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Ingresar con Cognito" }));
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/empresa/login" }));
+  });
+});
+
 describe("employer session and logout", () => {
   it("does not claim company permissions from the authenticated identity", () => {
     auth.session = { status: "authenticated", data: { user: { name: "Recruiter" } } };

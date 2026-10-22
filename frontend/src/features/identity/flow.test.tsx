@@ -6,7 +6,7 @@ import type { IdentityResult } from "./model";
 import userEvent from "@testing-library/user-event";
 const mocks = vi.hoisted(() => ({ load: vi.fn(), create: vi.fn(), replace: vi.fn(), signOut: vi.fn(), notify: vi.fn(), session: { status: "authenticated", data: { user: { email: "session@example.com" } } } as { status: string; data: { user?: { email?: string }; error?: string } | null } }));
 vi.mock("./actions", () => ({ loadMeAction: mocks.load, createCandidateAccountAction: mocks.create }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }), usePathname: () => "/empresa/equipo" }));
 vi.mock("next-auth/react", () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>, useSession: () => mocks.session, signOut: mocks.signOut }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notify }));
 import CandidateEntryPage from "@/app/(auth)/candidato/ingresar/page";
@@ -177,11 +177,16 @@ describe("area role guards", () => {
   it.each(["identity_unavailable", "unrecognized_response"])("employer does not fail open on %s", async reason => {
     mocks.load.mockResolvedValue(failure(reason)); guard("employer"); expect(await screen.findByRole("button", { name: "Reintentar" })).toBeInTheDocument(); expect(screen.queryByText("private content")).toBeNull();
   });
-  it.each(["candidate", "employer"] as const)("%s keeps its no-session behavior", async area => {
+  it.each([["candidate", "/candidato/login"], ["employer", "/empresa/login?callbackUrl=%2Fempresa%2Fequipo"]] as const)("%s sends a visitor without a session to its login", async (area, target) => {
     mocks.session = { status: "unauthenticated", data: null }; guard(area);
-    if (area === "employer") expect(screen.getByText("private content")).toBeInTheDocument();
-    else await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/candidato/login"));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(target));
+    expect(screen.queryByText("private content")).toBeNull();
     expect(mocks.load).not.toHaveBeenCalled();
+  });
+  it("employer sends a backend unauthenticated identity to its login", async () => {
+    mocks.load.mockResolvedValue(failure("unauthenticated")); guard("employer");
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/empresa/login?callbackUrl=%2Fempresa%2Fequipo"));
+    expect(screen.queryByText("private content")).toBeNull();
   });
   it("does not reuse cached identity after sign-out and a new sign-in", async () => {
     mocks.load.mockResolvedValueOnce(result("candidate"));
