@@ -15,7 +15,7 @@ Branch feat/org-candidate-edits from main 3bd1e6f; frontend pairs on feat/org-ca
 
 ## Tasks
 
-- T1 [done] S1-S7 | parent | Draft contract backend/docs/org-candidate-edits.md; frontend review. | commit: cdf3c12, CPENDING
+- T1 [done] S1-S7 | parent | Draft contract backend/docs/org-candidate-edits.md; frontend review. | commit: cdf3c12, c915bf4
 - T2 [pending] S2-S4, S6 | TBD | E1 manual edits + history + etag. | commit: -
 - T3 [pending] S1-S4, S6 | TBD | E2 organic correction layer, effective values in list/detail/filters. | commit: -
 - T4 [pending] S5, S6 | TBD | E3 corrected CV per participation. | commit: -
