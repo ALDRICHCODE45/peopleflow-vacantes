@@ -49,7 +49,9 @@ function DialogContent({
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {/* Local deviation from the registry: confirmations open from inside a Sheet are nested
+          Base UI dialogs, whose Backdrop is skipped unless forced; keep the official dim + blur. */}
+      <DialogOverlay forceRender />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(

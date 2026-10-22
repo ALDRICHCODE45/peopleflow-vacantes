@@ -47,7 +47,9 @@ function AlertDialogContent({
 }) {
   return (
     <AlertDialogPortal>
-      <AlertDialogOverlay />
+      {/* Local deviation from the registry: confirmations open from inside a Sheet are nested
+          Base UI dialogs, whose Backdrop is skipped unless forced; keep the official dim + blur. */}
+      <AlertDialogOverlay forceRender />
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         data-size={size}
