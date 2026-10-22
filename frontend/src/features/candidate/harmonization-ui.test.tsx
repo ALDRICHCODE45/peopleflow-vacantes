@@ -13,7 +13,7 @@ function Editor({ category }: { category: "education" | "experience" }) {
 it("adds and removes studies in the existing education section", async () => {
   const user = userEvent.setup(); render(<Editor category="education" />);
   await user.click(screen.getByRole("button", { name: "Agregar estudio" }));
-  for (const name of ["Nivel", "Institución", "Carrera o campo", "Estado", "Año de inicio", "Año de fin"]) expect(screen.getByLabelText(name)).toBeTruthy();
+  for (const name of ["Nivel", "Institución", "Carrera o campo", "Estatus", "Año de inicio", "Año de fin"]) expect(screen.getByLabelText(name)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Quitar estudio 1" }));
   expect(screen.queryByLabelText("Institución")).toBeNull();
 });

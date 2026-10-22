@@ -46,3 +46,8 @@ it("disables adding at ten languages", () => {
   render(<LanguageListEditor value={Array.from({ length: 10 }, (_, i) => ({ code: String(i), level: "A1" }))} onChange={vi.fn()} />);
   expect((screen.getByRole("button", { name: "Agregar idioma" }) as HTMLButtonElement).disabled).toBe(true);
 });
+it("asks to choose a level for each language instead of offering «Sin especificar» (the level is required)", () => {
+  render(<LanguageListEditor value={[{ code: "", level: "" }]} onChange={vi.fn()} />);
+  expect(screen.queryByText("Sin especificar")).toBeNull();
+  expect(screen.getByLabelText("Nivel del idioma 1").textContent).toContain("Elige un nivel");
+});

@@ -7,7 +7,7 @@ import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EDUCATION_LEVELS, EDUCATION_LEVEL_LABELS, EDUCATION_STATUSES, EDUCATION_STATUS_LABELS } from "./model";
 import type { EducationDraft, ProfileDraftIssue } from "./profile-draft";
-const labels = { level: "Nivel", institution: "Institución", field: "Carrera o campo", status: "Estado", start_year: "Año de inicio", end_year: "Año de fin" } as const;
+const labels = { level: "Nivel", institution: "Institución", field: "Carrera o campo", status: "Estatus", start_year: "Año de inicio", end_year: "Año de fin" } as const;
 const keys = Object.keys(labels) as (keyof EducationDraft)[];
 const options = { level: EDUCATION_LEVELS.map(value => ({ value, label: EDUCATION_LEVEL_LABELS[value] })), status: EDUCATION_STATUSES.map(value => ({ value, label: EDUCATION_STATUS_LABELS[value] })) };
 export function EducationFields({ value, onChange, issues, disabled, embedded = false, requiredMarker }: { value: readonly EducationDraft[]; onChange: (value: EducationDraft[]) => void; issues: readonly ProfileDraftIssue[]; disabled?: boolean; embedded?: boolean; requiredMarker?: ReactNode }) {
@@ -28,7 +28,7 @@ export function EducationFields({ value, onChange, issues, disabled, embedded = 
           const aria = { id, "data-pf-profile-field": path, "aria-invalid": !!error, "aria-describedby": error ? `${id}-error` : undefined };
           return <Field key={key} data-invalid={!!error}><FieldLabel htmlFor={id}>{labels[key]}{items && requiredMarker}</FieldLabel>
             {items ? <Select items={items} value={study[key] || null} disabled={disabled} onValueChange={next => update(next ?? "")}>
-              <SelectTrigger {...aria} className="min-h-10 w-full"><SelectValue placeholder={key === "level" ? "Elige un nivel" : "Elige un estado"} /></SelectTrigger>
+              <SelectTrigger {...aria} className="min-h-10 w-full"><SelectValue placeholder={key === "level" ? "Elige un nivel" : "Elige un estatus"} /></SelectTrigger>
               <SelectContent><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
             </Select> : <InputGroup className="min-h-10"><InputGroupInput {...aria} className="min-h-10" type={year ? "number" : "text"} min={year ? 1950 : undefined} max={year ? 2100 : undefined} step={year ? 1 : undefined} value={study[key]} disabled={disabled} onChange={event => update(event.target.value)} /></InputGroup>}
             {error && <FieldError id={`${id}-error`}>{error}</FieldError>}

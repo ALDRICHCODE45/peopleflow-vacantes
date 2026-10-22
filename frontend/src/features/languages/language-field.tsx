@@ -12,7 +12,8 @@ import type { LanguageOption } from "./model";
 
 export type LanguageValue = { code: string; level: "" | CefrLevel };
 type Issue = { path: string; message: string };
-const levels = [{ value: null, label: "Sin especificar" }, ...CEFR_LEVELS.map(value => ({ value, label: CEFR_LEVEL_LABELS[value] }))];
+// Each listed language needs a level: ask to choose one, never offer «Sin especificar».
+const levels = CEFR_LEVELS.map(value => ({ value, label: CEFR_LEVEL_LABELS[value] }));
 
 /** Simple Combobox composition, matching LocationField: input text filters only. */
 export function LanguageField({ value, onChange, excludedCodes = [], index = 0, disabled, issues = [], idPrefix, levelLabel = "Nivel del idioma" }: {
@@ -45,8 +46,8 @@ export function LanguageField({ value, onChange, excludedCodes = [], index = 0, 
     <Field data-invalid={!!error("level")}>
       <FieldLabel htmlFor={`${id}-level`}>{levelLabel} {index + 1}</FieldLabel>
       <Select items={levels} value={value.level || null} disabled={disabled} onValueChange={level => onChange({ ...value, level: level ?? "" })}>
-        <SelectTrigger id={`${id}-level`} data-pf-profile-field={`languages.${index}.level`} className="min-h-10 w-full" aria-invalid={!!error("level")} aria-describedby={error("level") ? `${id}-level-error` : undefined}><SelectValue /></SelectTrigger>
-        <SelectContent><SelectGroup>{levels.map(item => <SelectItem key={item.value ?? "blank"} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+        <SelectTrigger id={`${id}-level`} data-pf-profile-field={`languages.${index}.level`} className="min-h-10 w-full" aria-invalid={!!error("level")} aria-describedby={error("level") ? `${id}-level-error` : undefined}><SelectValue placeholder="Elige un nivel" /></SelectTrigger>
+        <SelectContent><SelectGroup>{levels.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
       {error("level") && <FieldError id={`${id}-level-error`}>{error("level")}</FieldError>}
     </Field>

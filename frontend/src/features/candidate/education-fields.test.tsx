@@ -19,7 +19,9 @@ it("asks to choose a level and a status instead of offering «Sin especificar» 
  render(<EducationFields embedded value={[blank]} onChange={() => {}} issues={[]} />);
  expect(screen.queryByText("Sin especificar")).toBeNull();
  expect(screen.getByLabelText(/^Nivel/)).toHaveTextContent("Elige un nivel");
- expect(screen.getByLabelText(/^Estado/)).toHaveTextContent("Elige un estado");
+ expect(screen.getByLabelText(/^Estatus/)).toHaveTextContent("Elige un estatus");
+ // «Estado» is the residence state elsewhere in the same forms; the study status is «Estatus».
+ expect(screen.queryByLabelText(/^Estado/)).toBeNull();
 });
 it("marks level and status as required when the host asks for markers", () => {
  render(<EducationFields embedded requiredMarker={<span data-testid="req"> *</span>} value={[blank]} onChange={() => {}} issues={[]} />);

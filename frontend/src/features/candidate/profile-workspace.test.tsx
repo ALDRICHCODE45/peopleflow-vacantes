@@ -235,7 +235,7 @@ it("maps bracketed server paths and focuses the first invalid field in visual or
   await ready(); change("Teléfono", "12345678"); save();
   expect(await screen.findByLabelText("Años de experiencia")).toHaveFocus();
   expect(screen.getByLabelText("Años de experiencia")).toHaveAttribute("aria-invalid", "true");
-  tab("Educación"); expect(screen.getByLabelText("Estado")).toHaveAttribute("aria-invalid", "true");
+  tab("Educación"); expect(screen.getByLabelText("Estatus")).toHaveAttribute("aria-invalid", "true");
 });
 
 it("lets the section tabs scroll sideways only (no 1px vertical scrollbar next to «Idiomas»)", async () => {
