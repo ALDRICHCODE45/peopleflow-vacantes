@@ -18,7 +18,7 @@ const IDENTITY_SOURCE: CandidateIdentity = {
 };
 
 const PROFILE_SOURCE: CandidateProfile = {
-  phone: "+52 55 4821 7790",
+  phone: "+525548217790",
   linkedinUrl: "https://www.linkedin.com/in/ximena-barrera",
   portfolioUrl: "https://ximenabarrera.dev",
   professionalTitle: "Desarrolladora Frontend Senior",

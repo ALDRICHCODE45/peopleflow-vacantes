@@ -20,6 +20,18 @@ el backend va en su rama indicada, con `make db-migrate`.
 
 > **2026-10-21:** el usuario aprobó integrar todo el stack (ítems 1–3: motivo de cierre y CV obligatorio, ingreso manual de candidatos, perfil armonizado H1–H5): «Si hermano, adelante, coordina con el frontend para verificar que no haga falta ninguna prueba de nada, para que los dos hagan merge de todo, borren los worktrees que crearon (excepto este y el del agente del frontend) y yo pueda hacer push.» Verificado antes por el agente en Chromium contra cada binario del backend (claro, oscuro y celular), con los ajustes de marco, navbar y perfil que pediste. Merge `446bf21` (backend `feat/profile-harmonization` e242591 + frontend `feat/profile-harmonization-ui` 7868c18), llevado a `main` local por fast-forward; el push lo hace el usuario. Suites sobre ese commit: frontend vitest 6477/6477, tsc OK y `next build` OK (con `NEXTAUTH_URL` https: en producción la guardia de `src/lib/auth/env.ts` rechaza `http://localhost`); backend build, vet, archguard, `go test ./...` e integración `-race` en verde (solo las 2 pruebas de entorno conocidas que necesitan su propia base con CREATEDB). En la base local: `make db-migrate` (00035–00043). Pendientes menores postergados: usuario de ejemplo en el menú lateral de empresa («Tomás Ríos · Nexo Labs»), filas de ejemplo mezcladas en la lista de vacantes autenticada, teléfono del perfil orgánico sin validar y la tarjeta «Habilidades» del perfil (etiqueta repetida, sin ayuda).
 
+1. **Pendientes menores** (paso 87 de `docs/employer-manual-test.md`): frontend
+   `feat/frontend-followups`, backend `fix/profile-phone-validation`. Cuenta real en el menú de
+   empresa, lista de vacantes sin filas de ejemplo, teléfono E.164 en el perfil, tarjeta
+   «Habilidades», combobox de idioma/ubicación que ya no queda vacío y avatar legible en oscuro.
+
+Pendientes postergados que siguen abiertos: «Crear cuenta» de candidato cae en el login de
+Cognito; faltan las URLs de cierre de sesión en Cognito; el dashboard de empresa
+(«Vacantes activas») y el respaldo del tablero todavía usan vacantes de ejemplo; el teléfono del
+formulario de postulación heredado sigue como texto libre (5–30 caracteres) hasta tener el
+control de lada; filtros Estado/Municipio del tablero con una postulación nueva; ver como
+candidato «Vacante cerrada»; un test inestable con la suite completa (draft-save-flow).
+
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.
 

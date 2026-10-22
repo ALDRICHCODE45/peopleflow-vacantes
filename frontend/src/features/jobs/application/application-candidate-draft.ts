@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { candidateIdentitySchema, candidateProfileSchema, type CandidateProfile } from "@/features/candidate/model";
 
 /**
@@ -75,12 +76,17 @@ const NOUNS: Readonly<Record<ApplicationCandidateField, string>> = {
 /**
  * The exact field schemas of the candidate model. Reusing them (instead of
  * re-declaring lengths) is what keeps this draft's boundary identical to the
- * profile the rest of the prototype validates.
+ * profile the rest of the prototype validates. The phone is the exception: the
+ * profile now requires E.164 through a dial + number control, while this
+ * one-line application field keeps its free-text bounds until it gets the same
+ * control.
  */
+const APPLICATION_PHONE_SCHEMA = z.string().trim().min(5).max(30).nullable();
+
 const FIELD_SCHEMAS = {
   fullName: candidateIdentitySchema.shape.fullName,
   email: candidateIdentitySchema.shape.email,
-  phone: candidateProfileSchema.shape.phone,
+  phone: APPLICATION_PHONE_SCHEMA,
   professionalTitle: candidateProfileSchema.shape.professionalTitle,
 };
 

@@ -32,6 +32,7 @@ export function LanguageField({ value, onChange, excludedCodes = [], index = 0, 
   const shown = selected?.name ?? "";
   const [text, setText] = useState(shown);
   useEffect(() => { setText(shown); }, [shown]);
+  // Text left by typing or clearing without choosing must not hide the stored language: restore it on blur.
   const error = (key: "code" | "level") => issues.find(issue => issue.path === `languages.${index}.${key}`)?.message;
   const loading = catalog.status === "idle" || catalog.status === "loading";
   return <FieldGroup data-pf-profile-language-grid="" className={cn("grid gap-3 [&>*]:min-w-0", removeAction ? "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" : "grid-cols-1 sm:grid-cols-2")}>
@@ -41,7 +42,7 @@ export function LanguageField({ value, onChange, excludedCodes = [], index = 0, 
         itemToStringLabel={(item: LanguageOption) => item.name} itemToStringValue={(item: LanguageOption) => item.code} isItemEqualToValue={(a, b) => a.code === b.code}
         inputValue={text} onInputValueChange={ignoreEscapeClear(setText)} disabled={disabled || catalog.status !== "success"} autoHighlight
         onValueChange={item => { if (item && !excludedCodes.includes(item.code)) onChange({ ...value, code: item.code }); }}>
-        <ComboboxInput id={`${id}-code`} data-pf-profile-field={`languages.${index}.code`} placeholder="Elige un idioma" triggerLabel="Mostrar idiomas" className="min-h-10" onFocus={event => event.currentTarget.select()} aria-invalid={!!error("code")} aria-describedby={error("code") ? `${id}-code-error` : undefined} />
+        <ComboboxInput id={`${id}-code`} data-pf-profile-field={`languages.${index}.code`} placeholder="Elige un idioma" triggerLabel="Mostrar idiomas" className="min-h-10" onFocus={event => event.currentTarget.select()} onBlur={() => setText(shown)} aria-invalid={!!error("code")} aria-describedby={error("code") ? `${id}-code-error` : undefined} />
         <ComboboxContent><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(item: LanguageOption) => <ComboboxItem key={item.code} value={item}>{item.name}</ComboboxItem>}</ComboboxList></ComboboxContent>
       </Combobox>}
       {catalog.status === "error" && <><FieldError>No pudimos cargar los idiomas.</FieldError><Button type="button" variant="outline" disabled={disabled} onClick={catalog.retry}>Reintentar</Button></>}

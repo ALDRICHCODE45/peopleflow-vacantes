@@ -89,7 +89,7 @@ describe("application candidate draft model", () => {
     expect(applicationCandidateDraftFromFixture(CANDIDATE_IDENTITY, CANDIDATE_PROFILE)).toEqual({
       fullName: "Ximena Barrera",
       email: "ximena.barrera@correo.mx",
-      phone: "+52 55 4821 7790",
+      phone: "+525548217790",
       professionalTitle: "Desarrolladora Frontend Senior",
       location: CANDIDATE_PROFILE.location,
     });
@@ -191,11 +191,9 @@ describe("application candidate draft model", () => {
         candidateIdentitySchema.safeParse({ ...CANDIDATE_IDENTITY, fullName: value }).success,
       email: (value: string) =>
         candidateIdentitySchema.safeParse({ ...CANDIDATE_IDENTITY, email: value }).success,
-      phone: (value: string) =>
-        candidateProfileSchema.safeParse({
-          ...CANDIDATE_PROFILE,
-          phone: value.trim() === "" ? null : value,
-        }).success,
+      // The profile phone is E.164 behind a dial + number control; this one-line
+      // application field keeps its previous free-text bounds (5–30 characters).
+      phone: (value: string) => value.trim() === "" || (value.trim().length >= 5 && value.trim().length <= 30),
       professionalTitle: (value: string) =>
         candidateProfileSchema.safeParse({
           ...CANDIDATE_PROFILE,
@@ -240,7 +238,7 @@ describe("application candidate draft model", () => {
   });
 
   it("stays free of React, transport, storage, browser, timer and fixture coupling", () => {
-    expect(specifiers()).toEqual(["@/features/candidate/model"]);
+    expect(specifiers()).toEqual(["zod", "@/features/candidate/model"]);
     expect(SOURCE).not.toMatch(/prototype-candidate|public\/|CANDIDATE_IDENTITY|CANDIDATE_PROFILE/u);
     expect(SOURCE).not.toMatch(/import[^\n]*\breact\b|"use client"|useState|useRef|useEffect/u);
     for (const pattern of [

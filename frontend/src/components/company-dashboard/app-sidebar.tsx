@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 
 import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
 import { useIdentity } from "@/features/identity/identity-session"
+import { useCompanyMembership } from "@/features/employer-company/use-company-membership"
 import { NavUser } from "./nav-user"
 import {
   Sidebar,
@@ -37,14 +38,6 @@ type NavItem = {
 
 /** Recruiting navigation: every visible destination has an implemented page. */
 const data = {
-  user: {
-    // Employer account, not the product brand: the dashboard belongs to a
-    // fictional company, while PeopleFlow only brands the sidebar header.
-    name: "Tomás Ríos",
-    email: "tomas.rios@nexolabs.mx",
-    role: "Talent Lead",
-    company: "Nexo Labs",
-  },
   navPrincipal: [
     {
       title: "Dashboard",
@@ -145,6 +138,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const { result } = useIdentity()
   const showNavigation = !result?.ok || result.data.role === "recruiter"
+  const user = result?.ok ? result.data.user : null
+  const membership = useCompanyMembership(result?.ok && result.data.role === "recruiter" ? user?.id ?? null : null)
+  const account = {
+    name: user?.full_name ?? "Mi cuenta",
+    email: user?.email ?? "",
+    role: membership ? (membership.role === "owner" ? "Propietario" : "Reclutador") : result?.ok && result.data.role === "candidate" ? "Candidato" : "Empresa",
+    company: membership?.company.name ?? "",
+  }
   const { state, isMobile } = useSidebar()
 
   return (
@@ -205,7 +206,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </>}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} menuItems={ACCOUNT_MENU} />
+        <NavUser user={account} secondaryText={account.email} showCompany menuItems={ACCOUNT_MENU} />
       </SidebarFooter>
     </Sidebar>
   )

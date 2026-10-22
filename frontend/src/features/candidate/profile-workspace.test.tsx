@@ -22,8 +22,53 @@ const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }))
 const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Guardar perfil" }));
 async function ready() { const view = render(<ProfileWorkspace />); await screen.findByRole("button", { name: "Guardar perfil" }); return view; }
-beforeEach(() => { vi.resetAllMocks(); mocks.load.mockResolvedValue(loaded); mocks.save.mockResolvedValue({ kind: "saved", profile: { ...wire, phone: "12345678" } }); });
+beforeEach(() => { vi.resetAllMocks(); mocks.load.mockResolvedValue(loaded); mocks.save.mockResolvedValue({ kind: "saved", profile: { ...wire, phone: "+525512345678" } }); });
 afterEach(cleanup);
+describe("S3 profile phone saves", () => {
+  it.each([["+52", "5512345678", "+525512345678"], ["+1", "2125551234", "+12125551234"]])("sends %s with ten national digits as E.164", async (dial, phone, expected) => {
+    await ready(); change("Lada de país", dial); change("Teléfono", phone); save();
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+    expect(mocks.save.mock.calls[0][0].profile.phone).toBe(expected);
+  });
+  it.each([["+52", "123", "Escribe los 10 dígitos del teléfono en México."], ["+1", "abc", "Escribe una lada y un número válidos, de 8 a 15 dígitos en total."]])("rejects invalid %s and focuses phone from another tab", async (dial, phone, message) => {
+    await ready(); change("Lada de país", dial); change("Teléfono", phone); tab("Educación"); save();
+    await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
+    expect(screen.getByLabelText("Teléfono")).toHaveAccessibleDescription(expect.stringContaining(message));
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+  it("clears legacy text to null even though the original baseline is invalid", async () => {
+    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, phone: "texto heredado" } } });
+    await ready(); change("Teléfono", ""); save();
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+    expect(mocks.save.mock.calls[0][0].profile.phone).toBeNull();
+  });
+  it("loads an unreadable legacy phone verbatim, rejects it, and lets the user correct it", async () => {
+    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, phone: "llamar por la tarde" } } });
+    await ready(); expect(screen.getByLabelText("Teléfono")).toHaveValue("llamar por la tarde");
+    tab("Experiencia"); change("Título profesional", "Nuevo título"); save();
+    await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
+    expect(mocks.save).not.toHaveBeenCalled();
+    change("Lada de país", "+52"); change("Teléfono", "55 1234 5678"); save();
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+    expect(mocks.save.mock.calls[0][0].profile.phone).toBe("+525512345678");
+  });
+  it("loads a legacy ten-digit phone under the visible +52 dial so other edits still save", async () => {
+    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, phone: "55 1234 5678" } } });
+    await ready();
+    expect(screen.getByLabelText("Lada de país")).toHaveValue("+52");
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
+    tab("Experiencia"); change("Título profesional", "Nuevo título"); save();
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
+    expect(mocks.save.mock.calls[0][0].profile.phone).toBe("+525512345678");
+  });
+  it.each([["+52", "Escribe los 10 dígitos del teléfono en México."], ["+1", "Escribe una lada y un número válidos, de 8 a 15 dígitos en total."]])("maps backend phone invalid with the %s message and focus", async (dial, message) => {
+    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400 }, fields: [{ field: "phone", code: "invalid" }] } });
+    await ready(); change("Lada de país", dial); change("Teléfono", "2125551234"); tab("Educación"); save();
+    await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
+    expect(screen.getByLabelText("Teléfono")).toHaveAccessibleDescription(expect.stringContaining(message));
+  });
+});
+
 describe("live candidate profile", () => {
   it("groups identity before icon metadata and leaves only progress in the right column", async () => {
     const { container } = await ready();
@@ -64,7 +109,7 @@ describe("live candidate profile", () => {
   });
   it("focuses birth date before LinkedIn errors in the new visual order", async () => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: {}, fields: [{ field: "linkedin_url", code: "invalid" }, { field: "birth_date", code: "invalid" }] } });
-    await ready(); change("Teléfono", "12345678"); save();
+    await ready(); change("Teléfono", "5512345678"); save();
     await waitFor(() => expect(screen.getByLabelText("Fecha de nacimiento")).toHaveFocus());
   });
   it("associates eligibility help with País", async () => {
@@ -107,7 +152,8 @@ describe("live candidate profile", () => {
     await act(async () => resolve(loaded));
     expect(cardSlots()).toEqual(loadingSlots);
     expect(container.querySelector('[data-pf-profile-identity]')).toHaveClass(loadingHero);
-    expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
+    expect(screen.getByLabelText("Lada de país")).toHaveValue("+52");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.notify).not.toHaveBeenCalled();
   });
@@ -128,11 +174,11 @@ describe("live candidate profile", () => {
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil creado." }));
     expect(screen.queryByText(/Se crea al guardar por primera vez/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
-    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: { ...created, phone: "12345678" } });
-    tab("Personal"); change("Teléfono", "12345678"); save();
+    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: { ...created, phone: "+525512345678" } });
+    tab("Personal"); change("Teléfono", "5512345678"); save();
     await screen.findByText("Perfil guardado.");
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil guardado." }));
-    expect(mocks.save.mock.calls[1][0]).toEqual({ profile: { ...empty, phone: "12345678" } });
+    expect(mocks.save.mock.calls[1][0]).toEqual({ profile: { ...empty, phone: "+525512345678" } });
   });
   it.each(["unauthenticated", "no_response", "forbidden"])("keeps the error Empty for %s", async reason => {
     mocks.load.mockResolvedValue({ ok: false, reason, reference: {} });
@@ -172,11 +218,13 @@ describe("live candidate profile", () => {
     expect(container.querySelector('[data-pf-profile-card]')).toHaveClass("border-border/70", "ring-border/60");
     expect(container.querySelector('[data-pf-profile-identity]')).toHaveClass("border-border/60");
     expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("ring-primary/25", "ring-offset-2");
+    // Dark mode: primary-tone initials on a primary tint are illegible, so the dark theme lifts them.
+    expect(container.querySelector('[data-slot="avatar-fallback"]')).toHaveClass("text-primary", "dark:bg-primary/25", "dark:text-foreground");
     expect(screen.getByRole("heading", { name: CANDIDATE_IDENTITY.fullName })).toHaveClass("font-heading", "text-foreground");
     expect(container.querySelector('[data-slot="tabs-list"]')).toHaveAttribute("data-variant", "line");
     expect(container.querySelector('[data-pf-profile-completeness-value]')).toHaveTextContent("10 de 10 datos clave");
     const expected = [
-      ["Personal", ["phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"]],
+      ["Personal", ["dial", "phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"]],
       ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"]],
       ["Educación", ["education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "skills"]],
       ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],
@@ -189,9 +237,9 @@ describe("live candidate profile", () => {
     }
   });
   it("sends a complete replacement for one changed field, not a patch, and confirms the new baseline", async () => {
-    await ready(); change("Teléfono", "12345678"); save();
+    await ready(); change("Teléfono", "5512345678"); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
-    expect(mocks.save.mock.calls[0][0]).toEqual({ profile: { ...profileToWrite(valid.profile), phone: "12345678" } });
+    expect(mocks.save.mock.calls[0][0]).toEqual({ profile: { ...profileToWrite(valid.profile), phone: "+525512345678" } });
     await screen.findByText("Perfil guardado.");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil guardado." }));
@@ -202,11 +250,11 @@ describe("live candidate profile", () => {
     expect(mocks.save.mock.calls[0][0].profile.location).toBeNull();
   });
   it("retains edits across tabs and reset restores the confirmed baseline", async () => {
-    await ready(); change("Teléfono", "12345678"); tab("Experiencia"); change("Título profesional", "Nuevo título"); tab("Personal");
-    expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
+    await ready(); change("Teléfono", "5512345678"); tab("Experiencia"); change("Título profesional", "Nuevo título"); tab("Personal");
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
     fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
     expect(screen.getByText("Restauramos la copia original en esta vista.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
     tab("Experiencia"); expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
     expect(mocks.save).not.toHaveBeenCalled();
   });
@@ -217,22 +265,23 @@ describe("live candidate profile", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
   it("rejects a language with empty code and level before writing either block", async () => {
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); save();
+    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); save();
     expect(screen.getByLabelText("Nivel del idioma 3")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Idioma 3")).toHaveFocus(); expect(mocks.save).not.toHaveBeenCalled();
   });
   it("locks controls and double submissions during a write", async () => {
     let resolve!: (value: unknown) => void; mocks.save.mockReturnValue(new Promise(r => { resolve = r; }));
-    await ready(); change("Teléfono", "12345678"); save();
+    await ready(); change("Teléfono", "5512345678"); save();
     expect(screen.getByRole("button", { name: "Guardando…" })).toBeDisabled();
     expect(screen.getByLabelText("Teléfono")).toBeDisabled();
-    await act(async () => resolve({ kind: "saved", profile: { ...wire, phone: "12345678" } }));
+    expect(screen.getByLabelText("Lada de país")).toBeDisabled();
+    await act(async () => resolve({ kind: "saved", profile: { ...wire, phone: "+525512345678" } }));
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it("keeps only language edits dirty after partial success and retries only that block", async () => {
     const languages = { languages: [CANDIDATE_PROFILE.languages[0]] };
-    mocks.save.mockResolvedValueOnce({ kind: "partial", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } }).mockResolvedValueOnce({ kind: "saved", languages });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
+    mocks.save.mockResolvedValueOnce({ kind: "partial", profile: { ...wire, phone: "+525512345678" }, failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } }).mockResolvedValueOnce({ kind: "saved", languages });
+    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("Guardamos tu perfil, pero no los idiomas. Revisa y vuelve a guardar.");
     expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
@@ -252,20 +301,20 @@ describe("live candidate profile", () => {
   });
   it("preserves both edited blocks after a definite profile failure", async () => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
+    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No se guardó el perfil");
     expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
-    tab("Personal"); expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
+    tab("Personal"); expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
     fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
-    expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
     tab("Idiomas"); expect(screen.getByLabelText("Idioma 2")).toHaveValue("Inglés");
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it("reconciles uncertain language writes without discarding rows that were not saved", async () => {
-    mocks.save.mockResolvedValue({ kind: "uncertain", part: "languages", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "no_response", reference: {} } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
+    mocks.save.mockResolvedValue({ kind: "uncertain", part: "languages", profile: { ...wire, phone: "+525512345678" }, failure: { ok: false, reason: "no_response", reference: {} } });
+    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No pudimos confirmar si se guardó");
-    mocks.load.mockResolvedValue({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "12345678" } } });
+    mocks.load.mockResolvedValue({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "+525512345678" } } });
     fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
     await screen.findByText("Perfil comprobado.");
     expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
@@ -276,25 +325,25 @@ describe("live candidate profile", () => {
   });
   it("renders shared level errors, preserves dirty fields and never marks a failed profile saved", async () => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_location", reference: { status: 422 }, locationIssues: [{ field: "state", reason: "unknown" }] } });
-    await ready(); change("Teléfono", "12345678"); save();
+    await ready(); change("Teléfono", "5512345678"); save();
     await screen.findByText("Elige una opción de la lista.");
     expect(screen.getByLabelText("Estado")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
   });
   it("uncertain writes require read-only Comprobar, preserving edits and keeping write lock on read failure", async () => {
     mocks.save.mockResolvedValue({ kind: "uncertain", part: "profile", failure: { ok: false, reason: "no_response", reference: {} } });
-    await ready(); change("Teléfono", "12345678"); save();
+    await ready(); change("Teléfono", "5512345678"); save();
     await screen.findByText("No pudimos confirmar si se guardó");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     mocks.load.mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
     fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
-    mocks.load.mockResolvedValueOnce({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "12345678" } } });
+    mocks.load.mockResolvedValueOnce({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "+525512345678" } } });
     fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
     await screen.findByText("Perfil comprobado.");
-    expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
@@ -302,7 +351,7 @@ describe("live candidate profile", () => {
 
 it("maps bracketed server paths and focuses the first invalid field in visual order", async () => {
   mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400, code: "validation_error" }, fields: [{ field: "education[0].status", code: "invalid" }, { field: "years_of_experience", code: "invalid" }] } });
-  await ready(); change("Teléfono", "12345678"); save();
+  await ready(); change("Teléfono", "5512345678"); save();
   expect(await screen.findByLabelText("Años de experiencia")).toHaveFocus();
   expect(screen.getByLabelText("Años de experiencia")).toHaveAttribute("aria-invalid", "true");
   tab("Educación"); expect(screen.getByLabelText("Estatus")).toHaveAttribute("aria-invalid", "true");

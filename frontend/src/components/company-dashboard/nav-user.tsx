@@ -81,6 +81,7 @@ export function NavUser({
   onLogout,
   logoutPending = false,
   secondaryText,
+  showCompany = false,
   logoutStatusId,
 }: {
   user: NavUserIdentity
@@ -88,6 +89,7 @@ export function NavUser({
   onLogout?: () => void
   logoutPending?: boolean
   secondaryText?: string
+  showCompany?: boolean
   logoutStatusId?: string
 }) {
   const { isMobile } = useSidebar()
@@ -99,7 +101,7 @@ export function NavUser({
           <DropdownMenuTrigger
             aria-describedby={logoutStatusId}
             render={
-              <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
+              <SidebarMenuButton size="lg" className={showCompany && user.company ? "h-auto min-h-12 aria-expanded:bg-muted" : "aria-expanded:bg-muted"} />
             }
           >
             <Avatar className="size-8 rounded-lg">
@@ -111,12 +113,11 @@ export function NavUser({
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:sr-only">
               <span className="truncate font-medium">{user.name}</span>
-              {/* The account summary carries the agreed role and employer as
-                  real text, so the role is part of the trigger's accessible
-                  name without an extra line or geometry change. */}
+              {/* Callers can show email instead of the default role summary. */}
               <span className="truncate text-xs text-foreground/70">
-                {secondaryText ?? `${user.role} · ${user.company}`}
+                {secondaryText ?? [user.role, user.company].filter(Boolean).join(" · ")}
               </span>
+              {showCompany && user.company && <span className="truncate text-xs text-foreground/70">{user.company}</span>}
             </div>
             <IconDotsVertical aria-hidden="true" className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>

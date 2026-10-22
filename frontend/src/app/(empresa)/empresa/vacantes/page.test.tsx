@@ -6,7 +6,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
-import { vacancyPipelineHref } from "@/features/employer-vacancies/model";
 import { NEXO_VACANCIES } from "@/features/employer-vacancies/prototype-vacancies";
 
 import PageContent, { metadata } from "./page";
@@ -138,24 +137,13 @@ describe("/empresa/vacantes employer route", () => {
     expect(screen.queryByText(/no se guardan/i)).toBeNull();
   });
 
-  it("mounts the portfolio with every fixture row and its canonical pipeline link", () => {
+  it("mounts the portfolio without any prototype row", () => {
     const { container } = render(<Page />);
 
     expect(document.querySelector("[data-pf-vacancy-portfolio]")).not.toBeNull();
-
-    const rows = Array.from(container.querySelectorAll("[data-pf-vacancy-row]"));
-    expect(rows.map((row) => row.getAttribute("data-pf-vacancy-row"))).toEqual(
-      NEXO_VACANCIES.map((vacancy) => vacancy.id),
-    );
-
     for (const vacancy of NEXO_VACANCIES) {
-      const link = container.querySelector(
-        `[data-pf-vacancy-pipeline="${vacancy.id}"]`,
-      ) as HTMLAnchorElement;
-      expect([link.getAttribute("href"), link.getAttribute("aria-label")]).toEqual([
-        vacancyPipelineHref(vacancy.id),
-        `Ver pipeline de ${vacancy.title}`,
-      ]);
+      expect(container.querySelector(`[data-pf-vacancy-row="${vacancy.id}"]`)).toBeNull();
+      expect(screen.queryByText(vacancy.title)).toBeNull();
     }
   });
 
@@ -185,9 +173,10 @@ describe("/empresa/vacantes composition boundary", () => {
     expect(existsSync("src/app/(empresa)/empresa/vacantes/borradores/page.tsx")).toBe(false);
     expect(existsSync("src/app/(empresa)/empresa/vacantes/borradores/[draftId]/page.tsx")).toBe(true);
   });
-  it("mounts the shared header, the portfolio and the Nexo fixtures", () => {
+  it("mounts the shared header and the portfolio without prototype fixtures", () => {
     expect(pageSource).toContain('<SiteHeader title="Vacantes" />');
-    expect(pageSource).toContain("<VacancyPortfolio vacancies={NEXO_VACANCIES} />");
+    expect(pageSource).toContain("<VacancyPortfolio />");
+    expect(pageSource).not.toContain("NEXO_VACANCIES");
   });
 
   it("uses the canonical draft editor and the shared class-name utility", () => {

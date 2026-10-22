@@ -1,4 +1,5 @@
 import { SALARY_PERIODS, candidateProfileSchema } from "./model";
+import { phoneToDraft, phoneValue, phoneError } from "@/lib/phone";
 import { locationReadToValue, locationValueToWrite, locationWriteSchema, type LocationValue, type LocationWrite } from "@/features/geo/model";
 const editableProfileSchema = candidateProfileSchema.omit({ location: true }).extend({
   location: locationWriteSchema.unwrap().omit({ postal_code: true }).strict().nullable(),
@@ -21,7 +22,7 @@ export interface CandidateLanguageDraft { code: string; level: "" | CefrLevel }
 export type EducationDraft = { level: "" | Education["level"]; institution: string; field: string; status: "" | Education["status"]; start_year: string; end_year: string };
 /** Scalar fields are form strings; location codes and language rows stay structured. */
 export interface CandidateProfileDraft {
-  phone: string; linkedinUrl: string; portfolioUrl: string; professionalTitle: string; currentCompany: string;
+  dial: string; phone: string; linkedinUrl: string; portfolioUrl: string; professionalTitle: string; currentCompany: string;
   yearsOfExperience: string; summary: string; birthDate: string; location: LocationValue;
   seniority: "" | NonNullable<CandidateProfile["seniority"]>; education: readonly EducationDraft[]; skills: string;
   currentSalaryGross: string; currentSalaryNet: string; expectedSalary: string; salaryCurrency: string;
@@ -59,7 +60,7 @@ export function profileToDraft(profile: ProfileBaseline): CandidateProfileDraft 
   const text = (value: string | null): string => value ?? "";
   const integer = (value: number | null): string => (value === null ? "" : String(value));
   return {
-    phone: text(profile.phone), linkedinUrl: text(profile.linkedinUrl), portfolioUrl: text(profile.portfolioUrl),
+    ...phoneToDraft(profile.phone), linkedinUrl: text(profile.linkedinUrl), portfolioUrl: text(profile.portfolioUrl),
     professionalTitle: text(profile.professionalTitle), currentCompany: text(profile.currentCompany),
     yearsOfExperience: text(profile.yearsOfExperience), summary: text(profile.summary), birthDate: text(profile.birthDate),
     location: locationReadToValue(profile.location), seniority: profile.seniority ?? "",
@@ -174,8 +175,10 @@ export function parseProfileDraft(draft: CandidateProfileDraft, baseline: Profil
     educationLevel: "Selecciona una opción válida para el nivel educativo.",
     expectedSalaryPeriod: "Selecciona una opción válida para el periodo del salario esperado.",
   };
+  const phone = phoneValue(draft.dial, draft.phone);
+  if (draft.phone.trim() && phone === null) add("phone", phoneError(draft.dial));
   const candidate = {
-    phone: optionalText(draft.phone), linkedinUrl: optionalText(draft.linkedinUrl), portfolioUrl: optionalText(draft.portfolioUrl),
+    phone, linkedinUrl: optionalText(draft.linkedinUrl), portfolioUrl: optionalText(draft.portfolioUrl),
     professionalTitle: optionalText(draft.professionalTitle), currentCompany: optionalText(draft.currentCompany),
     yearsOfExperience: draft.yearsOfExperience === "" ? null : draft.yearsOfExperience,
     summary: optionalText(draft.summary), birthDate: optionalText(draft.birthDate), location: locationValueToWrite(draft.location),

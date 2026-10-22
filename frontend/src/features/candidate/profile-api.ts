@@ -25,6 +25,9 @@ const editable = {
 };
 export const profileReadSchema = z.object({
   ...editable,
+  // The backend historically stored free text. Read it verbatim for correction;
+  // profileWriteSchema and the draft parser still require exact E.164 on writes.
+  phone: z.string().nullable().optional(),
   user_id: z.string().uuid(),
   location: locationReadSchema,
   created_at: z.string().datetime({ offset: true }),

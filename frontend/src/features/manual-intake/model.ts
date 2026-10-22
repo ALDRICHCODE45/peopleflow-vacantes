@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { phoneSchema } from "@/lib/phone";
 import { candidateLanguageSchema, educationSchema, SENIORITIES, yearsOfExperienceSchema } from "@/features/candidate/model";
 import { CONTENT_TYPES, HARD_MAX_BYTES } from "@/features/candidate-cvs/model";
 import { participationSchema, coverageSchema, uuidSchema } from "@/features/pipeline-movement/model";
@@ -7,7 +8,7 @@ import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillme
 export const cvLimits = { max_cvs: 1, max_bytes: HARD_MAX_BYTES, content_types: [...CONTENT_TYPES] };
 export const intakeResponseSchema = participationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
 export type IntakeResponse = z.infer<typeof intakeResponseSchema>;
-export const phoneSchema = z.string().regex(/^\+[1-9]\d{7,14}$/).refine(value => !value.startsWith("+52") || value.length === 13);
+export { phoneSchema } from "@/lib/phone";
 export const contactSchema = z.object({ email: z.string().trim().email().nullable(), phone: phoneSchema.nullable() }).strict().refine(value => value.email !== null || value.phone !== null);
 export const matchSchema = z.object({
   kind: z.enum(["manual", "organic"]), id: uuidSchema, full_name: z.string(), email_masked: z.string().nullable(), phone_masked: z.string().nullable(),

@@ -157,7 +157,7 @@ describe("candidate identity and profile model", () => {
   });
 
   it("stays free of React, browser, transport, and employer coupling", () => {
-    expect(modulesOf(modelSource)).toEqual(["zod", "@/features/geo/model"]);
+    expect(modulesOf(modelSource)).toEqual(["zod", "@/lib/phone", "@/features/geo/model"]);
     expect(modulesOf(fixtureSource)).toEqual(["./model"]);
     for (const source of [modelSource, fixtureSource]) {
       expect(source).not.toMatch(/\bfetch\(|XMLHttpRequest|axios|localStorage|sessionStorage/u);

@@ -5,7 +5,6 @@ import { PlusIcon } from "lucide-react"
 import { SiteHeader } from "@/components/company-dashboard/site-header"
 import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { buttonVariants } from "@/components/ui/button"
-import { NEXO_VACANCIES } from "@/features/employer-vacancies/prototype-vacancies"
 import { VacancyPortfolio } from "@/features/employer-vacancies/vacancy-portfolio"
 import { cn } from "@/lib/utils"
 
@@ -16,7 +15,8 @@ import { cn } from "@/lib/utils"
  * provider and the theme module, so this route contributes only its header,
  * intro and the mounted portfolio. It stays a server component and
  * owns no fetch, credential, storage or mutation concern; the interactive
- * portfolio arrives as a client component over the frozen local fixtures.
+ * portfolio arrives as a client component that reads only the authenticated
+ * company drafts.
  */
 export const metadata: Metadata = {
   title: "Vacantes",
@@ -54,7 +54,7 @@ export default function Page() {
               Nueva vacante
             </Link>
           </section>
-          <VacancyPortfolio vacancies={NEXO_VACANCIES} />
+          <VacancyPortfolio />
         </DashboardPageContent>
       </div>
     </>

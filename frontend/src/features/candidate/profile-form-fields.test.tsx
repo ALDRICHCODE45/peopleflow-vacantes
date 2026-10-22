@@ -19,10 +19,10 @@ vi.mock("@/features/geo/optional-location-field", () => ({ OptionalLocationField
 const SOURCE = readFileSync(join(process.cwd(), "src/features/candidate", "profile-form-fields.tsx"), "utf8");
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 /** The 18 scalar draft fields in canonical group order; `languages` is the 19th. */
-const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "phone", "linkedinUrl", "portfolioUrl", "birthDate", "seniority", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
+const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "dial", "phone", "linkedinUrl", "portfolioUrl", "birthDate", "seniority", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
 const LABELS: Readonly<Record<(typeof SCALARS)[number], string>> = {
   professionalTitle: "Título profesional", currentCompany: "Empresa actual o última", yearsOfExperience: "Años de experiencia", summary: "Resumen profesional",
-  phone: "Teléfono", linkedinUrl: "Perfil de LinkedIn", portfolioUrl: "Portafolio o sitio web", birthDate: "Fecha de nacimiento",
+  dial: "Lada de país", phone: "Teléfono", linkedinUrl: "Perfil de LinkedIn", portfolioUrl: "Portafolio o sitio web", birthDate: "Fecha de nacimiento",
   seniority: "Seniority", skills: "Habilidades",
   currentSalaryGross: "Salario bruto actual", currentSalaryNet: "Salario neto actual", expectedSalary: "Salario esperado", salaryCurrency: "Moneda", expectedSalaryPeriod: "Periodo del salario esperado",
 };
@@ -47,6 +47,29 @@ const input = (container: HTMLElement, path: string) => field(container, path) a
 const classes = (node: Element | null) => node?.getAttribute("class") ?? "";
 const modulesOf = (source: string) => [...new Set([...source.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
 afterEach(cleanup);
+
+describe("S3 and S4 profile field guidance", () => {
+  it("S3 renders dial and phone side by side with described help and controlled dial edits", () => {
+    const base = draft();
+    const { onChange } = renderFields({ draft: base });
+    const dial = screen.getByLabelText("Lada de país");
+    const phone = screen.getByLabelText("Teléfono");
+    const help = screen.getByText("México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.");
+    expect(dial.closest('[data-pf-profile-phone]')).toBe(phone.closest('[data-pf-profile-phone]'));
+    expect(dial).toHaveAccessibleDescription(help.textContent!);
+    expect(phone).toHaveAccessibleDescription(help.textContent!);
+    fireEvent.change(dial, { target: { value: "+1" } });
+    expect(emitted(onChange)).toEqual({ ...base, dial: "+1" });
+  });
+  it("S4 keeps the skills label accessible but visually hidden and describes the actual delimiters and limits", () => {
+    const { container } = renderFields({ issues: [{ path: "skills", message: "Puedes registrar hasta 60 habilidades." }] });
+    const skills = screen.getByLabelText("Habilidades");
+    expect(container.querySelector('label[for="profile-skills"]')).toHaveClass("sr-only");
+    expect(screen.getByRole("heading", { name: "Habilidades", hidden: true })).not.toHaveClass("sr-only");
+    const help = screen.getByText("Separa cada habilidad con una coma o un salto de línea. Ejemplo: React, SQL, Atención a clientes. Máximo 60 habilidades, de 60 caracteres cada una.");
+    expect(skills).toHaveAccessibleDescription(`${help.textContent} Puedes registrar hasta 60 habilidades.`);
+  });
+});
 
 describe("profile form fields inventory", () => {
   it("keeps section cards content-sized and long-form fields within a reading measure", () => {
@@ -108,7 +131,7 @@ describe("profile form fields inventory", () => {
     expect(input(container, "expectedSalary")).toHaveValue(75000);
     for (const path of ["summary", "skills"] as const) {
       const node = field(container, path);
-      expect([node.tagName, node.getAttribute("aria-describedby")], path).toEqual(["TEXTAREA", null]);
+      expect([node.tagName, node.getAttribute("aria-describedby")], path).toEqual(["TEXTAREA", path === "skills" ? "profile-skills-help" : null]);
       expect(node).toHaveValue(current[path]);
     }
     expect(field(container, "summary")).toHaveAttribute("maxlength", "2000");
@@ -249,7 +272,7 @@ describe("profile form fields composition", () => {
     expect(sections).toHaveLength(9);
     expect(container.querySelectorAll("[data-pf-profile-section-icon]")).toHaveLength(0);
     expect(container.querySelectorAll("[data-pf-profile-section-hint]")).toHaveLength(0);
-    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(3);
     for (const label of container.querySelectorAll('[data-slot="field-label"]')) expect(label.querySelector("svg")).toBeNull();
     expect(SOURCE).not.toMatch(/PhoneIcon|Link2Icon|Globe2Icon|CalendarDaysIcon|MapPinnedIcon|EarthIcon|BadgeCheckIcon|Building2Icon|AwardIcon|ScrollTextIcon|GraduationCapIcon|BookOpenIcon|SparklesIcon|BanknoteIcon|CoinsIcon|HashIcon|WalletIcon|CalendarClockIcon|LanguagesIcon/u);
     expect(SOURCE).not.toContain("blurb");
@@ -322,7 +345,7 @@ describe("profile form fields composition", () => {
     expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(9 + draft().languages.length + draft().education.length);
     expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length + 6 * draft().education.length);
     expect(container.querySelectorAll('[data-slot="field-legend"]')).toHaveLength(9 + draft().languages.length + draft().education.length);
-    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(3);
     expect(container.querySelectorAll('[data-slot="field-label"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length + 6 * draft().education.length);
     expect(container.querySelectorAll('[data-slot="input-group"]')).toHaveLength(SCALARS.length + 3);
     expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(1);

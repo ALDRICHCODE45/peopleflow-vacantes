@@ -19,10 +19,46 @@ beforeEach(() => {
  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
  vi.resetAllMocks(); vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, unnamed], nextCursor: null }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-const renderPortfolio = () => render(<VacancyPortfolio vacancies={NEXO_VACANCIES} />);
+const renderPortfolio = () => render(<VacancyPortfolio />);
+it("S2 lists only authenticated rows, never prototype titles", async () => {
+ const { container } = renderPortfolio(); await screen.findByText(row.title);
+ expect(Array.from(container.querySelectorAll("[data-pf-vacancy-row]")).map(node => node.getAttribute("data-pf-vacancy-row"))).toEqual([unnamed.id, id]);
+ for (const prototype of NEXO_VACANCIES) expect(screen.queryByText(prototype.title)).not.toBeInTheDocument();
+});
+it("S2 derives every filter and summary exclusively from real lifecycle rows", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row,
+   { ...unnamed, status: "published", process: "active", candidates },
+   { ...row, id: "paused-real", status: "paused", process: "active", candidates },
+   { ...row, id: "closed-real", status: "closed", process: "finished", candidates },
+ ], nextCursor: null });
+ const { container } = renderPortfolio(); await screen.findByText("Sin título");
+ expect(Array.from(container.querySelectorAll("[data-pf-vacancy-filter]")).map(node => node.textContent)).toEqual(["Todas4", "Borradores1", "Activas1", "Pausadas1", "Cerradas1"]);
+ expect(Array.from(container.querySelectorAll("[data-pf-vacancy-metric] h3")).map(node => node.textContent)).toEqual(["1", "1", "1", "4", "1"]);
+});
+it("S2 loads every summary and status filter without claiming zero or an empty portfolio", async () => {
+ vi.mocked(listDraftsAction).mockReturnValue(new Promise(() => {}));
+ const { container } = renderPortfolio();
+ for (const metric of container.querySelectorAll("[data-pf-vacancy-metric] h3")) {
+   expect(metric.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+   expect(metric).not.toHaveTextContent(/\d/);
+ }
+ for (const filter of container.querySelectorAll("[data-pf-vacancy-filter]")) expect(filter.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+ expect(container.querySelector("[data-pf-vacancy-empty]")).toBeNull();
+ fireEvent.click(screen.getByRole("tab", { name: "Activas" }));
+ expect(container.querySelector("[data-pf-draft-skeleton]")).not.toBeNull();
+ expect(container.querySelector("[data-pf-vacancy-empty]")).toBeNull();
+});
+it("S2 shows failure as unavailable data rather than an empty portfolio or zero counts", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
+ const { container } = renderPortfolio(); await screen.findByRole("button", { name: "Reintentar" });
+ expect(container.querySelector("[data-pf-vacancy-empty]")).toBeNull();
+ expect(container).not.toHaveTextContent("Las demás vacantes siguen disponibles");
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(0);
+ for (const metric of container.querySelectorAll("[data-pf-vacancy-metric] h3")) expect(metric).toHaveTextContent("—");
+});
 it.each([["filled", "Cubierta"], ["cancelled", "Cancelada"], ["other", "Otro"], [null, "Sin motivo registrado"]] as const)("shows list close reason %s", async (reason, label) => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "closed", process: "active", candidates, close_reason: reason, close_reason_note: reason === "other" ? "Cambio de planes" : null }], nextCursor: null });
- render(<VacancyPortfolio vacancies={[]} />);
+ renderPortfolio();
  expect(await screen.findByText(`Cerrada · ${label}`)).toBeVisible();
  if (reason === "other") expect(screen.getByText("Cambio de planes")).toBeVisible();
 });
@@ -30,7 +66,7 @@ it("published private rows leave draft counts and enter active counts with real 
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, { ...unnamed, candidates, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z" }], nextCursor: null });
  const { container } = renderPortfolio(); await screen.findByText(row.title);
  expect(screen.getByRole("tab", { name: "Borradores 1" })).toBeVisible();
- expect(screen.getByRole("tab", { name: "Activas 4" })).toBeVisible();
+ expect(screen.getByRole("tab", { name: "Activas 1" })).toBeVisible();
  const active = container.querySelector(`[data-pf-vacancy-row="${unnamed.id}"]`) as HTMLElement;
  expect(active).toHaveTextContent("Activa"); expect(active).toHaveTextContent("Publicada el 16 de octubre de 2026");
  expect(active.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "accent");
@@ -43,7 +79,7 @@ it.each([
  ["closed", "finished", "Cerrada · Sin motivo registrado", "Cerradas"],
 ] as const)("maps real %s/%s badge and filter", async (status, process, label, filter) => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, candidates: status === "draft" ? null : candidates, status, process }], nextCursor: null });
- render(<VacancyPortfolio vacancies={[]} />); await screen.findByText(row.title);
+ renderPortfolio(); await screen.findByText(row.title);
  expect(screen.getByText(label)).toBeVisible();
  expect(screen.queryByText("Sin candidatos todavía")).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole("tab", { name: `${filter} 1` })); expect(screen.getByText(row.title)).toBeVisible();
@@ -55,7 +91,7 @@ it.each([
  ["closed", "finished", "Proceso finalizado el 19"],
 ] as const)("uses state-specific dates and live counts for %s/%s", async (status, process, date) => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status, process, candidates, published_at: "2026-10-16T12:00:00Z", paused_at: "2026-10-17T12:00:00Z", closed_at: "2026-10-18T12:00:00Z", process_finished_at: "2026-10-19T12:00:00Z" }], nextCursor: null });
- render(<VacancyPortfolio vacancies={[]} />);
+ renderPortfolio();
  await screen.findByText(row.title);
  expect(screen.getByText(`${date} de octubre de 2026`)).toBeVisible();
  expect(screen.getByText(process === "finished" ? "4 candidatos" : "4 candidatos · 2 en proceso")).toBeVisible();
@@ -67,35 +103,31 @@ it.each([
 ] as const)("E1 uses Mexico City dates for %s/%s", async (status, process, prefix) => {
  const at = "2026-10-21T03:30:00Z";
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status, process, updated_at: at, published_at: at, paused_at: at, closed_at: at, process_finished_at: at }], nextCursor: null });
- render(<VacancyPortfolio vacancies={[]} />);
+ renderPortfolio();
  expect(await screen.findByText(`${prefix} 20 de octubre de 2026`)).toBeVisible();
 });
 it.each([1, 4])("E3 excludes finished candidates from active summaries (%s)", async total => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "closed", process: "finished", candidates: { ...candidates, total } }, { ...unnamed, status: "paused", process: "active", candidates }], nextCursor: null });
- const { container } = render(<VacancyPortfolio vacancies={[]} />);
+ const { container } = renderPortfolio();
  await screen.findByText(row.title);
  const finished = container.querySelector(`[data-pf-vacancy-row="${id}"]`)!;
  expect(finished).toHaveTextContent(`${total} ${total === 1 ? "candidato" : "candidatos"}`);
  expect(finished).not.toHaveTextContent(/\d en proceso/);
  expect(container.querySelector('[data-pf-vacancy-metric="in-process"] h3')).toHaveTextContent(/^2$/);
 });
-it("E6 keeps real and prototype stage pairs unbroken", async () => {
+it("E6 keeps real stage pairs unbroken", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "published", process: "active", candidates }], nextCursor: null });
- const { container } = renderPortfolio(); await screen.findByText(row.title);
- expect(screen.getByText("Prueba técnica: 2")).toHaveClass("whitespace-nowrap");
- for (const prototype of NEXO_VACANCIES) {
-   const element = container.querySelector(`[data-pf-vacancy-row="${prototype.id}"]`)!;
-   expect(within(element as HTMLElement).getByText(`En revisión: ${prototype.candidateCounts.in_review}`)).toHaveClass("whitespace-nowrap");
- }
+ renderPortfolio(); await screen.findByText(row.title);
+ for (const text of ["Prueba técnica: 2", "Nuevos: 1", "Revisión: 0", "Descartados: 1"]) expect(screen.getByText(text)).toHaveClass("whitespace-nowrap");
 });
 it("shows the empty candidate message only for a zero total", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "published", process: "active", candidates: { total: 0, in_process: 0, discarded: 0, by_stage: [] } }], nextCursor: null });
- render(<VacancyPortfolio vacancies={[]} />);
+ renderPortfolio();
  expect(await screen.findByText("Sin candidatos todavía")).toBeVisible();
 });
 it("does not mistake discarded-only candidates for an empty pipeline or use an old publication date", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "paused", process: "active", published_at: "2026-10-16T12:00:00Z", candidates: { ...candidates, total: 2, in_process: 0, discarded: 2, by_stage: candidates.by_stage.map(stage => ({ ...stage, count: 0 })) } }], nextCursor: null });
- render(<VacancyPortfolio vacancies={[]} />);
+ renderPortfolio();
  await screen.findByText(row.title);
  expect(screen.getByText("2 candidatos · 0 en proceso")).toBeVisible();
  expect(screen.getByText("Prueba técnica: 0").parentElement).toHaveTextContent("Prueba técnica: 0 · Nuevos: 0 · Revisión: 0 · Descartados: 2");
@@ -114,11 +146,11 @@ it("copies transition timestamps in place without losing candidate counts", asyn
  expect(result.current.items[0]).toMatchObject({ status: "published", published_at: "2026-10-20T12:00:00Z", closed_at: view.closed_at, candidates });
  expect(listDraftsAction).toHaveBeenCalledTimes(1);
 });
-it("composes honest draft rows before prototypes, newest first, with both real actions", async () => {
+it("composes only honest draft rows, newest first, with both real actions", async () => {
  const { container } = renderPortfolio();
  await screen.findByText(row.title);
  const rows = container.querySelectorAll("[data-pf-vacancy-row]");
- expect(Array.from(rows).slice(0, 2).map(node => node.getAttribute("data-pf-vacancy-row"))).toEqual([unnamed.id, id]);
+ expect(Array.from(rows).map(node => node.getAttribute("data-pf-vacancy-row"))).toEqual([unnamed.id, id]);
  const draft = rows[1] as HTMLElement;
  for (const text of ["Remoto · Tiempo completo", "Ana", "Acme", "Borrador", "Sin pipeline · en borrador", "Sin publicar", "Editado 15 de octubre de 2026"]) expect(draft).toHaveTextContent(text);
  expect(draft.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
@@ -137,7 +169,7 @@ it("composes honest draft rows before prototypes, newest first, with both real a
 });
 it("counts drafts in Todas, metric and filter; searches draft titles", async () => {
  const { container } = renderPortfolio(); await screen.findByText(row.title);
- expect(screen.getByRole("tab", { name: "Todas 8" })).toBeVisible();
+ expect(screen.getByRole("tab", { name: "Todas 2" })).toBeVisible();
  expect(screen.getByRole("tab", { name: "Borradores 2" })).toBeVisible();
  expect(container.querySelector('[data-pf-vacancy-metric="draft"]')).toHaveTextContent("2Borradores");
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 2" }));
@@ -150,20 +182,20 @@ it("loads sequential opaque cursors and deduplicates rows", async () => {
  const { container } = renderPortfolio(); await screen.findByText("Sin título");
  expect(listDraftsAction).toHaveBeenNthCalledWith(1, { limit: 50 });
  expect(listDraftsAction).toHaveBeenNthCalledWith(2, { limit: 50, cursor: "opaque+/=" });
- expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(8);
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(2);
 });
 it("caps at ten pages and discloses the bounded result without retries", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row], nextCursor: "more" });
  renderPortfolio(); await waitFor(() => expect(listDraftsAction).toHaveBeenCalledTimes(10));
- expect(await screen.findByText(/Se muestran hasta 500 borradores/)).toBeVisible();
+ expect(await screen.findByText(/Se muestran hasta 500 vacantes/)).toBeVisible();
 });
-it("keeps prototype rows visible while draft-shaped skeleton rows load with one announcement", async () => {
+it("shows only draft-shaped skeleton rows while loading with one announcement", async () => {
  let resolve!: (result: DraftListActionResult) => void;
  vi.mocked(listDraftsAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
  const { container } = renderPortfolio();
- expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(0);
  expect(screen.getAllByRole("status")).toHaveLength(1);
- expect(screen.getByRole("status")).toHaveTextContent("Cargando borradores");
+ expect(screen.getByRole("status")).toHaveTextContent("Cargando vacantes");
  expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
  expect(container.querySelectorAll('[data-pf-draft-skeleton] [data-slot="skeleton"]').length).toBeGreaterThan(5);
  const skeleton = container.querySelector('[data-pf-draft-skeleton]')!;
@@ -174,11 +206,11 @@ it("keeps prototype rows visible while draft-shaped skeleton rows load with one 
  expect(anatomy(loaded)).toEqual(loadingAnatomy);
  expect(loaded.className).toBe(skeleton.className);
 });
-it.each(["server_error", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "invalid_request", "no_response", "unrecognized_response"] as const)("shows persistent %s cause and explicit retry without losing prototypes", async reason => {
+it.each(["server_error", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "invalid_request", "no_response", "unrecognized_response"] as const)("shows persistent %s cause and explicit retry without inventing rows", async reason => {
  vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason, reference: {} });
  const { container } = renderPortfolio(); const retry = await screen.findByRole("button", { name: "Reintentar" });
  expect(container.querySelector("[data-pf-vacancy-results]")).toContainElement(retry);
- expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(0);
  expect(screen.getByRole("status")).toHaveTextContent("No se cargaron los borradores");
  expect(notifyActionResult).not.toHaveBeenCalled();
  fireEvent.click(retry); await screen.findByText(row.title);
@@ -186,23 +218,23 @@ it.each(["server_error", "unauthenticated", "forbidden", "company_inactive", "co
 });
 it("points an empty Borradores filter to the header and offers only clearing filters", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
- const { container } = renderPortfolio(); await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
+ const { container } = renderPortfolio(); await waitFor(() => expect(screen.queryByText("Cargando vacantes")).not.toBeInTheDocument());
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 0" }));
  const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
- expect(empty).toHaveTextContent("No hay borradores que mostrar");
- expect(empty).toHaveTextContent("Crea una vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
+ expect(empty).toHaveTextContent("Todavía no hay vacantes");
+ expect(empty).toHaveTextContent("Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
  expect(within(empty).queryAllByRole("link")).toHaveLength(0);
  const clear = within(empty).getByRole("button", { name: "Limpiar filtros" });
  expect(within(empty).getAllByRole("button")).toEqual([clear]);
  expect(clear).toHaveClass("bg-primary");
  fireEvent.click(clear);
- expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
- expect(screen.getByRole("tab", { name: "Todas 6" })).toHaveAttribute("aria-selected", "true");
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(0);
+ expect(screen.getByRole("tab", { name: "Todas 0" })).toHaveAttribute("aria-selected", "true");
 });
 it("points to the single header action without its own create button when the portfolio is empty", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
- const { container } = render(<VacancyPortfolio vacancies={[]} />);
- await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
+ const { container } = renderPortfolio();
+ await waitFor(() => expect(screen.queryByText("Cargando vacantes")).not.toBeInTheDocument());
  const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
  expect(within(empty).getByText("Todavía no hay vacantes")).toHaveClass("text-xl", "font-semibold");
  expect(empty).toHaveTextContent("Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
@@ -230,7 +262,7 @@ it("keeps the retry target mounted and reserves status space while an explicit r
  expect(screen.getByRole("button", { name: "Reintentando…" })).toBe(retry);
  expect(retry).toBeDisabled();
  expect(screen.getAllByRole("status")).toHaveLength(1);
- expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(0);
  expect(container.querySelector("[data-pf-action-status-slot]")).not.toBeNull();
  await act(async () => resolve({ ok: true, items: [row], nextCursor: null }));
  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Borradores cargados" }));
@@ -264,7 +296,7 @@ it("reads like the validated rows: singular count, no zero counts, «Activa» an
     { ...row, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z", candidates: one },
     { ...row, id: "923e4567-e89b-42d3-a456-426614174000", title: "Vacía", status: "published", process: "active", published_at: "2026-10-16T12:00:00Z", candidates: { total: 0, in_process: 0, discarded: 0, by_stage: [] } },
   ], nextCursor: null });
-  render(<VacancyPortfolio vacancies={[]} />);
+  renderPortfolio();
   expect(await screen.findByText("1 candidato · 1 en proceso")).toBeVisible();
   expect(screen.queryByText(/^0 candidatos/)).toBeNull();
   expect(screen.getByText("Sin candidatos todavía")).toBeVisible();
