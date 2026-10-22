@@ -8,6 +8,8 @@ import (
 	geoapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 )
 
+var editableCandidateFields = []string{"full_name", "email", "phone", "location", "professional_title", "current_company", "seniority", "years_of_experience", "education", "languages", "skills", "linkedin_url", "portfolio_url"}
+
 // ParseManualEdit shares intake's strict recursive duplicate/unknown-key parser.
 // reset is deliberately unsupported for manual identities, even when empty.
 func ParseManualEdit(body []byte) (map[string]json.RawMessage, error) {
@@ -18,7 +20,7 @@ func ParseManualEdit(body []byte) (map[string]json.RawMessage, error) {
 	if _, present := envelope["reset"]; present {
 		return nil, ErrInvalidRequest
 	}
-	fields, err := manualObject(envelope["set"], "full_name", "email", "phone", "location", "professional_title", "current_company", "seniority", "years_of_experience", "education", "languages", "skills", "linkedin_url", "portfolio_url")
+	fields, err := manualObject(envelope["set"], editableCandidateFields...)
 	if err != nil || len(fields) == 0 {
 		return nil, ErrInvalidRequest
 	}

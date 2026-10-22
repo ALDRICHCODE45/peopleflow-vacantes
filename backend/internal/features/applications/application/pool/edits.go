@@ -27,6 +27,7 @@ type Study struct {
 type Change struct {
 	Field   string          `json:"field"`
 	Contact bool            `json:"contact,omitempty"`
+	Reset   bool            `json:"reset,omitempty"`
 	From    json.RawMessage `json:"from,omitempty"`
 	To      json.RawMessage `json:"to,omitempty"`
 }
@@ -48,17 +49,21 @@ type Editor interface {
 	History(context.Context, uuid.UUID, string, uuid.UUID, HistoryQuery) (HistoryPage, error)
 }
 
+type OrganicEditor interface {
+	EditOrganic(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, []byte) (Detail, error)
+}
+
 func ETag(kind string, id uuid.UUID, version int64) string {
 	return fmt.Sprintf(`"%s-%s-%d"`, kind, id, version)
 }
 
 func (s *Service) Edit(ctx context.Context, company, actor uuid.UUID, kind string, id uuid.UUID, etag string, body []byte) (Detail, error) {
-	// Check company membership/identity even for the temporarily unsupported kind.
 	if kind == "organic" {
-		if _, err := s.reader.Detail(ctx, company, kind, id); err != nil {
-			return Detail{}, err
+		editor, ok := s.reader.(OrganicEditor)
+		if !ok {
+			return Detail{}, errors.New("organic candidate editor unavailable")
 		}
-		return Detail{}, board.ErrInvalidRequest
+		return editor.EditOrganic(ctx, company, actor, id, etag, body)
 	}
 	editor, ok := s.reader.(Editor)
 	if !ok {

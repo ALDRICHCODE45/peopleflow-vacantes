@@ -26,10 +26,6 @@ func (s *Store) History(ctx context.Context, company uuid.UUID, kind string, id 
 	if !exists {
 		return out, board.ErrNotFound
 	}
-	// E2 will add organic corrections. No synthetic organic edit history in E1.
-	if kind == "organic" {
-		return out, tx.Commit(ctx)
-	}
 	var at, idAfter any
 	if q.After != nil {
 		at = q.After.At

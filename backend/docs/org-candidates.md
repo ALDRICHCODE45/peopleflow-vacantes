@@ -21,8 +21,10 @@ The list, detail and participation-CV routes are wired. Feature document:
 - Identity is `(kind, id)`: `kind` is `manual` (id = company candidate UUID) or
   `organic` (id = user UUID). The same real person may appear once per kind;
   v1 never merges them (duplicates stay advisory, as in manual intake).
-- Nothing here leaves the company (SRCH-7). Read-only: no edits in v1
-  (audited internal edits are cut 2, SRCH-4).
+- Nothing here leaves the company (SRCH-7). v1 was read-only; audited manual edits
+  and company-only organic corrections are now implemented by
+  [org-candidate-edits.md](org-candidate-edits.md) (SRCH-4; E2 parent DB acceptance pending).
+  That additive contract makes all pool values/search/filters effective.
 
 ## Profile source
 
@@ -34,6 +36,9 @@ The six-key `profile` is the board's exact shape
   in this company** (latest `applied_at`, then participation id). The live
   candidate profile is never read, so the pool only shows what the candidate
   shared with this company when applying (or what the recruiter captured on reuse).
+  E2 overlays this company's corrections at read time, never rewriting that source;
+  detail also returns the uncorrected `original`. The live phone is still used for
+  original contact as described below.
 
 ## List
 
@@ -61,7 +66,8 @@ The six-key `profile` is the board's exact shape
 - `latest_participation` is null for a manual record with no participation.
 - `professional_title` / `current_company`: string or null, from the profile source
   below. Manual records read them live; the organic snapshot does not store them,
-  so they are **always null for organic** candidates in v1.
+  so they are **always null for uncorrected organic** candidates. E2 shows the
+  company's corrections when present.
 - `vacancy.lifecycle` = the vacancy's lifecycle pair, as in the vacancy lifecycle API:
   `publication` null (never published) | `published` | `paused` | `closed`, and
   `process` null | `active` | `finished`.

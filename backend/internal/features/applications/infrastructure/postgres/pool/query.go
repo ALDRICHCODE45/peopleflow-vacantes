@@ -13,6 +13,12 @@ const manualProfileSQL = `jsonb_build_object(
    FROM company_candidate_languages l WHERE l.company_candidate_id=cc.id),'[]'::jsonb))`
 const emptyProfileSQL = `'{"location":null,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]}'::jsonb`
 
+// Same rank/status rule as the board's manual education projection: paused and
+// incomplete studies do not contribute. The full corrected list stays private.
+const correctedEducationSQL = `jsonb_build_object('highest_completed',
+ (SELECT e->>'level' FROM jsonb_array_elements(COALESCE(NULLIF(o.corrections->'education','null'::jsonb),'[]'::jsonb)) e WHERE e->>'status'='completed' ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e->>'level') DESC LIMIT 1),
+ 'in_progress',(SELECT e->>'level' FROM jsonb_array_elements(COALESCE(NULLIF(o.corrections->'education','null'::jsonb),'[]'::jsonb)) e WHERE e->>'status'='in_progress' ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e->>'level') DESC LIMIT 1))`
+
 // The identity set and snapshot choice are company-scoped before filtering.
 // source does not determine identity kind, and discarded rows are not removed.
 const poolSQL = `WITH participations AS MATERIALIZED (
@@ -30,7 +36,7 @@ const poolSQL = `WITH participations AS MATERIALIZED (
  UNION ALL
  SELECT 'organic',u.id,u.full_name,u.email,NULL::text,NULL::text,NULL::timestamptz,NULL::text,NULL::jsonb
  FROM users u WHERE EXISTS(SELECT 1 FROM participations p WHERE p.kind='organic' AND p.person_id=u.id)
-), candidates AS (
+), uncorrected AS (
  SELECT i.kind,i.id,i.full_name,i.email,i.professional_title,i.current_company,i.postal_code,
  CASE WHEN i.kind='manual' THEN i.manual_profile ELSE COALESCE(last.profile_snapshot,` + emptyProfileSQL + `) END AS profile,
  COALESCE(last.created_at,i.created_at) AS last_activity_at,
@@ -38,6 +44,18 @@ const poolSQL = `WITH participations AS MATERIALIZED (
  last.process_id,last.stage_id,last.discarded_at,last.created_at AS applied_at
  FROM identities i LEFT JOIN counts c ON c.kind=i.kind AND c.person_id=i.id
  LEFT JOIN participations last ON last.kind=i.kind AND last.person_id=i.id AND last.ordinal=1
+), candidates AS (
+ SELECT b.kind,b.id,
+ CASE WHEN o.corrections ? 'full_name' THEN o.corrections->>'full_name' ELSE b.full_name END AS full_name,
+ CASE WHEN o.corrections ? 'email' THEN o.corrections->>'email' ELSE b.email END AS email,
+ CASE WHEN o.corrections ? 'professional_title' THEN o.corrections->>'professional_title' ELSE b.professional_title END AS professional_title,
+ CASE WHEN o.corrections ? 'current_company' THEN o.corrections->>'current_company' ELSE b.current_company END AS current_company,
+ CASE WHEN o.corrections ? 'location' THEN o.corrections#>>'{location,postal_code}' ELSE b.postal_code END AS postal_code,
+ b.profile || COALESCE((SELECT jsonb_object_agg(key,value) FROM jsonb_each(COALESCE(o.corrections,'{}'::jsonb)) WHERE key IN ('location','skills','years_of_experience','seniority','languages')),'{}'::jsonb)
+ || CASE WHEN o.corrections ? 'education' THEN jsonb_build_object('education',` + correctedEducationSQL + `) ELSE '{}'::jsonb END AS profile,
+ b.full_name AS original_full_name,b.profile AS original_profile,
+ b.last_activity_at,b.total,b.active,b.process_id,b.stage_id,b.discarded_at,b.applied_at
+ FROM uncorrected b LEFT JOIN company_candidate_corrections o ON b.kind='organic' AND o.company_id=$1 AND o.user_id=b.id
 ), filtered AS MATERIALIZED (SELECT * FROM candidates WHERE true `
 
 // Hydration is restricted to the limit+1 page; totals and rows share one SQL

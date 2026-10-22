@@ -245,10 +245,6 @@ func TestOrgCandidateEditsNoopAndHistoryHTTP(t *testing.T) {
 			t.Fatal(query, w.Code, w.Body.String())
 		}
 	}
-	w = doRouteRequest(t, router, "PATCH", orgCandidatesPath+"/organic/"+routeTestDraftID.String(), `{"set":{"full_name":"No correction yet"}}`, headers)
-	if w.Code != 400 || routeCatalogCode(t, w) != "invalid_request" {
-		t.Fatal(w.Code, w.Body.String())
-	}
 	w = doRouteRequest(t, router, "GET", orgCandidatesPath+"/organic/"+routeTestDraftID.String()+"/history", "", headers)
 	if w.Code != 200 || strings.TrimSpace(w.Body.String()) != `{"items":[],"next_cursor":null}` {
 		t.Fatal(w.Code, w.Body.String())

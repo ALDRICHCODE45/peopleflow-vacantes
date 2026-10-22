@@ -1,6 +1,7 @@
 # Org candidate edits — audited internal corrections (DRAFT)
 
-Status: **draft for frontend review**, not implemented. Extends
+Status: **contract approved; E1 implemented; E2 implemented pending parent DB acceptance**.
+E3 (corrected CV) and E4 (board projections) remain later cuts. Extends
 [org-candidates.md](org-candidates.md) (SRCH-4, AUD-1). Feature document:
 `odd/tasks/org-candidate-edits.md`.
 
@@ -39,8 +40,9 @@ email or phone, for both kinds (intake rule): otherwise
 
 - `set`: fields to change, each the full new value (arrays replace, never merge).
   `null` means «empty» (for organic: corrected to no value).
-- `reset` (organic only): drop the correction so the original shows again. On manual,
-  `reset` is `400 invalid_request`.
+- `reset` (organic only): drop the correction so the original shows again. Resetting
+  an uncorrected field is `400 invalid_request` (the entire request is rejected).
+  On manual, `reset` is `400 invalid_request`.
 - A field cannot appear in both. At least one change.
 - 200 → the full detail (same shape as GET detail) with the new `etag` header and body
   field. Unchanged values are a no-op (no history entry, etag unchanged).
@@ -148,10 +150,10 @@ Board routes keep their owner-or-principal authorization.
 Implemented for **manual** candidates; parent DB acceptance is still required.
 Migration **00044** must be applied before using these reads/writes.
 
-- **Temporary E1 restriction:** PATCH for a company-visible `kind=organic`
-  returns `400 invalid_request` (with If-Match supplied); its history is an empty
-  page. Unknown/foreign organic identities remain 404. E2 will enable corrections.
-  E3 corrected CVs and E4 board projections are not implemented by this cut.
+- **Historical E1 restriction (removed by E2 below):** organic PATCH initially
+  returned `400 invalid_request` and organic history was empty. Unknown/foreign
+  organic identities remain 404. E3 corrected CVs and E4 board projections are
+  not implemented by these cuts.
 - Detail adds all read fields above, including full manual `education` in stored
   position order (each study has exactly six keys). Organic `education` and
   `original.education` remain null. Manual `original` is null and
@@ -213,3 +215,62 @@ go test -tags=integration ./cmd/api -run '^Test(OrgCandidatesFlow$|ManualCreateH
 
 Migration tests create their own loopback `draft_test_mig_*` database and require
 CREATEDB. All fixtures clean up only their own rows/catalog additions.
+
+## E2 implementation notes
+
+Apply migration **00045** before these pool reads/writes. It adds one correction
+object and version per `(company_id,user_id)`; it does not alter candidate-owned
+storage. Down refuses retained corrections, advanced versions/provenance or any
+organic history, including after all corrections have been reset.
+
+- Organic PATCH now uses the same intake validators as manual edits. Optional
+  nulls are explicit empty corrections (null skills/languages normalize to `[]`);
+  required name/location/studies still cannot be cleared. Arrays replace.
+- `reset` removes an existing correction, even if its current effective value
+  equals the original. It rejects unknown, duplicate, overlapping or uncorrected
+  fields atomically. Effective contact validation also runs for reset-only requests.
+- Organic ETags bind company, user and correction version. First edits serialize
+  through the composite unique key, then all writes compare If-Match under a row
+  lock. No-op writes leave version/provenance/history/audit unchanged. Successful
+  writes, private history and field-name-only audit commit in one transaction.
+- The shared pool SQL overlays corrections **before** filtering/count/pagination.
+  Name/email search, all profile filters, and list/detail values are effective.
+  Original detail uses the same catalog hydration over the uncorrected snapshot.
+  Corrected studies remain a full list; completed/in-progress maxima drive the
+  effective summary. Reset restores the snapshot summary and null full list.
+- Reset history adds `reset:true`; contact resets contain only field/contact/reset,
+  never values. Other resets use the original edit-value shape as `to`.
+- No candidate account, profile, education/language row, participation, snapshot,
+  CV or board projection is written. No new logging calls or dependencies.
+
+### E2 validation boundary
+
+Observed RED: organic HTTP dispatch still returned the E1 temporary 400; migration
+00045 was absent; a whitespace-formatted empty `set` with a valid reset incorrectly
+returned 400. All three now pass. HTTP tests also exercise intake-validation parity,
+contact/reset invariants, null clears, no-ops, language ordering, redacted history,
+428/412/404 and auth/no-store gates.
+
+Integration tests are **authored and vetted, not executed by the writer**:
+
+- `TestOrgCandidateCorrectionsFlow`: all fields, exact effective/original/history
+  shapes, education ranking, every filter/search, isolation of the same user in
+  another company, and byte-identical candidate-owned rows/snapshots after edits.
+- `TestOrgCandidateCorrectionsAtomicRollback`: fail history/audit co-writes;
+  correction writes and first-write row creation must roll back too.
+- `TestOrgCandidateCorrectionsConcurrentIfMatch`: observe both lock waiters before
+  release, for both first and existing corrections; require one 200 and one 412.
+- `TestOrgCandidateCorrectionsGuardedDown`: default/composite identity, retention
+  guards for corrections/version/provenance/history and safe Down/Up round trip.
+
+Parent runs from `backend/` on isolated `draft_test`, injecting the guarded
+`DRAFT_TEST_DATABASE_URL` externally (never source or print `.env`):
+
+```sh
+go test -tags=integration ./cmd/api -run '^TestOrgCandidateCorrections(Flow|AtomicRollback|ConcurrentIfMatch)$' -count=1 -v
+go test -tags=integration ./db/migrations -run '^TestOrgCandidateCorrectionsGuardedDown$' -count=1 -v
+go test -tags=integration ./cmd/api -run '^Test(OrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+```
+
+Migration acceptance needs CREATEDB. Compilation/vet and unit fakes are not SQL,
+rollback or concurrency acceptance; T3 stays open until the parent records it.

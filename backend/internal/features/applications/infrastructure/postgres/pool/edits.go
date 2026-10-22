@@ -68,23 +68,7 @@ func (s *Store) Edit(ctx context.Context, company, actor, id uuid.UUID, etag str
 				return out, err
 			}
 		}
-		history, err := json.Marshal(changes)
-		if err != nil {
-			return out, err
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO company_candidate_history(id,company_id,candidate_kind,candidate_id,actor_id,changes) VALUES($1,$2,'manual',$3,$4,$5::jsonb)`, uuid.New(), company, id, actor, history); err != nil {
-			return out, err
-		}
-		names := make([]string, 0, len(changes))
-		for _, c := range changes {
-			names = append(names, c.Field)
-		}
-		metadata, err := json.Marshal(map[string]any{"fields": names})
-		if err != nil {
-			return out, err
-		}
-		// Only actor/entity identifiers and field NAMES enter shared audit storage.
-		if _, err = tx.Exec(ctx, `INSERT INTO audit_events(id,actor_id,actor_type,event_type,entity_type,entity_id,metadata) VALUES($1,$2,'user','CompanyCandidateEdited','company_candidate',$3,$4::jsonb)`, uuid.New(), actor, id, metadata); err != nil {
+		if err = recordEdit(ctx, tx, company, actor, id, "manual", changes); err != nil {
 			return out, err
 		}
 	}

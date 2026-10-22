@@ -128,7 +128,9 @@ func (s *Store) detail(ctx context.Context, tx pgx.Tx, company uuid.UUID, kind s
 		}
 		out.ETag = app.ETag(kind, id, version)
 	} else {
-		out.Original = &app.Original{FullName: out.FullName, Contact: out.Contact, Profile: out.Profile}
+		if err = organicDetail(ctx, tx, company, id, &out); err != nil {
+			return out, err
+		}
 	}
 	return out, nil
 }
