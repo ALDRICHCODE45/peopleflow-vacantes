@@ -42,8 +42,15 @@ it("profile uses actual location, skill badges and education label", async () =>
   expect(within(profile).getByText("Puebla")).toBeVisible();
   expect(within(profile).getByText("Licenciatura o Ingeniería · Maestría en curso")).toBeVisible();
   expect(within(profile).getByText("Junior")).toBeVisible();
-  expect(within(profile).getByText("Inglés · B2 · Español · Nativo")).toBeVisible();
-  expect(Array.from(profile.querySelectorAll('[data-slot="badge"]')).map(badge => badge.textContent)).toEqual(["Go", "SQL"]);
+  // One pill per language, like skills: «Inglés · B2 · Español · Nativo» was ambiguous.
+  const pills = within(profile).getAllByText(/^(Inglés B2|Español Nativo)$/);
+  expect(pills.map(pill => pill.textContent)).toEqual(["Inglés B2", "Español Nativo"]);
+  pills.forEach(pill => expect(pill).toHaveAttribute("data-slot", "badge"));
+  // Each profile row has its own icon.
+  const icons = Array.from(profile.querySelectorAll("dt svg")).map(svg => svg.getAttribute("class"));
+  expect(new Set(icons).size).toBe(icons.length);
+  const skillsRow = Array.from(profile.querySelectorAll("dt")).find(dt => dt.textContent === "Habilidades")!.nextElementSibling!;
+  expect(Array.from(skillsRow.querySelectorAll('[data-slot="badge"]')).map(badge => badge.textContent)).toEqual(["Go", "SQL"]);
 });
 it.each([
   [{ highest_completed: "bachelor" as const, in_progress: null }, "Licenciatura o Ingeniería"],

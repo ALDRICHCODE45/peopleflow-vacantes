@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, Mail, MapPin, Phone, Sparkles, BriefcaseBusiness, RotateCcw, UserRoundX, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, Languages, Mail, MapPin, Phone, Sparkles, BriefcaseBusiness, RotateCcw, TrendingUp, UserRoundX, X } from "lucide-react";
 import { cn } from "cn";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -176,16 +176,17 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
 function CandidateProfile({ profile, manual }: { profile: Participation["profile"]; manual: boolean }) {
   const catalog = useLanguageCatalog();
   const education = [profile.education.highest_completed && educationLabels[profile.education.highest_completed], profile.education.in_progress && `${educationLabels[profile.education.in_progress]} en curso`].filter(Boolean).join(" · ");
-  const languages = profile.languages.map(language => `${catalog.data?.items.find(item => item.code === language.code)?.name ?? "Idioma no disponible"} · ${language.level === "native" ? "Nativo" : language.level}`).join(" · ");
+  // One pill per language («Inglés B2»), like skills; a joined string made the levels ambiguous.
+  const languages = profile.languages.length ? <div className="flex flex-wrap gap-2">{profile.languages.map(language => <Badge key={language.code} variant="outline">{`${catalog.data?.items.find(item => item.code === language.code)?.name ?? "Idioma no disponible"} ${language.level === "native" ? "Nativo" : language.level}`}</Badge>)}</div> : null;
   const missing = <span className="text-muted-foreground">Sin dato</span>;
   const skills = profile.skills.filter(skill => normalizedProfileLabel(skill));
   const rows = [
     { label: "Ubicación", icon: MapPin, value: profile.location?.label ?? missing },
     { label: "Habilidades", icon: Sparkles, value: skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={index} variant="outline">{skill}</Badge>)}</div> : missing },
     { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(Number(profile.years_of_experience), "año", "años") },
-    { label: "Seniority", icon: BriefcaseBusiness, value: profile.seniority === null ? missing : SENIORITY_LABELS[profile.seniority] },
+    { label: "Seniority", icon: TrendingUp, value: profile.seniority === null ? missing : SENIORITY_LABELS[profile.seniority] },
     { label: "Nivel de estudios", icon: GraduationCap, value: education || missing },
-    { label: "Idiomas", icon: GraduationCap, value: languages || missing },
+    { label: "Idiomas", icon: Languages, value: languages || missing },
   ];
   return <section aria-label="Perfil" className="flex flex-col gap-5"><SectionTitle>Perfil</SectionTitle>
     <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">
