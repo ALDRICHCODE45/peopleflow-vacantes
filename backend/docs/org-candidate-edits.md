@@ -23,8 +23,10 @@ Status: **draft for frontend review**, not implemented. Extends
 `seniority`, `years_of_experience`, `education`, `languages`, `skills`,
 `linkedin_url`, `portfolio_url`. Same shapes and validation as manual intake
 ([manual-intake.md](manual-intake.md)): E.164 phone, decimal-string years, the six-key
-studies, catalog languages, geo location. Manual records keep the intake rule that
-email or phone is required. Contact fields = `full_name`, `email`, `phone`.
+studies, catalog languages, geo location. The **effective** contact must keep at least
+email or phone, for both kinds (intake rule): otherwise
+`400 validation_error {fields:[{field:"contact",code:"required"}]}`. Contact fields =
+`full_name`, `email`, `phone`.
 
 ## Write
 
@@ -44,7 +46,7 @@ email or phone is required. Contact fields = `full_name`, `email`, `phone`.
   field. Unchanged values are a no-op (no history entry, etag unchanged).
 
 Errors: `428 precondition_required` (no If-Match), `412 precondition_failed` (stale
-etag; reload), `400 validation_error {fields:[{field,code}]}` with paths as in manual
+etag; body is only `{error, code}` — the client reloads with GET detail), `400 validation_error {fields:[{field,code}]}` with paths as in manual
 intake but without the `candidate.` prefix (`education[0].status`, `phone`…),
 `404` (unknown/other company), auth gates as the pool.
 
@@ -73,7 +75,9 @@ Detail gains:
 
 ## History
 
-`GET /v2/me/company/candidates/{kind}/{id}/history` → most recent first:
+`GET /v2/me/company/candidates/{kind}/{id}/history?limit=20&cursor=…` → most recent
+first, `limit` 1–50 (default 20), opaque `next_cursor` (null at the end), same cursor
+rules as the list:
 
 ```json
 {"items":[
@@ -83,7 +87,8 @@ Detail gains:
      {"field":"years_of_experience","from":"2","to":"4"},
      {"field":"seniority","reset":true,"from":"senior","to":"junior"}]},
   {"id":"…","at":"…","actor":{…},"kind":"cv_corrected",
-   "participation_id":"…","file_name":"cv-corregido.pdf"}]}
+   "participation_id":"…","file_name":"cv-corregido.pdf"}],
+ "next_cursor":"…"|null}
 ```
 
 - Contact changes never store or return values (`contact:true`).
@@ -106,15 +111,24 @@ candidate etag.
   `GET …/participations/{participationId}/cv/original` returns the candidate's original.
 - Uploading again replaces the corrected CV (history keeps each upload).
 
-## Open point for the user
+## Vacancy board (E4)
 
-Corrections apply to the pool (list, detail, filters). The **vacancy board** (sheet,
-board profile, CV download) keeps showing the participation snapshot and original CV in
-this unit. Recommendation: make the board read corrections in a follow-up cut, so a
-corrected CV/profile is what the recruiter sees everywhere.
+User decision: «Sí, en esta unidad (recomendado)» — the board reads corrections too.
+Board routes keep their owner-or-principal authorization.
+
+- Board items (`GET …/job-drafts/{id}/board`) and the participation detail: `candidate.full_name`
+  and the six-key `profile` become the effective values; each gains `corrected_fields`
+  (same keys as the pool detail; `[]` when none).
+- Participation detail also gains `original` (same shape as the pool detail's
+  `original`, null when nothing is corrected) and its `contact` becomes effective.
+- Participation `cv` (current) gains `source`; new `original_cv` `{file_name,
+  uploaded_at}|null`; `GET …/participations/{participationId}/cv` returns the current
+  CV and `GET …/participations/{participationId}/cv/original` the candidate's original.
+- Snapshots stay frozen in storage: corrections are applied at read time only.
 
 ## Delivery cuts (backend)
 
 - E1: manual edits + history + etag.
 - E2: organic correction layer (`set`/`reset`, `original`, effective list/filters).
 - E3: corrected CV per participation.
+- E4: vacancy board reads corrections (profile, contact, CV).
