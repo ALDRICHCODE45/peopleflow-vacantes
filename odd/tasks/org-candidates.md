@@ -13,7 +13,7 @@ Branch feat/org-candidates from main 594ae7b; frontend pairs on feat/team-and-or
 ## Tasks
 
 - T1 [done] S1-S4 | parent + explore | Map data model and reuse; draft contract backend/docs/org-candidates.md; frontend review before code. | commit: 3bd5597, d9d8b7e
-- T2 [done] S1-S4 | worker mvj332lb-2-k5td + parent DB run | GET /v2/me/company/candidates (list, filters, cursor, total). | commit: b6144c3, C2PENDING
+- T2 [done] S1-S4 | worker mvj332lb-2-k5td + parent DB run | GET /v2/me/company/candidates (list, filters, cursor, total). | commit: b6144c3, 9c5e2c8
 - T3 [pending] S1-S4 | TBD | GET /v2/me/company/candidates/{kind}/{id} + CV download (detail, participations, CVs). | commit: -
 - T4 [pending] S1-S4 | parent | Full checks, docs, integration with frontend, user review. | commit: -
 
