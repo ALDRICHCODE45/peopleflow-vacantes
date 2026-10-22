@@ -63,6 +63,11 @@ it("renders only real members, role labels, dates and three factual summaries", 
   expect(screen.queryByRole("group", { name: "Filtrar por estado" })).not.toBeInTheDocument();
   expect(screen.queryByText(/Tomás Ríos|Valeria Ortiz|Invitación pendiente/)).not.toBeInTheDocument();
 });
+it("reserves no empty status row between the search and the results until an action reports", async () => {
+  mount();
+  await screen.findByText("José Real");
+  expect(document.querySelector("[data-pf-action-status-slot]")).toBeNull();
+});
 it("keeps diacritic-insensitive name/email search and clears empty results", async () => {
   const user = userEvent.setup(); mount(); await screen.findByText("José Real");
   await user.type(screen.getByRole("searchbox"), "JOSE");

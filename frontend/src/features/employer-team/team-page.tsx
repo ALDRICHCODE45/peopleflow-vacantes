@@ -94,7 +94,7 @@ function ConnectedTeam({ userId, role, companyId }: { userId: string; role: Team
     <TeamWorkspace members={members} drafts={drafts.items} workloadPending={drafts.pending} workloadUnavailable={workloadUnavailable}
       role={effectiveRole} userId={userId} disabled={pending || team.pending} onAction={(member, action) => setSelection({ member, action })}
       actionStatusId={status ? "team-action-status" : undefined}
-      feedback={<ActionStatusSlot>{status && <ActionStatus id="team-action-status" tone={status.tone} text={status.text} />}</ActionStatusSlot>} />
+      feedback={status && <ActionStatusSlot><ActionStatus id="team-action-status" tone={status.tone} text={status.text} /></ActionStatusSlot>} />
     {/* Controlled dialog is a sibling of the list, not a modal root wrapping the screen. */}
     <ConfirmActionDialog open={selection !== null} onOpenChange={open => { if (!open) setSelection(null); }} onConfirm={() => { void confirm(); }}
       icon={selection?.action.kind === "remove" ? UserRoundMinus : UserRoundCog}
