@@ -1,0 +1,25 @@
+# Design: cards and dialogs follow the official shadcn examples
+
+Unit after the audited candidate edits merge (main 8d80cb03). Branch `feat/design-cards-dialogs`.
+Project style `base-rhea` (Base UI): the reference is the *base* examples (`ui.shadcn.com/code/apps/v4/registry/bases/base/examples/*-example.tsx`), not new-york-v4.
+
+## Specs
+
+- **S1.** «el diseno de las cards de "procesos" de los candidatos, estan muuy mal disenadas, pero de verdad, muy mal» → the process cards in the candidate sheet are redesigned following the official Card/Item examples.
+- **S2.** «(y no se , pero debe haber otras "cards" que esten igual)» → every other card built the same way is found and fixed.
+- **S3.** «hay "dialgos" o "alert dialogs" que no estan bien implementados, cuando salen, no tienen blur detras, no se ven con en la documentacion oficial de shadcn» → every Dialog/AlertDialog shows the official overlay (blur) and composition.
+- **S4.** «revisa tu system design, revisa la documentacion de todos los componentes de shadcn que vayas a utilizar y fijate en los ejemplos que exponen y ejecutalo tal cual lo pone en el/los ejemplos, mejora el system design, itera sobre ello y mejora el diseno» → `docs/frontend-ui-design-rules.md` is updated so the rules point at the official base examples, and the design is iterated with browser checks (dark, light, 390).
+
+## Tasks
+
+- T1 Inventory cards and dialogs vs official base examples (explore) — S1–S4
+- T2 Dialog overlay: nested dialogs inside Sheets render no backdrop (Base UI `Backdrop.forceRender` defaults false) — S3
+- T3 Process cards redesign (pool sheet + board sheet) — S1
+- T4 Other cards with the same defects — S2
+- T5 System design rules update — S4
+- T6 Browser QA dark/light/390, suite, native review, handoff — S1–S4
+
+## Log
+
+- **L1.** User (2026-10-22): «Bien hermano, solamente una cosa, mientras hacias la revision manual note varias cosas extranas que a mi no me gustaron nada, la perimera es el diseno de las cards de "procesos" de los candidatos, estan muuy mal disenadas, pero de verdad, muy mal (y no se , pero debe haber otras "cards" que esten igual) y la otra es que hay "dialgos" o "alert dialogs" que no estan bien implementados, cuando salen, no tienen blur detras, no se ven con en la documentacion oficial de shadcn, de nuevo, revisa tu system design, revisa la documentacion de todos los componentes de shadcn que vayas a utilizar y fijate en los ejemplos que exponen y ejecutalo tal cual lo pone en el/los ejemplos, mejora el system design, itera sobre ello y mejora el diseno, por favor, hermano.»
+- **L2.** First evidence: `components/ui/alert-dialog.tsx` and `dialog.tsx` already carry the official overlay (`bg-black/30 supports-backdrop-filter:backdrop-blur-sm`). Base UI 1.7 `Dialog.Backdrop` has `forceRender` (default false: «Whether the backdrop is forced to render even when nested»). Confirmations opened from inside a Sheet are nested dialogs, so their backdrop is not rendered → no blur (seen in QA: edit save confirmation over the sheet). Confirmations mounted as siblings of the Sheet (CV upload) do show the blur. To verify in the browser before fixing.
