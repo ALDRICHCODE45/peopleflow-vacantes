@@ -91,7 +91,7 @@ server-side over the whole pool. `none` selects missing values («Sin dato»).
 | `language` + `language_min_level` | repeatable code (or `none`); optional level `A1`…`C2`, `native` (lowercase, same literals as profiles) applied to the selected codes |
 | `education_level` + `education_in_progress` | one minimum level; `education_in_progress=true` also matches `in_progress ≥ level` |
 
-Errors: 400 `invalid_filter` `{field, code}` (unknown key, bad value, duplicate
+Errors: 400 `{"error":"…","code":"invalid_filter","fields":[{"field":"years","code":"invalid"}]}` — the shared validation-style `fields` array (same item shape as `validation_error`), one entry per offending key, sorted by key; field codes are `unknown`, `invalid`, `duplicate`, `required`, `not_found` (unknown key, bad value, duplicate
 one-valued key, `language_min_level` without `language`, `education_in_progress`
 without `education_level`); a `vacancy` that does not exist in the company is
 `{field:"vacancy", code:"not_found"}`; 400 `invalid_cursor`. No facet counts in v1:
