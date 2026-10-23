@@ -58,7 +58,7 @@ solamente detalles que encuentro»); each one is recorded here with its investig
 
 ## Tasks
 
-- T1 S1 dial combobox in the three forms + `phoneToDraft` with the catalog — pending
+- T1 S1 dial combobox in the three forms + `phoneToDraft` with the catalog — done 01f50e19 (L5)
 - T2 S2 save-first dialog for a never-saved draft — done (L3)
 - T3 S3 shared table fills the container — done 3d6e9e03 (L4)
 - T4 S4 primary color accents — done be7b850d (L4)
@@ -93,3 +93,12 @@ solamente detalles que encuentro»); each one is recorded here with its investig
   `color-mix` because the dark token is a button fill (L≈0.43). RED 4 → GREEN; org-candidates 456 tests. Browser
   light/dark 1920 + sheet: `.playwright-mcp/qa/accent-*.png`. The Next dev server on :3000 had stopped during the
   work (not by the agent); restarted in background with `pnpm dev`.
+- **L5.** T1 (worker mvlkzgb8-4-7h86): `lib/dial-codes.ts` (ITU catalog, alphabetical with México first; preferred
+  country for shared dials +1 US, +7 RU, +44 GB, +52 MX; AC +247, XK +383, Vatican +39; uninhabited territories
+  omitted), `components/forms/dial-code-field.tsx` (anchored searchable combobox, dial-only value, country kept for
+  display), `phoneToDraft` longest catalog prefix; three forms integrated. RED → GREEN 15 files / 298 tests, tsc and
+  eslint clean. Parent browser QA on the manual intake sheet: the old 7rem column clipped «México +5» and wrapped the
+  options → column widened to `sm:grid-cols-[13rem_minmax(0,1fr)]` (single column on mobile) in the three forms;
+  search «593» → «Ecuador +593», «esta» → «Estados Unidos +1», popup under the field
+  (`.playwright-mcp/qa/dial-intake-*.png`). Affected 38 files / 634 tests green. Slice note: 01f50e19 is the largest
+  commit (catalog list ~250 lines of data).
