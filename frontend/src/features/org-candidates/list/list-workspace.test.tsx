@@ -1,8 +1,10 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 vi.mock("../actions", () => ({ listCandidatesAction: vi.fn() }));
+vi.mock("@/components/ui/dropdown-menu", async () => (await import("@/components/data-table/test-menu")).menuDouble);
+vi.mock("@/components/ui/tooltip", async () => (await import("@/components/data-table/test-menu")).tooltipDouble);
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn().mockResolvedValue({ ok: true, items: [], nextCursor: null }) }));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }] } }) }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ states: { status: "success", data: { items: [] } } }), useGeoResource: () => ({ status: "success", data: { items: [] } }) }));
@@ -20,13 +22,15 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 it.each(["table", "cards"])("renders the same profile and vacancy facts in %s, with a real candidate action", async view => {
  window.history.replaceState(null, "", `/empresa/talento?view=${view}`); const open = vi.fn(); render(<OrgCandidatesWorkspace onOpenCandidate={open} />);
  await screen.findByText("Mariana Ortega Silva");
- for (const fact of ["37 candidatos", "Desarrolladora Frontend", "Guadalajara, Jalisco", "Licenciatura o Ingeniería", "Inglés C1", "Backend Go"]) expect(screen.getByText(fact)).toBeTruthy();
+ expect(screen.getByText(/candidatos en tu base de talento/u).closest('[role="status"]')).toHaveTextContent('37 candidatos en tu base de talento');
+ for (const fact of ["Desarrolladora Frontend", "Licenciatura o Ingeniería", "Inglés C1", "Backend Go"]) expect(screen.getByText(fact)).toBeTruthy();
+ expect(screen.getByText(view === 'cards' ? 'Guadalajara, Jalisco' : 'Guadalajara')).toBeTruthy();
  if (view === "cards") {
    expect(screen.getByText("Manual")).toBeTruthy(); expect(screen.getByText("Maestría · En curso")).toBeTruthy();
    expect(document.body.textContent).toContain("Senior · 4.5 años");
-   fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" })); expect(screen.getByText("2 procesos · 1 activo")).toBeTruthy();
+   fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" })); expect(screen.getByText("2 procesos")).toBeTruthy(); expect(screen.getByText('1 activo')).toBeTruthy();
  } else {
-   expect(screen.getByText("Maestría en curso")).toBeTruthy(); expect(screen.getByText("4.5 años")).toBeTruthy();
+   expect(screen.getByText("Maestría · En curso")).toBeTruthy(); expect(screen.getByText("4.5 años")).toBeTruthy();
    fireEvent.click(screen.getByText(candidate.full_name).closest("tr")!);
  }
  expect(open).toHaveBeenCalledWith({ kind: "manual", id: candidate.id });
@@ -155,7 +159,7 @@ it("groups search, filters and view in one desktop toolbar and puts the count ab
  expect(row).toContainElement(screen.getByRole("button", { name: "Restablecer vista" }));
  expect(row).toHaveClass("md:flex-nowrap");
  expect(search.closest('[data-slot="field"]')).toHaveClass("w-full", "md:flex-1");
- expect(screen.getByRole("region", { name: "Resultados de candidatos" })).toContainElement(screen.getByText("37 candidatos"));
+ expect(within(screen.getByRole("region", { name: "Resultados de candidatos" })).getByText(/candidatos en tu base de talento/u)).toHaveTextContent('37 candidatos en tu base de talento');
 });
 it.each(["table", "cards"])("forces mobile cards without rewriting the %s URL preference or filters", async view => {
  vi.stubGlobal("innerWidth", 390);

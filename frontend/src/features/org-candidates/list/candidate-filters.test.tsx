@@ -34,13 +34,13 @@ it("reads all vacancy pages and the geo/language catalogs, not facets of loaded 
  const change = vi.fn(); const user = userEvent.setup(); render(<CandidateFiltersBar filters={{ state: ["14"] }} onChange={change} onClear={vi.fn()} languages={languages} />);
  await user.click(screen.getByRole("button", { name: /^Filtros/ }));
  expect(listDraftsAction).toHaveBeenLastCalledWith({ limit: 50, cursor: "second" });
- const dialog = screen.getByRole("dialog"); expect(within(dialog).getByRole("combobox", { name: "Municipio · Jalisco" })).toBeTruthy();
+ const dialog = screen.getByRole("region", { name: "Filtrar candidatos" }); expect(within(dialog).getByRole("combobox", { name: "Municipio · Jalisco" })).toBeTruthy();
  await user.click(within(dialog).getByRole("combobox", { name: "Vacante" }));
  await user.click(await screen.findByRole("option", { name: "Frontend React" })); expect(change).toHaveBeenLastCalledWith({ vacancy: ["b"] });
 });
 it("offers a single minimum education and selected-language minimum, with board copy", async () => {
  const user = userEvent.setup(); const change = vi.fn(); render(<CandidateFiltersBar filters={{ language: ["en"], education_level: "bachelor" }} onChange={change} onClear={vi.fn()} languages={languages} />);
- await user.click(screen.getByRole("button", { name: /^Filtros/ })); const dialog = screen.getByRole("dialog");
+ await user.click(screen.getByRole("button", { name: /^Filtros/ })); const dialog = screen.getByRole("region", { name: "Filtrar candidatos" });
  expect(within(dialog).getByRole("combobox", { name: "Nivel mínimo" })).toBeTruthy();
  expect(within(dialog).getByText("Coincide con este nivel o uno superior.")).toBeTruthy();
  await user.click(within(dialog).getByRole("checkbox", { name: "Incluye estudios en curso" })); expect(change).toHaveBeenLastCalledWith({ education_in_progress: "true" });
@@ -49,7 +49,7 @@ it("offers a single minimum education and selected-language minimum, with board 
 it("hides dependent controls without their parent filters and retries a failed vacancy catalog", async () => {
  vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: {} });
  const user = userEvent.setup(); render(<CandidateFiltersBar filters={{}} onChange={vi.fn()} onClear={vi.fn()} languages={languages} />);
- await user.click(screen.getByRole("button", { name: /^Filtros/ })); const dialog = screen.getByRole("dialog");
+ await user.click(screen.getByRole("button", { name: /^Filtros/ })); const dialog = screen.getByRole("region", { name: "Filtrar candidatos" });
  expect(within(dialog).queryByRole("combobox", { name: "Nivel mínimo" })).toBeNull(); expect(within(dialog).queryByRole("checkbox", { name: "Incluye estudios en curso" })).toBeNull();
  await user.click(await screen.findByRole("button", { name: "Reintentar vacantes" })); await waitFor(() => expect(listDraftsAction).toHaveBeenCalledTimes(2)); await act(async () => {});
 });

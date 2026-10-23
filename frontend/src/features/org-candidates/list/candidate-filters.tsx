@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxContent, ComboboxEmpty, ComboboxItem, ComboboxList, ComboboxValue } from "@/components/ui/combobox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { CEFR_LEVELS, EDUCATION_LEVELS, SENIORITIES, SENIORITY_LABELS } from "@/features/candidate/model";
 import { educationLabels } from "@/features/pipeline-movement/profile-filter-dimensions";
 import { useGeoResource } from "@/features/geo/use-geo-catalog";
@@ -26,7 +25,7 @@ function MultiFilter({ id, label, options, selected, onChange }: { id: string; l
   const complete = [...options, ...selected.filter(value => !options.some(option => option.value === value)).map(value => ({ value, label: value }))];
   const name = (value: string) => complete.find(option => option.value === value)?.label ?? value;
   return <Field><FieldLabel htmlFor={id}>{label}</FieldLabel><Combobox multiple items={complete.map(option => option.value)} value={selected} onValueChange={onChange} itemToStringLabel={name}>
-    <ComboboxChips><ComboboxValue>{(values: string[]) => <>{values.map(value => <ComboboxChip key={value}>{name(value)}</ComboboxChip>)}<ComboboxChipsInput id={id} aria-label={label} placeholder="Buscar opciones…" /></>}</ComboboxValue></ComboboxChips>
+    <ComboboxChips className="min-h-10 min-w-0"><ComboboxValue>{(values: string[]) => <>{values.map(value => <ComboboxChip key={value}>{name(value)}</ComboboxChip>)}<ComboboxChipsInput id={id} aria-label={label} placeholder="Buscar opciones…" /></>}</ComboboxValue></ComboboxChips>
     <ComboboxContent><ComboboxEmpty>Sin resultados</ComboboxEmpty><ComboboxList>{(value: string) => <ComboboxItem key={value} value={value}>{name(value)}</ComboboxItem>}</ComboboxList></ComboboxContent>
   </Combobox></Field>;
 }
@@ -76,29 +75,37 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
   return <section aria-label="Filtros de candidatos" className="flex min-w-0 flex-col gap-3">
     <div data-candidates-toolbar className="flex min-w-0 flex-wrap items-end gap-3 md:flex-nowrap">
       {search}
-      <div className="flex w-full shrink-0 items-center justify-between gap-3 md:w-auto">
-    <Sheet open={open} onOpenChange={setOpen}>
-    <SheetTrigger render={<Button type="button" variant="outline" className="min-h-10" />}><SlidersHorizontal aria-hidden="true" />Filtros{chips.length > 0 && <Badge variant="secondary">{chips.length}</Badge>}</SheetTrigger>
-    <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"><SheetHeader className="border-b"><SheetTitle>Filtrar candidatos</SheetTitle><SheetDescription>Combina filtros para encontrar perfiles de tu organización. Las opciones de un mismo filtro se suman; entre filtros se cumplen todas las condiciones.</SheetDescription></SheetHeader>
-      <div className="min-h-0 flex-1 overflow-y-auto p-6"><FieldGroup className="gap-6">
-        <SingleFilter id="org-origin" label="Origen" options={origins} value={filters.origin} onChange={origin => onChange({ origin })} />
-        {(["vacancy", "state"] as const).map(key => <MultiFilter key={key} id={`org-${key}`} label={labels[key]} options={options[key]} selected={filters[key] ?? []} onChange={values => onChange({ [key]: values })} />)}
-        {vacancyStatus === "loading" && <p role="status" className="text-xs text-muted-foreground">Cargando vacantes…</p>}
-        {vacancyStatus === "error" && <Button type="button" variant="link" className="min-h-10" onClick={() => setAttempt(value => value + 1)}>Reintentar vacantes</Button>}
-        {states.status === "error" && <Button type="button" variant="link" className="min-h-10" onClick={states.retry}>Reintentar estados</Button>}
-        {(filters.state ?? []).filter(value => value !== "none").map(state => <MunicipalityFilter key={state} state={state} name={states.data?.items.find(item => item.id === state)?.name ?? state} selected={filters.municipality ?? []} onChange={municipality => onChange({ municipality })} />)}
-        {!filters.state?.some(value => value !== "none") && <p className="text-xs text-muted-foreground">Elige un estado para buscar municipios.</p>}
-        <Field orientation="horizontal"><Checkbox id="org-municipality-none" checked={filters.municipality?.includes("none") ?? false} onCheckedChange={checked => onChange({ municipality: checked ? [...(filters.municipality ?? []), "none"] : filters.municipality?.filter(value => value !== "none") })} /><FieldLabel htmlFor="org-municipality-none">Sin dato de municipio</FieldLabel></Field>
-        {(["seniority", "years", "language"] as const).map(key => <MultiFilter key={key} id={`org-${key}`} label={labels[key]} options={options[key]} selected={filters[key] ?? []} onChange={values => onChange({ [key]: values })} />)}
-        {!!filters.language?.length && <SingleFilter id="org-language-min" label="Nivel mínimo" options={options.language_min_level} value={filters.language_min_level} onChange={language_min_level => onChange({ language_min_level })} />}
-        <SingleFilter id="org-education" label="Nivel de estudios" options={options.education_level} value={filters.education_level} onChange={education_level => onChange({ education_level })} />
-        <p className="text-xs text-muted-foreground">Coincide con este nivel o uno superior.</p>
-        {!!filters.education_level && <Field orientation="horizontal"><Checkbox id="org-education-progress" checked={filters.education_in_progress === "true"} onCheckedChange={checked => onChange({ education_in_progress: checked ? "true" : undefined })} /><FieldLabel htmlFor="org-education-progress">Incluye estudios en curso</FieldLabel></Field>}
-      </FieldGroup></div><SheetFooter className="border-t"><Button type="button" variant="outline" className="min-h-10" onClick={onClear}>Limpiar</Button><Button type="button" className="min-h-10" onClick={() => setOpen(false)}>Ver candidatos</Button></SheetFooter>
-    </SheetContent></Sheet>
-    {viewToggle}
+      <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 md:ml-auto md:w-auto">
+        <Button type="button" variant="outline" className="min-h-10" aria-expanded={open} aria-controls="org-candidate-filters" onClick={() => setOpen(value => !value)}><SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Filtros{chips.length > 0 && <Badge variant="secondary">{chips.length}</Badge>}</Button>
+        {viewToggle}
       </div>
     </div>
+    {/* Approved v0 inline disclosure, not the shared board's modal filter sheet.
+        Only existing server-supported dimensions are offered. */}
+    {open && <div id="org-candidate-filters" role="region" aria-label="Filtrar candidatos" className="rounded-lg bg-background p-4 md:p-5">
+      <FieldGroup className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+        <div className="flex min-w-0 flex-col gap-3"><MultiFilter id="org-state" label="Estado" options={options.state} selected={filters.state ?? []} onChange={state => onChange({ state })} />{states.status === "error" && <Button type="button" variant="link" className="min-h-10" onClick={states.retry}>Reintentar estados</Button>}</div>
+        <div className="flex min-w-0 flex-col gap-3">
+          {(filters.state ?? []).filter(value => value !== "none").map(state => <MunicipalityFilter key={state} state={state} name={states.data?.items.find(item => item.id === state)?.name ?? state} selected={filters.municipality ?? []} onChange={municipality => onChange({ municipality })} />)}
+          {!filters.state?.some(value => value !== "none") && <p className="text-xs text-muted-foreground">Elige un estado para buscar municipios.</p>}
+          <Field orientation="horizontal"><Checkbox id="org-municipality-none" checked={filters.municipality?.includes("none") ?? false} onCheckedChange={checked => onChange({ municipality: checked ? [...(filters.municipality ?? []), "none"] : filters.municipality?.filter(value => value !== "none") })} /><FieldLabel htmlFor="org-municipality-none">Sin dato de municipio</FieldLabel></Field>
+        </div>
+        {(["years", "seniority"] as const).map(key => <MultiFilter key={key} id={`org-${key}`} label={labels[key]} options={options[key]} selected={filters[key] ?? []} onChange={values => onChange({ [key]: values })} />)}
+        <div className="flex min-w-0 flex-col gap-3"><SingleFilter id="org-education" label="Nivel de estudios" options={options.education_level} value={filters.education_level} onChange={education_level => onChange({ education_level })} />
+          <p className="text-xs text-muted-foreground">Coincide con este nivel o uno superior.</p>
+          {!!filters.education_level && <Field orientation="horizontal"><Checkbox id="org-education-progress" checked={filters.education_in_progress === "true"} onCheckedChange={checked => onChange({ education_in_progress: checked ? "true" : undefined })} /><FieldLabel htmlFor="org-education-progress">Incluye estudios en curso</FieldLabel></Field>}
+        </div>
+        <div className="flex min-w-0 flex-col gap-3"><MultiFilter id="org-language" label="Idiomas" options={options.language} selected={filters.language ?? []} onChange={language => onChange({ language })} />
+          {!!filters.language?.length && <SingleFilter id="org-language-min" label="Nivel mínimo" options={options.language_min_level} value={filters.language_min_level} onChange={language_min_level => onChange({ language_min_level })} />}
+        </div>
+        <div className="flex min-w-0 flex-col gap-3"><MultiFilter id="org-vacancy" label="Vacante" options={options.vacancy} selected={filters.vacancy ?? []} onChange={vacancy => onChange({ vacancy })} />
+          {vacancyStatus === "loading" && <p role="status" className="text-xs text-muted-foreground">Cargando vacantes…</p>}
+          {vacancyStatus === "error" && <Button type="button" variant="link" className="min-h-10" onClick={() => setAttempt(value => value + 1)}>Reintentar vacantes</Button>}
+        </div>
+        <SingleFilter id="org-origin" label="Origen" options={origins} value={filters.origin} onChange={origin => onChange({ origin })} />
+      </FieldGroup>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-prose text-xs text-muted-foreground">Las opciones de un mismo filtro se suman; entre filtros se cumplen todas las condiciones.</p><Button type="button" variant="ghost" className="min-h-10" onClick={onClear}>Limpiar filtros</Button></div>
+    </div>}
     {!!chips.length && <div className="flex min-w-0 flex-wrap items-center gap-2">
     {chips.map(chip => <Button key={`${chip.key}:${chip.value}`} type="button" variant="outline" className="h-auto min-h-10 max-w-full whitespace-normal" aria-label={`Quitar filtro ${chip.label}`} onClick={() => onChange(repeatableKeys.includes(chip.key as typeof repeatableKeys[number]) ? { [chip.key]: (filters[chip.key as typeof repeatableKeys[number]] ?? []).filter(value => value !== chip.value) } : { [chip.key]: undefined })}>{chip.label}<X aria-hidden="true" data-icon="inline-end" /></Button>)}
     <Button type="button" variant="ghost" className="min-h-10" onClick={onClear}>Limpiar</Button>

@@ -1,6 +1,7 @@
 .cell {
   background: var(--rich-row-background, var(--card));
 }
+.header.cell { background: var(--background); color: var(--muted-foreground); }
 .cell[data-pinned] { z-index: 1; }
 .header[data-pinned] { z-index: 2; }
 .header[data-drop-edge]::before {

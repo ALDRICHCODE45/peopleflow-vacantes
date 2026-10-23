@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Item, ItemContent, ItemTitle } from "@/components/ui/item";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useTablePreferences } from "./use-table-preferences";
 import styles from "./rich-data-table.module.css";
@@ -29,6 +30,11 @@ export type RichDataTableProps<T extends RowData> = {
   emptyState: ReactNode; footer?: ReactNode;
   /** Render inline, in a page toolbar (e.g. a portal), or omit by returning null. */
   toolbar?: (controls: ReactNode) => ReactNode;
+  /** Alternate row presentation keeps the same column preferences and controls. */
+  content?: ReactNode;
+  beforeContent?: (visibleColumnIds: string[]) => ReactNode;
+  compactControls?: boolean;
+  sortState?: { id: string; direction: "ascending" | "descending" | "none" };
 };
 const NO_PINNING: ColumnPinningState = { start: [], end: [] };
 const interactive = (target: EventTarget | null) => target instanceof Element && !!target.closest("button,a,input,select,textarea,[role=menuitem],[role=menuitemcheckbox],[data-row-action]");
@@ -54,8 +60,8 @@ function moveTo<T extends RowData>(table: TableInstance<Features, T>, id: string
     next.splice(from, 1); next.splice(to, 0, id); return next;
   });
 }
-function ColumnHeader<T extends RowData>({ header, table, shadow, dropEdge }: {
-  header: Header<Features, T>; table: TableInstance<Features, T>; shadow?: string; dropEdge?: "start" | "end";
+function ColumnHeader<T extends RowData>({ header, table, shadow, dropEdge, sortState }: {
+  header: Header<Features, T>; table: TableInstance<Features, T>; shadow?: string; dropEdge?: "start" | "end"; sortState?: RichDataTableProps<T>["sortState"];
 }) {
   const column = header.column;
   const label = (column.columnDef.meta as RichColumnDef<T>["meta"]).label;
@@ -67,12 +73,12 @@ function ColumnHeader<T extends RowData>({ header, table, shadow, dropEdge }: {
   const neighbor = (direction: -1 | 1) => index >= 0 ? movable[index + direction] : undefined;
   const pinned = column.getIsPinned();
   const hasControls = column.getCanPin() || column.getCanHide() || draggable;
-  return <TableHead ref={drop.setNodeRef} scope="col" aria-label={label} data-column-id={column.id} data-pinned={pinned || undefined} data-shadow={shadow} data-drop-edge={dropEdge}
+  return <TableHead ref={drop.setNodeRef} scope="col" aria-label={label} aria-sort={sortState?.id === column.id ? sortState.direction : undefined} data-column-id={column.id} data-pinned={pinned || undefined} data-shadow={shadow} data-drop-edge={dropEdge}
     style={pinStyle(column)}
     className={cn(styles.header, styles.cell, "group/header relative h-10", drag.isDragging && "opacity-50")}>
     <div className="flex min-w-0 items-center gap-1">
       <div ref={drag.setNodeRef} data-header-label {...(draggable ? drag.listeners : {})}
-        className={cn("min-w-0 flex-1 truncate", draggable && "cursor-grab touch-none select-none active:cursor-grabbing")}><FlexRender header={header} /></div>
+        className={cn("min-w-0 flex-1 truncate", (column.columnDef.meta as RichColumnDef<T>["meta"]).align === "center" && "flex justify-center", draggable && "cursor-grab touch-none select-none active:cursor-grabbing")}><FlexRender header={header} /></div>
       {pinned && hasControls && <Pin data-pinned-indicator aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />}
       {hasControls && <div data-header-controls className="shrink-0 opacity-0 transition-opacity group-hover/header:opacity-100 group-focus-within/header:opacity-100">
       <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-xs" className="shrink-0" aria-label={`Opciones de ${label}`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
@@ -91,21 +97,22 @@ function ColumnHeader<T extends RowData>({ header, table, shadow, dropEdge }: {
     </div>
   </TableHead>;
 }
-function ViewControls<T extends RowData>({ table, reset, isDefault }: { table: TableInstance<Features, T>; reset: () => void; isDefault: boolean }) {
+function ViewControls<T extends RowData>({ table, reset, isDefault, compact }: { table: TableInstance<Features, T>; reset: () => void; isDefault: boolean; compact: boolean }) {
   const hideable = table.getAllLeafColumns().filter(column => column.getCanHide());
   const hidden = hideable.filter(column => !column.getIsVisible()).length;
   return <div className="flex items-center gap-2">
-    <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" aria-label={hidden ? `Columnas · ${hidden} ocultas` : "Columnas"} />}>
+    <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className={compact ? "min-h-10" : undefined} aria-label={hidden ? `Columnas · ${hidden} ocultas` : "Columnas"} />}>
       <Columns3 aria-hidden="true" />Columnas{hidden > 0 && <Badge variant="secondary">{hidden}</Badge>}
     </DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-48"><DropdownMenuGroup>
       {hideable.map(column => <DropdownMenuCheckboxItem key={column.id} checked={column.getIsVisible()} closeOnClick={false} onCheckedChange={value => column.toggleVisibility(value)}>{(column.columnDef.meta as RichColumnDef<T>["meta"]).label}</DropdownMenuCheckboxItem>)}
     </DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
-    <Button type="button" variant="ghost" size="sm" disabled={isDefault} onClick={reset}><RotateCcw aria-hidden="true" />Restablecer vista</Button>
+    {compact ? <TooltipProvider><Tooltip><TooltipTrigger render={<span className="inline-flex" tabIndex={isDefault ? 0 : undefined} />}><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Restablecer vista" disabled={isDefault} onClick={reset}><RotateCcw aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>Restablecer vista</TooltipContent></Tooltip></TooltipProvider>
+      : <Button type="button" variant="ghost" size="sm" disabled={isDefault} onClick={reset}><RotateCcw aria-hidden="true" />Restablecer vista</Button>}
   </div>;
 }
 
 /** Flat, fixed-pixel columns. All sticky geometry comes from the same TanStack sizing model as the table. */
-export function RichDataTable<T extends RowData>({ id, columns, data, getRowId, defaultPinning = NO_PINNING, onRowActivate, emptyState, footer, toolbar }: RichDataTableProps<T>) {
+export function RichDataTable<T extends RowData>({ id, columns, data, getRowId, defaultPinning = NO_PINNING, onRowActivate, emptyState, footer, toolbar, content, beforeContent, compactControls = false, sortState }: RichDataTableProps<T>) {
   const defaults = useMemo(() => {
     const fixed = columns.filter(column => column.enablePinning === false).map(column => column.id);
     return { order: columns.map(column => column.id), pinning: defaultPinning, visibility: {},
@@ -148,7 +155,7 @@ export function RichDataTable<T extends RowData>({ id, columns, data, getRowId, 
   const shadow = (column: Column<Features, T>) => column.getIsPinned() === "start" && column.getIsLastColumn("start") && edges.start ? "start"
     : column.getIsPinned() === "end" && column.getIsFirstColumn("end") && edges.end ? "end" : undefined;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const controls = <ViewControls table={table} reset={reset} isDefault={isDefault} />;
+  const controls = <ViewControls table={table} reset={reset} isDefault={isDefault} compact={compactControls} />;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const movable = movableColumns(table).map(column => column.id);
@@ -157,7 +164,8 @@ export function RichDataTable<T extends RowData>({ id, columns, data, getRowId, 
   const clearDrag = () => { setActiveId(null); setOverId(null); };
   return <div className="flex min-w-0 flex-col gap-3">
     {toolbar ? toolbar(controls) : controls}
-    <DndContext id={`rich-table-${id}`} sensors={sensors} collisionDetection={pointerWithin}
+    {beforeContent?.([...table.getStartVisibleLeafColumns(), ...table.getCenterVisibleLeafColumns(), ...table.getEndVisibleLeafColumns()].map(column => column.id))}
+    {content !== undefined ? content : <DndContext id={`rich-table-${id}`} sensors={sensors} collisionDetection={pointerWithin}
       accessibility={{ screenReaderInstructions: { draggable: "Para mover una columna con teclado, abre sus opciones y elige Mover a la izquierda o Mover a la derecha." }, announcements: {
         onDragStart: ({ active }) => `Moviendo ${(table.getColumn(String(active.id))?.columnDef.meta as RichColumnDef<T>["meta"])?.label ?? "columna"}`,
         onDragOver: ({ over }) => over ? "Suelta sobre esta columna para moverla" : undefined,
@@ -169,7 +177,7 @@ export function RichDataTable<T extends RowData>({ id, columns, data, getRowId, 
       onDragEnd={({ active, over }) => { clearDrag(); if (over) moveTo(table, String(active.id), String(over.id)); }}>
       <div ref={scrollRef} role="region" aria-label="Tabla con desplazamiento horizontal" tabIndex={0} onScroll={measure} className="min-w-0 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&>[data-slot=table-container]]:overflow-visible">
         <Table className="table-fixed" style={{ width: table.getTotalSize(), minWidth: table.getTotalSize() }}>
-          <TableHeader>{table.getHeaderGroups().map(group => <TableRow key={group.id}>{group.headers.map(header => <ColumnHeader key={header.id} header={header} table={table} shadow={shadow(header.column)} dropEdge={dropEdge(header.column.id)} />)}</TableRow>)}</TableHeader>
+          <TableHeader>{table.getHeaderGroups().map(group => <TableRow key={group.id}>{group.headers.map(header => <ColumnHeader key={header.id} header={header} table={table} sortState={sortState} shadow={shadow(header.column)} dropEdge={dropEdge(header.column.id)} />)}</TableRow>)}</TableHeader>
           <TableBody>{table.getRowModel().rows.length ? table.getRowModel().rows.map(row => <TableRow key={row.id} className={cn(styles.row, "h-[100px]", onRowActivate && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
             tabIndex={onRowActivate ? 0 : undefined}
             onClick={event => { if (!interactive(event.target)) onRowActivate?.(row.original); }}
@@ -181,7 +189,7 @@ export function RichDataTable<T extends RowData>({ id, columns, data, getRowId, 
       <DragOverlay dropAnimation={null} aria-hidden="true">
         {activeId && <Item data-drag-preview variant="outline" className="min-w-max bg-card shadow-lg"><ItemContent><ItemTitle>{columns.find(column => column.id === activeId)?.meta.label}</ItemTitle></ItemContent></Item>}
       </DragOverlay>
-    </DndContext>
+    </DndContext>}
     {footer}
   </div>;
 }
