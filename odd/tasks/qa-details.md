@@ -60,9 +60,9 @@ solamente detalles que encuentro»); each one is recorded here with its investig
 
 - T1 S1 dial combobox in the three forms + `phoneToDraft` with the catalog — pending
 - T2 S2 save-first dialog for a never-saved draft — done (L3)
-- T3 S3 shared table fills the container — pending
-- T4 S4 primary color accents (after agreeing the list with the user) — pending
-- T5 S5 combobox anchors in the three filter bars — pending
+- T3 S3 shared table fills the container — done 3d6e9e03 (L4)
+- T4 S4 primary color accents — done be7b850d (L4)
+- T5 S5 combobox anchors in the three filter bars — done 95a595a4 (L4)
 
 ## Log
 
@@ -83,3 +83,13 @@ solamente detalles que encuentro»); each one is recorded here with its investig
   `.playwright-mcp/qa/publish-unsaved-dialog.png`. A saved draft with new edits keeps the existing publication dialog
   (`publish-dialog.tsx`, same title). Also observed: navigating away from an unsaved draft does raise the browser
   `beforeunload` prompt.
+- **L4.** User (2026-10-23): «bien hermano, adelante con eso.» T1 delegated to a worker (dial combobox). T3 root cause
+  refined: the grow logic existed, but `RichDataTable` renders the loading `content` placeholder first and the
+  measure/ResizeObserver effect did not re-run when the scroll region mounted (fixed by depending on
+  `content === undefined`); RED 1 → GREEN, browser 1920: table 1488 = region 1488 on load. T5: structural test
+  `components/ui/combobox-anchor.test.ts` (every chips combobox passes `ref={anchor}` and `anchor={anchor}`), RED listed
+  exactly the three files → GREEN. T4: shared `features/org-candidates/accent.ts` (active tab text/underline/counter,
+  metric icon tiles, avatars, name hover, sheet tabs and fact icons); dark mode lightens `--primary` with
+  `color-mix` because the dark token is a button fill (L≈0.43). RED 4 → GREEN; org-candidates 456 tests. Browser
+  light/dark 1920 + sheet: `.playwright-mcp/qa/accent-*.png`. The Next dev server on :3000 had stopped during the
+  work (not by the agent); restarted in background with `pnpm dev`.
