@@ -15,6 +15,7 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxValue,
+  useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import {
@@ -91,6 +92,7 @@ function FacetMultiSelect({
   // always miss, so the reopened popup never anchored on its selection. The
   // list now receives the primitive domain ids and `itemToStringLabel` supplies
   // each Spanish label for filtering, typeahead and the visible option text.
+  const anchor = useComboboxAnchor();
   const itemValues = React.useMemo(() => options.map((option) => option.value), [options]);
   const inputId = `pipeline-filtro-${facet}`;
 
@@ -106,7 +108,7 @@ function FacetMultiSelect({
         onValueChange={onChange}
         itemToStringLabel={(value: string) => labelById.get(value) ?? value}
       >
-        <ComboboxChips>
+        <ComboboxChips ref={anchor}>
           <ComboboxValue>
             {(value: string[]) => (
               <>
@@ -122,7 +124,7 @@ function FacetMultiSelect({
             )}
           </ComboboxValue>
         </ComboboxChips>
-        <ComboboxContent>
+        <ComboboxContent anchor={anchor}>
           <ComboboxEmpty>Sin resultados</ComboboxEmpty>
           {/* The installed Base UI items API owns filtering: the root receives
               the full primitive id list and the list renders the filtered slice,

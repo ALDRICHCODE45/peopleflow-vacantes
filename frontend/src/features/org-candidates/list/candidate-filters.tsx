@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
-import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxContent, ComboboxEmpty, ComboboxItem, ComboboxList, ComboboxValue } from "@/components/ui/combobox";
+import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxContent, ComboboxEmpty, ComboboxItem, ComboboxList, ComboboxValue, useComboboxAnchor } from "@/components/ui/combobox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CEFR_LEVELS, EDUCATION_LEVELS, SENIORITIES, SENIORITY_LABELS } from "@/features/candidate/model";
 import { educationLabels } from "@/features/pipeline-movement/profile-filter-dimensions";
@@ -24,9 +24,10 @@ function MultiFilter({ id, label, options, selected, onChange }: { id: string; l
   // come from catalogs, never from the loaded page (there are no v1 facets).
   const complete = [...options, ...selected.filter(value => !options.some(option => option.value === value)).map(value => ({ value, label: value }))];
   const name = (value: string) => complete.find(option => option.value === value)?.label ?? value;
+  const anchor = useComboboxAnchor();
   return <Field><FieldLabel htmlFor={id}>{label}</FieldLabel><Combobox multiple items={complete.map(option => option.value)} value={selected} onValueChange={onChange} itemToStringLabel={name}>
-    <ComboboxChips className="min-h-10 min-w-0"><ComboboxValue>{(values: string[]) => <>{values.map(value => <ComboboxChip key={value}>{name(value)}</ComboboxChip>)}<ComboboxChipsInput id={id} aria-label={label} placeholder="Buscar opciones…" /></>}</ComboboxValue></ComboboxChips>
-    <ComboboxContent><ComboboxEmpty>Sin resultados</ComboboxEmpty><ComboboxList>{(value: string) => <ComboboxItem key={value} value={value}>{name(value)}</ComboboxItem>}</ComboboxList></ComboboxContent>
+    <ComboboxChips ref={anchor} className="min-h-10 min-w-0"><ComboboxValue>{(values: string[]) => <>{values.map(value => <ComboboxChip key={value}>{name(value)}</ComboboxChip>)}<ComboboxChipsInput id={id} aria-label={label} placeholder="Buscar opciones…" /></>}</ComboboxValue></ComboboxChips>
+    <ComboboxContent anchor={anchor}><ComboboxEmpty>Sin resultados</ComboboxEmpty><ComboboxList>{(value: string) => <ComboboxItem key={value} value={value}>{name(value)}</ComboboxItem>}</ComboboxList></ComboboxContent>
   </Combobox></Field>;
 }
 function SingleFilter({ id, label, options, value, onChange }: { id: string; label: string; options: Option[]; value?: string; onChange: (value?: string) => void }) {
