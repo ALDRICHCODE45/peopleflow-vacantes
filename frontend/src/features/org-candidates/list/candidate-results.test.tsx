@@ -182,3 +182,7 @@ it("cards fall back honestly without location, years, languages or participation
 it("keeps loading columns aligned with the rich table", () => {
   const { container } = render(<CandidateResultsSkeleton view="table" />); expect(within(container).queryByText("Seniority")).not.toBeInTheDocument(); expect(container.querySelectorAll("th")).toHaveLength(10);
 });
+it.each(["table", "cards"] as const)("tints avatars with the primary color in %s", view => {
+  const { container } = show(candidate, view);
+  expect(container.querySelector('[data-slot="avatar-fallback"]')).toHaveClass("bg-primary/10", "text-primary");
+});

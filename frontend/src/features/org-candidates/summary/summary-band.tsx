@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CandidatesSummary, CandidatesSummaryFailure } from "./summary-model";
+import { accentIconTile } from "../accent";
 
 export type SummaryBandProps = {
   data: CandidatesSummary | null;
@@ -41,7 +42,7 @@ export function SummaryBand({ data, pending, failure, onRetry }: SummaryBandProp
             <ItemGroup role="presentation" className="grid gap-0 divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
               {metrics.map(({ key, label, helper, Icon }) => (
                 <Item key={key} role="group" aria-labelledby={`${id}-${key}`}>
-                  <ItemMedia variant="icon" className="size-11 rounded-xl bg-background text-muted-foreground" aria-hidden="true">
+                  <ItemMedia variant="icon" className={`size-11 rounded-xl ${accentIconTile}`} aria-hidden="true">
                     <Icon />
                   </ItemMedia>
                   <ItemContent className="min-w-0">

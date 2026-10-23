@@ -13,6 +13,7 @@ import type { RichColumnDef } from "@/components/data-table/rich-data-table";
 import { TruncatedText, TwoLineCell } from "@/components/data-table/truncated-text";
 import { normalizedProfileLabel } from "@/features/pipeline-movement/profile-filter-dimensions";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
+import { accentAvatar } from "../accent";
 import type { LanguageCatalog } from "@/features/languages/model";
 import type { OrgCandidate } from "../model";
 import { relativeTime } from "../relative-time";
@@ -50,9 +51,9 @@ export function CandidateActions({ item, onOpen }: { item: OrgCandidate; onOpen?
 }
 export function CandidateIdentity({ item, onOpen, heading = false }: { item: OrgCandidate; onOpen?: OpenCandidate; heading?: boolean }) {
  const Name = heading ? "h3" : "div";
- return <div className="flex min-w-0 items-center gap-3"><Avatar className="size-10 shrink-0"><AvatarFallback>{initials(item.full_name)}</AvatarFallback></Avatar>
+ return <div className="flex min-w-0 items-center gap-3"><Avatar className="size-10 shrink-0"><AvatarFallback className={accentAvatar}>{initials(item.full_name)}</AvatarFallback></Avatar>
   <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-   <Name className="flex w-full min-w-0 items-center gap-1.5">{heading ? <Button type="button" variant="link" className="-mx-3 h-auto min-h-10 min-w-0 max-w-full shrink justify-start text-left font-medium text-foreground" aria-label={`Abrir ficha de ${item.full_name}`} onClick={() => onOpen?.({ kind: item.kind, id: item.id })}><TruncatedText text={item.full_name} /></Button> : <TruncatedText text={item.full_name} className="text-sm font-medium text-foreground" />}
+   <Name className="flex w-full min-w-0 items-center gap-1.5">{heading ? <Button type="button" variant="link" className="-mx-3 h-auto min-h-10 min-w-0 max-w-full shrink justify-start text-left font-medium text-foreground hover:text-primary" aria-label={`Abrir ficha de ${item.full_name}`} onClick={() => onOpen?.({ kind: item.kind, id: item.id })}><TruncatedText text={item.full_name} /></Button> : <TruncatedText text={item.full_name} className="text-sm font-medium text-foreground" />}
     {!!item.corrected_fields.length && <TooltipProvider><Tooltip><TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />} tabIndex={0} aria-label="Datos corregidos por tu empresa"><Check aria-hidden="true" className="size-3.5" /></TooltipTrigger><TooltipContent>Datos corregidos por tu empresa</TooltipContent></Tooltip></TooltipProvider>}
    </Name>
    {item.professional_title && <TruncatedText text={normalizedProfileLabel(item.professional_title)} className="w-full text-xs text-muted-foreground" />}

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { accentAvatar, accentIcon, accentTab, accentTabCount } from "../accent";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -106,7 +107,7 @@ const DetailSession = forwardRef<DetailSessionHandle, { candidate: OrgCandidateI
     </div>
     <SheetHeader className="gap-4">
       <div className="flex items-start gap-3.5">
-        <Avatar className="size-12 shrink-0"><AvatarFallback>{data ? initials(data.full_name) : <Skeleton aria-hidden="true" className="size-12 rounded-full" />}</AvatarFallback></Avatar>
+        <Avatar className="size-12 shrink-0"><AvatarFallback className={accentAvatar}>{data ? initials(data.full_name) : <Skeleton aria-hidden="true" className="size-12 rounded-full" />}</AvatarFallback></Avatar>
         <div className="flex min-w-0 flex-col gap-1.5">
           <SheetTitle ref={titleRef} tabIndex={-1} className="break-words text-xl font-semibold tracking-tight outline-none">{data?.full_name ?? <span className={result === null ? "sr-only" : undefined}>Detalle del candidato</span>}{result === null && <Skeleton aria-hidden="true" className="h-6 w-48 max-w-full" />}</SheetTitle>
           {data && (data.professional_title || data.current_company) && <p className="break-words text-sm text-muted-foreground">{/* Field-level corrections live in Resumen; the header carries only the global badge. */}{data.professional_title}{data.professional_title && data.current_company && " · "}{data.current_company}</p>}
@@ -124,10 +125,10 @@ const DetailSession = forwardRef<DetailSessionHandle, { candidate: OrgCandidateI
     {data ? <Tabs value={tab} onValueChange={value => setTab(String(value))} className="min-h-0 flex-1 gap-0">
       <div className="shrink-0 border-b px-6 pb-2">
         <TabsList variant="line" aria-label="Secciones de la ficha" className="max-w-full justify-start gap-4">
-          <TabsTrigger value="summary">Resumen</TabsTrigger>
-          <TabsTrigger value="processes">Procesos <Badge variant="secondary">{data.participations.length}</Badge></TabsTrigger>
+          <TabsTrigger value="summary" className={accentTab}>Resumen</TabsTrigger>
+          <TabsTrigger value="processes" className={accentTab}>Procesos <Badge variant="secondary" className={accentTabCount}>{data.participations.length}</Badge></TabsTrigger>
           {/* The history endpoint is cursor-only: loaded entries are not a total. */}
-          <TabsTrigger value="history">Historial</TabsTrigger>
+          <TabsTrigger value="history" className={accentTab}>Historial</TabsTrigger>
         </TabsList>
       </div>
       <TabsContent value="summary" keepMounted className="min-h-0 overflow-y-auto overscroll-contain p-6">
@@ -163,7 +164,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 const missing = <span className="text-muted-foreground">Sin dato</span>;
 function FactRows({ rows }: { rows: { label: string; icon: typeof Mail; value: ReactNode; corrected?: boolean }[] }) {
   return <dl className="grid grid-cols-[44%_minmax(0,1fr)] items-start gap-x-2 gap-y-5">{rows.map(({ label, icon: Icon, value, corrected }) => <div key={label} className="contents">
-    <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt>
+    <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className={`size-4 shrink-0 ${accentIcon}`} />{label}</dt>
     <dd className="min-w-0 break-words text-sm">{corrected ? <div className="flex flex-wrap items-center gap-2">{value}<CorrectedBadge /></div> : value}</dd>
   </div>)}</dl>;
 }
@@ -175,7 +176,7 @@ function Contact({ detail }: { detail: OrgCandidateDetail }) {
     { field: "phone" as const, icon: Phone, value: phone, href: `tel:${contact.phone?.replace(/[^\d+]/g, "")}` },
   ];
   return <section aria-label="Contacto" className="flex flex-col gap-5"><SectionTitle>Contacto</SectionTitle><div className="flex flex-col gap-1.5">{rows.map(({ field, icon: Icon, value, href }) => <div key={field} className="flex min-h-10 items-center gap-2.5 text-sm">
-    <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+    <Icon aria-hidden="true" className={`size-4 shrink-0 ${accentIcon}`} />
     {value ? <a className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 hover:underline" href={href}><span className="min-w-0 flex-1 break-words">{value}</span>{corrected(detail, field) && <CorrectedBadge />}<ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" /></a> : missing}
   </div>)}</div></section>;
 }

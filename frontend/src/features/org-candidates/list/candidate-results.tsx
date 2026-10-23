@@ -4,6 +4,7 @@ import { ArrowUpRight, Check, Download } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
+import { accentAvatar } from "../accent";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,9 +37,9 @@ function CandidateCard({ item, languages, onOpen, selection }: { item: OrgCandid
   if (event.target instanceof Element && !event.target.closest("button,a,input,[role=checkbox],[data-row-action]")) onOpen?.({ kind: item.kind, id: item.id });
  }}>
   <CardHeader className="gap-1">
-   <div className="mb-1.5 flex items-center justify-between text-muted-foreground"><Avatar className="size-10"><AvatarFallback>{initials(item.full_name)}</AvatarFallback></Avatar>
+   <div className="mb-1.5 flex items-center justify-between text-muted-foreground"><Avatar className="size-10"><AvatarFallback className={accentAvatar}>{initials(item.full_name)}</AvatarFallback></Avatar>
     <div className="flex items-center gap-2"><CandidateCheckbox item={item} selection={selection} /><ArrowUpRight aria-hidden="true" className="size-4" /></div></div>
-   <CardTitle className="min-w-0"><h3 className="flex min-w-0 items-center gap-1.5"><Button type="button" variant="link" className="h-auto min-w-0 max-w-full shrink justify-start whitespace-normal p-0 text-left text-sm font-semibold text-foreground" aria-label={`Abrir ficha de ${item.full_name}`} onClick={() => onOpen?.({ kind: item.kind, id: item.id })}><span className="break-words">{item.full_name}</span></Button>
+   <CardTitle className="min-w-0"><h3 className="flex min-w-0 items-center gap-1.5"><Button type="button" variant="link" className="h-auto min-w-0 max-w-full shrink justify-start whitespace-normal p-0 text-left text-sm font-semibold text-foreground hover:text-primary" aria-label={`Abrir ficha de ${item.full_name}`} onClick={() => onOpen?.({ kind: item.kind, id: item.id })}><span className="break-words">{item.full_name}</span></Button>
     {!!item.corrected_fields.length && <TooltipProvider><Tooltip><TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />} tabIndex={0} aria-label="Datos corregidos por tu empresa"><Check aria-hidden="true" className="size-3.5" /></TooltipTrigger><TooltipContent>Datos corregidos por tu empresa</TooltipContent></Tooltip></TooltipProvider>}</h3></CardTitle>
    {title && <CardDescription className="break-words text-xs">{title}</CardDescription>}
    <CardDescription className="break-words text-xs">{meta || "Perfil sin completar"}</CardDescription>
