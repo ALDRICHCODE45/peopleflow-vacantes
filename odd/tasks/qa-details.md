@@ -109,3 +109,5 @@ solamente detalles que encuentro»); each one is recorded here with its investig
   (its hand-written combobox mock lacked `useComboboxAnchor`, now used by the dial field inside the manual intake).
   Mock fixed (only file with a non-`importOriginal` combobox mock) → board 83/83. With that file green, all 404 files
   pass.
+- **L8.** Native review lineage review-3bc4471cc2b36070 on 7b3372e5..5f210c49 (33 paths, 814 lines), lens risk:
+  approved with no findings and acknowledged (authority burned). Not merged: waits for the user.
