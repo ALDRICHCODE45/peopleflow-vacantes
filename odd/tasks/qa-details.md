@@ -102,3 +102,6 @@ solamente detalles que encuentro»); each one is recorded here with its investig
   search «593» → «Ecuador +593», «esta» → «Estados Unidos +1», popup under the field
   (`.playwright-mcp/qa/dial-intake-*.png`). Affected 38 files / 634 tests green. Slice note: 01f50e19 is the largest
   commit (catalog list ~250 lines of data).
+- **L6.** Native review lineage review-b4b5e8e05df7765c (range 7b3372e5..2beffd18, 32 paths, 806 lines, lens
+  reliability): the reviewer returned no text twice through the Pi host relay (`stopReason: length` after 32k
+  reasoning tokens, then an empty `stop`), same failure mode as talent-filters-export L9 → not retried, no verdict.
