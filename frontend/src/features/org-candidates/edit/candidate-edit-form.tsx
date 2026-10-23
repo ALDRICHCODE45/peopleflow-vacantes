@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Reac
 import { GraduationCap, Languages, MapPin, Pencil, RotateCcw, Trash2, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DialCodeField } from "@/components/forms/dial-code-field";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -161,7 +162,7 @@ export const CandidateEditForm = forwardRef<CandidateEditFormHandle, Props>(func
      {conflicted && <p role="status" className="flex items-start gap-2 text-sm text-status-review"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{CANDIDATE_EDIT_CONFLICT_NOTICE}</span></p>}
      <Section title="Contacto">
       {scalar("full_name", "Nombre completo")}<FieldDescription>Agrega al menos un correo o un teléfono; puedes incluir ambos.</FieldDescription>
-      {scalar("email", "Correo electrónico", "email")}<FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-[7rem_minmax(0,1fr)]">{scalar("dial", "Lada de país", "tel")}{scalar("phone", "Teléfono", "tel")}</FieldGroup>
+      {scalar("email", "Correo electrónico", "email")}<FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]"><DialCodeField id="edit-dial" value={draft.dial} onChange={dial => change("phone", { ...draft, dial })} disabled={pending} error={errors.dial} aria-describedby={editor.warnings.phone ? "edit-phone-conflict" : undefined} />{scalar("phone", "Teléfono", "tel")}</FieldGroup>
       {errors.contact && <FieldError id="edit-contact-error">{errors.contact}</FieldError>}
       <FieldDescription>México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.</FieldDescription>
      </Section><Separator />

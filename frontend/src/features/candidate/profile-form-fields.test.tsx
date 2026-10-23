@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
+import type { ReactNode } from "react";
+vi.mock("@/components/ui/combobox", async importOriginal => ({
+  ...await importOriginal<typeof import("@/components/ui/combobox")>(),
+  ComboboxContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
@@ -49,7 +54,7 @@ const modulesOf = (source: string) => [...new Set([...source.matchAll(/from "([^
 afterEach(cleanup);
 
 describe("S3 and S4 profile field guidance", () => {
-  it("S3 renders dial and phone side by side with described help and controlled dial edits", () => {
+  it("S3 renders dial and phone side by side with described help and controlled dial edits", async () => {
     const base = draft();
     const { onChange } = renderFields({ draft: base });
     const dial = screen.getByLabelText("Lada de país");
@@ -58,7 +63,10 @@ describe("S3 and S4 profile field guidance", () => {
     expect(dial.closest('[data-pf-profile-phone]')).toBe(phone.closest('[data-pf-profile-phone]'));
     expect(dial).toHaveAccessibleDescription(help.textContent!);
     expect(phone).toHaveAccessibleDescription(help.textContent!);
-    fireEvent.change(dial, { target: { value: "+1" } });
+    expect(dial).toHaveRole("combobox");
+    expect(dial).toHaveValue("México +52");
+    fireEvent.change(dial, { target: { value: "Estados Unidos" } });
+    fireEvent.click(await screen.findByRole("option", { name: "Estados Unidos +1" }));
     expect(emitted(onChange)).toEqual({ ...base, dial: "+1" });
   });
   it("S4 keeps the skills label accessible but visually hidden and describes the actual delimiters and limits", () => {
@@ -397,7 +405,7 @@ describe("profile form fields contract", () => {
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
     expect(container.querySelectorAll('[role="group"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('[type="submit"], [type="reset"]')).toHaveLength(0);
-    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/features/candidate/education-fields", "@/features/geo/model", "@/features/geo/optional-location-field", "@/features/languages/language-field"]);
+    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/forms/dial-code-field", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/features/candidate/education-fields", "@/features/geo/model", "@/features/geo/optional-location-field", "@/features/languages/language-field"]);
     expect(SOURCE).toMatch(/^"use client";/u);
     for (const forbidden of ["email", "fullName", "userId", "createdAt", "updatedAt", "cv", "auth", "password", "useState", "useReducer", "useEffect", "useRef", "<form", "onSubmit", "submit", "reset", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.", "document.", "window.", "useRouter", "next/navigation", "setTimeout", "setInterval", "Math.random", "Date.now", "prototype-", "profile-draft.test", "parseProfileDraft", "safeParse", "validate"]) {
       expect(SOURCE, `profile-form-fields.tsx must not declare ${forbidden}`).not.toContain(forbidden);

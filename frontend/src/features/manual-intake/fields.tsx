@@ -8,6 +8,7 @@ import { formatApplicationCvSize } from "@/features/jobs/application/application
 import { Upload, ContactRound, FileText, GraduationCap, MapPin, Route, type LucideIcon } from "lucide-react";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DialCodeField } from "@/components/forms/dial-code-field";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -47,7 +48,7 @@ export function IntakeFields({ draft, onChange, errors, stages, stage, onStage, 
     {scalar("full_name", "Nombre completo")}
     <FieldDescription>Agrega al menos un correo o un teléfono; puedes incluir ambos.</FieldDescription>
     {scalar("email", "Correo electrónico", "email")}
-    <FieldGroup className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">{scalar("dial", "Lada de país", "tel")}{scalar("phone", "Teléfono", "tel")}</FieldGroup>
+    <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]"><DialCodeField id="intake-dial" value={draft.dial} onChange={dial => onChange({ ...draft, dial })} error={errors.dial} />{scalar("phone", "Teléfono", "tel")}</FieldGroup>
     {errors.contact && <FieldError id="intake-contact-error">{errors.contact}</FieldError>}
     <FieldDescription>México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.</FieldDescription>
     {/* Duplicate notice lives with the contact data that triggered it. */}

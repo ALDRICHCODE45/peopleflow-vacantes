@@ -8,6 +8,7 @@ import { locationErrorMessages, type LocationIssue } from "@/features/geo/model"
 
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
+import { DialCodeField } from "@/components/forms/dial-code-field";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText, InputGroupTextarea } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -158,8 +159,8 @@ function ScalarSection({ section, draft, errorFor, onChange, location, headerAct
           <FieldGroup data-pf-profile-fields-grid="" className={section.grid}>
             {section.fields.map((spec) => spec.path === "phone" ? (
               <FieldGroup key={spec.path} className={spec.span}>
-                <div data-pf-profile-phone="" className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
-                  <ScalarField spec={{ path: "dial", label: "Lada de país", type: "tel" }} draft={draft} error={null} describedBy="profile-phone-help" onChange={value => onChange("dial", value)} />
+                <div data-pf-profile-phone="" className="grid grid-cols-1 gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]">
+                  <DialCodeField id="profile-dial" data-pf-profile-field="dial" value={draft.dial} aria-describedby="profile-phone-help" onChange={value => onChange("dial", value)} />
                   <ScalarField spec={{ ...spec, span: undefined }} draft={draft} error={errorFor("phone")} describedBy="profile-phone-help" onChange={value => onChange("phone", value)} />
                 </div>
                 <FieldDescription id="profile-phone-help">México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.</FieldDescription>
