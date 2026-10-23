@@ -85,3 +85,8 @@ Branch `feat/talent-filters-export` from `main` @ 81144cc9. Closes the open item
   CSV of 4 selected rows: exact C4 header, contact present (corrected values for the organic candidate), one value per
   cell, empty cells, `YYYY-MM-DD`. Note for the user: phones starting with `+` export as `'+52…` (existing formula
   neutralization; Excel hides the apostrophe).
+- **L8.** Close: full frontend suite 400 files / 7126 tests (exit 0). T4+T5 committed bdbfabff (shared
+  `candidate-values.ts` and tests). Native assess on the committed range 81144cc9..HEAD (35 paths, 1187 lines): risk
+  medium, `reviewDue: false` (under budget) → no native review; the contacts endpoint already had the independent
+  verify (L6). Not merged: branch `feat/talent-filters-export` waits for the user. QA API binary
+  `/tmp/peopleflow-api-talent-filters` left running on :8080 (replaced the summary build).
