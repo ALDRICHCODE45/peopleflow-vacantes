@@ -39,8 +39,10 @@ func orgCandidatesRouter(readers ...poolapp.Reader) http.Handler {
 // The reader fake exercises the real HTTP/service boundary, not SQL matching.
 // Real membership and filtering expectations live in TestOrgCandidatesFlow.
 type orgCandidatesReader struct {
-	queries []poolapp.Query
-	err     error
+	queries      []poolapp.Query
+	err          error
+	summary      *poolapp.Summary
+	summaryCalls int
 }
 
 func (s *orgCandidatesReader) Search(_ context.Context, company uuid.UUID, q poolapp.Query) (poolapp.Page, error) {
@@ -63,6 +65,20 @@ func (s *orgCandidatesReader) Search(_ context.Context, company uuid.UUID, q poo
 		}
 	}
 	return out, nil
+}
+
+func (s *orgCandidatesReader) Summary(_ context.Context, company uuid.UUID) (poolapp.Summary, error) {
+	s.summaryCalls++
+	if company != routeTestCompanyID {
+		return poolapp.Summary{}, errors.New("wrong company scope")
+	}
+	if s.err != nil {
+		return poolapp.Summary{}, s.err
+	}
+	if s.summary != nil {
+		return *s.summary, nil
+	}
+	return poolapp.Summary{Total: 5, WithActiveProcess: 2, AddedLast7Days: 3, ByKind: poolapp.KindCounts{Manual: 2, Organic: 3}}, nil
 }
 
 func (s *orgCandidatesReader) Detail(context.Context, uuid.UUID, string, uuid.UUID) (poolapp.Detail, error) {
