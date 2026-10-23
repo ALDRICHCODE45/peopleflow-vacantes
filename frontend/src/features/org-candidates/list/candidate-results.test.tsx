@@ -39,7 +39,8 @@ it("renders selection plus nine data/action columns, two-line hierarchy, fixed w
   expect(screen.getByRole("columnheader", { name: /Acciones/u })).toHaveAttribute("data-pinned", "end");
   expect(JSON.parse(localStorage.getItem("pf.table.org-candidates")!).v).toBe(1);
   const widths = screen.getAllByRole("columnheader").map(header => parseInt(header.style.width));
-  expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(1400);
+  // 1440px viewport minus the sidebar and page padding leaves ~1300px: all default columns must fit without horizontal scroll.
+  expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(1300);
   expect(widths.at(-1)).toBe(56);
   // Short-label columns keep room for their label plus the 24px options button («Proces…» was cut at 104px).
   const widthOf = (name: string) => parseInt((screen.getByRole("columnheader", { name }) as HTMLElement).style.width);
@@ -55,7 +56,7 @@ it("reserves 202px for common education and grows the vacancy column without cha
   Object.defineProperty(viewport, "clientWidth", { value: 1600 });
   fireEvent(window, new Event("resize"));
   expect(screen.getByRole("table")).toHaveStyle({ width: "1600px" });
-  expect(screen.getByRole("columnheader", { name: "Última vacante" })).toHaveStyle({ width: "392px" });
+  expect(screen.getByRole("columnheader", { name: "Última vacante" })).toHaveStyle({ width: "466px" });
   expect(screen.getByRole("columnheader", { name: "Estudios" })).toHaveStyle({ width: "202px" });
   expect(screen.getByRole("columnheader", { name: "Acciones" })).toHaveStyle({ width: "56px" });
 });

@@ -3,7 +3,6 @@ import * as React from "react";
 import { Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RichDataTable, type RichDataTableProps } from "@/components/data-table/rich-data-table";
@@ -13,7 +12,7 @@ import { educationLabels, normalizedProfileLabel } from "@/features/pipeline-mov
 import type { LanguageCatalog } from "@/features/languages/model";
 import type { OrgCandidate } from "../model";
 import { relativeTime } from "../relative-time";
-import { candidateColumns, CandidateTableContext, CandidateActions, CandidateCheckbox, CandidateIdentity, CandidateLanguages, LatestVacancyCell, type CandidateSelection } from "./candidate-columns";
+import { candidateColumns, CandidateTableContext, CandidateActions, CandidateCheckbox, CandidateIdentity, CandidateLanguages, LatestVacancyCell, SelectAllCheckbox, type CandidateSelection } from "./candidate-columns";
 import { candidateDateFormat, candidateKey, processLabels } from "./candidate-values";
 import { downloadCandidateCsv } from "./candidate-csv";
 
@@ -65,7 +64,7 @@ export function CandidateResults({ items, view, languages, onOpen, toolbar, sele
  const richColumns = React.useMemo(() => candidateColumns(languages, onOpen, true), [languages, onOpen]);
  const sorted = React.useMemo(() => direction === "none" ? items : [...items].sort((a, b) => (direction === "ascending" ? 1 : -1) * a.full_name.localeCompare(b.full_name, "es-MX")), [items, direction]);
  const content = fallback !== undefined ? fallback : view === "cards" ? <div className="flex min-w-0 flex-col gap-4 px-(--card-spacing)">
-  <div className="flex items-center gap-3 text-xs text-muted-foreground"><Checkbox aria-label="Seleccionar todos" checked={selection.all} indeterminate={selection.some && !selection.all} onCheckedChange={selection.toggleAll} />Seleccionar todos los cargados</div>
+  <div className="flex items-center gap-3 text-xs text-muted-foreground"><SelectAllCheckbox all={selection.all} some={selection.some} onToggle={selection.toggleAll} />Seleccionar todos los cargados</div>
   <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Tarjetas de candidatos">{sorted.map(item => <CandidateCard key={candidateKey(item)} item={item} languages={languages} onOpen={onOpen} selection={selection} />)}</div>
  </div> : undefined;
  return <CandidateTableContext.Provider value={{ selection, toggleSort }}><RichDataTable id="org-candidates" columns={richColumns} data={sorted} getRowId={candidateKey} defaultPinning={defaultPinning} onRowActivate={onOpen ? item => onOpen({ kind: item.kind, id: item.id }) : undefined} emptyState="Sin candidatos" toolbar={toolbar} compactControls content={content} sortState={{ id: "candidate", direction }}

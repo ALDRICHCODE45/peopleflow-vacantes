@@ -10,6 +10,8 @@ export type OriginTabsProps = {
   counts?: { all: number; manual: number };
 };
 const number = new Intl.NumberFormat("es-MX");
+// At 390px both labels do not fit on one line: each tab takes half the row and wraps its label instead of being clipped.
+const trigger = "min-h-10 whitespace-normal leading-tight sm:whitespace-nowrap";
 
 /** Filter tabs only: the existing list owns its content outside this controlled tab rail. */
 export function OriginTabs({ value, onValueChange, counts }: OriginTabsProps) {
@@ -17,13 +19,13 @@ export function OriginTabs({ value, onValueChange, counts }: OriginTabsProps) {
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
       <Tabs value={value} onValueChange={next => {
         if (next === "all" || next === "manual") onValueChange(next);
-      }} className="min-w-0 max-w-full overflow-x-auto px-1 pb-2">
-        <TabsList variant="line" aria-label="Origen de los candidatos">
-          <TabsTrigger value="all">
+      }} className="w-full min-w-0 px-1 pb-2 sm:w-auto">
+        <TabsList variant="line" aria-label="Origen de los candidatos" className="w-full h-auto! sm:w-fit">
+          <TabsTrigger value="all" className={trigger}>
             Todos los candidatos
             {counts && <Badge variant="secondary" className="tabular-nums">{number.format(counts.all)}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="manual">
+          <TabsTrigger value="manual" className={trigger}>
             Agregados por mi equipo
             {counts && <Badge variant="secondary" className="tabular-nums">{number.format(counts.manual)}</Badge>}
           </TabsTrigger>

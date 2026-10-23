@@ -56,6 +56,9 @@ it("selects individual/all loaded rows, shows mixed state and never opens the sh
  const all = screen.getByRole("checkbox", { name: "Seleccionar todos" });
  const row = screen.getByRole("checkbox", { name: `Seleccionar a ${candidate.full_name}` });
  fireEvent.click(row); expect(all).toHaveAttribute("aria-checked", "mixed");
+ // Mixed reads as a dash, never as the fully-checked tick.
+ expect(all.parentElement!.querySelector("svg.lucide-minus")).not.toBeNull();
+ for (const tick of all.querySelectorAll("svg.lucide-check")) expect(tick.closest("[data-slot=checkbox]")).toHaveAttribute("data-mixed");
  expect(screen.getByText("1 seleccionado")).toBeInTheDocument();
  fireEvent.keyDown(row, { key: "Enter" }); expect(open).not.toHaveBeenCalled();
  fireEvent.click(all); expect(all).toHaveAttribute("aria-checked", "true");

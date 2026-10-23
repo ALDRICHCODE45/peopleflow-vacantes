@@ -129,3 +129,11 @@ it("switches to a check-marker history timeline, retaining the real pagination a
   expect(actor.closest('[data-slot="item"]')?.querySelector('[data-slot="item-media"] svg.lucide-check')).not.toBeNull();
   expect(within(section).getByRole("button", { name: "Ver más" }).querySelector("svg.lucide-chevron-down")).not.toBeNull();
 });
+it("shows one global «Corregido» in the header even when the title and company are corrected", async () => {
+  const detail = detailFixture("organic");
+  vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: { ...detail, professional_title: "Desarrolladora Frontend", current_company: "Acme", corrected_fields: [...new Set([...detail.corrected_fields, "professional_title", "current_company"])] } as typeof detail });
+  open();
+  const header = (await screen.findByRole("heading", { level: 2, name: "Lucía Ramírez Torres" })).closest('[data-slot="sheet-header"]') as HTMLElement;
+  expect(within(header).getAllByText("Corregido")).toHaveLength(1);
+  expect(within(header).getByText("Desarrolladora Frontend · Acme")).toBeInTheDocument();
+});

@@ -53,3 +53,12 @@ it("hides dependent controls without their parent filters and retries a failed v
  expect(within(dialog).queryByRole("combobox", { name: "Nivel mínimo" })).toBeNull(); expect(within(dialog).queryByRole("checkbox", { name: "Incluye estudios en curso" })).toBeNull();
  await user.click(await screen.findByRole("button", { name: "Reintentar vacantes" })); await waitFor(() => expect(listDraftsAction).toHaveBeenCalledTimes(2)); await act(async () => {});
 });
+it("labels the municipality filter group like its sibling filters before a state is chosen", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
+ const user = userEvent.setup(); render(<CandidateFiltersBar filters={{}} onChange={vi.fn()} onClear={vi.fn()} languages={languages} />);
+ await user.click(screen.getByRole("button", { name: /^Filtros/ }));
+ const group = within(screen.getByRole("region", { name: "Filtrar candidatos" })).getByRole("group", { name: "Municipio" });
+ expect(group.textContent).toContain("Elige un estado para buscar municipios.");
+ expect(within(group).getByRole("checkbox", { name: "Sin dato de municipio" })).toBeTruthy();
+ await act(async () => {});
+});

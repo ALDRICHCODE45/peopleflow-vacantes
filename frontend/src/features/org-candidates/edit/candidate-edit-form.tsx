@@ -30,10 +30,10 @@ type Editor = { candidate: EditableOrgCandidate; draft: CandidateEditDraft; rese
 const initialEditor = (candidate: EditableOrgCandidate): Editor => ({ candidate, draft: valuesToEditDraft(candidateEditValues(candidate)), resets: [], undo: {}, warnings: {} });
 /** Match the summary's quiet eyebrow headings; nested profile groups keep label-level hierarchy. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
- return <FieldSet className="min-w-0 gap-5"><FieldLegend variant="label" className="mb-0 uppercase tracking-[0.1em] text-muted-foreground data-[variant=label]:text-[11px]">{title}</FieldLegend><FieldGroup>{children}</FieldGroup></FieldSet>;
+ return <FieldSet className="min-w-0 gap-5"><FieldLegend variant="label" className="mb-4 uppercase tracking-[0.1em] text-muted-foreground data-[variant=label]:text-[11px]">{title}</FieldLegend><FieldGroup>{children}</FieldGroup></FieldSet>;
 }
 function ProfileGroup({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
- return <FieldSet className="min-w-0 gap-4"><FieldLegend variant="label" className="mb-0 text-muted-foreground data-[variant=label]:text-xs"><span className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4 shrink-0" />{title}</span></FieldLegend><FieldGroup>{children}</FieldGroup></FieldSet>;
+ return <FieldSet className="min-w-0 gap-4"><FieldLegend variant="label" className="mb-3 text-muted-foreground data-[variant=label]:text-xs"><span className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4 shrink-0" />{title}</span></FieldLegend><FieldGroup>{children}</FieldGroup></FieldSet>;
 }
 
 /** Mounted inside the existing Sheet, below its header; never mounts another Sheet. */

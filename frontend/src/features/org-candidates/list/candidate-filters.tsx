@@ -4,7 +4,7 @@ import { SlidersHorizontal, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxContent, ComboboxEmpty, ComboboxItem, ComboboxList, ComboboxValue } from "@/components/ui/combobox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CEFR_LEVELS, EDUCATION_LEVELS, SENIORITIES, SENIORITY_LABELS } from "@/features/candidate/model";
@@ -85,11 +85,13 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
     {open && <div id="org-candidate-filters" role="region" aria-label="Filtrar candidatos" className="rounded-lg bg-background p-4 md:p-5">
       <FieldGroup className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
         <div className="flex min-w-0 flex-col gap-3"><MultiFilter id="org-state" label="Estado" options={options.state} selected={filters.state ?? []} onChange={state => onChange({ state })} />{states.status === "error" && <Button type="button" variant="link" className="min-h-10" onClick={states.retry}>Reintentar estados</Button>}</div>
-        <div className="flex min-w-0 flex-col gap-3">
+        <FieldSet className="min-w-0 gap-3">
+          {/* Per-state municipality pickers carry their own label; before a state is chosen the group keeps the grid's label row. */}
+          {!filters.state?.some(value => value !== "none") && <FieldLegend variant="label">Municipio</FieldLegend>}
           {(filters.state ?? []).filter(value => value !== "none").map(state => <MunicipalityFilter key={state} state={state} name={states.data?.items.find(item => item.id === state)?.name ?? state} selected={filters.municipality ?? []} onChange={municipality => onChange({ municipality })} />)}
           {!filters.state?.some(value => value !== "none") && <p className="text-xs text-muted-foreground">Elige un estado para buscar municipios.</p>}
           <Field orientation="horizontal"><Checkbox id="org-municipality-none" checked={filters.municipality?.includes("none") ?? false} onCheckedChange={checked => onChange({ municipality: checked ? [...(filters.municipality ?? []), "none"] : filters.municipality?.filter(value => value !== "none") })} /><FieldLabel htmlFor="org-municipality-none">Sin dato de municipio</FieldLabel></Field>
-        </div>
+        </FieldSet>
         {(["years", "seniority"] as const).map(key => <MultiFilter key={key} id={`org-${key}`} label={labels[key]} options={options[key]} selected={filters[key] ?? []} onChange={values => onChange({ [key]: values })} />)}
         <div className="flex min-w-0 flex-col gap-3"><SingleFilter id="org-education" label="Nivel de estudios" options={options.education_level} value={filters.education_level} onChange={education_level => onChange({ education_level })} />
           <p className="text-xs text-muted-foreground">Coincide con este nivel o uno superior.</p>

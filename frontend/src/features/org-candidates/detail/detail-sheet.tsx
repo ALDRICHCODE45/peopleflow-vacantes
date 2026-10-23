@@ -109,7 +109,7 @@ const DetailSession = forwardRef<DetailSessionHandle, { candidate: OrgCandidateI
         <Avatar className="size-12 shrink-0"><AvatarFallback>{data ? initials(data.full_name) : <Skeleton aria-hidden="true" className="size-12 rounded-full" />}</AvatarFallback></Avatar>
         <div className="flex min-w-0 flex-col gap-1.5">
           <SheetTitle ref={titleRef} tabIndex={-1} className="break-words text-xl font-semibold tracking-tight outline-none">{data?.full_name ?? <span className={result === null ? "sr-only" : undefined}>Detalle del candidato</span>}{result === null && <Skeleton aria-hidden="true" className="h-6 w-48 max-w-full" />}</SheetTitle>
-          {data && (data.professional_title || data.current_company) && <p className="break-words text-sm text-muted-foreground">{data.professional_title}{corrected(data, "professional_title") && <> <Badge variant="accent">Corregido</Badge></>}{data.professional_title && data.current_company && " · "}{data.current_company}{corrected(data, "current_company") && <> <Badge variant="accent">Corregido</Badge></>}</p>}
+          {data && (data.professional_title || data.current_company) && <p className="break-words text-sm text-muted-foreground">{/* Field-level corrections live in Resumen; the header carries only the global badge. */}{data.professional_title}{data.professional_title && data.current_company && " · "}{data.current_company}</p>}
           {data ? <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{data.kind === "manual" ? "Manual" : "Orgánico"}</Badge>{data.corrected_fields.length > 0 && <CorrectedBadge />}</div> : result === null && <Skeleton aria-hidden="true" className="h-6 w-20" />}
         </div>
       </div>

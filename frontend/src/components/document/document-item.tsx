@@ -20,7 +20,7 @@ type DocumentItemProps = {
  * flex-wrap moves the actions under the text instead of squeezing the description. */
 export function DocumentItem({ icon: Icon = FileText, title, description, badge, actions, presentation = "default", fileType, footer }: DocumentItemProps) {
   const panel = presentation === "panel";
-  return <Item variant={panel ? "muted" : "outline"} size="sm">
+  return <Item variant={panel ? "muted" : "outline"} size="sm" className={cn(panel && "dark:border-border")}>
     {/* ItemMedia itself is the file tile; no nested document composition. */}
     <ItemMedia variant="icon" className={cn(panel && "min-h-12 min-w-10 flex-col gap-1 rounded-md border bg-card p-2")}><Icon aria-hidden="true" />{panel && fileType && <span className="text-[8px] text-muted-foreground">{fileType}</span>}</ItemMedia>
     <ItemContent className={cn("min-w-0", panel ? "basis-32" : "basis-40")}>

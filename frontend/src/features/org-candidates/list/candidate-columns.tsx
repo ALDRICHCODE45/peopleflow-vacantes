@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
 import { createContext, useContext } from "react";
-import { ArrowUpDown, ArrowUpRight, Check, Ellipsis, Users } from "lucide-react";
+import { ArrowUpDown, ArrowUpRight, Check, Ellipsis, Minus, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -66,7 +67,7 @@ export function CandidateCheckbox({ item, selection }: { item: OrgCandidate; sel
 export const CandidateTableContext = createContext<{ selection: CandidateSelection; toggleSort: () => void } | null>(null);
 function SelectionHeader() {
  const context = useContext(CandidateTableContext);
- return <Checkbox aria-label="Seleccionar todos" checked={context?.selection.all ?? false} indeterminate={!!context?.selection.some && !context.selection.all} onCheckedChange={context?.selection.toggleAll} />;
+ return <SelectAllCheckbox all={context?.selection.all ?? false} some={!!context?.selection.some} onToggle={context?.selection.toggleAll} />;
 }
 function SelectionCell({ item }: { item: OrgCandidate }) {
  const context = useContext(CandidateTableContext);
@@ -80,14 +81,14 @@ export function candidateColumns(languages: LanguageCatalog["items"], onOpen?: O
  return [
   ...(selectable ? [{ id: "selection", size: 44, meta: { label: "Seleccionar todos", align: "center" as const }, enableHiding: false, enablePinning: false, enableReorder: false,
    header: SelectionHeader, cell: ({ row }: { row: { original: OrgCandidate } }) => <SelectionCell item={row.original} /> }] : []),
-  { id: "candidate", size: 264, meta: { label: "Candidato" }, enableHiding: false,
+  { id: "candidate", size: 220, meta: { label: "Candidato" }, enableHiding: false,
    header: SortHeader,
    cell: ({ row }) => <CandidateIdentity item={row.original} /> },
-  { id: "location", size: 158, meta: { label: "Ubicación" }, cell: ({ row }) => <TwoLineCell {...locationLines(row.original)} /> },
+  { id: "location", size: 140, meta: { label: "Ubicación" }, cell: ({ row }) => <TwoLineCell {...locationLines(row.original)} /> },
   { id: "experience", size: 124, meta: { label: "Experiencia" }, cell: ({ row }) => <TwoLineCell {...experienceLines(row.original)} /> },
   { id: "education", size: 202, meta: { label: "Estudios" }, cell: ({ row }) => <TwoLineCell {...educationLines(row.original)} /> },
-  { id: "languages", size: 124, meta: { label: "Idiomas" }, cell: ({ row }) => <CandidateLanguages item={row.original} languages={languages} /> },
-  { id: "vacancy", size: 190, meta: { label: "Última vacante", grow: true }, cell: ({ row }) => <LatestVacancyCell item={row.original} /> },
+  { id: "languages", size: 112, meta: { label: "Idiomas" }, cell: ({ row }) => <CandidateLanguages item={row.original} languages={languages} /> },
+  { id: "vacancy", size: 166, meta: { label: "Última vacante", grow: true }, cell: ({ row }) => <LatestVacancyCell item={row.original} /> },
   { id: "processes", size: 116, meta: { label: "Procesos" }, cell: ({ row }) => {
    const labels = processLabels(row.original);
    return <div className="flex min-w-0 flex-col gap-1"><TruncatedText text={labels.total} className="text-sm font-medium" /><TruncatedText text={labels.active} className="text-xs text-status-success" /></div>;
@@ -95,4 +96,13 @@ export function candidateColumns(languages: LanguageCatalog["items"], onOpen?: O
   { id: "activity", size: 120, meta: { label: "Actividad" }, cell: ({ row }) => <time dateTime={row.original.last_activity_at}><TwoLineCell primary={candidateDateFormat.format(new Date(row.original.last_activity_at))} secondary={relativeTime(row.original.last_activity_at)} /></time> },
   { id: "actions", size: 56, header: () => <span className="sr-only">Acciones</span>, meta: { label: "Acciones", align: "center" }, enablePinning: false, enableHiding: false, enableReorder: false, cell: ({ row }) => <CandidateActions item={row.original} onOpen={onOpen} /> },
  ];
+}
+
+/** The installed Checkbox draws its tick for the mixed state too; a partial selection must read as a dash. */
+export function SelectAllCheckbox({ all, some, onToggle }: { all: boolean; some: boolean; onToggle?: (checked: boolean) => void }) {
+ const mixed = some && !all;
+ return <span className="relative inline-flex">
+  <Checkbox aria-label="Seleccionar todos" checked={all} indeterminate={mixed} data-mixed={mixed ? "" : undefined} className={cn(mixed && "border-primary bg-primary [&_svg]:invisible")} onCheckedChange={checked => onToggle?.(checked)} />
+  {mixed && <Minus aria-hidden="true" className="pointer-events-none absolute inset-0 m-auto size-3 text-primary-foreground" />}
+ </span>;
 }
