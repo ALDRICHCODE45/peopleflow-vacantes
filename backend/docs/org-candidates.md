@@ -1,13 +1,14 @@
 # Org candidates API — «Candidatos de mi organización» v1 (DRAFT)
 
 Status: **contract approved; list accepted; detail/CV awaiting parent DB acceptance**.
-The list, detail and participation-CV routes are wired. Feature document:
+The list, summary, detail and participation-CV routes are wired. Feature document:
 `odd/tasks/org-candidates.md`. Business rules: SRCH-2/3/4/7 in
 `docs/recruitment-business-rules.md` §12.
 
 ## Scope and access
 
-- Routes: `GET /v2/me/company/candidates` (list) and
+- Routes: `GET /v2/me/company/candidates` (list),
+  `GET /v2/me/company/candidates/summary` (summary) and
   `GET /v2/me/company/candidates/{kind}/{id}` (detail), plus
   `GET /v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv`,
   `GET …/cv/original` and `POST …/cv` (corrected upload; candidate If-Match).
@@ -104,6 +105,61 @@ one-valued key, `language_min_level` without `language`, `education_in_progress`
 without `education_level`); a `vacancy` that does not exist in the company is
 `{field:"vacancy", code:"not_found"}`; 400 `invalid_cursor`. No facet counts in v1:
 filter options come from the existing catalogs (vacancy list, geo, languages).
+
+## Summary
+
+`GET /v2/me/company/candidates/summary`
+
+```json
+{"total":37,"with_active_process":21,"added_last_7_days":5,"by_kind":{"manual":12,"organic":25}}
+```
+
+- Exactly these keys, all counts non-negative integers (including zero for an
+  empty pool). No pagination or list filters: metrics cover the **unfiltered**
+  company pool. `total` equals the unfiltered list's `total`;
+  `by_kind.manual + by_kind.organic = total`.
+- `with_active_process` counts **candidates**, once each, whose list item has
+  `participations.active >= 1`. **The existing list defines active solely as
+  `discarded_at IS NULL`; it includes participations in finished processes.**
+  Despite the metric's name, this endpoint deliberately follows that existing
+  rule, not a new lifecycle filter. Discarded-only candidates remain in `total`
+  but do not count here. Two active participations count as one candidate.
+- `added_last_7_days` uses the detail's creation-date rule: manual →
+  `company_candidates.created_at`; organic → first participation `applied_at`
+  in this company (`process_participations.created_at`, regardless of source,
+  stage, discard or process lifecycle). A recent second participation does not
+  make an old organic candidate newly added. Rolling PostgreSQL server-time
+  window: `now() - interval '7 days' < created_at AND created_at <= now()`.
+- Same gates as the list: `NoStore → RequireAuth → requireRecruiter`; every
+  company recruiter, no vacancy owner/principal check. Success and errors have
+  `Cache-Control: no-store`; 401 `unauthenticated`, 403 `forbidden`, and sanitized
+  500 `internal_error` use the existing error envelopes.
+- The literal `/summary` route is registered before `/{kind}/{id}`. The summary
+  aggregates the shared `poolSQL` identity set and active counts in one statement
+  snapshot; it does not introduce a separate pool-membership definition.
+
+### Summary test map
+
+| Test | Evidence covered |
+| --- | --- |
+| `cmd/api/org_candidates_summary_routes_test.go` — `TestOrgCandidatesSummary*` | Real router/service; exact integer shape; zero-valued empty pool; company scope; 401/403 before reader invocation; no-store on success/errors; sanitized internal error; `/summary` and `/manual/{id}` non-collision. |
+| `TestOrgCandidatesFlow/summary` (integration) | Unfiltered list total and active-count parity; kind sum; company isolation; discarded-only excluded from active; finished-only **included**, matching the list; two active participations count once; manual 6/8-day dates, lower-bound/future exclusion and current server time; organic first participation rather than recent second. Reuses the existing guarded `draft_test` harness and FK-ordered fixture cleanup. Parent DB run: PASS on the isolated `draft_test`. |
+| `cmd/api/main_test.go` — `TestRouteTopology_ExactRegistrations` | Pins the additive literal route. |
+
+HTTP RED: three absent-route failures (401 gate, 403 gate, summary shape), with
+manual detail already passing. Initial GREEN: all four subtests passed; then
+empty-pool/error and gate non-invocation assertions were added. No logging calls,
+dependencies or migrations were added.
+
+From `backend/`, with the guarded loopback `DRAFT_TEST_DATABASE_URL` injected by
+the parent (never print the DSN):
+
+```sh
+go test -tags=integration ./cmd/api -run '^TestOrgCandidatesFlow$' -count=1 -v
+```
+
+Unit tests/vet do not establish DB acceptance. The summary subtest runs after
+list/detail assertions and intentionally changes only its private fixture rows.
 
 ## Detail
 

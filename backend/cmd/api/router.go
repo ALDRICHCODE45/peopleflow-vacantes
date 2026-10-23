@@ -235,6 +235,7 @@ func newRouter(d routerDeps) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Get("/v2/me/company/candidates", d.candidatePoolHandler.List)
+		r.Get("/v2/me/company/candidates/summary", d.candidatePoolHandler.Summary)
 		r.Get("/v2/me/company/candidates/{kind}/{id}", d.candidatePoolHandler.Detail)
 		r.Patch("/v2/me/company/candidates/{kind}/{id}", d.candidatePoolHandler.Edit)
 		r.Get("/v2/me/company/candidates/{kind}/{id}/history", d.candidatePoolHandler.History)

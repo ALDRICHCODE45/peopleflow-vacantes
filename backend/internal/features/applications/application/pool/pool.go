@@ -68,6 +68,7 @@ type StageNames func(uuid.UUID, json.RawMessage) (map[string]string, error)
 type Reader interface {
 	DetailReader
 	Search(context.Context, uuid.UUID, Query) (Page, error)
+	Summary(context.Context, uuid.UUID) (Summary, error)
 }
 type Service struct{ reader Reader }
 

@@ -24,7 +24,8 @@ var poolSQL = `WITH participations AS MATERIALIZED (
  row_number() OVER (PARTITION BY p.company_candidate_id,p.candidate_id ORDER BY p.created_at DESC,p.id DESC) AS ordinal
  FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1
 ), counts AS (
- SELECT kind,person_id,count(*) AS total,count(*) FILTER(WHERE discarded_at IS NULL) AS active
+ SELECT kind,person_id,count(*) AS total,count(*) FILTER(WHERE discarded_at IS NULL) AS active,
+ min(created_at) AS first_applied_at
  FROM participations GROUP BY kind,person_id
 ), identities AS (
  SELECT 'manual'::text AS kind,cc.id,cc.full_name,cc.email,cc.professional_title,cc.current_company,cc.created_at,cc.postal_code,` + manualProfileSQL + ` AS manual_profile
@@ -36,6 +37,7 @@ var poolSQL = `WITH participations AS MATERIALIZED (
  SELECT i.kind,i.id,i.full_name,i.email,i.professional_title,i.current_company,i.postal_code,
  CASE WHEN i.kind='manual' THEN i.manual_profile ELSE COALESCE(last.profile_snapshot,` + emptyProfileSQL + `) END AS profile,
  COALESCE(last.created_at,i.created_at) AS last_activity_at,
+ CASE WHEN i.kind='manual' THEN i.created_at ELSE c.first_applied_at END AS created_at,
  COALESCE(c.total,0) AS total,COALESCE(c.active,0) AS active,
  last.process_id,last.stage_id,last.discarded_at,last.created_at AS applied_at
  FROM identities i LEFT JOIN counts c ON c.kind=i.kind AND c.person_id=i.id
@@ -49,7 +51,7 @@ var poolSQL = `WITH participations AS MATERIALIZED (
  CASE WHEN o.corrections ? 'location' THEN o.corrections#>>'{location,postal_code}' ELSE b.postal_code END AS postal_code,
  ` + candidateview.EffectiveProfileSQL("b.profile") + ` AS profile,
  b.full_name AS original_full_name,b.profile AS original_profile,
- b.last_activity_at,b.total,b.active,b.process_id,b.stage_id,b.discarded_at,b.applied_at
+ b.last_activity_at,b.created_at,b.total,b.active,b.process_id,b.stage_id,b.discarded_at,b.applied_at
  FROM uncorrected b LEFT JOIN company_candidate_corrections o ON b.kind='organic' AND o.company_id=$1 AND o.user_id=b.id
 ), filtered AS MATERIALIZED (SELECT * FROM candidates WHERE true `
 

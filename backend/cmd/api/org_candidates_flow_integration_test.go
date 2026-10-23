@@ -645,6 +645,81 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			t.Fatal(page)
 		}
 	})
+	t.Run("summary", func(t *testing.T) {
+		// Isolate rolling-time expectations from the dated list fixtures above.
+		exec(`UPDATE company_candidates SET created_at=now()-interval '8 days' WHERE company_id=$1`, company.companyID)
+		exec(`UPDATE process_participations SET created_at=now()-interval '8 days' WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`, company.companyID)
+		var now time.Time
+		if err := h.pool.QueryRow(ctx, `SELECT now()`).Scan(&now); err != nil {
+			t.Fatal(err)
+		}
+		recent := now.Add(-6 * 24 * time.Hour).Format(time.RFC3339Nano)
+		old := now.Add(-8 * 24 * time.Hour).Format(time.RFC3339Nano)
+		double := manual(company.companyID, ownerID, "SummaryDouble")
+		addParticipation(double, "manual", vacancy1, "manual", empty, old, false)
+		addParticipation(double, "manual", vacancy2, "manual", empty, recent, false)
+		discarded := manual(company.companyID, ownerID, "SummaryDiscarded")
+		addParticipation(discarded, "manual", vacancy2, "manual", empty, recent, true)
+		finished := manual(company.companyID, ownerID, "SummaryFinished")
+		addParticipation(finished, "manual", vacancy1, "manual", empty, old, false)
+		exec(`UPDATE vacancy_processes SET status='closed',closed_at=now(),process_status='finished',process_finished_at=now() WHERE id=$1`, vacancy1)
+		manualRecent := manual(company.companyID, ownerID, "SummaryRecent")
+		manualOld := manual(company.companyID, ownerID, "SummaryOld")
+		exec(`UPDATE company_candidates SET created_at=now()-interval '6 days' WHERE id=$1`, manualRecent)
+		exec(`UPDATE company_candidates SET created_at=now()-interval '8 days' WHERE id=$1`, manualOld)
+		oldOrganic := organic("SummaryOldOrganic")
+		addParticipation(oldOrganic, "organic", vacancy1, "organic", empty, old, false)
+		addParticipation(oldOrganic, "organic", vacancy2, "organic", empty, recent, false)
+		recentOrganic := organic("SummaryRecentOrganic")
+		addParticipation(recentOrganic, "organic", vacancy2, "organic", empty, recent, false)
+		foreignManual := manual(other.companyID, otherID, "SummaryForeign")
+		exec(`UPDATE company_candidates SET created_at=now() WHERE id=$1`, foreignManual)
+		foreignOrganic := organic("SummaryForeignOrganic")
+		addParticipation(foreignOrganic, "organic", vacancy3, "organic", empty, recent, false)
+
+		summary := func() map[string]any {
+			t.Helper()
+			r := h.do(t, "GET", orgCandidatesPath+"/summary", "", recruiter.token, nil)
+			draftFlowAssertNoStore(t, r)
+			if r.status != 200 {
+				t.Fatalf("%d %s", r.status, r.body)
+			}
+			return orgCandidateKeys(t, draftFlowObject(t, r.body), "total", "with_active_process", "added_last_7_days", "by_kind")
+		}
+		got := summary()
+		want := map[string]any{"total": float64(18), "with_active_process": float64(14), "added_last_7_days": float64(2), "by_kind": map[string]any{"manual": float64(7), "organic": float64(11)}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("summary=%v want=%v", got, want)
+		}
+		page := get(t, recruiter, "?limit=50")
+		var active float64
+		for _, raw := range page["items"].([]any) {
+			item := raw.(map[string]any)
+			if item["participations"].(map[string]any)["active"].(float64) >= 1 {
+				active++
+			}
+		}
+		kinds := got["by_kind"].(map[string]any)
+		if got["total"] != page["total"] || got["with_active_process"] != active || kinds["manual"].(float64)+kinds["organic"].(float64) != got["total"] {
+			t.Fatal("summary differs from unfiltered list", got, page)
+		}
+		// Match the list: finished processes still count; only discard removes active.
+		exec(`UPDATE process_participations SET stage_id=$2,previous_stage_id=stage_id,reason_group='candidate',reason_code='unresponsive',discarded_at=now() WHERE company_candidate_id=$1`, finished, pipelineconfig.Defaults(uuid.MustParse(vacancy1)).Exit.ID)
+		if summary()["with_active_process"] != float64(13) {
+			t.Fatal("finished-only candidate was not active before discard")
+		}
+		// Lower bound is exclusive and future creation times must not count.
+		for _, offset := range []string{"-7 days", "1 day"} {
+			exec(`UPDATE company_candidates SET created_at=now()+$2::interval WHERE id=$1`, manualRecent, offset)
+			if summary()["added_last_7_days"] != float64(1) {
+				t.Fatal("rolling window included lower boundary/future", offset)
+			}
+		}
+		exec(`UPDATE company_candidates SET created_at=now() WHERE id=$1`, manualRecent)
+		if summary()["added_last_7_days"] != float64(2) {
+			t.Fatal("current server time excluded")
+		}
+	})
 	t.Run("real gates", func(t *testing.T) {
 		for _, tc := range []struct {
 			token  string
