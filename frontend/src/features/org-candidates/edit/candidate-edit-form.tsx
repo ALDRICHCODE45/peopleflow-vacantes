@@ -1,6 +1,6 @@
 "use client";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
-import { BriefcaseBusiness, ContactRound, GraduationCap, Languages, Link, MapPin, Pencil, RotateCcw, Tags, Trash2, TriangleAlert, type LucideIcon } from "lucide-react";
+import { GraduationCap, Languages, MapPin, Pencil, RotateCcw, Trash2, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,17 +17,23 @@ import { LocationField } from "@/features/geo/location-field";
 import { EducationFields } from "@/features/candidate/education-fields";
 import { LanguageListEditor } from "@/features/languages/language-field";
 import { SENIORITIES, SENIORITY_LABELS } from "@/features/candidate/model";
+import { cn } from "@/lib/utils";
 import { saveOrgCandidateEditAction } from "./edit-actions";
 import { CandidateEditSummary } from "./candidate-edit-summary";
 import { CANDIDATE_EDIT_CONFLICT_NOTICE, candidateEditErrors, candidateEditFailureMessage, sameEditValue, type CandidateEditBody, type CandidateEditField, type CandidateEditFailure, type EditableOrgCandidate } from "./edit-model";
 import { candidateEditValues, copyDraftField, editedDraftFields, editValueLabel, educationSummary, originalEditValues, prepareCandidateEdit, valuesToEditDraft, type CandidateEditDraft } from "./edit-draft";
+import styles from "./candidate-edit-form.module.css";
 
 export type CandidateEditFormHandle = { /** Parent must route every Sheet close (X, Escape, outside) through this guard. */ requestClose: () => void };
 type Props = { candidate: EditableOrgCandidate; onSaved: (detail: EditableOrgCandidate) => void; onCancel: () => void; onConflict: () => void | Promise<void> };
 type Editor = { candidate: EditableOrgCandidate; draft: CandidateEditDraft; resets: CandidateEditField[]; undo: Partial<Record<CandidateEditField, CandidateEditDraft>>; warnings: Partial<Record<CandidateEditField, string>> };
 const initialEditor = (candidate: EditableOrgCandidate): Editor => ({ candidate, draft: valuesToEditDraft(candidateEditValues(candidate)), resets: [], undo: {}, warnings: {} });
-function Section({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
- return <FieldSet><FieldLegend className="text-xs uppercase tracking-wide text-muted-foreground"><span className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4" />{title}</span></FieldLegend><FieldGroup>{children}</FieldGroup></FieldSet>;
+/** Match the summary's quiet eyebrow headings; nested profile groups keep label-level hierarchy. */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+ return <FieldSet className="min-w-0 gap-5"><FieldLegend variant="label" className="mb-0 uppercase tracking-[0.1em] text-muted-foreground data-[variant=label]:text-[11px]">{title}</FieldLegend><FieldGroup>{children}</FieldGroup></FieldSet>;
+}
+function ProfileGroup({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
+ return <FieldSet className="min-w-0 gap-4"><FieldLegend variant="label" className="mb-0 text-muted-foreground data-[variant=label]:text-xs"><span className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4 shrink-0" />{title}</span></FieldLegend><FieldGroup>{children}</FieldGroup></FieldSet>;
 }
 
 /** Mounted inside the existing Sheet, below its header; never mounts another Sheet. */
@@ -127,7 +133,7 @@ export const CandidateEditForm = forwardRef<CandidateEditFormHandle, Props>(func
   const restoring = editor.resets.includes(field);
   return <>
    {/* One layout child keeps Field's *:w-full off the badge and inline action. */}
-   {original && (corrected || field === "education") && <div data-edit-correction className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+   {original && (corrected || field === "education") && <div data-edit-correction className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted p-3">
     {corrected && <Badge variant="accent">Corregido</Badge>}
     <FieldDescription className="min-w-0 max-w-full break-words">Original: {originalLabel}</FieldDescription>
     {restoring && <FieldDescription className="min-w-0 max-w-full break-words">Se restaurará el original al guardar</FieldDescription>}
@@ -150,29 +156,31 @@ export const CandidateEditForm = forwardRef<CandidateEditFormHandle, Props>(func
  const seniorities = [{ value: "", label: "Sin especificar" }, ...SENIORITIES.map(value => ({ value, label: SENIORITY_LABELS[value] }))];
  return <>
   <form ref={form} noValidate className="flex min-h-0 flex-1 flex-col" onSubmit={event => { event.preventDefault(); if (!busy.current && !awaitingFresh) setConfirmationBody(validate()); }}>
-   <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-    <FieldSet disabled={pending} className="min-w-0"><FieldLegend className="sr-only">Editar datos del candidato</FieldLegend><FieldGroup>
+   <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6">
+    <FieldSet disabled={pending} className={styles.fields}><FieldLegend className="sr-only">Editar datos del candidato</FieldLegend><FieldGroup>
      {conflicted && <p role="status" className="flex items-start gap-2 text-sm text-status-review"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{CANDIDATE_EDIT_CONFLICT_NOTICE}</span></p>}
-     <Section title="Contacto" icon={ContactRound}>
+     <Section title="Contacto">
       {scalar("full_name", "Nombre completo")}<FieldDescription>Agrega al menos un correo o un teléfono; puedes incluir ambos.</FieldDescription>
-      {scalar("email", "Correo electrónico", "email")}<FieldGroup className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">{scalar("dial", "Lada de país", "tel")}{scalar("phone", "Teléfono", "tel")}</FieldGroup>
+      {scalar("email", "Correo electrónico", "email")}<FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-[7rem_minmax(0,1fr)]">{scalar("dial", "Lada de país", "tel")}{scalar("phone", "Teléfono", "tel")}</FieldGroup>
       {errors.contact && <FieldError id="edit-contact-error">{errors.contact}</FieldError>}
       <FieldDescription>México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.</FieldDescription>
      </Section><Separator />
-     <Section title="Ubicación" icon={MapPin}><LocationField label="Ubicación" hideLegend value={draft.location} onChange={location => change("location", { ...draft, location })} depth="municipality" postalCode defaultCountry={null} disabled={pending} required={draft.location.country === "MX" ? ["country", "state", "municipality"] : ["country"]} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9), reason: "unknown" as const, message: issue.message }))} />{reference("location")}</Section><Separator />
-     <Section title="Perfil profesional" icon={BriefcaseBusiness}>
+     <Section title="Perfil profesional">
       {scalar("professional_title", "Título profesional")}{scalar("current_company", "Empresa actual")}
-      <Field data-invalid={!!errors.seniority}><FieldLabel htmlFor="edit-seniority">Seniority</FieldLabel><Select items={seniorities} value={draft.seniority || null} disabled={pending} onValueChange={seniority => change("seniority", { ...draft, seniority: seniority ?? "" })}><SelectTrigger id="edit-seniority" className="min-h-10 w-full" aria-invalid={!!errors.seniority} aria-describedby={errors.seniority ? "edit-seniority-error" : undefined}><SelectValue placeholder="Sin especificar" /></SelectTrigger><SelectContent><SelectGroup>{seniorities.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>{errors.seniority && <FieldError id="edit-seniority-error">{errors.seniority}</FieldError>}{reference("seniority")}</Field>
+      <ProfileGroup title="Ubicación" icon={MapPin}><LocationField label="Ubicación" hideLegend value={draft.location} onChange={location => change("location", { ...draft, location })} depth="municipality" postalCode defaultCountry={null} disabled={pending} required={draft.location.country === "MX" ? ["country", "state", "municipality"] : ["country"]} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9), reason: "unknown" as const, message: issue.message }))} />{reference("location")}</ProfileGroup>
       {scalar("years_of_experience", "Años de experiencia")}
+      <Field data-invalid={!!errors.seniority}><FieldLabel htmlFor="edit-seniority">Seniority</FieldLabel><Select items={seniorities} value={draft.seniority || null} disabled={pending} onValueChange={seniority => change("seniority", { ...draft, seniority: seniority ?? "" })}><SelectTrigger id="edit-seniority" className="min-h-10 w-full" aria-invalid={!!errors.seniority} aria-describedby={errors.seniority ? "edit-seniority-error" : undefined}><SelectValue placeholder="Sin especificar" /></SelectTrigger><SelectContent><SelectGroup>{seniorities.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>{errors.seniority && <FieldError id="edit-seniority-error">{errors.seniority}</FieldError>}{reference("seniority")}</Field>
+      <ProfileGroup title="Estudios" icon={GraduationCap}><div data-edit-collection aria-invalid={!!errors.education} tabIndex={errors.education ? -1 : undefined}><EducationFields embedded value={draft.education} disabled={pending} issues={issues} onChange={education => change("education", { ...draft, education })} /></div>{reference("education")}</ProfileGroup>
+      <ProfileGroup title="Idiomas" icon={Languages}><div data-edit-collection aria-invalid={!!errors.languages} tabIndex={errors.languages ? -1 : undefined}><LanguageListEditor value={draft.languages} disabled={pending} issues={issues} onChange={languages => change("languages", { ...draft, languages })} /></div>{reference("languages")}</ProfileGroup>
      </Section><Separator />
-     <Section title="Estudios" icon={GraduationCap}><div data-edit-collection aria-invalid={!!errors.education} tabIndex={errors.education ? -1 : undefined}><EducationFields embedded value={draft.education} disabled={pending} issues={issues} onChange={education => change("education", { ...draft, education })} /></div>{reference("education")}</Section><Separator />
-     <Section title="Idiomas" icon={Languages}><div data-edit-collection aria-invalid={!!errors.languages} tabIndex={errors.languages ? -1 : undefined}><LanguageListEditor value={draft.languages} disabled={pending} issues={issues} onChange={languages => change("languages", { ...draft, languages })} /></div>{reference("languages")}</Section><Separator />
-     <Section title="Habilidades" icon={Tags}>{scalar("skills", "Habilidades")}</Section><Separator />
-     <Section title="Enlaces" icon={Link}>{scalar("linkedin_url", "LinkedIn", "url")}{scalar("portfolio_url", "Portafolio", "url")}</Section>
+     <Section title="Enlaces">{scalar("linkedin_url", "LinkedIn", "url")}{scalar("portfolio_url", "Portafolio", "url")}</Section><Separator />
+     <Section title="Habilidades">{scalar("skills", "Habilidades")}</Section>
     </FieldGroup></FieldSet>
    </div>
-   <SheetFooter className="shrink-0 border-t max-sm:[&_[data-pf-action-bar]]:flex-col max-sm:[&_[data-pf-action-bar-actions]]:self-end"><ActionBar status={pending ? <ActionStatus id="candidate-edit-status" tone="info" text="Guardando cambios…" /> : awaitingFresh ? <ActionStatus id="candidate-edit-status" tone="error" text="Actualiza los datos para continuar." action={<Button type="button" variant="link" className="min-h-10" onClick={() => void reloadConflict()}>Actualizar datos</Button>} /> : Object.keys(errors).length ? <ActionStatus id="candidate-edit-status" tone="error" text="Revisa los datos marcados." /> : failure && failure.reason !== "precondition_failed" ? <ActionStatus id="candidate-edit-status" tone="error" text={candidateEditFailureMessage(failure.reason)} /> : conflicted ? <ActionStatus id="candidate-edit-status" tone="info" text="Revisa los datos antes de guardar." /> : null}>
-    <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={requestClose}>Cancelar</Button><Button id="candidate-edit-save" type="submit" className="min-h-10" disabled={pending || awaitingFresh || !dirty} aria-busy={pending} aria-describedby="candidate-edit-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Guardando…" : "Guardar cambios"}</Button>
+   {/* Cancel stays left like the v0 footer; ActionBar reserves the result beside Save (§12). */}
+   <SheetFooter className={cn(styles.footer, "sticky bottom-0 shrink-0 flex-row items-start gap-3 border-t bg-card")}>
+    <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={requestClose}>Cancelar</Button><ActionBar status={pending ? <ActionStatus id="candidate-edit-status" tone="info" text="Guardando cambios…" /> : awaitingFresh ? <ActionStatus id="candidate-edit-status" tone="error" text="Actualiza los datos para continuar." action={<Button type="button" variant="link" className="min-h-10" onClick={() => void reloadConflict()}>Actualizar datos</Button>} /> : Object.keys(errors).length ? <ActionStatus id="candidate-edit-status" tone="error" text="Revisa los datos marcados." /> : failure && failure.reason !== "precondition_failed" ? <ActionStatus id="candidate-edit-status" tone="error" text={candidateEditFailureMessage(failure.reason)} /> : conflicted ? <ActionStatus id="candidate-edit-status" tone="info" text="Revisa los datos antes de guardar." /> : null}>
+    <Button id="candidate-edit-save" type="submit" className="min-h-10" disabled={pending || awaitingFresh || !dirty} aria-busy={pending} aria-describedby="candidate-edit-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Guardando…" : "Guardar cambios"}</Button>
    </ActionBar></SheetFooter>
   </form>
   <ConfirmActionDialog open={discard} onOpenChange={setDiscard} icon={Trash2} title="Tienes cambios sin guardar" description="Si cierras, perderás los datos que capturaste." cancelLabel="Seguir editando" confirmLabel="Descartar" tone="destructive" onConfirm={onCancel} />

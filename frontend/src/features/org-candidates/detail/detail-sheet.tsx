@@ -120,7 +120,7 @@ const DetailSession = forwardRef<DetailSessionHandle, { candidate: OrgCandidateI
       {data?.updated_by && data.updated_at && <p className="text-xs text-muted-foreground">Editado por {data.updated_by.name ?? "Cuenta no disponible"} · <MovementDate value={data.updated_at} /></p>}
       {data && !editing && <Button ref={editButtonRef} type="button" variant="outline" className="min-h-10 w-full" disabled={busy} onClick={() => setEditing(true)}><Pencil aria-hidden="true" data-icon="inline-start" />Editar datos</Button>}
     </SheetHeader>
-    {editing && data ? <><Separator /><CandidateEditForm ref={formRef} candidate={data} onCancel={readView} onSaved={saved} onConflict={refreshConflict} /></> : <>
+    {editing && data ? <><div className="flex shrink-0 items-center gap-2 border-b px-6 pb-3 text-xs text-muted-foreground"><Pencil aria-hidden="true" className="size-3.5 shrink-0" /><span>Editando datos</span></div><CandidateEditForm ref={formRef} candidate={data} onCancel={readView} onSaved={saved} onConflict={refreshConflict} /></> : <>
     {data ? <Tabs value={tab} onValueChange={value => setTab(String(value))} className="min-h-0 flex-1 gap-0">
       <div className="shrink-0 border-b px-6 pb-2">
         <TabsList variant="line" aria-label="Secciones de la ficha" className="max-w-full justify-start gap-4">

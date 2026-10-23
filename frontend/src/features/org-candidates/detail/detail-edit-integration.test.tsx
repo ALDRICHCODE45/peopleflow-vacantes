@@ -29,6 +29,27 @@ async function save() {
  const dialog = await screen.findByRole("alertdialog");
  await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Guardar cambios" })); });
 }
+it.each(["manual", "organic"] as const)("keeps the %s identity and replaces tabs with compact edit context", async kind => {
+ const candidate = editFixture(kind);
+ vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: candidate });
+ open();
+ expect(await screen.findByRole("tablist", { name: "Secciones de la ficha" })).toBeVisible();
+ const title = screen.getByRole("heading", { name: candidate.full_name });
+ const avatar = document.querySelector('[data-slot="avatar"]');
+ await edit();
+ expect(screen.getByRole("heading", { name: candidate.full_name })).toBe(title);
+ expect(document.querySelector('[data-slot="avatar"]')).toBe(avatar);
+ expect(screen.getByText(kind === "manual" ? "Manual" : "Orgánico", { selector: '[data-slot="badge"]' })).toBeVisible();
+ expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+ expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+ const context = screen.getByText("Editando datos");
+ expect(context).toBeVisible();
+ expect(context.closest('[data-slot="sheet-header"]')).toBeNull();
+ expect(context.compareDocumentPosition(screen.getByLabelText("Nombre completo")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+ expect(await screen.findByRole("tab", { name: "Resumen", selected: true })).toBeVisible();
+ expect(screen.queryByText("Editando datos")).not.toBeInTheDocument();
+});
 it("opens the edit form in the same Sheet and hides read sections", async () => {
  open(); await edit();
  expect(screen.getByLabelText("Nombre completo")).toHaveValue("Lucía Ramírez Torres");

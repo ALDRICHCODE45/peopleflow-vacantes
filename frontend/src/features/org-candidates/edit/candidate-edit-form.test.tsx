@@ -38,6 +38,35 @@ async function save() {
  const dialog = await openSaveConfirmation();
  await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Guardar cambios" })); });
 }
+it.each(["manual", "organic"] as const)("mirrors summary section order and groups the %s professional profile", kind => {
+ const { container } = render(<CandidateEditForm candidate={editFixture(kind)} onSaved={vi.fn()} onCancel={vi.fn()} onConflict={vi.fn()} />);
+ const sections = container.querySelectorAll('form > div > fieldset > [data-slot="field-group"] > fieldset');
+ expect(Array.from(sections, section => section.querySelector(':scope > legend')?.textContent)).toEqual(["Contacto", "Perfil profesional", "Enlaces", "Habilidades"]);
+ const profile = screen.getByRole("group", { name: "Perfil profesional" });
+ const groups = Array.from(profile.querySelectorAll(':scope > [data-slot="field-group"] > fieldset'));
+ expect(groups.map(group => group.querySelector(':scope > legend')?.textContent)).toEqual(["Ubicación", "Estudios", "Idiomas"]);
+ const orderedControls = [groups[0], within(profile).getByLabelText("Años de experiencia"), within(profile).getByLabelText("Seniority"), groups[1], groups[2]];
+ orderedControls.slice(1).forEach((control, index) => expect(orderedControls[index].compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
+ expect(within(profile).getByLabelText("Título profesional")).toBeVisible();
+ expect(within(profile).getByLabelText("Empresa actual")).toBeVisible();
+});
+it("keeps footer actions outside the scrolling fields and usable on narrow sheets", () => {
+ const { container } = render(<CandidateEditForm candidate={editFixture()} onSaved={vi.fn()} onCancel={vi.fn()} onConflict={vi.fn()} />);
+ const footer = container.querySelector('[data-slot="sheet-footer"]')!;
+ const scroller = container.querySelector('form > div')!;
+ expect(scroller).toHaveClass("min-h-0", "flex-1", "overflow-y-auto", "overscroll-contain");
+ expect(footer.parentElement).toBe(scroller.parentElement);
+ expect(footer).toHaveClass("sticky", "bottom-0", "shrink-0", "bg-card");
+ const cancel = within(footer as HTMLElement).getByRole("button", { name: "Cancelar" });
+ const save = within(footer as HTMLElement).getByRole("button", { name: "Guardar cambios" });
+ expect(cancel).toHaveClass("border-border", "bg-background");
+ expect(save).toHaveClass("bg-primary", "text-primary-foreground");
+ expect(cancel).toHaveClass("min-h-10"); expect(save).toHaveClass("min-h-10");
+ expect(cancel.parentElement).toBe(footer);
+ expect(save.closest('[data-pf-action-bar]')).not.toBeNull();
+ expect(save).toBeDisabled();
+ expect(screen.getByLabelText("Lada de país").closest('[data-slot="field-group"]')).toHaveClass("grid-cols-1");
+});
 it("prefills the full manual values and sends only edits, then notifies", async () => {
  const candidate = editFixture(); const onSaved = vi.fn();
  vi.mocked(saveOrgCandidateEditAction).mockResolvedValue({ ok: true, data: { ...candidate, professional_title: "Ingeniera", etag: '"v2"' } });
@@ -70,7 +99,7 @@ it("groups correction metadata under one direct Field child with an intrinsic re
  expect(action.parentElement).toBe(block); expect(action).not.toHaveClass("w-full"); expect(action).toHaveClass("min-h-10");
  // Link actions sit flush with the badge when the block wraps (optical alignment, QA L20).
  expect(action).toHaveClass("px-0");
- expect(block).toHaveClass("flex", "flex-wrap", "items-center", "gap-x-2", "gap-y-1");
+ expect(block).toHaveClass("flex", "flex-wrap", "items-center", "gap-x-2", "gap-y-1", "rounded-lg", "bg-muted", "p-3");
  expect(action.querySelector('svg.lucide-rotate-ccw[data-icon="inline-start"][aria-hidden="true"]')).not.toBeNull();
  const original = within(block).getByText(`Original: ${candidate.original!.professional_title}`);
  expect(original).toHaveAttribute("data-slot", "field-description"); expect(original).toHaveClass("min-w-0", "break-words");

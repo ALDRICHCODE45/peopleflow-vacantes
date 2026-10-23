@@ -1,0 +1,72 @@
+/* Sheet-local density: preserve the installed controls and the summary's label/value rhythm. */
+.fields {
+  min-width: 0;
+}
+
+.fields :global([data-slot="field"]) {
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.fields :global([data-slot="field-label"]) {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.fields :global([data-invalid="true"]) > :global([data-slot="field-label"]) {
+  color: var(--destructive);
+}
+
+.fields :global([data-slot="field-description"]) {
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.footer :global([data-pf-action-bar]) {
+  min-width: 0;
+}
+
+/* The shared language editor normally places removal beside the level. In this
+   narrow sheet, keep every input on its own row without changing that editor. */
+@media (width < 40rem) {
+  /* Preserve the existing full-width mobile result above the actions when needed:
+     a conflict retry must not be squeezed between Cancel and Save at 390px.
+     The normal footer remains a single row; only an actual result adds a row. */
+  .footer:has(:global([role="status"])) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .footer:has(:global([role="status"])) > :global(button) {
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .footer:has(:global([role="status"])) :global([data-pf-action-bar]) {
+    display: contents;
+  }
+
+  .footer:has(:global([role="status"])) :global([data-pf-action-bar-actions]) {
+    grid-row: 2;
+    grid-column: 2;
+  }
+
+  .footer:has(:global([role="status"])) :global([data-pf-action-bar]) > :global(div:last-child) {
+    grid-row: 1;
+    grid-column: 1 / -1;
+  }
+
+  .fields :global([data-pf-profile-language-grid]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fields :global([data-pf-profile-language-grid]) > :global([data-slot="field"]) {
+    grid-column: 1;
+  }
+
+  .fields :global([data-pf-profile-language-grid]) > :global(div:last-child) {
+    justify-self: end;
+    padding-top: 0;
+  }
+}
