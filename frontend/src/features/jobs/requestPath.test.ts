@@ -103,7 +103,7 @@ describe("single application-facing request path", () => {
     expect(source(join(SRC, "app/api/company/manual-candidates/[vacancyId]/route.ts"))).not.toMatch(/\bfetch\(/);
   });
 
-  it.each(["features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts"])("keeps %s server-only through the shared transport", file => {
+  it.each(["features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts"])("keeps %s server-only through the shared transport", file => {
     const client = source(join(SRC, file));
     expect(client).toContain('import "server-only"');
     expect(client).toContain('from "@/lib/api/server"');
@@ -153,6 +153,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/detail/detail-client.ts",
       "features/org-candidates/edit/edit-client.ts",
       "features/org-candidates/history/history-client.ts",
+      "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/auth/backend-check.ts",
@@ -189,6 +190,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/detail/detail-client.ts",
       "features/org-candidates/edit/edit-client.ts",
       "features/org-candidates/history/history-client.ts",
+      "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/api/server.ts",

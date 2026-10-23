@@ -1,0 +1,60 @@
+import { StrictMode } from "react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+vi.mock("./summary-actions", () => ({ getCandidatesSummaryAction: vi.fn() }));
+import { getCandidatesSummaryAction } from "./summary-actions";
+import { useCandidatesSummary } from "./use-candidates-summary";
+import type { CandidatesSummaryResult } from "./summary-model";
+import { summary } from "./test-fixtures";
+afterEach(cleanup);
+beforeEach(() => vi.resetAllMocks());
+const deferred = () => {
+  let resolve!: (result: CandidatesSummaryResult) => void;
+  const promise = new Promise<CandidatesSummaryResult>(done => { resolve = done; });
+  return { promise, resolve };
+};
+it("loads once, including StrictMode effect replay, and does not reload on rerender", async () => {
+  const request = deferred();
+  vi.mocked(getCandidatesSummaryAction).mockReturnValue(request.promise);
+  const { result, rerender } = renderHook(() => useCandidatesSummary(), { wrapper: StrictMode });
+  expect(result.current.pending).toBe(true);
+  await act(async () => request.resolve({ ok: true, data: summary }));
+  await waitFor(() => expect(result.current.data).toEqual(summary));
+  rerender();
+  expect(getCandidatesSummaryAction).toHaveBeenCalledOnce();
+  expect(result.current.pending).toBe(false);
+});
+it("refreshes explicitly, preserves existing data and ignores older in-flight reads", async () => {
+  vi.mocked(getCandidatesSummaryAction).mockResolvedValueOnce({ ok: true, data: summary });
+  const { result } = renderHook(() => useCandidatesSummary());
+  await waitFor(() => expect(result.current.pending).toBe(false));
+  const old = deferred(), latest = deferred();
+  vi.mocked(getCandidatesSummaryAction).mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
+  act(() => { void result.current.refresh(); });
+  expect(result.current.data).toEqual(summary);
+  expect(result.current.pending).toBe(true);
+  act(() => { void result.current.refresh(); });
+  const updated = { ...summary, total: 10, by_kind: { manual: 5, organic: 5 } };
+  await act(async () => latest.resolve({ ok: true, data: updated }));
+  await act(async () => old.resolve({ ok: true, data: summary }));
+  expect(result.current.data).toEqual(updated);
+  expect(result.current.pending).toBe(false);
+});
+it("exposes failure and allows retry through refresh", async () => {
+  vi.mocked(getCandidatesSummaryAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: {} });
+  const { result } = renderHook(() => useCandidatesSummary());
+  await waitFor(() => expect(result.current.failure?.reason).toBe("server_error"));
+  vi.mocked(getCandidatesSummaryAction).mockResolvedValueOnce({ ok: true, data: summary });
+  await act(async () => { await result.current.refresh(); });
+  expect(result.current.failure).toBeNull();
+  expect(result.current.data).toEqual(summary);
+});
+it("handles thrown action failures safely and keeps prior data", async () => {
+  vi.mocked(getCandidatesSummaryAction).mockResolvedValueOnce({ ok: true, data: summary });
+  const { result } = renderHook(() => useCandidatesSummary());
+  await waitFor(() => expect(result.current.pending).toBe(false));
+  vi.mocked(getCandidatesSummaryAction).mockRejectedValueOnce(new Error("private"));
+  await act(async () => { await result.current.refresh(); });
+  expect(result.current.failure).toEqual({ ok: false, reason: "no_response", reference: {} });
+  expect(result.current.data).toEqual(summary);
+});
