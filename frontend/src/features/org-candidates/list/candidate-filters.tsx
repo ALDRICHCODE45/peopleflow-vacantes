@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { CEFR_LEVELS, EDUCATION_LEVELS, SENIORITIES, SENIORITY_LABELS } from "@/features/candidate/model";
 import { educationLabels } from "@/features/pipeline-movement/profile-filter-dimensions";
 import { useGeoResource } from "@/features/geo/use-geo-catalog";
-import { statesSchema, municipalitiesSchema } from "@/features/geo/model";
+import { countriesSchema, statesSchema, municipalitiesSchema } from "@/features/geo/model";
 import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import type { LanguageCatalog } from "@/features/languages/model";
 import { repeatableKeys, type CandidateFilters } from "../url-state";
@@ -18,7 +18,7 @@ type Option = { value: string; label: string };
 const none = { value: "none", label: "Sin dato" };
 const yearsOptions = [{ value: "0_1", label: "Menos de 1 año" }, { value: "1_3", label: "1 a 3 años" }, { value: "3_5", label: "3 a 5 años" }, { value: "5_plus", label: "5 años o más" }, none];
 const origins = [{ value: "manual", label: "Manual" }, { value: "organic", label: "Orgánico" }];
-const labels: Record<string, string> = { q: "Búsqueda", origin: "Origen", vacancy: "Vacante", state: "Estado", municipality: "Municipio", seniority: "Seniority", years: "Años de experiencia", language: "Idiomas", language_min_level: "Nivel mínimo", education_level: "Nivel de estudios", education_in_progress: "Incluye estudios en curso" };
+const labels: Record<string, string> = { q: "Búsqueda", origin: "Origen", vacancy: "Vacante", country: "País", active_process: "Solo procesos activos", state: "Estado", municipality: "Municipio", seniority: "Seniority", years: "Años de experiencia", language: "Idiomas", language_min_level: "Nivel mínimo", education_level: "Nivel de estudios", education_in_progress: "Incluye estudios en curso" };
 function MultiFilter({ id, label, options, selected, onChange }: { id: string; label: string; options: Option[]; selected: string[]; onChange: (values: string[]) => void }) {
   // Same primitive-id Combobox pattern as the board's PipelineFilterBar. Options
   // come from catalogs, never from the loaded page (there are no v1 facets).
@@ -43,6 +43,7 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
   const [vacancies, setVacancies] = useState<Option[]>([]);
   const [vacancyStatus, setVacancyStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [attempt, setAttempt] = useState(0);
+  const countries = useGeoResource("countries", countriesSchema);
   const states = useGeoResource("countries/mx/states", statesSchema);
   useEffect(() => {
     let current = true;
@@ -65,13 +66,13 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
     void load(); return () => { current = false; };
   }, [attempt]);
   const options: Record<string, Option[]> = {
-    origin: origins, vacancy: vacancies, state: [...(states.data?.items ?? []).map(item => ({ value: item.id, label: item.name })), none],
+    origin: origins, vacancy: vacancies, country: [...(countries.data?.items ?? []).map(item => ({ value: item.id, label: item.name })), none], state: [...(states.data?.items ?? []).map(item => ({ value: item.id, label: item.name })), none],
     seniority: [...SENIORITIES.map(value => ({ value, label: SENIORITY_LABELS[value] })), none], years: yearsOptions,
     language: [...languages.map(item => ({ value: item.code, label: item.name })), none],
     education_level: [...EDUCATION_LEVELS.map(value => ({ value, label: educationLabels[value] })), none],
     language_min_level: CEFR_LEVELS.map(value => ({ value, label: value === "native" ? "Nativo" : value })),
   };
-  const chips = Object.entries(filters).flatMap(([key, raw]) => (Array.isArray(raw) ? raw : raw ? [raw] : []).map(value => ({ key, value, label: `${labels[key] ?? key}: ${key === "education_in_progress" ? "Sí" : options[key]?.find(option => option.value === value)?.label ?? (value === "none" ? "Sin dato" : value)}` })));
+  const chips = Object.entries(filters).flatMap(([key, raw]) => (Array.isArray(raw) ? raw : raw ? [raw] : []).map(value => ({ key, value, label: `${labels[key] ?? key}: ${key === "education_in_progress" || key === "active_process" ? "Sí" : options[key]?.find(option => option.value === value)?.label ?? (value === "none" ? "Sin dato" : value)}` })));
   return <section aria-label="Filtros de candidatos" className="flex min-w-0 flex-col gap-3">
     <div data-candidates-toolbar className="flex min-w-0 flex-wrap items-end gap-3 md:flex-nowrap">
       {search}
@@ -84,6 +85,7 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
         Only existing server-supported dimensions are offered. */}
     {open && <div id="org-candidate-filters" role="region" aria-label="Filtrar candidatos" className="rounded-lg bg-background p-4 md:p-5">
       <FieldGroup className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+        <div className="flex min-w-0 flex-col gap-3"><MultiFilter id="org-country" label={labels.country} options={options.country} selected={filters.country ?? []} onChange={country => onChange({ country })} />{countries.status === "error" && <Button type="button" variant="link" className="min-h-10" onClick={countries.retry}>Reintentar países</Button>}</div>
         <div className="flex min-w-0 flex-col gap-3"><MultiFilter id="org-state" label="Estado" options={options.state} selected={filters.state ?? []} onChange={state => onChange({ state })} />{states.status === "error" && <Button type="button" variant="link" className="min-h-10" onClick={states.retry}>Reintentar estados</Button>}</div>
         <FieldSet className="min-w-0 gap-3">
           {/* Per-state municipality pickers carry their own label; before a state is chosen the group keeps the grid's label row. */}
@@ -105,6 +107,7 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
           {vacancyStatus === "error" && <Button type="button" variant="link" className="min-h-10" onClick={() => setAttempt(value => value + 1)}>Reintentar vacantes</Button>}
         </div>
         <SingleFilter id="org-origin" label="Origen" options={origins} value={filters.origin} onChange={origin => onChange({ origin })} />
+        <Field orientation="horizontal"><Checkbox id="org-active-process" checked={filters.active_process === "true"} onCheckedChange={checked => onChange({ active_process: checked ? "true" : undefined })} /><FieldLabel htmlFor="org-active-process">{labels.active_process}</FieldLabel></Field>
       </FieldGroup>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-prose text-xs text-muted-foreground">Las opciones de un mismo filtro se suman; entre filtros se cumplen todas las condiciones.</p><Button type="button" variant="ghost" className="min-h-10" onClick={onClear}>Limpiar filtros</Button></div>
     </div>}

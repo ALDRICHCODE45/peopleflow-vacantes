@@ -1,5 +1,5 @@
-export const repeatableKeys = ["vacancy", "state", "municipality", "seniority", "years", "language"] as const;
-export const singleKeys = ["q", "origin", "language_min_level", "education_level", "education_in_progress"] as const;
+export const repeatableKeys = ["vacancy", "country", "state", "municipality", "seniority", "years", "language"] as const;
+export const singleKeys = ["q", "origin", "active_process", "language_min_level", "education_level", "education_in_progress"] as const;
 export type CandidateFilters = Partial<Record<typeof repeatableKeys[number], string[]> & Record<typeof singleKeys[number], string>>;
 export type CandidateQuery = { filters?: CandidateFilters; cursor?: string; limit?: number };
 export type UrlState = { filters: CandidateFilters; view: "table" | "cards"; cursor?: string };

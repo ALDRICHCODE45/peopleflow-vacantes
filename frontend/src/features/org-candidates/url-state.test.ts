@@ -20,6 +20,14 @@ it("never sends orphan language or education modifiers", () => {
  const selected = parseUrlState(new URLSearchParams("language=en&language_min_level=C1&education_level=master&education_in_progress=true"));
  expect(serializeUrlState(changeFilters(selected, { language: [], education_level: undefined })).toString()).not.toMatch(/min_level|in_progress/);
 });
+it("serializes repeatable countries and the independent active-process filter, and removes them", () => {
+ const state = parseUrlState(new URLSearchParams("country=MX&country=US&country=none&active_process=true&cursor=old"));
+ expect(state.filters).toEqual({ country: ["MX", "US", "none"], active_process: "true" });
+ expect(serializeUrlState(state).getAll("country")).toEqual(["MX", "US", "none"]);
+ expect(toListQuery(state).filters?.active_process).toBe("true");
+ const cleared = changeFilters(state, { country: [], active_process: undefined });
+ expect(serializeUrlState(cleared).toString()).toBe("");
+});
 it("defaults to table and ignores unrelated URL parameters", () => {
  expect(parseUrlState(new URLSearchParams("view=bad&secret=x"))).toEqual({ view: "table", filters: {} });
 });
