@@ -105,3 +105,7 @@ solamente detalles que encuentro»); each one is recorded here with its investig
 - **L6.** Native review lineage review-b4b5e8e05df7765c (range 7b3372e5..2beffd18, 32 paths, 806 lines, lens
   reliability): the reviewer returned no text twice through the Pi host relay (`stopReason: length` after 32k
   reasoning tokens, then an empty `stop`), same failure mode as talent-filters-export L9 → not retried, no verdict.
+- **L7.** Full frontend suite: 403/404 files, 7162/7163 tests; the one failure was `pipeline-movement/board.test.tsx`
+  (its hand-written combobox mock lacked `useComboboxAnchor`, now used by the dial field inside the manual intake).
+  Mock fixed (only file with a non-`importOriginal` combobox mock) → board 83/83. With that file green, all 404 files
+  pass.
