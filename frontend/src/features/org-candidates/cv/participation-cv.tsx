@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ArrowDownToLine, FileText, Upload } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, FileText, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CardContent, CardFooter } from "@/components/ui/card";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Item, ItemContent, ItemDescription, ItemMedia } from "@/components/ui/item";
+import { cn } from "cn";
 import { DocumentItem } from "@/components/document/document-item";
 import { filePresentation } from "@/features/pipeline-movement/pipeline-presentation";
 import { Input } from "@/components/ui/input";
-import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
+import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { candidateCvHref, type OrgCandidateDetail, type OrgCandidateParticipation } from "../detail/detail-model";
@@ -26,7 +27,7 @@ type Props = {
  onConflict: () => Promise<void>;
 };
 const fileSize = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 }).format(bytes / 1024)} KB` : `${new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 }).format(bytes / 1024 / 1024)} MB`;
-/** Card body and footer stay in one mounted session so refreshes retain the selected file. */
+/** The process document and upload stay in one mounted session so refreshes retain the selected file. */
 export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, onConflict, onConfirmationChange, children }: Props) {
  const input = useRef<HTMLInputElement>(null), button = useRef<HTMLButtonElement>(null);
  const alive = useRef(true), locked = useRef(false);
@@ -77,15 +78,15 @@ export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, 
    }
   } finally { locked.current = false; if (alive.current) { setPending(false); onBusyChange(false); } }
  }
- return <><CardContent className="flex min-w-0 flex-col gap-3">
+ return <div className="flex min-w-0 flex-col gap-3">
   {children}
-  {item.cv ? <DocumentItem title={item.cv.file_name}
+  {item.cv ? <DocumentItem presentation="panel" title={item.cv.file_name} fileType={filePresentation(item.cv.file_name) === "pdf" ? "PDF" : "DOCX"}
    description={filePresentation(item.cv.file_name) === "pdf" ? "Documento PDF" : "Documento Word"} badge={item.cv.source === "company" && <Badge variant="accent">CV corregido por tu empresa</Badge>}
-   actions={<>
-    <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={candidateCvHref(identity, item.id)} download role="link" />} aria-label={`Descargar CV de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</Button>
-    {item.cv.source === "company" && item.original_cv && <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={candidateCvHref(identity, item.id, "original")} download role="link" />} aria-label={`Descargar CV original de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</Button>}
-   </>} /> : <p className="text-sm text-muted-foreground">Sin CV en este proceso</p>}
- </CardContent><CardFooter>
+   actions={<a className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "min-h-10 min-w-10")} href={candidateCvHref(identity, item.id)} download aria-label={`Descargar archivo CV de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" /></a>}
+   footer={<>
+    <a className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "min-h-10")} href={candidateCvHref(identity, item.id)} download aria-label={`Descargar CV de ${item.vacancy.title}`}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</a>
+    {item.cv.source === "company" && item.original_cv && <a className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "min-h-10 text-muted-foreground")} href={candidateCvHref(identity, item.id, "original")} download aria-label={`Descargar CV original de ${item.vacancy.title}`}>Descargar CV original<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></a>}
+   </>} /> : <Item variant="muted" size="sm"><ItemMedia variant="icon"><FileText aria-hidden="true" /></ItemMedia><ItemContent><ItemDescription className="line-clamp-none">Sin CV en este proceso</ItemDescription></ItemContent></Item>}
   {/* Native hidden file selection is exposed through the labeled upload button. No binary Server Action call. */}
   <Input ref={input} type="file" className="hidden" accept={CV_ACCEPT} aria-label={`CV corregido para ${item.vacancy.title}`} onChange={event => {
    const picked = event.target.files?.[0]; event.target.value = "";
@@ -94,13 +95,16 @@ export function ParticipationCv({ candidate, item, busy, onBusyChange, onSaved, 
    if (invalid) { setFile(null); onConfirmationChange(null); failure(invalid); return; }
    setFile(picked); setStatus(null); confirmFile(picked);
   }} />
-  <ActionBar status={status && <ActionStatus id={statusId} tone={status.tone} text={status.text} />}>
-   <Button ref={button} type="button" variant="outline" className="min-h-10" disabled={busy || pending} aria-busy={pending || undefined} aria-describedby={status ? statusId : undefined} onClick={() => {
+  {/* Isolated action (§12): keep the result slot below it, not in a right-aligned footer bar. */}
+   <Button ref={button} type="button" variant="outline" className="min-h-10 self-start" disabled={busy || pending} aria-busy={pending || undefined} aria-describedby={status ? statusId : undefined} onClick={() => {
     if (needsRefresh) { void refresh(); return; }
     if (file) confirmFile(file); else input.current?.click();
    }}><Upload aria-hidden="true" data-icon="inline-start" />{needsRefresh ? "Actualizar ficha" : "Subir CV corregido"}</Button>
-  </ActionBar>
- </CardFooter></>;
+  <ActionStatusSlot><div className="flex min-w-0 flex-col gap-1">
+    <p className="text-xs text-muted-foreground">PDF o DOCX · Máximo 5 MB</p>
+    {status && <ActionStatus id={statusId} tone={status.tone} text={status.text} />}
+  </div></ActionStatusSlot>
+ </div>;
 }
 /** A sibling of the Sheet root (§23), so Base UI keeps the confirmation's own backdrop. */
 export function CvConfirmationDialog({ confirmation, pending, onClose }: { confirmation: CvConfirmation | null; pending: boolean; onClose: () => void }) {

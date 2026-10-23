@@ -84,7 +84,8 @@ it("adopts the save in read view, notifies the list, and refreshes history", asy
  const saved = { ...editFixture(), full_name: "Lucía Corregida", etag: '\"v2\"' };
  vi.mocked(saveOrgCandidateEditAction).mockResolvedValue({ ok: true, data: saved });
  const { onCandidateUpdated } = open();
- await screen.findByRole("region", { name: "Historial de cambios" });
+ fireEvent.click(await screen.findByRole("tab", { name: "Historial" }));
+ expect(screen.getByRole("region", { name: "Historial de cambios" })).toBeVisible();
  expect(loadOrgCandidateHistoryAction).toHaveBeenCalledTimes(1);
  await edit(); fireEvent.change(screen.getByLabelText("Nombre completo"), { target: { value: saved.full_name } }); await save();
  expect(await screen.findByRole("heading", { name: saved.full_name })).toBeVisible();
@@ -92,12 +93,12 @@ it("adopts the save in read view, notifies the list, and refreshes history", asy
  expect(onCandidateUpdated).toHaveBeenCalledExactlyOnceWith(saved);
  await waitFor(() => expect(loadOrgCandidateHistoryAction).toHaveBeenCalledTimes(2));
 });
-it("shows last editor, effective skills and links, corrected badges and history after Procesos", async () => {
+it("shows last editor, effective skills and links, corrected badges and independent history tab", async () => {
  const data = { ...editFixture("organic"), updated_at: "2026-10-22T18:00:00Z", updated_by: { id: editFixture().id, name: "Ana Ríos" }, corrected_fields: ["email", "skills", "linkedin_url", "seniority"] as const, skills: ["TypeScript"], portfolio_url: "https://example.com/lucia" };
  vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: { ...data, corrected_fields: [...data.corrected_fields] } });
  open();
- expect(await screen.findByText(/Editado por Ana Ríos el/)).toBeVisible();
- const profile = screen.getByRole("region", { name: "Perfil" });
+ expect(await screen.findByText(/Editado por Ana Ríos ·/)).toBeVisible();
+ const profile = screen.getByRole("region", { name: "Perfil profesional" });
  expect(within(profile).getByText("TypeScript")).toBeVisible();
  expect(within(profile).queryByText("React")).not.toBeInTheDocument();
  expect(within(profile).getByRole("link", { name: "LinkedIn" })).toHaveAttribute("href", data.linkedin_url);
@@ -105,6 +106,7 @@ it("shows last editor, effective skills and links, corrected badges and history 
  expect(within(screen.getByRole("region", { name: "Contacto" })).getAllByText("Corregido")).toHaveLength(1);
  expect(within(profile).getAllByText("Corregido")).toHaveLength(3);
  for (const badge of screen.getAllByText("Corregido")) expect(badge).toHaveAttribute("data-slot", "badge");
- const history = screen.getByRole("region", { name: "Historial de cambios" });
- expect(screen.getByRole("region", { name: "Procesos" }).compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ fireEvent.click(screen.getByRole("tab", { name: "Historial" }));
+ expect(screen.getByRole("region", { name: "Historial de cambios" })).toBeVisible();
+ expect(screen.queryByRole("region", { name: "Procesos" })).not.toBeInTheDocument();
 });

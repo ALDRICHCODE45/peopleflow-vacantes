@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { History, Info } from "lucide-react";
+import { Check, ChevronDown, History, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { TruncatedText } from "@/components/data-table/truncated-text";
 import { StateCard } from "@/components/feedback/state-card";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import type { LanguageCatalog } from "@/features/languages/model";
@@ -16,7 +15,7 @@ import type { HistoryEntry, HistoryResult, OrgCandidateHistory } from "./history
 import { historyChangeText, historyDate } from "./history-presentation";
 
 type Props = { candidate: OrgCandidateIdentity; refreshKey: number };
-/** Same section/Item composition as Procesos. A candidate switch owns a fresh read session. */
+/** Cursor-backed timeline. A candidate switch owns a fresh read session. */
 export function ChangeHistory({ candidate, refreshKey }: Props) {
   return <HistorySession key={`${candidate.kind}:${candidate.id}`} candidate={candidate} refreshKey={refreshKey} />;
 }
@@ -55,7 +54,7 @@ function HistorySession({ candidate: { kind, id }, refreshKey }: Props) {
   return <section aria-label="Historial de cambios" aria-busy={pending} className="flex min-w-0 flex-col gap-5">
     <h3 className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">Historial de cambios</h3>
     {!page && pending && <HistorySkeleton />}
-    {page && page.items.length > 0 && <ItemGroup>{page.items.map(entry => <HistoryItem key={entry.id} entry={entry} languages={catalog.data?.items ?? []} />)}</ItemGroup>}
+    {page && page.items.length > 0 && <ItemGroup className="gap-0">{page.items.map(entry => <HistoryItem key={entry.id} entry={entry} languages={catalog.data?.items ?? []} />)}</ItemGroup>}
     {page && page.items.length === 0 && !failure && <StateCard icon={History} tone="empty" title="Sin cambios todavía" description="Las correcciones que haga tu equipo aparecerán aquí." />}
     {failure && <StateCard icon={Info} tone="error" role="status" title="No pudimos cargar el historial"
       description={failure.result.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo para consultar el historial."
@@ -63,25 +62,30 @@ function HistorySession({ candidate: { kind, id }, refreshKey }: Props) {
         : failure.result.reason === "not_found" ? "Este candidato ya no está disponible en tu organización."
         : "No se modificó ningún dato. Puedes volver a cargar el historial."}
       primaryAction={{ label: "Reintentar", onClick: retry }} />}
-    {page?.next_cursor && !failure && <Button type="button" variant="outline" disabled={pending} aria-busy={pending}
+    {page?.next_cursor && !failure && <Button type="button" variant="outline" className="min-h-10 self-start" disabled={pending} aria-busy={pending}
       onClick={() => { if (!inFlight.current && page.next_cursor) void read(page.next_cursor); }}>
-      {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}Ver más
+      {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}Ver más<ChevronDown data-icon="inline-end" aria-hidden="true" />
     </Button>}
   </section>;
 }
+// The connector is timeline layout, not an alternative Item surface. Native Item spacing is retained.
+const timelineEntry = "relative items-start before:absolute before:left-[1.875rem] before:top-10 before:-bottom-4 before:w-px before:bg-border last:before:hidden";
 function HistoryItem({ entry, languages }: { entry: HistoryEntry; languages: LanguageCatalog["items"] }) {
-  return <Item variant="outline" role="listitem"><ItemContent className="min-w-0 gap-3">
-    <ItemTitle className="max-w-full"><TruncatedText text={entry.actor.name ?? "Usuario dado de baja"} /></ItemTitle>
-    <ItemDescription><time dateTime={entry.at} className="text-xs tabular-nums">{historyDate(entry.at)}</time></ItemDescription>
-    <div className="flex min-w-0 flex-col gap-2 text-sm">
-      {entry.kind === "cv_corrected" ? <TruncatedText text={`CV corregido: ${entry.file_name}`} />
-        : entry.changes.map((change, index) => <TruncatedText key={index} text={historyChangeText(change, languages)} />)}
-    </div>
-  </ItemContent></Item>;
+  return <Item role="listitem" className={timelineEntry}>
+    <ItemMedia variant="icon" className="size-7 rounded-full bg-muted text-muted-foreground"><Check aria-hidden="true" /></ItemMedia>
+    <ItemContent className="min-w-0 gap-2">
+      <ItemTitle className="max-w-full break-words font-semibold">{entry.actor.name ?? "Usuario dado de baja"}</ItemTitle>
+      <ItemDescription><time dateTime={entry.at} className="text-xs tabular-nums">{historyDate(entry.at)}</time></ItemDescription>
+      <div className="flex min-w-0 flex-col gap-2 text-sm leading-relaxed">
+        {entry.kind === "cv_corrected" ? <p className="break-words">CV corregido: {entry.file_name}</p>
+          : entry.changes.map((change, index) => <p key={index} className="whitespace-pre-wrap break-words">{historyChangeText(change, languages)}</p>)}
+      </div>
+    </ItemContent>
+  </Item>;
 }
 function HistorySkeleton() {
-  return <><span role="status" className="sr-only">Cargando historial</span><ItemGroup aria-hidden="true">
-    {[0, 1].map(index => <Item key={index} variant="outline" role="listitem"><ItemContent className="min-w-0 gap-3">
+  return <><span role="status" className="sr-only">Cargando historial</span><ItemGroup aria-hidden="true" className="gap-0">
+    {[0, 1].map(index => <Item key={index} role="listitem" className={timelineEntry}><ItemMedia variant="icon" className="size-7"><Skeleton className="size-7 rounded-full" /></ItemMedia><ItemContent className="min-w-0 gap-2">
       <ItemTitle><Skeleton className="h-5 w-36 max-w-full" /></ItemTitle>
       <Skeleton className="h-4 w-48 max-w-full"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton>
       <div className="flex min-w-0 flex-col gap-2"><Skeleton className="h-5 w-full" /></div>

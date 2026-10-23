@@ -51,11 +51,11 @@ it.each([
   vi.mocked(loadOrgCandidateHistoryAction).mockResolvedValue({ ok: true, data: { items: [{ ...edit, changes: [change] }], next_cursor: null } } as HistoryResult);
   open(); expect(await screen.findByText(expected)).toBeVisible();
 });
-it("renders long values as full text in the shared truncation component, not HTML or links", async () => {
+it("wraps long change lines as full text, not HTML or links", async () => {
   const long = "<script>texto</script>".repeat(5);
   vi.mocked(loadOrgCandidateHistoryAction).mockResolvedValue({ ok: true, data: { items: [{ ...edit, changes: [{ field: "current_company", from: null, to: long }] }], next_cursor: null } });
   const { container } = open();
-  expect(await screen.findByText(`Empresa actual: Sin dato → ${long}`)).toHaveClass("truncate");
+  expect(await screen.findByText(`Empresa actual: Sin dato → ${long}`)).toHaveClass("break-words");
   expect(container.querySelector("script")).toBeNull(); expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });
 it("uses matching Item slots for the loading skeleton and the loaded entry", async () => {

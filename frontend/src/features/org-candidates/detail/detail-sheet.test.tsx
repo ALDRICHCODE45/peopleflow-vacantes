@@ -15,6 +15,7 @@ beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadOrgCandidateDetailAction).m
 afterEach(cleanup);
 const identity = { kind: "manual" as const, id: id(1) };
 const open = () => render(<OrgCandidateDetailSheet candidate={identity} onOpenChange={vi.fn()} />);
+async function processes() { fireEvent.click(await screen.findByRole("tab", { name: /^Procesos/ })); return screen.getByRole("region", { name: "Procesos" }); }
 it.each(["manual", "organic"] as const)("shows the %s header facts, never mixing origin dates", async kind => {
   vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data: detailFixture(kind) });
   render(<OrgCandidateDetailSheet candidate={{ ...identity, kind }} onOpenChange={vi.fn()} />);
@@ -22,21 +23,21 @@ it.each(["manual", "organic"] as const)("shows the %s header facts, never mixing
   expect(title.closest('[data-slot="sheet-header"]')).not.toBeNull();
   expect(screen.getByText(kind === "manual" ? "Manual" : "Orgánico")).toHaveAttribute("data-slot", "badge");
   if (kind === "manual") {
-    expect(screen.getByText(/Agregado por Tomás Ríos el/)).toBeVisible();
+    expect(screen.getByText(/Agregado por Tomás Ríos ·/)).toBeVisible();
     expect(screen.getByText("Desarrolladora Frontend · Empresa actual")).toBeVisible();
     expect(screen.queryByText(/Primera postulación/)).not.toBeInTheDocument();
   } else {
-    expect(screen.getByText(/Primera postulación el/)).toBeVisible();
-    expect(screen.queryByText(/Agregado por Tomás Ríos el/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Primera postulación ·/)).toBeVisible();
+    expect(screen.queryByText(/Agregado por Tomás Ríos ·/)).not.toBeInTheDocument();
   }
 });
-it("renders contact links and the board's six profile rows and labels", async () => {
+it("renders contact links and six professional profile rows", async () => {
   open();
   const contact = await screen.findByRole("region", { name: "Contacto" });
   expect(within(contact).getByRole("link", { name: "lucia@example.com" })).toHaveAttribute("href", "mailto:lucia@example.com");
   expect(within(contact).getByRole("link", { name: "+52 33 1234 5678" })).toHaveAttribute("href", "tel:+523312345678");
-  const profile = screen.getByRole("region", { name: "Perfil" });
-  expect(Array.from(profile.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Ubicación", "Habilidades", "Años de experiencia", "Seniority", "Nivel de estudios", "Idiomas"]);
+  const profile = screen.getByRole("region", { name: "Perfil profesional" });
+  expect(Array.from(profile.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Ubicación", "Experiencia", "Seniority", "Estudios", "Idiomas", "Enlaces"]);
   expect(within(profile).getByText("Licenciatura o Ingeniería · Maestría en curso")).toBeVisible();
   expect(within(profile).getByText("Español Nativo")).toHaveAttribute("data-slot", "badge");
   expect(within(profile).getByText("React")).toHaveAttribute("data-slot", "badge");
@@ -47,44 +48,41 @@ it("uses Sin dato and honest attribution for missing facts and no processes", as
   vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); open();
   const contact = await screen.findByRole("region", { name: "Contacto" });
   expect(within(contact).getAllByText("Sin dato")).toHaveLength(2);
-  expect(screen.getByText(/Agregado por Cuenta no disponible el/)).toBeVisible();
-  expect(screen.getByText("Sin procesos")).toBeVisible();
+  expect(screen.getByText(/Agregado por Cuenta no disponible ·/)).toBeVisible();
+  expect(screen.getByText("Sin procesos activos")).toBeVisible();
+  expect(within(await processes()).getByText("Sin procesos")).toBeVisible();
 });
 it("orders participations newest first and shows lifecycle, substate, discard, source and CV", async () => {
-  const data = detailFixture();
-  const current = data.participations[0];
+  const data = detailFixture(); const current = data.participations[0];
   data.participations = [{ ...current, id: id(7), vacancy: { id: id(8), title: "Backend", lifecycle: { publication: "closed", process: "finished" } }, state: "discarded", substate: null, source: "organic", added_by: null, cv: null, applied_at: "2026-10-20T10:00:00Z", discard: { reason: { group: "candidate", key: "unresponsive" }, comment: "No respondió\nal correo", discarded_at: data.created_at } }, current];
   vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); open();
-  const section = await screen.findByRole("region", { name: "Procesos" });
+  const section = await processes();
   expect(within(section).getAllByRole("link").filter(a => a.getAttribute("href")?.endsWith("/pipeline")).map(a => a.textContent)).toEqual(["Frontend", "Backend"]);
   expect(within(section).getByRole("link", { name: "Frontend" })).toHaveAttribute("href", `/empresa/vacantes/${id(3)}/pipeline`);
-  ["Publicada", "Cerrada", "Proceso finalizado", "Descartado · Sin respuesta del candidato", "No respondió al correo", "cv.pdf", "Sin CV en este proceso"].forEach(text => expect(within(section).getByText(text)).toBeVisible());
-  const frontend = within(section).getByRole("link", { name: "Frontend" }).closest('[data-slot="card"]')!;
-  const backend = within(section).getByRole("link", { name: "Backend" }).closest('[data-slot="card"]')!;
-  expect(section.querySelectorAll('[data-slot="card"]')).toHaveLength(2);
-  expect(frontend.querySelector('[data-slot="card-description"]')).toHaveTextContent("Entrevista · Esperando respuesta · Ingreso manual 21 oct 2026 · Agregado por Tomás Ríos");
-  expect(backend.querySelector('[data-slot="card-description"]')).toHaveTextContent("Entrevista · Postulación 20 oct 2026");
-  expect(backend.querySelector('[data-slot="card-action"]')).toHaveTextContent("CerradaProceso finalizado");
-  expect(backend.querySelector('[data-slot="card-content"]')).toContainElement(within(section).getByText("No respondió al correo"));
-  const download = within(section).getByRole("link", { name: /Descargar CV/ });
+  ["Activa", "Cerrada", "Proceso finalizado", "Descartado · Sin respuesta del candidato", "No respondió al correo", "cv.pdf", "Sin CV en este proceso"].forEach(text => expect(within(section).getByText(text)).toBeVisible());
+  const frontend = within(section).getByRole("link", { name: "Frontend" }).closest('[role="listitem"]')!;
+  const backend = within(section).getByRole("link", { name: "Backend" }).closest('[role="listitem"]')!;
+  expect(section.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+  expect(frontend).toHaveTextContent("Entrevista · Esperando respuesta");
+  expect(frontend).toHaveTextContent("Ingreso manual 21 oct 2026 · Agregado por Tomás Ríos");
+  expect(backend).toHaveTextContent("Postulación 20 oct 2026");
+  expect(backend).toHaveTextContent("CerradaProceso finalizado");
+  expect(backend).toContainElement(within(section).getByText("No respondió al correo"));
+  const download = within(section).getByRole("link", { name: "Descargar CV de Frontend" });
   expect(download).toHaveAttribute("href", `/api/company/candidates/manual/${id(1)}/participations/${id(2)}/cv`);
   expect(download).toHaveAttribute("download");
 });
 it("renders paused and never-published lifecycles", async () => {
   const data = detailFixture(); data.participations[0].vacancy.lifecycle = { publication: "paused", process: "active" };
   vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); const view = open();
-  expect(await screen.findByText("Pausada")).toBeVisible(); view.unmount();
+  expect(within(await processes()).getByText("Pausada")).toBeVisible(); view.unmount();
   data.participations[0].vacancy.lifecycle = { publication: null, process: null }; open();
-  expect(await screen.findByText("Borrador")).toBeVisible();
+  expect(within(await processes()).getByText("Borrador")).toBeVisible();
 });
 it.each(["not_found", "server_error"] as const)("keeps %s inside the sheet with a retry for other failures", async reason => {
   vi.mocked(loadOrgCandidateDetailAction).mockResolvedValueOnce({ ok: false, reason, reference: {} }); open();
   expect(await screen.findByText(reason === "not_found" ? "Este candidato ya no está disponible" : "No pudimos cargar el detalle")).toBeVisible();
-  if (reason !== "not_found") {
-    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
-    expect(await screen.findByRole("heading", { name: "Lucía Ramírez Torres" })).toBeVisible();
-    expect(loadOrgCandidateDetailAction).toHaveBeenCalledTimes(2);
-  }
+  if (reason !== "not_found") { fireEvent.click(screen.getByRole("button", { name: "Reintentar" })); expect(await screen.findByRole("heading", { name: "Lucía Ramírez Torres" })).toBeVisible(); expect(loadOrgCandidateDetailAction).toHaveBeenCalledTimes(2); }
 });
 it("shows a layout skeleton and ignores late reads after closing", async () => {
   let resolve!: (value: Awaited<ReturnType<typeof loadOrgCandidateDetailAction>>) => void;
@@ -99,33 +97,18 @@ it("shows a layout skeleton and ignores late reads after closing", async () => {
   expect(screen.queryByRole("heading", { name: "Lucía Ramírez Torres" })).not.toBeInTheDocument();
 });
 it("focuses the title and restores the opening row action after closing", async () => {
-  function Harness() {
-    const [candidate, setCandidate] = useState<typeof identity | null>(null);
-    return <><button onClick={() => setCandidate(identity)}>Ver ficha</button><OrgCandidateDetailSheet candidate={candidate} onOpenChange={open => { if (!open) setCandidate(null); }} /></>;
-  }
-  render(<Harness />);
-  const opener = screen.getByRole("button", { name: "Ver ficha" }); opener.focus(); fireEvent.click(opener);
-  const title = await screen.findByRole("heading", { name: "Lucía Ramírez Torres" });
-  await waitFor(() => expect(title).toHaveFocus());
-  fireEvent.click(screen.getByRole("button", { name: "Cerrar ficha" }));
-  await waitFor(() => expect(opener).toHaveFocus());
+  function Harness() { const [candidate, setCandidate] = useState<typeof identity | null>(null); return <><button onClick={() => setCandidate(identity)}>Ver ficha</button><OrgCandidateDetailSheet candidate={candidate} onOpenChange={open => { if (!open) setCandidate(null); }} /></>; }
+  render(<Harness />); const opener = screen.getByRole("button", { name: "Ver ficha" }); opener.focus(); fireEvent.click(opener);
+  const title = await screen.findByRole("heading", { name: "Lucía Ramírez Torres" }); await waitFor(() => expect(title).toHaveFocus());
+  fireEvent.click(screen.getByRole("button", { name: "Cerrar ficha" })); await waitFor(() => expect(opener).toHaveFocus());
 });
 it("does not request until opened and discards a stale candidate response", async () => {
   let resolve!: (value: Awaited<ReturnType<typeof loadOrgCandidateDetailAction>>) => void;
-  const view = render(<OrgCandidateDetailSheet candidate={null} onOpenChange={vi.fn()} />);
-  expect(loadOrgCandidateDetailAction).not.toHaveBeenCalled();
+  const view = render(<OrgCandidateDetailSheet candidate={null} onOpenChange={vi.fn()} />); expect(loadOrgCandidateDetailAction).not.toHaveBeenCalled();
   vi.mocked(loadOrgCandidateDetailAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
-  view.rerender(<OrgCandidateDetailSheet candidate={identity} onOpenChange={vi.fn()} />);
-  view.rerender(<OrgCandidateDetailSheet candidate={{ kind: "organic", id: id(10) }} onOpenChange={vi.fn()} />);
-  await screen.findByRole("heading", { name: "Lucía Ramírez Torres" });
-  await act(async () => resolve({ ok: true, data: { ...detailFixture(), full_name: "Viejo" } }));
-  expect(screen.queryByText("Viejo")).not.toBeInTheDocument();
+  view.rerender(<OrgCandidateDetailSheet candidate={identity} onOpenChange={vi.fn()} />); view.rerender(<OrgCandidateDetailSheet candidate={{ kind: "organic", id: id(10) }} onOpenChange={vi.fn()} />);
+  await screen.findByRole("heading", { name: "Lucía Ramírez Torres" }); await act(async () => resolve({ ok: true, data: { ...detailFixture(), full_name: "Viejo" } })); expect(screen.queryByText("Viejo")).not.toBeInTheDocument();
 });
-
 it("underlines the process vacancy link only on hover (QA L8)", async () => {
-  open();
-  const section = await screen.findByRole("region", { name: "Procesos" });
-  const link = within(section).getByRole("link", { name: "Frontend" });
-  expect(link).not.toHaveClass("underline");
-  expect(link).toHaveClass("hover:underline");
+  open(); const section = await processes(); const link = within(section).getByRole("link", { name: "Frontend" }); expect(link).not.toHaveClass("underline"); expect(link).toHaveClass("hover:underline");
 });
