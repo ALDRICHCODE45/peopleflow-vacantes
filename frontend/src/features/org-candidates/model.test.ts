@@ -1,6 +1,13 @@
 import { expect, it } from "vitest";
 import { listSchema } from "./model";
 import { candidate, page } from "./list/test-fixtures";
+it("requires list corrections and accepts only known edit-field keys", () => {
+ const corrected = { ...candidate, kind: "organic", corrected_fields: ["email", "full_name"] };
+ const parsed = listSchema.parse({ ...page, items: [corrected] });
+ expect(parsed.items[0].corrected_fields).toEqual(["email", "full_name"]);
+ expect(listSchema.safeParse({ ...page, items: [{ ...candidate, corrected_fields: undefined }] }).success).toBe(false);
+ expect(listSchema.safeParse({ ...page, items: [{ ...candidate, corrected_fields: ["unknown"] }] }).success).toBe(false);
+});
 it("accepts the frozen list example and a manual record without participations", () => {
   expect(listSchema.parse(page)).toEqual(page);
   expect(listSchema.safeParse({ ...page, items: [{ ...candidate, latest_participation: null }] }).success).toBe(true);

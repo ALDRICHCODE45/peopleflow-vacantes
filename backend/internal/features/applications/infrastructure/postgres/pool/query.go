@@ -52,13 +52,14 @@ var poolSQL = `WITH participations AS MATERIALIZED (
  CASE WHEN o.corrections ? 'location' THEN o.corrections#>>'{location,postal_code}' ELSE b.postal_code END AS postal_code,
  ` + candidateview.EffectiveProfileSQL("b.profile") + ` AS profile,
  b.full_name AS original_full_name,b.profile AS original_profile,
+ ARRAY(SELECT key FROM jsonb_object_keys(COALESCE(o.corrections,'{}'::jsonb)) key ORDER BY key) AS corrected_fields,
  b.last_activity_at,b.created_at,b.total,b.active,b.process_id,b.stage_id,b.discarded_at,b.applied_at
  FROM uncorrected b LEFT JOIN company_candidate_corrections o ON b.kind='organic' AND o.company_id=$1 AND o.user_id=b.id
 ), filtered AS MATERIALIZED (SELECT * FROM candidates WHERE true `
 
 // Hydration is restricted to the limit+1 page; totals and rows share one SQL
 // statement snapshot. No rows (including a cursor beyond the end) still returns total.
-const projectionSQL = `SELECT page.kind,page.id,page.full_name,page.professional_title,page.current_company,
+const projectionSQL = `SELECT page.kind,page.id,page.corrected_fields,page.full_name,page.professional_title,page.current_company,
  CASE WHEN page.profile->'location' IS NULL OR page.profile->'location'='null'::jsonb THEN page.profile
  ELSE jsonb_set(page.profile,'{location}',jsonb_build_object(
  'country',jsonb_build_object('id',page.profile->'location'->>'country','name',gc.name_es),

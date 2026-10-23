@@ -1,18 +1,31 @@
 import type { OrgCandidate } from "../model";
 import type { LanguageCatalog } from "@/features/languages/model";
-import { candidatePlainValue } from "./candidate-values";
-const exportLabels: Record<string, string> = { candidate: "Candidato", location: "Ubicación", experience: "Experiencia", education: "Estudios", languages: "Idiomas", vacancy: "Última vacante", processes: "Procesos", activity: "Actividad" };
+import { candidateExportValues } from "./candidate-values";
+import { contactIdentityKey, type CandidateContact } from "../contacts/contacts-model";
+const exportLabels: Record<string, string[]> = {
+ contact: ["Email", "Teléfono"], candidate: ["Nombre", "Puesto", "Origen", "Email", "Teléfono"],
+ location: ["Municipio", "Estado", "País"], experience: ["Años de experiencia", "Seniority"],
+ education: ["Estudios concluidos", "Estudios en curso"], languages: ["Idiomas"],
+ vacancy: ["Última vacante", "Etapa", "Estado en la vacante", "Publicación", "Proceso de la vacante"],
+ processes: ["Procesos", "Procesos activos"], activity: ["Última actividad"],
+};
 function csvCell(value: string) {
  // CSV quoting alone does not stop spreadsheet formula execution.
  const safe = /^[\s\u0000-\u001f]*[=+@-]/u.test(value) ? `'${value}` : value;
  return `"${safe.replaceAll('"', '""')}"`;
 }
-export function candidateCsv(items: OrgCandidate[], visibleColumns: string[], languages: LanguageCatalog["items"]) {
- const columns = visibleColumns.filter(id => Object.hasOwn(exportLabels, id));
- return "\uFEFF" + [columns.map(id => exportLabels[id]), ...items.map(item => columns.map(id => candidatePlainValue(item, id, languages)))].map(row => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+export function candidateCsv(items: OrgCandidate[], visibleColumns: string[], languages: LanguageCatalog["items"], contacts: CandidateContact[]) {
+ const columns = visibleColumns.filter(id => id !== "contact" && Object.hasOwn(exportLabels, id));
+ if (!columns.includes("candidate")) columns.unshift("contact");
+ const byIdentity = new Map(contacts.map(item => [contactIdentityKey(item), item]));
+ const rows = items.map(item => {
+  const values = candidateExportValues(item, languages, byIdentity.get(contactIdentityKey(item)));
+  return columns.flatMap(id => values[id]);
+ });
+ return "\uFEFF" + [columns.flatMap(id => exportLabels[id]), ...rows].map(row => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
-export function downloadCandidateCsv(items: OrgCandidate[], visibleColumns: string[], languages: LanguageCatalog["items"], now = new Date()) {
- const csv = candidateCsv(items, visibleColumns, languages);
+export function downloadCandidateCsv(items: OrgCandidate[], visibleColumns: string[], languages: LanguageCatalog["items"], contacts: CandidateContact[], now = new Date()) {
+ const csv = candidateCsv(items, visibleColumns, languages, contacts);
  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
  const link = document.createElement("a");
  link.href = url;

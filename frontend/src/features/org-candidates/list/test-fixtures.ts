@@ -8,6 +8,7 @@ export const candidate = {
     education: { highest_completed: "bachelor" as const, in_progress: "master" as const },
     languages: [{ code: "en", level: "C1" as const }],
   },
+  corrected_fields: [],
   participations: { total: 2, active: 1 },
   latest_participation: { vacancy: { id: candidateId, title: "Backend Go", lifecycle: { publication: "published" as const, process: "active" as const } }, stage: { id: candidateId, name: "Entrevista" }, state: "active" as const, applied_at: "2026-10-21T18:02:11Z" },
   last_activity_at: "2026-10-21T18:02:11Z",

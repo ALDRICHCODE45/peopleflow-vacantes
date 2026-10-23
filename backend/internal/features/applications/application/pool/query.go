@@ -20,11 +20,12 @@ const cursorLayout = "2006-01-02T15:04:05.000000Z"
 const MaxCursorBytes = 4096
 
 type Filters struct {
-	Q                                                        string
-	Origin                                                   string
-	Vacancy, State, Municipality, Seniority, Years, Language []string
-	LanguageMinLevel, EducationLevel                         string
-	EducationInProgress                                      bool
+	Q                                                                 string
+	Origin                                                            string
+	Vacancy, Country, State, Municipality, Seniority, Years, Language []string
+	LanguageMinLevel, EducationLevel                                  string
+	EducationInProgress                                               bool
+	ActiveProcess                                                     bool
 }
 type Query struct {
 	Filters
@@ -60,8 +61,8 @@ func ParseQuery(company uuid.UUID, raw string) (Query, error) {
 	}
 	q := Query{Limit: 20}
 	for key, vs := range values {
-		single := slices.Contains([]string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "limit", "cursor"}, key)
-		known := single || slices.Contains([]string{"vacancy", "state", "municipality", "seniority", "years", "language"}, key)
+		single := slices.Contains([]string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "active_process", "limit", "cursor"}, key)
+		known := single || slices.Contains([]string{"vacancy", "country", "state", "municipality", "seniority", "years", "language"}, key)
 		if !known {
 			failures[key] = "unknown"
 			continue
@@ -86,6 +87,12 @@ func ParseQuery(company uuid.UUID, raw string) (Query, error) {
 				id, err := uuid.Parse(v)
 				valid = err == nil && id != uuid.Nil && id.String() == v
 				q.Vacancy = append(q.Vacancy, v)
+			case "country":
+				valid = v == "none" || (len(v) == 2 && v[0] >= 'A' && v[0] <= 'Z' && v[1] >= 'A' && v[1] <= 'Z')
+				q.Country = append(q.Country, v)
+			case "active_process":
+				valid = v == "true"
+				q.ActiveProcess = v == "true"
 			case "state":
 				valid = v == "none" || digits(v, 2)
 				q.State = append(q.State, v)
@@ -129,7 +136,7 @@ func ParseQuery(company uuid.UUID, raw string) (Query, error) {
 	if len(values["education_in_progress"]) == 1 && len(values["education_level"]) == 0 {
 		failures["education_level"] = "required"
 	}
-	for _, selection := range []*[]string{&q.Vacancy, &q.State, &q.Municipality, &q.Seniority, &q.Years, &q.Language} {
+	for _, selection := range []*[]string{&q.Vacancy, &q.Country, &q.State, &q.Municipality, &q.Seniority, &q.Years, &q.Language} {
 		slices.Sort(*selection)
 		*selection = slices.Compact(*selection)
 	}

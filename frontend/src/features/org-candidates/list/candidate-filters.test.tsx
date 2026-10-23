@@ -17,7 +17,7 @@ vi.mock("@/components/ui/select", async () => {
  };
 });
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
-vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoResource: (key: string) => ({ status: "success", data: { items: key.endsWith("municipalities") ? [{ id: "14039", name: "Guadalajara" }] : [{ id: "14", name: "Jalisco" }] }, retry: vi.fn() }) }));
+vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoResource: (key: string) => ({ status: "success", data: { items: key === "countries" ? [{ id: "MX", name: "México" }, { id: "US", name: "Estados Unidos" }] : key.endsWith("municipalities") ? [{ id: "14039", name: "Guadalajara" }] : [{ id: "14", name: "Jalisco" }] }, retry: vi.fn() }) }));
 import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import { CandidateFiltersBar } from "./candidate-filters";
 import type { DraftListRow } from "@/features/jobs/drafts/list/client";
@@ -52,6 +52,24 @@ it("hides dependent controls without their parent filters and retries a failed v
  await user.click(screen.getByRole("button", { name: /^Filtros/ })); const dialog = screen.getByRole("region", { name: "Filtrar candidatos" });
  expect(within(dialog).queryByRole("combobox", { name: "Nivel mínimo" })).toBeNull(); expect(within(dialog).queryByRole("checkbox", { name: "Incluye estudios en curso" })).toBeNull();
  await user.click(await screen.findByRole("button", { name: "Reintentar vacantes" })); await waitFor(() => expect(listDraftsAction).toHaveBeenCalledTimes(2)); await act(async () => {});
+});
+it("offers catalog countries plus Sin dato, active-process toggle and removable labeled chips", async () => {
+ const user = userEvent.setup(); const change = vi.fn();
+ const { rerender } = render(<CandidateFiltersBar filters={{}} onChange={change} onClear={vi.fn()} languages={languages} />);
+ await user.click(screen.getByRole("button", { name: /^Filtros/ }));
+ await user.click(screen.getByRole("combobox", { name: "País" }));
+ await user.click(await screen.findByRole("option", { name: "México" }));
+ expect(change).toHaveBeenLastCalledWith({ country: ["MX"] });
+ await user.click(screen.getByRole("checkbox", { name: "Solo procesos activos" }));
+ expect(change).toHaveBeenLastCalledWith({ active_process: "true" });
+ rerender(<CandidateFiltersBar filters={{ country: ["MX", "none"], active_process: "true" }} onChange={change} onClear={vi.fn()} languages={languages} />);
+ await user.click(screen.getByRole("button", { name: "Quitar filtro País: México" }));
+ expect(change).toHaveBeenLastCalledWith({ country: ["none"] });
+ expect(screen.getByRole("button", { name: "Quitar filtro País: Sin dato" })).toBeTruthy();
+ await user.click(screen.getByRole("button", { name: "Quitar filtro Solo procesos activos: Sí" }));
+ expect(change).toHaveBeenLastCalledWith({ active_process: undefined });
+ await user.click(screen.getByRole("checkbox", { name: "Solo procesos activos" }));
+ expect(change).toHaveBeenLastCalledWith({ active_process: undefined });
 });
 it("labels the municipality filter group like its sibling filters before a state is chosen", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });

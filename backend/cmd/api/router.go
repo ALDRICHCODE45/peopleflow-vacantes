@@ -20,6 +20,7 @@ import (
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
@@ -236,6 +237,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Get("/v2/me/company/candidates", d.candidatePoolHandler.List)
 		r.Get("/v2/me/company/candidates/summary", d.candidatePoolHandler.Summary)
+		r.Post("/v2/me/company/candidates/contacts", d.candidatePoolHandler.Contacts(draftjson.Decode))
 		r.Get("/v2/me/company/candidates/{kind}/{id}", d.candidatePoolHandler.Detail)
 		r.Patch("/v2/me/company/candidates/{kind}/{id}", d.candidatePoolHandler.Edit)
 		r.Get("/v2/me/company/candidates/{kind}/{id}/history", d.candidatePoolHandler.History)

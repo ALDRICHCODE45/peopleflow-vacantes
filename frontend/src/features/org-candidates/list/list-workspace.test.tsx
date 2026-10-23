@@ -24,13 +24,13 @@ it.each(["table", "cards"])("renders the same profile and vacancy facts in %s, w
  window.history.replaceState(null, "", `/empresa/talento?view=${view}`); const open = vi.fn(); render(<OrgCandidatesWorkspace onOpenCandidate={open} />);
  await screen.findByText("Mariana Ortega Silva");
  expect(screen.getByText(/candidatos en tu base de talento/u).closest('[role="status"]')).toHaveTextContent('37 candidatos en tu base de talento');
- for (const fact of ["Desarrolladora Frontend", "Licenciatura o Ingeniería", "Inglés C1", "Backend Go"]) expect(screen.getByText(fact)).toBeTruthy();
- expect(screen.getByText(view === 'cards' ? 'Guadalajara, Jalisco' : 'Guadalajara')).toBeTruthy();
+ for (const fact of ["Desarrolladora Frontend", "Inglés C1", "Backend Go"]) expect(screen.getByText(fact)).toBeTruthy();
  if (view === "cards") {
-   expect(screen.getByText("Manual")).toBeTruthy(); expect(screen.getByText("Maestría · En curso")).toBeTruthy();
-   expect(document.body.textContent).toContain("Senior · 4.5 años");
-   fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" })); expect(screen.getByText("2 procesos")).toBeTruthy(); expect(screen.getByText('1 activo')).toBeTruthy();
+   // Approved v0 talent-card facts: «location · years» and origin tag.
+   expect(screen.getByText("Guadalajara, Jalisco · 4.5 años")).toBeTruthy(); expect(screen.getByText("Manual")).toBeTruthy();
+   fireEvent.click(screen.getByRole("button", { name: "Abrir ficha de Mariana Ortega Silva" }));
  } else {
+   expect(screen.getByText("Guadalajara")).toBeTruthy(); expect(screen.getByText("Licenciatura o Ingeniería")).toBeTruthy();
    expect(screen.getByText("Maestría · En curso")).toBeTruthy(); expect(screen.getByText("4.5 años")).toBeTruthy();
    fireEvent.click(screen.getByText(candidate.full_name).closest("tr")!);
  }

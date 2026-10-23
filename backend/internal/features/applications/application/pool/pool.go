@@ -46,6 +46,7 @@ type Participation struct {
 	AppliedAt time.Time `json:"applied_at"`
 }
 type Item struct {
+	CorrectedFields     []string       `json:"corrected_fields"`
 	Kind                string         `json:"kind"`
 	ID                  uuid.UUID      `json:"id"`
 	FullName            string         `json:"full_name"`
@@ -69,6 +70,7 @@ type Reader interface {
 	DetailReader
 	Search(context.Context, uuid.UUID, Query) (Page, error)
 	Summary(context.Context, uuid.UUID) (Summary, error)
+	Contacts(context.Context, uuid.UUID, []Identity) ([]ContactItem, error)
 }
 type Service struct{ reader Reader }
 
@@ -84,6 +86,11 @@ func (s *Service) List(ctx context.Context, company uuid.UUID, raw string) (Page
 	}
 	if page.Items == nil {
 		page.Items = []Item{}
+	}
+	for i := range page.Items {
+		if page.Items[i].CorrectedFields == nil {
+			page.Items[i].CorrectedFields = []string{}
+		}
 	}
 	if len(page.Items) > q.Limit {
 		page.Items = page.Items[:q.Limit]

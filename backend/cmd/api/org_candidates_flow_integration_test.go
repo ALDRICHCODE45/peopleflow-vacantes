@@ -117,7 +117,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 	missingManual := manual(company.companyID, ownerID, "Country Only")
 	// Non-MX locations have missing subdivisions.
 	exec(`UPDATE company_candidates SET country_code='US',state_code=NULL,municipality_code=NULL WHERE id=$1`, missingManual)
-	_ = manual(other.companyID, otherID, "Foreign Manual")
+	foreignManualID := manual(other.companyID, otherID, "Foreign Manual")
 	profile := func(years any, seniority any, completed any, ongoing any, spoken any) string {
 		p := map[string]any{"location": map[string]any{"country": "MX", "state": "14", "municipality": "14039"}, "skills": []string{"Frozen Go"}, "years_of_experience": years, "seniority": seniority, "education": map[string]any{"highest_completed": completed, "in_progress": ongoing}, "languages": spoken}
 		raw, err := json.Marshal(p)
@@ -315,7 +315,11 @@ func TestOrgCandidatesFlow(t *testing.T) {
 		if r.status != 200 {
 			t.Fatalf("GET %s: %d %s", query, r.status, r.body)
 		}
-		return orgCandidateKeys(t, draftFlowObject(t, r.body), "items", "total", "next_cursor")
+		page := orgCandidateKeys(t, draftFlowObject(t, r.body), "items", "total", "next_cursor")
+		for _, raw := range page["items"].([]any) {
+			orgCandidateKeys(t, raw, "kind", "id", "full_name", "professional_title", "current_company", "profile", "participations", "latest_participation", "last_activity_at", "corrected_fields")
+		}
+		return page
 	}
 	ids := func(page map[string]any) []string {
 		out := []string{}
@@ -334,7 +338,7 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			t.Fatal("non-principal recruiter cannot see whole pool")
 		}
 		for _, raw := range page["items"].([]any) {
-			item := orgCandidateKeys(t, raw, "kind", "id", "full_name", "professional_title", "current_company", "profile", "participations", "latest_participation", "last_activity_at")
+			item := orgCandidateKeys(t, raw, "kind", "id", "full_name", "professional_title", "current_company", "profile", "participations", "latest_participation", "last_activity_at", "corrected_fields")
 			p := orgCandidateKeys(t, item["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
 			orgCandidateKeys(t, p["education"], "highest_completed", "in_progress")
 			for _, language := range p["languages"].([]any) {
@@ -460,6 +464,11 @@ func TestOrgCandidatesFlow(t *testing.T) {
 		name, query string
 		want        []string
 	}{
+		{"country MX", "country=MX", append(append([]string{}, yearOnlyIDs...), standalone.String(), reused.String())},
+		{"country US", "country=US", []string{missingManual.String()}},
+		{"country none", "country=none", []string{noProfile.String()}},
+		{"country OR", "country=MX&country=US&country=none", allIDs},
+		{"country AND", "country=US&state=14", []string{}},
 		{"manual", "origin=manual", []string{standalone.String(), missingManual.String()}},
 		{"organic identity regardless of source", "origin=organic", organicIDs},
 		{"q organic email", "q=REUSED%40example.test", []string{reused.String()}},
@@ -511,17 +520,158 @@ func TestOrgCandidatesFlow(t *testing.T) {
 	}
 	t.Run("catalog errors even on empty results", func(t *testing.T) {
 		for _, tc := range []struct{ query, field, code string }{
+			{"country=ZZ", "country", "invalid"},
 			{"vacancy=" + vacancy3, "vacancy", "not_found"}, {"vacancy=" + uuid.NewString(), "vacancy", "not_found"}, {"state=99", "state", "invalid"}, {"municipality=99999", "municipality", "invalid"},
 			{"vacancy=" + vacancy1 + "&vacancy=" + vacancy3, "vacancy", "not_found"},
 		} {
 			r := h.do(t, "GET", orgCandidatesPath+"?q=absent&"+tc.query, "", recruiter.token, nil)
 			draftFlowAssertNoStore(t, r)
-			obj := draftFlowObject(t, r.body)
+			obj := orgCandidateKeys(t, draftFlowObject(t, r.body), "error", "code", "fields")
 			want := []any{map[string]any{"field": tc.field, "code": tc.code}}
-			if r.status != 400 || obj["code"] != "invalid_filter" || !reflect.DeepEqual(obj["fields"], want) {
+			if r.status != 400 || obj["error"] != "invalid filter" || strings.Contains(string(r.body), "absent") || strings.Contains(string(r.body), "ZZ") || obj["code"] != "invalid_filter" || !reflect.DeepEqual(obj["fields"], want) {
 				t.Fatal(r.status, string(r.body))
 			}
 		}
+	})
+	t.Run("corrected fields and effective country", func(t *testing.T) {
+		t.Cleanup(func() {
+			exec(`DELETE FROM company_candidate_corrections WHERE company_id=$1 AND user_id=$2`, company.companyID, reused)
+		})
+		exec(`INSERT INTO company_candidate_corrections(company_id,user_id,corrections) VALUES($1,$2,'{"phone":null,"location":{"country":"US","state":null,"municipality":null,"postal_code":null},"email":"corrected@example.test"}'::jsonb)`, company.companyID, reused)
+		for _, raw := range get(t, recruiter, "?limit=50")["items"].([]any) {
+			item := raw.(map[string]any)
+			want := []any{}
+			if item["id"] == reused.String() {
+				want = []any{"email", "location", "phone"}
+			}
+			if !reflect.DeepEqual(item["corrected_fields"], want) {
+				t.Fatal(item)
+			}
+		}
+		page := get(t, recruiter, "?country=US&origin=organic")
+		if !reflect.DeepEqual(ids(page), []string{reused.String()}) {
+			t.Fatal(page)
+		}
+		r := h.do(t, "GET", orgCandidatesPath+"/organic/"+reused.String(), "", recruiter.token, nil)
+		draftFlowAssertNoStore(t, r)
+		if r.status != 200 || !reflect.DeepEqual(draftFlowObject(t, r.body)["corrected_fields"], page["items"].([]any)[0].(map[string]any)["corrected_fields"]) {
+			t.Fatal(r.status, string(r.body))
+		}
+	})
+	t.Run("contacts export", func(t *testing.T) {
+		t.Cleanup(func() {
+			exec(`DELETE FROM company_candidate_corrections WHERE company_id=$1 AND user_id IN ($2,$3)`, company.companyID, reused, foreignOnly)
+		})
+		exec(`INSERT INTO company_candidate_corrections(company_id,user_id,corrections) VALUES($1,$2,'{"email":"corrected@example.test","phone":null}'),($1,$3,'{"email":"FOREIGN PRIVATE@example.test"}')`, company.companyID, reused, foreignOnly)
+		selection := []map[string]string{
+			{"kind": "organic", "id": reused.String()},
+			{"kind": "manual", "id": foreignManualID.String()},
+			{"kind": "organic", "id": foreignOnly.String()},
+			{"kind": "manual", "id": missingManual.String()},
+			{"kind": "organic", "id": uuid.NewString()},
+			{"kind": "manual", "id": standalone.String()},
+			{"kind": "organic", "id": noProfile.String()},
+		}
+		body, _ := json.Marshal(map[string]any{"candidates": selection})
+		check := func() {
+			t.Helper()
+			r := h.do(t, "POST", orgCandidatesPath+"/contacts", string(body), recruiter.token, nil)
+			draftFlowAssertNoStore(t, r)
+			if r.status != 200 || strings.Contains(string(r.body), "FOREIGN") || strings.Contains(string(r.body), "foreign") {
+				t.Fatal(r.status, string(r.body))
+			}
+			items := orgCandidateKeys(t, draftFlowObject(t, r.body), "items")["items"].([]any)
+			if len(items) != 4 {
+				t.Fatal(string(r.body))
+			}
+			for i, index := range []int{0, 3, 5, 6} {
+				item := orgCandidateKeys(t, items[i], "kind", "id", "email", "phone")
+				want := selection[index]
+				if item["id"] != want["id"] || item["kind"] != want["kind"] {
+					t.Fatal(item, want)
+				}
+				d := h.do(t, "GET", orgCandidatesPath+"/"+want["kind"]+"/"+want["id"], "", recruiter.token, nil)
+				draftFlowAssertNoStore(t, d)
+				if d.status != 200 || !reflect.DeepEqual(draftFlowObject(t, d.body)["contact"], map[string]any{"email": item["email"], "phone": item["phone"]}) {
+					t.Fatal(string(d.body), item)
+				}
+			}
+			if items[0].(map[string]any)["email"] != "corrected@example.test" || items[0].(map[string]any)["phone"] != nil {
+				t.Fatal(items[0])
+			}
+		}
+		check()
+		var candidateSub string
+		if err := h.pool.QueryRow(ctx, `SELECT cognito_sub FROM users WHERE id=$1`, noProfile).Scan(&candidateSub); err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			token  string
+			status int
+			code   string
+		}{
+			{"", 401, "unauthenticated"},
+			{h.signer.expiredToken(t, ownerSub), 401, "unauthenticated"},
+			{h.signer.validToken(t, candidateSub), 403, "forbidden"},
+		} {
+			r := h.do(t, "POST", orgCandidatesPath+"/contacts", string(body), tc.token, nil)
+			draftFlowAssertNoStore(t, r)
+			obj := orgCandidateKeys(t, draftFlowObject(t, r.body), "error", "code")
+			if r.status != tc.status || obj["code"] != tc.code || strings.Contains(string(r.body), reused.String()) {
+				t.Fatal(r.status, string(r.body))
+			}
+		}
+		exec(`UPDATE company_candidates SET phone='+523322222222' WHERE id=$1`, standalone)
+		exec(`UPDATE candidate_profiles SET phone='   ' WHERE user_id=$1`, reused)
+		exec(`UPDATE company_candidate_corrections SET corrections='{"email":null,"phone":"+523333333333"}' WHERE company_id=$1 AND user_id=$2`, company.companyID, reused)
+		r := h.do(t, "POST", orgCandidatesPath+"/contacts", string(body), recruiter.token, nil)
+		draftFlowAssertNoStore(t, r)
+		if r.status != 200 {
+			t.Fatal(r.status, string(r.body))
+		}
+		items := orgCandidateKeys(t, draftFlowObject(t, r.body), "items")["items"].([]any)
+		if items[0].(map[string]any)["email"] != nil || items[0].(map[string]any)["phone"] != "+523333333333" || items[2].(map[string]any)["phone"] != "+523322222222" {
+			t.Fatal(items)
+		}
+		exec(`UPDATE company_candidate_corrections SET corrections='{}' WHERE company_id=$1 AND user_id=$2`, company.companyID, reused)
+		r = h.do(t, "POST", orgCandidatesPath+"/contacts", string(body), recruiter.token, nil)
+		draftFlowAssertNoStore(t, r)
+		if r.status != 200 {
+			t.Fatal(r.status, string(r.body))
+		}
+		items = orgCandidateKeys(t, draftFlowObject(t, r.body), "items")["items"].([]any)
+		if items[0].(map[string]any)["email"] != "reused@example.test" || items[0].(map[string]any)["phone"] != nil {
+			t.Fatal(items)
+		}
+		emptyBody, _ := json.Marshal(map[string]any{"candidates": selection[1:3]})
+		r = h.do(t, "POST", orgCandidatesPath+"/contacts", string(emptyBody), recruiter.token, nil)
+		draftFlowAssertNoStore(t, r)
+		if r.status != 200 || !reflect.DeepEqual(orgCandidateKeys(t, draftFlowObject(t, r.body), "items")["items"], []any{}) {
+			t.Fatal(r.status, string(r.body))
+		}
+	})
+	t.Run("active process matches counters", func(t *testing.T) {
+		check := func() {
+			t.Helper()
+			want := []string{}
+			for _, raw := range get(t, recruiter, "?limit=50")["items"].([]any) {
+				item := raw.(map[string]any)
+				if item["participations"].(map[string]any)["active"].(float64) >= 1 {
+					want = append(want, item["id"].(string))
+				}
+			}
+			sort.Strings(want)
+			page := get(t, recruiter, "?limit=50&active_process=true")
+			if !reflect.DeepEqual(ids(page), want) || page["total"] != float64(len(want)) {
+				t.Fatal(page, want)
+			}
+		}
+		check()
+		t.Cleanup(func() {
+			exec(`UPDATE vacancy_processes SET status='published',closed_at=NULL,process_status='active',process_finished_at=NULL WHERE id=$1`, vacancy1)
+		})
+		exec(`UPDATE vacancy_processes SET status='closed',closed_at=now(),process_status='finished',process_finished_at=now() WHERE id=$1`, vacancy1)
+		check()
 	})
 	t.Run("stored pipeline names and lifecycle pair", func(t *testing.T) {
 		config := pipelineconfig.Defaults(uuid.MustParse(vacancy1))

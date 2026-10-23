@@ -2,11 +2,8 @@ import type { LanguageCatalog } from "@/features/languages/model";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { educationLabels, normalizedProfileLabel } from "@/features/pipeline-movement/profile-filter-dimensions";
 import type { OrgCandidate } from "../model";
-import { relativeTime } from "../relative-time";
+import type { CandidateContact } from "../contacts/contacts-model";
 
-// The list contract does not yet include corrections. Confirmed sheet edits can
-// enrich their own row without fetching every candidate's detail just for a badge.
-export type CandidateListItem = OrgCandidate & { corrected_fields?: readonly string[] };
 export const candidateKey = (item: OrgCandidate) => `${item.kind}:${item.id}`;
 export const candidateDateFormat = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
 export const originLabel = (item: OrgCandidate) => item.kind === "manual" ? "Manual" : "Orgánico";
@@ -42,18 +39,27 @@ export function vacancyBadges(item: OrgCandidate): VacancyBadge[] {
  return badges;
 }
 export const processLabels = (item: OrgCandidate) => ({ total: `${item.participations.total} ${item.participations.total === 1 ? "proceso" : "procesos"}`, active: `${item.participations.active} ${item.participations.active === 1 ? "activo" : "activos"}` });
-const join = (...values: (string | undefined | null)[]) => values.filter(Boolean).join(" · ");
-/** Plain, complete values: never DOM text, clipped text, icons or action labels. */
-export function candidatePlainValue(item: OrgCandidate, column: string, languages: LanguageCatalog["items"]) {
- switch (column) {
-  case "candidate": return join(item.full_name, normalizedProfileLabel(item.professional_title ?? ""), originLabel(item));
-  case "location": { const value = locationLines(item); return join(value.primary, value.secondary); }
-  case "experience": { const value = experienceLines(item); return join(value.primary, value.secondary); }
-  case "education": { const value = educationLines(item); return join(value.primary, value.secondary); }
-  case "languages": return languageLabels(item, languages).join("; ") || "Sin dato";
-  case "vacancy": return item.latest_participation ? join(item.latest_participation.vacancy.title, ...vacancyBadges(item).map(badge => badge.text)) : "Sin participaciones";
-  case "processes": { const value = processLabels(item); return join(value.total, value.active); }
-  case "activity": return join(candidateDateFormat.format(new Date(item.last_activity_at)), relativeTime(item.last_activity_at));
-  default: return "";
- }
+const exportDateFormat = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "America/Mexico_City" });
+/** CSV groups expand into single-value cells, independently of display hierarchy. */
+export function candidateExportValues(item: OrgCandidate, languages: LanguageCatalog["items"], contact?: CandidateContact): Record<string, string[]> {
+ const { location, years_of_experience: years, seniority, education } = item.profile;
+ const latest = item.latest_participation;
+ const publication = latest?.vacancy.lifecycle.publication;
+ const process = latest?.vacancy.lifecycle.process;
+ const dateParts = exportDateFormat.formatToParts(new Date(item.last_activity_at));
+ const date = ["year", "month", "day"].map(part => dateParts.find(value => value.type === part)?.value).join("-");
+ const contacts = [contact?.email ?? "", contact?.phone ?? ""];
+ return {
+  contact: contacts,
+  candidate: [item.full_name, normalizedProfileLabel(item.professional_title ?? ""), originLabel(item), ...contacts],
+  location: [location?.municipality?.name ?? "", location?.state?.name ?? "", location?.country?.name ?? ""],
+  experience: [years ?? "", seniority ? SENIORITY_LABELS[seniority] : ""],
+  education: [education.highest_completed ? educationLabels[education.highest_completed] : "", education.in_progress ? educationLabels[education.in_progress] : ""],
+  languages: [languageLabels(item, languages).join("; ")],
+  vacancy: latest ? [latest.vacancy.title, latest.stage.name.trim(), latest.state === "discarded" ? "Descartado" : "Activo",
+   publication === "published" ? "Publicada" : publication === "paused" ? "Pausada" : publication === "closed" ? "Cerrada" : "Sin publicar",
+   process === "active" ? "Activo" : process === "finished" ? "Finalizado" : ""] : ["", "", "", "", ""],
+  processes: [String(item.participations.total), String(item.participations.active)],
+  activity: [date],
+ };
 }

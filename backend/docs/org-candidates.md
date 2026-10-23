@@ -1,20 +1,22 @@
 # Org candidates API — «Candidatos de mi organización» v1 (DRAFT)
 
 Status: **contract approved; list accepted; detail/CV awaiting parent DB acceptance**.
-The list, summary, detail and participation-CV routes are wired. Feature document:
+The list, summary, contacts export, detail and participation-CV routes are wired. Feature document:
 `odd/tasks/org-candidates.md`. Business rules: SRCH-2/3/4/7 in
 `docs/recruitment-business-rules.md` §12.
 
 ## Scope and access
 
 - Routes: `GET /v2/me/company/candidates` (list),
-  `GET /v2/me/company/candidates/summary` (summary) and
+  `GET /v2/me/company/candidates/summary` (summary),
+  `POST /v2/me/company/candidates/contacts` (contacts export) and
   `GET /v2/me/company/candidates/{kind}/{id}` (detail), plus
   `GET /v2/me/company/candidates/{kind}/{id}/participations/{participationId}/cv`,
   `GET …/cv/original` and `POST …/cv` (corrected upload; candidate If-Match).
 - Gates: `NoStore → RequireAuth → requireRecruiter`. **Every recruiter of the
   company sees the whole pool** (user decision); no owner-or-principal check,
-  unlike the board. Another company's candidate, or an unknown one, is 404.
+  unlike the board. Detail returns 404 for another company's candidate or an
+  unknown one; contacts export silently omits out-of-pool identities.
 - Pool = union of:
   - **manual** — every `company_candidates` record of the company;
   - **organic** — every user with at least one participation in a vacancy process
@@ -49,7 +51,7 @@ The six-key `profile` is the board's exact shape
 ```json
 {"items":[{
    "kind":"organic","id":"3f0c…",
-   "full_name":"Mariana Ortega Silva",
+   "full_name":"Mariana Ortega Silva","corrected_fields":[],
    "professional_title":null,"current_company":null,
    "profile":{"location":{…},"skills":["Go"],"years_of_experience":"4.5","seniority":"senior",
               "education":{"highest_completed":"bachelor","in_progress":"master"},
@@ -64,7 +66,10 @@ The six-key `profile` is the board's exact shape
  "next_cursor":"…"|null}
 ```
 
-- No contact (email/phone) in list items, as on the board; contact is detail-only.
+- No contact (email/phone) in list items; contact is available through detail and the contacts export.
+- `corrected_fields`: sorted correction keys for organic candidates in this company,
+  matching detail (including keys explicitly cleared with JSON null); `[]` for
+  manual candidates and organic candidates without corrections.
 - `latest_participation` is null for a manual record with no participation.
 - `participations.total` counts every participation in the company's vacancies;
   `participations.active` counts those **not discarded and whose vacancy process
@@ -97,6 +102,8 @@ server-side over the whole pool. `none` selects missing values («Sin dato»).
 | `q` | text 1–100 code points; case-insensitive substring of full name or email |
 | `origin` | `manual` \| `organic` (one) |
 | `vacancy` | repeatable vacancy (job-draft) id: candidates with a participation in any of them |
+| `country` | repeatable two-uppercase-letter id in `geo_countries` or `none`; matches the effective profile country |
+| `active_process` | single `true` only: `participations.active >= 1` (not discarded, process not finished) |
 | `state` | repeatable MX state id or `none` |
 | `municipality` | repeatable municipality id or `none` |
 | `seniority` | repeatable literal or `none` |
@@ -109,6 +116,15 @@ one-valued key, `language_min_level` without `language`, `education_in_progress`
 without `education_level`); a `vacancy` that does not exist in the company is
 `{field:"vacancy", code:"not_found"}`; 400 `invalid_cursor`. No facet counts in v1:
 filter options come from the existing catalogs (vacancy list, geo, languages).
+Malformed or unknown catalog countries return `{field:"country",code:"invalid"}`.
+`active_process` rejects every value except `true` (`invalid`) and repeated keys
+(`duplicate`). Both filters are included in cursor binding.
+
+Talent-filter coverage: `TestOrgCandidatesInvalidFilters` and `TestOrgCandidatesPage`
+pin parsing, forwarding, exact list keys, and cursor binding; `TestOrgCandidatesFlow`
+adds country OR/AND/none and catalog rejection, effective corrected country and
+sorted `corrected_fields` parity with detail, plus active-filter parity with
+unfiltered participation counters before and after finishing a process.
 
 ## Summary
 
@@ -164,6 +180,54 @@ go test -tags=integration ./cmd/api -run '^TestOrgCandidatesFlow$' -count=1 -v
 
 Unit tests/vet do not establish DB acceptance. The summary subtest runs after
 list/detail assertions and intentionally changes only its private fixture rows.
+
+## Contacts
+
+`POST /v2/me/company/candidates/contacts`
+
+Request (1–100 unique `(kind,id)` pairs, non-zero UUIDs parsed as in detail):
+
+```json
+{"candidates":[{"kind":"organic","id":"3f0c0000-0000-4000-8000-000000000001"}]}
+```
+
+Response:
+
+```json
+{"items":[{"kind":"organic","id":"3f0c0000-0000-4000-8000-000000000001","email":"mariana@example.com","phone":null}]}
+```
+
+- Same gates as the list: `NoStore → RequireAuth → requireRecruiter`; success
+  and every error carry `Cache-Control: no-store`. The literal route is registered
+  before `/{kind}/{id}`. No pagination, profile data or other response keys.
+- Items preserve request order. Only identities in the company's list pool are
+  returned: all company manual records, and organic users with any participation
+  in this company's vacancies (including discarded/finished/manual reuse).
+  Foreign or unknown identities are omitted; an all-omitted request returns
+  `{"items":[]}`. A correction row alone does not establish membership.
+- Contact matches detail exactly: manual live `company_candidates.email/phone`;
+  organic account email plus `NULLIF(btrim(candidate_profiles.phone),'')`, then
+  this company's `email`/`phone` corrections. JSON null explicitly clears a value.
+  Both fields are always present, each a string or null. All reads share one
+  PostgreSQL statement snapshot. No contact is added to list items.
+- Strict JSON rejects unknown keys, duplicate object keys, malformed input and
+  trailing data. Body limit is **16 KiB**, inclusive. Reuses `httpjson.DecodeJSON`
+  and the board's strict decoder. Existing decoder codes intentionally replace
+  C3's proposed `invalid_json`: **400 `invalid_request`** for bad JSON/shape;
+  **413 `payload_too_large`** for oversized bodies.
+- Semantic errors use 400 `validation_error` with `fields`:
+  `candidates`: `required` (missing/null/empty), `too_many` (>100), `duplicate`;
+  `candidates[i].kind` / `.id`: `invalid`. Rejected values never enter errors.
+  Auth/internal errors use existing sanitized envelopes: 401 `unauthenticated`,
+  403 `forbidden`, 500 `internal_error`.
+
+### Contacts test map
+
+| Test | Evidence covered |
+| --- | --- |
+| `cmd/api/org_candidates_contacts_routes_test.go` — `TestOrgCandidatesContacts` | Real router/service; 401/403 before reader invocation; strict JSON and value errors without reader calls or leaks; exact keys and request-order forwarding; 1/100/101 entries; duplicate UUID spellings; same UUID in different kinds; 16 KiB boundary and overflow; no-store throughout; sanitized 500. |
+| `TestOrgCandidatesFlow/contacts_export` (integration) | Real PostgreSQL/JWT; manual and organic contact parity with detail; trimmed/blank/missing live phone; corrected email and phone including explicit null; live manual update; mixed request ordering; omitted foreign manual, foreign-only organic (even with a correction row), and unknown identities; all-omitted empty array. |
+| `cmd/api/main_test.go` | Pins the new route and the exact shared-decoder call with its package-owned 16 KiB cap, preserving the legacy 1 MiB decoder pins. |
 
 ## Detail
 

@@ -54,6 +54,9 @@ func (s *Store) Search(ctx context.Context, company uuid.UUID, q app.Query) (app
 	if q.Origin != "" {
 		filters.WriteString(" AND kind=" + param(q.Origin) + "::text")
 	}
+	if q.ActiveProcess {
+		filters.WriteString(" AND active>=1")
+	}
 	if len(q.Vacancy) > 0 {
 		filters.WriteString(" AND EXISTS(SELECT 1 FROM participations p WHERE p.kind=candidates.kind AND p.person_id=candidates.id AND p.process_id::text=ANY(" + param(q.Vacancy) + "::text[]))")
 	}
@@ -61,7 +64,7 @@ func (s *Store) Search(ctx context.Context, company uuid.UUID, q app.Query) (app
 		values     []string
 		expression string
 	}{
-		{q.State, "profile#>>'{location,state}'"}, {q.Municipality, "profile#>>'{location,municipality}'"}, {q.Seniority, "profile->>'seniority'"},
+		{q.Country, "profile#>>'{location,country}'"}, {q.State, "profile#>>'{location,state}'"}, {q.Municipality, "profile#>>'{location,municipality}'"}, {q.Seniority, "profile->>'seniority'"},
 	} {
 		if len(dimension.values) > 0 {
 			filters.WriteString(" AND COALESCE(" + dimension.expression + ",'none')=ANY(" + param(dimension.values) + "::text[])")
@@ -140,15 +143,19 @@ func (s *Store) Search(ctx context.Context, company uuid.UUID, q app.Query) (app
 }
 
 func validateCatalogs(ctx context.Context, tx pgx.Tx, company uuid.UUID, q app.Query) error {
-	var state, municipality, vacancy bool
+	var state, municipality, vacancy, country bool
 	err := tx.QueryRow(ctx, `SELECT
  NOT EXISTS(SELECT 1 FROM unnest($2::text[]) x WHERE x<>'none' AND NOT EXISTS(SELECT 1 FROM geo_states WHERE country_code='MX' AND code=x)),
  NOT EXISTS(SELECT 1 FROM unnest($3::text[]) x WHERE x<>'none' AND NOT EXISTS(SELECT 1 FROM geo_municipalities WHERE country_code='MX' AND code=x)),
- NOT EXISTS(SELECT 1 FROM unnest($4::text[]) x WHERE NOT EXISTS(SELECT 1 FROM job_drafts WHERE company_id=$1 AND id::text=x))`, company, q.State, q.Municipality, q.Vacancy).Scan(&state, &municipality, &vacancy)
+ NOT EXISTS(SELECT 1 FROM unnest($4::text[]) x WHERE NOT EXISTS(SELECT 1 FROM job_drafts WHERE company_id=$1 AND id::text=x)),
+ NOT EXISTS(SELECT 1 FROM unnest($5::text[]) x WHERE x<>'none' AND NOT EXISTS(SELECT 1 FROM geo_countries WHERE code=x))`, company, q.State, q.Municipality, q.Vacancy, q.Country).Scan(&state, &municipality, &vacancy, &country)
 	if err != nil {
 		return err
 	}
 	fields := []app.Field{}
+	if !country {
+		fields = append(fields, app.Field{Field: "country", Code: "invalid"})
+	}
 	if !municipality {
 		fields = append(fields, app.Field{Field: "municipality", Code: "invalid"})
 	}

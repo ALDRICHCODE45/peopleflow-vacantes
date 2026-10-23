@@ -39,10 +39,12 @@ func orgCandidatesRouter(readers ...poolapp.Reader) http.Handler {
 // The reader fake exercises the real HTTP/service boundary, not SQL matching.
 // Real membership and filtering expectations live in TestOrgCandidatesFlow.
 type orgCandidatesReader struct {
-	queries      []poolapp.Query
-	err          error
-	summary      *poolapp.Summary
-	summaryCalls int
+	queries           []poolapp.Query
+	err               error
+	summary           *poolapp.Summary
+	summaryCalls      int
+	contactCalls      int
+	contactSelections []poolapp.Identity
 }
 
 func (s *orgCandidatesReader) Search(_ context.Context, company uuid.UUID, q poolapp.Query) (poolapp.Page, error) {
@@ -79,6 +81,23 @@ func (s *orgCandidatesReader) Summary(_ context.Context, company uuid.UUID) (poo
 		return *s.summary, nil
 	}
 	return poolapp.Summary{Total: 5, WithActiveProcess: 2, AddedLast7Days: 3, ByKind: poolapp.KindCounts{Manual: 2, Organic: 3}}, nil
+}
+
+func (s *orgCandidatesReader) Contacts(_ context.Context, company uuid.UUID, candidates []poolapp.Identity) ([]poolapp.ContactItem, error) {
+	s.contactCalls++
+	s.contactSelections = append([]poolapp.Identity{}, candidates...)
+	if company != routeTestCompanyID {
+		return nil, errors.New("wrong company scope")
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
+	email := "export@example.test"
+	items := make([]poolapp.ContactItem, 0, len(candidates))
+	for _, c := range candidates {
+		items = append(items, poolapp.ContactItem{Identity: c, Email: &email})
+	}
+	return items, nil
 }
 
 func (s *orgCandidatesReader) Detail(context.Context, uuid.UUID, string, uuid.UUID) (poolapp.Detail, error) {
@@ -118,6 +137,13 @@ func TestOrgCandidatesInvalidFilters(t *testing.T) {
 		{"origin", "origin=recruiter", "origin", "invalid"},
 		{"blank q", "q=", "q", "invalid"},
 		{"long q", "q=" + strings.Repeat("ñ", 101), "q", "invalid"},
+		{"country lowercase", "country=mx", "country", "invalid"},
+		{"country long", "country=MEX", "country", "invalid"},
+		{"country empty", "country=", "country", "invalid"},
+		{"country nonletter", "country=M1", "country", "invalid"},
+		{"active false", "active_process=false", "active_process", "invalid"},
+		{"active empty", "active_process=", "active_process", "invalid"},
+		{"active numeric", "active_process=1", "active_process", "invalid"},
 		{"state", "state=XX", "state", "invalid"},
 		{"municipality", "municipality=1", "municipality", "invalid"},
 		{"seniority", "seniority=Senior", "seniority", "invalid"},
@@ -135,7 +161,7 @@ func TestOrgCandidatesInvalidFilters(t *testing.T) {
 		{"signed limit", "limit=+1", "limit", "invalid"},
 		{"blank limit", "limit=", "limit", "invalid"},
 	}
-	for _, key := range []string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "limit", "cursor"} {
+	for _, key := range []string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "active_process", "limit", "cursor"} {
 		cases = append(cases, struct{ name, query, field, code string }{"duplicate " + key, key + "=x&" + key + "=x", key, "duplicate"})
 	}
 	for _, tc := range cases {
@@ -151,7 +177,9 @@ func TestOrgCandidatesInvalidFilters(t *testing.T) {
 				t.Fatal(w.Code, w.Body.String())
 			}
 			want := []map[string]string{{"field": tc.field, "code": tc.code}}
-			if w.Code != 400 || got.Code != "invalid_filter" || got.Error != "invalid filter" || !reflect.DeepEqual(got.Fields, want) {
+			var keys map[string]any
+			_ = json.Unmarshal(w.Body.Bytes(), &keys)
+			if len(keys) != 3 || w.Code != 400 || got.Code != "invalid_filter" || got.Error != "invalid filter" || !reflect.DeepEqual(got.Fields, want) {
 				t.Fatalf("status=%d body=%s want=%v", w.Code, w.Body.String(), want)
 			}
 		})
@@ -190,7 +218,7 @@ func TestOrgCandidatesPage(t *testing.T) {
 	}
 	item := first["items"].([]any)[0].(map[string]any)
 	raw, _ := json.Marshal(item)
-	want := `{"current_company":null,"full_name":"Candidate","id":"11111111-1111-4111-8111-000000000001","kind":"manual","last_activity_at":"2026-01-01T00:00:00.123456Z","latest_participation":null,"participations":{"active":0,"total":0},"professional_title":null,"profile":{"education":{"highest_completed":null,"in_progress":null},"languages":[],"location":null,"seniority":null,"skills":[],"years_of_experience":null}}`
+	want := `{"corrected_fields":[],"current_company":null,"full_name":"Candidate","id":"11111111-1111-4111-8111-000000000001","kind":"manual","last_activity_at":"2026-01-01T00:00:00.123456Z","latest_participation":null,"participations":{"active":0,"total":0},"professional_title":null,"profile":{"education":{"highest_completed":null,"in_progress":null},"languages":[],"location":null,"seniority":null,"skills":[],"years_of_experience":null}}`
 	if string(raw) != want {
 		t.Fatal(string(raw))
 	}
@@ -201,6 +229,19 @@ func TestOrgCandidatesPage(t *testing.T) {
 	if len(get("?limit=50")["items"].([]any)) != 50 {
 		t.Fatal("max limit not respected")
 	}
+	for _, filters := range []string{"country=MX&country=US", "active_process=true", "country=MX&active_process=true"} {
+		page := get("?limit=1&" + filters)
+		token := url.QueryEscape(page["next_cursor"].(string))
+		get("?" + filters + "&cursor=" + token)
+		if filters == "country=MX&country=US" {
+			get("?country=US&country=MX&country=MX&cursor=" + token)
+		}
+		w := doRouteRequest(t, router, "GET", orgCandidatesPath+"?cursor="+token, "", headers)
+		assertDraftRouteNoStore(t, w)
+		if w.Code != 400 || routeCatalogCode(t, w) != "invalid_cursor" {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
 	filtered := get("?limit=1&years=1_3&years=0_1")
 	token := filtered["next_cursor"].(string)
 	get("?limit=50&years=0_1&years=1_3&cursor=" + url.QueryEscape(token))
@@ -209,9 +250,9 @@ func TestOrgCandidatesPage(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	// Every filter is forwarded in normalized form; SQL is not emulated here.
-	get("?q=MiXeD&origin=organic&vacancy=" + routeTestDraftID.String() + "&state=none&state=14&municipality=14039&seniority=senior&years=none&language=en&language_min_level=native&education_level=master&education_in_progress=true")
+	get("?q=MiXeD&origin=organic&vacancy=" + routeTestDraftID.String() + "&country=none&country=MX&country=MX&active_process=true&state=none&state=14&municipality=14039&seniority=senior&years=none&language=en&language_min_level=native&education_level=master&education_in_progress=true")
 	q := reader.queries[len(reader.queries)-1]
-	if q.Q != "mixed" || q.Origin != "organic" || q.LanguageMinLevel != "native" || q.EducationLevel != "master" || !q.EducationInProgress || !reflect.DeepEqual(q.State, []string{"14", "none"}) {
+	if !reflect.DeepEqual(q.Country, []string{"MX", "none"}) || !q.ActiveProcess || q.Q != "mixed" || q.Origin != "organic" || q.LanguageMinLevel != "native" || q.EducationLevel != "master" || !q.EducationInProgress || !reflect.DeepEqual(q.State, []string{"14", "none"}) {
 		t.Fatal(q)
 	}
 	reader.err = errors.New("PRIVATE datastore failure")
