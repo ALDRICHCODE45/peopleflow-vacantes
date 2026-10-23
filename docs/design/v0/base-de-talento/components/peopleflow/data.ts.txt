@@ -1,0 +1,12 @@
+export type Candidate = { name: string; initials: string; role: string; city: string; years: string; seniority: string; education: string; language: string; origin: string; stage: string; vacancy: string; corrected?: boolean };
+export const candidates: Candidate[] = [
+ {name:'Lucía Ramírez Torres', initials:'LR', role:'Desarrolladora Frontend', city:'Zapopan, Jalisco', years:'2.5', seniority:'Junior', education:'Licenciatura', language:'Inglés B2', origin:'Manual', stage:'Screening', vacancy:'Software Developer', corrected:true},
+ {name:'Ana Sofía Pérez Gómez', initials:'AP', role:'Product Designer', city:'Ciudad de México, CDMX', years:'4.5', seniority:'Senior', education:'Licenciatura', language:'Inglés C1', origin:'Orgánico', stage:'En proceso', vacancy:'Product Designer Senior'},
+ {name:'Bryan Aldrich Flores Vazquez', initials:'BF', role:'Ingeniero de Software', city:'Monterrey, Nuevo León', years:'5', seniority:'Senior', education:'Ingeniería', language:'Inglés B2', origin:'Orgánico', stage:'Screening OK', vacancy:'Software Developer', corrected:true},
+ {name:'Diego Hernández López', initials:'DH', role:'Data Analyst', city:'Guadalajara, Jalisco', years:'3', seniority:'Middle', education:'Maestría en curso', language:'Inglés B2', origin:'Manual', stage:'Nuevos', vacancy:'Data Analyst'},
+ {name:'Valentina Mendoza Ruiz', initials:'VM', role:'UX Researcher', city:'Ciudad de México, CDMX', years:'4', seniority:'Middle', education:'Licenciatura', language:'Inglés C1', origin:'Orgánico', stage:'En proceso', vacancy:'UX Researcher'},
+ {name:'Carlos Eduardo Sánchez', initials:'CS', role:'Desarrollador Full Stack', city:'Puebla, Puebla', years:'6', seniority:'Senior', education:'Ingeniería', language:'Inglés B2', origin:'Orgánico', stage:'Screening', vacancy:'Software Developer'},
+ {name:'Mariana Castillo Vega', initials:'MC', role:'People Operations', city:'Mérida, Yucatán', years:'3.5', seniority:'Middle', education:'Licenciatura', language:'Inglés C1', origin:'Manual', stage:'Placement', vacancy:'People Operations Lead'},
+ {name:'Andrés Navarro Morales', initials:'AN', role:'Desarrollador Backend', city:'Querétaro, Querétaro', years:'2', seniority:'Junior', education:'Ingeniería', language:'Inglés B1', origin:'Orgánico', stage:'Nuevos', vacancy:'Backend Developer'},
+];
+export const stages = ['Nuevos', 'Screening', 'Screening OK', 'En proceso', 'Placement'];
