@@ -20,6 +20,9 @@ import { CandidateResults, CandidateResultsSkeleton, type OpenCandidate } from "
 import { CandidateFiltersBar } from "./candidate-filters";
 import { useCandidates } from "./use-candidates";
 import type { OrgCandidateDetail } from "../detail/detail-model";
+import { OriginTabs } from "../summary/origin-tabs";
+import { SummaryBand } from "../summary/summary-band";
+import { useCandidatesSummary } from "../summary/use-candidates-summary";
 
 function UpdatedAt({ value }: { value: string }) {
  const [, tick] = useState(0);
@@ -29,7 +32,9 @@ function UpdatedAt({ value }: { value: string }) {
 /** One v0 content surface; URL/data controller and rich-table preferences remain authoritative. */
 export function OrgCandidatesWorkspace({ onOpenCandidate, updatedCandidate }: { onOpenCandidate?: OpenCandidate; updatedCandidate?: OrgCandidateDetail | null }) {
  const { state, update, page, lastLoadedAt, pending, failure, notice, retry, clearNotice, loadMore, patchCandidate } = useCandidates();
- useEffect(() => { if (updatedCandidate) patchCandidate(updatedCandidate); }, [updatedCandidate, patchCandidate]);
+ const summary = useCandidatesSummary();
+ const refreshSummary = summary.refresh;
+ useEffect(() => { if (!updatedCandidate) return; patchCandidate(updatedCandidate); void refreshSummary(); }, [updatedCandidate, patchCandidate, refreshSummary]);
  const languages = useLanguageCatalog();
  const isMobile = useIsMobile();
  const resultView = isMobile ? "cards" : state.view;
@@ -70,8 +75,9 @@ export function OrgCandidatesWorkspace({ onOpenCandidate, updatedCandidate }: { 
    : page ? <StateCard icon={Users} tone="empty" title={filtered ? "Sin resultados" : "Todavía no hay candidatos en tu organización"} description={filtered ? "No hay candidatos que coincidan con estos filtros." : "Agrega un candidato desde el tablero de una vacante para comenzar."} primaryAction={filtered ? { label: "Limpiar filtros", onClick: clear } : undefined} /> : null}
  </div> : undefined;
  return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
-  <header className="flex flex-col gap-2"><h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">Candidatos de mi organización</h2><p className="max-w-prose text-[13.5px] text-muted-foreground">Las personas que agregaste o que se postularon a las vacantes de tu empresa, con su perfil y sus procesos.</p></header>
-  <Card role="region" aria-label="Resultados de candidatos" aria-busy={pending} className="min-w-0">
+  <SummaryBand data={summary.data} pending={summary.pending} failure={summary.failure} onRetry={() => void refreshSummary()} />
+  <Card role="region" aria-label="Resultados de candidatos" aria-busy={pending} className="min-w-0 pt-0">
+   <OriginTabs value={state.filters.origin === "manual" ? "manual" : "all"} onValueChange={value => patch({ origin: value === "manual" ? "manual" : undefined })} counts={summary.data ? { all: summary.data.total, manual: summary.data.by_kind.manual } : undefined} />
    <CardHeader className="gap-4">
     <CardTitle className="sr-only"><h3>Base de talento</h3></CardTitle>
     <CandidateFiltersBar filters={state.filters} onChange={patch} onClear={clear} languages={languages.data?.items ?? []}

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 vi.mock("../actions", () => ({ listCandidatesAction: vi.fn() }));
+vi.mock("../summary/summary-actions", () => ({ getCandidatesSummaryAction: async () => ({ ok: true, data: { total: 37, with_active_process: 20, added_last_7_days: 2, by_kind: { manual: 12, organic: 25 } } }) }));
 vi.mock("@/components/ui/dropdown-menu", async () => (await import("@/components/data-table/test-menu")).menuDouble);
 vi.mock("@/components/ui/tooltip", async () => (await import("@/components/data-table/test-menu")).tooltipDouble);
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn().mockResolvedValue({ ok: true, items: [], nextCursor: null }) }));

@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { detailFixture } from "../detail/test-fixtures";
 vi.mock("../actions", () => ({ listCandidatesAction: vi.fn() }));
+vi.mock("../summary/summary-actions", () => ({ getCandidatesSummaryAction: async () => ({ ok: true, data: { total: 37, with_active_process: 20, added_last_7_days: 2, by_kind: { manual: 12, organic: 25 } } }) }));
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn().mockResolvedValue({ ok: true, items: [], nextCursor: null }) }));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }] } }) }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoResource: () => ({ status: "success", data: { items: [] } }) }));
@@ -157,5 +158,5 @@ it("shows a correction indicator from a confirmed sheet edit without extra reads
  expect(screen.queryByLabelText('Datos corregidos por tu empresa')).not.toBeInTheDocument();
  const detail = { ...detailFixture(), id: candidate.id, corrected_fields: ['full_name' as const] };
  view.rerender(<OrgCandidatesWorkspace updatedCandidate={detail} />);
- expect(await screen.findByLabelText('Datos corregidos por tu empresa')).toBeInTheDocument(); expect(listCandidatesAction).toHaveBeenCalledTimes(1);
+ await waitFor(() => expect(screen.getByLabelText('Datos corregidos por tu empresa')).toBeInTheDocument()); expect(listCandidatesAction).toHaveBeenCalledTimes(1);
 });
