@@ -1520,6 +1520,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 	want := []string{
 		"Get /v2/me/company/candidates",
 		"Get /v2/me/company/candidates/summary",
+		"Post /v2/me/company/candidates/contacts",
 		"Get /v2/me/company/candidates/{kind}/{id}",
 		"Patch /v2/me/company/candidates/{kind}/{id}",
 		"Get /v2/me/company/candidates/{kind}/{id}/history",
@@ -1691,6 +1692,8 @@ func TestStartupLog_EffectiveNonSecretConfig(t *testing.T) {
 // Generation-111 correction (sha256:e090cf62…1bd): parser object ownership
 // binds both identifiers: local maxJSONBodyBytes shadows fail, and a local
 // httpjson receiver is rejected rather than counted as the imported package.
+// Contacts export adds one explicitly pinned, stricter 16 KiB endpoint; legacy
+// handlers retain their 1 MiB limit and the startup-reported default is unchanged.
 func TestBodyLimitBinding_Guarded(t *testing.T) {
 	const want = int64(1_048_576)
 	cf := mustParse(t, compositionFile)
@@ -1710,7 +1713,7 @@ func TestBodyLimitBinding_Guarded(t *testing.T) {
 	}
 	for _, p := range decodeJSONCensusFiles {
 		wantCalls := decodeJSONCallsPerFile
-		if p == "../../internal/features/identity/infrastructure/http/candidate_identity.go" {
+		if p == "../../internal/features/identity/infrastructure/http/candidate_identity.go" || p == decodeJSONContactsFile {
 			wantCalls = 1
 		}
 		if lines := calls[p]; len(lines) != wantCalls {
@@ -1730,16 +1733,22 @@ func TestBodyLimitBinding_Guarded(t *testing.T) {
 			t.Fatalf("guarded feature body limit drifted: %s must keep maxJSONBodyBytes == %d to match the startup-reported cap; got %d, present=%v", p, want, got, ok)
 		}
 	}
+	if got, ok := intConstValue(mustParse(t, decodeJSONContactsFile), "maxContactsBodyBytes"); !ok || got != 16_384 {
+		t.Fatalf("contacts export must pin maxContactsBodyBytes to 16 KiB; got %d present=%v", got, ok)
+	}
 	mf := mustParse(t, decodeJSONBorrowerFile)
 	if _, ok := intConstValue(mf, "maxJSONBodyBytes"); ok {
 		t.Fatalf("%s must BORROW the companies package maxJSONBodyBytes constant (the enforced 1 MiB cap) instead of declaring a second copy; found its own declaration", decodeJSONBorrowerFile)
 	}
-	t.Logf("guarded binding: startupMaxJSONBodyBytes in %s and maxJSONBodyBytes in %d declaring files all equal %d; census: EXACTLY %d production httpjson.DecodeJSON calls, %d per legacy file plus one onboarding call across %d pinned files (incl. borrower %s), four args each, fourth argument bare maxJSONBodyBytes", compositionFile, len(decodeJSONDeclaringFiles), want, decodeJSONCallsTotal, decodeJSONCallsPerFile, len(decodeJSONCensusFiles), decodeJSONBorrowerFile)
+	t.Logf("guarded binding: startup/legacy cap=%d; contacts cap=16384; exactly %d production DecodeJSON calls across %d pinned files; each uses its package constant", want, decodeJSONCallsTotal, len(decodeJSONCensusFiles))
 }
 
 // decodeJSONCensusFiles are the ONLY production feature files allowed to carry
-// httpjson.DecodeJSON calls (two per legacy file, one for candidate identity).
+// httpjson.DecodeJSON calls (two per legacy file, one each for identity/contacts).
+const decodeJSONContactsFile = "../../internal/features/applications/infrastructure/http/pool/contacts.go"
+
 var decodeJSONCensusFiles = []string{
+	decodeJSONContactsFile,
 	"../../internal/features/identity/infrastructure/http/candidate_identity.go",
 	"../../internal/features/applications/infrastructure/http/applicationHandler.go",
 	"../../internal/features/candidates/infrastructure/http/handler.go",
@@ -1763,7 +1772,7 @@ const decodeJSONBorrowerFile = "../../internal/features/companies/infrastructure
 
 const (
 	decodeJSONCallsPerFile = 2
-	decodeJSONCallsTotal   = 11
+	decodeJSONCallsTotal   = 12
 )
 
 // httpjsonImportPath is the shared decode helper the census resolves per file.
@@ -1773,7 +1782,8 @@ const httpjsonImportPath = "github.com/aldrichcode45/peopleflow-vacantes/interna
 // featuresRoot (excluding _test.go), resolves each file's httpjson import, and
 // returns counted calls as file → call lines. A count requires the resolved
 // import receiver with id.Obj == nil; a local same-named receiver fails. Arg 4
-// must be bare maxJSONBodyBytes and bind to this file's package const, or be
+// must be bare maxJSONBodyBytes (maxContactsBodyBytes for contacts) and bind
+// to this file's package const, or be
 // unresolved (Obj == nil) in borrower files; a local shadow fails.
 func censusFeatureDecodeJSON(t *testing.T, featuresRoot string) map[string][]int {
 	t.Helper()
@@ -1797,9 +1807,13 @@ func censusFeatureDecodeJSON(t *testing.T, featuresRoot string) map[string][]int
 		if localName == "" {
 			return nil // no httpjson import: cannot contribute a resolved call
 		}
+		limitName := "maxJSONBodyBytes"
+		if path == decodeJSONContactsFile {
+			limitName = "maxContactsBodyBytes"
+		}
 		var pkgLimit *ast.Object
 		if f.Scope != nil {
-			pkgLimit = f.Scope.Objects["maxJSONBodyBytes"]
+			pkgLimit = f.Scope.Objects[limitName]
 		}
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, isCall := n.(*ast.CallExpr)
@@ -1821,8 +1835,8 @@ func censusFeatureDecodeJSON(t *testing.T, featuresRoot string) map[string][]int
 			if len(call.Args) != 4 {
 				t.Fatalf("httpjson.DecodeJSON call in %s (line %d) must take EXACTLY FOUR arguments; got %d", path, line, len(call.Args))
 			}
-			if arg4, isId := call.Args[3].(*ast.Ident); !isId || arg4.Name != "maxJSONBodyBytes" {
-				t.Fatalf("fourth argument of the httpjson.DecodeJSON call in %s (line %d) must be the BARE package constant identifier maxJSONBodyBytes (the enforced 1 MiB cap); got %s", path, line, types.ExprString(call.Args[3]))
+			if arg4, isId := call.Args[3].(*ast.Ident); !isId || arg4.Name != limitName {
+				t.Fatalf("fourth argument of the httpjson.DecodeJSON call in %s (line %d) must be the BARE package constant identifier %s; got %s", path, line, limitName, types.ExprString(call.Args[3]))
 			} else if pkgLimit == nil {
 				if arg4.Obj != nil {
 					t.Fatalf("fourth argument of the httpjson.DecodeJSON call in %s (line %d) must remain unresolved in this file (the maxJSONBodyBytes const lives in a sibling file of the same package); got a function-local shadow owning its own object", path, line)

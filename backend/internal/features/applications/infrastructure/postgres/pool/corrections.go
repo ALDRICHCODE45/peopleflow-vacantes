@@ -85,7 +85,7 @@ func (s *Store) EditOrganic(ctx context.Context, company, actor, id uuid.UUID, e
 // catalogs. Do not derive originals from the effective item or the live profile.
 func organicDetail(ctx context.Context, tx pgx.Tx, company, id uuid.UUID, out *app.Detail) error {
 	query := poolSQL + ` AND kind='organic' AND id=$2), page AS (
- SELECT kind,id,original_full_name AS full_name,NULL::text AS professional_title,NULL::text AS current_company,NULL::text AS postal_code,original_profile AS profile,last_activity_at,total,active,process_id,stage_id,discarded_at,applied_at FROM filtered
+ SELECT kind,id,corrected_fields,original_full_name AS full_name,NULL::text AS professional_title,NULL::text AS current_company,NULL::text AS postal_code,original_profile AS profile,last_activity_at,total,active,process_id,stage_id,discarded_at,applied_at FROM filtered
  ) SELECT to_jsonb(r) FROM (` + projectionSQL + `) r`
 	var raw []byte
 	if err := tx.QueryRow(ctx, query, company, id).Scan(&raw); err != nil {
