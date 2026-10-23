@@ -1,16 +1,48 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { CandidateResults, CandidateResultsSkeleton } from "./candidate-results";
 import { candidate } from "./test-fixtures";
-import type { OrgCandidate } from "../model";
+import { candidateSchema, type OrgCandidate } from "../model";
 vi.mock("@/components/ui/dropdown-menu", async () => (await import("@/components/data-table/test-menu")).menuDouble);
 vi.mock("@/components/ui/tooltip", async () => (await import("@/components/data-table/test-menu")).tooltipDouble);
+vi.mock("../contacts/contacts-actions", () => ({ getCandidateContactsAction: vi.fn() }));
+vi.mock("./candidate-csv", () => ({ downloadCandidateCsv: vi.fn() }));
+import { getCandidateContactsAction } from "../contacts/contacts-actions";
+import { downloadCandidateCsv } from "./candidate-csv";
 const languages = [{ code: "en", name: "Inglés" }, { code: "es", name: "Español" }];
 const empty: OrgCandidate = { ...candidate, professional_title: null, profile: { location: null, skills: [], seniority: null, years_of_experience: null, education: { highest_completed: null, in_progress: null }, languages: [] } };
-beforeEach(() => localStorage.clear());
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+beforeEach(() => { vi.stubGlobal("PointerEvent", MouseEvent); localStorage.clear(); vi.mocked(downloadCandidateCsv).mockClear(); vi.mocked(getCandidateContactsAction).mockReset(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it.each(["table", "cards"] as const)("shows correction indicators from parsed list data in %s without opening detail", view => {
+ const corrected = candidateSchema.parse({ ...candidate, kind: "organic", corrected_fields: ["full_name"] });
+ const { rerender } = show(corrected, view);
+ expect(screen.getByLabelText("Datos corregidos por tu empresa")).toBeInTheDocument();
+ rerender(<CandidateResults items={[candidate]} view={view} languages={languages} />);
+ expect(screen.queryByLabelText("Datos corregidos por tu empresa")).not.toBeInTheDocument();
+});
+it("waits for contacts, disables export with Spinner, then downloads only the captured selection", async () => {
+ let resolve!: (value: { ok: true; data: { items: [] } }) => void;
+ vi.mocked(getCandidateContactsAction).mockReturnValue(new Promise(done => { resolve = done; }));
+ show(); fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar todos" }));
+ const button = screen.getByRole("button", { name: "Exportar seleccionados" }); fireEvent.click(button);
+ expect(button).toBeDisabled(); expect(button.querySelector('[data-slot=spinner]')).not.toBeNull();
+ expect(downloadCandidateCsv).not.toHaveBeenCalled();
+ expect(getCandidateContactsAction).toHaveBeenCalledExactlyOnceWith([{ kind: candidate.kind, id: candidate.id }]);
+ await act(async () => { resolve({ ok: true, data: { items: [] } }); });
+ expect(button).not.toBeDisabled();
+ expect(downloadCandidateCsv).toHaveBeenCalledWith([candidate], expect.arrayContaining(["candidate", "activity"]), languages, []);
+});
+it.each(["failure", "throw"])("does not download on contact %s and shows the C4 feedback", async mode => {
+ if (mode === "failure") vi.mocked(getCandidateContactsAction).mockResolvedValue({ ok: false });
+ else vi.mocked(getCandidateContactsAction).mockRejectedValue(new Error("private"));
+ show(); fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar todos" }));
+ fireEvent.click(screen.getByRole("button", { name: "Exportar seleccionados" }));
+ expect((await screen.findByText("No pudimos obtener el contacto de los candidatos. Intenta de nuevo.")).closest('[role="status"]')).toBeInTheDocument();
+ expect(downloadCandidateCsv).not.toHaveBeenCalled();
+ await waitFor(() => expect(screen.getByRole("button", { name: "Exportar seleccionados" })).not.toBeDisabled());
+});
 it("matches the approved row anatomy using primitive slots, including corrections and origin", () => {
   show({ ...candidate, corrected_fields: ["full_name"] } as OrgCandidate);
   const row = screen.getByText(candidate.full_name).closest('tr')!;

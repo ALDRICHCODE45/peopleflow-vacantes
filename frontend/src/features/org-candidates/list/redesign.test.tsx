@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { detailFixture } from "../detail/test-fixtures";
 vi.mock("../actions", () => ({ listCandidatesAction: vi.fn() }));
+vi.mock("../contacts/contacts-actions", () => ({ getCandidateContactsAction: vi.fn().mockResolvedValue({ ok: true, data: { items: [] } }) }));
 vi.mock("../summary/summary-actions", () => ({ getCandidatesSummaryAction: async () => ({ ok: true, data: { total: 37, with_active_process: 20, added_last_7_days: 2, by_kind: { manual: 12, organic: 25 } } }) }));
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn().mockResolvedValue({ ok: true, items: [], nextCursor: null }) }));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }] } }) }));
@@ -11,10 +12,12 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoResource: () => ({ stat
 vi.mock("@/components/ui/dropdown-menu", async () => (await import("@/components/data-table/test-menu")).menuDouble);
 vi.mock("@/components/ui/tooltip", async () => (await import("@/components/data-table/test-menu")).tooltipDouble);
 import { listCandidatesAction } from "../actions";
+import { getCandidateContactsAction } from "../contacts/contacts-actions";
 import { OrgCandidatesWorkspace } from "./list-workspace";
 import { candidate, page } from "./test-fixtures";
 const second = { ...candidate, kind: "organic" as const, full_name: 'Ana, "López"' };
 beforeEach(() => {
+ vi.mocked(getCandidateContactsAction).mockResolvedValue({ ok: true, data: { items: [] } });
  localStorage.clear(); window.history.replaceState(null, "", "/empresa/talento");
  vi.stubGlobal("innerWidth", 1440); vi.stubGlobal("PointerEvent", MouseEvent);
  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -88,7 +91,7 @@ it("exports only selected rows and visible columns as BOM CSV with escaping and 
  expect(screen.queryByRole("columnheader", { name: "Ubicación" })).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole("checkbox", { name: `Seleccionar a ${second.full_name}` }));
  fireEvent.click(screen.getByRole("button", { name: "Exportar seleccionados" }));
- expect(clicked).toHaveBeenCalledTimes(1);
+ await waitFor(() => expect(clicked).toHaveBeenCalledTimes(1));
  const anchor = clicked.mock.contexts[0] as unknown as HTMLAnchorElement; const now = new Date();
  expect(anchor.download).toBe(`candidatos-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}.csv`);
  expect(anchor.href).toBe("blob:csv");

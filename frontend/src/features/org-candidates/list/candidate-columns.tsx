@@ -17,7 +17,7 @@ import type { LanguageCatalog } from "@/features/languages/model";
 import type { OrgCandidate } from "../model";
 import { relativeTime } from "../relative-time";
 import type { OpenCandidate } from "./candidate-results";
-import { candidateDateFormat, candidateKey, educationLines, experienceLines, languageLabels, locationLines, originLabel, processLabels, vacancyBadges, type CandidateListItem } from "./candidate-values";
+import { candidateDateFormat, candidateKey, educationLines, experienceLines, languageLabels, locationLines, originLabel, processLabels, vacancyBadges } from "./candidate-values";
 
 export function CandidateLanguages({ item, languages }: { item: OrgCandidate; languages: LanguageCatalog["items"] }) {
  const labels = languageLabels(item, languages);
@@ -48,12 +48,12 @@ export function CandidateActions({ item, onOpen }: { item: OrgCandidate; onOpen?
   </DropdownMenu>
  </div>;
 }
-export function CandidateIdentity({ item, onOpen, heading = false }: { item: CandidateListItem; onOpen?: OpenCandidate; heading?: boolean }) {
+export function CandidateIdentity({ item, onOpen, heading = false }: { item: OrgCandidate; onOpen?: OpenCandidate; heading?: boolean }) {
  const Name = heading ? "h3" : "div";
  return <div className="flex min-w-0 items-center gap-3"><Avatar className="size-10 shrink-0"><AvatarFallback>{initials(item.full_name)}</AvatarFallback></Avatar>
   <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
    <Name className="flex w-full min-w-0 items-center gap-1.5">{heading ? <Button type="button" variant="link" className="-mx-3 h-auto min-h-10 min-w-0 max-w-full shrink justify-start text-left font-medium text-foreground" aria-label={`Abrir ficha de ${item.full_name}`} onClick={() => onOpen?.({ kind: item.kind, id: item.id })}><TruncatedText text={item.full_name} /></Button> : <TruncatedText text={item.full_name} className="text-sm font-medium text-foreground" />}
-    {!!item.corrected_fields?.length && <TooltipProvider><Tooltip><TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />} tabIndex={0} aria-label="Datos corregidos por tu empresa"><Check aria-hidden="true" className="size-3.5" /></TooltipTrigger><TooltipContent>Datos corregidos por tu empresa</TooltipContent></Tooltip></TooltipProvider>}
+    {!!item.corrected_fields.length && <TooltipProvider><Tooltip><TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />} tabIndex={0} aria-label="Datos corregidos por tu empresa"><Check aria-hidden="true" className="size-3.5" /></TooltipTrigger><TooltipContent>Datos corregidos por tu empresa</TooltipContent></Tooltip></TooltipProvider>}
    </Name>
    {item.professional_title && <TruncatedText text={normalizedProfileLabel(item.professional_title)} className="w-full text-xs text-muted-foreground" />}
    <Badge variant="outline" className="text-muted-foreground">{item.kind === "manual" ? <Users aria-hidden="true" data-icon="inline-start" /> : <ArrowUpRight aria-hidden="true" data-icon="inline-start" />}{originLabel(item)}</Badge>

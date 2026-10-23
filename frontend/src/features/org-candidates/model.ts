@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { profileSchema, uuidSchema } from "@/features/pipeline-movement/model";
+import { candidateEditFieldSchema } from "./edit/edit-model";
 
 const text = z.string().min(1);
 const timestamp = z.string().datetime({ offset: true });
@@ -8,7 +9,7 @@ const count = z.number().int().nonnegative().safe();
 export const candidateSchema = z.object({
   kind: z.enum(["manual", "organic"]), id: uuidSchema, full_name: text,
   professional_title: z.string().nullable(), current_company: z.string().nullable(),
-  profile: profileSchema,
+  profile: profileSchema, corrected_fields: z.array(candidateEditFieldSchema),
   participations: z.object({ total: count, active: count }).strict(),
   latest_participation: z.object({
     vacancy: z.object({ id: uuidSchema, title: text, lifecycle: z.object({ publication: z.enum(["published", "paused", "closed"]).nullable(), process: z.enum(["active", "finished"]).nullable() }).strict() }).strict(),

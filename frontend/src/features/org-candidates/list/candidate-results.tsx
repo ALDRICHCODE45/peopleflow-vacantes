@@ -7,6 +7,10 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RichDataTable, type RichDataTableProps } from "@/components/data-table/rich-data-table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { ActionStatus } from "@/components/feedback/action-status";
+import { getCandidateContactsAction } from "../contacts/contacts-actions";
+import { CONTACTS_EXPORT_FAILURE } from "../contacts/contacts-model";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { educationLabels, normalizedProfileLabel } from "@/features/pipeline-movement/profile-filter-dimensions";
 import type { LanguageCatalog } from "@/features/languages/model";
@@ -46,6 +50,20 @@ function CandidateCard({ item, languages, onOpen, selection }: { item: OrgCandid
 }
 type CandidateResultsProps = { items: OrgCandidate[]; view: "table" | "cards"; languages: LanguageCatalog["items"]; onOpen?: OpenCandidate; toolbar?: RichDataTableProps<OrgCandidate>["toolbar"]; selectionKey?: string; fallback?: React.ReactNode };
 export function CandidateResults({ items, view, languages, onOpen, toolbar, selectionKey = "", fallback }: CandidateResultsProps) {
+ const [exporting, setExporting] = React.useState(false);
+ const [exportFailed, setExportFailed] = React.useState(false);
+ const exportBusy = React.useRef(false);
+ async function exportSelected(visibleColumns: string[]) {
+  if (exportBusy.current) return;
+  exportBusy.current = true; setExporting(true); setExportFailed(false);
+  const snapshot = sorted.filter(item => selected.has(candidateKey(item)));
+  try {
+   const result = await getCandidateContactsAction(snapshot.map(({ kind, id }) => ({ kind, id })));
+   if (!result.ok) { setExportFailed(true); return; }
+   downloadCandidateCsv(snapshot, visibleColumns, languages, result.data.items);
+  } catch { setExportFailed(true); }
+  finally { exportBusy.current = false; setExporting(false); }
+ }
  const [selectionState, setSelection] = React.useState({ key: selectionKey, ids: new Set<string>() });
  // Derive an empty selection immediately, including browser back/forward and
  // debounced search's draft, so stale rows can never be exported after a filter.
@@ -70,8 +88,9 @@ export function CandidateResults({ items, view, languages, onOpen, toolbar, sele
  return <CandidateTableContext.Provider value={{ selection, toggleSort }}><RichDataTable id="org-candidates" columns={richColumns} data={sorted} getRowId={candidateKey} defaultPinning={defaultPinning} onRowActivate={onOpen ? item => onOpen({ kind: item.kind, id: item.id }) : undefined} emptyState="Sin candidatos" toolbar={toolbar} compactControls content={content} sortState={{ id: "candidate", direction }}
   beforeContent={visibleColumns => selectedItems.length > 0 ? <div aria-label="Selección de candidatos" className="mx-(--card-spacing) flex flex-wrap items-center gap-3 rounded-lg bg-muted p-3">
    <span role="status" className="mr-auto text-sm font-medium">{selectedItems.length} {selectedItems.length === 1 ? "seleccionado" : "seleccionados"}</span>
-   <Button type="button" variant="outline" className="min-h-10" onClick={() => downloadCandidateCsv(sorted.filter(item => selected.has(candidateKey(item))), visibleColumns, languages)}><Download aria-hidden="true" data-icon="inline-start" />Exportar seleccionados</Button>
-   <Button type="button" variant="ghost" className="min-h-10" onClick={() => selection.toggleAll(false)}>Limpiar selección</Button>
+   <Button type="button" variant="outline" className="min-h-10" disabled={exporting} aria-busy={exporting} onClick={() => void exportSelected(visibleColumns)}>{exporting ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <Download aria-hidden="true" data-icon="inline-start" />}Exportar seleccionados</Button>
+   <Button type="button" variant="ghost" className="min-h-10" disabled={exporting} onClick={() => selection.toggleAll(false)}>Limpiar selección</Button>
+   {exportFailed && <div className="w-full"><ActionStatus id="candidate-export-status" tone="error" text={CONTACTS_EXPORT_FAILURE} /></div>}
   </div> : null} /></CandidateTableContext.Provider>;
 }
 export function CandidateResultsSkeleton({ view }: { view: "table" | "cards" }) {
