@@ -19,12 +19,13 @@ const emptyProfileSQL = candidateview.EmptyProfileSQL
 // source does not determine identity kind, and discarded rows are not removed.
 var poolSQL = `WITH participations AS MATERIALIZED (
  SELECT p.id,p.process_id,p.stage_id,p.created_at,p.discarded_at,p.profile_snapshot,
+ vp.process_status IS DISTINCT FROM 'finished' AS process_open,
  CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END AS kind,
  COALESCE(p.company_candidate_id,p.candidate_id) AS person_id,
  row_number() OVER (PARTITION BY p.company_candidate_id,p.candidate_id ORDER BY p.created_at DESC,p.id DESC) AS ordinal
  FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1
 ), counts AS (
- SELECT kind,person_id,count(*) AS total,count(*) FILTER(WHERE discarded_at IS NULL) AS active,
+ SELECT kind,person_id,count(*) AS total,count(*) FILTER(WHERE discarded_at IS NULL AND process_open) AS active,
  min(created_at) AS first_applied_at
  FROM participations GROUP BY kind,person_id
 ), identities AS (

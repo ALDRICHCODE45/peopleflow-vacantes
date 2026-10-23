@@ -686,8 +686,14 @@ func TestOrgCandidatesFlow(t *testing.T) {
 			}
 			return orgCandidateKeys(t, draftFlowObject(t, r.body), "total", "with_active_process", "added_last_7_days", "by_kind")
 		}
+		// Active = not discarded AND the vacancy's process is not finished
+		// (user decision B), computed independently of the pool SQL.
+		var wantActive int
+		if err := h.pool.QueryRow(ctx, `SELECT count(DISTINCT COALESCE(p.company_candidate_id,p.candidate_id)) FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1 AND p.discarded_at IS NULL AND vp.process_status IS DISTINCT FROM 'finished'`, company.companyID).Scan(&wantActive); err != nil {
+			t.Fatal(err)
+		}
 		got := summary()
-		want := map[string]any{"total": float64(18), "with_active_process": float64(14), "added_last_7_days": float64(2), "by_kind": map[string]any{"manual": float64(7), "organic": float64(11)}}
+		want := map[string]any{"total": float64(18), "with_active_process": float64(wantActive), "added_last_7_days": float64(2), "by_kind": map[string]any{"manual": float64(7), "organic": float64(11)}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("summary=%v want=%v", got, want)
 		}
@@ -695,18 +701,29 @@ func TestOrgCandidatesFlow(t *testing.T) {
 		var active float64
 		for _, raw := range page["items"].([]any) {
 			item := raw.(map[string]any)
-			if item["participations"].(map[string]any)["active"].(float64) >= 1 {
+			counts := item["participations"].(map[string]any)
+			if counts["active"].(float64) >= 1 {
 				active++
+			}
+			switch item["id"] {
+			case finished.String():
+				if counts["active"] != float64(0) || counts["total"] != float64(1) {
+					t.Fatal("finished-process participation still counted as active", counts)
+				}
+			case double.String():
+				if counts["active"] != float64(1) || counts["total"] != float64(2) {
+					t.Fatal("only the participation in the open process is active", counts)
+				}
 			}
 		}
 		kinds := got["by_kind"].(map[string]any)
 		if got["total"] != page["total"] || got["with_active_process"] != active || kinds["manual"].(float64)+kinds["organic"].(float64) != got["total"] {
 			t.Fatal("summary differs from unfiltered list", got, page)
 		}
-		// Match the list: finished processes still count; only discard removes active.
+		// A finished-only candidate is already inactive: discarding it changes nothing.
 		exec(`UPDATE process_participations SET stage_id=$2,previous_stage_id=stage_id,reason_group='candidate',reason_code='unresponsive',discarded_at=now() WHERE company_candidate_id=$1`, finished, pipelineconfig.Defaults(uuid.MustParse(vacancy1)).Exit.ID)
-		if summary()["with_active_process"] != float64(13) {
-			t.Fatal("finished-only candidate was not active before discard")
+		if summary()["with_active_process"] != float64(wantActive) {
+			t.Fatal("finished-only candidate counted as active before discard")
 		}
 		// Lower bound is exclusive and future creation times must not count.
 		for _, offset := range []string{"-7 days", "1 day"} {

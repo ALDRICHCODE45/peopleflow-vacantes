@@ -66,6 +66,10 @@ The six-key `profile` is the board's exact shape
 
 - No contact (email/phone) in list items, as on the board; contact is detail-only.
 - `latest_participation` is null for a manual record with no participation.
+- `participations.total` counts every participation in the company's vacancies;
+  `participations.active` counts those **not discarded and whose vacancy process
+  is not finished** (`process` null or `active`). A participation in a finished
+  process stays in `total` but is never active.
 - `professional_title` / `current_company`: string or null, from the profile source
   below. Manual records read them live; the organic snapshot does not store them,
   so they are **always null for uncorrected organic** candidates. E2 shows the
@@ -119,11 +123,11 @@ filter options come from the existing catalogs (vacancy list, geo, languages).
   company pool. `total` equals the unfiltered list's `total`;
   `by_kind.manual + by_kind.organic = total`.
 - `with_active_process` counts **candidates**, once each, whose list item has
-  `participations.active >= 1`. **The existing list defines active solely as
-  `discarded_at IS NULL`; it includes participations in finished processes.**
-  Despite the metric's name, this endpoint deliberately follows that existing
-  rule, not a new lifecycle filter. Discarded-only candidates remain in `total`
-  but do not count here. Two active participations count as one candidate.
+  `participations.active >= 1`: at least one participation that is not discarded
+  in a vacancy whose process is not finished (user decision: «Excluir procesos
+  terminados en ambos», applied to this metric and to the list counter alike).
+  Discarded-only and finished-only candidates remain in `total` but do not count
+  here. Two active participations count as one candidate.
 - `added_last_7_days` uses the detail's creation-date rule: manual →
   `company_candidates.created_at`; organic → first participation `applied_at`
   in this company (`process_participations.created_at`, regardless of source,
@@ -143,7 +147,7 @@ filter options come from the existing catalogs (vacancy list, geo, languages).
 | Test | Evidence covered |
 | --- | --- |
 | `cmd/api/org_candidates_summary_routes_test.go` — `TestOrgCandidatesSummary*` | Real router/service; exact integer shape; zero-valued empty pool; company scope; 401/403 before reader invocation; no-store on success/errors; sanitized internal error; `/summary` and `/manual/{id}` non-collision. |
-| `TestOrgCandidatesFlow/summary` (integration) | Unfiltered list total and active-count parity; kind sum; company isolation; discarded-only excluded from active; finished-only **included**, matching the list; two active participations count once; manual 6/8-day dates, lower-bound/future exclusion and current server time; organic first participation rather than recent second. Reuses the existing guarded `draft_test` harness and FK-ordered fixture cleanup. Parent DB run: PASS on the isolated `draft_test`. |
+| `TestOrgCandidatesFlow/summary` (integration) | Unfiltered list total and active-count parity; kind sum; company isolation; active = not discarded and process not finished, checked against an independent SQL count and per item (finished-only candidate `active:0`, open + finished participations `active:1`); discarded-only excluded; two active participations count once; manual 6/8-day dates, lower-bound/future exclusion and current server time; organic first participation rather than recent second. Reuses the existing guarded `draft_test` harness and FK-ordered fixture cleanup. Parent DB run: PASS on the isolated `draft_test`. |
 | `cmd/api/main_test.go` — `TestRouteTopology_ExactRegistrations` | Pins the additive literal route. |
 
 HTTP RED: three absent-route failures (401 gate, 403 gate, summary shape), with
