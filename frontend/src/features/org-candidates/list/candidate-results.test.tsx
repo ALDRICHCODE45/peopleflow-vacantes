@@ -145,28 +145,39 @@ it("does not offer a board without a latest participation", async () => {
 it("mutes missing profile facts without inventing values", () => {
   show(empty); for (const missing of screen.getAllByText("Sin dato")) expect(missing).toHaveClass("text-muted-foreground");
 });
-it("keeps cards unchanged: language pills, origin badge, neutral name action and incomplete-profile fallback", () => {
-  const { rerender } = show(candidate, "cards");
-  expect(screen.getByText("Inglés C1").closest('[data-slot=badge]')).toHaveAttribute("data-variant", "outline");
-  expect(screen.getByText("Manual")).toHaveAttribute("data-variant", "outline");
-  expect(screen.getByRole("button", { name: `Abrir ficha de ${candidate.full_name}` })).toHaveClass("text-foreground", "font-medium");
-  rerender(<CandidateResults items={[empty]} view="cards" languages={languages} />);
-  expect(screen.queryAllByText(/Sin dato/u)).toHaveLength(0); expect(screen.getByText("Perfil sin completar")).toBeInTheDocument();
+// v0 talent-card: avatar + selection + ↗, name, title, «location · years», language/origin tags, vacancy footer.
+function card(item: OrgCandidate = candidate) { show(item, "cards"); return screen.getByRole("heading", { level: 3 }).closest('[data-slot="card"]') as HTMLElement; }
+it("renders the v0 card: name action, title, location · years, language and origin tags, vacancy footer", () => {
+  const root = card({ ...candidate, profile: { ...candidate.profile, languages: [{ code: "en", level: "C1" }, { code: "es", level: "native" }] } });
+  expect(within(root).getByRole("button", { name: `Abrir ficha de ${candidate.full_name}` })).toHaveTextContent(candidate.full_name);
+  expect(within(root).getByText("Desarrolladora Frontend")).toBeInTheDocument();
+  expect(within(root).getByText("Guadalajara, Jalisco · 4.5 años")).toBeInTheDocument();
+  const tags = within(root).getByTestId("card-tags");
+  expect(Array.from(tags.children).map(tag => tag.textContent)).toEqual(["Inglés C1", "+1", "Manual"]);
+  const footer = root.querySelector('[data-slot="card-footer"]') as HTMLElement;
+  expect(within(footer).getByText("Backend Go")).toBeInTheDocument();
+  expect(within(footer).getByText("Entrevista").closest('[data-slot=badge]')).toBeInTheDocument();
+  expect(within(root).getByRole("checkbox", { name: `Seleccionar a ${candidate.full_name}` })).toBeInTheDocument();
+  expect(within(root).queryByRole("button", { name: `Acciones de ${candidate.full_name}` })).not.toBeInTheDocument();
+  for (const removed of ["Licenciatura o Ingeniería", "Go", "2 procesos", "Senior"]) expect(within(root).queryByText(removed)).not.toBeInTheDocument();
 });
-it.each([
-  { seniority: "senior" as const, years_of_experience: null, text: "Senior" },
-  { seniority: null, years_of_experience: "0", text: "0 años" },
-  { seniority: null, years_of_experience: "1", text: "1 año" },
-])("cards retain partial experience: $text", ({ text, ...experience }) => {
-  show({ ...empty, profile: { ...empty.profile, ...experience } }, "cards"); expect(screen.getByText(text)).toBeInTheDocument(); expect(screen.queryByText("Perfil sin completar")).not.toBeInTheDocument();
+it("opens the ficha from anywhere on the card except the checkbox", () => {
+  const open = vi.fn(); render(<CandidateResults items={[candidate]} view="cards" languages={languages} onOpen={open} />);
+  fireEvent.click(screen.getByText("Guadalajara, Jalisco · 4.5 años")); expect(open).toHaveBeenCalledWith({ kind: "manual", id: candidate.id });
+  open.mockClear(); fireEvent.click(screen.getByRole("checkbox", { name: `Seleccionar a ${candidate.full_name}` })); expect(open).not.toHaveBeenCalled();
 });
 it.each([
   { profile: { ...empty.profile, location: candidate.profile.location }, text: "Guadalajara, Jalisco" },
-  { profile: { ...empty.profile, education: candidate.profile.education }, text: "Licenciatura o Ingeniería" },
-  { profile: { ...empty.profile, languages: candidate.profile.languages }, text: "Inglés C1" },
-  { profile: { ...empty.profile, skills: ["Go"] }, text: "Go" },
-])("cards retain isolated facts: $text", ({ profile, text }) => {
-  show({ ...empty, profile }, "cards"); expect(screen.getByText(text)).toBeInTheDocument(); expect(screen.queryByText("Perfil sin completar")).not.toBeInTheDocument();
+  { profile: { ...empty.profile, years_of_experience: "1" }, text: "1 año" },
+  { profile: { ...empty.profile, years_of_experience: "0" }, text: "0 años" },
+])("cards show only the facts present: $text", ({ profile, text }) => {
+  const root = card({ ...empty, profile }); expect(within(root).getByText(text)).toBeInTheDocument(); expect(within(root).queryByText("Perfil sin completar")).not.toBeInTheDocument();
+});
+it("cards fall back honestly without location, years, languages or participation", () => {
+  const root = card({ ...empty, latest_participation: null });
+  expect(within(root).getByText("Perfil sin completar")).toBeInTheDocument();
+  expect(Array.from(within(root).getByTestId("card-tags").children).map(tag => tag.textContent)).toEqual(["Manual"]);
+  expect(within(root).getByText("Sin participaciones")).toBeInTheDocument();
 });
 it("keeps loading columns aligned with the rich table", () => {
   const { container } = render(<CandidateResultsSkeleton view="table" />); expect(within(container).queryByText("Seniority")).not.toBeInTheDocument(); expect(container.querySelectorAll("th")).toHaveLength(10);

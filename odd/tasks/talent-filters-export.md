@@ -90,3 +90,14 @@ Branch `feat/talent-filters-export` from `main` @ 81144cc9. Closes the open item
   medium, `reviewDue: false` (under budget) → no native review; the contacts endpoint already had the independent
   verify (L6). Not merged: branch `feat/talent-filters-export` waits for the user. QA API binary
   `/tmp/peopleflow-api-talent-filters` left running on :8080 (replaced the summary build).
+- **L9.** Native review lineage review-58d016885d239061 (lenses risk + reliability, range 81144cc9..cff220d1): the
+  review-reliability reviewer returned no text twice through the Pi host relay (first `stopReason: length` after 32k
+  reasoning tokens, then an empty `stop`); STATUS re-offered the same group once and it failed again → not retried,
+  no verdict; left open for the user.
+- **L10.** User (2026-10-22): «si hermano, pero las cards de la seccion de "Base de Talento" no son las mismas que las
+  cards propuestas de v0 […] revisa el chat de todos modos por favor.» The v0 chat has one exchange; the card is the
+  `talent-card` in `docs/design/v0/base-de-talento/components/peopleflow/workspace.tsx.txt` + `app/globals.css.txt`.
+  Decision (ask_user_question): «v0 + casilla (Recomendado)» → v0 card (avatar + ↗, name, title, «location · years»,
+  language/origin tags, footer vacancy + stage; whole card opens the ficha) keeping a discreet selection checkbox; no
+  «…» menu in cards. Test-first: RED 3 → GREEN; org-candidates 452 tests, tsc and eslint clean. Browser: 1440 light/dark,
+  390 (`.playwright-mcp/qa/tf-cards-*.png`); dark tags get `dark:border-border` because `--muted` equals the card tone.
