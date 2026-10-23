@@ -101,3 +101,7 @@ Branch `feat/talent-filters-export` from `main` @ 81144cc9. Closes the open item
   language/origin tags, footer vacancy + stage; whole card opens the ficha) keeping a discreet selection checkbox; no
   «…» menu in cards. Test-first: RED 3 → GREEN; org-candidates 452 tests, tsc and eslint clean. Browser: 1440 light/dark,
   390 (`.playwright-mcp/qa/tf-cards-*.png`); dark tags get `dark:border-border` because `--muted` equals the card tone.
+- **L11.** Native review lineage review-08a5bac5ae3551b3 on 81144cc9..1bc2d91d (36 paths, 1317 lines, includes the
+  cards), lens risk only (the reliability relay had failed twice on this size): approved with no findings and
+  acknowledged (authority burned). The earlier lineage review-58d016885d239061 stays open without a verdict for the
+  superseded target.
