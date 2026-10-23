@@ -82,6 +82,14 @@ it("disables reset only when the effective layout matches defaults", async () =>
   await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Nombre" }));
   expect(reset).toBeDisabled();
 });
+it("measures the viewport when the table mounts after a loading placeholder, without a resize event", () => {
+  const growing = columns.map(column => ({ ...column, meta: { ...column.meta, grow: column.id === "city" } }));
+  const props = { id: "test", columns: growing, data: [], getRowId: (row: Person) => row.id, defaultPinning: { start: [], end: ["actions"] }, emptyState: "Vacío" };
+  const { rerender } = render(<RichDataTable {...props} content={<p>Cargando</p>} />);
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(800);
+  rerender(<RichDataTable {...props} />);
+  expect(screen.getByRole("table")).toHaveStyle({ width: "800px" });
+});
 it("grows exactly one visible column to fill the viewport and keeps pinned offsets in sync", async () => {
   const growing = columns.map(column => ({ ...column, meta: { ...column.meta, grow: column.id === "city" } }));
   render(<RichDataTable id="test" columns={growing} data={[]} getRowId={(row: Person) => row.id} defaultPinning={{ start: [], end: ["actions"] }} emptyState="Vacío" />);

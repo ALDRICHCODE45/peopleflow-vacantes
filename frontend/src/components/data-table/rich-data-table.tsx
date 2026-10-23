@@ -145,13 +145,16 @@ export function RichDataTable<T extends RowData>({ id, columns, data, getRowId, 
     const next = { start: node.scrollLeft > 1, end: node.scrollLeft + node.clientWidth < node.scrollWidth - 1 };
     setEdges(previous => previous.start === next.start && previous.end === next.end ? previous : next);
   }, []);
+  // The scroll region only exists while no `content` placeholder is shown; re-measure and
+  // observe it when it mounts, or the fill column keeps its base width until a resize.
+  const tableMounted = content === undefined;
   useEffect(() => {
     measure();
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
     if (scrollRef.current) { observer?.observe(scrollRef.current); const element = scrollRef.current.querySelector("table"); if (element) observer?.observe(element); }
     window.addEventListener("resize", measure);
     return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
-  }, [measure, columns, preferences, columnSizing]);
+  }, [measure, columns, preferences, columnSizing, tableMounted]);
   const shadow = (column: Column<Features, T>) => column.getIsPinned() === "start" && column.getIsLastColumn("start") && edges.start ? "start"
     : column.getIsPinned() === "end" && column.getIsFirstColumn("end") && edges.end ? "end" : undefined;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
