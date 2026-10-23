@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { sileo } from "sileo";
 import { saveDraftV2Action, type DraftSaveResult } from "../actions";
@@ -156,14 +156,29 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
 it("requires a saved draft before publication; unsaved edits block the publish dialog", async () => {
   render(<LocalDraftForm />); review();
   fireEvent.click(screen.getByRole("button", { name: "Publicar vacante" }));
-  expect(screen.getByText("Guarda los cambios antes de publicar")).toBeVisible();
-  fireEvent.click(save()); await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
+  const blocked = await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" });
+  fireEvent.click(within(blocked).getByRole("button", { name: "Guardar borrador" }));
+  await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
   expect(screen.getByRole("button", { name: "Publicar vacante" })).toHaveAttribute("aria-haspopup", "dialog");
   fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Cambio" } }); review();
   fireEvent.click(screen.getByRole("button", { name: "Publicar vacante" }));
   expect(await screen.findByRole("heading", { name: "Guarda los cambios antes de publicar" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Confirmar publicación" })).not.toBeInTheDocument();
+});
+it.each(["Revisar y publicar", "Publicar vacante"])("«%s» on a never-saved draft opens a save-first dialog instead of a muted note", async label => {
+  const { container } = render(<LocalDraftForm />); review();
+  fireEvent.click(screen.getAllByRole("button", { name: label })[0]);
+  const dialog = await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" });
+  expect(within(dialog).getByText("Para revisar y publicar la vacante, primero guarda el borrador. Después verás qué falta completar.")).toBeVisible();
+  expect(container.querySelector("[data-pf-draft-save-bar]")).not.toHaveTextContent("Guarda los cambios antes de publicar");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Guarda los cambios antes de publicar" })).not.toBeInTheDocument());
+  expect(saveDraftV2Action).not.toHaveBeenCalled();
+  fireEvent.click(screen.getAllByRole("button", { name: label })[0]);
+  fireEvent.click(within(await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" })).getByRole("button", { name: "Guardar borrador" }));
+  await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Guarda los cambios antes de publicar" })).not.toBeInTheDocument());
 });
 it("offers a real way out of an empty questionnaire simulation without saving", async () => {
   render(<LocalDraftForm />); review();

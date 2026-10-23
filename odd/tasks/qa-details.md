@@ -59,7 +59,7 @@ solamente detalles que encuentro»); each one is recorded here with its investig
 ## Tasks
 
 - T1 S1 dial combobox in the three forms + `phoneToDraft` with the catalog — pending
-- T2 S2 explicit blocked-publish feedback (+ answer on the reload prompt) — pending
+- T2 S2 save-first dialog for a never-saved draft — done (L3)
 - T3 S3 shared table fills the container — pending
 - T4 S4 primary color accents (after agreeing the list with the user) — pending
 - T5 S5 combobox anchors in the three filter bars — pending
@@ -70,3 +70,16 @@ solamente detalles que encuentro»); each one is recorded here with its investig
   detalles que encuentro […] "Lada de pais" es un texto libre […]». Then: «si hermano, estoy de acuerdo, ve anotando si,
   por favor.» plus S2–S5 and «pero bueno, eso es todo por ahora.. pero seguire buscando mas detalles. revisalo por
   favor.»
+- **L2.** User (2026-10-23) on S2: «No hermanooo, pero me deje salir un dialog cuando presiono "revisar y publicar" algo
+  que me diga que tengo que guardar los cambios primero, porque ahora solo aparece un texto mal puesto en la barra
+  flotante que dice que tengo que guardar los cambios, eso no me gusta nada, recuerda como se ponen los dialogs, revisa
+  el primer ejemplo de la documentacion de shadcn y hazlo tal cual.» First example of the Base UI dialog docs
+  (`apps/v4/registry/bases/base/examples/dialog-example.tsx`, «With Form»): `DialogHeader` (title + description), body,
+  `DialogFooter` with `DialogClose` outline «Cancel» + primary action.
+- **L3.** T2 done test-first: `draft-save-flow.test.tsx` (both «Revisar y publicar» and «Publicar vacante» on a
+  never-saved draft open the dialog «Guarda los cambios antes de publicar» with «Cancelar» (no save) and «Guardar
+  borrador» (submits the form, dialog closes); the save bar no longer shows the muted note) + two existing tests
+  updated. RED 4 → GREEN; jobs + publication 119 files / 3273 tests, tsc and eslint clean. Browser 1440:
+  `.playwright-mcp/qa/publish-unsaved-dialog.png`. A saved draft with new edits keeps the existing publication dialog
+  (`publish-dialog.tsx`, same title). Also observed: navigating away from an unsaved draft does raise the browser
+  `beforeunload` prompt.

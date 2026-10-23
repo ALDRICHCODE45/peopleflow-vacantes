@@ -30,8 +30,10 @@ import { Card,
 } from "@/components/ui/card";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -426,6 +428,7 @@ export function LocalDraftForm({
   const status = publicationStatus(publication, "success", initialLifecycle?.process);
   const [serverMissing, setServerMissing] = React.useState<readonly string[] | null>(null);
   const [publishNotice, setPublishNotice] = React.useState(false);
+  const formRef = React.useRef<HTMLFormElement>(null);
   const readiness = editorReadiness(state, serverMissing);
   const publicationRequired = editorPublicationRequirements(state);
   const savedResultId = draftSave.result?.ok ? draftSave.result.draftId : undefined;
@@ -606,7 +609,7 @@ export function LocalDraftForm({
         <p className="max-w-prose">{LOCAL_ONLY_NOTICE}</p>
       </div>}
 
-      <form noValidate aria-describedby="draft-publication-footnote" onSubmit={handleValidate} className="flex flex-col gap-6">
+      <form ref={formRef} noValidate aria-describedby="draft-publication-footnote" onSubmit={handleValidate} className="flex flex-col gap-6">
         <DraftEditorShell state={state} published={published} publication={publication} process={initialLifecycle?.process} step={step} onStep={goToStep} readiness={readiness}>
 
         <TabsContent value={0} keepMounted
@@ -953,7 +956,6 @@ export function LocalDraftForm({
             {isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : null}
             {!draftSave.result && <p className="text-sm text-muted-foreground">{draftSave.dirty ? "Cambios sin guardar" : draftSave.saved ? "Sin cambios pendientes" : "Borrador sin guardar"}</p>}
             <p className="text-xs text-muted-foreground">Sin guardado automático</p>
-            {publishNotice && (!savedDraftId || draftSave.dirty) && <p className="text-sm text-muted-foreground">Guarda los cambios antes de publicar</p>}
           </div>}>
             <FieldError id="draft-model-error">{errors.model}</FieldError>
             {validated !== null && <p role="status" className="flex items-center gap-2 text-sm text-status-success"><CheckCircle2Icon aria-hidden="true" className="size-4" />{VALIDATION_SUCCESS}</p>}
@@ -969,6 +971,19 @@ export function LocalDraftForm({
           </Card>
         </footer>
       </form>
+      {/* A never-saved draft has no id to publish: say so in a dialog (shadcn «With Form» structure) instead of a muted note. */}
+      <Dialog open={publishNotice && !savedDraftId} onOpenChange={setPublishNotice}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Guarda los cambios antes de publicar</DialogTitle>
+            <DialogDescription>Para revisar y publicar la vacante, primero guarda el borrador. Después verás qué falta completar.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cancelar</DialogClose>
+            <Button type="button" className="min-h-10" onClick={() => { setPublishNotice(false); formRef.current?.requestSubmit(); }}>Guardar borrador</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <DraftLeaveGuard ref={leaveGuard} dirty={draftSave.dirty} />
 
       {isV2 && candidateProjection !== null ? (
