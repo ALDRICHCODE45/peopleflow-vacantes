@@ -23,6 +23,7 @@ describe("single application-facing request path", () => {
     const fetchCallers = files.filter((file) => /\bfetch\(/.test(source(file)));
     expect(fetchCallers.map(rel).sort()).toEqual([
       "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
+      "components/auth/CandidateAuthControls.tsx",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
       "features/employer-team/client.ts",
@@ -68,6 +69,12 @@ describe("single application-facing request path", () => {
     ]);
   });
 
+  it("lets «Crear cuenta» POST only to the fixed same-origin NextAuth sign-in route", () => {
+    const controls = source(join(SRC, "components/auth/CandidateAuthControls.tsx"));
+    expect(controls.match(/\bfetch\([^,)]*/g)).toEqual(['fetch("/api/auth/signin/cognito"']);
+    expect(controls).not.toMatch(/https?:\/\/|lib\/api\/|authorization|cookie:/i);
+  });
+
   it("keeps CV browser uploads fixed to one same-origin route and the file adapter server-only", () => {
     const upload = source(join(SRC, "features/candidate-cvs/upload.ts"));
     expect(upload).toContain('fetch("/api/candidate/cvs"');
@@ -103,7 +110,7 @@ describe("single application-facing request path", () => {
     expect(source(join(SRC, "app/api/company/manual-candidates/[vacancyId]/route.ts"))).not.toMatch(/\bfetch\(/);
   });
 
-  it.each(["features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts"])("keeps %s server-only through the shared transport", file => {
+  it.each(["features/employer-dashboard/client.ts", "features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts"])("keeps %s server-only through the shared transport", file => {
     const client = source(join(SRC, file));
     expect(client).toContain('import "server-only"');
     expect(client).toContain('from "@/lib/api/server"');
@@ -132,6 +139,7 @@ describe("single application-facing request path", () => {
       "features/candidate-cvs/client.ts",
       "features/candidate/profile-client.ts",
       "features/employer-company/api/company-client.ts",
+      "features/employer-dashboard/client.ts",
       "features/employer-team/client.ts",
       "features/geo/client.ts",
       "features/identity/candidate-account-client.ts",
@@ -170,6 +178,7 @@ describe("single application-facing request path", () => {
       "features/candidate-cvs/client.ts",
       "features/candidate/profile-client.ts",
       "features/employer-company/api/company-client.ts",
+      "features/employer-dashboard/client.ts",
       "features/employer-team/client.ts",
       "features/geo/client.ts",
       "features/identity/candidate-account-client.ts",
