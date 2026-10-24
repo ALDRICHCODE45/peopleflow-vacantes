@@ -38,6 +38,8 @@ function ManagedCandidateLogin() {
         if (!response.ok) throw new Error("Sign-in failed");
         const data: unknown = await response.json();
         if (!data || typeof data !== "object" || !("url" in data) || typeof data.url !== "string" || !data.url.trim()) throw new Error("Sign-in failed");
+        // Only an absolute http(s) URL navigates; anything else is a failed sign-in.
+        if (!/^https?:$/.test(new URL(data.url).protocol)) throw new Error("Sign-in failed");
         window.location.assign(toCognitoSignupUrl(data.url));
       } else await signIn("cognito", { callbackUrl: "/candidato/ingresar" });
     } catch {

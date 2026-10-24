@@ -47,10 +47,13 @@ it("navigates to a non-authorize response unchanged", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
   await waitFor(() => expect(auth.assign).toHaveBeenCalledWith(url));
 });
-it.each(["missing csrf", "non-ok", "missing url", "network"])("shows existing error and toast on signup failure: %s", async failure => {
+it.each(["missing csrf", "non-ok", "missing url", "malformed url", "script url", "network"])("shows existing error and toast on signup failure: %s", async failure => {
   if (failure === "missing csrf") auth.csrf.mockResolvedValue(null);
   if (failure === "non-ok") auth.fetch.mockResolvedValue({ ok: false });
   if (failure === "missing url") auth.fetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+  // Verify finding: a non-empty value that is not an absolute http(s) URL was assigned as a relative navigation.
+  if (failure === "malformed url") auth.fetch.mockResolvedValue({ ok: true, json: async () => ({ url: "not a URL" }) });
+  if (failure === "script url") auth.fetch.mockResolvedValue({ ok: true, json: async () => ({ url: "javascript:alert(1)" }) });
   if (failure === "network") auth.fetch.mockRejectedValue(new Error("secret"));
   render(<CandidateAuthControls />);
   fireEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
