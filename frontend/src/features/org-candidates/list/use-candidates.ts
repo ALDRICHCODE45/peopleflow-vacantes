@@ -74,6 +74,6 @@ export function useCandidates() {
   const page = loaded?.key === filterKey ? loaded.page : null;
   return { state, update, page, lastLoadedAt: loaded?.key === filterKey ? loaded.loadedAt : null, pending: pending || (!failure && loaded?.key !== filterKey), failure, notice,
     retry: () => setAttempt(value => value + 1), clearNotice, patchCandidate,
-    loadMore: () => { if (!pending && page?.next_cursor) update({ ...stateRef.current, cursor: page.next_cursor }); },
+    loadMore: () => { if (!pending && page?.next_cursor) update({ ...stateRef.current, cursor: page.next_cursor }, true); },
   };
 }
