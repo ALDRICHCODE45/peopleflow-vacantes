@@ -18,9 +18,10 @@ type Day struct {
 	Manual  int64  `json:"manual"`
 }
 type Candidate struct {
-	Kind string    `json:"kind"`
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	Kind              string    `json:"kind"`
+	ID                uuid.UUID `json:"id"`
+	Name              string    `json:"name"`
+	ProfessionalTitle *string   `json:"professional_title"`
 }
 type Vacancy struct {
 	ID    uuid.UUID `json:"id"`
@@ -30,11 +31,16 @@ type Person struct {
 	ID   uuid.UUID `json:"id"`
 	Name string    `json:"name"`
 }
+type Stage struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+	Kind string    `json:"kind"`
+}
 type Recent struct {
 	ParticipationID uuid.UUID `json:"participation_id"`
 	Candidate       Candidate `json:"candidate"`
 	Vacancy         Vacancy   `json:"vacancy"`
-	Stage           Person    `json:"stage"`
+	Stage           Stage     `json:"stage"`
 	Source          string    `json:"source"`
 	AppliedAt       time.Time `json:"applied_at"`
 	AddedBy         *Person   `json:"added_by"`

@@ -79,7 +79,7 @@ func (s *DashboardStore) Dashboard(ctx context.Context, company, actor uuid.UUID
 		return out, err
 	}
 	ids := make([]uuid.UUID, 0, len(visible))
-	stages := map[string]string{}
+	stages := map[string]pipelineconfig.Stage{}
 	publishedIDs := []uuid.UUID{}
 	placements := []string{}
 	for _, v := range visible {
@@ -92,10 +92,10 @@ func (s *DashboardStore) Dashboard(ctx context.Context, company, actor uuid.UUID
 			}
 		}
 		for _, stage := range append(append([]pipelineconfig.Stage{}, config.Stages...), config.Exit) {
-			stages[stage.ID] = stage.Name
+			stages[stage.ID] = stage
 		}
 		for _, stage := range config.Retired {
-			stages[stage.ID] = stage.Name
+			stages[stage.ID] = stage.Stage
 		}
 		if v.status != "published" {
 			continue
@@ -157,9 +157,12 @@ func (s *DashboardStore) Dashboard(ctx context.Context, company, actor uuid.UUID
 	rows, err = tx.Query(ctx, `SELECT p.id,CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END,
  COALESCE(p.company_candidate_id,p.candidate_id),
  CASE WHEN o.corrections ? 'full_name' THEN o.corrections->>'full_name' ELSE COALESCE(cc.full_name,u.full_name) END,
+ CASE WHEN o.corrections ? 'professional_title' THEN o.corrections->>'professional_title'
+ ELSE CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.professional_title ELSE cp.professional_title END END,
  p.process_id,convert_from(d.fields,'UTF8')::jsonb->'fields'->>'title',p.stage_id,p.source,p.created_at,ad.id,ad.full_name
  FROM process_participations p JOIN job_drafts d ON d.id=p.process_id
  LEFT JOIN users u ON u.id=p.candidate_id
+ LEFT JOIN candidate_profiles cp ON cp.user_id=p.candidate_id
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=d.company_id
  LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id=p.candidate_id AND o.company_id=d.company_id
  LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'
@@ -171,16 +174,17 @@ func (s *DashboardStore) Dashboard(ctx context.Context, company, actor uuid.UUID
 		var item app.Recent
 		var addedID *uuid.UUID
 		var addedName *string
-		if err = rows.Scan(&item.ParticipationID, &item.Candidate.Kind, &item.Candidate.ID, &item.Candidate.Name, &item.Vacancy.ID, &item.Vacancy.Title, &item.Stage.ID, &item.Source, &item.AppliedAt, &addedID, &addedName); err != nil {
+		if err = rows.Scan(&item.ParticipationID, &item.Candidate.Kind, &item.Candidate.ID, &item.Candidate.Name, &item.Candidate.ProfessionalTitle, &item.Vacancy.ID, &item.Vacancy.Title, &item.Stage.ID, &item.Source, &item.AppliedAt, &addedID, &addedName); err != nil {
 			rows.Close()
 			return out, err
 		}
-		name, ok := stages[item.Stage.ID.String()]
+		stage, ok := stages[item.Stage.ID.String()]
 		if !ok {
 			rows.Close()
 			return out, fmt.Errorf("dashboard: unknown stage")
 		}
-		item.Stage.Name = name
+		item.Stage.Name = stage.Name
+		item.Stage.Kind = stage.Kind
 		item.AppliedAt = item.AppliedAt.UTC()
 		if item.Source == "manual" {
 			if addedID == nil || addedName == nil {

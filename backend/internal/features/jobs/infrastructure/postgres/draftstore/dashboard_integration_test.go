@@ -4,6 +4,7 @@ package draftstore
 
 import (
 	"context"
+	"encoding/json"
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	dashboardapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dashboard"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -43,7 +44,7 @@ func TestDashboardEntriesCoverageAndBoundary(t *testing.T) {
 	exec(`INSERT INTO company_candidate_cvs(id,company_id,storage_key,size,content_type,file_name) VALUES($1,$2,$3,6,'application/pdf','manual.pdf')`, manualCV, p.companyID, strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", ""))
 	// Cleanup dependencies before the existing company fixture cleanup.
 	t.Cleanup(func() {
-		for _, q := range []string{`DELETE FROM process_participations WHERE process_id IN ($1,$2)`, `DELETE FROM company_candidate_cvs WHERE company_id=$1`, `DELETE FROM candidate_cv_versions WHERE candidate_id=ANY($1::uuid[])`, `DELETE FROM users WHERE id=ANY($1::uuid[])`} {
+		for _, q := range []string{`DELETE FROM process_participations WHERE process_id IN ($1,$2)`, `DELETE FROM company_candidate_corrections WHERE company_id=$1`, `DELETE FROM company_candidate_cvs WHERE company_id=$1`, `DELETE FROM company_candidates WHERE company_id=$1`, `DELETE FROM candidate_cv_versions WHERE candidate_id=ANY($1::uuid[])`, `DELETE FROM candidate_profiles WHERE user_id=ANY($1::uuid[])`, `DELETE FROM users WHERE id=ANY($1::uuid[])`} {
 			var args []any
 			switch {
 			case strings.Contains(q, "process_id"):
@@ -80,6 +81,7 @@ func TestDashboardEntriesCoverageAndBoundary(t *testing.T) {
 	}
 	insert(visible, config.Stages[0].ID, "organic", midnight.Add(-time.Microsecond))
 	newest := insert(visible, config.Stages[4].ID, "manual", midnight)
+	exec(`INSERT INTO candidate_profiles(user_id,professional_title) SELECT candidate_id,'Ingeniera de plataforma' FROM process_participations WHERE id=$1`, newest)
 	for i := 1; i <= 10; i++ {
 		insert(visible, config.Stages[1].ID, "organic", midnight.Add(-time.Duration(i)*time.Minute))
 	}
@@ -94,6 +96,26 @@ func TestDashboardEntriesCoverageAndBoundary(t *testing.T) {
 	}
 	if len(got.Recent) != 10 || got.Recent[0].ParticipationID != newest || got.Recent[0].Source != "manual" || got.Recent[0].AddedBy == nil {
 		t.Fatal(got.Recent)
+	}
+	payload, err := json.Marshal(got.Recent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire []struct {
+		Candidate map[string]any `json:"candidate"`
+		Stage     map[string]any `json:"stage"`
+	}
+	if err = json.Unmarshal(payload, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire[0].Candidate["professional_title"] != "Ingeniera de plataforma" || wire[0].Stage["kind"] != "placement" {
+		t.Fatalf("missing table projection: %s", payload)
+	}
+	if title, exists := wire[1].Candidate["professional_title"]; !exists || title != nil {
+		t.Fatalf("missing null title: %s", payload)
+	}
+	if wire[1].Stage["kind"] != "new" || wire[2].Stage["kind"] != "screening" {
+		t.Fatalf("unexpected semantic stage: %s", payload)
 	}
 	for i, item := range got.Recent {
 		if item.Vacancy.ID != visible || (i > 0 && item.AppliedAt.After(got.Recent[i-1].AppliedAt)) {
@@ -113,7 +135,40 @@ func TestDashboardEntriesCoverageAndBoundary(t *testing.T) {
 	if got.PoolAddedLast7Days != summary.AddedLast7Days {
 		t.Fatal("pool summary differs")
 	}
+	for _, tc := range []struct {
+		name        string
+		corrections string
+		want        *string
+	}{
+		{"company title override", `{"professional_title":"Título corregido"}`, stringPointer("Título corregido")},
+		{"explicit null override", `{"professional_title":null}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			exec(`INSERT INTO company_candidate_corrections(company_id,user_id,corrections) VALUES($1,$2,$3::jsonb) ON CONFLICT(company_id,user_id) DO UPDATE SET corrections=EXCLUDED.corrections`, p.companyID, got.Recent[0].Candidate.ID, tc.corrections)
+			read, err := service.Read(ctx, p.companyID, recruiter)
+			if err != nil {
+				t.Fatal(err)
+			}
+			title := read.Recent[0].Candidate.ProfessionalTitle
+			if (title == nil) != (tc.want == nil) || (title != nil && *title != *tc.want) {
+				t.Fatalf("title=%v, want=%v", title, tc.want)
+			}
+		})
+	}
+	privateID := uuid.New()
+	exec(`INSERT INTO company_candidates(id,company_id,full_name,email,email_normalized,professional_title,country_code,state_code,municipality_code,postal_code,created_by) SELECT $1,$2,'Persona privada','private@example.test','private@example.test','Diseñadora',country_code,left(municipality_code,2),municipality_code,postal_code,$3 FROM geo_postal_codes WHERE country_code='MX' AND postal_code='44100' AND municipality_code='14039'`, privateID, p.companyID, p.ownerID)
+	exec(`UPDATE company_candidate_cvs SET company_candidate_id=$2 WHERE id=$1`, manualCV, privateID)
+	exec(`UPDATE process_participations SET candidate_id=NULL,company_candidate_id=$2 WHERE id=$1`, newest, privateID)
+	read, err := service.Read(ctx, p.companyID, recruiter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Recent[0].Candidate.Kind != "manual" || read.Recent[0].Candidate.ProfessionalTitle == nil || *read.Recent[0].Candidate.ProfessionalTitle != "Diseñadora" {
+		t.Fatal("private title projection differs", read.Recent[0])
+	}
 }
+
+func stringPointer(value string) *string { return &value }
 
 func TestDashboardEmptyVisibilityAndPublication(t *testing.T) {
 	pool := requireDraftPool(t)

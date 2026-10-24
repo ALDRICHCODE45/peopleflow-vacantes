@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
 	"testing"
@@ -16,6 +17,32 @@ type fakeReader struct {
 func (f fakeReader) Dashboard(context.Context, uuid.UUID, uuid.UUID) (Dashboard, error) {
 	return f.value, f.err
 }
+func TestDashboardRecentAdditiveContract(t *testing.T) {
+	payload, err := json.Marshal(Recent{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Decode only the nested projections; other fields have different shapes.
+	var wire map[string]json.RawMessage
+	if err = json.Unmarshal(payload, &wire); err != nil {
+		t.Fatal(err)
+	}
+	row := make(map[string]map[string]any)
+	for _, key := range []string{"candidate", "stage"} {
+		var nested map[string]any
+		if err = json.Unmarshal(wire[key], &nested); err != nil {
+			t.Fatal(err)
+		}
+		row[key] = nested
+	}
+	if title, exists := row["candidate"]["professional_title"]; !exists || title != nil {
+		t.Fatal("candidate must include nullable professional_title", string(payload))
+	}
+	if _, exists := row["stage"]["kind"]; !exists {
+		t.Fatal("stage must include kind", string(payload))
+	}
+}
+
 func TestServiceEmptyAndMexicoCityDays(t *testing.T) {
 	for _, tc := range []struct{ now, last string }{
 		{"2026-10-23T05:59:59Z", "2026-10-22"}, {"2026-10-23T06:00:00Z", "2026-10-23"},

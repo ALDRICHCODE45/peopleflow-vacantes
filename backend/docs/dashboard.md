@@ -43,7 +43,8 @@ The top-level contract has exactly these six fields:
       "candidate": {
         "kind": "organic",
         "id": "0192a000-0000-7000-8000-000000000006",
-        "name": "Ana Pérez"
+        "name": "Ana Pérez",
+        "professional_title": "Ingeniera de plataforma"
       },
       "vacancy": {
         "id": "0192a000-0000-7000-8000-000000000003",
@@ -51,7 +52,8 @@ The top-level contract has exactly these six fields:
       },
       "stage": {
         "id": "0192a000-0000-7000-8000-000000000007",
-        "name": "Screening"
+        "name": "Screening",
+        "kind": "screening"
       },
       "source": "organic",
       "applied_at": "2026-10-23T12:30:45.123456Z",
@@ -77,11 +79,17 @@ Clients can take the last 7, 30 or 90 entries without another request.
 
 A recent row's `candidate.kind` is `organic` (user identity) or `manual`
 (company-private identity); `candidate.id` belongs to that identity namespace.
-The name includes company corrections, like the board. Participation `source`
+The name includes company corrections, like the board. `candidate.professional_title`
+is a string or explicit `null`: company-private identities use their company record;
+organic identities use the current candidate profile with company corrections (including
+explicit null) taking precedence. No contact data is added to this projection. Participation `source`
 is separately `organic` or `manual`: a recruiter can manually add an organic
 identity. `added_by` is `{ "id": "UUID", "name": "Recruiter name" }` for manual
 entries and `null` for organic entries. `applied_at` is RFC3339 UTC. Stage names
-use the current pipeline configuration (including the exit stage). Vacancy IDs
+use the current pipeline configuration (including the exit and retired stages).
+`stage.kind` preserves the configuration's semantic kind independently of its label:
+`new`, `screening`, `screening_ok`, `in_process`, `placement`, `discarded`, or `custom`.
+Clients may use it for badge tones without interpreting renamed Spanish labels. Vacancy IDs
 open the existing vacancy board route.
 
 An empty company returns zero for every card and position field, 90 zero-filled
