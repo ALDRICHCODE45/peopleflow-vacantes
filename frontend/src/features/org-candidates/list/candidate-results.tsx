@@ -7,7 +7,7 @@ import { initials } from "@/features/pipeline-movement/pipeline-presentation";
 import { accentAvatar } from "../accent";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RichDataTable, type RichDataTableProps } from "@/components/data-table/rich-data-table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -100,8 +100,14 @@ export function CandidateResults({ items, view, languages, onOpen, toolbar, sele
   </div> : null} /></CandidateTableContext.Provider>;
 }
 export function CandidateResultsSkeleton({ view }: { view: "table" | "cards" }) {
- if (view === "cards") return <div data-candidates-skeleton="cards" aria-hidden="true" className="grid grid-cols-1 gap-4 px-(--card-spacing) md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Card key={index} size="sm"><CardHeader><CardTitle><Skeleton className="h-10 w-40 max-w-full" /></CardTitle><CardDescription><Skeleton className="h-4 w-32 max-w-full" /></CardDescription><CardAction><Skeleton className="size-10" /></CardAction></CardHeader><CardContent className="flex flex-col gap-3"><Skeleton className="h-5 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-5 w-32 max-w-full" /><Skeleton className="h-5 w-16" /><Skeleton className="h-12 w-full" /></CardContent><CardFooter className="justify-between border-t"><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-24" /></CardFooter></Card>)}</div>;
+ if (view === "cards") return <div data-candidates-skeleton="cards" aria-hidden="true" className="grid grid-cols-1 gap-4 px-(--card-spacing) md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Card key={index} size="sm" className="gap-0">
+  {/* Same blocks as the v0 CandidateCard: avatar row, name, two meta lines, tags, vacancy footer. */}
+  <CardHeader className="gap-1"><Skeleton className="mb-1.5 size-10 rounded-full" /><Skeleton className="h-4 w-40 max-w-full" /><Skeleton className="h-3 w-32 max-w-full" /><Skeleton className="h-3 w-24 max-w-full" /></CardHeader>
+  <CardContent className="mb-3"><div className="mt-2.5 flex gap-1.5"><Skeleton className="h-5 w-16" /><Skeleton className="h-5 w-14" /></div></CardContent>
+  <CardFooter className="mt-auto justify-between border-t pt-3"><Skeleton className="h-3 w-28" /><Skeleton className="h-5 w-16" /></CardFooter>
+ </Card>)}</div>;
  const columns = candidateColumns([], undefined, true);
  const width = columns.reduce((sum, column) => sum + column.size, 0);
- return <div data-candidates-skeleton="table" aria-hidden="true"><Table className="table-fixed" style={{ width, minWidth: width }}><TableHeader><TableRow>{columns.map(column => <TableHead key={column.id} style={{ width: column.size }}>{column.meta.label}</TableHead>)}</TableRow></TableHeader><TableBody>{Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{columns.map(column => <TableCell key={column.id}><div className="flex min-w-0 items-center gap-2">{column.id === "candidate" && <Skeleton className="size-10 shrink-0 rounded-full" />}<Skeleton className="h-10 w-28 max-w-full" /></div></TableCell>)}</TableRow>)}</TableBody></Table></div>;
+ // Like RichDataTable: fill the container, keep the column sum as minimum and let the grow column take the rest.
+ return <div data-candidates-skeleton="table" aria-hidden="true"><Table className="table-fixed" style={{ width: "100%", minWidth: width }}><TableHeader><TableRow>{columns.map(column => <TableHead key={column.id} style={column.meta.grow ? undefined : { width: column.size }}>{column.id === "selection" ? <Skeleton className="size-4" /> : column.id === "actions" ? <span className="sr-only">{column.meta.label}</span> : column.meta.label}</TableHead>)}</TableRow></TableHeader><TableBody>{Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{columns.map(column => <TableCell key={column.id}><div className="flex min-w-0 items-center gap-2">{column.id === "selection" ? <Skeleton className="size-4" /> : column.id === "actions" ? <Skeleton className="size-8" /> : <>{column.id === "candidate" && <Skeleton className="size-10 shrink-0 rounded-full" />}<Skeleton className="h-10 w-28 max-w-full" /></>}</div></TableCell>)}</TableRow>)}</TableBody></Table></div>;
 }

@@ -186,3 +186,25 @@ it.each(["table", "cards"] as const)("tints avatars with the primary color in %s
   const { container } = show(candidate, view);
   expect(container.querySelector('[data-slot="avatar-fallback"]')).toHaveClass("bg-primary/10", "text-primary");
 });
+it("loading table fills the container like the real table: full width, column sum as minimum, grow column unsized", () => {
+  const { container } = render(<CandidateResultsSkeleton view="table" />);
+  const table = container.querySelector("table") as HTMLElement;
+  expect(table.style.width).toBe("100%");
+  expect(table.style.minWidth).toBe("1300px");
+  const headers = Array.from(container.querySelectorAll("th"));
+  const vacancy = headers.find(header => header.textContent === "Última vacante")!;
+  expect(vacancy.style.width).toBe("");
+  expect(headers.filter(header => header !== vacancy).every(header => header.style.width !== "")).toBe(true);
+});
+it("loading cards follow the v0 card: avatar row, name, two meta lines, tags and a vacancy footer", () => {
+  const { container } = render(<CandidateResultsSkeleton view="cards" />);
+  const card = container.querySelector('[data-slot="card"]') as HTMLElement;
+  expect(card.querySelector('[data-slot="card-action"]')).toBeNull();
+  expect(card.querySelector('[data-slot="card-footer"]')).toHaveClass("border-t");
+  expect(card.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(8);
+});
+it("loading table keeps selection and actions compact, without visible header text", () => {
+  const { container } = render(<CandidateResultsSkeleton view="table" />);
+  expect(container.querySelector("thead")).not.toHaveTextContent("Seleccionar todos");
+  expect(container.querySelector("thead th:last-child span")).toHaveClass("sr-only");
+});
