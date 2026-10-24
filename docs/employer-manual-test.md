@@ -767,3 +767,18 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     «Crear cuenta»: aparece el formulario de registro de Cognito, no el login.
     «Ingresar» conserva el acceso habitual. Esta configuración y la verificación
     real las realiza el usuario; no requieren cambios de código ni de callback.
+
+90. **Dashboard de empresa con datos reales.** Con una empresa que tenga vacantes
+    publicadas, pausadas y candidatos orgánicos y manuales, abre `/empresa/dashboard`.
+    **Esperado:** «Vacantes publicadas» cuenta solo las publicadas; «Candidatos en
+    proceso» coincide con sus conteos en «Tus vacantes»; «Nuevos en la base · Últimos
+    7 días» coincide con la base de talento; «Posiciones cubiertas» muestra cubiertas/
+    requeridas (por ejemplo, 3/5), sin tendencias inventadas. «Origen de las postulaciones»
+    muestra Orgánicas y Manuales por día; cambia entre 3 meses, 30 y 7 días. En «Últimas
+    incorporaciones», verifica nombre, vacante, etapa, origen, fecha absoluta en Ciudad de
+    México y quién lo agregó («—» para orgánicas). El nombre o la fila abre el tablero de
+    esa vacante. «Vacantes activas» solo lista las publicadas, con modalidad, jornada,
+    candidatos en proceso y «Ver pipeline». Con una empresa vacía aparecen ceros y los
+    estados vacíos, no personas ficticias. Con la red lenta se ven esqueletos; si falla la
+    consulta, «Reintentar» recupera los datos sin mutaciones. Sin sesión o membresía activa
+    no se muestran datos de empresa. Revisa también celular y ambos temas.

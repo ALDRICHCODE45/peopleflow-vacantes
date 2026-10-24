@@ -6,7 +6,6 @@ import { listDraftsAction, type DraftListActionResult } from "@/features/jobs/dr
 import { VacancyPortfolio } from "./vacancy-portfolio";
 import { usePortfolioDrafts } from "./use-portfolio-drafts";
 import { portfolioRowActions } from "./model";
-import { NEXO_VACANCIES } from "./prototype-vacancies";
 import { notifyActionResult } from "@/components/feedback/notify";
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
@@ -20,10 +19,10 @@ beforeEach(() => {
  vi.resetAllMocks(); vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, unnamed], nextCursor: null }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const renderPortfolio = () => render(<VacancyPortfolio />);
-it("S2 lists only authenticated rows, never prototype titles", async () => {
+it("S2 lists exactly the authenticated draft-list fixtures", async () => {
  const { container } = renderPortfolio(); await screen.findByText(row.title);
  expect(Array.from(container.querySelectorAll("[data-pf-vacancy-row]")).map(node => node.getAttribute("data-pf-vacancy-row"))).toEqual([unnamed.id, id]);
- for (const prototype of NEXO_VACANCIES) expect(screen.queryByText(prototype.title)).not.toBeInTheDocument();
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(2);
 });
 it("S2 derives every filter and summary exclusively from real lifecycle rows", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row,
