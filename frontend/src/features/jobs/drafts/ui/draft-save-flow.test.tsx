@@ -28,6 +28,8 @@ function review() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  // Each editor starts on its own clean entry, without another case's URL or guard state.
+  history.replaceState(null, "", "/empresa/vacantes/borradores/nuevo");
   vi.spyOn(crypto, "randomUUID").mockReturnValue(key);
   vi.mocked(saveDraftV2Action).mockResolvedValue(success);
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
@@ -63,7 +65,8 @@ it("keeps a published remote seed clean after catalog effects settle without inp
   const seed = draftEditSeedFromRead(read);
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-20T12:00:00Z", missing: [] } });
   render(<LocalDraftForm initialModel={seed.model} initialScreeningQuestionsV2={seed.screeningQuestionsV2} initialIdentity={{ draftId: read.id, etag: '"published"' }} initialLifecycle={seed.lifecycle} />);
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 2500)); });
+  // Publication resolves asynchronously; catalog effects flush with the resulting render.
+  await waitFor(() => expect(document.querySelector('header [data-slot="badge"]')).toHaveTextContent("Activa"));
   expect(screen.getByText("Sin cambios pendientes")).toBeVisible();
   expect(screen.queryByText("Cambios sin guardar")).toBeNull();
   expect(screen.getByRole("combobox", { name: "País" })).toHaveValue("");
@@ -158,6 +161,8 @@ it("requires a saved draft before publication; unsaved edits block the publish d
   fireEvent.click(screen.getByRole("button", { name: "Publicar vacante" }));
   const blocked = await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" });
   fireEvent.click(within(blocked).getByRole("button", { name: "Guardar borrador" }));
+  // Wait for the modal's close lifecycle before querying the editor's accessible buttons.
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Guarda los cambios antes de publicar" })).not.toBeInTheDocument());
   await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
   expect(screen.getByRole("button", { name: "Publicar vacante" })).toHaveAttribute("aria-haspopup", "dialog");
   fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
