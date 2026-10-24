@@ -20,7 +20,7 @@ export function ChartAreaInteractive({ data }: { data: Dashboard["origin_by_day"
       <ToggleGroup multiple={false} value={[range]} onValueChange={values => setRange(values[0] ?? "90")} variant="outline" className="hidden @[767px]/card:flex">
         {ranges.map(item => <ToggleGroupItem key={item.value} value={item.value}>{item.label}</ToggleGroupItem>)}
       </ToggleGroup>
-      <Select value={range} onValueChange={value => { if (value) setRange(value); }}><SelectTrigger aria-label="Seleccionar período" className="@[767px]/card:hidden"><SelectValue /></SelectTrigger>
+      <Select items={ranges} value={range} onValueChange={value => { if (value) setRange(value); }}><SelectTrigger aria-label="Seleccionar período" className="@[767px]/card:hidden"><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>{ranges.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     </CardAction>

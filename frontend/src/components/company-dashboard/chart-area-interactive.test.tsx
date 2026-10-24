@@ -24,4 +24,8 @@ it("tells the two series apart: distinct hues and a legend with a swatch per ser
   // Both were violet; manual now uses the info blue. Organic avoids --primary, a dark button fill in dark mode.
   expect(SERIES_COLORS).toEqual({ organic: "var(--brand-decorative-strong)", manual: "var(--status-info)" });
 });
+it("shows the period label, not its raw value, in the compact selector", () => {
+  render(<ChartAreaInteractive data={[{ date: "2026-10-23", organic: 1, manual: 2 }]} />);
+  expect(screen.getByRole("combobox", { name: "Seleccionar período" })).toHaveTextContent("Últimos 3 meses");
+});
 it("formats date-only Mexico days without shifting the date", () => { expect(formatTickLabel("2026-10-23")).toContain("23"); });
