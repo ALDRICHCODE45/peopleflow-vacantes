@@ -89,6 +89,34 @@ it("rejects candidate sessions without requesting the attachment", async () => {
   vi.mocked(loadMe).mockResolvedValue({ ok: true, data: { role: "candidate", user: { id: candidateId, email: "test@example.com", full_name: "Candidate" } } });
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); expect((await call()).status).toBe(403); expect(fetch).not.toHaveBeenCalled();
 });
+it.each(["session", "identity", "transport", "abort", "timeout"] as const)("sanitizes thrown %s failures", async stage => {
+  const privateError = new Error("private-token private-cookie private identity");
+  const fetch = vi.fn().mockRejectedValue(privateError);
+  vi.stubGlobal("fetch", fetch);
+  if (stage === "session") vi.mocked(getActionAccessToken).mockRejectedValue(privateError);
+  if (stage === "identity") vi.mocked(loadMe).mockRejectedValue(privateError);
+  if (stage === "abort") fetch.mockRejectedValue(new DOMException(privateError.message, "AbortError"));
+  if (stage === "timeout") fetch.mockImplementation((_url, init: RequestInit) => new Promise((_resolve, reject) => {
+    init.signal!.addEventListener("abort", () => reject(privateError), { once: true });
+  }));
+  const response = await call();
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({ error: "no_response", code: "no_response" });
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.has("set-cookie")).toBe(false);
+  if (stage === "session" || stage === "identity") expect(fetch).not.toHaveBeenCalled();
+  else expect(fetch).toHaveBeenCalledTimes(1);
+});
+it.each([[401, "unauthenticated"], [403, "forbidden"], [500, "server_error"]] as const)("sanitizes identity failure result %s", async (status, code) => {
+  vi.mocked(loadMe).mockResolvedValue({ ok: false, error: { kind: "status", status }, envelope: { error: "private-token private-cookie", code: "private-identity" } });
+  const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+  const response = await call();
+  expect(response.status).toBe(status);
+  expect(await response.json()).toEqual({ error: code, code });
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.has("set-cookie")).toBe(false);
+  expect(fetch).not.toHaveBeenCalled();
+});
 it("rejects unsafe attachment responses and strips arbitrary errors", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("private-token", { headers: { "content-type": "text/html" } })));
   const response = await call(); expect(response.status).toBe(502); expect(await response.json()).toEqual({ error: "unrecognized_response", code: "unrecognized_response" });
