@@ -14,6 +14,7 @@ import {
   vacancyPipelineHref,
 } from "@/features/employer-vacancies/model";
 import type { EmployerVacancy } from "@/features/employer-vacancies/model";
+import { cn } from "@/lib/utils";
 
 /**
  * Pure server-rendered active-vacancies panel for the employer dashboard.
@@ -61,7 +62,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
         {active.length > 0 && <CardAction><Link
           href="/empresa/vacantes"
           data-pf-active-vacancies-portfolio=""
-          className={buttonVariants({ variant: "outline", className: "min-h-10" })}
+          className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}
         >
           Ver todas
         </Link></CardAction>}
@@ -104,7 +105,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
                     href={vacancyPipelineHref(vacancy.id)}
                     data-pf-active-vacancy-pipeline={vacancy.id}
                     aria-label={`Ver pipeline de ${vacancy.title}`}
-                    className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}
+                    className={cn(buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" }))}
                   >
                     Ver pipeline
                   </Link>

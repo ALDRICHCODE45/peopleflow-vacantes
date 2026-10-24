@@ -12,6 +12,7 @@ import { locationReadToValue, locationValueToWrite } from "@/features/geo/model"
 import type { Company, CompanyEditor } from "./api/company-client";
 import { loadCompanyStateAction, updateCompanyLocationAction, type UpdateCompanyLocationState } from "./actions";
 import { OptionalLocationField } from "@/features/geo/optional-location-field";
+import { cn } from "@/lib/utils";
 
 const conflictMessage = "La ubicación cambió. Mostramos la versión actual; revísala antes de guardar.";
 const uncertain = (kind?: string) => kind === "server_error" || kind === "no_response" || kind === "unrecognized_response";
@@ -81,7 +82,7 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
         <form ref={form} id="company-location-edit" onSubmit={submit} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" noValidate>
           <OptionalLocationField depth="municipality" postalCode label="Ubicación" hideLegend value={value} onChange={changeLocation} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
           {result?.kind === "conflict" && <ActionStatus id="company-location-status" tone="error" text={conflictMessage} />}
-          {result?.kind === "unauthenticated" && <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link>}
+          {result?.kind === "unauthenticated" && <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>Iniciar sesión</Link>}
         </form>
         {/* §20: validation belongs to fields and toast, not a footer status line. */}
         <DialogFooter>

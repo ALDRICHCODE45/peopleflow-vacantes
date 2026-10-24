@@ -249,6 +249,7 @@ describe("candidate dashboard overview", () => {
       "@/features/candidate/application-message",
       "@/features/candidate/model",
       "@/features/candidate/portfolio-model",
+      "@/lib/utils",
       "lucide-react",
       "next/link",
     ]);

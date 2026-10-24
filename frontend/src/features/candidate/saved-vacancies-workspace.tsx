@@ -42,7 +42,7 @@ const IDENTITY = "grid size-11 shrink-0 place-items-center rounded-full bg-prima
  * Link instead of routing it through the Base UI Button, which would relabel
  * the navigation as a non-native button.
  */
-const VACANCY_LINK = buttonVariants({ variant: "outline", size: "sm" });
+const VACANCY_LINK = cn(buttonVariants({ variant: "outline", size: "sm" }));
 
 /**
  * The facts one saved vacancy actually carries, in reading order. The three wire

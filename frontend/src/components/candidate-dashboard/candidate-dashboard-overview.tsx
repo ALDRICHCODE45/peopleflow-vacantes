@@ -15,6 +15,7 @@ import { APPLICATION_STATUSES, APPLICATION_STATUS_LABELS, CV_LANGUAGE_LABELS, ap
 import type { ApplicationStatus, CandidateApplicationView, CandidateCv } from "@/features/candidate/portfolio-model"
 
 import { ApplicationMessage, type CandidateApplicationMessage } from "@/features/candidate/application-message"
+import { cn } from "@/lib/utils";
 
 /** Props-only candidate dashboard overview: every number derives from the passed
     identity/profile/applications/CVs and the optional messages, with no fetch,
@@ -94,7 +95,7 @@ const STATUS_BAR: Readonly<Record<ApplicationStatus, string>> = {
  * routing it through the Base UI Button, which would relabel the navigation.
  */
 const PRIMARY_LINK = buttonVariants({ size: "sm", className: "min-h-10 w-full sm:w-auto" })
-const OUTLINE_LINK = buttonVariants({ variant: "outline", size: "sm", className: "min-h-10 w-full sm:w-auto" })
+const OUTLINE_LINK = cn(buttonVariants({ variant: "outline", size: "sm", className: "min-h-10 w-full sm:w-auto" }))
 const QUIET_LINK = buttonVariants({ variant: "ghost", size: "sm", className: "min-h-10" })
 
 /** Quiet field term: it never competes with the value it labels. */

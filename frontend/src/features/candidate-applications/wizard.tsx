@@ -30,6 +30,7 @@ import { failureCopy, uncertain } from "./feedback";
 import type { ApplicationBody, Failure, Result, Screening } from "./model";
 
 import { useCountryGate, type CountryScope } from "./country-gate";
+import { cn } from "@/lib/utils";
 
 type Job = { id: string; title: string; company: { name: string } } & CountryScope;
 type Step = "Datos" | "CV" | "Preguntas" | "Resumen";
@@ -242,7 +243,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
           <p className="flex items-start gap-2 text-sm text-muted-foreground"><Building2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span className="min-w-0 break-words">{job.company.name}</span></p>
         </div>}
         {step !== "Datos" && !isUncertain && <Button variant="outline" disabled={busy} className="min-h-10 w-full sm:w-auto" onClick={() => go(steps[steps.indexOf(step) - 1])}>Atrás</Button>}
-        {step === "Resumen" || copy ? <ActionBar status={copy ? <ActionStatus id="application-status" tone={failure?.reason === "questionnaire_changed" ? "warning" : "error"} text={copy.title} /> : null}>{forwardAction}{notAccepting && <Link href="/vacantes" className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}>Ver otras vacantes</Link>}</ActionBar> : <div className="flex w-full justify-end sm:ml-auto sm:w-auto">{forwardAction}</div>}
+        {step === "Resumen" || copy ? <ActionBar status={copy ? <ActionStatus id="application-status" tone={failure?.reason === "questionnaire_changed" ? "warning" : "error"} text={copy.title} /> : null}>{forwardAction}{notAccepting && <Link href="/vacantes" className={cn(buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" }))}>Ver otras vacantes</Link>}</ActionBar> : <div className="flex w-full justify-end sm:ml-auto sm:w-auto">{forwardAction}</div>}
       </CardFooter>
     </Card>
   </div>;
