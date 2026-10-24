@@ -168,3 +168,17 @@ member invitations.
   after the fix: desktop sheet left 839 → right 613 px; closed → 0; mobile edit sheet footer top 779 → bottom 77 px.
   W8/W9: not completed in the browser (filter popover unreliable under automation; a new application or closing a
   vacancy would mutate the user's dev data) → left to the user, no recorded defect.
+- **L12.** Full frontend suite: tsc and eslint clean; vitest 408 files, 2 failures in `requestPath.test.ts` (closed
+  allowlists missing the «Crear cuenta» fetch and the dashboard server client) → both declared with their own guards
+  (fixed same-origin `/api/auth/signin/cognito`; server-only shared transport), 19/19, 8868fa41. Independent verify
+  (mvlq44lm-f-nviu, 7 commands all pass): 8560b569 pass (no tenant leak, shared SQL behavior kept); cc282a24 fail — a
+  non-empty malformed `url` was assigned as a relative navigation → fixed test-first (RED 2 incl. `javascript:` →
+  GREEN, only absolute http(s) navigates), bb0b3e39; 73a4883f core pass with two parent decisions: blank/duplicate
+  skill entries are now dropped instead of rejected in intake/edits/corrections (contract change, consistent with the
+  profile and S4d; the frontend never sends blanks), and the JS/Go Unicode normalization differs for rare characters
+  (U+0085, final sigma) — low, the backend is authoritative. Native review in pieces (detached HEAD, parent as base):
+  cc282a24 approved and acknowledged (review-a7f3c6c0ca649205, risk + reliability); bb0b3e39 approved and acknowledged
+  (review-b07ab424438724c9, risk); 8560b569 and 73a4883f no verdict — the reliability reviewer (deepseek-v4-flash via
+  the Pi relay) returned no text (`stopReason: length` after 32k reasoning tokens; the one allowed relaunch on 8560b569
+  returned an empty `stop`), lineages review-f6b4c4284d939d27 and review-12dee1b88cb1d347 stay open. Same failure mode
+  as qa-details L6 and talent-filters-export L9.
