@@ -16,9 +16,7 @@ it.each([
   "components/company-dashboard/active-vacancies.tsx",
   "components/company-dashboard/data-table.tsx",
   "features/employer-team/team-workspace.tsx",
-  "features/employer-talent/talent-table.tsx",
   "features/employer-vacancies/vacancy-portfolio.tsx",
-  "features/employer-vacancies/pipeline-workspace.tsx",
   "features/employer-vacancies/delivery-config/fulfillment-view.tsx",
 ])("%s delegates section feedback to StateCard", (file) => {
   const source = readFileSync(resolve("src", file), "utf8");

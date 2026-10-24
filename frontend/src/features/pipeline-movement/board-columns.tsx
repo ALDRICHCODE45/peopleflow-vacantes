@@ -3,7 +3,7 @@ import { useRef, useState, type RefObject } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from "@dnd-kit/core";
 import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole } from "lucide-react";
 import { cn } from "cn";
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";

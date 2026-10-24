@@ -1,4 +1,4 @@
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 import type { PipelineImpact } from "@/features/jobs/drafts/pipeline/client";
 import type { DraftPipelineActionFailure } from "@/features/jobs/drafts/pipeline/actions";
 

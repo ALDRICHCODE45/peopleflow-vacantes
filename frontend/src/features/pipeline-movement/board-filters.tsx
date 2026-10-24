@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 import { cn } from "@/lib/utils";
 import type { BoardFilterDimension } from "./board-filter-dimensions";
 import { activeFilterCount, clearFilters, filterChips, dimensionOptions, optionCount, toggleFilter, type FilterSelection } from "./filters";

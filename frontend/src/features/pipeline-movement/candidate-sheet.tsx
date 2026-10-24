@@ -25,7 +25,7 @@ import { allowedMoveTargets } from "./helpers";
 import { participationCvHref } from "./cv-href";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import type { Notice } from "./board-feedback";
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 import { educationLabels, normalizedProfileLabel } from "./profile-filter-dimensions";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";

@@ -31,7 +31,7 @@ el backend va en su rama indicada, con `make db-migrate`.
    error tras un ingreso correcto con Cognito.
 
 Pendientes postergados que siguen abiertos: «Crear cuenta» de candidato cae en el login de
-Cognito; faltan las URLs de cierre de sesión en Cognito; invitar miembros por correo (no hay endpoint); el backend permite degradar o quitar al último dueño (la UI lo evita); `features/employer-talent` (prototipo) sigue usado por el respaldo del tablero; al cargar un teléfono con lada distinta de +52/+1 se separa con un prefijo fijo de 3 dígitos (`src/lib/phone.ts:30`); el dashboard de empresa
+Cognito; faltan las URLs de cierre de sesión en Cognito; invitar miembros por correo (no hay endpoint); el backend permite degradar o quitar al último dueño (la UI lo evita); el dashboard de empresa
 («Vacantes activas») y el respaldo del tablero todavía usan vacantes de ejemplo; el teléfono del
 formulario de postulación heredado sigue como texto libre (5–30 caracteres) hasta tener el
 control de lada; filtros Estado/Municipio del tablero con una postulación nueva; ver como

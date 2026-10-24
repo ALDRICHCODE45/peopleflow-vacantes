@@ -9,7 +9,7 @@ import { ImpactDetails } from "@/features/employer-vacancies/stage-config/impact
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 import { ManualIntakeSheet } from "@/features/manual-intake/sheet";
 import { loadParticipationAction } from "./actions";
 import type { Participation } from "./model";

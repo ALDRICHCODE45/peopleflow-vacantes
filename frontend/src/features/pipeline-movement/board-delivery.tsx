@@ -1,4 +1,4 @@
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 import { cn } from "@/lib/utils";
 import { fulfillmentCopy, remainingCopy, type DeliveryStatus, type DeliverySummary } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { Hint } from "./pipeline-presentation";
