@@ -1,6 +1,13 @@
 import { expect, it } from "vitest";
 import { dashboardSchema } from "./model";
 import { dashboard } from "./test-fixtures";
+it("accepts professional titles including null and semantic stage kinds", () => {
+  for (const professional_title of ["Ingeniera", null]) for (const kind of ["new", "screening", "screening_ok", "in_process", "placement", "discarded", "custom"]) {
+    const row = dashboard.recent[0];
+    const result = dashboardSchema.safeParse({ ...dashboard, recent: [{ ...row, candidate: { ...row.candidate, professional_title }, stage: { ...row.stage, kind } }] });
+    expect(result.success).toBe(true);
+  }
+});
 it("accepts the exact backend response, including organic identity added manually", () => { expect(dashboardSchema.parse(dashboard)).toEqual(dashboard); });
 it.each([
   { ...dashboard, published_vacancies: -1 }, { ...dashboard, in_process: 1.5 }, { ...dashboard, pool_added_last_7_days: "7" },

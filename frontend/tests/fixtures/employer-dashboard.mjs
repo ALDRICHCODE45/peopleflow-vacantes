@@ -12,8 +12,8 @@ export function dashboardResponse(empty = false) {
     positions: { covered: empty ? 0 : 3, required: empty ? 0 : 5 },
     origin_by_day: Array.from({ length: 90 }, (_, i) => ({ date: new Date(end + (i - 89) * 86400000).toISOString().slice(0, 10), organic: !empty && i === 89 ? 4 : 0, manual: !empty && i === 89 ? 2 : 0 })),
     recent: empty ? [] : [
-      { participation_id: vacancyId, candidate: { kind: "organic", id: actorId, name: "Ana Dashboard" }, vacancy: { id: vacancyId, title: "Plataforma Dashboard" }, stage: { id: actorId, name: "Entrevista" }, source: "organic", applied_at: "2026-10-24T01:00:00Z", added_by: null },
-      { participation_id: actorId, candidate: { kind: "organic", id: actorId, name: "Luis Dashboard" }, vacancy: { id: vacancyId, title: "Plataforma Dashboard" }, stage: { id: actorId, name: "Screening" }, source: "manual", applied_at: "2026-10-23T12:00:00Z", added_by: { id: actorId, name: "María Equipo" } },
+      { participation_id: vacancyId, candidate: { kind: "organic", id: actorId, name: "Ana Dashboard", professional_title: "Ingeniera de plataforma" }, vacancy: { id: vacancyId, title: "Plataforma Dashboard" }, stage: { id: actorId, name: "Entrevista", kind: "in_process" }, source: "organic", applied_at: "2026-10-24T01:00:00Z", added_by: null },
+      { participation_id: actorId, candidate: { kind: "organic", id: actorId, name: "Luis Dashboard", professional_title: null }, vacancy: { id: vacancyId, title: "Plataforma Dashboard" }, stage: { id: actorId, name: "Screening", kind: "screening" }, source: "manual", applied_at: "2026-10-23T12:00:00Z", added_by: { id: actorId, name: "María Equipo" } },
     ],
   };
 }

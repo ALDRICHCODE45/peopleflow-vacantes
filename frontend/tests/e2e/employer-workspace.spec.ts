@@ -40,9 +40,10 @@ test("dashboard renders endpoint counts, real origins and recent incorporations"
   await expect(cards).toContainText("Vacantes publicadas");
   await expect(cards).toContainText("Candidatos en proceso");
   await expect(cards).toContainText("Nuevos en la base");
-  await expect(cards).toContainText("Últimos 7 días");
+  await expect(cards).toContainText("Agregados en los últimos 7 días");
   await expect(cards).toContainText("3/5");
-  await expect(cards.locator("svg")).toHaveCount(0);
+  await expect(cards.locator("[data-pf-metric-icon] svg")).toHaveCount(4);
+  await expect(cards.getByRole("progressbar", { name: "Posiciones cubiertas" })).toHaveAttribute("aria-valuenow", "60");
   await expect(page.getByRole("heading", { name: "Origen de las postulaciones" })).toBeVisible();
   await page.getByRole("button", { name: "Últimos 7 días", exact: true }).click();
   await expect(page.getByRole("button", { name: "Últimos 7 días", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -76,10 +77,11 @@ test("recent name link and active vacancy link are keyboard-operable canonical b
 test("empty response has truthful zero cards and shared empty states", async ({ page, request }) => {
   await request.get(`${FIXTURE_ORIGIN}/__employer-dashboard?mode=empty`);
   await page.goto(DASHBOARD);
-  await expect(page.getByText("Aún no hay candidatos en tus vacantes", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sin candidatos", { exact: true })).toBeVisible();
   await expect(page.getByText("No hay vacantes activas", { exact: true })).toBeVisible();
   await expect(page.locator("[data-pf-kpi-cards]")).toContainText("0/0");
-  await expect(page.getByRole("table")).toHaveCount(0);
+  await expect(page.getByRole("table")).toHaveCount(1);
+  await expect(page.getByRole("tab", { name: "Todos 0" })).toBeAttached();
 });
 
 test("an explicit retry recovers a server error without showing fallback data", async ({ page, request }) => {
@@ -96,7 +98,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 
   test(`dashboard is accessible without document overflow at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto(DASHBOARD);
-    await expect(page.getByRole("heading", { name: "Últimas incorporaciones" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Candidatos recientes" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     const results = await new AxeBuilder({ page }).include("[data-pf-page-content]").withTags(["wcag2a", "wcag2aa"]).analyze();
     expect(results.violations.filter(item => item.impact === "serious" || item.impact === "critical")).toEqual([]);

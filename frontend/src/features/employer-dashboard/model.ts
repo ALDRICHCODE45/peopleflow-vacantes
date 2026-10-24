@@ -12,9 +12,9 @@ export const dashboardSchema = z.object({
     .refine(days => days.every((day, i) => i === 0 || Date.parse(day.date) - Date.parse(days[i - 1].date) === 86_400_000), "Expected consecutive days, oldest first"),
   recent: z.array(z.object({
     participation_id: uuid,
-    candidate: person.extend({ kind: z.enum(["organic", "manual"]) }).strict(),
+    candidate: person.extend({ kind: z.enum(["organic", "manual"]), professional_title: z.string().nullable() }).strict(),
     vacancy: z.object({ id: uuid, title: z.string() }).strict(),
-    stage: person,
+    stage: person.extend({ kind: z.enum(["new", "screening", "screening_ok", "in_process", "placement", "discarded", "custom"]) }).strict(),
     source: z.enum(["organic", "manual"]),
     applied_at: z.string().datetime({ offset: true }),
     added_by: person.nullable(),

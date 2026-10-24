@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { DashboardWorkspace } from "./workspace";
+import { DashboardSkeleton, DashboardWorkspace } from "./workspace";
 import type { Dashboard } from "./model";
 import { dashboard as data, publishedVacancy, vacancyId } from "./test-fixtures";
 
@@ -15,11 +15,19 @@ vi.mock("@/components/company-dashboard/chart-area-interactive", () => ({
 const drafts = { pending: false, items: [publishedVacancy], failure: null, capped: false, retry: mocks.retry };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  vi.stubGlobal("innerWidth", 1280);
   mocks.load.mockResolvedValue({ ok: true, data });
   mocks.drafts.mockReturnValue(drafts);
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+it("keeps the restored KPI header/action/footer anatomy while loading", () => {
+  render(<DashboardSkeleton />);
+  const cards = [...document.querySelectorAll('[data-pf-kpi-cards] [data-slot="card"]')];
+  expect(cards).toHaveLength(4);
+  for (const card of cards) for (const slot of ["card-description", "card-title", "card-action", "card-footer"]) expect(card.querySelector(`[data-slot='${slot}']`)).not.toBeNull();
+});
 it("shows loading placeholders before the action resolves", () => {
   mocks.load.mockReturnValue(new Promise(() => {}));
   render(<DashboardWorkspace />);
@@ -46,7 +54,7 @@ it("shows honest empty states", async () => {
   mocks.load.mockResolvedValue({ ok: true, data: { ...data, recent: [] } });
   mocks.drafts.mockReturnValue({ ...drafts, items: [] });
   render(<DashboardWorkspace />);
-  expect(await screen.findByText("Aún no hay candidatos en tus vacantes")).toBeInTheDocument();
+  expect(await screen.findByText("Sin candidatos")).toBeInTheDocument();
   expect(screen.getByText("No hay vacantes activas")).toBeInTheDocument();
 });
 it("retries both reads only after an explicit request", async () => {

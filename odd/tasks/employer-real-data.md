@@ -17,6 +17,13 @@ member invitations.
   - S1d table «Últimas incorporaciones reales»: most recent participations in visible vacancies — Candidato, Vacante,
     Etapa, Origen (orgánico/manual), Fecha, quién lo agregó; the click opens the vacancy board.
   - S1e «Vacantes activas» panel lists the real published vacancies (existing job-drafts list).
+  - S1f user (L13): «el diseno de la ui que existe AUNQUE NO FUNCIONE AUN, esta aprovado, no hay que cambiarlo en medida
+    de lo posible, hay que dejarlo como esta y solamente adaptarlo con la funcionalidad existente» and «no es un diseno
+    aceptable, es demasiado gris, es plano, sin chiste, nada de color, revisa tu system design, revisa tus reglas de
+    diseno, shadcn». The approved dashboard is `main` @ 8b66a074 (`components/company-dashboard/{section-cards,
+    chart-area-interactive,active-vacancies,data-table}.tsx`, screenshot `.playwright-mcp/qa/dashboard-approved-main-1440.png`):
+    its markup is restored and only fed real data; color follows docs/frontend-ui-design-rules.md §10 (metric
+    medallions, proportion as a bar, semantic badges, page intro) with the Base de talento accent.
   - Contract (S1a): `{ "published_vacancies": int, "in_process": int, "pool_added_last_7_days": int,
     "positions": {"covered": int, "required": int}, "origin_by_day": [{"date":"YYYY-MM-DD","organic":int,
     "manual":int}] (90 entries, oldest first, ending today), "recent": [{"participation_id", "candidate":{"kind","id",
@@ -64,6 +71,7 @@ member invitations.
 
 - T1a S1a backend `GET /v2/me/company/dashboard` + docs — done (feat(dashboard) commit, L9)
 - T1b S1b–S1e frontend dashboard on the endpoint, E2E `employer-workspace.spec.ts` rewritten — done (L11)
+- T1c S1f restore the approved dashboard components with real data + §10 color — reopened (L13)
 - T2 S2 pipeline prototype removal — done 2269d9ee (L4)
 - T3 S3 Cognito sign-up path + sign-out URL guide — done cc282a24 (L6); AWS sign-out URLs: user action, guide step 89
 - T4 S4a–S4f medium items (L9): S4a aa62982e; S4b cd52bd27 + b063267c; S4c 1beb826e; S4d in progress; S4e W1
@@ -182,3 +190,12 @@ member invitations.
   the Pi relay) returned no text (`stopReason: length` after 32k reasoning tokens; the one allowed relaunch on 8560b569
   returned an empty `stop`), lineages review-f6b4c4284d939d27 and review-12dee1b88cb1d347 stay open. Same failure mode
   as qa-details L6 and talent-filters-export L9.
+- **L13.** User (2026-10-23), screenshot `Screenshot_2026-10-23-20-36-58`: «Pero a nivel de diseno: [...] no es lo mismo
+  hermano, para nada, y me sorprende tener que decirte esto otra vez, recuerda dos cosas 1. el diseno de la ui que
+  existe AUNQUE NO FUNCIONE AUN, esta aprovado, no hay que cambiarlo en medida de lo posible, hay que dejarlo como esta
+  y solamente adaptarlo con la funcionalidad existente, lo que hiciste aqui fue cambiarlo todo, de nuevo, aunque ya te
+  habia dicho que no lo hicieras, y 2. ya tienes ojos, no se por que no revisas el diseno y te das cuenta que no es un
+  diseno aceptable, es demasiado gris, es plano, sin chiste, nada de color, revisa tu system design, revisa tus reglas
+  de diseno, shadcn, etc.. no te lo tendria que estar diciendo otra vez.» Cause: the T1b worker replaced the approved
+  components (data-table 634 → 23 lines, chart 360 → 41, cards 80 → 19) and the parent QA checked data and defects but
+  never compared against the approved design. T1c reopens S1b–S1e under S1f.
