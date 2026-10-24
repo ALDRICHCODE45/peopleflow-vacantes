@@ -26,8 +26,9 @@ it("pins and unpins with real widths, writing storage", async () => {
   await menu(); await userEvent.click(screen.getByRole("menuitem", { name: "Desfijar" }));
   await waitFor(() => expect(saved().pinning.start).toEqual([]));
   await menu(); await userEvent.click(screen.getByRole("menuitem", { name: "Fijar a la derecha" }));
-  await waitFor(() => expect(saved().pinning.end).toEqual(["actions", "name"]));
-  expect(screen.getByRole("columnheader", { name: /Acciones/u })).toHaveStyle({ right: "240px" });
+  await waitFor(() => expect(saved().pinning.end).toEqual(["name", "actions"]));
+  expect(screen.getByRole("columnheader", { name: /Acciones/u })).toHaveStyle({ right: "0px" });
+  expect(screen.getByRole("columnheader", { name: /Nombre/u })).toHaveStyle({ right: "80px" });
 });
 it("moves columns using the keyboard menu alternative and hides/restores them", async () => {
   show(); await menu();
@@ -100,7 +101,8 @@ it("grows exactly one visible column to fill the viewport and keeps pinned offse
   expect(screen.getByRole("columnheader", { name: "Nombre" })).toHaveStyle({ width: "240px" });
   expect(screen.getByRole("columnheader", { name: "Ciudad" })).toHaveStyle({ width: "480px" });
   await menu("Ciudad"); await userEvent.click(screen.getByRole("menuitem", { name: "Fijar a la derecha" }));
-  expect(screen.getByRole("columnheader", { name: "Acciones" })).toHaveStyle({ right: "480px" });
+  expect(screen.getByRole("columnheader", { name: "Acciones" })).toHaveStyle({ right: "0px" });
+  expect(screen.getByRole("columnheader", { name: "Ciudad" })).toHaveStyle({ right: "80px" });
   await menu("Ciudad"); await userEvent.click(screen.getByRole("menuitem", { name: "Ocultar columna" }));
   expect(screen.getByRole("table")).toHaveStyle({ width: "800px" });
   expect(screen.getByRole("columnheader", { name: "Nombre" })).toHaveStyle({ width: "720px" });

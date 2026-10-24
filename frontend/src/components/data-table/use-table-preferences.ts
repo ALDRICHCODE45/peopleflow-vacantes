@@ -60,9 +60,9 @@ export function useTablePreferences(id: string, defaults: TableDefaults) {
     if (!state.ready || state.identity !== identity) return;
     try { localStorage.setItem(key, JSON.stringify(state.preferences)); } catch { /* Quota/privacy errors must not disable the table. */ }
   }, [identity, key, state]);
-  const setOrder = useCallback((value: Updater<string[]>) => setState(previous => ({ ...previous, preferences: { ...previous.preferences, order: apply(value, previous.preferences.order) } })), []);
-  const setPinning = useCallback((value: Updater<ColumnPinningState>) => setState(previous => ({ ...previous, preferences: { ...previous.preferences, pinning: apply(value, previous.preferences.pinning) } })), []);
-  const setVisibility = useCallback((value: Updater<ColumnVisibilityState>) => setState(previous => ({ ...previous, preferences: { ...previous.preferences, visibility: apply(value, previous.preferences.visibility) } })), []);
+  const setOrder = useCallback((value: Updater<string[]>) => setState(previous => ({ ...previous, preferences: reconcile({ ...previous.preferences, order: apply(value, previous.preferences.order) }, stableDefaults) })), [stableDefaults]);
+  const setPinning = useCallback((value: Updater<ColumnPinningState>) => setState(previous => ({ ...previous, preferences: reconcile({ ...previous.preferences, pinning: apply(value, previous.preferences.pinning) }, stableDefaults) })), [stableDefaults]);
+  const setVisibility = useCallback((value: Updater<ColumnVisibilityState>) => setState(previous => ({ ...previous, preferences: reconcile({ ...previous.preferences, visibility: apply(value, previous.preferences.visibility) }, stableDefaults) })), [stableDefaults]);
   const reset = useCallback(() => setState({ identity, ready: true, preferences: reconcile({ v: 1, ...stableDefaults, pinning: { start: stableDefaults.pinning.start ?? [], end: stableDefaults.pinning.end ?? [] } }, stableDefaults) }), [identity, stableDefaults]);
   const isDefault = useMemo(() => {
     const baseline = reconcile({ v: 1, ...stableDefaults }, stableDefaults);
