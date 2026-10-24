@@ -209,3 +209,7 @@ member invitations.
   (`dashboard-restored2-*.png`), no horizontal overflow. Full suite: tsc, eslint clean; 408 files, 1 failure in
   `vacantes/borradores/nuevo/page.test.tsx` under full-suite load, passes alone twice (8/8) — load flake of a heavy
   editor mount, unrelated to the dashboard.
+- **L15.** User (2026-10-24): «Si hermano.» to the parent's proposal: accept the independent verify (mvlq44lm-f-nviu)
+  plus the DB integration runs as the outside view for 8560b569 and 73a4883f (native lineages
+  review-f6b4c4284d939d27 and review-12dee1b88cb1d347 left without a verdict after the relay failures), merge into
+  `main` (the user pushes), then continue with the user's QA details.
