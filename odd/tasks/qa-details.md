@@ -111,3 +111,10 @@ solamente detalles que encuentro»); each one is recorded here with its investig
   pass.
 - **L8.** Native review lineage review-3bc4471cc2b36070 on 7b3372e5..5f210c49 (33 paths, 814 lines), lens risk:
   approved with no findings and acknowledged (authority burned). Not merged: waits for the user.
+- **L9.** User (2026-10-23): «el skeleton de la tabla de base de talento sigue apareciendo "cortado" me explico?? como
+  si fuera am ostrar el diseno anterior antes de ser corregido.» Cause: `CandidateResultsSkeleton` builds its own table
+  with `width = sum of column sizes` (1300 px) and the card skeleton still had the pre-v0 card blocks. Fix: table
+  `width: 100%`, `minWidth` = column sum, grow column unsized, compact selection/actions cells with no visible header
+  text (the label overlapped «Candidato» and the actions block overflowed into a scrollbar); card skeleton follows the
+  v0 card. RED 2 → GREEN (+1 test written after the fix for the compact cells); org-candidates green. Browser 1920 with
+  the list request delayed: skeleton table 1488 = card 1488, no horizontal scroll (`.playwright-mcp/qa/skeleton-*.png`).
