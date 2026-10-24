@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { phoneError, phoneToDraft, phoneValue } from "@/lib/phone";
 import { candidateIdentitySchema, candidateProfileSchema, type CandidateProfile } from "@/features/candidate/model";
 
 /**
@@ -27,6 +27,9 @@ export type ApplicationCandidateField = (typeof APPLICATION_CANDIDATE_FIELDS)[nu
 /** Every editable candidate field as a form-safe string; `""` means "unset". */
 export type ApplicationCandidateDraft = Readonly<Record<ApplicationCandidateField, string>> & { readonly location: CandidateProfile["location"] };
 
+/** Submission-ready contact snapshot; the editable draft alone uses empty strings. */
+export type ApplicationCandidateSnapshot = Omit<ApplicationCandidateDraft, "phone"> & { readonly phone: string | null };
+
 /** Spanish labels the form and the review share. */
 export const APPLICATION_CANDIDATE_FIELD_LABELS: Readonly<Record<ApplicationCandidateField, string>> =
   Object.freeze({
@@ -53,7 +56,7 @@ export interface ApplicationCandidateDraftIssue {
 
 /** Discriminated outcome: the normalized draft, or every field issue found. */
 export type ApplicationCandidateDraftParseResult =
-  | { ok: true; draft: ApplicationCandidateDraft }
+  | { ok: true; draft: ApplicationCandidateSnapshot }
   | { ok: false; issues: readonly ApplicationCandidateDraftIssue[] };
 
 /** The two fields `candidateIdentitySchema` already declares mandatory. */
@@ -76,17 +79,14 @@ const NOUNS: Readonly<Record<ApplicationCandidateField, string>> = {
 /**
  * The exact field schemas of the candidate model. Reusing them (instead of
  * re-declaring lengths) is what keeps this draft's boundary identical to the
- * profile the rest of the prototype validates. The phone is the exception: the
- * profile now requires E.164 through a dial + number control, while this
- * one-line application field keeps its free-text bounds until it gets the same
- * control.
+ * profile the rest of the prototype validates. Phone edits use the shared
+ * dial + national number helpers before the canonical profile schema.
  */
-const APPLICATION_PHONE_SCHEMA = z.string().trim().min(5).max(30).nullable();
 
 const FIELD_SCHEMAS = {
   fullName: candidateIdentitySchema.shape.fullName,
   email: candidateIdentitySchema.shape.email,
-  phone: APPLICATION_PHONE_SCHEMA,
+  phone: candidateProfileSchema.shape.phone,
   professionalTitle: candidateProfileSchema.shape.professionalTitle,
 };
 
@@ -180,7 +180,10 @@ function readFieldValue(
 }
 
 /** Parses an edited candidate draft into a normalized draft; it never throws. */
-export function parseApplicationCandidateDraft(raw: unknown): ApplicationCandidateDraftParseResult {
+export function parseApplicationCandidateDraft(
+  raw: unknown,
+  phoneInput?: { dial: string; phone: string },
+): ApplicationCandidateDraftParseResult {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, issues: [{ path: "draft", message: "Los datos de tu postulación no son válidos." }] };
   }
@@ -214,7 +217,15 @@ export function parseApplicationCandidateDraft(raw: unknown): ApplicationCandida
       issues.push({ path: field, message: `${NOUNS[field]} es obligatorio.` });
       continue;
     }
-    const candidateValue = OPTIONAL_FIELDS.has(field) && value.trim() === "" ? null : value;
+    let candidateValue = OPTIONAL_FIELDS.has(field) && value.trim() === "" ? null : value;
+    if (field === "phone") {
+      const edit = phoneInput ?? phoneToDraft(value);
+      candidateValue = phoneValue(edit.dial, edit.phone);
+      if (edit.phone.trim() && candidateValue === null) {
+        issues.push({ path: field, message: phoneError(edit.dial) });
+        continue;
+      }
+    }
     const parsed = FIELD_SCHEMAS[field].safeParse(candidateValue);
     if (parsed.success) {
       normalized[field] = parsed.data ?? "";
@@ -230,7 +241,7 @@ export function parseApplicationCandidateDraft(raw: unknown): ApplicationCandida
     draft: {
       fullName: normalized.fullName ?? "",
       email: normalized.email ?? "",
-      phone: normalized.phone ?? "",
+      phone: normalized.phone || null,
       professionalTitle: normalized.professionalTitle ?? "",
       location: location.data,
     },

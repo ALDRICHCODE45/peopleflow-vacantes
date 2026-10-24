@@ -13,7 +13,7 @@ import {
   parseApplicationCandidateDraft,
 } from "./application-candidate-draft";
 import type {
-  ApplicationCandidateDraft,
+  ApplicationCandidateSnapshot,
   ApplicationCandidateDraftParseResult,
   ApplicationCandidateField,
 } from "./application-candidate-draft";
@@ -36,7 +36,7 @@ const input = (patch: Partial<Record<(typeof APPLICATION_CANDIDATE_FIELDS)[numbe
 /** Parses a draft that must succeed and returns its normalized draft. */
 function draftOf(
   patch: Partial<Record<(typeof APPLICATION_CANDIDATE_FIELDS)[number], string>> = {},
-): ApplicationCandidateDraft {
+): ApplicationCandidateSnapshot {
   const result = parseApplicationCandidateDraft(input(patch));
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
   return result.draft;
@@ -111,7 +111,7 @@ describe("application candidate draft model", () => {
     });
     expect(draft.fullName).toBe("Ana López");
     expect(draft.email).toBe("ana@correo.mx");
-    expect(draft.phone).toBe("+52 55 1111 2222");
+    expect(draft.phone).toBe("+525511112222");
     expect(draft.professionalTitle).toBe("Engineer");
     expectTypeOf(parseApplicationCandidateDraft(input())).toEqualTypeOf<ApplicationCandidateDraftParseResult>();
   });
@@ -145,13 +145,13 @@ describe("application candidate draft model", () => {
 
   it("keeps phone, title, city and country optional but bounded like the profile schema", () => {
     for (const field of ["phone", "professionalTitle"] as const) {
-      expect(draftOf({ [field]: "" })[field]).toBe("");
-      expect(draftOf({ [field]: "   " })[field]).toBe("");
+      expect(draftOf({ [field]: "" })[field]).toBe(field === "phone" ? null : "");
+      expect(draftOf({ [field]: "   " })[field]).toBe(field === "phone" ? null : "");
     }
-    expect(messageOf({ phone: "1234" })).toBe("El teléfono debe tener al menos 5 caracteres.");
-    expect(draftOf({ phone: "12345" }).phone).toBe("12345");
-    expect(draftOf({ phone: "1".repeat(30) }).phone).toHaveLength(30);
-    expect(messageOf({ phone: "1".repeat(31) })).toBe("El teléfono debe tener como máximo 30 caracteres.");
+    expect(messageOf({ phone: "+521234" })).toBe("Escribe una lada y un número válidos, de 8 a 15 dígitos en total.");
+    expect(draftOf({ phone: "55 1234 5678" }).phone).toBe("+525512345678");
+    expect(draftOf({ phone: "+14155552671" }).phone).toBe("+14155552671");
+    expect(parseApplicationCandidateDraft(input(), { dial: "+52", phone: "12345" })).toEqual({ ok: false, issues: [{ path: "phone", message: "Escribe los 10 dígitos del teléfono en México." }] });
     expect(draftOf({ professionalTitle: "T".repeat(120) }).professionalTitle).toHaveLength(120);
     expect(messageOf({ professionalTitle: "T".repeat(121) })).toBe(
       "El título profesional debe tener como máximo 120 caracteres.",
@@ -180,7 +180,7 @@ describe("application candidate draft model", () => {
   it("keeps an explicit null or a missing optional field as the empty-string unset", () => {
     const result = parseApplicationCandidateDraft({ ...input(), phone: null, professionalTitle: undefined });
     if (!result.ok) throw new Error(JSON.stringify(result.issues));
-    expect(result.draft.phone).toBe("");
+    expect(result.draft.phone).toBeNull();
     expect(result.draft.professionalTitle).toBe("");
     expect(parseApplicationCandidateDraft({ ...input(), fullName: null }).ok).toBe(false);
   });
@@ -191,9 +191,7 @@ describe("application candidate draft model", () => {
         candidateIdentitySchema.safeParse({ ...CANDIDATE_IDENTITY, fullName: value }).success,
       email: (value: string) =>
         candidateIdentitySchema.safeParse({ ...CANDIDATE_IDENTITY, email: value }).success,
-      // The profile phone is E.164 behind a dial + number control; this one-line
-      // application field keeps its previous free-text bounds (5–30 characters).
-      phone: (value: string) => value.trim() === "" || (value.trim().length >= 5 && value.trim().length <= 30),
+      phone: (value: string) => candidateProfileSchema.shape.phone.safeParse(value.trim() === "" ? null : value).success,
       professionalTitle: (value: string) =>
         candidateProfileSchema.safeParse({
           ...CANDIDATE_PROFILE,
@@ -204,7 +202,7 @@ describe("application candidate draft model", () => {
     const samples: Record<(typeof APPLICATION_CANDIDATE_FIELDS)[number], readonly string[]> = {
       fullName: ["", "X", "Xi", "X".repeat(120), "X".repeat(121)],
       email: ["", "X", "ximena.correo.mx", "ximena@correo.mx", `${"a".repeat(150)}@correo.mx`],
-      phone: ["", "1234", "12345", "1".repeat(30), "1".repeat(31)],
+      phone: ["", "1234", "12345", "+525512345678", "+14155552671", "1".repeat(31)],
       professionalTitle: ["", "T".repeat(120), "T".repeat(121)],
 
     };
@@ -238,7 +236,7 @@ describe("application candidate draft model", () => {
   });
 
   it("stays free of React, transport, storage, browser, timer and fixture coupling", () => {
-    expect(specifiers()).toEqual(["zod", "@/features/candidate/model"]);
+    expect(specifiers()).toEqual(["@/lib/phone", "@/features/candidate/model"]);
     expect(SOURCE).not.toMatch(/prototype-candidate|public\/|CANDIDATE_IDENTITY|CANDIDATE_PROFILE/u);
     expect(SOURCE).not.toMatch(/import[^\n]*\breact\b|"use client"|useState|useRef|useEffect/u);
     for (const pattern of [

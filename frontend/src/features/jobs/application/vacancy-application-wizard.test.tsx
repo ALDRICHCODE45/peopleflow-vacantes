@@ -105,6 +105,34 @@ function stubLoadedImage() {
   vi.stubGlobal("Image", LoadedImage);
 }
 
+it("loads a legacy national phone split under +52 and blocks invalid numbers with the shared message", async () => {
+  const Wizard = await loadWizard();
+  render(<Wizard {...wizardProps} profile={{ ...CANDIDATE_PROFILE, phone: "55 1234 5678" }} />);
+  expect(screen.getByRole("combobox", { name: "Lada de país" })).toHaveValue("México +52");
+  expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
+  fireEvent.change(screen.getByLabelText("Teléfono"), { target: { value: "12345" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+  expect(screen.getByText("Escribe los 10 dígitos del teléfono en México.")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Tus datos" })).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Teléfono"), { target: { value: "55 1234 5678" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+  expect(screen.getByRole("heading", { name: "Tu postulación" })).toBeVisible();
+});
+
+it.each([
+  [null, "México +52", "", "Sin especificar"],
+  ["+14155552671", "Estados Unidos +1", "4155552671", "+14155552671"],
+] as const)("keeps optional and international phone values through review (%s)", async (phone, dialLabel, national, reviewed) => {
+  const Wizard = await loadWizard();
+  const { container } = render(<Wizard {...wizardProps} profile={{ ...CANDIDATE_PROFILE, phone }} />);
+  expect(screen.getByRole("combobox", { name: "Lada de país" })).toHaveValue(dialLabel);
+  expect(screen.getByLabelText("Teléfono")).toHaveValue(national);
+  expect(screen.getByLabelText("Teléfono").closest('[data-slot="field-group"]')).toHaveClass("grid-cols-1", "sm:grid-cols-[13rem_minmax(0,1fr)]");
+  for (let step = 0; step < 3; step++) fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+  const review = container.querySelector('[data-pf-application-step="review"]')!;
+  expect(review).toHaveTextContent(reviewed);
+});
+
 beforeEach(stubBrowserApis);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -277,7 +305,7 @@ describe("VAF-03 step rail, editable candidate data and rail composition", () =>
     const { container } = await renderWizard();
     expect(screen.getByLabelText("Nombre completo")).toHaveValue(CANDIDATE_IDENTITY.fullName);
     expect(screen.getByLabelText("Correo electrónico")).toHaveValue(CANDIDATE_IDENTITY.email);
-    expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
     expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
     expect(screen.queryByLabelText("Ciudad")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("País")).not.toBeInTheDocument();
