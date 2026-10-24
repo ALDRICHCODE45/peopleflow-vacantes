@@ -2,167 +2,48 @@ import * as React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { SectionCards } from "./section-cards";
-
-// Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
-const source = readFileSync(
-  join(process.cwd(), "src/components/company-dashboard/section-cards.tsx"),
-  "utf8",
-);
-
-// The approved recruiting KPIs, in the approved order. Primary is the trend
-// line that carries the growth marker on the fourth card; context is the
-// secondary muted line below it.
+const data = { published_vacancies: 17, in_process: 26, pool_added_last_7_days: 9, positions: { covered: 3, required: 5 } };
 const KPI_CARDS = [
-  {
-    label: "Vacantes activas",
-    value: "12",
-    trend: "+2",
-    primary: "En alza este mes",
-    context: "3 publicadas esta semana",
-  },
-  {
-    label: "Candidatos nuevos",
-    value: "42",
-    trend: "+18",
-    primary: "Buen ritmo de entrada",
-    context: "Esperan tu primera revisión",
-  },
-  {
-    label: "En revisión",
-    value: "28",
-    trend: "+5",
-    primary: "Revisión al alza",
-    context: "Avanzando en tu pipeline",
-  },
-  {
-    label: "Contrataciones este mes",
-    value: "3",
-    trend: "+1",
-    primary: "Sumando incorporaciones",
-    context: "Tasa de cierre del 11%",
-  },
-] as const;
-
-/** Returns the four KPI cards inside the marked region, in render order. */
-function kpiCards(): HTMLElement[] {
-  const wrapper = document.querySelector("[data-pf-kpi-cards]");
-  expect(wrapper, "KPI region marker").not.toBeNull();
-  return Array.from(
-    wrapper!.querySelectorAll("[data-slot='card']"),
-  ) as HTMLElement[];
-}
-
+  { label: "Vacantes publicadas", value: "17", primary: "Con publicación activa", context: "Visibles para tu cuenta" },
+  { label: "Candidatos en proceso", value: "26", primary: "En etapas de progreso", context: "En tus vacantes publicadas" },
+  { label: "Nuevos en la base", value: "9", primary: "Últimos 7 días", context: "Base de talento de tu empresa" },
+  { label: "Posiciones cubiertas", value: "3/5", primary: "Cubiertas sobre requeridas", context: "En tus vacantes publicadas" },
+];
+function kpiCards() { return Array.from(document.querySelectorAll<HTMLElement>("[data-pf-kpi-cards] [data-slot='card']")); }
 afterEach(cleanup);
-
-describe("company dashboard KPI cards", () => {
-  it("keeps the preserved KPI region marker on the grid element", () => {
-    render(<SectionCards />);
-
-    const wrapper = document.querySelector("[data-pf-kpi-cards]");
-    expect(wrapper).toHaveAttribute("data-pf-kpi-cards", "");
+describe("company dashboard KPI cards — approved composition, real metrics", () => {
+  it("keeps the preserved grid and four card headers/actions/footers", () => {
+    render(<SectionCards data={data} />);
     expect(kpiCards()).toHaveLength(4);
-  });
-
-  it("replaces the stock metrics with the recruiting KPIs", () => {
-    render(<SectionCards />);
-
-    const cards = kpiCards();
-
-    KPI_CARDS.forEach((expected, index) => {
-      const card = cards[index];
-
-      expect(
-        within(card).getByText(expected.label),
-        `${expected.label} label`,
-      ).toBeInTheDocument();
-      expect(
-        within(card).getByText(expected.value),
-        `${expected.label} value`,
-      ).toBeInTheDocument();
-      expect(
-        within(card).getByText(expected.trend),
-        `${expected.label} trend`,
-      ).toBeInTheDocument();
-      expect(
-        within(card).getByText(expected.primary),
-        `${expected.label} trend line`,
-      ).toBeInTheDocument();
-      expect(
-        within(card).getByText(expected.context),
-        `${expected.label} context line`,
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("keeps every delta upward, matching the positive recruiting trends", () => {
-    render(<SectionCards />);
-
     for (const card of kpiCards()) {
-      const trend = within(card).getByText(KPI_CARDS[kpiCards().indexOf(card)].trend);
-      expect(trend.closest("[data-slot='badge']"), "numeric deltas are information, not categories").toBeNull();
-      expect(
-        trend.querySelector("svg.tabler-icon-trending-up"),
-        "upward trend glyph",
-      ).not.toBeNull();
-      expect(
-        trend.querySelector("svg.tabler-icon-trending-down"),
-        "downward trend glyph",
-      ).toBeNull();
+      for (const slot of ["card-header", "card-title", "card-description", "card-action", "card-footer"]) expect(card.querySelector(`[data-slot='${slot}']`)).not.toBeNull();
     }
   });
-
-  it("keeps the growth marker on the fourth card's primary footer line", () => {
-    render(<SectionCards />);
-
-    const marked = document.querySelectorAll("[data-pf-growth-footer]");
-    expect(marked).toHaveLength(1);
-
-    const cards = kpiCards();
-    expect(cards[3].contains(marked[0])).toBe(true);
-    expect(marked[0]).toHaveTextContent(KPI_CARDS[3].primary);
-    expect(marked[0]).not.toHaveTextContent(KPI_CARDS[3].context);
-
-    // Geometry contract: the marker stays on the footer's primary line, with the
-    // shared line-clamp composition the measured stylesheet targets.
-    expect(
-      marked[0].matches("[data-slot='card-footer'] > div:first-child"),
-    ).toBe(true);
-    expect(marked[0].className).toContain("line-clamp-1 flex gap-2 font-medium");
-    expect(
-      marked[0].querySelector("svg.tabler-icon-trending-up"),
-    ).not.toBeNull();
+  it("renders the four real metrics with factual highlight and context lines", () => {
+    render(<SectionCards data={data} />);
+    KPI_CARDS.forEach((expected, index) => { for (const text of Object.values(expected)) expect(within(kpiCards()[index]).getByText(text)).toBeInTheDocument(); });
   });
-
-  it("leaves no stock shadcn metric on the rendered cards", () => {
-    render(<SectionCards />);
-
-    for (const stock of [
-      "Total Revenue",
-      "$1,250.00",
-      "New Customers",
-      "1,234",
-      "Active Accounts",
-      "45,678",
-      "Growth Rate",
-      "4.5%",
-      "Trending up this month",
-      "Down 20% this period",
-      "Strong user retention",
-      "Steady performance increase",
-      "Visitors for the last 6 months",
-      "Acquisition needs attention",
-      "Engagement exceed targets",
-      "Meets growth projections",
-    ]) {
-      expect(screen.queryByText(stock), `${stock} stock string`).toBeNull();
+  it("replaces fake trend deltas with decorative accent icon medallions", () => {
+    render(<SectionCards data={data} />);
+    for (const card of kpiCards()) {
+      const tile = card.querySelector("[data-slot='card-action'] [data-pf-metric-icon]");
+      expect(tile).toHaveClass("rounded-full", "bg-primary/10");
+      expect(tile?.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     }
+    expect(document.querySelector('[class*="trending"]')).toBeNull();
+    expect(screen.queryByText(/\+\d/)).toBeNull();
   });
-
-  it("introduces no raw color value", () => {
-    expect(source).not.toMatch(/oklch\(|#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\s*\(/);
+  it("keeps the fourth primary footer marker and visualizes actual coverage", () => {
+    render(<SectionCards data={data} />);
+    const marked = document.querySelector("[data-pf-growth-footer]");
+    expect(kpiCards()[3].contains(marked)).toBe(true);
+    expect(marked).toHaveTextContent("Cubiertas sobre requeridas");
+    expect(screen.getByRole("progressbar", { name: "Posiciones cubiertas" })).toHaveAttribute("aria-valuenow", "60");
+  });
+  it("handles zero required positions without inventing a percentage", () => {
+    render(<SectionCards data={{ ...data, positions: { covered: 0, required: 0 } }} />);
+    expect(screen.getByText("0/0")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
   });
 });

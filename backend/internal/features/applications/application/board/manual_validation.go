@@ -239,15 +239,20 @@ func validateManualCandidate(ctx context.Context, lookup geoapp.Lookup, raw map[
 			seen := map[string]bool{}
 			for i, raw := range skills {
 				path := "candidate.skills[" + strconv.Itoa(i) + "]"
-				skill := fields.text(raw, path, true, 60)
+				if manualNull(raw) {
+					fields.add(path, "required")
+					continue
+				}
+				skill := fields.text(raw, path, false, 60)
 				if skill == nil || *skill == "" {
 					continue
 				}
-				normalized := strings.ToLower(strings.TrimSpace(*skill))
-				if seen[normalized] {
-					fields.add(path, "duplicate")
+				normalized := strings.Join(strings.Fields(*skill), " ")
+				key := strings.ToLower(normalized)
+				if seen[key] {
+					continue
 				}
-				seen[normalized] = true
+				seen[key] = true
 				out.Skills = append(out.Skills, normalized)
 			}
 		}

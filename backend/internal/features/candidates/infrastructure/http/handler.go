@@ -81,8 +81,8 @@ func (h *CandidateHandler) Routes() chi.Router {
 // upsertProfileRequest is the body for PUT /me/profile. PUT has
 // full-replacement semantics: every client-owned field is optional on
 // the wire, and an omitted or JSON-null nullable field is persisted as
-// SQL NULL (never "left unchanged"). Skills is normalized (lowercased,
-// trimmed, deduped) inside the use case. The reserved cv_s3_key column
+// SQL NULL (never "left unchanged"). Skills keeps display casing, with
+// whitespace normalized and case-insensitive deduplication inside the use case. The reserved cv_s3_key column
 // has no request field: a client-supplied value is ignored.
 type upsertProfileRequest struct {
 	Phone             *string         `json:"phone"`

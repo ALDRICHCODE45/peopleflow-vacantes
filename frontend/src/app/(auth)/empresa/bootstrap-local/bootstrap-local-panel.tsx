@@ -20,26 +20,26 @@ type Phase = "idle" | "preparing" | "prepared" | "applying";
 
 const MESSAGES: Record<string, string> = {
   invalid_request: "La solicitud no cumple el contrato esperado. No se envió nada a la herramienta.",
-  unauthenticated: "Tu sesión no está disponible. Volvé a ingresar con tu cuenta de empresa.",
+  unauthenticated: "Tu sesión no está disponible. Vuelve a ingresar con tu cuenta de empresa.",
   bootstrap_forbidden:
     "La operación no está permitida desde este origen o sin la protección anti-CSRF.",
   stage_pending:
-    "Ya existe una operación pendiente. Completala o esperá a que expire antes de preparar otra.",
+    "Ya existe una operación pendiente. Complétala o espera a que expire antes de preparar otra.",
   approval_required:
     "Requiere aprobación en la terminal local privada antes de aplicarla.",
   identity_conflict:
-    "Existe un registro local incompatible. Detené la operación y revisalo manualmente.",
-  operation_expired: "El código expiró. Prepará una operación nueva.",
+    "Existe un registro local incompatible. Detén la operación y revísalo manualmente.",
+  operation_expired: "El código expiró. Prepara una operación nueva.",
   identity_provider_unavailable:
-    "No se pudo verificar la identidad con el proveedor. Reintentá más tarde.",
+    "No se pudo verificar la identidad con el proveedor. Reintenta más tarde.",
   bootstrap_failed: "La herramienta de bootstrap no pudo completar la operación.",
   local_bootstrap_unavailable: "El bootstrap local está deshabilitado o mal configurado.",
 };
 
 const AMBIGUOUS_MESSAGE =
-  "No pudimos confirmar el resultado. No reintentes automáticamente: verificá el estado antes de volver a intentar.";
+  "No pudimos confirmar el resultado. No reintentes automáticamente: verifica el estado antes de volver a intentar.";
 const NETWORK_MESSAGE =
-  "No pudimos contactar la herramienta local. Verificá que esté disponible.";
+  "No pudimos contactar la herramienta local. Verifica que esté disponible.";
 
 /**
  * Codes that can mean the apply outcome is unknown (a write may or may not have
@@ -208,7 +208,7 @@ export function BootstrapLocalPanel() {
         <p className="text-sm text-muted-foreground">
           Herramienta temporal, solo local, para crear la fila <code>users</code> de un empleador ya
           autenticado. No crea membresías, empresas ni esquema, y esta página no escribe nada hasta
-          que confirmás una acción explícita.
+          que confirmas una acción explícita.
         </p>
       </header>
 
@@ -236,7 +236,7 @@ export function BootstrapLocalPanel() {
           <div className="flex flex-col gap-3 rounded-xl bg-muted/50 p-4">
             <h2 className="text-base font-semibold">2. Aprobar y aplicar</h2>
             <p className="text-sm text-muted-foreground">
-              Aprobá este código en la terminal local privada y después confirmá la aplicación.
+              Aprueba este código en la terminal local privada y después confirma la aplicación.
             </p>
             <p className="text-sm text-muted-foreground">
               Código de operación (no es una credencial):

@@ -20,6 +20,7 @@ import type { CompanyFieldErrors } from "./validation";
 import { locationReadToValue, locationValueToWrite } from "@/features/geo/model";
 import { OptionalLocationField } from "@/features/geo/optional-location-field";
 import { CompanyLocationDialog } from "./company-location-dialog";
+import { cn } from "@/lib/utils";
 
 const STATUS = {
   active: { label: "Activa", variant: "success" },
@@ -49,7 +50,7 @@ const TITLES = {
 function needsReload(kind: string | undefined) {
   return kind === "server_error" || kind === "no_response" || kind === "unrecognized_response" || kind === "already_exists";
 }
-const login = <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link>;
+const login = <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>Iniciar sesión</Link>;
 
 type CompanyFailure = Extract<CompanyState | CreateCompanyState, { reference: object }>;
 function notifyCompanyFailure(failure: CompanyFailure, loading: boolean, at: string) {

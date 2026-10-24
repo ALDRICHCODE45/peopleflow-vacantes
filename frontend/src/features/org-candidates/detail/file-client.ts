@@ -1,4 +1,5 @@
 import "server-only";
+import { deadlineStream } from "./deadline-stream";
 import { boundedJson } from "@/features/candidate-cvs/bounded-body";
 import { CONTENT_TYPES, errorEnvelopeSchema } from "@/features/candidate-cvs/model";
 import type { Download } from "@/features/candidate-cvs/file-client";
@@ -30,7 +31,10 @@ export async function downloadOrgCandidateCv(token: string, candidate: OrgCandid
       void response.body?.cancel().catch(() => {});
       return { ok: false, error: { kind: "invalid_response" } };
     }
-    return { ok: true, data: { body: response.body, contentType: contentType!, disposition } };
+    const deadline = timer;
+    const body = deadlineStream(response.body, controller.signal, () => clearTimeout(deadline));
+    timer = undefined; // The stream now owns deadline cleanup.
+    return { ok: true, data: { body, contentType: contentType!, disposition } };
   } catch { return { ok: false, error: { kind: timedOut ? "timeout" : "network" } }; }
   finally { if (timer) clearTimeout(timer); }
 }

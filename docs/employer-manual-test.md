@@ -290,7 +290,7 @@ corepack pnpm dev
     pantalla.
 
 37. **Cuenta de candidato (P2b0).** Con otro email (nunca el de tu empresa), entrá a
-    `/candidato/login` y tocá «Crear cuenta»: se abre el login de Cognito; registrate,
+    `/candidato/login` y selecciona «Crear cuenta»: se abre el formulario de registro de Cognito; regístrate,
     verificá el email y entrá. **Esperado:** «Crear mi cuenta de candidato» con el
     aviso «Vas a crear una cuenta de candidato con {tu email}. Esta cuenta no podrá
     usarse para publicar vacantes.». Escribí tu nombre y confirmá con el botón (no se
@@ -749,3 +749,36 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     **Esperado:** al hacer clic en una persona se abre su ficha con contacto, perfil, cada proceso
     (vacante, etapa, «Publicada/Pausada/Cerrada», descarte con motivo) y «Descargar CV». Probalo
     en celular y en oscuro.
+
+89. **Cognito: registro y URLs de cierre de sesión (acción del usuario en AWS).**
+    En la consola de Cognito, abre el app client del user pool y su configuración de
+    managed login/Hosted UI. Agrega en **Allowed sign-out URLs** las dos entradas
+    `<NEXTAUTH_URL>/candidato/login` y `<NEXTAUTH_URL>/empresa/login`, usando el
+    origen configurado sin barra final. En local, son exactamente
+    `http://localhost:3000/candidato/login` y `http://localhost:3000/empresa/login`.
+    El **Allowed callback URL** sigue siendo
+    `<NEXTAUTH_URL>/api/auth/callback/cognito` (en local,
+    `http://localhost:3000/api/auth/callback/cognito`); no se sustituye por `/signup`.
+    Habilita **self sign-up** (autorregistro) en el user pool para que `/signup`
+    muestre el formulario. Guarda los cambios.
+    **Esperado:** al usar «Cerrar sesión» como candidato, vuelve a
+    `/candidato/login`; como empresa, vuelve a `/empresa/login`, ambos sin la
+    página de error de Cognito. Sin sesión, abre `/candidato/login` y selecciona
+    «Crear cuenta»: aparece el formulario de registro de Cognito, no el login.
+    «Ingresar» conserva el acceso habitual. Esta configuración y la verificación
+    real las realiza el usuario; no requieren cambios de código ni de callback.
+
+90. **Dashboard de empresa con datos reales.** Con una empresa que tenga vacantes
+    publicadas, pausadas y candidatos orgánicos y manuales, abre `/empresa/dashboard`.
+    **Esperado:** «Vacantes publicadas» cuenta solo las publicadas; «Candidatos en
+    proceso» coincide con sus conteos en «Tus vacantes»; «Nuevos en la base · Últimos
+    7 días» coincide con la base de talento; «Posiciones cubiertas» muestra cubiertas/
+    requeridas (por ejemplo, 3/5), sin tendencias inventadas. «Origen de las postulaciones»
+    muestra Orgánicas y Manuales por día; cambia entre 3 meses, 30 y 7 días. En «Últimas
+    incorporaciones», verifica nombre, vacante, etapa, origen, fecha absoluta en Ciudad de
+    México y quién lo agregó («—» para orgánicas). El nombre o la fila abre el tablero de
+    esa vacante. «Vacantes activas» solo lista las publicadas, con modalidad, jornada,
+    candidatos en proceso y «Ver pipeline». Con una empresa vacía aparecen ceros y los
+    estados vacíos, no personas ficticias. Con la red lenta se ven esqueletos; si falla la
+    consulta, «Reintentar» recupera los datos sin mutaciones. Sin sesión o membresía activa
+    no se muestran datos de empresa. Revisa también celular y ambos temas.

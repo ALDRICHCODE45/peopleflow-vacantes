@@ -4,6 +4,7 @@ import { notifyActionResult } from "@/components/feedback/notify";
 import { buttonVariants } from "@/components/ui/button";
 import type { DraftSaveReason, DraftSaveResult } from "../actions";
 import { formatPublishedSaveMissing } from "../pipeline/publication-model";
+import { cn } from "@/lib/utils";
 
 const messages: Record<Exclude<DraftSaveReason, "publication_incomplete">, { title: string; description: string }> = {
   unauthenticated: { title: "Tu sesión expiró", description: "Inicia sesión en otra pestaña para guardar. Tus cambios siguen en este formulario." },
@@ -58,7 +59,7 @@ export function DraftSaveFeedback({ result, dirty }: {
   if (result.reason === "publication_incomplete") return <ActionStatus id="draft-save-status" tone="error" text="No se guardó · faltan datos para una vacante publicada" />;
   const company = ["not_found", "company_inactive", "company_not_active"].includes(result.reason);
   const action = result.reason === "unauthenticated"
-    ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/login" target="_blank" rel="noopener noreferrer">Iniciar sesión</Link>
-    : company ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/configuracion" target="_blank" rel="noopener noreferrer">Crear empresa</Link> : undefined;
+    ? <Link className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))} href="/empresa/login" target="_blank" rel="noopener noreferrer">Iniciar sesión</Link>
+    : company ? <Link className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))} href="/empresa/configuracion" target="_blank" rel="noopener noreferrer">Crear empresa</Link> : undefined;
   return <ActionStatus id="draft-save-status" tone="error" text={isUncertain(result.reason) ? "Resultado sin confirmar · ver aviso" : "No se guardó · ver aviso"} action={action} />;
 }

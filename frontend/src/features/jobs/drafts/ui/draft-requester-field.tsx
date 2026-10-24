@@ -3,6 +3,7 @@
 import { PublicationRequired } from "./publication-required";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { cn } from "cn";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldTitle } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxContent } from "@/components/ui/combobox";
@@ -156,9 +157,9 @@ export function DraftRequesterField({ requester, error, publicationRequired = fa
   const nameError = fieldError ?? error;
   const companyIssue = status?.reason === "company_inactive" || status?.reason === "company_not_active";
   const action = status?.reason === "unauthenticated"
-    ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/login" target="_blank" rel="noopener noreferrer">Iniciar sesión</Link>
+    ? <Link className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href="/empresa/login" target="_blank" rel="noopener noreferrer">Iniciar sesión</Link>
     : companyIssue
-      ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/configuracion" target="_blank" rel="noopener noreferrer">Revisar empresa</Link>
+      ? <Link className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href="/empresa/configuracion" target="_blank" rel="noopener noreferrer">Revisar empresa</Link>
       : undefined;
 
   return (

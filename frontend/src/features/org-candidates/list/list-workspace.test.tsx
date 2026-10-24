@@ -61,6 +61,24 @@ it("shows safe error and retries", async () => {
  vi.mocked(listCandidatesAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: {} });
  render(<OrgCandidatesWorkspace />); fireEvent.click(await screen.findByRole("button", { name: "Reintentar" })); expect(await screen.findByText(candidate.full_name)).toBeTruthy();
 });
+it("appends two pages without history entries, while filters still push", async () => {
+ const baseline = window.history.length;
+ vi.mocked(listCandidatesAction)
+   .mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "two" } })
+   .mockResolvedValueOnce({ ok: true, data: { ...page, items: [{ ...candidate, id: "two", full_name: "Página dos" }], next_cursor: "three" } })
+   .mockResolvedValueOnce({ ok: true, data: { ...page, items: [{ ...candidate, id: "three", full_name: "Página tres" }], next_cursor: null } });
+ render(<OrgCandidatesWorkspace />);
+ fireEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
+ await screen.findByText("Página dos");
+ fireEvent.click(screen.getByRole("button", { name: "Cargar más" }));
+ await screen.findByText("Página tres");
+ expect(screen.getByText(candidate.full_name)).toBeVisible();
+ expect(screen.getByText("Página dos")).toBeVisible();
+ expect(window.history.length).toBe(baseline);
+ fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Ana" } });
+ await waitFor(() => expect(window.location.search).toContain("q=Ana"));
+ expect(window.history.length).toBe(baseline + 1);
+});
 it("appends load-more results without replacing the first page", async () => {
  vi.mocked(listCandidatesAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: true, data: { ...page, items: [{ ...candidate, kind: "organic", full_name: "Ana Ríos" }] } });
  render(<OrgCandidatesWorkspace />); fireEvent.click(await screen.findByRole("button", { name: "Cargar más" })); await screen.findByText("Ana Ríos"); expect(screen.getByText(candidate.full_name)).toBeTruthy();

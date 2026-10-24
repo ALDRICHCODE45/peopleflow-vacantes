@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { cn } from "cn";
 import { ArrowUpRight, Briefcase, Building2, CalendarDays, CircleAlert, CircleDot, MessageSquare, Search } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -51,7 +52,7 @@ function ApplicationCard({ item }: { item: ApplicationsPage["items"][number] }) 
       </div>}
     </CardContent>
     <CardFooter className={APPLICATION_FOOTER}>
-      <Link href={`/vacantes/${item.vacancy.id}`} className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}>Ver vacante<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Link>
+      <Link href={`/vacantes/${item.vacancy.id}`} className={cn(buttonVariants({ variant: "outline" }), "min-h-10 w-full sm:w-auto")}>Ver vacante<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Link>
     </CardFooter>
   </Card>;
 }

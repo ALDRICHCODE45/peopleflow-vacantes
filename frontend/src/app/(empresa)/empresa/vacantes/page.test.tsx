@@ -6,9 +6,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
-import { NEXO_VACANCIES } from "@/features/employer-vacancies/prototype-vacancies";
 
 import PageContent, { metadata } from "./page";
+
+// The removed local prototype rows; none may ever render again.
+const FORMER_PROTOTYPE_VACANCIES = [
+  { id: "backend-developer-senior", title: "Backend Developer (Senior)" },
+  { id: "frontend-engineer-react", title: "Frontend Engineer (React)" },
+  { id: "fullstack-developer", title: "Fullstack Developer" },
+  { id: "devops-engineer", title: "DevOps Engineer" },
+  { id: "qa-automation-engineer", title: "QA Automation Engineer" },
+  { id: "data-analyst", title: "Data Analyst" },
+] as const;
 
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn(() => new Promise(() => {})) }));
 
@@ -141,7 +150,7 @@ describe("/empresa/vacantes employer route", () => {
     const { container } = render(<Page />);
 
     expect(document.querySelector("[data-pf-vacancy-portfolio]")).not.toBeNull();
-    for (const vacancy of NEXO_VACANCIES) {
+    for (const vacancy of FORMER_PROTOTYPE_VACANCIES) {
       expect(container.querySelector(`[data-pf-vacancy-row="${vacancy.id}"]`)).toBeNull();
       expect(screen.queryByText(vacancy.title)).toBeNull();
     }

@@ -13,6 +13,11 @@ import (
 
 var _ draftlist.Lister = (*Store)(nil)
 
+// visibleV2Drafts is the shared list/dashboard owner-or-principal scope.
+// The draft alias and the first three parameters are deliberately identical.
+const visibleV2Drafts = `d.company_id = $1 AND ($2::boolean OR d.principal_recruiter_id = $3)
+ AND convert_from(d.fields,'UTF8')::jsonb->>'schema_version' = '2'`
+
 // ListV2 lists only visible schema-2 drafts, using the session scope even when
 // a cursor is supplied. A save can move a draft before the current cursor;
 // restarting pagination reveals it at its new position.
@@ -42,8 +47,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
   WHERE process_id = p.id AND action = 'close' AND p.status = 'closed'
   ORDER BY lifecycle_version DESC LIMIT 1
  ) last_close ON true
- WHERE d.company_id = $1 AND ($2::boolean OR d.principal_recruiter_id = $3)
- AND convert_from(d.fields,'UTF8')::jsonb->>'schema_version' = '2'`
+ WHERE ` + visibleV2Drafts
 	// Same rule as authorized(): the owner sees every draft, others only
 	// their principal drafts.
 	args := []any{companyID, auth.role == roleOwner, actorID}

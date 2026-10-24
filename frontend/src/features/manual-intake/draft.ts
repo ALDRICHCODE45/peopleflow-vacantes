@@ -5,6 +5,7 @@ import { phoneValue, phoneError } from "@/lib/phone";
 export { phoneValue } from "@/lib/phone";
 import type { EducationDraft } from "@/features/candidate/profile-draft";
 import type { LanguageValue } from "@/features/languages/language-field";
+import { parseSkills } from "@/lib/skills";
 export type Draft = {
   full_name: string; email: string; phone: string; dial: string; education: EducationDraft[]; residence: LocationValue;
   professional_title: string; current_company: string; years_of_experience: string; seniority: string; summary: string; skills: string;
@@ -37,7 +38,7 @@ export function prepare(draft: Draft, stage: string, existing: IntakeBody["exist
  const year = (value: string) => value === "" ? null : /^\d+$/.test(value) ? Number(value) : NaN;
  const raw: Record<string, unknown> = { full_name: draft.full_name.trim(), education: draft.education.map(study => ({ ...study, institution: study.institution.trim() || null, field: study.field.trim() || null, start_year: year(study.start_year), end_year: year(study.end_year) })), years_of_experience: draft.years_of_experience || null, seniority: draft.seniority || null, languages: draft.languages, email: draft.email.trim() || null, phone: phoneValue(draft.dial, draft.phone), residence: draft.residence };
  for (const key of ["professional_title", "current_company", "summary", "linkedin_url", "portfolio_url"] as const) if (draft[key].trim()) raw[key] = draft[key].trim();
- if (draft.skills.trim()) raw.skills = [...new Set(draft.skills.split(/[,\n]/).map(value => value.trim().toLowerCase()).filter(Boolean))];
+ if (draft.skills.trim()) raw.skills = parseSkills(draft.skills);
  if (!existing) {
   if (!raw.full_name) errors.full_name = "Escribe el nombre completo.";
   if (!draft.email.trim() && !draft.phone.trim()) errors.contact = "Agrega un correo o un teléfono.";

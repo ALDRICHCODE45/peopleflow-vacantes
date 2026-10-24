@@ -57,7 +57,7 @@ func editInvalidCases() []editCase {
 		{"study status", `{"set":{"education":[{"level":"bachelor","institution":null,"field":null,"status":"done","start_year":null,"end_year":null}]}}`, "education[0].status", "invalid"},
 		{"study year", `{"set":{"education":[{"level":"bachelor","institution":null,"field":null,"status":"in_progress","start_year":2020,"end_year":2024}]}}`, "education[0].end_year", "not_allowed"},
 		{"skills type", `{"set":{"skills":"go"}}`, "skills", "invalid"},
-		{"skills duplicate", `{"set":{"skills":["GO","go"]}}`, "skills[1]", "duplicate"},
+		{"skill too long", `{"set":{"skills":["` + strings.Repeat("X", 61) + `"]}}`, "skills[0]", "too_long"},
 		{"language catalog", `{"set":{"languages":[{"code":"xx","level":"B1"}]}}`, "languages[0].code", "invalid"},
 		{"language level", `{"set":{"languages":[{"code":"en","level":"b1"}]}}`, "languages[0].level", "invalid"},
 		{"language duplicate", `{"set":{"languages":[{"code":"en","level":"B1"},{"code":"en","level":"C1"}]}}`, "languages[1].code", "duplicate"},
@@ -233,7 +233,7 @@ func TestOrgCandidateEditsNoopAndHistoryHTTP(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
-	expected := `[{"field":"phone","contact":true},{"field":"skills","from":["go","sql"],"to":["rust"]},{"field":"years_of_experience","from":"2","to":"4.5"}]`
+	expected := `[{"field":"phone","contact":true},{"field":"skills","from":["go","sql"],"to":["Rust"]},{"field":"years_of_experience","from":"2","to":"4.5"}]`
 	var want []pool.Change
 	_ = json.Unmarshal([]byte(expected), &want)
 	if w.Code != 200 || len(page.Items) != 1 || page.NextCursor != nil || !reflect.DeepEqual(page.Items[0].Changes, want) {

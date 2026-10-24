@@ -60,6 +60,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("merges outline borders without changing vacancy destinations", () => {
+  renderWorkspace();
+  for (const job of ACME_PROTOTYPE_JOBS) {
+    const link = screen.getByRole("link", { name: `Ver vacante de ${job.title} en ${job.company.name}` });
+    expect(link).toHaveAttribute("href", `/vacantes/${job.id}`);
+    expect(link).toHaveClass("border-border");
+    expect(link).not.toHaveClass("border-transparent");
+  }
+});
+
 describe("saved vacancies fixtures", () => {
   it("uses the two canonical Acme prototype vacancies as the committed input", () => {
     expect(ACME_PROTOTYPE_JOBS.map((job) => job.title)).toEqual(["Ingeniera Frontend", "Desarrolladora Go"]);
@@ -277,6 +287,7 @@ describe("saved vacancies read-only contract", () => {
       "@/components/ui/card",
       "@/features/jobs/enrich",
       "@/features/jobs/formatters",
+      "cn",
       "lucide-react",
       "next/link",
     ]);

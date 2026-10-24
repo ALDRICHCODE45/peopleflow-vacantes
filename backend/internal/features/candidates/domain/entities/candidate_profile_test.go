@@ -48,15 +48,14 @@ func TestNewCandidateProfile_RequiredFieldsOnly(t *testing.T) {
 }
 
 // TestNewCandidateProfile_SkillsNormalizedOnBuild covers the spec scenario
-// "skills are lowercased on write": callers pass raw user input, the entity
-// returns the canonical lowercase form.
+// skills retain display casing on write while normalizing whitespace.
 func TestNewCandidateProfile_SkillsNormalizedOnBuild(t *testing.T) {
 	skills, _ := NormalizeAndAssignSkills([]string{"Go", "AWS", "React"})
 	profile, err := NewCandidateProfile("user-123", CandidateProfileInput{Skills: skills})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	want := []string{"go", "aws", "react"}
+	want := []string{"Go", "AWS", "React"}
 	if !reflect.DeepEqual(profile.Skills, want) {
 		t.Errorf("Skills: want %v, got %v", want, profile.Skills)
 	}
@@ -71,7 +70,7 @@ func TestNewCandidateProfile_DropsEmptyAndDuplicateSkills(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	want := []string{"go", "aws"}
+	want := []string{"Go", "AWS"}
 	if !reflect.DeepEqual(profile.Skills, want) {
 		t.Errorf("Skills: want %v, got %v", want, profile.Skills)
 	}
@@ -156,7 +155,7 @@ func TestNormalizeAndAssignSkills_TrimAndDedup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !reflect.DeepEqual(got, []string{"go"}) {
-		t.Errorf("want [go], got %v", got)
+	if !reflect.DeepEqual(got, []string{"GO"}) {
+		t.Errorf("want [GO], got %v", got)
 	}
 }

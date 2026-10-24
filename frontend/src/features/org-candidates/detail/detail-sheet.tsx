@@ -16,7 +16,7 @@ import { MovementDate } from "@/features/pipeline-movement/board-states";
 import { discardReasonLabel } from "@/features/pipeline-movement/discard-text";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
 import { educationLabels, normalizedProfileLabel } from "@/features/pipeline-movement/profile-filter-dimensions";
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { CandidateEditForm, type CandidateEditFormHandle } from "@/features/org-candidates/edit/candidate-edit-form";

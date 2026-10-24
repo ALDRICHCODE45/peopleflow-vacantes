@@ -2,7 +2,7 @@ import type { PipelineImpactPreview } from "@/features/jobs/drafts/pipeline/clie
 import type { EditorPipeline } from "@/features/jobs/drafts/pipeline/editor-model";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item";
-import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { plural } from "@/features/employer-vacancies/plural";
 
 /** The shared confirmation owns the sole scrolling details slot (§13.8/§18). */
 export function ImpactDetails({ preview, baseline }: { preview: PipelineImpactPreview; baseline: EditorPipeline }) {

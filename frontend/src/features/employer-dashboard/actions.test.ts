@@ -1,0 +1,13 @@
+import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
+vi.mock("./client", () => ({ getDashboard: vi.fn() }));
+import { getActionAccessToken } from "@/lib/auth/action-session";
+import { getDashboard } from "./client";
+import { getDashboardAction } from "./actions";
+import { dashboard } from "./test-fixtures";
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(getActionAccessToken).mockResolvedValue("token"); });
+it("rejects missing sessions without transport", async () => { vi.mocked(getActionAccessToken).mockResolvedValue(null); expect(await getDashboardAction()).toEqual({ ok: false, reason: "unauthenticated", reference: {} }); expect(getDashboard).not.toHaveBeenCalled(); });
+it("returns only the decoded response", async () => { vi.mocked(getDashboard).mockResolvedValue({ ok: true, data: dashboard }); expect(await getDashboardAction()).toEqual({ ok: true, data: dashboard }); expect(getDashboard).toHaveBeenCalledWith({ token: "token" }); });
+it.each([[401, "unauthenticated", "unauthenticated"], [403, "not_a_member", "forbidden"], [403, "company_inactive", "forbidden"], [409, "company_not_active", "forbidden"], [404, "not_found", "not_found"], [500, "internal_error", "server_error"], [502, "private_code", "server_error"]] as const)("maps HTTP %s/%s safely", async (status, code, reason) => { vi.mocked(getDashboard).mockResolvedValue({ ok: false, error: { kind: "status", status, retryable: false }, envelope: { error: "private message", code } }); const result = await getDashboardAction(); expect(result).toEqual({ ok: false, reason, reference: { status, ...(code === "private_code" ? {} : { code }) } }); expect(JSON.stringify(result)).not.toMatch(/private/); });
+it.each([["network", "no_response"], ["timeout", "no_response"], ["invalid_response", "unrecognized_response"], ["missing_token", "unauthenticated"]] as const)("maps %s safely", async (kind, reason) => { vi.mocked(getDashboard).mockResolvedValue({ ok: false, error: { kind, retryable: false } }); expect(await getDashboardAction()).toEqual({ ok: false, reason, reference: {} }); });
+it.each(["session", "client"])("sanitizes thrown %s errors", async source => { if (source === "session") vi.mocked(getActionAccessToken).mockRejectedValue(new Error("private")); else vi.mocked(getDashboard).mockRejectedValue(new Error("private")); expect(await getDashboardAction()).toEqual({ ok: false, reason: "no_response", reference: {} }); });

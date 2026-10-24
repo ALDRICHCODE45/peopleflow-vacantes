@@ -5,13 +5,21 @@ import (
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // Summary shares the list's membership, active counts and company scope. All
 // metrics use one statement snapshot and the same PostgreSQL server time.
 func (s *Store) Summary(ctx context.Context, company uuid.UUID) (app.Summary, error) {
+	return ReadSummary(ctx, s.pool, company)
+}
+
+// ReadSummary lets composite read models reuse the pool definition in their snapshot.
+func ReadSummary(ctx context.Context, reader interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, company uuid.UUID) (app.Summary, error) {
 	var out app.Summary
-	err := s.pool.QueryRow(ctx, poolSQL+`) SELECT
+	err := reader.QueryRow(ctx, poolSQL+`) SELECT
  count(*),
  count(*) FILTER(WHERE active>=1),
  count(*) FILTER(WHERE created_at>now()-interval '7 days' AND created_at<=now()),

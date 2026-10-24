@@ -44,6 +44,7 @@ type routerDeps struct {
 	jobHandler           *jobshttp.JobHandler
 	draftHandler         *jobshttp.DraftHandler
 	draftV2Handler       *jobshttp.DraftV2Handler
+	dashboardHandler     *jobshttp.DashboardHandler
 	draftListHandler     *jobshttp.DraftListHandler
 	pipelineHandler      *jobshttp.PipelineHandler
 	substatesHandler     *jobshttp.SubstatesHandler
@@ -199,6 +200,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
 		// The list applies the same owner-or-principal rule in the store.
 		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
+		r.Get("/v2/me/company/dashboard", d.dashboardHandler.Get)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
 		r.Get("/v2/me/company/job-drafts/{id}/board", d.movementHandler.Board)

@@ -267,7 +267,7 @@ func TestUpsertProfile_Ok(t *testing.T) {
         "professional_title": "Backend Engineer",
         "education": [{"level":"bachelor","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}],
         "expected_salary_period": "monthly",
-        "skills": ["Go", "AWS"]
+        "skills": ["React", "TypeScript", "SQL", "react", "REACT"]
     }`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
 	if rec.Code != http.StatusOK {
@@ -287,9 +287,9 @@ func TestUpsertProfile_Ok(t *testing.T) {
 	if len(got.Education) != 1 || got.Education[0].Level != "bachelor" {
 		t.Errorf("Education: %v", got.Education)
 	}
-	// Skills are normalized to lowercase before write.
-	if len(got.Skills) != 2 || got.Skills[0] != "go" || got.Skills[1] != "aws" {
-		t.Errorf("Skills: want [go aws], got %v", got.Skills)
+	// The response echoes the stored display casing; duplicates keep the first.
+	if len(got.Skills) != 3 || got.Skills[0] != "React" || got.Skills[1] != "TypeScript" || got.Skills[2] != "SQL" {
+		t.Errorf("Skills: want [React TypeScript SQL], got %v", got.Skills)
 	}
 }
 

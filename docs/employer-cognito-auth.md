@@ -73,6 +73,44 @@ After changing the allowed scopes, sign out and sign in again: refreshed access
 tokens retain the original grant's scopes, so a reload or token refresh does not
 add the new scope.
 
+## Registro de candidatos y configuración en Cognito
+
+«Ingresar» de candidato conserva `signIn("cognito", { callbackUrl:
+"/candidato/ingresar" })`. «Crear cuenta» obtiene el CSRF con `getCsrfToken()`
+y envía el POST estándar de NextAuth a `/api/auth/signin/cognito`, con
+`csrfToken`, `callbackUrl=/candidato/ingresar` y `json=true`. En NextAuth v4,
+`redirect: false` no devuelve la URL para proveedores OAuth. Este POST permite
+obtenerla sin omitir la transacción: NextAuth genera los parámetros y las cookies
+de state/PKCE. Solo se cambia la ruta exacta `/oauth2/authorize` a `/signup`;
+el origen y la consulta se conservan sin reconstruir ni normalizar parámetros.
+Si la URL devuelta no es la de autorización esperada, se navega a ella sin cambios.
+
+**Acción del usuario en la consola de AWS:** en el app client del user pool,
+en la configuración de managed login/Hosted UI, agregar estas dos entradas en
+**Allowed sign-out URLs**, sustituyendo `<NEXTAUTH_URL>` por el origen configurado
+(sin barra final):
+
+- `<NEXTAUTH_URL>/candidato/login`
+- `<NEXTAUTH_URL>/empresa/login`
+
+En local, las entradas exactas son:
+
+- `http://localhost:3000/candidato/login`
+- `http://localhost:3000/empresa/login`
+
+El callback en **Allowed callback URLs** no cambia:
+`<NEXTAUTH_URL>/api/auth/callback/cognito` (local:
+`http://localhost:3000/api/auth/callback/cognito`). `/signup` no es un callback.
+Además, el user pool debe tener habilitado **self sign-up** (autorregistro) para
+que `/signup` muestre el formulario de registro.
+
+Después de guardar, verificar «Cerrar sesión» como candidato y como empresa:
+cada uno debe volver a su login (`/candidato/login` o `/empresa/login`), sin
+mostrar la página de error de Cognito. Sin sesión, «Crear cuenta» debe abrir el
+formulario de registro de Cognito. La configuración en AWS y la comprobación
+real quedan a cargo del usuario; ver el paso 89 de
+[`employer-manual-test.md`](employer-manual-test.md).
+
 ## Session contract
 
 Sessions use the JWT strategy: an encrypted (JWE), HttpOnly session cookie. The
@@ -246,6 +284,8 @@ scratch directory with a node-environment Vitest config and fake fixtures.
 
 The employer UI uses a local `SessionProvider` with a 60-second refetch interval
 and focus refresh, accessible generic error/relogin feedback, and separate
-sign-in/sign-out pending states. Candidate controls remain unchanged. Browser
+sign-in/sign-out pending states. Los controles de candidato conservan el bloqueo,
+los estados pendientes y los mensajes de error; el registro usa el flujo descrito
+arriba. Browser
 visual and actual Cognito acceptance are still human-owned; TypeScript/Vitest
 proof is not an end-to-end login claim.

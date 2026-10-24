@@ -1,437 +1,106 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-// EW-08 — employer workspace browser acceptance for the read-mostly routes
-// already provided by the live `/empresa/*` preview. The contract proves:
-//   * Dashboard, portfolio, pipeline, team and site-editor surfaces stay
-//     truthful, accessible and free of business mutations under real keyboard
-//     interaction;
-//   * The "no storage write" claim survives every portfolio/pipeline/team flow
-//     and the local site editor, whose draft lives only in React state;
-//   * The route matrix exposes no serious/critical axe violations at desktop
-//     and mobile widths without forcing any external service or restart.
-//
-// Reuses the live preview server (`PLAYWRIGHT_APP_ORIGIN`, default 3100); never
-// touches 3001/4010 or any `/api/...` path. The storage audit forwards every
-// write to a persistent page binding so the evidence accumulates across every
-// same-page document navigation instead of resetting with `addInitScript`.
-
+// Run against a Next server configured with the jobs fixture API, with a real
+// authenticated employer session supplied by the harness. The fixture does not
+// mint tokens or disable the workspace's server-side identity/company gates.
+// PLAYWRIGHT_EMPLOYER_STORAGE_STATE points to harness-owned browser state;
+// this spec never logs it. Do not run against a personal production account.
+const APP_ORIGIN = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://localhost:3000";
+const FIXTURE_ORIGIN = process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
+const DASHBOARD = `${APP_ORIGIN}/empresa/dashboard`;
+const VACANCY_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+const PIPELINE = `/empresa/vacantes/${VACANCY_ID}/pipeline`;
+test.use({ storageState: process.env.PLAYWRIGHT_EMPLOYER_STORAGE_STATE });
 test.describe.configure({ mode: "serial" });
+test.beforeEach(async ({ request }) => {
+  const response = await request.get(`${FIXTURE_ORIGIN}/__employer-dashboard?mode=filled`);
+  expect(response.ok(), "Start the existing fixture harness before this suite").toBe(true);
+});
+test.afterEach(async ({ request }) => {
+  await request.get(`${FIXTURE_ORIGIN}/__employer-dashboard?mode=filled`);
+});
 
-const APP_ORIGIN = (process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100").replace(/\/$/u, "");
-const ROUTES = {
-  dashboard: "/empresa/dashboard",
-  portfolio: "/empresa/vacantes",
-  pipeline: "/empresa/vacantes/backend-developer-senior/pipeline",
-  team: "/empresa/equipo",
-  site: "/empresa/sitio",
-} as const;
-const DESKTOP = { width: 1440, height: 900 } as const;
-const MOBILE = { width: 375, height: 812 } as const;
-const FORBIDDEN_PORTS = [":3001", ":4010"] as const;
-const DISALLOWED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+test("fixture exposes strict real dashboard fields and a published draft-list row", async ({ request }) => {
+  const headers = { authorization: "Bearer e2e-fixture-only" };
+  const response = await request.get(`${FIXTURE_ORIGIN}/v2/me/company/dashboard`, { headers });
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  const data = await response.json();
+  expect(Object.keys(data).sort()).toEqual(["in_process", "origin_by_day", "pool_added_last_7_days", "positions", "published_vacancies", "recent"]);
+  expect(data.origin_by_day).toHaveLength(90);
+  expect(data.positions).toEqual({ covered: 3, required: 5 });
+  const drafts = await request.get(`${FIXTURE_ORIGIN}/v2/me/company/job-drafts`, { headers });
+  expect((await drafts.json()).items[0]).toMatchObject({ id: VACANCY_ID, status: "published", candidates: { in_process: 5 } });
+});
 
-type Captured = { method: string; url: string; serverAction: boolean };
-const trackRequests = (page: Page) => {
-  const seen: Captured[] = [];
-  page.on("request", (entry) =>
-    seen.push({ method: entry.method(), url: entry.url(), serverAction: entry.headers()["next-action"] !== undefined }),
-  );
-  return seen;
-};
-const isNextInternal = (url: string) => /^\/(?:_next\/|__nextjs)/u.test(new URL(url, APP_ORIGIN).pathname);
-// The portfolio reads saved drafts through one read-only Server Action posted to
-// its own route; every other mutation method still fails.
-const isPortfolioDraftRead = ({ method, url, serverAction }: Captured) =>
-  method === "POST" && serverAction && new URL(url, APP_ORIGIN).pathname === ROUTES.portfolio;
-const offendingMutations = (seen: readonly Captured[]) =>
-  seen
-    .filter((entry) => DISALLOWED_METHODS.has(entry.method) && !isNextInternal(entry.url) && !isPortfolioDraftRead(entry))
-    .map(({ method, url }) => `${method} ${url}`);
-// Foreign origins, /api/* reads and the two banned ports all fail. data:/blob:/about: stay harmless dev internals.
-const offendingTraffic = (seen: readonly Captured[]) =>
-  seen.flatMap(({ url }) => {
-    if (/^(?:data|blob|about):/u.test(url)) return [];
-    const u = new URL(url, APP_ORIGIN);
-    if (FORBIDDEN_PORTS.some((port) => url.includes(port))) return [`forbidden-port ${url}`];
-    if (u.origin !== APP_ORIGIN) return [`foreign ${u.origin}`];
-    if (u.pathname.startsWith("/api/")) return [`api ${u.pathname}`];
-    return [];
-  });
-const overflowPx = (page: Page) =>
-  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+test("dashboard renders endpoint counts, real origins and recent incorporations", async ({ page }) => {
+  await page.goto(DASHBOARD);
+  await expect(page.getByRole("heading", { level: 1, name: "Dashboard", exact: true })).toBeVisible();
+  const cards = page.locator("[data-pf-kpi-cards]");
+  await expect(cards).toContainText("Vacantes publicadas");
+  await expect(cards).toContainText("Candidatos en proceso");
+  await expect(cards).toContainText("Nuevos en la base");
+  await expect(cards).toContainText("Agregados en los últimos 7 días");
+  await expect(cards).toContainText("3/5");
+  await expect(cards.locator("[data-pf-metric-icon] svg")).toHaveCount(4);
+  await expect(cards.getByRole("progressbar", { name: "Posiciones cubiertas" })).toHaveAttribute("aria-valuenow", "60");
+  await expect(page.getByRole("heading", { name: "Origen de las postulaciones" })).toBeVisible();
+  await page.getByRole("button", { name: "Últimos 7 días", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Últimos 7 días", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const table = page.getByRole("table");
+  await expect(table.getByRole("link", { name: "Ana Dashboard" })).toHaveAttribute("href", PIPELINE);
+  await expect(table).toContainText("Orgánico");
+  await expect(table).toContainText("Manual");
+  await expect(table).toContainText("María Equipo");
+  await expect(table).toContainText("23 oct 2026");
+  await expect(table.getByRole("row")).toHaveCount(3);
+  await expect(page.locator("[data-pf-active-vacancy-row]")).toHaveCount(1);
+  await expect(page.locator("[data-pf-active-vacancies]")).toContainText("5 candidatos en proceso");
+  await expect(page.locator("[data-pf-active-vacancies]")).not.toContainText("Vacante pausada");
+  await expect(page.getByRole("link", { name: "Ver pipeline de Plataforma Dashboard" })).toHaveAttribute("href", PIPELINE);
+});
 
-// Writes are accumulated Node-side per page so they survive full document
-// navigations; the binding is installed before the first `goto` and the page
-// override forwards to it at call time, preserving the native storage methods.
-const storageWrites = new WeakMap<Page, string[]>();
+test("recent name link and active vacancy link are keyboard-operable canonical board routes", async ({ page }) => {
+  for (const name of ["Ana Dashboard", "Ver pipeline de Plataforma Dashboard"]) {
+    await page.goto(DASHBOARD);
+    const link = page.getByRole("link", { name, exact: true });
+    await expect(link).toBeVisible();
+    await link.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`${PIPELINE}$`));
+  }
+  await page.goto(DASHBOARD);
+  await page.getByRole("link", { name: "Ver todas", exact: true }).click();
+  await expect(page).toHaveURL(/\/empresa\/vacantes$/);
+});
 
-async function installStorageAudit(page: Page) {
-  storageWrites.set(page, []);
-  await page.exposeBinding("__pfRecordStorageWrite", (source, entry: string) => {
-    (storageWrites.get(source.page) ?? []).push(entry);
-  });
-  await page.addInitScript(() => {
-    const record = (entry: string) => {
-      const sink = (window as unknown as { __pfRecordStorageWrite?: (value: string) => Promise<void> }).__pfRecordStorageWrite;
-      // Fire-and-forget forwarding keeps the native call synchronous; a missing
-      // sink only drops the audit record, never the write itself.
-      void sink?.(entry);
-    };
-    const storageName = (storage: Storage) =>
-      storage === window.sessionStorage ? "session" : "local";
-    const originalSet = Storage.prototype.setItem;
-    const originalRemove = Storage.prototype.removeItem;
-    const originalClear = Storage.prototype.clear;
-    Storage.prototype.setItem = function (this: Storage, key: string, value: string): void {
-      record(`${storageName(this)}|set|${key}|${value}`);
-      return originalSet.call(this, key, value);
-    };
-    Storage.prototype.removeItem = function (this: Storage, key: string): void {
-      record(`${storageName(this)}|remove|${key}`);
-      return originalRemove.call(this, key);
-    };
-    Storage.prototype.clear = function (this: Storage): void {
-      record(`${storageName(this)}|clear`);
-      return originalClear.call(this);
-    };
+test("empty response has truthful zero cards and shared empty states", async ({ page, request }) => {
+  await request.get(`${FIXTURE_ORIGIN}/__employer-dashboard?mode=empty`);
+  await page.goto(DASHBOARD);
+  await expect(page.getByText("Sin candidatos", { exact: true })).toBeVisible();
+  await expect(page.getByText("No hay vacantes activas", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-pf-kpi-cards]")).toContainText("0/0");
+  await expect(page.getByRole("table")).toHaveCount(1);
+  await expect(page.getByRole("tab", { name: "Todos 0" })).toBeAttached();
+});
+
+test("an explicit retry recovers a server error without showing fallback data", async ({ page, request }) => {
+  await request.get(`${FIXTURE_ORIGIN}/__employer-dashboard?mode=error`);
+  await page.goto(DASHBOARD);
+  await expect(page.getByRole("alert")).toContainText("No se pudo cargar el dashboard");
+  await expect(page.locator("[data-pf-kpi-cards]")).toHaveCount(0);
+  await request.get(`${FIXTURE_ORIGIN}/__employer-dashboard?mode=filled`);
+  await page.getByRole("button", { name: "Reintentar", exact: true }).click();
+  await expect(page.locator("[data-pf-kpi-cards]")).toContainText("3/5");
+});
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+  test(`dashboard is accessible without document overflow at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto(DASHBOARD);
+    await expect(page.getByRole("heading", { name: "Candidatos recientes" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    const results = await new AxeBuilder({ page }).include("[data-pf-page-content]").withTags(["wcag2a", "wcag2aa"]).analyze();
+    expect(results.violations.filter(item => item.impact === "serious" || item.impact === "critical")).toEqual([]);
   });
 }
-
-// Round-trip the renderer so any binding calls still in flight are delivered
-// before the Node-side audit is read.
-const readStorageWrites = async (page: Page) => {
-  await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
-  return storageWrites.get(page) ?? [];
-};
-
-test.beforeEach(async ({ page }) => {
-  await installStorageAudit(page);
-});
-
-async function backToDashboard(page: Page) {
-  await page.goto(ROUTES.dashboard);
-  await expect(page.getByRole("heading", { level: 1, name: "Dashboard", exact: true })).toBeVisible();
-}
-
-test("dashboard connects buttons to the portfolio and the backend pipeline over the keyboard at 1440x900", async ({ page }) => {
-  const seen = trackRequests(page);
-  await page.setViewportSize(DESKTOP);
-  await page.goto(ROUTES.dashboard);
-
-  await expect(page.getByRole("heading", { level: 1, name: "Dashboard", exact: true })).toBeVisible();
-  await expect(page.locator("[data-pf-kpi-cards]")).toBeVisible();
-  await expect(page.locator("[data-pf-chart-card]")).toBeVisible();
-  await expect(page.locator("table").first()).toBeVisible();
-  // Only the three active vacancies render as dashboard rows.
-  const dashboardRows = page.locator("[data-pf-active-vacancy-row]");
-  await expect(dashboardRows).toHaveCount(3);
-  for (const id of ["backend-developer-senior", "frontend-engineer-react", "fullstack-developer"]) {
-    await expect(dashboardRows.filter({ has: page.locator(`[data-pf-active-vacancy-pipeline="${id}"]`) })).toHaveCount(1);
-  }
-
-  // Existing sidebar `Nueva vacante` button keeps keyboard-operable navigation.
-  await page.getByRole("button", { name: "Nueva vacante", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/empresa\/vacantes\/nueva$/u);
-  await backToDashboard(page);
-
-  // `Ver todas` reaches the portfolio over the keyboard and back.
-  await page.locator("[data-pf-active-vacancies-portfolio]").focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/empresa\/vacantes$/u);
-  await backToDashboard(page);
-
-  // The backend row's pipeline link keeps the breadcrumb and H1 honest.
-  await page.locator('[data-pf-active-vacancy-pipeline="backend-developer-senior"]').focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/empresa\/vacantes\/backend-developer-senior\/pipeline$/u);
-  await expect(page.getByRole("heading", { level: 1, name: "Backend Developer (Senior)", exact: true })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Ruta de navegación" }).getByRole("link", { name: "Vacantes", exact: true })).toHaveAttribute("href", "/empresa/vacantes");
-
-  expect(offendingMutations(seen)).toEqual([]);
-  expect(offendingTraffic(seen)).toEqual([]);
-  expect(await readStorageWrites(page)).toEqual([]);
-});
-
-test("portfolio filters by search and status, switching through empty recovery and the truthful clear", async ({ page }) => {
-  const seen = trackRequests(page);
-  await page.setViewportSize(DESKTOP);
-  await page.goto(ROUTES.portfolio);
-  await expect(page.getByRole("heading", { level: 1, name: "Vacantes", exact: true })).toBeVisible();
-  await expect(page.locator("[data-pf-vacancy-row]")).toHaveCount(6);
-
-  await page.locator("[data-pf-vacancy-search]").fill("backend");
-  await expect(page.locator("[data-pf-vacancy-row]")).toHaveCount(1);
-  await expect(page.locator('[data-pf-vacancy-row="backend-developer-senior"]')).toBeVisible();
-
-  // Compose with `Pausadas` → zero matches, recovery message, no fake row.
-  await page.locator('[data-pf-vacancy-filter="paused"]').focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator('[data-pf-vacancy-empty]')).toBeVisible();
-  await expect(page.locator('[data-pf-vacancy-empty]')).toContainText(/Sin resultados/u);
-  await expect(page.locator('[data-pf-vacancy-filter="paused"]')).toHaveAttribute("aria-selected", "true");
-
-  // `Limpiar filtros` restores the six rows and the `Todas` selected tab.
-  await page.locator("[data-pf-vacancy-clear]").focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-vacancy-row]")).toHaveCount(6);
-  await expect(page.locator('[data-pf-vacancy-filter="all"]')).toHaveAttribute("aria-selected", "true");
-
-  expect(offendingMutations(seen)).toEqual([]);
-  expect(offendingTraffic(seen)).toEqual([]);
-  expect(await readStorageWrites(page)).toEqual([]);
-});
-
-test("backend pipeline keeps the Tablero default, filters `Diego`, switches views, and clears without losing state", async ({ page }) => {
-  const seen = trackRequests(page);
-  await page.setViewportSize(DESKTOP);
-  await page.goto(ROUTES.pipeline);
-  await expect(page.getByRole("heading", { level: 1, name: "Backend Developer (Senior)", exact: true })).toBeVisible();
-
-  // Tablero is pressed by default, exactly four stage columns and four cards.
-  await expect(page.locator('[data-pf-pipeline-view-tab="board"]')).toHaveAttribute("aria-pressed", "true");
-  for (const stage of ["submitted", "in_review", "hired", "rejected"]) {
-    await expect(page.locator(`[data-pf-pipeline-column="${stage}"]`)).toBeVisible();
-  }
-  await expect(page.locator("[data-pf-pipeline-card]")).toHaveCount(4);
-  for (const id of ["lucia-fernandez", "diego-salazar", "renata-vargas", "martin-bustos"]) {
-    await expect(page.locator(`[data-pf-pipeline-card="${id}"]`)).toBeVisible();
-  }
-
-  // Every board root is the installed Card with its full slot set; the four
-  // stage counters are Badges whose stage tones resolve to four distinct colors.
-  const cards = page.locator("[data-pf-pipeline-card]");
-  await expect(page.locator("[data-pf-pipeline-card][data-slot=card]")).toHaveCount(4);
-  for (const slot of ["card-header", "card-content", "card-footer", "avatar-fallback"]) {
-    await expect(cards.locator(`[data-slot=${slot}]`)).toHaveCount(4);
-  }
-  await expect(cards.locator("[data-slot=card-title] h3")).toHaveCount(4);
-  const stageCounts = page.locator("[data-pf-pipeline-column-count]");
-  await expect(page.locator("[data-pf-pipeline-column-count][data-slot=badge]")).toHaveCount(4);
-  expect(new Set(await stageCounts.evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).color))).size).toBe(4);
-  const identity = cards.locator("[data-slot=card-header] h3, [data-slot=card-header] p");
-  expect(await identity.evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).textOverflow))).not.toContain("ellipsis");
-
-  // `Diego` narrows the four-card board to a single semantic card; switching
-  // to Lista keeps the typed query and keeps exactly one row.
-  await page.locator("[data-pf-pipeline-search]").fill("Diego");
-  await expect(page.locator("[data-pf-pipeline-card]")).toHaveCount(1);
-  await expect(page.locator('[data-pf-pipeline-card="diego-salazar"]')).toBeVisible();
-  await page.locator('[data-pf-pipeline-view-tab="list"]').focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-pipeline-search]")).toHaveValue("Diego");
-  await expect(page.locator('[data-pf-pipeline-row="diego-salazar"]')).toHaveCount(1);
-  await expect(page.locator('[data-pf-pipeline-row="lucia-fernandez"]')).toHaveCount(0);
-  await expect(page.locator('[data-pf-pipeline-view-tab="list"]')).toHaveAttribute("aria-pressed", "true");
-
-  // The focusable list region is the real horizontal scroll owner while the
-  // document stays overflow-clean; ArrowRight proves keyboard reachability.
-  const list = page.locator("[data-pf-pipeline-list]");
-  await expect(list).toHaveAttribute("tabindex", "0");
-  await expect.poll(() => list.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
-  expect(await overflowPx(page)).toBeLessThanOrEqual(1);
-  for (const slot of ["table", "table-header", "table-body", "table-row", "table-head", "table-cell", "table-caption"]) {
-    await expect(page.locator(`[data-pf-pipeline-list] [data-slot=${slot}]`).first()).toBeAttached();
-  }
-  expect(await page.locator('[data-pf-pipeline-row="diego-salazar"]').evaluate((el) => el.tagName)).toBe("TR");
-  await list.focus();
-  for (let index = 0; index < 4; index += 1) await page.keyboard.press("ArrowRight");
-  await expect.poll(() => list.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
-
-  // Switch back, yield an unmatched recovery panel, then clear restores four.
-  await page.locator('[data-pf-pipeline-view-tab="board"]').focus();
-  await page.keyboard.press("Enter");
-  await page.locator("[data-pf-pipeline-search]").fill("zzz-no-match");
-  await expect(page.locator("[data-pf-pipeline-recovery]")).toBeVisible();
-  await expect(page.locator("[data-pf-pipeline-card]")).toHaveCount(0);
-  await page.locator("[data-pf-pipeline-clear]").focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-pipeline-search]")).toHaveValue("");
-  await expect(page.locator("[data-pf-pipeline-card]")).toHaveCount(4);
-
-  expect(offendingMutations(seen)).toEqual([]);
-  expect(offendingTraffic(seen)).toEqual([]);
-  expect(await readStorageWrites(page)).toEqual([]);
-});
-
-test("team filters `LUCIA`, gates it through `Activas`, and the invitation form stays structurally unable to send or save", async ({ page }) => {
-  const seen = trackRequests(page);
-  await page.setViewportSize(DESKTOP);
-  await page.goto(ROUTES.team);
-  await expect(page.getByRole("heading", { level: 1, name: "Equipo", exact: true })).toBeVisible();
-  await expect(page.locator("[data-pf-team-row]")).toHaveCount(6);
-  for (const metric of ["total", "owners", "recruiters", "invited"]) {
-    await expect(page.locator(`[data-pf-team-metric="${metric}"]`)).toBeVisible();
-  }
-
-  // Diacritic-insensitive match for `LUCIA` lands on the invited member only;
-  // composing with the `Activas` filter yields the truthful empty recovery.
-  await page.locator("[data-pf-team-search]").fill("LUCIA");
-  await expect(page.locator('[data-pf-team-row="lucia-navarro"]')).toBeVisible();
-  await expect(page.locator('[data-pf-team-row="lucia-navarro"]')).toHaveCount(1);
-  await page.locator('[data-pf-team-filter="active"]').focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-team-empty]")).toBeVisible();
-  await page.locator("[data-pf-team-clear]").focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-team-row]")).toHaveCount(6);
-
-  // Open Invitar miembro via keyboard: malformed, corrected, then owner role.
-  await page.locator("[data-pf-team-invitation-toggle]").focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-team-invitation-toggle]")).toHaveAttribute("aria-expanded", "true");
-  await page.locator("[data-pf-team-invitation-email]").fill("not-an-email");
-  await page.locator('[data-pf-team-invitation-role]').selectOption("owner");
-  await page.locator("[data-pf-team-invitation-submit]").focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-team-invitation-error]")).toBeVisible();
-  await expect(page.locator("[data-pf-team-invitation-error]")).toContainText(/válido/u);
-  // Stale error and field stay so the next submit still has to send a valid address.
-  await expect(page.locator("[data-pf-team-invitation-email]")).toHaveValue("not-an-email");
-
-  await page.locator("[data-pf-team-invitation-email]").fill("owner@nexolabs.mx");
-  await page.locator("[data-pf-team-invitation-submit]").focus();
-  await page.keyboard.press("Enter");
-  // A valid submission is intentionally inert: the panel stays open with the
-  // typed email and chosen role preserved, and no status or success UI appears.
-  await expect(page.locator("[data-pf-team-invitation-panel]")).toBeVisible();
-  await expect(page.locator("[data-pf-team-invitation-email]")).toHaveValue("owner@nexolabs.mx");
-  await expect(page.locator("[data-pf-team-invitation-role]")).toHaveValue("owner");
-  await expect(page.locator("[data-pf-team-invitation-error]")).toHaveCount(0);
-  await expect(page.locator("[data-pf-team-invitation-status]")).toHaveCount(0);
-  await expect(page.locator("[data-pf-team-invitation-note]")).toHaveCount(0);
-  // Member count and rows are unchanged: no fake success UI exists.
-  await expect(page.locator("[data-pf-team-row]")).toHaveCount(6);
-  await expect(page.locator('[data-pf-team-row="owner-nexolabs-mx"]')).toHaveCount(0);
-
-  expect(offendingMutations(seen)).toEqual([]);
-  expect(offendingTraffic(seen)).toEqual([]);
-  expect(await readStorageWrites(page)).toEqual([]);
-});
-
-test("site editor switches sections, previews the typed identity and never saves, publishes or navigates away", async ({ page }) => {
-  const seen = trackRequests(page);
-  await page.setViewportSize(DESKTOP);
-  await page.goto(ROUTES.site);
-  await expect(page.getByRole("heading", { level: 1, name: "Sitio de empleo", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "Vista previa", exact: true })).toBeVisible();
-  const editor = page.locator("[data-pf-sitio-editor]");
-  await expect(editor).toBeVisible();
-
-  // The draft starts from the employer identity with only one section mounted.
-  await expect(page.locator('[data-pf-sitio-input="name"]')).toHaveValue("Nexo Labs");
-  await expect(page.locator('[data-pf-sitio-input="about"]')).toHaveCount(0);
-  await expect(editor).not.toContainText(/vista previa local|no se guardan|prototipo|demostración/iu);
-
-  // Typing updates the local preview only.
-  await page.locator('[data-pf-sitio-input="tagline"]').fill("Talento para equipos que crecen.");
-  const preview = page.locator("[data-pf-sitio-preview-surface]");
-  await expect(preview.getByRole("heading", { level: 2, name: "Nexo Labs", exact: true })).toBeVisible();
-  await expect(preview).toContainText("Talento para equipos que crecen.");
-
-  // Section navigation stays keyboard-operable and keeps the typed value.
-  await page.locator('[data-pf-sitio-tab="historia"]').focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator('[data-pf-sitio-input="about"]')).toBeVisible();
-  await expect(page.locator('[data-pf-sitio-input="tagline"]')).toHaveCount(0);
-  await page.locator('[data-pf-sitio-input="about"]').fill("Somos un equipo de producto.");
-  await page.locator('[data-pf-sitio-tab="identidad"]').focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator('[data-pf-sitio-input="tagline"]')).toHaveValue("Talento para equipos que crecen.");
-  await expect(preview).toContainText("Somos un equipo de producto.");
-
-  // The honest empty vacancy state claims no published Nexo jobs, and the route
-  // carries no save, publish, upload, external-URL or status surface.
-  await expect(preview).toContainText("todavía no lista");
-  await expect(preview.locator("ul[aria-label^='Vacantes en']")).toHaveCount(0);
-  await expect(editor.getByRole("button", { name: /guardar|publicar/iu })).toHaveCount(0);
-  await expect(editor.locator("[role='status']")).toHaveCount(0);
-  await expect(page.locator("input[type='file'], input[type='url']")).toHaveCount(0);
-  expect(await overflowPx(page)).toBeLessThanOrEqual(1);
-
-  expect(offendingMutations(seen)).toEqual([]);
-  expect(offendingTraffic(seen)).toEqual([]);
-  expect(await readStorageWrites(page)).toEqual([]);
-});
-
-const MATRIX = [
-  { route: "dashboard", path: ROUTES.dashboard, h1: "Dashboard", scope: "[data-pf-active-vacancies]" },
-  { route: "portfolio", path: ROUTES.portfolio, h1: "Vacantes", scope: "[data-pf-vacantes-content]" },
-  { route: "pipeline", path: ROUTES.pipeline, h1: "Backend Developer (Senior)", scope: "[data-pf-pipeline-content]" },
-  { route: "team", path: ROUTES.team, h1: "Equipo", scope: "[data-pf-equipo-content]" },
-  { route: "site", path: ROUTES.site, h1: "Sitio de empleo", scope: "[data-pf-sitio-editor]" },
-] as const;
-const VIEWPORTS: ReadonlyArray<readonly [string, { width: number; height: number }]> = [
-  ["desktop", DESKTOP],
-  ["mobile", MOBILE],
-];
-
-test("route matrix stays visible, overflow-clean, axe-clean and mutation-free", async ({ page }) => {
-  const seen = trackRequests(page);
-  const routeFailures: string[] = [];
-  const overflowFailures: string[] = [];
-  const axeFailures: string[] = [];
-  const storageFailures: string[] = [];
-
-  for (const entry of MATRIX) {
-    for (const [label, viewport] of VIEWPORTS) {
-      const caseLabel = `${entry.route} @ ${label}`;
-      try {
-        await page.setViewportSize(viewport);
-        await page.goto(entry.path);
-        const headingVisible = await page
-          .getByRole("heading", { level: 1, name: entry.h1, exact: true })
-          .isVisible();
-        const scopeVisible = await page.locator(entry.scope).isVisible();
-        if (!headingVisible || !scopeVisible) routeFailures.push(caseLabel);
-
-        const boardOverflow = await overflowPx(page);
-        if (boardOverflow > 1) overflowFailures.push(`${caseLabel} default: ${boardOverflow}px`);
-
-        // The pipeline deliberately contains its wide board/list internally.
-        // On mobile, measure both modes rather than only the final one.
-        if (entry.path === ROUTES.pipeline && label === "mobile") {
-          const listTab = page.locator('[data-pf-pipeline-view-tab="list"]');
-          await listTab.click();
-          await expect(listTab).toHaveAttribute("aria-pressed", "true");
-          // The pressed tab animates its colors through `transition-all`; wait
-          // for that button's Web Animations to settle so overflow and Axe
-          // sample stable computed styles. Cancelled transitions reject
-          // `finished`, so their rejection is deliberately absorbed.
-          await listTab.evaluate(async (element) => {
-            await Promise.all(
-              element.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
-            );
-          });
-          const listOverflow = await overflowPx(page);
-          if (listOverflow > 1) overflowFailures.push(`${caseLabel} list: ${listOverflow}px`);
-        }
-
-        // Candidate scopes exclude independently diagnosed pre-existing
-        // dashboard DataTable/shared-primitive contrast nodes.
-        const results = await new AxeBuilder({ page })
-          .include(entry.scope)
-          .withTags(["wcag2a", "wcag2aa"])
-          .analyze();
-        for (const violation of results.violations) {
-          if (violation.impact === "serious" || violation.impact === "critical") {
-            const target = violation.nodes[0]?.target?.join(" ") ?? "";
-            axeFailures.push(`${caseLabel}: ${violation.id} -> ${target}`);
-          }
-        }
-        const writes = await readStorageWrites(page);
-        if (writes.length > 0) storageFailures.push(`${caseLabel}: ${writes.join(", ")}`);
-      } catch (error) {
-        routeFailures.push(`${caseLabel}: ${String(error)}`);
-      }
-    }
-  }
-
-  expect.soft(routeFailures).toEqual([]);
-  expect.soft(overflowFailures).toEqual([]);
-  expect.soft(axeFailures).toEqual([]);
-  expect.soft(storageFailures).toEqual([]);
-  expect.soft(offendingMutations(seen)).toEqual([]);
-  expect.soft(offendingTraffic(seen)).toEqual([]);
-});

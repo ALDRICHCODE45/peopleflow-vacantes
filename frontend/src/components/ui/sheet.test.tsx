@@ -14,7 +14,7 @@ import {
 } from "./sheet";
 
 // jsdom implements neither matchMedia nor ResizeObserver; the Base UI dialog
-// reads both. Stubbing them mirrors the committed employer-talent suite.
+// reads both.
 function stubBrowserApis() {
   vi.stubGlobal(
     "matchMedia",

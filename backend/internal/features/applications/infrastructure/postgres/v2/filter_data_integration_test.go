@@ -30,7 +30,7 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			f := setup(t)
 			ctx := context.Background()
 			if tc.profile {
-				if _, err := f.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,skills,years_of_experience,seniority) VALUES($1,ARRAY['Go','SQL','Go'],5.9,'semi_senior') RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'master','completed' FROM p`, f.actor); err != nil {
+				if _, err := f.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,skills,years_of_experience,seniority) VALUES($1,ARRAY['React','TypeScript','SQL'],5.9,'semi_senior') RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'master','completed' FROM p`, f.actor); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() {
@@ -91,7 +91,7 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			// A profile may omit location without losing its other data.
 			want := map[string]any{"location": nil, "skills": []any{}, "years_of_experience": nil, "seniority": nil, "education": map[string]any{"highest_completed": nil, "in_progress": nil}, "languages": []any{}}
 			if tc.profile {
-				want["skills"] = []any{"Go", "SQL", "Go"}
+				want["skills"] = []any{"React", "TypeScript", "SQL"}
 				want["years_of_experience"] = "5.9"
 				want["seniority"] = "semi_senior"
 				want["education"] = map[string]any{"highest_completed": "master", "in_progress": "phd"}

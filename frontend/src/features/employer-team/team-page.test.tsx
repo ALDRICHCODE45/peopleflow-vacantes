@@ -1,0 +1,51 @@
+import * as React from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { members, selfId } from "./test-fixtures";
+import type { TeamListResult, TeamMutationResult } from "./actions";
+
+const mocks = vi.hoisted(() => ({ companyId: "", list: vi.fn(), remove: vi.fn(), notify: vi.fn() }));
+vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: { user: { id: selfId } } } }) }));
+vi.mock("@/features/employer-company/use-company-membership", () => ({ useCompanyMembership: () => ({ role: "owner", company: { id: mocks.companyId } }) }));
+vi.mock("@/features/employer-vacancies/use-portfolio-drafts", () => ({ usePortfolioDrafts: () => ({ items: [], pending: false, failure: null, capped: false }) }));
+vi.mock("./actions", () => ({ listTeamMembersAction: mocks.list, removeTeamMemberAction: mocks.remove, changeTeamRoleAction: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notify }));
+vi.mock("./team-workspace", () => ({ TeamWorkspace: ({ members: rows, loading, disabled, onAction, feedback }: { members: typeof members; loading?: boolean; disabled?: boolean; onAction?: (member: typeof members[number], action: { kind: "remove" }) => void; feedback?: React.ReactNode }) => <div>{loading && "Loading"}{rows.map(row => <button key={row.id} disabled={disabled} onClick={() => onAction?.(row, { kind: "remove" })}>{row.user.full_name}</button>)}{feedback}</div> }));
+vi.mock("@/components/feedback/confirm-action-dialog", () => ({ ConfirmActionDialog: ({ open, title, pending, onConfirm }: { open: boolean; title: string; pending: boolean; onConfirm: () => void }) => open ? <div role="dialog">{title}<button onClick={onConfirm}>{pending ? "Pending" : "Confirm"}</button></div> : null }));
+import { TeamPage } from "./team-page";
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+const bMembers = members.map(member => ({ ...member, company_id: "company-b", user: { ...member.user, full_name: `B ${member.user.full_name}` } }));
+beforeEach(() => { vi.resetAllMocks(); mocks.companyId = members[0].company_id; });
+afterEach(cleanup);
+it("starts a fresh company B read and ignores company A's late read", async () => {
+  const a = deferred<TeamListResult>();
+  mocks.list.mockReturnValueOnce(a.promise).mockResolvedValueOnce({ ok: true, members: bMembers });
+  const { rerender } = render(<TeamPage />);
+  expect(mocks.list).toHaveBeenCalledTimes(1);
+  mocks.companyId = "company-b";
+  rerender(<TeamPage />);
+  await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
+  await screen.findByText("B José Real");
+  await act(async () => a.resolve({ ok: true, members }));
+  expect(screen.queryByText("José Real")).toBeNull();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByText("Rol actualizado")).toBeNull();
+});
+it("clears selection and pending writes on company switch and ignores late write status", async () => {
+  const write = deferred<TeamMutationResult>();
+  mocks.list.mockResolvedValueOnce({ ok: true, members }).mockResolvedValueOnce({ ok: true, members: bMembers });
+  mocks.remove.mockReturnValueOnce(write.promise);
+  const { rerender } = render(<TeamPage />);
+  fireEvent.click(await screen.findByText("José Real"));
+  fireEvent.click(screen.getByText("Confirm"));
+  expect(screen.getByText("Pending")).toBeTruthy();
+  mocks.companyId = "company-b";
+  rerender(<TeamPage />);
+  const bRow = await screen.findByText("B José Real");
+  expect(bRow.hasAttribute("disabled")).toBe(false);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await act(async () => write.resolve({ ok: true }));
+  expect(mocks.notify).not.toHaveBeenCalled();
+  expect(mocks.list).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText("Miembro quitado del equipo")).toBeNull();
+});

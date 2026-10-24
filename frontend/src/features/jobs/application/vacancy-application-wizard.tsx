@@ -21,6 +21,8 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DialCodeField } from "@/components/forms/dial-code-field";
+import { phoneToDraft, phoneValue } from "@/lib/phone";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import {
   Select,
@@ -42,6 +44,7 @@ import {
   applicationCandidateDraftFromFixture,
   parseApplicationCandidateDraft,
   type ApplicationCandidateDraft,
+  type ApplicationCandidateSnapshot,
   type ApplicationCandidateDraftIssue,
   type ApplicationCandidateField,
 } from "./application-candidate-draft";
@@ -182,8 +185,8 @@ function stepStateOf(index: number, step: number): StepState {
 }
 
 /** A blank local value reads as "not declared"; never as an invented one. */
-function declaredOrPlaceholder(value: string): string {
-  const trimmed = value.trim();
+function declaredOrPlaceholder(value: string | null): string {
+  const trimmed = (value ?? "").trim();
   return trimmed === "" ? UNSPECIFIED : trimmed;
 }
 
@@ -198,8 +201,9 @@ export function VacancyApplicationWizard({
   const [candidateDraft, setCandidateDraft] = React.useState<ApplicationCandidateDraft>(() =>
     applicationCandidateDraftFromFixture(identity, profile),
   );
+  const [phoneDraft, setPhoneDraft] = React.useState(() => phoneToDraft(profile.phone));
   const [candidateErrors, setCandidateErrors] = React.useState<CandidateFieldErrors>({});
-  const [candidateSnapshot, setCandidateSnapshot] = React.useState<ApplicationCandidateDraft | null>(
+  const [candidateSnapshot, setCandidateSnapshot] = React.useState<ApplicationCandidateSnapshot | null>(
     null,
   );
   const [source, setSource] =
@@ -264,7 +268,7 @@ export function VacancyApplicationWizard({
    * so Back never loses what was typed.
    */
   function continueFromCandidate(): void {
-    const parsed = parseApplicationCandidateDraft(candidateDraft);
+    const parsed = parseApplicationCandidateDraft(candidateDraft, phoneDraft);
     if (!parsed.ok) {
       const errors = fieldErrorsOf(parsed.issues);
       setCandidateErrors(errors);
@@ -374,7 +378,7 @@ export function VacancyApplicationWizard({
               <FieldGroup className="gap-4">
                 {CANDIDATE_FIELD_SPECS.map((spec) => {
                   const error = candidateErrors[spec.path];
-                  return (
+                  const field = (
                     <Field
                       key={spec.path}
                       data-invalid={error !== undefined ? true : undefined}
@@ -384,10 +388,16 @@ export function VacancyApplicationWizard({
                         id={spec.id}
                         type={spec.type}
                         autoComplete={spec.autoComplete}
-                        value={candidateDraft[spec.path]}
+                        value={spec.path === "phone" ? phoneDraft.phone : candidateDraft[spec.path]}
                         aria-invalid={error !== undefined ? true : undefined}
                         aria-describedby={error !== undefined ? `${spec.id}-error` : undefined}
-                        onChange={(event) => updateCandidateField(spec.path, event.target.value)}
+                        onChange={(event) => {
+                          if (spec.path === "phone") {
+                            const phone = event.target.value;
+                            setPhoneDraft(current => ({ ...current, phone }));
+                            updateCandidateField("phone", phoneValue(phoneDraft.dial, phone) ?? phone);
+                          } else updateCandidateField(spec.path, event.target.value);
+                        }}
                         ref={(node: HTMLInputElement | null) => {
                           candidateFieldRefs.current[spec.path] = node;
                         }}
@@ -396,6 +406,15 @@ export function VacancyApplicationWizard({
                       <FieldError id={`${spec.id}-error`}>{error}</FieldError>
                     </Field>
                   );
+                  return spec.path === "phone" ? (
+                    <FieldGroup key={spec.path} className="grid grid-cols-1 gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]">
+                      <DialCodeField id="application-dial" value={phoneDraft.dial} onChange={dial => {
+                        setPhoneDraft(current => ({ ...current, dial }));
+                        updateCandidateField("phone", phoneValue(dial, phoneDraft.phone) ?? phoneDraft.phone);
+                      }} />
+                      {field}
+                    </FieldGroup>
+                  ) : field;
                 })}
               </FieldGroup>
             </CardContent>

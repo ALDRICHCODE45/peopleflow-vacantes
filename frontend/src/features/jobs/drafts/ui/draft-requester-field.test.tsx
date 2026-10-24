@@ -13,6 +13,16 @@ const onSelect=vi.fn();
 function mount(){return render(<DraftRequesterField requester={{original:null,kind:"client",id:null,name:null,changed:false,notice:null}} onChangeKind={vi.fn()} onSelect={onSelect}/>);}
 async function tick(){await act(async()=>{await vi.advanceTimersByTimeAsync(310);});}
 
+it.each([
+ ["unauthenticated", "Iniciar sesión", "/empresa/login"],
+ ["company_inactive", "Revisar empresa", "/empresa/configuracion"],
+] as const)("merges the %s recovery link border and preserves its href", async (reason, name, href) => {
+ vi.mocked(searchRequestersAction).mockResolvedValue({ok:false,reason,reference:{}});
+ mount();fireEvent.change(screen.getByRole("combobox",{name:"Área o cliente"}),{target:{value:"Ac"}});await tick();
+ const link=screen.getByRole("link",{name});
+ expect(link).toHaveAttribute("href",href);expect(link).toHaveClass("border-border");expect(link).not.toHaveClass("border-transparent");
+});
+
 it("does not search or notify on mount and clears selection only explicitly",async()=>{
  render(<DraftRequesterField requester={{original:{kind:"client",id:entry.id},kind:"client",id:entry.id,name:entry.name,changed:false,notice:null}} onChangeKind={vi.fn()} onSelect={onSelect}/>);
  await tick(); expect(searchRequestersAction).not.toHaveBeenCalled();expect(notifyActionResult).not.toHaveBeenCalled();expect(onSelect).not.toHaveBeenCalled();

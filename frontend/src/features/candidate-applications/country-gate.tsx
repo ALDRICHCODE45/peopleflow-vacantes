@@ -8,6 +8,7 @@ import { ActionStatus } from "@/components/feedback/action-status";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Failure } from "./model";
+import { cn } from "@/lib/utils";
 
 export type CountryScope = { work_mode?: string | null; remote_scope?: RemoteScopeRead };
 export function useCountryGate(job: CountryScope, candidate: boolean, failure?: Failure) {
@@ -39,7 +40,7 @@ export function useCountryGate(job: CountryScope, candidate: boolean, failure?: 
     {profile && !profile.ok && <><ActionStatus id="application-profile-read" tone="warning" text="No pudimos consultar tu país. El servidor comprobará si puedes postularte al enviar." /><Button variant="outline" className="min-h-10 self-start" onClick={retryProfile}>Reintentar</Button></>}
     {required && <ActionStatus id="application-country-verdict" tone="warning" text="Agrega tu país en tu perfil para postularte." />}
     {excluded && <ActionStatus id="application-country-verdict" tone="warning" text={country ? `Tu perfil indica ${country.name}. Esta vacante no acepta postulaciones desde ahí.` : "Esta vacante no acepta postulaciones desde el país de tu perfil."} />}
-    {blocked && <Link href="/candidato/perfil" className={buttonVariants({ variant: "outline", className: "min-h-10 self-start" })}>{excluded ? "Cambiar ubicación" : "Completar perfil"}</Link>}
+    {blocked && <Link href="/candidato/perfil" className={cn(buttonVariants({ variant: "outline", className: "min-h-10 self-start" }))}>{excluded ? "Cambiar ubicación" : "Completar perfil"}</Link>}
   </section> : null;
   return { blocked, notice };
 }

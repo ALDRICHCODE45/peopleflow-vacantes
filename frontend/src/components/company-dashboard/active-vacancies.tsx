@@ -10,19 +10,15 @@ import {
   EMPLOYER_VACANCY_STATE_LABELS,
   EMPLOYER_WORK_MODE_LABELS,
   EMPLOYER_EMPLOYMENT_TYPE_LABELS,
-  vacancyCandidateTotal,
   vacancyPipelineHref,
 } from "@/features/employer-vacancies/model";
-import type { EmployerVacancy } from "@/features/employer-vacancies/model";
+import type { DraftListRow } from "@/features/jobs/drafts/list/client";
+import { cn } from "@/lib/utils";
 
 /**
  * Pure server-rendered active-vacancies panel for the employer dashboard.
  *
- * The panel renders only `state === "active"` vacancies in input order, paired
- * with a portfolio link to `/empresa/vacantes` and exactly one semantic
- * pipeline link per non-interactive row. No client directive, state, effect,
- * fetch, storage or business mutation: the validated prototype fixture arrives
- * as props and the canonical pipeline href comes from the model helper.
+ * Published draft-list rows in input order, with the canonical pipeline link.
  */
 
 /** Stable hook for the heading id; deterministic so tests can rely on it. */
@@ -39,10 +35,10 @@ const monogram = (title: string) =>
 
 /** Natural Spanish agreement: singular for exactly one, plural otherwise. */
 const historyCopy = (total: number) =>
-  `${total} candidato${total === 1 ? "" : "s"} en el historial`;
+  `${total} candidato${total === 1 ? "" : "s"} en proceso`;
 
-export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVacancy[] }) {
-  const active = vacancies.filter((vacancy) => vacancy.state === "active");
+export function ActiveVacancies({ vacancies }: { vacancies: readonly DraftListRow[] }) {
+  const active = vacancies.filter((vacancy) => vacancy.status === "published");
 
   return (
     <section
@@ -61,7 +57,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
         {active.length > 0 && <CardAction><Link
           href="/empresa/vacantes"
           data-pf-active-vacancies-portfolio=""
-          className={buttonVariants({ variant: "outline", className: "min-h-10" })}
+          className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}
         >
           Ver todas
         </Link></CardAction>}
@@ -75,7 +71,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {active.map((vacancy) => {
-            const total = vacancyCandidateTotal(vacancy.candidateCounts);
+            const total = vacancy.candidates?.in_process ?? 0;
             return (
               <Item render={<li />}
                 key={vacancy.id}
@@ -87,15 +83,15 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
                     data-pf-active-vacancy-monogram=""
                     className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-[13px] font-bold text-foreground"
                   >
-                    {monogram(vacancy.title)}
+                    {monogram(vacancy.title ?? "Sin título")}
                   </span></ItemMedia>
                   <ItemContent className="min-w-0">
                     <ItemTitle className="break-words">
-                      {vacancy.title}
+                      {vacancy.title ?? "Sin título"}
                     </ItemTitle>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge data-pf-active-vacancy-status="" variant="accent" dot>{EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
-                      <p className="text-sm text-muted-foreground">{EMPLOYER_WORK_MODE_LABELS[vacancy.workMode]} · {EMPLOYER_EMPLOYMENT_TYPE_LABELS[vacancy.employmentType]}</p>
+                      <Badge data-pf-active-vacancy-status="" variant="accent" dot>{EMPLOYER_VACANCY_STATE_LABELS.active}</Badge>
+                      <p className="text-sm text-muted-foreground">{[vacancy.work_mode && EMPLOYER_WORK_MODE_LABELS[vacancy.work_mode], vacancy.work_schedule && EMPLOYER_EMPLOYMENT_TYPE_LABELS[vacancy.work_schedule]].filter(Boolean).join(" · ")}</p>
                     </div>
                     <ItemDescription>{historyCopy(total)}</ItemDescription>
                   </ItemContent>
@@ -104,7 +100,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
                     href={vacancyPipelineHref(vacancy.id)}
                     data-pf-active-vacancy-pipeline={vacancy.id}
                     aria-label={`Ver pipeline de ${vacancy.title}`}
-                    className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}
+                    className={cn(buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" }))}
                   >
                     Ver pipeline
                   </Link>

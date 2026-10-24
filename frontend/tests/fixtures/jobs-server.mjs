@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { createEmployerDashboardFixture } from "./employer-dashboard.mjs";
+const employerDashboardFixture = createEmployerDashboardFixture();
 
 const port = Number(process.env.JOBS_FIXTURE_PORT ?? 4010);
 const requests = [];
@@ -341,6 +343,7 @@ function send(response, status, payload) {
 
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
+  if (employerDashboardFixture(request, response, url)) return;
   // Task 8.4 — a vacancy is hidden when it is id-hidden (source contract) or
   // when the C2 toggle hides the main fixture vacancy.
   const isHidden = (id) =>

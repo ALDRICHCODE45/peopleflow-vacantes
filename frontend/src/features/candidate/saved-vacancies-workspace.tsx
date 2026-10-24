@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cn } from "cn";
 import { ArrowUpRight, Bookmark, Building2, Globe, MapPin } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -41,7 +42,7 @@ const IDENTITY = "grid size-11 shrink-0 place-items-center rounded-full bg-prima
  * Link instead of routing it through the Base UI Button, which would relabel
  * the navigation as a non-native button.
  */
-const VACANCY_LINK = buttonVariants({ variant: "outline", size: "sm" });
+const VACANCY_LINK = cn(buttonVariants({ variant: "outline", size: "sm" }));
 
 /**
  * The facts one saved vacancy actually carries, in reading order. The three wire
@@ -107,7 +108,7 @@ function SavedVacancyCard({ job }: { readonly job: PrototypeJobView }) {
           href={`/vacantes/${job.id}`}
           data-slot="button"
           aria-label={`Ver vacante de ${job.title} en ${job.company.name}`}
-          className={`${VACANCY_LINK} min-h-10 w-full sm:w-auto`}
+          className={cn(VACANCY_LINK, "min-h-10 w-full sm:w-auto")}
         >
           Ver vacante
           <ArrowUpRight aria-hidden="true" data-icon="inline-end" />

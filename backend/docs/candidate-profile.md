@@ -10,7 +10,10 @@ this includes the removed `education_level` and `field_of_study` keys.
 
 PUT is a **full replacement** of client-owned fields. Omitted or null nullable
 fields become SQL NULL. Omitted `education` becomes `[]`; explicit `education:null`
-is invalid. Skills are normalized; omitted/null skills become `[]`;
+is invalid. Skills keep typed casing, with surrounding whitespace trimmed and internal
+whitespace collapsed. Empty entries are dropped and duplicates are removed
+case-insensitively, keeping the first occurrence (`React, react, REACT` → `React`).
+Omitted/null skills become `[]`;
 omitted/null salary currency defaults to `MXN`. Reserved CV storage fields and
 server-managed identity/timestamps are not client-writable and are rejected as
 unknown request keys. PUT does not replace languages or overwrite reserved CV data.
@@ -51,6 +54,11 @@ unknown request keys. PUT does not replace languages or overwrite reserved CV da
 GET and successful PUT always return `years_of_experience`, `seniority`, and an
 `education` array; every returned study has exactly the six keys above.
 Other profile fields retain their existing types and omission behavior.
+Skills responses return stored casing (for example `React`, `TypeScript`, `SQL`).
+There is no migration or rewrite of legacy lowercase values. Application snapshots
+copy stored skills unchanged. Any skill search/filter must compare case-insensitive
+keys, not raw array entries. The board does this client-side; the company talent
+list's server-side text search currently searches only name/email, not skills.
 
 `location` replaces the former `city`/`country` text fields. Omit it or send null
 to clear it. A present object requires a known country; state and municipality

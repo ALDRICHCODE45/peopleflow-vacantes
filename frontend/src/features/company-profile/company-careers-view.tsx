@@ -18,6 +18,7 @@ import { StateCard } from "@/components/feedback/state-card";
 import { employmentTypeLabel, formatPublishedDate, formatSalary, seniorityLabel, workModeLabel } from "../jobs/formatters";
 import type { JobItem } from "../jobs/types";
 import { companySiteHeadings, type CompanySiteContent, type CompanySiteHeadingLevel } from "./company-site-content";
+import { cn } from "@/lib/utils";
 
 /** Keyboard focus ring shared by every interactive element on this page. */
 const focusRing =
@@ -124,7 +125,7 @@ export function CompanyCareersView({
               </a>
               <a
                 href={`#${headings.storyId}`}
-                className={buttonVariants({ variant: "outline", className: "pf-hero-cta-outline min-h-11 px-6" })}
+                className={cn(buttonVariants({ variant: "outline", className: "pf-hero-cta-outline min-h-11 px-6" }))}
               >
                 Conoce la empresa
               </a>

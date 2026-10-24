@@ -1,5 +1,6 @@
 "use client"
 
+import { BriefcaseBusiness, Users, UserPlus, CircleCheck } from "lucide-react"
 import {
   Card,
   CardAction,
@@ -8,43 +9,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { IconTrendingUp } from "@tabler/icons-react"
+import { Progress } from "@/components/ui/progress"
+import type { Dashboard } from "@/features/employer-dashboard/model"
+import { accentIconTile } from "@/lib/accent"
+import { cn } from "@/lib/utils"
 
-// Fictional recruiting snapshot for the approved prototype. The fourth card's
-// trend line is the one the measured stylesheet pins to a single line, so it
-// carries the semantic growth marker instead of the context line below it.
-const kpiCards = [
-  {
-    label: "Vacantes activas",
-    value: "12",
-    trend: "+2",
-    trendLine: "En alza este mes",
-    context: "3 publicadas esta semana",
-  },
-  {
-    label: "Candidatos nuevos",
-    value: "42",
-    trend: "+18",
-    trendLine: "Buen ritmo de entrada",
-    context: "Esperan tu primera revisión",
-  },
-  {
-    label: "En revisión",
-    value: "28",
-    trend: "+5",
-    trendLine: "Revisión al alza",
-    context: "Avanzando en tu pipeline",
-  },
-  {
-    label: "Contrataciones este mes",
-    value: "3",
-    trend: "+1",
-    trendLine: "Sumando incorporaciones",
-    context: "Tasa de cierre del 11%",
-  },
-] as const
+type Metrics = Pick<Dashboard, "published_vacancies" | "in_process" | "pool_added_last_7_days" | "positions">
 
-export function SectionCards() {
+export function SectionCards({ data }: { data: Metrics }) {
+  const kpiCards = [
+    { label: "Vacantes publicadas", value: data.published_vacancies, icon: BriefcaseBusiness, highlight: "Con publicación activa", context: "Visibles para tu cuenta" },
+    { label: "Candidatos en proceso", value: data.in_process, icon: Users, highlight: "En etapas de progreso", context: "En tus vacantes publicadas" },
+    { label: "Nuevos en la base", value: data.pool_added_last_7_days, icon: UserPlus, highlight: "Últimos 7 días", context: "Base de talento de tu empresa" },
+    { label: "Posiciones cubiertas", value: `${data.positions.covered}/${data.positions.required}`, icon: CircleCheck, highlight: "Cubiertas sobre requeridas", context: "En tus vacantes publicadas" },
+  ]
+  const coverage = data.positions.required > 0 ? Math.min(100, data.positions.covered / data.positions.required * 100) : 0
   return (
     <div
       data-pf-kpi-cards=""
@@ -58,10 +37,9 @@ export function SectionCards() {
               <h3>{kpi.value}</h3>
             </CardTitle>
             <CardAction>
-              <p className="flex items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
-                <IconTrendingUp aria-hidden="true" className="size-4" />
-                {kpi.trend}
-              </p>
+              <div data-pf-metric-icon="" className={cn("grid size-9 place-items-center rounded-full", accentIconTile)}>
+                <kpi.icon aria-hidden="true" className="size-4" />
+              </div>
             </CardAction>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm">
@@ -69,9 +47,10 @@ export function SectionCards() {
               data-pf-growth-footer={index === kpiCards.length - 1 ? "" : undefined}
               className="line-clamp-1 flex gap-2 font-medium"
             >
-              {kpi.trendLine} <IconTrendingUp aria-hidden="true" className="size-4" />
+              {kpi.highlight} <kpi.icon aria-hidden="true" className="size-4 shrink-0" />
             </div>
             <div className="text-muted-foreground">{kpi.context}</div>
+            {index === kpiCards.length - 1 && <Progress aria-label="Posiciones cubiertas" value={coverage} className="w-full" />}
           </CardFooter>
         </Card>
       ))}

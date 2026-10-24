@@ -30,8 +30,14 @@ el backend va en su rama indicada, con `make db-migrate`.
    de empresa (sin sesión va al login y vuelve a la página pedida) y el arreglo del aviso de
    error tras un ingreso correcto con Cognito.
 
-Pendientes postergados que siguen abiertos: «Crear cuenta» de candidato cae en el login de
-Cognito; faltan las URLs de cierre de sesión en Cognito; invitar miembros por correo (no hay endpoint); el backend permite degradar o quitar al último dueño (la UI lo evita); `features/employer-talent` (prototipo) sigue usado por el respaldo del tablero; al cargar un teléfono con lada distinta de +52/+1 se separa con un prefijo fijo de 3 dígitos (`src/lib/phone.ts:30`); el dashboard de empresa
+**Cognito (S3):** resuelto en código el acceso de «Crear cuenta» al formulario de
+registro, conservando la transacción NextAuth y sus parámetros. Pendiente de
+verificación real en el navegador. **Acción del usuario en la consola de AWS:**
+agregar las dos Allowed sign-out URLs y habilitar self sign-up si no lo está;
+seguir el paso 89 de `docs/employer-manual-test.md` y comprobar registro y cierre
+de sesión de candidato y empresa.
+
+Pendientes postergados que siguen abiertos: invitar miembros por correo (no hay endpoint); el backend permite degradar o quitar al último dueño (la UI lo evita); el dashboard de empresa
 («Vacantes activas») y el respaldo del tablero todavía usan vacantes de ejemplo; el teléfono del
 formulario de postulación heredado sigue como texto libre (5–30 caracteres) hasta tener el
 control de lada; filtros Estado/Municipio del tablero con una postulación nueva; ver como
@@ -40,4 +46,4 @@ candidato «Vacante cerrada»; un test inestable con la suite completa (draft-sa
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.
 
-> Ítems 1–9 aprobados por el usuario el 2026-10-18 («todo esta bien, me gusta, aprobado») e integrados en `main` local por fast-forward (d5cce32). Problema conocido: «Crear cuenta» de candidato cae en el login de Cognito (pendiente).
+> Ítems 1–9 aprobados por el usuario el 2026-10-18 («todo esta bien, me gusta, aprobado») e integrados en `main` local por fast-forward (d5cce32). El problema de «Crear cuenta» de candidato quedó resuelto en código (S3); la configuración de Cognito y la comprobación real están en el paso 89 de `docs/employer-manual-test.md`.
