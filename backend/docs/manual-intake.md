@@ -105,8 +105,12 @@ coherent five-digit CP; other countries prohibit subdivisions.
 
 Optional profile fields: professional_title and current_company (short text ≤120),
 summary (≤2000), skills (≤30 entries, each ≤60), linkedin_url and portfolio_url
-(HTTPS, ≤2048). Accepted skills trim/lowercase while preserving order;
-empty/duplicate skills remain field errors.
+(HTTPS, ≤2048). Skills retain typed casing, trim/collapse whitespace, and drop
+empty entries. Duplicates are case-insensitive: the first occurrence's casing
+and order win (`React, react, REACT` → `React`). Existing length/count limits
+are unchanged. Responses and application snapshots return the stored casing;
+legacy lowercase data is not rewritten. Skill searches/filters must use
+case-insensitive keys rather than raw stored values.
 
 H2 profile fields use the shared vocabulary without importing the candidates feature:
 

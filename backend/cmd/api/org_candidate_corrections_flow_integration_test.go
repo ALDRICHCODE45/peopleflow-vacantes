@@ -94,7 +94,7 @@ func TestOrgCandidateCorrectionsFlow(t *testing.T) {
 		}
 	})
 	t.Run("set all fields and effective projections", func(t *testing.T) {
-		body := `{"set":{"full_name":"Corrected Candidate","email":"effective@example.test","phone":"+523312345678","location":{"country":"MX","state":"14","municipality":"14039","postal_code":null},"professional_title":"Corrected Engineer","current_company":"Corrected Company","seniority":"lead","years_of_experience":"5.5","education":[{"level":"phd","institution":null,"field":null,"status":"paused","start_year":null,"end_year":null},{"level":"technical","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null},` + editStudy + `,{"level":"master","institution":null,"field":null,"status":"in_progress","start_year":null,"end_year":null},{"level":"technical","institution":null,"field":null,"status":"in_progress","start_year":null,"end_year":null},{"level":"phd","institution":null,"field":null,"status":"incomplete","start_year":null,"end_year":null}],"languages":[{"code":"es","level":"native"}],"skills":["Rust"],"linkedin_url":"https://example.test/corrected","portfolio_url":"https://example.test/portfolio"}}`
+		body := `{"set":{"full_name":"Corrected Candidate","email":"effective@example.test","phone":"+523312345678","location":{"country":"MX","state":"14","municipality":"14039","postal_code":null},"professional_title":"Corrected Engineer","current_company":"Corrected Company","seniority":"lead","years_of_experience":"5.5","education":[{"level":"phd","institution":null,"field":null,"status":"paused","start_year":null,"end_year":null},{"level":"technical","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null},` + editStudy + `,{"level":"master","institution":null,"field":null,"status":"in_progress","start_year":null,"end_year":null},{"level":"technical","institution":null,"field":null,"status":"in_progress","start_year":null,"end_year":null},{"level":"phd","institution":null,"field":null,"status":"incomplete","start_year":null,"end_year":null}],"languages":[{"code":"es","level":"native"}],"skills":["React","TypeScript","SQL","react","REACT"],"linkedin_url":"https://example.test/corrected","portfolio_url":"https://example.test/portfolio"}}`
 		r := f.patch(t, body, tag)
 		draftFlowAssertNoStore(t, r)
 		if r.status != 200 || r.header.Get("ETag") == tag {
@@ -114,7 +114,8 @@ func TestOrgCandidateCorrectionsFlow(t *testing.T) {
 		profile := d["profile"].(map[string]any)
 		orgCandidateKeys(t, profile, "location", "skills", "years_of_experience", "seniority", "education", "languages")
 		editJSONEqual(t, profile["education"], map[string]any{"highest_completed": "bachelor", "in_progress": "master"})
-		editJSONEqual(t, d["skills"], []string{"rust"})
+		editJSONEqual(t, d["skills"], []string{"React", "TypeScript", "SQL"})
+		editJSONEqual(t, profile["skills"], []string{"React", "TypeScript", "SQL"})
 		for _, study := range d["education"].([]any) {
 			orgCandidateKeys(t, study, "level", "institution", "field", "status", "start_year", "end_year")
 		}
@@ -182,7 +183,7 @@ func TestOrgCandidateCorrectionsFlow(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &request); err != nil {
 			t.Fatal(err)
 		}
-		request.Set["skills"] = []string{"rust"}
+		request.Set["skills"] = []string{"React", "TypeScript", "SQL"}
 		for _, raw := range changes {
 			c := raw.(map[string]any)
 			key := c["field"].(string)

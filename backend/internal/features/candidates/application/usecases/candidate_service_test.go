@@ -208,7 +208,7 @@ func TestGetMyProfile_NoProfileReturnsNotFound(t *testing.T) {
 
 // TestUpsertMyProfile_CreatesProfile covers the spec scenario "PUT creates
 // on first call". After the upsert the repository received the canonical
-// (lowercased) skills list — proving the use case enforces normalization
+// (display-cased) skills list — proving the use case enforces normalization
 // even if a caller bypasses the HTTP layer.
 func TestUpsertMyProfile_CreatesProfile(t *testing.T) {
 	userID := uuid.New()
@@ -242,7 +242,7 @@ func TestUpsertMyProfile_CreatesProfile(t *testing.T) {
 		t.Errorf("UserID: want %v, got %v", userID, got.UserID)
 	}
 	// Skills normalization is the use case's contract.
-	wantSkills := []string{"go", "aws"}
+	wantSkills := []string{"Go", "AWS"}
 	if strings.Join(cRepo.upserted.Skills, ",") != strings.Join(wantSkills, ",") {
 		t.Errorf("Skills: want %v, got %v", wantSkills, cRepo.upserted.Skills)
 	}

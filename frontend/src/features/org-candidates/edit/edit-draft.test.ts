@@ -21,6 +21,7 @@ it.each([
  ["location", { location: { country: "US", state: null, municipality: null, postal_code: null } }, { location: { country: "US" } }],
  ["education", { education: [{ level: "bachelor", status: "completed", institution: " UNAM ", field: "", start_year: "2010", end_year: "2014" }] }, { education: [{ level: "bachelor", status: "completed", institution: "UNAM", field: null, start_year: 2010, end_year: 2014 }] }],
  ["languages", { languages: [{ code: "en", level: "C1" }] }, { languages: [{ code: "en", level: "C1" }] }],
+ ["skills as typed", { skills: "React, react, TypeScript" }, { skills: ["React", "TypeScript"] }],
  ["cleared collections", { skills: "", languages: [], education: [] }, { skills: null, languages: null }],
 ] satisfies [string, Partial<CandidateEditDraft>, object][])("converts changed %s and sends only the changed fields", (_label, patch, set) => {
  const candidate = editFixture();

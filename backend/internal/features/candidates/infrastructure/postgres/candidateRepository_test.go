@@ -93,7 +93,7 @@ func TestUpsertProfile_CreateThenUpdate(t *testing.T) {
 
 	profile, err := entities.NewCandidateProfile(userID.String(), entities.CandidateProfileInput{
 		EducationLevel: "bachelor",
-		Skills:         []string{"Go", "AWS"},
+		Skills:         []string{"React", "TypeScript", "SQL", "react", "REACT"},
 	})
 	if err != nil {
 		t.Fatalf("NewCandidateProfile (1st): %v", err)
@@ -113,9 +113,15 @@ func TestUpsertProfile_CreateThenUpdate(t *testing.T) {
 	if got.ProfessionalTitle == nil || *got.ProfessionalTitle != title1 {
 		t.Errorf("ProfessionalTitle after create: want %q, got %v", title1, got.ProfessionalTitle)
 	}
-	// Skills are lowercased on write (NormalizeSkills in the entity).
-	if len(got.Skills) != 2 || got.Skills[0] != "go" || got.Skills[1] != "aws" {
-		t.Errorf("Skills: want [go aws], got %v", got.Skills)
+	// Display casing survives persistence and readback.
+	stored, err := repo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []*entities.CandidateProfile{got, stored} {
+		if len(p.Skills) != 3 || p.Skills[0] != "React" || p.Skills[1] != "TypeScript" || p.Skills[2] != "SQL" {
+			t.Errorf("Skills: want [React TypeScript SQL], got %v", p.Skills)
+		}
 	}
 
 	// Second upsert overwrites.

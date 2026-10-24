@@ -126,7 +126,7 @@ describe("candidate profile draft adapter", () => {
     }
   });
   it("splits, normalizes, and dedupes skills through the shared schema", () => {
-    expect(profileOf({ skills: " React , react\n , TypeScript ,NODE.JS, " }).skills).toEqual(["react", "typescript", "node.js"]);
+    expect(profileOf({ skills: " React , react\n , TypeScript ,NODE.JS, " }).skills).toEqual(["React", "TypeScript", "NODE.JS"]);
     expect(profileOf({ skills: "   " }).skills).toEqual([]);
     expect(issuesOf({ skills: ["a".repeat(61), "react"].join(",") }).map((issue) => issue.path)).toEqual(["skills"]);
     expect(issuesOf({ skills: Array.from({ length: 61 }, (_, index) => `s${index}`).join(",") }).map((issue) => issue.path)).toEqual(["skills"]);

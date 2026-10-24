@@ -91,6 +91,27 @@ func TestProfileHTTPHarmonizationRoundTripAndReplacement(t *testing.T) {
 	}
 }
 
+func TestProfileHTTPSkillsDisplayCasing(t *testing.T) {
+	request := profileHTTP(t)
+	for _, tc := range []struct {
+		name, body string
+		want       []any
+	}{
+		{"typed casing", `{"skills":["React","TypeScript","SQL"]}`, []any{"React", "TypeScript", "SQL"}},
+		{"first occurrence", `{"skills":["React","react","REACT"]}`, []any{"React"}},
+		{"whitespace", `{"skills":[" React "," SQL   Server ","sql server",""]}`, []any{"React", "SQL Server"}},
+		{"legacy casing", `{"skills":["react","typescript","sql"]}`, []any{"react", "typescript", "sql"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			put := request(http.MethodPut, "/", tc.body, 200)
+			get := request(http.MethodGet, "/", "", 200)
+			if !reflect.DeepEqual(put["skills"], tc.want) || !reflect.DeepEqual(get["skills"], tc.want) {
+				t.Fatalf("skills: PUT=%v GET=%v want=%v", put["skills"], get["skills"], tc.want)
+			}
+		})
+	}
+}
+
 func TestProfileHTTPHarmonizationRejectionPreservesData(t *testing.T) {
 	request := profileHTTP(t)
 	request(http.MethodPut, "/", profileStudies, 200)

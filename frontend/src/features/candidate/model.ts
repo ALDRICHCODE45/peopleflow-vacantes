@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { phoneSchema } from "@/lib/phone";
 import { locationReadSchema } from "@/features/geo/model";
+import { normalizeSkills } from "@/lib/skills";
 
 /**
  * Prototype candidate model for the `/candidato` workspace. It owns the strict
@@ -96,21 +97,11 @@ export const candidateLanguageSchema = z
   .strict();
 export type CandidateLanguage = z.infer<typeof candidateLanguageSchema>;
 
-/** Canonical skills: lowercase, trimmed, empty dropped, deduped by first occurrence. */
+/** Canonical skills: typed casing, trimmed, empty dropped, deduped case-insensitively. */
 const skillsSchema = z
   .array(z.string().max(60))
   .max(60)
-  .transform((values) => {
-    const seen = new Set<string>();
-    const normalized: string[] = [];
-    for (const value of values) {
-      const skill = value.trim().toLowerCase();
-      if (skill === "" || seen.has(skill)) continue;
-      seen.add(skill);
-      normalized.push(skill);
-    }
-    return normalized;
-  });
+  .transform((values) => normalizeSkills(values));
 
 /** Up to ten distinct catalog codes; duplicates preserve the offending row index. */
 const languagesSchema = z

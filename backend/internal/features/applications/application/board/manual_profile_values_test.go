@@ -46,20 +46,17 @@ func TestManualProfileVocabularies(t *testing.T) {
 
 func TestManualSkillsNormalizeAndPreserveOrder(t *testing.T) {
 	candidate := validManualCandidate()
-	candidate["skills"] = []string{" SQL ", "Go", " ÉXITO "}
+	candidate["skills"] = []string{" React ", "TypeScript", " SQL "}
 	out, fields, err := manualValidationRequest(t, candidate).Validate(context.Background(), manualGeo{}, true)
 	if err != nil || len(fields) != 0 {
 		t.Fatalf("fields=%v error=%v", fields, err)
 	}
-	if !reflect.DeepEqual(out.Candidate.Skills, []string{"sql", "go", "éxito"}) {
+	if !reflect.DeepEqual(out.Candidate.Skills, []string{"React", "TypeScript", "SQL"}) {
 		t.Fatalf("skills=%v", out.Candidate.Skills)
 	}
-	// Intake reports duplicates/empty entries as fields rather than silently
-	// dropping them; accepted entries have the candidate profile canonical form.
-	candidate["skills"] = []string{"Go", " go ", " "}
-	_, fields, err = manualValidationRequest(t, candidate).Validate(context.Background(), manualGeo{}, true)
-	want := []ManualFieldError{{Field: "candidate.skills[1]", Code: "duplicate"}, {Field: "candidate.skills[2]", Code: "required"}}
-	if err != nil || !reflect.DeepEqual(fields, want) {
-		t.Fatalf("fields=%v error=%v", fields, err)
+	candidate["skills"] = []string{"React", " react ", "REACT", " "}
+	out, fields, err = manualValidationRequest(t, candidate).Validate(context.Background(), manualGeo{}, true)
+	if err != nil || len(fields) != 0 || !reflect.DeepEqual(out.Candidate.Skills, []string{"React"}) {
+		t.Fatalf("out=%+v fields=%v error=%v", out, fields, err)
 	}
 }

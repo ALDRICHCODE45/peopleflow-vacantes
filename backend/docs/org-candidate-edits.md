@@ -239,6 +239,13 @@ Migration **00044** must be applied before using these reads/writes.
   `location` corresponds to intake's `residence`. Unchanged legacy fields need
   not be repaired to edit another field. Required name/location/studies cannot
   clear to null; optional null values clear and null skills/languages become `[]`.
+- Skills use the same rule for manual edits and organic corrections: preserve
+  typed casing, trim/collapse whitespace, drop empty entries, and deduplicate
+  case-insensitively while keeping the first occurrence's casing and order.
+  Existing length/count limits are unchanged. Detail, list, board and private
+  history return stored casing. Existing lowercase skills and frozen application
+  snapshots are not rewritten; searches/filters must use case-insensitive keys.
+  A casing-only edit is a display change, not a no-op.
 - Language order normalizes by code before no-op detection. Arrays replace.
   No-op PATCH does not advance provenance/version or append history/audit.
 - The live record, child arrays, private history and PII-free audit event commit

@@ -84,7 +84,7 @@ func TestOrgCandidateEditsFlow(t *testing.T) {
 		}
 	})
 	t.Run("every field and exact private history", func(t *testing.T) {
-		body := `{"set":{"full_name":"Updated Candidate","email":"updated@example.test","phone":"+523312345678","location":{"country":"MX","state":"14","municipality":"14039","postal_code":null},"professional_title":"Senior Engineer","current_company":"New Company","seniority":"senior","years_of_experience":"4.5","education":[{"level":"master","institution":"UNAM","field":"AI","status":"in_progress","start_year":2024,"end_year":null},` + editStudy + `],"languages":[{"code":"es","level":"native"},{"code":"en","level":"C1"}],"skills":["Rust"],"linkedin_url":"https://example.test/new-link","portfolio_url":"https://example.test/new-portfolio"}}`
+		body := `{"set":{"full_name":"Updated Candidate","email":"updated@example.test","phone":"+523312345678","location":{"country":"MX","state":"14","municipality":"14039","postal_code":null},"professional_title":"Senior Engineer","current_company":"New Company","seniority":"senior","years_of_experience":"4.5","education":[{"level":"master","institution":"UNAM","field":"AI","status":"in_progress","start_year":2024,"end_year":null},` + editStudy + `],"languages":[{"code":"es","level":"native"},{"code":"en","level":"C1"}],"skills":["React","TypeScript","SQL","react","REACT"],"linkedin_url":"https://example.test/new-link","portfolio_url":"https://example.test/new-portfolio"}}`
 		r := f.patch(t, body, tag)
 		draftFlowAssertNoStore(t, r)
 		if r.status != 200 || r.header.Get("ETag") == tag {
@@ -102,8 +102,8 @@ func TestOrgCandidateEditsFlow(t *testing.T) {
 		if p["seniority"] != "senior" || p["years_of_experience"] != "4.5" {
 			t.Fatal(p)
 		}
-		editJSONEqual(t, p["skills"], []string{"rust"})
-		editJSONEqual(t, d["skills"], []string{"rust"})
+		editJSONEqual(t, p["skills"], []string{"React", "TypeScript", "SQL"})
+		editJSONEqual(t, d["skills"], []string{"React", "TypeScript", "SQL"})
 		editJSONEqual(t, p["languages"], []map[string]any{{"code": "en", "level": "C1"}, {"code": "es", "level": "native"}})
 		editJSONEqual(t, p["education"], map[string]any{"highest_completed": "bachelor", "in_progress": "master"})
 		location := p["location"].(map[string]any)
@@ -130,7 +130,7 @@ func TestOrgCandidateEditsFlow(t *testing.T) {
 		_ = json.Unmarshal([]byte(editInitial), &before)
 		var request struct{ Set map[string]any }
 		_ = json.Unmarshal([]byte(body), &request)
-		request.Set["skills"] = []any{"rust"}
+		request.Set["skills"] = []any{"React", "TypeScript", "SQL"}
 		request.Set["languages"] = []map[string]any{{"code": "en", "level": "C1"}, {"code": "es", "level": "native"}}
 		changes := entry["changes"].([]any)
 		if len(changes) != 13 {

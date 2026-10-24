@@ -4,6 +4,7 @@ import { EDUCATION_LEVEL_LABELS, EDUCATION_STATUS_LABELS, CEFR_LEVEL_LABELS, SEN
 import type { EducationDraft } from "@/features/candidate/profile-draft";
 import type { LanguageValue } from "@/features/languages/language-field";
 import { CANDIDATE_EDIT_FIELDS, buildCandidateEditBody, candidateEditValuesSchema, type CandidateEditField, type CandidateEditValues, type EditableOrgCandidate } from "./edit-model";
+import { parseSkills } from "@/lib/skills";
 export type CandidateEditDraft = {
  full_name: string; email: string; dial: string; phone: string; location: LocationValue;
  professional_title: string; current_company: string; seniority: string; years_of_experience: string;
@@ -54,7 +55,7 @@ export function prepareCandidateEdit(candidate: EditableOrgCandidate, draft: Can
  const raw = {
   ...draft, full_name: text(draft.full_name), email: text(draft.email), phone: phoneValue(draft.dial, draft.phone), location: locationValueToWrite(draft.location),
   professional_title: text(draft.professional_title), current_company: text(draft.current_company), seniority: text(draft.seniority), years_of_experience: text(draft.years_of_experience),
-  skills: [...new Set(draft.skills.split(/[,\n]/).map(value => value.trim().toLowerCase()).filter(Boolean))],
+  skills: parseSkills(draft.skills),
   linkedin_url: text(draft.linkedin_url), portfolio_url: text(draft.portfolio_url),
   education: draft.education.map(row => ({ ...row, institution: text(row.institution), field: text(row.field), start_year: year(row.start_year), end_year: year(row.end_year) })),
  };

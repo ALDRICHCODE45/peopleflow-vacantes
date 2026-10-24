@@ -89,6 +89,16 @@ it("casefolds Unicode labels without changing first-seen spelling", () => {
   expect(optionCount(board.participations, skills, "strasse")).toBe(2);
   expect(optionCount(board.participations, skills, "σ")).toBe(2);
 });
+it("matches skills stored as typed and legacy lowercase skills alike (S4d)", () => {
+  for (const order of [["React", "react"], ["react", "React"]]) {
+    const board = boardFixture();
+    board.participations = order.map((skill, index) => ({ ...board.participations[0], id: String(index + 1), profile: { ...board.participations[0].profile, skills: [skill] } }));
+    const dimensions = boardFilterDimensions(board);
+    const skills = dimensions.find(d => d.key === "skills")!;
+    expect(skills.options).toEqual([{ value: "react", label: order[0] }, { value: "none", label: "Sin dato" }]);
+    expect(applyFilters(board.participations, dimensions, { skills: new Set(["react"]) }).map(p => p.id)).toEqual(["1", "2"]);
+  }
+});
 it("empty profile values use none and education follows its canonical order", () => {
   const board = boardFixture();
   board.participations = (["phd", "master", "bachelor", "high_school"] as const).map(education_level => ({ ...board.participations[0], profile: { location: null, skills: ["\t", " "], years_of_experience: null, seniority: null, education: { highest_completed: education_level, in_progress: null }, languages: [] } }));

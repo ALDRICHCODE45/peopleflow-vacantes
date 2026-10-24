@@ -185,14 +185,14 @@ it("submits exactly the validated body shown, without recomputing from a later d
  const dialog = await openSaveConfirmation();
  expect(dialog.querySelectorAll("dt")).toHaveLength(3);
  expect(within(summaryRow(dialog, "Nombre completo")).getByText("Lucía López", { selector: "dd" })).toBeVisible();
- expect(within(summaryRow(dialog, "Habilidades")).getByText("typescript; react", { selector: "dd" })).toBeVisible();
+ expect(within(summaryRow(dialog, "Habilidades")).getByText("TypeScript; React", { selector: "dd" })).toBeVisible();
  expect(within(summaryRow(dialog, "Título profesional")).getByText("Se restaurará el original", { selector: "dd" })).toBeVisible();
  // A programmatic draft change cannot silently change the payload already confirmed.
  change("Habilidades", "Vue");
- expect(within(summaryRow(dialog, "Habilidades")).getByText("typescript; react", { selector: "dd" })).toBeVisible();
+ expect(within(summaryRow(dialog, "Habilidades")).getByText("TypeScript; React", { selector: "dd" })).toBeVisible();
  await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Guardar cambios" })); });
  expect(saveOrgCandidateEditAction).toHaveBeenCalledExactlyOnceWith({ kind: candidate.kind, id: candidate.id }, candidate.etag, {
-  set: { full_name: "Lucía López", skills: ["typescript", "react"] }, reset: ["professional_title"],
+  set: { full_name: "Lucía López", skills: ["TypeScript", "React"] }, reset: ["professional_title"],
  });
 });
 it("cancels without writing and builds a fresh summary on reopening", async () => {

@@ -2,30 +2,23 @@ package valueobjects
 
 import "strings"
 
-// NormalizeSkills returns a canonical, GIN-friendly representation of the
-// supplied skill list. The DB GIN index treats entries case-sensitively, so
-// ["Go"] and ["go"] land in different index slots; without normalization the
-// recruiter search "skills @> ARRAY['go']" would silently miss half of the
-// stored candidates.
-//
-// The canonical form is: lowercase, trimmed, no empty entries, no duplicates.
-// Ordering of first occurrence is preserved (so a recruiter can rely on a
-// stable list ordering when reading the row back).
+// NormalizeSkills trims and collapses whitespace, drops empty entries, and
+// deduplicates case-insensitively. The first occurrence's casing and order are
+// retained for storage and display. Searches must compare case-insensitive keys,
+// not raw array entries; legacy lowercase values are not rewritten.
 func NormalizeSkills(in []string) []string {
-	if len(in) == 0 {
-		return []string{}
-	}
 	seen := make(map[string]struct{}, len(in))
 	out := make([]string, 0, len(in))
 	for _, s := range in {
-		norm := strings.ToLower(strings.TrimSpace(s))
+		norm := strings.Join(strings.Fields(s), " ")
 		if norm == "" {
 			continue
 		}
-		if _, ok := seen[norm]; ok {
+		key := strings.ToLower(norm)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[norm] = struct{}{}
+		seen[key] = struct{}{}
 		out = append(out, norm)
 	}
 	return out
