@@ -50,7 +50,8 @@ export function useToastPlacement(): PlacementStyle {
       setStyle((current) => current["--pf-toast-right"] === next["--pf-toast-right"] &&
         current["--pf-toast-bottom"] === next["--pf-toast-bottom"] ? current : next);
     };
-    const resizeObserver = new ResizeObserver(measure);
+    // Without ResizeObserver (older engines, jsdom) the window resize listener still applies.
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     const discover = () => {
       // Sheet portals follow opening order; the last open right popup is the
       // innermost/topmost one. Closed popups may remain mounted for their exit.
@@ -60,11 +61,11 @@ export function useToastPlacement(): PlacementStyle {
       const nextSheet = sheets.item(sheets.length - 1) ?? undefined;
       const nextFooter = nextSheet?.querySelector<HTMLElement>('[data-slot="sheet-footer"]') ?? null;
       if (sheet !== nextSheet || footer !== nextFooter) {
-        resizeObserver.disconnect();
+        resizeObserver?.disconnect();
         sheet = nextSheet;
         footer = nextFooter;
-        if (sheet) resizeObserver.observe(sheet);
-        if (footer) resizeObserver.observe(footer);
+        if (sheet) resizeObserver?.observe(sheet);
+        if (footer) resizeObserver?.observe(footer);
       }
       measure();
     };
@@ -79,7 +80,7 @@ export function useToastPlacement(): PlacementStyle {
     discover();
     return () => {
       mutations.disconnect();
-      resizeObserver.disconnect();
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", measure);
     };
   }, []);
