@@ -71,7 +71,7 @@ member invitations.
 
 - T1a S1a backend `GET /v2/me/company/dashboard` + docs — done (feat(dashboard) commit, L9)
 - T1b S1b–S1e frontend dashboard on the endpoint, E2E `employer-workspace.spec.ts` rewritten — done (L11)
-- T1c S1f restore the approved dashboard components with real data + §10 color — reopened (L13)
+- T1c S1f restore the approved dashboard components with real data + §10 color — done c81bc2b4, bf21ed06 (L14)
 - T2 S2 pipeline prototype removal — done 2269d9ee (L4)
 - T3 S3 Cognito sign-up path + sign-out URL guide — done cc282a24 (L6); AWS sign-out URLs: user action, guide step 89
 - T4 S4a–S4f medium items (L9): S4a aa62982e; S4b cd52bd27 + b063267c; S4c 1beb826e; S4d in progress; S4e W1
@@ -199,3 +199,13 @@ member invitations.
   de diseno, shadcn, etc.. no te lo tendria que estar diciendo otra vez.» Cause: the T1b worker replaced the approved
   components (data-table 634 → 23 lines, chart 360 → 41, cards 80 → 19) and the parent QA checked data and defects but
   never compared against the approved design. T1c reopens S1b–S1e under S1f.
+- **L14.** T1c (worker mvlslpyp-g-yu2v + parent): approved `main` components restored and fed real data (cards with
+  primary medallions instead of fake trends + coverage `Progress`; approved chart with a legend; approved recent table
+  with Todos/Orgánicos/Manuales tabs, Etapa/Origen badges, column control, selection, drawer, pagination; page intro
+  §10.1); backend adds optional `recent[].candidate.professional_title` and `recent[].stage.kind` (c81bc2b4). Parent
+  side-by-side QA vs `.playwright-mcp/qa/dashboard-approved-main-1440.png` found three defects, fixed test-first
+  (RED 3 → GREEN): `natural` curves dipped below zero on sparse real data → `monotone`; «Agregados en los últimos 7 días»
+  wrapped → «Últimos 7 días»; a lone «—» subline → «Ver detalle» (bf21ed06). Light, dark and 390 checked
+  (`dashboard-restored2-*.png`), no horizontal overflow. Full suite: tsc, eslint clean; 408 files, 1 failure in
+  `vacantes/borradores/nuevo/page.test.tsx` under full-suite load, passes alone twice (8/8) — load flake of a heavy
+  editor mount, unrelated to the dashboard.
