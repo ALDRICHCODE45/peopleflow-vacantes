@@ -28,7 +28,10 @@ it("orders identity, application conditions and action without repeating the dat
   expect(card.querySelectorAll("time")).toHaveLength(1);
   expect(footer.querySelector("time")).toBeNull();
   expect(card.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
-  expect(within(footer as HTMLElement).getByRole("link", { name: "Ver vacante" })).toHaveAttribute("href", `/vacantes/${id}`);
+  const link = within(footer as HTMLElement).getByRole("link", { name: "Ver vacante" });
+  expect(link).toHaveAttribute("href", `/vacantes/${id}`);
+  expect(link).toHaveClass("border-border");
+  expect(link).not.toHaveClass("border-transparent");
   expect(card.querySelector('[data-slot="card-header"]')).toHaveClass("border-b");
   expect(footer).toHaveClass("border-t");
 });

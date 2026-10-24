@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cn } from "cn";
 import { ArrowUpRight, Bookmark, Building2, Globe, MapPin } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -107,7 +108,7 @@ function SavedVacancyCard({ job }: { readonly job: PrototypeJobView }) {
           href={`/vacantes/${job.id}`}
           data-slot="button"
           aria-label={`Ver vacante de ${job.title} en ${job.company.name}`}
-          className={`${VACANCY_LINK} min-h-10 w-full sm:w-auto`}
+          className={cn(VACANCY_LINK, "min-h-10 w-full sm:w-auto")}
         >
           Ver vacante
           <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
