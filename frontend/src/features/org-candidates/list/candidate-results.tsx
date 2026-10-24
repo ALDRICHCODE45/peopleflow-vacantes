@@ -4,9 +4,10 @@ import { ArrowUpRight, Check, Download } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
+import { accentAvatar } from "../accent";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RichDataTable, type RichDataTableProps } from "@/components/data-table/rich-data-table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,9 +37,9 @@ function CandidateCard({ item, languages, onOpen, selection }: { item: OrgCandid
   if (event.target instanceof Element && !event.target.closest("button,a,input,[role=checkbox],[data-row-action]")) onOpen?.({ kind: item.kind, id: item.id });
  }}>
   <CardHeader className="gap-1">
-   <div className="mb-1.5 flex items-center justify-between text-muted-foreground"><Avatar className="size-10"><AvatarFallback>{initials(item.full_name)}</AvatarFallback></Avatar>
+   <div className="mb-1.5 flex items-center justify-between text-muted-foreground"><Avatar className="size-10"><AvatarFallback className={accentAvatar}>{initials(item.full_name)}</AvatarFallback></Avatar>
     <div className="flex items-center gap-2"><CandidateCheckbox item={item} selection={selection} /><ArrowUpRight aria-hidden="true" className="size-4" /></div></div>
-   <CardTitle className="min-w-0"><h3 className="flex min-w-0 items-center gap-1.5"><Button type="button" variant="link" className="h-auto min-w-0 max-w-full shrink justify-start whitespace-normal p-0 text-left text-sm font-semibold text-foreground" aria-label={`Abrir ficha de ${item.full_name}`} onClick={() => onOpen?.({ kind: item.kind, id: item.id })}><span className="break-words">{item.full_name}</span></Button>
+   <CardTitle className="min-w-0"><h3 className="flex min-w-0 items-center gap-1.5"><Button type="button" variant="link" className="h-auto min-w-0 max-w-full shrink justify-start whitespace-normal p-0 text-left text-sm font-semibold text-foreground hover:text-primary" aria-label={`Abrir ficha de ${item.full_name}`} onClick={() => onOpen?.({ kind: item.kind, id: item.id })}><span className="break-words">{item.full_name}</span></Button>
     {!!item.corrected_fields.length && <TooltipProvider><Tooltip><TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />} tabIndex={0} aria-label="Datos corregidos por tu empresa"><Check aria-hidden="true" className="size-3.5" /></TooltipTrigger><TooltipContent>Datos corregidos por tu empresa</TooltipContent></Tooltip></TooltipProvider>}</h3></CardTitle>
    {title && <CardDescription className="break-words text-xs">{title}</CardDescription>}
    <CardDescription className="break-words text-xs">{meta || "Perfil sin completar"}</CardDescription>
@@ -99,8 +100,14 @@ export function CandidateResults({ items, view, languages, onOpen, toolbar, sele
   </div> : null} /></CandidateTableContext.Provider>;
 }
 export function CandidateResultsSkeleton({ view }: { view: "table" | "cards" }) {
- if (view === "cards") return <div data-candidates-skeleton="cards" aria-hidden="true" className="grid grid-cols-1 gap-4 px-(--card-spacing) md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Card key={index} size="sm"><CardHeader><CardTitle><Skeleton className="h-10 w-40 max-w-full" /></CardTitle><CardDescription><Skeleton className="h-4 w-32 max-w-full" /></CardDescription><CardAction><Skeleton className="size-10" /></CardAction></CardHeader><CardContent className="flex flex-col gap-3"><Skeleton className="h-5 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-5 w-32 max-w-full" /><Skeleton className="h-5 w-16" /><Skeleton className="h-12 w-full" /></CardContent><CardFooter className="justify-between border-t"><Skeleton className="h-10 w-20" /><Skeleton className="h-10 w-24" /></CardFooter></Card>)}</div>;
+ if (view === "cards") return <div data-candidates-skeleton="cards" aria-hidden="true" className="grid grid-cols-1 gap-4 px-(--card-spacing) md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Card key={index} size="sm" className="gap-0">
+  {/* Same blocks as the v0 CandidateCard: avatar row, name, two meta lines, tags, vacancy footer. */}
+  <CardHeader className="gap-1"><Skeleton className="mb-1.5 size-10 rounded-full" /><Skeleton className="h-4 w-40 max-w-full" /><Skeleton className="h-3 w-32 max-w-full" /><Skeleton className="h-3 w-24 max-w-full" /></CardHeader>
+  <CardContent className="mb-3"><div className="mt-2.5 flex gap-1.5"><Skeleton className="h-5 w-16" /><Skeleton className="h-5 w-14" /></div></CardContent>
+  <CardFooter className="mt-auto justify-between border-t pt-3"><Skeleton className="h-3 w-28" /><Skeleton className="h-5 w-16" /></CardFooter>
+ </Card>)}</div>;
  const columns = candidateColumns([], undefined, true);
  const width = columns.reduce((sum, column) => sum + column.size, 0);
- return <div data-candidates-skeleton="table" aria-hidden="true"><Table className="table-fixed" style={{ width, minWidth: width }}><TableHeader><TableRow>{columns.map(column => <TableHead key={column.id} style={{ width: column.size }}>{column.meta.label}</TableHead>)}</TableRow></TableHeader><TableBody>{Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{columns.map(column => <TableCell key={column.id}><div className="flex min-w-0 items-center gap-2">{column.id === "candidate" && <Skeleton className="size-10 shrink-0 rounded-full" />}<Skeleton className="h-10 w-28 max-w-full" /></div></TableCell>)}</TableRow>)}</TableBody></Table></div>;
+ // Like RichDataTable: fill the container, keep the column sum as minimum and let the grow column take the rest.
+ return <div data-candidates-skeleton="table" aria-hidden="true"><Table className="table-fixed" style={{ width: "100%", minWidth: width }}><TableHeader><TableRow>{columns.map(column => <TableHead key={column.id} style={column.meta.grow ? undefined : { width: column.size }}>{column.id === "selection" ? <Skeleton className="size-4" /> : column.id === "actions" ? <span className="sr-only">{column.meta.label}</span> : column.meta.label}</TableHead>)}</TableRow></TableHeader><TableBody>{Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{columns.map(column => <TableCell key={column.id}><div className="flex min-w-0 items-center gap-2">{column.id === "selection" ? <Skeleton className="size-4" /> : column.id === "actions" ? <Skeleton className="size-8" /> : <>{column.id === "candidate" && <Skeleton className="size-10 shrink-0 rounded-full" />}<Skeleton className="h-10 w-28 max-w-full" /></>}</div></TableCell>)}</TableRow>)}</TableBody></Table></div>;
 }

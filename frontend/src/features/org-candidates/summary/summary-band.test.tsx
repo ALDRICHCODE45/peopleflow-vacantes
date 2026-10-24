@@ -50,3 +50,9 @@ it("renders real zero counts", () => {
   render(<SummaryBand data={{ total: 0, with_active_process: 0, added_last_7_days: 0, by_kind: { manual: 0, organic: 0 } }} pending={false} failure={null} onRetry={vi.fn()} />);
   expect(screen.getAllByText("0")).toHaveLength(3);
 });
+it("tints the metric icons with the primary color", () => {
+  const { container } = render(<SummaryBand data={summary} pending={false} failure={null} onRetry={vi.fn()} />);
+  const icons = container.querySelectorAll('[data-slot="item-media"]');
+  expect(icons).toHaveLength(3);
+  for (const icon of icons) expect(icon).toHaveClass("bg-primary/10", "text-primary");
+});

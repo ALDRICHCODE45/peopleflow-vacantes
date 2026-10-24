@@ -114,8 +114,8 @@ it("keeps explicit save status and publish controls in the sticky bar", async ()
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Backend" } });
   expect(footer).toHaveTextContent("Cambios sin guardar");
   fireEvent.click(within(footer as HTMLElement).getByRole("button", { name: "Publicar vacante" }));
-  expect(footer).toHaveTextContent("Guarda los cambios antes de publicar");
-  fireEvent.click(save());
+  expect(footer).not.toHaveTextContent("Guarda los cambios antes de publicar");
+  fireEvent.click(within(await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" })).getByRole("button", { name: "Guardar borrador" }));
   await waitFor(() => expect(footer).toHaveTextContent("Guardado · versión 1"));
 });
 it.each(["Vista previa", "Revisar vista previa pública"])("opens %s in the shared public detail dialog and restores focus", async opener => {

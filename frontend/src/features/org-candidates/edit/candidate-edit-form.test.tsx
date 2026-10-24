@@ -72,13 +72,21 @@ it("prefills the full manual values and sends only edits, then notifies", async 
  vi.mocked(saveOrgCandidateEditAction).mockResolvedValue({ ok: true, data: { ...candidate, professional_title: "Ingeniera", etag: '"v2"' } });
  render(<CandidateEditForm candidate={candidate} onSaved={onSaved} onCancel={vi.fn()} onConflict={vi.fn()} />);
  expect(screen.getByLabelText("Nombre completo")).toHaveValue(candidate.full_name);
- expect(screen.getByLabelText("Lada de país")).toHaveValue("+52"); expect(screen.getByLabelText("Teléfono")).toHaveValue("3312345678");
+ expect(screen.getByLabelText("Lada de país")).toHaveValue("México +52"); expect(screen.getByLabelText("Teléfono")).toHaveValue("3312345678");
  expect(screen.getByLabelText("Años de experiencia")).toHaveValue("4.5");
  change("Título profesional", "Ingeniera"); await save();
  expect(saveOrgCandidateEditAction).toHaveBeenCalledWith({ kind: candidate.kind, id: candidate.id }, '"v1"', { set: { professional_title: "Ingeniera" } });
  expect(onSaved).toHaveBeenCalled(); expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Cambios guardados" }));
  // Manual records have no candidate profile, so «solo para tu empresa» would mislead (QA L15).
  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ description: "Los cambios quedaron en el historial de cambios del candidato." }));
+});
+it("submits the selected Mexico dial with the national phone unchanged", async () => {
+ const candidate = editFixture();
+ vi.mocked(saveOrgCandidateEditAction).mockResolvedValue({ ok: true, data: candidate });
+ render(<CandidateEditForm candidate={candidate} onSaved={vi.fn()} onCancel={vi.fn()} onConflict={vi.fn()} />);
+ expect(screen.getByRole("combobox", { name: "Lada de país" })).toHaveValue("México +52");
+ change("Teléfono", "5512345678"); await save();
+ expect(saveOrgCandidateEditAction).toHaveBeenCalledWith(expect.anything(), candidate.etag, { set: { phone: "+525512345678" } });
 });
 it("tells organic saves that only the company's data changed", async () => {
  const candidate = editFixture("organic");

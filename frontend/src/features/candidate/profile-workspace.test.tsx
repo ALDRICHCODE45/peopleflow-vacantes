@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+vi.mock("@/components/ui/combobox", async importOriginal => ({
+  ...await importOriginal<typeof import("@/components/ui/combobox")>(),
+  ComboboxContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ProfileWorkspace } from "./profile-workspace";
@@ -20,18 +25,23 @@ const wire = { ...profileToWrite(valid.profile), user_id: CANDIDATE_IDENTITY.use
 const loaded = { ok: true, data: { profile: wire, languages: { languages: CANDIDATE_PROFILE.languages } } };
 const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }));
 const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
+async function selectDial(dial: string) {
+  const name = dial === "+52" ? "México" : "Estados Unidos";
+  change("Lada de país", name);
+  fireEvent.click(await screen.findByRole("option", { name: `${name} ${dial}` }));
+}
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Guardar perfil" }));
 async function ready() { const view = render(<ProfileWorkspace />); await screen.findByRole("button", { name: "Guardar perfil" }); return view; }
 beforeEach(() => { vi.resetAllMocks(); mocks.load.mockResolvedValue(loaded); mocks.save.mockResolvedValue({ kind: "saved", profile: { ...wire, phone: "+525512345678" } }); });
 afterEach(cleanup);
 describe("S3 profile phone saves", () => {
   it.each([["+52", "5512345678", "+525512345678"], ["+1", "2125551234", "+12125551234"]])("sends %s with ten national digits as E.164", async (dial, phone, expected) => {
-    await ready(); change("Lada de país", dial); change("Teléfono", phone); save();
+    await ready(); await selectDial(dial); change("Teléfono", phone); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0].profile.phone).toBe(expected);
   });
   it.each([["+52", "123", "Escribe los 10 dígitos del teléfono en México."], ["+1", "abc", "Escribe una lada y un número válidos, de 8 a 15 dígitos en total."]])("rejects invalid %s and focuses phone from another tab", async (dial, phone, message) => {
-    await ready(); change("Lada de país", dial); change("Teléfono", phone); tab("Educación"); save();
+    await ready(); await selectDial(dial); change("Teléfono", phone); tab("Educación"); save();
     await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
     expect(screen.getByLabelText("Teléfono")).toHaveAccessibleDescription(expect.stringContaining(message));
     expect(mocks.save).not.toHaveBeenCalled();
@@ -48,14 +58,14 @@ describe("S3 profile phone saves", () => {
     tab("Experiencia"); change("Título profesional", "Nuevo título"); save();
     await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
     expect(mocks.save).not.toHaveBeenCalled();
-    change("Lada de país", "+52"); change("Teléfono", "55 1234 5678"); save();
+    await selectDial("+52"); change("Teléfono", "55 1234 5678"); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0].profile.phone).toBe("+525512345678");
   });
   it("loads a legacy ten-digit phone under the visible +52 dial so other edits still save", async () => {
     mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, phone: "55 1234 5678" } } });
     await ready();
-    expect(screen.getByLabelText("Lada de país")).toHaveValue("+52");
+    expect(screen.getByLabelText("Lada de país")).toHaveValue("México +52");
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
     tab("Experiencia"); change("Título profesional", "Nuevo título"); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
@@ -63,7 +73,7 @@ describe("S3 profile phone saves", () => {
   });
   it.each([["+52", "Escribe los 10 dígitos del teléfono en México."], ["+1", "Escribe una lada y un número válidos, de 8 a 15 dígitos en total."]])("maps backend phone invalid with the %s message and focus", async (dial, message) => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400 }, fields: [{ field: "phone", code: "invalid" }] } });
-    await ready(); change("Lada de país", dial); change("Teléfono", "2125551234"); tab("Educación"); save();
+    await ready(); await selectDial(dial); change("Teléfono", "2125551234"); tab("Educación"); save();
     await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
     expect(screen.getByLabelText("Teléfono")).toHaveAccessibleDescription(expect.stringContaining(message));
   });
@@ -153,7 +163,7 @@ describe("live candidate profile", () => {
     expect(cardSlots()).toEqual(loadingSlots);
     expect(container.querySelector('[data-pf-profile-identity]')).toHaveClass(loadingHero);
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
-    expect(screen.getByLabelText("Lada de país")).toHaveValue("+52");
+    expect(screen.getByLabelText("Lada de país")).toHaveValue("México +52");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.notify).not.toHaveBeenCalled();
   });

@@ -3,6 +3,7 @@
 import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { accentTab, accentTabCount } from "../accent";
 
 export type OriginTabsProps = {
   value: "all" | "manual";
@@ -11,7 +12,7 @@ export type OriginTabsProps = {
 };
 const number = new Intl.NumberFormat("es-MX");
 // At 390px both labels do not fit on one line: each tab takes half the row and wraps its label instead of being clipped.
-const trigger = "min-h-10 whitespace-normal leading-tight sm:whitespace-nowrap";
+const trigger = `min-h-10 whitespace-normal leading-tight sm:whitespace-nowrap ${accentTab}`;
 
 /** Filter tabs only: the existing list owns its content outside this controlled tab rail. */
 export function OriginTabs({ value, onValueChange, counts }: OriginTabsProps) {
@@ -23,11 +24,11 @@ export function OriginTabs({ value, onValueChange, counts }: OriginTabsProps) {
         <TabsList variant="line" aria-label="Origen de los candidatos" className="w-full h-auto! sm:w-fit">
           <TabsTrigger value="all" className={trigger}>
             Todos los candidatos
-            {counts && <Badge variant="secondary" className="tabular-nums">{number.format(counts.all)}</Badge>}
+            {counts && <Badge variant="secondary" className={`tabular-nums ${accentTabCount}`}>{number.format(counts.all)}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="manual" className={trigger}>
             Agregados por mi equipo
-            {counts && <Badge variant="secondary" className="tabular-nums">{number.format(counts.manual)}</Badge>}
+            {counts && <Badge variant="secondary" className={`tabular-nums ${accentTabCount}`}>{number.format(counts.manual)}</Badge>}
           </TabsTrigger>
         </TabsList>
       </Tabs>

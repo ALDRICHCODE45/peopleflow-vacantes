@@ -41,3 +41,9 @@ it("supports keyboard selection", async () => {
   await userEvent.keyboard("{ArrowRight}{Enter}");
   expect(screen.getByRole("tab", { name: "Agregados por mi equipo" })).toHaveAttribute("aria-selected", "true");
 });
+it("marks the active origin tab and its counter with the PeopleFlow primary color", () => {
+  render(<OriginTabs value="all" onValueChange={vi.fn()} counts={{ all: 4, manual: 3 }} />);
+  const active = screen.getByRole("tab", { name: /Todos los candidatos/u });
+  expect(active).toHaveClass("data-active:text-primary", "after:bg-primary");
+  expect(within(active).getByText("4")).toHaveClass("[[data-active]_&]:bg-primary/10", "[[data-active]_&]:text-primary");
+});

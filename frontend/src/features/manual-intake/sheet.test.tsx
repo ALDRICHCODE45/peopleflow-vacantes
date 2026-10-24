@@ -21,11 +21,13 @@ vi.mock("@/components/ui/select", async () => {
 });
 vi.mock("@/components/ui/combobox", async () => {
  const React = await import("react");
- type Item = { id?: string; code?: string; name: string };
+ type Item = { id?: string; code?: string; country?: string; dial?: string; name: string };
+ const keyOf = (item: Item) => item.id ?? item.code ?? item.country;
  const Context = React.createContext({ value: null as Item | null, items: [] as Item[], change: (item: Item | null) => { void item; } });
  return {
   Combobox: ({ value, items, onValueChange, children }: { value: Item | null; items: Item[]; onValueChange: (item: Item | null) => void; children: ReactNode }) => <Context.Provider value={{ value, items, change: onValueChange }}>{children}</Context.Provider>,
-  ComboboxInput: ({ id, disabled, ...props }: { id: string; disabled: boolean; "aria-invalid": boolean }) => { const state = React.useContext(Context); return <select id={id} disabled={disabled} aria-invalid={props["aria-invalid"]} value={state.value?.id ?? state.value?.code ?? ""} onChange={event => state.change(state.items.find(item => (item.id ?? item.code) === event.target.value) ?? null)}><option value="">Elige</option>{state.items.map(item => <option key={item.id ?? item.code} value={item.id ?? item.code}>{item.name}</option>)}</select>; },
+  ComboboxInput: ({ id, disabled, ...props }: { id: string; disabled: boolean; "aria-invalid": boolean }) => { const state = React.useContext(Context); return <select id={id} disabled={disabled} aria-invalid={props["aria-invalid"]} value={state.value ? keyOf(state.value) : ""} onChange={event => state.change(state.items.find(item => keyOf(item) === event.target.value) ?? null)}><option value="">Elige</option>{state.items.map(item => <option key={keyOf(item)} value={keyOf(item)}>{item.name}{item.dial ? ` ${item.dial}` : ""}</option>)}</select>; },
+  useComboboxAnchor: () => React.useRef(null),
   ComboboxContent: () => null, ComboboxEmpty: () => null, ComboboxList: () => null, ComboboxItem: () => null,
  };
 });
@@ -74,6 +76,8 @@ it("composes the CV picker with change and remove actions", () => {
 });
 it("starts with an optional collapsed profile and labels required inputs", () => {
  mount(); expect(screen.getByText("* Obligatorio")).toBeVisible();
+ expect(screen.getByLabelText("Lada de país")).toHaveRole("combobox");
+ expect(screen.getByLabelText("Lada de país")).toHaveDisplayValue("México +52");
  for (const label of ["Nombre completo", "Correo electrónico", "Teléfono", "País", "CV", "Etapa de ingreso"]) {
   const control = screen.getByLabelText(label);
   expect(document.querySelector(`label[for="${control.id}"]`)).toHaveTextContent(/\*/);
@@ -165,7 +169,7 @@ it("validates Mexican state and municipality but not subdivisions abroad", async
  expect(vi.mocked(submitManualCandidate).mock.calls[0][1].candidate?.residence).toEqual({ country: "US", state: null, municipality: null, postal_code: null });
 });
 it.each([["+52", "55 1234 5678", "+525512345678"], ["+1", "2025550100", "+12025550100"]])("sends E.164 %s and retains the intent key on retry", async (dial, phone, expected) => {
- mount(); fill(); change("Correo electrónico", ""); change("Lada de país", dial); change("Teléfono", phone);
+ mount(); fill(); change("Correo electrónico", ""); change("Lada de país", dial === "+52" ? "MX" : "US"); change("Teléfono", phone);
  vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
  await submit(); await screen.findByText("No hubo respuesta. Puedes reintentar sin duplicar el ingreso.");
  const first = vi.mocked(submitManualCandidate).mock.calls[0]; expect(first[1].candidate?.phone).toBe(expected);
@@ -212,8 +216,10 @@ it("disables using a match already in this process", async () => {
  mount(); change("Correo electrónico", "ana@example.com"); fireEvent.blur(screen.getByLabelText("Correo electrónico"));
  expect(await screen.findByText("Ya está en este proceso")).toBeVisible(); expect(screen.getByRole("button", { name: "Usar el existente" })).toBeDisabled();
 });
-it.each([["+52", "123456789"], ["+1", "12345"], ["52", "5512345678"]])("rejects an invalid phone %s/%s", async (dial, phone) => {
- mount(); fill(); change("Lada de país", dial); change("Teléfono", phone); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+// A malformed free-text dial is no longer selectable; a pasted full E.164
+// number in the national-number control is still rejected.
+it.each([["+52", "123456789"], ["+1", "12345"], ["+52", "+525512345678"]])("rejects an invalid phone %s/%s", async (dial, phone) => {
+ mount(); fill(); change("Lada de país", dial === "+52" ? "MX" : "US"); change("Teléfono", phone); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
  await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus()); expect(submitManualCandidate).not.toHaveBeenCalled();
 });
 it.each([["cv.exe", "application/x-msdownload", 5], ["cv.pdf", "application/pdf", 5_242_881], ["cv.pdf", "application/pdf", 0]])("validates CV %s/%s/%s before submission", async (name, type, size) => {

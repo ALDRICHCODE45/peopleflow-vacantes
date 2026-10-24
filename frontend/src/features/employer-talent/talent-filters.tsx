@@ -15,6 +15,7 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxValue,
+  useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import {
@@ -89,6 +90,7 @@ function FacetMultiSelect({
   selected: readonly string[];
   onChange: (next: string[]) => void;
 }) {
+  const anchor = useComboboxAnchor();
   const labelById = React.useMemo(
     () => new Map<string, string>(options.map((option) => [option.value, option.label])),
     [options],
@@ -106,7 +108,7 @@ function FacetMultiSelect({
         value={[...selected]}
         onValueChange={onChange}
       >
-        <ComboboxChips>
+        <ComboboxChips ref={anchor}>
           <ComboboxValue>
             {(value: string[]) => (
               <>
@@ -124,7 +126,7 @@ function FacetMultiSelect({
             )}
           </ComboboxValue>
         </ComboboxChips>
-        <ComboboxContent>
+        <ComboboxContent anchor={anchor}>
           <ComboboxEmpty>Sin resultados</ComboboxEmpty>
           {/* The installed Base UI 1.7 items API owns filtering: the root receives
               the full `items` list and the list renders the filtered slice, so a

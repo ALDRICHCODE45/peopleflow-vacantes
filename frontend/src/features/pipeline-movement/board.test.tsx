@@ -17,6 +17,7 @@ vi.mock("@/components/ui/combobox", () => ({
   Combobox: ({ children }: { children: ReactNode }) => <>{children}</>,
   ComboboxInput: ({ id }: { id: string }) => <input id={id} />,
   ComboboxContent: () => null, ComboboxEmpty: () => null, ComboboxList: () => null, ComboboxItem: () => null,
+  useComboboxAnchor: () => ({ current: null }),
 }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [] } }, states: { status: "success", data: { items: [] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
 import { getLifecycleAction, transitionLifecycleAction } from "@/features/vacancy-lifecycle/actions";
