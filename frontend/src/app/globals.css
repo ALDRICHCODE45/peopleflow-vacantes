@@ -482,8 +482,8 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
   --sileo-width: min(350px, calc(100vw - 3rem));
   /* Bottom edge only: Sileo already sets the edge for its position; pinning `top` too
      stretched the viewport to full height and stacked toasts at the top. */
-  bottom: env(safe-area-inset-bottom, 0px);
-  right: env(safe-area-inset-right, 0px);
+  bottom: var(--pf-toast-bottom, env(safe-area-inset-bottom, 0px));
+  right: var(--pf-toast-right, env(safe-area-inset-right, 0px));
   /* Above modal backdrops (z-50): a toast raised while a dialog is open must stay readable. */
   z-index: 100;
   font-family: var(--font-sans), sans-serif;
@@ -491,7 +491,7 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
 
 /* Keep toasts above the vacancy editor's floating save bar (never cover «Publicar»). */
 body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport] {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 6.5rem);
+  bottom: var(--pf-toast-bottom, calc(env(safe-area-inset-bottom, 0px) + 6.5rem));
 }
 
 [data-pf-toaster] [data-sileo-viewport][data-theme] [data-sileo-description] {

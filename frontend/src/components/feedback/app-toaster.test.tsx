@@ -46,13 +46,14 @@ describe("toast placement styles", () => {
   const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
   const block = css.slice(css.indexOf("[data-pf-toaster] [data-sileo-viewport] {"), css.indexOf("}", css.indexOf("[data-pf-toaster] [data-sileo-viewport] {")));
   it("anchors the viewport to the bottom edge only", () => {
-    expect(block).toContain("bottom: env(safe-area-inset-bottom, 0px)");
+    expect(block).toContain("bottom: var(--pf-toast-bottom, env(safe-area-inset-bottom, 0px))");
+    expect(block).toContain("right: var(--pf-toast-right, env(safe-area-inset-right, 0px))");
     expect(block).not.toMatch(/\btop:/);
   });
   it("stacks toasts above modal backdrops so errors raised with a dialog open stay readable", () => {
     expect(block).toMatch(/z-index: \d{3,};/);
   });
   it("lifts toasts above the editor's floating save bar", () => {
-    expect(css).toMatch(/body:has\(\[data-pf-draft-save-bar\]\) \[data-pf-toaster\] \[data-sileo-viewport\] \{[^}]*bottom:/);
+    expect(css).toMatch(/body:has\(\[data-pf-draft-save-bar\]\) \[data-pf-toaster\] \[data-sileo-viewport\] \{[^}]*bottom: var\(--pf-toast-bottom, calc\(env\(safe-area-inset-bottom, 0px\) \+ 6\.5rem\)\)/);
   });
 });
