@@ -10,7 +10,8 @@ panel voseo.
 ## Product gaps
 
 - **Invite members by email** — no backend endpoint (AddMember takes an existing recruiter `user_id`). Deferred by the
-  user (2026-10-23).
+  user (2026-10-23). Email decision recorded in `docs/decision-email-provider.md` (2026-10-24: Amazon SES, sending
+  through EventBridge → SQS → Go worker, Terraform; no domain registered yet) — on the radar, not to be built yet.
 - **Talento PeopleFlow** (global opt-in search, Boolean CV search) — needs privacy decisions (PRIV-2/10/12) and SRCH-9
   grammar. Deferred by the user (2026-10-23).
 - **Legacy application phone persistence** — the legacy wizard now validates the phone with the dial control, but it
