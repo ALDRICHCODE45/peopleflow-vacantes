@@ -45,15 +45,22 @@ describe("toast placement styles", () => {
   // and lifted above the vacancy editor's floating save bar so they never cover «Publicar».
   const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
   const block = css.slice(css.indexOf("[data-pf-toaster] [data-sileo-viewport] {"), css.indexOf("}", css.indexOf("[data-pf-toaster] [data-sileo-viewport] {")));
-  it("anchors the viewport to the bottom edge only", () => {
-    expect(block).toContain("bottom: var(--pf-toast-bottom, env(safe-area-inset-bottom, 0px))");
-    expect(block).toContain("right: var(--pf-toast-right, env(safe-area-inset-right, 0px))");
-    expect(block).not.toMatch(/\btop:/);
+  // Sileo positions the viewport with `[data-sileo-viewport][data-position$="right"] { right: 0 }`
+  // (and `^="bottom"` for bottom): same specificity as `[data-pf-toaster] [data-sileo-viewport]`
+  // and loaded later, so the offsets must sit on a selector that also matches [data-position].
+  const offsetSelector = "[data-pf-toaster] [data-sileo-viewport][data-position] {";
+  const offsets = css.slice(css.indexOf(offsetSelector), css.indexOf("}", css.indexOf(offsetSelector)));
+  it("anchors the viewport to the bottom edge only, above Sileo's own position rules", () => {
+    expect(css).toContain(offsetSelector);
+    expect(offsets).toContain("bottom: var(--pf-toast-bottom, env(safe-area-inset-bottom, 0px))");
+    expect(offsets).toContain("right: var(--pf-toast-right, env(safe-area-inset-right, 0px))");
+    expect(offsets).not.toMatch(/\btop:/);
+    expect(block).not.toMatch(/\b(top|right|bottom):/);
   });
   it("stacks toasts above modal backdrops so errors raised with a dialog open stay readable", () => {
     expect(block).toMatch(/z-index: \d{3,};/);
   });
   it("lifts toasts above the editor's floating save bar", () => {
-    expect(css).toMatch(/body:has\(\[data-pf-draft-save-bar\]\) \[data-pf-toaster\] \[data-sileo-viewport\] \{[^}]*bottom: var\(--pf-toast-bottom, calc\(env\(safe-area-inset-bottom, 0px\) \+ 6\.5rem\)\)/);
+    expect(css).toMatch(/body:has\(\[data-pf-draft-save-bar\]\) \[data-pf-toaster\] \[data-sileo-viewport\]\[data-position\] \{[^}]*bottom: var\(--pf-toast-bottom, calc\(env\(safe-area-inset-bottom, 0px\) \+ 6\.5rem\)\)/);
   });
 });
