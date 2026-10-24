@@ -32,7 +32,7 @@ function TeamReadFailure({ failure, retry }: { failure: TeamFailure; retry: () =
     secondaryAction={failure.reason === "unauthenticated" ? { label: "Iniciar sesión", href: "/empresa/login" } : failure.reason === "not_member" ? { label: "Configurar empresa", href: "/empresa/configuracion" } : undefined} />;
 }
 
-/** Keyed lifetime prevents members, drafts and in-flight actions leaking across accounts. */
+/** Keyed lifetime prevents members, drafts and in-flight actions leaking across accounts or companies. */
 export function TeamPage() {
   const identity = useIdentity();
   const userId = identity.status === "ready" && identity.result?.ok ? identity.result.data.user?.id ?? null : null;
@@ -40,7 +40,7 @@ export function TeamPage() {
   if (identity.status === "loading") return <TeamWorkspace members={[]} loading />;
   if (identity.status === "unauthenticated") return <TeamReadFailure failure={{ ok: false, reason: "unauthenticated", reference: {} }} retry={identity.retry} />;
   if (!userId) return <TeamReadFailure failure={{ ok: false, reason: "no_response", reference: {} }} retry={identity.retry} />;
-  return <ConnectedTeam key={userId} userId={userId} role={membership?.role ?? null} companyId={membership?.company.id ?? null} />;
+  return <ConnectedTeam key={JSON.stringify([userId, membership?.company.id ?? null])} userId={userId} role={membership?.role ?? null} companyId={membership?.company.id ?? null} />;
 }
 
 function ConnectedTeam({ userId, role, companyId }: { userId: string; role: TeamMemberRole | null; companyId: string | null }) {
