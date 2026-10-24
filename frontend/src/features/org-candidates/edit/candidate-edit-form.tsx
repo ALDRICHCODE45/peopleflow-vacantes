@@ -46,6 +46,7 @@ export const CandidateEditForm = forwardRef<CandidateEditFormHandle, Props>(func
  const [discard, setDiscard] = useState(false);
  const [confirmationBody, setConfirmationBody] = useState<CandidateEditBody | null>(null);
  const [conflicted, setConflicted] = useState(false);
+ const [reviewNotice, setReviewNotice] = useState(false);
  const [awaitingFresh, setAwaitingFresh] = useState(false);
  const form = useRef<HTMLFormElement>(null);
  const busy = useRef(false);
@@ -63,6 +64,7 @@ export const CandidateEditForm = forwardRef<CandidateEditFormHandle, Props>(func
  // adopt the new record; overlapping changes are shown for review, never auto-submitted.
  useEffect(() => {
   if (candidate.id === editor.candidate.id && candidate.kind === editor.candidate.kind && candidate.etag === editor.candidate.etag) return;
+  if (confirmationBody) { setConfirmationBody(null); setReviewNotice(true); }
   setEditor(current => {
    if (candidate.id !== current.candidate.id || candidate.kind !== current.candidate.kind) return initialEditor(candidate);
    const oldValues = candidateEditValues(current.candidate); const freshValues = candidateEditValues(candidate);
@@ -75,7 +77,7 @@ export const CandidateEditForm = forwardRef<CandidateEditFormHandle, Props>(func
    return { ...current, candidate, draft: next, warnings };
   });
   setAwaitingFresh(false);
- }, [candidate, editor.candidate]);
+ }, [candidate, editor.candidate, confirmationBody]);
  function requestClose() { if (busy.current) return; if (dirty && !saved.current) setDiscard(true); else onCancel(); }
  useImperativeHandle(ref, () => ({ requestClose }));
  function change(field: CandidateEditField, next: CandidateEditDraft) {
@@ -160,6 +162,7 @@ export const CandidateEditForm = forwardRef<CandidateEditFormHandle, Props>(func
    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6">
     <FieldSet disabled={pending} className={styles.fields}><FieldLegend className="sr-only">Editar datos del candidato</FieldLegend><FieldGroup>
      {conflicted && <p role="status" className="flex items-start gap-2 text-sm text-status-review"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{CANDIDATE_EDIT_CONFLICT_NOTICE}</span></p>}
+     {reviewNotice && <p role="status" className="flex items-start gap-2 text-sm text-status-review"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>El candidato se actualizó mientras revisabas. Revisa los cambios y confirma de nuevo.</span></p>}
      <Section title="Contacto">
       {scalar("full_name", "Nombre completo")}<FieldDescription>Agrega al menos un correo o un teléfono; puedes incluir ambos.</FieldDescription>
       {scalar("email", "Correo electrónico", "email")}<FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]"><DialCodeField id="edit-dial" value={draft.dial} onChange={dial => change("phone", { ...draft, dial })} disabled={pending} error={errors.dial} aria-describedby={editor.warnings.phone ? "edit-phone-conflict" : undefined} />{scalar("phone", "Teléfono", "tel")}</FieldGroup>

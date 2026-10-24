@@ -215,6 +215,24 @@ it("guards cancel and sheet close requests, but not a clean cancel", async () =>
  fireEvent.click(screen.getByRole("button", { name: "Seguir editando" })); expect(screen.getByLabelText("Nombre completo")).toHaveValue("Otro nombre");
  fireEvent.click(screen.getByRole("button", { name: "Cancelar" })); fireEvent.click(await screen.findByRole("button", { name: "Descartar" })); expect(cancel).toHaveBeenCalledTimes(1);
 });
+it("closes an outdated confirmation and requires reviewing the rebased draft", async () => {
+ const candidate = editFixture();
+ const props = { onSaved: vi.fn(), onCancel: vi.fn(), onConflict: vi.fn() };
+ const view = render(<CandidateEditForm candidate={candidate} {...props} />);
+ change("Título profesional", "Mi título");
+ await openSaveConfirmation();
+ const fresh = { ...candidate, etag: '"v2"', professional_title: "Título compartido", current_company: "Empresa nueva" };
+ view.rerender(<CandidateEditForm candidate={fresh} {...props} />);
+ await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+ expect(screen.getByText("El candidato se actualizó mientras revisabas. Revisa los cambios y confirma de nuevo.")).toBeVisible();
+ expect(screen.getByLabelText("Título profesional")).toHaveValue("Mi título");
+ expect(screen.getByLabelText("Empresa actual")).toHaveValue("Empresa nueva");
+ expect(screen.getByText(/Valor guardado: Título compartido/)).toBeVisible();
+ expect(saveOrgCandidateEditAction).not.toHaveBeenCalled();
+ vi.mocked(saveOrgCandidateEditAction).mockResolvedValue({ ok: true, data: fresh });
+ await save();
+ expect(saveOrgCandidateEditAction).toHaveBeenCalledExactlyOnceWith({ kind: candidate.kind, id: candidate.id }, fresh.etag, { set: { professional_title: "Mi título" } });
+});
 it("preserves dirty values after 412, adopts untouched fresh data and warns on overlapping edits", async () => {
  const candidate = editFixture(); const conflict = vi.fn();
  vi.mocked(saveOrgCandidateEditAction).mockResolvedValue({ ok: false, reason: "precondition_failed", reference: { status: 412 } });
