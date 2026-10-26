@@ -7,7 +7,10 @@ import { reloadPage } from "@/features/jobs/components/reload-page";
 
 /** Retry reloads the document: reset() only re-renders on the client and never
     re-requests the server data that failed. */
-export default function VacanteDetailError() {
+type ErrorProps = { error: Error & { digest?: string }; reset: () => void };
+
+/* Next passes { error, reset }; neither is used (the retry reloads). */
+const VacanteDetailError: (props: ErrorProps) => React.JSX.Element = () => {
   const [retrying, setRetrying] = React.useState(false);
   return <>
     {/* React hoists this into <head>: an API failure must never be indexed as the vacancy. */}
@@ -18,4 +21,6 @@ export default function VacanteDetailError() {
       primaryAction={{ label: "Reintentar", disabled: retrying, onClick: () => { setRetrying(true); reloadPage(); } }}
       secondaryAction={{ label: "Ver vacantes", href: "/vacantes" }} />
   </>;
-}
+};
+
+export default VacanteDetailError;
