@@ -101,11 +101,15 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => errorHarness?.close());
 test.beforeEach(async ({ context, request }) => {
-  // Isolate explicit navigations from Next's speculative detail prefetches.
-  // Keep exact, unfiltered fixture history assertions: an extra list read or
-  // any API access during canonicalization must still fail the test.
+  // Isolate explicit navigations from Next's speculative DETAIL prefetches
+  // only. Aborting a prefetch can leave a failed router-cache entry, so the
+  // next navigation to that URL may be dropped: list, login and other routes
+  // must keep their prefetches (measured: aborting all of them made the quick
+  // filter «Todas» lose its navigation 2 of 5 runs). Exact fixture history
+  // assertions still fail on any extra list read or canonicalization access.
   await context.route("**/*", route =>
-    route.request().headers()["next-router-prefetch"] === "1"
+    route.request().headers()["next-router-prefetch"] === "1" &&
+    /^\/vacantes\/[^/?]+/u.test(new URL(route.request().url()).pathname)
       ? route.abort()
       : route.continue(),
   );
@@ -314,7 +318,11 @@ test("renders the approved hero and supported quick chips with honest state", as
   const measureHeader = async (viewport: { width: number; height: number }) => {
     await page.setViewportSize(viewport);
     await page.goto("/vacantes");
-    await expect(page.locator('main > header a[href^="/candidato/login"]')).toHaveCount(viewport.width < 768 ? 1 : 0);
+    // The visitor sign-in link exists once the session resolves; md:hidden keeps
+    // it out of the desktop header, so assert what the user sees, not DOM count.
+    const headerLogin = page.locator('main > header a[href^="/candidato/login"]');
+    if (viewport.width < 768) await expect(headerLogin).toBeVisible();
+    else await expect(headerLogin).toBeHidden();
     return page.evaluate(() => {
       const header = document.querySelector("main > header")!;
       const linkByName = (name: string) =>
@@ -668,7 +676,7 @@ async function expectRecoveryAfterRetry(
   await expect(page.getByLabel("Buscar vacantes")).toHaveValue("frontend");
   await expect(page.getByLabel(/moneda/i)).toHaveText(/MXN/);
 
-  await page.getByRole("link", { name: /intentar de nuevo/i }).click();
+  await page.getByRole("button", { name: /intentar de nuevo/i }).click();
 
   await expect(page).toHaveURL(`/vacantes${recoverySearch}`);
   await expect(page.getByLabel("Buscar vacantes")).toHaveValue("frontend");
@@ -841,11 +849,12 @@ test("renders only the vacancy matching every predicate of the combined scalar-f
 test("announces pending next navigation and preserves its opaque cursor", async ({
   page, request,
 }) => {
-  await page.goto("/vacantes?q=frontend&salary_min=1&salary_currency=MXN&salary_period=monthly&salary_basis=gross");
+  // `react` spans two fixture pages, so a real next link exists.
+  await page.goto("/vacantes?q=react&salary_min=1&salary_currency=MXN&salary_period=monthly&salary_basis=gross");
   const next = page.getByRole("link", { name: /ver más vacantes/i });
   await expect(next).toHaveAttribute(
     "href",
-    /q=frontend.*salary_currency=MXN.*cursor=opaque\+a%2Bb%2Fc%3D/,
+    /q=react.*salary_currency=MXN.*cursor=opaque\+a%2Bb%2Fc%3D/,
   );
   await request.get(`${fixtureUrl}/__delay?ms=1000`);
   await next.click();
@@ -1364,7 +1373,9 @@ test("keeps button-styled board navigation on real links without native-button d
   const states = [
     { url: "/vacantes", actions: [[/limpiar filtros/i, "/vacantes"], [/ver más vacantes/i, /^\/vacantes\?cursor=/]] },
     { url: "/vacantes?q=empty", actions: [[/quitar filtros/i, "/vacantes"]] },
-    { url: "/vacantes?q=error", actions: [[/intentar de nuevo/i, "/vacantes?q=error"]] },
+    // Retrying is an action (a button that refreshes the server data); the
+    // error state's navigation link is the way back to the full list.
+    { url: "/vacantes?q=error", actions: [[/ver todas las vacantes/i, "/vacantes"]] },
   ];
   for (const { url, actions } of states) {
     await page.goto(url);

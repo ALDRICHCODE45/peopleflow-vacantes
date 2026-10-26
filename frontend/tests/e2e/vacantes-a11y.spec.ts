@@ -141,7 +141,8 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.goto("/vacantes?q=frontend&currency=MXN");
+    // `react` spans two fixture pages, so the next-page link is reachable.
+    await page.goto("/vacantes?q=react");
 
     // Walk the page with real keyboard Tabs (genuine :focus-visible modality)
     // and record focus styles of each representative control as it is reached.
