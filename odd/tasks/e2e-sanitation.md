@@ -45,9 +45,12 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   its own `useTransition` wraps `router.push`. (2) `vacantes/error.tsx` and `[jobId]/error.tsx` retry with `reset()`
   only; check whether they share the recovery race the list error had.
 - [x] T8. S5 — rewrite `vacante-detalle.spec.ts` + `vacante-postular.spec.ts` · after T6 · 9c281dee.
-- T10. S6 (L9) — detail without `loading.tsx` (real API-driven 404/500), `noindex` on the detail error page · inline.
-- T11. S3 (L9) — allow exactly `nextauth.message` in the zero-storage check (no session data); delete the obsolete
-  tests and `candidate-workspace.spec.ts` · worker for the spec edits, parent deletes the file.
+- [x] T10. S6 (L9) — detail without `loading.tsx` (real API-driven 404/500), `noindex` on the detail error page · inline
+  · 5379d9ab (L10).
+- [x] T11. S3 (L9) — allow exactly `nextauth.message` in the zero-storage check (no session data); delete the obsolete
+  tests and `candidate-workspace.spec.ts` · worker for the spec edits, parent deletes the file · b8442a6e (L10).
+- [x] T9. S5 — obsolete tests listed and decided by the user (L9).
+- **Slice boundary:** 9c281dee..b8442a6e are slice 3 (detail/apply specs, real 404/500, obsolete-test removal).
 - T9. S5 — list obsolete tests (candidate-workspace, removed flows) for the user's deletion OK.
 
 ## Log
@@ -112,3 +115,13 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   «Código real, sin skeleton al entrar», «Permitir solo esa clave», «Borrar todos» (10 obsolete tests +
   `candidate-workspace.spec.ts`, which predates login; the private candidate area has no e2e until a test session
   exists). Cleanup left: `PublicJobDetailSkeleton` is now used only by tests.
+- **L10 (T10–T11 evidence, close):** removing the detail `loading.tsx` was not enough — a loading boundary wraps every
+  nested segment, so the list's `vacantes/loading.tsx` still covered the detail. The list page and its loading moved
+  into the `vacantes/(listado)` route group (same URLs). Production curl: list 200 with skeleton; valid detail and
+  apply 200; unknown vacancy 404 (noindex); hidden 404; API failure 500 (noindex); malformed 404; non-canonical 307.
+  Unit 3348/3348 on touched areas, tsc clean. T11 removed exactly the 10 decided tests (37→34, 24→20, 5→2) and
+  their exclusive helpers; the storage allowlist accepts only `nextauth.message` with JSON `{event: "session",
+  data: {trigger}, timestamp}`. Final production-build e2e: vacantes 34/34, vacantes-a11y 24/24, vacante-detalle
+  23/23, vacante-postular 2/2 → **83/83, zero not-run** (from 13/101 with 72 hidden at the start). Known flake:
+  hero quick-filter «Todas» navigation 1 of 5 repeats (follow-up). The storage audit never covered cookies or
+  IndexedDB (unchanged).
