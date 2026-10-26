@@ -11,7 +11,7 @@ function FieldSkeleton({ className }: { className?: string }) {
 }
 
 /**
- * Mirrors app/(candidato)/vacantes/page.tsx and JobsNavigationIsland: hero, the
+ * Mirrors app/(candidato)/vacantes/(listado)/page.tsx and JobsNavigationIsland: hero, the
  * content-only search card (two fields + «Buscar»), four quick filters, the
  * «Filtros» card (header + four selects + two buttons) and the results column.
  */

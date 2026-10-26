@@ -10,34 +10,12 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 // Each test resets its fixture state; a failure must not hide later coverage.
 test.describe.configure({ mode: "default" });
 
-const FIXTURE_ORIGIN = (process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4011").replace(/\/$/u, "");
+const FIXTURE_ORIGIN = (process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010").replace(/\/$/u, "");
 const MAIN_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const APPLICATION_PATH = `/vacantes/${MAIN_ID}/postular`;
 const DESKTOP = { width: 1440, height: 900 } as const;
 const MOBILE = { width: 375, height: 812 } as const;
-const STEP = (name: string) => `[data-pf-application-step="${name}"]`;
 const HEADER = "[data-pf-application-header]";
-const FORM_HOST = "[data-pf-application-form-host]";
-const CANDIDATE_CARD = "[data-pf-application-candidate]";
-const FULL_NAME = "#application-full-name";
-const EMAIL = "#application-email";
-const PHONE = "#application-phone";
-const TITLE = "#application-professional-title";
-const CITY = "#application-city";
-const COUNTRY = "#application-country";
-const LETTER = "#application-cover-letter";
-const CV_INPUT = "#application-cv-file";
-const CV_DROP = "[data-pf-application-cv-drop]";
-const CV_SELECTED = "[data-pf-application-cv-selected]";
-const CV_SELECTED_NAME = "[data-pf-application-cv-selected-name]";
-const STEP_TITLE = "[data-pf-application-step-title]";
-const CV_TERM = "CV";
-const SOURCE = "#application-source";
-const LOGIN_HREF = "/candidato/login";
-const PORTRAIT = "/candidate/ximena-barrera.jpg";
-/** Shared draft limit: a 2001st code point must block, 2000 must advance. */
-const LIMIT = 2000;
-const LIMIT_ERROR = /2000|caracteres|l[íi]mite/i;
 /** Rendered implementation-status or no-send/no-save copy is prohibited. */
 const PROHIBITED_STATUS_COPY = /demostraci[óo]n|no se env[íi]a|no se guarda/iu;
 
@@ -46,11 +24,18 @@ test.beforeEach(async ({ request }) => {
 });
 
 // --- read-only request/storage audit, installed before the first `goto` -----
-type Captured = { method: string; url: string };
+type Captured = { method: string; url: string; identityRead: boolean };
 const MUTATIONS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const trackRequests = (page: Page) => {
   const seen: Captured[] = [];
-  page.on("request", (entry) => seen.push({ method: entry.method(), url: entry.url() }));
+  page.on("request", (entry) => seen.push({
+    method: entry.method(), url: entry.url(),
+    // The visitor gate invokes the no-argument loadMeAction read via Next's
+    // POST transport. Count it explicitly; never exempt arbitrary mutations.
+    identityRead: entry.method() === "POST" &&
+      new URL(entry.url()).pathname === APPLICATION_PATH &&
+      Boolean(entry.headers()["next-action"]) && entry.postData() === "[]",
+  }));
   return seen;
 };
 // Writes accumulate Node-side per page so they survive client-side navigation;
@@ -89,8 +74,7 @@ const readStorageWrites = async (page: Page) => {
   await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
   return storageWrites.get(page) ?? [];
 };
-// The persisted state read from the document itself: an empty snapshot proves
-// no key survived even if a property-style write bypassed the intercepted methods.
+// Check persisted state too: property-style writes may bypass the intercepted methods.
 const storageSnapshot = (page: Page) =>
   page.evaluate(() => {
     const dump = (storage: Storage): Record<string, string> =>
@@ -100,12 +84,33 @@ const storageSnapshot = (page: Page) =>
       }));
     return { local: dump(window.localStorage), session: dump(window.sessionStorage) };
   });
-const expectClean = async (page: Page, seen: readonly Captured[]) => {
+// NextAuth's cross-tab notification is the sole permitted storage payload.
+// Exact object keys at both levels reject user/session data, including nested fields.
+const expectSessionBroadcast = (value: string) => {
+  const message = JSON.parse(value) as Record<string, unknown>;
+  expect(Object.keys(message).sort()).toEqual(["data", "event", "timestamp"]);
+  expect(message.event).toBe("session");
+  expect(message.data).not.toBeNull();
+  expect(typeof message.data).toBe("object");
+  expect(Object.keys(message.data as object)).toEqual(["trigger"]);
+  expect(typeof (message.data as { trigger: unknown }).trigger).toBe("string");
+  expect(typeof message.timestamp).toBe("number");
+  expect(Number.isFinite(message.timestamp)).toBe(true);
+};
+const expectClean = async (page: Page, seen: readonly Captured[], identityReads = 0) => {
   // Non-vacuity: the flow must have produced real traffic before judging it.
   expect(seen.length).toBeGreaterThan(0);
-  expect(seen.filter(({ method }) => MUTATIONS.has(method)).map(({ method, url }) => `${method} ${url}`)).toEqual([]);
-  expect(await readStorageWrites(page)).toEqual([]);
-  expect(await storageSnapshot(page)).toEqual({ local: {}, session: {} });
+  expect(seen.filter(entry => entry.identityRead)).toHaveLength(identityReads);
+  expect(seen.filter(({ method, identityRead }) => MUTATIONS.has(method) && !(identityReads > 0 && identityRead)).map(({ method, url }) => `${method} ${url}`)).toEqual([]);
+  for (const entry of await readStorageWrites(page)) {
+    const allowedWrite = "local|set|nextauth.message|";
+    expect(entry.startsWith(allowedWrite), `Unexpected storage write: ${entry}`).toBe(true);
+    expectSessionBroadcast(entry.slice(allowedWrite.length));
+  }
+  const snapshot = await storageSnapshot(page);
+  const { ["nextauth.message"]: broadcast, ...otherLocal } = snapshot.local;
+  if (broadcast !== undefined) expectSessionBroadcast(broadcast);
+  expect({ local: otherLocal, session: snapshot.session }).toEqual({ local: {}, session: {} });
 };
 
 const overflowPx = (page: Page) =>
@@ -130,243 +135,68 @@ const seriousAxe = (page: Page) =>
     .analyze()
     .then((results) => results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical").map((violation) => violation.id));
 
-/** One review term's value cell, keyed by its definition term. */
-const reviewValue = (review: Locator, term: string) =>
-  review.locator("dt", { hasText: term }).locator("xpath=following-sibling::dd");
-
-/** Opens the application route and steps through to the application step. */
-async function openApplicationStep(page: Page) {
-  await page.goto(APPLICATION_PATH);
+/** The current v2 wizard stops visitors before any candidate-only input. */
+async function expectVisitorGate(page: Page) {
   await expect(page.getByRole("heading", { level: 1, name: "Postularme" })).toBeVisible();
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-  const application = page.locator(STEP("application"));
-  await expect(application).toBeVisible();
-  // A real step change moves focus into the incoming step title.
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  return application;
+  await expect(page.getByRole("heading", { level: 2, name: "Datos", exact: true })).toBeVisible();
+  await expect(page.getByText("Sesión requerida", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ingresa con tu cuenta de candidato para postularte.", { exact: true })).toBeVisible();
+  const login = page.getByRole("button", { name: "Ingresar como candidato", exact: true });
+  await expect(login).toBeVisible();
+  await expect(login).toBeEnabled();
+  expect(await heightPx(login)).toBeGreaterThanOrEqual(40);
+  await expect(page.locator('input, textarea, [data-pf-application-step]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Continuar|Enviar postulación/ })).toHaveCount(0);
 }
 
-test("desktop end-to-end: the detail apply link opens the review of a trimmed demo draft", async ({ page, baseURL }) => {
+test("visitor detail apply link opens the sign-in gate with shell, metadata and keyboard return", async ({ page, baseURL, request, context }) => {
+  // Same detail-only prefetch isolation as vacantes.spec.ts; apply prefetches
+  // must continue or the later explicit application navigation can be dropped.
+  await context.route("**/*", route =>
+    route.request().headers()["next-router-prefetch"] === "1" &&
+    /^\/vacantes\/[^/?]+$/u.test(new URL(route.request().url()).pathname)
+      ? route.abort() : route.continue(),
+  );
   const seen = trackRequests(page);
   await installStorageAudit(page);
   await page.setViewportSize(DESKTOP);
   await page.goto(`/vacantes/${MAIN_ID}`);
-
-  // The one real apply affordance is a semantic link, not a demo button.
   const apply = page.getByRole("link", { name: "Postularme", exact: true });
   await expect(apply).toHaveAttribute("href", APPLICATION_PATH);
   await apply.click();
-  await expect(page).toHaveURL(new RegExp(`${APPLICATION_PATH}$`, "u"));
-
-  await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
-  await expect(page.locator("main > header").getByRole("button", { name: /toggle sidebar/i })).toBeVisible();
-  await expect(page.locator("[data-pf-public-navbar], footer")).toHaveCount(0);
-  const breadcrumb = page.locator("main > header").getByRole("navigation", { name: "Ruta de navegación" });
-  await expect(breadcrumb.getByRole("link", { name: "Detalle de la vacante" })).toHaveAttribute("href", `/vacantes/${MAIN_ID}`);
-  await expect(breadcrumb.getByText("Postulación", { exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("link", { name: "Volver a la vacante" })).toHaveCount(0);
-  // One h1, a noindex self-canonical, the exact vacancy/company identity, and
-  // product-facing header copy with no implementation-status disclosure.
-  await expect(page.getByRole("heading", { level: 1, name: "Postularme" })).toBeVisible();
+  await expect(page).toHaveURL(APPLICATION_PATH);
+  await expectVisitorGate(page);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
+  await expect(page.locator("[data-pf-public-navbar], footer")).toHaveCount(0);
+  await expect(page.locator(HEADER)).toContainText("Ingeniera Frontend");
+  await expect(page.locator(HEADER)).toContainText("Acme");
+  await expect(page.locator(HEADER)).not.toContainText(PROHIBITED_STATUS_COPY);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${baseURL}${APPLICATION_PATH}`);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/i);
-  const header = page.locator(HEADER);
-  await expect(header).toContainText("Ingeniera Frontend");
-  await expect(header).toContainText("Acme");
-  await expect(header).not.toContainText(PROHIBITED_STATUS_COPY);
-
-  // Step 1 edits the local candidate data seeded from the frozen profile: the
-  // rail card mirrors it live, and no unsupported CV-upload, availability or
-  // experience control exists.
-  const profile = page.locator(STEP("profile"));
-  const candidate = page.locator(CANDIDATE_CARD);
-  await expect(candidate).toContainText("Ximena Barrera");
-  await expect(candidate).toContainText("Desarrolladora Frontend Senior");
-  await expect(candidate).toContainText("ximena.barrera@correo.mx");
-  await expect(candidate).toContainText("+52 55 4821 7790");
-  await expect(candidate).toContainText("Ciudad de México, México");
-  await expect(candidate).toContainText("react");
-  await expect(candidate.locator(`img[src="${PORTRAIT}"]`)).toBeVisible();
-  await expect(profile).not.toContainText(/años de experiencia|disponibilidad|sube tu cv|curr[íi]culum/i);
-  await expect(profile).not.toContainText(PROHIBITED_STATUS_COPY);
-  await expect(page.locator('input[type="file"]')).toHaveCount(0);
-
-  const fullName = page.locator(FULL_NAME);
-  await expect(fullName).toHaveValue("Ximena Barrera");
-  await expect(page.locator(EMAIL)).toHaveValue("ximena.barrera@correo.mx");
-  await expect(page.locator(PHONE)).toHaveValue("+52 55 4821 7790");
-  await expect(page.locator(TITLE)).toHaveValue("Desarrolladora Frontend Senior");
-  await expect(page.locator(CITY)).toHaveValue("Ciudad de México");
-  await expect(page.locator(COUNTRY)).toHaveValue("México");
-
-  // Live edit: the rail card repaints from local state, with no submit at all.
-  await fullName.fill("  Ana López  ");
-  await expect(candidate).toContainText("Ana López");
-  // The edited name never relabels the frozen fixture portrait: it stays decorative.
-  await expect(candidate.locator(`img[src="${PORTRAIT}"]`)).toHaveAttribute("alt", "");
-
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-  await expect(page.locator(STEP("application"))).toBeVisible();
-  // The transition moved focus into the incoming step title.
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-
-  // The installed Base UI Select really opens in Chromium and switches source.
-  await page.locator(SOURCE).click();
-  await page.getByRole("option", { name: "LinkedIn" }).click();
-  await expect(page.locator(SOURCE)).toContainText("LinkedIn");
-  await page.locator(LETTER).fill("  Hola equipo  ");
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-
-  // Optional penultimate CV step: the local file lives in page state only.
-  const cv = page.locator(STEP("cv"));
-  await expect(cv).toBeVisible();
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  await expect(cv).toContainText(/opcional/i);
-  await expect(cv).not.toContainText(PROHIBITED_STATUS_COPY);
-  await page.locator(CV_INPUT).setInputFiles({
-    name: "Mi Cv.PDF",
-    mimeType: "application/pdf",
-    buffer: Buffer.from("cv"),
-  });
-  await expect(page.locator(CV_SELECTED)).toContainText("Mi Cv.PDF");
-  await expect(page.locator(CV_SELECTED)).toContainText("PDF");
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-
-  // Review: the normalized source/letter and CV metadata, no fake send, and the real login gate.
-  const review = page.locator(STEP("review"));
-  await expect(review).toBeVisible();
-  await expect(page.locator(STEP_TITLE)).toHaveText("Revisar");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  await expect(reviewValue(review, "¿Cómo te enteraste?")).toHaveText("LinkedIn");
-  await expect(reviewValue(review, "Carta de presentación")).toHaveText("Hola equipo");
-  await expect(reviewValue(review, CV_TERM)).toHaveText("Mi Cv.PDF · PDF · 0 KB");
-  await expect(reviewValue(review, "Nombre completo")).toHaveText("Ana López");
-  await expect(reviewValue(review, "Correo electrónico")).toHaveText("ximena.barrera@correo.mx");
-  await expect(reviewValue(review, "Ubicación")).toHaveText("Ciudad de México, México");
-  await expect(review.getByRole("button", { name: /enviar/i })).toHaveCount(0);
-  await expect(review).not.toContainText(/postulación (?:enviada|recibida)/i);
-  await expect(review).not.toContainText(PROHIBITED_STATUS_COPY);
-  await expect(review.getByRole("link", { name: /iniciar sesión para enviar/i })).toHaveAttribute("href", LOGIN_HREF);
-
-  // Back preserves the raw, untrimmed inputs, the chosen source and the local CV.
-  await page.getByRole("button", { name: "Atrás", exact: true }).click();
-  await expect(page.locator(CV_SELECTED)).toContainText("Mi Cv.PDF");
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  await page.getByRole("button", { name: "Atrás", exact: true }).click();
-  await expect(page.locator(LETTER)).toHaveValue("  Hola equipo  ");
-  await expect(page.locator(SOURCE)).toContainText("LinkedIn");
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  await page.getByRole("button", { name: "Atrás", exact: true }).click();
-  await expect(page.locator(FULL_NAME)).toHaveValue("  Ana López  ");
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tus datos");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-
-  await expectClean(page, seen);
-});
-
-test("mobile Unicode boundary: 2001 code points block with an alert, exactly 2000 advance, and used targets clear 40px", async ({ page }) => {
-  const seen = trackRequests(page);
-  await installStorageAudit(page);
-  await page.setViewportSize(MOBILE);
-  await page.goto(APPLICATION_PATH);
-  const heights: number[] = [];
-  const stepOneContinue = page.getByRole("button", { name: "Continuar", exact: true });
-  await expect(stepOneContinue).toBeVisible();
-  heights.push(await heightPx(stepOneContinue));
-  heights.push(await heightPx(page.locator(FULL_NAME)));
-  await stepOneContinue.click();
-
-  const application = page.locator(STEP("application"));
-  await expect(application).toBeVisible();
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  const letter = page.locator(LETTER);
-  heights.push(await heightPx(letter));
-  const stepTwoContinue = page.getByRole("button", { name: "Continuar", exact: true });
-  heights.push(await heightPx(stepTwoContinue));
-
-  await letter.fill("😀".repeat(LIMIT + 1));
-  await expect(application).toContainText(`${LIMIT + 1} de ${LIMIT}`);
-  await stepTwoContinue.click();
-  // 2001 code points block: an alert, still step 2, and no horizontal overflow.
-  await expect(application.getByRole("alert")).toContainText(LIMIT_ERROR);
-  await expect(letter).toBeFocused();
-  await expect(letter).toHaveAttribute("aria-invalid", "true");
-  expect(await letter.getAttribute("aria-describedby")).toContain("application-cover-letter-error");
-  await expect(application).toBeVisible();
-  await expect(page.locator(STEP("review"))).toHaveCount(0);
-  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
-
-  // Exactly 2000 code points advance to the optional CV step, then to review.
-  await letter.fill("😀".repeat(LIMIT));
-  await expect(application).toContainText(`${LIMIT} de ${LIMIT}`);
-  await stepTwoContinue.click();
-  const cv = page.locator(STEP("cv"));
-  await expect(cv).toBeVisible();
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  heights.push(await heightPx(page.getByRole("button", { name: "Continuar", exact: true })));
-  heights.push(await heightPx(page.getByRole("button", { name: "Elegir archivo", exact: true })));
-  await expect(page.locator(CV_INPUT)).toBeHidden();
-  await expect(page.getByRole("button", { name: "Elegir archivo", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-  await expect(page.locator(STEP("review"))).toBeVisible();
-  await expect(page.locator(STEP_TITLE)).toHaveText("Revisar");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
-
-  // Every interactive target exercised by this flow meets the 40px minimum.
-  expect(heights).toHaveLength(6);
-  expect(heights.filter((height) => !Number.isFinite(height) || height < 40)).toEqual([]);
-
-  await expectClean(page, seen);
-});
-
-test("CV step: a long local filename wraps without overflow and a rejected drop keeps the valid file", async ({ page }) => {
-  const seen = trackRequests(page);
-  await installStorageAudit(page);
-  await page.setViewportSize(MOBILE);
-  await page.goto(APPLICATION_PATH);
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-  const cv = page.locator(STEP("cv"));
-  await expect(cv).toBeVisible();
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-
-  const longName = `curriculum-vitae-${"muy-largo-".repeat(8)}final.pdf`;
-  await page.locator(CV_INPUT).setInputFiles({
-    name: longName,
-    mimeType: "application/pdf",
-    buffer: Buffer.from("cv"),
-  });
-  const selectedName = page.locator(CV_SELECTED_NAME);
-  await expect(selectedName).toHaveText(longName);
-  // The full name is readable: it wraps instead of clipping to one line, so the
-  // title never hides overflow (a coupled `min-w-0` parent lets it shrink).
-  expect(await selectedName.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
-  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
-  expect(await seriousAxe(page)).toEqual([]);
-  expect(await heightPx(page.getByRole("button", { name: "Elegir archivo", exact: true }))).toBeGreaterThanOrEqual(40);
-
-  // A dropped `.txt` is rejected, the valid file stays, and the error is announced.
-  const dataTransfer = await page.evaluateHandle((name) => {
-    const transfer = new DataTransfer();
-    transfer.items.add(new File(["x"], name, { type: "text/plain" }));
-    return transfer;
-  }, "notas.txt");
-  await page.locator(CV_DROP).dispatchEvent("drop", { dataTransfer });
-  await expect(cv.getByRole("alert")).toContainText("El CV debe estar en formato PDF, DOC o DOCX.");
-  await expect(page.locator(CV_SELECTED)).toContainText(longName);
-  await expect(page.locator(CV_INPUT)).toHaveAttribute("aria-invalid", "true");
-
-  await expectClean(page, seen);
+  const breadcrumb = page.locator("main > header").getByRole("navigation", { name: "Ruta de navegación" });
+  const back = breadcrumb.getByRole("link", { name: "Detalle de la vacante", exact: true });
+  await expect(back).toHaveAttribute("href", `/vacantes/${MAIN_ID}`);
+  await expect(breadcrumb.getByText("Postulación", { exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(HEADER).getByRole("navigation")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Volver a la vacante" })).toHaveCount(0);
+  await expect.poll(() => request.get(`${FIXTURE_ORIGIN}/__requests`).then(response => response.json())).toEqual([
+    // Detail document, apply render, and the identity Server Action's RSC
+    // re-render each own one fresh detail read (metadata/page stay deduped).
+    `/v2/jobs/${MAIN_ID}`, `/v2/jobs/${MAIN_ID}`, `/v2/jobs/${MAIN_ID}`,
+  ]);
+  for (let tabs = 0; tabs < 30 && !(await back.evaluate(element => element === document.activeElement)); tabs++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(back).toBeFocused();
+  expect(await back.evaluate(element => {
+    const style = getComputedStyle(element);
+    return element.matches(":focus-visible") && (style.boxShadow !== "none" || (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0));
+  })).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(`/vacantes/${MAIN_ID}`);
+  await expect(page.getByRole("article")).toBeVisible();
+  await expectClean(page, seen, 1);
 });
 
 test("responsive/theme matrix: desktop light and mobile dark stay overflow-free, axe-clean and single-h1", async ({ page }) => {
@@ -380,13 +210,15 @@ test("responsive/theme matrix: desktop light and mobile dark stay overflow-free,
     ["mobile-dark", MOBILE, true],
   ] as const) {
     await page.setViewportSize(viewport);
-    await openApplicationStep(page);
+    await page.goto(APPLICATION_PATH);
+    await expectVisitorGate(page);
     await setTheme(page, dark);
 
-    // The rail, its summary, and the form host stay visible behind the step.
-    await expect(page.locator("aside").getByRole("heading", { name: "Resumen de la vacante" })).toBeVisible();
-    await expect(page.locator(FORM_HOST)).toBeVisible();
+    await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
     await expect(page.locator(HEADER)).toBeVisible();
+    await expect(page.locator(HEADER)).toContainText("Ingeniera Frontend");
+    await expect(page.locator(HEADER)).toContainText("Acme");
+    await expect(page.locator(HEADER)).not.toContainText(PROHIBITED_STATUS_COPY);
     results.push({
       label,
       overflow: await overflowPx(page),
@@ -403,5 +235,5 @@ test("responsive/theme matrix: desktop light and mobile dark stay overflow-free,
   // Dark mode really repainted the document background.
   expect(results[0].background).not.toBe(results[1].background);
 
-  await expectClean(page, seen);
+  await expectClean(page, seen, 2);
 });

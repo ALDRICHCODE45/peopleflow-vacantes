@@ -4,18 +4,18 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
-import { JobsNavigationIsland } from "../../../features/jobs/components/JobsNavigationIsland";
-import { legacyDetail, listItem } from "../../../features/jobs/api/public-fixtures";
+import { JobsNavigationIsland } from "../../../../features/jobs/components/JobsNavigationIsland";
+import { legacyDetail, listItem } from "../../../../features/jobs/api/public-fixtures";
 
 const { push, redirect, read } = vi.hoisted(() => ({ push: vi.fn(), redirect: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }), read: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), redirect }));
-vi.mock("../../../features/jobs/api/listJobs", () => ({ listJobsQueryOptions: (query: unknown) => ({ queryKey: ["jobs", query], queryFn: read }) }));
+vi.mock("../../../../features/jobs/api/listJobs", () => ({ listJobsQueryOptions: (query: unknown) => ({ queryKey: ["jobs", query], queryFn: read }) }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const vacancyList = <ul aria-label="Listado de vacantes" />;
 
 describe("/vacantes v2 page", () => {
   it("describes the actual public filters without claiming a tech-only catalog", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/(candidato)/vacantes/page.tsx"), "utf8").replace(/\s+/g, " ");
+    const source = readFileSync(join(process.cwd(), "src/app/(candidato)/vacantes/(listado)/page.tsx"), "utf8").replace(/\s+/g, " ");
     expect(source).toContain("Bolsa de trabajo");
     expect(source).toContain("Encuentra tu próximo trabajo");
     expect(source).toContain("Explora vacantes publicadas y filtra por ubicación, modalidad, jornada, tipo de contrato y área profesional.");
@@ -50,7 +50,7 @@ describe("/vacantes v2 page", () => {
 
 describe("/vacantes synchronous boundaries", () => {
   it("keeps the client route error with the shared heading and a reset action", async () => {
-    const ErrorBoundary = (await import("./error")).default;
+    const ErrorBoundary = (await import("../error")).default;
     const reset = vi.fn();
     const { container } = render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
     expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();

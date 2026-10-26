@@ -2,15 +2,15 @@ import * as React from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { redirect } from "next/navigation";
 
-import { listJobsQueryOptions } from "../../../features/jobs/api/listJobs";
-import { JobsNavigationIsland } from "../../../features/jobs/components/JobsNavigationIsland";
-import { JobsResults } from "../../../features/jobs/components/JobsResults";
+import { listJobsQueryOptions } from "../../../../features/jobs/api/listJobs";
+import { JobsNavigationIsland } from "../../../../features/jobs/components/JobsNavigationIsland";
+import { JobsResults } from "../../../../features/jobs/components/JobsResults";
 import {
   buildJobsUrl,
   isCanonicalJobsQuery,
   parseJobsQuery,
-} from "../../../features/jobs/url";
-import type { JobsQuery } from "../../../features/jobs/url";
+} from "../../../../features/jobs/url";
+import type { JobsQuery } from "../../../../features/jobs/url";
 
 // The list read is request-scoped: it must run on the Node server on every
 // request with live search params, never prerendered or cached.
