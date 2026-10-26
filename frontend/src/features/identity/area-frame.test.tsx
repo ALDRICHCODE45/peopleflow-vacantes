@@ -8,7 +8,7 @@ import { CandidateSidebar } from "@/components/candidate-dashboard/candidate-sid
 import { AppSidebar } from "@/components/company-dashboard/app-sidebar";
 import { SidebarProvider } from "@/components/company-dashboard/ui/sidebar";
 import { CandidateNavUser } from "@/components/candidate-dashboard/candidate-nav-user";
-vi.mock("next/navigation", () => ({ usePathname: () => "/candidato/perfil", useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/candidato/perfil", useSearchParams: () => new URLSearchParams(), useRouter: () => ({ replace: vi.fn() }) }));
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
 vi.mock("./actions", () => ({ loadMeAction: vi.fn() }));
 afterEach(cleanup);

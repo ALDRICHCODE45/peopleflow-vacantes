@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { IconUserCircle } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { createCandidateAccountAction } from "./actions";
 import { useIdentity } from "./identity-session";
+import { candidateAuthHref } from "./return-to";
 import { RoleBlocked } from "./identity-states";
 import { normalizedName, validName, type IdentityFailure, type IdentityReason } from "./model";
 
@@ -33,6 +34,7 @@ const nameError = "Escribe un nombre de 2 a 120 caracteres.";
 export function CandidateOnboarding() {
   const identity = useIdentity();
   const router = useRouter();
+  const params = useSearchParams();
   const [name, setName] = React.useState("");
   const [fieldError, setFieldError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -66,7 +68,7 @@ export function CandidateOnboarding() {
       setFailure(error);
       if (error.reason === "validation_error") { setFieldError(nameError); input.current?.focus(); }
       notifyActionResult({ key: "candidate-account", type: "error", ...messages[error.reason], reference: { ...error.reference, at: new Date().toISOString() } });
-      if (error.reason === "unauthenticated") router.replace("/candidato/login");
+      if (error.reason === "unauthenticated") router.replace(candidateAuthHref("login", params.get("next")));
     }
     lock.current = false; setPending(false);
   }

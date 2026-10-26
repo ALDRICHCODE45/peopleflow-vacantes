@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { SessionProvider, getCsrfToken, signIn, signOut, useSession } from "next-auth/react";
+import { candidateAuthHref } from "@/features/identity/return-to";
 import { toCognitoSignupUrl } from "@/lib/auth/signup-url";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,6 +14,7 @@ import { notifyActionResult } from "@/components/feedback/notify";
 function ManagedCandidateLogin() {
   const { data: session, status } = useSession();
   const params = useSearchParams();
+  const callbackUrl = candidateAuthHref("ingresar", params.get("next"));
   const statusId = React.useId();
   const [pending, setPending] = React.useState(false);
   const lock = React.useRef(false);
@@ -33,7 +35,7 @@ function ManagedCandidateLogin() {
         const response = await fetch("/api/auth/signin/cognito", {
           method: "post",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ csrfToken, callbackUrl: "/candidato/ingresar", json: "true" }),
+          body: new URLSearchParams({ csrfToken, callbackUrl, json: "true" }),
         });
         if (!response.ok) throw new Error("Sign-in failed");
         const data: unknown = await response.json();
@@ -41,7 +43,7 @@ function ManagedCandidateLogin() {
         // Only an absolute http(s) URL navigates; anything else is a failed sign-in.
         if (!/^https?:$/.test(new URL(data.url).protocol)) throw new Error("Sign-in failed");
         window.location.assign(toCognitoSignupUrl(data.url));
-      } else await signIn("cognito", { callbackUrl: "/candidato/ingresar" });
+      } else await signIn("cognito", { callbackUrl });
     } catch {
       const message = logout ? "No pudimos cerrar la sesión. Inténtalo de nuevo." : "No pudimos iniciar el acceso. Inténtalo de nuevo.";
       setActionError(message);
@@ -50,7 +52,7 @@ function ManagedCandidateLogin() {
   }
   return <div className="mt-8 flex flex-col gap-5" aria-busy={pending || status === "loading"}>
     {error && !actionError && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {authenticated ? <Button nativeButton={false} role="link" render={<Link href="/candidato/ingresar" />} className="min-h-10">Ir a mi cuenta</Button> : <>
+    {authenticated ? <Button nativeButton={false} role="link" render={<Link href={callbackUrl} />} className="min-h-10">Ir a mi cuenta</Button> : <>
       <p className="text-sm text-muted-foreground">Ingresa con tu email y contraseña. Puedes crear tu acceso en la pantalla segura de Cognito.</p>
       <Button type="button" className="min-h-10" aria-describedby={actionError ? statusId : undefined} onClick={() => void start()} disabled={pending || status === "loading"}>{pending && <Spinner aria-hidden="true" />}Ingresar</Button>
       <Button type="button" variant="outline" className="min-h-10" aria-describedby={actionError ? statusId : undefined} onClick={() => void start(false, true)} disabled={pending || status === "loading"}>Crear cuenta</Button>
