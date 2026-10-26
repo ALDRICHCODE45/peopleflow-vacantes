@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useIdentity } from "./identity-session";
 import { IdentityCheck, IdentityError, RoleBlocked } from "./identity-states";
+import { candidateAuthHref, safeReturnTo } from "./return-to";
 
 import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
@@ -20,10 +21,18 @@ function IdentityFrame({ area, children }: { area: "candidate" | "employer"; chi
 }
 
 export function CandidateGuard({ children }: { children: React.ReactNode }) {
+  return <React.Suspense fallback={<IdentityFrame area="candidate"><IdentityCheck /></IdentityFrame>}><CandidateGuardContent>{children}</CandidateGuardContent></React.Suspense>;
+}
+
+function CandidateGuardContent({ children }: { children: React.ReactNode }) {
   const identity = useIdentity();
   const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const search = params.toString();
+  const next = pathname?.startsWith("/candidato/") ? safeReturnTo(`${pathname}${search ? `?${search}` : ""}`) : null;
   const result = identity.result;
-  const destination = identity.status === "unauthenticated" || (result && !result.ok && result.reason === "unauthenticated") ? "/candidato/login" : result?.ok && result.data.role === null ? "/candidato/ingresar" : null;
+  const destination = identity.status === "unauthenticated" || (result && !result.ok && result.reason === "unauthenticated") ? candidateAuthHref("login", next) : result?.ok && result.data.role === null ? candidateAuthHref("ingresar", next) : null;
   React.useEffect(() => { if (destination) router.replace(destination); }, [destination, router]);
   if (identity.status === "loading" || destination) return <IdentityFrame area="candidate"><IdentityCheck /></IdentityFrame>;
   if (!result?.ok) return <IdentityFrame area="candidate"><IdentityError retry={identity.retry} /></IdentityFrame>;

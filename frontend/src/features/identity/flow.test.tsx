@@ -4,9 +4,9 @@ import { cleanup, fireEvent, render as renderUI, screen, waitFor } from "@testin
 import "@testing-library/jest-dom/vitest";
 import type { IdentityResult } from "./model";
 import userEvent from "@testing-library/user-event";
-const mocks = vi.hoisted(() => ({ load: vi.fn(), create: vi.fn(), replace: vi.fn(), signOut: vi.fn(), notify: vi.fn(), session: { status: "authenticated", data: { user: { email: "session@example.com" } } } as { status: string; data: { user?: { email?: string }; error?: string } | null } }));
+const mocks = vi.hoisted(() => ({ query: new URLSearchParams(), pathname: "/empresa/equipo", load: vi.fn(), create: vi.fn(), replace: vi.fn(), signOut: vi.fn(), notify: vi.fn(), session: { status: "authenticated", data: { user: { email: "session@example.com" } } } as { status: string; data: { user?: { email?: string }; error?: string } | null } }));
 vi.mock("./actions", () => ({ loadMeAction: mocks.load, createCandidateAccountAction: mocks.create }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }), usePathname: () => "/empresa/equipo" }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }), usePathname: () => mocks.pathname, useSearchParams: () => mocks.query }));
 vi.mock("next-auth/react", () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>, useSession: () => mocks.session, signOut: mocks.signOut }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notify }));
 import CandidateEntryPage from "@/app/(auth)/candidato/ingresar/page";
@@ -18,7 +18,54 @@ const user = { id: "id", email: "api@example.com", full_name: "Ana Pérez" };
 function result(role: "candidate" | "recruiter" | null): IdentityResult { return role === null ? { ok: true, data: { role, user: null } } : { ok: true, data: { role, user } }; }
 const failure = (reason: string) => ({ ok: false, reason, reference: { status: 503 } });
 afterEach(cleanup);
-beforeEach(() => { vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })); vi.clearAllMocks(); mocks.session = { status: "authenticated", data: { user: { email: "session@example.com" } } }; mocks.load.mockResolvedValue(result(null)); });
+beforeEach(() => { vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })); vi.clearAllMocks(); mocks.query = new URLSearchParams(); mocks.pathname = "/empresa/equipo"; mocks.session = { status: "authenticated", data: { user: { email: "session@example.com" } } }; mocks.load.mockResolvedValue(result(null)); });
+describe("return to origin", () => {
+  const next = "/vacantes?search=react&vacante=job-123";
+  it("candidate entry preserves the destination and filters", async () => {
+    mocks.query.set("next", next); mocks.load.mockResolvedValue(result("candidate"));
+    render(<CandidateEntryPage />);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(next));
+  });
+  it.each(["//evil.test", "/api/auth/signout", "/candidato/login", "/candidato/ingresar", "/%252fevil.test"])("entry falls back for unsafe next %s", async unsafe => {
+    mocks.query.set("next", unsafe); mocks.load.mockResolvedValue(result("candidate"));
+    render(<CandidateEntryPage />);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/candidato/dashboard"));
+  });
+  it("account completion returns to next after the confirmed candidate update", async () => {
+    mocks.query.set("next", next); mocks.create.mockResolvedValue(result("candidate"));
+    render(<CandidateEntryPage />);
+    const input = await screen.findByLabelText("Nombre completo");
+    fireEvent.change(input, { target: { value: "Ana Pérez" } }); fireEvent.submit(input.closest("form")!);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(next));
+  });
+  it("entry preserves next when the session needs login again", async () => {
+    mocks.query.set("next", next); mocks.session = { status: "unauthenticated", data: null };
+    render(<CandidateEntryPage />);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(`/candidato/login?next=${encodeURIComponent(next)}`));
+  });
+  it("onboarding preserves next after session expiration", async () => {
+    mocks.query.set("next", next); mocks.create.mockResolvedValue(failure("unauthenticated"));
+    render(<CandidateEntryPage />);
+    const input = await screen.findByLabelText("Nombre completo");
+    fireEvent.change(input, { target: { value: "Ana Pérez" } }); fireEvent.submit(input.closest("form")!);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(`/candidato/login?next=${encodeURIComponent(next)}`));
+  });
+  it("never sends recruiters to next", async () => {
+    mocks.query.set("next", next); mocks.load.mockResolvedValue(result("recruiter"));
+    render(<CandidateEntryPage />);
+    expect(await screen.findByText("Esta cuenta es de empresa")).toBeInTheDocument();
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+  it.each(["visitor", "null role", "backend unauthenticated"])("candidate guard retains path and query for %s", async state => {
+    mocks.pathname = "/candidato/postulaciones"; mocks.query = new URLSearchParams("estado=active");
+    if (state === "visitor") mocks.session = { status: "unauthenticated", data: null };
+    else mocks.load.mockResolvedValue(state === "null role" ? result(null) : failure("unauthenticated"));
+    render(<IdentitySessionProvider><CandidateGuard><p>private content</p></CandidateGuard></IdentitySessionProvider>);
+    const route = state === "null role" ? "ingresar" : "login";
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(`/candidato/${route}?next=%2Fcandidato%2Fpostulaciones%3Festado%3Dactive`));
+    expect(screen.queryByText("private content")).toBeNull();
+  });
+});
 describe("post-sign-in router", () => {
   it.each([["candidate", "/candidato/dashboard"], [null, null], ["recruiter", null]] as const)("routes %s without an implicit write", async (role, target) => {
     mocks.load.mockResolvedValue(result(role)); render(<CandidateEntryPage />);

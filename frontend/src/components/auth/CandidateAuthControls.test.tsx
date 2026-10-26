@@ -20,7 +20,50 @@ beforeEach(() => {
   Object.defineProperty(testWindow, "location", { value: { assign: auth.assign } });
   vi.stubGlobal("window", testWindow);
 });
-it("Ingresar uses the sole Cognito provider and fixed candidate callback", async () => {
+it.each(["/vacantes?search=react&estado=published", "/vacantes?search=React+Next&ciudad=M%C3%A9xico", "/vacantes/job-123", "/vacantes/job-123/postular"])("login carries next through the Cognito callback: %s", async next => {
+  auth.query.set("next", next);
+  render(<CandidateAuthControls />);
+  fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
+  await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: `/candidato/ingresar?next=${encodeURIComponent(next)}` }));
+});
+it("signup carries the same next in the CSRF transaction", async () => {
+  const next = "/vacantes?search=react&modal=job-123";
+  auth.query.set("next", next);
+  render(<CandidateAuthControls />);
+  fireEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+  await waitFor(() => expect(auth.fetch).toHaveBeenCalledWith("/api/auth/signin/cognito", expect.objectContaining({
+    body: new URLSearchParams({ csrfToken: "csrf-fixture", callbackUrl: `/candidato/ingresar?next=${encodeURIComponent(next)}`, json: "true" }),
+  })));
+});
+it("signed-in account link preserves next without bypassing role checks", () => {
+  auth.session = { status: "authenticated", data: {} };
+  auth.query.set("next", "/vacantes/job-123");
+  render(<CandidateAuthControls />);
+  expect(screen.getByRole("link", { name: "Ir a mi cuenta" })).toHaveAttribute("href", "/candidato/ingresar?next=%2Fvacantes%2Fjob-123");
+});
+it.each([
+  ["absolute", "https://evil.test/vacantes"], ["scheme", "javascript:alert(1)"],
+  ["protocol-relative", "//evil.test"], ["slash-backslash", "/\\evil.test"],
+  ["backslash", "/vacantes\\evil"], ["relative", "vacantes"],
+  ["leading whitespace", " /vacantes"], ["control", "/vacantes\n"],
+  ["encoded tab", "/%09/evil.test"], ["format character", "/\u200bevil.test"],
+  ["encoded login loop", "/candidato/%6cogin"], ["api root", "/api"],
+  ["loop with trailing slash", "/candidato/ingresar/"],
+  ["encoded control", "/vacantes%0d%0aLocation:evil"],
+  ["encoded authority", "/%2fevil.test"], ["double encoded authority", "/%252fevil.test"],
+  ["encoded backslash", "/%5cevil.test"], ["api", "/api/auth/signout"],
+  ["normalized api", "/vacantes/../api/auth/signout"], ["encoded api", "/%61pi/auth"],
+  ["login loop", "/candidato/login?next=/vacantes"], ["entry loop", "/candidato/ingresar"],
+  ["normalized loop", "/vacantes/../candidato/login"], ["malformed escape", "/%zz"],
+  ["overlong", "/" + "a".repeat(4096)],
+])("login silently rejects %s next", async (_rule, next) => {
+  auth.query.set("next", next);
+  render(<CandidateAuthControls />);
+  fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
+  await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith("cognito", { callbackUrl: "/candidato/ingresar" }));
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+it("Ingresar uses the sole Cognito provider and default candidate callback when next is absent", async () => {
   const label = "Ingresar";
   const { container } = render(<CandidateAuthControls />);
   expect(container.querySelector("input, form")).toBeNull();
