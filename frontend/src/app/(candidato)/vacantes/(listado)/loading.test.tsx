@@ -3,8 +3,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 afterEach(cleanup);
 
-it.each(["./loading", "./[jobId]/loading"])("renders a contextual accessible skeleton for %s", async (path) => {
-  const Loading = (await import(/* @vite-ignore */ path)).default;
+// Only the list has a loading boundary; the detail renders when its data is
+// ready so it can answer a real 404/500 (see [jobId]/page.test.tsx).
+it("renders a contextual accessible skeleton for the list", async () => {
+  const Loading = (await import("./loading")).default;
   const { container } = render(<Loading />);
   expect(screen.getAllByRole("status")).toHaveLength(1);
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();

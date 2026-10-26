@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { legacyDetail, vacancyDetail } from "../../../../features/jobs/api/public-fixtures";
 import { createVacanteDetailScope } from "./page-data";
@@ -93,6 +93,18 @@ describe("public detail route", () => {
     fireEvent.click(retry);
     expect(reset).toHaveBeenCalledOnce();
     expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();
+    // An API failure must never be indexed as the vacancy page.
+    expect(document.head.querySelector('meta[name="robots"][content="noindex"]')).not.toBeNull();
+  });
+  it("has no loading boundary above it, so an API 404 or failure answers a real 404/500 status", () => {
+    // A loading.tsx wraps every nested segment and makes Next flush a 200
+    // skeleton before the page can call notFound() or throw (user decision S6:
+    // real status over the skeleton). The list keeps its own inside (listado).
+    const at = (path: string) => existsSync(join(process.cwd(), "src/app/(candidato)", path));
+    expect(at("vacantes/[jobId]/loading.tsx")).toBe(false);
+    expect(at("vacantes/loading.tsx")).toBe(false);
+    expect(at("loading.tsx")).toBe(false);
+    expect(at("vacantes/(listado)/loading.tsx")).toBe(true);
   });
   it("deduplicates concurrent page/metadata reads inside a scope and isolates requests", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(vacancyDetail));
