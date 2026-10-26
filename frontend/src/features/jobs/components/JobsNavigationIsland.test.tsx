@@ -32,6 +32,21 @@ describe("salary filter commits", () => {
     fireEvent.change(screen.getByLabelText(label), { target: { value } });
   }
   function apply() { fireEvent.submit(screen.getByRole("form", { name: "Filtros" })); }
+  it("announces loading beside the quick filters instead of in an empty row of its own", () => {
+    setup();
+    const row = screen.getByRole("group", { name: "Filtros rápidos" }).parentElement!;
+    expect(within(row).getByRole("status")).toHaveAttribute("aria-live", "polite");
+    const island = row.parentElement!;
+    expect(island).toHaveAttribute("data-jobs-navigation-island");
+    expect(island.querySelector(":scope > [role='status']")).toBeNull();
+  });
+  it("collapses the empty active-filter chips row so it takes no gap of its own", () => {
+    setup();
+    const chips = document.querySelector("[aria-label='Filtros activos']")!;
+    expect(chips).toBeEmptyDOMElement();
+    // `display: none` when empty: a zero-height flex child would still add a 24px gap.
+    expect(chips).toHaveClass("empty:hidden");
+  });
   it.each([
     ["30000", ""], ["", "40000"], ["30000.50", "40000"], ["40000", "40000"], ["0", ""],
   ])("commits inclusive bounds %s / %s with default units", (min, max) => {

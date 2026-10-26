@@ -91,7 +91,8 @@ export function JobsFilterChips({ query, geo, onRemove, children }: { query: Job
     ...[{ key: "work_schedule", label: "Jornada", options: WORK_SCHEDULE_OPTIONS }, { key: "contract_type", label: "Tipo de contrato", options: CONTRACT_TYPE_OPTIONS }, { key: "professional_area", label: "Área profesional", options: PROFESSIONAL_AREA_OPTIONS }].map(item => ({ ...item, options: item.options.map(option => ({ id: option.value, name: option.label })) })),
     { key: "q", label: "Búsqueda", options: query.q ? [{ id: query.q, name: query.q }] : [] },
   ];
-  return <div aria-label="Filtros activos" className="flex min-w-0 gap-2 overflow-x-auto">
+  // Hidden while empty so the row adds no gap to the island's flex column.
+  return <div aria-label="Filtros activos" className="flex min-w-0 gap-2 overflow-x-auto empty:hidden">
     {dimensions.flatMap(({ key, label, options }) => selectedValues(query[key as keyof JobsQuery]).map(code => {
       const name = options.find(option => option.id === code)?.name;
       // Never substitute raw codes while the catalog is pending or unavailable.
