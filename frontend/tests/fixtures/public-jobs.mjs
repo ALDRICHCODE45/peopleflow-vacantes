@@ -22,7 +22,7 @@ export function publicDetail(seed) {
     location: { country: countries.items[0], state, municipality, postal_code: null, label: seed.location ?? "Monterrey, Nuevo León" },
     location_label: seed.location ?? "Monterrey, Nuevo León",
     remote_scope: seed.work_mode === "remote" ? { kind: "anywhere" } : null,
-    work_mode: seed.work_mode, work_schedule: seed.employment_type === "part_time" ? "part_time" : "full_time",
+    work_mode: seed.work_mode, work_schedule: seed.work_schedule ?? (seed.employment_type === "part_time" ? "part_time" : "full_time"),
     contract_type: seed.employment_type === "contract" ? "professional_services" : "indefinite",
     professional_area: "technology_systems", seniority: seed.seniority,
     requirements_profile: { languages: [{ code: "en", min_level: "B2" }], min_years_of_experience: "3", min_education_level: null, accepts_in_progress_education: true },
@@ -44,6 +44,28 @@ export function publicItem(seed) {
 export function publicPayload(payload) {
   if (payload?.items) return { items: payload.items.map(publicItem), next_cursor: payload.next_cursor ?? null };
   return payload?.id ? publicDetail(payload) : payload;
+}
+
+export const PUBLIC_PAGE_SIZE = 2;
+export const PUBLIC_NEXT_CURSOR = "opaque a+b/c=";
+
+// A supplied cursor models the final page, including direct links into a
+// one-page pool. Only emitted continuations must be disjoint from page one.
+export function publicPage(items, params) {
+  const furtherRows = items.length > PUBLIC_PAGE_SIZE;
+  if (params.has("cursor")) return { items: furtherRows ? items.slice(PUBLIC_PAGE_SIZE) : items };
+  return {
+    items: items.slice(0, PUBLIC_PAGE_SIZE),
+    ...(furtherRows ? { next_cursor: PUBLIC_NEXT_CURSOR } : {}),
+  };
+}
+
+// Match titles before description-only hits; ties retain fixture order.
+// This makes React-specific roles precede the general frontend role without
+// changing which rows match any active predicate.
+export function publicSearchRank(seed, params) {
+  const tokens = (params.get("q") ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return tokens.filter(token => seed.title.toLowerCase().includes(token)).length;
 }
 
 // OR within repeated dimensions, AND across dimensions, matching the v2 URL keys.

@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { publicPayload, matchesPublic, catalogResponse } from "./public-jobs.mjs";
+import { publicPayload, publicPage, publicSearchRank, matchesPublic, catalogResponse } from "./public-jobs.mjs";
 import { createEmployerDashboardFixture } from "./employer-dashboard.mjs";
 const employerDashboardFixture = createEmployerDashboardFixture();
 
@@ -22,7 +22,7 @@ const delayState = { ms: 0 };
 const job = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
   title: "Ingeniera Frontend",
-  description: "Construye experiencias accesibles.",
+  description: "Construye experiencias accesibles con React y TypeScript.",
   work_mode: "remote",
   employment_type: "full_time",
   seniority: "senior",
@@ -32,6 +32,29 @@ const job = {
     name: "Acme",
   },
 };
+// Real matches for the pending-search sentinel and paginated React search.
+// Search still evaluates the same predicates as every other v2 query.
+const pendingSearchJob = {
+  ...job,
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7db0",
+  title: "Especialista Pending Search",
+  description: "Mejora la experiencia de pending-search con interfaces accesibles.",
+};
+const reactJobs = [
+  {
+    ...job,
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7db1",
+    title: "Ingeniera React",
+    description: "Diseña componentes React accesibles y pruebas automatizadas.",
+  },
+  {
+    ...job,
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7db2",
+    title: "Especialista React",
+    description: "Construye aplicaciones React con TypeScript y colaboración remota.",
+  },
+];
+
 // Detail-only vacancy: markup-like description text plus present optional
 // metadata fields, so the safe-description detail rendering is observable.
 const richDetailJob = {
@@ -225,13 +248,14 @@ const usdConjunctiveDecoys = [
       name: "Acme",
     },
   },
-  // Fails only `employment_type`.
+  // Fails `employment_type` in v1 and the active `work_schedule` in v2.
   {
     id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9c",
     title: "Scrum Master Conjuntiva",
-    description: "Decoy que falla solo el tipo de empleo.",
+    description: "Rol de servicios profesionales con jornada de medio tiempo.",
     work_mode: "remote",
     employment_type: "contract",
+    work_schedule: "part_time",
     seniority: "senior",
     salary_currency: "USD",
     salary_min: 100000,
@@ -335,6 +359,8 @@ const detailJobs = {
   [richDetailJob.id]: richDetailJob,
   [currencyProofJob.id]: currencyProofJob,
   [usdConjunctiveTarget.id]: usdConjunctiveTarget,
+  [pendingSearchJob.id]: pendingSearchJob,
+  ...Object.fromEntries(reactJobs.map(item => [item.id, item])),
 };
 
 function sendJson(response, status, payload) {
@@ -414,9 +440,10 @@ const server = createServer((request, response) => {
   // Task 8.4 / C2 — the armed delay applies only to data responses (every
   // request reaching this point is a `/jobs` request), never to control
   // endpoints, so health/readiness polling stays immediate.
-  const respond = (target, status, payload) => {
-    if (delayState.ms > 0)
-      return setTimeout(() => send(target, status, payload), delayState.ms);
+  const respond = (target, status, payload, minimumDelay = 0) => {
+    const ms = Math.max(delayState.ms, minimumDelay);
+    if (ms > 0)
+      return setTimeout(() => send(target, status, payload), ms);
     return send(target, status, payload);
   };
   // First-page requests advertise the opaque next cursor; a cursor
@@ -466,9 +493,12 @@ const server = createServer((request, response) => {
     const pool = q === usdConjunctiveQ ? usdConjunctiveJobs
       : q === "and-proof" ? andProofPool
       : q === "currency-proof" ? [currencyProofJob]
-      : [job, richDetailJob, currencyProofJob];
-    const items = pool.filter(item => !isHidden(item.id) && matchesPublic(item, url.searchParams));
-    return respond(response, 200, { items, ...(url.searchParams.has("cursor") ? {} : { next_cursor: "opaque a+b/c=" }) });
+      : [job, richDetailJob, currencyProofJob, ...reactJobs, pendingSearchJob];
+    const items = pool
+      .filter(item => !isHidden(item.id) && matchesPublic(item, url.searchParams))
+      .sort((a, b) => publicSearchRank(b, url.searchParams) - publicSearchRank(a, url.searchParams));
+    return respond(response, 200, publicPage(items, url.searchParams),
+      q === "pending-search" || url.searchParams.has("cursor") ? 300 : 0);
   }
   // Task 6.2 GREEN — dedicated USD currency-proof vacancy for exact title/salary
   // evidence profile. Returns only this vacancy with no next_cursor.
