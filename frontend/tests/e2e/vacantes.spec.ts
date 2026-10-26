@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { resolve } from "node:path";
 import type { ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -72,6 +73,8 @@ test.beforeAll(async () => {
   };
   errorHarness = await vite.createServer({
     root: process.cwd(),
+    resolve: { alias: { "@": resolve(process.cwd(), "src") } },
+    define: { "process.env": "{}" },
     esbuild: { jsx: "automatic" },
     server: { host: "127.0.0.1", port: 3101, strictPort: true },
     plugins: [
@@ -97,7 +100,15 @@ test.beforeAll(async () => {
   await errorHarness.listen();
 });
 test.afterAll(async () => errorHarness?.close());
-test.beforeEach(async ({ request }) => {
+test.beforeEach(async ({ context, request }) => {
+  // Isolate explicit navigations from Next's speculative detail prefetches.
+  // Keep exact, unfiltered fixture history assertions: an extra list read or
+  // any API access during canonicalization must still fail the test.
+  await context.route("**/*", route =>
+    route.request().headers()["next-router-prefetch"] === "1"
+      ? route.abort()
+      : route.continue(),
+  );
   await request.get(`${fixtureUrl}/__reset`);
 });
 
@@ -148,13 +159,13 @@ test("canonicalizes before API access", async ({ page, request }) => {
   // The canonical URL owns the state: default controls show an empty
   // search and the default currency, and the exact URL survives refresh.
   await expect(page.getByLabel(/buscar/i)).toHaveValue("");
-  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/^MXN/);
   const canonicalUrl = page.url();
   await page.reload();
   await expect(page).toHaveURL("/vacantes");
   await expect(page.getByLabel(/buscar/i)).toHaveValue("");
-  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/^MXN/);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   await expect
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
     .toEqual(["", ""]);
@@ -167,11 +178,11 @@ test("canonicalizes before API access", async ({ page, request }) => {
     await shared.goto(canonicalUrl);
     await expect(shared).toHaveURL("/vacantes");
     await expect(shared.getByLabel(/buscar/i)).toHaveValue("");
-    await expect(shared.getByLabel(/moneda/i)).toHaveText(/Todas/);
+    await expect(shared.getByLabel(/moneda/i)).toHaveText(/^MXN/);
     await expect
       .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
       .toEqual(["", "", ""]);
-    await expect(shared.getByRole("list")).toContainText("Ingeniera Frontend");
+    await expect(shared.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   } finally {
     await shared.close();
   }
@@ -187,17 +198,20 @@ test("renders validated semantic vacancies with labeled scalar desktop filters",
       name: /encuentra tu próximo trabajo/i,
     }),
   ).toBeVisible();
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   await expect(page.getByLabel(/buscar/i)).toBeVisible();
   // Labeled scalar filters live in the sidebar form; the hero location
   // input shares the "Ubicación" label, so scope to the form.
   const filtersForm = page.getByRole("form", { name: "Filtros" });
   for (const label of [
-    /senioridad/i,
-    /modalidad/i,
-    /tipo de empleo/i,
-    /^Ubicación$/,
-    /moneda/i,
+    /^Seniority$/,
+    /^Modalidad$/,
+    /^Jornada$/,
+    /^Tipo de contrato$/,
+    /^Área profesional$/,
+    /^Estado$/,
+    /^Municipio$/,
+    /^Moneda$/,
   ])
     await expect(filtersForm.getByLabel(label)).toBeVisible();
 });
@@ -260,32 +274,36 @@ test("renders the approved hero and supported quick chips with honest state", as
   expect(await html.evaluate((el) => el.getAttribute("data-theme"))).toBeNull();
 
   // Supported quick chips only, with honest pressed state.
-  const todas = page.getByRole("button", { name: "Todas", exact: true });
+  const quickFilters = page.getByRole("group", { name: "Filtros rápidos", exact: true });
+  await expect(quickFilters.getByRole("button")).toHaveCount(4);
+  const todas = quickFilters.getByRole("button", { name: "Todas", exact: true });
   await expect(todas).toHaveAttribute("aria-pressed", "true");
   for (const label of [
     "Remoto",
     "Híbrido",
     "Tiempo completo",
-    "Medio",
-    "Senior",
   ]) {
     await expect(
-      page.getByRole("button", { name: label, exact: true }),
+      quickFilters.getByRole("button", { name: label, exact: true }),
     ).toHaveAttribute("aria-pressed", "false");
   }
   await expect(
-    page.getByRole("button", { name: /prácticas|beca|presencial/i }),
+    quickFilters.getByRole("button", { name: /prácticas|beca|presencial|medio|senior/i }),
   ).toHaveCount(0);
 
   // A chip commits through the canonical scalar pipeline and the pressed
   // state follows the resulting canonical URL.
-  await page.getByRole("button", { name: "Remoto", exact: true }).click();
+  await quickFilters.getByRole("button", { name: "Remoto", exact: true }).click();
   await expect(page).toHaveURL("/vacantes?work_mode=remote");
   await expect(todas).toHaveAttribute("aria-pressed", "false");
   await expect(
-    page.getByRole("button", { name: "Remoto", exact: true }),
+    quickFilters.getByRole("button", { name: "Remoto", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
 
+  // Wait for the initiating quick filter's pending state to settle before
+  // beginning a second navigation (URL commits before its effect clears).
+  await expect(navStatus(page)).not.toContainText(/cargando/i);
+  await expect(quickFilters.getByRole("button", { name: "Remoto", exact: true })).toBeEnabled();
   // The reset chip returns to the unfiltered canonical list.
   await todas.click();
   await expect(page).toHaveURL("/vacantes");
@@ -296,7 +314,7 @@ test("renders the approved hero and supported quick chips with honest state", as
   const measureHeader = async (viewport: { width: number; height: number }) => {
     await page.setViewportSize(viewport);
     await page.goto("/vacantes");
-    await expect(page.locator('main > header a[href^="/candidato/login"]')).toHaveCount(1);
+    await expect(page.locator('main > header a[href^="/candidato/login"]')).toHaveCount(viewport.width < 768 ? 1 : 0);
     return page.evaluate(() => {
       const header = document.querySelector("main > header")!;
       const linkByName = (name: string) =>
@@ -405,7 +423,7 @@ test("widens only the /vacantes island by 7px at desktop and floats the featured
   page,
 }) => {
   const island = page.locator("[data-jobs-navigation-island]");
-  const card = page.getByRole("list").getByRole("listitem").first();
+  const card = page.getByRole("list", { name: "Listado de vacantes" }).locator(":scope > li").first();
   const featured = card.locator("[data-prototype-featured]");
 
   // Island outward expansion, resolved margins, and document overflow.
@@ -484,9 +502,9 @@ test("renders the known vacancy as a disclosed prototype card with the reference
   // Desktop: one horizontal row, salary rail right of the content, no overflow.
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/vacantes?currency=MXN");
-  const list = page.getByRole("list");
-  const card = list.getByRole("listitem").first();
-  await expect(list.getByRole("listitem")).toHaveCount(1);
+  const list = page.getByRole("list", { name: "Listado de vacantes" });
+  const card = list.locator(":scope > li").first();
+  await expect(list.locator(":scope > li")).toHaveCount(1);
   for (const value of ["Ingeniera Frontend", "Remoto", "Tiempo completo", "Senior"])
     await expect(list).toContainText(value);
   await expect(card.getByRole("heading", { level: 3 })).toHaveText(MAIN_VACANCY_TITLE);
@@ -559,7 +577,7 @@ test("renders the known vacancy as a disclosed prototype card with the reference
   // An unknown id stays wire-only: two regions, the canonical CTA, no company
   // link, no prototype label, no note, and no save/bookmark control or status.
   await page.goto("/vacantes?q=long-content");
-  const wireOnly = page.getByRole("list").getByRole("listitem").first();
+  const wireOnly = page.getByRole("list", { name: "Listado de vacantes" }).locator(":scope > li").first();
   await expect(wireOnly.getByRole("heading", { level: 3 }).getByRole("link")).toHaveAttribute("href", /\/vacantes\/[0-9a-f-]+$/u);
   expect(await wireOnly.evaluate((li) => li.children.length)).toBe(2);
   for (const absent of PROTOTYPE_ONLY_LABELS) await expect(wireOnly).not.toContainText(absent);
@@ -580,7 +598,7 @@ test("uses a 240–280px desktop filter column beside flexible results", async (
   const filters = page.getByRole("form", { name: /filtros/i });
   const [filterBox, resultsBox] = await Promise.all([
     filters.boundingBox(),
-    page.getByRole("list").boundingBox(),
+    page.getByRole("list", { name: "Listado de vacantes" }).boundingBox(),
   ]);
   expect(filterBox).not.toBeNull();
   expect(resultsBox).not.toBeNull();
@@ -602,8 +620,8 @@ test("activates the empty-state reset to the unfiltered canonical list", async (
   // state, default controls, and the unfiltered result list restored.
   await expect(page).toHaveURL("/vacantes");
   await expect(page.getByLabel(/buscar/i)).toHaveValue("");
-  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/^MXN/);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   await expect(emptyHeading).toHaveCount(0);
 });
 
@@ -614,10 +632,10 @@ test("renders a retryable Spanish error without vacancy rows", async ({
   await expect(
     page.getByRole("alert").filter({ hasText: /intentar de nuevo/i }),
   ).toContainText(/intentar de nuevo/i);
-  await expect(page.getByRole("list")).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toHaveCount(0);
 });
 
-const recoverySearch = "?q=recovery&currency=MXN";
+const recoverySearch = "?q=frontend&salary_min=1&salary_currency=MXN&salary_period=monthly&salary_basis=gross";
 
 /** Drives one armed-failure recovery: the fixture fails the initial
  * request persistently, recovers healthily while keeping its request
@@ -634,7 +652,7 @@ async function expectRecoveryAfterRetry(
     .getByRole("alert")
     .filter({ hasText: /intentar de nuevo/i });
   await expect(alert).toContainText(/intentar de nuevo/i);
-  await expect(page.getByRole("list")).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toHaveCount(0);
 
   // The fixture recovers without clearing its request history: the
   // armed initial failure is the last logged request, and the retry
@@ -647,16 +665,16 @@ async function expectRecoveryAfterRetry(
 
   // URL-owned control state is preserved before the retry click.
   await expect(page).toHaveURL(`/vacantes${recoverySearch}`);
-  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("recovery");
+  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("frontend");
   await expect(page.getByLabel(/moneda/i)).toHaveText(/MXN/);
 
   await page.getByRole("link", { name: /intentar de nuevo/i }).click();
 
   await expect(page).toHaveURL(`/vacantes${recoverySearch}`);
-  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("recovery");
+  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("frontend");
   await expect(page.getByLabel(/moneda/i)).toHaveText(/MXN/);
   await expect(alert).toHaveCount(0);
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
 
   // A fresh same-query server request proves the recovery actually
   // re-fetched (the last logged request matches the current query).
@@ -701,9 +719,10 @@ async function expectPending(
 }
 
 test("announces pending search navigation without blocking filters", async ({
-  page,
+  page, request,
 }) => {
   await page.goto("/vacantes");
+  await request.get(`${fixtureUrl}/__delay?ms=1000`);
   const search = page.getByLabel(/buscar/i),
     submit = page.getByRole("button", { name: /^buscar$/i });
   await search.fill("pending-search");
@@ -722,7 +741,11 @@ test("announces pending scalar-filter navigation without blocking search", async
   page,
   request,
 }) => {
+  const usdSearch = "?salary_min=1&salary_currency=USD&salary_period=monthly&salary_basis=gross";
+  const results = page.getByRole("list", { name: "Listado de vacantes" });
   await page.goto("/vacantes");
+  await page.getByLabel("Salario desde", { exact: true }).fill("1");
+  await request.get(`${fixtureUrl}/__delay?ms=500`);
   await page.getByLabel(/moneda/i).click();
   await page.getByRole("option", { name: "USD" }).click();
   const submit = page.getByRole("button", { name: /aplicar filtros/i });
@@ -732,7 +755,7 @@ test("announces pending scalar-filter navigation without blocking search", async
     submit,
     page.getByRole("button", { name: /^buscar$/i }),
   );
-  await expect(page).toHaveURL(/currency=USD/);
+  await expect(page).toHaveURL(/salary_currency=USD/);
   await expect(navStatus(page)).not.toContainText(/cargando/i);
 
   // The scalar navigation commits the exact canonical URL, keeps the USD
@@ -740,43 +763,39 @@ test("announces pending scalar-filter navigation without blocking search", async
   // rows prove the exact USD result selection (the fixture evaluates the
   // mixed MXN/USD pool currency-exactly, so the ordinary MXN fallback job
   // can no longer satisfy a currency=USD request).
-  await expect(page).toHaveURL("/vacantes?currency=USD");
+  await expect(page).toHaveURL(`/vacantes${usdSearch}`);
   await expect
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
-    .toEqual(["", "?currency=USD"]);
+    .toEqual(["", usdSearch]);
   await expect(page.getByLabel(/moneda/i)).toHaveText(/^USD/);
-  await expect(page.getByRole("list")).toContainText(
-    "Ingeniera Currency Proof",
-  );
-  await expect(page.getByRole("list")).not.toContainText("Ingeniera Frontend");
+  await expect(results).toContainText("Ingeniera Currency Proof");
+  await expect(results).not.toContainText("Ingeniera Frontend");
 
   // Refreshing and reopening the captured URL in a second page restore
   // the USD selection with visible results; owned pages are closed
   // before the test ends.
   const usdUrl = page.url();
   await page.reload();
-  await expect(page).toHaveURL("/vacantes?currency=USD");
+  await expect(page).toHaveURL(`/vacantes${usdSearch}`);
   await expect(page.getByLabel(/moneda/i)).toHaveText(/^USD/);
   await expect(page.getByLabel(/buscar/i)).toHaveValue("");
-  await expect(page.getByRole("list")).toContainText(
-    "Ingeniera Currency Proof",
-  );
+  await expect(results).toContainText("Ingeniera Currency Proof");
   await expect
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
-    .toEqual(["", "?currency=USD", "?currency=USD"]);
+    .toEqual(["", usdSearch, usdSearch]);
   const shared = await page.context().newPage();
   try {
     await shared.goto(usdUrl);
-    await expect(shared).toHaveURL("/vacantes?currency=USD");
+    await expect(shared).toHaveURL(`/vacantes${usdSearch}`);
     await expect(shared.getByLabel(/moneda/i)).toHaveText(/^USD/);
     await expect(shared.getByLabel(/buscar/i)).toHaveValue("");
     await expect
       .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
-      .toEqual(["", "?currency=USD", "?currency=USD", "?currency=USD"]);
-    await expect(shared.getByRole("list")).toContainText(
+      .toEqual(["", usdSearch, usdSearch, usdSearch]);
+    await expect(shared.getByRole("list", { name: "Listado de vacantes" })).toContainText(
       "Ingeniera Currency Proof",
     );
-    await expect(shared.getByRole("list")).not.toContainText(
+    await expect(shared.getByRole("list", { name: "Listado de vacantes" })).not.toContainText(
       "Ingeniera Frontend",
     );
   } finally {
@@ -787,15 +806,16 @@ test("announces pending scalar-filter navigation without blocking search", async
 // Task 8.3 / C1 — focused fixture-backed proofs over mixed vacancies:
 // exact currency selection and full-AND combined filtering must be
 // observable in the rendered result set, not only in the forwarded URL.
-test("renders only the actual USD vacancy for currency=USD over the mixed fixture pool", async ({
+test("renders only the actual USD vacancy for a USD salary range over the mixed fixture pool", async ({
   page,
 }) => {
-  await page.goto("/vacantes?currency=USD");
-  const list = page.getByRole("list");
+  await page.goto("/vacantes?salary_min=1&salary_currency=USD&salary_period=monthly&salary_basis=gross");
+  const list = page.getByRole("list", { name: "Listado de vacantes" });
   // The fixture pool spans MXN and USD vacancies: exact USD selection must
   // render the actual USD result and never the ordinary MXN fallback job.
   await expect(list).toContainText("Ingeniera Currency Proof");
-  await expect(list).toContainText("USD 100,000");
+  await expect(list).toContainText("$100,000");
+  await expect(list).toContainText("USD");
   await expect(list).not.toContainText("Ingeniera Frontend");
   await expect(list).not.toContainText(/MXN/);
 });
@@ -804,28 +824,30 @@ test("renders only the vacancy matching every predicate of the combined scalar-f
   page,
 }) => {
   await page.goto(
-    "/vacantes?q=and-proof&seniority=senior&work_mode=remote&employment_type=full_time&location=Monterrey&currency=MXN",
+    "/vacantes?q=and-proof&work_mode=remote&seniority=senior&work_schedule=full_time&state=19&salary_min=1&salary_currency=MXN&salary_period=monthly&salary_basis=gross",
   );
-  const list = page.getByRole("list");
+  const list = page.getByRole("list", { name: "Listado de vacantes" });
   // The fixture and-proof pool holds one exact six-predicate match plus
   // three single-predicate near misses; only the exact AND match may
   // render, so a forwarding-only or partial-OR result set fails here.
   await expect(list).toContainText("Ingeniera And Proof");
   await expect(list).toContainText("Monterrey");
-  await expect(list).toContainText(/MXN \d/);
-  await expect(list.getByRole("listitem")).toHaveCount(1);
+  await expect(list).toContainText(/\$[\d,]+/);
+  await expect(list).toContainText("MXN");
+  await expect(list.locator(":scope > li")).toHaveCount(1);
   await expect(list).not.toContainText(/And Proof (Híbrida|Junior|Dólares)/);
 });
 
 test("announces pending next navigation and preserves its opaque cursor", async ({
-  page,
+  page, request,
 }) => {
-  await page.goto("/vacantes?q=frontend&currency=MXN");
+  await page.goto("/vacantes?q=frontend&salary_min=1&salary_currency=MXN&salary_period=monthly&salary_basis=gross");
   const next = page.getByRole("link", { name: /ver más vacantes/i });
   await expect(next).toHaveAttribute(
     "href",
-    /q=frontend.*currency=MXN.*cursor=opaque\+a%2Bb%2Fc%3D/,
+    /q=frontend.*salary_currency=MXN.*cursor=opaque\+a%2Bb%2Fc%3D/,
   );
+  await request.get(`${fixtureUrl}/__delay?ms=1000`);
   await next.click();
   await expect(navStatus(page)).toHaveAttribute("aria-live", "polite");
   await expect(navStatus(page)).toContainText(/cargando/i);
@@ -840,7 +862,7 @@ test("forwards all six filters AND-shaped, resets the cursor on filter submissio
   request,
 }) => {
   const six =
-    "q=frontend&seniority=senior&work_mode=remote&employment_type=full_time&location=Monterrey&currency=MXN";
+    "q=frontend&state=19&work_mode=remote&seniority=senior&work_schedule=full_time&salary_min=1&salary_currency=MXN&salary_period=monthly&salary_basis=gross";
   const cursor = "cursor=opaque+a%2Bb%2Fc%3D";
   const filtered = (q: string) => six.replace("q=frontend", `q=${q}`);
 
@@ -873,7 +895,7 @@ test("forwards all six filters AND-shaped, resets the cursor on filter submissio
   await expect
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
     .toEqual([`?${filtered("frontend")}&${cursor}`]);
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   await expectNoPagination();
 
   // Submitting a changed filter preserves all six active filters and
@@ -904,7 +926,7 @@ test("forwards all six filters AND-shaped, resets the cursor on filter submissio
       `?${filtered("react")}&${cursor}`,
     ]);
   await expect(navStatus(page)).not.toContainText(/cargando/i);
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   await expectNoPagination();
 });
 
@@ -914,13 +936,13 @@ test("opens a titled Base UI mobile filters sheet", async ({ page }) => {
   const filters = page.getByRole("button", { name: /filtros/i });
   await expect(filters).toBeVisible();
   await filters.click();
-  await expect(page.getByRole("dialog")).toHaveAccessibleName(/filtros/i);
+  await expect(page.getByRole("dialog")).toHaveAccessibleName("Filtrar vacantes");
   await expect(page.getByRole("dialog").getByLabel(/moneda/i)).toBeVisible();
 });
 
 test("omits unavailable optional metadata", async ({ page }) => {
   await page.goto("/vacantes?currency=MXN");
-  await expect(page.getByRole("list")).not.toContainText(
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).not.toContainText(
     /undefined|ubicación no disponible|sueldo no disponible/i,
   );
 });
@@ -948,22 +970,24 @@ test("browser Back restores URL-owned control values", async ({ page }) => {
   await page.getByLabel("Buscar vacantes").fill("frontend");
   await page.getByRole("button", { name: "Buscar", exact: true }).click();
   await page.waitForURL(/q=frontend/);
+  await page.getByLabel("Salario desde", { exact: true }).fill("1");
   await page.getByLabel(/moneda/i).click();
   await page.getByRole("option", { name: "USD" }).click();
   await page.getByRole("button", { name: /aplicar filtros/i }).click();
-  await page.waitForURL(/q=frontend&currency=USD/);
+  await page.waitForURL(/q=frontend&salary_min=1&salary_currency=USD&salary_period=monthly&salary_basis=gross/);
   await page.goBack();
   await expect(page).toHaveURL(/\/vacantes\?q=frontend$/);
-  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/^MXN/);
+  await expect(page.getByLabel("Salario desde", { exact: true })).toHaveValue("");
   await page.goBack();
   await expect(page).toHaveURL(/\/vacantes$/);
   await expect(page.getByLabel("Buscar vacantes")).toHaveValue("");
 });
 
 test("clears one scalar through its explicit null option", async ({ page }) => {
-  await page.goto("/vacantes?q=frontend&currency=MXN");
-  await page.getByLabel(/moneda/i).click();
-  await page.getByRole("option", { name: "Todas" }).click();
+  await page.goto("/vacantes?q=frontend&work_schedule=full_time");
+  await page.getByLabel("Jornada", { exact: true }).click();
+  await page.getByRole("option", { name: "Todas las opciones", exact: true }).click();
   await page.getByRole("button", { name: /aplicar filtros/i }).click();
   await expect(page).toHaveURL(/\/vacantes\?q=frontend$/);
 });
@@ -971,14 +995,14 @@ test("clears one scalar through its explicit null option", async ({ page }) => {
 test("modified next-link clicks keep native new-tab semantics", async ({
   page,
 }) => {
-  await page.goto("/vacantes?currency=MXN");
+  await page.goto("/vacantes?work_schedule=full_time");
   const next = page.getByRole("link", { name: /ver más vacantes/i });
   const [popup] = await Promise.all([
     page.context().waitForEvent("page"),
-    next.click({ modifiers: ["Control"] }),
+    next.click({ modifiers: ["ControlOrMeta"] }),
   ]);
   expect(popup).toBeTruthy();
-  await expect(page).toHaveURL(/currency=MXN/);
+  await expect(page).toHaveURL("/vacantes?work_schedule=full_time");
   await expect(navStatus(page)).not.toContainText(/cargando/i);
   await expect(next).not.toHaveAttribute("aria-busy", "true");
   await popup.close();
@@ -996,7 +1020,7 @@ test("mobile filters trigger meets touch-target size and dialog exposes Cerrar",
   expect(box!.height).toBeGreaterThanOrEqual(44);
   await trigger.click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toHaveAccessibleName(/filtros/i);
+  await expect(dialog).toHaveAccessibleName("Filtrar vacantes");
   await expect(
     dialog.getByRole("button", { name: "Cerrar filtros" }),
   ).toBeVisible();
@@ -1008,11 +1032,11 @@ test("long vacancy content remains readable", async ({ page, request }) => {
   const longCompany =
     "Consultoría Integral de Ingeniería de Software y Datos Confiables";
   const longLocation = "Zona Metropolitana Extendida Noreste";
-  // The fixture's authoritative description, normalized exactly as the card
-  // normalizes it: every code point must reach the DOM, so any pre-render
-  // character budget — the truncation this scenario exists to catch — breaks it.
-  const [longJob] = (await (await request.get(`${fixtureUrl}/jobs?q=long-content`)).json()).items as { description: string }[];
-  const longDescription = longJob.description.replace(/\s+/gu, " ").trim();
+  // The v2 list projection owns the excerpt budget. Every code point of that
+  // authoritative excerpt, plus the explicit truncation mark, reaches the DOM.
+  const [longJob] = (await (await request.get(`${fixtureUrl}/v2/jobs?q=long-content`)).json()).items as { excerpt: string; excerpt_truncated: boolean }[];
+  expect(longJob.excerpt_truncated).toBe(true);
+  const longDescription = `${longJob.excerpt}…`;
   expect(Array.from(longDescription).length).toBeGreaterThan(220);
   const rectsOf = (locator: Locator) =>
     locator.evaluate((el) =>
@@ -1028,7 +1052,7 @@ test("long vacancy content remains readable", async ({ page, request }) => {
   ]) {
     await page.setViewportSize(viewport);
     await page.goto("/vacantes?q=long-content");
-    const list = page.getByRole("list");
+    const list = page.getByRole("list", { name: "Listado de vacantes" });
     const title = page.getByRole("link", { name: /observabilidad/i });
     const company = list.getByText(longCompany);
     const location = list.getByText(longLocation);
@@ -1038,8 +1062,9 @@ test("long vacancy content remains readable", async ({ page, request }) => {
     await expect(title).toContainText(longTitleSegment);
     await expect(company).toBeVisible();
     await expect(location).toBeVisible();
-    await expect(list).toContainText("MXN 1,234,567");
-    await expect(list).toContainText("MXN 98,765,432");
+    await expect(list).toContainText("$1,234,567 – $98,765,432");
+    await expect(list).toContainText("MXN");
+    await expect(list).toContainText("Mensual · Bruto");
 
     // The row and the whole document stay inside the viewport.
     const listBox = await list.boundingBox();
@@ -1055,50 +1080,49 @@ test("long vacancy content remains readable", async ({ page, request }) => {
     );
 
     // The wire-only card keeps its wire facts and its canonical CTA.
-    for (const value of ["Híbrido", "Por contrato", "Líder", "SALARIO", "Ver vacante", longDescription])
+    for (const value of ["Híbrido", "Servicios profesionales", "Líder", "Ver vacante", longDescription])
       await expect(list).toContainText(value);
 
-    // Nothing but the excerpt may clip: no other element in the row hides
-    // overflow, shows an ellipsis, or has content wider or taller than its box.
-    const row = list.getByRole("listitem");
+    // Nothing but the excerpt may actually clip. Native Card/Avatar overflow
+    // containment and the CTA's nowrap are legitimate only when content fits.
+    const row = list.locator(":scope > li");
     const clipping = await row.evaluate((li) => {
       const excerpt = li.querySelector("p.line-clamp-2");
       const excerptStyle = excerpt === null ? null : getComputedStyle(excerpt);
       return {
         text: excerpt?.textContent ?? null,
-        nodes: excerpt?.childNodes.length ?? null, elements: excerpt?.children.length ?? null,
-        markup: excerpt?.innerHTML ?? null,
+        textOnly: excerpt !== null && [...excerpt.childNodes].every(node => node.nodeType === Node.TEXT_NODE || node.nodeType === Node.COMMENT_NODE),
+        elements: excerpt?.children.length ?? null,
         overflow: excerptStyle?.overflowY ?? null,
         clamp: excerptStyle?.webkitLineClamp ?? null,
         clamped: excerpt !== null && excerpt.scrollHeight > excerpt.clientHeight + 1,
         clipped: [li, ...li.querySelectorAll("h3, div, span, a, p:not(.line-clamp-2)")].filter((el) => {
           const style = getComputedStyle(el);
           return (
-            style.overflowX === "hidden" ||
-            style.overflowY === "hidden" ||
             style.textOverflow === "ellipsis" ||
-            style.whiteSpace === "nowrap" ||
             el.scrollWidth > el.clientWidth + 1 ||
             el.scrollHeight > el.clientHeight + 1
           );
         }).length,
       };
     });
-    // The excerpt is the one authorized clip: a single text-only node holding
-    // the complete normalized wire text, clamped to two lines by CSS.
-    expect([clipping.text, clipping.nodes, clipping.elements, clipping.markup?.includes("<") ?? null, clipping.overflow, clipping.clamp, clipping.clamped, clipping.clipped]).toEqual([longDescription, 1, 0, false, "hidden", "2", true, 0]);
+    // React may separate excerpt and ellipsis with a hydration comment; both
+    // remain inert text, with zero elements and the exact complete wire excerpt.
+    expect([clipping.text, clipping.textOnly, clipping.elements, clipping.overflow, clipping.clamp, clipping.clamped, clipping.clipped]).toEqual([longDescription, true, 0, "hidden", "2", true, 0]);
 
-    // Regions never overlap: stacked at 375, side by side at desktop width.
-    const childBoxes = await row.evaluate((li) => Array.from(li.children).map((child) => {
+    // Native Card composition: header, content and footer are stacked,
+    // non-overlapping and inside the row at both reference widths (§6).
+    const childBoxes = await row.locator('[data-slot="card"]').evaluate((card) => Array.from(card.children).map((child) => {
       const box = child.getBoundingClientRect();
       return { top: box.top, bottom: box.bottom, left: box.left, right: box.right };
     }));
-    expect(childBoxes).toHaveLength(2);
+    expect(childBoxes).toHaveLength(3);
     test.info().annotations.push({ type: `board card regions @${viewport.width}`, description: JSON.stringify(childBoxes) });
-    if (viewport.width === 375) {
-      expect(childBoxes[0].bottom).toBeLessThanOrEqual(childBoxes[1].top + 1);
-    } else {
-      expect(childBoxes[0].right).toBeLessThanOrEqual(childBoxes[1].left + 1);
+    for (let index = 0; index < childBoxes.length; index++) {
+      const box = childBoxes[index];
+      expect(box.left).toBeGreaterThanOrEqual(listBox!.x);
+      expect(box.right).toBeLessThanOrEqual(listBox!.x + listBox!.width);
+      if (index > 0) expect(childBoxes[index - 1].bottom).toBeLessThanOrEqual(box.top + 1);
     }
 
     // Every rendered text range stays horizontally inside the viewport.
@@ -1124,22 +1148,23 @@ test("C2: visibility mutations flip the rendered list across separate request-ti
   page,
   request,
 }) => {
+  // Select only the mutable vacancy: the v2 default pool has other jobs.
   // Visible → hidden.
-  await page.goto("/vacantes");
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await page.goto("/vacantes?q=frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   const hide = await request.get(`${fixtureUrl}/__visibility?hidden=1`);
   expect(hide.status()).toBe(200);
   expect(await hide.json()).toEqual({ ok: true, hidden: true });
   await page.reload();
   await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
-  await expect(page.getByRole("listitem")).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(0);
 
   // Hidden → visible: the next request-time render restores the vacancy.
   const show = await request.get(`${fixtureUrl}/__visibility?hidden=0`);
   expect(show.status()).toBe(200);
   expect(await show.json()).toEqual({ ok: true, hidden: false });
   await page.reload();
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
   await expect(page.getByText(/no hay vacantes/i)).toHaveCount(0);
 });
 
@@ -1157,7 +1182,7 @@ test("C2: buffered list success renders final rows after the response completes"
   const response = await page.goto("/vacantes");
   expect(response?.status()).toBe(200);
   await response!.finished();
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText("Ingeniera Frontend");
 });
 
 test("C2: buffered list empty renders the final empty state after the response completes", async ({
@@ -1170,7 +1195,7 @@ test("C2: buffered list empty renders the final empty state after the response c
   expect(response?.status()).toBe(200);
   await response!.finished();
   await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
-  await expect(page.getByRole("listitem")).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(0);
 });
 
 test("C2: buffered list error renders the final retryable state after the response completes", async ({
@@ -1184,7 +1209,7 @@ test("C2: buffered list error renders the final retryable state after the respon
   await expect(
     page.getByRole("alert").filter({ hasText: /intentar de nuevo/i }),
   ).toBeVisible();
-  await expect(page.getByRole("list")).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toHaveCount(0);
 });
 
     test("renders only the USD target when every list predicate is active", async ({
@@ -1195,7 +1220,7 @@ test("C2: buffered list error renders the final retryable state after the respon
       // canonical conjunctive state, and the fixture must answer it with the
       // single vacancy matching all six predicates, never an OR of them.
       const conjunctiveSearch =
-        "?q=conjuntiva&seniority=senior&work_mode=remote&employment_type=full_time&location=Monterrey&currency=USD";
+        "?q=conjuntiva&state=19&work_mode=remote&seniority=senior&work_schedule=full_time&salary_min=1&salary_currency=USD&salary_period=monthly&salary_basis=gross";
       await page.goto(`/vacantes${conjunctiveSearch}`);
       await expect(page).toHaveURL(`/vacantes${conjunctiveSearch}`);
 
@@ -1209,10 +1234,11 @@ test("C2: buffered list error renders the final retryable state after the respon
         .toEqual([conjunctiveSearch]);
 
       // Only the one vacancy matching every active predicate may render.
-      const list = page.getByRole("list");
-      await expect(list.getByRole("listitem")).toHaveCount(1);
+      const list = page.getByRole("list", { name: "Listado de vacantes" });
+      await expect(list.locator(":scope > li")).toHaveCount(1);
       await expect(list).toContainText("Analista Conjuntiva de Datos");
-      await expect(list.getByText("USD 100,000 – USD 120,000")).toBeVisible();
+      await expect(list.getByText("$100,000 – $120,000")).toBeVisible();
+      await expect(list).toContainText("USD");
 
       // Each decoy fails exactly one predicate, so an OR evaluation would
       // leak at least one decoy into the rendered list; AND must hide all.
@@ -1242,13 +1268,12 @@ test("reflects request-time vacancy visibility across separate renders", async (
   const expectRequestLog = (renderCount: number) =>
     expect
       .poll(requestHistory)
-      .toEqual(Array.from({ length: renderCount }, () => ""));
+      .toEqual(Array.from({ length: renderCount }, () => "?q=frontend"));
 
-  // Hidden→visible: this first render starts with the vacancy hidden, so
-  // the unfiltered list must not surface it and must show the honest
-  // empty state instead.
+  // Hidden→visible: restrict the query to the mutable vacancy, so hiding it
+  // empties this result set even though the v2 default pool has other jobs.
   await setVisibility(false);
-  await page.goto("/vacantes");
+  await page.goto("/vacantes?q=frontend");
   await expect(page.getByRole("main")).not.toContainText(MAIN_VACANCY_TITLE);
   await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
   await expectRequestLog(1);
@@ -1256,13 +1281,13 @@ test("reflects request-time vacancy visibility across separate renders", async (
   // The mutation lands out of band; only a fresh request-time render
   // observes it: the same canonical URL now surfaces the vacancy.
   await setVisibility(true);
-  await page.goto("/vacantes");
-  await expect(page.getByRole("list")).toContainText(MAIN_VACANCY_TITLE);
+  await page.goto("/vacantes?q=frontend");
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText(MAIN_VACANCY_TITLE);
   await expectRequestLog(2);
 
   // Visible→hidden: a new render must drop the vacancy again.
   await setVisibility(false);
-  await page.goto("/vacantes");
+  await page.goto("/vacantes?q=frontend");
   await expect(page.getByRole("main")).not.toContainText(MAIN_VACANCY_TITLE);
   await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
   await expectRequestLog(3);
@@ -1277,13 +1302,13 @@ test("buffers each completed list response with its final state", async ({
   const success = await page.goto("/vacantes");
   expect(success?.status()).toBe(200);
   expect(completedStatuses).toEqual([200]);
-  await expect(page.getByRole("list")).toContainText(MAIN_VACANCY_TITLE);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toContainText(MAIN_VACANCY_TITLE);
 
   const empty = await page.goto("/vacantes?q=empty");
   expect(empty?.status()).toBe(200);
   expect(completedStatuses).toEqual([200, 200]);
   await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
-  await expect(page.getByRole("list")).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toHaveCount(0);
 
   const failure = await page.goto("/vacantes?q=error");
   expect(failure?.status()).toBe(200);
@@ -1291,7 +1316,7 @@ test("buffers each completed list response with its final state", async ({
   await expect(
     page.getByRole("alert").filter({ hasText: /intentar de nuevo/i }),
   ).toContainText(/intentar de nuevo/i);
-  await expect(page.getByRole("list")).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Listado de vacantes" })).toHaveCount(0);
 });
 
     test("renders the real list error boundary with one h1", async ({ page }) => {
@@ -1309,28 +1334,31 @@ test("buffers each completed list response with its final state", async ({
 test("keeps button-styled board navigation on real links without native-button diagnostics", async ({
   page,
 }) => {
-  // CCP-R7B1: these five button-styled board actions are anchors, never Base UI
-  // buttons, so they must keep their link role and log nothing.
+  // These five button-styled board actions must render native anchors, with
+  // correct link roles and no native-button diagnostics.
   const diagnostics: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error" && NATIVE_BUTTON_DIAGNOSTIC.test(message.text()))
       diagnostics.push(message.text().split("\n")[0]);
   });
-  // The currency Select opens only hydrated, which also flushes the diagnostic
-  // effect; every action must be a real anchor with Base UI artifacts absent.
+  // The currency Select opens only hydrated, which also flushes diagnostics.
+  // Every action remains an anchor, including StateCard's composed Button.
   const expectHydrated = async () => {
-    await page.locator("#desktop-currency").click();
+    await page.locator("#desktop-salary_currency").click();
     await expect(page.getByRole("listbox")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("listbox")).toHaveCount(0);
   };
   const expectActionLink = async (link: Locator, href: string | RegExp) => {
     await expect(link).toHaveAttribute("href", href);
-    await expect(
-      link.evaluate((el) =>
-        [el.tagName, el.getAttribute("role"), el.getAttribute("type"), el.getAttribute("data-slot")].join("|"),
-      ),
-    ).resolves.toBe("A|||");
+    const semantics = await link.evaluate(el => ({
+      tag: el.tagName, role: el.getAttribute("role"), type: el.getAttribute("type"), slot: el.getAttribute("data-slot"),
+    }));
+    // StateCard composes the shared Button as an explicit nativeButton=false
+    // anchor. Both paths must retain real link semantics, never role=button.
+    expect(semantics).toEqual(semantics.slot === "button"
+      ? { tag: "A", role: "link", type: null, slot: "button" }
+      : { tag: "A", role: null, type: null, slot: null });
     await expect(link).toBeVisible();
   };
   const states = [
@@ -1350,7 +1378,7 @@ test("keeps button-styled board navigation on real links without native-button d
   await page.goto("/vacantes");
   await page.getByRole("button", { name: /filtros/i }).click();
   const sheet = page.getByRole("dialog");
-  await expect(sheet).toHaveAccessibleName(/filtros/i);
+  await expect(sheet).toHaveAccessibleName("Filtrar vacantes");
   await expectActionLink(
     sheet.getByRole("link", { name: /limpiar filtros/i }),
     "/vacantes",
