@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { publicPayload, matchesPublic, catalogResponse } from "./public-jobs.mjs";
 import { createEmployerDashboardFixture } from "./employer-dashboard.mjs";
 const employerDashboardFixture = createEmployerDashboardFixture();
 
@@ -336,7 +337,7 @@ const detailJobs = {
   [usdConjunctiveTarget.id]: usdConjunctiveTarget,
 };
 
-function send(response, status, payload) {
+function sendJson(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(payload));
 }
@@ -344,6 +345,10 @@ function send(response, status, payload) {
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
   if (employerDashboardFixture(request, response, url)) return;
+  const v2 = url.pathname === "/v2/jobs" || url.pathname.startsWith("/v2/jobs/");
+  const send = (target, status, payload) => sendJson(target, status, v2 ? publicPayload(payload) : payload);
+  const catalog = catalogResponse(url.pathname);
+  if (catalog) return sendJson(response, ...catalog);
   // Task 8.4 — a vacancy is hidden when it is id-hidden (source contract) or
   // when the C2 toggle hides the main fixture vacancy.
   const isHidden = (id) =>
@@ -401,8 +406,8 @@ const server = createServer((request, response) => {
   }
   // Detail requests target `/jobs/{id}` and log the exact pathname; list
   // requests keep logging only the search text, as the list specs assert.
-  const detailId = url.pathname.match(/^\/jobs\/([^/]+)$/)?.[1];
-  if (detailId === undefined && url.pathname !== "/jobs")
+  const detailId = url.pathname.match(/^\/(?:v2\/)?jobs\/([^/]+)$/)?.[1];
+  if (detailId === undefined && url.pathname !== "/jobs" && url.pathname !== "/v2/jobs")
     return send(response, 404, { error: "not found" });
 
   requests.push(detailId === undefined ? url.search : url.pathname);
@@ -455,6 +460,15 @@ const server = createServer((request, response) => {
     const timer = setTimeout(() => send(response, 200, payload), 1500);
     response.on("close", () => clearTimeout(timer));
     return;
+  }
+  if (v2 && detailId === undefined) {
+    const q = url.searchParams.get("q");
+    const pool = q === usdConjunctiveQ ? usdConjunctiveJobs
+      : q === "and-proof" ? andProofPool
+      : q === "currency-proof" ? [currencyProofJob]
+      : [job, richDetailJob, currencyProofJob];
+    const items = pool.filter(item => !isHidden(item.id) && matchesPublic(item, url.searchParams));
+    return respond(response, 200, { items, ...(url.searchParams.has("cursor") ? {} : { next_cursor: "opaque a+b/c=" }) });
   }
   // Task 6.2 GREEN — dedicated USD currency-proof vacancy for exact title/salary
   // evidence profile. Returns only this vacancy with no next_cursor.
@@ -521,7 +535,7 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`jobs fixture listening on ${port}`);
+  console.log(`jobs fixture listening on ${server.address().port}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
