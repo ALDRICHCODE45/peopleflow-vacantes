@@ -79,7 +79,7 @@ describe("JobDetailView validated rendering", () => {
     published_at: "2026-02-14T09:30:00Z",
   };
 
-  it("renders one article with the title, company, full metadata, and back navigation", () => {
+  it("renders one article with the title, company and full metadata, without duplicate navigation", () => {
     const { salary_min: min, salary_max: max, salary_currency: cur } = fullJob;
     const salary = formatSalary({ min, max, currency: cur });
     render(<JobDetailView job={fullJob} />);
@@ -94,8 +94,7 @@ describe("JobDetailView validated rendering", () => {
     for (const label of ["Remoto", "Tiempo completo", "Senior"]) {
       expect(view.getByText(label, { exact: true })).toBeVisible();
     }
-    const back = view.getByRole("link", { name: /volver a vacantes/i });
-    expect(back).toHaveAttribute("href", "/vacantes");
+    expect(view.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
     // A wire-only vacancy never links the header company name anywhere.
     expect(view.getByText(fullJob.company.name).closest("a")).toBeNull();
   });
@@ -154,9 +153,8 @@ describe("JobDetailView prototype role block", () => {
     const content = container.querySelector("[data-detail-region='content']");
     expect(within(content as HTMLElement).getAllByRole("paragraph")).toHaveLength(4);
     expect(container.querySelectorAll("article img, article script")).toHaveLength(0);
-    // The breadcrumb stays the article's first list item, so no prototype list
-    // can precede the header, and the view adds no inline style.
-    expect(container.querySelector("article li")?.textContent).toBe("Vacantes");
+    // The app owns breadcrumbs; the article starts directly with its identity card.
+    expect(container.querySelector("article")?.firstElementChild).toHaveAttribute("data-detail-region", "header");
     expect(container.querySelectorAll("article [style]")).toHaveLength(0);
   });
 
@@ -307,17 +305,11 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     return card;
   };
 
-  it("keeps the canonical list breadcrumb with its exact href, label, and current title", () => {
+  it("keeps the title but delegates the canonical list breadcrumb to the app header", () => {
     render(<JobDetailView job={fullJob} />);
-    const nav = screen.getByRole("navigation", { name: "Ruta de navegación" });
-    const link = within(nav).getByRole("link", { name: "Volver a vacantes" });
-    expect(link).toHaveAttribute("href", "/vacantes");
-    expect(link).toHaveTextContent("Vacantes");
-    expect(link).toHaveClass("min-h-10");
-    expect(within(nav).getByText(fullJob.title).closest("li")).toHaveAttribute("aria-current", "page");
-    // The leading return affordance belongs to the link: no decorative glyph
-    // sits before it, so the icon never reads as a dead back control.
-    expect(link.closest("li")!.firstElementChild).toBe(link);
+    expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Volver a vacantes" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: fullJob.title })).toBeVisible();
   });
 
   it("rebuilds the header with monogram, featured state, and metrics", () => {

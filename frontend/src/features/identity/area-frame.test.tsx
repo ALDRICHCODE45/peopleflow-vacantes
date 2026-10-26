@@ -42,10 +42,10 @@ it.each(["candidate", "employer"] as const)("%s guard keeps the page frame throu
     unmount();
   }
 });
-it("shows a recruiter name and email in the candidate account row", () => {
+it("labels a recruiter's account row as a company account in the candidate frame", () => {
   mount(<CandidateNavUser />, identity("recruiter"));
   expect(screen.getByText("Ana Pérez")).toBeInTheDocument();
-  expect(screen.getByText("ana@example.com")).toBeInTheDocument();
+  expect(screen.getByText("Empresa")).toBeInTheDocument();
   expect(screen.queryByText("Mi cuenta")).toBeNull();
 });
 it.each(["candidate", "recruiter", null] as const)("candidate sidebar limits navigation for %s", role => {

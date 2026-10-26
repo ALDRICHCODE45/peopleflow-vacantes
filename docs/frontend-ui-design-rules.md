@@ -1125,6 +1125,28 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
   ofrecer solo actualización de lectura. Toast real y estado persistente en el slot
   reservado de la barra del tablero, sin alterar el editor de configuración.
 
+### 14.7 Vacantes públicas dentro del shell del candidato
+
+- `/vacantes`, el detalle y postular viven en el grupo `(candidato)` y comparten el shell
+  (sidebar y header) sin guard; `CandidateGuard` solo envuelve `/candidato/*`. El shell queda
+  montado al ir y volver entre Vacantes y el área privada. `/empresas/[id]` conserva
+  `PublicShell`.
+- El sidebar se adapta a la sesión, que se resuelve en el cliente; el contenido sigue
+  renderizándose en el servidor (SEO y metadata intactos):
+  - **Cargando:** solo «Vacantes» y skeleton en el pie; nunca aparece un ítem privado.
+  - **Visitante** (o error de sesión): solo «Vacantes» y la tarjeta «Guarda tu búsqueda y
+    sigue tus postulaciones» con «Crear cuenta» (principal), «Iniciar sesión» y
+    «¿Eres empresa? Publica vacantes». En móvil el header muestra «Ingresar».
+  - **Candidato:** «Vacantes» más su menú y su cuenta de siempre.
+  - **Empresa:** la vista del candidato con solo «Vacantes», el aviso «Estás viendo las
+    vacantes como las ve un candidato», «Ir a mi panel» y su cuenta de empresa. En el
+    detalle, «Postularme» se reemplaza por «Las postulaciones son para cuentas de candidato».
+- Los enlaces de sesión llevan `next` con la ruta actual (`candidateAuthHref`); solo se
+  aceptan rutas internas y el login devuelve a la misma página con sus filtros.
+- La ruta de navegación vive en el header («Vacantes / Detalle de la vacante»,
+  «Detalle de la vacante / Postulación»); el contenido no la repite y cada página tiene un
+  solo `h1`.
+
 
 ## 15. Principios de jerarquía y composición
 

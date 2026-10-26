@@ -32,7 +32,7 @@ export function CandidateNavUser() {
     } finally { lock.current = false; setPending(false); }
   }
   return <>
-    <NavUser user={{ name: user?.full_name ?? "Mi cuenta", email: user?.email ?? "", role, company: role === "Empresa" ? "Empresa" : "Espacio personal" }} secondaryText={user?.email ?? ""} menuItems={candidateAccountMenu} onLogout={() => void logout()} logoutPending={pending} logoutStatusId={failed ? statusId : undefined} />
+    <NavUser user={{ name: user?.full_name ?? "Mi cuenta", email: user?.email ?? "", role, company: role === "Empresa" ? "Empresa" : "Espacio personal" }} secondaryText={role === "Empresa" ? "Empresa" : user?.email ?? ""} menuItems={role === "Empresa" ? [] : candidateAccountMenu} onLogout={() => void logout()} logoutPending={pending} logoutStatusId={failed ? statusId : undefined} />
     {failed && <ActionStatus id={statusId} tone="error" text="No se cerró la sesión. Intenta nuevamente desde el menú." />}
   </>;
 }

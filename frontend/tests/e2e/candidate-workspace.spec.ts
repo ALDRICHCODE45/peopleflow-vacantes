@@ -682,9 +682,10 @@ test("the removed candidate account route returns a real 404 and no sidebar dest
   // A redirect chain would hide the missing route, so the navigation itself must be direct.
   expect(response?.request().redirectedFrom()).toBeNull();
 
-  // The live shell keeps exactly six destinations and never links the old route.
+  // Vacantes joins the six private destinations; the removed account stays absent.
   await page.goto(ROUTES.configuracion.path);
-  await expect(page.locator(SIDEBAR_LINKS)).toHaveCount(6);
+  await expect(page.locator(SIDEBAR_LINKS)).toHaveCount(7);
+  await expect(page.locator(`${SIDEBAR_LINKS}[href="/vacantes"]`)).toHaveText("Vacantes");
   await expect(page.locator(`${SIDEBAR_LINKS}[href="/candidato/cuenta"]`)).toHaveCount(0);
   const settingsLink = page.locator(`${SIDEBAR_LINKS}[href="${ROUTES.configuracion.path}"]`);
   await expect(settingsLink).toHaveCount(1);

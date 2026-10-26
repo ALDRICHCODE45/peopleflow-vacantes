@@ -34,13 +34,15 @@ travels in the worktree and is not part of these commits). `/vacantes`, `/vacant
 
 ## Tasks
 
-- T1. S7 — return-to after candidate login/sign-up (safe internal paths, guard keeps destination) · worker B ·
-  high risk (security) · own commit · independent verify.
-- T2. S1 S2 S4 S6 — move vacancy routes under `(candidato)`, guard into `/candidato/*` layout, app header without a
+- [x] T1. S7 — return-to after candidate login/sign-up (safe internal paths, guard keeps destination) · worker B ·
+  high risk (security) · own commit 159a04e4 · independent verify (L5).
+- [x] T1b. S1 S4 — session subtree remount fix found by e2e (L7) · parent · high risk (privacy) · own commit d969ec33
+  · independent verify PASS.
+- [x] T2. S1 S2 S4 S6 — move vacancy routes under `(candidato)`, guard into `/candidato/*` layout, app header without a
   second `h1` · worker A.
-- T3. S3 S5 — sidebar viewer modes (loading, visitor, candidate, recruiter), footer cards, mobile «Ingresar» · worker A.
-- T4. S5 S7 — detail CTA by role and apply-route recruiter message; visitor CTA links to login with return · worker A.
-- T5. S1–S7 — update unit/e2e tests pinning the old public shell, docs (§ sidebar/shell in
+- [x] T3. S3 S5 — sidebar viewer modes (loading, visitor, candidate, recruiter), footer cards, mobile «Ingresar» · worker A.
+- [x] T4. S5 S7 — detail CTA by role and apply-route recruiter message; visitor CTA links to login with return · worker A.
+- [x] T5. S1–S7 — update unit/e2e tests pinning the old public shell, docs (§ sidebar/shell in
   `docs/frontend-ui-design-rules.md`), browser check in light/dark, desktop/mobile · parent.
 
 ## Log
@@ -64,3 +66,28 @@ travels in the worktree and is not part of these commits). `/vacantes`, `/vacant
   login/ingresar have no return-to; the real apply wizard already calls Cognito with callback
   `/vacantes/{id}/postular`. Public listing has no save action; identity carries no company id (own-vacancy
   «Gestionar» is out of scope). Old e2e `tests/e2e/vacantes.spec.ts` already partly stale.
+- **L5 (T1 evidence):** worker B RED 11 → GREEN 116. Independent verify: FAIL — `/vacantes?q=software%20engineer`
+  was rejected (whitespace check ran on decoded levels) and `/..//evil.com`, `/./%2e%2e//evil.com` were kept
+  (normalized pathname `//evil.com`, same origin, not a proven redirect). Parent fix: whitespace refused only in the
+  raw value; normalized pathname starting with `//` rejected; RED 4 → GREEN in `return-to.test.ts`. Final:
+  `vitest src/features/identity src/components/auth` 233/233, `tsc --noEmit` clean, eslint clean. Not run: live
+  Cognito round-trip, apply-wizard callback.
+- **L6 (T2–T4 evidence):** worker A could not `git mv` (no staging); parent moved `(public)/vacantes` →
+  `(candidato)/vacantes` with plain `mv`. Worker A RED for each viewer mode, recruiter CTA, guard placement, header;
+  GREEN `vitest src/app src/components/candidate-dashboard src/features/jobs src/features/candidate-applications`
+  3928 tests, tsc and eslint clean. Parent browser check (dev, visitor, 1440/390, light/dark): one h1, no page
+  errors, mobile «Ingresar»; found duplicated breadcrumb (header «Vacantes» + content «← Vacantes / Detalle»)
+  → S6 fix: contextual header crumbs (employer editor precedent), content breadcrumbs removed (worker A, 418
+  focused tests). Parent: on phones the crumb collapses to «← parent» (RED 1 → GREEN, 169 tests). Pre-existing,
+  out of scope: ~70px gap from the `{status}` slot in `JobsNavigationIsland` between search and quick filters.
+  Not browser-checked: candidate and recruiter modes (need real sessions; covered by unit tests).
+- **L7 (T5 evidence):** e2e of the 5 vacancy/candidate specs in `next dev` + `jobs-server.mjs` fixture (a production
+  build is blocked locally: `NEXTAUTH_URL` must be https in production). Baseline of the same specs on abe6a9f9
+  (`git archive` copy, same mode): 22 failed / 72 not run / 7 passed. Branch: 24 failed; the 2 extra (reduced-motion
+  detail return link, mobile filters Sheet) traced to `IdentitySessionProvider` keying its subtree by session status
+  → the public page remounted on loading→visitor and lost focus. Fixed (T1b). Final branch run: 22 / 72 / 7, failure
+  titles identical to the baseline (pre-existing, environment or stale). Full suite caught 4 more T3 regressions
+  outside worker A's run scope (outline `buttonVariants` without `cn`, candidate rail tests pinning the removed
+  «Explorar vacantes» button) → fixed by worker A; `vitest` full 7073/7073, `tsc` clean. Not verified: Enter on
+  the header link within ~0 ms of `load` in dev (pre-hydration) does not navigate; after 1 s it does, and the e2e
+  passes 3/3.

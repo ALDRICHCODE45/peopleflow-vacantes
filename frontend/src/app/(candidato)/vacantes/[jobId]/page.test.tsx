@@ -33,7 +33,7 @@ describe("public detail route", () => {
     expect(await generateMetadata({ params: params(data.id) })).toEqual({});
   });
   it("stays a dynamic server page with a local not-found mapping and no enrichment", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/(public)/vacantes/[jobId]/page.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app/(candidato)/vacantes/[jobId]/page.tsx"), "utf8");
     expect(source).toMatch(/dynamic\s*=\s*"force-dynamic"/);
     expect(source).toMatch(/runtime\s*=\s*"nodejs"/);
     expect(source).not.toMatch(/requestJson|use client|enrichJob|QueryClientProvider|HydrationBoundary/);
@@ -45,7 +45,7 @@ describe("public detail route", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(job.title);
     expect(container).not.toHaveTextContent(/Hace 2 h|Hace 5 h|Verificada por|Postulantes/);
-    expect(screen.getByRole("link", { name: "Volver a vacantes" })).toHaveAttribute("href", "/vacantes");
+    expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
   });
   it("uses plain text for SEO even when the description is rich", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(vacancyDetail)));

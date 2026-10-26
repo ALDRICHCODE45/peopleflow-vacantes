@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 const { pathnameMock, identityMock } = vi.hoisted(() => ({ pathnameMock: vi.fn(() => "/empresa/vacantes"), identityMock: { role: "candidate" } }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 vi.mock("@/features/identity/identity-session", () => ({
-  useIdentity: () => ({ result: { ok: true, data: { role: identityMock.role, user: {
+  useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: identityMock.role, user: {
     id: "id", full_name: "Ana Pérez", email: "ana@example.com",
   } } } }),
 }));
@@ -26,9 +26,10 @@ function stubBrowserApis(innerWidth = 1280) {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe.each([
-  ["employer", EmployerShell, "Nueva vacante"],
-  ["candidate", CandidateShell, "Explorar vacantes"],
-] as const)("%s sidebar rail", (_name, Shell, actionLabel) => {
+  ["employer", EmployerShell, "Nueva vacante", "button"],
+  // T3 intentionally replaces the candidate GET action with a real Vacantes link.
+  ["candidate", CandidateShell, "Vacantes", "link"],
+] as const)("%s sidebar rail", (_name, Shell, actionLabel, actionRole) => {
   beforeEach(() => { identityMock.role = _name === "employer" ? "recruiter" : "candidate"; });
   it("replaces the wordmark with one accessible, unsqueezed compact brand mark", () => {
     stubBrowserApis();
@@ -66,7 +67,7 @@ describe.each([
     // The dropdown trigger owns data-slot on the composed account button.
     const account = within(footer).getByRole("button");
     const rows = [...document.querySelectorAll("[data-slot='sidebar-menu-button']"), account];
-    expect(rows).toHaveLength(9); // brand, primary action, six destinations, account
+    expect(rows).toHaveLength(9); // brand, action (employer) or Vacantes (candidate), six destinations, account
     for (const row of rows) {
       expect(row).toHaveClass(
         "group-data-[collapsible=icon]:size-10!",
@@ -82,7 +83,8 @@ describe.each([
     expect(active).toHaveAttribute("data-active");
     expect(active).toHaveClass("data-active:bg-sidebar-accent", "hover:bg-sidebar-accent");
     expect(active).toHaveAttribute("data-base-ui-tooltip-trigger");
-    const action = screen.getByRole("button", { name: actionLabel });
+    const action = screen.getByRole(actionRole, { name: actionLabel });
+    if (actionRole === "link") expect(action).toHaveAttribute("href", "/vacantes");
     expect(action).toHaveAttribute("data-base-ui-tooltip-trigger");
     expect(action.querySelector("span")).toHaveClass("group-data-[collapsible=icon]:sr-only");
     expect(account).toHaveAttribute("aria-haspopup", "menu");
@@ -100,7 +102,7 @@ describe.each([
     const brand = within(drawer).getByRole("link", { name: "PeopleFlow" });
     expect(brand.querySelector("[data-brand='wordmark']")).toHaveAttribute("aria-hidden", "false");
     expect(brand.querySelector("[data-brand='mark']")).toHaveAttribute("aria-hidden", "true");
-    expect(within(drawer).getByRole("button", { name: actionLabel })).toBeInTheDocument();
+    expect(within(drawer).getByRole(actionRole, { name: actionLabel })).toBeInTheDocument();
     expect(drawer).not.toHaveAttribute("data-collapsible", "icon");
   });
 
@@ -119,7 +121,7 @@ describe.each([
     for (const image of brand.querySelectorAll("[data-brand='wordmark'] img")) {
       expect(image).toHaveClass("h-6", "w-auto");
     }
-    const action = screen.getByRole("button", { name: actionLabel });
+    const action = screen.getByRole(actionRole, { name: actionLabel });
     expect(action).toHaveClass("h-10", "w-full", "px-3", "gap-2");
     const account = within(document.querySelector<HTMLElement>("[data-slot='sidebar-footer']")!).getByRole("button");
     expect(account).toHaveClass("h-12");

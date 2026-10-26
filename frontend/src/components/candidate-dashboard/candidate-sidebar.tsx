@@ -4,7 +4,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
-import { useIdentity } from "@/features/identity/identity-session"
+import { useCandidateViewer } from "./candidate-viewer"
+import { CandidateFooterSkeleton, CandidateVisitorFooter } from "./candidate-visitor"
+import { Card, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { buttonVariants } from "@/components/ui/button"
 import { CandidateNavUser } from "./candidate-nav-user"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -36,8 +39,8 @@ export function isActiveCandidateDestination(url: string, pathname: string | nul
 
 export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-  const { result } = useIdentity()
-  const showNavigation = !result?.ok || result.data.role === "candidate"
+  const viewer = useCandidateViewer()
+  const showNavigation = viewer === "candidate"
   const { state, isMobile } = useSidebar()
 
   return (
@@ -47,35 +50,22 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
           <SidebarMenuItem>
             {/* Native default geometry: the brand keeps the shared button's
                 collapse behavior, its PeopleFlow link and its brand padding. */}
-            <SidebarMenuButton className="data-[slot=sidebar-menu-button]:p-1.5! group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:p-0!" render={<Link href="/candidato/dashboard" aria-label="PeopleFlow" />}>
+            <SidebarMenuButton className="data-[slot=sidebar-menu-button]:p-1.5! group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:p-0!" render={<Link href={showNavigation ? "/candidato/dashboard" : "/vacantes"} aria-label="PeopleFlow" />}>
               <PeopleFlowSidebarLogo collapsed={state === "collapsed" && !isMobile && props.collapsible === "icon"} />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {showNavigation && CANDIDATE_NAV_GROUPS.map((group, index) => (
+        <SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem>
+          <SidebarMenuButton tooltip="Vacantes" isActive={isActiveCandidateDestination("/vacantes", pathname)} render={<Link href="/vacantes" />}>
+            <IconSearch aria-hidden="true" /><span className="group-data-[collapsible=icon]:sr-only">Vacantes</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>
+        {showNavigation && CANDIDATE_NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarGroupContent className={index === 0 ? "flex flex-col gap-2" : undefined}>
-              {index === 0 && (
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    {/* Native GET navigation keeps the primary action a button,
-                        with no client handler or application side effects. */}
-                    <form action="/vacantes" method="get">
-                      <SidebarMenuButton
-                        type="submit"
-                        tooltip="Explorar vacantes"
-                        className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-                      >
-                        <IconSearch />
-                        <span className="group-data-[collapsible=icon]:sr-only">Explorar vacantes</span>
-                      </SidebarMenuButton>
-                    </form>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              )}
+            <SidebarGroupContent>
               <SidebarMenu>
                 {/* Destinations use the native default geometry: no large rows
                     and no candidate-only icon-rail floor. */}
@@ -93,8 +83,15 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
         ))}
       </SidebarContent>
       <SidebarFooter>
-        {/* The shared account row: a dropdown trigger, never a plain footer link. */}
-        <CandidateNavUser />
+        {viewer === "loading" ? <CandidateFooterSkeleton /> : viewer === "visitor" || viewer === "pending" ? <CandidateVisitorFooter pending={viewer === "pending"} /> : <>
+          {viewer === "recruiter" && (state === "collapsed" && !isMobile ? <SidebarMenu><SidebarMenuItem>
+            <SidebarMenuButton tooltip="Ir a mi panel" render={<Link href="/empresa/dashboard" aria-label="Ir a mi panel" />}><IconLayoutDashboard aria-hidden="true" /></SidebarMenuButton>
+          </SidebarMenuItem></SidebarMenu> : <Card size="sm">
+            <CardHeader><CardTitle><h2 className="text-sm font-semibold leading-snug">Estás viendo las vacantes como las ve un candidato</h2></CardTitle></CardHeader>
+            <CardFooter><Link href="/empresa/dashboard" className={buttonVariants({ className: "min-h-10 w-full" })}>Ir a mi panel</Link></CardFooter>
+          </Card>)}
+          <CandidateNavUser />
+        </>}
       </SidebarFooter>
     </Sidebar>
   )

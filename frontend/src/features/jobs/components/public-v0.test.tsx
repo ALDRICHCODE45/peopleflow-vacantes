@@ -39,7 +39,8 @@ it("renders the detail hero, glance facts, data-only anchors and benefits icons"
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   expect(screen.getByRole("heading", { level: 1 })).toHaveClass("sm:text-4xl", "text-balance");
   expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("size-16");
-  expect(screen.getByText("Detalle de la vacante")).toHaveAttribute("aria-current", "page");
+  expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
+  expect(container.querySelector('[data-slot="public-job-detail"]')?.firstElementChild).toHaveAttribute("data-slot", "card");
   expect(screen.getByText("16 de octubre de 2026", { selector: "time" }).parentElement).toHaveTextContent("Publicada el 16 de octubre de 2026");
   const glance = screen.getByRole("heading", { name: "La vacante de un vistazo" }).closest('[data-slot="card"]')!;
   expect(glance.querySelectorAll("dt")).toHaveLength(5);

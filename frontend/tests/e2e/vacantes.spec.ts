@@ -58,7 +58,7 @@ type HarnessServer = {
   };
   transformIndexHtml(path: string, html: string): Promise<string>;
 };
-const errorHarnessHtml = `<main id="root"></main><script type="module">import { createElement } from "react"; import { createRoot } from "react-dom/client"; import VacantesError from "/src/app/(public)/vacantes/error.tsx"; createRoot(document.getElementById("root")).render(createElement(VacantesError, { error: new Error("fixture failure"), reset() {} }));</script>`;
+const errorHarnessHtml = `<main id="root"></main><script type="module">import { createElement } from "react"; import { createRoot } from "react-dom/client"; import VacantesError from "/src/app/(candidato)/vacantes/error.tsx"; createRoot(document.getElementById("root")).render(createElement(VacantesError, { error: new Error("fixture failure"), reset() {} }));</script>`;
 let errorHarness: HarnessServer | undefined;
 
 test.describe.configure({ mode: "serial" });
@@ -183,7 +183,7 @@ test("renders validated semantic vacancies with labeled scalar desktop filters",
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: /encuentra tu próximo trabajo en tech/i,
+      name: /encuentra tu próximo trabajo/i,
     }),
   ).toBeVisible();
   await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
@@ -211,36 +211,22 @@ test("renders the approved hero and supported quick chips with honest state", as
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Encuentra tu próximo trabajo en tech",
+      name: "Encuentra tu próximo trabajo",
     }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { level: 2, name: "Vacantes disponibles" }),
   ).toBeVisible();
 
-  // Truthful public chrome: the shared floating navbar carries one persisted
-  // theme toggle plus real destinations only; no legal or employer copy is
-  // fabricated.
-  const header = page.locator("header");
-  await expect(
-    header.getByRole("button", { name: /cambiar tema/i }),
-  ).toHaveCount(1);
-  for (const [label, href] of [
-    ["Vacantes", "/vacantes"],
-    ["Empresas", "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f"],
-    ["Publicar vacante", "/empresa/vacantes/nueva"],
-  ] as const) {
-    await expect(
-      header.getByRole("link", { name: label, exact: true }),
-    ).toHaveAttribute("href", href);
-  }
-  // The unsupported Recursos placeholder is gone: every public anchor is real.
-  await expect(
-    header.getByRole("link", { name: "Recursos", exact: true }),
-  ).toHaveCount(0);
-  // The login entry is one menu trigger now, not a flat candidate-only link.
-  await expect(header.getByRole("link", { name: "Ingresar", exact: true })).toHaveCount(0);
-  await expect(header.getByRole("button", { name: "Ingresar", exact: true })).toHaveCount(1);
+  const header = page.locator("main > header");
+  await expect(header.getByText("Vacantes", { exact: true })).toBeVisible();
+  await expect(header.getByRole("button", { name: /toggle sidebar/i })).toBeVisible();
+  await expect(header.getByRole("button", { name: /cambiar tema/i })).toHaveCount(1);
+  await expect(page.locator("[data-pf-public-navbar], [data-pf-nav-floating]")).toHaveCount(0);
+  await expect(page.locator("footer")).toHaveCount(0);
+  const sidebar = page.locator("[data-slot=sidebar-content]");
+  await expect(sidebar.getByRole("link", { name: "Vacantes", exact: true })).toHaveAttribute("href", "/vacantes");
+  await expect(sidebar.getByRole("link")).toHaveCount(1);
 
   // The visible control really flips and persists the document theme: a clean
   // page owns no explicit choice, one click stores the opposite of the resolved
@@ -309,24 +295,22 @@ test("renders the approved hero and supported quick chips with honest state", as
   const measureHeader = async (viewport: { width: number; height: number }) => {
     await page.setViewportSize(viewport);
     await page.goto("/vacantes");
+    await expect(page.locator('main > header a[href^="/candidato/login"]')).toHaveCount(1);
     return page.evaluate(() => {
-      const header = document.querySelector("header")!;
+      const header = document.querySelector("main > header")!;
       const linkByName = (name: string) =>
         [...header.querySelectorAll("a")].find(
           (a) => a.textContent?.trim() === name,
         ) ?? null;
-      const menuTrigger = header.querySelector("button[aria-haspopup='menu']");
+      const login = linkByName("Ingresar");
       const rectOf = (element: Element | null) => {
         if (!element) return null;
         const { width, height } = element.getBoundingClientRect();
         return { width: Math.round(width), height: Math.round(height) };
       };
       return {
-        logo: rectOf(header.querySelector("a[aria-label='PeopleFlow']")),
-        navVacantes: rectOf(linkByName("Vacantes")),
-        navEmpresas: rectOf(linkByName("Empresas")),
-        login: rectOf(menuTrigger),
-        publish: rectOf(linkByName("Publicar vacante")),
+        sidebarTrigger: rectOf(header.querySelector("[data-slot=sidebar-trigger]")),
+        login: rectOf(login),
         themeToggle: rectOf(header.querySelector("[data-pf-theme-toggle]")),
         overflow:
           document.documentElement.scrollWidth -
@@ -339,167 +323,68 @@ test("renders the approved hero and supported quick chips with honest state", as
   test
     .info()
     .annotations.push({ type: "header targets @1440", description: JSON.stringify(desktop) });
-  for (const name of [
-    "logo",
-    "navVacantes",
-    "navEmpresas",
-    "login",
-    "themeToggle",
-  ] as const) {
+  for (const name of ["sidebarTrigger", "themeToggle"] as const) {
     expect(desktop[name], `${name} exists @1440`).not.toBeNull();
     expect(
       desktop[name]!.height,
       `${name} target height @1440`,
     ).toBeGreaterThanOrEqual(40);
   }
-  // The icon-only toggle needs a >=40px square; the publish CTA raises the
-  // shared Button `lg` geometry to the same >=40px minimum.
   expect(desktop.themeToggle!.width).toBeGreaterThanOrEqual(40);
-  expect(desktop.publish!.height).toBeGreaterThanOrEqual(40);
+  expect(desktop.sidebarTrigger!.width).toBeGreaterThanOrEqual(40);
   expect(desktop.overflow).toBeLessThanOrEqual(0);
 
   const mobile = await measureHeader({ width: 375, height: 812 });
   test
     .info()
     .annotations.push({ type: "header targets @375", description: JSON.stringify(mobile) });
-  // Desktop-only destinations collapse entirely; the retained targets keep
-  // their size and the document stays overflow-free.
-  for (const name of ["navVacantes", "navEmpresas"] as const) {
-    expect(mobile[name]!.width, `${name} width @375`).toBe(0);
-    expect(mobile[name]!.height, `${name} height @375`).toBe(0);
-  }
-  for (const name of ["logo", "themeToggle", "login"] as const) {
+  for (const name of ["sidebarTrigger", "themeToggle", "login"] as const) {
     expect(
       mobile[name]!.height,
       `${name} target height @375`,
     ).toBeGreaterThanOrEqual(40);
   }
   expect(mobile.login!.width).toBeGreaterThanOrEqual(40);
-  expect(mobile.publish!.height).toBeGreaterThanOrEqual(40);
+  expect(mobile.sidebarTrigger!.width).toBeGreaterThanOrEqual(40);
   expect(mobile.overflow).toBeLessThanOrEqual(0);
 });
 
-test("reuses the approved floating navbar on the public vacancy board", async ({
-  page,
-}) => {
+test("public vacancies use the app shell, visitor card and mobile login instead of floating chrome", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/vacantes");
+  await page.goto("/vacantes?q=frontend");
+  const header = page.locator("main > header");
+  await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
+  await expect(page.locator("[data-pf-public-navbar], [data-pf-nav-floating]")).toHaveCount(0);
+  await expect(page.locator("footer")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  const nav = page.locator("[data-slot=sidebar-content]");
+  await expect(nav.getByRole("link")).toHaveCount(1);
+  await expect(nav.locator("a[data-active]")).toHaveText("Vacantes");
+  const footer = page.locator("[data-slot=sidebar-footer]");
+  await expect(footer).toContainText("Guarda tu búsqueda y sigue tus postulaciones");
+  const loginHref = "/candidato/login?next=%2Fvacantes%3Fq%3Dfrontend";
+  for (const name of ["Crear cuenta", "Iniciar sesión"]) await expect(footer.getByRole("link", { name, exact: true })).toHaveAttribute("href", loginHref);
+  await expect(footer.getByRole("link", { name: "¿Eres empresa? Publica vacantes" })).toHaveAttribute("href", "/empresa/login");
 
-  // One sticky outer shell owns positioning; the detached capsule is inset.
-  const header = page.locator("header[data-pf-public-navbar]");
-  await expect(header).toHaveCount(1);
-  await expect(header).toHaveCSS("position", "sticky");
-  await expect(header).toHaveCSS("top", "0px");
-  const capsule = header.locator("[data-pf-nav-floating]");
-  await expect(capsule).toHaveCount(1);
-  const [headerBox, capsuleBox] = await Promise.all([
-    header.boundingBox(),
-    capsule.boundingBox(),
-  ]);
-  test.info().annotations.push({
-    type: "public floating navbar @1440",
-    description: JSON.stringify({ headerBox, capsuleBox }),
-  });
-  expect(Math.round(headerBox!.y)).toBe(0);
-  expect(capsuleBox!.x).toBeGreaterThan(0);
-  expect(Math.round(capsuleBox!.y)).toBeGreaterThan(0);
-  // Positive right inset: a real gutter on both sides proves the capsule is
-  // inset, which a bare `<= viewport` check would also accept at zero.
-  const desktopViewport = await page.evaluate(() => window.innerWidth);
-  const desktopRightInset =
-    desktopViewport - Math.round(capsuleBox!.x + capsuleBox!.width);
-  expect(desktopRightInset, "capsule right inset @1440").toBeGreaterThanOrEqual(1);
+  await header.getByRole("button", { name: /toggle sidebar/i }).click();
+  await expect(footer.getByRole("link")).toHaveCount(1);
+  const railLogin = footer.getByRole("link", { name: "Iniciar sesión" });
+  await expect(railLogin).toHaveAttribute("href", loginHref);
+  const railBox = await railLogin.boundingBox();
+  expect(railBox!.width).toBe(40); expect(railBox!.height).toBe(40);
 
-  // Exact closed-state inventory: every public anchor and action is enumerated
-  // by name and destination, so an unexpected or fake link cannot pass. The
-  // two popup login destinations belong to the Ingresar menu and must be absent
-  // until that menu opens.
-  const closedAnchors = await header.locator("a").evaluateAll((anchors) =>
-    anchors
-      .map((anchor) => ({ name: anchor.getAttribute("aria-label") ?? anchor.textContent?.trim() ?? "", href: anchor.getAttribute("href") }))
-      .sort((left, right) => left.name.localeCompare(right.name)),
-  );
-  expect(closedAnchors).toEqual([
-    { name: "Empresas", href: PROTOTYPE_COMPANY_HREF },
-    { name: "PeopleFlow", href: "/" },
-    { name: "Publicar vacante", href: "/empresa/vacantes/nueva" },
-    { name: "Vacantes", href: "/vacantes" },
-  ]);
-  const closedActions = await header.locator("button").evaluateAll((buttons) =>
-    buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim() ?? "").sort(),
-  );
-  expect(closedActions).toEqual(["Cambiar tema", "Ingresar"]);
-  for (const destination of ["/candidato/login", "/empresa/login"] as const)
-    await expect(header.locator(`a[href="${destination}"]`)).toHaveCount(0);
-
-  // Sticky is proven after scrolling far enough, not merely at page top: the
-  // shell stays pinned at its `top: 0` inset while the capsule stays visible.
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
-  expect(maxScroll, "board is scrollable enough to exercise sticky").toBeGreaterThan(0);
-  await page.evaluate((top) => window.scrollTo(0, top), maxScroll);
-  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(maxScroll);
-  const pinned = await page.evaluate(() => {
-    const shell = document.querySelector("header[data-pf-public-navbar]")!;
-    const surfaceRect = shell.querySelector("[data-pf-nav-floating]")!.getBoundingClientRect();
-    return {
-      innerHeight: window.innerHeight,
-      shellTop: Math.round(shell.getBoundingClientRect().top),
-      surfaceTop: Math.round(surfaceRect.top),
-      surfaceBottom: Math.round(surfaceRect.bottom),
-    };
-  });
-  test.info().annotations.push({
-    type: "public floating navbar scrolled @1440",
-    description: JSON.stringify(pinned),
-  });
-  expect(pinned.shellTop).toBe(0);
-  expect(pinned.surfaceTop).toBeGreaterThan(0);
-  expect(pinned.surfaceBottom).toBeLessThanOrEqual(pinned.innerHeight);
-
-  // 375px: desktop destinations collapse, retained controls stay reachable,
-  // the capsule stays inset, and the document never overflows.
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/vacantes");
-  for (const name of ["Vacantes", "Empresas"] as const) {
-    await expect(header.getByRole("link", { name, exact: true })).toBeHidden();
-  }
-  for (const name of ["Ingresar", "cambiar tema"] as const) {
-    await expect(header.getByRole("button", { name })).toBeVisible();
-  }
-  const publish = header.getByRole("link", {
-    name: "Publicar vacante",
-    exact: true,
-  });
-  await expect(publish).toBeVisible();
-  await expect(publish).toHaveText("Publicar vacante");
-  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
-  const mobileCapsule = (await capsule.boundingBox())!;
-  test.info().annotations.push({
-    type: "public floating navbar @375",
-    description: JSON.stringify(mobileCapsule),
-  });
-  expect(mobileCapsule.x).toBeGreaterThan(0);
-  const mobileViewport = await page.evaluate(() => window.innerWidth);
-  const mobileRightInset =
-    mobileViewport - Math.round(mobileCapsule.x + mobileCapsule.width);
-  expect(mobileRightInset, "capsule right inset @375").toBeGreaterThanOrEqual(1);
-
-  // The shared dual-login menu still opens, closes on Escape, and returns focus.
-  const trigger = header.getByRole("button", { name: "Ingresar", exact: true });
+  await page.goto("/vacantes?q=frontend");
+  await expect(header.getByRole("link", { name: "Ingresar", exact: true })).toHaveAttribute("href", loginHref);
+  const trigger = header.getByRole("button", { name: /toggle sidebar/i });
   await trigger.click();
-  await expect(trigger).toHaveAttribute("aria-expanded", "true");
-  const menu = page.getByRole("menu");
-  await expect(menu).toBeVisible();
-  await expect(menu.getByRole("menuitem")).toHaveCount(2);
-  await expect(
-    menu.getByRole("menuitem", { name: "Candidato" }),
-  ).toHaveAttribute("href", "/candidato/login");
-  await expect(
-    menu.getByRole("menuitem", { name: "Empresa" }),
-  ).toHaveAttribute("href", "/empresa/login");
+  const drawer = page.getByRole("dialog", { name: "Navegación" });
+  await expect(drawer.getByRole("link", { name: "Vacantes", exact: true })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Crear cuenta" })).toHaveAttribute("href", loginHref);
   await page.keyboard.press("Escape");
-  await expect(menu).toHaveCount(0);
+  await expect(drawer).toBeHidden();
   await expect(trigger).toBeFocused();
+  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
 
   // Theme persistence is not regressed by the reuse.
   const themeToggle = header.getByRole("button", { name: /cambiar tema/i });

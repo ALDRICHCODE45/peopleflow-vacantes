@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: "candidate" } } }) }));
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 vi.mock("next/navigation", () => ({ usePathname: () => "/candidato/postulaciones" }));

@@ -67,12 +67,10 @@ it("composes the legacy vacancy row with a contextual action and a closing salar
   expect(screen.getByRole("link", { name: "Ver vacante" }).closest('[data-slot="card-footer"]')).not.toBeNull();
 });
 
-it.each([vacancyDetail, enrichJob(job)])("separates public detail return navigation from the sole apply action", (job) => {
+it.each([vacancyDetail, enrichJob(job)])("leaves return navigation to the app header and keeps the sole apply action", (job) => {
   render(<JobDetailView job={job} />);
-  const back = screen.getByRole("link", { name: "Volver a vacantes" });
-  expect(back.closest('[data-slot="card"]')).toBeNull();
-  expect(back).not.toHaveClass("bg-primary");
-  expect(back).toHaveClass("hover:bg-muted");
+  expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Volver a vacantes" })).toBeNull();
   expect(screen.getByRole("link", { name: "Postularme" })).toHaveClass("bg-primary");
   expect(screen.getAllByRole("link", { name: "Postularme" })).toHaveLength(1);
   const description = screen.getByRole("heading", { name: "Sobre la vacante" }).closest('[data-slot="card"]')!;
@@ -135,6 +133,7 @@ it.each([vacancyDetail, legacyDetail, { ...vacancyDetail, compensation: null, re
   const detailSlots = sequence(detail.container);
   detail.unmount();
   const loadingDetail = render(<PublicJobDetailSkeleton job={job} />);
+  expect(loadingDetail.container.querySelector('section > div[aria-hidden="true"]')?.firstElementChild).toHaveAttribute("data-slot", "card");
   expect(sequence(loadingDetail.container)).toEqual(detailSlots);
   expect(loadingDetail.container.querySelectorAll('[data-slot="item"]')).toHaveLength(itemCount);
   for (const skeleton of loadingDetail.container.querySelectorAll('[data-slot="skeleton"]')) expect(skeleton.closest('[aria-hidden="true"]')).not.toBeNull();

@@ -1,14 +1,13 @@
 import { Fragment, type ComponentProps } from "react";
-import Link from "next/link";
-import { ArrowLeftIcon, ArrowRightIcon, BanknoteIcon, Building2Icon, CalendarDaysIcon } from "lucide-react";
+import { BanknoteIcon, Building2Icon, CalendarDaysIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card as SurfaceCard, CardContent as SurfaceContent, CardDescription as SurfaceDescription, CardFooter as SurfaceFooter, CardHeader as SurfaceHeader, CardTitle as SurfaceTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { DraftRichDescriptionContent } from "../drafts/ui/draft-rich-description";
-import { vacancyApplicationHref } from "../application/application-draft";
+import { PublicApplyLink } from "./public-apply-link";
 import { formatPublishedDate } from "../formatters";
 import type { PublicJobDetail } from "../types";
 import type { DraftPublicDetail } from "./public-detail-presentation";
@@ -45,10 +44,6 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
   const companyContext = [job.location_label, publicJobHeroFacts(job).find(fact => fact.key === "work_mode")?.value].filter(Boolean).join(" · ");
   return <article data-slot="public-job-detail" className="flex w-full flex-col gap-6">
     {companyLoading && <span role="status" className="sr-only">Cargando empresa</span>}
-    {!preview && <nav aria-label="Ruta de navegación" className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-      <Link href="/vacantes" aria-label="Volver a vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10")}><ArrowLeftIcon aria-hidden="true" data-icon="inline-start" />Vacantes</Link>
-      <span aria-hidden="true">/</span><span aria-current="page" className="text-foreground">Detalle de la vacante</span>
-    </nav>}
     <Card className={PUBLIC_DETAIL_HERO}>
       <CardHeader className={hasCompanySlot ? PUBLIC_DETAIL_HEADER : undefined}>
         {hasCompanySlot && <div className="col-start-1 row-span-3 row-start-1">{companyLoading ? <Skeleton aria-hidden="true" className="size-16 rounded-2xl" /> : company && <PublicCompanyAvatar company={company} detail />}</div>}
@@ -107,7 +102,7 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
             <Separator />
             {companyLoading ? <div className="flex flex-col gap-3"><Skeleton aria-hidden="true" className="h-5 w-48 max-w-full" /><Skeleton aria-hidden="true" className="h-10 w-full" /></div> : company && <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {company.name}.</p></div>}
             <div className="flex flex-col gap-2">
-              {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : <Link href={vacancyApplicationHref(job.id)} className={cn(buttonVariants(), "h-12 w-full")}>Postularme<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link>}
+              {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : <PublicApplyLink jobId={job.id} />}
               {!preview && <PublicShareButton />}
               <PublicApplicants applicants={job.applicants} />
               <PublicScreeningInfo count={job.screening_questions} />

@@ -158,6 +158,13 @@ test("desktop end-to-end: the detail apply link opens the review of a trimmed de
   await apply.click();
   await expect(page).toHaveURL(new RegExp(`${APPLICATION_PATH}$`, "u"));
 
+  await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
+  await expect(page.locator("main > header").getByRole("button", { name: /toggle sidebar/i })).toBeVisible();
+  await expect(page.locator("[data-pf-public-navbar], footer")).toHaveCount(0);
+  const breadcrumb = page.locator("main > header").getByRole("navigation", { name: "Ruta de navegación" });
+  await expect(breadcrumb.getByRole("link", { name: "Detalle de la vacante" })).toHaveAttribute("href", `/vacantes/${MAIN_ID}`);
+  await expect(breadcrumb.getByText("Postulación", { exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Volver a la vacante" })).toHaveCount(0);
   // One h1, a noindex self-canonical, the exact vacancy/company identity, and
   // product-facing header copy with no implementation-status disclosure.
   await expect(page.getByRole("heading", { level: 1, name: "Postularme" })).toBeVisible();

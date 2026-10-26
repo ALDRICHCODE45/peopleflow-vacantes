@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { existsSync, readFileSync } from "node:fs";
@@ -110,7 +110,7 @@ describe("candidate shell frame", () => {
   it("honors a server-derived collapsed preference without touching the cookie", () => {
     renderShell("/candidato/perfil", false);
     expect(sidebar()).toHaveAttribute("data-state", "collapsed");
-    expect(navLinks()).toHaveLength(6);
+    expect(navLinks()).toHaveLength(7);
     expect(cookie("sidebar_state")).toBeUndefined();
   });
 
@@ -120,8 +120,8 @@ describe("candidate shell frame", () => {
     await user.click(screen.getByRole("button", { name: /toggle sidebar/i }));
     const drawer = await screen.findByRole("dialog");
     expect(drawer).toHaveAccessibleName("Navegación");
-    expect(within(drawer).getByRole("button", { name: "Explorar vacantes" }).closest("form")).toHaveAttribute("action", "/vacantes");
-    expect(navLinks().map((link) => link.textContent)).toEqual(NAV.map(([label]) => label));
+    expect(within(drawer).getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/vacantes");
+    expect(navLinks().map((link) => link.textContent)).toEqual(["Vacantes", ...NAV.map(([label]) => label)]);
     expect(within(drawer).getByRole("link", { name: "Perfil" })).toHaveAttribute("data-active");
     // The drawer keeps the shared account trigger, not a direct footer link.
     expect(within(drawer).getByRole("button", { name: /Ana Pérez/ })).toBeInTheDocument();
@@ -131,24 +131,14 @@ describe("candidate shell frame", () => {
 });
 
 describe("candidate navigation", () => {
-  it.each([true, false])("offers Explorar vacantes as the first violet action (open=%s)", (defaultOpen) => {
-    renderShell("/candidato/dashboard", defaultOpen);
-    const action = screen.getByRole("button", { name: "Explorar vacantes" });
-    expect(action).toBeEnabled();
-    expect(action).toHaveAttribute("type", "submit");
-    expect(action).toHaveAttribute("data-size", "default");
-    expect(action).toHaveClass("min-w-8", "bg-primary", "text-primary-foreground", "hover:bg-primary/90", "h-10");
+  it.each([true, false])("offers Vacantes as the first real destination (open=%s)", (defaultOpen) => {
+    renderShell("/vacantes/abc", defaultOpen);
+    const action = screen.getByRole("link", { name: "Vacantes" });
+    expect(action).toHaveAttribute("href", "/vacantes");
+    expect(action).toHaveAttribute("data-active");
     expect(action).toHaveAttribute("data-base-ui-tooltip-trigger");
     expect(document.querySelector("[data-slot='sidebar-content'] [data-slot='sidebar-menu-button']")).toBe(action);
-    const form = action.closest("form")!;
-    expect(form).toHaveAttribute("action", "/vacantes");
-    expect(form).toHaveAttribute("method", "get");
-    const submitted = vi.fn();
-    form.addEventListener("submit", (event) => { event.preventDefault(); submitted(); });
-    expect(action.tabIndex).toBe(0);
-    fireEvent.click(action);
-    expect(submitted).toHaveBeenCalledOnce();
-    expect(navLinks()).toHaveLength(6);
+    expect(navLinks()).toHaveLength(7);
   });
 
   it("lists the six destinations in order, grouped, as resolved Next links", () => {
@@ -160,7 +150,7 @@ describe("candidate navigation", () => {
       const group = groupNodes.find((node) => node.querySelector("[data-slot='sidebar-group-label']")?.textContent?.trim() === label) as HTMLElement;
       expect(within(group).getAllByRole("link").map((link) => link.textContent)).toEqual([...expected]);
     }
-    expect(navLinks().map((link) => [link.textContent, link.getAttribute("href")])).toEqual([...NAV]);
+    expect(navLinks().map((link) => [link.textContent, link.getAttribute("href")])).toEqual([["Vacantes", "/vacantes"], ...NAV]);
     for (const link of navLinks()) expect(link.getAttribute("href")).not.toBe("#");
     expect(SIDEBAR).not.toMatch(/href=["']?#/);
     expect(SIDEBAR).toContain('import Link from "next/link"');
@@ -219,7 +209,7 @@ describe("candidate identity", () => {
     renderShell();
     const forbidden = [
       "Nexo Labs", "Tomás Ríos", "Talent Lead", "Acme Inc.", "Camila Núñez", "Nueva vacante", "Cerrar sesión", "Plan y facturación", "Notificaciones", "m@example.com", "EmployerShell", "AppSidebar", "SiteHeader",
-      "employer", "empresa", "reclut", "dashboard-01-theme", "IconLogout", "IconCreditCard", "document.cookie", "next/headers", "cookies(", "useRouter", "useSearchParams", "next/dist", "window.location", "fetch(", "onClick",
+      "employer", "dashboard-01-theme", "IconLogout", "IconCreditCard", "document.cookie", "next/headers", "cookies(", "useRouter", "next/dist", "window.location", "fetch(", "onClick",
       "localStorage", "try {", "catch {",
     ];
     for (const value of forbidden) {
