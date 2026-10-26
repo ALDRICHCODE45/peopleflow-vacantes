@@ -61,7 +61,8 @@ type HarnessServer = {
 const errorHarnessHtml = `<main id="root"></main><script type="module">import { createElement } from "react"; import { createRoot } from "react-dom/client"; import VacantesError from "/src/app/(candidato)/vacantes/error.tsx"; createRoot(document.getElementById("root")).render(createElement(VacantesError, { error: new Error("fixture failure"), reset() {} }));</script>`;
 let errorHarness: HarnessServer | undefined;
 
-test.describe.configure({ mode: "serial" });
+// Each test resets its fixture state; a failure must not hide later coverage.
+test.describe.configure({ mode: "default" });
 test.beforeAll(async () => {
   const viteRequire = createRequire(require.resolve("vitest/package.json"));
   const vite = (await import(

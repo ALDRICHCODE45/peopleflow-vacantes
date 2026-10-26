@@ -138,7 +138,8 @@ function documentOverflowPx(page: Page) {
   );
 }
 
-test.describe.configure({ mode: "serial" });
+// Each test resets its fixture state; a failure must not hide later coverage.
+test.describe.configure({ mode: "default" });
 test.beforeEach(async ({ request }) => {
   await request.get(`${fixtureUrl}/__reset`);
 });
