@@ -49,9 +49,8 @@ export function ChartAreaInteractive({ data }: { data: Dashboard["origin_by_day"
             multiple={false}
             value={timeRange ? [timeRange] : []}
             onValueChange={(value: string[]) => { setTimeRange(value[0] ?? "90d") }}
-            variant="outline"
-            spacing={0}
-            className="hidden w-88 *:data-[slot=toggle-group-item]:flex-1 *:data-[slot=toggle-group-item]:px-[13px]! @[767px]/card:flex"
+            variant="segmented"
+            className="hidden @[767px]/card:flex"
           >
             <ToggleGroupItem value="90d">Últimos 3 meses</ToggleGroupItem>
             <ToggleGroupItem value="30d">Últimos 30 días</ToggleGroupItem>

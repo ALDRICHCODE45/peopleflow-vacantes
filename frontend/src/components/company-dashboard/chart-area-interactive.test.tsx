@@ -59,11 +59,13 @@ describe("approved application-source chart with real dates", () => {
     expect(formatTickLabel("2026-10-23")).toContain("23");
     expect(formatTickLabel("2024-04-03")).toBe("3 abr");
   });
-  it("keeps the approved desktop and concise mobile headings and 352px range geometry", () => {
+  it("keeps the approved desktop and concise mobile headings and a segmented range control sized by its labels", () => {
     render(<ChartAreaInteractive data={dashboard.origin_by_day} />);
     expect(screen.getByText("Origen de las postulaciones")).toHaveClass("@[540px]/card:inline");
     expect(screen.getByText("Postulaciones")).toHaveClass("@[540px]/card:hidden");
-    expect(document.querySelector("[data-slot='toggle-group']")).toHaveClass("w-88");
+    const range = document.querySelector("[data-slot='toggle-group']");
+    expect(range).toHaveAttribute("data-variant", "segmented");
+    expect(range).not.toHaveClass("w-88");
   });
 });
 

@@ -162,7 +162,7 @@ export function VacancyPortfolio() {
             <div className="relative"><SearchIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="vacancy-portfolio-search" data-pf-vacancy-search type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Puesto o palabra clave" className="h-10 pl-9 lg:w-72" /></div>
           </div>
           <div className="max-w-full overflow-x-auto pb-1">
-            <TabsList aria-label="Filtrar por estado" className="**:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full">
+            <TabsList aria-label="Filtrar por estado">
               {STATUS_FILTERS.map(filter => <TabsTrigger key={filter.value} value={filter.value} data-pf-vacancy-filter={filter.value}>{filter.label}<Badge variant="secondary">{noSnapshot ? drafts.pending ? <Skeleton aria-hidden="true" className="size-3" /> : <span aria-label="No disponible">—</span> : counts[filter.value]}</Badge></TabsTrigger>)}
             </TabsList>
           </div>

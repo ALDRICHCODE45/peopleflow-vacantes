@@ -154,15 +154,15 @@ it("ignores an obsolete request after filters change", async () => {
  await screen.findByText("Ana Ríos"); await act(async () => { finish({ ok: true, data: page }); });
  expect(screen.queryByText(candidate.full_name)).toBeNull(); expect(screen.getByText("Ana Ríos")).toBeTruthy();
 });
-it("provides a compact outline toggle with a distinct pressed state in the toolbar", async () => {
+it("provides a compact segmented toggle with a distinct pressed state in the toolbar", async () => {
  render(<OrgCandidatesWorkspace />); await screen.findByText(candidate.full_name);
  const table = screen.getByRole("button", { name: "Tabla" });
  const cards = screen.getByRole("button", { name: "Tarjetas" });
  expect(table.closest('[data-slot="toggle-group"]')).toHaveAttribute("data-size", "sm");
- expect(table.closest('[data-slot="toggle-group"]')).toHaveAttribute("data-variant", "outline");
+ expect(table.closest('[data-slot="toggle-group"]')).toHaveAttribute("data-variant", "segmented");
  expect(table).toHaveAttribute("aria-pressed", "true");
  expect(cards).toHaveAttribute("aria-pressed", "false");
- expect(table).toHaveClass("aria-pressed:bg-secondary", "aria-pressed:text-secondary-foreground", "aria-pressed:border-foreground/30");
+ expect(table).toHaveClass("aria-pressed:bg-background", "aria-pressed:text-foreground");
  fireEvent.click(cards);
  expect(cards).toHaveAttribute("aria-pressed", "true");
  expect(table).toHaveAttribute("aria-pressed", "false");

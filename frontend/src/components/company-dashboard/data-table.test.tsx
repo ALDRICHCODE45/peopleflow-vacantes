@@ -46,7 +46,8 @@ it("keeps neutral, dotless, circular tab counters with counts by participation o
   render(<DataTable data={applicants} />);
   for (const [label, count] of [["Todos", 12], ["Orgánicos", 6], ["Manuales", 6]]) expect(screen.getByRole("tab", { name: `${label} ${count}` })).toBeInTheDocument();
   for (const badge of screen.getByRole("tablist").querySelectorAll("[data-slot='badge']")) { expect(badge).toHaveAttribute("data-variant", "secondary"); expect(badge).not.toHaveAttribute("data-dot"); }
-  expect(screen.getByRole("tablist")).toHaveClass("**:data-[slot=badge]:rounded-full");
+  expect(screen.getByRole("tablist")).toHaveAttribute("data-variant", "default");
+  expect(screen.getByRole("tablist")).toHaveClass("[&_[data-slot=badge]]:rounded-full", "[&_[data-active]_[data-slot=badge]]:text-primary");
 });
 it.each([['organic', 'Orgánicos'], ['manual', 'Manuales']] as const)("filters %s rows and returns to Todos", async (origin, label) => {
   const user = userEvent.setup(); render(<DataTable data={applicants} />);

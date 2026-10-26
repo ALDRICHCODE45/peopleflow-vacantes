@@ -568,7 +568,6 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
 .pf-board-scroll > [data-slot="scroll-area-viewport"] { scroll-snap-type: x proximity; }
 .pf-column-scroll > [data-slot="scroll-area-viewport"] { overscroll-behavior-y: contain; }
 .pf-sheet-scroll > [data-slot="scroll-area-viewport"] { overscroll-behavior: contain; }
-.pf-candidate-sheet .pf-candidate-tabs [data-slot="badge"] { background: var(--background); }
 .pf-board-coverage [data-slot="progress-track"] { height: 4px; background: var(--border); }
 .pf-board-coverage [data-slot="progress-indicator"] { background: var(--status-success); }
 

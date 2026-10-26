@@ -295,14 +295,21 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 </Tabs>
 ```
 
-**Nota vigente (perfil de candidato):** `frontend/src/features/candidate/profile-workspace.tsx`
-usa la **variante por defecto instalada** (`<TabsList>` / `variant="default"`, el riel
-tipo pill). El color, el padding y el estado activo de cada `TabsTrigger` los aporta el
-primitive instalado; la vista **no** agrega `className` al trigger ni lo pinta a mano.
-Del riel solo se conservan ajustes de layout/accesibilidad: `max-w-full`, `justify-start`,
-overflow horizontal, nombre accesible, `tabIndex` y anillo de foco visible. Aunque el
-riel compacto mida ~32px, se mantiene así: teclado, foco, accesibilidad y espaciado están
-intactos y no se sobreescribe el trigger para forzar 40px (ver targets en la sección 2).
+**Dos patrones, nada más:**
+
+- **Segmentado** (`<TabsList>` / `variant="default"`) para filtrar o cambiar de vista dentro
+  de una superficie: riel `bg-muted` de 36px con 4px de padding y radio `xl`; cada trigger
+  `rounded-lg` (radio concéntrico), `px-3`, texto atenuado en reposo; el activo se levanta
+  con `bg-background` + `shadow-sm` (oscuro: `bg-foreground/10`). Los contadores (`Badge`)
+  dentro del trigger los pinta el primitive: neutros en reposo y tinte `primary` en la tab
+  activa. La vista **no** les cambia tamaño, radio ni color.
+- **Subrayado** (`variant="line"`) para secciones de una ficha o un perfil.
+
+Para elegir un valor que no tiene panel propio (rango del gráfico, tabla/tarjetas) se usa
+`ToggleGroup variant="segmented"`, que tiene el mismo aspecto que el segmentado de Tabs. El
+ancho sale de las etiquetas: nunca un ancho fijo que apriete el texto, ni divisores
+entre opciones, ni `variant="outline"` con `spacing={0}` como control segmentado.
+Referencias: `chart-area-interactive.tsx`, `data-table.tsx`, `vacancy-portfolio.tsx`.
 
 ## 7. Mapa de primitives para listado/Kanban de vacantes y pipeline de empleadores
 

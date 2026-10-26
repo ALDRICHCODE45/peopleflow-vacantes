@@ -126,7 +126,7 @@ export function DataTable({ data: applicants }: { data: Dashboard["recent"] }) {
     <Tabs value={statusTab} onValueChange={(value: unknown) => selectStatus(String(value))} data-pf-data-table="" className="w-full flex-col justify-start gap-6">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <h3 className="text-base font-medium">Candidatos recientes</h3>
-        <TabsList className="hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:px-1 @4xl/main:flex">
+        <TabsList className="hidden @4xl/main:flex">
           {PIPELINE_TABS.map(tab => <TabsTrigger key={tab.value} value={tab.value}>{tab.label} <Badge variant="secondary">{statusCount(tab.value)}</Badge></TabsTrigger>)}
         </TabsList>
         <div className="flex items-center gap-2">
