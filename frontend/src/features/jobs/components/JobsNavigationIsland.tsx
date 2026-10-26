@@ -117,7 +117,9 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
         <CardContent>
           <form data-nav-intent="search" onSubmit={handleOwnedSubmit} className="flex flex-col gap-3 md:flex-row md:items-end">
             <FieldGroup className="md:flex-row">
-              <ComposedSearchField icon={SearchIcon} id="jobs-search" label="Buscar vacantes" name="q" defaultValue={query.q ?? ""} placeholder="Puesto o palabra clave" />
+              {/* Uncontrolled field: remount when the URL's search changes (e.g. browser Back),
+                  otherwise defaultValue keeps showing a search that no longer applies. */}
+              <ComposedSearchField key={query.q ?? ""} icon={SearchIcon} id="jobs-search" label="Buscar vacantes" name="q" defaultValue={query.q ?? ""} placeholder="Puesto o palabra clave" />
             </FieldGroup>
             <Button type="submit" size="lg" className="min-h-10 w-full md:w-auto"><SearchIcon aria-hidden="true" data-icon="inline-start" />Buscar</Button>
           </form>
