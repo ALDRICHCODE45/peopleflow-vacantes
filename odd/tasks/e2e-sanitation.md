@@ -35,7 +35,15 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
 - [x] T6. S5 — jobs fixture on the `/v2/jobs` contract (list, detail, control endpoints) · worker · 67e99b3a (L7).
 - **Slice boundary:** commits through 67e99b3a (auth preview, serial removal + docs, 404/307, v2 fixture) are
   slice 1, ~500 lines; the spec rewrites T7–T8 start slice 2.
-- T7. S5 — rewrite `vacantes.spec.ts` + `vacantes-a11y.spec.ts` against the current UI · after T6.
+- [x] T7. S5 — rewrite `vacantes.spec.ts` + `vacantes-a11y.spec.ts` against the current UI · after T6 · de5891c4,
+  5b154644 (fixture), 7590a64c (product), 9fcc5e3b (L8).
+- **Slice boundary:** de5891c4..9fcc5e3b are slice 2 (list specs, fixture pagination, two product fixes); T8 starts
+  slice 3.
+- **Known issue / follow-ups (not in this feature):** (1) quick filter «Todas» after «Remoto» sometimes loses its
+  navigation (`vacantes.spec.ts` «renders the approved hero…», ~2 of 5 runs, also without prefetch blocking);
+  hypothesis: `JobsNavigationIsland` lives inside `page.tsx` under `loading.tsx`, so each navigation unmounts it while
+  its own `useTransition` wraps `router.push`. (2) `vacantes/error.tsx` and `[jobId]/error.tsx` retry with `reset()`
+  only; check whether they share the recovery race the list error had.
 - T8. S5 — rewrite `vacante-detalle.spec.ts` + `vacante-postular.spec.ts` · after T6.
 - T9. S5 — list obsolete tests (candidate-workspace, removed flows) for the user's deletion OK.
 
@@ -83,3 +91,13 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   `vitest --config tests/fixtures/vitest.config.ts` 3/3 with the product validators; production smoke renders
   list rows, the detail article and the visitor apply gate. «canonicalizes before API access» now passes the redirect
   and the request count and fails at a stale currency assertion (expects «Todas», UI shows «MXN») → T7.
+- **L8 (T7 evidence):** worker aligned 34 stale tests (assertions 372 → 383, none weakened). Fixture: honest
+  pagination per R3 (next_cursor only when more pages; a cursor request answers the nonempty final page, the rule
+  the spec documents), pending-search and two-page React data, USD decoy `part_time`. Product defects found by the
+  run, fixed test-first: search field stale after Back (uncontrolled `defaultValue`, now keyed by `q`); list retry
+  did not always recover — probe: the refresh RSC payload contained the list yet the error stayed in ~15% of runs,
+  same with a same-URL link or `router.refresh()` → retry reloads the document (`reload-page.ts`). Harness: aborting
+  every Next prefetch dropped later navigations (hero 2/5 failed with it, 8/8 isolated without it); without any
+  blocking 6 request-count tests fail, so only `/vacantes/<id>` prefetches are aborted. Results: vitest 7105/7105,
+  tsc clean, fixture vitest 7/7; list specs on the production build 58/61, the 3 failures being the obsolete-flow
+  tests for T9; recovery tests 15/15 repeated.

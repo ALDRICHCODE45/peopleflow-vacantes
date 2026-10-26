@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { CircleAlert, SearchXIcon } from "lucide-react";
+import { SearchXIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { StateCard } from "@/components/feedback/state-card";
 import { cn } from "@/lib/utils";
 import type { listJobs } from "../api/listJobs";
 import { buildJobsUrl, type JobsQuery } from "../url";
+import { JobsLoadError } from "./jobs-load-error";
 import { VacancyCard } from "./VacancyCard";
 
 type ListJobsResult = Awaited<ReturnType<typeof listJobs>>;
@@ -17,11 +18,7 @@ export function JobsResults({ result, query }: { result: ListJobsResult; query: 
       description={invalidFilter ? "Uno o más filtros ya no son válidos. Quítalos para volver a consultar las vacantes." : "Este enlace de resultados ya no es válido. Vuelve al inicio de la búsqueda conservando tus filtros."}
       primaryAction={{ href: invalidFilter ? "/vacantes" : buildJobsUrl({ ...query, cursor: undefined }), label: invalidFilter ? "Quitar filtros" : "Volver al inicio de la búsqueda" }} />;
   }
-  if (!result.ok) return <StateCard role="alert" icon={CircleAlert} tone="error"
-    title="No se pudieron cargar las vacantes"
-    description="No pudimos mostrar los resultados. Conservamos los filtros de tu búsqueda para que puedas intentarlo de nuevo."
-    primaryAction={{ href: buildJobsUrl(query), label: "Intentar de nuevo" }}
-    secondaryAction={{ href: "/vacantes", label: "Ver todas las vacantes" }} />;
+  if (!result.ok) return <JobsLoadError />;
   if (result.data.items.length === 0) return <StateCard icon={SearchXIcon} tone="empty" title="No hay vacantes"
     description="No encontramos vacantes para esta búsqueda. Quita los filtros para volver a ver el catálogo disponible."
     primaryAction={{ href: "/vacantes", label: "Quitar filtros" }} />;

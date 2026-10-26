@@ -101,9 +101,9 @@ test.describe("mobile filters Sheet accessibility", () => {
     await trigger.click();
 
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toHaveAccessibleName(/filtros/i);
+    await expect(dialog).toHaveAccessibleName("Filtrar vacantes");
     await expect(dialog.locator('[data-slot="sheet-title"]')).toHaveText(
-      "Filtros",
+      "Filtrar vacantes",
     );
     await expect(dialog.getByLabel(/moneda/i)).toBeVisible();
 
@@ -141,7 +141,8 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.goto("/vacantes?q=frontend&currency=MXN");
+    // `react` spans two fixture pages, so the next-page link is reachable.
+    await page.goto("/vacantes?q=react");
 
     // Walk the page with real keyboard Tabs (genuine :focus-visible modality)
     // and record focus styles of each representative control as it is reached.
@@ -153,14 +154,15 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
       "next-page link",
     ] as const;
     const found = new Map<string, FocusStyles>();
-    // The two composed search fields own their focus indication on the
-    // outer wrapper (data-jobs-composed-field), never on the inner input.
+    // The composed search field owns its focus indication on the installed
+    // InputGroup wrapper, never on the inner input.
     let composedField: {
       innerOutlineStyle: string;
       innerHasVisibleBoxShadow: boolean;
       innerBorderWidth: string;
       wrapperBorderTopColor: string;
       wrapperBorderTopWidth: string;
+      wrapperBoxShadow: string;
     } | null = null;
     for (let i = 0; i < 60 && found.size < wanted.length; i++) {
       await page.keyboard.press("Tab");
@@ -174,7 +176,7 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
             : el.tagName === "A" &&
                 el.closest('[aria-label="Listado de vacantes"]')
               ? "job title link"
-              : el.id === "desktop-currency"
+              : el.id === "desktop-salary_currency"
                 ? "currency select trigger"
                 : el.matches("[data-jobs-next-link]")
                   ? "next-page link"
@@ -199,7 +201,7 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
         composedField = await page.evaluate(() => {
           const el = document.activeElement as HTMLElement | null;
           const field =
-            el?.closest<HTMLElement>("[data-jobs-composed-field]") ?? null;
+            el?.closest<HTMLElement>('[data-slot="input-group"]') ?? null;
           if (!el || !field) return null;
           const inner = getComputedStyle(el);
           const wrapper = getComputedStyle(field);
@@ -215,6 +217,7 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
             innerBorderWidth: inner.borderTopWidth,
             wrapperBorderTopColor: wrapper.borderTopColor,
             wrapperBorderTopWidth: wrapper.borderTopWidth,
+            wrapperBoxShadow: wrapper.boxShadow,
           };
         });
       }
@@ -232,9 +235,8 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
       ).toBe(true);
     }
 
-    // Composed search field: the inner input carries no border, outline,
-    // ring, or shadow on focus; the wrapper owns the single brand-violet
-    // focus-within indication as one primary-token border (no extra ring).
+    // The installed InputGroup owns focus: its inner input has no border,
+    // outline or shadow; the group uses the semantic ring border and ring.
     expect(
       composedField,
       "search input must live inside a composed field wrapper",
@@ -248,12 +250,13 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
     const primaryColor = await page.evaluate(() => {
       const probe = document.createElement("span");
       document.body.appendChild(probe);
-      probe.style.color = "var(--primary)";
+      probe.style.color = "var(--ring)";
       const primary = getComputedStyle(probe).color;
       probe.remove();
       return primary;
     });
     expect(composedField!.wrapperBorderTopColor).toBe(primaryColor);
+    expect(hasVisibleRing({ outlineStyle: "none", outlineWidth: "0px", boxShadow: composedField!.wrapperBoxShadow })).toBe(true);
   });
 });
 
@@ -347,7 +350,7 @@ test.describe("rendered list layout and preset token fidelity", () => {
           probeValue: tokenValue("--radius-2xl", "border-radius"),
           buttonRadius: computed(button, "border-radius"),
           inputRadius: computed(
-            document.querySelector<HTMLInputElement>("#jobs-search")!,
+            document.querySelector<HTMLInputElement>("#jobs-search")!.closest('[data-slot="input-group"]')!,
             "border-radius",
           ),
         },
@@ -359,6 +362,7 @@ test.describe("rendered list layout and preset token fidelity", () => {
           titleLink,
           detail,
           document.querySelector<HTMLInputElement>("#jobs-search")!,
+          document.querySelector<HTMLInputElement>("#jobs-search")!.closest('[data-slot="input-group"]')!,
         ].map((el) => el.getAttribute("style")),
       };
       probe.remove();
@@ -523,10 +527,12 @@ test.describe("reduced motion on vacancy controls", () => {
     // Base UI returns focus to the trigger after keyboard selection.
     await expect(trigger).toBeFocused();
 
+    // Currency is a salary unit, not a standalone filter; provide a bound.
+    await page.getByLabel("Salario desde", { exact: true }).fill("1");
     const apply = page.getByRole("button", { name: /aplicar filtros/i });
     await apply.focus();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL("/vacantes?currency=USD");
+    await expect(page).toHaveURL("/vacantes?salary_min=1&salary_currency=USD&salary_period=monthly&salary_basis=gross");
     await expect(trigger).toHaveText(/^USD/);
     await expect(
       page.getByRole("list", { name: /listado de vacantes/i }),

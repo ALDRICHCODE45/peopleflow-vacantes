@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+const reload = vi.hoisted(() => ({ reloadPage: vi.fn() }));
+vi.mock("./reload-page", () => reload);
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,10 +22,19 @@ describe("JobsResults v2 composition", () => {
     expect(screen.getByText("Habilidades")).toBeVisible();
     expect(screen.getByText("Go")).toBeVisible();
   });
-  it("keeps the retryable error and exact canonical retry URL", () => {
+  it("retries the current search with a full reload, not a client navigation to the same URL", () => {
+    reload.reloadPage.mockClear();
     render(<JobsResults result={{ ok: false, error: { kind: "status", retryable: true, status: 503 } }} query={{ q: "frontend", contract_type: "indefinite" }} />);
     expect(screen.getByRole("alert")).toHaveTextContent("No se pudieron cargar las vacantes");
-    expect(screen.getByRole("link", { name: "Intentar de nuevo" })).toHaveAttribute("href", "/vacantes?q=frontend&contract_type=indefinite");
+    // A same-URL client navigation or router.refresh() sometimes received the
+    // recovered payload without applying it (e2e, ~15%); a new document always
+    // renders the server result.
+    expect(screen.queryByRole("link", { name: "Intentar de nuevo" })).toBeNull();
+    const retry = screen.getByRole("button", { name: "Intentar de nuevo" });
+    fireEvent.click(retry);
+    expect(reload.reloadPage).toHaveBeenCalledOnce();
+    expect(retry).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Ver todas las vacantes" })).toHaveAttribute("href", "/vacantes");
     expect(screen.queryByRole("list")).toBeNull();
   });
   it("keeps an Empty state with a reset and no list", () => {

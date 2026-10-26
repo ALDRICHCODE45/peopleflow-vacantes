@@ -32,6 +32,14 @@ describe("salary filter commits", () => {
     fireEvent.change(screen.getByLabelText(label), { target: { value } });
   }
   function apply() { fireEvent.submit(screen.getByRole("form", { name: "Filtros" })); }
+  it("shows the URL's search when the island stays mounted across a client navigation (browser Back)", () => {
+    const view = setup({ q: "frontend" });
+    expect(screen.getByLabelText("Buscar vacantes")).toHaveValue("frontend");
+    view.rerender(<JobsNavigationIsland routeKey={buildJobsUrl({})} query={{}}><p>resultados</p></JobsNavigationIsland>);
+    expect(screen.getByLabelText("Buscar vacantes")).toHaveValue("");
+    view.rerender(<JobsNavigationIsland routeKey={buildJobsUrl({ q: "react" })} query={{ q: "react" }}><p>resultados</p></JobsNavigationIsland>);
+    expect(screen.getByLabelText("Buscar vacantes")).toHaveValue("react");
+  });
   it("announces loading beside the quick filters instead of in an empty row of its own", () => {
     setup();
     const row = screen.getByRole("group", { name: "Filtros rápidos" }).parentElement!;
