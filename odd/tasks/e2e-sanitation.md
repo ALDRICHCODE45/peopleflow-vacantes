@@ -18,8 +18,8 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
 
 ## Tasks
 
-- T1. S1 — auth env honours `PEOPLEFLOW_LOCAL_PREVIEW` for loopback `NEXTAUTH_URL` · inline · high risk (auth config) ·
-  own commit · independent verify.
+- [x] T1. S1 — auth env honours `PEOPLEFLOW_LOCAL_PREVIEW` for loopback `NEXTAUTH_URL` · inline · high risk (auth config) ·
+  own commit (`fix(auth)` after this line) · independent verify (L4).
 - T2. S2 — production build + both fixtures + full run of the five specs; classify every failure · inline.
 - T3. S3 — fix per class (stale specs, product a11y defects, environment) · routed after T2.
 - T4. S4 — document the e2e run in `docs/local-production-preview.md` · inline.
@@ -35,3 +35,10 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   malformed UUID 404 got 200), stale/fixture (rich detail `article`, detail error boundary, list «Listado de
   vacantes», mobile filters Sheet name, `[data-pf-candidate-overview]`), axe list matrix (4). `src/lib/env/validate.ts`
   already allows loopback http in production with the flag; `src/lib/auth/env.ts:97-103` does not.
+- **L4 (T1 evidence):** RED 1 → GREEN; `vitest src/lib/auth src/lib/env src/app/api/auth` 361/361, tsc clean.
+  Independent verify: parity with `validate.ts` (224 combinations, zero divergences), zero non-loopback http accepted,
+  Cognito domain/issuer https-only (16 combinations), NextAuth Secure cookies follow the URL scheme (non-Secure only
+  for the opt-in loopback preview), redirects stay same-origin. NEEDS DECISION item, decided by parent: both
+  validators check the normalized URL, so `http://localhost/foo/..` or `http://@localhost` normalize to
+  `http://localhost`; accepted as intended (operator-written config, only the normalized origin is used, no
+  external redirect shown); hardening both validators is out of scope. Error message updated to mention the flag.

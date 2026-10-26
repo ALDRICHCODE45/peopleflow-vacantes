@@ -10,7 +10,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 // Raw samples — captured requests, finite overflow values and executed axe rule
 // counts — are asserted per flow and per case so no audit can pass vacuously.
 
-test.describe.configure({ mode: "serial" });
+// Every test owns a fresh context; a failure must not hide later coverage.
+test.describe.configure({ mode: "default" });
 
 const APP_ORIGIN = (process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100").replace(/\/$/u, "");
 const DESKTOP = { width: 1440, height: 900 } as const;

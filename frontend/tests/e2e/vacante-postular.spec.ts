@@ -7,7 +7,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 // asserted by href, never clicked. No screenshots live here: visual capture is
 // a separate concern.
 
-test.describe.configure({ mode: "serial" });
+// Each test resets its fixture state; a failure must not hide later coverage.
+test.describe.configure({ mode: "default" });
 
 const FIXTURE_ORIGIN = (process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4011").replace(/\/$/u, "");
 const MAIN_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
