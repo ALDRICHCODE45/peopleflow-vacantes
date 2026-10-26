@@ -10,7 +10,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 // Each test resets its fixture state; a failure must not hide later coverage.
 test.describe.configure({ mode: "default" });
 
-const FIXTURE_ORIGIN = (process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4011").replace(/\/$/u, "");
+const FIXTURE_ORIGIN = (process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010").replace(/\/$/u, "");
 const MAIN_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const APPLICATION_PATH = `/vacantes/${MAIN_ID}/postular`;
 const DESKTOP = { width: 1440, height: 900 } as const;
@@ -46,11 +46,18 @@ test.beforeEach(async ({ request }) => {
 });
 
 // --- read-only request/storage audit, installed before the first `goto` -----
-type Captured = { method: string; url: string };
+type Captured = { method: string; url: string; identityRead: boolean };
 const MUTATIONS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const trackRequests = (page: Page) => {
   const seen: Captured[] = [];
-  page.on("request", (entry) => seen.push({ method: entry.method(), url: entry.url() }));
+  page.on("request", (entry) => seen.push({
+    method: entry.method(), url: entry.url(),
+    // The visitor gate invokes the no-argument loadMeAction read via Next's
+    // POST transport. Count it explicitly; never exempt arbitrary mutations.
+    identityRead: entry.method() === "POST" &&
+      new URL(entry.url()).pathname === APPLICATION_PATH &&
+      Boolean(entry.headers()["next-action"]) && entry.postData() === "[]",
+  }));
   return seen;
 };
 // Writes accumulate Node-side per page so they survive client-side navigation;
@@ -100,10 +107,11 @@ const storageSnapshot = (page: Page) =>
       }));
     return { local: dump(window.localStorage), session: dump(window.sessionStorage) };
   });
-const expectClean = async (page: Page, seen: readonly Captured[]) => {
+const expectClean = async (page: Page, seen: readonly Captured[], identityReads = 0) => {
   // Non-vacuity: the flow must have produced real traffic before judging it.
   expect(seen.length).toBeGreaterThan(0);
-  expect(seen.filter(({ method }) => MUTATIONS.has(method)).map(({ method, url }) => `${method} ${url}`)).toEqual([]);
+  expect(seen.filter(entry => entry.identityRead)).toHaveLength(identityReads);
+  expect(seen.filter(({ method, identityRead }) => MUTATIONS.has(method) && !(identityReads > 0 && identityRead)).map(({ method, url }) => `${method} ${url}`)).toEqual([]);
   expect(await readStorageWrites(page)).toEqual([]);
   expect(await storageSnapshot(page)).toEqual({ local: {}, session: {} });
 };
@@ -134,18 +142,23 @@ const seriousAxe = (page: Page) =>
 const reviewValue = (review: Locator, term: string) =>
   review.locator("dt", { hasText: term }).locator("xpath=following-sibling::dd");
 
-/** Opens the application route and steps through to the application step. */
-async function openApplicationStep(page: Page) {
-  await page.goto(APPLICATION_PATH);
+/** The current v2 wizard stops visitors before any candidate-only input. */
+async function expectVisitorGate(page: Page) {
   await expect(page.getByRole("heading", { level: 1, name: "Postularme" })).toBeVisible();
-  await page.getByRole("button", { name: "Continuar", exact: true }).click();
-  const application = page.locator(STEP("application"));
-  await expect(application).toBeVisible();
-  // A real step change moves focus into the incoming step title.
-  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
-  await expect(page.locator(STEP_TITLE)).toBeFocused();
-  return application;
+  await expect(page.getByRole("heading", { level: 2, name: "Datos", exact: true })).toBeVisible();
+  await expect(page.getByText("Sesión requerida", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ingresa con tu cuenta de candidato para postularte.", { exact: true })).toBeVisible();
+  const login = page.getByRole("button", { name: "Ingresar como candidato", exact: true });
+  await expect(login).toBeVisible();
+  await expect(login).toBeEnabled();
+  expect(await heightPx(login)).toBeGreaterThanOrEqual(40);
+  await expect(page.locator('input, textarea, [data-pf-application-step]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Continuar|Enviar postulación/ })).toHaveCount(0);
 }
+
+// T9: the three prototype-draft tests below remain executable pending deletion
+// approval. V2 uses CandidateApplicationWizard and requires a real candidate
+// session; never bypass that boundary to make the old public demo flow pass.
 
 test("desktop end-to-end: the detail apply link opens the review of a trimmed demo draft", async ({ page, baseURL }) => {
   const seen = trackRequests(page);
@@ -369,6 +382,56 @@ test("CV step: a long local filename wraps without overflow and a rejected drop 
   await expectClean(page, seen);
 });
 
+test("visitor detail apply link opens the sign-in gate with shell, metadata and keyboard return", async ({ page, baseURL, request, context }) => {
+  // Same detail-only prefetch isolation as vacantes.spec.ts; apply prefetches
+  // must continue or the later explicit application navigation can be dropped.
+  await context.route("**/*", route =>
+    route.request().headers()["next-router-prefetch"] === "1" &&
+    /^\/vacantes\/[^/?]+$/u.test(new URL(route.request().url()).pathname)
+      ? route.abort() : route.continue(),
+  );
+  const seen = trackRequests(page);
+  await installStorageAudit(page);
+  await page.setViewportSize(DESKTOP);
+  await page.goto(`/vacantes/${MAIN_ID}`);
+  const apply = page.getByRole("link", { name: "Postularme", exact: true });
+  await expect(apply).toHaveAttribute("href", APPLICATION_PATH);
+  await apply.click();
+  await expect(page).toHaveURL(APPLICATION_PATH);
+  await expectVisitorGate(page);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
+  await expect(page.locator("[data-pf-public-navbar], footer")).toHaveCount(0);
+  await expect(page.locator(HEADER)).toContainText("Ingeniera Frontend");
+  await expect(page.locator(HEADER)).toContainText("Acme");
+  await expect(page.locator(HEADER)).not.toContainText(PROHIBITED_STATUS_COPY);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${baseURL}${APPLICATION_PATH}`);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/i);
+  const breadcrumb = page.locator("main > header").getByRole("navigation", { name: "Ruta de navegación" });
+  const back = breadcrumb.getByRole("link", { name: "Detalle de la vacante", exact: true });
+  await expect(back).toHaveAttribute("href", `/vacantes/${MAIN_ID}`);
+  await expect(breadcrumb.getByText("Postulación", { exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(HEADER).getByRole("navigation")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Volver a la vacante" })).toHaveCount(0);
+  await expect.poll(() => request.get(`${FIXTURE_ORIGIN}/__requests`).then(response => response.json())).toEqual([
+    // Detail document, apply render, and the identity Server Action's RSC
+    // re-render each own one fresh detail read (metadata/page stay deduped).
+    `/v2/jobs/${MAIN_ID}`, `/v2/jobs/${MAIN_ID}`, `/v2/jobs/${MAIN_ID}`,
+  ]);
+  for (let tabs = 0; tabs < 30 && !(await back.evaluate(element => element === document.activeElement)); tabs++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(back).toBeFocused();
+  expect(await back.evaluate(element => {
+    const style = getComputedStyle(element);
+    return element.matches(":focus-visible") && (style.boxShadow !== "none" || (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0));
+  })).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(`/vacantes/${MAIN_ID}`);
+  await expect(page.getByRole("article")).toBeVisible();
+  await expectClean(page, seen, 1);
+});
+
 test("responsive/theme matrix: desktop light and mobile dark stay overflow-free, axe-clean and single-h1", async ({ page }) => {
   const seen = trackRequests(page);
   await installStorageAudit(page);
@@ -380,13 +443,15 @@ test("responsive/theme matrix: desktop light and mobile dark stay overflow-free,
     ["mobile-dark", MOBILE, true],
   ] as const) {
     await page.setViewportSize(viewport);
-    await openApplicationStep(page);
+    await page.goto(APPLICATION_PATH);
+    await expectVisitorGate(page);
     await setTheme(page, dark);
 
-    // The rail, its summary, and the form host stay visible behind the step.
-    await expect(page.locator("aside").getByRole("heading", { name: "Resumen de la vacante" })).toBeVisible();
-    await expect(page.locator(FORM_HOST)).toBeVisible();
+    await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
     await expect(page.locator(HEADER)).toBeVisible();
+    await expect(page.locator(HEADER)).toContainText("Ingeniera Frontend");
+    await expect(page.locator(HEADER)).toContainText("Acme");
+    await expect(page.locator(HEADER)).not.toContainText(PROHIBITED_STATUS_COPY);
     results.push({
       label,
       overflow: await overflowPx(page),
@@ -403,5 +468,5 @@ test("responsive/theme matrix: desktop light and mobile dark stay overflow-free,
   // Dark mode really repainted the document background.
   expect(results[0].background).not.toBe(results[1].background);
 
-  await expectClean(page, seen);
+  await expectClean(page, seen, 2);
 });

@@ -10,8 +10,8 @@ const MAIN_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const RICH_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d92";
 const MISSING_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99";
 const LONG_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d90";
-const richRequest = `/jobs/${RICH_ID}`;
-const missingRequest = `/jobs/${MISSING_ID}`;
+const richRequest = `/v2/jobs/${RICH_ID}`;
+const missingRequest = `/v2/jobs/${MISSING_ID}`;
 const NOT_FOUND_COPY = "Esta vacante no está disponible";
 const XSS_TEXT = "<script>alert('xss')</script>";
 // Canonical company profile both enriched demo vacancies resolve to.
@@ -52,9 +52,13 @@ const robots = (page: Page) => page.locator('meta[name="robots"]');
 
 const articleOf = (page: Page) => page.getByRole("article");
 
-/** One stable data-attribute region of the canonical detail article. */
-const detailRegion = (page: Page, name: string) =>
-  articleOf(page).locator(`[data-detail-region='${name}']`);
+/** PublicJobDetailView's semantic regions; the wire description is isolated. */
+const detailRegion = (page: Page, name: string) => {
+  const article = articleOf(page);
+  if (name === "content") return article.locator("#descripcion");
+  if (name === "rail") return article.getByRole("complementary", { name: "Compensación y postulación" });
+  return article.locator("[data-slot=card-header]").first();
+};
 
 /** Viewport-space edges of one element, rounded to whole pixels. */
 const boxOf = (locator: Locator) =>
@@ -164,31 +168,30 @@ test("renders only validated contract data", async ({ page }) => {
   await expect(
     article.getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
   ).toBeVisible();
-  // The enriched Acme vacancy links the company in the header and repeats it in
-  // the rail, so the canonical company link is the unambiguous identity contract.
-  await expect(
-    article.getByRole("link", { name: "Acme", exact: true }),
-  ).toHaveAttribute("href", COMPANY_PROFILE_PATH);
-  // The reference stat cards own the wire mode, the wire schedule, and the
-  // prototype experience label, so each value is asserted in its own card.
+  // V2 uses company text rather than the legacy enriched company link.
+  await expect(detailRegion(page, "header").getByText("Acme", { exact: true })).toBeVisible();
+  await expect(article.locator("[data-public-company-footer]").getByText("Acme", { exact: true })).toBeVisible();
   for (const [key, value] of [
-    ["modality", "Remoto"],
-    ["schedule", "Tiempo completo"],
-    ["experience", "5+ años"],
+    ["work_mode", "Remoto"],
+    ["work_schedule", "Tiempo completo"],
+    ["seniority", "Senior"],
   ] as const) {
-    await expect(article.locator(`[data-detail-stat='${key}'] dd`)).toHaveText(
-      value,
-    );
+    await expect(article.locator(`[data-fact='${key}'] dd`)).toHaveText(value);
   }
+  await expect(article.locator("#requisitos")).toContainText("3 años");
   await expect(backLink(page)).toHaveAttribute("href", "/vacantes");
   await expect(breadcrumb(page).getByText("Detalle de la vacante", { exact: true })).toHaveAttribute("aria-current", "page");
   await expect(article.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
   await expect(article).not.toContainText(PROHIBITED_DISPLAY_COPY);
   await expect(article.getByRole("note")).toHaveCount(0);
-  await expect(article.getByRole("status")).toHaveCount(0);
-  // Omitted optionals stay omitted: no salary, date, or location copy.
-  await expect(article).not.toContainText(/MXN|USD/);
-  await expect(article).not.toContainText(/publicada/i);
+  await expect(article.getByRole("status")).toHaveCount(1);
+  await expect(article.getByRole("status")).toBeEmpty();
+  // The v2 fixture now supplies these fields for MAIN too; assert the wire
+  // values rather than the old v1 omission sentinel.
+  await expect(detailRegion(page, "rail")).toContainText("$30,000 – $45,000 MXN");
+  await expect(article).not.toContainText("USD");
+  await expect(article.locator("time")).toHaveAttribute("datetime", "2026-02-14T09:30:00Z");
+  await expect(article.locator("[data-fact='location'] dd")).toHaveText("Monterrey, Nuevo León");
   await expect(article).not.toContainText("undefined");
 });
 
@@ -206,15 +209,13 @@ test("safe description and full metadata", async ({ page, baseURL }) => {
   const paragraphs = detailRegion(page, "content").getByRole("paragraph");
   await expect(paragraphs).toHaveCount(4);
   await expect(paragraphs.last()).toHaveText(/Línea uno\nLínea dos\./);
-  await expect(article.locator("[data-detail-card='salary']")).toContainText(
-    /MXN/,
-  );
-  await expect(
-    header.locator("[data-detail-meta='published'] dd"),
-  ).toBeVisible();
+  await expect(detailRegion(page, "rail")).toContainText(/MXN/);
+  await expect(article.locator("time")).toHaveAttribute("datetime", "2026-02-14T09:30:00Z");
+  await expect(article.locator("time")).toBeVisible();
+  await expect(header).toContainText("Acme");
   // The rail profile context repeats the same city, so the wire location stays
   // scoped to its own header term instead of matching both.
-  await expect(header.locator("[data-detail-meta='location'] dd")).toHaveText(
+  await expect(article.locator("[data-fact='location'] dd")).toHaveText(
     "Monterrey, Nuevo León",
   );
   // Dynamic title, self-canonical URL, and indexable robots metadata.
@@ -255,7 +256,7 @@ test("reflects request-time visibility changes on later detail requests", async 
   // change back to visible.
   const setVisibility = (visible: boolean) =>
     request.get(`${fixtureUrl}/__visibility?id=${MAIN_ID}&visible=${visible}`);
-  const detailRequest = `/jobs/${MAIN_ID}`;
+  const detailRequest = `/v2/jobs/${MAIN_ID}`;
 
   // Visible→hidden: this render must present the branded not-found state,
   // never a cached article, after exactly one fresh API read.
@@ -307,7 +308,7 @@ test("buffers each completed detail response with its final state", async ({
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /intentar de nuevo/i }),
+    page.getByRole("button", { name: "Reintentar", exact: true }),
   ).toBeVisible();
 
   // The armed failure is persistent by fixture contract: recover before
@@ -369,7 +370,10 @@ for (const [label, viewport] of [
     const article = page.getByRole("article");
     await expect(article).toBeVisible();
     expect(await documentOverflowPx(page)).toBeLessThanOrEqual(0);
-    await expect([await article.getByRole("button").count(), await article.getByRole("status").count()]).toEqual([0, 0]);
+    await expect(article.getByRole("button")).toHaveCount(1);
+    await expect(article.getByRole("button", { name: "Compartir vacante", exact: true })).toBeVisible();
+    await expect(article.getByRole("status")).toHaveCount(1);
+    await expect(article.getByRole("status")).toBeEmpty();
   });
 }
 
@@ -388,10 +392,10 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
     const heading = element.querySelector("h1")!;
     // The wire description is the content region's own paragraph.
     const description = element.querySelector(
-      "[data-detail-region='content'] p",
+      "#descripcion p",
     )!;
     const statLabel = element.querySelector(
-      "[data-detail-region='stats'] dt",
+      "[data-fact] dt",
     )!;
     const result = {
       bodyFont: getComputedStyle(document.body).fontFamily,
@@ -411,11 +415,11 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
   });
 
   expect(evidence.bodyFont).toMatch(/Inter/);
-  // CCP-05 loaded the brand display face globally: headings are Clash Display.
-  expect(evidence.headingFont).toMatch(/Clash Display/);
+  // App-shell typography uses Inter for body and headings (globals.css).
+  expect(evidence.headingFont).toMatch(/Inter/);
   expect(evidence.headingColor).toBe(evidence.foreground);
   expect(evidence.statLabelColor).toBe(evidence.mutedForeground);
-  expect(evidence.descriptionColor).toBe(evidence.mutedForeground);
+  expect(evidence.descriptionColor).toBe(evidence.foreground);
   expect(evidence.radius).toMatch(/^(?:0?\.)625rem$/);
   expect(evidence.inlineStyles).toBe(0);
 });
@@ -516,7 +520,7 @@ test("detail error boundary promotes its heading to the single h1", async ({
   ).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(
-    page.getByRole("button", { name: /intentar de nuevo/i }),
+    page.getByRole("button", { name: "Reintentar", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: /vacantes/i }).first(),
@@ -539,12 +543,12 @@ test("detail not-found boundary promotes its heading to the single h1", async ({
 // CCP-R4C bounded contracts: every assertion below is scoped to a semantic
 // region, role, or stable data attribute of the enriched RICH detail fixture.
 
-test("rich detail rail stays sticky beside content and stacks statically below lg", async ({
+test("rich detail rail stays sticky beside content and stacks statically above content below lg", async ({
   page,
 }) => {
   const geometry = async () => {
     const [content, rail, style] = await Promise.all([
-      boxOf(detailRegion(page, "content")),
+      boxOf(detailRegion(page, "rail").locator("xpath=preceding-sibling::div")),
       boxOf(detailRegion(page, "rail")),
       detailRegion(page, "rail").evaluate((element) => {
         const computed = getComputedStyle(element);
@@ -569,11 +573,11 @@ test("rich detail rail stays sticky beside content and stacks statically below l
   await page.setViewportSize({ width: 375, height: 812 });
   const mobile = await geometry();
   test.info().annotations.push({ type: "detail geometry @375", description: JSON.stringify(mobile) });
-  // Below lg the rail returns to normal flow: static, stacked, same left edge.
-  expect([mobile.style, mobile.rail.top >= mobile.content.bottom, Math.abs(mobile.rail.left - mobile.content.left) <= 1, mobile.overflow]).toEqual([{ position: "static", top: "auto" }, true, true, 0]);
+  // PublicJobDetailView places the action rail first on phones (row-start-1).
+  expect([mobile.style, mobile.rail.bottom <= mobile.content.top, Math.abs(mobile.rail.left - mobile.content.left) <= 1, mobile.overflow]).toEqual([{ position: "static", top: "auto" }, true, true, 0]);
 });
 
-test("rich detail keeps the complete safe description and a separately scoped verification claim", async ({
+test("rich detail keeps the complete safe description and separately scoped company context", async ({
   page,
 }) => {
   await page.goto(`/vacantes/${RICH_ID}`);
@@ -595,10 +599,11 @@ test("rich detail keeps the complete safe description and a separately scoped ve
   await expect(
     content.locator("script, img, iframe, object, embed, b, em"),
   ).toHaveCount(0);
-  // The PeopleFlow verification row is a disclosed prototype rail claim, so it
-  // never leaks into the wire description region.
-  await expect(rail.getByText("Verificada por PeopleFlow")).toBeVisible();
-  await expect(content.getByText("Verificada por PeopleFlow")).toHaveCount(0);
+  // V2 company context stays outside the complete wire description; no invented verification claim.
+  await expect(rail.locator("[data-public-company-footer]")).toContainText("Acme");
+  await expect(rail.locator("[data-public-company-footer]")).toContainText("Monterrey, Nuevo León · Híbrido");
+  await expect(content.getByText("Acme", { exact: true })).toHaveCount(0);
+  await expect(articleOf(page).getByText("Verificada por PeopleFlow")).toHaveCount(0);
 });
 
 test("rich detail exposes exactly four placeholder controls plus the real apply link", async ({
@@ -635,12 +640,13 @@ test("rich detail exposes exactly four placeholder controls plus the real apply 
   await expect(article.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
 });
 
-test("rich detail keeps its three links and four controls plus the app breadcrumb keyboard reachable", async ({
+test("rich detail keeps all section links and live controls plus the app breadcrumb keyboard reachable", async ({
   page,
 }) => {
   await page.goto(`/vacantes/${RICH_ID}`);
   const article = articleOf(page);
-  await expect(article.getByRole("link")).toHaveCount(3);
+  await expect(article.getByRole("link")).toHaveCount(5);
+  await expect(article.getByRole("button")).toHaveCount(1);
 
   // One full Tab cycle, discovered from the first stop instead of a fixed count.
   const cycle = await tabCycle(page);
@@ -650,13 +656,12 @@ test("rich detail keeps its three links and four controls plus the app breadcrum
   expect(headerStep).toBeDefined();
   expect(headerStep!.focusVisible && (headerStep!.outline || headerStep!.ring)).toBe(true);
   expect(articleSteps.map((step) => [step.tag, step.name, step.href])).toEqual([
-    ["A", "Acme", COMPANY_PROFILE_PATH],
+    ["A", "Descripción", "#descripcion"],
+    ["A", "Requisitos", "#requisitos"],
+    ["A", "Habilidades", "#habilidades"],
+    ["A", "Beneficios", "#beneficios"],
     ["A", "Postularme", `/vacantes/${RICH_ID}/postular`],
-    ["BUTTON", "Guardar vacante", null],
-    ["A", "Conoce a Acme", COMPANY_PROFILE_PATH],
-    ["BUTTON", "Copiar enlace", null],
-    ["BUTTON", "Compartir en redes", null],
-    ["BUTTON", "Enviar por correo", null],
+    ["BUTTON", "Compartir vacante", null],
   ]);
   expect(articleSteps.every((step) => step.focusVisible && (step.outline || step.ring))).toBe(true);
   // No placeholder control is disabled, so none is dropped from sequential focus.
