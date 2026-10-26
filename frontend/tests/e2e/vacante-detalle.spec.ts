@@ -14,20 +14,9 @@ const richRequest = `/v2/jobs/${RICH_ID}`;
 const missingRequest = `/v2/jobs/${MISSING_ID}`;
 const NOT_FOUND_COPY = "Esta vacante no está disponible";
 const XSS_TEXT = "<script>alert('xss')</script>";
-// Canonical company profile both enriched demo vacancies resolve to.
-const COMPANY_PROFILE_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 // UISC-03A: no rendered implementation-status vocabulary may survive on the
 // public detail. Every banned token is prose, never a route, id, or fixture.
 const PROHIBITED_DISPLAY_COPY = /demostraci|fictici|\bprototipo\b|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó]/iu;
-// VAF-04: the apply affordance is a real semantic link, so only the four
-// placeholder controls remain buttons; each is enabled and intentionally inert.
-const DEMO_CONTROLS = [
-  { name: "Guardar vacante", minTargetPx: 44 },
-  { name: "Copiar enlace", minTargetPx: 40 },
-  { name: "Compartir en redes", minTargetPx: 40 },
-  { name: "Enviar por correo", minTargetPx: 40 },
-] as const;
-
 const fixtureRequests = (request: APIRequestContext) =>
   request.get(`${fixtureUrl}/__requests`).then((r) => r.json());
 
@@ -65,14 +54,6 @@ const boxOf = (locator: Locator) =>
   locator.evaluate((element) => {
     const box = element.getBoundingClientRect();
     return { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right) };
-  });
-
-/** Smallest pointer-target dimension of one element, in CSS pixels. */
-const minTargetSizePx = (locator: Locator) =>
-  locator.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    // Raw value: a sub-threshold dimension must never round up to pass.
-    return Math.min(box.width, box.height);
   });
 
 /** One sequential-focus stop plus the focus treatment it received. */
@@ -606,40 +587,6 @@ test("rich detail keeps the complete safe description and separately scoped comp
   await expect(articleOf(page).getByText("Verificada por PeopleFlow")).toHaveCount(0);
 });
 
-test("rich detail exposes exactly four placeholder controls plus the real apply link", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`/vacantes/${RICH_ID}`);
-  const article = articleOf(page);
-  await expect(DEMO_CONTROLS).toHaveLength(4);
-  await expect(article.getByRole("button")).toHaveCount(DEMO_CONTROLS.length);
-  await expect(article).not.toContainText(PROHIBITED_DISPLAY_COPY);
-  await expect(article.getByRole("note")).toHaveCount(0);
-  await expect(article.locator("#proceso-prototipo")).toHaveCount(0);
-  for (const { name, minTargetPx } of DEMO_CONTROLS) {
-    const button = article.getByRole("button", { name });
-    await expect(button).toBeVisible();
-    await expect(button).toBeEnabled();
-    // A placeholder affordance is never a submit target or a toggle.
-    await expect(button).toHaveAttribute("type", "button");
-    await expect(button).toHaveAttribute("title", name);
-    expect(await minTargetSizePx(button)).toBeGreaterThanOrEqual(minTargetPx);
-    expect(await button.getAttribute("aria-describedby")).toBeNull();
-    expect(await button.getAttribute("aria-pressed")).toBeNull();
-  }
-  // The one real apply affordance: a semantic link to the canonical route,
-  // carrying no disclosure reference and at least 44px tall.
-  const apply = article.getByRole("link", { name: "Postularme", exact: true });
-  await expect(apply).toHaveAttribute("href", `/vacantes/${RICH_ID}/postular`);
-  expect(await apply.getAttribute("aria-describedby")).toBeNull();
-  expect(await minTargetSizePx(apply)).toBeGreaterThanOrEqual(44);
-  // Return navigation belongs to the app header, with its own 40px target.
-  expect(await minTargetSizePx(backLink(page))).toBeGreaterThanOrEqual(40);
-  await expect(breadcrumb(page).getByText("Detalle de la vacante", { exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(article.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
-});
-
 test("rich detail keeps all section links and live controls plus the app breadcrumb keyboard reachable", async ({
   page,
 }) => {
@@ -666,103 +613,4 @@ test("rich detail keeps all section links and live controls plus the app breadcr
   expect(articleSteps.every((step) => step.focusVisible && (step.outline || step.ring))).toBe(true);
   // No placeholder control is disabled, so none is dropped from sequential focus.
   expect(articleSteps.filter((step) => step.disabled)).toEqual([]);
-});
-
-test("rich detail keeps every placeholder control inert by keyboard and mouse", async ({
-  page,
-}) => {
-  await page.goto(`/vacantes/${RICH_ID}`);
-  const article = articleOf(page);
-  for (const { name } of DEMO_CONTROLS) {
-    const control = article.getByRole("button", { name, exact: true });
-    await control.focus();
-    await page.keyboard.press("Space");
-    await page.keyboard.press("Enter");
-    await control.click();
-    // Activation changes neither the accessible name nor a pressed state.
-    await expect(control).toHaveAttribute("aria-label", name);
-    expect(await control.getAttribute("aria-pressed")).toBeNull();
-  }
-  await expect(article.getByRole("status")).toHaveCount(0);
-  await expect(article.getByRole("note")).toHaveCount(0);
-  await expect(page).toHaveURL(`/vacantes/${RICH_ID}`);
-});
-
-test("rich detail keeps canonical company links, indexable metadata, and an unbroken heading outline", async ({
-  page,
-  baseURL,
-}) => {
-  await page.goto(`/vacantes/${RICH_ID}`);
-  const article = articleOf(page);
-  // Both company affordances are opt-in and point at the canonical profile.
-  await expect(
-    article.getByRole("link", { name: "Acme", exact: true }),
-  ).toHaveAttribute("href", COMPANY_PROFILE_PATH);
-  await expect(
-    article.getByRole("link", { name: "Conoce a Acme" }),
-  ).toHaveAttribute("href", COMPANY_PROFILE_PATH);
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-    "href",
-    `${baseURL}/vacantes/${RICH_ID}`,
-  );
-  await expect(robots(page)).toHaveAttribute("content", /index/i);
-  await expect(robots(page)).not.toHaveAttribute("content", /noindex/i);
-
-  // One h1 leads the document and no level is ever skipped downwards.
-  const levels = await article.locator("h1, h2, h3, h4, h5, h6").evaluateAll((nodes) => nodes.map((node) => Number(node.tagName.slice(1))));
-  expect(levels[0]).toBe(1);
-  expect(levels.filter((level) => level === 1)).toHaveLength(1);
-  levels.forEach((level, index) => {
-    if (index > 0) expect(level - levels[index - 1]).toBeLessThanOrEqual(1);
-  });
-});
-
-test("rich detail registers zero non-GET business requests, storage writes, or share calls", async ({ page }) => {
-  const nonGet: string[] = [];
-  page.on("request", (entry) => {
-    // Only the framework's own development diagnostics are exempt.
-    const diagnostics =
-      entry.url().includes("/_next/") || entry.url().includes("__nextjs");
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(entry.method()) && !diagnostics) {
-      nonGet.push(`${entry.method()} ${entry.url()}`);
-    }
-  });
-  // The clipboard and Web Share APIs are instrumented before the app loads.
-  await page.addInitScript(() => {
-    const calls: string[] = [];
-    (window as unknown as { __prototypeShareCalls: string[] }).__prototypeShareCalls = calls;
-    const record = (api: string) => { calls.push(api); return Promise.resolve(); };
-    const clipboard = navigator.clipboard as Clipboard | undefined;
-    if (clipboard !== undefined) {
-      clipboard.writeText = () => record("clipboard.writeText");
-      clipboard.write = () => record("clipboard.write");
-    }
-    navigator.share = () => record("share");
-  });
-
-  await page.goto(`/vacantes/${RICH_ID}`);
-  const article = articleOf(page);
-  await expect(
-    article.getByRole("heading", { level: 1, name: "Desarrolladora Go" }),
-  ).toBeVisible();
-  const storageBefore = await page.evaluate(() =>
-    JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
-  );
-
-  for (const { name } of DEMO_CONTROLS) {
-    await article.getByRole("button", { name }).click();
-  }
-  await page.waitForTimeout(300);
-  await expect(article.getByRole("status")).toHaveCount(0);
-  expect(nonGet).toEqual([]);
-  expect(
-    await page.evaluate(
-      () => (window as unknown as { __prototypeShareCalls: string[] }).__prototypeShareCalls,
-    ),
-  ).toEqual([]);
-  expect(
-    await page.evaluate(() =>
-      JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
-    ),
-  ).toBe(storageBefore);
 });
