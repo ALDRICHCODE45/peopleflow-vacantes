@@ -53,6 +53,12 @@ describe("JobsResults v2 composition", () => {
     const link = screen.getByRole("link", { name: "Ver más vacantes" });
     expect(link).toHaveAttribute("href", "/vacantes?q=Go&state=09&state=14&work_mode=hybrid&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque+a%2Bb%2Fc%3D");
     expect(link).toHaveAttribute("data-jobs-next-link", "true");
+    // Punctual pending cue inside the action, shown only while the island marks it busy.
+    const spinner = link.querySelector('[data-slot="spinner"]')!;
+    expect(spinner).toHaveAttribute("aria-hidden", "true");
+    expect(spinner).toHaveAttribute("data-icon", "inline-start");
+    expect(spinner).toHaveClass("hidden", "group-aria-busy/next:block");
+    expect(link).toHaveClass("group/next");
     rerender(<JobsResults result={listOf([listItem(vacancyDetail)])} query={query} />);
     expect(screen.queryByRole("link", { name: "Ver más vacantes" })).toBeNull();
   });

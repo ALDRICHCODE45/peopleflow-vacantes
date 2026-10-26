@@ -52,3 +52,14 @@ Branch `fix/vacantes-lost-navigation` (was `chore/next-upgrade`). Next stays pin
   tsc OK; lint 0 errors (13 warnings, none in touched files); Vitest 7094/7094; probe 0/40 and 0/40 (first and
   second); production e2e 83/83; «renders the approved hero…» 10/10. Follow-ups in the backlog: Next 16 when Amplify
   supports it; feedback when entering `/vacantes` from another screen.
+- **L8.** User (verbatim): «quiero algo mejor que :"cargando", no me gusta eso, si queremos algo discreto y no un
+  skeleton en este apartado, revisaria el componente loader (creo que se llama asi) y lo centraria en la card o en el
+  contenido que se este cargando, mwe explico?? y ya sabes que hacer hermano, sigue siempre tu system design, revisa
+  shadcn siempre, basate en la doc oficial, ocupa los ejemplos de shadcn, y ya que tienes ojos, revisa siempre el
+  resultado con el mcp, me sigues?» Done: installed shadcn `Spinner` (examples spinner-demo/-empty/-size), design
+  rule «Spinner puntual». Filter/search navigations dim the results and center a sticky, non-blocking spinner on a
+  card-like surface over them; the next-page link shows the spinner inside itself (an overlay covered that button in
+  the first visual check); the visible «Cargando…» became one sr-only status «Cargando vacantes». Browser check
+  (Playwright MCP, fixture delay 2.5 s): light/dark desktop, mobile 390, scrolled pagination. RED 4+2 → GREEN;
+  Vitest 7096/7096; lint 0 errors; probe 0/40; e2e 83/83 after updating the reduced-motion test that pinned the old
+  text (now also asserts the spinner) — 5/5 repeated; hero 10/10.

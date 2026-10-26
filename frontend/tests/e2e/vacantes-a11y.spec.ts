@@ -555,7 +555,10 @@ test.describe("reduced motion on vacancy controls", () => {
     // Pending-search announcement lives in the navigation island; the card
     // feedback island owns its own role="status" span, so scope to the nav <p>.
     const status = page.locator("p[role='status']");
-    await expect(status).toHaveText("Cargando…");
+    await expect(status).toHaveText("Cargando vacantes");
+    // The visible cue is the (static, under reduced motion) spinner over the results.
+    await expect(page.locator("[data-jobs-results]")).toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("[data-jobs-results-pending] [data-slot='spinner']")).toBeVisible();
     // Focus must stay on the search input the whole time pending state is
     // announced; only the initiating submit button is disabled.
     await expect(search).toBeFocused();
