@@ -1,6 +1,12 @@
 const MAX_RETURN_TO_LENGTH = 4096;
 const INTERNAL_ORIGIN = "https://return-to.invalid";
 
+/** Decodes every `%XX` run and leaves a stray `%` as text. Throws when a run is
+    not valid UTF-8, so an undecodable run can never shield the separators in it. */
+function decodeEscapes(value: string): string {
+  return value.replace(/(?:%[0-9A-Fa-f]{2})+/g, run => decodeURIComponent(run));
+}
+
 /** Untrusted `next` is a path, never a URL. Keep its original query encoding. */
 export function safeReturnTo(value: string | null | undefined): string | null {
   if (!value || value.length > MAX_RETURN_TO_LENGTH) return null;
@@ -16,11 +22,18 @@ export function safeReturnTo(value: string | null | undefined): string | null {
     // `/..//host` normalizes to an authority-like `//host` pathname.
     if (url.origin !== INTERNAL_ORIGIN || url.pathname.startsWith("//") || /^\/api(?:\/|$)/i.test(url.pathname)
       || /^\/candidato\/(?:login|ingresar)(?:\/|$)/i.test(url.pathname)) return null;
+    let next: string;
     try {
-      const next = decodeURIComponent(decoded);
-      if (next === decoded) return value;
-      decoded = next;
-    } catch { return null; }
+      next = decodeURIComponent(decoded);
+    } catch {
+      // A malformed escape in the raw value is refused. Deeper, a stray `%` is a
+      // decoded literal (`50%25` -> `50%`): keep decoding the valid escapes so
+      // an encoded authority behind it is still exposed and checked.
+      if (depth === 0) return null;
+      try { next = decodeEscapes(decoded); } catch { return null; }
+    }
+    if (next === decoded) return value;
+    decoded = next;
   }
   return null;
 }
