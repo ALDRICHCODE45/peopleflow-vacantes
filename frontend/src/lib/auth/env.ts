@@ -33,6 +33,15 @@ function isProduction(env: AuthEnvSource): boolean {
   return typeof nodeEnv === "string" && nodeEnv.trim() === "production";
 }
 
+/** Same opt-in as the server environment (src/lib/env/validate.ts): a local
+    production preview may use loopback HTTP origins, never a public host. */
+function isLocalPreview(env: AuthEnvSource): boolean {
+  const raw = env.PEOPLEFLOW_LOCAL_PREVIEW;
+  if (raw !== undefined && raw !== "true" && raw !== "false")
+    fail("PEOPLEFLOW_LOCAL_PREVIEW", "must be true or false when provided");
+  return raw === "true";
+}
+
 function requireValue(env: AuthEnvSource, key: string): string {
   const raw = env[key];
   if (typeof raw !== "string" || raw.trim().length === 0)
@@ -43,7 +52,7 @@ function requireValue(env: AuthEnvSource, key: string): string {
 function parseOrigin(
   env: AuthEnvSource,
   key: string,
-  { allowLocalHttp }: { allowLocalHttp: boolean },
+  { allowLocalHttp, requireLoopback = false }: { allowLocalHttp: boolean; requireLoopback?: boolean },
 ): string {
   const value = requireValue(env, key);
 
@@ -63,10 +72,12 @@ function parseOrigin(
 
   const hostname = url.hostname.replace(/^\[/, "").replace(/\]$/, "");
   const loopback = LOOPBACK_HOSTS.has(hostname);
+  if (requireLoopback && !loopback)
+    fail(key, "must be a loopback origin when PEOPLEFLOW_LOCAL_PREVIEW=true");
   if (url.protocol === "http:" && !(allowLocalHttp && loopback))
     fail(
       key,
-      "must use https; local http is only allowed for loopback origins outside production",
+      "must use https; local http is only allowed for loopback origins outside production or with PEOPLEFLOW_LOCAL_PREVIEW=true",
     );
 
   return url.origin;
@@ -95,8 +106,10 @@ function parseIssuer(env: AuthEnvSource): string {
 }
 
 export function validateAuthEnv(env: AuthEnvSource): AuthEnv {
+  const localPreview = isLocalPreview(env);
   const siteUrl = parseOrigin(env, AUTH_ENV_KEYS.url, {
-    allowLocalHttp: !isProduction(env),
+    allowLocalHttp: !isProduction(env) || localPreview,
+    requireLoopback: localPreview,
   });
   const domain = parseOrigin(env, AUTH_ENV_KEYS.domain, {
     allowLocalHttp: false,

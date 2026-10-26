@@ -48,6 +48,22 @@ describe("auth environment validation", () => {
     ).toBe(PROD_URL);
   });
 
+  it("allows loopback HTTP in a production build only under PEOPLEFLOW_LOCAL_PREVIEW=true", () => {
+    const preview = { NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "true" };
+    for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+      expect(validateAuthEnv(base({ ...preview, NEXTAUTH_URL: `http://${host}:3100` })).siteUrl)
+        .toBe(`http://${host}:3100`);
+    }
+    // The preview never reaches a public host, not even over https.
+    throws({ ...preview, NEXTAUTH_URL: "http://example.com" }, "NEXTAUTH_URL");
+    throws({ ...preview, NEXTAUTH_URL: PROD_URL }, "NEXTAUTH_URL");
+    // The Cognito hosted domain stays https-only.
+    throws({ ...preview, COGNITO_DOMAIN: "http://localhost:9229" }, "COGNITO_DOMAIN");
+    // Without the flag (or with false) production keeps requiring https.
+    throws({ NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "false", NEXTAUTH_URL: LOCAL_URL }, "NEXTAUTH_URL");
+    throws({ NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "yes", NEXTAUTH_URL: LOCAL_URL }, "PEOPLEFLOW_LOCAL_PREVIEW");
+  });
+
   it("rejects NEXTAUTH_URL values that are not an exact credential-free origin", () => {
     for (const value of [
       undefined,
