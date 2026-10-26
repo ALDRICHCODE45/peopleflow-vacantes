@@ -5,7 +5,6 @@ import { hydrateRoot } from "react-dom/client";
 import "@testing-library/jest-dom/vitest";
 import { legacyDetail, listItem, vacancyDetail } from "../api/public-fixtures";
 import { PublicVacancyCard } from "./PublicVacancyCard";
-import { PublicJobCardSkeleton } from "./PublicJobSkeleton";
 import { VacancyCard } from "./VacancyCard";
 
 const NOW = new Date("2026-10-18T12:00:00Z");
@@ -120,20 +119,4 @@ it("leaves no enrichment placeholders for absent legacy content", () => {
   const { container } = render(<PublicVacancyCard job={{ ...listItem(legacyDetail), excerpt: null }} />);
   expect(container.querySelector('[data-slot="separator"]')).toBeNull();
   expect(container).not.toHaveTextContent(/Habilidades|Beneficios|Postulación rápida/);
-});
-
-it.each([vacancyDetail, legacyDetail, { ...legacyDetail, legacy_salary: null, location: null }])("mirrors native slots and footer geometry for the $source skeleton", (detail) => {
-  const job = listItem(detail);
-  const loaded = render(<PublicVacancyCard job={job} />);
-  const slots = (root: Element) => [...root.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
-  const expectedSlots = slots(loaded.container);
-  const conditionsCount = loaded.container.querySelectorAll('[data-public-job-chips] li').length;
-  const cardClass = loaded.container.querySelector('[data-slot="card"]')!.className;
-  const footerClass = loaded.container.querySelector('[data-slot="card-footer"]')!.className;
-  loaded.unmount();
-  const { container } = render(<PublicJobCardSkeleton job={job} />);
-  expect(slots(container)).toEqual(expectedSlots);
-  expect(container.querySelector('[data-slot="card"]')).toHaveAttribute("class", cardClass);
-  expect(container.querySelector('[data-slot="card-footer"]')).toHaveAttribute("class", footerClass);
-  expect(container.querySelectorAll('[data-public-job-chips] li')).toHaveLength(conditionsCount);
 });

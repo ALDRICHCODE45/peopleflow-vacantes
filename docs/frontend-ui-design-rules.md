@@ -602,6 +602,11 @@ migración masiva ni conectar prototipos a persistencia inexistente.
 - No agregar timers, latencias ni skeletons a datos locales ya disponibles. Un
   `loading.tsx` representa una espera real del segmento; no reemplaza automáticamente
   la carga de consultas del cliente.
+- No poner `loading.tsx` (ni un `<Suspense>` con `key` por búsqueda) en un segmento
+  cuyas navegaciones solo cambian search params, como `/vacantes`: con Next 15 hace
+  que algunas de esas navegaciones nunca se apliquen (vercel/next.js#83386, arreglado
+  en React y Next 16, que Amplify todavía no soporta). La espera la muestra el
+  componente que navega (`useTransition`, como `JobsNavigationIsland`).
 - Cuando la estructura es observable, un test compara la secuencia de `data-slot` del
   skeleton con la del componente cargado.
 - Si todavía no se sabe qué pantalla va a llegar (por ejemplo, el control de rol antes

@@ -4,7 +4,6 @@ import "@testing-library/jest-dom/vitest";
 import { legacyDetail, listItem, vacancyDetail } from "../api/public-fixtures";
 import { PublicVacancyCard } from "./PublicVacancyCard";
 import { PublicJobDetailView } from "./PublicJobDetailView";
-import { PublicJobCardSkeleton } from "./PublicJobSkeleton";
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -98,14 +97,4 @@ it.each([true, false])("reports the actual clipboard outcome (success %s)", asyn
   fireEvent.click(screen.getByRole("button", { name: "Compartir vacante" }));
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(success ? "Enlace copiado" : "Copia la dirección de esta página para compartirla."));
   expect(writeText).toHaveBeenCalledWith(window.location.href);
-});
-
-it.each([vacancyDetail, legacyDetail])("mirrors the redesigned $source slots and major geometry while loading", (job) => {
-  const slots = (root: Element) => [...root.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
-  const card = render(<PublicVacancyCard job={listItem(job)} />);
-  const expectedCardSlots = slots(card.container);
-  card.unmount();
-  const skeleton = render(<PublicJobCardSkeleton job={job} />);
-  expect(slots(skeleton.container)).toEqual(expectedCardSlots);
-  expect(skeleton.container.querySelector('[data-slot="card-footer"]')).toHaveClass("bg-muted/40", "max-[480px]:flex-col");
 });
