@@ -19,7 +19,6 @@ panel voseo.
 
 ## Waiting on the user
 
-- **Cognito Allowed sign-out URLs** — console action, guide step 89 (`docs/employer-manual-test.md`).
 - **Browser checks without a recorded defect** — board Estado/Municipio filters with a new application from a located
   profile; candidate view of «Vacante cerrada» (closing the process vs closing only the publication).
 
