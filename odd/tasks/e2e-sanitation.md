@@ -30,9 +30,11 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
 - T2. S2 — production build + both fixtures + full run of the five specs; classify every failure · inline.
 - T3. S3 — fix per class (stale specs, product a11y defects, environment) · routed after T2.
 - [x] T4. S4 — document the e2e run in `docs/local-production-preview.md` · inline.
-- T5. S6 — find why `notFound()`/`redirect()` answer 200 (suspected: `loading.tsx` streaming) and fix · worker ·
-  product.
-- T6. S5 — jobs fixture on the `/v2/jobs` contract (list, detail, control endpoints) · worker.
+- [x] T5. S6 — find why `notFound()`/`redirect()` answer 200 (suspected: `loading.tsx` streaming) and fix · worker ·
+  product (L6).
+- [x] T6. S5 — jobs fixture on the `/v2/jobs` contract (list, detail, control endpoints) · worker · 67e99b3a (L7).
+- **Slice boundary:** commits through 67e99b3a (auth preview, serial removal + docs, 404/307, v2 fixture) are
+  slice 1, ~500 lines; the spec rewrites T7–T8 start slice 2.
 - T7. S5 — rewrite `vacantes.spec.ts` + `vacantes-a11y.spec.ts` against the current UI · after T6.
 - T8. S5 — rewrite `vacante-detalle.spec.ts` + `vacante-postular.spec.ts` · after T6.
 - T9. S5 — list obsolete tests (candidate-workspace, removed flows) for the user's deletion OK.
@@ -62,3 +64,22 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   lists, visitor card replaced the dual-login menu); product defects: `/vacantes/not-a-uuid` 200 instead of 404,
   canonical listing redirects 200 instead of 307. Prod build made the 4 list axe failures disappear (dev-only).
   User: «Suite enfocada en lo público» and «Sí, investigar y corregir».
+- **L6 (T5 evidence):** root cause confirmed: the 200 documents carried `NEXT_HTTP_ERROR_FALLBACK;404` and
+  `NEXT_REDIRECT` markers — `loading.tsx` had flushed the shell before the page decided. Fix: `src/middleware.ts`
+  (matcher `/vacantes`, `/vacantes/:jobId`, `/vacantes/:jobId/postular`; reuses `isValidJobId`,
+  `isCanonicalJobsQuery`, `buildJobsUrl`; no API call) 307-redirects non-canonical listings and rewrites malformed ids
+  to `/vacante-no-encontrada`, a route outside the vacancy loading ancestry whose page calls `notFound()` (branded
+  not-found reused, header breadcrumb «Vacantes», framework noindex). Loading skeletons and in-page checks kept.
+  Tried and dropped: rewrite target inside the loading tree (still 200), relative `Location` (Next 15 adapter → 500),
+  host/forwarded-header authority (host-header injection surface, overwritten by Next anyway). Accepted: Next
+  normalizes a loopback `127.0.0.1` redirect origin to `localhost` (production uses the real https origin).
+  Evidence: production curl malformed detail/apply/direct 404 with breadcrumb and one noindex; non-canonical 307;
+  canonical/valid 200; hostile `X-Forwarded-Host` does not redirect away. 21 middleware tests; vitest 7104/7104,
+  tsc, eslint clean. e2e: «malformed UUID never reaches the API» passes; «canonicalizes before API access» now
+  passes the 307 and fails only at the fixture request count (old fixture contract, T6).
+- **L7 (T6 evidence):** fixture serves `/v2/jobs`, `/v2/jobs/{id}`, languages, countries, states, municipalities
+  and postal-code lookups; seven control endpoints kept, `/__requests` records v2 queries; ids …d8e, …7d90,
+  …7d92, …7d94, …7d96 kept with realistic data; old `/jobs` kept because a spec calls it directly. Proof:
+  `vitest --config tests/fixtures/vitest.config.ts` 3/3 with the product validators; production smoke renders
+  list rows, the detail article and the visitor apply gate. «canonicalizes before API access» now passes the redirect
+  and the request count and fails at a stale currency assertion (expects «Todas», UI shows «MXN») → T7.
