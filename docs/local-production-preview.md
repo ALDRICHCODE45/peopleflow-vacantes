@@ -76,17 +76,25 @@ node tests/fixtures/jobs-server.mjs &   # API mock
 pnpm build
 pnpm start --hostname 127.0.0.1 --port 3100 &
 pnpm exec playwright test tests/e2e/vacantes.spec.ts tests/e2e/vacantes-a11y.spec.ts \
-  tests/e2e/vacante-detalle.spec.ts tests/e2e/vacante-postular.spec.ts \
-  tests/e2e/candidate-workspace.spec.ts
+  tests/e2e/vacante-detalle.spec.ts tests/e2e/vacante-postular.spec.ts
 ```
+
+Resultado esperado: 83 tests, todos en verde y ninguno sin correr.
 
 - Las variables de entorno de la terminal tienen prioridad sobre `.env.local`.
 - `PEOPLEFLOW_API_TIMEOUT_MS=1000` es el valor con el que los specs prueban los
   timeouts de la API.
 - `vacante-postular.spec.ts` lee `PLAYWRIGHT_FIXTURE_ORIGIN` (por defecto `:4011`);
   apuntarlo a `:4010` permite usar una sola API mock para todos los specs.
-- Varios specs usan `mode: "serial"`: el primer fallo de un archivo hace que el
-  resto figure como «did not run». Un resultado solo es válido si no queda ningún
-  test sin correr.
+- Los specs corren en modo independiente: un fallo no esconde el resto. Un
+  resultado solo es válido si no queda ningún test como «did not run».
+- No uses `route.abort()` sobre los prefetch de Next salvo el de los detalles
+  (`/vacantes/<id>`) que ya hace `vacantes.spec.ts`: abortarlos puede hacer que
+  la navegación siguiente a esa URL se pierda.
+- El área privada del candidato (`/candidato/*`) no tiene e2e: hace falta una
+  sesión de prueba.
+- Problema conocido: «renders the approved hero…» falla alrededor de 1 de cada 5
+  corridas (el filtro rápido «Todas» pierde su navegación); está registrado como
+  follow-up en `odd/tasks/e2e-sanitation.md`.
 - Después de cambiar código de `src/`, vuelve a ejecutar `pnpm build` antes de
   repetir los specs.

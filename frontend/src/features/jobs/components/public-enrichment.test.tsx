@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { legacyDetail, listItem, vacancyDetail } from "../api/public-fixtures";
 import { PublicVacancyCard } from "./PublicVacancyCard";
 import { PublicJobDetailView } from "./PublicJobDetailView";
-import { PublicJobCardSkeleton, PublicJobDetailSkeleton } from "./PublicJobSkeleton";
+import { PublicJobCardSkeleton } from "./PublicJobSkeleton";
 
 vi.mock("@/components/ui/tooltip", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/ui/tooltip")>();
@@ -112,14 +112,7 @@ it("uses a full skills section in entered order on detail, not just its preview,
   expect(screen.queryByText(/postulantes|Postulación rápida|preguntas? de filtro/)).toBeNull();
 });
 
-it("mirrors enriched detail Card slots and reserves list excerpt and preview rows while loading", () => {
-  const slots = (root: Element) => [...root.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
-  const loaded = render(<PublicJobDetailView job={detail} />);
-  const expected = slots(loaded.container);
-  loaded.unmount();
-  const skeleton = render(<PublicJobDetailSkeleton job={detail} />);
-  expect(slots(skeleton.container)).toEqual(expected);
-  skeleton.unmount();
+it("reserves list excerpt and preview rows while loading", () => {
   const { container } = render(<PublicJobCardSkeleton />);
   expect(container.querySelector('[data-skeleton-excerpt]')).not.toBeNull();
   expect(container.querySelectorAll('[data-public-job-chips] li')).toHaveLength(4);

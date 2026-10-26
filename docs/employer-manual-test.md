@@ -767,6 +767,12 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     «Crear cuenta»: aparece el formulario de registro de Cognito, no el login.
     «Ingresar» conserva el acceso habitual. Esta configuración y la verificación
     real las realiza el usuario; no requieren cambios de código ni de callback.
+    **Hecho en el entorno local (2026-10-26, AWS CLI con autorización del usuario):** el
+    app client tenía solo `/empresa/login`; se agregó `/candidato/login` sin tocar ningún
+    otro campo (callbacks, scopes, flujos y secret iguales, comparado contra un respaldo).
+    El autorregistro ya estaba habilitado. Verificado: el `/logout` de Cognito redirige
+    con 302 a `/candidato/login` y a `/empresa/login`. Para otro entorno (otro origen),
+    repetí el paso con su `NEXTAUTH_URL`.
 
 90. **Dashboard de empresa con datos reales.** Con una empresa que tenga vacantes
     publicadas, pausadas y candidatos orgánicos y manuales, abre `/empresa/dashboard`.

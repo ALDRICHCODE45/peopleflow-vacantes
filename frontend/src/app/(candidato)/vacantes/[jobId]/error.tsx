@@ -1,16 +1,26 @@
 "use client";
 
+import * as React from "react";
 import { CircleAlertIcon } from "lucide-react";
 import { StateCard } from "@/components/feedback/state-card";
+import { reloadPage } from "@/features/jobs/components/reload-page";
 
-export default function VacanteDetailError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+/** Retry reloads the document: reset() only re-renders on the client and never
+    re-requests the server data that failed. */
+type ErrorProps = { error: Error & { digest?: string }; reset: () => void };
+
+/* Next passes { error, reset }; neither is used (the retry reloads). */
+const VacanteDetailError: (props: ErrorProps) => React.JSX.Element = () => {
+  const [retrying, setRetrying] = React.useState(false);
   return <>
     {/* React hoists this into <head>: an API failure must never be indexed as the vacancy. */}
     <meta name="robots" content="noindex" />
     <StateCard headingLevel={1} role="alert" icon={CircleAlertIcon} tone="error"
       title="No se pudo cargar la vacante"
       description="El servicio de vacantes no respondió correctamente. Puedes reintentar la carga."
-      primaryAction={{ label: "Reintentar", onClick: reset }}
+      primaryAction={{ label: "Reintentar", disabled: retrying, onClick: () => { setRetrying(true); reloadPage(); } }}
       secondaryAction={{ label: "Ver vacantes", href: "/vacantes" }} />
   </>;
-}
+};
+
+export default VacanteDetailError;
