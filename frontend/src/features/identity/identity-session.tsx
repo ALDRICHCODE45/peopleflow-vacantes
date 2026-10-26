@@ -49,10 +49,18 @@ function IdentityLoader({ children, session }: { children: React.ReactNode; sess
 function SessionIdentityBoundary({ children }: { children: React.ReactNode }) {
   const session = useSession();
   const active = session.status === "authenticated" && !session.data?.error;
-  // A sign-out/expiration must discard identity even if the next login uses
-  // the same email. Keyed lifetime also cancels stale requests on account switches.
-  const key = active ? JSON.stringify([session.data?.user?.email, session.data?.user?.name]) : session.status + (session.data?.error ?? "");
-  return <IdentityLoader key={key} session={session}>{children}</IdentityLoader>;
+  const identity = active ? JSON.stringify([session.data?.user?.email, session.data?.user?.name]) : null;
+  // A sign-out, expiration or account switch must discard the previous
+  // account's subtree (and its stale requests) even if the next login uses the
+  // same email. Resolving the first session (loading -> visitor or first
+  // account) has nothing to discard, so public pages keep focus and state.
+  const [lifetime, setLifetime] = React.useState({ identity, generation: 0 });
+  let current = lifetime;
+  if (identity !== lifetime.identity) {
+    current = { identity, generation: lifetime.identity === null ? lifetime.generation : lifetime.generation + 1 };
+    setLifetime(current);
+  }
+  return <IdentityLoader key={current.generation} session={session}>{children}</IdentityLoader>;
 }
 
 /** The public NextAuth projection has no tokens. All API calls run in actions. */

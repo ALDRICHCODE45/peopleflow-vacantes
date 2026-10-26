@@ -265,3 +265,30 @@ describe("area role guards", () => {
     expect(screen.queryByText("private content")).toBeNull(); await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/candidato/login"));
   });
 });
+
+describe("session subtree lifetime", () => {
+  let mounts = 0;
+  function Probe() { React.useEffect(() => { mounts += 1; }, []); return <p>public content</p>; }
+  const tree = () => <IdentitySessionProvider><Probe /></IdentitySessionProvider>;
+  const set = (session: typeof mocks.session) => { mocks.session = session; };
+  const signedIn = (email: string) => ({ status: "authenticated", data: { user: { email } } });
+  // Mount-only assertions: the identity read stays pending so nothing resolves after them.
+  beforeEach(() => { mounts = 0; mocks.load.mockImplementation(() => new Promise(() => {})); });
+  it.each([
+    ["loading to visitor", { status: "unauthenticated", data: null }],
+    ["loading to the first account", signedIn("a@example.com")],
+  ])("keeps public content mounted from %s", (_label, next) => {
+    set({ status: "loading", data: null }); const view = render(tree());
+    set(next); view.rerender(tree());
+    expect(mounts).toBe(1);
+  });
+  it.each([
+    ["sign-out", { status: "unauthenticated", data: null }],
+    ["an account switch", signedIn("b@example.com")],
+    ["a refresh expiration", { status: "authenticated", data: { user: { email: "a@example.com" }, error: "RefreshAccessTokenError" } }],
+  ])("discards the previous account's subtree on %s", (_label, next) => {
+    set(signedIn("a@example.com")); const view = render(tree());
+    set(next); view.rerender(tree());
+    expect(mounts).toBe(2);
+  });
+});
