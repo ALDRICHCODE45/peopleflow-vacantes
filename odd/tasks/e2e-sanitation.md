@@ -15,6 +15,13 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   defect (e.g. axe violations) → fix the product; environment-only → document how to run it. No test is deleted or
   skipped to go green without the user's decision.
 - **S4. Repeatable.** One documented command sequence (docs) starts fixtures, builds, starts and runs the specs.
+- **S5. Public-focused suite.** User decision (L5): «Suite enfocada en lo público» — the jobs fixture speaks the
+  current `/v2/jobs` contract the product reads; the vacancy specs (list, detail, apply as a visitor, a11y) are
+  rewritten against the current UI with assertions of the same strength. `candidate-workspace` and tests of flows
+  that no longer exist are listed for deletion and deleted only with the user's OK.
+- **S6. Correct HTTP status.** User decision (L5): «Sí, investigar y corregir» — `/vacantes/<malformed>` must
+  answer 404 and non-canonical listing URLs (`/vacantes?q=`, unknown params) must answer 307 to the canonical URL,
+  without losing the loading skeleton; if that is not possible, bring the alternatives before touching it.
 
 ## Tasks
 
@@ -22,7 +29,13 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   own commit (`fix(auth)` after this line) · independent verify (L4).
 - T2. S2 — production build + both fixtures + full run of the five specs; classify every failure · inline.
 - T3. S3 — fix per class (stale specs, product a11y defects, environment) · routed after T2.
-- T4. S4 — document the e2e run in `docs/local-production-preview.md` · inline.
+- [x] T4. S4 — document the e2e run in `docs/local-production-preview.md` · inline.
+- T5. S6 — find why `notFound()`/`redirect()` answer 200 (suspected: `loading.tsx` streaming) and fix · worker ·
+  product.
+- T6. S5 — jobs fixture on the `/v2/jobs` contract (list, detail, control endpoints) · worker.
+- T7. S5 — rewrite `vacantes.spec.ts` + `vacantes-a11y.spec.ts` against the current UI · after T6.
+- T8. S5 — rewrite `vacante-detalle.spec.ts` + `vacante-postular.spec.ts` · after T6.
+- T9. S5 — list obsolete tests (candidate-workspace, removed flows) for the user's deletion OK.
 
 ## Log
 
@@ -42,3 +55,10 @@ among old ones. Run against `next build` + `next start` with the jobs fixture, n
   validators check the normalized URL, so `http://localhost/foo/..` or `http://@localhost` normalize to
   `http://localhost`; accepted as intended (operator-written config, only the normalized origin is used, no
   external redirect shown); hardening both validators is out of scope. Error message updated to mention the flag.
+- **L5 (T3 evidence + user decisions):** worker removed `mode: "serial"` from 4 specs so nothing hides: 101 tests
+  run, 13 pass / 88 fail. Causes: the product reads `/v2/jobs` (`getJob.ts:64`, `listJobs.ts:62`) but the fixture
+  only serves the old `/jobs` contract; `candidate-workspace` predates login (`/candidato/*` now requires a session);
+  stale selectors (Sheet is «Filtrar vacantes», salary currency `desktop-salary_currency`, quick filters, sidebar
+  lists, visitor card replaced the dual-login menu); product defects: `/vacantes/not-a-uuid` 200 instead of 404,
+  canonical listing redirects 200 instead of 307. Prod build made the 4 list axe failures disappear (dev-only).
+  User: «Suite enfocada en lo público» and «Sí, investigar y corregir».
