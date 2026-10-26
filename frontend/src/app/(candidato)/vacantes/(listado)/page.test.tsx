@@ -10,6 +10,8 @@ import { legacyDetail, listItem } from "../../../../features/jobs/api/public-fix
 const { push, redirect, read } = vi.hoisted(() => ({ push: vi.fn(), redirect: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }), read: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), redirect }));
 vi.mock("../../../../features/jobs/api/listJobs", () => ({ listJobsQueryOptions: (query: unknown) => ({ queryKey: ["jobs", query], queryFn: read }) }));
+const reload = vi.hoisted(() => ({ reloadPage: vi.fn() }));
+vi.mock("@/features/jobs/components/reload-page", () => reload);
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const vacancyList = <ul aria-label="Listado de vacantes" />;
 
@@ -49,7 +51,7 @@ describe("/vacantes v2 page", () => {
 });
 
 describe("/vacantes synchronous boundaries", () => {
-  it("keeps the client route error with the shared heading and a reset action", async () => {
+  it("keeps the client route error with the shared heading and a reload retry", async () => {
     const ErrorBoundary = (await import("../error")).default;
     const reset = vi.fn();
     const { container } = render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
@@ -60,7 +62,8 @@ describe("/vacantes synchronous boundaries", () => {
     expect(screen.getByText("No se mostró ninguna vacante. Vuelve a intentarlo; si el problema sigue, prueba de nuevo en unos minutos.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Reintentar" })).toHaveClass("bg-primary");
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
-    expect(reset).toHaveBeenCalledOnce();
+    expect(reload.reloadPage).toHaveBeenCalledOnce();
+    expect(reset).not.toHaveBeenCalled();
   });
   it.each(["Buscar", "Aplicar filtros"])("announces and isolates pending %s navigation", (label) => {
     const fixture = (routeKey: string) => <JobsNavigationIsland routeKey={routeKey}>

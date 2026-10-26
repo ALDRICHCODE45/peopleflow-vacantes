@@ -11,6 +11,8 @@ import ErrorBoundary from "./error";
 vi.mock("../../../../lib/api/server", async () => ({ requestJson: (await import("../../../../lib/api/requestJson")).requestJson }));
 vi.mock("../../../../lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://127.0.0.1:8080", siteUrl: "http://127.0.0.1:3000", apiTimeoutMs: 8000 } }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NEXT_NOT_FOUND"); } }));
+const reload = vi.hoisted(() => ({ reloadPage: vi.fn() }));
+vi.mock("@/features/jobs/components/reload-page", () => reload);
 const params = (jobId: string) => Promise.resolve({ jobId });
 const response = (body: unknown, status = 200) => ({ ok: status < 300, status, json: async () => body });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -91,7 +93,8 @@ describe("public detail route", () => {
     expect(back).not.toHaveClass("bg-primary");
     expect(back.closest('[data-slot="empty-content"]')).not.toBeNull();
     fireEvent.click(retry);
-    expect(reset).toHaveBeenCalledOnce();
+    expect(reload.reloadPage).toHaveBeenCalledOnce();
+    expect(reset).not.toHaveBeenCalled();
     expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();
     // An API failure must never be indexed as the vacancy page.
     expect(document.head.querySelector('meta[name="robots"][content="noindex"]')).not.toBeNull();
