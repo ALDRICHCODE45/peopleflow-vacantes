@@ -123,10 +123,13 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
           </form>
         </CardContent>
       </Card>
-      {status}
-      <ToggleGroup multiple value={QUICK_FILTERS.filter((item) => item.isActive(query)).map((item) => item.label)} variant="outline" aria-label="Filtros rápidos" className="max-w-full flex-wrap">
-        {QUICK_FILTERS.map((item) => <ToggleGroupItem key={item.label} value={item.label} className="min-h-10" onClick={(event) => startNavigation(buildFilterCommitUrl(routeKey, item.patch), event.currentTarget, null)}>{item.label}</ToggleGroupItem>)}
-      </ToggleGroup>
+      {/* The live region stays mounted for announcements but shares the quick-filter row. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <ToggleGroup multiple value={QUICK_FILTERS.filter((item) => item.isActive(query)).map((item) => item.label)} variant="outline" aria-label="Filtros rápidos" className="max-w-full flex-wrap">
+          {QUICK_FILTERS.map((item) => <ToggleGroupItem key={item.label} value={item.label} className="min-h-10" onClick={(event) => startNavigation(buildFilterCommitUrl(routeKey, item.patch), event.currentTarget, null)}>{item.label}</ToggleGroupItem>)}
+        </ToggleGroup>
+        {status}
+      </div>
       <JobsFilterChips query={query} geo={geo} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)}>
         <JobsProfileFilterChips query={query} languages={languages} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
         <JobsSalaryFilterChip query={query} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />

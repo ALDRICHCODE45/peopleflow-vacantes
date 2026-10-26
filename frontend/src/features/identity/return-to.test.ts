@@ -7,6 +7,9 @@ describe("safeReturnTo", () => {
     "/vacantes",
     "/vacantes?q=software%20engineer",
     "/vacantes?q=dise%C3%B1o&page=2",
+    // A literal % in a search is %25: once decoded it is a stray %, not an escape.
+    "/vacantes?q=50%25",
+    "/vacantes?q=100%25%20remoto&page=2",
     "/vacantes/abc/postular",
     "/candidato/postulaciones",
   ])("keeps the internal destination %s", value => {
@@ -18,6 +21,13 @@ describe("safeReturnTo", () => {
     "/\\evil.com",
     "/%2F%2Fevil.com",
     "/%252F%252Fevil.com",
+    // A stray % must not stop the nested decoding that exposes an authority.
+    "/%252F%252Fevil.com?q=50%25",
+    // An undecodable escape run must not shield the valid separators beside it.
+    "/%252F%252F%25FF@evil.com",
+    "/%255C%25FF@evil.com",
+    "/%252F%252F%25C0%25AF@evil.com",
+    "/%zz",
     "%2F%2Fevil.com",
     "https://evil.com",
     "javascript:alert(1)",
