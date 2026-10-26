@@ -99,10 +99,10 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       {errorNotice && <ActionStatus id="detail-action-status" tone={errorNotice.tone} text={errorNotice.text} />}
     </SheetHeader>
     <Tabs value={tab} onValueChange={value => setTab(String(value))} className="min-h-0 flex-1 gap-0">
-      <div className="px-6 pb-5"><TabsList aria-label="Secciones de la ficha" className="pf-candidate-tabs w-full rounded-lg group-data-horizontal/tabs:h-11 **:data-[slot=badge]:h-4 **:data-[slot=badge]:min-w-4 **:data-[slot=badge]:rounded-sm **:data-[slot=badge]:px-1 **:data-[slot=badge]:text-[11px]">
-        <TabsTrigger value="summary" className="rounded-md text-xs">Resumen</TabsTrigger>
-        <TabsTrigger value="answers" className="rounded-md text-xs">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
-        <TabsTrigger value="history" className="rounded-md text-xs">Historial <Badge variant="secondary">{loaded?.history.items.length ?? "…"}</Badge></TabsTrigger>
+      <div className="px-6 pb-5"><TabsList aria-label="Secciones de la ficha" className="w-full group-data-horizontal/tabs:h-11">
+        <TabsTrigger value="summary">Resumen</TabsTrigger>
+        <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
+        <TabsTrigger value="history">Historial <Badge variant="secondary">{loaded?.history.items.length ?? "…"}</Badge></TabsTrigger>
       </TabsList></div><Separator />
       <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
         <TabsContent value={tab} className="p-6" aria-busy={reading}>

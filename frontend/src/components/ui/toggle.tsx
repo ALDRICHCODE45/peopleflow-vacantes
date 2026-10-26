@@ -11,6 +11,10 @@ const toggleVariants = cva(
       variant: {
         default: "bg-transparent",
         outline: "border border-input bg-transparent hover:bg-muted",
+        // Segmented control: the pressed item lifts out of the ToggleGroup's
+        // muted track. Mirrors the default TabsList so both read as one pattern.
+        segmented:
+          "rounded-lg text-foreground/70 transition-[color,background-color,box-shadow] duration-150 hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:text-muted-foreground dark:hover:text-foreground dark:aria-pressed:bg-foreground/10 dark:aria-pressed:text-foreground dark:aria-pressed:shadow-none",
       },
       size: {
         default:
