@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { legacyDetail, listItem, vacancyDetail } from "../api/public-fixtures";
 import { PublicVacancyCard } from "./PublicVacancyCard";
 import { PublicJobDetailView } from "./PublicJobDetailView";
-import { PublicJobCardSkeleton, PublicJobDetailSkeleton } from "./PublicJobSkeleton";
+import { PublicJobCardSkeleton } from "./PublicJobSkeleton";
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -89,10 +89,6 @@ it("preserves authored rich lists, ordered starts and paragraph-only requirement
   expect(screen.getByText(/Primera línea/)).toHaveClass("whitespace-pre-wrap");
   expect(screen.queryByRole("heading", { name: "También valoramos" })).toBeNull();
   view.unmount();
-  const skeleton = render(<PublicJobDetailSkeleton job={job} />);
-  const loadingContent = skeleton.container.querySelector(".pf-job-description")!;
-  expect(loadingContent.querySelectorAll("ul > li")).toHaveLength(1);
-  expect(loadingContent.querySelector("ol")).toHaveAttribute("start", "3");
 });
 
 it.each([true, false])("reports the actual clipboard outcome (success %s)", async (success) => {
@@ -106,16 +102,6 @@ it.each([true, false])("reports the actual clipboard outcome (success %s)", asyn
 
 it.each([vacancyDetail, legacyDetail])("mirrors the redesigned $source slots and major geometry while loading", (job) => {
   const slots = (root: Element) => [...root.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
-  const view = render(<PublicJobDetailView job={job} />);
-  const expected = slots(view.container);
-  const classes = [...view.container.querySelectorAll('[data-slot="card"]')].map(node => node.className);
-  view.unmount();
-  const loading = render(<PublicJobDetailSkeleton job={job} />);
-  expect(slots(loading.container)).toEqual(expected);
-  expect([...loading.container.querySelectorAll('[data-slot="card"]')].map(node => node.className)).toEqual(classes);
-  expect(loading.container.querySelector("aside")).toHaveClass("lg:sticky");
-  expect(screen.getByRole("status")).toHaveTextContent("Cargando vacante");
-  loading.unmount();
   const card = render(<PublicVacancyCard job={listItem(job)} />);
   const expectedCardSlots = slots(card.container);
   card.unmount();

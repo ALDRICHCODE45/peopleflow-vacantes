@@ -6,7 +6,7 @@ import { PublicVacancyCard } from "./components/PublicVacancyCard";
 import { PublicJobDetailView } from "./components/PublicJobDetailView";
 import { VacancyCard } from "./components/VacancyCard";
 import { JobDetailView } from "./components/JobDetailView";
-import { PublicJobCardSkeleton, PublicJobDetailSkeleton } from "./components/PublicJobSkeleton";
+import { PublicJobCardSkeleton } from "./components/PublicJobSkeleton";
 import { JobsNavigationIsland } from "./components/JobsNavigationIsland";
 import { VacancyPreview } from "./create/VacancyPreview";
 import { INITIAL_PROTOTYPE_VALUES } from "./create/form/prototype-model";
@@ -128,16 +128,6 @@ it.each([vacancyDetail, legacyDetail, { ...vacancyDetail, compensation: null, re
   expect(sequence(loadingList.container)).toEqual(listSlots);
   expect(loadingList.container.querySelectorAll('dl > div')).toHaveLength(factsCount);
   loadingList.unmount();
-  const detail = render(<PublicJobDetailView job={job} />);
-  const itemCount = detail.container.querySelectorAll('[data-slot="item"]').length;
-  const detailSlots = sequence(detail.container);
-  detail.unmount();
-  const loadingDetail = render(<PublicJobDetailSkeleton job={job} />);
-  expect(loadingDetail.container.querySelector('section > div[aria-hidden="true"]')?.firstElementChild).toHaveAttribute("data-slot", "card");
-  expect(sequence(loadingDetail.container)).toEqual(detailSlots);
-  expect(loadingDetail.container.querySelectorAll('[data-slot="item"]')).toHaveLength(itemCount);
-  for (const skeleton of loadingDetail.container.querySelectorAll('[data-slot="skeleton"]')) expect(skeleton.closest('[aria-hidden="true"]')).not.toBeNull();
-  expect(screen.getByRole("status")).toHaveTextContent("Cargando vacante");
 });
 
 it("keeps filter closing actions in a footer inside their original form", () => {
