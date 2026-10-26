@@ -76,6 +76,10 @@ test.describe("vacancy list axe WCAG A/AA matrix", () => {
         }) => {
           await page.goto("/vacantes");
           expect(page.viewportSize()).toEqual(viewport);
+          await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
+          await expect(page.locator("[data-pf-public-navbar]")).toHaveCount(0);
+          await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+          if (label === "mobile") await expect(page.locator("main > header").getByRole("link", { name: "Ingresar" })).toBeVisible();
           const results = await new AxeBuilder({ page })
             .withTags(["wcag2a", "wcag2aa"])
             .analyze();
@@ -289,11 +293,10 @@ test.describe("rendered list layout and preset token fidelity", () => {
         jobTitleLink: font('[aria-label="Listado de vacantes"] a'),
       };
     });
-    // Inter stays the body/controls face; Clash Display (with the Inter
-    // fallback baked into --font-heading) owns the heading role.
+    // The app's body and headings share Inter (§14.1).
     expect(typography.body).toMatch(/Inter/);
-    expect(typography.h1).toContain("Clash Display");
-    expect(typography.jobTitleLink).toContain("Clash Display");
+    expect(typography.h1).toContain("Inter");
+    expect(typography.jobTitleLink).toContain("Inter");
 
     // Semantic token ownership: each representative control's computed color
     // must equal the value the design token resolves to (a var() probe
@@ -602,7 +605,7 @@ test.describe("reduced motion on vacancy controls", () => {
   }) => {
     await page.goto("/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e");
     await expectReducedMotionMatches(page);
-    const link = page.locator('a[href="/vacantes"]').first();
+    const link = page.locator("main > header").getByRole("navigation", { name: "Ruta de navegación" }).getByRole("link", { name: "Vacantes", exact: true });
     assertMotionCollapsed(await motionOf(link), "detail return link");
     await link.focus();
     await page.keyboard.press("Enter");

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Briefcase, Building2, CircleAlert, FileText, Info, ListChecks, UserRound } from "lucide-react";
-import { RoleBlocked } from "@/features/identity/identity-states";
+import { LogoutButton } from "@/features/identity/identity-states";
 import { CvStorageUnavailable } from "@/features/candidate-cvs/storage-unavailable";
 import { failureCopy as cvFailureCopy, failureStatus as cvFailureStatus } from "@/features/candidate-cvs/feedback";
 import { loadMeAction } from "@/features/identity/actions";
@@ -208,7 +208,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   if (failure?.reason === "not_found") return <ResultCard title="Esta vacante ya no está disponible" state="No disponible" description="No puedes enviar una postulación a esta vacante. Puedes explorar otras oportunidades."><Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link></ResultCard>;
   if (!identity) return <Loading />;
   if ((!identity.ok && identity.reason === "unauthenticated") || failure?.reason === "unauthenticated") return <ResultCard title="Datos" state="Sesión requerida" tone="review" description="Ingresa con tu cuenta de candidato para postularte."><Button className="min-h-10 w-full sm:w-auto" onClick={() => void signIn("cognito", { callbackUrl: `/vacantes/${job.id}/postular` })}>Ingresar como candidato</Button></ResultCard>;
-  if ((identity.ok && identity.data.role === "recruiter") || failure?.reason === "wrong_role" || libraryError?.reason === "wrong_role") return <RoleBlocked kind="recruiter" />;
+  if ((identity.ok && identity.data.role === "recruiter") || failure?.reason === "wrong_role" || libraryError?.reason === "wrong_role") return <StateCard icon={Building2} tone="forbidden" title="Las postulaciones son para cuentas de candidato" description="Puedes explorar las vacantes o continuar en tu panel de empresa."><div className="flex flex-col items-center gap-2 sm:flex-row"><Link href="/empresa/dashboard" className={buttonVariants({ className: "min-h-10" })}>Ir a mi panel</Link><LogoutButton area="candidate" /></div></StateCard>;
   if (libraryError?.reason === "storage_unavailable") return <CvStorageUnavailable retry={() => void retryCvs()} pending={loading} status={<ActionStatus id="application-cvs-status" tone="error" text={cvFailureStatus(libraryError, cvFailureCopy(libraryError))} />} statusId="application-cvs-status" />;
   if (identity.ok && identity.data.role === null) return <ResultCard title="Datos" state="Cuenta pendiente" tone="review" description="Completa tu cuenta antes de postularte."><Link href="/candidato/ingresar" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Completar mi cuenta de candidato</Link></ResultCard>;
   if (!candidate || !library || !screening) {

@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 
 // VAF-02 RED: the application route and its feature shell do not exist yet, so
 // every contract below fails until `postular/page.tsx` and the shell land.
-const routeDir = join(process.cwd(), "src/app/(public)/vacantes/[jobId]/postular");
+const routeDir = join(process.cwd(), "src/app/(candidato)/vacantes/[jobId]/postular");
 const routeFile = join(routeDir, "page.tsx");
 
 /** Exact wire-only fixture the shared detail loader already knows. */
@@ -168,10 +168,8 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     expect(headings[0]).toHaveTextContent("Postularme");
     expect(container).toHaveTextContent(wireJob.title);
     expect(container).toHaveTextContent(wireJob.company.name);
-    expect(screen.getByRole("link", { name: /volver a la vacante/i })).toHaveAttribute(
-      "href",
-      `/vacantes/${jobId}`,
-    );
+    expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /volver a la vacante/i })).toBeNull();
 
     // The shell header carries no implementation-status or no-send disclosure.
     const header = container.querySelector("[data-pf-application-header]");

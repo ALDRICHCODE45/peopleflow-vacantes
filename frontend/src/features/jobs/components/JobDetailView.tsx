@@ -1,7 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  ArrowLeftIcon,
   BanknoteIcon,
   BriefcaseIcon,
   Building2Icon,
@@ -328,8 +327,8 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
 }
 
 /**
- * Server-rendered validated detail view in the reference composition: the
- * breadcrumb to the canonical board, the identity header (monogram, title,
+ * Server-rendered validated detail content; the app header owns breadcrumbs.
+ * The reference composition keeps the identity header (monogram, title,
  * featured state, company, and wire and display metadata),
  * four stat cards, the structured role content (requirements, skill
  * chips, and token-only benefit tiles), and the responsive content/sticky-rail
@@ -385,19 +384,6 @@ export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail
 
   return (
     <article className="flex w-full flex-col gap-6">
-      {/* Breadcrumb: the canonical board link plus the current title; truncation protects 375px and the link keeps the return-path accessible name. */}
-      <nav aria-label="Ruta de navegación" className="text-sm text-muted-foreground">
-        <ol className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-          <li className="flex min-w-0 items-center gap-1.5">
-            <Link href="/vacantes" aria-label="Volver a vacantes" className={buttonVariants({ variant: "ghost", className: "min-h-10 gap-1.5" })}>
-              <ArrowLeftIcon aria-hidden="true" className="size-4 shrink-0" />Vacantes
-            </Link>
-            <ChevronRightIcon aria-hidden="true" className="size-3.5 shrink-0" />
-          </li>
-          <li className="min-w-0" aria-current="page"><span className="block truncate">{job.title}</span></li>
-        </ol>
-      </nav>
-
       <Card data-detail-region="header">
         <CardHeader>
           <CardTitle><h1 className="flex items-start gap-4 font-heading text-2xl font-bold tracking-tight md:text-3xl">

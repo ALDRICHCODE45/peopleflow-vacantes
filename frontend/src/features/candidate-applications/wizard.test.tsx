@@ -180,7 +180,9 @@ it("shows the Datos sign-in card without a form and preserves the callback URL",
 });
 it("blocks recruiter and unregistered identities", async () => {
   vi.mocked(loadMeAction).mockResolvedValue({ ok: true, data: { role: "recruiter", user: { id, full_name: "Empresa", email: "e@example.test" } } });
-  mount(); expect(await screen.findByText("Esta cuenta es de empresa")).toBeVisible(); expect(loadCvsAction).not.toHaveBeenCalled();
+  mount(); expect(await screen.findByText("Las postulaciones son para cuentas de candidato")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Ir a mi panel" })).toHaveAttribute("href", "/empresa/dashboard");
+  expect(loadCvsAction).not.toHaveBeenCalled();
   cleanup(); vi.mocked(loadMeAction).mockResolvedValue({ ok: true, data: { role: null, user: null } }); mount();
   expect(await screen.findByRole("link", { name: "Completar mi cuenta de candidato" })).toHaveAttribute("href", "/candidato/ingresar");
 });
@@ -304,8 +306,8 @@ it.each(["cvs", "upload", "apply"] as const)("shows the existing company-account
     fireEvent.change(screen.getByLabelText("Subir un CV nuevo"), { target: { files: [new File(["pdf"], "cv.pdf", { type: "application/pdf" })] } });
   }
   if (source === "apply") { vi.mocked(submitApplicationAction).mockResolvedValue(failure); await toSummary(); await user().click(screen.getByRole("button", { name: "Enviar postulación" })); }
-  expect(await screen.findByRole("heading", { name: "Esta cuenta es de empresa" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Ir a empresa" })).toBeVisible(); expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Las postulaciones son para cuentas de candidato" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Ir a mi panel" })).toHaveAttribute("href", "/empresa/dashboard"); expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
 });
 it("keeps the actual vacancy and company next to the final submission, not just above long answers", async () => {
   const { container } = mount(); await toSummary();

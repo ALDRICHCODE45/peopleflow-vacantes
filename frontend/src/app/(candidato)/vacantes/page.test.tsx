@@ -15,7 +15,7 @@ const vacancyList = <ul aria-label="Listado de vacantes" />;
 
 describe("/vacantes v2 page", () => {
   it("describes the actual public filters without claiming a tech-only catalog", () => {
-    const source = readFileSync(join(process.cwd(), "src/app/(public)/vacantes/page.tsx"), "utf8").replace(/\s+/g, " ");
+    const source = readFileSync(join(process.cwd(), "src/app/(candidato)/vacantes/page.tsx"), "utf8").replace(/\s+/g, " ");
     expect(source).toContain("Bolsa de trabajo");
     expect(source).toContain("Encuentra tu próximo trabajo");
     expect(source).toContain("Explora vacantes publicadas y filtra por ubicación, modalidad, jornada, tipo de contrato y área profesional.");

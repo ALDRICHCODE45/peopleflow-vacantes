@@ -16,7 +16,7 @@ import type { JobItem } from "@/features/jobs/types";
 const APPLICATION_DIR = join(process.cwd(), "src", "features", "jobs", "application");
 const WIZARD_FILE = join(APPLICATION_DIR, "vacancy-application-wizard.tsx");
 const CANDIDATE_CARD_FILE = join(APPLICATION_DIR, "application-candidate-card.tsx");
-const ROUTE_FILE = join(process.cwd(), "src", "app", "(public)", "vacantes", "[jobId]", "postular", "page.tsx");
+const ROUTE_FILE = join(process.cwd(), "src", "app", "(candidato)", "vacantes", "[jobId]", "postular", "page.tsx");
 const AVATAR_SRC = "/candidate/ximena-barrera.jpg";
 /** The frozen fixture strings this suite asserts; the prototype declares them all. */
 const CANDIDATE_TITLE = CANDIDATE_PROFILE.professionalTitle ?? "";

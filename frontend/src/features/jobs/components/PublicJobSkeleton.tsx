@@ -77,7 +77,6 @@ export function PublicJobDetailSkeleton({ job }: { job?: PublicJobDetail } = {})
   return <section aria-busy="true" aria-label="Detalle de vacante" className="flex w-full flex-col gap-6">
     <span role="status" className="sr-only">Cargando vacante</span>
     <div aria-hidden="true" className="flex w-full flex-col gap-6">
-      <nav className="flex flex-wrap items-center gap-3"><Skeleton aria-hidden="true" className="h-10 w-28" /><Skeleton aria-hidden="true" className="h-5 w-40" /></nav>
       <Card className={PUBLIC_DETAIL_HERO}>
         <CardHeader className={PUBLIC_DETAIL_HEADER}>
           <div className="col-start-1 row-span-3 row-start-1"><Skeleton aria-hidden="true" className="size-16 rounded-2xl" /></div>

@@ -45,8 +45,8 @@ async function bufferMainDocuments(
   });
 }
 
-const backLink = (scope: Page | Locator) =>
-  scope.getByRole("link", { name: /volver a vacantes/i });
+const breadcrumb = (page: Page) => page.locator("main > header").getByRole("navigation", { name: "Ruta de navegación" });
+const backLink = (page: Page) => breadcrumb(page).getByRole("link", { name: "Vacantes", exact: true });
 
 const robots = (page: Page) => page.locator('meta[name="robots"]');
 
@@ -156,6 +156,9 @@ test("renders only validated contract data", async ({ page }) => {
   expect(response?.status()).toBe(200);
   const article = page.getByRole("article");
   await expect(article).toBeVisible();
+  await expect(page.locator("[data-slot=sidebar-wrapper]")).toHaveCount(1);
+  await expect(page.locator("main > header").getByRole("button", { name: /toggle sidebar/i })).toBeVisible();
+  await expect(page.locator("[data-pf-public-navbar], footer")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(
     article.getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
@@ -176,7 +179,9 @@ test("renders only validated contract data", async ({ page }) => {
       value,
     );
   }
-  await expect(backLink(article)).toHaveAttribute("href", "/vacantes");
+  await expect(backLink(page)).toHaveAttribute("href", "/vacantes");
+  await expect(breadcrumb(page).getByText("Detalle de la vacante", { exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(article.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
   await expect(article).not.toContainText(PROHIBITED_DISPLAY_COPY);
   await expect(article.getByRole("note")).toHaveCount(0);
   await expect(article.getByRole("status")).toHaveCount(0);
@@ -339,7 +344,7 @@ for (const kind of ["5xx", "schema", "timeout"] as const) {
 
 test("keyboard Tab+Enter activates the return link", async ({ page }) => {
   await page.goto(`/vacantes/${MAIN_ID}`);
-  const link = backLink(page.getByRole("article"));
+  const link = backLink(page);
   for (
     let presses = 0;
     presses < 20 &&
@@ -623,23 +628,27 @@ test("rich detail exposes exactly four placeholder controls plus the real apply 
   await expect(apply).toHaveAttribute("href", `/vacantes/${RICH_ID}/postular`);
   expect(await apply.getAttribute("aria-describedby")).toBeNull();
   expect(await minTargetSizePx(apply)).toBeGreaterThanOrEqual(44);
-  // The breadcrumb return link keeps its own 40px target.
-  expect(await minTargetSizePx(article.getByRole("link", { name: "Volver a vacantes" }))).toBeGreaterThanOrEqual(40);
+  // Return navigation belongs to the app header, with its own 40px target.
+  expect(await minTargetSizePx(backLink(page))).toBeGreaterThanOrEqual(40);
+  await expect(breadcrumb(page).getByText("Detalle de la vacante", { exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(article.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
 });
 
-test("rich detail keeps the four links and four controls keyboard reachable in document order", async ({
+test("rich detail keeps its three links and four controls plus the app breadcrumb keyboard reachable", async ({
   page,
 }) => {
   await page.goto(`/vacantes/${RICH_ID}`);
   const article = articleOf(page);
-  await expect(article.getByRole("link")).toHaveCount(4);
+  await expect(article.getByRole("link")).toHaveCount(3);
 
   // One full Tab cycle, discovered from the first stop instead of a fixed count.
   const cycle = await tabCycle(page);
   const articleSteps = cycle.filter((step) => step.inArticle && (step.tag === "A" || step.tag === "BUTTON"));
 
+  const headerStep = cycle.find(step => !step.inArticle && step.tag === "A" && step.name === "Vacantes" && step.href === "/vacantes");
+  expect(headerStep).toBeDefined();
+  expect(headerStep!.focusVisible && (headerStep!.outline || headerStep!.ring)).toBe(true);
   expect(articleSteps.map((step) => [step.tag, step.name, step.href])).toEqual([
-    ["A", "Volver a vacantes", "/vacantes"],
     ["A", "Acme", COMPANY_PROFILE_PATH],
     ["A", "Postularme", `/vacantes/${RICH_ID}/postular`],
     ["BUTTON", "Guardar vacante", null],

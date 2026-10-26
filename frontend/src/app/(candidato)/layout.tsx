@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 import { IdentitySessionProvider } from "@/features/identity/identity-session";
-import { CandidateGuard } from "@/features/identity/area-guards";
 
 /**
  * The shadcn sidebar primitive persists its desktop state in this cookie; the
@@ -22,7 +21,8 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
  * This layout mounts the one shared candidate frame for the whole group, so the
  * routes below it render as content only. Only the exact `sidebar_state` value
  * `false` starts the desktop rail collapsed; absent, malformed or `true` starts
- * expanded. Identity is checked by the client guard; this RSC never reads tokens.
+ * expanded. Public vacancies share this frame; only /candidato/* has a client
+ * guard in its nested layout. This RSC never resolves identity or reads tokens.
  */
 export default async function CandidateLayout({
   children,
@@ -30,5 +30,5 @@ export default async function CandidateLayout({
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(SIDEBAR_COOKIE_NAME)?.value !== "false";
 
-  return <IdentitySessionProvider><CandidateShell defaultOpen={defaultOpen}><CandidateGuard>{children}</CandidateGuard></CandidateShell></IdentitySessionProvider>;
+  return <IdentitySessionProvider><CandidateShell defaultOpen={defaultOpen}>{children}</CandidateShell></IdentitySessionProvider>;
 }

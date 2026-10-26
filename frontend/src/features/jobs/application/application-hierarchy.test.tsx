@@ -18,13 +18,12 @@ it("keeps vacancy, company and honest salary information beside the final action
   expect(within(footer).getByText("Salario no publicado")).toBeVisible();
 });
 
-it("keeps leaving the application outside the task cards as ghost navigation", () => {
+it("leaves application return navigation to the app header without repeating it in content", () => {
   render(<VacancyApplicationShell job={job}><p>Formulario</p></VacancyApplicationShell>);
-  const back = screen.getByRole("link", { name: "Volver a la vacante" });
-  expect(back.closest('[data-slot="card"]')).toBeNull();
-  expect(back).toHaveClass("hover:bg-muted");
-  expect(back).not.toHaveClass("bg-primary");
-  expect(back).not.toHaveClass("bg-background");
+  expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Volver a la vacante" })).toBeNull();
+  expect(screen.getByRole("heading", { level: 1, name: "Postularme" })).toBeVisible();
+  expect(screen.getByText("Formulario")).toBeVisible();
 });
 
 it("keeps a single primary per step and stacks step actions on narrow screens", () => {

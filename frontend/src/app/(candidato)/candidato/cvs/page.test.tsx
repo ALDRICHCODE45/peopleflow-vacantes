@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: "candidate" } } }) }));
 import { readFileSync } from "node:fs";
 vi.mock("next/navigation", () => ({ usePathname: () => "/candidato/cvs" }));
 vi.mock("@/features/candidate-cvs/actions", () => ({ loadCvsAction: vi.fn(), renameCvAction: vi.fn(), deleteCvAction: vi.fn() }));
