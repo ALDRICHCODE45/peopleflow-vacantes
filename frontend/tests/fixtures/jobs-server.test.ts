@@ -7,7 +7,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { publicJobDetailSchema, publicJobsListSchema } from "../../src/features/jobs/schemas";
-import { countriesSchema, statesSchema, municipalitiesSchema, postalSchema } from "../../src/features/geo/model";
+import { countriesSchema, statesSchema, municipalitiesSchema, postalSchema, locationReadSchema } from "../../src/features/geo/model";
 import { languageCatalogSchema } from "../../src/features/languages/model";
 import { publicSiteSchema } from "../../src/features/company-site/public/schema";
 import { publishIssues, siteDraftSchema } from "../../src/features/company-site/model";
@@ -472,4 +472,30 @@ test("canonical logs, conjunctive repeated filters and controls retain their sem
   await json("/__reset");
   expect(await json("/__requests")).toEqual([]);
   expect(publicJobDetailSchema.safeParse(await json(`/v2/jobs/${main}`)).success).toBe(true);
+});
+
+test("employer membership follows the draft role control and the auth/gate rules", async () => {
+  const membership = async (headers: Record<string, string> = auth) => fetch(`${origin}/me/company`, { headers });
+  const me = await fetch(`${origin}/v2/me`, { headers: auth });
+  expect(me.status).toBe(200);
+  // Same shape the product's server-only identity decoder accepts (strict).
+  const identity = await me.json();
+  expect(Object.keys(identity).sort()).toEqual(["role", "user"]);
+  expect(identity.role).toBe("recruiter");
+  expect(Object.keys(identity.user).sort()).toEqual(["email", "full_name", "id"]);
+  expect(identity.user.id).toMatch(/^[0-9a-f-]{36}$/);
+  expect(identity.user.full_name).toBe("Mariana Cruz");
+  expect((await fetch(`${origin}/v2/me`)).status).toBe(401);
+  expect((await membership({})).status).toBe(401);
+  const owner = await membership();
+  expect(owner.status).toBe(200);
+  expect(owner.headers.get("cache-control")).toBe("no-store");
+  const body = await owner.json();
+  expect(body).toMatchObject({ company_id: nexo, role: "owner", company: { id: nexo, name: "Nexo Labs", status: "active" } });
+  for (const key of ["rfc", "industry_id", "updated_at"]) expect(typeof body.company[key]).toBe("string");
+  expect(locationReadSchema.parse(body.company.location)).not.toBeNull();
+  await json("/__site-draft?role=recruiter");
+  expect(await (await membership()).json()).toMatchObject({ role: "recruiter" });
+  await json("/__reset");
+  expect(await (await membership()).json()).toMatchObject({ role: "owner" });
 });

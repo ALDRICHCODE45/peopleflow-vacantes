@@ -106,3 +106,9 @@ Do not grow the `frontend` result pool merely to force the two next-link asserti
 `COMPANY_SITE_FIXTURE_IMAGES=/path/a.png:/path/b.jpg node tests/fixtures/jobs-server.mjs` serves those local files
 (assigned to the site's media in order, round-robin; `.png`, `.webp`, otherwise JPEG) instead of the committed reference
 image. Use it only to judge composition with realistic photos; never commit the photos.
+
+### Employer identity for editor reviews
+
+`GET /v2/me` (identity, role `recruiter` user type) and `GET /me/company` (membership: Nexo Labs, `role` following
+`/__site-draft?role=`) answer any `Bearer` token so the `(empresa)` layout and the careers editor load against the
+fixture with a real browser session. They never validate or mint tokens.

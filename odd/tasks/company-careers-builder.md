@@ -244,3 +244,15 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   into the public snapshot, multipart media upload served by the public media route. Controls
   `/__site-draft?role=owner|recruiter | conflict=next | offline=next | mode=new | gate=forbidden|company_inactive|none`,
   `/__reset`. RED 6 → GREEN 18/18.
+- **L28.** T6c route wiring: authenticated data cannot be loaded while rendering a Server Component here —
+  `getActionAccessToken()` refreshes and writes session cookies, which only server actions may do, and every `(empresa)`
+  route loads through client-invoked server actions. Decision: follow that pattern — a route-local server action
+  `loadCareersEditor()` (company always from the session, discriminated result, no raw errors) called by a client
+  loader that shows the editor skeleton, then the editor or a StateCard per failure; no route-level `loading.tsx`
+  (Next 15 #83386). No auth/session changes in this feature.
+- **L29.** First editor review (production build on `localhost:3100`, saved employer session, fixture draft): the
+  `(empresa)` layout needs `GET /v2/me` and `GET /me/company`, which the fixture lacked («No pudimos cargar tu cuenta»)
+  → added (test-first, 19/19). Editor loads end to end. Sent back: desktop preview rendered the mobile layout (needs a
+  real-width scaled iframe), page scroll plus three inner scrolls, selection scrolls the whole page (mobile loads
+  scrolled 348px), duplicate «Sitio de empleo» H1, tall rows with wrapped lock and truncated names, variant thumbnails
+  rendered as 16px icons, brand-colored selection outline, washed-out disabled «Publicar».

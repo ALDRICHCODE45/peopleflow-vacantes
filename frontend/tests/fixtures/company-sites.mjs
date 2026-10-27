@@ -173,6 +173,16 @@ export function createCompanySitesFixture() {
       controls = next;
       return json(200, { ok: true, ...controls });
     }
+    // Employer membership read by the (empresa) layout check and the editor
+    // loader; the role follows the /__site-draft role control.
+    if (url.pathname === "/v2/me" && request.method === "GET") {
+      if (!request.headers.authorization?.startsWith("Bearer ")) return json(401, { error: "unauthenticated", code: "unauthenticated" });
+      return json(200, { role: "recruiter", user: { id: "b478fb93-71b8-47bf-8eaa-b726d63e05a0", email: "mariana@nexolabs.example", full_name: "Mariana Cruz" } });
+    }
+    if (url.pathname === "/me/company" && request.method === "GET") {
+      if (!request.headers.authorization?.startsWith("Bearer ")) return json(401, { error: "unauthenticated", code: "unauthenticated" });
+      return json(200, { company_id: company.id, role: controls.role, company: { ...company, rfc: "NLA200101AB1", industry_id: "tecnologia", status: "active", location: publicDetail(nexoJobs[0]).location, updated_at: initialTime } });
+    }
     if (url.pathname === privatePath || url.pathname.startsWith(`${privatePath}/`)) {
       if (!request.headers.authorization?.startsWith("Bearer ")) return json(401, { error: "unauthenticated", code: "unauthenticated" });
       if (controls.gate !== "none") return json(403, { error: controls.gate, code: controls.gate });
