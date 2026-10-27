@@ -1,11 +1,12 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import Page, { generateMetadata, dynamic, runtime } from "@/app/(public)/empresas/[slug]/page";
 import { CompanySitePage } from "@/features/company-site/public/company-site-page";
 import NotFound from "@/app/(public)/empresas/[slug]/not-found";
 import ErrorBoundary from "@/app/(public)/empresas/[slug]/error";
 import { publishedFixture, mediaId } from "@/features/company-site/public/fixtures.test-support";
+vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "__variable_fraunces" }), Plus_Jakarta_Sans: () => ({ variable: "__variable_jakarta" }) }));
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080", apiTimeoutMs: 8000, siteUrl: "https://peopleflow.example" } }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NEXT_NOT_FOUND"); }, permanentRedirect: (href: string) => { throw new Error(`NEXT_REDIRECT_308:${href}`); } }));
 const props = (slug = "nexo-labs") => ({ params: Promise.resolve({ slug }) });
@@ -46,6 +47,28 @@ it("metadata 404s, redirects or throws consistently with the page", async () => 
   respond({ code: "site_not_found" }, 404); await expect(generateMetadata(props())).rejects.toThrow("NEXT_NOT_FOUND");
   respond(publishedFixture()); await expect(generateMetadata(props("old-nexo"))).rejects.toThrow("NEXT_REDIRECT_308:/empresas/nexo-labs");
   respond({}, 503); await expect(generateMetadata(props())).rejects.toThrow("No se pudo cargar el sitio");
+});
+it.each([
+  { state: "not-found", title: "Este sitio no está disponible" },
+  { state: "error", title: "No se pudo cargar el sitio" },
+])("$state owns one main, a level-one StateCard heading and a PeopleFlow home link", ({ state, title }) => {
+  const reset = vi.fn();
+  render(state === "not-found" ? <NotFound /> : <ErrorBoundary error={new Error("private")} reset={reset} />);
+  const main = screen.getByRole("main");
+  expect(screen.getAllByRole("main")).toHaveLength(1);
+  const heading = within(main).getByRole("heading", { level: 1, name: title });
+  expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  expect(heading.closest('[data-slot="empty"]')).not.toBeNull();
+  const brand = within(main).getByRole("link", { name: "PeopleFlow" });
+  expect(brand).toHaveAttribute("href", "/");
+  expect(brand.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(within(main).getByRole("link", { name: "Explorar vacantes" })).toHaveAttribute("href", "/vacantes");
+  expect(document.querySelector("[data-pf-public-navbar]")).toBeNull();
+  expect(document.querySelector("[data-slot=sidebar-wrapper]")).toBeNull();
+  if (state === "error") {
+    fireEvent.click(within(main).getByRole("button", { name: "Reintentar" }));
+    expect(reset).toHaveBeenCalledTimes(1);
+  }
 });
 it("not-found and error boundaries use StateCard with an escape path", () => {
   const view = render(<NotFound />); expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Este sitio no está disponible"); expect(screen.getByRole("link", { name: "Explorar vacantes" })).toHaveAttribute("href", "/vacantes"); expect(view.container.querySelector('[data-slot="empty"]')).not.toBeNull();

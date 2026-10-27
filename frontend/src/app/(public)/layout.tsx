@@ -1,11 +1,9 @@
 import * as React from "react";
 
-import { PublicShell } from "../../components/shells/PublicShell";
-
-// Company microsites retain the public chrome; public vacancy routes share
-// the candidate app frame in the (candidato) group instead.
+// Company sites own their header, main landmark and permanent PeopleFlow footer
+// credit. Keep this group free of app chrome, including on route-state screens.
 export default function PublicLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <PublicShell>{children}</PublicShell>;
+  return children;
 }

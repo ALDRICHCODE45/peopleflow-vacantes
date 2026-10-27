@@ -201,3 +201,25 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   `company_id`, controls `/__site?brand=orange&font=modern | brand=green&font=editorial | jobs=empty|default`, `/__reset`.
   RED 4 → GREEN 11/11. The fixture pages jobs 2 + 5, which exposed that `listCompanyJobs` reads only the first page —
   sent to the T6b worker as a product fix (follow `next_cursor`).
+- **L22.** First browser review of T6b (production build in the review worktree against the fixture): one H1, no
+  overflow, no broken images, fonts per pair, mobile stats fixed. Sent back: gallery images with empty `src`; header nav
+  wrapping 13 anchors into three rows; full-width hero CTA; mixed foregrounds on brand surfaces; empty white video idle
+  state; heavy job cards. Fixture gained `COMPANY_SITE_FIXTURE_IMAGES` (local, uncommitted review photos). User decision
+  on the PeopleFlow header (verbatim): «Estoy de acuerdo con tu opcion recomendada: Sitio de la empresa solo, sin
+  embargo, me gustaria que en algun lugar, aparezca alguna referencia a peopleflow, algo sutil, algo como powered by
+  PeopleFlow o algo asi, y un enlace a peopleflow para empresas, me sigues? algo muy sutil, tal vez en el footer, pero
+  que no se pueda quitar, tal vez despues vemos si se pueda quitar pagando.» → `/empresas/<slug>` renders without the
+  PeopleFlow app header; the site footer always shows «Impulsado por PeopleFlow» linking to `/` (no companies landing
+  yet — backlog); removal as a paid option is a future decision.
+- **L23.** Second browser pass of T6b (realistic local photos, light/dark, 1440/768/390, both brands): single-row
+  nav with «Más», hero actions, compact equal-height job cards, footer credit «Impulsado por PeopleFlow» → `/`, no
+  PeopleFlow navbar, exactly one main, framed not-found; the blank gallery of pass 1 was a lazy-loading artifact of a
+  full-page capture (all 6 images load when scrolled). Remaining polish sent back: closing CTA alignment/weight,
+  in-page anchors using the external arrow, dangling separators in wrapped job meta + search/filters on one row, video
+  canvas misaligned and small play glyph, social links indented by button padding. `PublicShell` has no production
+  caller left → remove in T6f.
+- **L24.** Third and fourth browser passes of T6b: the five polish items verified; axe-core 4.13 found brand text below
+  4.5:1 (eyebrows, links) on page and tinted bands, and a duplicate nav name — fixed with a separate brand-text token
+  derived per surface and theme (`public/theme-tokens.ts`) and closing socials as a plain list. Re-run: axe 0 violations
+  in orange light/dark, green light/dark and orange 390; no failed requests; empty jobs state checked. Full suite
+  7453/7453 (1 skipped), typecheck clean, lint 13 pre-existing warnings, fixture 11/11.
