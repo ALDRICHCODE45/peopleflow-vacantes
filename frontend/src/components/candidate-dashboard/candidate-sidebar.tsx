@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link, { useLinkStatus } from "next/link"
 import { usePathname } from "next/navigation"
 
 import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
@@ -8,6 +8,8 @@ import { useCandidateViewer } from "./candidate-viewer"
 import { CandidateFooterSkeleton, CandidateVisitorFooter } from "./candidate-visitor"
 import { Card, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { buttonVariants } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
+import { cn } from "@/lib/utils"
 import { CandidateNavUser } from "./candidate-nav-user"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -16,6 +18,22 @@ import {
 import { IconBookmark, IconBriefcase, IconFileCv, IconLayoutDashboard, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-react"
 
 type CandidateNavItem = { title: string; url: string; icon: React.ReactNode }
+
+/**
+ * The vacancy list has no loading.tsx (it made Next 15 drop search-param navigations), so
+ * entering it shows the official Spinner in this icon slot while the link is pending.
+ * Both glyphs stay rendered in one fixed slot (no layout shift) and swap after 100 ms, so
+ * a fast navigation never flashes (Next useLinkStatus guidance). Must render inside the Link.
+ */
+function VacanciesLinkIcon() {
+  const { pending } = useLinkStatus()
+  return (
+    <span className="grid size-4 shrink-0 *:col-start-1 *:row-start-1">
+      <IconSearch aria-hidden="true" className={cn("size-4 transition-opacity", pending && "opacity-0 delay-100")} />
+      <Spinner aria-hidden="true" className={cn("size-4 transition-opacity", pending ? "opacity-100 delay-100 animate-spin" : "opacity-0 animate-none")} />
+    </span>
+  )
+}
 
 /** Candidate destinations in committed order; every destination is a real route. */
 const CANDIDATE_NAV_GROUPS: Array<{ label: string; items: CandidateNavItem[] }> = [
@@ -59,7 +77,7 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
       <SidebarContent>
         <SidebarGroup><SidebarGroupContent><SidebarMenu><SidebarMenuItem>
           <SidebarMenuButton tooltip="Vacantes" isActive={isActiveCandidateDestination("/vacantes", pathname)} render={<Link href="/vacantes" />}>
-            <IconSearch aria-hidden="true" /><span className="group-data-[collapsible=icon]:sr-only">Vacantes</span>
+            <VacanciesLinkIcon /><span className="group-data-[collapsible=icon]:sr-only">Vacantes</span>
           </SidebarMenuButton>
         </SidebarMenuItem></SidebarMenu></SidebarGroupContent></SidebarGroup>
         {showNavigation && CANDIDATE_NAV_GROUPS.map((group) => (

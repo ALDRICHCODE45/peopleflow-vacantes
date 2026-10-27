@@ -610,6 +610,8 @@ migración masiva ni conectar prototipos a persistencia inexistente.
   filtros, los resultados se atenúan y el `Spinner` queda centrado sobre ellos (sticky,
   sin bloquear clics) con un único estado accesible «Cargando vacantes»; la paginación
   lo muestra dentro de su propio botón, sin overlay. Sin texto visible de carga.
+  Al entrar desde otra pantalla, el link «Vacantes» del menú lateral cambia su ícono por
+  el `Spinner` con `useLinkStatus` (mismo slot, sin mover el layout, visible tras 100 ms).
 - Cuando la estructura es observable, un test compara la secuencia de `data-slot` del
   skeleton con la del componente cargado.
 - Si todavía no se sabe qué pantalla va a llegar (por ejemplo, el control de rol antes

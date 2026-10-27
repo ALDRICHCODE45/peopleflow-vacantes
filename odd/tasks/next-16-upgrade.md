@@ -63,3 +63,13 @@ Branch `fix/vacantes-lost-navigation` (was `chore/next-upgrade`). Next stays pin
   (Playwright MCP, fixture delay 2.5 s): light/dark desktop, mobile 390, scrolled pagination. RED 4+2 → GREEN;
   Vitest 7096/7096; lint 0 errors; probe 0/40; e2e 83/83 after updating the reduced-motion test that pinned the old
   text (now also asserts the spinner) — 5/5 repeated; hero 10/10.
+- **L9.** User (verbatim): «si hermano por fav» — to the proposal of a pending indicator on the sidebar «Vacantes»
+  link. Official `useLinkStatus` docs (v15.3+): use inside a Link descendant; fixed-size always-rendered hint toggling
+  opacity; ~100 ms delay against flashes. Done: `VacanciesLinkIcon` keeps IconSearch and the shadcn Spinner in one
+  fixed icon slot and swaps them after 100 ms while pending (spinner still and invisible otherwise). RED 1 → GREEN;
+  a source-text test now accepts the combined `next/link` import. Browser check (Playwright MCP, fixture delay
+  2.5 s, detail → sidebar «Vacantes»): spinner opacity 1 / icon 0 while pending, back to icon after; light and dark.
+  Full suite caught `sidebar-rail.test.tsx` reading the first span of the link (now the icon slot): it now finds the
+  label by text. Collapsed rail checked in the browser: 40×40 button, 16×16 icon centered, spinner in the same slot.
+  Checks: Vitest 7097/7097; lint 0 errors; probe 0/40; e2e 83/83; hero 10/10.
+  Remaining (backlog): detail «Volver»/breadcrumb links into the list.

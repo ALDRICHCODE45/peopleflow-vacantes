@@ -24,9 +24,8 @@ between `/vacantes` search variants.
   the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known
   migration work: `middleware.ts` → `proxy.ts` (on 16 the old name answers a plain 500), flat `eslint-config-next`
   config, 67 errors from the React Compiler lint rules, production e2e to re-green.
-- **No loading feedback when entering `/vacantes` from another screen** — its `loading.tsx` was removed
-  (`next-16-upgrade.md`); within `/vacantes` the island's «Cargando» covers filter changes. Option: `useLinkStatus` on
-  the sidebar «Vacantes» link.
+- **Loading feedback on other links into `/vacantes`** — the sidebar «Vacantes» link shows a spinner while pending
+  (`useLinkStatus`, `next-16-upgrade.md` L9); the detail «Volver»/breadcrumb links into the list do not yet.
 
 ## Waiting on the user
 
