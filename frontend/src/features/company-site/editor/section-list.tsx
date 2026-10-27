@@ -83,7 +83,7 @@ export function SectionList(props: ListProps) {
       onDragEnd: ({ active, over }) => over ? `${dragLabel(active.id)} se movió a la posición ${editor.draft.blocks.findIndex(block => block.id === over.id) + 1}.` : "Se conservó el orden.",
       onDragCancel: () => "Movimiento cancelado.",
     } }}>
-      <ItemGroup aria-label="Secciones del sitio">{editor.draft.blocks.map((block, index) => <SectionRow key={block.id} {...props} block={block} index={index} incomplete={incomplete.has(index)} />)}</ItemGroup>
+      <ItemGroup aria-label="Secciones del sitio" className="px-1 py-1 pr-3">{editor.draft.blocks.map((block, index) => <SectionRow key={block.id} {...props} block={block} index={index} incomplete={incomplete.has(index)} />)}</ItemGroup>
     </DndContext>
     <Button variant="outline" className="min-h-10" onClick={onAdd} disabled={editor.draft.blocks.length >= 30}><Plus data-icon="inline-start" aria-hidden="true" />Agregar sección</Button>
     <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><Lock className="size-4 shrink-0" aria-hidden="true" />Portada y Vacantes siempre forman parte de tu sitio. Usa el menú para subir o bajar una sección.</p>

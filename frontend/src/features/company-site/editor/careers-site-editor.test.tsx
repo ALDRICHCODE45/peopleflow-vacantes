@@ -37,6 +37,42 @@ beforeEach(() => {
   vi.mocked(saveDraftAction).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...fixture().initialSite, draft: body as SiteState["draft"], draft_version: 8 }, etag: '"8"' }));
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+vi.mock("./media", () => ({ ImageField: ({ label }: { label: string }) => <p>{label}</p> }));
+it.each([[false, false, "Sin publicar", "neutral"], [true, false, "Publicado", "success"], [true, true, "Cambios sin publicar", "review"]] as const)("distinguishes publication badge tones (published=%s, changes=%s)", async (published, changes, label, tone) => {
+  const props = fixture();
+  props.initialSite.published = published ? { version: 7, slug: "nexo-labs", published_at: "2026-01-01T00:00:00Z" } : null;
+  props.initialSite.has_unpublished_changes = changes;
+  render(<CareersSiteEditor {...props} />);
+  expect(await screen.findByText(label)).toHaveAttribute("data-variant", tone);
+  expect(screen.getByText(label)).toHaveAttribute("data-dot");
+  if (published && !changes) {
+    fireEvent.change(screen.getByLabelText("Título principal"), { target: { value: "Nuevo título" } });
+    expect(screen.getByText("Cambios sin publicar")).toHaveAttribute("data-variant", "review");
+  }
+});
+it("shows only the selected section heading and description in the mobile properties Sheet", async () => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  render(<CareersSiteEditor {...fixture()} />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Propiedades" }));
+  const sheet = await screen.findByRole("dialog", { name: "Portada" });
+  expect(within(sheet).getAllByRole("heading")).toHaveLength(1);
+  expect(within(sheet).getByRole("heading", { name: "Portada" })).toBeVisible();
+  expect(within(sheet).getAllByText("Cambia la composición sin perder contenido.")).toHaveLength(1);
+  expect(within(sheet).queryByText("Propiedades de Portada")).not.toBeInTheDocument();
+});
+it("keeps an inner gutter between selected section borders and the scrollbar", async () => {
+  await mount();
+  expect(list()).toHaveClass("pr-3", "px-1");
+});
+it("edits the selected section through reducer, preview and autosave", async () => {
+  await mount();
+  const input = screen.getByLabelText("Título principal");
+  fireEvent.change(input, { target: { value: "Crece con nuestro equipo" } });
+  expect(frame().getByRole("heading", { level: 1 })).toHaveTextContent("Crece con nuestro equipo");
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios pendientes");
+  await waitFor(() => expect(saveDraftAction).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ blocks: expect.arrayContaining([expect.objectContaining({ type: "hero", content: expect.objectContaining({ title: "Crece con nuestro equipo" }) })]) }) })), { timeout: 3000 });
+});
 it("adds from the thirteen-type library, with protected types disabled and explained", async () => {
   await mount(); const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Agregar sección" }));

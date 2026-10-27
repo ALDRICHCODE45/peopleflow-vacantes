@@ -49,7 +49,7 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
     route: worker — commit: cbdf943d (site), 579f24de (route without app header, L22)
   - [x] T6c — editor shell on `/empresa/sitio`: tabs, section list (add/reorder/hide/duplicate/delete), live preview
     with device switch, properties panel, save status, owner/recruiter — route: worker — commit: see L32 commits
-  - [ ] T6d — section property forms (13) + image upload with crop — route: worker — commit: —
+  - [x] T6d — section property forms (13) + image upload with crop — route: worker — commit: d5a5b174 (image field) + see L38
   - [ ] T6e — Marca and Configuración tabs (brand color/contrast, fonts, company data read-only, slug availability, SEO
     preview) + publish flow (checklist, confirm, success, unpublish) — route: worker — commit: —
   - [ ] T6f — remove the prototype editor/profile and prototype `/empresas/<uuid>` links; e2e on the fixture; docs — route:
@@ -288,3 +288,12 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   the generated shadcn `Slider` renders two thumbs (`[min, max]`) when given a scalar `value`; our only caller passes
   `value={[zoom]}`, so no effect today — keep array values in future callers. T6d image field (worker
   mvqvwyzz-s-8c2a): `editor/media/ImageField.tsx` + `crop-image.ts`, RED → GREEN 30/30, lint clean.
+- **L37.** T6d forms (worker mvqvzabi-u-r0i7): 13 section forms, repeatable items, icon picker, image fields, video
+  parsing, consent, story via the vacancy rich-text editor with optional labels (vacancy defaults unchanged, pinned by a
+  test; 2581 vacancy tests green). Browser review: edit → preview + autosave (draft v2) OK; crop dialog + upload OK;
+  icon picker OK; mobile sheet dark OK, no overflow. Polish sent: auto-grow textareas, compact rich-text toolbar,
+  warning tone for «Cambios sin publicar», icon names on hover/focus, single heading in the mobile Propiedades sheet.
+- **L38.** T6d polish verified in the browser (auto-grow textareas, compact story toolbar, amber «Cambios sin
+  publicar», single mobile sheet heading); parent fixed the compact size select width («Tamañ» truncated). Two collection
+  tests timed out only under full-suite load (3.5 s / 1.5 s alone) → split into 32 focused tests (≤ 259 ms), no timeout
+  raised. Full suite 7640/7640 (1 skipped) under `nice`, typecheck clean, lint 13 pre-existing warnings.

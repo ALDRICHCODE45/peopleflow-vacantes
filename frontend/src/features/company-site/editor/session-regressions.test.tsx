@@ -56,8 +56,10 @@ it("collapses side panels into Sheets on mobile and keeps preview on the page", 
   const panel = await screen.findByRole("dialog", { name: "Tu sitio" });
   expect(panel.querySelector('[data-slot="sheet-header"] [data-slot="sheet-title"]')).not.toBeNull();
   await user.click(within(panel).getByRole("button", { name: "Seleccionar Historia" }));
-  const properties = await screen.findByRole("dialog", { name: "Editar sección" });
-  expect(within(properties).getByRole("heading", { name: "Propiedades de Historia" })).toBeVisible();
+  const properties = await screen.findByRole("dialog", { name: "Historia" });
+  expect(within(properties).getAllByRole("heading")).toHaveLength(1);
+  expect(within(properties).getByRole("heading", { name: "Historia" })).toBeVisible();
+  expect(within(properties).getAllByText("Cambia la composición sin perder contenido.")).toHaveLength(1);
   await user.click(within(properties).getByRole("switch", { name: "Visible en el sitio" }));
   expect(within(properties).getByRole("switch")).not.toBeChecked();
   await user.click(within(properties).getByRole("button", { name: "Volver a la vista previa" }));

@@ -30,6 +30,7 @@ import { CareersSiteEditorLoading, SaveStatus } from "./editor-feedback";
 import { PreviewFrame } from "./preview-frame";
 import { SectionLibrary, SectionList } from "./section-list";
 import { VariantPicker } from "./variant-picker";
+import { SectionForm } from "./forms/section-form";
 import { useWorkspaceHeight } from "./use-workspace-height";
 
 export type CareersSiteEditorProps = { initialSite: SiteState; role: string; preview: CompanySitePreviewData };
@@ -99,10 +100,10 @@ function EditorSession({ controller, role, preview }: Omit<CareersSiteEditorProp
   const deviceWidth = device === "desktop" ? 1280 : device === "tablet" ? 768 : 390;
   const url = editor.draft.slug ? `/empresas/${editor.draft.slug}` : "Elige la dirección de tu sitio";
   const properties = <div className="flex flex-col gap-6">{selected ? <>
-    <div className="flex flex-col gap-2"><h2 className="text-base font-semibold">Propiedades de {BLOCK_LIBRARY[selected.type].label}</h2><p className="text-sm text-muted-foreground">Cambia la composición sin perder contenido.</p></div>
+    {desktop && <div className="flex flex-col gap-2"><h2 className="text-base font-semibold">Propiedades de {BLOCK_LIBRARY[selected.type].label}</h2><p className="text-sm text-muted-foreground">Cambia la composición sin perder contenido.</p></div>}
     <VariantPicker block={selected} onChange={variant => controller.dispatch({ type: "variant", id: selected.id, variant })} />
     <Field orientation="horizontal" data-disabled={selected.type === "hero" || selected.type === "jobs"}><FieldContent><FieldLabel htmlFor={`visible-${selected.id}`}>Visible en el sitio</FieldLabel>{(selected.type === "hero" || selected.type === "jobs") && <FieldDescription>Esta sección siempre está visible.</FieldDescription>}</FieldContent><Switch id={`visible-${selected.id}`} checked={!selected.hidden} disabled={selected.type === "hero" || selected.type === "jobs"} onCheckedChange={checked => controller.dispatch({ type: "hidden", id: selected.id, hidden: !checked })} /></Field>
-    <Separator /><Placeholder title="Contenido de la sección" description="Los campos de esta sección estarán disponibles pronto." icon={SlidersHorizontal} />
+    <Separator /><SectionForm block={selected} dispatch={controller.dispatch} fieldErrors={editor.fieldErrors} />
     {editor.fieldErrors.some(error => error.blockId === selected.id) && <p role="status" className="text-sm text-muted-foreground">Esta sección tiene campos que revisar.</p>}
   </> : <Placeholder title="Selecciona una sección" description="Elige una sección en tu página o en la vista previa para cambiar su diseño." icon={LayoutTemplate} />}</div>;
   const sections = <Tabs value={tab} onValueChange={value => setTab(String(value))} className="flex min-w-0 flex-col gap-5">
@@ -113,7 +114,7 @@ function EditorSession({ controller, role, preview }: Omit<CareersSiteEditorProp
   </Tabs>;
   return <TooltipProvider><div ref={workspace.ref} data-editor-workspace="" style={{ height: workspace.height }} className="flex min-h-0 min-w-0 flex-col gap-4 lg:overflow-hidden">
     <header data-editor-region="toolbar" className="flex shrink-0 flex-wrap items-center justify-between gap-4">
-      <div className="flex min-w-0 flex-col gap-2"><div className="flex flex-wrap items-center gap-3"><h2 className="text-xl font-semibold">{preview.company.name}</h2><Badge variant={editor.server.published ? "success" : "neutral"} dot>{editor.server.published ? editor.dirty || editor.server.has_unpublished_changes ? "Cambios sin publicar" : "Publicado" : "Sin publicar"}</Badge></div>{editor.draft.slug ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground underline underline-offset-4">{url}</a> : <p className="text-sm text-muted-foreground">{url}</p>}</div>
+      <div className="flex min-w-0 flex-col gap-2"><div className="flex flex-wrap items-center gap-3"><h2 className="text-xl font-semibold">{preview.company.name}</h2><Badge variant={editor.server.published ? editor.dirty || editor.server.has_unpublished_changes ? "review" : "success" : "neutral"} dot>{editor.server.published ? editor.dirty || editor.server.has_unpublished_changes ? "Cambios sin publicar" : "Publicado" : "Sin publicar"}</Badge></div>{editor.draft.slug ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground underline underline-offset-4">{url}</a> : <p className="text-sm text-muted-foreground">{url}</p>}</div>
       <div className="flex flex-wrap items-center gap-3"><SaveStatus status={status} dirty={editor.dirty} onLoadLatest={() => setReload(true)} /><Button variant="outline" className="min-h-10" onClick={() => setVisitor(true)}><Eye aria-hidden="true" data-icon="inline-start" />Ver como visitante</Button>
         <Tooltip><TooltipTrigger render={<span tabIndex={0} className="inline-flex rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-ring/30" aria-label="Publicar: Disponible pronto" />}><Button disabled className="min-h-10"><Upload aria-hidden="true" data-icon="inline-start" />Publicar</Button></TooltipTrigger><TooltipContent>Disponible pronto</TooltipContent></Tooltip>
       </div>
@@ -121,7 +122,7 @@ function EditorSession({ controller, role, preview }: Omit<CareersSiteEditorProp
     {!canPublish(role) && <p className="text-sm text-muted-foreground">{RECRUITER_PUBLISH_REASON}</p>}
     {!desktop && <div className="flex flex-wrap items-center gap-2">
       <Sheet open={sectionsOpen} onOpenChange={setSectionsOpen}><SheetTrigger render={<Button variant="outline" className="min-h-10" />}><PanelLeft aria-hidden="true" data-icon="inline-start" />Secciones</SheetTrigger><SheetContent side="left" showCloseButton={false}><SheetHeader className="border-b"><SheetTitle>Tu sitio</SheetTitle><SheetDescription>Organiza las secciones de tu página.</SheetDescription></SheetHeader><div className="min-h-0 flex-1 overflow-y-auto p-4">{sections}</div><SheetFooter className="border-t"><SheetClose render={<Button variant="outline" className="min-h-10" />}>Volver a la vista previa</SheetClose></SheetFooter></SheetContent></Sheet>
-      <Sheet open={propertiesOpen} onOpenChange={setPropertiesOpen}><SheetTrigger render={<Button variant="outline" className="min-h-10" />}><SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Propiedades</SheetTrigger><SheetContent showCloseButton={false}><SheetHeader className="border-b"><SheetTitle>Editar sección</SheetTitle><SheetDescription>El diseño de tu sección.</SheetDescription></SheetHeader><div className="min-h-0 flex-1 overflow-y-auto p-5">{properties}</div><SheetFooter className="border-t"><SheetClose render={<Button variant="outline" className="min-h-10" />}>Volver a la vista previa</SheetClose></SheetFooter></SheetContent></Sheet>
+      <Sheet open={propertiesOpen} onOpenChange={setPropertiesOpen}><SheetTrigger render={<Button variant="outline" className="min-h-10" />}><SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Propiedades</SheetTrigger><SheetContent showCloseButton={false}><SheetHeader className="border-b"><SheetTitle>{selected ? BLOCK_LIBRARY[selected.type].label : "Selecciona una sección"}</SheetTitle><SheetDescription>Cambia la composición sin perder contenido.</SheetDescription></SheetHeader><div className="min-h-0 flex-1 overflow-y-auto p-5">{properties}</div><SheetFooter className="border-t"><SheetClose render={<Button variant="outline" className="min-h-10" />}>Volver a la vista previa</SheetClose></SheetFooter></SheetContent></Sheet>
     </div>}
     {/* A single editor surface. Sidebars own independent desktop scroll; mobile
         uses the page, with only the currently open Sheet owning a scroll area. */}
