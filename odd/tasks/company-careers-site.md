@@ -38,7 +38,7 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 - [x] T2 — S5, S8: publish/unpublish (owner, issues, audit) — route: worker — commit: a7c34f17
 - [x] T3 — S6, S8: media upload + public media read — route: worker + independent verify — commit: bea083c2
 - [x] T4 — S7, S8: public site read + catalog company_id filter — route: worker + parent differential + independent verify — commit: see git log (feat(company-sites): public careers site)
-- [x] T5 — S9: S3 adapter for site media + env selection + MinIO integration — route: worker + independent verify (2 rounds) — commit: see git log (feat(company-sites): private S3 storage)
+- [x] T5 — S9: S3 adapter for site media + env selection + MinIO integration — route: worker + independent verify (2 rounds) — commit: f03af5fe
 
 ## Log
 
@@ -189,3 +189,8 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
   `s3:ListBucket` on the bucket ARN, plus a dedicated-bucket note, with 403 still mapped to storage-unavailable. That
   is doc-only and unverified against real AWS IAM. Parent checks: `go mod verify`, vet, full unit suite and the MinIO +
   Postgres integration packages are green. CV storage, `docker-compose.yml` and frontend are unchanged.
+- **L22.** T5 committed as f03af5fe. Native review review-45d46a8ebda1fbff (443f55b0..f03af5fe, lenses
+  risk/resilience/reliability): approved and acknowledged. Live S3 E2E brought up again for the frontend on :8090:
+  binary f03af5fe in S3 mode against the source-built MinIO, a fresh Postgres, and a published vacancy. Upload → MinIO
+  object → identical public bytes and headers; unknown id → 404; anonymous direct MinIO access → 403. Open: the
+  IAM ListBucket guidance has not been verified against real AWS.
