@@ -31,9 +31,9 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
 
 ## Tasks
 
-- [ ] T1 — S1–S11: v0 prompt (editor + public site) — route: inline — commit: —
+- [x] T1 — S1–S11: v0 prompt (editor + public site) — route: inline — commit: 0513e22e
 - [ ] T2 — S4, S6, S8–S11: backend contract proposal, agreed with the backend session (site document, slug, publish,
-  upload, public read, catalog by company) — route: inline + backend session — commit: —
+  upload, public read, catalog by company) — route: inline + backend session — commit: — (proposal `docs/contracts/company-careers-site-v1.md`, sent to backend 01a16b3c)
 - [ ] T3 — S1–S3, S7: block model (zod schemas, limits, defaults, contrast check, slug rules) with tests — route: inline — commit: —
 - [ ] T4 — S1, S4, S8: editor state (reducer: add/reorder/hide/variant/edit, selection, dirty) and autosave client
   (debounce, ETag/412, status) with tests — route: inline — commit: —
@@ -63,3 +63,5 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   (`PATCH /me/company`: name, website, logo_url, description, size, founded_year, location, linkedin/instagram/facebook/
   twitter, cover_image_url — URLs only) and public `GET /companies/{id}`; no site sections, slug, publish state or image
   upload.
+- **L6.** User: backend — «Sí: acordalo con backend e implementen los dos (Recomendado)»: the backend session implements
+  the contract on its own branch tonight; nobody merges to main or pushes; the user reviews in the morning.
