@@ -1,15 +1,13 @@
 import * as React from "react";
+import { Briefcase } from "lucide-react";
+import { StateCard } from "@/components/feedback/state-card";
 import { UnavailableVacancyCard } from "@/features/candidate-applications/unavailable-vacancy";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
 import { CandidateApplicationWizard } from "@/features/candidate-applications/wizard";
-import { VacancyApplicationWizard } from "@/features/jobs/application/vacancy-application-wizard";
-import { VacancyApplicationSummary } from "@/features/jobs/application/vacancy-application-summary";
 
 import { VacancyApplicationShell } from "../../../../../features/jobs/application/vacancy-application-shell";
-import { legacyApplicationJob } from "../../../../../features/jobs/enrich";
 import { createVacanteDetailScope } from "../page-data";
 
 // The application read is request-scoped: it must run on the Node server on
@@ -33,6 +31,8 @@ export async function generateMetadata({
   const result = await getApplicationScope().metadata(jobId);
 
   if (result.kind === "unavailable_vacancy") return { title: result.vacancy.title, robots: { index: false, follow: true } };
+  // Legacy rows take no online applications: the page only says so, never indexed.
+  if (result.kind === "found" && result.job.source === "legacy") return { title: result.job.title, robots: { index: false, follow: true } };
   if (result.kind === "found") {
     // Loaded lazily so route collection during offline builds never triggers
     // the eager environment validation.
@@ -77,21 +77,11 @@ export default async function VacanteApplicationPage({
 
   if (result.kind === "unavailable_vacancy") return <UnavailableVacancyCard vacancy={result.vacancy} headingLevel={1} />;
   if (result.job.source === "vacancy") return <VacancyApplicationShell job={result.job}><CandidateApplicationWizard job={result.job} /></VacancyApplicationShell>;
-  const job = legacyApplicationJob(result.job);
-  return (
-    <VacancyApplicationShell job={job}>
-      {/* VAF-03/VAF-06/VAF-07: the four-step wizard owns the local candidate
-          draft, the optional local CV and the desktop rail. The vacancy summary
-          stays server-composed and is handed down as a slot, so the route ships
-          no second data read and the prototype still never implies a submission
-          that does not exist. */}
-      <VacancyApplicationWizard
-        job={job}
-        identity={CANDIDATE_IDENTITY}
-        profile={CANDIDATE_PROFILE}
-        avatarSrc="/candidate/ximena-barrera.jpg"
-        vacancySummary={<VacancyApplicationSummary job={job} />}
-      />
-    </VacancyApplicationShell>
-  );
+  // No endpoint accepts a legacy catalog row (POST /v2/jobs/{id}/applications only
+  // knows vacancy processes), so a direct link gets an honest state, not a form.
+  return <StateCard icon={Briefcase} tone="info" headingLevel={1}
+    title="Esta vacante no recibe postulaciones en línea"
+    description={<>{result.job.title} · {result.job.company.name}<br />Por ahora no puedes postularte a esta vacante desde PeopleFlow.</>}
+    primaryAction={{ label: "Ver otras vacantes", href: "/vacantes" }}
+    secondaryAction={{ label: "Volver a la vacante", href: `/vacantes/${jobId}` }} />;
 }

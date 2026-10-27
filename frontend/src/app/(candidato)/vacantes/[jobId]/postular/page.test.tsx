@@ -46,9 +46,6 @@ const importedSource = (name: string): string => {
 /** Read the feature shell the route imports, wherever the application flow places it. */
 const shellSource = (): string => importedSource("VacancyApplicationShell");
 
-/** Read the static vacancy summary the route slots into the client wizard rail. */
-const summarySource = (): string => importedSource("VacancyApplicationSummary");
-
 const okFetch = () =>
   vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => wireJob });
 const errorFetch = (status: number) =>
@@ -102,28 +99,29 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     expect(source).toMatch(/\bnotFound\(\)/);
     expect(source).toMatch(/kind\s*===\s*"unavailable"/);
     expect(source).toMatch(/throw\s+new\s+Error\(/);
-    // Only source=legacy is adapted into the unchanged application model.
     expect(source).toContain('<CandidateApplicationWizard job={result.job}');
-    expect(source).toContain("const job = legacyApplicationJob(result.job)");
-    expect(source).toMatch(/<VacancyApplicationShell[^>]*job=\{job\}/);
-    // The static vacancy summary is a server-composed slot handed to the client wizard.
-    expect(source).toMatch(/vacancySummary=\{<VacancyApplicationSummary\b/);
-    expect(source).toMatch(/vacancySummary=\{<VacancyApplicationSummary[^>]*job=\{job\}[^>]*\/>\}/);
-    expect(source).toMatch(/from\s*["'][^"']*vacancy-application-summary["']/);
+    // Legacy catalog rows never reach a wizard: there is no endpoint that accepts them.
+    expect(source).not.toMatch(/VacancyApplicationWizard|legacyApplicationJob|prototype-candidate/);
     expect(source).not.toMatch(
       /["']use client["']|requestJson|QueryClientProvider|HydrationBoundary/,
     );
   });
 
-  it("advertises the noindex form canonical and the Postularme title", async () => {
-    vi.stubGlobal("fetch", okFetch());
+  it("advertises the noindex form canonical and the Postularme title for vacancy-source ids", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => vacancyDetail }));
     const { generateMetadata } = await load("page");
-    const metadata = await generateMetadata({ params: paramsFor(jobId) });
-    expect(metadata.title).toBe(`Postularme · ${wireJob.title}`);
+    const metadata = await generateMetadata({ params: paramsFor(vacancyDetail.id) });
+    expect(metadata.title).toBe(`Postularme · ${vacancyDetail.title}`);
     expect(metadata.alternates?.canonical).toBe(
-      `http://127.0.0.1:3000/vacantes/${jobId}/postular`,
+      `http://127.0.0.1:3000/vacantes/${vacancyDetail.id}/postular`,
     );
     expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+
+  it("keeps a legacy vacancy out of the index under its own title", async () => {
+    vi.stubGlobal("fetch", okFetch());
+    const { generateMetadata } = await load("page");
+    expect(await generateMetadata({ params: paramsFor(jobId) })).toEqual({ title: wireJob.title, robots: { index: false, follow: true } });
   });
 
   it("short-circuits malformed ids with zero fetches and then notFound()", async () => {
@@ -152,7 +150,7 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     expect(thrown).not.toBe(NEXT_NOT_FOUND);
   });
 
-  it("renders the shell for a found vacancy from one GET-only data read", async () => {
+  it("tells a legacy vacancy does not take online applications, from one GET-only read and without prototype data", async () => {
     const fetchMock = okFetch();
     vi.stubGlobal("fetch", fetchMock);
     const Page = (await load("page")).default;
@@ -165,21 +163,15 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
 
     const headings = screen.getAllByRole("heading", { level: 1 });
     expect(headings).toHaveLength(1);
-    expect(headings[0]).toHaveTextContent("Postularme");
-    expect(container).toHaveTextContent(wireJob.title);
-    expect(container).toHaveTextContent(wireJob.company.name);
-    expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
-    expect(screen.queryByRole("link", { name: /volver a la vacante/i })).toBeNull();
-
-    // The shell header carries no implementation-status or no-send disclosure.
-    const header = container.querySelector("[data-pf-application-header]");
-    expect(header).not.toBeNull();
-    expect(header!.querySelector('[role="note"]')).toBeNull();
-    const shellText = container.textContent ?? "";
-    expect(shellText).not.toMatch(/demostraci[óo]n/i);
-    expect(shellText).not.toMatch(/no se env[íi]a/i);
-    expect(shellText).not.toMatch(/no se guarda/i);
-    expect(container.querySelector("[data-pf-application-form-host]")).not.toBeNull();
+    expect(headings[0]).toHaveTextContent("Esta vacante no recibe postulaciones en línea");
+    expect(headings[0].closest('[data-slot="card"]')).not.toBeNull();
+    expect(container).toHaveTextContent(`${wireJob.title} · ${wireJob.company.name}`);
+    expect(container).toHaveTextContent("Por ahora no puedes postularte a esta vacante desde PeopleFlow.");
+    expect(screen.getByRole("link", { name: "Ver otras vacantes" })).toHaveAttribute("href", "/vacantes");
+    expect(screen.getByRole("link", { name: "Volver a la vacante" })).toHaveAttribute("href", `/vacantes/${jobId}`);
+    // No form, no wizard, no prototype candidate.
+    expect(container.querySelector("form, input, [data-pf-application-form-host]")).toBeNull();
+    expect(container).not.toHaveTextContent(/Ximena|Paso 1 de|Iniciar sesión para enviar|Postularme/);
   });
 });
 
@@ -195,47 +187,5 @@ describe("VacancyApplicationShell feature contract", () => {
     expect(source).not.toMatch(
       /\bfetch\(|requestJson|next\/navigation|useRouter|useSearchParams|useParams|localStorage|sessionStorage|indexedDB|document\.cookie|<form\b|onSubmit|setTimeout|setInterval|Math\.random|Date\.now/,
     );
-  });
-
-  it("keeps the static vacancy summary server-composed from local primitives", () => {
-    const source = summarySource();
-    for (const primitive of ["card", "avatar", "badge", "separator"]) {
-      expect(source).toMatch(new RegExp(`components/ui/${primitive}["']`));
-    }
-    expect(source).toMatch(/Resumen de la vacante/);
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|oklch\(/);
-    expect(source).not.toMatch(/(?:bg|text|border|ring|from|to|via)-primary-\d/);
-    expect(source).not.toMatch(RAW_COLOR_UTILITY);
-    expect(source).not.toMatch(/["']use client["']/);
-    expect(source).not.toMatch(
-      /\bfetch\(|requestJson|next\/navigation|useRouter|useSearchParams|useParams|localStorage|sessionStorage|indexedDB|document\.cookie|<form\b|onSubmit|setTimeout|setInterval|Math\.random|Date\.now/,
-    );
-  });
-
-  it("renders a responsive shell with a semantic aside and no raw color utility", async () => {
-    vi.stubGlobal("fetch", okFetch());
-    const Page = (await load("page")).default;
-    const { container } = render(await Page({ params: paramsFor(jobId) }));
-
-    const aside = container.querySelector("aside");
-    expect(aside).not.toBeNull();
-    expect(aside!.className).toMatch(/lg:sticky/);
-    expect(aside!.className).not.toMatch(/(?:^|\s)sticky(?:\s|$)/);
-
-    const responsive = [...container.querySelectorAll<HTMLElement>("[class]")].find(
-      (node) =>
-        /(?:^|\s)grid(?:\s|$)/.test(node.className) &&
-        /lg:grid-cols-\[/.test(node.className),
-    );
-    expect(responsive).toBeDefined();
-    expect(responsive!.className).not.toMatch(/(?:^|\s)grid-cols-\d/);
-
-    const classes = [...container.querySelectorAll("*")]
-      .map((node) => node.getAttribute("class") ?? "")
-      .join(" ");
-    expect(classes).toMatch(/text-muted-foreground/);
-    expect(classes).toMatch(/bg-card|bg-muted|bg-background|border-border/);
-    expect(classes).not.toMatch(RAW_COLOR_UTILITY);
-    expect(container.querySelector("[data-pf-application-form-host]")).not.toBeNull();
   });
 });

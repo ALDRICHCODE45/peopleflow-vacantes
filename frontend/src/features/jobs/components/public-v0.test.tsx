@@ -72,7 +72,13 @@ it("omits unavailable sections and facts for legacy, without inventing payment c
   const glance = screen.getByRole("heading", { name: "La vacante de un vistazo" }).closest('[data-slot="card"]')!;
   expect(glance).not.toHaveTextContent(/Ubicación|Jornada|Contrato|Área profesional/);
   expect(container).not.toHaveTextContent(/Mensual|Bruto|Neto|preguntas de filtro/);
-  expect(screen.getByRole("link", { name: "Postularme" })).toHaveAttribute("href", `/vacantes/${legacyDetail.id}/postular`);
+  // No endpoint accepts a legacy row: no apply link, the same quiet note as the recruiter case.
+  expect(screen.queryByRole("link", { name: "Postularme" })).toBeNull();
+  const note = within(container.querySelector("aside")!).getByText("Esta vacante no recibe postulaciones en línea.");
+  expect(note).toHaveClass("text-sm", "text-muted-foreground");
+  // The "next step" pitch would contradict the note, so a legacy row omits it.
+  expect(screen.queryByRole("heading", { name: "¿Te ves en este equipo?" })).toBeNull();
+  expect(container).not.toHaveTextContent("Da el siguiente paso en tu carrera");
 });
 
 it("preserves authored rich lists, ordered starts and paragraph-only requirements", () => {

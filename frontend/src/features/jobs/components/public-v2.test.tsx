@@ -41,11 +41,14 @@ it("renders a vacancy rich description, requirements, benefits and the apply act
   expect(container).not.toHaveTextContent(/Próximamente|Disponible pronto|Solicitante|Reclutador|Entrega|Pipeline|Hace 5 h/);
 });
 
-it("keeps the legacy plain description escaped and the apply action", () => {
+it("keeps the legacy plain description escaped and tells it takes no online applications", () => {
   const { container } = render(<JobDetailView job={{ ...legacyDetail, description_plain: "<script>alert('xss')</script>\n\nOtro párrafo" }} />);
   expect(screen.getByText("<script>alert('xss')</script>")).toBeVisible();
   expect(container.querySelector("script")).toBeNull();
-  expect(screen.getByRole("link", { name: "Postularme" })).toHaveAttribute("href", `/vacantes/${legacyDetail.id}/postular`);
+  // No endpoint accepts a legacy row: no apply link, the same quiet note as the recruiter case.
+  expect(screen.queryByRole("link", { name: "Postularme" })).toBeNull();
+  const note = within(container.querySelector("aside")!).getByText("Esta vacante no recibe postulaciones en línea.");
+  expect(note).toHaveClass("text-sm", "text-muted-foreground");
   expect(screen.queryByRole("heading", { name: "Requisitos" })).toBeNull();
 });
 

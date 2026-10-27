@@ -4,7 +4,6 @@ import { vacancyDetail, listItem, legacyDetail } from "../api/public-fixtures";
 import type { PublicJobDetail } from "../types";
 import { PublicVacancyCard } from "./PublicVacancyCard";
 import { PublicJobDetailView } from "./PublicJobDetailView";
-import { legacyApplicationJob } from "../enrich";
 
 afterEach(cleanup);
 const countries = [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }, { id: "AR", name: "Argentina" }, { id: "CL", name: "Chile" }];
@@ -36,6 +35,3 @@ for (const surface of ["card", "detail"] as const) {
     expect(screen.queryByText("Desde cualquier lugar")).toBeNull();
   });
 }
-it("legacy application summary adapter preserves the published label", () => {
-  expect(legacyApplicationJob({ ...legacyDetail, location_label: "Texto histórico" }).location).toBe("Texto histórico");
-});
