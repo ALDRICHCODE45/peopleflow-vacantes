@@ -4,7 +4,6 @@ import "@testing-library/jest-dom/vitest";
 import { legacyDetail, listItem, vacancyDetail } from "../api/public-fixtures";
 import { PublicVacancyCard } from "./PublicVacancyCard";
 import { PublicJobDetailView } from "./PublicJobDetailView";
-import { PublicJobCardSkeleton } from "./PublicJobSkeleton";
 
 vi.mock("@/components/ui/tooltip", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/ui/tooltip")>();
@@ -110,10 +109,4 @@ it("uses a full skills section in entered order on detail, not just its preview,
   rerender(<PublicJobDetailView job={legacyDetail} />);
   expect(screen.queryByRole("heading", { name: "Habilidades" })).toBeNull();
   expect(screen.queryByText(/postulantes|Postulación rápida|preguntas? de filtro/)).toBeNull();
-});
-
-it("reserves list excerpt and preview rows while loading", () => {
-  const { container } = render(<PublicJobCardSkeleton />);
-  expect(container.querySelector('[data-skeleton-excerpt]')).not.toBeNull();
-  expect(container.querySelectorAll('[data-public-job-chips] li')).toHaveLength(4);
 });

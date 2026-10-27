@@ -93,8 +93,8 @@ Resultado esperado: 83 tests, todos en verde y ninguno sin correr.
   la navegación siguiente a esa URL se pierda.
 - El área privada del candidato (`/candidato/*`) no tiene e2e: hace falta una
   sesión de prueba.
-- Problema conocido: «renders the approved hero…» falla alrededor de 1 de cada 5
-  corridas (el filtro rápido «Todas» pierde su navegación); está registrado como
-  follow-up en `odd/tasks/e2e-sanitation.md`.
+- «renders the approved hero…» fallaba alrededor de 1 de cada 5 corridas porque el
+  filtro rápido «Todas» perdía su navegación; la causa era el `loading.tsx` del
+  listado (ver `odd/tasks/next-16-upgrade.md`) y ya no existe.
 - Después de cambiar código de `src/`, vuelve a ejecutar `pnpm build` antes de
   repetir los specs.

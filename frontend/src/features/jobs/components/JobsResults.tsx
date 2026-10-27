@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SearchXIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { StateCard } from "@/components/feedback/state-card";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { listJobs } from "../api/listJobs";
 import { buildJobsUrl, type JobsQuery } from "../url";
@@ -24,6 +25,6 @@ export function JobsResults({ result, query }: { result: ListJobsResult; query: 
     primaryAction={{ href: "/vacantes", label: "Quitar filtros" }} />;
   return <>
     <ul aria-label="Listado de vacantes" className="flex flex-col gap-4">{result.data.items.map((job) => <VacancyCard key={job.id} job={job} />)}</ul>
-    {result.data.next_cursor && <div className="flex justify-center pt-4"><Link href={buildJobsUrl({ ...query, cursor: result.data.next_cursor })} data-jobs-next-link="true" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-10")}>Ver más vacantes</Link></div>}
+    {result.data.next_cursor && <div className="flex justify-center pt-4"><Link href={buildJobsUrl({ ...query, cursor: result.data.next_cursor })} data-jobs-next-link="true" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "group/next min-h-10")}><Spinner aria-hidden="true" data-icon="inline-start" className="hidden group-aria-busy/next:block" />Ver más vacantes</Link></div>}
   </>;
 }

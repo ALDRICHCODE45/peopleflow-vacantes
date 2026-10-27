@@ -1,12 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { legacyDetail, vacancyDetail, listItem } from "./api/public-fixtures";
+import { vacancyDetail, listItem } from "./api/public-fixtures";
 import { PublicVacancyCard } from "./components/PublicVacancyCard";
 import { PublicJobDetailView } from "./components/PublicJobDetailView";
 import { VacancyCard } from "./components/VacancyCard";
 import { JobDetailView } from "./components/JobDetailView";
-import { PublicJobCardSkeleton } from "./components/PublicJobSkeleton";
 import { JobsNavigationIsland } from "./components/JobsNavigationIsland";
 import { VacancyPreview } from "./create/VacancyPreview";
 import { INITIAL_PROTOTYPE_VALUES } from "./create/form/prototype-model";
@@ -116,18 +115,6 @@ it("uses native titles and descriptions in the two application rail cards", () =
   for (const name of ["Tu perfil", "Resumen de la vacante"]) expectHeader(screen.getByRole("heading", { name }));
   expect(screen.getByText("Ingeniera").closest('[data-slot="card-description"]')).not.toBeNull();
   expect(screen.getByText("Acme").closest('[data-slot="card-description"]')).not.toBeNull();
-});
-
-it.each([vacancyDetail, legacyDetail, { ...vacancyDetail, compensation: null, requirements: { required: null, preferred: null }, benefits: { predefined: [], custom: [] } }])("mirrors the $source projection's optional card slots while loading", (job) => {
-  const sequence = (root: Element) => [...root.querySelectorAll('[data-slot]')].map(node => node.getAttribute("data-slot")).filter(slot => slot?.startsWith("card"));
-  const list = render(<PublicVacancyCard job={listItem(job)} />);
-  const factsCount = list.container.querySelectorAll('dl > div').length;
-  const listSlots = sequence(list.container);
-  list.unmount();
-  const loadingList = render(<PublicJobCardSkeleton job={job} />);
-  expect(sequence(loadingList.container)).toEqual(listSlots);
-  expect(loadingList.container.querySelectorAll('dl > div')).toHaveLength(factsCount);
-  loadingList.unmount();
 });
 
 it("keeps filter closing actions in a footer inside their original form", () => {

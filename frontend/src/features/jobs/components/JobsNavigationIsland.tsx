@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { CONTRACT_TYPE_OPTIONS, PROFESSIONAL_AREA_OPTIONS, WORK_SCHEDULE_OPTIONS } from "../drafts/ui/draft-labels";
 import { buildFilterCommitUrl, selectedValues, type JobsQuery, type JobsFilterPatch } from "../url";
@@ -95,7 +96,9 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
     event.preventDefault();
     startNavigation(href, null, anchor);
   }
-  const status = <p role="status" aria-live="polite" className="min-h-6 text-sm text-muted-foreground">{pending ? "Cargando…" : ""}</p>;
+  // Announced only; the visible cue is the spinner centered over the results.
+  const replacingResults = Boolean(pending && !pending.link);
+  const status = <p role="status" aria-live="polite" className="sr-only">{pending ? "Cargando vacantes" : ""}</p>;
   if (query === undefined) return <div onSubmitCapture={handleRootSubmitCapture} onClickCapture={handleRootClickCapture}>{status}{children}</div>;
 
   const excludesLegacy = Boolean(query.work_schedule || query.contract_type || query.professional_area || selectedValues(query.state).length || selectedValues(query.municipality).length || selectedValues(query.language).length || hasSalaryFilter(query));
@@ -158,7 +161,16 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
             <SheetTrigger render={<Button variant="outline" className="h-11 md:hidden">Filtros{activeCount ? ` (${activeCount})` : ""}</Button>} />
           </div>
           {excludesLegacy && <p role="note" className="flex items-start gap-2 text-sm text-muted-foreground"><InfoIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />Algunas vacantes del catálogo anterior no tienen este dato y no aparecen con este filtro.</p>}
-          <div className="flex min-w-0 flex-col gap-2">{children}</div>
+          <div data-jobs-results aria-busy={pending ? true : undefined} className="relative min-w-0">
+            <div className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", replacingResults && "opacity-50")}>{children}</div>
+            {/* Sticky so a long list still shows it mid-viewport; never blocks the results.
+                The next-page link shows its own spinner instead (JobsResults). */}
+            {replacingResults && <div data-jobs-results-pending className="pointer-events-none absolute inset-0 flex items-start justify-center">
+              <div className="sticky top-1/2 mt-16 rounded-full bg-card p-3 shadow-sm ring-1 ring-foreground/5 dark:ring-foreground/10">
+                <Spinner aria-hidden="true" className="size-6 text-muted-foreground" />
+              </div>
+            </div>}
+          </div>
         </div>
       </div>
       <SheetContent side="right" showCloseButton={false} className="gap-0">

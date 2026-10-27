@@ -8,6 +8,9 @@ import { join } from "node:path";
 // The shell never navigates itself, so the suite drives the pathname hook directly.
 const { pathnameMock } = vi.hoisted(() => ({ pathnameMock: vi.fn<() => string | null>(() => "/candidato/dashboard") }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
+// useLinkStatus only reports a pending navigation inside a real router; the suite drives it.
+const { linkStatusMock } = vi.hoisted(() => ({ linkStatusMock: vi.fn(() => ({ pending: false })) }));
+vi.mock("next/link", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/link")>()), useLinkStatus: () => linkStatusMock() }));
 // Auth is covered by identity/flow.test.tsx; this suite tests the shared frame
 // with an API identity, not the old prototype candidate.
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ result: { ok: true, data: { role: "candidate", user: { id: "id", full_name: "Ana Pérez", email: "ana@example.com" } } } }) }));
@@ -141,6 +144,25 @@ describe("candidate navigation", () => {
     expect(navLinks()).toHaveLength(7);
   });
 
+  it("swaps the Vacantes icon for the official spinner only while its navigation is pending", () => {
+    renderShell("/candidato/dashboard");
+    const link = screen.getByRole("link", { name: "Vacantes" });
+    const icon = link.querySelector(".tabler-icon-search")!;
+    const spinner = link.querySelector("[data-slot='spinner']")!;
+    // Always rendered in the icon slot (no layout shift), hidden and still until pending.
+    expect(spinner).toHaveAttribute("aria-hidden", "true");
+    expect(spinner).toHaveClass("opacity-0", "animate-none");
+    expect(icon).not.toHaveClass("opacity-0");
+    cleanup();
+    linkStatusMock.mockReturnValue({ pending: true });
+    renderShell("/candidato/dashboard");
+    const pendingLink = screen.getByRole("link", { name: "Vacantes" });
+    // Shown after 100 ms, so a fast navigation never flashes it (official useLinkStatus guidance).
+    expect(pendingLink.querySelector("[data-slot='spinner']")).toHaveClass("opacity-100", "delay-100", "animate-spin");
+    expect(pendingLink.querySelector(".tabler-icon-search")).toHaveClass("opacity-0", "delay-100");
+    linkStatusMock.mockReturnValue({ pending: false });
+  });
+
   it("lists the six destinations in order, grouped, as resolved Next links", () => {
     renderShell();
     const groupNodes = Array.from(document.querySelectorAll("[data-slot='sidebar-group']"));
@@ -153,7 +175,7 @@ describe("candidate navigation", () => {
     expect(navLinks().map((link) => [link.textContent, link.getAttribute("href")])).toEqual([["Vacantes", "/vacantes"], ...NAV]);
     for (const link of navLinks()) expect(link.getAttribute("href")).not.toBe("#");
     expect(SIDEBAR).not.toMatch(/href=["']?#/);
-    expect(SIDEBAR).toContain('import Link from "next/link"');
+    expect(SIDEBAR).toMatch(/import Link(, \{ useLinkStatus \})? from "next\/link"/);
     expect(SIDEBAR).toContain('from "next/navigation"');
   });
 

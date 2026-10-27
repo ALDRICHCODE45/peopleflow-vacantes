@@ -102,12 +102,13 @@ describe("public detail route", () => {
   it("has no loading boundary above it, so an API 404 or failure answers a real 404/500 status", () => {
     // A loading.tsx wraps every nested segment and makes Next flush a 200
     // skeleton before the page can call notFound() or throw (user decision S6:
-    // real status over the skeleton). The list keeps its own inside (listado).
+    // real status over the skeleton). The list has none either: under Next 15
+    // its boundary made search-param navigations get lost (vercel/next.js#83386).
     const at = (path: string) => existsSync(join(process.cwd(), "src/app/(candidato)", path));
     expect(at("vacantes/[jobId]/loading.tsx")).toBe(false);
     expect(at("vacantes/loading.tsx")).toBe(false);
     expect(at("loading.tsx")).toBe(false);
-    expect(at("vacantes/(listado)/loading.tsx")).toBe(true);
+    expect(at("vacantes/(listado)/loading.tsx")).toBe(false);
   });
   it("deduplicates concurrent page/metadata reads inside a scope and isolates requests", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(vacancyDetail));

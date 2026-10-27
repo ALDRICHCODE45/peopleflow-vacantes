@@ -5,7 +5,8 @@ scheduled; remove it here when it ships. Shipped in `feat/employer-real-data` (s
 timeout, pagination history, table pinning invariant, team company lifetime, international dial split, employer
 dashboard on real data, pipeline prototype fallback, legacy application phone, candidate «Crear cuenta», toasts over
 Sheet footers, skills casing, outline links, candidate-edit advisories with a defect, draft-save-flow flake, bootstrap
-panel voseo.
+panel voseo. Shipped in `fix/vacantes-lost-navigation` (see `next-16-upgrade.md`): lost client navigations
+between `/vacantes` search variants.
 
 ## Product gaps
 
@@ -19,20 +20,12 @@ panel voseo.
 
 ## Known issues
 
-- **Client navigation between `/vacantes` search variants is sometimes not applied** (diagnosed 2026-10-26, no fix).
-  After «Remoto» (`/vacantes?work_mode=remote`), going back to `/vacantes` leaves the URL and UI unchanged in ~25% of
-  runs; the user has to click again. Evidence (production build, Playwright probes in a fresh context per run): the
-  router sends the RSC request, the server answers 200 in ~40 ms and the response completes, the fixture logs the list
-  read, no console error — yet the navigation never commits. Same rate with the quick filter «Todas» (`router.push`
-  inside the island), with `window.next.router.push("/vacantes")` called directly (7/30) and with the
-  «Limpiar filtros» `<Link>` (9/30). **Pre-existing:** the pre-shell build (abe6a9f9) fails the same way (second
-  navigation 7/28, even the first one 2/30); the current build 5/30. Refuted, each measured and reverted: the island's
-  own `useTransition` around `router.push` (9/40 without it), prefetch of `/vacantes` (never prefetched; 10/40 with
-  `prefetch={false}`), a race with the previous navigation's stream (9/30 after waiting 1.5 s), the middleware
-  mangling `?_rsc=` (Next strips it; 200). The list and detail retry buttons already reload the document because of
-  the same class of failure. Next steps: try a newer Next 15.x/16 release (dependency decision for the user), then
-  reduce to a minimal repro (same page, search-param-only navigations, `loading.tsx` in the segment) and report it.
-  The e2e «renders the approved hero…» fails at the same rate because of this.
+- **Next 16 upgrade** — blocked by hosting: Amplify Hosting supports Next 12–15 only (design D1). Next 16 also fixes
+  the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known
+  migration work: `middleware.ts` → `proxy.ts` (on 16 the old name answers a plain 500), flat `eslint-config-next`
+  config, 67 errors from the React Compiler lint rules, production e2e to re-green.
+- **Loading feedback on other links into `/vacantes`** — the sidebar «Vacantes» link shows a spinner while pending
+  (`useLinkStatus`, `next-16-upgrade.md` L9); the detail «Volver»/breadcrumb links into the list do not yet.
 
 ## Waiting on the user
 

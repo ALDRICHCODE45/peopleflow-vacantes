@@ -86,7 +86,8 @@ describe.each([
     const action = screen.getByRole(actionRole, { name: actionLabel });
     if (actionRole === "link") expect(action).toHaveAttribute("href", "/vacantes");
     expect(action).toHaveAttribute("data-base-ui-tooltip-trigger");
-    expect(action.querySelector("span")).toHaveClass("group-data-[collapsible=icon]:sr-only");
+    // The label (not the icon slot) collapses to screen-reader only.
+    expect(within(action).getByText(actionLabel)).toHaveClass("group-data-[collapsible=icon]:sr-only");
     expect(account).toHaveAttribute("aria-haspopup", "menu");
     expect(account.querySelector("div.grid")).toHaveClass("group-data-[collapsible=icon]:sr-only");
     expect(account.querySelector("svg")).toHaveClass("group-data-[collapsible=icon]:hidden");

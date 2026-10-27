@@ -73,12 +73,14 @@ describe("/vacantes synchronous boundaries", () => {
     </JobsNavigationIsland>;
     const { rerender } = render(fixture("/vacantes"));
     fireEvent.click(screen.getByRole("button", { name: label }));
-    expect(screen.getByRole("status")).toHaveTextContent("Cargando…");
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando vacantes");
+    // Announced only: the visible cue is the spinner over the results.
+    expect(screen.getByRole("status")).toHaveClass("sr-only");
     expect(screen.getByRole("button", { name: label })).toBeDisabled();
     expect(screen.getByRole("button", { name: label === "Buscar" ? "Aplicar filtros" : "Buscar" })).toBeEnabled();
     expect(push).toHaveBeenCalledWith(label === "Buscar" ? "/vacantes?q=pending-search" : "/vacantes?contract_type=indefinite");
     rerender(fixture("/vacantes?q=new"));
-    expect(screen.getByRole("status")).not.toHaveTextContent("Cargando…");
+    expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.getByRole("button", { name: label })).toBeEnabled();
   });
   it("marks only the next link busy and preserves surrounding controls", () => {
@@ -87,7 +89,37 @@ describe("/vacantes synchronous boundaries", () => {
     fireEvent.click(link);
     expect(link).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Buscar" })).toBeEnabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Cargando…");
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando vacantes");
     expect(push).toHaveBeenCalledWith("/vacantes?cursor=opaque");
+  });
+  it("centers a spinner over the dimmed results while a filter navigation is pending", () => {
+    const fixture = (routeKey: string) => <JobsNavigationIsland routeKey={routeKey} query={{}}>{vacancyList}</JobsNavigationIsland>;
+    const { container, rerender } = render(fixture("/vacantes"));
+    const results = container.querySelector("[data-jobs-results]")!;
+    expect(results).not.toHaveAttribute("aria-busy");
+    expect(results.querySelector('[data-slot="spinner"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remoto" }));
+    expect(results).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("list", { name: "Listado de vacantes" }).parentElement).toHaveClass("opacity-50");
+    const spinner = results.querySelector('[data-slot="spinner"]')!;
+    expect(spinner).toHaveAttribute("aria-hidden", "true");
+    // Centered over the results, never blocking them.
+    expect(spinner.closest("[data-jobs-results-pending]")).toHaveClass("pointer-events-none", "absolute", "inset-0", "justify-center");
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando vacantes");
+    expect(screen.queryByText("Cargando…")).toBeNull();
+    rerender(fixture("/vacantes?work_mode=remote"));
+    expect(results).not.toHaveAttribute("aria-busy");
+    expect(results.querySelector('[data-slot="spinner"]')).toBeNull();
+    expect(screen.getByRole("list", { name: "Listado de vacantes" }).parentElement).not.toHaveClass("opacity-50");
+  });
+  it("leaves the next-page cue to its own link instead of covering the results", () => {
+    const { container } = render(<JobsNavigationIsland routeKey="/vacantes" query={{}}>{vacancyList}<Link href="/vacantes?cursor=opaque" data-jobs-next-link="true">Ver más vacantes</Link></JobsNavigationIsland>);
+    fireEvent.click(screen.getByRole("link", { name: "Ver más vacantes" }));
+    expect(screen.getByRole("link", { name: "Ver más vacantes" })).toHaveAttribute("aria-busy", "true");
+    const results = container.querySelector("[data-jobs-results]")!;
+    expect(results).toHaveAttribute("aria-busy", "true");
+    expect(results.querySelector("[data-jobs-results-pending]")).toBeNull();
+    expect(screen.getByRole("list", { name: "Listado de vacantes" }).parentElement).not.toHaveClass("opacity-50");
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando vacantes");
   });
 });
