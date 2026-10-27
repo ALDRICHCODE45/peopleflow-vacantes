@@ -152,6 +152,7 @@ export function createCompanySitesFixture() {
     } else { published = null; snapshot = null; }
     return json(200, current());
   };
+  const publicIdentity = origin => ({ ...company, logo_url: `${origin}${media[0].url}`, description: "Somos un equipo de tecnología en México que conecta a las personas con mejores oportunidades.", website: "https://example.com", linkedin_url: "https://www.linkedin.com/company/nexo-labs", instagram_url: "https://www.instagram.com/nexo.labs", facebook_url: "https://www.facebook.com/nexo.labs", twitter_url: "https://x.com/nexo_labs", location: publicDetail(nexoJobs[0]).location });
   const handle = (request, response, url) => {
     const json = (status, payload, cache = "no-store") => {
       response.writeHead(status, { "content-type": "application/json", "cache-control": cache, ...(url.pathname.startsWith(privatePath) && (status === 200 || status === 412) ? { etag: `"${version}"` } : {}) });
@@ -178,6 +179,12 @@ export function createCompanySitesFixture() {
     if (url.pathname === "/v2/me" && request.method === "GET") {
       if (!request.headers.authorization?.startsWith("Bearer ")) return json(401, { error: "unauthenticated", code: "unauthenticated" });
       return json(200, { role: "recruiter", user: { id: "b478fb93-71b8-47bf-8eaa-b726d63e05a0", email: "mariana@nexolabs.example", full_name: "Mariana Cruz" } });
+    }
+    // Anonymous public company profile (backend companyPublicResponse) read by
+    // the careers editor for the preview identity.
+    if (url.pathname.startsWith("/companies/") && request.method === "GET") {
+      if (url.pathname !== `/companies/${company.id}`) return json(404, { error: "not found", code: "not_found" });
+      return json(200, { ...publicIdentity(url.origin), industry_id: "tecnologia" });
     }
     if (url.pathname === "/me/company" && request.method === "GET") {
       if (!request.headers.authorization?.startsWith("Bearer ")) return json(401, { error: "unauthenticated", code: "unauthenticated" });
@@ -232,7 +239,7 @@ export function createCompanySitesFixture() {
     if (!published || !snapshot || (slug !== published.slug && !history.has(slug))) return json(404, { error: "Sitio no encontrado", code: "site_not_found" });
     const visible = { theme: snapshot.theme, seo: snapshot.seo, blocks: snapshot.blocks.filter(block => !block.hidden) };
     return json(200, {
-      company: { ...company, logo_url: `${url.origin}${media[0].url}`, description: "Somos un equipo de tecnología en México que conecta a las personas con mejores oportunidades.", website: "https://example.com", linkedin_url: "https://www.linkedin.com/company/nexo-labs", instagram_url: "https://www.instagram.com/nexo.labs", facebook_url: "https://www.facebook.com/nexo.labs", twitter_url: "https://x.com/nexo_labs", location: publicDetail(nexoJobs[0]).location },
+      company: publicIdentity(url.origin),
       site: visible,
       slug: published.slug, published_at: published.published_at, media: referencedMedia(visible, allMedia()),
     }, "public, max-age=60");

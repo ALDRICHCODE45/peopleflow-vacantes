@@ -499,3 +499,16 @@ test("employer membership follows the draft role control and the auth/gate rules
   await json("/__reset");
   expect(await (await membership()).json()).toMatchObject({ role: "owner" });
 });
+
+test("public company profile serves Nexo's identity in the backend companyPublicResponse shape", async () => {
+  const missing = await fetch(`${origin}/companies/00000000-0000-4000-8000-000000000000`);
+  expect(missing.status).toBe(404);
+  const response = await fetch(`${origin}/companies/${nexo}`);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body).toMatchObject({ id: nexo, name: "Nexo Labs", industry_id: "tecnologia" });
+  for (const key of ["logo_url", "website", "linkedin_url", "instagram_url", "facebook_url", "twitter_url"]) expect(body[key]).toMatch(/^https?:\/\//);
+  expect(typeof body.description).toBe("string");
+  expect(locationReadSchema.parse(body.location)).not.toBeNull();
+  expect(Object.keys(body)).not.toContain("rfc");
+});

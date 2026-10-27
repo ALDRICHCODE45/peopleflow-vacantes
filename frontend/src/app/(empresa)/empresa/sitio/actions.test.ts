@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080", apiTimeoutMs: 8000 } }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { getMyCompany } from "@/features/employer-company/api/company-client";
-import { getSite } from "@/features/company-site/api/client";
+import { getSite, getCompanyProfile } from "@/features/company-site/api/client";
 import * as siteClient from "@/features/company-site/api/client";
 import { loadPreviewData } from "@/features/company-site/public/preview-data";
 import { defaultSiteDraft } from "@/features/company-site/defaults";
@@ -15,9 +15,22 @@ const company = { id: "real-company", name: "Empresa real", rfc: "private-rfc", 
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getActionAccessToken).mockResolvedValue("private-token");
+  vi.spyOn(siteClient, "getCompanyProfile").mockResolvedValue({ ok: true, company: { id: company.id, name: company.name, location: null, logo_url: "https://example.com/logo.png", description: "Equipo real", website: "https://example.com", linkedin_url: "https://linkedin.com/company/real", instagram_url: null, facebook_url: null, twitter_url: null } });
   vi.spyOn(siteClient, "getSite").mockResolvedValue({ kind: "success", data: site, etag: '"7"' });
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: company.id, role: "owner", company } });
   vi.mocked(loadPreviewData).mockImplementation(async identity => ({ company: identity, jobs: [], jobsAvailable: true, officeLabels: new Map() }));
+});
+it("loads public profile using only session membership and passes identity to the preview", async () => {
+  const result = await (loadCareersEditor as (...args: unknown[]) => ReturnType<typeof loadCareersEditor>)({ company_id: "hostile" });
+  expect(getCompanyProfile).toHaveBeenCalledExactlyOnceWith(company.id);
+  expect(result).toMatchObject({ ok: true, preview: { company: { logo_url: "https://example.com/logo.png", description: "Equipo real", website: "https://example.com", linkedin_url: "https://linkedin.com/company/real" } } });
+});
+it.each(["failure", "exception"])("profile %s is non-blocking and never leaks raw errors", async mode => {
+  if (mode === "exception") vi.mocked(getCompanyProfile).mockRejectedValue(new Error("private-token"));
+  else vi.mocked(getCompanyProfile).mockResolvedValue({ ok: false });
+  const result = await loadCareersEditor();
+  expect(result).toMatchObject({ ok: true, notice: "No pudimos cargar el perfil de la empresa. Puedes seguir editando.", preview: { company: { logo_url: null, description: null, website: null, linkedin_url: null } } });
+  expect(JSON.stringify(result)).not.toContain("private-token");
 });
 it.each(["owner", "recruiter"] as const)("loads the session-scoped draft and preview for %s", async role => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: company.id, role, company } });

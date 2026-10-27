@@ -2,13 +2,13 @@
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { getMyCompany } from "@/features/employer-company/api/company-client";
-import { getSite } from "@/features/company-site/api/client";
+import { getSite, getCompanyProfile } from "@/features/company-site/api/client";
 import type { SiteState } from "@/features/company-site/api/model";
 import { loadPreviewData } from "@/features/company-site/public/preview-data";
 import type { CompanySitePreviewData } from "@/features/company-site/editor";
 
 export type CareersEditorResult =
-  | { ok: true; site: SiteState; role: "owner" | "recruiter"; preview: CompanySitePreviewData }
+  | { ok: true; site: SiteState; role: "owner" | "recruiter"; preview: CompanySitePreviewData; notice?: string }
   | { ok: false; code: "forbidden" | "company_inactive" | "unauthenticated" | "unavailable" };
 
 /** No company selector crosses the client boundary: membership comes from the session. */
@@ -30,15 +30,15 @@ export async function loadCareersEditor(): Promise<CareersEditorResult> {
       if (status === 403 && (code === "forbidden" || code === "company_inactive")) return { ok: false, code };
       return { ok: false, code: "unavailable" };
     }
-    const { company, role } = membership.data;
-    // The existing membership decoder exposes name/location, not profile links.
-    // Keep the honest avatar fallback used by the vacancy editor; never invent identity.
-    const preview = await loadPreviewData({
-      id: company.id, name: company.name, location: company.location,
+    const { company, company_id, role } = membership.data;
+    // Only this server-resolved membership id can select the public identity.
+    const profile = await getCompanyProfile(company_id).catch(() => ({ ok: false as const }));
+    const preview = await loadPreviewData(profile.ok ? profile.company : {
+      id: company_id, name: company.name, location: company.location,
       logo_url: null, description: null, website: null, linkedin_url: null,
       instagram_url: null, facebook_url: null, twitter_url: null,
     }, site.data.draft.blocks);
-    return { ok: true, site: site.data, role, preview };
+    return { ok: true, site: site.data, role, preview, ...(!profile.ok ? { notice: "No pudimos cargar el perfil de la empresa. Puedes seguir editando." } : {}) };
   } catch {
     return { ok: false, code: "unavailable" };
   }

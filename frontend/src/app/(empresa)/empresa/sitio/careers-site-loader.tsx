@@ -27,7 +27,7 @@ export function CareersSiteLoader() {
     setAttempt(value => value + 1);
   }
   if (!result) return <CareersSiteEditorLoading />;
-  if (result.ok) return <CareersSiteEditor initialSite={result.site} role={result.role} preview={result.preview} />;
+  if (result.ok) return <CareersSiteEditor initialSite={result.site} role={result.role} preview={result.preview} notice={result.notice} />;
   if (result.code === "unavailable") return <CareersSiteEditorError onRetry={retry} />;
   if (result.code === "unauthenticated") return <StateCard icon={Lock} tone="forbidden" title="Tu sesión expiró" description="Inicia sesión en otra pestaña y vuelve a consultar el sitio." primaryAction={{ label: "Reintentar", onClick: retry }}>
     <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: "outline" }), "min-h-10")}>Iniciar sesión</Link>

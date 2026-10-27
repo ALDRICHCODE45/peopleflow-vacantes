@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { requestJson } from "@/lib/api/server";
 import { siteDraftSchema } from "../model";
+import { companyProfileSchema, type CompanyProfileResult } from "./company-profile";
 import { availabilitySchema, decodeFailure, errorSchema, siteStateSchema, type AvailabilityResult, type Failure, type SiteResult } from "./model";
 
 export type SaveInput = { body: unknown; ifMatch: string };
@@ -25,6 +26,19 @@ async function siteRequest(token: string, suffix: string, method = "GET", body?:
   if (result.kind !== "success") return result;
   if (!validTag(result.etag) || result.etag !== `"${result.data.draft_version}"`) return { kind: "unrecognized" };
   return { ...result, etag: result.etag };
+}
+/** Anonymous profile read, selected only by server-verified session membership. */
+export async function getCompanyProfile(companyId: string): Promise<CompanyProfileResult> {
+  if (!z.string().uuid().safeParse(companyId).success) return { ok: false };
+  try {
+    const { serverEnv } = await import("@/lib/env/server");
+    const result = await requestJson(new URL(`/companies/${companyId}`, serverEnv.apiBaseUrl).toString(), {
+      expectedStatus: 200, redirect: "error", timeoutMs: serverEnv.apiTimeoutMs,
+      decoder: value => companyProfileSchema.parse(value),
+    });
+    if (!result.ok || result.data.id !== companyId) return { ok: false };
+    return { ok: true, company: result.data };
+  } catch { return { ok: false }; }
 }
 export function getSite(token: string): Promise<SiteResult> { return siteRequest(token, ""); }
 export async function putDraft(token: string, input: SaveInput): Promise<SiteResult> {
