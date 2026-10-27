@@ -31,6 +31,26 @@ it.each([
 ] as const)("decodes documented %i %j", async (status, body, kind) => {
   respond(body, status); expect(await putDraft("token", { body: state().draft, ifMatch: '"7"' })).toMatchObject({ kind, ...(kind === "error" ? { code: body.code } : { fields: body.fields }) });
 });
+it.each([
+  ["get", () => getSite("token")],
+  ["save", () => putDraft("token", { body: state().draft, ifMatch: '\"7\"' })],
+  ["publish", () => publishSite("token", '\"7\"')],
+  ["unpublish", () => unpublishSite("token")],
+  ["availability", () => slugAvailability("token", "nexo")],
+] as const)("%s treats HTTP 401 as unauthenticated regardless of envelope", async (_name, call) => {
+  for (const body of [{ error: "Expired", code: "unauthenticated" }, {}, null, "invalid JSON"]) {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(typeof body === "string" ? body : JSON.stringify(body), { status: 401 })));
+    expect(await call()).toEqual({ kind: "unauthenticated" });
+    expect(fetch).toHaveBeenCalledOnce();
+  }
+});
+it("never treats an unauthenticated envelope on a non-401 as authenticated status evidence", async () => {
+  respond({ error: "Expired", code: "unauthenticated" }, 403);
+  expect(await getSite("token")).toEqual({ kind: "unrecognized" });
+});
+it.each([{}, { error: "Expired", code: "unauthenticated" }])("media decoder preserves 401 independently of the envelope (%j)", body => {
+  expect(decodeMediaError(401, body)).toEqual({ kind: "unauthenticated" });
+});
 it("PUT decodes backend invalid_request", async () => {
   respond({ error: "Bad request", code: "invalid_request" }, 400);
   expect(await putDraft("token", { body: state().draft, ifMatch: '"7"' })).toEqual({ kind: "error", code: "invalid_request" });

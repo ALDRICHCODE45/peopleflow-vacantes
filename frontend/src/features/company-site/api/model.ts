@@ -32,6 +32,8 @@ export const errorStatuses: Record<SiteError["code"], number> = {
   unsupported_media_type: 415, image_too_small: 422, image_too_large: 422, media_limit_reached: 422,
 };
 export function decodeFailure(status: number, value: unknown): Failure {
+  // Authentication is an HTTP gate even when the upstream body is absent or invalid.
+  if (status === 401) return { kind: "unauthenticated" };
   const parsed = errorSchema.safeParse(value);
   if (!parsed.success || errorStatuses[parsed.data.code] !== status) return { kind: "unrecognized" };
   const error = parsed.data;
@@ -41,6 +43,7 @@ export function decodeFailure(status: number, value: unknown): Failure {
 }
 /** Restrict upload failures to the media endpoint's documented status/code pairs. */
 export function decodeMediaError(status: number, value: unknown): Failure {
+  if (status === 401) return { kind: "unauthenticated" };
   const parsed = errorSchema.safeParse(value);
   if (!parsed.success || !["invalid_request", "payload_too_large", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached", "forbidden", "company_inactive"].includes(parsed.data.code)) return { kind: "unrecognized" };
   return decodeFailure(status, parsed.data);

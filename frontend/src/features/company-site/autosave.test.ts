@@ -73,6 +73,20 @@ it("unrecognized/error outcomes do not retry and disposal cancels pending work",
   c.dispatch({ type: "slug", slug: "local" }); await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status.kind).toBe("error");
   await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledOnce(); c.dispatch({ type: "slug", slug: "later" }); c.dispose(); await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledOnce();
 });
+it("keeps local edits and announces a session problem without retrying an expired session", async () => {
+  const save = vi.fn().mockResolvedValue({ kind: "unauthenticated" });
+  const c = createAutosave(data(), '\"1\"', save);
+  const detach = c.attachOnline(window);
+  c.dispatch({ type: "slug", slug: "local" });
+  await vi.advanceTimersByTimeAsync(1500);
+  expect(c.getSnapshot().editor).toMatchObject({ dirty: true, draft: { slug: "local" } });
+  expect(c.getSnapshot().status).toEqual({ kind: "error", failure: { kind: "unauthenticated" } });
+  expect(autosaveLabel(c.getSnapshot().status)).toBe("Tu sesión expiró. Inicia sesión para guardar los cambios.");
+  window.dispatchEvent(new Event("online"));
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(save).toHaveBeenCalledOnce();
+  detach(); c.dispose();
+});
 it("reports saved time, no-op versions, error and exact Spanish labels", async () => {
   const initial = data(); const save = vi.fn().mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body }, etag: '"1"' })); const c = createAutosave(initial, '"1"', save);
   c.dispatch({ type: "slug", slug: "local" }); await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status).toEqual({ kind: "saved", at: expect.any(Number) }); expect(c.getSnapshot().editor.draft_version).toBe(1);

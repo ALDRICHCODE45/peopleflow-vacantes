@@ -107,7 +107,7 @@ export function autosaveLabel(status: AutosaveStatus, now = Date.now()): string 
     case "offline": return "Sin conexión · tus cambios se guardarán al reconectar";
     case "conflict": return "Alguien más editó este sitio";
     case "invalid": return "Revisa los campos marcados";
-    case "error": return "No se pudieron guardar los cambios";
+    case "error": return status.failure.kind === "unauthenticated" ? "Tu sesión expiró. Inicia sesión para guardar los cambios." : "No se pudieron guardar los cambios";
     case "idle": return "";
   }
 }

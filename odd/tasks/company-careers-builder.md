@@ -275,3 +275,7 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   instead of `unauthenticated` (fails closed, wrong message) + test gaps → fix worker. Crop decision (verbatim): «Agregar
   react-easy-crop (Recomendado)» → `react-easy-crop@6.2.4` (MIT, one transitive dep `normalize-wheel`) pinned; shadcn
   `slider` added via the official CLI (Base UI, no new deps) with its reference `docs/design/shadcn-reference/slider.md`.
+- **L34.** Security fix: `decodeFailure`/`decodeMediaError` map HTTP 401 to `unauthenticated` before reading the body;
+  `loadCareersEditor` returns `unauthenticated`; autosave says «Tu sesión expiró. Inicia sesión para guardar los
+  cambios.» Closed the verify's test gaps (real-client 401, membership gates, blank token, helper exceptions, hostile
+  arguments ignored, token never serialized). RED 13 → GREEN 496 (1 live skipped); parent re-ran and read the diff.

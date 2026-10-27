@@ -5,10 +5,10 @@ import { StateCard } from "@/components/feedback/state-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import type { AutosaveStatus } from "../autosave";
+import { autosaveLabel, type AutosaveStatus } from "../autosave";
 
 export function SaveStatus({ status, dirty, onLoadLatest }: { status: AutosaveStatus; dirty: boolean; onLoadLatest: () => void }) {
-  const label = status.kind === "saving" ? "Guardando…" : status.kind === "offline" ? "Sin conexión — reintentaremos" : status.kind === "conflict" ? "Otra persona editó el sitio" : status.kind === "invalid" ? "Revisa los campos marcados" : status.kind === "error" ? "No se pudieron guardar los cambios" : dirty ? "Cambios pendientes" : status.kind === "saved" ? "Cambios guardados" : "Sin cambios pendientes";
+  const label = status.kind === "saving" ? "Guardando…" : status.kind === "offline" ? "Sin conexión — reintentaremos" : status.kind === "conflict" ? "Otra persona editó el sitio" : status.kind === "invalid" ? "Revisa los campos marcados" : status.kind === "error" ? autosaveLabel(status) : dirty ? "Cambios pendientes" : status.kind === "saved" ? "Cambios guardados" : "Sin cambios pendientes";
   const Icon = status.kind === "saving" ? Spinner : ["offline", "conflict", "invalid", "error"].includes(status.kind) ? CircleAlert : CloudCheck;
   return <div className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1">
     <p role="status" aria-label="Estado del guardado" aria-live="polite" aria-atomic="true" className="flex items-center gap-2 text-sm text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</p>

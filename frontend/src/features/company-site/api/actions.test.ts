@@ -12,7 +12,11 @@ it.each([
   [() => unpublishSiteAction(), "unpublishSite", ["token"]],
   [() => slugAvailabilityAction("nexo"), "slugAvailability", ["token", "nexo"]],
 ] as const)("authenticated action delegates once", async (action, method, args) => {
-  vi.mocked(client[method]).mockResolvedValue({ kind: "unrecognized" }); expect(await action()).toEqual({ kind: "unrecognized" }); expect(client[method]).toHaveBeenCalledExactlyOnceWith(...args);
+  for (const kind of ["unrecognized", "unauthenticated"] as const) {
+    vi.mocked(client[method]).mockReset().mockResolvedValue({ kind });
+    expect(await action()).toEqual({ kind });
+    expect(client[method]).toHaveBeenCalledExactlyOnceWith(...args);
+  }
 });
 it("missing session never sends a request", async () => {
   vi.mocked(getActionAccessToken).mockResolvedValue(null); expect(await loadSiteAction()).toEqual({ kind: "unauthenticated" }); expect(client.getSite).not.toHaveBeenCalled();
