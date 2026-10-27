@@ -31,6 +31,10 @@ it.each([
 ] as const)("decodes documented %i %j", async (status, body, kind) => {
   respond(body, status); expect(await putDraft("token", { body: state().draft, ifMatch: '"7"' })).toMatchObject({ kind, ...(kind === "error" ? { code: body.code } : { fields: body.fields }) });
 });
+it("PUT decodes backend invalid_request", async () => {
+  respond({ error: "Bad request", code: "invalid_request" }, 400);
+  expect(await putDraft("token", { body: state().draft, ifMatch: '"7"' })).toEqual({ kind: "error", code: "invalid_request" });
+});
 it("412 decodes current, never merges", async () => {
   const current = state(); respond({ error: "Conflict", code: "version_conflict", current }, 412); expect(await putDraft("token", { body: current.draft, ifMatch: '"6"' })).toEqual({ kind: "conflict", current });
 });
@@ -46,6 +50,6 @@ it("no response is uncertain, never retried", async () => {
 it("checks availability using an encoded slug", async () => {
   respond({ slug: "nexo-labs", available: true, reason: null }); expect(await slugAvailability("token", "nexo-labs")).toMatchObject({ kind: "success", data: { available: true } }); expect(vi.mocked(fetch).mock.calls[0][0]).toContain("slug-availability?slug=nexo-labs");
 });
-it.each([[413, "payload_too_large"], [415, "unsupported_media_type"], [422, "image_too_small"], [422, "image_too_large"], [422, "media_limit_reached"]] as const)("typed media stub maps %s %s only", (status, code) => {
+it.each([[413, "payload_too_large"], [415, "unsupported_media_type"], [422, "image_too_small"], [422, "image_too_large"], [422, "media_limit_reached"]] as const)("typed media error decoder maps %s %s only", (status, code) => {
   expect(decodeMediaError(status, { error: "Image", code })).toEqual({ kind: "error", code }); expect(decodeMediaError(status, {})).toEqual({ kind: "unrecognized" });
 });

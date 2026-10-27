@@ -19,7 +19,7 @@ export const errorSchema = z.discriminatedUnion("code", [
   z.object({ ...base, code: z.literal("slug_taken"), field: z.literal("slug") }),
   z.object({ ...base, code: z.literal("slug_reserved"), field: z.literal("slug") }),
   z.object({ ...base, code: z.literal("publish_blocked"), issues: z.array(z.object({ code: z.enum(["slug_missing", "hero_title_missing", "no_content_block", "block_incomplete", "company_logo_missing", "company_name_missing"]), field: z.string().nullable() })) }),
-  ...(["forbidden", "company_inactive", "precondition_required", "payload_too_large", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached"] as const).map(code => z.object({ ...base, code: z.literal(code) })),
+  ...(["invalid_request", "forbidden", "company_inactive", "precondition_required", "payload_too_large", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached"] as const).map(code => z.object({ ...base, code: z.literal(code) })),
 ]);
 export type SiteError = z.infer<typeof errorSchema>;
 export type Failure = { kind: "conflict"; current: SiteState } | { kind: "invalid"; fields: FieldError[] } | { kind: "error"; code: SiteError["code"]; issues?: Extract<SiteError, { code: "publish_blocked" }>["issues"]; field?: "slug" } | { kind: "uncertain" | "unrecognized" | "unauthenticated" | "invalid_request" };
@@ -27,7 +27,7 @@ export type SiteResult = { kind: "success"; data: SiteState; etag: string } | Fa
 export const availabilitySchema = z.object({ slug: z.string(), available: z.boolean(), reason: z.enum(["taken", "reserved", "invalid"]).nullable() });
 export type AvailabilityResult = { kind: "success"; data: z.infer<typeof availabilitySchema> } | Failure;
 export const errorStatuses: Record<SiteError["code"], number> = {
-  version_conflict: 412, validation_error: 400, slug_taken: 409, slug_reserved: 422, publish_blocked: 422,
+  invalid_request: 400, version_conflict: 412, validation_error: 400, slug_taken: 409, slug_reserved: 422, publish_blocked: 422,
   forbidden: 403, company_inactive: 403, precondition_required: 428, payload_too_large: 413,
   unsupported_media_type: 415, image_too_small: 422, image_too_large: 422, media_limit_reached: 422,
 };
@@ -39,9 +39,9 @@ export function decodeFailure(status: number, value: unknown): Failure {
   if (error.code === "validation_error") return { kind: "invalid", fields: error.fields };
   return { kind: "error", code: error.code, ...("issues" in error ? { issues: error.issues } : {}), ...("field" in error ? { field: error.field } : {}) };
 }
-/** Upload transport/cropping is intentionally deferred; this stub only decodes documented upload failures. */
+/** Restrict upload failures to the media endpoint's documented status/code pairs. */
 export function decodeMediaError(status: number, value: unknown): Failure {
   const parsed = errorSchema.safeParse(value);
-  if (!parsed.success || !["payload_too_large", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached", "forbidden", "company_inactive"].includes(parsed.data.code)) return { kind: "unrecognized" };
+  if (!parsed.success || !["invalid_request", "payload_too_large", "unsupported_media_type", "image_too_small", "image_too_large", "media_limit_reached", "forbidden", "company_inactive"].includes(parsed.data.code)) return { kind: "unrecognized" };
   return decodeFailure(status, parsed.data);
 }

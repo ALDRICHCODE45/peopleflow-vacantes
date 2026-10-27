@@ -122,3 +122,9 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   `GET /v2/company-sites/media/{id}`: immutable public caching, nosniff, `CSP: default-src 'none'; sandbox`; 404 no-store.
   Frontend follow-ups: the media upload client (T4 stub) must send exactly `kind` + `file` and map 400 `invalid_request`
   and 503; the proxy could also forward the API's CSP header.
+- **L15.** Media upload (S6, worker mvq5xscl-7-su8e): same-origin `POST /api/company/site/media` (origin/sec-fetch-site
+  CSRF check, server-session token, bounded body via the CV `readBoundedBody`, exactly `kind` + `file`, type/size checks,
+  sanitized filename) → server-only `api/file-client.ts` → backend multipart; `upload.ts` browser helper with client
+  pre-validation and Spanish messages, uncertain never retried; `invalid_request` added to the site error schema (L11
+  gap); `requestPath.test.ts` registers the route/caller with a dedicated guard. Crop stays with the v0 design (T6).
+  RED → GREEN 369 focused (49 new); full Vitest 7356/7356; tsc clean; lint 0 errors. Parent read the route.

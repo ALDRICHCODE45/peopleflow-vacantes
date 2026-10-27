@@ -27,6 +27,8 @@ describe("single application-facing request path", () => {
       "components/auth/CandidateAuthControls.tsx",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
+      "features/company-site/api/file-client.ts",
+      "features/company-site/upload.ts",
       "features/employer-team/client.ts",
       "features/geo/use-geo-catalog.ts",
       "features/languages/use-language-catalog.ts",
@@ -128,6 +130,22 @@ describe("single application-facing request path", () => {
     expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
     const route = source(join(SRC, "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts"));
     expect(route).toContain("readBoundedBody(request.body, CV_ENVELOPE_CAP");
+    expect(route).not.toMatch(/\bfetch\(/);
+  });
+
+  it("keeps careers-site uploads on a fixed same-origin route and backend calls server-only", () => {
+    const upload = source(join(SRC, "features/company-site/upload.ts"));
+    expect(upload).toContain('fetch("/api/company/site/media"');
+    expect(upload).toContain('credentials: "same-origin"');
+    expect(upload).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:|credentials: "include"/);
+    const adapter = source(join(SRC, "features/company-site/api/file-client.ts"));
+    expect(adapter).toContain('import "server-only"');
+    expect(adapter).toContain('redirect: "error"');
+    expect(adapter).toContain('cache: "no-store"');
+    expect(adapter).toContain('"/v2/me/company/site/media"');
+    const route = source(join(SRC, "app/api/company/site/media/route.ts"));
+    expect(route).toContain("getActionAccessToken()");
+    expect(route).toContain("readBoundedBody(request.body, CAP");
     expect(route).not.toMatch(/\bfetch\(/);
   });
 
@@ -238,6 +256,7 @@ describe("single application-facing request path", () => {
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts",
       "app/api/company/manual-candidates/[vacancyId]/route.ts",
+      "app/api/company/site/media/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",
       "app/api/geo/countries/mx/postal-codes/[cp]/route.ts",

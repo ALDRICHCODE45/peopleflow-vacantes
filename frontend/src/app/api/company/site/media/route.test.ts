@@ -1,0 +1,40 @@
+// @vitest-environment node
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn().mockResolvedValue("server-token") }));
+vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080", apiTimeoutMs: 20 } }));
+import { POST } from "@/app/api/company/site/media/route";
+import { getActionAccessToken } from "@/lib/auth/action-session";
+const data = { id: "12345678-1234-4123-8123-123456789abc", kind: "cover", url: "/v2/company-sites/media/12345678-1234-4123-8123-123456789abc", width: 800, height: 600, content_type: "image/png" };
+const form = () => { const f = new FormData(); f.append("kind", "cover"); f.append("file", new File(["image"], "photo.png", { type: "image/png" })); return f; };
+const request = (body = form(), headers: Record<string, string> = {}) => new Request("http://localhost/api/company/site/media", { method: "POST", body, headers });
+beforeEach(() => { vi.mocked(getActionAccessToken).mockResolvedValue("server-token"); vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(data, { status: 201 }))); });
+afterEach(() => vi.unstubAllGlobals());
+it.each(["extra", "missing-kind", "missing-file", "duplicate-file", "duplicate-kind", "bad-kind", "kind-file", "string-file"])("rejects %s before backend", async rule => {
+ const f = form();
+ if (rule === "extra") f.append("extra", "x");
+ if (rule === "missing-kind") f.delete("kind");
+ if (rule === "missing-file") f.delete("file");
+ if (rule === "duplicate-file") f.append("file", new File(["x"], "x.png"));
+ if (rule === "duplicate-kind") f.append("kind", "cover");
+ if (rule === "bad-kind") f.set("kind", "logo");
+ if (rule === "kind-file") f.set("kind", new File(["x"], "x"));
+ if (rule === "string-file") f.set("file", "x");
+ const result = await POST(request(f)); expect(result.status).toBe(400); expect(await result.json()).toMatchObject({ code: "invalid_request" }); expect(fetch).not.toHaveBeenCalled();
+});
+it("rejects declared oversized bodies before reading", async () => { expect((await POST(request(form(), { "content-length": String(5 * 1024 * 1024 + 16385) }))).status).toBe(413); expect(fetch).not.toHaveBeenCalled(); });
+it("bounds actual streamed bytes without content-length", async () => {
+ const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(5 * 1024 * 1024 + 16385)); controller.close(); } });
+ const req = new Request("http://localhost/api/company/site/media", { method: "POST", body, headers: { "content-type": "multipart/form-data; boundary=test" }, duplex: "half" } as RequestInit);
+ expect((await POST(req)).status).toBe(413); expect(fetch).not.toHaveBeenCalled();
+});
+it("enforces the file size separately from multipart overhead", async () => { const f = form(); f.set("file", new File([new Uint8Array(5 * 1024 * 1024 + 1)], "x.png", { type: "image/png" })); expect((await POST(request(f))).status).toBe(413); expect(fetch).not.toHaveBeenCalled(); });
+it.each(["cover", "gallery", "portrait", "story"])("accepts kind %s", async kind => { const f = form(); f.set("kind", kind); vi.mocked(fetch).mockResolvedValue(Response.json({ ...data, kind }, { status: 201 })); expect((await POST(request(f))).status).toBe(201); });
+it.each([[400,"invalid_request"],[403,"forbidden"],[403,"company_inactive"],[413,"payload_too_large"],[415,"unsupported_media_type"],[422,"image_too_small"],[422,"image_too_large"],[422,"media_limit_reached"]])("maps backend %s %s", async (status, code) => { vi.mocked(fetch).mockResolvedValue(Response.json({ error: "raw backend detail", code }, { status: Number(status) })); const r = await POST(request()); expect(r.status).toBe(status); expect(await r.json()).toEqual({ error: code, code }); });
+it("maps storage 503 even without JSON", async () => { vi.mocked(fetch).mockResolvedValue(new Response("storage detail", { status: 503 })); const r = await POST(request()); expect(r.status).toBe(503); expect(await r.json()).toMatchObject({ code: "unavailable" }); });
+it("forwards only session authorization and exactly two fields", async () => { const r = await POST(request(form(), { authorization: "Bearer browser", cookie: "secret=x", "x-arbitrary": "x" })); expect(r.status).toBe(201); expect(await r.json()).toEqual(data); const backend = vi.mocked(fetch).mock.calls[0][0] as Request; expect(backend.url).toBe("http://localhost:8080/v2/me/company/site/media"); expect([...backend.headers].filter(([key]) => key !== "content-type")).toEqual([["authorization", "Bearer server-token"]]); expect(backend).toMatchObject({ redirect: "error", cache: "no-store" }); expect([...(await backend.formData()).keys()]).toEqual(["kind", "file"]); });
+it("network failure is uncertain without retry", async () => { vi.mocked(fetch).mockRejectedValue(new Error("network")); const r = await POST(request()); expect(await r.json()).toMatchObject({ code: "no_response" }); expect(fetch).toHaveBeenCalledOnce(); });
+it("timeout is uncertain without retry", async () => { vi.mocked(fetch).mockImplementation(input => new Promise((_, reject) => (input as Request).signal.addEventListener("abort", () => reject(new Error("timeout"))))); const r = await POST(request()); expect(await r.json()).toMatchObject({ code: "no_response" }); expect(fetch).toHaveBeenCalledOnce(); });
+it("rejects malformed backend success", async () => { vi.mocked(fetch).mockResolvedValue(Response.json({}, { status: 201 })); expect((await POST(request())).status).toBe(502); });
+it("rejects status/code mismatch", async () => { vi.mocked(fetch).mockResolvedValue(Response.json({ error: "bad", code: "image_too_small" }, { status: 400 })); expect((await POST(request())).status).toBe(502); });
+it("rejects cross-origin requests", async () => { expect((await POST(request(form(), { origin: "https://other.test" }))).status).toBe(403); expect(fetch).not.toHaveBeenCalled(); });
+it("requires session", async () => { vi.mocked(getActionAccessToken).mockResolvedValue(null); expect((await POST(request())).status).toBe(401); expect(fetch).not.toHaveBeenCalled(); });
