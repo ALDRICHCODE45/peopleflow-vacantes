@@ -66,6 +66,17 @@ func WriteSiteSlugError(w http.ResponseWriter, code Code) {
 	}{def.Message, def.Code, "slug"})
 }
 
+// WriteSitePublishBlocked exposes only bounded readiness issues.
+func WriteSitePublishBlocked(w http.ResponseWriter, issues []SitePublishIssue) {
+	def := Resolve(CodePublishBlocked)
+	recordCatalogCode(w, def.Code)
+	WriteJSON(w, def.Status, struct {
+		Error  string             `json:"error"`
+		Code   Code               `json:"code"`
+		Issues []SitePublishIssue `json:"issues"`
+	}{def.Message, def.Code, issues})
+}
+
 // WriteSiteVersionConflict includes the current site rather than generic data.
 func WriteSiteVersionConflict(w http.ResponseWriter, current any) {
 	def := Resolve(CodeVersionConflict)

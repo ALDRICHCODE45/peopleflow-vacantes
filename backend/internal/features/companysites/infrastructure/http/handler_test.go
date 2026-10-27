@@ -28,6 +28,14 @@ func (s *stubStore) Save(context.Context, uuid.UUID, uuid.UUID, int64, *app.Docu
 	s.calls++
 	return s.current, s.saveErr
 }
+func (s *stubStore) Publish(context.Context, uuid.UUID, uuid.UUID, int64) (app.Current, error) {
+	s.calls++
+	return s.current, s.saveErr
+}
+func (s *stubStore) Unpublish(context.Context, uuid.UUID, uuid.UUID) (app.Current, error) {
+	s.calls++
+	return s.current, s.saveErr
+}
 func (s *stubStore) SlugAvailable(context.Context, uuid.UUID, string) (bool, error) {
 	return s.available, nil
 }

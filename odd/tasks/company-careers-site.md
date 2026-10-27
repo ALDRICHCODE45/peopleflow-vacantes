@@ -28,8 +28,8 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 
 ## Tasks
 
-- [x] T1 — S1, S4, S8: migration + document validation + GET/PUT draft + slug availability — route: worker — commit: (this commit)
-- [ ] T2 — S5, S8: publish/unpublish (owner, issues, audit) — route: inline — commit: —
+- [x] T1 — S1, S4, S8: migration + document validation + GET/PUT draft + slug availability — route: worker — commit: ee16597b
+- [x] T2 — S5, S8: publish/unpublish (owner, issues, audit) — route: worker — commit: (this commit)
 - [ ] T3 — S6, S8: media upload + public media read — route: inline — commit: —
 - [ ] T4 — S7, S8: public site read + catalog company_id filter — route: inline — commit: —
 

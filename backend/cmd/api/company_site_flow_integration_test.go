@@ -26,7 +26,7 @@ func newCompanySiteFlowHarness(t *testing.T) *draftFlowHarness {
 	users := identitypostgres.NewUserRepository(q)
 	members := companiespostgres.NewCompanyMemberRepository(h.pool)
 	companies := companiespostgres.NewCompanyRepository(h.pool, auditpostgres.NewAuditEventRepository())
-	router := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(h.signer.verifier), requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, roles.RecruiterRole), requireOwner: identityhttp.RequireCompanyRole(users, members, companies, roles.OwnerRole), siteHandler: newCompanySiteHandler(h.pool), queries: q, pool: h.pool})
+	router := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(h.signer.verifier), requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, roles.RecruiterRole), requireOwner: identityhttp.RequireCompanyRole(users, members, companies, roles.OwnerRole), siteHandler: newCompanySiteHandler(h.pool, auditpostgres.NewAuditEventRepository()), queries: q, pool: h.pool})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	h.server = server

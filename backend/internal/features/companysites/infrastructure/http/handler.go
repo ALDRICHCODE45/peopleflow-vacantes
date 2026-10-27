@@ -119,6 +119,55 @@ func (h *Handler) Put(w http.ResponseWriter, r *http.Request) {
 		writeCurrent(w, current)
 	}
 }
+func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
+	cc, ok := company(w, r)
+	if !ok {
+		return
+	}
+	header := r.Header.Get("If-Match")
+	if strings.TrimSpace(header) == "" {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodePreconditionRequired))
+		return
+	}
+	match := etagPattern.FindStringSubmatch(header)
+	if match == nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
+		return
+	}
+	version, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
+		return
+	}
+	current, err := h.store.Publish(r.Context(), cc.CompanyID, cc.UserID, version)
+	var blocked *app.PublishBlocked
+	switch {
+	case errors.Is(err, app.ErrVersionConflict):
+		w.Header().Set("ETag", etag(current.DraftVersion))
+		httpjson.WriteSiteVersionConflict(w, current)
+	case errors.As(err, &blocked):
+		httpjson.WriteSitePublishBlocked(w, blocked.Issues)
+	case errors.Is(err, app.ErrSlugTaken):
+		httpjson.WriteSiteSlugError(w, httpjson.CodeSlugTaken)
+	case err != nil:
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
+	default:
+		writeCurrent(w, current)
+	}
+}
+func (h *Handler) Unpublish(w http.ResponseWriter, r *http.Request) {
+	cc, ok := company(w, r)
+	if !ok {
+		return
+	}
+	current, err := h.store.Unpublish(r.Context(), cc.CompanyID, cc.UserID)
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
+		return
+	}
+	writeCurrent(w, current)
+}
+
 func (h *Handler) SlugAvailability(w http.ResponseWriter, r *http.Request) {
 	cc, ok := company(w, r)
 	if !ok {

@@ -70,9 +70,9 @@ func companySiteValidator() *sitesapp.Validator {
 		return &sitesapp.RichDocument{Canonical: doc.Canonical, Plain: doc.Plain}, nil
 	})
 }
-func newCompanySiteHandler(pool *pgxpool.Pool) *siteshttp.Handler {
+func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *siteshttp.Handler {
 	validator := companySiteValidator()
-	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)))
+	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)), events)
 	return siteshttp.New(store, draftjson.Decode, validator)
 }
 
@@ -303,7 +303,7 @@ func run() error {
 
 	// WS6B-1b-b: router.go owns the chi router; the composition root passes it.
 	r := newRouter(routerDeps{
-		siteHandler: newCompanySiteHandler(pool),
+		siteHandler: newCompanySiteHandler(pool, auditRepo),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		requireCandidate: requireCandidate, identityHandler: identityHandler,
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,

@@ -131,6 +131,12 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/site/slug-availability", d.siteHandler.SlugAvailability)
 	})
 
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireOwner)
+		r.Post("/v2/me/company/site/publish", d.siteHandler.Publish)
+		r.Post("/v2/me/company/site/unpublish", d.siteHandler.Unpublish)
+	})
+
 	// Gated writes on the ROOT router (outside the public mount), each with
 	// requireAuth + requireRecruiter (routing-split defense).
 	jobHandlers := d.jobHandler.JobHandlers()

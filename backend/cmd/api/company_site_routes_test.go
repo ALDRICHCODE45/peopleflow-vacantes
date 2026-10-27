@@ -28,6 +28,12 @@ func (s *siteRouteStore) Save(context.Context, uuid.UUID, uuid.UUID, int64, *app
 	s.calls++
 	return app.Current{Draft: app.DefaultDocument(), DraftVersion: 2, Media: []app.Media{}}, s.err
 }
+func (s *siteRouteStore) Publish(ctx context.Context, company, user uuid.UUID, version int64) (app.Current, error) {
+	return s.Get(ctx, company, user)
+}
+func (s *siteRouteStore) Unpublish(ctx context.Context, company, user uuid.UUID) (app.Current, error) {
+	return s.Get(ctx, company, user)
+}
 func (s *siteRouteStore) SlugAvailable(context.Context, uuid.UUID, string) (bool, error) {
 	s.calls++
 	return true, nil
@@ -91,6 +97,13 @@ func TestCompanySiteRoutes(t *testing.T) {
 		status                                     int
 		code, tag                                  string
 	}{
+		{name: "publish owner", method: "POST", path: "/v2/me/company/site/publish", sub: "s", role: "owner", match: `"2"`, status: 200, tag: `"2"`},
+		{name: "publish recruiter", method: "POST", path: "/v2/me/company/site/publish", sub: "s", role: "recruiter", status: 403, code: "forbidden"},
+		{name: "unpublish recruiter", method: "POST", path: "/v2/me/company/site/unpublish", sub: "s", role: "recruiter", status: 403, code: "forbidden"},
+		{name: "publish missing match", method: "POST", path: "/v2/me/company/site/publish", sub: "s", role: "owner", status: 428, code: "precondition_required"},
+		{name: "publish stale", method: "POST", path: "/v2/me/company/site/publish", sub: "s", role: "owner", match: `"1"`, err: app.ErrVersionConflict, status: 412, code: "version_conflict", tag: `"2"`},
+		{name: "unpublish owner", method: "POST", path: "/v2/me/company/site/unpublish", sub: "s", role: "owner", status: 200, tag: `"2"`},
+		{name: "publish unauthenticated", method: "POST", path: "/v2/me/company/site/publish", status: 401, code: "unauthenticated"},
 		{name: "get", method: "GET", path: "/v2/me/company/site", sub: "s", role: "recruiter", status: 200, tag: `"2"`},
 		{name: "availability", method: "GET", path: "/v2/me/company/site/slug-availability?slug=abc", sub: "s", role: "recruiter", status: 200},
 		{name: "401", method: "GET", path: "/v2/me/company/site", status: 401, code: "unauthenticated"},

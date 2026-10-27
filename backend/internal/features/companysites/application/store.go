@@ -12,6 +12,10 @@ import (
 var ErrSlugTaken = errors.New("slug taken")
 var ErrVersionConflict = errors.New("site version conflict")
 
+type PublishBlocked struct{ Issues []Issue }
+
+func (e *PublishBlocked) Error() string { return "site publication blocked" }
+
 type InvalidFields struct{ Fields []Field }
 
 func (e *InvalidFields) Error() string { return "invalid site fields" }
@@ -40,4 +44,6 @@ type Store interface {
 	Get(context.Context, uuid.UUID, uuid.UUID) (Current, error)
 	Save(context.Context, uuid.UUID, uuid.UUID, int64, *Document) (Current, error)
 	SlugAvailable(context.Context, uuid.UUID, string) (bool, error)
+	Publish(context.Context, uuid.UUID, uuid.UUID, int64) (Current, error)
+	Unpublish(context.Context, uuid.UUID, uuid.UUID) (Current, error)
 }
