@@ -44,7 +44,7 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   composed from installed shadcn primitives per `docs/frontend-ui-design-rules.md`, wired to the T3/T4 model, API and
   autosave (never v0's simplified model). Delivered in reviewable slices, each reviewed in the browser (looks, details,
   system design — not only behavior) from the review worktree (L20):
-  - [ ] T6a — fixture: `/v2/company-sites/{slug}`, media and `/v2/jobs?company_id=` in `tests/fixtures` — route: worker — commit: —
+  - [x] T6a — fixture: `/v2/company-sites/{slug}`, media and `/v2/jobs?company_id=` in `tests/fixtures` — route: worker — commit: see L21
   - [ ] T6b — public site: all 13 sections × variants, brand tokens + contrast, font pairs, header/footer, socials —
     route: worker — commit: —
   - [ ] T6c — editor shell on `/empresa/sitio`: tabs, section list (add/reorder/hide/duplicate/delete), live preview
@@ -195,3 +195,9 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   valida que siga tu system design, me sigues?» Review builds: «Worktree aparte para revisión (Recomendado)» —
   `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-review` (detached, same clone), own `.next` and
   `node_modules`, served on :3100 against the fixture on :4010; the user's :3000 is never touched.
+- **L21.** T6a (worker mvqqca6j-a-6zpz): `tests/fixtures/company-sites.mjs` + `jobs-server.mjs` — Nexo Labs site with all
+  13 blocks validated by the product's public decoder, old slug `nexo-equipo`, media served from the repo's licensed
+  `public/company/acme-cover.webp` (illustrative, the same photo for every role), 7 Nexo vacancies filtered by
+  `company_id`, controls `/__site?brand=orange&font=modern | brand=green&font=editorial | jobs=empty|default`, `/__reset`.
+  RED 4 → GREEN 11/11. The fixture pages jobs 2 + 5, which exposed that `listCompanyJobs` reads only the first page —
+  sent to the T6b worker as a product fix (follow `next_cursor`).

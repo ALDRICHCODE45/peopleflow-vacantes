@@ -4,6 +4,8 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { publicJobDetailSchema, publicJobsListSchema } from "../../src/features/jobs/schemas";
 import { countriesSchema, statesSchema, municipalitiesSchema, postalSchema } from "../../src/features/geo/model";
 import { languageCatalogSchema } from "../../src/features/languages/model";
+import { publicSiteSchema } from "../../src/features/company-site/public/schema";
+import { publishIssues, siteDraftSchema } from "../../src/features/company-site/model";
 let server: ChildProcess;
 let origin: string;
 beforeAll(async () => {
@@ -12,9 +14,115 @@ beforeAll(async () => {
   origin = `http://127.0.0.1:${String(chunk).match(/listening on (\d+)/)![1]}`;
 });
 afterAll(async () => { const closed = once(server, "exit"); server.kill("SIGTERM"); await closed; });
+const nexo = "b478fb93-71b8-47bf-8eaa-b726d63e01a0";
 const main = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const rich = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d92";
 async function json(path: string) { return (await fetch(`${origin}${path}`)).json(); }
+test("public careers snapshot decodes, is publishable, and old slugs resolve to the current slug", async () => {
+  await json("/__reset");
+  const response = await fetch(`${origin}/v2/company-sites/nexo-labs`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("public, max-age=60");
+  const body = await response.json();
+  const parsed = publicSiteSchema.parse(body);
+  expect(Object.keys(body).sort()).toEqual(["company", "media", "published_at", "site", "slug"]);
+  expect(body.site).not.toHaveProperty("slug");
+  expect(Object.keys(body.company).sort()).toEqual(["id", "name", "logo_url", "description", "website", "linkedin_url", "instagram_url", "facebook_url", "twitter_url", "location"].sort());
+  expect(parsed.company.id).toBe(nexo);
+  expect(parsed.company.name).toBe("Nexo Labs");
+  expect(new Set(parsed.site.blocks.map(block => block.type)).size).toBe(13);
+  expect(parsed.site.blocks.every(block => !block.hidden)).toBe(true);
+  expect(new Set(parsed.site.blocks.map(block => block.variant)).size).toBeGreaterThan(1);
+  expect(publishIssues(siteDraftSchema.parse({ ...parsed.site, slug: parsed.slug }), parsed.company)).toEqual([]);
+  const story = parsed.site.blocks.find(block => block.type === "story")!;
+  expect(story.type === "story" && story.content.body?.schema_version).toBe(1);
+  expect(await json("/v2/company-sites/nexo-equipo")).toEqual(body);
+  const missing = await fetch(`${origin}/v2/company-sites/desconocida`);
+  expect(missing.status).toBe(404);
+  expect(missing.headers.get("cache-control")).toBe("no-store");
+  expect(await missing.json()).toEqual({ error: expect.any(String), code: "site_not_found" });
+});
+
+test("site controls change branding and only company jobs; reset restores defaults", async () => {
+  await json("/__reset");
+  const defaultSite = await json("/v2/company-sites/nexo-labs");
+  await json("/__site?brand=green&font=editorial&jobs=empty");
+  const green = publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs"));
+  expect(green.site.theme).toEqual({ brand_color: "#15803D", font_pair: "editorial" });
+  expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}`)).items).toEqual([]);
+  expect(publicJobsListSchema.parse(await json("/v2/jobs")).items).toHaveLength(2);
+  await json("/__site?brand=orange&font=modern&jobs=default");
+  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs")).site.theme).toEqual({ brand_color: "#EA580C", font_pair: "modern" });
+  expect((await fetch(`${origin}/__site?brand=green&font=unknown&jobs=empty`)).status).toBe(400);
+  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs")).site.theme).toEqual({ brand_color: "#EA580C", font_pair: "modern" });
+  expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}`)).items).toHaveLength(2);
+  await json("/__reset");
+  expect(await json("/v2/company-sites/nexo-labs")).toEqual(defaultSite);
+  expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}`)).items).toHaveLength(2);
+});
+
+test("site media are real immutable images, every reference resolves, and unknown ids are private 404s", async () => {
+  await json("/__reset");
+  const site = publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs"));
+  expect(new Set(site.media.map(media => media.kind))).toEqual(new Set(["cover", "gallery", "portrait", "story"]));
+  const refs = [...JSON.stringify(site.site).matchAll(/"media_id":"([^"]+)"/g)].map(match => match[1]);
+  expect(refs.every(id => site.media.some(media => media.id === id))).toBe(true);
+  for (const media of site.media) {
+    expect(media.url).toBe(`/v2/company-sites/media/${media.id}`);
+    const response = await fetch(`${origin}${media.url}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/webp");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    expect(bytes.subarray(0, 4).toString()).toBe("RIFF");
+    expect(bytes.subarray(8, 12).toString()).toBe("WEBP");
+    expect(bytes.length).toBeGreaterThan(100);
+  }
+  for (const id of ["bad-id", main]) {
+    const response = await fetch(`${origin}/v2/company-sites/media/${id}`);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  }
+});
+
+test("company filter isolates seven published jobs, composes filters and pagination, and validates UUIDs", async () => {
+  await json("/__reset");
+  const first = publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}`));
+  expect(first.items).toHaveLength(2);
+  expect(first.next_cursor).not.toBeNull();
+  const last = publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}&${new URLSearchParams({ cursor: first.next_cursor! })}`));
+  expect(last.next_cursor).toBeNull();
+  const all = [...first.items, ...last.items];
+  expect(new Set(all.map(item => item.id)).size).toBe(7);
+  expect(all.every(item => item.company.id === nexo)).toBe(true);
+  expect(new Set(all.map(item => item.work_mode))).toEqual(new Set(["remote", "hybrid", "onsite"]));
+  expect(new Set(all.map(item => item.location?.state?.id))).toEqual(new Set(["19", "14"]));
+  for (const item of all) expect(publicJobDetailSchema.parse(await json(`/v2/jobs/${item.id}`)).company.id).toBe(nexo);
+  const filtered = publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}&work_mode=hybrid&state=14`));
+  expect(filtered.items.length).toBeGreaterThan(0);
+  expect(filtered.items.every(item => item.work_mode === "hybrid" && item.location?.state?.id === "14")).toBe(true);
+  const foreign = publicJobsListSchema.parse(await json(`/v2/jobs?company_id=0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f`));
+  expect(foreign.items.every(item => item.company.id !== nexo)).toBe(true);
+  expect(foreign.items.length).toBeGreaterThan(0);
+  expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo.toUpperCase()}`))).toEqual(first);
+  expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${main}`)).items).toEqual([]);
+  expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}&q=long-content`)).items).toEqual([]);
+  for (const value of ["bad", ""]) {
+    const response = await fetch(`${origin}/v2/jobs?company_id=${value}`);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: expect.any(String), code: "invalid_filter" });
+  }
+  await json(`/__visibility?id=${first.items[0].id}&visible=false`);
+  expect((await fetch(`${origin}/v2/jobs/${first.items[0].id}`)).status).toBe(404);
+  expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}`)).items.some(item => item.id === first.items[0].id)).toBe(false);
+  await json("/__failure?kind=5xx");
+  expect((await fetch(`${origin}/v2/jobs?company_id=${nexo}`)).status).toBe(500);
+  expect((await fetch(`${origin}/v2/company-sites/nexo-labs`)).status).toBe(200);
+  await json("/__recover");
+  expect(publicJobsListSchema.safeParse(await json(`/v2/jobs?company_id=${nexo}`)).success).toBe(true);
+});
+
 test("live list and every known detail decode with the product's strict v2 schemas", async () => {
   await json("/__reset");
   const list = publicJobsListSchema.parse(await json("/v2/jobs"));

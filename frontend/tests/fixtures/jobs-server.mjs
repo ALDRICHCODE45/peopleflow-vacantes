@@ -1,7 +1,9 @@
 import { createServer } from "node:http";
 import { publicPayload, publicPage, publicSearchRank, matchesPublic, catalogResponse } from "./public-jobs.mjs";
 import { createEmployerDashboardFixture } from "./employer-dashboard.mjs";
+import { createCompanySitesFixture, nexoCompanyId, nexoJobs } from "./company-sites.mjs";
 const employerDashboardFixture = createEmployerDashboardFixture();
+const companySitesFixture = createCompanySitesFixture();
 
 const port = Number(process.env.JOBS_FIXTURE_PORT ?? 4010);
 const requests = [];
@@ -360,7 +362,7 @@ const detailJobs = {
   [currencyProofJob.id]: currencyProofJob,
   [usdConjunctiveTarget.id]: usdConjunctiveTarget,
   [pendingSearchJob.id]: pendingSearchJob,
-  ...Object.fromEntries(reactJobs.map(item => [item.id, item])),
+  ...Object.fromEntries([...reactJobs, ...nexoJobs].map(item => [item.id, item])),
 };
 
 function sendJson(response, status, payload) {
@@ -371,6 +373,7 @@ function sendJson(response, status, payload) {
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
   if (employerDashboardFixture(request, response, url)) return;
+  if (companySitesFixture.handle(request, response, url)) return;
   const v2 = url.pathname === "/v2/jobs" || url.pathname.startsWith("/v2/jobs/");
   const send = (target, status, payload) => sendJson(target, status, v2 ? publicPayload(payload) : payload);
   const catalog = catalogResponse(url.pathname);
@@ -382,6 +385,7 @@ const server = createServer((request, response) => {
   if (url.pathname === "/__health") return send(response, 200, { ok: true });
   if (url.pathname === "/__requests") return send(response, 200, requests);
   if (url.pathname === "/__reset") {
+    companySitesFixture.reset();
     requests.length = 0;
     failureState.kind = null;
     hiddenJobs.clear();
@@ -462,6 +466,27 @@ const server = createServer((request, response) => {
       : url.searchParams.has("cursor")
         ? { items: listItems }
         : { items: listItems, next_cursor: "opaque a+b/c=" };
+  // Keep the legacy and unfiltered pools unchanged. Company reads use the
+  // same predicates/pagination over those public rows plus Nexo's vacancies.
+  // Run before sentinel shortcuts so q cannot bypass company isolation.
+  if (v2 && detailId === undefined && url.searchParams.has("company_id")) {
+    const companyId = url.searchParams.get("company_id");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(companyId))
+      return respond(response, 400, { error: "company_id debe ser un UUID", code: "invalid_filter" });
+    const pool = [job, richDetailJob, currencyProofJob, ...reactJobs, pendingSearchJob, ...nexoJobs];
+    const items = pool.filter(item => item.company.id.toLowerCase() === companyId.toLowerCase()
+      && !(companySitesFixture.jobsEmpty() && item.company.id === nexoCompanyId)
+      && !isHidden(item.id) && matchesPublic(item, url.searchParams))
+      .sort((a, b) => publicSearchRank(b, url.searchParams) - publicSearchRank(a, url.searchParams));
+    if (failureState.kind === "5xx") return respond(response, 500, { error: "internal server error" });
+    if (failureState.kind === "schema") return respond(response, 200, { items: [{ ...job, id: "not-a-uuid" }] });
+    if (failureState.kind === "timeout") {
+      const timer = setTimeout(() => send(response, 200, publicPage(items, url.searchParams)), 1500);
+      response.on("close", () => clearTimeout(timer));
+      return;
+    }
+    return respond(response, 200, publicPage(items, url.searchParams), url.searchParams.has("cursor") ? 300 : 0);
+  }
   if (url.searchParams.get("q") === "error") {
     return respond(response, 503, { error: "unavailable" });
   }
