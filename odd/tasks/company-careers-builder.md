@@ -347,3 +347,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   (public render/nav/jobs/filters, old slug 308, unknown slug, axe light/dark, edit + autosave, taken slug stays local,
   publish → public page, recruiter cannot publish); vacancies list/detail green; `root.spec` composition check passes.
   `root.spec` «root foundation matrix» stays red for main's reason (backlog).
+- **L48.** T6 complete (T6a–T6f). T7 decisions (verbatim choices): serving «Backend las sirve (Recomendado)» — private
+  bucket, the existing `GET /v2/company-sites/media/{id}` reads from S3 with immutable caching, frontend unchanged; local
+  and integration tests «MinIO en Docker (Recomendado)» — adapter integration tests against MinIO via docker compose, the
+  disk adapter stays for fast dev; scope «Solo imágenes del sitio» — CVs migrate in a separate task; owner «La sesión de
+  backend» (worktree `peopleflow-vacantes`, branch `feat/company-careers-site`).
