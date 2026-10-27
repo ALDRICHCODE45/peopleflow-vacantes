@@ -151,3 +151,18 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   container, /tmp folder; tokens invalid) and the parent deleted the local token file; v0 prompt rewritten with no
   stack/component names, the real light/dark palette from `globals.css`, Inter, shape and comfort rules, full creative
   freedom (modern, UX/UI first), keeping only product rules (behaviors, section content and limits, exact copy).
+- **L18.** v0 first result (chat iOHqDhovIts). The preview URL is private to the user's v0 account (the MCP token did not
+  open it), so the parent pulled the source with the v0 MCP and ran it locally (production build on :3200 from
+  `.v0-review-site/`, excluded in `.git/info/exclude`; a first attempt ran `next dev` inside `frontend/test-results/`,
+  pegged the CPU and slowed the user's :3000 until it was stopped and moved). Reviewed with the Playwright MCP (turn
+  taken from and released to Houndfe), light/dark, 1440/768/390, demo states. Strong: three-zone editor (sections ·
+  live preview with device switch · properties with Contenido/Diseño), library panel with search, brand tab with swatches,
+  custom hex, contrast warning showing the adjusted shade, font samples; slug + SEO search preview; honest empty
+  placeholders and field errors; owner/recruiter publish gate; checklist with links; mobile editor as three tabs
+  (Secciones / Vista previa / Editar); public site editorial, no overflow, one H1. Gaps: modals (library, checklist,
+  confirm, success) pinned to the top-left, not marked as dialogs, no initial focus on «Cancelar»; success shows a modal
+  plus a toast; save status not announced; «Completa todas las secciones visibles» does not say which; loading skeleton is
+  generic and only covers the preview; variants only partly implemented (hero/story/figures/grids) and hero labels
+  mismatched («Dividida» renders centered); values/benefits ignore the chosen icon (heart/star only); large empty gaps
+  between public sections; no social links in the closing/footer; nested scroll on mobile. v0's data model differs from
+  the contract (titles/text generic per section, Spanish icon names) — T6 keeps the design, uses the T3 model.
