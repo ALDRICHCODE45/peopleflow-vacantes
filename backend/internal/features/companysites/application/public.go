@@ -47,21 +47,26 @@ type ReadPublicCompany func(context.Context, uuid.UUID) (PublicCompany, error)
 // VisibleDocument never mutates the stored snapshot and derives media references
 // using the document grammar, not a recursive search through arbitrary JSON.
 func (v *Validator) VisibleDocument(value any) (*Document, error) {
-	doc, fields := v.ValidateDocument(value)
-	if len(fields) != 0 {
+	// Validate exactly once: validation canonicalizes rich bodies in place, so a
+	// second pass would hand the rich validator an already-encoded body. Hidden
+	// blocks are dropped from the decoded value first (hero and jobs are never
+	// hidden, so the visible document keeps its structural minimums).
+	m, ok := value.(map[string]any)
+	if !ok {
 		return nil, errors.New("invalid published site")
 	}
-	visible := []any{}
-	for _, raw := range doc.Value["blocks"].([]any) {
-		block := raw.(map[string]any)
-		if block["hidden"] != true {
-			visible = append(visible, block)
+	if blocks, ok := m["blocks"].([]any); ok {
+		visible := []any{}
+		for _, raw := range blocks {
+			if block, ok := raw.(map[string]any); !ok || block["hidden"] != true {
+				visible = append(visible, raw)
+			}
 		}
+		m["blocks"] = visible
 	}
-	doc.Value["blocks"] = visible
-	doc, fields = v.ValidateDocument(doc.Value)
+	doc, fields := v.ValidateDocument(m)
 	if len(fields) != 0 {
-		return nil, errors.New("invalid visible site")
+		return nil, errors.New("invalid published site")
 	}
 	delete(doc.Value, "slug")
 	var err error

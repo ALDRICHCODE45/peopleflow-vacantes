@@ -36,3 +36,37 @@ func TestVisibleDocumentDropsHiddenBlocksAndTheirMedia(t *testing.T) {
 		t.Fatalf("blocks: %s %v", site["blocks"], err)
 	}
 }
+
+// A visible story body and a testimonial survive the public projection; the rich
+// validator must see the decoded body exactly once.
+func TestVisibleDocumentKeepsVisibleRichBody(t *testing.T) {
+	var value map[string]any
+	if err := json.Unmarshal(DefaultDocument(), &value); err != nil {
+		t.Fatal(err)
+	}
+	body := map[string]any{"schema_version": int64(1), "document": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": "Construimos oportunidades reales."}}}}}}
+	value["blocks"] = append(value["blocks"].([]any),
+		map[string]any{"id": uuid.NewString(), "type": "story", "variant": "text", "hidden": false, "content": map[string]any{"title": "Nuestra historia", "body": body, "image": nil}},
+		map[string]any{"id": uuid.NewString(), "type": "testimonials", "variant": "cards", "hidden": false, "content": map[string]any{"items": []any{map[string]any{"quote": "Un gran equipo", "name": "Persona", "role": nil, "photo": nil, "consent": true}}}},
+		map[string]any{"id": uuid.NewString(), "type": "closing", "variant": "banner", "hidden": true, "content": map[string]any{"title": nil, "text": nil}})
+	doc, err := NewValidator(fakeRich).VisibleDocument(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var site struct {
+		Blocks []struct {
+			Type    string         `json:"type"`
+			Content map[string]any `json:"content"`
+		} `json:"blocks"`
+	}
+	if err := json.Unmarshal(doc.Canonical, &site); err != nil {
+		t.Fatal(err)
+	}
+	if len(site.Blocks) != 4 || site.Blocks[2].Type != "story" || site.Blocks[3].Type != "testimonials" {
+		t.Fatalf("blocks: %s", doc.Canonical)
+	}
+	story, _ := site.Blocks[2].Content["body"].(map[string]any)
+	if story["schema_version"] != float64(1) || story["document"] == nil {
+		t.Fatalf("story body: %s", doc.Canonical)
+	}
+}

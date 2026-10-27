@@ -134,3 +134,10 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
   branch has an approved native review. A throwaway E2E environment for the frontend runs at 127.0.0.1:8090:
   binary from 67f83b6a, own Postgres container `peopleflow-careers-site-e2e`, PEM-mode JWT minted locally, and one
   published v2 vacancy for the seeded company. It is torn down when the frontend finishes.
+- **L15.** Frontend live E2E against :8090 (verbatim): «`curl -i http://127.0.0.1:8090/v2/company-sites/nexo-e2e-1793076191425` → 500
+  `{"error":"an internal error occurred","code":"internal_error"}`». Two causes. (1) The E2E seed gave companies a
+  13-char RFC, so `GET /companies/{id}` also failed; a seed defect, not code. Fixed in the E2E data. (2) A real T4 defect:
+  `VisibleDocument` validated twice, and the first pass canonicalizes `story.body` in place, so any published site with
+  a visible story body answered 500. Fix: drop hidden blocks from the decoded value and validate once. Tests:
+  `TestVisibleDocumentKeepsVisibleRichBody` (RED observed, then GREEN) and `TestCompanySitePublicProjectionRealRichWiring`
+  (real draftjson + draftrich). Full unit suite and full integration green on a fresh DB.

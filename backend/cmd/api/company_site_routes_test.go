@@ -137,3 +137,24 @@ func TestCompanySiteRoutes(t *testing.T) {
 		})
 	}
 }
+
+// The public projection of a published snapshot with a visible story body goes
+// through the real draftjson + draftrich wiring exactly as GET /v2/company-sites does.
+func TestCompanySitePublicProjectionRealRichWiring(t *testing.T) {
+	stored := `{"slug":"nexo","theme":{"brand_color":"#7835DB","font_pair":"classic"},"seo":{"title":null,"description":null},"blocks":[` +
+		`{"id":"` + uuid.NewString() + `","type":"hero","variant":"photo","hidden":false,"content":{"title":"Trabaja en Nexo","subtitle":null,"cover":null}},` +
+		`{"id":"` + uuid.NewString() + `","type":"jobs","variant":"list","hidden":false,"content":{"title":null,"intro":null}},` +
+		`{"id":"` + uuid.NewString() + `","type":"story","variant":"text","hidden":false,"content":{"title":"Historia","image":null,"body":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Construimos oportunidades reales."}]}]}}}},` +
+		`{"id":"` + uuid.NewString() + `","type":"closing","variant":"banner","hidden":true,"content":{"title":null,"text":null}}]}`
+	value, err := draftjson.Decode([]byte(stored))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := companySiteValidator().VisibleDocument(value)
+	if err != nil {
+		t.Fatalf("visible document: %v", err)
+	}
+	if strings.Contains(string(doc.Canonical), `"slug"`) || strings.Contains(string(doc.Canonical), `"closing"`) || !strings.Contains(string(doc.Canonical), "Construimos oportunidades reales.") {
+		t.Fatalf("canonical: %s", doc.Canonical)
+	}
+}
