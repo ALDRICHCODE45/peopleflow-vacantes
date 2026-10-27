@@ -16,6 +16,7 @@ import (
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
 	catalogshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/catalogs/infrastructure/http"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
 	geohttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/http"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
@@ -32,6 +33,7 @@ import (
 // routerDeps = the composition root's explicit dependencies (gates built in main.go,
 // handlers, health ports); no globals, no init().
 type routerDeps struct {
+	siteHandler          *siteshttp.Handler
 	requireAuth          func(http.Handler) http.Handler
 	requireCandidate     func(http.Handler) http.Handler
 	identityHandler      *identityhttp.CandidateIdentityHandler
@@ -120,6 +122,13 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/cvs/{id}/file", d.cvHandler.File)
 		r.Post("/v2/jobs/{id}/applications", d.participationHandler.Apply)
 		r.Get("/v2/me/applications", d.participationHandler.List)
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Get("/v2/me/company/site", d.siteHandler.Get)
+		r.Put("/v2/me/company/site/draft", d.siteHandler.Put)
+		r.Get("/v2/me/company/site/slug-availability", d.siteHandler.SlugAvailability)
 	})
 
 	// Gated writes on the ROOT router (outside the public mount), each with

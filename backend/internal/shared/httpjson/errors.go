@@ -137,6 +137,9 @@ func Resolve(code Code) Definition {
 		if def, ok := resolvePipelineError(code); ok {
 			return def
 		}
+		if def, ok := resolveSiteError(code); ok {
+			return def
+		}
 		if def, ok := resolvePublicationError(code); ok {
 			return def
 		}

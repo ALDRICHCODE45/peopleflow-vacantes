@@ -35,6 +35,9 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
+	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
+	sitespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/postgres"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
@@ -43,6 +46,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
 	dashboardapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dashboard"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
@@ -55,6 +59,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
+
+// companySiteValidator adapts rich-text validation at the composition boundary.
+func companySiteValidator() *sitesapp.Validator {
+	return sitesapp.NewValidator(func(value any) (*sitesapp.RichDocument, error) {
+		doc, err := draftrich.ValidateDocument(value)
+		if err != nil || doc == nil {
+			return nil, err
+		}
+		return &sitesapp.RichDocument{Canonical: doc.Canonical, Plain: doc.Plain}, nil
+	})
+}
+func newCompanySiteHandler(pool *pgxpool.Pool) *siteshttp.Handler {
+	validator := companySiteValidator()
+	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)))
+	return siteshttp.New(store, draftjson.Decode, validator)
+}
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
@@ -283,6 +303,7 @@ func run() error {
 
 	// WS6B-1b-b: router.go owns the chi router; the composition root passes it.
 	r := newRouter(routerDeps{
+		siteHandler: newCompanySiteHandler(pool),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		requireCandidate: requireCandidate, identityHandler: identityHandler,
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
