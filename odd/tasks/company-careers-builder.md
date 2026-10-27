@@ -40,8 +40,20 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
 - [x] T5 — S10, S11: minimal public renderer + `/empresas/[slug]` route on the contract (404 for unpublished/unknown,
   308 for an old slug), media proxy from the frontend origin, Acme public route and its navbar link removed — route:
   worker — commit: see L13 (route removal 277c7edf)
-- [ ] T6 — S1–S11: dress editor and public site with the v0 design (after the user hands it over); the new editor replaces
-  the prototype local editor (`features/company-site-editor`, `features/company-profile`) at that point — route: TBD — commit: —
+- [ ] T6 — S1–S11: dress editor and public site with the approved v0 design (L18–L19; source in `.v0-review-site/`),
+  composed from installed shadcn primitives per `docs/frontend-ui-design-rules.md`, wired to the T3/T4 model, API and
+  autosave (never v0's simplified model). Delivered in reviewable slices, each reviewed in the browser (looks, details,
+  system design — not only behavior) from the review worktree (L20):
+  - [ ] T6a — fixture: `/v2/company-sites/{slug}`, media and `/v2/jobs?company_id=` in `tests/fixtures` — route: worker — commit: —
+  - [ ] T6b — public site: all 13 sections × variants, brand tokens + contrast, font pairs, header/footer, socials —
+    route: worker — commit: —
+  - [ ] T6c — editor shell on `/empresa/sitio`: tabs, section list (add/reorder/hide/duplicate/delete), live preview
+    with device switch, properties panel, save status, owner/recruiter — route: worker — commit: —
+  - [ ] T6d — section property forms (13) + image upload with crop — route: worker — commit: —
+  - [ ] T6e — Marca and Configuración tabs (brand color/contrast, fonts, company data read-only, slug availability, SEO
+    preview) + publish flow (checklist, confirm, success, unpublish) — route: worker — commit: —
+  - [ ] T6f — remove the prototype editor/profile and prototype `/empresas/<uuid>` links; e2e on the fixture; docs — route:
+    inline — commit: —
 - [ ] T7 — S6: S3 storage adapter for site media (last task of the feature, L17) — route: backend — commit: —
 
 ## Log
@@ -176,3 +188,10 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   rules, not design): overlays not marked as dialogs and initial focus not on «Cancelar»; success still a modal (we use
   toast + status line); save status not announced; «Vacantes abiertas» wrongly flagged as missing a title (optional);
   mobile «Cifras» breaks «Monterrey» mid-word in three narrow columns. Verdict: design approved as T6 base.
+- **L20.** User (verbatim): «Bien hermano, Si, me parece un buen momento para iniciar los siguientes pasos, recuerda
+  siempre tus prioridades: 1. Sigue tu system design, 2. Prioriza siempre una ux/ui pulida 3. Siempre componentes de
+  shadcn, revisa la documntacion oficial y ocupa los ejemplos que expone 4. en la revision en el navegador, no solamente
+  validez que funciona, tambien valida que realmente se vea bien, valida los pequenos detalles que hacen la diferencia,
+  valida que siga tu system design, me sigues?» Review builds: «Worktree aparte para revisión (Recomendado)» —
+  `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-review` (detached, same clone), own `.next` and
+  `node_modules`, served on :3100 against the fixture on :4010; the user's :3000 is never touched.
