@@ -47,8 +47,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   - [x] T6a — fixture: `/v2/company-sites/{slug}`, media and `/v2/jobs?company_id=` in `tests/fixtures` — route: worker — commit: see L21
   - [x] T6b — public site: all 13 sections × variants, brand tokens + contrast, font pairs, header/footer, socials —
     route: worker — commit: cbdf943d (site), 579f24de (route without app header, L22)
-  - [ ] T6c — editor shell on `/empresa/sitio`: tabs, section list (add/reorder/hide/duplicate/delete), live preview
-    with device switch, properties panel, save status, owner/recruiter — route: worker — commit: —
+  - [x] T6c — editor shell on `/empresa/sitio`: tabs, section list (add/reorder/hide/duplicate/delete), live preview
+    with device switch, properties panel, save status, owner/recruiter — route: worker — commit: see L32 commits
   - [ ] T6d — section property forms (13) + image upload with crop — route: worker — commit: —
   - [ ] T6e — Marca and Configuración tabs (brand color/contrast, fonts, company data read-only, slug availability, SEO
     preview) + publish flow (checklist, confirm, success, unpublish) — route: worker — commit: —
@@ -256,3 +256,17 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   real-width scaled iframe), page scroll plus three inner scrolls, selection scrolls the whole page (mobile loads
   scrolled 348px), duplicate «Sitio de empleo» H1, tall rows with wrapped lock and truncated names, variant thumbnails
   rendered as 16px icons, brand-colored selection outline, washed-out disabled «Publicar».
+- **L30.** Second editor pass: real-width scaled previews (desktop/tablet/mobile layouts correct), one H1, compact rows
+  with variant captions, schematic thumbnails, violet selection chip, «Publicar» tooltip on hover/focus via a focusable
+  wrapper, selection never scrolls the page, mobile loads at top, dark OK. Sent back: preview too small at 1440 with the
+  app sidebar (~27%) → narrower columns + «Enfocar vista previa» + zoom label (global sidebar untouched); selection chip
+  scaled to ~3px; variant names overlapping card borders; inner pill on the selected row; mobile should default to the
+  «Móvil» device; residual 12px page scroll.
+- **L31.** Third editor pass: page scroll 0 at 1920/1440/1280; zoom 76/38/26 %, focus mode 83 %; constant-size chip,
+  variant cards, single selected row style and mobile «Móvil» default verified. Sent back: section-row icon regressed to
+  stacked above the name (rows ~80px), and axe `scrollable-region-focusable` on the preview viewport. axe `region` on
+  `sidebar-header` is pre-existing app-shell (also on the dashboard) → frontend backlog.
+- **L32.** Fourth editor pass: rows 58px inline (icon beside name, long names on one line); preview viewport focusable
+  («Vista previa en vivo»), PageDown scrolls it; axe clean except the pre-existing app-shell `region`. Full suite caught
+  `button-variants-merge` (outline link without `cn`) in the route loader → fixed. Open detail for T6d: the selected
+  row's right border is clipped by the list's scrollbar edge.

@@ -20,6 +20,9 @@ item — legacy catalog rows now say they take no online applications.
 
 ## Known issues
 
+- axe `region` (moderate) on every `(empresa)` page: content in `[data-slot=sidebar-header]` sits outside any landmark
+  (seen on `/empresa/dashboard` and `/empresa/sitio`, production build, 2026-10-27). App-shell fix, not page-level.
+
 - **Next 16 upgrade** — blocked by hosting: Amplify Hosting supports Next 12–15 only (design D1). Next 16 also fixes
   the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known
   migration work: `middleware.ts` → `proxy.ts` (on 16 the old name answers a plain 500), flat `eslint-config-next`
