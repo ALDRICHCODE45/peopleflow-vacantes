@@ -128,3 +128,9 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 - **L13.** T4 fixture fix verified by the parent: gofmt/vet clean, full unit suite (incl. scripts/closure) green, full
   `-tags=integration ./cmd/api` green on a fresh DB (:32771). S7 timing point accepted per L12(a); the geo planner test is
   pre-existing and data-state dependent (L12(b)).
+- **L14.** Native review of the whole range 4e074e2e..67f83b6a was refused with `lens_context_budget_exceeded`, so T4
+  was reviewed alone: review-c914ea96bd1c374e (bea083c2..67f83b6a, lenses risk/reliability) approved with no
+  findings and acknowledged (authority burned). Together with review-47b0aca430de81b7 (T1–T3), every commit on the
+  branch has an approved native review. A throwaway E2E environment for the frontend runs at 127.0.0.1:8090:
+  binary from 67f83b6a, own Postgres container `peopleflow-careers-site-e2e`, PEM-mode JWT minted locally, and one
+  published v2 vacancy for the seeded company. It is torn down when the frontend finishes.
