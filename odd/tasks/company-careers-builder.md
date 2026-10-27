@@ -110,3 +110,15 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   `PublicShell.test.tsx` (expected the prototype «Empresas» link — now asserts there is none). Remaining prototype-only
   `/empresas/<uuid>` links in `JobDetailView` (prototype branch) and `VacancyCard` (`companyHref`, no real caller) go
   with the prototype cleanup in T6. Jobs filters cover the first catalog page only. Full Vitest 7306/7306, tsc clean.
+- **L14.** Native review of the whole branch exceeded the reviewer context (`lens_context_budget_exceeded`); reviewed
+  T4+T5 alone with base 269f16a4 (T3, already approved): approved with two non-blocking warnings at `autosave.ts:34`
+  (reliability, resilience): after an uncertain save, reverting to the last confirmed document was treated as clean and
+  never saved, though the server may hold the unconfirmed one. Fixed with an `unconfirmed` flag (set on uncertain, cleared
+  on success/conflict): RED 1 → GREEN 273.
+  Backend part (c) ready: `feat/company-careers-site` @ bea083c2 (independent security verifier PASS on the 2nd pass) —
+  `POST /v2/me/company/site/media` multipart exactly `kind` + `file` (anything else 400 `invalid_request`), 201
+  `{id, kind, url, width, height, content_type}`, 413/415 (also animated or malformed WebP)/422 image_too_small,
+  image_too_large, media_limit_reached, 503 when file storage is not configured; metadata stripped without re-encoding.
+  `GET /v2/company-sites/media/{id}`: immutable public caching, nosniff, `CSP: default-src 'none'; sandbox`; 404 no-store.
+  Frontend follow-ups: the media upload client (T4 stub) must send exactly `kind` + `file` and map 400 `invalid_request`
+  and 503; the proxy could also forward the API's CSP header.

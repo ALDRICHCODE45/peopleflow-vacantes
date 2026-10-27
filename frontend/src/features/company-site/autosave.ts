@@ -16,6 +16,9 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
   let snapshot: AutosaveSnapshot = { editor: createEditorState(initial, etag), status: { kind: "idle" } };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let inFlight = false; let due = false; let disposed = false;
+  // After an uncertain save the server may hold the unconfirmed document, so a
+  // draft equal to lastSaved is not proof that nothing needs saving.
+  let unconfirmed = false;
   const listeners = new Set<() => void>();
   const onlineCleanups = new Set<() => void>();
   const emit = (editor: EditorState, status: AutosaveStatus) => {
@@ -31,7 +34,7 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
     // Even a revert that matches lastSaved must wait for the in-flight write:
     // its response may change the baseline and make that revert dirty again.
     if (inFlight) { due = true; return; }
-    if (!snapshot.editor.dirty) return;
+    if (!snapshot.editor.dirty && !unconfirmed) return;
     inFlight = true; due = false;
     const submitted = structuredClone(snapshot.editor.draft);
     const ifMatch = snapshot.editor.etag;
@@ -41,6 +44,7 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
     catch { result = { kind: "uncertain" }; }
     inFlight = false;
     if (disposed) return;
+    unconfirmed = result.kind === "uncertain";
     if (result.kind === "success") {
       const editor = editorReducer(snapshot.editor, { type: "saved", data: result.data, etag: result.etag, submitted });
       emit(editor, { kind: "saved", at: Date.now() });
@@ -67,7 +71,7 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
       const edited = !sameDraft(before.draft, editor.draft);
       emit(editor, snapshot.status);
       if (!edited || snapshot.status.kind === "conflict") return;
-      if (!editor.dirty && !inFlight) cancelPending(); else schedule();
+      if (!editor.dirty && !inFlight && !unconfirmed) cancelPending(); else schedule();
     },
     attachOnline(target: Pick<EventTarget, "addEventListener" | "removeEventListener">) {
       const online = () => { if (snapshot.status.kind === "offline") void flush(); };

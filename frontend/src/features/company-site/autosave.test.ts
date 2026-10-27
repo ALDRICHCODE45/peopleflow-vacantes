@@ -40,6 +40,16 @@ it.each(["online", "edit"])("uncertain has no timer retries and resumes only on 
   if (trigger === "online") window.dispatchEvent(new Event("online")); else c.dispatch({ type: "slug", slug: "next" });
   await vi.advanceTimersByTimeAsync(1500); expect(save).toHaveBeenCalledTimes(2); detach(); c.dispose();
 });
+it("after an uncertain save, reverting to the last confirmed document still saves it (the server may hold the unconfirmed one)", async () => {
+  const initial = data(); const save = vi.fn().mockResolvedValueOnce({ kind: "uncertain" }).mockResolvedValue({ kind: "success", data: initial, etag: '"1"' });
+  const c = createAutosave(initial, '"1"', save);
+  c.dispatch({ type: "slug", slug: "maybe-saved" }); await vi.advanceTimersByTimeAsync(1500); expect(c.getSnapshot().status.kind).toBe("offline");
+  // Back to exactly the last confirmed document: locally clean, but its server copy is unknown.
+  c.dispatch({ type: "slug", slug: initial.draft.slug }); await vi.advanceTimersByTimeAsync(1500);
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[1][0].body.slug).toBe(initial.draft.slug);
+  expect(c.getSnapshot().status.kind).toBe("saved"); c.dispose();
+});
 it("reverting to the old saved document during a request still saves the revert after its 200", async () => {
   const initial = data(); const pending = deferred(); const save = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue({ kind: "success", data: { ...initial, draft_version: 3 }, etag: '\"3\"' });
   const c = createAutosave(initial, '\"1\"', save); c.dispatch({ type: "slug", slug: "temporary" }); await vi.advanceTimersByTimeAsync(1500);
