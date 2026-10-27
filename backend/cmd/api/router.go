@@ -110,6 +110,7 @@ func newRouter(d routerDeps) chi.Router {
 	// /jobs is the public-read job board (spec: "GET /jobs is public").
 	r.Mount("/jobs", d.jobHandler.Routes())
 	// Additive anonymous catalog. Deliberately outside private NoStore/auth groups.
+	r.Get("/v2/company-sites/media/{id}", d.siteHandler.GetMedia)
 	r.Get("/v2/jobs", d.publicJobsHandler.List)
 	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
 	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)
@@ -128,6 +129,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Get("/v2/me/company/site", d.siteHandler.Get)
 		r.Put("/v2/me/company/site/draft", d.siteHandler.Put)
+		r.Post("/v2/me/company/site/media", d.siteHandler.UploadMedia)
 		r.Get("/v2/me/company/site/slug-availability", d.siteHandler.SlugAvailability)
 	})
 

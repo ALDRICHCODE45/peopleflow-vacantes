@@ -19,9 +19,11 @@ const maxBodyBytes int64 = 1 << 20
 var etagPattern = regexp.MustCompile(`^"([1-9][0-9]*)"$`)
 
 type Handler struct {
-	store     app.Store
-	decode    app.Decode
-	validator *app.Validator
+	mediaStore app.MediaStore
+	storage    app.Storage
+	store      app.Store
+	decode     app.Decode
+	validator  *app.Validator
 }
 
 func New(store app.Store, decode app.Decode, validator *app.Validator) *Handler {

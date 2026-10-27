@@ -29,8 +29,8 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 ## Tasks
 
 - [x] T1 — S1, S4, S8: migration + document validation + GET/PUT draft + slug availability — route: worker — commit: ee16597b
-- [x] T2 — S5, S8: publish/unpublish (owner, issues, audit) — route: worker — commit: (this commit)
-- [ ] T3 — S6, S8: media upload + public media read — route: inline — commit: —
+- [x] T2 — S5, S8: publish/unpublish (owner, issues, audit) — route: worker — commit: a7c34f17
+- [x] T3 — S6, S8: media upload + public media read — route: worker + independent verify — commit: 1105a11a
 - [ ] T4 — S7, S8: public site read + catalog company_id filter — route: inline — commit: —
 
 ## Log
@@ -101,3 +101,10 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 - **L7.** Frontend (verbatim): «En testimonials, `consent` es boolean en el borrador (un testimonio recién agregado se
   guarda con false). `true` solo se exige al publicar, como ya dice la tabla de requisitos. Aclaré la fila de contenido
   del contrato, que decía «must be true».» Draft save accepts `false`; publish requires `true`.
+- **L8.** T3 independent verification (gentle-ai-verify, read-only): S6 FAIL, S8 FAIL — JPEG bytes after EOI survive
+  (trailing metadata served publicly); WebP VP8X accepted without an image chunk and with canvas ≠ coded size; file cap
+  checked only after buffering the part; rejected-upload tests do not assert storage/DB unchanged and quota has no
+  concurrent test. Fix round 1 sent to the T3 worker.
+- **L9.** T3 re-judgment round 1: S6 PASS, S8 PASS (all four L8 findings closed; no new severe findings). Remaining
+  limitation stated by the verifier: WebP checks validate container/header policy, not compressed-pixel decodability; no
+  fuzz campaign.

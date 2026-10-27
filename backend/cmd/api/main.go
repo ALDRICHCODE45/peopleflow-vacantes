@@ -70,10 +70,10 @@ func companySiteValidator() *sitesapp.Validator {
 		return &sitesapp.RichDocument{Canonical: doc.Canonical, Plain: doc.Plain}, nil
 	})
 }
-func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *siteshttp.Handler {
+func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
 	validator := companySiteValidator()
 	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)), events)
-	return siteshttp.New(store, draftjson.Decode, validator)
+	return siteshttp.New(store, draftjson.Decode, validator).WithMedia(store, storage)
 }
 
 func main() {
@@ -202,6 +202,7 @@ func run() error {
 	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
 	// An absent root disables only CV routes, after their usual identity gates.
 	var cvHandler *cvshttp.Handler
+	var siteStorage sitesapp.Storage
 	var movementStorage movementpostgres.Storage
 	var manualStorage manualCVStorage
 	if cvConfig.Root != "" {
@@ -210,6 +211,7 @@ func run() error {
 			return errors.New("initialize private CV storage")
 		}
 		defer privateCVStorage.Close()
+		siteStorage = privateCVStorage
 		movementStorage = privateCVStorage
 		manualStorage = manualCVStorage{local: privateCVStorage}
 		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
@@ -303,7 +305,7 @@ func run() error {
 
 	// WS6B-1b-b: router.go owns the chi router; the composition root passes it.
 	r := newRouter(routerDeps{
-		siteHandler: newCompanySiteHandler(pool, auditRepo),
+		siteHandler: newCompanySiteHandler(pool, auditRepo, siteStorage),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		requireCandidate: requireCandidate, identityHandler: identityHandler,
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,

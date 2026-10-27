@@ -10,6 +10,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	roles "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
@@ -20,18 +21,27 @@ import (
 // Use the isolated draft harness's pool, JWT signer, actors, HTTP client, and
 // fixtures. Compose a fresh production router so no existing harness is edited.
 func newCompanySiteFlowHarness(t *testing.T) *draftFlowHarness {
+	h, _ := newCompanySiteFlowStorageHarness(t)
+	return h
+}
+func newCompanySiteFlowStorageHarness(t *testing.T) (*draftFlowHarness, *cvstorage.Local) {
 	t.Helper()
 	h := newDraftFlowHarness(t)
 	q := db.New(h.pool)
 	users := identitypostgres.NewUserRepository(q)
 	members := companiespostgres.NewCompanyMemberRepository(h.pool)
 	companies := companiespostgres.NewCompanyRepository(h.pool, auditpostgres.NewAuditEventRepository())
-	router := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(h.signer.verifier), requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, roles.RecruiterRole), requireOwner: identityhttp.RequireCompanyRole(users, members, companies, roles.OwnerRole), siteHandler: newCompanySiteHandler(h.pool, auditpostgres.NewAuditEventRepository()), queries: q, pool: h.pool})
+	files, err := cvstorage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = files.Close() })
+	router := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(h.signer.verifier), requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, roles.RecruiterRole), requireOwner: identityhttp.RequireCompanyRole(users, members, companies, roles.OwnerRole), siteHandler: newCompanySiteHandler(h.pool, auditpostgres.NewAuditEventRepository(), files), queries: q, pool: h.pool})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	h.server = server
 	h.client = server.Client()
-	return h
+	return h, files
 }
 func siteFlowCleanup(t *testing.T, h *draftFlowHarness, company uuid.UUID) {
 	t.Helper()

@@ -97,6 +97,9 @@ func TestCompanySiteRoutes(t *testing.T) {
 		status                                     int
 		code, tag                                  string
 	}{
+		{name: "media unauthenticated", method: "POST", path: "/v2/me/company/site/media", status: 401, code: "unauthenticated"},
+		{name: "media forbidden", method: "POST", path: "/v2/me/company/site/media", sub: "s", role: "candidate", status: 403, code: "forbidden"},
+		{name: "media unavailable", method: "POST", path: "/v2/me/company/site/media", sub: "s", role: "recruiter", status: 503, code: "cv_storage_unavailable"},
 		{name: "publish owner", method: "POST", path: "/v2/me/company/site/publish", sub: "s", role: "owner", match: `"2"`, status: 200, tag: `"2"`},
 		{name: "publish recruiter", method: "POST", path: "/v2/me/company/site/publish", sub: "s", role: "recruiter", status: 403, code: "forbidden"},
 		{name: "unpublish recruiter", method: "POST", path: "/v2/me/company/site/unpublish", sub: "s", role: "recruiter", status: 403, code: "forbidden"},
