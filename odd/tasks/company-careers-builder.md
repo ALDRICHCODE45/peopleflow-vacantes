@@ -45,8 +45,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   autosave (never v0's simplified model). Delivered in reviewable slices, each reviewed in the browser (looks, details,
   system design — not only behavior) from the review worktree (L20):
   - [x] T6a — fixture: `/v2/company-sites/{slug}`, media and `/v2/jobs?company_id=` in `tests/fixtures` — route: worker — commit: see L21
-  - [ ] T6b — public site: all 13 sections × variants, brand tokens + contrast, font pairs, header/footer, socials —
-    route: worker — commit: —
+  - [x] T6b — public site: all 13 sections × variants, brand tokens + contrast, font pairs, header/footer, socials —
+    route: worker — commit: cbdf943d (site), 579f24de (route without app header, L22)
   - [ ] T6c — editor shell on `/empresa/sitio`: tabs, section list (add/reorder/hide/duplicate/delete), live preview
     with device switch, properties panel, save status, owner/recruiter — route: worker — commit: —
   - [ ] T6d — section property forms (13) + image upload with crop — route: worker — commit: —
