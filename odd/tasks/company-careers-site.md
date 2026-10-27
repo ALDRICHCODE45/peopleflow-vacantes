@@ -141,3 +141,8 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
   a visible story body answered 500. Fix: drop hidden blocks from the decoded value and validate once. Tests:
   `TestVisibleDocumentKeepsVisibleRichBody` (RED observed, then GREEN) and `TestCompanySitePublicProjectionRealRichWiring`
   (real draftjson + draftrich). Full unit suite and full integration green on a fresh DB.
+- **L16.** User via frontend (2026-10-27, verbatim): «el usuario dice que podés bajar ya el entorno de :8090 (proceso,
+  contenedor peopleflow-careers-site-e2e y /tmp/careers-site-e2e). Lo va a ver al final de la feature. También decidió
+  que S3 se va a priorizar, pero como lo último de esta feature: por ahora no hay que tocar nada del adaptador de
+  storage.» The E2E environment was torn down and verified: no :8090 listener, container removed, folder deleted. S3 is
+  pending as the last unit of the feature; the storage adapter stays untouched until then.
