@@ -128,3 +128,17 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   pre-validation and Spanish messages, uncertain never retried; `invalid_request` added to the site error schema (L11
   gap); `requestPath.test.ts` registers the route/caller with a dedicated guard. Crop stays with the v0 design (T6).
   RED → GREEN 369 focused (49 new); full Vitest 7356/7356; tsc clean; lint 0 errors. Parent read the route.
+- **L16.** First live frontend↔backend integration (worker mvq74uvk-8-3o1q → mvq78ggg-9-117g): opt-in
+  `features/company-site/live/careers-site.live.test.ts` (skipped unless `PF_LIVE_API`; throwaway tokens only in the
+  gitignored `frontend/test-results/live/env.sh`) against the backend's isolated `feat/company-careers-site @ 67f83b6a`
+  on :8090 (own Postgres, own keys; the user's :3000/:8080 untouched). Passed: 1 GET/ETag, 2 PUT +1 and identical no-op,
+  3 stale If-Match → 412 with `current` (too-long title and reserved slug are rejected locally by design, zero fetches),
+  4 media PNG 201 / unsupported 415, 5 recruiter publish 403, owner 422 `block_incomplete` on the unconsented testimonial,
+  then publish 200 with `published.version == draft_version`. Failed: 6 — `GET /v2/company-sites/<published slug>` → 500
+  `internal_error` (reproduced by the parent with curl; unknown slug → 404). Reported to backend; steps 6–9 pending.
+  Backend fixed it at `feat/company-careers-site @ bc23aa11` (two causes: its e2e seed had a 13-character RFC; and a real
+  part (d) bug — `VisibleDocument` validated the snapshot twice and the first pass left `story.body` canonicalized, so
+  every published site with a visible story answered 500; RED unit test before the fix). Parent re-ran the full live
+  suite: steps 1–9 all pass (6 public found, hidden omitted, cover present, own jobs present, foreign empty; 7 old slug →
+  moved; 8 foreign site isolated, publish 422 `company_logo_missing`; 9 unpublish → public 404). Offline the live file is
+  skipped (exit 0). No frontend/backend contract mismatch found.
