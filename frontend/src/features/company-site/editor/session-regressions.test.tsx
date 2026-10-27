@@ -1,0 +1,84 @@
+import "./browser-platform.test-support";
+import { StrictMode } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { CareersSiteEditor } from "./index";
+import { publishedFixture } from "../public/fixtures.test-support";
+import { defaultBlock } from "../defaults";
+import { saveDraftAction } from "../api/actions";
+import type { SiteState } from "../api/model";
+vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
+vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn() }));
+function fixture() {
+  const data = publishedFixture();
+  const initialSite: SiteState = { draft: { ...data.site, slug: data.slug }, draft_version: 1, published: null, has_unpublished_changes: false, media: data.media, updated_at: data.published_at };
+  return { initialSite, role: "owner", preview: { company: data.company, jobs: [], officeLabels: new Map<string, string>() } };
+}
+beforeEach(() => {
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+});
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
+it("uses a fresh, working autosave session under StrictMode and never saves selection alone", async () => {
+  const props = fixture();
+  vi.mocked(saveDraftAction).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...props.initialSite, draft: body as SiteState["draft"], draft_version: 2 }, etag: '"2"' }));
+  render(<StrictMode><CareersSiteEditor {...props} /></StrictMode>);
+  await screen.findByRole("heading", { name: "Tu página" });
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Portada" }));
+  vi.useFakeTimers();
+  await act(async () => vi.advanceTimersByTime(2000)); expect(saveDraftAction).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Diseño Centrada" }));
+  await act(async () => vi.advanceTimersByTime(1500));
+  expect(saveDraftAction).toHaveBeenCalledOnce();
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios guardados");
+});
+it("waits for online rather than timer-retrying an uncertain write, then saves the same draft", async () => {
+  const props = fixture();
+  vi.mocked(saveDraftAction).mockResolvedValueOnce({ kind: "uncertain" }).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...props.initialSite, draft: body as SiteState["draft"], draft_version: 2 }, etag: '"2"' }));
+  render(<CareersSiteEditor {...props} />); await screen.findByRole("heading", { name: "Tu página" });
+  vi.useFakeTimers(); fireEvent.click(screen.getByRole("button", { name: "Diseño Centrada" }));
+  await act(async () => vi.advanceTimersByTime(1500));
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Sin conexión — reintentaremos");
+  await act(async () => vi.advanceTimersByTime(60000)); expect(saveDraftAction).toHaveBeenCalledOnce();
+  await act(async () => fireEvent.online(window)); expect(saveDraftAction).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(saveDraftAction).mock.calls[1][0]).toEqual(vi.mocked(saveDraftAction).mock.calls[0][0]);
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios guardados");
+});
+it("collapses side panels into Sheets on mobile and keeps preview on the page", async () => {
+  vi.mocked(window.matchMedia).mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaQueryList);
+  const props = fixture(); props.initialSite.draft.blocks.push(defaultBlock("story"));
+  render(<CareersSiteEditor {...props} />); const user = userEvent.setup();
+  expect(screen.getByTitle("Vista previa del sitio")).toBeInTheDocument();
+  await user.click(await screen.findByRole("button", { name: "Secciones" }));
+  const panel = await screen.findByRole("dialog", { name: "Tu sitio" });
+  expect(panel.querySelector('[data-slot="sheet-header"] [data-slot="sheet-title"]')).not.toBeNull();
+  await user.click(within(panel).getByRole("button", { name: "Seleccionar Historia" }));
+  const properties = await screen.findByRole("dialog", { name: "Editar sección" });
+  expect(within(properties).getByRole("heading", { name: "Propiedades de Historia" })).toBeVisible();
+  await user.click(within(properties).getByRole("switch", { name: "Visible en el sitio" }));
+  expect(within(properties).getByRole("switch")).not.toBeChecked();
+  await user.click(within(properties).getByRole("button", { name: "Volver a la vista previa" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(screen.getByTitle("Vista previa del sitio")).toBeInTheDocument();
+});
+it("scrolls list selections into the shared preview and blocks preview CTA navigation while editing", async () => {
+  render(<CareersSiteEditor {...fixture()} />); await screen.findByRole("heading", { name: "Tu página" });
+  const frame = screen.getByTitle("Vista previa del sitio") as HTMLIFrameElement;
+  const body = frame.contentDocument!.body;
+  const jobs = within(body).getByRole("heading", { name: "Vacantes abiertas" }).closest("section")!;
+  const scroll = vi.fn();
+  const viewport = frame.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
+  const rect = (top: number, height: number) => ({ top, height, bottom: top + height, left: 0, right: 400, x: 0, y: top, width: 400, toJSON() {} });
+  vi.spyOn(jobs, "getBoundingClientRect").mockReturnValue(rect(1500, 200));
+  vi.spyOn(frame, "getBoundingClientRect").mockReturnValue(rect(100, 2000));
+  vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(rect(0, 600));
+  Object.defineProperty(viewport, "scrollTo", { value: scroll });
+  expect(scroll).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Vacantes abiertas" }));
+  expect(scroll).toHaveBeenCalledWith({ top: 1200, behavior: "instant" });
+  fireEvent.click(within(within(body).getByRole("heading", { level: 1 }).closest("section")!).getByRole("link", { name: "Ver vacantes" }));
+  expect(screen.getByRole("heading", { name: "Propiedades de Portada" })).toBeVisible();
+});
