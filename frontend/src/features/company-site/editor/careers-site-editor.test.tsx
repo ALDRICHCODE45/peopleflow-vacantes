@@ -10,7 +10,7 @@ import type { SiteState, SiteResult } from "../api/model";
 import { saveDraftAction } from "../api/actions";
 import { RECRUITER_PUBLISH_REASON } from "../permissions";
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
-vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn() }));
+vi.mock("../api/actions", () => ({ saveDraftAction: vi.fn(), slugAvailabilityAction: vi.fn().mockResolvedValue({ kind: "uncertain" }), publishSiteAction: vi.fn(), unpublishSiteAction: vi.fn() }));
 // Base UI menu portals cannot be positioned by jsdom; keep its actual controller,
 // focus and items, bypass only portal/positioning (browser review still required).
 vi.mock("@/components/ui/dropdown-menu", async original => {
@@ -68,10 +68,12 @@ it("keeps an inner gutter between selected section borders and the scrollbar", a
 it("edits the selected section through reducer, preview and autosave", async () => {
   await mount();
   const input = screen.getByLabelText("Título principal");
+  vi.useFakeTimers();
   fireEvent.change(input, { target: { value: "Crece con nuestro equipo" } });
   expect(frame().getByRole("heading", { level: 1 })).toHaveTextContent("Crece con nuestro equipo");
   expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios pendientes");
-  await waitFor(() => expect(saveDraftAction).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ blocks: expect.arrayContaining([expect.objectContaining({ type: "hero", content: expect.objectContaining({ title: "Crece con nuestro equipo" }) })]) }) })), { timeout: 3000 });
+  await act(() => vi.advanceTimersByTimeAsync(1500));
+  expect(saveDraftAction).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ blocks: expect.arrayContaining([expect.objectContaining({ type: "hero", content: expect.objectContaining({ title: "Crece con nuestro equipo" }) })]) }) }));
 });
 it("adds from the thirteen-type library, with protected types disabled and explained", async () => {
   await mount(); const user = userEvent.setup();
@@ -139,8 +141,8 @@ it("keeps recruiter draft editing available, publish disabled, placeholders hone
   expect(screen.getByText(RECRUITER_PUBLISH_REASON)).toBeVisible();
   expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Agregar sección" })).toBeEnabled();
-  await user.click(screen.getByRole("tab", { name: "Marca" })); expect(screen.getByText("La edición de marca estará disponible pronto.")).toBeVisible();
-  await user.click(screen.getByRole("tab", { name: "Configuración" })); expect(screen.getByText("La configuración del sitio estará disponible pronto.")).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "Marca" })); expect(screen.getByLabelText("Color de marca")).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "Configuración" })); expect(screen.getByLabelText("Dirección pública")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Ver como visitante" }));
   const visitor = await screen.findByRole("dialog", { name: "Vista previa pública" });
   const visitorFrame = within(visitor).getByTitle("Vista del visitante") as HTMLIFrameElement;

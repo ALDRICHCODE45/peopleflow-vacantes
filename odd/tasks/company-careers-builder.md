@@ -50,8 +50,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   - [x] T6c — editor shell on `/empresa/sitio`: tabs, section list (add/reorder/hide/duplicate/delete), live preview
     with device switch, properties panel, save status, owner/recruiter — route: worker — commit: see L32 commits
   - [x] T6d — section property forms (13) + image upload with crop — route: worker — commit: d5a5b174 (image field) + see L38
-  - [ ] T6e — Marca and Configuración tabs (brand color/contrast, fonts, company data read-only, slug availability, SEO
-    preview) + publish flow (checklist, confirm, success, unpublish) — route: worker — commit: —
+  - [x] T6e — Marca and Configuración tabs (brand color/contrast, fonts, company data read-only, slug availability, SEO
+    preview) + publish flow (checklist, confirm, success, unpublish) — route: worker — commit: see L44
   - [ ] T6f — remove the prototype editor/profile and prototype `/empresas/<uuid>` links; e2e on the fixture; docs — route:
     inline — commit: —
 - [ ] T7 — S6: S3 storage adapter for site media (last task of the feature, L17) — route: backend — commit: —
@@ -297,3 +297,32 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   publicar», single mobile sheet heading); parent fixed the compact size select width («Tamañ» truncated). Two collection
   tests timed out only under full-suite load (3.5 s / 1.5 s alone) → split into 32 focused tests (≤ 259 ms), no timeout
   raised. Full suite 7640/7640 (1 skipped) under `nice`, typecheck clean, lint 13 pre-existing warnings.
+- **L39.** Native review slice 5 (879b986d..97891d85, readability+reliability): refuter-confirmed CRITICAL R3-1 —
+  `ImageField` calls the `onChange` captured before the upload, so edits made while an image uploads are reverted
+  (hero title, collection items). Bounded correction plan: 120 lines, implemented in the slice worktree on top of
+  97891d85 (worker mvqy2dfg-10-xrx5: latest-callback ref + deferred-upload integration tests), then cherry-picked onto
+  the feature branch. T6e worker resumed with an awaitable autosave `flush()` (user-authorized T4 change).
+- **L40.** R3-1 corrected in 62 lines (plan 120): `ImageField` keeps the latest `onChange` in a ref and completes uploads
+  and retries through it; deferred-upload tests prove a hero title edit and a gallery item edit made during the upload
+  survive (RED 4 → GREEN). Targeted validator approved slice 5; acknowledged (authority burned). Commit edfd4bb6 in the
+  slice worktree, cherry-picked onto the feature branch as 79d29bde (media tests 34/34).
+- **L41.** Playwright MCP handed to Houndfe on request (17:28): confirmed «liberado»; PeopleFlow must ask for the turn
+  again before the T6e browser review.
+- **L42.** T6e implemented (worker mvqxzqlj-z-12db; 661 tests): Marca, Configuración (slug availability, SEO, company
+  summary), publication (flush → checklist/confirm → exact-version publish, 412 recovery, unpublish), awaitable autosave
+  `flush()`, public company profile read by session membership. Fixture gained `GET /companies/{id}` (test-first,
+  20/20). Independent verify (gentle-ai-verify, items 2+4): FAIL — `flush()` after `dispose()` with a PUT in flight never
+  settles; gaps: double-publish, unmount during publish, flush invalid/conflict refusal, recruiter 403 surfaced, full
+  conflict-reload integration → sent back. Owner enforcement stays with the backend (contract `requireOwner`); UI guard is
+  defense in depth.
+- **L43.** T6e browser review: Marca contrast notice (#FACC15 → #8C7103) and real-font cards OK; slug availability
+  «En uso» OK; publish end to end OK (confirm focus on Cancelar, exact-version publish, public site shows the new title,
+  badge «Publicado»; new-site checklist lists three issues). Sent back: a taken slug is written into the draft and breaks
+  autosave (keep it local until «disponible»; map 409/422 slug errors to the field), the success toast renders as two
+  overlapping pieces (use the repo notify pattern), and the checklist close button covers the description.
+- **L44.** T6e verify findings fixed (flush after dispose settles; double-publish, unmount, flush invalid/conflict,
+  backend 403 through the real client, conflict reload covered) plus the slug bug (taken slug stays local; 409/422 map
+  to the field) and the checklist header padding. The «Sitio publicado» toast is Sileo's standard pill+card, used app-wide
+  — not a defect. Browser re-check OK. Site suites 688/688 ×2; full suite 7721/7722 with one load-flaky pre-existing test
+  that passes alone 3/3 (different test per run → backlog), typecheck clean, lint 13 pre-existing warnings, fixture 20/20.
+  Open detail for T6f: the slug input's right edge is clipped by the Configuración panel scrollbar.

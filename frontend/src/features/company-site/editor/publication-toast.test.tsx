@@ -1,0 +1,32 @@
+import "./browser-platform.test-support";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { sileo } from "sileo";
+import { SitePublication } from "./publication";
+import { createAutosave } from "../autosave";
+import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { publishSiteAction } from "../api/actions";
+import type { SiteState } from "../api/model";
+// Keep the real notifyActionResult helper; observe its public Sileo boundary.
+vi.mock("sileo", () => ({ sileo: { success: vi.fn().mockReturnValue("toast"), error: vi.fn(), warning: vi.fn(), info: vi.fn(), dismiss: vi.fn() } }));
+vi.mock("../api/actions", () => ({ publishSiteAction: vi.fn() }));
+vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+it("emits one standard success toast containing title, description and Ver sitio action", async () => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  const draft = defaultSiteDraft(); draft.slug = "nexo";
+  if (draft.blocks[0].type === "hero") draft.blocks[0].content.title = "Únete";
+  const closing = defaultBlock("closing"); if (closing.type === "closing") closing.content.title = "Crece";
+  draft.blocks.push(closing);
+  const data: SiteState = { draft, draft_version: 7, published: { version: 7, slug: "nexo", published_at: "2026-10-27T00:00:00Z" }, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" };
+  vi.mocked(publishSiteAction).mockResolvedValue({ kind: "success", data, etag: '"7"' });
+  const controller = createAutosave(data, '"7"', vi.fn());
+  const onState = vi.fn();
+  const { unmount } = render(<SitePublication controller={controller} role="owner" company={{ name: "Nexo", logo_url: "https://example.com/logo.png" }} published={null} onState={onState} onConflict={vi.fn()} onNavigate={vi.fn()} />);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Publicar" })));
+  await act(async () => fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Publicar sitio" })));
+  expect(sileo.success).toHaveBeenCalledExactlyOnceWith({ title: "Sitio publicado", description: "Las personas que visiten tu dirección ya pueden ver esta versión.", button: { title: "Ver sitio", onClick: expect.any(Function) }, icon: expect.anything() });
+  expect(sileo.error).not.toHaveBeenCalled(); expect(sileo.info).not.toHaveBeenCalled(); expect(sileo.warning).not.toHaveBeenCalled(); expect(onState).toHaveBeenCalledOnce();
+  unmount(); controller.dispose();
+});

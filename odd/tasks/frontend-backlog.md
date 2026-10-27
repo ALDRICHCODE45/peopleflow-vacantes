@@ -20,6 +20,11 @@ item — legacy catalog rows now say they take no online applications.
 
 ## Known issues
 
+- Full-suite flakiness under load (`nice` + other processes): a different heavy test fails per run and passes alone —
+  `manual-intake/sheet.test.tsx` «limits studies to ten…», `empresa/vacantes/borradores/nuevo/page.test.tsx` «mounts the
+  five-step draft editor…», `jobs/drafts/ui/draft-save-flow.test.tsx` «keeps edits made during an in-flight save…»
+  (2026-10-27). Make them lighter like the careers form tests (split, minimal fixtures), never raise timeouts.
+
 - axe `region` (moderate) on every `(empresa)` page: content in `[data-slot=sidebar-header]` sits outside any landmark
   (seen on `/empresa/dashboard` and `/empresa/sitio`, production build, 2026-10-27). App-shell fix, not page-level.
 

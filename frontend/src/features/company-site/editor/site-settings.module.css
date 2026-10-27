@@ -1,0 +1,6 @@
+/* User-selected brand samples are data, not a second application palette. */
+.chip { background-color: var(--sample-brand); }
+.fontSample { font-family: var(--font-sans), sans-serif; }
+.fontSample[data-font-pair="editorial"] .heading { font-family: var(--font-site-editorial), serif; }
+.fontSample[data-font-pair="modern"] { font-family: var(--font-site-modern), sans-serif; }
+.heading { font-family: inherit; }

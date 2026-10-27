@@ -113,12 +113,12 @@ it("keeps schematic previews outside the primitive's icon sizing rule and adds a
   expect(iframe.contentDocument!.querySelector('[data-editor-selected="true"]')).not.toHaveClass("outline-ring");
 });
 it.each(["keyboard", "hover"])("retains standard disabled publish paint and opens its tooltip with %s", async input => {
-  render(<CareersSiteEditor {...props()} />); await screen.findByRole("heading", { name: "Tu página" });
+  render(<CareersSiteEditor {...props()} role="recruiter" />); await screen.findByRole("heading", { name: "Tu página" });
   const button = screen.getByRole("button", { name: "Publicar" }); expect(button).toBeDisabled();
   expect(button).toHaveClass("disabled:opacity-50");
-  const trigger = screen.getByLabelText("Publicar: Disponible pronto");
+  const trigger = screen.getByLabelText("Solo la persona dueña de la empresa puede publicar");
   const user = userEvent.setup();
-  if (input === "keyboard") { await user.tab(); await user.tab(); await user.tab(); expect(trigger).toHaveFocus(); }
+  if (input === "keyboard") { act(() => trigger.focus()); expect(trigger).toHaveFocus(); }
   else await user.hover(trigger);
   // jsdom cannot position the floating portal. The real Tooltip root owns this
   // open marker; test both input paths without replacing its controller.
