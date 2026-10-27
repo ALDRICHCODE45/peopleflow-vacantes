@@ -34,7 +34,7 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
 - [x] T1 — S1–S11: v0 prompt (editor + public site) — route: inline — commit: 0513e22e
 - [x] T2 — S4, S6, S8–S11: backend contract proposal, agreed with the backend session (site document, slug, publish,
   upload, public read, catalog by company) — route: inline + backend session — commit: this commit (agreed `docs/contracts/company-careers-site-v1.md`; backend implements on `feat/company-careers-site`)
-- [ ] T3 — S1–S3, S7: block model (zod schemas, limits, defaults, contrast check, slug rules) with tests — route: inline — commit: —
+- [x] T3 — S1–S3, S7: block model (zod schemas, limits, defaults, contrast check, slug rules) with tests — route: worker — commit: see L8
 - [ ] T4 — S1, S4, S8: editor state (reducer: add/reorder/hide/variant/edit, selection, dirty) and autosave client
   (debounce, ETag/412, status) with tests — route: inline — commit: —
 - [ ] T5 — S10, S11: minimal public renderer + `/empresas/[slug]` route on the contract (404 for unpublished/unknown),
@@ -71,3 +71,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   identical PUT is a no-op, public read drops hidden blocks, limits (1 MiB body, 300 media), audit events, EXIF stripped
   without re-encoding. Worker T3 (mvq388ml-2-o9d1) asked two contract questions; parent decided: per-block publish
   requirements table (§2.1) and video stored as `{provider, video_id} | null`. Both sent to backend.
+- **L8.** T3 (worker mvq388ml-2-o9d1 → mvq3b0nl-3-nvhe): `features/company-site/` model.ts (13 block schemas, draft vs
+  publish), slug.ts, video.ts, brand.ts (WCAG contrast, adjusted brand shade, 3 font pairs), defaults.ts (library labels,
+  standard benefits); RED (missing modules) → GREEN 187. Parent review found `consent: z.literal(true)` at save level,
+  which would break autosave on a fresh testimonial; contract says consent is a publish requirement → `z.boolean()` +
+  publish test (RED 2 → GREEN 188); contract row clarified and sent to backend. tsc, eslint clean.
