@@ -166,3 +166,13 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   mismatched («Dividida» renders centered); values/benefits ignore the chosen icon (heart/star only); large empty gaps
   between public sections; no social links in the closing/footer; nested scroll on mobile. v0's data model differs from
   the contract (titles/text generic per section, Spanish icon names) — T6 keeps the design, uses the T3 model.
+- **L19.** v0 second result (same chat), reviewed the same way (production build in `.v0-review-site/`, Playwright MCP
+  turn taken/released). Fixed: overlays centered; checklist lists the incomplete sections with links; loading skeleton
+  mirrors the whole editor; real variants for every section with live mini-preview thumbnails (e.g. Portada
+  Dividida/Centrada, Historia Manifiesto/Con imagen, Valores Tarjetas/Principios); public site much richer (split hero,
+  brand-tinted bands, card values/benefits with their own icons, testimonial and offices with photos, brand-colored
+  closing banner, social links in closing and footer); both brand configs work (orange + Moderna, green + Editorial
+  dark); visitor view has a brand switcher; no nested scroll on the mobile editor; no overflow. Still to fix in T6 (our
+  rules, not design): overlays not marked as dialogs and initial focus not on «Cancelar»; success still a modal (we use
+  toast + status line); save status not announced; «Vacantes abiertas» wrongly flagged as missing a title (optional);
+  mobile «Cifras» breaks «Monterrey» mid-word in three narrow columns. Verdict: design approved as T6 base.
