@@ -7,5 +7,5 @@ import type { AutosaveController } from "./autosave";
 export function useAutosave(controller: AutosaveController) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   useEffect(() => controller.attachOnline(window), [controller]);
-  return snapshot;
+  return { ...snapshot, flush: controller.flush };
 }

@@ -10,6 +10,7 @@ export type AutosaveStatus =
 export type AutosaveSnapshot = { editor: EditorState; status: AutosaveStatus };
 export type EditAction = Exclude<EditorAction, { type: "load" | "saved" | "invalid" }>;
 export type SaveDraft = (input: SaveInput) => Promise<SiteResult>;
+export type FlushResult = { ok: true; version: number } | { ok: false; reason: "conflict" | "offline" | "invalid" | "error" | "unauthenticated" };
 
 /** One controller per editor session; its owner calls dispose when leaving the editor. */
 export function createAutosave(initial: SiteState, etag: string, save: SaveDraft, debounceMs = 1500) {
@@ -19,6 +20,28 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
   // After an uncertain save the server may hold the unconfirmed document, so a
   // draft equal to lastSaved is not proof that nothing needs saving.
   let unconfirmed = false;
+  let flushPromise: Promise<FlushResult> | undefined;
+  let finishFlush: ((result: FlushResult) => void) | undefined;
+  function failure(): FlushResult | undefined {
+    const status = snapshot.status;
+    if (disposed) return { ok: false, reason: "error" };
+    if (status.kind === "error") return { ok: false, reason: status.failure.kind === "unauthenticated" ? "unauthenticated" : "error" };
+    if (status.kind === "conflict" || status.kind === "offline" || status.kind === "invalid") return { ok: false, reason: status.kind };
+  }
+  function settleFlush(result: FlushResult) { finishFlush?.(result); finishFlush = undefined; }
+  function flushLatest(): Promise<FlushResult> {
+    if (flushPromise) return flushPromise;
+    // Terminal failures are never silently replayed by publication. An edit or
+    // online event must first schedule a fresh autosave attempt.
+    const terminal = failure();
+    flushPromise = new Promise<FlushResult>(resolve => { finishFlush = resolve; });
+    const promise = flushPromise;
+    void promise.then(() => { if (flushPromise === promise) flushPromise = undefined; });
+    if (disposed || (terminal && !timer && !inFlight)) settleFlush(terminal ?? { ok: false, reason: "error" });
+    else if (!inFlight && !snapshot.editor.dirty && !unconfirmed) settleFlush({ ok: true, version: snapshot.editor.draft_version });
+    else { cancelPending(); void flush(); }
+    return promise;
+  }
   const listeners = new Set<() => void>();
   const onlineCleanups = new Set<() => void>();
   const emit = (editor: EditorState, status: AutosaveStatus) => {
@@ -48,8 +71,12 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
     if (result.kind === "success") {
       const editor = editorReducer(snapshot.editor, { type: "saved", data: result.data, etag: result.etag, submitted });
       emit(editor, { kind: "saved", at: Date.now() });
-      if (!editor.dirty) cancelPending();
-      else if (due) { due = false; void flush(); }
+      // Subscribers may synchronously edit in response to this completion. The
+      // live snapshot, not the pre-notification reducer value, owns the barrier.
+      if (!snapshot.editor.dirty) {
+        cancelPending();
+        settleFlush({ ok: true, version: snapshot.editor.draft_version });
+      } else if (due || finishFlush) { cancelPending(); void flush(); }
       // If the last edit is still debouncing, leave its timer in place.
       return;
     }
@@ -58,10 +85,15 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
     cancelPending();
     if (result.kind === "conflict") emit(snapshot.editor, { kind: "conflict", current: result.current });
     else if (result.kind === "invalid") emit(editorReducer(snapshot.editor, { type: "invalid", fields: result.fields, submitted }), { kind: "invalid" });
+    else if (result.kind === "error" && (result.code === "slug_taken" || result.code === "slug_reserved")) {
+      emit(editorReducer(snapshot.editor, { type: "invalid", fields: [{ field: "slug", code: result.code === "slug_taken" ? "duplicate" : "not_allowed" }], submitted }), { kind: "invalid" });
+    }
     else if (result.kind === "uncertain") emit(snapshot.editor, { kind: "offline" });
     else emit(snapshot.editor, { kind: "error", failure: result });
+    settleFlush(failure() ?? { ok: false, reason: "error" });
   }
   return {
+    flush: flushLatest,
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     dispatch(action: EditAction) {
@@ -88,7 +120,7 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
       emit(editor, { kind: "idle" });
       if (editor.dirty) schedule();
     },
-    dispose() { disposed = true; cancelPending(); onlineCleanups.forEach(cleanup => cleanup()); listeners.clear(); },
+    dispose() { disposed = true; cancelPending(); settleFlush({ ok: false, reason: "error" }); onlineCleanups.forEach(cleanup => cleanup()); listeners.clear(); },
   };
 }
 export type AutosaveController = ReturnType<typeof createAutosave>;

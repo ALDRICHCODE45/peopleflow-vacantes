@@ -5,6 +5,78 @@ import type { SiteResult, SiteState } from "./api/model";
 const data = (): SiteState => ({ draft: defaultSiteDraft(), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
 const deferred = () => { let resolve!: (result: SiteResult) => void; const promise = new Promise<SiteResult>(r => { resolve = r; }); return { promise, resolve }; };
 beforeEach(() => vi.useFakeTimers()); afterEach(() => vi.useRealTimers());
+it("flush shares a promise, waits for in-flight and queued edits, and cancels the debounce", async () => {
+  const initial = data(); const pending = deferred();
+  const save = vi.fn().mockReturnValueOnce(pending.promise).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body, draft_version: 3 }, etag: '"3"' }));
+  const c = createAutosave(initial, '"1"', save);
+  c.dispatch({ type: "slug", slug: "first" }); await vi.advanceTimersByTimeAsync(1500);
+  const first = c.flush(); expect(c.flush()).toBe(first);
+  c.dispatch({ type: "slug", slug: "latest" });
+  pending.resolve({ kind: "success", data: { ...initial, draft: { ...initial.draft, slug: "first" }, draft_version: 2 }, etag: '"2"' });
+  await expect(first).resolves.toEqual({ ok: true, version: 3 });
+  expect(save).toHaveBeenCalledTimes(2); expect(save.mock.calls[1][0]).toMatchObject({ body: { slug: "latest" }, ifMatch: '"2"' });
+  await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledTimes(2); c.dispose();
+});
+it.each([
+  [{ kind: "uncertain" }, "offline"], [{ kind: "unauthenticated" }, "unauthenticated"],
+  [{ kind: "invalid", fields: [] }, "invalid"], [{ kind: "unrecognized" }, "error"],
+  [{ kind: "conflict", current: data() }, "conflict"],
+] as const)("flush reports terminal %s without retrying", async (failure, reason) => {
+  const save = vi.fn().mockResolvedValue(failure); const c = createAutosave(data(), '"1"', save);
+  c.dispatch({ type: "slug", slug: "local" });
+  await expect(c.flush()).resolves.toEqual({ ok: false, reason });
+  await expect(c.flush()).resolves.toEqual({ ok: false, reason });
+  await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledOnce(); c.dispose();
+});
+it("includes edits from completion subscribers before resolving flush", async () => {
+  const initial = data(); const save = vi.fn().mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body, draft_version: body.slug === "latest" ? 3 : 2 }, etag: body.slug === "latest" ? '"3"' : '"2"' }));
+  const c = createAutosave(initial, '"1"', save); c.dispatch({ type: "slug", slug: "first" });
+  const detach = c.subscribe(() => { if (c.getSnapshot().status.kind === "saved" && c.getSnapshot().editor.draft.slug === "first") c.dispatch({ type: "slug", slug: "latest" }); });
+  await expect(c.flush()).resolves.toEqual({ ok: true, version: 3 });
+  expect(c.getSnapshot().editor.dirty).toBe(false); expect(save).toHaveBeenCalledTimes(2); detach(); c.dispose();
+});
+it("settles waiting flush on disposal without performing queued writes", async () => {
+  const pending = deferred(); const save = vi.fn().mockReturnValue(pending.promise); const c = createAutosave(data(), '"1"', save);
+  c.dispatch({ type: "slug", slug: "first" }); const result = c.flush();
+  c.dispatch({ type: "slug", slug: "later" }); c.dispose();
+  await expect(result).resolves.toEqual({ ok: false, reason: "error" });
+  pending.resolve({ kind: "uncertain" }); await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledOnce();
+});
+it.each(["autosave", "explicit flush"])("every flush after disposal settles while the %s PUT is still pending", async source => {
+  const pending = deferred(); const save = vi.fn().mockReturnValue(pending.promise);
+  const c = createAutosave(data(), '"1"', save); c.attachOnline(window);
+  c.dispatch({ type: "slug", slug: "first" });
+  const prior = source === "explicit flush" ? c.flush() : undefined;
+  if (!prior) await vi.advanceTimersByTimeAsync(1500);
+  expect(save).toHaveBeenCalledOnce(); c.dispose();
+  if (prior) await expect(prior).resolves.toEqual({ ok: false, reason: "error" });
+  // Observe a bounded microtask turn instead of letting a hanging promise consume
+  // the test timeout. The PUT intentionally remains unresolved for both calls.
+  for (let call = 0; call < 2; call += 1) {
+    const settled = vi.fn(); void c.flush().then(settled);
+    await Promise.resolve(); await Promise.resolve();
+    expect(settled).toHaveBeenCalledExactlyOnceWith({ ok: false, reason: "error" });
+  }
+  c.dispatch({ type: "slug", slug: "after-dispose" }); window.dispatchEvent(new Event("online"));
+  pending.resolve({ kind: "success", data: data(), etag: '"1"' });
+  await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledOnce();
+});
+it.each([["slug_taken", "duplicate"], ["slug_reserved", "not_allowed"]] as const)("maps save %s to an invalid slug field instead of a global error", async (code, fieldCode) => {
+  const save = vi.fn().mockResolvedValue({ kind: "error", code, field: "slug" }); const c = createAutosave(data(), '"1"', save);
+  c.dispatch({ type: "slug", slug: "candidate" });
+  await expect(c.flush()).resolves.toEqual({ ok: false, reason: "invalid" });
+  expect(c.getSnapshot().status.kind).toBe("invalid");
+  expect(c.getSnapshot().editor.fieldErrors).toEqual([{ field: "slug", code: fieldCode }]);
+  expect(autosaveLabel(c.getSnapshot().status)).toBe("Revisa los campos marcados");
+  await vi.advanceTimersByTimeAsync(10000); expect(save).toHaveBeenCalledOnce(); c.dispose();
+});
+it("flush saves pending edits immediately and clean flush performs no request", async () => {
+  const initial = data(); const save = vi.fn().mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body, draft_version: 2 }, etag: '"2"' }));
+  const c = createAutosave(initial, '"1"', save);
+  await expect(c.flush()).resolves.toEqual({ ok: true, version: 1 }); expect(save).not.toHaveBeenCalled();
+  c.dispatch({ type: "slug", slug: "local" }); await expect(c.flush()).resolves.toEqual({ ok: true, version: 2 });
+  expect(save).toHaveBeenCalledOnce(); c.dispose();
+});
 it("debounces edits into one save with the current If-Match", async () => {
   const initial = data(); const save = vi.fn().mockResolvedValue({ kind: "success", data: initial, etag: '"1"' }); const c = createAutosave(initial, '"1"', save);
   c.dispatch({ type: "slug", slug: "first" }); await vi.advanceTimersByTimeAsync(1000); c.dispatch({ type: "slug", slug: "second" });
