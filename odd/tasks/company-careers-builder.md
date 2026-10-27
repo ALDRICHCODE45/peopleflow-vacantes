@@ -279,3 +279,12 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   `loadCareersEditor` returns `unauthenticated`; autosave says «Tu sesión expiró. Inicia sesión para guardar los
   cambios.» Closed the verify's test gaps (real-client 401, membership gates, blank token, helper exceptions, hostile
   arguments ignored, token never serialized). RED 13 → GREEN 496 (1 live skipped); parent re-ran and read the diff.
+- **L35.** Native review in slices (whole branch exceeds the reviewer budget; slices reviewed from a clean detached
+  worktree `peopleflow-vacantes-slice`): slice 1 dbdf9fe6..d0ea07bd approved; slice 2 d0ea07bd..5c846955 approved with
+  one non-blocking reliability warning — the server/client parity test (`public/presentation.test.tsx:16-22`) renders
+  with empty jobs and office labels, so parity with real jobs/offices is unproven → strengthen in T6f.
+- **L36.** Native review slices 3 (5c846955..c89762cd, risk+readability+reliability) and 4 (c89762cd..879b986d,
+  risk+reliability) approved and acknowledged — everything committed through 879b986d is reviewed. Slice 4 advisory:
+  the generated shadcn `Slider` renders two thumbs (`[min, max]`) when given a scalar `value`; our only caller passes
+  `value={[zoom]}`, so no effect today — keep array values in future callers. T6d image field (worker
+  mvqvwyzz-s-8c2a): `editor/media/ImageField.tsx` + `crop-image.ts`, RED → GREEN 30/30, lint clean.
