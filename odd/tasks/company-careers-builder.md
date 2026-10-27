@@ -52,8 +52,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   - [x] T6d — section property forms (13) + image upload with crop — route: worker — commit: d5a5b174 (image field) + see L38
   - [x] T6e — Marca and Configuración tabs (brand color/contrast, fonts, company data read-only, slug availability, SEO
     preview) + publish flow (checklist, confirm, success, unpublish) — route: worker — commit: see L44
-  - [ ] T6f — remove the prototype editor/profile and prototype `/empresas/<uuid>` links; e2e on the fixture; docs — route:
-    inline — commit: —
+  - [x] T6f — remove the prototype editor/profile and prototype `/empresas/<uuid>` links; e2e on the fixture; docs — route:
+    worker + parent deletions — commit: see L47
 - [ ] T7 — S6: S3 storage adapter for site media (last task of the feature, L17) — route: backend — commit: —
 
 ## Log
@@ -326,3 +326,24 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   — not a defect. Browser re-check OK. Site suites 688/688 ×2; full suite 7721/7722 with one load-flaky pre-existing test
   that passes alone 3/3 (different test per run → backlog), typecheck clean, lint 13 pre-existing warnings, fixture 20/20.
   Open detail for T6f: the slug input's right edge is clipped by the Configuración panel scrollbar.
+- **L45.** Native review slice 6 (79d29bde..c684acdd; risk+resilience+reliability) approved and acknowledged — all
+  feature commits through c684acdd are reviewed. Advisories sent to the T6f worker: R4-profile-recovery (client publish
+  checklist must not flag logo/name from an unavailable profile; defer to the server 422) and R3-stale-conflict («Cargar
+  versión» must load the newer of the publish/autosave conflict states). T6f scope expanded (user-authorized pattern) to
+  `features/jobs/**` because `enrich.ts`/`prototype-jobs.ts` still import the prototype company profile; enrichment
+  output pinned by a characterization test before moving the type.
+- **L46.** T6f: worker retired every reference to the prototype (`(empresa)/layout.tsx` session provider, UUID company
+  links in job detail/card, `enrich.ts`/`prototype-jobs.ts` decoupled with a characterization test), fixed review
+  advisories R3/R4, strengthened the parity test, settings gutter, 9 careers e2e, docs. Parent deleted 15 prototype files
+  with `git rm` after grep proof. Typecheck clean, lint 13 pre-existing warnings; full suite 7644/7647 with 3 load-flaky
+  drafts tests (98/98 alone). E2E against the production build: vacancies list/detail all green; careers public 5/5 after
+  fixing a spec selector (the credit link's accessible name is «PeopleFlow para empresas»); `root.spec` composition list
+  must not gain `PeopleFlowNavbar` (pre-existing arbitrary values) — reverted to just dropping PublicShell; `root.spec`
+  «root foundation matrix» fails because of main's `IngresarMenu` session read (3e2c28f3) → backlog. Employer e2e could
+  not run: Playwright wipes `test-results/` (its outputDir), deleting the saved session → moved to the git-excluded
+  `frontend/.playwright-auth/`.
+- **L47.** Employer session re-extracted from the MCP profile (only `localhost` cookies, isolated context) into
+  `frontend/.playwright-auth/employer.json` (600, git-excluded). E2E against the production build: careers 9/9
+  (public render/nav/jobs/filters, old slug 308, unknown slug, axe light/dark, edit + autosave, taken slug stays local,
+  publish → public page, recruiter cannot publish); vacancies list/detail green; `root.spec` composition check passes.
+  `root.spec` «root foundation matrix» stays red for main's reason (backlog).

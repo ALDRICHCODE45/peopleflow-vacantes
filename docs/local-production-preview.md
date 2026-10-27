@@ -42,6 +42,57 @@ JOBS_FIXTURE_PORT=4110 node tests/fixtures/jobs-server.mjs
 No inicies una segunda instancia si ese puerto ya está ocupado. La API mock
 solo contiene los registros de prueba: IDs desconocidos seguirán dando 404.
 
+## Careers: sitio público y editor
+
+El spec `tests/e2e/company-careers.spec.ts` usa la misma API fixture en `:4010` y
+un build de producción en `:3100`. Para el editor, usa **localhost** (no
+`127.0.0.1`) tanto en `PEOPLEFLOW_SITE_URL`, `NEXTAUTH_URL` como en
+`PLAYWRIGHT_APP_ORIGIN`: la sesión del empleador está ligada a ese host.
+
+1. Inicia sesión con una cuenta de prueba de empleador y guarda su storage state
+   mediante el harness en una ruta gitignored, por ejemplo
+   `frontend/.playwright-auth/employer.json`. No copies cookies ni tokens a docs,
+   logs o commits. La fixture no genera sesiones ni omite las validaciones de identidad.
+2. Antes del build y del arranque, configura la API en `http://127.0.0.1:4010`,
+   `PEOPLEFLOW_LOCAL_PREVIEW=true`, `PEOPLEFLOW_SITE_URL=http://localhost:3100`
+   y `NEXTAUTH_URL=http://localhost:3100`. Usa el mismo secreto de sesión del
+   servidor donde se inició sesión; no lo imprimas. No compartas `.next` con dev.
+3. Opcionalmente, al iniciar la fixture, `COMPANY_SITE_FIXTURE_IMAGES` acepta rutas
+   locales de fotos separadas por `:`. Se asignan circularmente a portada, galería,
+   retrato e historia. Sin esa variable se reutiliza la imagen licenciada del repo;
+   no se descargan imágenes. Las fotos de revisión no se versionan.
+
+Desde `frontend/`, con app y fixture ya levantadas:
+
+```bash
+PLAYWRIGHT_APP_ORIGIN=http://localhost:3100 \
+PLAYWRIGHT_FIXTURE_ORIGIN=http://127.0.0.1:4010 \
+PLAYWRIGHT_EMPLOYER_STORAGE_STATE=.playwright-auth/employer.json \
+pnpm exec playwright test tests/e2e/company-careers.spec.ts
+```
+
+Ejemplo de arranque de la fixture con fotos opcionales:
+
+```bash
+JOBS_FIXTURE_PORT=4010 \
+COMPANY_SITE_FIXTURE_IMAGES=/ruta/local/portada.webp:/ruta/local/equipo.jpg \
+node tests/fixtures/jobs-server.mjs
+```
+
+Cada caso restablece `/__reset`; no ejecutes otra suite que cambie esta fixture al
+mismo tiempo. Sin `PLAYWRIGHT_EMPLOYER_STORAGE_STATE`, solo los cuatro casos del
+editor se omiten con un mensaje explícito; los cinco públicos deben correr. Si
+caduca la sesión, vuelve a iniciar sesión y capturar el estado. Para comprobar
+solo descubrimiento y tipos (sin navegador):
+
+```bash
+pnpm exec playwright test --list tests/e2e/company-careers.spec.ts
+pnpm -s typecheck --incremental false
+```
+
+El typecheck principal incluye `tests/**/*.ts`. Rutas, roles y publicación:
+[Constructor del sitio de empleo](company-careers-builder.md).
+
 ## Límites de seguridad
 
 - `PEOPLEFLOW_LOCAL_PREVIEW` acepta únicamente `true`, `false` o ausencia.
