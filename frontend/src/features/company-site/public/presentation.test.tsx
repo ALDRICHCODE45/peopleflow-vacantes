@@ -1,0 +1,54 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
+import "@testing-library/jest-dom/vitest";
+import { CompanySitePage } from "./company-site-page";
+import { CompanySitePresentation } from "./company-site-presentation";
+import { loadPreviewData, resolveOfficeLabels } from "./preview-data";
+import { publishedFixture } from "./fixtures.test-support";
+import { defaultBlock } from "../defaults";
+import * as geo from "@/features/geo/client";
+import * as read from "./read";
+vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
+vi.mock("@/features/geo/client", () => ({ getCountries: vi.fn(), getStates: vi.fn(), getMunicipalities: vi.fn() }));
+vi.mock("./read", () => ({ listCompanyJobs: vi.fn() }));
+afterEach(() => { cleanup(); vi.resetAllMocks(); });
+it("server wrapper and shared presentation produce identical public markup, without editor affordances", async () => {
+  const data = publishedFixture();
+  const server = renderToStaticMarkup(await CompanySitePage({ data, jobs: [] }));
+  const shared = renderToStaticMarkup(<CompanySitePresentation site={data.site} company={data.company} jobs={[]} officeLabels={new Map()} />);
+  expect(shared).toBe(server);
+  expect(shared).not.toContain("data-editor");
+  expect(shared).not.toContain("Editar Portada");
+});
+it("only editor mode exposes selectable empty sections and selected outline", () => {
+  const data = publishedFixture(); const story = defaultBlock("story"); data.site.blocks.push(story);
+  const select = vi.fn();
+  const { container } = render(<CompanySitePresentation site={data.site} company={data.company} jobs={[]} officeLabels={new Map()} selectedBlockId={story.id} onSelectBlock={select} />);
+  const section = container.querySelector(`[id="bloque-${story.id}"]`)!;
+  expect(section).toHaveAttribute("data-editor-selected", "true");
+  fireEvent.click(section); expect(select).toHaveBeenCalledWith(story.id);
+  fireEvent.keyDown(section, { key: "Enter" }); expect(select).toHaveBeenCalledTimes(2);
+});
+it("resolves office labels through the shared catalogs, preserving fallback on failure", async () => {
+  const office = defaultBlock("offices");
+  if (office.type !== "offices") throw new Error("fixture");
+  office.content.items = [{ name: "Sede", location: { country: "MX", state: "09", municipality: "09002" }, address: null, map_url: null }];
+  vi.mocked(geo.getCountries).mockResolvedValue({ ok: true, data: { items: [{ id: "MX", name: "México" }] } });
+  vi.mocked(geo.getStates).mockResolvedValue({ ok: true, data: { items: [{ id: "09", name: "Ciudad de México" }] } });
+  vi.mocked(geo.getMunicipalities).mockResolvedValue({ ok: true, data: { items: [{ id: "09002", name: "Azcapotzalco" }] } });
+  expect((await resolveOfficeLabels([office])).get(JSON.stringify(office.content.items[0].location))).toBe("Azcapotzalco, Ciudad de México, México");
+  vi.mocked(geo.getCountries).mockResolvedValue({ ok: false, error: "no_response" });
+  expect((await resolveOfficeLabels([office])).size).toBe(0);
+});
+it("loads preview jobs with honest availability instead of treating a failed catalog as empty", async () => {
+  const data = publishedFixture();
+  vi.mocked(read.listCompanyJobs).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } });
+  expect(await loadPreviewData(data.company, data.site.blocks)).toEqual({ company: data.company, jobs: [], jobsAvailable: true, officeLabels: new Map() });
+  expect(read.listCompanyJobs).toHaveBeenCalledWith(data.company.id);
+  vi.mocked(read.listCompanyJobs).mockResolvedValue({ ok: false, error: "unavailable" });
+  const preview = await loadPreviewData(data.company, data.site.blocks);
+  render(<CompanySitePresentation site={data.site} {...preview} />);
+  expect(screen.getByText("No pudimos cargar las vacantes")).toBeVisible();
+  expect(screen.queryByText("Por ahora no hay vacantes abiertas. Vuelve pronto.")).toBeNull();
+});
