@@ -270,3 +270,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   («Vista previa en vivo»), PageDown scrolls it; axe clean except the pre-existing app-shell `region`. Full suite caught
   `button-variants-merge` (outline link without `cn`) in the route loader → fixed. Open detail for T6d: the selected
   row's right border is clipped by the list's scrollbar edge.
+- **L33.** Independent security verify of `loadCareersEditor` (gentle-ai-verify): session-scoped company/role, token
+  containment and no client-controlled fetch PASS; FAIL: a 401 from `getSite` decoded as `unrecognized` → `unavailable`
+  instead of `unauthenticated` (fails closed, wrong message) + test gaps → fix worker. Crop decision (verbatim): «Agregar
+  react-easy-crop (Recomendado)» → `react-easy-crop@6.2.4` (MIT, one transitive dep `normalize-wheel`) pinned; shadcn
+  `slider` added via the official CLI (Base UI, no new deps) with its reference `docs/design/shadcn-reference/slider.md`.
