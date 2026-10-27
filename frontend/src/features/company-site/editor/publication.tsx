@@ -23,7 +23,7 @@ import { canPublish, RECRUITER_PUBLISH_REASON } from "../permissions";
 import { COMPANY_SETTINGS_HREF } from "./site-settings";
 
 export type PublicationTarget = { tab: "sections" | "settings"; blockId?: string; library?: boolean };
-type Props = { controller: AutosaveController; role: string; company: { name: string; logo_url: string | null }; published: SiteState["published"]; onState: (state: SiteState) => void; onNavigate: (target: PublicationTarget) => void; onConflict: (current: SiteState) => void };
+type Props = { controller: AutosaveController; role: string; companyKnown?: boolean; company: { name: string; logo_url: string | null }; published: SiteState["published"]; onState: (state: SiteState) => void; onNavigate: (target: PublicationTarget) => void; onConflict: (current: SiteState) => void };
 type ChecklistItem = { issue: PublishIssue; label: string; blockId?: string };
 type Notice = { tone: "success" | "error" | "warning"; text: string };
 const ISSUE_LABELS: Record<PublishIssue["code"], string> = {
@@ -31,7 +31,10 @@ const ISSUE_LABELS: Record<PublishIssue["code"], string> = {
   no_content_block: "Agrega al menos una sección de contenido", block_incomplete: "Completa esta sección",
   company_logo_missing: "Agrega el logo de la empresa", company_name_missing: "Agrega el nombre de la empresa",
 };
-export function SitePublication({ controller, role, company, published, onState, onNavigate, onConflict }: Props) {
+export function SitePublication({ controller, role, company, companyKnown = true, published, onState, onNavigate, onConflict }: Props) {
+  // Missing profile data is unknown, not evidence of missing company identity.
+  // The server remains authoritative and returns its publish_blocked checklist.
+  const clientIssues = (draft: Parameters<typeof publishIssues>[0]) => publishIssues(draft, company).filter(issue => companyKnown || (issue.code !== "company_logo_missing" && issue.code !== "company_name_missing"));
   const { flush } = useAutosave(controller);
   const [checklist, setChecklist] = useState<ChecklistItem[] | null>(null);
   const [confirmation, setConfirmation] = useState<{ version: number; slug: string } | null>(null);
@@ -84,7 +87,7 @@ export function SitePublication({ controller, role, company, published, onState,
     try {
       const version = await savedVersion(); if (!alive.current || version === null) return;
       const draft = controller.getSnapshot().editor.draft;
-      const issues = publishIssues(draft, company);
+      const issues = clientIssues(draft);
       if (issues.length) showIssues(issues);
       else setConfirmation({ version, slug: draft.slug! });
     } finally { busy.current = false; if (alive.current) setPending(false); }
@@ -116,7 +119,7 @@ export function SitePublication({ controller, role, company, published, onState,
       if (!alive.current) return;
       if (version === null) { setConfirmation(null); return; }
       const draft = controller.getSnapshot().editor.draft;
-      const issues = publishIssues(draft, company);
+      const issues = clientIssues(draft);
       if (issues.length) { showIssues(issues); return; }
       if (version !== confirmation.version || controller.getSnapshot().editor.dirty) {
         setConfirmation({ version, slug: draft.slug! });

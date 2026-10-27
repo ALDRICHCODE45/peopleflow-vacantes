@@ -26,12 +26,12 @@ function initial(): SiteState {
 }
 let controller: AutosaveController;
 const onState = vi.fn(); const onNavigate = vi.fn(); const onConflict = vi.fn();
-function mount({ role = "owner", incomplete = false, published = false } = {}) {
+function mount({ role = "owner", incomplete = false, published = false, companyKnown = true } = {}) {
   const data = initial(); if (incomplete) data.draft.slug = null;
   if (published) data.published = { version: 7, slug: "nexo", published_at: data.updated_at };
   const save = vi.fn().mockImplementation(async ({ body }) => ({ kind: "success", data: { ...data, draft: body, draft_version: 8 }, etag: '"8"' }));
   controller = createAutosave(data, '"7"', save);
-  const view = render(<TooltipProvider><SitePublication controller={controller} role={role} company={company} published={data.published} onState={onState} onNavigate={onNavigate} onConflict={onConflict} /></TooltipProvider>);
+  const view = render(<TooltipProvider><SitePublication controller={controller} role={role} company={companyKnown ? company : { name: "", logo_url: null }} companyKnown={companyKnown} published={data.published} onState={onState} onNavigate={onNavigate} onConflict={onConflict} /></TooltipProvider>);
   return { data, save, ...view };
 }
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
@@ -50,6 +50,15 @@ it("flushes first, confirms the exact saved version and initially focuses Cancel
   expect(onState).toHaveBeenCalledWith(published);
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Sitio publicado", action: expect.objectContaining({ title: "Ver sitio" }) }));
   await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()); expect(screen.getByRole("status")).toHaveTextContent("Sitio publicado");
+});
+it("lets the server validate unknown company identity and displays its blocked issues", async () => {
+  mount({ companyKnown: false });
+  vi.mocked(publishSiteAction).mockResolvedValue({ kind: "error", code: "publish_blocked", issues: [{ code: "company_logo_missing", field: null }] });
+  await prepare();
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("¿Publicar tu sitio?");
+  await confirm();
+  expect(publishSiteAction).toHaveBeenCalledExactlyOnceWith('"7"');
+  expect(screen.getByRole("dialog", { name: "Antes de publicar" })).toHaveTextContent("Agrega el logo de la empresa");
 });
 it("concurrent confirmation clicks issue exactly one publish request", async () => {
   const { data } = mount(); let resolve!: (value: Awaited<ReturnType<typeof publishSiteAction>>) => void;

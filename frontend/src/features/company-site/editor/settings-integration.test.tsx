@@ -39,6 +39,16 @@ it("keeps the editor available alongside a non-blocking profile notice", async (
   expect(screen.getByLabelText("Título principal")).toBeEnabled();
   expect(screen.getByTitle("Vista previa del sitio")).toBeInTheDocument();
 });
+it("allows publication recovery with an unavailable profile and uses the server identity checklist", async () => {
+  const p = props();
+  vi.mocked(publishSiteAction).mockResolvedValue({ kind: "error", code: "publish_blocked", issues: [{ code: "company_logo_missing", field: null }] });
+  render(<CareersSiteEditor {...p} preview={{ ...p.preview, company: { ...p.preview.company, name: "", logo_url: null } }} notice="No pudimos cargar el perfil de la empresa. Puedes seguir editando." />);
+  await screen.findByRole("button", { name: "Publicar" });
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Publicar" })));
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("¿Publicar tu sitio?");
+  await act(async () => fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Publicar sitio" })));
+  expect(screen.getByRole("dialog", { name: "Antes de publicar" })).toHaveTextContent("Agrega el logo de la empresa");
+});
 it("updates the real preview font attribute immediately", async () => {
   render(<CareersSiteEditor {...props()} />);
   await screen.findByRole("tab", { name: "Marca" }); fireEvent.click(screen.getByRole("tab", { name: "Marca" }));
@@ -57,6 +67,7 @@ it("uses profile identity in both the real preview and settings summary", async 
   for (const link of within(frame().body).getAllByRole("link", { name: "LinkedIn" })) expect(link).toHaveAttribute("href", "https://linkedin.com/company/nexo");
   fireEvent.click(screen.getByRole("tab", { name: "Configuración" }));
   expect(within(screen.getByRole("region", { name: "Datos de la empresa" })).getByText("Perfil conectado")).toBeVisible();
+  expect(screen.getByRole("tabpanel", { name: "Configuración" })).toHaveClass("px-1", "py-1", "pr-3");
 });
 it("updates header to published on success and amber on the next edit", async () => {
   const p = props(); render(<CareersSiteEditor {...p} />); await screen.findByText("Sin publicar");
@@ -142,6 +153,32 @@ it("opens explicit reload confirmation after a publish version conflict", async 
   await act(() => vi.advanceTimersByTimeAsync(5000));
   expect(saveDraftAction).toHaveBeenCalledOnce(); expect(publishSiteAction).toHaveBeenCalledOnce();
   expect(current.draft.blocks[0]).toMatchObject({ content: { title: "Versión del servidor" } });
+});
+it("reloads the newer autosave conflict rather than an older publish conflict and clears both", async () => {
+  const p = props(); p.initialSite.draft_version = 4;
+  const older = structuredClone(p.initialSite); older.draft_version = 5;
+  const newer = structuredClone(p.initialSite); newer.draft_version = 6;
+  if (older.draft.blocks[0].type === "hero") older.draft.blocks[0].content.title = "Servidor v5";
+  if (newer.draft.blocks[0].type === "hero") newer.draft.blocks[0].content.title = "Servidor v6";
+  vi.mocked(publishSiteAction).mockResolvedValue({ kind: "conflict", current: older });
+  vi.mocked(saveDraftAction).mockResolvedValue({ kind: "conflict", current: newer });
+  render(<CareersSiteEditor {...p} />); await screen.findByText("Sin publicar");
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Publicar" })));
+  await act(async () => fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Publicar sitio" })));
+  fireEvent.click(within(screen.getByRole("alertdialog", { name: "¿Cargar la versión más reciente?" })).getByRole("button", { name: "Cancelar" }));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  vi.useFakeTimers();
+  fireEvent.change(screen.getByLabelText("Título principal"), { target: { value: "Edición local" } });
+  await act(() => vi.advanceTimersByTimeAsync(1500));
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Otra persona");
+  fireEvent.click(screen.getByRole("button", { name: "Cargar la versión más reciente" }));
+  await act(async () => fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cargar versión" })));
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Portada" }));
+  expect(screen.getByLabelText("Título principal")).toHaveValue("Servidor v6");
+  expect(within(frame().body).getByRole("heading", { level: 1 })).toHaveTextContent("Servidor v6");
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).not.toHaveTextContent("Otra persona");
+  await act(() => vi.advanceTimersByTimeAsync(5000));
+  expect(saveDraftAction).toHaveBeenCalledOnce();
 });
 it("returns the header to Sin publicar after confirmed unpublication", async () => {
   const p = props(); p.initialSite.published = { version: 7, slug: "nexo", published_at: p.initialSite.updated_at };
