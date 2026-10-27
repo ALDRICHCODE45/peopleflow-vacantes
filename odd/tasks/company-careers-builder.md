@@ -32,8 +32,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
 ## Tasks
 
 - [x] T1 — S1–S11: v0 prompt (editor + public site) — route: inline — commit: 0513e22e
-- [ ] T2 — S4, S6, S8–S11: backend contract proposal, agreed with the backend session (site document, slug, publish,
-  upload, public read, catalog by company) — route: inline + backend session — commit: — (proposal `docs/contracts/company-careers-site-v1.md`, sent to backend 01a16b3c)
+- [x] T2 — S4, S6, S8–S11: backend contract proposal, agreed with the backend session (site document, slug, publish,
+  upload, public read, catalog by company) — route: inline + backend session — commit: this commit (agreed `docs/contracts/company-careers-site-v1.md`; backend implements on `feat/company-careers-site`)
 - [ ] T3 — S1–S3, S7: block model (zod schemas, limits, defaults, contrast check, slug rules) with tests — route: inline — commit: —
 - [ ] T4 — S1, S4, S8: editor state (reducer: add/reorder/hide/variant/edit, selection, dirty) and autosave client
   (debounce, ETag/412, status) with tests — route: inline — commit: —
@@ -65,3 +65,9 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   upload.
 - **L6.** User: backend — «Sí: acordalo con backend e implementen los dos (Recomendado)»: the backend session implements
   the contract on its own branch tonight; nobody merges to main or pushes; the user reviews in the morning.
+- **L7.** Backend (01a16b3c) accepted the contract with 12 changes (contract §6): API-relative public capability media
+  URL `/v2/company-sites/media/{id}` (no S3 adapter yet; flagged for the user), old slug → 200 with current `slug` and
+  frontend 308, published snapshot as a copy, story body reuses `draftrich.ValidateDocument`, uniform 412 envelope,
+  identical PUT is a no-op, public read drops hidden blocks, limits (1 MiB body, 300 media), audit events, EXIF stripped
+  without re-encoding. Worker T3 (mvq388ml-2-o9d1) asked two contract questions; parent decided: per-block publish
+  requirements table (§2.1) and video stored as `{provider, video_id} | null`. Both sent to backend.

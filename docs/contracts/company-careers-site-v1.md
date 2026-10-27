@@ -1,6 +1,6 @@
 # Company careers site — API contract v1 (proposal)
 
-Status: proposal from the frontend session (2026-10-26) for `odd/tasks/company-careers-builder.md`, to be agreed with
+Status: **agreed** with the backend session (2026-10-27, backend branch `feat/company-careers-site`); originally proposed by the frontend session (2026-10-26) for `odd/tasks/company-careers-builder.md`, to be agreed with
 the backend session before implementation. Product decisions: S1–S11 of that document. UI design comes later from v0;
 this contract does not depend on it.
 
@@ -49,15 +49,34 @@ this contract does not depend on it.
 | `process` | `steps`, `timeline` | `items` 2–8 × {`title` ≤ 60, `description` ≤ 200, `duration` ≤ 30 nullable} |
 | `gallery` | `grid`, `mosaic`, `carousel` | `items` 2–12 × {`image` media ref (kind `gallery`), `alt` ≤ 160 required, `caption` ≤ 120} |
 | `testimonials` | `cards`, `quote` | `items` 1–6 × {`quote` ≤ 400, `name` ≤ 80, `role` ≤ 80, `photo` media ref (kind `portrait`) nullable, `consent` must be `true`} |
-| `video` | `wide`, `split` | `url` YouTube/Vimeo only (normalized to `{provider, video_id}`), `title` ≤ 80, `description` ≤ 200 |
+| `video` | `wide`, `split` | `video` `{provider: "youtube" | "vimeo", video_id}` or `null` (the client parses the pasted YouTube/Vimeo URL; YouTube id `^[A-Za-z0-9_-]{11}$`, Vimeo id `^\d{1,12}$`), `title` ≤ 80, `description` ≤ 200 |
 | `offices` | `list`, `cards` | `items` 1–20 × {`name` ≤ 80, `location` (same `LocationInput` as the company profile: country; MX state + municipality), `address` ≤ 200, `map_url` https ≤ 500} |
 | `jobs` | `list`, `cards`, `by_area` | `title` ≤ 80, `intro` ≤ 200 (the vacancies themselves come from the public catalog, never stored here) |
 | `faq` | `accordion`, `two_columns` | `items` 1–20 × {`question` ≤ 160, `answer` ≤ 1,000} |
 | `closing` | `banner`, `simple` | `title` ≤ 80, `text` ≤ 240 |
 
-- Draft saves accept **incomplete** content (empty lists, null titles) so autosave never fails on work in progress;
-  the minimums (`1–8`, `2–12`, …) are **publish** requirements. Maximums, formats, `consent: true` when a testimonial
-  exists, URL rules and unknown keys are enforced on every save.
+- Draft saves accept **incomplete** content (empty lists, null titles, items with blank fields) so autosave never fails
+  on work in progress; maximums, formats, URL/id rules and unknown keys are enforced on every save.
+- **Publish requirements** (only for visible blocks; anything else is `block_incomplete` with `field: "blocks[i]"`):
+
+  | type | required to publish |
+  | --- | --- |
+  | `hero` | `title` (its own issue code `hero_title_missing`) |
+  | `story` | `body` with non-blank text |
+  | `values` | 1–8 items, each `title` |
+  | `benefits` | 1–24 items, each `title` |
+  | `stats` | 1–6 items, each `value` and `label` |
+  | `process` | 2–8 items, each `title` |
+  | `gallery` | 2–12 items, each `image` and `alt` |
+  | `testimonials` | 1–6 items, each `quote`, `name` and `consent: true` |
+  | `video` | `video` non-null |
+  | `offices` | 1–20 items, each `name` and `location` (country) |
+  | `jobs` | nothing (blank `title` renders «Vacantes abiertas») |
+  | `faq` | 1–20 items, each `question` and `answer` |
+  | `closing` | `title` |
+
+  Optional everywhere: block titles not listed, descriptions, captions, `role`, photos, `duration`, `address`, `map_url`,
+  `mission`, `intro`, `text`.
 - `icon` enum (24): `heart`, `users`, `rocket`, `target`, `lightbulb`, `shield`, `leaf`, `globe`, `graduation-cap`,
   `briefcase`, `laptop`, `clock`, `calendar`, `coffee`, `dumbbell`, `stethoscope`, `piggy-bank`, `gift`, `plane`,
   `home`, `sparkles`, `handshake`, `trophy`, `smile`.
@@ -131,9 +150,27 @@ shape and canonicalization as today. Only that company's published vacancies. In
 Frontend removes the prototype local editor and `PROTOTYPE_COMPANY_PROFILES`/Acme public page (S10). `/empresas/{x}`
 renders only §4.1. `GET /companies/{id}` stays as is for other consumers.
 
-## 6. Open points for the backend session
+## 6. Agreed with the backend session (2026-10-27)
 
-1. Media public URL strategy (§3.4).
-2. Redirect style for old slugs (§4.1).
-3. Whether to store the published snapshot as a copy (recommended) or a version pointer.
-4. Rich-text validator reuse from vacancy drafts for `story.body`.
+1. **Media URL**: `url` = `/v2/company-sites/media/{id}` (API-relative), public and anonymous, `Cache-Control: public,
+   max-age=31536000, immutable`, `X-Content-Type-Options: nosniff`, detected Content-Type. Capability URL: anyone with
+   the random UUID can load it, even if only referenced by a draft (needed because `<img>` sends no Bearer). No
+   listing. S3/CloudFront later is an adapter change only. The frontend serves it from its own origin (route/rewrite to
+   the API) because the API origin is server-only (design D3). **Flagged for user review.**
+2. **Old slugs**: `GET /v2/company-sites/{old}` answers 200 with the same §4.1 shape and `slug` = current; the frontend
+   compares and issues a 308. History redirects until another company claims the slug (allowed; it drops the redirect).
+   A company may reuse its own old slugs.
+3. Published snapshot stored as a **copy** (jsonb document + version + published_at).
+4. `story.body`: backend reuses `draftrich.ValidateDocument` (same `{schema_version: 1, document}` envelope as the
+   vacancy description) plus ≤ 5,000 plain-text code points.
+5. 412 uses the uniform error shape `{ "error", "code": "version_conflict", "current": { …3.1 shape… } }` plus the
+   current `ETag`.
+6. PUT with a canonical document identical to the current one is a **no-op**: 200, same version and ETag.
+7. Public read drops `hidden` blocks and lists only media referenced by visible blocks; publish stores the full
+   document and filtering happens on read.
+8. PUT body ≤ 1 MiB (413). Media ≤ 300 per company → 422 `media_limit_reached`.
+9. publish/unpublish write an audit event in the same transaction; `unpublish` is owner-only, no If-Match,
+   idempotent; `publish` without If-Match → 428.
+10. ETag `"<draft_version>"`. 404 `company_not_found` also for a deleted company.
+11. EXIF/XMP/text metadata stripped by removing segments/chunks, without re-encoding.
+12. `company.location` in §4.1 has the same shape as `GET /companies/{id}`.
