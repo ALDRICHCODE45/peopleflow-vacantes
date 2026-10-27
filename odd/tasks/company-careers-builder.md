@@ -42,6 +42,7 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   worker — commit: see L13 (route removal 277c7edf)
 - [ ] T6 — S1–S11: dress editor and public site with the v0 design (after the user hands it over); the new editor replaces
   the prototype local editor (`features/company-site-editor`, `features/company-profile`) at that point — route: TBD — commit: —
+- [ ] T7 — S6: S3 storage adapter for site media (last task of the feature, L17) — route: backend — commit: —
 
 ## Log
 
@@ -142,3 +143,11 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   suite: steps 1–9 all pass (6 public found, hidden omitted, cover present, own jobs present, foreign empty; 7 old slug →
   moved; 8 foreign site isolated, publish 422 `company_logo_missing`; 9 unpublish → public 404). Offline the live file is
   skipped (exit 0). No frontend/backend contract mismatch found.
+- **L17.** User (verbatim): «1. Vamos a priorizar s3 pero aun eso no lo haremos, sera lo ultimo de esta feature. 2. lo
+  puede bajar ya, no he visto nada, lo vere al final. 3dame el prompt ppr favor, recuerda qud v0 no tiene acceso a este
+  repo, no le puedes hablar de comppnentes, le puedes hablar de la linea visual del sustema, de su paleta de colores,
+  etc.. tambien recuerda que v0 tiene libertad creativa, no le impongas un diseño especifico, solo debe ser moderno y
+  tener como prioridad ux/ui.» Done: T7 (S3) added as the last task; backend tore down the :8090 environment (process,
+  container, /tmp folder; tokens invalid) and the parent deleted the local token file; v0 prompt rewritten with no
+  stack/component names, the real light/dark palette from `globals.css`, Inter, shape and comfort rules, full creative
+  freedom (modern, UX/UI first), keeping only product rules (behaviors, section content and limits, exact copy).
