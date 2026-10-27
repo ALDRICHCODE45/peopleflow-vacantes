@@ -37,9 +37,11 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
 - [x] T3 — S1–S3, S7: block model (zod schemas, limits, defaults, contrast check, slug rules) with tests — route: worker — commit: see L8
 - [x] T4 — S1, S4, S8: editor state (reducer: add/reorder/hide/variant/edit, selection, dirty) and autosave client
   (debounce, ETag/412, status) with tests — route: worker — commit: see L9
-- [ ] T5 — S10, S11: minimal public renderer + `/empresas/[slug]` route on the contract (404 for unpublished/unknown),
-  prototype editor and Acme removed — route: inline — commit: —
-- [ ] T6 — S1–S11: dress editor and public site with the v0 design (after the user hands it over) — route: TBD — commit: —
+- [x] T5 — S10, S11: minimal public renderer + `/empresas/[slug]` route on the contract (404 for unpublished/unknown,
+  308 for an old slug), media proxy from the frontend origin, Acme public route and its navbar link removed — route:
+  worker — commit: see L13 (route removal 277c7edf)
+- [ ] T6 — S1–S11: dress editor and public site with the v0 design (after the user hands it over); the new editor replaces
+  the prototype local editor (`features/company-site-editor`, `features/company-profile`) at that point — route: TBD — commit: —
 
 ## Log
 
@@ -83,3 +85,28 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   only on `online` or the next edit — no timer retries), `permissions.ts` (owner-only publish). RED → GREEN 243 (55 new);
   tsc, eslint clean. Parent read actions/client/autosave. Media upload is a typed stub until the backend's media part.
   Slice boundary: the branch is past ~400 lines; delivery is commit-by-commit review, each T# its own commit.
+- **L10.** Plan change (parent): the prototype editor is removed in T6, together with the arrival of the new editor —
+  removing it in T5 would leave `/empresa/sitio` empty until the v0 design lands. T5 keeps the public side only.
+- **L11.** Backend part (a) ready: `feat/company-careers-site` @ ee16597b — migration 00047, GET site (lazy create), PUT draft,
+  slug availability; unit + integration green. PUT: 428 without If-Match; 400 `invalid_request` for malformed If-Match or
+  JSON; 413 > 1 MiB; field codes too_long/required/invalid/unknown_key/duplicate/not_allowed; blank strings return null,
+  story body stored canonical. Frontend gap (minor): the T4 error schema lacks `invalid_request` (decoded as unrecognized;
+  the client already prevents both causes) — add with the media upload work.
+- **L12.** Backend part (b) ready: `feat/company-careers-site` @ a7c34f17 — publish (owner, If-Match required, 412 with
+  `current`, 422 `publish_blocked` issues with `field` null for no_content_block/company_logo_missing/company_name_missing,
+  409 `slug_taken` if another company took the slug meanwhile) and unpublish (owner, idempotent); both 200 with the §3.1
+  shape; logo/name read from `companies`; old slug moves to history on republish. Asked whether publish's 409 carries
+  `field: "slug"` (the frontend decoder requires it) — confirmed: same writer as the PUT, `{"error","code":"slug_taken","field":"slug"}`.
+- **L13.** T5 (worker mvq3znsp-5-jcuw → mvq40wnd-6-j32c; parent removed the old `[companyId]` route, 277c7edf, because
+  the worker may not delete files): `public/` (read.ts: found/notFound/moved/unavailable, invalid slug never fetched;
+  jobs by `company_id` via the shared list decoder; `CompanySitePage` with header anchor nav, all 13 blocks, one H1,
+  brand CSS variables from the adjusted color, click-to-load YouTube-nocookie/Vimeo player, client jobs filters with
+  empty/no-results StateCards; office labels via the server geo catalogs), route `/empresas/[slug]` (404, 308 for an old
+  slug, error boundary, SEO metadata), media proxy `/media/sitios/[id]` (UUID check, API origin only, credentials omit,
+  redirect error, image/jpeg|png|webp only, nosniff, deadline through the body), navbar «Empresas» prototype link
+  removed. RED → GREEN 54 public + 36 navbar. Parent: reviewed the proxy; removed the prototype e2e
+  `company-careers.spec.ts`; README/CSS comments updated. Full Vitest found 7 guardrail failures: `requestPath.test.ts`
+  (new fetch/transport callers and route handler must be listed — added, plus a dedicated proxy-guard test) and
+  `PublicShell.test.tsx` (expected the prototype «Empresas» link — now asserts there is none). Remaining prototype-only
+  `/empresas/<uuid>` links in `JobDetailView` (prototype branch) and `VacancyCard` (`companyHref`, no real caller) go
+  with the prototype cleanup in T6. Jobs filters cover the first catalog page only. Full Vitest 7306/7306, tsc clean.

@@ -401,7 +401,7 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
   );
 }
 
-/* Company careers hero (public /empresas/[companyId] and its editor preview).
+/* Company careers hero (prototype editor preview; the public site moved to /empresas/[slug]).
    One immersive moment: with a cover it is a photo overlay, with no cover it
    falls back to the neutral `bg-secondary` surface so an identity-only draft
    stays legible. These hero-scoped slots are the only place the overlay paints,

@@ -47,7 +47,6 @@ afterEach(() => {
 
 // Literal, not imported from the implementation: the header must point at the
 // canonical prototype company even if that constant drifts.
-const EMPRESAS_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 
 function renderShell() {
   stubBrowserApis();
@@ -118,12 +117,11 @@ describe("PublicShell", () => {
     expect(vacantesLinks[0]).toHaveTextContent(/vacantes/i);
   });
 
-  it("renders the Empresas link to the canonical prototype company", () => {
+  it("offers no Empresas link: there is no company directory, only each company's own /empresas/<slug> site", () => {
     const { container } = renderShell();
 
-    const empresas = headerLink(container, "Empresas");
-    expect(empresas).toBeDefined();
-    expect(empresas).toHaveAttribute("href", EMPRESAS_HREF);
+    expect(headerLink(container, "Empresas")).toBeUndefined();
+    expect(container.querySelector('a[href^="/empresas"]')).toBeNull();
   });
 
   it("removes the unsupported Recursos placeholder entirely", () => {
@@ -153,9 +151,7 @@ describe("PublicShell", () => {
       "logo",
       container.querySelector("header a[aria-label='PeopleFlow']"),
     );
-    for (const label of ["Vacantes", "Empresas"]) {
-      expectMin40Target(label, headerLink(container, label) ?? null);
-    }
+    expectMin40Target("Vacantes", headerLink(container, "Vacantes") ?? null);
   });
 
   it("delegates the header to the shared public navbar without owning it inline", () => {
@@ -232,9 +228,7 @@ describe("PublicShell", () => {
     expect(list).not.toBeNull();
     expect(list!.className).toContain("hidden");
     expect(list!.className).toContain("md:flex");
-    for (const label of ["Vacantes", "Empresas"]) {
-      expect(headerLink(container, label)).toBeDefined();
-    }
+    expect(headerLink(container, "Vacantes")).toBeDefined();
   });
 
   it("renders only the allowed truthful public links", () => {
@@ -246,7 +240,6 @@ describe("PublicShell", () => {
     const allowedHrefs = [
       "/",
       "/vacantes",
-      EMPRESAS_HREF,
       // Login destinations live inside the Ingresar menu popup, so the publish
       // CTA is the only auth-adjacent anchor left in the closed DOM.
       "/empresa/vacantes/borradores/nuevo",

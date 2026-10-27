@@ -24,7 +24,7 @@ A cursor request models the **final page**, always without another cursor. When 
 
 `pending-search` matches a dedicated vacancy and retains the legacy 300 ms response delay. The main vacancy now mentions React in its description; two React-titled vacancies rank ahead of it, so the six-filter React search has two distinct first-page rows and the main vacancy on the final page. All rows still pass the real AND predicates; no search term bypasses matching. The USD contract decoy has an explicit v2 `part_time` schedule, so it fails the active `full_time` predicate rather than leaking through the v1 contract-to-schedule mapping.
 
-Public company profiles (`src/app/(public)/empresas/[companyId]/page.tsx`) use local data, not an API call. Visitor application identity is handled locally by the product's session boundary; screening and CV reads are candidate-only. No authenticated submission API is simulated here.
+Public company careers sites (`src/app/(public)/empresas/[slug]/page.tsx`) read `GET /v2/company-sites/{slug}`; this fixture does not serve them yet. Visitor application identity is handled locally by the product's session boundary; screening and CV reads are candidate-only. No authenticated submission API is simulated here.
 
 ## Compatibility and controls
 
