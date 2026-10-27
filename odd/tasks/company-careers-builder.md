@@ -35,8 +35,8 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
 - [x] T2 — S4, S6, S8–S11: backend contract proposal, agreed with the backend session (site document, slug, publish,
   upload, public read, catalog by company) — route: inline + backend session — commit: this commit (agreed `docs/contracts/company-careers-site-v1.md`; backend implements on `feat/company-careers-site`)
 - [x] T3 — S1–S3, S7: block model (zod schemas, limits, defaults, contrast check, slug rules) with tests — route: worker — commit: see L8
-- [ ] T4 — S1, S4, S8: editor state (reducer: add/reorder/hide/variant/edit, selection, dirty) and autosave client
-  (debounce, ETag/412, status) with tests — route: inline — commit: —
+- [x] T4 — S1, S4, S8: editor state (reducer: add/reorder/hide/variant/edit, selection, dirty) and autosave client
+  (debounce, ETag/412, status) with tests — route: worker — commit: see L9
 - [ ] T5 — S10, S11: minimal public renderer + `/empresas/[slug]` route on the contract (404 for unpublished/unknown),
   prototype editor and Acme removed — route: inline — commit: —
 - [ ] T6 — S1–S11: dress editor and public site with the v0 design (after the user hands it over) — route: TBD — commit: —
@@ -76,3 +76,10 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   standard benefits); RED (missing modules) → GREEN 187. Parent review found `consent: z.literal(true)` at save level,
   which would break autosave on a fresh testimonial; contract says consent is a publish requirement → `z.boolean()` +
   publish test (RED 2 → GREEN 188); contract row clarified and sent to backend. tsc, eslint clean.
+- **L9.** T4 (worker mvq3mzc6-4-t8tc): `api/` (server-only client: If-Match, ETag must equal `"draft_version"`, redirect
+  error, zod-decoded success/error envelopes, network/timeout → uncertain; server actions read the token from the server
+  session), `editor-state.ts` (reducer; field errors keyed by block id), `autosave.ts` + `use-autosave.ts` (1.5 s
+  debounce, one save at a time, in-flight edits survive a 200, 412 stops autosave and keeps local edits, offline resumes
+  only on `online` or the next edit — no timer retries), `permissions.ts` (owner-only publish). RED → GREEN 243 (55 new);
+  tsc, eslint clean. Parent read actions/client/autosave. Media upload is a typed stub until the backend's media part.
+  Slice boundary: the branch is past ~400 lines; delivery is commit-by-commit review, each T# its own commit.
