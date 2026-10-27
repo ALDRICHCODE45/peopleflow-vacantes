@@ -97,20 +97,21 @@ this contract does not depend on it.
 }
 ```
 `ETag: "7"`. `published` is `null` when never published or unpublished. `media` lists every media referenced by the
-draft (so the editor can render it). 404 `company_not_found` when the user is not a member.
+draft (so the editor can render it). 403 `forbidden` when the user is not a member (`requireRecruiter`), 403
+`company_inactive` when the company is deleted.
 
 ### 3.2 `PUT /v2/me/company/site/draft`
 Body: full site document. `If-Match: "<draft_version>"` required (428 `precondition_required` without it).
 - 200 same shape as 3.1 with the new version/ETag.
 - 412 `version_conflict` with the current body (same shape as 3.1) — the client never merges.
-- 422 `validation_error`, `fields: [{ "field": "blocks[3].content.items[0].title", "code": "too_long" | "required" |
+- 400 `validation_error`, `fields: [{ "field": "blocks[3].content.items[0].title", "code": "too_long" | "required" |
   "invalid" | "unknown_key" | "duplicate" | "not_allowed" }]` — nothing is written.
 - 409 `slug_taken` / 422 `slug_reserved` with `field: "slug"`.
 - Unreferenced media are kept (garbage collection is a later concern).
 
 ### 3.3 `POST /v2/me/company/site/publish` and `POST /v2/me/company/site/unpublish` (owner only)
 - `publish`: `If-Match: "<draft_version>"` — publishes exactly that version. 200 same shape as 3.1. 412 if the draft
-  changed. 403 `forbidden_role` for non-owners. 422 `publish_blocked` with
+  changed. 403 `forbidden` for non-owners (`requireOwner`). 422 `publish_blocked` with
   `issues: [{ "code": "slug_missing" | "hero_title_missing" | "no_content_block" | "block_incomplete" |
   "company_logo_missing" | "company_name_missing", "field": "blocks[2]" | "slug" | null }]` — `no_content_block` means no
   visible block other than hero and jobs; `block_incomplete` means a visible block below its publish minimums.
@@ -171,6 +172,8 @@ renders only §4.1. `GET /companies/{id}` stays as is for other consumers.
 8. PUT body ≤ 1 MiB (413). Media ≤ 300 per company → 422 `media_limit_reached`.
 9. publish/unpublish write an audit event in the same transaction; `unpublish` is owner-only, no If-Match,
    idempotent; `publish` without If-Match → 428.
-10. ETag `"<draft_version>"`. 404 `company_not_found` also for a deleted company.
+10. ETag `"<draft_version>"`. Gates keep the shared catalog: non-member 403 `forbidden`, deleted company 403
+    `company_inactive`, non-owner on publish/unpublish 403 `forbidden`, validation 400 `validation_error` (no
+    `company_not_found`, no `forbidden_role`, no 422 for validation).
 11. EXIF/XMP/text metadata stripped by removing segments/chunks, without re-encoding.
 12. `company.location` in §4.1 has the same shape as `GET /companies/{id}`.
