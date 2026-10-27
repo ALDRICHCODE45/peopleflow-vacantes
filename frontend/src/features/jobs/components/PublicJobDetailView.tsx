@@ -100,9 +100,10 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
           <CardContent className="flex flex-col gap-6">
             <PublicSalary job={job} detail />
             <Separator />
-            {companyLoading ? <div className="flex flex-col gap-3"><Skeleton aria-hidden="true" className="h-5 w-48 max-w-full" /><Skeleton aria-hidden="true" className="h-10 w-full" /></div> : company && <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {company.name}.</p></div>}
+            {companyLoading ? <div className="flex flex-col gap-3"><Skeleton aria-hidden="true" className="h-5 w-48 max-w-full" /><Skeleton aria-hidden="true" className="h-10 w-full" /></div> : company && job.source !== "legacy" && <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {company.name}.</p></div>}
             <div className="flex flex-col gap-2">
-              {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : <PublicApplyLink jobId={job.id} />}
+              {/* Legacy catalog rows have no apply endpoint: an honest note, never a dead-end CTA. */}
+              {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : job.source === "legacy" ? <p className="text-sm text-muted-foreground">Esta vacante no recibe postulaciones en línea.</p> : <PublicApplyLink jobId={job.id} />}
               {!preview && <PublicShareButton />}
               <PublicApplicants applicants={job.applicants} />
               <PublicScreeningInfo count={job.screening_questions} />

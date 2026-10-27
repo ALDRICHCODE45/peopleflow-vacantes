@@ -14,8 +14,6 @@ import { editorReadiness } from "./drafts/pipeline/publication-model";
 import { DraftQuestionnairePreview } from "./drafts/ui/draft-questionnaire-preview";
 import { initialDraftFormState } from "./drafts/ui/draft-form-state";
 import { createDraftModel } from "./drafts/model";
-import { ApplicationCandidateCard } from "./application/application-candidate-card";
-import { VacancyApplicationSummary } from "./application/vacancy-application-summary";
 import { enrichJob } from "./enrich";
 import type { JobItem } from "./types";
 
@@ -108,13 +106,6 @@ it("gives the draft preview a native dialog header and the shared detail without
   const body = dialog.querySelector('[data-slot="draft-preview-body"]')!;
   expect(body.querySelector('[data-slot="card"]')).toBeNull();
   expect(body.querySelector('[data-slot="public-job-detail"]')).toBeInTheDocument();
-});
-
-it("uses native titles and descriptions in the two application rail cards", () => {
-  render(<><ApplicationCandidateCard draft={{ fullName: "Ana", email: "ana@example.test", phone: "", professionalTitle: "Ingeniera", location: null }} skills={[]} avatarSrc="" /><VacancyApplicationSummary job={enrichJob(job)} /></>);
-  for (const name of ["Tu perfil", "Resumen de la vacante"]) expectHeader(screen.getByRole("heading", { name }));
-  expect(screen.getByText("Ingeniera").closest('[data-slot="card-description"]')).not.toBeNull();
-  expect(screen.getByText("Acme").closest('[data-slot="card-description"]')).not.toBeNull();
 });
 
 it("keeps filter closing actions in a footer inside their original form", () => {

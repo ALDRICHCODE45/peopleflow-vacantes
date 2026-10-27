@@ -6,7 +6,9 @@ timeout, pagination history, table pinning invariant, team company lifetime, int
 dashboard on real data, pipeline prototype fallback, legacy application phone, candidate «Crear cuenta», toasts over
 Sheet footers, skills casing, outline links, candidate-edit advisories with a defect, draft-save-flow flake, bootstrap
 panel voseo. Shipped in `fix/vacantes-lost-navigation` (see `next-16-upgrade.md`): lost client navigations
-between `/vacantes` search variants.
+between `/vacantes` search variants. Retired in `fix/legacy-application-retired` (2026-10-26): the legacy
+application wizard (prototype candidate «Ximena Barrera», no submission) and with it the legacy application phone
+item — legacy catalog rows now say they take no online applications.
 
 ## Product gaps
 
@@ -15,8 +17,6 @@ between `/vacantes` search variants.
   through EventBridge → SQS → Go worker, Terraform; no domain registered yet) — on the radar, not to be built yet.
 - **Talento PeopleFlow** (global opt-in search, Boolean CV search) — needs privacy decisions (PRIV-2/10/12) and SRCH-9
   grammar. Deferred by the user (2026-10-23).
-- **Legacy application phone persistence** — the legacy wizard now validates the phone with the dial control, but it
-  submits nothing (it ends at a login link) and `POST /jobs/{jobId}/applications` has no phone field.
 
 ## Known issues
 
@@ -26,6 +26,13 @@ between `/vacantes` search variants.
   config, 67 errors from the React Compiler lint rules, production e2e to re-green.
 - **Loading feedback on other links into `/vacantes`** — the sidebar «Vacantes» link shows a spinner while pending
   (`useLinkStatus`, `next-16-upgrade.md` L9); the detail «Volver»/breadcrumb links into the list do not yet.
+
+## Waiting on the backend
+
+- **Legacy seed in production?** The six published legacy jobs and their companies (Acme SA, Globex Holdings,
+  Initech LLC) come from `backend/db/migrations/00008_jobs_seed.sql`, described as dev-only but shipped as a goose
+  migration, so it would also run in production. Backend to confirm; retiring legacy rows from the public catalog is
+  their call.
 
 ## Waiting on the user
 
