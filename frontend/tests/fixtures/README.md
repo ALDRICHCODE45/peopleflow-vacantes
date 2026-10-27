@@ -1,4 +1,4 @@
-# Public jobs and careers-site fixture
+# Jobs and careers-site review fixture
 
 Start from `frontend/`: `node tests/fixtures/jobs-server.mjs` (default `127.0.0.1:4010`).
 
@@ -28,11 +28,24 @@ A cursor request models the **final page**, always without another cursor. When 
 
 `pending-search` matches a dedicated vacancy and retains the legacy 300 ms response delay. The main vacancy now mentions React in its description; two React-titled vacancies rank ahead of it, so the six-filter React search has two distinct first-page rows and the main vacancy on the final page. All rows still pass the real AND predicates; no search term bypasses matching. The USD contract decoy has an explicit v2 `part_time` schedule, so it fails the active `full_time` predicate rather than leaking through the v1 contract-to-schedule mapping.
 
-Public company careers sites (`src/app/(public)/empresas/[slug]/page.tsx`) can render `/empresas/nexo-labs` against this fixture without the backend. Nexo's company ID is `b478fb93-71b8-47bf-8eaa-b726d63e01a0`; it has **7 published vacancies** across Remoto/Presencial/Híbrido and Nuevo León/Jalisco, all with working detail endpoints. The existing two-row first-page/final-page pagination also applies here (2 + 5); the current public renderer only reads the first page.
+Public company careers sites (`src/app/(public)/empresas/[slug]/page.tsx`) can render `/empresas/nexo-labs` against this fixture without the backend. Nexo's company ID is `b478fb93-71b8-47bf-8eaa-b726d63e01a0`; it has **7 published vacancies** across Remoto/Presencial/Híbrido and Nuevo León/Jalisco, all with working detail endpoints. The existing two-row first-page/final-page pagination also applies here (2 + 5); the public renderer follows the continuation to read all seven.
 
 Media IDs `b478fb93-71b8-47bf-8eaa-b726d63e03a0` through `…03a4` represent cover, gallery (two), portrait and story. They intentionally reuse `frontend/public/company/acme-cover.webp` (1600×900), with the original public-domain provenance/credit in `acme-cover.PROVENANCE.txt`. No download or image dependency is needed. This is a warehouse reference photo, **not actual Nexo staff/offices or a portrait**; gallery captions identify reference imagery, and the testimonial/company identities and addresses are fictional review data. The logo also uses this local fixture image. The video is a clearly labeled demonstration embed and is not fetched by the fixture.
 
 Visitor application identity is handled locally by the product's session boundary; screening and CV reads are candidate-only. No authenticated submission API is simulated here.
+
+## Authenticated careers editor API
+
+This is an **in-memory review API**, not an authentication service. Like the employer dashboard fixture, private routes require an `authorization` header starting with `Bearer `; any fixture-only value works. No tokens or sessions are minted. The application's real session/company gate still applies when reviewing through Next.
+
+- `GET /v2/me/company/site`: draft, `draft_version`, nullable `published` metadata, `has_unpublished_changes`, referenced `media`, and `updated_at`. Starts at version 1 with the published Nexo content, not a separate demo model. Responses use `Cache-Control: no-store` and `ETag: "<draft_version>"`.
+- `PUT /v2/me/company/site/draft`: full document with `If-Match: "<draft_version>"`. Reuses the **product's `siteDraftSchema`** (including block limits, normalization and rich text), loaded from TypeScript in memory by `site-product-model.cjs`; requires the existing frontend dev dependencies, no build/output files. Canonically identical saves are no-ops; changes increment the version. Missing/malformed preconditions → 428/400; stale version → 412 `version_conflict` with `current` and current ETag. Invalid content → 400 `validation_error`; malformed JSON → 400 `invalid_request`; bodies over 1 MiB → 413.
+- `POST /v2/me/company/site/publish`: owner only, with `If-Match`. Product `publishIssues` → 422 `publish_blocked`; success copies the draft and makes it visible on `GET /v2/company-sites/{slug}`. Later draft edits do not alter that snapshot. Public reads omit hidden blocks and unreferenced media. Republished old slugs return the current snapshot/slug.
+- `POST /v2/me/company/site/unpublish`: owner only, no precondition; idempotently clears publication. Current and historical public URLs then return 404.
+- `GET /v2/me/company/site/slug-availability?slug=...`: own/current and unused valid slugs are available; reserved/invalid slugs return their reason. `otra-empresa` is the deterministic other-company reservation (`taken`, PUT → 409 `slug_taken`). Reserved PUT slugs → 422 `slug_reserved`.
+- `POST /v2/me/company/site/media`: multipart **exactly `kind` + `file`**, kinds `cover|gallery|portrait|story`. Returns 201 `{id, kind, url, width, height, content_type}`. Uploaded bytes live in memory and are anonymously readable at the returned `/v2/company-sites/media/{id}` with the same immutable/security headers as seeded media. Save a returned `media_id` to reference it; draft reads list referenced media only. Unknown media refs are rejected. Limits: 5 MiB/file, 200–6000 px/side, 300 uploads; PNG/JPEG/WebP signatures and dimensions are inspected rather than trusting the MIME label.
+
+**Media fixture limitation:** the lightweight header reader is not a full image decoder or production sanitizer; uploads retain their bytes (no EXIF stripping, re-encoding, cropping, S3 or persistence). Use non-sensitive, well-formed test images only. Full malformed-image/security/storage behavior belongs to backend integration tests.
 
 ## Compatibility and controls
 
@@ -45,7 +58,13 @@ Visitor application identity is handled locally by the product's session boundar
 - `/__site?jobs=empty`: empty Nexo jobs state (other companies and the unfiltered pool are unchanged).
 - `/__site?jobs=default`: restore Nexo jobs without changing the theme.
 - `font=classic` also works. Parameters are optional and composable; omitted values retain their state. Invalid values return 400 without partially applying changes.
-- `/__reset`: restore orange/modern, Nexo vacancies and all existing control defaults. Site/media/control reads are not logged as jobs requests and do not inherit jobs failure/delay.
+- `/__site-draft?role=owner|recruiter`: default owner. Recruiters can read/save/upload but publish/unpublish return 403 `forbidden`.
+- `/__site-draft?conflict=next`: the next authenticated PUT simulates another editor's SEO change, increments the server version and returns 412 with the newer `current`. Reads do not consume it; the following PUT behaves normally.
+- `/__site-draft?offline=next`: the next authenticated PUT drops its connection without writing. Consumed once; following requests work normally.
+- `/__site-draft?mode=new`: replace the draft with product defaults (hero + jobs, null slug/SEO, classic font, `#7835DB`, version 1), clear publication/history and uploads. Public Nexo URL becomes 404 until a valid draft is published.
+- `/__site-draft?gate=forbidden|company_inactive|none`: simulate the shared 403 gates on every private site endpoint; `none` clears the gate. Missing Bearer headers still return 401 first.
+- Draft-control parameters are optional/composable; invalid values return 400 atomically. If both fault controls are armed, offline is consumed first, conflict on the next PUT. `/__site` remains a visual-review override: it changes draft/published theme together without changing versions; ordinary API saves never do this.
+- `/__reset`: restore the original published Nexo snapshot/draft/version, owner role, no gates or one-shot faults, orange/modern, Nexo vacancies and all existing jobs-control defaults; uploaded media URLs become 404. Site/media/control reads are not logged as jobs requests and do not inherit jobs failure/delay.
 
 All existing controls remain: `/__health`, `/__reset`, `/__requests`, `/__failure?kind=5xx|schema|timeout`, `/__recover`, `/__visibility?id=...&visible=true|false`, `/__visibility?hidden=0|1`, `/__delay?ms=0..5000`. Failures remain armed until recovery/reset; recovery retains history; reset clears history, visibility, failure and delay. Controls/catalogs do not enter the jobs request log or inherit jobs failure/delay. List logs remain query-only (`""` on the canonical unfiltered v2 list), detail logs record the exact pathname including `/v2`.
 
@@ -64,7 +83,9 @@ PLAYWRIGHT_FIXTURE_ORIGIN=http://127.0.0.1:4010 pnpm exec playwright test tests/
 
 The isolated Vitest fixture binds an ephemeral port and uses the product's own public careers-site decoder, publish validator, strict list, detail, language and geography validators on HTTP responses. Careers tests cover the exact response keys, old/unknown slugs, all visible block types, branding/reset/empty controls, media bytes and headers, seven company-isolated jobs, filter conjunction, pagination, UUID errors and working job details. It also covers logging, filtering, hidden vacancies, persistent failure/recovery, timeout, delay and reset. The browser smoke needs the production app on `:3100` and fixture on `:4010`; it verifies real list content, the rich detail article/benefits and the visitor gate. Playwright output is confined to this fixture directory.
 
-T6a test-first validation: **RED 4 failed / 7 passed → GREEN 11/11 passed (exit 0)**. The original seven fixture tests remain green.
+Draft extension test-first validation: **RED 6 failed / 11 passed → GREEN 17/17 passed**; delayed-writer CAS regression **RED 1 failed / 17 passed → GREEN 18/18 passed (exit 0)**. HTTP tests decode draft/error/availability/upload responses with the product schemas and cover CAS/no-op (including an overlapping streamed PUT), validation, snapshot isolation, publish/unpublish, old slugs, role/company gates, fresh defaults, one-shot faults, real media bytes and reset. The original eleven public/jobs tests remain green.
+
+T6a test-first validation: **RED 4 failed / 7 passed → GREEN 11/11 passed (exit 0)**.
 
 Prior browser results after the pagination/sentinel corrections (not rerun for T6a): Both unchanged list specs: **54 passed / 7 failed (exit 1)**; the requested pending-search, six-filter React pagination and USD conjunction cases pass, as does canonicalization. Timeout recovery separately: **3/3 repetitions pass (exit 0)**, also passing in the full run.
 

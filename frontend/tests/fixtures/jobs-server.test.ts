@@ -1,3 +1,8 @@
+import { readFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { siteStateSchema, decodeFailure, availabilitySchema } from "../../src/features/company-site/api/model";
+import { uploadedMediaSchema } from "../../src/features/company-site/media";
+import { defaultSiteDraft } from "../../src/features/company-site/defaults";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -18,6 +23,242 @@ const nexo = "b478fb93-71b8-47bf-8eaa-b726d63e01a0";
 const main = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const rich = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d92";
 async function json(path: string) { return (await fetch(`${origin}${path}`)).json(); }
+const privateSite = "/v2/me/company/site";
+const auth = { authorization: "Bearer fixture-review-only" };
+async function siteRequest(suffix = "", method = "GET", body?: unknown, tag?: string) {
+  return fetch(`${origin}${privateSite}${suffix}`, { method, headers: { ...auth, ...(body === undefined ? {} : { "content-type": "application/json" }), ...(tag === undefined ? {} : { "if-match": tag }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+}
+async function readDraft() {
+  const response = await siteRequest();
+  expect(response.status).toBe(200);
+  const state = siteStateSchema.parse(await response.json());
+  expect(response.headers.get("etag")).toBe(`"${state.draft_version}"`);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  return state;
+}
+test("authenticated draft starts from Nexo's snapshot and saves canonically with CAS and no-op", async () => {
+  await json("/__reset");
+  const initial = await readDraft();
+  const snapshot = publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs"));
+  expect(initial.draft).toEqual({ ...snapshot.site, slug: snapshot.slug });
+  expect(initial.published?.version).toBe(initial.draft_version);
+  expect(initial.has_unpublished_changes).toBe(false);
+  const draft = structuredClone(initial.draft);
+  draft.seo.title = "  Nuevo título  ";
+  const saved = await siteRequest("/draft", "PUT", draft, '"1"');
+  expect(saved.status).toBe(200);
+  expect(saved.headers.get("etag")).toBe('"2"');
+  const state = siteStateSchema.parse(await saved.json());
+  expect(state.draft.seo.title).toBe("Nuevo título");
+  expect(state.has_unpublished_changes).toBe(true);
+  expect(state.published).toEqual(initial.published);
+  const noop = await siteRequest("/draft", "PUT", draft, '"2"');
+  expect(await noop.json()).toEqual(state);
+  expect(noop.headers.get("etag")).toBe('"2"');
+  const stale = await siteRequest("/draft", "PUT", initial.draft, '"1"');
+  expect(stale.status).toBe(412);
+  expect(stale.headers.get("etag")).toBe('"2"');
+  expect(decodeFailure(412, await stale.json())).toEqual({ kind: "conflict", current: state });
+  expect(await readDraft()).toEqual(state);
+  expect(await json("/v2/company-sites/nexo-labs")).toEqual(snapshot);
+});
+
+test("draft validation and preconditions reject without mutations; slug availability matches saves", async () => {
+  await json("/__reset");
+  const initial = await readDraft();
+  const malformed = await fetch(`${origin}${privateSite}/draft`, { method: "PUT", headers: { ...auth, "if-match": '"1"' }, body: "{" });
+  expect(malformed.status).toBe(400);
+  expect(decodeFailure(400, await malformed.json())).toEqual({ kind: "error", code: "invalid_request" });
+  const oversized = await fetch(`${origin}${privateSite}/draft`, { method: "PUT", headers: { ...auth, "if-match": '"1"' }, body: JSON.stringify({ text: "x".repeat(1024 * 1024) }) });
+  expect(oversized.status).toBe(413);
+  expect(decodeFailure(413, await oversized.json())).toEqual({ kind: "error", code: "payload_too_large" });
+  for (const [tag, status, code] of [[undefined, 428, "precondition_required"], ["1", 400, "invalid_request"]] as const) {
+    const response = await siteRequest("/draft", "PUT", initial.draft, tag);
+    expect(response.status).toBe(status);
+    expect(decodeFailure(status, await response.json())).toMatchObject({ kind: "error", code });
+  }
+  for (const draft of [{ ...initial.draft, extra: true }, { ...initial.draft, seo: { ...initial.draft.seo, title: "x".repeat(61) } }, { ...initial.draft, blocks: [] }]) {
+    const response = await siteRequest("/draft", "PUT", draft, '"1"');
+    expect(response.status).toBe(400);
+    expect(decodeFailure(400, await response.json())).toMatchObject({ kind: "invalid", fields: expect.arrayContaining([expect.objectContaining({ field: expect.any(String) })]) });
+  }
+  for (const [slug, available, reason] of [["nexo-labs", true, null], ["nuevo-nexo", true, null], ["admin", false, "reserved"], ["BAD SLUG", false, "invalid"], ["otra-empresa", false, "taken"]] as const) {
+    const response = await siteRequest(`/slug-availability?${new URLSearchParams({ slug })}`);
+    expect(availabilitySchema.parse(await response.json())).toEqual({ slug, available, reason });
+  }
+  for (const [slug, status, code] of [["admin", 422, "slug_reserved"], ["otra-empresa", 409, "slug_taken"]] as const) {
+    const response = await siteRequest("/draft", "PUT", { ...initial.draft, slug }, '"1"');
+    expect(response.status).toBe(status);
+    expect(decodeFailure(status, await response.json())).toMatchObject({ kind: "error", code, field: "slug" });
+  }
+  expect(await readDraft()).toEqual(initial);
+});
+
+test("a PUT rechecks its version after consuming a delayed body, preventing a lost update", async () => {
+  await json("/__reset");
+  const initial = await readDraft();
+  const delayedBody = JSON.stringify({ ...initial.draft, seo: { ...initial.draft.seo, title: "Delayed writer" } });
+  const delayed = httpRequest(`${origin}${privateSite}/draft`, { method: "PUT", headers: { ...auth, "if-match": '"1"', "content-type": "application/json" } });
+  const result = new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    delayed.on("error", reject);
+    delayed.on("response", response => {
+      const chunks: Buffer[] = [];
+      response.on("data", chunk => chunks.push(chunk));
+      response.on("end", () => resolve({ status: response.statusCode!, body: JSON.parse(Buffer.concat(chunks).toString()) }));
+    });
+  });
+  delayed.flushHeaders();
+  await new Promise<void>(resolve => delayed.write(delayedBody.slice(0, 20), () => resolve()));
+  // Let the standalone HTTP server enter its body read before the other writer.
+  await new Promise(resolve => setTimeout(resolve, 30));
+  await readDraft();
+  const winner = await siteRequest("/draft", "PUT", { ...initial.draft, seo: { ...initial.draft.seo, title: "Winning writer" } }, '"1"');
+  expect(winner.status).toBe(200);
+  const winningState = siteStateSchema.parse(await winner.json());
+  delayed.end(delayedBody.slice(20));
+  const response = await result;
+  expect(response.status).toBe(412);
+  expect(decodeFailure(412, response.body)).toEqual({ kind: "conflict", current: winningState });
+  expect(await readDraft()).toEqual(winningState);
+});
+
+test("owner publication copies the draft, filters hidden blocks, moves slugs and unpublishes idempotently", async () => {
+  await json("/__reset");
+  const initial = await readDraft();
+  const draft = structuredClone(initial.draft);
+  draft.slug = "nuevo-nexo";
+  draft.blocks.find(block => block.type === "story")!.hidden = true;
+  await siteRequest("/draft", "PUT", draft, '"1"');
+  expect((await siteRequest("/publish", "POST")).status).toBe(428);
+  expect((await siteRequest("/publish", "POST", undefined, '"1"')).status).toBe(412);
+  const response = await siteRequest("/publish", "POST", undefined, '"2"');
+  expect(response.status).toBe(200);
+  const published = siteStateSchema.parse(await response.json());
+  expect(published.published).toMatchObject({ version: 2, slug: draft.slug });
+  expect(published.has_unpublished_changes).toBe(false);
+  const snapshot = publicSiteSchema.parse(await json("/v2/company-sites/nuevo-nexo"));
+  expect(snapshot.site.blocks.some(block => block.type === "story")).toBe(false);
+  expect(snapshot.media.some(item => item.kind === "story")).toBe(false);
+  expect(await json("/v2/company-sites/nexo-labs")).toEqual(snapshot);
+  draft.seo.title = "Todavía privado";
+  await siteRequest("/draft", "PUT", draft, '"2"');
+  expect(await json("/v2/company-sites/nuevo-nexo")).toEqual(snapshot);
+  for (let i = 0; i < 2; i++) {
+    const response = await siteRequest("/unpublish", "POST");
+    expect(response.status).toBe(200);
+    expect(siteStateSchema.parse(await response.json()).published).toBeNull();
+    for (const slug of ["nexo-labs", "nuevo-nexo", "nexo-equipo"]) expect((await fetch(`${origin}/v2/company-sites/${slug}`)).status).toBe(404);
+  }
+});
+
+test("draft controls cover recruiter permissions, forbidden/inactive gates and new-site publish issues", async () => {
+  await json("/__reset");
+  expect((await fetch(`${origin}${privateSite}`)).status).toBe(401);
+  await json("/__site-draft?role=recruiter");
+  const initial = await readDraft();
+  expect((await siteRequest("/draft", "PUT", initial.draft, '"1"')).status).toBe(200);
+  for (const suffix of ["/publish", "/unpublish"]) {
+    const response = await siteRequest(suffix, "POST", undefined, '"1"');
+    expect(response.status).toBe(403);
+    expect(decodeFailure(403, await response.json())).toEqual({ kind: "error", code: "forbidden" });
+  }
+  for (const code of ["forbidden", "company_inactive"]) {
+    await json(`/__site-draft?gate=${code}`);
+    for (const [suffix, method] of [["", "GET"], ["/draft", "PUT"], ["/publish", "POST"], ["/unpublish", "POST"], ["/media", "POST"], ["/slug-availability?slug=nexo-labs", "GET"]]) {
+      const response = await siteRequest(suffix, method);
+      expect(response.status).toBe(403);
+      expect(decodeFailure(403, await response.json())).toEqual({ kind: "error", code });
+    }
+  }
+  await json("/__reset");
+  await json("/__site-draft?mode=new");
+  const fresh = await readDraft();
+  const defaults = defaultSiteDraft();
+  expect(fresh.draft).toEqual({ ...defaults, blocks: defaults.blocks.map((block, i) => ({ ...block, id: fresh.draft.blocks[i].id })) });
+  expect(fresh.published).toBeNull();
+  expect(fresh.media).toEqual([]);
+  expect((await fetch(`${origin}/v2/company-sites/nexo-labs`)).status).toBe(404);
+  const blocked = await siteRequest("/publish", "POST", undefined, '"1"');
+  expect(blocked.status).toBe(422);
+  expect(decodeFailure(422, await blocked.json())).toMatchObject({ kind: "error", code: "publish_blocked", issues: publishIssues(fresh.draft, { name: "Nexo Labs", logo_url: "fixture" }) });
+  expect((await fetch(`${origin}/__site-draft?role=invalid&mode=new`)).status).toBe(400);
+  await json("/__reset");
+  expect((await readDraft()).draft).toEqual(initial.draft);
+});
+
+test("one-shot conflict and offline controls preserve server authority and reset clears pending faults", async () => {
+  await json("/__reset");
+  const initial = await readDraft();
+  await json("/__site-draft?conflict=next");
+  const conflict = await siteRequest("/draft", "PUT", initial.draft, '"1"');
+  expect(conflict.status).toBe(412);
+  const failure = decodeFailure(412, await conflict.json());
+  expect(failure.kind).toBe("conflict");
+  const current = await readDraft();
+  expect(current.draft_version).toBe(2);
+  expect(current.draft).not.toEqual(initial.draft);
+  expect(failure).toEqual({ kind: "conflict", current });
+  expect((await siteRequest("/draft", "PUT", current.draft, '"2"')).status).toBe(200);
+  await json("/__site-draft?offline=next");
+  await expect(siteRequest("/draft", "PUT", initial.draft, '"2"')).rejects.toThrow();
+  expect(await readDraft()).toEqual(current);
+  expect((await siteRequest("/draft", "PUT", current.draft, '"2"')).status).toBe(200);
+  await json("/__site-draft?offline=next&conflict=next&role=recruiter");
+  await json("/__reset");
+  expect((await siteRequest("/draft", "PUT", initial.draft, '"1"')).status).toBe(200);
+  expect((await siteRequest("/publish", "POST", undefined, '"1"')).status).toBe(200);
+});
+
+test("multipart media upload returns product-decodable media, serves bytes and resets uploads", async () => {
+  await json("/__reset");
+  const bytes = readFileSync(new URL("../../public/company/acme-cover.webp", import.meta.url));
+  const upload = (extra = false, type = "image/webp", data = bytes) => {
+    const body = new FormData();
+    body.set("kind", "cover");
+    body.set("file", new Blob([new Uint8Array(data)], { type }), "image.webp");
+    if (extra) body.set("unexpected", "value");
+    return fetch(`${origin}${privateSite}/media`, { method: "POST", headers: auth, body });
+  };
+  const response = await upload();
+  expect(response.status).toBe(201);
+  const media = uploadedMediaSchema.parse(await response.json());
+  expect(media).toMatchObject({ kind: "cover", content_type: "image/webp", width: 1600, height: 900 });
+  const image = await fetch(`${origin}${media.url}`);
+  expect(image.status).toBe(200);
+  expect(image.headers.get("x-content-type-options")).toBe("nosniff");
+  expect(Buffer.from(await image.arrayBuffer())).toEqual(bytes);
+  const initial = await readDraft();
+  const hero = initial.draft.blocks.find(block => block.type === "hero")!;
+  if (hero.type !== "hero") throw new Error("Missing hero");
+  hero.content.cover = { media_id: media.id };
+  const saved = await siteRequest("/draft", "PUT", initial.draft, '"1"');
+  expect(siteStateSchema.parse(await saved.json()).media).toContainEqual(expect.objectContaining({ id: media.id }));
+  expect((await siteRequest("/publish", "POST", undefined, '"2"')).status).toBe(200);
+  const publicSnapshot = publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs"));
+  expect(publicSnapshot.media).toContainEqual(expect.objectContaining({ id: media.id }));
+  const badFields = await upload(true);
+  expect(badFields.status).toBe(400);
+  expect(decodeFailure(400, await badFields.json())).toEqual({ kind: "error", code: "invalid_request" });
+  const badImage = await upload(false, "image/webp", Buffer.from("not an image"));
+  expect(badImage.status).toBe(415);
+  expect(decodeFailure(415, await badImage.json())).toEqual({ kind: "error", code: "unsupported_media_type" });
+  const tooBig = await upload(false, "image/webp", Buffer.alloc(5 * 1024 * 1024 + 1));
+  expect(tooBig.status).toBe(413);
+  expect(decodeFailure(413, await tooBig.json())).toEqual({ kind: "error", code: "payload_too_large" });
+  const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1sAAAAASUVORK5CYII=", "base64");
+  const tooSmall = await upload(false, "image/png", tinyPng);
+  expect(tooSmall.status).toBe(422);
+  expect(decodeFailure(422, await tooSmall.json())).toEqual({ kind: "error", code: "image_too_small" });
+  const missingFile = new FormData();
+  missingFile.set("kind", "cover");
+  expect((await fetch(`${origin}${privateSite}/media`, { method: "POST", headers: auth, body: missingFile })).status).toBe(400);
+  const sniffed = await upload(false, "text/plain");
+  expect(sniffed.status).toBe(201);
+  expect(uploadedMediaSchema.parse(await sniffed.json()).content_type).toBe("image/webp");
+  await json("/__reset");
+  expect((await fetch(`${origin}${media.url}`)).status).toBe(404);
+});
+
 test("public careers snapshot decodes, is publishable, and old slugs resolve to the current slug", async () => {
   await json("/__reset");
   const response = await fetch(`${origin}/v2/company-sites/nexo-labs`);

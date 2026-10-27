@@ -1,5 +1,15 @@
 import { readFileSync } from "node:fs";
 import { publicDetail } from "./public-jobs.mjs";
+import product from "./site-product-model.cjs";
+import { receiveSiteMedia } from "./site-media.mjs";
+const { siteDraftSchema, defaultSiteDraft, publishIssues, validateSlug } = product;
+const initialTime = "2026-10-27T09:00:00Z";
+const colors = { orange: "#EA580C", green: "#15803D" };
+const referencedMedia = (document, available) => {
+  const ids = new Set([...JSON.stringify(document).matchAll(/"media_id":"([^"]+)"/g)].map(match => match[1]));
+  return available.filter(item => ids.has(item.id));
+};
+const fieldPath = path => path.reduce((text, part) => typeof part === "number" ? `${text}[${part}]` : text ? `${text}.${part}` : part, "");
 
 export const nexoCompanyId = "b478fb93-71b8-47bf-8eaa-b726d63e01a0";
 const company = { id: nexoCompanyId, name: "Nexo Labs" };
@@ -78,16 +88,110 @@ const blocks = [
 ].map(([type, variant, content], index) => ({ id: `b478fb93-71b8-47bf-8eaa-b726d63e04${String(index).padStart(2, "0")}`, type, variant, hidden: false, content }));
 
 export function createCompanySitesFixture() {
-  let state;
-  const reset = () => { state = { brand: "orange", font: "modern", jobs: "default" }; };
+  let state, draft, version, published, snapshot, updatedAt, controls, history, uploads;
+  const reset = () => {
+    state = { brand: "orange", font: "modern", jobs: "default" };
+    draft = siteDraftSchema.parse({ slug: "nexo-labs", theme: { brand_color: colors.orange, font_pair: "modern" }, seo: { title: "Trabaja en Nexo Labs | Tu siguiente gran paso", description: "Construye tecnología con propósito desde México. Conoce nuestra cultura, beneficios y vacantes remotas, híbridas y presenciales. Encuentra tu lugar en Nexo." }, blocks: structuredClone(blocks) });
+    version = 1;
+    published = { version, slug: draft.slug, published_at: initialTime };
+    snapshot = structuredClone(draft);
+    updatedAt = initialTime;
+    controls = { role: "owner", gate: "none", conflict: null, offline: null };
+    history = new Set(["nexo-equipo"]);
+    uploads = new Map();
+  };
   reset();
-  const colors = { orange: "#EA580C", green: "#15803D" };
+  const allMedia = () => [...media, ...[...uploads.values()].map(item => item.media)];
+  const current = () => ({ draft, draft_version: version, published, has_unpublished_changes: !published || published.version !== version, media: referencedMedia(draft, allMedia()), updated_at: updatedAt });
+  const changed = () => { version++; updatedAt = new Date().toISOString(); };
+  const privatePath = "/v2/me/company/site";
+  const mutate = async (request, suffix, json) => {
+    const fail = (status, code, extra = {}) => json(status, { error: code, code, ...extra });
+    const conflict = () => fail(412, "version_conflict", { current: current() });
+    if (suffix === "/draft" && controls.offline) { controls.offline = null; request.socket.destroy(); return; }
+    if (suffix === "/draft" && controls.conflict) {
+      controls.conflict = null;
+      draft = { ...draft, seo: { ...draft.seo, title: "Actualizado por otra persona" } };
+      changed();
+      return conflict();
+    }
+    if (suffix !== "/unpublish") {
+      const tag = request.headers["if-match"];
+      if (tag === undefined) return fail(428, "precondition_required");
+      if (!/^"[1-9]\d*"$/.test(tag)) return fail(400, "invalid_request");
+      if (tag !== `"${version}"`) return conflict();
+    }
+    if (suffix === "/draft") {
+      let body;
+      try {
+        const chunks = [];
+        let length = 0;
+        for await (const chunk of request) {
+          length += chunk.length;
+          if (length > 1024 * 1024) return fail(413, "payload_too_large");
+          chunks.push(chunk);
+        }
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch { return fail(400, "invalid_request"); }
+      // Reading a streamed body yields to other writers. Compare again at the
+      // synchronous validation/write boundary so only one can win this version.
+      if (request.headers["if-match"] !== `"${version}"`) return conflict();
+      if (typeof body?.slug === "string" && validateSlug(body.slug.trim()) === "reserved") return fail(422, "slug_reserved", { field: "slug" });
+      if (typeof body?.slug === "string" && body.slug.trim() === "otra-empresa") return fail(409, "slug_taken", { field: "slug" });
+      const parsed = siteDraftSchema.safeParse(body);
+      if (!parsed.success) return fail(400, "validation_error", { fields: parsed.error.issues.map(issue => ({ field: fieldPath(issue.path) || "draft", code: issue.code === "unrecognized_keys" ? "unknown_key" : issue.code === "too_big" || issue.message.startsWith("Maximum") ? "too_long" : issue.message.includes("Duplicate") ? "duplicate" : "invalid" })) });
+      const refs = [...JSON.stringify(parsed.data).matchAll(/"media_id":"([^"]+)"/g)].map(match => match[1]);
+      if (refs.some(id => !allMedia().some(item => item.id === id))) return fail(400, "validation_error", { fields: [{ field: "blocks", code: "invalid" }] });
+      if (JSON.stringify(parsed.data) !== JSON.stringify(draft)) { draft = parsed.data; changed(); }
+    } else if (suffix === "/publish") {
+      const issues = publishIssues(draft, { name: company.name, logo_url: media[0].url });
+      if (issues.length) return fail(422, "publish_blocked", { issues });
+      if (published && published.slug !== draft.slug) history.add(published.slug);
+      published = { version, slug: draft.slug, published_at: new Date().toISOString() };
+      snapshot = structuredClone(draft);
+    } else { published = null; snapshot = null; }
+    return json(200, current());
+  };
   const handle = (request, response, url) => {
     const json = (status, payload, cache = "no-store") => {
-      response.writeHead(status, { "content-type": "application/json", "cache-control": cache });
+      response.writeHead(status, { "content-type": "application/json", "cache-control": cache, ...(url.pathname.startsWith(privatePath) && (status === 200 || status === 412) ? { etag: `"${version}"` } : {}) });
       response.end(JSON.stringify(payload));
       return true;
     };
+    if (url.pathname === "/__site-draft") {
+      const next = { ...controls };
+      for (const [key, allowed] of [["role", ["owner", "recruiter"]], ["gate", ["none", "forbidden", "company_inactive"]], ["conflict", ["next"]], ["offline", ["next"]], ["mode", ["new"]]]) {
+        if (!url.searchParams.has(key)) continue;
+        const value = url.searchParams.get(key);
+        if (!allowed.includes(value)) return json(400, { error: `Invalid ${key}` });
+        if (key !== "mode") next[key] = value;
+      }
+      if (url.searchParams.get("mode") === "new") {
+        draft = defaultSiteDraft(); version = 1; published = null; snapshot = null;
+        updatedAt = initialTime; uploads = new Map(); history = new Set();
+      }
+      controls = next;
+      return json(200, { ok: true, ...controls });
+    }
+    if (url.pathname === privatePath || url.pathname.startsWith(`${privatePath}/`)) {
+      if (!request.headers.authorization?.startsWith("Bearer ")) return json(401, { error: "unauthenticated", code: "unauthenticated" });
+      if (controls.gate !== "none") return json(403, { error: controls.gate, code: controls.gate });
+      const suffix = url.pathname.slice(privatePath.length);
+      if (["/publish", "/unpublish"].includes(suffix) && controls.role !== "owner") return json(403, { error: "forbidden", code: "forbidden" });
+      if (!suffix && request.method === "GET") return json(200, current());
+      if (suffix === "/slug-availability" && request.method === "GET") {
+        const slug = url.searchParams.get("slug") ?? "";
+        const reason = validateSlug(slug) ?? (slug === "otra-empresa" ? "taken" : null);
+        return json(200, { slug, available: reason === null, reason });
+      }
+      const action = suffix === "/media" && request.method === "POST" ? () => receiveSiteMedia(request, uploads, json)
+        : (suffix === "/draft" && request.method === "PUT") || (["/publish", "/unpublish"].includes(suffix) && request.method === "POST") ? () => mutate(request, suffix, json) : null;
+      if (!action) return json(405, { error: "invalid_request", code: "invalid_request" });
+      // Own asynchronous body consumption here; the outer jobs router must not
+      // continue while multipart/JSON is being read.
+      action().catch(() => { if (!response.headersSent && !response.destroyed) json(400, { error: "invalid_request", code: "invalid_request" }); });
+      return true;
+    }
     if (url.pathname === "/__site") {
       const next = { ...state };
       for (const [key, allowed] of [["brand", Object.keys(colors)], ["font", ["modern", "editorial", "classic"]], ["jobs", ["default", "empty"]]]) {
@@ -96,23 +200,31 @@ export function createCompanySitesFixture() {
         if (!allowed.includes(value)) return json(400, { error: `Invalid ${key}` });
         next[key] = value;
       }
+      if (next.brand !== state.brand || next.font !== state.font) {
+        const theme = { brand_color: colors[next.brand], font_pair: next.font };
+        draft = { ...draft, theme };
+        if (snapshot) snapshot = { ...snapshot, theme: { ...theme } };
+      }
       state = next;
       return json(200, { ok: true, ...state });
     }
     if (request.method !== "GET" || !url.pathname.startsWith("/v2/company-sites/")) return false;
     if (url.pathname.startsWith("/v2/company-sites/media/")) {
       const mediaIndex = media.findIndex(item => item.url === url.pathname);
-      if (mediaIndex < 0) return json(404, { error: "Imagen no encontrada", code: "media_not_found" });
-      const served = imageFor(mediaIndex);
+      const uploaded = uploads.get(url.pathname.split("/").at(-1));
+      if (mediaIndex < 0 && !uploaded) return json(404, { error: "Imagen no encontrada", code: "media_not_found" });
+      const served = uploaded ? { bytes: uploaded.bytes, type: uploaded.media.content_type } : imageFor(mediaIndex);
       response.writeHead(200, { "content-type": served.type, "content-length": served.bytes.length, "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" });
       response.end(served.bytes);
       return true;
     }
-    if (!["/v2/company-sites/nexo-labs", "/v2/company-sites/nexo-equipo"].includes(url.pathname)) return json(404, { error: "Sitio no encontrado", code: "site_not_found" });
+    const slug = url.pathname.slice("/v2/company-sites/".length);
+    if (!published || !snapshot || (slug !== published.slug && !history.has(slug))) return json(404, { error: "Sitio no encontrado", code: "site_not_found" });
+    const visible = { theme: snapshot.theme, seo: snapshot.seo, blocks: snapshot.blocks.filter(block => !block.hidden) };
     return json(200, {
       company: { ...company, logo_url: `${url.origin}${media[0].url}`, description: "Somos un equipo de tecnología en México que conecta a las personas con mejores oportunidades.", website: "https://example.com", linkedin_url: "https://www.linkedin.com/company/nexo-labs", instagram_url: "https://www.instagram.com/nexo.labs", facebook_url: "https://www.facebook.com/nexo.labs", twitter_url: "https://x.com/nexo_labs", location: publicDetail(nexoJobs[0]).location },
-      site: { theme: { brand_color: colors[state.brand], font_pair: state.font }, seo: { title: "Trabaja en Nexo Labs | Tu siguiente gran paso", description: "Construye tecnología con propósito desde México. Conoce nuestra cultura, beneficios y vacantes remotas, híbridas y presenciales. Encuentra tu lugar en Nexo." }, blocks },
-      slug: "nexo-labs", published_at: "2026-10-27T09:00:00Z", media,
+      site: visible,
+      slug: published.slug, published_at: published.published_at, media: referencedMedia(visible, allMedia()),
     }, "public, max-age=60");
   };
   return { handle, reset, jobsEmpty: () => state.jobs === "empty" };

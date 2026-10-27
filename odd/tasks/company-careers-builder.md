@@ -223,3 +223,24 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   derived per surface and theme (`public/theme-tokens.ts`) and closing socials as a plain list. Re-run: axe 0 violations
   in orange light/dark, green light/dark and orange 390; no failed requests; empty jobs state checked. Full suite
   7453/7453 (1 skipped), typecheck clean, lint 13 pre-existing warnings, fixture 11/11.
+- **L25.** T6b committed (cbdf943d, 579f24de); native assess from dbdf9fe6: medium, review not due. T6c started: the
+  editor worker found the public renderer is an async server component (geo via `server-only`) and the draft carries
+  no company identity or jobs → approved: extract a shared client-compatible `CompanySitePresentation` (server wrapper
+  keeps geo/jobs resolution, public output identical) and pass `preview: { company, jobs, officeLabels }` loaded by the
+  route. Fixture worker adds the authenticated draft endpoints. Editor browser review needs an employer session: user
+  chose (verbatim) «Inicias sesión una vez y guardo la sesión (Recomendado)». Cognito's callback is registered only for
+  `http://localhost:3000`, so the user logs in on their dev server and the session cookie (host-scoped, same
+  `NEXTAUTH_SECRET`) is reused by the review build served on `localhost:3100`; state saved to the git-ignored
+  `frontend/test-results/.auth/employer.json`, never logged or committed.
+- **L26.** Employer session captured: the user logged in on `localhost:3000` (their dev server's API at :8080 was
+  down, hence «no hubo ninguna respuesta del servidor» on the dashboard — unrelated to the session). Only the five
+  `localhost` cookies were written, via an isolated Playwright context, to `frontend/test-results/.auth/employer.json`
+  (mode 600, git-ignored); no token passed through the conversation. Review builds must run on `localhost:3100` with
+  `NEXTAUTH_URL=http://localhost:3100` so the host-scoped cookie applies. Cognito tokens expire; if the session lapses,
+  the user logs in again.
+- **L27.** Fixture draft endpoints (worker mvqsi4j4-i-wjq3): in-memory authenticated draft for Nexo Labs under
+  `/v2/me/company/site` — versioned PUT with If-Match/412 `version_conflict` + `current`, validation with the product's
+  own `model.ts`/`defaults.ts`/`slug.ts` (transpiled in memory by `site-product-model.cjs`, no build output), publish
+  into the public snapshot, multipart media upload served by the public media route. Controls
+  `/__site-draft?role=owner|recruiter | conflict=next | offline=next | mode=new | gate=forbidden|company_inactive|none`,
+  `/__reset`. RED 6 → GREEN 18/18.
