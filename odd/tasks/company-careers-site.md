@@ -30,8 +30,8 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 
 - [x] T1 — S1, S4, S8: migration + document validation + GET/PUT draft + slug availability — route: worker — commit: ee16597b
 - [x] T2 — S5, S8: publish/unpublish (owner, issues, audit) — route: worker — commit: a7c34f17
-- [x] T3 — S6, S8: media upload + public media read — route: worker + independent verify — commit: 1105a11a
-- [ ] T4 — S7, S8: public site read + catalog company_id filter — route: inline — commit: —
+- [x] T3 — S6, S8: media upload + public media read — route: worker + independent verify — commit: bea083c2
+- [x] T4 — S7, S8: public site read + catalog company_id filter — route: worker + parent differential + independent verify — commit: see git log (feat(company-sites): public careers site)
 
 ## Log
 
@@ -108,3 +108,23 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 - **L9.** T3 re-judgment round 1: S6 PASS, S8 PASS (all four L8 findings closed; no new severe findings). Remaining
   limitation stated by the verifier: WebP checks validate container/header policy, not compressed-pixel decodability; no
   fuzz campaign.
+- **L10.** Native review review-47b0aca430de81b7 over T1–T3 (base 4e074e2e..bea083c2, lenses risk/resilience/
+  reliability): approved and acknowledged (authority burned). Advisory, non-blocking (R3/R4 commit-compensation,
+  `infrastructure/postgres/media.go:54-55`): when `tx.Commit` returns an error the outcome is ambiguous (the commit may
+  have succeeded), yet the stored object is deleted, which could leave a row pointing at a missing file. Follow-up for
+  the user, not fixed tonight.
+- **L11.** T4 parent differential (shared public catalog parser): scratch worktrees of bea083c2 vs bea083c2 + T4
+  working tree (removed afterwards). `publicjobs.ParseQuery` on 20 representative queries without company_id (q,
+  work_mode, state/municipality, limit/cursor errors, unknown params, malformed escapes): identical results and errors
+  (CompanyID field excluded). The base `publicJobsHandler_test.go` passes unchanged against the new code; the existing
+  `Public|Jobs` integration flows pass. No unrequested difference.
+- **L12.** T4 independent verification: S8 PASS; S7 FAIL on two points. (a) Timing: invalid-format slugs return 404
+  before the DB query. Accepted as is, because invalid formats can never be stored and the shortcut reveals nothing
+  about existing sites (bodies, status and headers are identical). (b) `TestPublicGeoSearchIndexCapability` fails on
+  the long-lived test DB (:32768) even at base bea083c2, so it is pre-existing and depends on data state; it passes on
+  a fresh DB. The parent's fresh-DB run surfaced a real T4 defect: `TestCompanySitePublicSnapshotHistoryAndLiveness`
+  depends on geo catalog rows seeded by other tests (`companies_country_code_fkey`). A fixture-isolation fix was sent
+  to the T4 worker.
+- **L13.** T4 fixture fix verified by the parent: gofmt/vet clean, full unit suite (incl. scripts/closure) green, full
+  `-tags=integration ./cmd/api` green on a fresh DB (:32771). S7 timing point accepted per L12(a); the geo planner test is
+  pre-existing and data-state dependent (L12(b)).

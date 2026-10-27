@@ -1519,6 +1519,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 
 	want := []string{
 		"Get /v2/company-sites/media/{id}",
+		"Get /v2/company-sites/{slug}",
 		"Post /v2/me/company/site/media",
 		"Get /v2/me/company/site",
 		"Get /v2/me/company/site/slug-availability",

@@ -25,6 +25,13 @@ func (s *Store) Search(ctx context.Context, q catalog.Query) ([]catalog.Row, err
 		return nil, fmt.Errorf("validate public filters: %w", err)
 	}
 	p := db.SearchPublicJobsParams{Languages: q.Languages, Seniorities: q.Seniorities, YearsOfExperience: q.YearsOfExperience, EducationLevel: q.EducationLevel, Q: q.Q, States: q.States, Municipalities: q.Municipalities, WorkModes: q.WorkModes, ApplicantCountry: q.ApplicantCountry, WorkSchedule: q.WorkSchedule, ContractType: q.ContractType, ProfessionalArea: q.ProfessionalArea, PageLimit: int32(q.Limit)}
+	if q.CompanyID != "" {
+		id, err := uuid.Parse(q.CompanyID)
+		if err != nil {
+			return nil, catalog.ErrInvalidFilter
+		}
+		p.CompanyID = pgtype.UUID{Bytes: id, Valid: true}
+	}
 	if f := q.Salary; f != nil {
 		p.SalaryCurrency, p.SalaryPeriod, p.SalaryBasis, p.SalaryMin, p.SalaryMax = f.Currency, f.Period, f.Basis, f.Min, f.Max
 	}

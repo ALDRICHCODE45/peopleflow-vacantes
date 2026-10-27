@@ -111,6 +111,7 @@ func newRouter(d routerDeps) chi.Router {
 	r.Mount("/jobs", d.jobHandler.Routes())
 	// Additive anonymous catalog. Deliberately outside private NoStore/auth groups.
 	r.Get("/v2/company-sites/media/{id}", d.siteHandler.GetMedia)
+	r.Get("/v2/company-sites/{slug}", d.siteHandler.Public)
 	r.Get("/v2/jobs", d.publicJobsHandler.List)
 	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
 	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)

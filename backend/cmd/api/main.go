@@ -32,6 +32,7 @@ import (
 	cvspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres/cvs"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
+	companyentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
@@ -56,6 +57,7 @@ import (
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -73,7 +75,36 @@ func companySiteValidator() *sitesapp.Validator {
 func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
 	validator := companySiteValidator()
 	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)), events)
-	return siteshttp.New(store, draftjson.Decode, validator).WithMedia(store, storage)
+	companies := usecases.NewCompanyService(postgres.NewCompanyRepository(pool, events), geopostgres.NewReader(db.New(pool)))
+	return siteshttp.New(store, draftjson.Decode, validator).WithMedia(store, storage).WithPublic(store, companySitePublicCompany(companies))
+}
+
+// Adapt the existing company read path here; feature slices do not import
+// companies application/infrastructure. ReadLocation returns the same shared
+// DTO and serializer used by GET /companies/{id}.
+func companySitePublicCompany(service *usecases.CompanyService) sitesapp.ReadPublicCompany {
+	return func(ctx context.Context, id uuid.UUID) (sitesapp.PublicCompany, error) {
+		c, err := service.GetCompanyByID(ctx, id)
+		if errors.Is(err, companyentities.ErrCompanyNotFound) {
+			return sitesapp.PublicCompany{}, sitesapp.ErrSiteNotFound
+		}
+		if err != nil {
+			return sitesapp.PublicCompany{}, err
+		}
+		if c.DeletedAt != nil || c.Status.String() != "active" {
+			return sitesapp.PublicCompany{}, sitesapp.ErrSiteNotFound
+		}
+		location, err := service.ReadLocation(ctx, c.Location)
+		if err != nil {
+			return sitesapp.PublicCompany{}, err
+		}
+		var description *string
+		if c.Description != nil {
+			value := c.Description.Value()
+			description = &value
+		}
+		return sitesapp.PublicCompany{ID: c.ID, Name: c.Name.Value(), LogoURL: c.LogoURL, Description: description, Website: c.Website, LinkedInURL: c.LinkedInURL, InstagramURL: c.InstagramURL, FacebookURL: c.FacebookURL, TwitterURL: c.TwitterURL, Location: location}, nil
+	}
 }
 
 func main() {
