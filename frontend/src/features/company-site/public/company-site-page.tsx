@@ -1,25 +1,35 @@
-/* eslint-disable @next/next/no-img-element -- Capability images are streamed by our same-origin proxy. */
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DraftRichDescriptionContent } from "@/features/jobs/drafts/ui/draft-rich-description";
-import type { PublicJobItem } from "@/features/jobs/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 import { getCountries, getMunicipalities, getStates } from "@/features/geo/client";
 import type { LocationWrite } from "@/features/geo/model";
-import { BLOCK_LIBRARY } from "../defaults";
-import { adjustedBrandColor, readableOn } from "../brand";
+import type { PublicJobItem } from "@/features/jobs/types";
+import { deriveDraftDescriptionPlain } from "@/features/jobs/drafts/rich/plain";
+import { cn } from "@/lib/utils";
+import { siteBrandTokens } from "./theme-tokens";
 import type { SiteBlock } from "../model";
 import type { PublicSite } from "./schema";
-import { mediaUrl } from "./media";
-import { VideoPlayer } from "./video-player";
-import { CompanyJobs } from "@/features/company-site/public/company-jobs";
+import { editorial, modern } from "./fonts";
+import { SiteNavigation } from "./site-navigation";
+import { SiteBlockContent, SocialLinks } from "./site-blocks";
+import styles from "./site-theme.module.css";
 
 const anchor = (block: SiteBlock) => `bloque-${block.id}`;
-function blockTitle(block: SiteBlock): string {
-  return ("title" in block.content && block.content.title) || BLOCK_LIBRARY[block.type].label;
-}
-function Media({ image, alt }: { image: { media_id: string } | null; alt: string }) {
-  return image ? <img src={mediaUrl(image.media_id)} alt={alt} loading="lazy" className="max-w-full" /> : null;
+/** Draft preview and public read share honest omission; no invented placeholder content. */
+function hasContent(block: SiteBlock): boolean {
+  switch (block.type) {
+    case "hero": case "jobs": return true;
+    case "story": return Boolean(deriveDraftDescriptionPlain(block.content.body));
+    case "video": return Boolean(block.content.video);
+    case "closing": return Boolean(block.content.title);
+    case "gallery": return block.content.items.some(item => item.image && item.alt);
+    case "testimonials": return block.content.items.some(item => item.consent && item.name && item.quote);
+    case "stats": return block.content.items.some(item => item.value && item.label);
+    case "offices": return block.content.items.some(item => item.name);
+    case "faq": return block.content.items.some(item => item.question && item.answer);
+    default: return block.content.items.some(item => item.title);
+  }
 }
 /** Resolve wire codes only through the existing anonymous server catalogs. Fail closed to address/name. */
 async function officeLabels(blocks: SiteBlock[]): Promise<Map<string, string>> {
@@ -40,43 +50,31 @@ async function officeLabels(blocks: SiteBlock[]): Promise<Map<string, string>> {
   return labels;
 }
 const locationKey = (location: LocationWrite) => JSON.stringify(location);
-function BlockContent({ block, jobs, offices }: { block: SiteBlock; jobs: PublicJobItem[]; offices: Map<string, string> }): ReactNode {
-  switch (block.type) {
-    case "hero": return <><Media image={block.content.cover} alt={block.content.title ?? ""} />{block.content.subtitle && <p>{block.content.subtitle}</p>}</>;
-    case "story": return <>{block.content.body && <DraftRichDescriptionContent description={block.content.body} />}<Media image={block.content.image} alt={block.content.title ?? ""} /></>;
-    case "values": case "benefits": return <>{block.type === "values" && block.content.mission && <p>{block.content.mission}</p>}<ul className="grid gap-4 sm:grid-cols-2">{block.content.items.map((item, index) => <li key={index}><h3 className="font-semibold">{item.title}</h3>{item.description && <p>{item.description}</p>}</li>)}</ul></>;
-    case "stats": return <dl className="flex flex-wrap gap-6">{block.content.items.map((item, index) => <div key={index}><dt>{item.label}</dt><dd className="text-2xl font-semibold tabular-nums">{item.value}</dd></div>)}</dl>;
-    case "process": return <ol className="grid list-inside list-decimal gap-4">{block.content.items.map((item, index) => <li key={index}><h3 className="inline font-semibold">{item.title}</h3>{item.description && <p>{item.description}</p>}{item.duration && <p>{item.duration}</p>}</li>)}</ol>;
-    case "gallery": return <div className="grid gap-4 sm:grid-cols-2">{block.content.items.map((item, index) => <figure key={index}><Media image={item.image} alt={item.alt ?? ""} />{item.caption && <figcaption>{item.caption}</figcaption>}</figure>)}</div>;
-    case "testimonials": return <div className="grid gap-6 sm:grid-cols-2">{block.content.items.filter(item => item.consent).map((item, index) => <figure key={index}><blockquote><p>{item.quote}</p></blockquote><figcaption><Media image={item.photo} alt={item.name ?? ""} />{item.name}{item.role && <p>{item.role}</p>}</figcaption></figure>)}</div>;
-    case "video": return <>{block.content.video && <VideoPlayer video={block.content.video} title={block.content.title ?? "Video de la empresa"} />}{block.content.description && <p>{block.content.description}</p>}</>;
-    case "offices": return <ul className="grid gap-4 sm:grid-cols-2">{block.content.items.map((item, index) => <li key={index}><h3 className="font-semibold">{item.name}</h3><address className="not-italic">{item.address && <p>{item.address}</p>}{offices.get(locationKey(item.location)) && <p>{offices.get(locationKey(item.location))}</p>}</address>{item.map_url && <a className="inline-flex min-h-10 items-center underline" href={item.map_url}>Ver mapa de {item.name}</a>}</li>)}</ul>;
-    case "jobs": return <CompanyJobs jobs={jobs} />;
-    // Static FAQ is intentionally expanded: no disclosure widget is needed for the minimal renderer.
-    case "faq": return <dl className="grid gap-4">{block.content.items.map((item, index) => <div key={index}><dt className="font-semibold">{item.question}</dt><dd className="whitespace-pre-wrap">{item.answer}</dd></div>)}</dl>;
-    case "closing": return block.content.text && <p>{block.content.text}</p>;
-  }
-}
 
-/** Server composition: video consent and CompanyJobs are the only client islands. */
+/** Server read/geo boundary; props stay compatible with the existing public route. */
 export async function CompanySitePage({ data, jobs }: { data: PublicSite; jobs: PublicJobItem[] }) {
-  const blocks = data.site.blocks.filter(block => !block.hidden);
+  const blocks = data.site.blocks.filter(block => !block.hidden && hasContent(block));
   const offices = await officeLabels(blocks);
-  const light = adjustedBrandColor(data.site.theme.brand_color, "#FFFFFF").color;
-  const dark = adjustedBrandColor(data.site.theme.brand_color, "#000000").color;
-  // Theme token definitions, not inline surface painting (UI rules §3 exception).
-  const style = { "--site-brand-light": light, "--site-on-brand-light": readableOn(light), "--site-brand-dark": dark, "--site-on-brand-dark": readableOn(dark) } as CSSProperties;
-  const socials = [["Sitio web", data.company.website], ["LinkedIn", data.company.linkedin_url], ["Instagram", data.company.instagram_url], ["Facebook", data.company.facebook_url], ["X", data.company.twitter_url]];
-  return <div data-font-pair={data.site.theme.font_pair} style={style} className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 font-sans">
-    <header className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">{data.company.logo_url && <img src={data.company.logo_url} alt={`Logo de ${data.company.name}`} className="size-12 object-contain" />}<p className="text-xl font-semibold">{data.company.name}</p></div>
-      {data.company.description && <p>{data.company.description}</p>}
-      <nav aria-label="Secciones de la empresa" className="flex flex-wrap gap-4">{blocks.map(block => <a key={block.id} href={`#${anchor(block)}`} className="inline-flex min-h-10 items-center underline">{blockTitle(block)}</a>)}</nav>
+  // Dynamic token definitions only; paint belongs to the semantic theme and primitives.
+  const style = siteBrandTokens(data.site.theme.brand_color) as CSSProperties;
+  const jobsBlock = blocks.find(block => block.type === "jobs");
+  const storyBlock = blocks.find(block => block.type === "story");
+  return <div data-font-pair={data.site.theme.font_pair} style={style} className={cn(styles.site, editorial.variable, modern.variable, "min-w-0 bg-background text-foreground [overflow-wrap:anywhere]")}>
+    <Link href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:rounded-xl focus:bg-background focus:px-4 focus:py-3 focus:text-foreground focus:outline-2 focus:outline-ring">Saltar al contenido</Link>
+    <header className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-6 sm:px-10 lg:px-16">
+      <div className="flex min-w-0 shrink-0 items-center gap-3"><Avatar className="size-10"><AvatarImage src={data.company.logo_url ?? undefined} alt={`Logo de ${data.company.name}`} /><AvatarFallback>{data.company.name.slice(0, 1)}</AvatarFallback></Avatar><p className="max-w-[16ch] text-lg font-semibold tracking-tight [overflow-wrap:anywhere]">{data.company.name}</p></div>
+      <SiteNavigation blocks={blocks} companyName={data.company.name} />
     </header>
-    {blocks.map(block => <section key={block.id} id={anchor(block)} data-block-type={block.type} data-variant={block.variant} className="scroll-mt-24">
-      {/* Card-demo anatomy, real headings inside CardTitle. Media belongs to block content, not the card chrome. */}
-      {block.type === "hero" ? <div className="flex flex-col gap-4"><h1 className="text-3xl font-semibold">{block.content.title}</h1><BlockContent block={block} jobs={jobs} offices={offices} /></div> : block.type === "jobs" ? <div className="flex flex-col gap-4"><h2 className="text-xl font-semibold">{blockTitle(block)}</h2>{block.content.intro && <p>{block.content.intro}</p>}<BlockContent block={block} jobs={jobs} offices={offices} /></div> : <Card><CardHeader><CardTitle><h2 className="text-xl font-semibold">{blockTitle(block)}</h2></CardTitle></CardHeader><CardContent className="grid gap-4"><BlockContent block={block} jobs={jobs} offices={offices} /></CardContent></Card>}
+    <main id="contenido" tabIndex={-1} className="min-w-0 outline-none">
+    {blocks.map(block => <section key={block.id} id={anchor(block)} aria-labelledby={`${anchor(block)}-title`} data-block-type={block.type} data-variant={block.variant} className={cn("scroll-mt-6", (block.type === "story" || block.type === "jobs" || block.type === "stats" && block.variant === "row" || block.type === "benefits" && block.variant === "grid" || block.type === "video" && block.variant === "split") && "bg-(--site-band)")}>
+      <div className="mx-auto max-w-7xl px-6 py-10 sm:px-10 sm:py-14 lg:px-16 lg:py-16"><SiteBlockContent block={block} company={data.company} jobs={jobs} offices={offices} jobsHref={jobsBlock ? `#${anchor(jobsBlock)}` : undefined} storyHref={storyBlock ? `#${anchor(storyBlock)}` : undefined} /></div>
     </section>)}
-    <footer className="flex flex-col gap-4"><nav aria-label="Redes de la empresa" className="flex flex-wrap gap-4">{socials.map(([name, href]) => href && <a key={name} href={href} className="inline-flex min-h-10 items-center underline">{name}</a>)}</nav><p>Sitio creado con <Link href="/" className="underline">PeopleFlow</Link></p></footer>
+    </main>
+    <Separator />
+    <footer className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8 sm:px-10 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-16">
+      <div className="flex flex-col gap-2"><p className="text-lg font-semibold">{data.company.name}</p>{data.company.description && <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">{data.company.description}</p>}</div>
+      <SocialLinks company={data.company} />
+      <p className="w-full basis-full text-xs text-muted-foreground">Impulsado por <Link href="/" aria-label="PeopleFlow para empresas" className="inline-flex min-h-10 items-center font-semibold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring">PeopleFlow</Link></p>
+    </footer>
   </div>;
 }

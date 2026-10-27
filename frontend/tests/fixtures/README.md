@@ -79,3 +79,9 @@ Remaining full-run failures:
 - `vacantes.spec.ts:1389`: obsolete dual-login menu.
 
 Do not grow the `frontend` result pool merely to force the two next-link assertions green: unchanged visibility tests deliberately require that query to contain only the mutable main vacancy. These remaining assertions/product behaviors are outside fixture-only ownership.
+
+### Local photos for visual reviews
+
+`COMPANY_SITE_FIXTURE_IMAGES=/path/a.png:/path/b.jpg node tests/fixtures/jobs-server.mjs` serves those local files
+(assigned to the site's media in order, round-robin; `.png`, `.webp`, otherwise JPEG) instead of the committed reference
+image. Use it only to judge composition with realistic photos; never commit the photos.

@@ -26,6 +26,13 @@ const storyBody = publicDetail(nexoJobs[0]).description;
 // Existing committed, public-domain image. No runtime downloads. Its provenance
 // lives alongside the source asset; all media roles deliberately reuse it.
 const image = readFileSync(new URL("../../public/company/acme-cover.webp", import.meta.url));
+// Visual reviews may point COMPANY_SITE_FIXTURE_IMAGES at local, uncommitted
+// photos (colon-separated paths, assigned to media in order, round-robin).
+const reviewImages = (process.env.COMPANY_SITE_FIXTURE_IMAGES ?? "").split(":").filter(Boolean).map(path => ({
+  bytes: readFileSync(path),
+  type: path.endsWith(".png") ? "image/png" : path.endsWith(".webp") ? "image/webp" : "image/jpeg",
+}));
+const imageFor = index => reviewImages.length ? reviewImages[index % reviewImages.length] : { bytes: image, type: "image/webp" };
 const media = ["cover", "gallery", "gallery", "portrait", "story"].map((kind, index) => {
   const id = `b478fb93-71b8-47bf-8eaa-b726d63e03a${index}`;
   return { id, kind, url: `/v2/company-sites/media/${id}`, width: 1600, height: 900 };
@@ -94,9 +101,11 @@ export function createCompanySitesFixture() {
     }
     if (request.method !== "GET" || !url.pathname.startsWith("/v2/company-sites/")) return false;
     if (url.pathname.startsWith("/v2/company-sites/media/")) {
-      if (!media.some(item => item.url === url.pathname)) return json(404, { error: "Imagen no encontrada", code: "media_not_found" });
-      response.writeHead(200, { "content-type": "image/webp", "content-length": image.length, "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" });
-      response.end(image);
+      const mediaIndex = media.findIndex(item => item.url === url.pathname);
+      if (mediaIndex < 0) return json(404, { error: "Imagen no encontrada", code: "media_not_found" });
+      const served = imageFor(mediaIndex);
+      response.writeHead(200, { "content-type": served.type, "content-length": served.bytes.length, "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" });
+      response.end(served.bytes);
       return true;
     }
     if (!["/v2/company-sites/nexo-labs", "/v2/company-sites/nexo-equipo"].includes(url.pathname)) return json(404, { error: "Sitio no encontrado", code: "site_not_found" });

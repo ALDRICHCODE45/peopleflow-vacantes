@@ -22,8 +22,21 @@ export async function listCompanyJobs(companyId: string) {
   const { serverEnv } = await import("@/lib/env/server");
   const url = new URL("/v2/jobs", serverEnv.apiBaseUrl);
   url.searchParams.set("company_id", companyId);
-  return requestJson(url.toString(), {
-    expectedStatus: 200, redirect: "error", timeoutMs: serverEnv.apiTimeoutMs,
-    decoder: value => publicJobsListSchema.parse(value),
-  });
+  const items: z.output<typeof publicJobsListSchema>["items"] = [];
+  const seen = new Set<string>();
+  for (let page = 0; page < 10; page += 1) {
+    const result = await requestJson(url.toString(), {
+      expectedStatus: 200, redirect: "error", timeoutMs: serverEnv.apiTimeoutMs,
+      decoder: value => publicJobsListSchema.parse(value),
+    });
+    // Never expose a partial list: filters must describe the full company catalog.
+    if (!result.ok) return result;
+    items.push(...result.data.items);
+    const cursor = result.data.next_cursor;
+    if (!cursor) return { ok: true as const, data: { items, next_cursor: null } };
+    if (seen.has(cursor)) break;
+    seen.add(cursor);
+    url.searchParams.set("cursor", cursor);
+  }
+  return { ok: false as const, error: "unavailable" as const };
 }

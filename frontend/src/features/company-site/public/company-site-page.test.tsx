@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 // Same boundary as components/ui/combobox.test.tsx: jsdom cannot position/focus
 // the chips popup inside a modal. Keep the real selection controller and items,
 // render only its portal shell inline; browser popup/focus review remains manual.
+vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "__variable_fraunces" }), Plus_Jakarta_Sans: () => ({ variable: "__variable_jakarta" }) }));
 vi.mock("@/components/ui/combobox", async importOriginal => {
   const original = await importOriginal<typeof import("@/components/ui/combobox")>();
   return { ...original, ComboboxContent: ({ children }: { children: ReactNode }) => <div>{children}</div> };
@@ -45,16 +46,19 @@ it("renders all 13 block contents in order, one H1, visible anchor navigation, p
   data.site.blocks.push(hidden);
   data.company.linkedin_url = "https://linkedin.com/company/nexo";
   const { container } = render(await CompanySitePage({ data, jobs }));
+  fireEvent.click(screen.getByRole("button", { name: "¿Cómo postular?" }));
   for (const text of ["Trabaja con Nexo", "Nuestra historia", "Construye servicios seguros.", "Una misión compartida", "Respeto", "Flexibilidad", "42", "Personas", "Conversación", "30 minutos", "Un día juntos", "Me escuchan", "Ana", "Diseñadora", "Así trabajamos", "Sede central", "Calle Uno 42", "Azcapotzalco", "Únete al equipo", "Oportunidades reales", "¿Cómo postular?", "Abre la vacante", "Hagamos algo bueno", "Te esperamos"]) expect(screen.getAllByText(text, { exact: false }).length, text).toBeGreaterThan(0);
-  expect(container.querySelector("footer")).toHaveTextContent("Sitio creado con PeopleFlow");
+  expect(container.querySelector("footer")).toHaveTextContent("Impulsado por PeopleFlow");
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   expect(screen.queryByText("SECRETO")).toBeNull(); expect(screen.queryByText("No publicar")).toBeNull();
   const visible = data.site.blocks.filter(block => !block.hidden);
   expect(Array.from(container.querySelectorAll("section[data-block-type]")).map(section => section.getAttribute("data-block-type"))).toEqual(visible.map(block => block.type));
   const nav = screen.getByRole("navigation", { name: "Secciones de la empresa" });
-  expect(within(nav).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(visible.map(block => `#bloque-${block.id}`));
+  expect(within(nav).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(["story", "gallery", "benefits", "jobs"].map(type => `#bloque-${visible.find(block => block.type === type)!.id}`));
+  expect(within(nav).queryByText("Portada")).toBeNull();
+  expect(within(nav).queryByText("Cierre")).toBeNull();
   for (const link of within(nav).getAllByRole("link")) expect(container.querySelector(link.getAttribute("href")!)).not.toBeNull();
-  expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveAttribute("href", data.company.linkedin_url);
+  expect(within(container.querySelector("footer")!).getByRole("link", { name: "LinkedIn" })).toHaveAttribute("href", data.company.linkedin_url);
   expect(screen.getByAltText("Equipo en el taller")).toHaveAttribute("src", mediaUrl(mediaId));
   expect(container.querySelectorAll('img[src^="/v2/"]')).toHaveLength(0);
   expect(screen.getByRole("link", { name: vacancyDetail.title })).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}`);
@@ -77,6 +81,10 @@ it.each([["youtube", "dQw4w9WgXcQ", "https://www.youtube-nocookie.com/embed/dQw4
   fireEvent.click(screen.getByRole("button", { name: "Reproducir video: Nuestro equipo" }));
   expect(screen.getByTitle("Nuestro equipo")).toHaveAttribute("src", url);
   expect(screen.getByTitle("Nuestro equipo")).toHaveAttribute("allow");
+});
+it("keeps the video action compact for long titles on mobile", () => {
+  render(<VideoPlayer video={{ provider: "youtube", video_id: "dQw4w9WgXcQ" }} title={"Una historia con un título muy largo ".repeat(2)} />);
+  expect(screen.getByRole("button", { name: /Reproducir video:/ })).toHaveTextContent(/^Reproducir video$/);
 });
 it("jobs render modalidad, ubicación, jornada and publication date", () => {
   render(<CompanyJobs jobs={jobs} />);

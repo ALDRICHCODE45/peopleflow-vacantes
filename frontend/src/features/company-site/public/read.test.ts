@@ -33,6 +33,29 @@ it("network failure and timeout are unavailable", async () => {
   vi.stubGlobal("fetch", vi.fn((_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))))));
   expect(await getPublicSite("nexo-labs")).toEqual({ kind: "unavailable" });
 });
+it("follows company job cursors so filters include every page", async () => {
+  const item = listItem(vacancyDetail);
+  vi.stubGlobal("fetch", vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [item], next_cursor: "page-2" })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ ...item, id: companyId }], next_cursor: null }))));
+  expect(await listCompanyJobs(companyId)).toMatchObject({ ok: true, data: { items: [item, { ...item, id: companyId }], next_cursor: null } });
+  expect(vi.mocked(fetch).mock.calls[1][0]).toBe(`http://localhost:8080/v2/jobs?company_id=${companyId}&cursor=page-2`);
+});
+it("does not silently return a partial catalog when a later page fails", async () => {
+  vi.stubGlobal("fetch", vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [listItem(vacancyDetail)], next_cursor: "page-2" })))
+    .mockResolvedValueOnce(new Response("{}", { status: 503 })));
+  expect(await listCompanyJobs(companyId)).toMatchObject({ ok: false });
+});
+it("rejects repeated cursors and caps the public catalog at ten pages", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ items: [], next_cursor: "again" }))));
+  expect(await listCompanyJobs(companyId)).toMatchObject({ ok: false });
+  expect(vi.mocked(fetch).mock.calls.length).toBeLessThanOrEqual(10);
+  let page = 0;
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ items: [], next_cursor: `page-${++page}` }))));
+  expect(await listCompanyJobs(companyId)).toMatchObject({ ok: false });
+  expect(fetch).toHaveBeenCalledTimes(10);
+});
 it("company jobs reuse the strict public v2 decoder and company_id filter", async () => {
   const data = { items: [listItem(vacancyDetail)], next_cursor: null }; respond(data);
   expect(await listCompanyJobs(companyId)).toEqual({ ok: true, data });
