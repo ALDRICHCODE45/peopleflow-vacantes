@@ -39,6 +39,7 @@ import (
 	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
 	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
 	sitespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/postgres"
+	sitess3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/s3"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
@@ -155,6 +156,13 @@ func run() error {
 		return err
 	}
 
+	siteConfig, err := runtimeconfig.LoadSiteMediaConfig(os.Getenv)
+	if err != nil {
+		// Config errors are static messages, never the raw environment values.
+		slog.Error("site media configuration invalid", "reason", err.Error())
+		return err
+	}
+
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
@@ -247,6 +255,14 @@ func run() error {
 		manualStorage = manualCVStorage{local: privateCVStorage}
 		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
 	}
+	if siteConfig.Mode == "s3" {
+		siteStorage, err = sitess3.New(ctx, sitess3.Options{Bucket: siteConfig.Bucket, Region: siteConfig.Region, Prefix: siteConfig.Prefix, Endpoint: siteConfig.Endpoint, ForcePathStyle: siteConfig.ForcePathStyle})
+		if err != nil {
+			return err
+		}
+	}
+	// Explicit allowlist; never log the SDK config, endpoint or credentials.
+	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo)
 	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore), draftjson.Decode)
 

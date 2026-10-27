@@ -13,6 +13,7 @@ import (
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	roles "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
 	"github.com/google/uuid"
@@ -24,7 +25,7 @@ func newCompanySiteFlowHarness(t *testing.T) *draftFlowHarness {
 	h, _ := newCompanySiteFlowStorageHarness(t)
 	return h
 }
-func newCompanySiteFlowStorageHarness(t *testing.T) (*draftFlowHarness, *cvstorage.Local) {
+func newCompanySiteFlowStorageHarness(t *testing.T, siteFiles ...sitesapp.Storage) (*draftFlowHarness, *cvstorage.Local) {
 	t.Helper()
 	h := newDraftFlowHarness(t)
 	q := db.New(h.pool)
@@ -36,7 +37,11 @@ func newCompanySiteFlowStorageHarness(t *testing.T) (*draftFlowHarness, *cvstora
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = files.Close() })
-	router := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(h.signer.verifier), requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, roles.RecruiterRole), requireOwner: identityhttp.RequireCompanyRole(users, members, companies, roles.OwnerRole), siteHandler: newCompanySiteHandler(h.pool, auditpostgres.NewAuditEventRepository(), files), queries: q, pool: h.pool})
+	var storage sitesapp.Storage = files
+	if len(siteFiles) > 0 {
+		storage = siteFiles[0]
+	}
+	router := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(h.signer.verifier), requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, roles.RecruiterRole), requireOwner: identityhttp.RequireCompanyRole(users, members, companies, roles.OwnerRole), siteHandler: newCompanySiteHandler(h.pool, auditpostgres.NewAuditEventRepository(), storage), queries: q, pool: h.pool})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	h.server = server

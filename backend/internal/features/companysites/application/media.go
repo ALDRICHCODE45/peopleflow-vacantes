@@ -18,6 +18,9 @@ const MaxMediaBytes = 5 * 1024 * 1024
 var ErrMediaLimit = errors.New("media limit reached")
 var ErrMediaNotFound = errors.New("media not found")
 
+// ErrStorageUnavailable is safe to return or log; provider details never cross the port.
+var ErrStorageUnavailable = errors.New("site media storage unavailable")
+
 type Storage interface {
 	Put(context.Context, []byte) (string, error)
 	Open(context.Context, string) (io.ReadCloser, error)

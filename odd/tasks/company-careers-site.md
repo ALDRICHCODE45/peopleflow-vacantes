@@ -19,6 +19,12 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
   `{id, kind, url, width, height, content_type}`, 413/415/422.
 - **S7** (L1, contract §4.1, §4.2). Public `GET /v2/company-sites/{slug}` (404 `site_not_found`, old-slug resolution)
   and `GET /v2/jobs?company_id=` (invalid UUID → 400 `invalid_filter`).
+- **S9** (L17). S3 storage for site media only (frontend T7): «servir «Backend las sirve (Recomendado)»; local/integración
+  «MinIO en Docker (Recomendado)»; alcance «Solo imágenes del sitio»; implementa «La sesión de backend».» Private
+  bucket; `GET /v2/company-sites/media/{id}` reads from S3 and answers exactly as today; env-selected disk (default) or
+  S3; credentials only via the SDK default chain (IAM role in deployment), never in code or logs; region, bucket and
+  prefix by env, documented; unit tests + MinIO integration via docker compose (put/get/head/not-found/content-type,
+  large objects, network errors → domain error without leaking details); candidate CVs unchanged.
 - **S8** (L2). Agreed amendments: media served by public `GET /v2/company-sites/media/{id}` (capability URL, immutable
   caching); old slug → 200 same §4.1 shape with current `slug`; published snapshot is a copy; `story.body` via
   `draftrich.ValidateDocument` + ≤ 5,000 code points; 412 `{error, code, current}`; identical PUT is a no-op; public
@@ -32,6 +38,7 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
 - [x] T2 — S5, S8: publish/unpublish (owner, issues, audit) — route: worker — commit: a7c34f17
 - [x] T3 — S6, S8: media upload + public media read — route: worker + independent verify — commit: bea083c2
 - [x] T4 — S7, S8: public site read + catalog company_id filter — route: worker + parent differential + independent verify — commit: see git log (feat(company-sites): public careers site)
+- [x] T5 — S9: S3 adapter for site media + env selection + MinIO integration — route: worker + independent verify (2 rounds) — commit: see git log (feat(company-sites): private S3 storage)
 
 ## Log
 
@@ -146,3 +153,39 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
   que S3 se va a priorizar, pero como lo último de esta feature: por ahora no hay que tocar nada del adaptador de
   storage.» The E2E environment was torn down and verified: no :8090 listener, container removed, folder deleted. S3 is
   pending as the last unit of the feature; the storage adapter stays untouched until then.
+- **L17.** Frontend (2026-10-27, verbatim): «encargo T7 (último de la feature company careers site), decidido por el usuario
+  hoy. Decisiones (textuales del usuario): servir «Backend las sirve (Recomendado)»; local/integración «MinIO en Docker
+  (Recomendado)»; alcance «Solo imágenes del sitio»; implementa «La sesión de backend». Alcance concreto: 1. Adaptador S3
+  del puerto de storage de media del sitio (`internal/features/companysites/application/media.go` y su
+  infraestructura), bucket PRIVADO; el endpoint actual `GET /v2/company-sites/media/{id}` lee de S3 y responde igual que
+  hoy (content-type, nosniff, CSP sandbox, `Cache-Control: public, max-age=31536000, immutable`, 404 desconocido).
+  Contrato: `docs/contracts/company-careers-site-v1.md` §3.4 (upload: magic bytes, ≤5 MB, 200–6000 px, strip EXIF) — sin
+  cambios para el frontend. 2. Selección por config (env) entre disco (dev rápido, default actual) y S3; credenciales por
+  la cadena estándar del SDK (rol IAM en despliegue), nunca en código/logs; región, bucket y prefijo por env; documentar
+  los nombres de las variables. 3. Tests: unitarios del adaptador + integración contra MinIO con docker compose
+  (put/get/head/not-found/content-type, objetos grandes, errores de red → error de dominio sin filtrar detalles). 4. Los
+  CV de candidatos NO cambian (tarea aparte).» Backend decisions: aws-sdk-go-v2 (s3 + config) is the new dependency
+  (named high-risk item 5 → independent verify); MinIO lives in a separate compose file so the user's running
+  `peopleflow-vacancies` Postgres service in `backend/docker-compose.yml` is untouched.
+- **L18.** T5 blocker: MinIO no longer distributes public images. Verified by the parent: `docker pull minio/minio` →
+  «pull access denied for minio/minio, repository does not exist or may require 'docker login'»; quay.io/minio/minio →
+  401 UNAUTHORIZED; ghcr.io → denied; busybox pulls fine, so it is not a network problem. Done and green: the
+  aws-sdk-go-v2 S3 adapter, env config and their unit tests (worker, uncommitted). Asked the user via the frontend:
+  build MinIO from source into a local image (recommended), another S3 emulator, or only a real S3 bucket later.
+- **L19.** User decision via frontend (verbatim): «1. Compilar MinIO desde el código fuente». Frontend: «Seguí con esa opción:
+  imagen local con un Dockerfile en el repo y compose aparte en backend/docker-compose.minio.yml, sin tocar
+  docker-compose.yml. Fijá la versión con un tag o commit concreto del código fuente, no con main, para que la build sea
+  reproducible.»
+- **L20.** T5 independent verification: S9 FAIL. (1) High: the production custom-endpoint guard can be bypassed
+  through endpoints the SDK inherits (`AWS_ENDPOINT_URL_S3`, `AWS_ENDPOINT_URL`, shared config); `site_media.go:53`
+  checks only SITE_MEDIA_S3_ENDPOINT. (2) Medium: the documented IAM omits s3:ListBucket, so AWS answers 403 for absent
+  keys, which maps to 500 instead of 404. (3) Medium: on disk a missing file returns 500, while S3 returns 404, so the
+  two modes differ. (4) Medium: the bucket bootstrap helpers accept any endpoint and default credentials with no
+  production guard. Fix round 1 sent to the T5 worker.
+- **L21.** T5 re-judgment round 1: findings 1, 3 and 4 closed (inherited endpoints are scrubbed or rejected on the
+  effective client options; disk and S3 return the same 404; bootstrap is guarded to loopback and non-production; the
+  `testsupport` package is imported only by integration tests). Finding 2 remained open: a ListBucket grant
+  conditioned on `s3:prefix` never applies to GetObject. The parent fixed it in `docs/site-media.md`: unconditional
+  `s3:ListBucket` on the bucket ARN, plus a dedicated-bucket note, with 403 still mapped to storage-unavailable. That
+  is doc-only and unverified against real AWS IAM. Parent checks: `go mod verify`, vet, full unit suite and the MinIO +
+  Postgres integration packages are green. CV storage, `docker-compose.yml` and frontend are unchanged.

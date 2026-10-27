@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"strconv"
 
@@ -142,6 +143,10 @@ func (h *Handler) GetMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f, err := h.storage.Open(r.Context(), m.StorageKey)
+	if errors.Is(err, app.ErrMediaNotFound) || errors.Is(err, fs.ErrNotExist) {
+		mediaError(w, httpjson.CodeNotFound)
+		return
+	}
 	if err != nil {
 		mediaError(w, httpjson.CodeInternalError)
 		return
