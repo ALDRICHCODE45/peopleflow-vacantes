@@ -165,6 +165,37 @@ describe("applyLinkToEditor", () => {
 });
 
 describe("DraftDescriptionEditor", () => {
+  it("keeps the full vacancy toolbar by default", () => {
+    render(<DraftDescriptionEditor value={richValue} onChange={vi.fn()} />);
+    const toolbar = screen.getByRole("toolbar");
+    expect(toolbar).toHaveClass("flex-wrap");
+    expect(screen.getByRole("button", { name: "Tamaño pequeño" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Lista con viñetas" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Más formato" })).not.toBeInTheDocument();
+  });
+
+  it("offers a compact one-row toolbar with accessible size choice and secondary actions", () => {
+    render(<DraftDescriptionEditor value={richValue} onChange={vi.fn()} compactToolbar />);
+    const toolbar = screen.getByRole("toolbar");
+    expect(toolbar).toHaveClass("flex-nowrap");
+    expect(toolbar).not.toHaveClass("flex-wrap");
+    expect(screen.getByRole("combobox", { name: "Tamaño de letra" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Negrita" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cursiva" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Más formato" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Tamaño pequeño" })).not.toBeInTheDocument();
+  });
+  it("announces a custom accessible label and visible heading", () => {
+    render(<DraftDescriptionEditor value={richValue} onChange={vi.fn()} ariaLabel="Historia de la empresa" label="Historia" toolbarLabel="Formato de la historia" />);
+    expect(screen.getByLabelText("Historia de la empresa")).toHaveTextContent("Hola");
+    expect(screen.getByText("Historia")).toBeVisible();
+    expect(screen.getByRole("toolbar", { name: "Formato de la historia" })).toBeVisible();
+  });
+
+  it("preserves the vacancy accessible label by default", () => {
+    render(<DraftDescriptionEditor value={richValue} onChange={vi.fn()} />);
+    expect(screen.getByLabelText("Descripción de la vacante")).toHaveTextContent("Hola");
+  });
   it("mounts the accepted rich JSON without silently emitting a change", () => {
     const onChange = vi.fn();
     render(<DraftDescriptionEditor value={richValue} onChange={onChange} />);
