@@ -45,8 +45,8 @@ const bookmarkClass = `${focusRing} grid size-10 shrink-0 place-items-center rou
 
 /**
  * One public vacancy as a list item with native Card composition: the
- * company monogram, the canonical `/vacantes/<id>` title link, the opt-in
- * company link, the wire facts through the existing formatters, and — only for
+ * company monogram, the canonical `/vacantes/<id>` title link,
+ * the wire facts through the existing formatters, and — only for
  * a vacancy the prototype enrichment knows — the featured marker, applicant
  * count, relative publication label, department, the complete normalized
  * description clipped to two lines, skills, benefits, pay cadence, response
@@ -57,7 +57,7 @@ const bookmarkClass = `${focusRing} grid size-10 shrink-0 place-items-center rou
  * server component: it forwards plain strings to the control and owns no fetch,
  * state, hook, request, storage, raw color, or inline style.
  */
-export function VacancyCard({ job, companyHref }: { job: PrototypeJobView | PublicJobItem; companyHref?: string }) {
+export function VacancyCard({ job }: { job: PrototypeJobView | PublicJobItem }) {
   if ("source" in job) return <PublicVacancyCard job={job} />;
   const prototype = job.prototype;
   const salary = formatSalary({ min: job.salary_min, max: job.salary_max, currency: job.salary_currency });
@@ -78,7 +78,7 @@ export function VacancyCard({ job, companyHref }: { job: PrototypeJobView | Publ
             <Link href={`/vacantes/${job.id}`} className={`min-w-0 hover:underline ${focusRing}`}>{job.title}</Link>
           </h3></CardTitle>
           <CardDescription>
-            {companyHref === undefined ? job.company.name : <Link href={companyHref} className={`font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground ${focusRing}`}>{job.company.name}</Link>}
+            {job.company.name}
           </CardDescription>
           {prototype !== undefined && <CardAction className="flex flex-wrap items-center justify-end gap-2">
             {prototype.featured && <Badge variant="accent" data-prototype-featured>Destacada</Badge>}

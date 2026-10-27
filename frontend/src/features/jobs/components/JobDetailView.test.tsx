@@ -16,8 +16,6 @@ import {
   workModeLabel,
 } from "../formatters";
 import { vacancyApplicationHref } from "../application/application-draft";
-import { PROTOTYPE_COMPANY_ID } from "../../company-profile/model";
-import { ACME_PROTOTYPE_PROFILE } from "../../company-profile/prototype-companies";
 import { enrichJob } from "../enrich";
 import type { PrototypeJobView } from "../enrich";
 import type { JobItem } from "../types";
@@ -31,14 +29,6 @@ vi.mock("@/components/ui/dropdown-menu", async (original) => ({
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div role="menu">{children}</div>,
 }));
 
-/** Font-size utilities share the `text-` prefix with the color utilities below. */
-const FONT_SIZE_TOKENS = new Set(["xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl"]);
-/** Every text-color utility a class list applies, keeping its variant prefix. */
-const textColorUtilities = (className: string) =>
-  className
-    .split(/\s+/)
-    .filter((utility) => utility.includes("text-"))
-    .filter((utility) => !FONT_SIZE_TOKENS.has(utility.slice(utility.lastIndexOf("text-") + 5)));
 /** Any Tailwind palette utility would be a raw color: only tokens are allowed. */
 const RAW_COLOR_UTILITY =
   /(?:^|\s|[a-z-]+:)(?:text|bg|border)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)-\d{2,3}(?:\s|$)/;
@@ -127,25 +117,6 @@ describe("JobDetailView validated rendering", () => {
 describe("JobDetailView prototype role block", () => {
   const enrichedJob = enrichJob(baseJob);
 
-  /**
-   * The company-profile link is body-sized, so WCAG AA requires 4.5:1: its
-   * base color must be the semantic `text-foreground` token, which is defined
-   * for the light and the dark theme alike, with no theme- or state-scoped
-   * color override, and its affordance must be the always-visible underline
-   * instead of hover only. `text-primary` reaches only ~2.1:1 on the dark
-   * page background, so it may not be the base or the hover text color.
-   */
-  const expectHighContrastBodyLink = (link: HTMLElement) => {
-    const { className } = link;
-    expect(className).toMatch(/(?:^|\s)text-(?:sm|base)(?:\s|$)/);
-    const colors = textColorUtilities(className);
-    expect(colors.length).toBeGreaterThan(0);
-    for (const color of colors) expect(color).toMatch(/^(?:[a-z-]+:)*text-foreground$/);
-    expect(className).not.toMatch(/(?:^|\s)(?:[a-z-]+:)*text-primary(?:\/\d+)?(?:\s|$)/);
-    expect(className).toMatch(/(?:^|\s)underline(?:\s|$)/);
-    expect(className).not.toMatch(/(?:^|\s)no-underline(?:\s|$)/);
-  };
-
   it("keeps one H1, the four description paragraphs, and no image or script", () => {
     const job: PrototypeJobView = { ...enrichedJob, description: UNSAFE_DESCRIPTION };
     const { container } = render(<JobDetailView job={job} />);
@@ -213,17 +184,13 @@ describe("JobDetailView prototype role block", () => {
     expect(salary).not.toContain(payFrequencyLabel(prototype.payFrequency));
   });
 
-  it("links to the canonical company profile without any disclosure copy", () => {
+  it("renders the company as plain text until jobs expose a published site slug", () => {
     render(<JobDetailView job={enrichedJob} />);
-    const link = screen.getByRole("link", { name: `Conoce a ${ACME_PROTOTYPE_PROFILE.name}` });
-    expect(link).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
-    expectHighContrastBodyLink(link);
+    expect(screen.getByText(baseJob.company.name).closest("a")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Conoce a/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: baseJob.company.name })).toBeNull();
     expect(screen.queryByText(/ficticia|prototipo/iu)).toBeNull();
     expect(screen.queryByRole("note")).toBeNull();
-    // The header company becomes a link only under that same exact opt-in match.
-    const company = screen.getByRole("link", { name: baseJob.company.name });
-    expect(company).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
-    expectHighContrastBodyLink(company);
   });
 
   it("omits the closing date when the enrichment declares none", () => {
@@ -258,7 +225,7 @@ describe("JobDetailView prototype role block", () => {
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((heading) =>
       Number(heading.tagName.slice(1)),
     );
-    expect(levels).toEqual([1, 2, 2, 2, 2, 2, 2, 3, 4, 4, 3, 3, 3, 3, 4, 3, 3, 3]);
+    expect(levels).toEqual([1, 2, 2, 2, 2, 2, 2, 3, 4, 4, 3, 3, 3, 3, 4, 3, 3]);
     levels.forEach((level, index) => {
       if (index > 0) expect(level - levels[index - 1]).toBeLessThanOrEqual(1);
     });
@@ -549,14 +516,10 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     expect([save.getAttribute("aria-pressed"), save.getAttribute("aria-label")]).toEqual([null, "Guardar vacante"]);
   });
 
-  it("renders the company profile context and canonical link in the rail", () => {
+  it("never invents company profile context for a vacancy", () => {
     const { container } = render(<JobDetailView job={enrichedJob} />);
-    const company = card(container, "company");
-    expect(company).not.toBeNull();
-    expect(within(company!).getByText(ACME_PROTOTYPE_PROFILE.companySize)).toBeVisible();
-    expect(within(company!).getByText(ACME_PROTOTYPE_PROFILE.location)).toBeVisible();
-    const link = within(company!).getByRole("link", { name: `Conoce a ${ACME_PROTOTYPE_PROFILE.name}` });
-    expect(link).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
+    expect(card(container, "company")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Conoce a/ })).toBeNull();
   });
 
   it("keeps only the wire salary card for a vacancy without prototype or profile", () => {
@@ -588,7 +551,7 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     const { container } = render(<JobDetailView job={enrichedJob} />);
     expect(card(container, "salary")).toBeNull();
     expect(card(container, "actions")).not.toBeNull();
-    expect(card(container, "company")).not.toBeNull();
+    expect(card(container, "company")).toBeNull();
     expect(card(container, "share")).not.toBeNull();
     expect(region(container, "rail")).toHaveTextContent(prototypeResponseLabel(enrichedJob.prototype!.responseTimeDays));
   });

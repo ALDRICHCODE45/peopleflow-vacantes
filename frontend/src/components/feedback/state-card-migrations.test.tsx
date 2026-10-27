@@ -11,7 +11,7 @@ it.each([
   "features/pipeline-movement/board-states.tsx",
   "features/pipeline-movement/candidate-sheet.tsx",
   "features/candidate-applications/wizard.tsx",
-  "features/company-profile/company-careers-view.tsx",
+  "features/company-site/public/company-jobs.tsx",
   "components/candidate-dashboard/candidate-dashboard-overview.tsx",
   "components/company-dashboard/active-vacancies.tsx",
   "components/company-dashboard/data-table.tsx",

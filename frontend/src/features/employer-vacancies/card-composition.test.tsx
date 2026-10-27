@@ -4,12 +4,9 @@ import "@testing-library/jest-dom/vitest";
 import { TeamWorkspace } from "@/features/employer-team/team-workspace";
 import { SectionCards } from "@/components/company-dashboard/section-cards";
 import { ActiveVacancies } from "@/components/company-dashboard/active-vacancies";
-import { CompanyCareersView } from "@/features/company-profile/company-careers-view";
-import { siteContentFromProfile } from "@/features/company-profile/company-site-content";
-import { ACME_PROTOTYPE_PROFILE } from "@/features/company-profile/prototype-companies";
-import { ACME_PROTOTYPE_JOBS } from "@/features/jobs/prototype-jobs";
-import { CompanySiteEditor } from "@/features/company-site-editor/company-site-editor";
-import { EmployerSessionProvider } from "@/features/company-site-editor/employer-session";
+import { CompanyJobs } from "@/features/company-site/public/company-jobs";
+import { CareersSiteEditorLoading } from "@/features/company-site/editor/editor-feedback";
+import { listItem, vacancyDetail } from "@/features/jobs/api/public-fixtures";
 import { BoardSkeleton } from "@/features/pipeline-movement/board-states";
 import { EmployerSettingsWorkspace } from "@/features/employer-settings/settings-workspace";
 import { VacancyPortfolio } from "./vacancy-portfolio";
@@ -36,29 +33,22 @@ it.each([
   }
 });
 
-it("keeps website actions in fact and vacancy footers, with mission and vacancy titles in headers", () => {
-  const { container } = render(<CompanyCareersView content={siteContentFromProfile(ACME_PROTOTYPE_PROFILE)} jobs={ACME_PROTOTYPE_JOBS} />);
-  for (const card of container.querySelectorAll('[data-slot="card"]')) {
-    for (const link of card.querySelectorAll('a')) {
-      expect(link.closest('[data-slot="card-title"], [data-slot="card-footer"]')).not.toBeNull();
-    }
-  }
-  const mission = container.querySelector('[data-pf-company-mission]');
-  expect(mission?.querySelector('[data-slot="card-header"] [data-slot="card-title"] h3')).toHaveTextContent("Nuestra misión");
-  for (const card of container.querySelectorAll('li > [data-slot="card"]')) {
-    expect(card.querySelector('[data-slot="card-title"] h3')).not.toBeNull();
-    expect(card.querySelector('[data-slot="card-description"]')).not.toBeNull();
-    expect(card.querySelector('[data-slot="card-footer"]')).not.toBeNull();
-  }
+it("composes current careers vacancy cards with a title, area, conditions and closing date", () => {
+  const { container } = render(<CompanyJobs jobs={[listItem(vacancyDetail)]} variant="cards" />);
+  const card = container.querySelector('[data-slot="card"]')!;
+  expect(card.querySelector('[data-slot="card-header"] [data-slot="card-title"] h3')).toHaveTextContent(vacancyDetail.title);
+  expect(card.querySelector('[data-slot="card-description"]')).not.toBeNull();
+  expect(card.querySelector('[data-slot="card-content"] [data-job-meta]')).not.toBeNull();
+  expect(card.querySelector('[data-slot="card-footer"] time')).toHaveAttribute("datetime", vacancyDetail.published_at);
+  expect(card.closest("a")).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}`);
 });
 
-it("gives the site readiness badge a header action and confirmation a footer", () => {
-  const { container } = render(<EmployerSessionProvider><CompanySiteEditor /></EmployerSessionProvider>);
-  const card = container.querySelector('[data-pf-sitio-readiness]')!;
-  expect(card.querySelector('[data-slot="card-header"] [data-slot="card-description"]')).not.toBeNull();
-  expect(card.querySelector('[data-slot="card-action"] [data-slot="badge"]')).not.toBeNull();
-  expect(card.querySelector('[data-slot="card-footer"] button')).toHaveTextContent("Confirmar nombre");
-  expect(container.querySelector('[data-pf-sitio-preview-surface] [data-slot="card-header"] [data-slot="card-title"] h2')).toHaveTextContent("Vista previa");
+it("mirrors the real editor toolbar, sections, preview and properties while loading", () => {
+  const { container } = render(<CareersSiteEditorLoading />);
+  for (const region of ["toolbar", "sections", "preview", "properties"]) {
+    expect(container.querySelector(`[data-editor-region="${region}"] [data-slot="skeleton"]`)).not.toBeNull();
+  }
+  expect(container.querySelector('[role="status"]')).toHaveTextContent("Cargando editor");
 });
 
 it("uses the Empty primitive for the dashboard's empty list", () => {

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PROTOTYPE_COMPANY_ID } from "../company-profile/model";
+import { PROTOTYPE_COMPANY_ID } from "./prototype-company";
 import type { PrototypeJobView } from "./enrich";
 import { jobItemSchema } from "./schemas";
 import type { JobItem } from "./types";
@@ -47,7 +47,7 @@ describe("prototype wire job fixtures", () => {
 
   it("keeps the local fixtures free of transport, schema, and state", () => {
     const specifiers = [...source.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]);
-    expect([...new Set(specifiers)].sort()).toEqual(["./enrich", "./types", "../company-profile/prototype-companies"].sort());
+    expect([...new Set(specifiers)].sort()).toEqual(["./enrich", "./types", "./prototype-company"].sort());
     expect(source).not.toMatch(/fetch\(|requestJson|axios|zod|schemas|"use client"|useState\(|useEffect\(|QueryClient|enrichJob\(|localStorage/u);
   });
 });

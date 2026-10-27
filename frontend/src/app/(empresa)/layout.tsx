@@ -2,7 +2,6 @@ import * as React from "react";
 import { cookies } from "next/headers";
 
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
-import { EmployerSessionProvider } from "@/features/company-site-editor/employer-session";
 import { IdentitySessionProvider } from "@/features/identity/identity-session";
 import { EmployerGuard } from "@/features/identity/area-guards";
 
@@ -21,9 +20,8 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
  * convention).
  *
  * This layout mounts the one shared employer frame for the whole group, so the
- * routes below it render as content only. It also mounts the shared employer
- * session above them, so route content can unmount and remount (for example, a
- * round trip to the company site) without losing the work in progress. Only the
+ * routes below it render as content only. Identity is session-scoped; the careers
+ * editor owns its persisted draft and autosave lifecycle. Only the
  * exact `sidebar_state` value `false` starts the desktop rail collapsed; absent,
  * malformed or `true` starts expanded.
  */
@@ -36,7 +34,7 @@ export default async function EmployerLayout({
   return (
     <IdentitySessionProvider>
       <EmployerShell defaultOpen={defaultOpen}>
-        <EmployerSessionProvider><EmployerGuard>{children}</EmployerGuard></EmployerSessionProvider>
+        <EmployerGuard>{children}</EmployerGuard>
       </EmployerShell>
     </IdentitySessionProvider>
   );

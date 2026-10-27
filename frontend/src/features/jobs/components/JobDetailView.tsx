@@ -26,8 +26,6 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { Item, ItemContent, ItemMedia } from "@/components/ui/item";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { findCompanyProfile } from "../../company-profile/model";
-import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
 import { vacancyApplicationHref } from "../application/application-draft";
 import type { JobLanguage, PrototypeJobView } from "../enrich";
 import type { PublicJobDetail } from "../types";
@@ -54,9 +52,6 @@ const WORK_MODE_ICONS = {
 const statTile = "grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-foreground";
 const statValue = "break-words font-medium text-foreground";
 const metaValue = "mt-0.5 font-medium break-words text-foreground";
-/* Body links keep `text-foreground` with an always-visible underline, because the accent token fails AA for body text on the dark page background. */
-const bodyLink =
-  "font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 /** The installed primary variant makes the real application link the focal action. */
 const actionPrimary = buttonVariants({ className: "min-h-11 w-full" });
 /** Secondary save affordance, styled for the toggle save island. */
@@ -118,19 +113,6 @@ function DescriptionParagraphs({ description }: { description: string }) {
       ))}
     </div>
   );
-}
-
-/**
- * The prototype profile a vacancy may link to: a profile is only eligible once
- * the prototype enrichment knows the vacancy, and only an exact profile id or
- * exact source-name match resolves. Everything else stays byte-honest.
- */
-function prototypeProfile(job: PrototypeJobView) {
-  if (job.prototype === undefined) return undefined;
-  return findCompanyProfile(PROTOTYPE_COMPANY_PROFILES, {
-    id: job.company.id,
-    name: job.company.name,
-  });
 }
 
 /**
@@ -333,18 +315,16 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
  * four stat cards, the structured role content (requirements, skill
  * chips, and token-only benefit tiles), and the responsive content/sticky-rail
  * scaffold. Only the wire description renders as `p` elements: every other
- * text node is a span, term, or definition. The company links to its canonical
- * profile only under the same exact opt-in match as that block; the rail
- * carries the wire salary, the real apply link and the save/share placeholder
- * controls, and the profile context, and it is omitted entirely when neither
- * salary nor an exact profile resolves. This view stays a server
+ * text node is a span, term, or definition. Company names remain plain text
+ * until the jobs API supplies a published careers-site slug. The rail carries
+ * the wire salary, the real apply link and the save/share placeholder controls;
+ * it is omitted when neither salary nor enrichment exists. This view stays a server
  * component: it forwards plain strings to the controls and owns no client
  * directive, hook, request, storage, or business mutation.
  */
 export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail }) {
   if ("source" in job) return <PublicJobDetailView job={job} />;
   const prototype = job.prototype;
-  const profile = prototypeProfile(job);
   const salary =
     job.salary_min !== undefined || job.salary_max !== undefined
       ? formatSalary({
@@ -392,11 +372,7 @@ export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail
           </h1></CardTitle>
           {prototype?.featured === true && <CardAction><Badge variant="accent" data-detail-flag="featured">Destacada</Badge></CardAction>}
           <CardDescription>
-              {profile === undefined ? (
-                <span>{job.company.name}</span>
-              ) : (
-                <Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} text-sm`}>{job.company.name}</Link>
-              )}
+              <span>{job.company.name}</span>
           </CardDescription>
         </CardHeader>
         {meta.length > 0 && <CardFooter>
@@ -436,7 +412,7 @@ export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail
           <PrototypeRoleSection job={job} />
         </div>
 
-        {(salary !== null || profile !== undefined) && (
+        {(salary !== null || prototype !== undefined) && (
           <aside data-detail-region="rail" className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-24 lg:self-start">
             {salary !== null && (
               <Card data-detail-card="salary">
@@ -465,22 +441,6 @@ export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail
                   Postularme
                   <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
                 </Link></CardFooter>
-              </Card>
-            )}
-
-            {profile !== undefined && (
-              <Card data-detail-card="company">
-                <CardHeader>
-                  <CardTitle><h3 className="flex items-center gap-3">
-                    <CompanyMonogram name={profile.name} size="compact" />{profile.name}
-                  </h3></CardTitle>
-                  <CardDescription className="flex flex-wrap items-center gap-x-1.5">
-                      <span>{profile.companySize}</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{profile.location}</span>
-                  </CardDescription>
-                </CardHeader>
-                <CardFooter><Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} inline-flex items-center gap-1.5 self-start text-sm`}>Conoce a {profile.name}</Link></CardFooter>
               </Card>
             )}
 

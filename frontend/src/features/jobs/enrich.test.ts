@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { PROTOTYPE_COMPANY_ID } from "../company-profile/model";
-import type { CompanyProfile } from "../company-profile/model";
-import { ACME_PROTOTYPE_PROFILE } from "../company-profile/prototype-companies";
+import { PROTOTYPE_COMPANY_ID, ACME_JOB_COMPANY as ACME_PROTOTYPE_PROFILE } from "./prototype-company";
+import type { PrototypeCompanyIdentity } from "./prototype-company";
 import {
   PROTOTYPE_JOB_ENRICHMENTS,
   enrichJob,
@@ -101,6 +100,16 @@ describe("prototype enrichment fixtures", () => {
   });
 });
 describe("enrichJob", () => {
+  it("preserves real public wire data without fictional enrichment", () => {
+    const real = wireJob("0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7daa", { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7dab", name: "Empresa real" }, { location: "Ciudad de México", salary_min: 25000, salary_max: 40000, published_at: "2026-10-26T12:00:00Z" });
+    const before = structuredClone(real);
+    const result = enrichJob(real);
+    expect(result).toEqual(before);
+    expect(result).not.toBe(real);
+    expect(result.company).toBe(real.company);
+    expect(result).not.toHaveProperty("prototype");
+    expect(real).toEqual(before);
+  });
   it("preserves every canonical wire field and never mutates its input", () => {
     const view = enrichJob(frontendJob);
     const snapshot = JSON.parse(JSON.stringify(frontendJob));
@@ -141,7 +150,7 @@ describe("jobsForPrototypeCompany", () => {
     expect(views[0].prototype).toBe(PROTOTYPE_JOB_ENRICHMENTS[FRONTEND_ID]);
     expect(views[1].prototype).toBe(PROTOTYPE_JOB_ENRICHMENTS[GO_ID]);
     expect(jobsForPrototypeCompany([goJob, frontendJob], ACME_PROTOTYPE_PROFILE).map((view: PrototypeJobView) => view.id)).toEqual([GO_ID, FRONTEND_ID]);
-    const unknownProfile: CompanyProfile = { ...ACME_PROTOTYPE_PROFILE, companyId: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99", sourceName: "Otra Empresa" };
+    const unknownProfile: PrototypeCompanyIdentity = { ...ACME_PROTOTYPE_PROFILE, companyId: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99", sourceName: "Otra Empresa" };
     expect(jobsForPrototypeCompany([otherJob, lowercaseJob], ACME_PROTOTYPE_PROFILE)).toEqual([]);
     expect(jobsForPrototypeCompany([frontendJob], unknownProfile)).toEqual([]);
     expect(jobsForPrototypeCompany([], ACME_PROTOTYPE_PROFILE)).toEqual([]);
@@ -154,10 +163,10 @@ describe("jobsForPrototypeCompany", () => {
   });
 });
 describe("enrichment source boundary", () => {
-  it("type-imports only the wire type and the sibling profile model", () => {
+  it("type-imports only the wire type and the local demo identity", () => {
     const specifiers = [...enrichSource.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]);
     const imports = enrichSource.match(/^import .*$/gmu) ?? [];
-    expect([...specifiers].sort()).toEqual(["./types", "../company-profile/model"].sort());
+    expect([...specifiers].sort()).toEqual(["./types", "./prototype-company"].sort());
     expect(imports.length).toBeGreaterThan(0);
     for (const line of imports) expect(line.startsWith("import type ")).toBe(true);
   });

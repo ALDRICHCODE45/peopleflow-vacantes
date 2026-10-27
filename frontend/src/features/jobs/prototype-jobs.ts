@@ -1,4 +1,4 @@
-import { ACME_PROTOTYPE_PROFILE } from "../company-profile/prototype-companies";
+import { ACME_JOB_COMPANY } from "./prototype-company";
 import type { PrototypeJobView } from "./enrich";
 import { jobsForPrototypeCompany } from "./enrich";
 import type { JobItem } from "./types";
@@ -27,5 +27,5 @@ export const ACME_WIRE_JOBS: readonly JobItem[] = Object.freeze(ACME_WIRE_JOB_SO
  * each job, so the wire fixtures stay intact.
  */
 export const ACME_PROTOTYPE_JOBS: readonly PrototypeJobView[] = Object.freeze(
-  jobsForPrototypeCompany(ACME_WIRE_JOBS, ACME_PROTOTYPE_PROFILE).map((view: PrototypeJobView) => Object.freeze(view)),
+  jobsForPrototypeCompany(ACME_WIRE_JOBS, ACME_JOB_COMPANY).map((view: PrototypeJobView) => Object.freeze(view)),
 );
