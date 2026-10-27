@@ -43,6 +43,8 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
   const cancelRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const alive = useRef(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const objectUrl = useRef<string | null>(null);
   const [source, setSource] = useState<Source | null>(null);
   const [cropperReady, setCropperReady] = useState(false);
@@ -115,7 +117,7 @@ function ImageFieldSlot({ kind, label, description, value, onChange, previewUrl,
       if (!alive.current) return;
       if (result.ok) {
         setPending(null);
-        onChange({ media_id: result.data.id }, result.data);
+        onChangeRef.current({ media_id: result.data.id }, result.data);
         setAnnouncement("Imagen actualizada");
       } else setLocalError(result.message);
     } catch {

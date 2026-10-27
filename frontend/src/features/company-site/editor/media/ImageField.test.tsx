@@ -1,5 +1,8 @@
 import "@testing-library/jest-dom/vitest";
-import { useEffect } from "react";
+import { useEffect, useReducer } from "react";
+import { SectionForm } from "../forms/section-form";
+import { defaultBlock, defaultSiteDraft } from "../../defaults";
+import { createEditorState, editorReducer } from "../../editor-state";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +11,11 @@ import { uploadMedia } from "../../upload";
 import { cropImage } from "./crop-image";
 import type { ImageFieldProps } from "./contract";
 
+// Keep both collection items mounted while editing another item's text.
+vi.mock("@/components/ui/accordion", async original => {
+  const parts = await original<typeof import("@/components/ui/accordion")>();
+  return { ...parts, Accordion: (props: React.ComponentProps<typeof parts.Accordion>) => <parts.Accordion {...props} multiple /> };
+});
 vi.mock("../../upload", () => ({ uploadMedia: vi.fn() }));
 vi.mock("./crop-image", () => ({ cropImage: vi.fn() }));
 vi.mock("react-easy-crop", () => ({ default: function Cropper({ aspect, keyboardStep, onCropComplete }: { aspect: number; keyboardStep: number; onCropComplete: (area: unknown, pixels: unknown) => void }) {
@@ -130,6 +138,54 @@ describe("ImageField", () => {
     expect(uploadMedia).toHaveBeenCalledTimes(2);
     expect(vi.mocked(uploadMedia).mock.calls[0][1]).toBe(vi.mocked(uploadMedia).mock.calls[1][1]);
     expect(cropImage).toHaveBeenCalledOnce();
+  });
+  it.each([false, true])("uses the latest callback after deferred upload (retry: %s)", async retry => {
+    let finish!: (value: Awaited<ReturnType<typeof uploadMedia>>) => void;
+    if (retry) vi.mocked(uploadMedia).mockResolvedValueOnce({ ok: false, message: "Retry" });
+    const { onChange, rerender } = mount();
+    if (!retry) vi.mocked(uploadMedia).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Usar imagen" }));
+    if (retry) {
+      vi.mocked(uploadMedia).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      await userEvent.click(await screen.findByRole("button", { name: "Reintentar subida" }));
+    }
+    await screen.findByText("Subiendo imagen…");
+    const latest = vi.fn();
+    rerender(<ImageField kind="cover" label="Imagen de portada" value={null} onChange={latest} />);
+    await act(async () => finish({ ok: true, data: uploaded }));
+    expect(latest).toHaveBeenCalledWith({ media_id: uploaded.id }, uploaded);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+  it.each(["hero", "gallery"] as const)("preserves intervening %s form edits during upload", async type => {
+    const block = defaultBlock(type);
+    if (block.type === "gallery") block.content.items = [
+      { image: null, alt: "First", caption: null }, { image: null, alt: "Second", caption: null },
+    ];
+    const draft = defaultSiteDraft();
+    draft.blocks = [block];
+    const initial = createEditorState({ draft, draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-01-01T00:00:00Z" }, '"1"');
+    function Harness() {
+      const [state, dispatch] = useReducer(editorReducer, initial);
+      return <><SectionForm block={state.draft.blocks[0]} dispatch={dispatch} fieldErrors={[]} /><output data-testid="content">{JSON.stringify(state.draft.blocks[0].content)}</output></>;
+    }
+    let finish!: (value: Awaited<ReturnType<typeof uploadMedia>>) => void;
+    vi.mocked(uploadMedia).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<Harness />);
+    fireEvent.change(screen.getAllByLabelText(/^Archivo de /)[0], { target: { files: [new File(["image"], "photo.png", { type: "image/png" })] } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Usar imagen" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Usar imagen" }));
+    await screen.findByText("Subiendo imagen…");
+    if (type === "gallery") fireEvent.click(screen.getByRole("button", { name: "Second" }));
+    const input = type === "hero" ? screen.getByLabelText("Título principal") : screen.getAllByLabelText("Texto alternativo").at(-1)!;
+    fireEvent.change(input, { target: { value: "Edited while uploading" } });
+    await act(async () => finish({ ok: true, data: uploaded }));
+    const content = JSON.parse(screen.getByTestId("content").textContent!);
+    if (type === "hero") expect(content).toMatchObject({ title: "Edited while uploading", cover: { media_id: uploaded.id } });
+    else expect(content.items).toEqual([
+      { image: { media_id: uploaded.id }, alt: "First", caption: null },
+      { image: null, alt: "Edited while uploading", caption: null },
+    ]);
   });
   it("renders a filled slot and removes without a confirmation", async () => {
     const { onChange } = mount({ value: { media_id: "existing" }, previewUrl: () => "/media/existing" });
