@@ -291,6 +291,7 @@ func run() error {
 	pipelineHandler := jobshttp.NewPipelineHandler(draftStore)
 	substatesHandler := jobshttp.NewSubstatesHandler(draftStore)
 	checklistHandler := jobshttp.NewChecklistHandler(draftStore)
+	checklistMarksHandler := jobshttp.NewChecklistMarksHandler(draftStore)
 	deliveryHandler := jobshttp.NewDeliveryHandler(draftStore)
 	managementHandler := jobshttp.NewManagementHandler(draftStore)
 	publicationHandler := jobshttp.NewPublicationHandler(draftStore)
@@ -378,7 +379,8 @@ func run() error {
 		// nil defaults for both. Still no exporter, no metrics endpoint.
 		readinessLogger: slog.Default(), readinessMetrics: runtimemetrics.Default,
 
-		checklistHandler: checklistHandler,
+		checklistHandler:      checklistHandler,
+		checklistMarksHandler: checklistMarksHandler,
 	})
 	// Hardened server + lifecycle from the runtime packages (WS6B-1a):
 	// Run serves until ctx is cancelled, drains with the configured

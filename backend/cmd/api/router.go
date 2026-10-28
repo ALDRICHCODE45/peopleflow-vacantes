@@ -75,7 +75,8 @@ type routerDeps struct {
 	readinessLogger  *slog.Logger
 	readinessMetrics rtmetrics.ReadinessMetrics
 
-	checklistHandler *jobshttp.ChecklistHandler
+	checklistHandler      *jobshttp.ChecklistHandler
+	checklistMarksHandler *jobshttp.ChecklistMarksHandler
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -238,6 +239,9 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.GetPipeline)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.PutPipeline)
 		r.Post("/v2/me/company/job-drafts/{id}/pipeline/preview", pipelineHandlers.PreviewPipeline)
+		r.Get("/v2/me/company/job-drafts/{id}/checklist/marks", d.checklistMarksHandler.Get)
+		r.Put("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Put)
+		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Delete)
 		r.Get("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.GetChecklist)
 		r.Put("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.PutChecklist)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.GetSubstates)

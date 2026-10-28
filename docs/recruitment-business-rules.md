@@ -158,6 +158,7 @@ This is the default list, not a requirement to pass through `Descartados` as a n
 
 - `GET/PUT /v2/me/company/job-drafts/{id}/checklist` stores ordered criteria and current reminder stages. GET returns version `0` and empty arrays before the first save; PUT requires the opaque checklist ETag in `If-Match`. Identical stored replacements do not increment the version or emit an event. GET hides retired reminder stages.
 - Checklist access uses the recruiter owner-or-principal gate (foreign/non-principal vacancies are `404`). Finished processes reject writes with `409 process_finished`; reads remain available. Criteria inform comparison only; the backend does not evaluate, reject or move candidates in v1.
+- `GET …/checklist/marks` returns current-criterion marks for all participations of the process, including discarded candidates, ordered by participation/criterion. `PUT/DELETE …/participations/{pid}/checklist-marks/{criterion_id}` sets or clears a recruiter verdict (`met`/`not_met`, optional trimmed note up to 500 characters). Writes are last-write-wins; identical writes and absent deletes are no-ops. Removing a criterion hides, but retains, its marks; re-adding its ID restores them. Recruiter names are resolved at read time.
 
 ## 6. Delivery configuration, cutoff and commitment date
 
@@ -320,6 +321,7 @@ This is the default list, not a requirement to pass through `Descartados` as a n
 - **AUD-4.** Record when an edit itself caused fulfillment.
 - **AUD-5.** Record acting user, previous/new assignee and timestamp on assignment changes (see ASG-4).
 - **AUD-6.** Checklist replacement co-writes `JobDraftChecklistConfigured` (`job_draft`) with version and complete `previous`/`new` checklist snapshots encoded as JSON strings. Rejected writes and identical stored replacements produce no event.
+- **AUD-7.** Mark changes co-write `ParticipationChecklistMarked` (`process_participation`) with `vacancy_id`, `criterion_id` and JSON-string `previous`/`new` verdict/note snapshots (`"null"` when absent). No-ops and rejected writes produce no event.
 
 ## 15. Worked examples (agreed behavior)
 
