@@ -6,6 +6,19 @@ import { defaultBlock, defaultSiteDraft, BLOCK_LIBRARY, STANDARD_BENEFITS } from
 import { blockSchema, siteDraftSchema, publishIssues, testimonialsBlockSchema, ICONS } from "./model";
 
 type RecordValue = Record<string, unknown>;
+
+it("reads office locations the API returns with null state, municipality and postal code", () => {
+  const draft = defaultSiteDraft();
+  const offices = defaultBlock("offices");
+  (offices.content as { items: RecordValue[] }).items = [{ name: "Oficina Principal", address: null, map_url: null, location: { country: "MX", state: null, municipality: null, postal_code: null } }];
+  draft.blocks.splice(1, 0, offices);
+  const parsed = siteDraftSchema.safeParse(draft);
+  expect(parsed.success).toBe(true);
+  const block = parsed.success ? parsed.data.blocks[1] : undefined;
+  expect(block?.type === "offices" && block.content.items[0].location).toEqual({ country: "MX" });
+  const state = siteStateSchema.safeParse({ draft, draft_version: 89, published: null, has_unpublished_changes: true, media: [], updated_at: "2026-10-27T00:00:00Z" });
+  expect(state.success).toBe(true);
+});
 const rich = (text: string) => ({ schema_version: 1, document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] } });
 const media = { media_id: "c166f6ce-e0e9-4e20-916a-90828ef36273" };
 const items = {

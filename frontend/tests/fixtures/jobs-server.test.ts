@@ -125,14 +125,14 @@ test("authenticated draft starts from Nexo's snapshot and saves canonically with
   expect(state.has_unpublished_changes).toBe(true);
   expect(state.published).toEqual(initial.published);
   const noop = await siteRequest("/draft", "PUT", draft, '"2"');
-  expect(await noop.json()).toEqual(state);
+  expect(siteStateSchema.parse(await noop.json())).toEqual(state);
   expect(noop.headers.get("etag")).toBe('"2"');
   const stale = await siteRequest("/draft", "PUT", initial.draft, '"1"');
   expect(stale.status).toBe(412);
   expect(stale.headers.get("etag")).toBe('"2"');
   expect(decodeFailure(412, await stale.json())).toEqual({ kind: "conflict", current: state });
   expect(await readDraft()).toEqual(state);
-  expect(await json("/v2/company-sites/nexo-labs")).toEqual(snapshot);
+  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs"))).toEqual(snapshot);
 });
 
 test("draft validation and preconditions reject without mutations; slug availability matches saves", async () => {
@@ -211,10 +211,10 @@ test("owner publication copies the draft, filters hidden blocks, moves slugs and
   const snapshot = publicSiteSchema.parse(await json("/v2/company-sites/nuevo-nexo"));
   expect(snapshot.site.blocks.some(block => block.type === "story")).toBe(false);
   expect(snapshot.media.some(item => item.kind === "story")).toBe(false);
-  expect(await json("/v2/company-sites/nexo-labs")).toEqual(snapshot);
+  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs"))).toEqual(snapshot);
   draft.seo.title = "Todavía privado";
   await siteRequest("/draft", "PUT", draft, '"2"');
-  expect(await json("/v2/company-sites/nuevo-nexo")).toEqual(snapshot);
+  expect(publicSiteSchema.parse(await json("/v2/company-sites/nuevo-nexo"))).toEqual(snapshot);
   for (let i = 0; i < 2; i++) {
     const response = await siteRequest("/unpublish", "POST");
     expect(response.status).toBe(200);

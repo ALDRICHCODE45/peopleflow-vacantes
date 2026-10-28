@@ -86,11 +86,18 @@ const blocks = [
   ["closing", "banner", { title: "Construye algo que importe", text: "Tu talento puede abrir nuevas puertas para miles de personas. Da el siguiente paso y encuentra tu equipo en Nexo Labs." }],
 ].map(([type, variant, content], index) => ({ id: `b478fb93-71b8-47bf-8eaa-b726d63e04${String(index).padStart(2, "0")}`, type, variant, hidden: false, content }));
 
+/** Like the API, store office locations with every part present (unset parts as null). */
+const storedShape = document => ({ ...document, blocks: document.blocks.map(block => block.type !== "offices" ? block : {
+  ...block, content: { ...block.content, items: block.content.items.map(item => ({
+    ...item, location: item.location && { country: item.location.country, state: item.location.state ?? null, municipality: item.location.municipality ?? null, postal_code: item.location.postal_code ?? null },
+  })) },
+}) });
+
 export function createCompanySitesFixture() {
   let state, draft, version, published, snapshot, updatedAt, controls, history, uploads;
   const reset = () => {
     state = { brand: "orange", font: "modern", jobs: "default" };
-    draft = siteDraftSchema.parse({ slug: "nexo-labs", theme: { brand_color: colors.orange, font_pair: "modern" }, seo: { title: "Trabaja en Nexo Labs | Tu siguiente gran paso", description: "Construye tecnología con propósito desde México. Conoce nuestra cultura, beneficios y vacantes remotas, híbridas y presenciales. Encuentra tu lugar en Nexo." }, blocks: structuredClone(blocks) });
+    draft = storedShape(siteDraftSchema.parse({ slug: "nexo-labs", theme: { brand_color: colors.orange, font_pair: "modern" }, seo: { title: "Trabaja en Nexo Labs | Tu siguiente gran paso", description: "Construye tecnología con propósito desde México. Conoce nuestra cultura, beneficios y vacantes remotas, híbridas y presenciales. Encuentra tu lugar en Nexo." }, blocks: structuredClone(blocks) }));
     version = 1;
     published = { version, slug: draft.slug, published_at: initialTime };
     snapshot = structuredClone(draft);
@@ -141,7 +148,8 @@ export function createCompanySitesFixture() {
       if (!parsed.success) return fail(400, "validation_error", { fields: draftFieldErrors(parsed.error.issues) });
       const refs = [...JSON.stringify(parsed.data).matchAll(/"media_id":"([^"]+)"/g)].map(match => match[1]);
       if (refs.some(id => !allMedia().some(item => item.id === id))) return fail(400, "validation_error", { fields: [{ field: "blocks", code: "invalid" }] });
-      if (JSON.stringify(parsed.data) !== JSON.stringify(draft)) { draft = parsed.data; changed(); }
+      const stored = storedShape(parsed.data);
+      if (JSON.stringify(stored) !== JSON.stringify(draft)) { draft = stored; changed(); }
     } else if (suffix === "/publish") {
       const issues = publishIssues(draft, { name: company.name, logo_url: media[0].url });
       if (issues.length) return fail(422, "publish_blocked", { issues });
