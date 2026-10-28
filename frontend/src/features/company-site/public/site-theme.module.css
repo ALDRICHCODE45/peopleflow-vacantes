@@ -3,9 +3,22 @@
   --site-brand: var(--site-brand-light);
   --site-on-brand: var(--site-on-brand-light);
   --site-brand-text: var(--site-brand-text-light);
-  --primary: var(--site-brand);
-  --primary-foreground: var(--site-on-brand);
-  --ring: var(--site-brand);
+  --site-accent: var(--site-accent-light, var(--site-brand));
+  --site-on-accent: var(--site-on-accent-light, var(--site-on-brand));
+  --site-banner-accent: var(--site-banner-accent-light, var(--site-on-brand));
+  --site-on-banner-accent: var(--site-on-banner-accent-light, var(--site-brand));
+  --background: var(--site-page-light, #F7F5FB);
+  --card: var(--site-card-light, #FFFFFF);
+  --foreground: var(--site-foreground-light, #1A1626);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --border: color-mix(in srgb, var(--foreground) 18%, var(--background));
+  --muted-foreground: var(--site-secondary-light, #6B6480);
+  --muted: var(--site-muted-light, #F1EEF7);
+  --primary: var(--site-accent);
+  --primary-foreground: var(--site-on-accent);
+  --ring: var(--site-ring-light, var(--site-brand));
   --site-band: var(--site-band-light);
   --font-heading: var(--font-sans), sans-serif;
   font-family: var(--font-sans), sans-serif;
@@ -15,6 +28,16 @@
   --site-on-brand: var(--site-on-brand-dark);
   --site-brand-text: var(--site-brand-text-dark);
   --site-band: var(--site-band-dark);
+  --site-accent: var(--site-accent-dark, var(--site-brand));
+  --site-on-accent: var(--site-on-accent-dark, var(--site-on-brand));
+  --site-banner-accent: var(--site-banner-accent-dark, var(--site-on-brand));
+  --site-on-banner-accent: var(--site-on-banner-accent-dark, var(--site-brand));
+  --background: var(--site-page-dark, #0C0912);
+  --card: var(--site-card-dark, #15121F);
+  --foreground: var(--site-foreground-dark, #F6F2FF);
+  --muted-foreground: var(--site-secondary-dark, #A79FBF);
+  --muted: var(--site-muted-dark, #171226);
+  --ring: var(--site-ring-dark, var(--site-brand));
 }
 .site[data-font-pair="editorial"] {
   --font-heading: var(--font-site-editorial), serif;
@@ -23,9 +46,20 @@
   --font-heading: var(--font-site-modern), sans-serif;
   font-family: var(--font-site-modern), sans-serif;
 }
-.site :is(h1, h2, h3) { font-family: var(--font-heading); }
+.site :is(h1, h2, h3, [data-slot="sheet-title"]) { font-family: var(--font-heading); }
+/* The site root must not establish a fixed-position containing block: sheets
+   use the document viewport, including inside the preview iframe. */
+@media (prefers-reduced-motion: reduce) {
+  .site [data-slot="sheet-content"],
+  .site [data-slot="combobox-content"] {
+    translate: none;
+    transform: none;
+    animation: none;
+    transition-property: opacity;
+  }
+}
 /* One contrast decision owns every foreground on a brand surface in either theme. */
-.site :is([data-brand-surface], [data-brand-banner]) {
+.site [data-brand-banner] {
   --site-surface-foreground: var(--site-on-brand);
   --foreground: var(--site-surface-foreground);
   --card-foreground: var(--site-surface-foreground);
@@ -33,14 +67,21 @@
   --primary-foreground: var(--site-surface-foreground);
   --ring: var(--site-surface-foreground);
 }
+/* CTA surfaces use accent, while banners and their copy remain principal. */
+.site [data-brand-surface] {
+  --site-surface-foreground: var(--site-on-accent);
+  --foreground: var(--site-surface-foreground);
+  --muted-foreground: var(--site-surface-foreground);
+}
 /* Link primitives consume text-strength ink without changing brand fills. */
 .site [data-brand-text-link] {
   --primary: var(--site-brand-text);
 }
-/* Solid inverse CTA: the brand's readable ink becomes its background. */
+/* Null accent preserves the inverse principal CTA; explicit accent gets its own ink. */
 .site [data-brand-inverse] {
-  --primary: var(--site-surface-foreground);
-  --primary-foreground: var(--site-brand);
+  --primary: var(--site-banner-accent);
+  --primary-foreground: var(--site-on-banner-accent);
+  --ring: var(--site-on-brand);
 }
 /* Re-theme the primitives, not their individual children. Socials use ghost on brand. */
 .site [data-brand-banner] {
@@ -49,4 +90,45 @@
   --primary: var(--site-brand);
   --muted: color-mix(in srgb, var(--site-brand), var(--site-on-brand) 10%);
   --border: color-mix(in srgb, var(--site-brand), var(--site-on-brand) 35%);
+}
+/* Inputs and neutral hover surfaces must use the same measured luminance
+   pole, including a black background chosen in the light theme. */
+.site[data-site-palette="true"] {
+  --input: var(--muted);
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+  --accent: var(--muted);
+  --accent-foreground: var(--foreground);
+}
+.site[data-site-palette="true"] [data-slot="badge"] {
+  --secondary: var(--site-accent);
+  --secondary-foreground: var(--site-on-accent);
+}
+/* Popup fields may share their white/dark fill with the popup. An opaque
+   foreground boundary stays >= 4.5:1 on both the page and card poles, exceeding
+   the 3:1 field-boundary minimum without weakening text or the focus ring. */
+.site :is([data-slot="sheet-content"], [data-slot="combobox-content"], [data-slot="popover-content"]) {
+  --input: var(--background);
+  --muted: var(--background);
+  --site-field-border: var(--foreground);
+}
+.site :is([data-slot="sheet-content"], [data-slot="combobox-content"], [data-slot="popover-content"]) :is([data-slot="combobox-chips"], [data-slot="input-group"], [data-slot="input"]:not([data-slot="input-group"] *), [data-slot="textarea"]:not([data-slot="input-group"] *)) {
+  border-color: var(--site-field-border);
+}
+/* Bare focusables need an outline, but primitives (including their inner
+   inputs) and custom ring owners must not receive a second rectangular cue. */
+.site[data-site-palette="true"] :focus-visible:not([data-slot]):not([class*="focus-visible:ring"]) {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+/* Alpha hover fills can undo AA near the threshold. Preserve the tested fill;
+   an underline supplies the static hover cue without changing its pixels. */
+@media (hover: hover) {
+  .site[data-site-palette="true"] [class~="bg-primary"]:hover {
+    background-color: var(--primary);
+    text-decoration: underline;
+  }
+}
+.site[data-site-palette="true"] [data-brand-banner] {
+  --muted: var(--site-brand);
 }

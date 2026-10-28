@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import "@testing-library/jest-dom/vitest";
 import { CompanySitePage } from "./company-site-page";
 import { publishedFixture, mediaId } from "./fixtures.test-support";
+import { publicSiteSchema } from "./schema";
 import { blockSchema, ICONS, type BlockType } from "../model";
 import { defaultBlock } from "../defaults";
 import { vacancyDetail, listItem } from "@/features/jobs/api/public-fixtures";
@@ -13,8 +14,8 @@ const image = { media_id: mediaId };
 const content: Record<BlockType, unknown> = {
   hero: { title: "Nuestro siguiente capítulo", subtitle: "Creamos juntos", cover: image },
   story: { title: "Nuestra historia", body: vacancyDetail.description, image },
-  values: { mission: "Hacemos equipo", items: [{ icon: "rocket", title: "Curiosidad", description: "Exploramos juntos" }] },
-  benefits: { items: [{ icon: "coffee", title: "Café compartido", description: "Tiempo para conectar" }] },
+  values: { mission: "Hacemos equipo", items: [{ icon: "rocket", emoji: null, title: "Curiosidad", description: "Exploramos juntos" }] },
+  benefits: { items: [{ icon: "coffee", emoji: null, title: "Café compartido", description: "Tiempo para conectar" }] },
   stats: { items: [{ value: "Monterrey", label: "Nuestra casa" }] },
   process: { items: [{ title: "Conversación", description: "Conócenos", duration: "30 minutos" }] },
   gallery: { items: [{ image, alt: "Equipo conversando", caption: "Primera foto" }, { image, alt: "Oficina luminosa", caption: "Segunda foto" }] },
@@ -27,6 +28,15 @@ const content: Record<BlockType, unknown> = {
 };
 const variants: Record<BlockType, string[]> = { hero: ["photo", "split", "centered"], story: ["text", "text_image"], values: ["grid", "list"], benefits: ["grid", "compact"], stats: ["row", "cards"], process: ["steps", "timeline"], gallery: ["grid", "mosaic", "carousel"], testimonials: ["cards", "quote"], video: ["wide", "split"], offices: ["list", "cards"], jobs: ["list", "cards", "by_area"], faq: ["accordion", "two_columns"], closing: ["banner", "simple"] };
 const expected: Record<BlockType, string> = { hero: "Nuestro siguiente capítulo", story: "Construye servicios seguros.", values: "Curiosidad", benefits: "Café compartido", stats: "Monterrey", process: "Conversación", gallery: "Primera foto", testimonials: "Mis ideas importan", video: "Así trabajamos", offices: "Oficina central", jobs: vacancyDetail.title, faq: "¿Cómo empiezo?", closing: "Te esperamos" };
+it.each([undefined, null])("reads a legacy public decoration with emoji %s, but keeps unknown keys invalid", emoji => {
+  const data = publishedFixture();
+  const block = { ...defaultBlock("values"), content: { mission: null, items: [{ icon: null, ...(emoji === undefined ? {} : { emoji }), title: "Legado", description: null }] } };
+  const value = { ...data, site: { ...data.site, blocks: [...data.site.blocks, block] } };
+  const parsed = publicSiteSchema.parse(value);
+  const read = parsed.site.blocks.at(-1)!;
+  expect(read.type === "values" && read.content.items[0]).toEqual({ icon: null, emoji: null, title: "Legado", description: null });
+  expect(publicSiteSchema.safeParse({ ...value, site: { ...value.site, blocks: [...data.site.blocks, { ...block, content: { ...block.content, extra: true } }] } }).success).toBe(false);
+});
 it.each(Object.entries(variants).flatMap(([type, names]) => names.map(variant => [type as BlockType, variant] as const)))("%s / %s renders content with variant-specific composition", async (type, variant) => {
   const data = publishedFixture();
   const block = blockSchema.parse({ ...defaultBlock(type), variant, content: content[type] });
@@ -55,9 +65,21 @@ it.each(Object.entries(variants).flatMap(([type, names]) => names.map(variant =>
   if (type === "gallery") expect(section.querySelector('[aria-roledescription="carrusel"]') !== null).toBe(variant === "carousel");
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
 });
+it.each([["values", "grid"], ["values", "list"], ["benefits", "grid"], ["benefits", "compact"]] as const)("renders emoji in %s / %s without an extra text alternative", async (type, variant) => {
+  const data = publishedFixture();
+  const block = blockSchema.parse({ ...defaultBlock(type), variant, content: { ...(type === "values" ? { mission: null } : {}), items: [{ icon: null, emoji: "👩‍💻", title: "Tecnología", description: null }] } });
+  data.site.blocks.push(block);
+  const { container } = render(await CompanySitePage({ data, jobs: [] }));
+  const section = container.querySelector(`[data-block-id="${block.id}"]`) ?? container.querySelector(`[data-block-type="${type}"]:last-of-type`);
+  const emoji = container.querySelector('[data-site-emoji]');
+  expect(emoji).toHaveTextContent("👩‍💻");
+  expect(emoji).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByRole("heading", { name: "Tecnología" })).toBeVisible();
+  expect(section ?? emoji).not.toBeNull();
+});
 it.each(ICONS)("maps each contract icon: %s", async icon => {
   const data = publishedFixture();
-  data.site.blocks.push(blockSchema.parse({ ...defaultBlock("values"), content: { mission: null, items: [{ icon, title: "Vale", description: null }] } }));
+  data.site.blocks.push(blockSchema.parse({ ...defaultBlock("values"), content: { mission: null, items: [{ icon, emoji: null, title: "Vale", description: null }] } }));
   const { container } = render(await CompanySitePage({ data, jobs: [] }));
   const svg = container.querySelector(`[data-site-icon="${icon}"]`);
   expect(svg?.tagName.toLowerCase()).toBe("svg");

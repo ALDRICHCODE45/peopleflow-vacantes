@@ -29,8 +29,8 @@ it("renders all 13 block contents in order, one H1, visible anchor navigation, p
   const contents: Record<BlockType, unknown> = {
     hero: data.site.blocks[0].content,
     story: { title: "Nuestra historia", body: vacancyDetail.description, image: { media_id: mediaId } },
-    values: { mission: "Una misión compartida", items: [{ icon: "heart", title: "Respeto", description: "Escuchamos" }] },
-    benefits: { items: [{ icon: "home", title: "Flexibilidad", description: "Elige tu horario" }] },
+    values: { mission: "Una misión compartida", items: [{ icon: "heart", emoji: null, title: "Respeto", description: "Escuchamos" }] },
+    benefits: { items: [{ icon: "home", emoji: null, title: "Flexibilidad", description: "Elige tu horario" }] },
     stats: { items: [{ value: "42", label: "Personas" }] },
     process: { items: [{ title: "Conversación", description: "Conócenos", duration: "30 minutos" }] },
     gallery: { items: [{ image: { media_id: mediaId }, alt: "Equipo en el taller", caption: "Un día juntos" }] },
@@ -127,7 +127,7 @@ it("filters by modalidad and estado through the real controls without a network 
   const panel = await screen.findByRole("dialog", { name: "Filtrar vacantes" });
   expect(panel.querySelector('[data-slot="sheet-header"] [data-slot="sheet-title"]')).not.toBeNull();
   expect(within(panel).getByRole("combobox", { name: "Modalidad" })).toBeEnabled();
-  expect(within(panel).getByRole("combobox", { name: "Estado" })).toBeEnabled();
+  expect(within(panel).getByRole("combobox", { name: "Ubicación" })).toBeEnabled();
   fireEvent.click(within(panel).getByRole("option", { name: "Híbrido" }));
   fireEvent.click(within(panel).getByRole("option", { name: "Ciudad de México" }));
   expect(panel.querySelector('[data-slot="sheet-footer"] [role="status"]')).toHaveTextContent("1 vacante coincide");

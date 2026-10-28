@@ -94,6 +94,15 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
   }
   return {
     flush: flushLatest,
+    /** Explicit retry never bypasses authentication or conflict resolution. */
+    retry() {
+      if (disposed || snapshot.status.kind !== "error" || snapshot.status.failure.kind === "unauthenticated") return flushLatest();
+      // The failed response may hide a completed write. Retry the current
+      // document even if the user reverted to the last confirmed baseline.
+      unconfirmed = true;
+      emit(snapshot.editor, { kind: "idle" });
+      return flushLatest();
+    },
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     dispatch(action: EditAction) {
@@ -101,7 +110,9 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
       const before = snapshot.editor;
       const editor = editorReducer(before, action);
       const edited = !sameDraft(before.draft, editor.draft);
-      emit(editor, snapshot.status);
+      // Returning to the confirmed saved draft leaves nothing to fix or save.
+      const settled = edited && !editor.dirty && !inFlight && !unconfirmed && snapshot.status.kind === "invalid";
+      emit(editor, settled ? { kind: "idle" } : snapshot.status);
       if (!edited || snapshot.status.kind === "conflict") return;
       if (!editor.dirty && !inFlight && !unconfirmed) cancelPending(); else schedule();
     },

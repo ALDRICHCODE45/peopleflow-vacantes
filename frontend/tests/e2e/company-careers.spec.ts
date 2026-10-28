@@ -103,7 +103,7 @@ test.describe("employer careers builder", () => {
 
   test("a taken slug stays local and does not poison unrelated autosaves", async ({ page, request }) => {
     await page.goto(EDITOR);
-    await page.getByRole("tab", { name: "Configuración", exact: true }).click();
+    await page.getByRole("tab", { name: "Ajustes", exact: true }).click();
     await page.getByLabel("Dirección pública", { exact: true }).fill("otra-empresa");
     await expect(page.getByRole("status", { name: "Disponibilidad de dirección" })).toHaveText("En uso");
     await page.getByLabel("Título SEO", { exact: true }).fill("Nuestro equipo Nexo");

@@ -97,6 +97,9 @@ func TestDocumentStringLimits(t *testing.T) {
 				p := "blocks[2].content"
 				if tt.item {
 					target = map[string]any{}
+					if tt.kind == "values" || tt.kind == "benefits" {
+						target["icon"] = "heart"
+					}
 					content["items"] = []any{target}
 					p += ".items[0]"
 				}
@@ -149,7 +152,11 @@ func TestDocumentListLimits(t *testing.T) {
 			for _, n := range []int{0, tt.max, tt.max + 1} {
 				items := []any{}
 				for i := 0; i < n; i++ {
-					items = append(items, map[string]any{})
+					item := map[string]any{}
+					if tt.kind == "values" || tt.kind == "benefits" {
+						item["icon"] = "heart"
+					}
+					items = append(items, item)
 				}
 				_, fs := validateExtra(t, block(tt.kind, tt.variant, map[string]any{"items": items}))
 				if n <= tt.max && len(fs) > 0 {
@@ -291,8 +298,8 @@ func TestPublishRequirements(t *testing.T) {
 		content       map[string]any
 	}{
 		{"story", "text", map[string]any{"body": rich(t, 1)}},
-		{"values", "grid", map[string]any{"items": []any{map[string]any{"title": "a"}}}},
-		{"benefits", "grid", map[string]any{"items": []any{map[string]any{"title": "a"}}}},
+		{"values", "grid", map[string]any{"items": []any{map[string]any{"title": "a", "icon": "heart"}}}},
+		{"benefits", "grid", map[string]any{"items": []any{map[string]any{"title": "a", "icon": "heart"}}}},
 		{"stats", "row", map[string]any{"items": []any{map[string]any{"value": "1", "label": "a"}}}},
 		{"process", "steps", map[string]any{"items": []any{map[string]any{"title": "a"}, map[string]any{"title": "b"}}}},
 		{"gallery", "grid", map[string]any{"items": []any{map[string]any{"alt": "a", "image": map[string]any{"media_id": uuid.NewString()}}, map[string]any{"alt": "b", "image": map[string]any{"media_id": uuid.NewString()}}}}},

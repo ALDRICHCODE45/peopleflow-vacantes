@@ -1,14 +1,29 @@
 import { describe, expect, it } from "vitest";
+import { draftFieldErrors } from "./api/validation";
+import { siteStateSchema } from "./api/model";
 
 import { defaultBlock, defaultSiteDraft, BLOCK_LIBRARY, STANDARD_BENEFITS } from "./defaults";
 import { blockSchema, siteDraftSchema, publishIssues, testimonialsBlockSchema, ICONS } from "./model";
 
 type RecordValue = Record<string, unknown>;
+
+it("reads office locations the API returns with null state, municipality and postal code", () => {
+  const draft = defaultSiteDraft();
+  const offices = defaultBlock("offices");
+  (offices.content as { items: RecordValue[] }).items = [{ name: "Oficina Principal", address: null, map_url: null, location: { country: "MX", state: null, municipality: null, postal_code: null } }];
+  draft.blocks.splice(1, 0, offices);
+  const parsed = siteDraftSchema.safeParse(draft);
+  expect(parsed.success).toBe(true);
+  const block = parsed.success ? parsed.data.blocks[1] : undefined;
+  expect(block?.type === "offices" && block.content.items[0].location).toEqual({ country: "MX" });
+  const state = siteStateSchema.safeParse({ draft, draft_version: 89, published: null, has_unpublished_changes: true, media: [], updated_at: "2026-10-27T00:00:00Z" });
+  expect(state.success).toBe(true);
+});
 const rich = (text: string) => ({ schema_version: 1, document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] } });
 const media = { media_id: "c166f6ce-e0e9-4e20-916a-90828ef36273" };
 const items = {
-  values: { icon: "heart", title: "Valor", description: null },
-  benefits: { icon: "heart", title: "Beneficio", description: null },
+  values: { icon: "heart", emoji: null, title: "Valor", description: null },
+  benefits: { icon: "heart", emoji: null, title: "Beneficio", description: null },
   stats: { value: "10", label: "Personas" },
   process: { title: "Entrevista", description: null, duration: null },
   gallery: { image: media, alt: "Equipo", caption: null },
@@ -34,6 +49,42 @@ function siteWith(candidate: unknown) {
 }
 const company = { name: "Nexo", logo_url: "/logo.png" };
 function issues(candidate: unknown) { return publishIssues(siteDraftSchema.parse(siteWith(candidate)), company); }
+
+describe("icon or emoji contract", () => {
+  for (const type of ["values", "benefits"] as const) {
+    it.each(["😀", "❤️", "👍🏽", "👩‍💻", "👨‍👩‍👧‍👦", "🇲🇽", "🏳️‍🌈", "1️⃣", "♡", "♡‍🔥", "🇲🇽‍🇺🇸", "🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"])(`${type} accepts one sequence %s`, emoji => {
+      const candidate = block(type);
+      candidate.content.items = [{ icon: null, emoji, title: null, description: null }];
+      expect(blockSchema.safeParse(candidate).success).toBe(true);
+    });
+    it.each([
+      [null, null, "icon", "required"], ["heart", "😀", "emoji", "not_allowed"],
+      ["unknown", null, "icon", "invalid"], [null, "ab", "emoji", "invalid"],
+      [null, "😀😀", "emoji", "invalid"], [null, "a".repeat(33), "emoji", "too_long"],
+      [null, "😀\u0301", "emoji", "invalid"], [null, "🇲", "emoji", "invalid"],
+      [null, "😀\u200d", "emoji", "invalid"], [null, " 😀", "emoji", "invalid"],
+      [null, "1", "emoji", "invalid"], [null, "", "emoji", "invalid"],
+      [null, "👩‍💻\n", "emoji", "invalid"], [null, "👩‍💻\r", "emoji", "invalid"],
+    ])(`${type} maps %s / %s to %s %s`, (icon, emoji, field, code) => {
+      const candidate = block(type);
+      candidate.content.items = [{ icon, emoji, title: null, description: null }];
+      const parsed = siteDraftSchema.safeParse(siteWith(candidate));
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) expect(draftFieldErrors(parsed.error.issues)).toContainEqual({ field: `blocks[2].content.items[0].${field}`, code });
+    });
+    it(`${type} normalizes legacy read keys without allowing unknown write keys`, () => {
+      const candidate = block(type);
+      candidate.content.items = [{ icon: "heart", title: null, description: null }];
+      const draft = siteWith(candidate);
+      // PUT treats a missing nullable decoration as null, like the backend.
+      expect(siteDraftSchema.safeParse(draft).success).toBe(true);
+      expect(blockSchema.safeParse({ ...candidate, content: { ...candidate.content, extra: true } }).success).toBe(false);
+      const state = siteStateSchema.parse({ draft, draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-01-01T00:00:00Z" });
+      const content = state.draft.blocks[2].content as unknown as { items: { emoji: string | null }[] };
+      expect(content.items[0].emoji).toBeNull();
+    });
+  }
+});
 
 describe("draft limits", () => {
   for (const [type, field, max] of limits) it(`${type}.${field}: ${max} code points inclusive`, () => {
@@ -113,6 +164,22 @@ describe("draft limits", () => {
   });
 });
 
+describe("palette wire contract", () => {
+  it("normalizes legacy missing colors to null and writes canonical strict themes", () => {
+    const draft = defaultSiteDraft();
+    const parsed = siteDraftSchema.parse({ ...draft, theme: { brand_color: "#7835DB", font_pair: "classic" } });
+    expect(parsed.theme).toEqual({ brand_color: "#7835DB", accent_color: null, background_color: null, font_pair: "classic" });
+    expect(siteDraftSchema.parse(parsed)).toEqual(parsed);
+  });
+  it.each(["accent_color", "background_color"])("validates exact nullable hex and uppercases %s", key => {
+    const draft = defaultSiteDraft();
+    for (const value of [null, "#abcdef", "#000000", "#FFFFFF"]) {
+      expect(siteDraftSchema.parse({ ...draft, theme: { ...draft.theme, [key]: value } }).theme).toHaveProperty(key, typeof value === "string" ? value.toUpperCase() : null);
+    }
+    for (const value of ["#123", "#GGGGGG", " #abcdef ", "", 123, false]) expect(siteDraftSchema.safeParse({ ...draft, theme: { ...draft.theme, [key]: value } }).success).toBe(false);
+  });
+});
+
 describe("wire invariants", () => {
   const variants = {
     hero: ["photo", "split", "centered"], story: ["text", "text_image"], values: ["grid", "list"],
@@ -180,8 +247,8 @@ describe("wire invariants", () => {
     for (const slug of ["ab", "a".repeat(61), "admin", "Nexo", "-nexo"]) expect(siteDraftSchema.safeParse({ ...draft, slug }).success).toBe(false);
     for (const patch of [{ type: "unknown" }, { variant: "unknown" }, { hidden: "false" }]) expect(blockSchema.safeParse({ ...draft.blocks[0], ...patch }).success).toBe(false);
   });
-  it("all 24 icons accepted; arbitrary icons rejected", () => {
-    expect(ICONS).toHaveLength(24);
+  it("all 111 icons accepted; arbitrary icons rejected", () => {
+    expect(ICONS).toHaveLength(111);
     const candidate = block("benefits");
     for (const icon of [...ICONS, "invalid"]) {
       candidate.content.items = [{ ...items.benefits, icon }];
@@ -230,7 +297,7 @@ describe("publication and defaults", () => {
   it("fresh defaults are independent, saveable and have the expected publish issues", () => {
     const draft = defaultSiteDraft();
     expect(siteDraftSchema.parse(draft)).toEqual(draft);
-    expect(draft.theme).toEqual({ brand_color: "#7835DB", font_pair: "classic" });
+    expect(draft.theme).toEqual({ brand_color: "#7835DB", accent_color: null, background_color: null, font_pair: "classic" });
     expect(draft.seo).toEqual({ title: null, description: null });
     expect(draft.blocks.map(b => b.type)).toEqual(["hero", "jobs"]);
     expect(defaultSiteDraft().blocks[0].id).not.toBe(draft.blocks[0].id);

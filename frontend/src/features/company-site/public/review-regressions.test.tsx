@@ -24,8 +24,8 @@ function fullSite() {
     const content = {
       story: { title: "Historia real", body: vacancyDetail.description, image },
       gallery: { items: [{ image, alt: "Equipo", caption: null }] },
-      benefits: { items: [{ icon: "heart", title: "Bienestar", description: null }] },
-      values: { mission: null, items: [{ icon: "users", title: "Equipo", description: null }] },
+      benefits: { items: [{ icon: "heart", emoji: null, title: "Bienestar", description: null }] },
+      values: { mission: null, items: [{ icon: "users", emoji: null, title: "Equipo", description: null }] },
       stats: { items: [{ value: "12", label: "Personas" }] },
       faq: { items: [{ question: "¿Cómo?", answer: "Así" }] },
       closing: { title: "Adelante", text: "Construyamos juntos" },
@@ -108,8 +108,11 @@ it.each(["banner", "simple"] as const)("%s closing centers the action with its h
     expect(cta).toHaveAttribute("data-brand-inverse");
     expect(cta).toHaveClass("bg-primary", "text-primary-foreground");
     const css = readFileSync("src/features/company-site/public/site-theme.module.css", "utf8");
-    expect(css).toContain("--primary: var(--site-surface-foreground)");
-    expect(css).toContain("--primary-foreground: var(--site-brand)");
+    expect(css).toContain("--primary: var(--site-banner-accent)");
+    expect(css).toContain("--primary-foreground: var(--site-on-banner-accent)");
+    // Null accent keeps the original inverse principal CTA.
+    expect(css).toContain("--site-banner-accent-light, var(--site-on-brand)");
+    expect(css).toContain("--site-on-banner-accent-light, var(--site-brand)");
   }
 });
 it("uses downward arrows for in-page actions and outward arrows for external destinations", async () => {

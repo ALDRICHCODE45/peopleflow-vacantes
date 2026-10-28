@@ -1,4 +1,15 @@
-import { Heart, Users, Rocket, Target, Lightbulb, Shield, Leaf, Globe, GraduationCap, Briefcase, Laptop, Clock, Calendar, Coffee, Dumbbell, Stethoscope, PiggyBank, Gift, Plane, House, Sparkles, Handshake, Trophy, Smile, type LucideIcon } from "lucide-react";
+import {
+  Heart, Users, Rocket, Target, Lightbulb, Shield, Leaf, Globe, GraduationCap, Briefcase, Laptop, Clock,
+  Calendar, Coffee, Dumbbell, Stethoscope, PiggyBank, Gift, Plane, House, Sparkles, Handshake, Trophy, Smile,
+  Star, Award, Medal, Crown, Flag, Compass, MapPin, Mountain, Sun, Moon, Zap, Flame, Gem, Puzzle, Brain,
+  BookOpen, Pencil, Palette, Music, Camera, Code, Terminal, Cpu, Database, Cloud, Wifi, Smartphone, Monitor,
+  Headphones, MessageCircle, Mail, Phone, Megaphone, Bell, TrendingUp, ChartBar, ChartPie, DollarSign,
+  Wallet, CreditCard, Banknote, ShoppingBag, Car, Bike, Bus, TrainFront, Baby, Dog, Cat, Utensils, Pizza,
+  Apple, Salad, HeartHandshake, HandHeart, HandHelping, ThumbsUp, PartyPopper, Cake, Gamepad2, TreePine,
+  Recycle, Sprout, Flower2, Umbrella, ShieldCheck, Lock, Key, Scale, Building2, Factory, Store, Wrench,
+  Hammer, HardHat, Truck, Package, Infinity, Accessibility, Languages, CalendarCheck, Timer, Bot,
+  Microscope, Paintbrush, Film, Mic, type LucideIcon,
+} from "lucide-react";
 import type { ICONS } from "../model";
 
 export const SITE_ICONS = {
@@ -7,4 +18,19 @@ export const SITE_ICONS = {
   briefcase: Briefcase, laptop: Laptop, clock: Clock, calendar: Calendar, coffee: Coffee,
   dumbbell: Dumbbell, stethoscope: Stethoscope, "piggy-bank": PiggyBank, gift: Gift,
   plane: Plane, home: House, sparkles: Sparkles, handshake: Handshake, trophy: Trophy, smile: Smile,
+  star: Star, award: Award, medal: Medal, crown: Crown, flag: Flag, compass: Compass, "map-pin": MapPin,
+  mountain: Mountain, sun: Sun, moon: Moon, zap: Zap, flame: Flame, gem: Gem, puzzle: Puzzle, brain: Brain,
+  "book-open": BookOpen, pencil: Pencil, palette: Palette, music: Music, camera: Camera, code: Code,
+  terminal: Terminal, cpu: Cpu, database: Database, cloud: Cloud, wifi: Wifi, smartphone: Smartphone,
+  monitor: Monitor, headphones: Headphones, "message-circle": MessageCircle, mail: Mail, phone: Phone,
+  megaphone: Megaphone, bell: Bell, "trending-up": TrendingUp, "chart-bar": ChartBar, "chart-pie": ChartPie,
+  "dollar-sign": DollarSign, wallet: Wallet, "credit-card": CreditCard, banknote: Banknote, "shopping-bag": ShoppingBag,
+  car: Car, bike: Bike, bus: Bus, "train-front": TrainFront, baby: Baby, dog: Dog, cat: Cat, utensils: Utensils,
+  pizza: Pizza, apple: Apple, salad: Salad, "heart-handshake": HeartHandshake, "hand-heart": HandHeart,
+  "hand-helping": HandHelping, "thumbs-up": ThumbsUp, "party-popper": PartyPopper, cake: Cake, "gamepad-2": Gamepad2,
+  "tree-pine": TreePine, recycle: Recycle, sprout: Sprout, "flower-2": Flower2, umbrella: Umbrella,
+  "shield-check": ShieldCheck, lock: Lock, key: Key, scale: Scale, "building-2": Building2, factory: Factory,
+  store: Store, wrench: Wrench, hammer: Hammer, "hard-hat": HardHat, truck: Truck, package: Package,
+  infinity: Infinity, accessibility: Accessibility, languages: Languages, "calendar-check": CalendarCheck,
+  timer: Timer, bot: Bot, microscope: Microscope, paintbrush: Paintbrush, film: Film, mic: Mic,
 } satisfies Record<typeof ICONS[number], LucideIcon>;

@@ -47,11 +47,13 @@ function renderSheet(
     side?: Side;
     presentation?: "floating" | "edge";
     className?: string;
+    container?: HTMLElement;
   } = {},
 ) {
   return render(
     <Sheet open>
       <SheetContent
+        container={options.container}
         side={options.side ?? "right"}
         presentation={options.presentation}
         className={options.className}
@@ -85,6 +87,21 @@ afterEach(() => {
 
 describe("shared Sheet floating presentation", () => {
   beforeEach(stubBrowserApis);
+
+  it("places both panel and overlay inside an optional portal container", () => {
+    const { container } = render(<div data-testid="site-root" />);
+    const root = container.firstElementChild as HTMLElement;
+    renderSheet({ container: root });
+    expect(root.querySelector('[data-slot="sheet-content"]')).toBe(panel());
+    expect(root.querySelector('[data-slot="sheet-overlay"]')).not.toBeNull();
+  });
+
+  it("keeps the default portal in document.body without a container", () => {
+    const { container } = renderSheet();
+    expect(container.querySelector('[data-slot="sheet-content"]')).toBeNull();
+    expect(document.body).toContainElement(panel());
+    expect(document.body.querySelector('[data-slot="sheet-overlay"]')).not.toBeNull();
+  });
 
   it("defaults to a floating panel with an inset, rounded, clamped surface", () => {
     renderSheet();

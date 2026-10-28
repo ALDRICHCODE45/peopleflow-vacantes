@@ -18,7 +18,7 @@ this contract does not depend on it.
 ```json
 {
   "slug": "nexo-labs",
-  "theme": { "brand_color": "#0F766E", "font_pair": "classic" },
+  "theme": { "brand_color": "#0F766E", "accent_color": null, "background_color": null, "font_pair": "classic" },
   "seo": { "title": "Trabaja en Nexo Labs", "description": "…" },
   "blocks": [
     { "id": "0f6d…uuid", "type": "hero", "variant": "photo", "hidden": false, "content": { … } }
@@ -29,13 +29,17 @@ this contract does not depend on it.
 - `slug`: 3–60 chars, `^[a-z0-9]+(?:-[a-z0-9]+)*$`, unique across companies, not in the reserved list (`admin`, `api`,
   `empresa`, `empresas`, `vacantes`, `candidato`, `login`, `nuevo`, `nueva`, `peopleflow`, `soporte`, `ayuda`). `null`
   until chosen. Uniqueness is checked (and reserved) on draft save.
-- `theme.brand_color`: `#RRGGBB` (uppercase or lowercase accepted, stored uppercase). Contrast adjustment is a
-  rendering concern (frontend); the backend stores the chosen color as is.
+- `theme.brand_color`: required principal color, `#RRGGBB` (uppercase or lowercase accepted, stored uppercase).
+- `theme.accent_color`, `theme.background_color`: `string|null`, exactly `#RRGGBB` when non-null, stored uppercase;
+  missing keys normalize to `null`. Both default to `null`. Invalid types/formats → `invalid` at `theme.<key>`;
+  unknown theme keys → `unknown_key`. `brand_color` validation and defaults are unchanged. Contrast, palettes,
+  presets and derived dark tokens are rendering concerns (frontend); the backend only validates/stores colors.
 - `theme.font_pair`: `classic` | `editorial` | `modern`.
 - `seo.title` ≤ 60, `seo.description` ≤ 160; both nullable.
 - `blocks`: 2–30 items, ordered. `id` is a client-generated UUID, unique within the document. Exactly one `hero` and one
   `jobs` block, never `hidden`. Other types may repeat (e.g. two `gallery` blocks) — up to 30 blocks total.
-- Strings are trimmed; blank optional strings become `null`; limits count Unicode code points. Unknown keys → 422.
+- Strings are trimmed; blank optional strings become `null`; limits count Unicode code points, except `emoji`
+  (untrimmed, byte-limited) and the new palette colors (exact hex format). Unknown keys → 400 `validation_error`.
 
 ### 2.1 Block types, variants and content (limits are hard)
 
@@ -43,8 +47,8 @@ this contract does not depend on it.
 | --- | --- | --- |
 | `hero` | `photo`, `split`, `centered` | `title` ≤ 80 (required to publish), `subtitle` ≤ 200, `cover` media ref (kind `cover`) |
 | `story` | `text`, `text_image` | `title` ≤ 80, `body` rich text (same canonical format and validator as the vacancy description, ≤ 5,000 code points of text), `image` media ref |
-| `values` | `grid`, `list` | `mission` ≤ 300, `items` 1–8 × {`icon` (enum below), `title` ≤ 60, `description` ≤ 240} |
-| `benefits` | `grid`, `compact` | `items` 1–24 × {`icon`, `title` ≤ 60, `description` ≤ 160} |
+| `values` | `grid`, `list` | `mission` ≤ 300, `items` 1–8 × {`icon`, `emoji` (below), `title` ≤ 60, `description` ≤ 240} |
+| `benefits` | `grid`, `compact` | `items` 1–24 × {`icon`, `emoji`, `title` ≤ 60, `description` ≤ 160} |
 | `stats` | `row`, `cards` | `items` 1–6 × {`value` ≤ 12, `label` ≤ 60} |
 | `process` | `steps`, `timeline` | `items` 2–8 × {`title` ≤ 60, `description` ≤ 200, `duration` ≤ 30 nullable} |
 | `gallery` | `grid`, `mosaic`, `carousel` | `items` 2–12 × {`image` media ref (kind `gallery`), `alt` ≤ 160 required, `caption` ≤ 120} |
@@ -56,7 +60,8 @@ this contract does not depend on it.
 | `closing` | `banner`, `simple` | `title` ≤ 80, `text` ≤ 240 |
 
 - Draft saves accept **incomplete** content (empty lists, null titles, items with blank fields) so autosave never fails
-  on work in progress; maximums, formats, URL/id rules and unknown keys are enforced on every save.
+  on work in progress; maximums, formats, URL/id rules and unknown keys are enforced on every save. Items in `values`
+  and `benefits` additionally require exactly one of `icon` or `emoji` on PUT (§2.2).
 - **Publish requirements** (only for visible blocks; anything else is `block_incomplete` with `field: "blocks[i]"`):
 
   | type | required to publish |
@@ -77,10 +82,52 @@ this contract does not depend on it.
 
   Optional everywhere: block titles not listed, descriptions, captions, `role`, photos, `duration`, `address`, `map_url`,
   `mission`, `intro`, `text`.
-- `icon` enum (24): `heart`, `users`, `rocket`, `target`, `lightbulb`, `shield`, `leaf`, `globe`, `graduation-cap`,
+- `icon` enum (111, ordered; original 24 first): `heart`, `users`, `rocket`, `target`, `lightbulb`, `shield`, `leaf`, `globe`, `graduation-cap`,
   `briefcase`, `laptop`, `clock`, `calendar`, `coffee`, `dumbbell`, `stethoscope`, `piggy-bank`, `gift`, `plane`,
-  `home`, `sparkles`, `handshake`, `trophy`, `smile`.
+  `home`, `sparkles`, `handshake`, `trophy`, `smile`,
+  `star`, `award`, `medal`, `crown`, `flag`, `compass`, `map-pin`, `mountain`, `sun`, `moon`, `zap`, `flame`, `gem`,
+  `puzzle`, `brain`, `book-open`, `pencil`, `palette`, `music`, `camera`, `code`, `terminal`, `cpu`, `database`,
+  `cloud`, `wifi`, `smartphone`, `monitor`, `headphones`, `message-circle`, `mail`, `phone`, `megaphone`, `bell`,
+  `trending-up`, `chart-bar`, `chart-pie`, `dollar-sign`, `wallet`, `credit-card`, `banknote`, `shopping-bag`, `car`,
+  `bike`, `bus`, `train-front`, `baby`, `dog`, `cat`, `utensils`, `pizza`, `apple`, `salad`, `heart-handshake`,
+  `hand-heart`, `hand-helping`, `thumbs-up`, `party-popper`, `cake`, `gamepad-2`, `tree-pine`, `recycle`, `sprout`,
+  `flower-2`, `umbrella`, `shield-check`, `lock`, `key`, `scale`, `building-2`, `factory`, `store`, `wrench`, `hammer`,
+  `hard-hat`, `truck`, `package`, `infinity`, `accessibility`, `languages`, `calendar-check`, `timer`, `bot`,
+  `microscope`, `paintbrush`, `film`, `mic`.
 - Media ref: `{ "media_id": "uuid" }` pointing to an upload of this company (§3.4); `null` when absent.
+
+### 2.2 Icon or emoji items and legacy reads
+
+- `values.items[]` and `benefits.items[]` always serialize both `icon: string|null` and `emoji: string|null`.
+  PUT requires exactly one non-null value. For `p = blocks[i].content.items[j]`:
+
+  | condition | field | code |
+  | --- | --- | --- |
+  | both null/missing | `p.icon` | `required` |
+  | both non-null | `p.emoji` | `not_allowed` |
+  | unknown icon | `p.icon` | `invalid` |
+  | malformed, empty, non-string or non-emoji emoji | `p.emoji` | `invalid` |
+  | emoji over 32 UTF-8 bytes | `p.emoji` | `too_long` |
+
+  These are 400 `validation_error` responses (§3.2); no write occurs.
+- Emoji is exactly one complete UTS #51-style sequence over the generated Unicode 15.0.0
+  `Extended_Pictographic` table (no runtime dependency): a pictographic base with optional U+FE0F, optional skin-tone
+  modifier U+1F3FB–U+1F3FF; exactly two regional indicators for a flag; `[0-9#*]` + optional FE0F + U+20E3 for a
+  keycap; or a base with one or more tag characters U+E0020–U+E007E terminated by U+E007F. U+200D joins sequence
+  elements. The entire string must match, be valid UTF-8 and be at most 32 bytes, with a pictographic, flag or
+  keycap element. Whitespace, text, lone regional indicators, bare digits, adjacent unjoined emoji, dangling
+  selectors/joiners/tags and arbitrary combining marks are rejected. No trimming or replacement is performed.
+  Examples accepted: 😀, ❤️, 👍🏽, 👩‍💻, 👨‍👩‍👧‍👦, 🇲🇽, 🏳️‍🌈, 1️⃣ and the terminated Scotland tag flag.
+  `♡` (U+2661) is accepted because it is in `Extended_Pictographic`; this is a property-based grammar, not an RGI
+  emoji allowlist. Byte limits still apply to long sequences.
+- Stored drafts and published snapshots missing `emoji`, `accent_color` or `background_color` read with those keys
+  set to `null`. GET draft, publish responses and GET public always return canonical keys; no migration is needed.
+  An explicit stored-document mode allows a legacy item with neither icon nor emoji, avoiding read/publish failures.
+  Only that missing-decoration rule is relaxed: both-set values, invalid emoji/icons, invalid palettes and unknown
+  keys remain invalid. Strict PUT does not grandfather missing decorations.
+- Publish requirements in §2.1 are unchanged: neither icon nor emoji is required to publish a legacy stored item;
+  `values`/`benefits` still require item titles and minimum list sizes. Publishing still copies the stored draft
+  version exactly; normalization is on read, not a data migration.
 
 ## 3. Private endpoints (`requireAuth` + `requireRecruiter`, member of the company; `Cache-Control: no-store`)
 

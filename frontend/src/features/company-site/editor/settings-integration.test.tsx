@@ -58,16 +58,16 @@ it("updates the real preview font attribute immediately", async () => {
 it("updates the preview with the adjusted brand color immediately", async () => {
   render(<CareersSiteEditor {...props()} />);
   await screen.findByRole("tab", { name: "Marca" }); fireEvent.click(screen.getByRole("tab", { name: "Marca" }));
-  fireEvent.change(screen.getByLabelText("Color de marca"), { target: { value: "#FFFF00" } });
+  fireEvent.change(screen.getByLabelText("Principal"), { target: { value: "#FFFF00" } });
   expect(frame().querySelector<HTMLElement>("[data-font-pair]")!.style.getPropertyValue("--site-brand-light")).not.toBe("#FFFF00");
 });
 it("uses profile identity in both the real preview and settings summary", async () => {
-  render(<CareersSiteEditor {...props()} />); await screen.findByRole("tab", { name: "Configuración" });
+  render(<CareersSiteEditor {...props()} />); await screen.findByRole("tab", { name: "Ajustes" });
   expect(within(frame().body).getByText("Perfil conectado")).toBeInTheDocument();
   for (const link of within(frame().body).getAllByRole("link", { name: "LinkedIn" })) expect(link).toHaveAttribute("href", "https://linkedin.com/company/nexo");
-  fireEvent.click(screen.getByRole("tab", { name: "Configuración" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Ajustes" }));
   expect(within(screen.getByRole("region", { name: "Datos de la empresa" })).getByText("Perfil conectado")).toBeVisible();
-  expect(screen.getByRole("tabpanel", { name: "Configuración" })).toHaveClass("px-1", "py-1", "pr-3");
+  expect(screen.getByRole("tabpanel", { name: "Ajustes" })).toHaveClass("px-1", "py-1", "pr-3");
 });
 it("updates header to published on success and amber on the next edit", async () => {
   const p = props(); render(<CareersSiteEditor {...p} />); await screen.findByText("Sin publicar");
@@ -81,7 +81,7 @@ it("updates header to published on success and amber on the next edit", async ()
 });
 it("keeps a taken slug out of the header and PUT while unrelated SEO changes still save", async () => {
   render(<CareersSiteEditor {...props()} />); await screen.findByText("Sin publicar");
-  fireEvent.click(screen.getByRole("tab", { name: "Configuración" })); vi.useFakeTimers();
+  fireEvent.click(screen.getByRole("tab", { name: "Ajustes" })); vi.useFakeTimers();
   vi.mocked(slugAvailabilityAction).mockResolvedValue({ kind: "success", data: { slug: "otra-empresa", available: false, reason: "taken" } });
   fireEvent.change(screen.getByLabelText("Dirección pública"), { target: { value: "otra-empresa" } });
   expect(screen.queryByRole("link", { name: "/empresas/otra-empresa" })).not.toBeInTheDocument();
@@ -94,7 +94,7 @@ it("keeps a taken slug out of the header and PUT while unrelated SEO changes sti
 });
 it("dispatches and saves an available slug, updating the actual header URL", async () => {
   render(<CareersSiteEditor {...props()} />); await screen.findByText("Sin publicar");
-  fireEvent.click(screen.getByRole("tab", { name: "Configuración" })); vi.useFakeTimers();
+  fireEvent.click(screen.getByRole("tab", { name: "Ajustes" })); vi.useFakeTimers();
   vi.mocked(slugAvailabilityAction).mockResolvedValue({ kind: "success", data: { slug: "otra-empresa", available: true, reason: null } });
   fireEvent.change(screen.getByLabelText("Dirección pública"), { target: { value: "otra-empresa" } });
   expect(saveDraftAction).not.toHaveBeenCalled();
@@ -104,7 +104,7 @@ it("dispatches and saves an available slug, updating the actual header URL", asy
 });
 it.each([["slug_taken", "Otra empresa ya usa esta dirección. Elige otra."], ["slug_reserved", "Esta dirección está reservada. Elige otra."]] as const)("marks Dirección pública when a previously available slug save returns %s", async (code, message) => {
   render(<CareersSiteEditor {...props()} />); await screen.findByText("Sin publicar");
-  fireEvent.click(screen.getByRole("tab", { name: "Configuración" })); vi.useFakeTimers();
+  fireEvent.click(screen.getByRole("tab", { name: "Ajustes" })); vi.useFakeTimers();
   vi.mocked(slugAvailabilityAction).mockResolvedValue({ kind: "success", data: { slug: "otra-empresa", available: true, reason: null } });
   vi.mocked(saveDraftAction).mockResolvedValue({ kind: "error", code, field: "slug" });
   fireEvent.change(screen.getByLabelText("Dirección pública"), { target: { value: "otra-empresa" } });

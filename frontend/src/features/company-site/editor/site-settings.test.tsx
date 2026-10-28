@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import styles from "./site-settings.module.css";
 import { useState } from "react";
+import userEvent from "@testing-library/user-event";
+import { PALETTE_PRESETS } from "../palettes";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { BrandSettings, SiteSettings } from "./site-settings";
 import { defaultSiteDraft } from "../defaults";
@@ -9,7 +13,9 @@ import { slugAvailabilityAction } from "../api/actions";
 import type { SiteDraft } from "../model";
 vi.mock("../api/actions", () => ({ slugAvailabilityAction: vi.fn() }));
 vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
+// Base UI forwards clicks to its native radio using PointerEvent (absent in jsdom).
+beforeEach(() => vi.stubGlobal("PointerEvent", MouseEvent));
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 function Harness({ brand = false }: { brand?: boolean }) {
   const [draft, update] = useState(defaultSiteDraft());
   const set = (patch: Partial<SiteDraft>) => update(current => ({ ...current, ...patch }));
@@ -17,12 +23,61 @@ function Harness({ brand = false }: { brand?: boolean }) {
 }
 it("shows original and adjusted brand color while keeping the chosen hex", () => {
   render(<Harness brand />);
-  fireEvent.change(screen.getByLabelText("Color de marca"), { target: { value: "#FFFF00" } });
-  expect(screen.getByRole("status")).toHaveTextContent("Ajustamos el tono para que el texto se lea bien");
-  expect(screen.getByRole("status")).toHaveTextContent(/#FFFF00 → #[0-9A-F]{6}/);
-  expect(screen.getByLabelText("Color de marca")).toHaveValue("#FFFF00");
-  fireEvent.change(screen.getByLabelText("Color de marca"), { target: { value: "nope" } });
+  fireEvent.change(screen.getByLabelText("Principal"), { target: { value: "#FFFF00" } });
+  expect(screen.getByRole("status", { name: "Ajustes de Principal" })).toHaveTextContent("Ajustamos el tono para que el texto se lea bien");
+  expect(screen.getByRole("status", { name: "Ajustes de Principal" })).toHaveTextContent(/#FFFF00 → #[0-9A-F]{6}/);
+  expect(screen.getByLabelText("Principal")).toHaveValue("#FFFF00");
+  fireEvent.change(screen.getByLabelText("Principal"), { target: { value: "nope" } });
   expect(screen.getByText("Usa un color hexadecimal de seis dígitos.")).toBeVisible();
+});
+it("uses contained two-column palette cards with a narrow-panel fallback", () => {
+  render(<Harness brand />);
+  const grid = screen.getByRole("radiogroup", { name: "Paletas" });
+  expect(grid).toHaveClass(styles.paletteGrid, "min-w-0");
+  expect(grid.parentElement).toHaveClass(styles.paletteContainer);
+  for (const radio of within(grid).getAllByRole("radio")) {
+    expect(radio.closest('[data-slot="field-label"]')).toHaveClass("min-w-0", "box-border");
+  }
+  const css = readFileSync("src/features/company-site/editor/site-settings.module.css", "utf8");
+  expect(css).toMatch(/container-type:\s*inline-size/);
+  expect(css).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  expect(css).toMatch(/@container[^\n]*\(max-width:\s*17rem\)/);
+  expect(css).not.toMatch(/(?:^|[;{])\s*width:\s*\d+(?:px|rem)/m);
+});
+it("selects a palette with three swatches and fills all three color inputs", () => {
+  const { container } = render(<Harness brand />);
+  for (const preset of PALETTE_PRESETS) {
+    const radio = screen.getByRole("radio", { name: preset.name });
+    expect(radio.closest('[data-slot="field-label"]')?.querySelectorAll('[data-palette-swatch]')).toHaveLength(3);
+    fireEvent.click(radio);
+    expect(radio).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText("Principal")).toHaveValue(preset.brand_color);
+    expect(screen.getByLabelText("Acento/CTA")).toHaveValue(preset.accent_color);
+    expect(screen.getByLabelText("Fondo")).toHaveValue(preset.background_color);
+  }
+  expect(container.querySelector('[data-slot="radio-group"]')).toHaveAccessibleName("Paletas");
+});
+it.each(["Principal", "Acento/CTA", "Fondo"])("switches to Personalizado on any edit of %s, retaining invalid text locally", label => {
+  render(<Harness brand />);
+  fireEvent.click(screen.getByRole("radio", { name: "Violeta" }));
+  fireEvent.change(screen.getByLabelText(label), { target: { value: "#aabbcc" } });
+  expect(screen.getByRole("radio", { name: "Personalizado" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByLabelText(label)).toHaveValue("#AABBCC");
+  fireEvent.click(screen.getByRole("radio", { name: "Violeta" }));
+  fireEvent.change(screen.getByLabelText(label), { target: { value: "#" } });
+  expect(screen.getByRole("radio", { name: "Personalizado" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByLabelText(label)).toHaveValue("#");
+  expect(screen.getByLabelText(label)).toHaveAttribute("aria-invalid", "true");
+});
+it("uses native radio arrow navigation to select the next palette", async () => {
+  const user = userEvent.setup();
+  render(<Harness brand />);
+  const first = screen.getByRole("radio", { name: "Violeta" });
+  await user.click(first);
+  await user.keyboard("{ArrowRight}");
+  expect(screen.getByRole("radio", { name: "Océano" })).toHaveFocus();
+  expect(screen.getByRole("radio", { name: "Océano" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByLabelText("Fondo")).toHaveValue(PALETTE_PRESETS[1].background_color);
 });
 it("offers three real font samples with a single selected pair", () => {
   render(<Harness brand />);

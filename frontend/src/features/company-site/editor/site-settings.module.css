@@ -1,5 +1,12 @@
 /* User-selected brand samples are data, not a second application palette. */
 .chip { background-color: var(--sample-brand); }
+/* Query the panel's available content width, not the viewport. Zero-minimum
+   tracks and border-box cards keep their borders inside the scroll viewport. */
+.paletteContainer { container-type: inline-size; min-width: 0; }
+.paletteGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (max-width: 17rem) {
+  .paletteGrid { grid-template-columns: minmax(0, 1fr); }
+}
 .fontSample { font-family: var(--font-sans), sans-serif; }
 .fontSample[data-font-pair="editorial"] .heading { font-family: var(--font-site-editorial), serif; }
 .fontSample[data-font-pair="modern"] { font-family: var(--font-site-modern), sans-serif; }

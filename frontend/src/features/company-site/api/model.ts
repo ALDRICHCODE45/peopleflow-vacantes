@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { siteDraftSchema } from "../model";
+import { siteDraftReadSchema } from "../model";
 
 const version = z.number().int().positive().safe();
 const timestamp = z.string().datetime({ offset: true });
 export const mediaSchema = z.object({ id: z.string().uuid(), kind: z.enum(["cover", "gallery", "portrait", "story"]), url: z.string().min(1), width: z.number().int().positive(), height: z.number().int().positive() });
 export const siteStateSchema = z.object({
-  draft: siteDraftSchema, draft_version: version,
+  draft: siteDraftReadSchema, draft_version: version,
   published: z.object({ version, slug: z.string().min(1), published_at: timestamp }).nullable(),
   has_unpublished_changes: z.boolean(), media: z.array(mediaSchema), updated_at: timestamp,
 });
