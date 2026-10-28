@@ -194,3 +194,7 @@ feat/company-careers-site; no merge to main, no push (user reviews in the mornin
   binary f03af5fe in S3 mode against the source-built MinIO, a fresh Postgres, and a published vacancy. Upload → MinIO
   object → identical public bytes and headers; unknown id → 404; anonymous direct MinIO access → 403. Open: the
   IAM ListBucket guidance has not been verified against real AWS.
+- **L23.** Frontend (verbatim): «careers-site.live.test.ts contra :8090 en modo S3 pasó 1/1, con los pasos 1–9 en verde
+  (incluye subir y servir media vía MinIO, publicar, mover el slug, aislar empresas y despublicar).» Teardown verified:
+  no :8090 listener, containers peopleflow-careers-site-e2e and peopleflow-careers-site-s3test removed,
+  /tmp/careers-site-e2e deleted. MinIO peopleflow-site-media-minio-1 stays up, as requested.
