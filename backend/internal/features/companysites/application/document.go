@@ -46,8 +46,8 @@ type blockRule struct {
 var rules = map[string]blockRule{
 	"hero":         {variants: []string{"photo", "split", "centered"}, strings: map[string]int{"title": 80, "subtitle": 200}, special: []string{"cover"}},
 	"story":        {variants: []string{"text", "text_image"}, strings: map[string]int{"title": 80}, special: []string{"body", "image"}},
-	"values":       {variants: []string{"grid", "list"}, strings: map[string]int{"mission": 300}, itemStrings: map[string]int{"title": 60, "description": 240}, itemSpecial: []string{"icon"}, maximum: 8, minimum: 1, required: []string{"title"}},
-	"benefits":     {variants: []string{"grid", "compact"}, itemStrings: map[string]int{"title": 60, "description": 160}, itemSpecial: []string{"icon"}, maximum: 24, minimum: 1, required: []string{"title"}},
+	"values":       {variants: []string{"grid", "list"}, strings: map[string]int{"mission": 300}, itemStrings: map[string]int{"title": 60, "description": 240}, itemSpecial: []string{"icon", "emoji"}, maximum: 8, minimum: 1, required: []string{"title"}},
+	"benefits":     {variants: []string{"grid", "compact"}, itemStrings: map[string]int{"title": 60, "description": 160}, itemSpecial: []string{"icon", "emoji"}, maximum: 24, minimum: 1, required: []string{"title"}},
 	"stats":        {variants: []string{"row", "cards"}, itemStrings: map[string]int{"value": 12, "label": 60}, maximum: 6, minimum: 1, required: []string{"value", "label"}},
 	"process":      {variants: []string{"steps", "timeline"}, itemStrings: map[string]int{"title": 60, "description": 200, "duration": 30}, maximum: 8, minimum: 2, required: []string{"title"}},
 	"gallery":      {variants: []string{"grid", "mosaic", "carousel"}, itemStrings: map[string]int{"alt": 160, "caption": 120}, itemSpecial: []string{"image"}, maximum: 12, minimum: 2, required: []string{"image", "alt"}},
@@ -62,7 +62,8 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var colorPattern = regexp.MustCompile(`^#[a-fA-F0-9]{6}$`)
 var youtubePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 var vimeoPattern = regexp.MustCompile(`^[0-9]{1,12}$`)
-var icons = strings.Fields("heart users rocket target lightbulb shield leaf globe graduation-cap briefcase laptop clock calendar coffee dumbbell stethoscope piggy-bank gift plane home sparkles handshake trophy smile")
+var icons = strings.Fields("heart users rocket target lightbulb shield leaf globe graduation-cap briefcase laptop clock calendar coffee dumbbell stethoscope piggy-bank gift plane home sparkles handshake trophy smile " +
+	"star award medal crown flag compass map-pin mountain sun moon zap flame gem puzzle brain book-open pencil palette music camera code terminal cpu database cloud wifi smartphone monitor headphones message-circle mail phone megaphone bell trending-up chart-bar chart-pie dollar-sign wallet credit-card banknote shopping-bag car bike bus train-front baby dog cat utensils pizza apple salad heart-handshake hand-heart hand-helping thumbs-up party-popper cake gamepad-2 tree-pine recycle sprout flower-2 umbrella shield-check lock key scale building-2 factory store wrench hammer hard-hat truck package infinity accessibility languages calendar-check timer bot microscope paintbrush film mic")
 
 func SlugReason(s string) string {
 	if len(s) < 3 || len(s) > 60 || !slugPattern.MatchString(s) {
@@ -74,7 +75,7 @@ func SlugReason(s string) string {
 	return ""
 }
 func DefaultDocument() json.RawMessage {
-	m := map[string]any{"slug": nil, "theme": map[string]any{"brand_color": "#7835DB", "font_pair": "classic"}, "seo": map[string]any{"title": nil, "description": nil}, "blocks": []any{map[string]any{"id": uuid.NewString(), "type": "hero", "variant": "photo", "hidden": false, "content": map[string]any{"title": nil, "subtitle": nil, "cover": nil}}, map[string]any{"id": uuid.NewString(), "type": "jobs", "variant": "list", "hidden": false, "content": map[string]any{"title": nil, "intro": nil}}}}
+	m := map[string]any{"slug": nil, "theme": map[string]any{"brand_color": "#7835DB", "accent_color": nil, "background_color": nil, "font_pair": "classic"}, "seo": map[string]any{"title": nil, "description": nil}, "blocks": []any{map[string]any{"id": uuid.NewString(), "type": "hero", "variant": "photo", "hidden": false, "content": map[string]any{"title": nil, "subtitle": nil, "cover": nil}}, map[string]any{"id": uuid.NewString(), "type": "jobs", "variant": "list", "hidden": false, "content": map[string]any{"title": nil, "intro": nil}}}}
 	b, _ := json.Marshal(m)
 	return b
 }
@@ -91,6 +92,7 @@ type Validator struct{ rich ValidateRich }
 func NewValidator(rich ValidateRich) *Validator { return &Validator{rich: rich} }
 
 type validator struct {
+	stored bool // Legacy reads allow items without either decoration.
 	fields []Field
 	doc    Document
 	rich   ValidateRich
@@ -147,6 +149,23 @@ func (v *validator) enum(m map[string]any, k, p string, allowed []string, option
 		v.fail(path(p, k), "invalid")
 	}
 }
+func (v *validator) itemEmoji(m map[string]any, p string) {
+	if m["emoji"] == nil {
+		m["emoji"] = nil
+	} else if s, ok := m["emoji"].(string); !ok {
+		v.fail(p+".emoji", "invalid")
+	} else if len(s) > 32 {
+		v.fail(p+".emoji", "too_long")
+	} else if !validEmoji(s) {
+		v.fail(p+".emoji", "invalid")
+	}
+	if m["icon"] != nil && m["emoji"] != nil {
+		v.fail(p+".emoji", "not_allowed")
+	} else if !v.stored && m["icon"] == nil && m["emoji"] == nil {
+		v.fail(p+".icon", "required")
+	}
+}
+
 func keys(limits map[string]int, special []string) []string {
 	out := slices.Clone(special)
 	for k := range limits {
@@ -189,6 +208,8 @@ func (v *validator) content(m map[string]any, p, kind string, limits map[string]
 			v.media(m, k, p, "portrait")
 		case "icon":
 			v.enum(m, k, p, icons, true)
+		case "emoji":
+			v.itemEmoji(m, p)
 		case "consent":
 			if x, exists := m[k]; exists {
 				if _, ok := x.(bool); !ok {
@@ -257,20 +278,42 @@ func (v *validator) content(m map[string]any, p, kind string, limits map[string]
 // ValidateDocument is pure: it never accesses storage and returns a canonical
 // document only when grammar is valid. Catalog and ownership checks use refs.
 func (validatorPort *Validator) ValidateDocument(value any) (*Document, []Field) {
+	return validatorPort.validateDocument(value, false)
+}
+
+// ValidateStoredDocument normalizes legacy drafts and snapshots. Only the rule
+// requiring an icon or emoji is relaxed; all other grammar remains enforced.
+func (validatorPort *Validator) ValidateStoredDocument(value any) (*Document, []Field) {
+	return validatorPort.validateDocument(value, true)
+}
+
+func (validatorPort *Validator) validateDocument(value any, stored bool) (*Document, []Field) {
 	// Validation normalizes the caller-owned decoded input in place.
-	v := &validator{rich: validatorPort.rich, doc: Document{StoryPlain: map[string]string{}}}
+	v := &validator{stored: stored, rich: validatorPort.rich, doc: Document{StoryPlain: map[string]string{}}}
 	m := v.object(value, "", []string{"slug", "theme", "seo", "blocks"})
 	v.text(m, "slug", "", 60)
 	if s := text(m, "slug"); s != "" && SlugReason(s) == "invalid" {
 		v.fail("slug", "invalid")
 	}
-	theme := v.object(m["theme"], "theme", []string{"brand_color", "font_pair"})
+	theme := v.object(m["theme"], "theme", []string{"brand_color", "accent_color", "background_color", "font_pair"})
 	v.text(theme, "brand_color", "theme", 7)
 	if !colorPattern.MatchString(text(theme, "brand_color")) {
 		v.fail("theme.brand_color", "invalid")
 	}
 	if s := text(theme, "brand_color"); s != "" {
 		theme["brand_color"] = strings.ToUpper(s)
+	}
+	for _, key := range []string{"accent_color", "background_color"} {
+		if theme[key] == nil {
+			theme[key] = nil
+			continue
+		}
+		color, ok := theme[key].(string)
+		if !ok || !colorPattern.MatchString(color) {
+			v.fail("theme."+key, "invalid")
+		} else {
+			theme[key] = strings.ToUpper(color)
+		}
 	}
 	v.enum(theme, "font_pair", "theme", []string{"classic", "editorial", "modern"}, false)
 	seo := v.object(m["seo"], "seo", []string{"title", "description"})
