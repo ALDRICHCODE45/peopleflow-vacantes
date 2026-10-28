@@ -80,6 +80,7 @@ Attributed to the backend owner; this session did not inspect backend code, run 
 - **Applications:** `POST /jobs/{id}/applications`, `GET /me/applications`, recruiter list/detail/transition; uniqueness candidate/vacancy; fixed `submitted → in_review → hired | rejected`.
 - **Companies:** public company read, `POST /companies` creates owner atomically, `GET /me/company`; recruiters can list company members while member and company mutations are owner-only; `GET /industries`.
 - **Audit:** partial transactional fail-closed `audit_events` (migration `00011`); **no query API and no universal audit**.
+- **Vacancy checklist (v1, backend verified):** `GET/PUT /v2/me/company/job-drafts/{id}/checklist`, recruiter owner-or-principal gate, independent version/ETag, required `If-Match`, exact field validation, retired-reminder filtering and finished-process write protection. `JobDraftChecklistConfigured` is co-written with JSON-string previous/new snapshots; identical stored PUTs are no-ops. Automatic candidate evaluation remains frontend-owned.
 - **Documents/CVs:** `cv_s3_key` reserved; **no upload/download/S3 wired**.
 - **Observability:** HTTP logging and health endpoints exist; metric interfaces are no-ops with no exporter and no `/metrics` endpoint, and there are **no business metrics**.
 - **Absent backend-side:** new pipeline model, metrics, replacements and global directory.

@@ -5,11 +5,11 @@
 package checklist
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -93,10 +93,19 @@ func ETag(id uuid.UUID, version int64) string {
 	return `"vc1-` + base64.RawURLEncoding.EncodeToString(digest[:]) + `"`
 }
 
+// Equal ignores object-key order (JSONB may reorder params), but retains array
+// order: criteria and reminder stages remain ordered replacement documents.
 func (c Checklist) Equal(other Checklist) bool {
 	a, errA := json.Marshal(c)
 	b, errB := json.Marshal(other)
-	return errA == nil && errB == nil && bytes.Equal(a, b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	var left, right any
+	if json.Unmarshal(a, &left) != nil || json.Unmarshal(b, &right) != nil {
+		return false
+	}
+	return reflect.DeepEqual(left, right)
 }
 
 // Has reports whether criterionID (canonical) is a current criterion.
@@ -375,8 +384,8 @@ func decodeEducation(v *validator, path string, params map[string]any, _ *unique
 }
 
 func decodeLanguage(v *validator, path string, params map[string]any, seen *uniqueness) json.RawMessage {
-	v.only(path, params, "code", "min_level")
-	code, codeOK := v.enum(params, "code", path+".code", func(code string) bool {
+	v.only(path, params, languages.CodeField, "min_level")
+	code, codeOK := v.enum(params, languages.CodeField, path+"."+languages.CodeField, func(code string) bool {
 		_, ok := languages.Lookup(code)
 		return ok
 	})
@@ -391,10 +400,8 @@ func decodeLanguage(v *validator, path string, params map[string]any, seen *uniq
 	if !codeOK || !levelOK {
 		return nil
 	}
-	return encode(struct {
-		Code     string `json:"code"`
-		MinLevel string `json:"min_level"`
-	}{code, level})
+	// Keys sort as code < min_level, the documented order.
+	return encode(map[string]string{languages.CodeField: code, "min_level": level})
 }
 
 func decodeSkill(v *validator, path string, params map[string]any, seen *uniqueness) json.RawMessage {

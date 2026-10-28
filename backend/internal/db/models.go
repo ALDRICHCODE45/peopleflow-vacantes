@@ -333,6 +333,12 @@ type JobDraft struct {
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 }
 
+type JobDraftChecklist struct {
+	DraftID   uuid.UUID `json:"draft_id"`
+	Version   int64     `json:"version"`
+	Checklist []byte    `json:"checklist"`
+}
+
 type JobDraftDeliveryConfig struct {
 	DraftID        uuid.UUID   `json:"draft_id"`
 	Version        int64       `json:"version"`
@@ -386,6 +392,15 @@ type JobDraftSubstateCatalog struct {
 type ManualLanguageName struct {
 	Code pgtype.Text `json:"code"`
 	Name pgtype.Text `json:"name"`
+}
+
+type ParticipationChecklistMark struct {
+	ParticipationID uuid.UUID          `json:"participation_id"`
+	CriterionID     uuid.UUID          `json:"criterion_id"`
+	Verdict         string             `json:"verdict"`
+	Note            pgtype.Text        `json:"note"`
+	MarkedBy        uuid.UUID          `json:"marked_by"`
+	MarkedAt        pgtype.Timestamptz `json:"marked_at"`
 }
 
 type ParticipationIdempotency struct {

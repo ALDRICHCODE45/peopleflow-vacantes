@@ -154,6 +154,11 @@ This is the default list, not a requirement to pass through `Descartados` as a n
 - **SUB-5.** Support filtering process candidates by active substate. Allow multiple selections with OR semantics: match any selected substate. Include `Sin subestado` for candidates in `En proceso` with no assigned substate. Combination with other filters and cross-vacancy reporting semantics are open.
 - **SUB-6.** Use substates for detailed activities instead of adding a column per interview.
 
+### 5.2 Internal vacancy checklist (v1)
+
+- `GET/PUT /v2/me/company/job-drafts/{id}/checklist` stores ordered criteria and current reminder stages. GET returns version `0` and empty arrays before the first save; PUT requires the opaque checklist ETag in `If-Match`. Identical stored replacements do not increment the version or emit an event. GET hides retired reminder stages.
+- Checklist access uses the recruiter owner-or-principal gate (foreign/non-principal vacancies are `404`). Finished processes reject writes with `409 process_finished`; reads remain available. Criteria inform comparison only; the backend does not evaluate, reject or move candidates in v1.
+
 ## 6. Delivery configuration, cutoff and commitment date
 
 - **CFG-1.** Delivery cutoff column is configurable per process. Original-process delivery starts at publication; replacement delivery starts at its explicit configured start. Neither is a freely configurable clock-start choice.
@@ -314,6 +319,7 @@ This is the default list, not a requirement to pass through `Descartados` as a n
 - **AUD-3.** Users must be able to inspect whether delivery was on time, the evidence candidates, later `Placement` departures, departure timestamps and candidate details. Current state must not overwrite the historical explanation.
 - **AUD-4.** Record when an edit itself caused fulfillment.
 - **AUD-5.** Record acting user, previous/new assignee and timestamp on assignment changes (see ASG-4).
+- **AUD-6.** Checklist replacement co-writes `JobDraftChecklistConfigured` (`job_draft`) with version and complete `previous`/`new` checklist snapshots encoded as JSON strings. Rejected writes and identical stored replacements produce no event.
 
 ## 15. Worked examples (agreed behavior)
 
