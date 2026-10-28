@@ -44,13 +44,15 @@ const emojiSegmenter = new Intl.Segmenter("es", { granularity: "grapheme" });
 // engines removed text-default symbols such as ♡ from the runtime property.
 // Source: Unicode emoji-data.txt (https://www.unicode.org/license.html).
 const pictographic15 = String.raw`[\u00A9\u00AE\u203C\u2049\u2122\u2139\u2194-\u2199\u21A9-\u21AA\u231A-\u231B\u2328\u2388\u23CF\u23E9-\u23F3\u23F8-\u23FA\u24C2\u25AA-\u25AB\u25B6\u25C0\u25FB-\u25FE\u2600-\u2605\u2607-\u2612\u2614-\u2685\u2690-\u2705\u2708-\u2712\u2714\u2716\u271D\u2721\u2728\u2733-\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763-\u2767\u2795-\u2797\u27A1\u27B0\u27BF\u2934-\u2935\u2B05-\u2B07\u2B1B-\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299\u{1F000}-\u{1F0FF}\u{1F10D}-\u{1F10F}\u{1F12F}\u{1F16C}-\u{1F171}\u{1F17E}-\u{1F17F}\u{1F18E}\u{1F191}-\u{1F19A}\u{1F1AD}-\u{1F1E5}\u{1F201}-\u{1F20F}\u{1F21A}\u{1F22F}\u{1F232}-\u{1F23A}\u{1F23C}-\u{1F23F}\u{1F249}-\u{1F3FA}\u{1F400}-\u{1F53D}\u{1F546}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F774}-\u{1F77F}\u{1F7D5}-\u{1F7FF}\u{1F80C}-\u{1F80F}\u{1F848}-\u{1F84F}\u{1F85A}-\u{1F85F}\u{1F888}-\u{1F88F}\u{1F8AE}-\u{1F8FF}\u{1F90C}-\u{1F93A}\u{1F93C}-\u{1F945}\u{1F947}-\u{1FAFF}\u{1FC00}-\u{1FFFD}]`;
-const emojiElement = String.raw`(?:${pictographic15}\uFE0F?[\u{1F3FB}-\u{1F3FF}]?(?:[\u{E0020}-\u{E007E}]+\u{E007F})?|[\u{1F1E6}-\u{1F1FF}]{2}|[0-9#*]\uFE0F?\u20E3)`;
-const emojiSequence = new RegExp(`^${emojiElement}(?:\\u200D${emojiElement})*$`, "u");
+// U+200D joins pictographic elements only; flags, keycaps and tag sequences stand alone.
+const joinableElement = String.raw`${pictographic15}\uFE0F?[\u{1F3FB}-\u{1F3FF}]?`;
+const standaloneElement = String.raw`${joinableElement}[\u{E0020}-\u{E007E}]+\u{E007F}|[\u{1F1E6}-\u{1F1FF}]{2}|[0-9#*]\uFE0F?\u20E3`;
+const emojiSequence = new RegExp(`^(?:${standaloneElement}|${joinableElement}(?:\\u200D${joinableElement})*)$`, "u");
 export function emojiError(value: string): "invalid" | "too_long" | null {
   if (new TextEncoder().encode(value).length > 32) return "too_long";
-  // A newer Segmenter may split Unicode-15 pictographs (♡‍🔥) or joined flag
-  // elements. The pinned, fully anchored backend grammar is authoritative for
-  // those ZWJ sequences; adjacent, unjoined emoji still fail that grammar.
+  // A newer Segmenter may split Unicode-15 pictographs joined by U+200D (♡‍🔥).
+  // The pinned, fully anchored backend grammar is authoritative for those ZWJ
+  // sequences; adjacent, unjoined emoji still fail that grammar.
   const singleSequence = [...emojiSegmenter.segment(value)].length === 1 || value.includes("\u200D");
   return singleSequence && emojiSequence.test(value) ? null : "invalid";
 }

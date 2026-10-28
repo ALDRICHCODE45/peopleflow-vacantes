@@ -22,20 +22,25 @@ func regionalIndicator(r rune) bool { return r >= 0x1F1E6 && r <= 0x1F1FF }
 
 // validEmoji matches one complete sequence, not a substring. Selectors,
 // modifiers, tags and joiners are accepted only at their grammar positions.
-// No trimming or Unicode replacement is performed.
+// U+200D joins pictographic elements only; flags, keycaps and tag sequences
+// stand alone. No trimming or Unicode replacement is performed.
 func validEmoji(s string) bool {
 	if s == "" || len(s) > 32 || !utf8.ValidString(s) {
 		return false
 	}
 	r := []rune(s)
 	i := 0
+	joined := false
 	for {
 		if i >= len(r) {
 			return false
 		}
 		base := r[i]
 		i++
+		joinable := false
 		switch {
+		case joined && !extendedPictographic(base):
+			return false
 		case regionalIndicator(base):
 			if i >= len(r) || !regionalIndicator(r[i]) {
 				return false
@@ -61,10 +66,12 @@ func validEmoji(s string) bool {
 				i++
 			}
 			if i > start {
-				if i >= len(r) || r[i] != 0xE007F {
+				if joined || i >= len(r) || r[i] != 0xE007F {
 					return false
 				}
 				i++
+			} else {
+				joinable = true
 			}
 		default:
 			return false
@@ -72,9 +79,10 @@ func validEmoji(s string) bool {
 		if i == len(r) {
 			return true
 		}
-		if r[i] != 0x200D {
+		if r[i] != 0x200D || !joinable {
 			return false
 		}
 		i++
+		joined = true
 	}
 }

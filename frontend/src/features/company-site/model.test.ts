@@ -52,7 +52,7 @@ function issues(candidate: unknown) { return publishIssues(siteDraftSchema.parse
 
 describe("icon or emoji contract", () => {
   for (const type of ["values", "benefits"] as const) {
-    it.each(["😀", "❤️", "👍🏽", "👩‍💻", "👨‍👩‍👧‍👦", "🇲🇽", "🏳️‍🌈", "1️⃣", "♡", "♡‍🔥", "🇲🇽‍🇺🇸", "🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"])(`${type} accepts one sequence %s`, emoji => {
+    it.each(["😀", "❤️", "👍🏽", "👩‍💻", "👨‍👩‍👧‍👦", "🇲🇽", "🏳️‍🌈", "1️⃣", "♡", "♡‍🔥", "🏴‍☠️", "🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"])(`${type} accepts one sequence %s`, emoji => {
       const candidate = block(type);
       candidate.content.items = [{ icon: null, emoji, title: null, description: null }];
       expect(blockSchema.safeParse(candidate).success).toBe(true);
@@ -65,6 +65,10 @@ describe("icon or emoji contract", () => {
       [null, "😀\u200d", "emoji", "invalid"], [null, " 😀", "emoji", "invalid"],
       [null, "1", "emoji", "invalid"], [null, "", "emoji", "invalid"],
       [null, "👩‍💻\n", "emoji", "invalid"], [null, "👩‍💻\r", "emoji", "invalid"],
+      // U+200D joins pictographic elements only: flags, keycaps and tag sequences stand alone.
+      [null, "🇲🇽\u200d🇺🇸", "emoji", "invalid"], [null, "😀\u200d🇲🇽", "emoji", "invalid"],
+      [null, "1️⃣\u200d😀", "emoji", "invalid"], [null, "😀\u200d#️⃣", "emoji", "invalid"],
+      [null, "🏴\u{E0067}\u{E007F}\u200d😀", "emoji", "invalid"], [null, "😀\u200d🏴\u{E0067}\u{E007F}", "emoji", "invalid"],
     ])(`${type} maps %s / %s to %s %s`, (icon, emoji, field, code) => {
       const candidate = block(type);
       candidate.content.items = [{ icon, emoji, title: null, description: null }];

@@ -113,11 +113,12 @@ this contract does not depend on it.
 - Emoji is exactly one complete UTS #51-style sequence over the generated Unicode 15.0.0
   `Extended_Pictographic` table (no runtime dependency): a pictographic base with optional U+FE0F, optional skin-tone
   modifier U+1F3FB–U+1F3FF; exactly two regional indicators for a flag; `[0-9#*]` + optional FE0F + U+20E3 for a
-  keycap; or a base with one or more tag characters U+E0020–U+E007E terminated by U+E007F. U+200D joins sequence
-  elements. The entire string must match, be valid UTF-8 and be at most 32 bytes, with a pictographic, flag or
-  keycap element. Whitespace, text, lone regional indicators, bare digits, adjacent unjoined emoji, dangling
+  keycap; or a base with one or more tag characters U+E0020–U+E007E terminated by U+E007F. U+200D joins
+  pictographic elements only (base, optional FE0F, optional modifier); flags, keycaps and tag sequences stand alone,
+  so `🇲🇽‍🇺🇸`, `😀‍🇲🇽`, `1️⃣‍😀` and a tag sequence joined to anything are `invalid`. The entire string must
+  match, be valid UTF-8 and be at most 32 bytes, with a pictographic, flag or keycap element. Whitespace, text, lone regional indicators, bare digits, adjacent unjoined emoji, dangling
   selectors/joiners/tags and arbitrary combining marks are rejected. No trimming or replacement is performed.
-  Examples accepted: 😀, ❤️, 👍🏽, 👩‍💻, 👨‍👩‍👧‍👦, 🇲🇽, 🏳️‍🌈, 1️⃣ and the terminated Scotland tag flag.
+  Examples accepted: 😀, ❤️, 👍🏽, 👩‍💻, 👨‍👩‍👧‍👦, 🇲🇽, 🏳️‍🌈, 🏴‍☠️, 1️⃣ and the terminated Scotland tag flag.
   `♡` (U+2661) is accepted because it is in `Extended_Pictographic`; this is a property-based grammar, not an RGI
   emoji allowlist. Byte limits still apply to long sequences.
 - Stored drafts and published snapshots missing `emoji`, `accent_color` or `background_color` read with those keys

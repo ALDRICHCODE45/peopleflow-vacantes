@@ -27,14 +27,16 @@ func TestIconListOrderAndUniqueness(t *testing.T) {
 }
 
 func TestEmojiGrammar(t *testing.T) {
-	for _, s := range []string{"😀", "❤️", "👍🏽", "👩‍💻", "👨‍👩‍👧‍👦", "🇲🇽", "🏳️‍🌈", "1️⃣", "#\u20e3", "🏴\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007f", "♡"} {
+	for _, s := range []string{"😀", "❤️", "👍🏽", "👩‍💻", "👨‍👩‍👧‍👦", "🇲🇽", "🏳️‍🌈", "1️⃣", "#\u20e3", "🏴\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007f", "♡", "🏴\u200d☠️", "♡\u200d🔥"} {
 		t.Run(s, func(t *testing.T) {
 			if !validEmoji(s) {
 				t.Fatalf("rejected %q (%d bytes)", s, len(s))
 			}
 		})
 	}
-	for _, s := range []string{"", " 😀", "😀😀", "a", "😀a", "🇲", "🇲🇽🇺🇸", "\u200d😀", "1", strings.Repeat("a", 33), string([]byte{0xff}), "😀\u200d", "😀\ufe0f\ufe0f", "👍🏽🏽", "🏴\U000e0067", "🏴\U000e007f", "😀\u0301", "😀\ufe0e", "1\ufe0f", "\U0001f3fd"} {
+	for _, s := range []string{"", " 😀", "😀😀", "a", "😀a", "🇲", "🇲🇽🇺🇸", "\u200d😀", "1", strings.Repeat("a", 33), string([]byte{0xff}), "😀\u200d", "😀\ufe0f\ufe0f", "👍🏽🏽", "🏴\U000e0067", "🏴\U000e007f", "😀\u0301", "😀\ufe0e", "1\ufe0f", "\U0001f3fd",
+		// U+200D joins pictographic elements only: flags, keycaps and tag sequences stand alone.
+		"🇲🇽\u200d🇺🇸", "😀\u200d🇲🇽", "1️⃣\u200d😀", "😀\u200d#️⃣", "🏴\U000e0067\U000e007f\u200d😀", "😀\u200d🏴\U000e0067\U000e007f"} {
 		if validEmoji(s) {
 			t.Errorf("accepted %q", s)
 		}
