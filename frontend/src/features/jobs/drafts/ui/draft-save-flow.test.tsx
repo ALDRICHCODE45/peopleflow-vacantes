@@ -22,7 +22,8 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ count
 vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "draft-success"), error: vi.fn(() => "draft-error"), dismiss: vi.fn() } }));
 const key = "123e4567-e89b-42d3-a456-426614174000";
 const success = {ok:true, draftId:"saved-id", etag:'"v1"', version:"1", savedAt:"2026-10-06T03:00:00Z"} as const;
-const save = () => screen.getByRole("button", {name:/^Guardar borrador$|^Guardar cambios$/});
+// Scoped to the save bar: whole-editor role queries inside waitFor loops are what made this file slow under load.
+const save = () => within(document.querySelector<HTMLElement>("[data-pf-draft-save-actions]")!).getByRole("button", {name:/^Guardar borrador$|^Guardar cambios$/});
 function review() {
   fireEvent.click(screen.getByRole("tab", { name: "Revisión y publicación" }));
 }
