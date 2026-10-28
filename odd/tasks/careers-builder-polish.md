@@ -17,11 +17,11 @@ changes (icons/emoji, palette) are coordinated with backend session `01a16b3c`.
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T1 | S1 | inline (TDD) | |
-| T2 | S2 | worker (picker) | |
-| T3 | S5, S6 | worker (layout) | |
-| T4 | S3 | backend contract + frontend worker | |
-| T5 | S4 | design proposal → backend contract + frontend worker | |
+| T1 | S1 | inline (TDD) | b98bc3b7, 5d4ded59, e20855b4 |
+| T2 | S2 | worker (picker) | ae8a58f6, 5d4ded59 |
+| T3 | S5, S6 | worker (layout) | 5c2c3079, e7b563e2 |
+| T4 | S3 | backend contract + frontend worker | 60e0e9de, 6ae809a2 |
+| T5 | S4 | design proposal → backend contract + frontend worker | 60e0e9de, 5b7517bd, e7b563e2 |
 
 ## Log
 
@@ -47,5 +47,5 @@ changes (icons/emoji, palette) are coordinated with backend session `01a16b3c`.
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T6 | S7–S9 | worker | |
+| T6 | S7–S9 | worker | 28c748bc |
 - L14 (browser review of T6, real data): row hover/focus outline fully visible in brand colour, not covered by siblings (S7). Filters sheet inherits fonts/palette/dark mode on the public page and opens inside the visible region of «Ver como visitante» (S8; preview iframe is full-document height, so PreviewFrame provides a transformed portal box tracking the visible region). Filters: Área, Modalidad, Jornada, Tipo de contrato, Nivel (+ Ubicación when jobs have a state; hidden for this company's remote jobs) (S9). Fixed during review: invisible fields (overlay `--input`/`--muted` were #FFFFFF on #FFFFFF), double focus indicator (site outline scoped to `:focus-visible:not([data-slot]):not([class*="focus-visible:ring"])`). Live editor preview: clicks select sections (editor affordance), so its Filters button is not interactive there — by design.
