@@ -48,7 +48,7 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
 | T5 | S8 | worker — reminder with inline marks in the move confirmation | b9e1c1e4 |
 | T6 | S6, S7 | worker — comparison view and terna report (print + CSV) | ea0f75b5 |
 | T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | 9bd31e5a, 8aa1b1d0 |
-| T8 | S8 | inline — user review: reminder as a compact notice + «Revisar en la ficha» (no inline marks) | see L19 |
+| T8 | S8 | inline — user review: reminder as a compact notice + «Revisar en la ficha» (no inline marks) | cd127b76 |
 
 ## Log
 
