@@ -47,3 +47,7 @@ Backend half of the vacancy checklist. Contract: `docs/contracts/vacancy-checkli
 - **L3** Verification: `go vet ./...`, `go test ./...` (incl. scripts/closure after fixing the archguard `"code"` literal
   and regenerating sqlc models) and integration `go test -p 1 -tags=integration` on cmd/api, applications v2 and jobs
   against draft_test: all green. Commit slices: T2 grammar, T3 checklist storage, T4 marks (each its own commit).
+- **L4** Frontend QA rounds 1–2 against API @421b8616 on :8080 (dev DB migrated to 48): no backend defects; DELETE mark
+  verified live; process_finished not exercised live on purpose (covered by integration). Frontend ready at
+  `feat/vacancy-checklist` 8aa1b1d0. Merge of both branches waits for the user's browser review
+  (docs/pending-user-review.md item 3); :8080 stays up for it.
