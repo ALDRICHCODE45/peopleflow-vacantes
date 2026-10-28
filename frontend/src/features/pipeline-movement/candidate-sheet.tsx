@@ -33,15 +33,21 @@ import { useBoardChecklist } from "@/features/vacancy-checklist/board/state";
 import { ChecklistPanel } from "@/features/vacancy-checklist/board/ui";
 import type { Board, CorrectedField, Failure, History, Participation, ParticipationDetail } from "./model";
 
-type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
+type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; tabRequest?: { tab: string }; children?: ReactNode };
 export function CandidateSheet(props: Props) {
   return <Sheet open onOpenChange={open => { if (!open) props.onClose(); }}><CandidateSession key={props.item.id} {...props} /></Sheet>;
 }
-function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, children }: Props) {
+function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, tabRequest, children }: Props) {
   const checklist = useBoardChecklist();
   const manual = item.source === "manual";
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const [tab, setTab] = useState("summary");
+  const [tab, setTab] = useState(tabRequest?.tab ?? "summary");
+  // A new request (e.g. «Revisar en la ficha» from the move confirmation) switches the open sheet's tab.
+  const [seenRequest, setSeenRequest] = useState(tabRequest);
+  if (tabRequest !== seenRequest) {
+    setSeenRequest(tabRequest);
+    if (tabRequest) setTab(tabRequest.tab);
+  }
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ detail: ParticipationDetail; history: History } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);

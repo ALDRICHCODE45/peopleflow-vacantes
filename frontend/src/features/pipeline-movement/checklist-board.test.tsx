@@ -50,6 +50,20 @@ it("shows the reminder in the actual confirmation and moves without marks", asyn
   fireEvent.click(within(dialog).getByRole("button", { name: "Mover" }));
   await waitFor(() => expect(moveParticipationAction).toHaveBeenCalledOnce());
 });
+it("reviews pending criteria from the confirmation in the sheet Checklist tab without moving", async () => {
+  const board = boardFixture();
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { version: "1", reminder_stage_ids: [board.stages[1].id], criteria: [{ id: "c", label: "Entrevista", kind: "manual", params: {}, importance: "required" }] } });
+  render(<MovementBoard vacancyId="vacancy" />);
+  await screen.findAllByLabelText(/Ajuste al checklist/);
+  fireEvent.click(screen.getByRole("button", { name: `Mover ${board.participations[0].id} a ${board.stages[1].name}` }));
+  const dialog = await screen.findByRole("alertdialog");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Revisar en la ficha" }));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  expect(await screen.findByRole("tab", { name: "Checklist" })).toHaveAttribute("aria-selected", "true");
+  expect(await screen.findByRole("region", { name: "Checklist del candidato" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Marcar cumple: Entrevista" })).toBeVisible();
+  expect(moveParticipationAction).not.toHaveBeenCalled();
+});
 it("integrates card fit and stable best-fit ordering in columns", async () => {
   render(<MovementBoard vacancyId="vacancy" />);
   expect(await screen.findByText("1/1 obligatorios")).toBeVisible();

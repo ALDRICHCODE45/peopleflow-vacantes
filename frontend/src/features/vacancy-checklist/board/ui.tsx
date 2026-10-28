@@ -1,14 +1,15 @@
 "use client";
 import { Fragment, useState } from "react";
 import Link from "next/link";
-import { Check, CircleHelp, X } from "lucide-react";
+import { Check, CircleHelp, ListChecks, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "cn";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
+import { plural } from "@/features/employer-vacancies/plural";
 import { ActionStatus } from "@/components/feedback/action-status";
 import type { Participation } from "@/features/pipeline-movement/model";
 import { MovementDate } from "@/features/pipeline-movement/board-states";
@@ -35,12 +36,12 @@ export function ChecklistFit({ item }: { item: Participation }) {
     {unknown > 0 && <span className="text-xs text-muted-foreground">{unknown} sin evaluar</span>}
   </div>;
 }
-function CriterionRow({ criterion, item, inline = false }: { criterion: Criterion; item: Participation; inline?: boolean }) {
+function CriterionRow({ criterion, item }: { criterion: Criterion; item: Participation }) {
   const state = useBoardChecklist()!;
   const mark = state.marks.find(mark => mark.participation_id === item.id && mark.criterion_id === criterion.id);
-  return <CriterionEditor key={`${criterion.id}:${mark?.note ?? ""}`} criterion={criterion} item={item} mark={mark} inline={inline} />;
+  return <CriterionEditor key={`${criterion.id}:${mark?.note ?? ""}`} criterion={criterion} item={item} mark={mark} />;
 }
-function CriterionEditor({ criterion, item, mark, inline }: { criterion: Criterion; item: Participation; mark?: Mark; inline: boolean }) {
+function CriterionEditor({ criterion, item, mark }: { criterion: Criterion; item: Participation; mark?: Mark }) {
   const state = useBoardChecklist()!;
   const [note, setNote] = useState(mark?.note ?? "");
   const [editingNote, setEditingNote] = useState(false);
@@ -49,24 +50,23 @@ function CriterionEditor({ criterion, item, mark, inline }: { criterion: Criteri
   const Icon = evaluation.result === "met" ? Check : evaluation.result === "not_met" ? X : CircleHelp;
   const tooLong = [...note.trim()].length > 500;
   const disabled = state.disabled || state.pending.has(`${item.id}:${criterion.id}`);
-  const suffix = inline ? " antes de mover" : "";
   const noteId = `checklist-note-${criterion.id}`;
-  return <Item size="xs" className={inline ? "flex-nowrap" : undefined} data-checklist-row>
+  return <Item size="xs" data-checklist-row>
     <ItemContent className="min-w-0">
-      <ItemTitle className="w-full line-clamp-none"><span className={inline ? "truncate" : "line-clamp-2 break-words"} title={criterion.label}>{criterion.label}</span></ItemTitle>
-      {!inline && <>
+      <ItemTitle className="w-full line-clamp-none"><span className="line-clamp-2 break-words" title={criterion.label}>{criterion.label}</span></ItemTitle>
+      <>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={evaluation.result === "met" ? "success" : evaluation.result === "not_met" ? "review" : "neutral"}><Icon aria-hidden="true" data-icon="inline-start" />{resultLabel(evaluation.result)}</Badge>
           {source && <span className="text-xs text-muted-foreground">{source}{mark && <> · {mark.marked_by.full_name} · <MovementDate value={mark.marked_at} withTime /></>}</span>}
         </div>
         {mark?.note && !editingNote && <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words">{mark.note}</ItemDescription>}
-      </>}
+      </>
     </ItemContent>
     <ItemActions>
-      <Button type="button" variant="outline" size="icon" className="size-10" aria-label={`Marcar cumple${suffix}: ${criterion.label}`} aria-pressed={mark?.verdict === "met"} disabled={disabled || tooLong} onClick={() => void state.update(item.id, criterion.id, { verdict: "met", note: note.trim() || null })}><Check aria-hidden="true" /></Button>
-      <Button type="button" variant="outline" size="icon" className="size-10" aria-label={`Marcar no cumple${suffix}: ${criterion.label}`} aria-pressed={mark?.verdict === "not_met"} disabled={disabled || tooLong} onClick={() => void state.update(item.id, criterion.id, { verdict: "not_met", note: note.trim() || null })}><X aria-hidden="true" /></Button>
+      <Button type="button" variant="outline" size="icon" className="size-10" aria-label={`Marcar cumple: ${criterion.label}`} aria-pressed={mark?.verdict === "met"} disabled={disabled || tooLong} onClick={() => void state.update(item.id, criterion.id, { verdict: "met", note: note.trim() || null })}><Check aria-hidden="true" /></Button>
+      <Button type="button" variant="outline" size="icon" className="size-10" aria-label={`Marcar no cumple: ${criterion.label}`} aria-pressed={mark?.verdict === "not_met"} disabled={disabled || tooLong} onClick={() => void state.update(item.id, criterion.id, { verdict: "not_met", note: note.trim() || null })}><X aria-hidden="true" /></Button>
     </ItemActions>
-    {!inline && <ItemFooter className="basis-full flex-wrap justify-start">
+    <ItemFooter className="basis-full flex-wrap justify-start">
       {/* Controlled disclosure: Button exposes its expanded state and the associated note Field. */}
       <Button type="button" variant="ghost" className="min-h-10" aria-expanded={editingNote} aria-controls={noteId} aria-label={`${mark?.note ? "Editar nota" : "Agregar nota"}: ${criterion.label}`} onClick={() => setEditingNote(value => !value)}>{mark?.note ? "Editar nota" : "Agregar nota"}</Button>
       {mark && <Button type="button" variant="ghost" className="min-h-10" aria-label={`Quitar marca: ${criterion.label}`} disabled={disabled} onClick={() => void state.update(item.id, criterion.id, null)}>Quitar marca</Button>}
@@ -76,7 +76,7 @@ function CriterionEditor({ criterion, item, mark, inline }: { criterion: Criteri
         <FieldDescription id={`${noteId}-help`}>Opcional, hasta 500 caracteres. Se guarda al marcar un resultado.</FieldDescription>
         {tooLong && <FieldError>La nota no puede superar 500 caracteres.</FieldError>}
       </Field>}
-    </ItemFooter>}
+    </ItemFooter>
   </Item>;
 }
 function WriteStatus({ id }: { id: string }) {
@@ -98,12 +98,34 @@ export function ChecklistPanel({ item }: { item: Participation }) {
     })}
   </section>;
 }
-export function ChecklistReminder({ item, target }: { item: Participation; target: string }) {
+/** Names the first pending criteria as a Spanish list: «A, B y C» or «A, B, C y 4 más». */
+function pendingNames(pending: Criterion[]) {
+  const names = pending.slice(0, 3).map(criterion => criterion.label);
+  const rest = pending.length - names.length;
+  if (rest > 0) return `${names.join(", ")} y ${rest} más`;
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} y ${names.at(-1)}` : names[0];
+}
+// A notice, not a form: the move confirmation stays light and marks live in the sheet (§13.8, §17).
+export function ChecklistReminder({ item, target, onReview }: { item: Participation; target: string; onReview: () => void }) {
   const state = useBoardChecklist();
   if (!state?.checklist) return null;
   const pending = pendingRequired(state.checklist.criteria, item, state.marks, state.checklist.reminder_stage_ids, target);
   if (!pending.length) return null;
-  return <section aria-label="Antes de mover" className="flex min-w-0 flex-col gap-2"><h3 className="text-sm font-semibold">Antes de mover</h3><p className="text-sm text-muted-foreground">Estos obligatorios siguen sin evaluar. Puedes mover sin marcarlos.</p><WriteStatus id="checklist-reminder-status" /><ItemGroup className="gap-0">{pending.slice(0, 5).map(criterion => <CriterionRow key={criterion.id} criterion={criterion} item={item} inline />)}</ItemGroup>{pending.length > 5 && <p className="text-xs text-muted-foreground">y {pending.length - 5} más — revísalos en la ficha del candidato</p>}</section>;
+  const names = pendingNames(pending);
+  // Outline item + accent medallion: a muted surface disappears in dark mode (§13.1).
+  return <section aria-label="Antes de mover" className="min-w-0">
+    <Item variant="outline" size="sm">
+      <ItemMedia className="size-9 rounded-xl bg-primary/12 text-foreground ring-1 ring-primary/40"><ListChecks aria-hidden="true" className="size-4" /></ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle>{plural(pending.length, "obligatorio sin evaluar", "obligatorios sin evaluar")}</ItemTitle>
+        <ItemDescription className="break-words" title={pending.map(criterion => criterion.label).join("\n")}>{names}.</ItemDescription>
+      </ItemContent>
+      <ItemFooter className="flex-wrap">
+        <p className="text-xs text-muted-foreground">{pending.length === 1 ? "Puedes mover sin marcarlo." : "Puedes mover sin marcarlos."}</p>
+        <Button type="button" variant="outline" className="ml-auto min-h-10" onClick={onReview}>Revisar en la ficha</Button>
+      </ItemFooter>
+    </Item>
+  </section>;
 }
 export function ChecklistSelection({ item }: { item: Participation }) {
   const state = useBoardChecklist();

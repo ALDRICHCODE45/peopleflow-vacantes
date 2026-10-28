@@ -45,6 +45,7 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
   const languages = useLanguageCatalog();
   const [filters, setFilters] = useState<FilterSelection>({});
   const [selected, setSelected] = useState<string | null>(null);
+  const [sheetTab, setSheetTab] = useState<{ id: string; tab: string } | undefined>();
   const [intake, setIntake] = useState(false);
   const [externalItem, setExternalItem] = useState<Participation | null>(null);
   const { board, confirmation, pending, stale } = state;
@@ -81,7 +82,7 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
     title={`¿Mover a ${confirmation.item.candidate.full_name} a ${to}?`}
     description={`Pasa de ${from} a ${to}. El cambio queda en su historial.${confirmation.placementExit ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación." : ""}`}
     confirmLabel="Mover" pendingLabel="Moviendo…" pending={confirming} confirmDisabled={state.reading || stale} onConfirm={state.confirmMove}>
-    <ChecklistReminder item={confirmation.item} target={confirmation.target} />
+    <ChecklistReminder item={confirmation.item} target={confirmation.target} onReview={() => { const id = confirmation.item.id; state.closeConfirmation(); setSheetTab({ id, tab: "checklist" }); setSelected(id); }} />
     {stale && <ActionStatus id="placement-check-status" tone="info" text={state.reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} />}
   </ConfirmActionDialog>;
   const substate = state.substateConfirmation;
@@ -118,7 +119,7 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
       <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <Button type="button" variant={bestFit ? "secondary" : "outline"} className="min-h-10" aria-pressed={bestFit} onClick={() => setBestFit(value => !value)}>Ordenar: Mejor ajuste</Button> : null}<ChecklistComparison vacancyId={vacancyId} /></>} />
       <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
-      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
+      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} tabRequest={sheetTab?.id === selectedItem.id ? sheetTab : undefined} onClose={() => { setSelected(null); setSheetTab(undefined); }} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
       {intake && <ManualIntakeSheet vacancyId={vacancyId} stages={board.stages} disabled={readOnly || stale} onClose={() => setIntake(false)} onSuccess={value => { state.addCandidate(value); setFilters({}); }} onViewExisting={async id => {
         const known = board.participations.find(item => item.id === id);
         if (known) { setSelected(id); setIntake(false); return; }

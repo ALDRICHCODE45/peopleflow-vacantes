@@ -31,8 +31,9 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
   terna as a printable report (PDF through the browser) and CSV: candidates × criteria with results and recruiter notes.
   No contact data by default.
 - **S8 Non-blocking reminder.** User: «3. si, el recordatorio suena bien.» When moving a candidate into a stage chosen in
-  the checklist's reminder stages, the move confirmation lists the required criteria still «sin evaluar» with inline
-  ✓/✗; the move works without marking anything.
+  the checklist's reminder stages, the move confirmation shows one compact notice (count of required criteria still
+  «sin evaluar», the first names, «Puedes mover sin marcarlos.») and «Revisar en la ficha», which opens the candidate
+  sheet on its «Checklist» tab; marks are made only in the sheet (L19). The move works without marking anything.
 - **S9 No AI, never rejects.** User: «2. Si, fuera en F1.» No AI suggestions; the checklist never rejects, discards or
   moves a candidate (INT-22).
 
@@ -47,6 +48,7 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
 | T5 | S8 | worker — reminder with inline marks in the move confirmation | b9e1c1e4 |
 | T6 | S6, S7 | worker — comparison view and terna report (print + CSV) | ea0f75b5 |
 | T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | 9bd31e5a, 8aa1b1d0 |
+| T8 | S8 | inline — user review: reminder as a compact notice + «Revisar en la ficha» (no inline marks) | see L19 |
 
 ## Log
 
@@ -149,3 +151,17 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
   queue nothing reaches `main` before the user's browser review; backend told to hold `feat/vacancy-checklist-backend`
   (421b8616) and keep :8080 for that review. Data left in the dev DB by QA: the 16-criterion checklist on
   «Software Developer» (round-1 mark cleared; no candidate moved).
+- **L19** (user, verbatim, laptop browser review 2026-10-28): «por ejemplo este dialog, que sale cuando intentas mover el
+  candidato a una nueva columna, y te dice los checklist que hay que marcar opcionalmente, pero hay items del checklist
+  que en este caso son muy grandes y causan un scroll horizontal en el dialog, se ve horrible, y tambien creo que a
+  nivel de ux/ui, aunque no hubiera este scroll horizontal, el recordatorio se me hace mucho, en este caso el checklist
+  tien por lo menos 10 items, y por eso se hace un scroll vertical largisimo». Root cause measured in the browser
+  (Playwright MCP, 1440 px): `ItemTitle` is `flex w-fit` and the label span (`truncate`) is a flex item without
+  `min-w-0`, so a long label grew to 686 px inside a 400 px row and slid under ✓/✕. User chose (question) «Aviso
+  compacto + «Revisar en la ficha»». T8: `ChecklistReminder` is one `Item variant="outline"` with an accent medallion
+  (a muted surface vanished in dark, §13.1): «N obligatorios sin evaluar», the first three names + «y N más»
+  (2-line clamp, full list in `title`), «Puedes mover sin marcarlos.» and «Revisar en la ficha»; the board closes the
+  confirmation and opens the sheet on «Checklist» (`CandidateSheet` `tabRequest`); the inline-mark mode of the row
+  editor is gone. RED 3 → GREEN (checklist + pipeline 605/605). Browser: dialog 660 → 381 px tall at 1440, no
+  horizontal overflow at 1440 light/dark and 390 px, «Revisar en la ficha» opens the sheet with «Checklist» selected
+  (16 rows, 0 px overflow at 390), no page errors, no 4xx/5xx; nobody moved. Screenshots /tmp/pf-cl/r3-*.png.

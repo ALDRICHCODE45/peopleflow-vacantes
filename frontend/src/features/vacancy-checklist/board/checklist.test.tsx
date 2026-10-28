@@ -14,9 +14,10 @@ const checklist: Checklist = { version: "1", criteria: [criterion], reminder_sta
 const mark: Mark = { participation_id: item.id, criterion_id: criterion.id, verdict: "met", note: "Observación", marked_by: { id: "actor", full_name: "Laura" }, marked_at: "2026-10-28T12:00:00Z" };
 function Harness({ target = "target" }: { target?: string }) {
   const state = useBoardChecklist();
-  return <><p>Tablero disponible</p><ChecklistRetry /><ChecklistFit item={item} /><ChecklistPanel item={item} /><ChecklistReminder item={item} target={target} /><button onClick={() => move()}>Mover</button><ChecklistSelection item={item} /><ChecklistSelection item={{ ...item, id: "second", candidate: { ...item.candidate, full_name: "Otro" } }} /><ChecklistComparison vacancyId="vacancy" /><span>{state?.marks.length}</span></>;
+  return <><p>Tablero disponible</p><ChecklistRetry /><ChecklistFit item={item} /><ChecklistPanel item={item} /><ChecklistReminder item={item} target={target} onReview={review} /><button onClick={() => move()}>Mover</button><ChecklistSelection item={item} /><ChecklistSelection item={{ ...item, id: "second", candidate: { ...item.candidate, full_name: "Otro" } }} /><ChecklistComparison vacancyId="vacancy" /><span>{state?.marks.length}</span></>;
 }
 const move = vi.fn();
+const review = vi.fn();
 const mount = (target?: string) => render(<ChecklistProvider vacancyId="vacancy"><Harness target={target} /></ChecklistProvider>);
 beforeEach(() => {
   vi.resetAllMocks();
@@ -84,15 +85,25 @@ it("rolls back failed marks and disables after process_finished", async () => {
   expect(screen.getByRole("button", { name: "Marcar cumple: Entrevista" })).toBeDisabled();
   expect(screen.getByText("Obligatorios 0/1 · 1 sin evaluar")).toBeVisible();
 });
-it("never blocks a move without marks and saves inline marks", async () => {
+it("never blocks a move and sends the recruiter to the sheet instead of marking inline", async () => {
   mount();
-  expect(await screen.findByText("Antes de mover")).toBeVisible();
+  const reminder = await screen.findByRole("region", { name: "Antes de mover" });
+  expect(within(reminder).getByText("1 obligatorio sin evaluar")).toBeVisible();
+  expect(within(reminder).getByText("Entrevista.")).toBeVisible();
+  expect(within(reminder).getByText("Puedes mover sin marcarlo.")).toBeVisible();
+  expect(within(reminder).queryAllByRole("button", { name: /Marcar/ })).toHaveLength(0);
   fireEvent.click(screen.getByRole("button", { name: "Mover" }));
   expect(move).toHaveBeenCalledOnce();
+  fireEvent.click(within(reminder).getByRole("button", { name: "Revisar en la ficha" }));
+  expect(review).toHaveBeenCalledOnce();
   expect(setChecklistMarkAction).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Marcar cumple antes de mover: Entrevista" }));
+});
+it("disappears once the pending required criterion is marked in the sheet", async () => {
+  mount();
+  await screen.findByRole("region", { name: "Antes de mover" });
+  fireEvent.click(screen.getByRole("button", { name: "Marcar cumple: Entrevista" }));
   await waitFor(() => expect(setChecklistMarkAction).toHaveBeenCalledOnce());
-  await waitFor(() => expect(screen.queryByText("Antes de mover")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Antes de mover" })).not.toBeInTheDocument());
 });
 it("hides reminders for other stages and opts into comparison selection, cancel clears it", async () => {
   mount("other");
@@ -120,13 +131,22 @@ it("limits selection to five, still allows deselection and does not write marks"
   expect(screen.getByRole("checkbox", { name: "Seleccionar para comparar: Persona 5" })).not.toHaveAttribute("aria-disabled", "true");
   expect(setChecklistMarkAction).not.toHaveBeenCalled();
 });
-it("caps compact move reminder at five pending required criteria", async () => {
-  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: Array.from({ length: 11 }, (_, n) => ({ ...criterion, id: `c${n}`, label: `Criterio ${n}` })) } });
+it("summarizes many pending required criteria in one notice that never overflows", async () => {
+  const long = "Mínimo 3 años de experiencia comprobable en desarrollo Backend utilizando Go o Node.js/TypeScript.";
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: [{ ...criterion, id: "long", label: long }, ...Array.from({ length: 10 }, (_, n) => ({ ...criterion, id: `c${n}`, label: `Criterio ${n}` }))] } });
   mount();
   const reminder = await screen.findByRole("region", { name: "Antes de mover" });
-  expect(within(reminder).getAllByRole("button", { name: /Marcar cumple antes/ })).toHaveLength(5);
-  expect(within(reminder).getByText("y 6 más — revísalos en la ficha del candidato")).toBeVisible();
-  expect(within(reminder).queryByText(/sin evaluar ·|Sin fuente/)).not.toBeInTheDocument();
+  expect(within(reminder).getByText("11 obligatorios sin evaluar")).toBeVisible();
+  expect(within(reminder).getByText("Puedes mover sin marcarlos.")).toBeVisible();
+  const names = within(reminder).getByText(`${long}, Criterio 0, Criterio 1 y 8 más.`);
+  // One notice, not a row per criterion: long labels wrap and clamp inside the dialog width.
+  expect(names).toHaveClass("line-clamp-2", "break-words");
+  expect(names.closest('[data-slot="item-content"]')).toHaveClass("min-w-0");
+  const notice = reminder.querySelectorAll('[data-slot="item"]');
+  expect(notice).toHaveLength(1);
+  // Dark mode: an outline item, never a muted surface that vanishes on the card (§13.1).
+  expect(notice[0]).toHaveAttribute("data-variant", "outline");
+  expect(within(reminder).queryAllByRole("button", { name: /Marcar/ })).toHaveLength(0);
 });
 it.each(["light", "dark"])("keeps compact fit and notes flexible at 256px card / 390px sheet widths in %s theme (structural)", async theme => {
   document.documentElement.className = theme;

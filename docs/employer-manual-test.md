@@ -796,7 +796,9 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     ajusta «Recordatorio al mover» y guarda. En el pipeline cada card muestra «N/M obligatorios» y
     cuántos quedan sin evaluar; prueba «Ordenar: Mejor ajuste» y el filtro «Checklist». En la ficha,
     pestaña «Checklist», marca ✓/✗ un criterio, agrega una nota y luego «Quitar marca» (vuelve el
-    resultado automático). Mueve a un candidato a una etapa con recordatorio: aparecen hasta cinco
-    obligatorios sin evaluar y puedes mover sin marcarlos. Con «Comparar candidatos» elige 2 a 5,
+    resultado automático). Mueve a un candidato a una etapa con recordatorio: la confirmación muestra un
+    solo aviso compacto («N obligatorios sin evaluar», los primeros nombres y «y N más», «Puedes mover sin
+    marcarlos.»), sin scroll horizontal aunque los criterios sean largos; «Mover» funciona sin marcar nada y
+    «Revisar en la ficha» cierra la confirmación sin mover y abre la ficha en la pestaña «Checklist». Con «Comparar candidatos» elige 2 a 5,
     abre la comparación, imprime/guarda el PDF (tema claro, sin menú) y descarga el CSV (sin correo
     ni teléfono). Revisa celular (390 px) y tema oscuro. El checklist nunca descarta ni mueve a nadie.

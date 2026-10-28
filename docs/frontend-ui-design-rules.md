@@ -897,6 +897,13 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   por ítem. Su `DialogFooter` usa `ActionBar` (sección 12); no son confirmaciones.
 - Si el resultado de la acción es incierto (sin respuesta), el diálogo ofrece
   «Comprobar», que solo lee el estado; nunca reintenta solo.
+- Una confirmación no contiene un formulario. Un recordatorio de pendientes dentro de
+  ella es **un** aviso (`Item variant="outline"` con medallón): conteo, los primeros
+  nombres en dos líneas como máximo y un botón que lleva a donde se completan (ej.
+  «Revisar en la ficha» del checklist al mover), nunca una fila con controles por ítem.
+- Un texto que se corta con `truncate` dentro de un hijo flex (como `ItemTitle`, que es
+  `flex w-fit`) necesita `min-w-0` en ese hijo; si no, no se achica y empuja a sus
+  vecinos fuera del contenedor (scroll horizontal en el diálogo).
 
 - Un diálogo con una lista que puede crecer (faltantes, resultados) tiene alto máximo
   (`max-h-[min(44rem,calc(100dvh-2rem))]`) y **un solo** contenedor de scroll entre el
