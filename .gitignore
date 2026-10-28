@@ -52,3 +52,6 @@ __pycache__/
 
 # Playwright MCP snapshots, screenshots and console logs (agent visual checks)
 .playwright-mcp/
+
+# Local machine-transfer bundles (DB dumps, CV/site files with personal test data); never commit.
+/.transfer/
