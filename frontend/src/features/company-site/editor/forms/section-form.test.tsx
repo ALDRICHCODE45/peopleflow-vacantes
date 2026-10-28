@@ -158,12 +158,12 @@ it("keeps icon selection accessible without a separate visible check indicator",
   expect(selected).toHaveAttribute("data-selected");
   // jsdom does not load Tailwind: assert the scoped indicator-hiding rule,
   // not indicator removal (Base UI still owns the selection semantics).
-  expect(selected).toHaveClass("[&>span+span]:hidden!");
+  expect(selected).toHaveClass("[&>span]:hidden!");
   for (const option of screen.getAllByRole("option")) {
     expect(option).toHaveAccessibleName(option.querySelector(".sr-only")!.textContent!);
-    expect(option).toHaveClass("aspect-square", "min-h-10", "p-0", "[&>span:first-child]:justify-center", "[&>span:first-child]:items-center");
+    expect(option).toHaveClass("aspect-square", "min-h-10", "p-0", "[&>div]:justify-center", "[&>div]:items-center");
   }
-  expect(selected).toHaveClass("data-selected:ring-2", "data-selected:ring-inset", "data-selected:ring-ring");
+  expect(selected).toHaveClass("aria-selected:ring-2", "aria-selected:ring-inset", "aria-selected:ring-primary");
 });
 it("updates the selected icon, Spanish trigger label and accessible selection", async () => {
   mount(defaultBlock("values"));
@@ -179,7 +179,7 @@ it("updates the selected icon, Spanish trigger label and accessible selection", 
   expect(trigger.querySelector("svg")).toHaveClass("lucide-rocket");
   expect(rocket).toHaveAttribute("aria-selected", "true");
   expect(screen.getByRole("option", { name: "Corazón" })).toHaveAttribute("aria-selected", "false");
-  expect(rocket).toHaveClass("[&>span+span]:hidden!", "data-highlighted:bg-accent", "data-highlighted:text-accent-foreground");
+  expect(rocket).toHaveClass("[&>span]:hidden!", "data-[highlighted]:bg-accent", "data-[highlighted]:text-accent-foreground");
 });
 it("counts Unicode code points, warns near the limit, and associates field errors", () => {
   const block = defaultBlock("hero");

@@ -110,7 +110,9 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
       const before = snapshot.editor;
       const editor = editorReducer(before, action);
       const edited = !sameDraft(before.draft, editor.draft);
-      emit(editor, snapshot.status);
+      // Returning to the confirmed saved draft leaves nothing to fix or save.
+      const settled = edited && !editor.dirty && !inFlight && !unconfirmed && snapshot.status.kind === "invalid";
+      emit(editor, settled ? { kind: "idle" } : snapshot.status);
       if (!edited || snapshot.status.kind === "conflict") return;
       if (!editor.dirty && !inFlight && !unconfirmed) cancelPending(); else schedule();
     },
