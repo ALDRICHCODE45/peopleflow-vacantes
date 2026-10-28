@@ -9,7 +9,8 @@ import type { ReactNode } from "react";
 import type { SiteBlock } from "../../model";
 import { mediaUrl } from "../../public/media";
 import { ImageField } from "../media";
-import { fieldMessage, IconField, TextField } from "./fields";
+import { fieldMessage, TextField } from "./fields";
+import { IconPicker } from "../icon-picker/icon-picker";
 import { ItemList } from "./item-list";
 import type { FormProps } from "./section-form";
 
@@ -30,14 +31,14 @@ export function CollectionForm({ block, dispatch, fieldErrors }: FormProps) {
   switch (block.type) {
     case "values": return <>
       <TextField label="Misión" value={block.content.mission} onChange={mission => dispatch({ type: "content", id: block.id, content: { ...block.content, mission } })} max={300} description="Comparte lo que guía a tu empresa. Es opcional." error={error("mission")} multiline />
-      {list(block.content.items, () => ({ icon: "heart" as const, title: null, description: null }), 1, 8, item => item.title, (item, i, update) => <>
-        <IconField value={item.icon} onChange={icon => update({ icon })} error={itemError(i, "icon")} />
+      {list(block.content.items, () => ({ icon: "heart" as const, emoji: null, title: null, description: null }), 1, 8, item => item.title, (item, i, update) => <>
+        <IconPicker value={item} onChange={decoration => update(decoration)} error={itemError(i, "icon") ?? itemError(i, "emoji")} />
         <TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este valor. Es necesario para publicar." error={itemError(i, "title")} />
         <TextField label="Descripción" value={item.description} onChange={description => update({ description })} max={240} description="Cuenta cómo lo viven en tu equipo. Es opcional." error={itemError(i, "description")} multiline />
       </>)}
     </>;
-    case "benefits": return list(block.content.items, () => ({ icon: "gift" as const, title: null, description: null }), 1, 24, item => item.title, (item, i, update) => <>
-      <IconField value={item.icon} onChange={icon => update({ icon })} error={itemError(i, "icon")} />
+    case "benefits": return list(block.content.items, () => ({ icon: "gift" as const, emoji: null, title: null, description: null }), 1, 24, item => item.title, (item, i, update) => <>
+      <IconPicker value={item} onChange={decoration => update(decoration)} error={itemError(i, "icon") ?? itemError(i, "emoji")} />
       <TextField label="Título" value={item.title} onChange={title => update({ title })} max={60} description="Nombra este beneficio. Es necesario para publicar." error={itemError(i, "title")} />
       <TextField label="Descripción" value={item.description} onChange={description => update({ description })} max={160} description="Explica qué incluye. Es opcional." error={itemError(i, "description")} multiline />
     </>);

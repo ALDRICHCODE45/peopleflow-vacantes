@@ -29,8 +29,8 @@ it("renders all 13 block contents in order, one H1, visible anchor navigation, p
   const contents: Record<BlockType, unknown> = {
     hero: data.site.blocks[0].content,
     story: { title: "Nuestra historia", body: vacancyDetail.description, image: { media_id: mediaId } },
-    values: { mission: "Una misión compartida", items: [{ icon: "heart", title: "Respeto", description: "Escuchamos" }] },
-    benefits: { items: [{ icon: "home", title: "Flexibilidad", description: "Elige tu horario" }] },
+    values: { mission: "Una misión compartida", items: [{ icon: "heart", emoji: null, title: "Respeto", description: "Escuchamos" }] },
+    benefits: { items: [{ icon: "home", emoji: null, title: "Flexibilidad", description: "Elige tu horario" }] },
     stats: { items: [{ value: "42", label: "Personas" }] },
     process: { items: [{ title: "Conversación", description: "Conócenos", duration: "30 minutos" }] },
     gallery: { items: [{ image: { media_id: mediaId }, alt: "Equipo en el taller", caption: "Un día juntos" }] },

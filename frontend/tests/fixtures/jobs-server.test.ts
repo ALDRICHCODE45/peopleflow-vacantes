@@ -10,7 +10,7 @@ import { publicJobDetailSchema, publicJobsListSchema } from "../../src/features/
 import { countriesSchema, statesSchema, municipalitiesSchema, postalSchema, locationReadSchema } from "../../src/features/geo/model";
 import { languageCatalogSchema } from "../../src/features/languages/model";
 import { publicSiteSchema } from "../../src/features/company-site/public/schema";
-import { publishIssues, siteDraftSchema } from "../../src/features/company-site/model";
+import { ICONS, publishIssues, siteDraftSchema } from "../../src/features/company-site/model";
 let server: ChildProcess;
 let origin: string;
 beforeAll(async () => {
@@ -36,6 +36,48 @@ async function readDraft() {
   expect(response.headers.get("cache-control")).toBe("no-store");
   return state;
 }
+test("decoration validation has backend field paths and codes and accepts emoji", async () => {
+  await json("/__reset");
+  const initial = await readDraft();
+  const index = initial.draft.blocks.findIndex(block => block.type === "values");
+  for (const [icon, emoji, field, code] of [
+    [null, null, "icon", "required"], ["heart", "😀", "emoji", "not_allowed"],
+    [null, "ab", "emoji", "invalid"], [null, "😀😀", "emoji", "invalid"],
+    [null, "a".repeat(33), "emoji", "too_long"], ["unknown", null, "icon", "invalid"],
+  ]) {
+    const draft = structuredClone(initial.draft);
+    Object.assign((draft.blocks[index].content as { items: object[] }).items[0], { icon, emoji });
+    const response = await siteRequest("/draft", "PUT", draft, '"1"');
+    expect(response.status).toBe(400);
+    expect((await response.json()).fields).toContainEqual({ field: `blocks[${index}].content.items[0].${field}`, code });
+  }
+  for (const emoji of ["👩‍💻", "🇲🇽", "👍🏽"]) {
+    const draft = structuredClone(initial.draft);
+    Object.assign((draft.blocks[index].content as { items: object[] }).items[0], { icon: null, emoji });
+    const state = await readDraft();
+    const response = await siteRequest("/draft", "PUT", draft, `"${state.draft_version}"`);
+    expect(response.status).toBe(200);
+  }
+});
+
+test("all 111 fixture icons save in contract order and missing emoji normalizes", async () => {
+  await json("/__reset");
+  const state = await readDraft();
+  const index = state.draft.blocks.findIndex(block => block.type === "benefits");
+  let version = state.draft_version;
+  for (let start = 0; start < ICONS.length; start += 24) {
+    const draft = structuredClone(state.draft);
+    const icons = ICONS.slice(start, start + 24);
+    draft.blocks[index].content = { items: icons.map(icon => ({ icon, title: null, description: null })) } as never;
+    const response = await siteRequest("/draft", "PUT", draft, `"${version}"`);
+    expect(response.status).toBe(200);
+    const saved = siteStateSchema.parse(await response.json());
+    version = saved.draft_version;
+    const block = saved.draft.blocks[index];
+    expect(block.type === "benefits" && block.content.items.map(item => [item.icon, item.emoji])).toEqual(icons.map(icon => [icon, null]));
+  }
+});
+
 test("authenticated draft starts from Nexo's snapshot and saves canonically with CAS and no-op", async () => {
   await json("/__reset");
   const initial = await readDraft();

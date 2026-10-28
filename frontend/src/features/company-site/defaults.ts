@@ -17,14 +17,14 @@ export const BLOCK_LIBRARY = {
 } as const satisfies Record<BlockType, { label: string; description: string }>;
 
 export const STANDARD_BENEFITS = [
-  { icon: "stethoscope", title: "Seguro de gastos médicos", description: null },
-  { icon: "laptop", title: "Equipo de cómputo", description: null },
-  { icon: "clock", title: "Horario flexible", description: null },
-  { icon: "home", title: "Apoyo para trabajo remoto", description: null },
-  { icon: "graduation-cap", title: "Presupuesto de capacitación", description: null },
-  { icon: "calendar", title: "Días libres adicionales", description: null },
-  { icon: "heart", title: "Bienestar", description: null },
-  { icon: "gift", title: "Bono anual", description: null },
+  { icon: "stethoscope", emoji: null, title: "Seguro de gastos médicos", description: null },
+  { icon: "laptop", emoji: null, title: "Equipo de cómputo", description: null },
+  { icon: "clock", emoji: null, title: "Horario flexible", description: null },
+  { icon: "home", emoji: null, title: "Apoyo para trabajo remoto", description: null },
+  { icon: "graduation-cap", emoji: null, title: "Presupuesto de capacitación", description: null },
+  { icon: "calendar", emoji: null, title: "Días libres adicionales", description: null },
+  { icon: "heart", emoji: null, title: "Bienestar", description: null },
+  { icon: "gift", emoji: null, title: "Bono anual", description: null },
 ] as const;
 
 /** All templates are incomplete but saveable; each call owns its arrays and UUID. */

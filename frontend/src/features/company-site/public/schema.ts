@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { locationReadSchema } from "@/features/geo/model";
-import { siteDraftSchema } from "../model";
+import { siteDraftReadSchema } from "../model";
 import { mediaSchema } from "../api/model";
 import { validateSlug } from "../slug";
 
@@ -23,7 +23,7 @@ export const publicSiteSchema = z.object({
   site: z.unknown(), slug: slugSchema, published_at: z.string().datetime({ offset: true }),
   media: z.array(mediaSchema),
 }).transform((value, ctx) => {
-  const site = siteDraftSchema.safeParse({ ...(typeof value.site === "object" && value.site !== null ? value.site : {}), slug: value.slug });
+  const site = siteDraftReadSchema.safeParse({ ...(typeof value.site === "object" && value.site !== null ? value.site : {}), slug: value.slug });
   if (!site.success) {
     ctx.addIssue({ code: "custom", path: ["site"], message: "Invalid published site" });
     return z.NEVER;

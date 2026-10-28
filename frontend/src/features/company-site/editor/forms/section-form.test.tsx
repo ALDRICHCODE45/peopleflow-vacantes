@@ -16,6 +16,10 @@ vi.mock("@/components/ui/dropdown-menu", async original => {
   const parts = await original<typeof import("@/components/ui/dropdown-menu")>();
   return { ...parts, DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <parts.DropdownMenuGroup>{children}</parts.DropdownMenuGroup> };
 });
+vi.mock("@/components/ui/popover", async original => {
+  const parts = await original<typeof import("@/components/ui/popover")>();
+  return { ...parts, PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div> };
+});
 vi.mock("@/components/ui/select", async original => {
   const parts = await original<typeof import("@/components/ui/select")>();
   return { ...parts, SelectContent: ({ children }: { children: React.ReactNode }) => <parts.SelectGroup>{children}</parts.SelectGroup> };
@@ -91,7 +95,7 @@ const textFields: [BlockType, [string, string, number][]][] = [
 ];
 it.each(textFields)("%s displays every text field, codepoint limit, description and edits", (type, fields) => {
   const block = defaultBlock(type);
-  const blanks: Record<string, object> = { values: { icon: "heart" }, benefits: { icon: "gift" }, stats: {}, process: {}, gallery: { image: null }, testimonials: { photo: null, consent: false }, offices: { location: { country: "MX", state: "01", municipality: "01001", postal_code: "20000" } }, faq: {} };
+  const blanks: Record<string, object> = { values: { icon: "heart", emoji: null }, benefits: { icon: "gift", emoji: null }, stats: {}, process: {}, gallery: { image: null }, testimonials: { photo: null, consent: false }, offices: { location: { country: "MX", state: "01", municipality: "01001", postal_code: "20000" } }, faq: {} };
   const values = Object.fromEntries(fields.filter(([, key]) => key !== "mission").map(([, key]) => [key, key === "map_url" ? "https://example.com" : "Actual"]));
   if ("items" in block.content) Object.assign(block.content, { items: [{ ...blanks[type], ...values }], ...(type === "values" ? { mission: "Actual" } : {}) });
   else Object.assign(block.content, values);
@@ -136,7 +140,7 @@ it.each(["hover", "focus"] as const)("names each icon with a tooltip on %s", asy
   mount(defaultBlock("benefits"));
   fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
   const user = userEvent.setup();
-  await user.click(screen.getByRole("combobox", { name: "Ícono" }));
+  await user.click(screen.getByRole("button", { name: "Ícono o emoji" }));
   const option = screen.getByRole("option", { name: "Cohete" });
   if (interaction === "hover") await user.hover(option);
   else { act(() => option.focus()); }
@@ -150,18 +154,15 @@ it("keeps icon selection accessible without a separate visible check indicator",
   mount(block);
   fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
   const user = userEvent.setup({ delay: null });
-  const trigger = screen.getByRole("combobox", { name: "Ícono" });
+  const trigger = screen.getByRole("button", { name: "Ícono o emoji" });
   expect(trigger).toHaveTextContent("Corazón");
   expect(trigger.querySelector("svg")).toHaveClass("lucide-heart");
   await user.click(trigger);
   const selected = screen.getByRole("option", { name: "Corazón", selected: true });
-  expect(selected).toHaveAttribute("data-selected");
-  // jsdom does not load Tailwind: assert the scoped indicator-hiding rule,
-  // not indicator removal (Base UI still owns the selection semantics).
-  expect(selected).toHaveClass("[&>span]:hidden!");
+  expect(selected.querySelectorAll("svg")).toHaveLength(1);
   for (const option of screen.getAllByRole("option")) {
-    expect(option).toHaveAccessibleName(option.querySelector(".sr-only")!.textContent!);
-    expect(option).toHaveClass("aspect-square", "min-h-10", "p-0", "[&>div]:justify-center", "[&>div]:items-center");
+    expect(option).toHaveAccessibleName(option.getAttribute("aria-label")!);
+    expect(option).toHaveClass("aspect-square", "min-h-10", "p-0", "justify-center");
   }
   expect(selected).toHaveClass("aria-selected:ring-2", "aria-selected:ring-inset", "aria-selected:ring-primary");
 });
@@ -169,7 +170,7 @@ it("updates the selected icon, Spanish trigger label and accessible selection", 
   mount(defaultBlock("values"));
   fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
   const user = userEvent.setup({ delay: null });
-  const trigger = screen.getByRole("combobox", { name: "Ícono" });
+  const trigger = screen.getByRole("button", { name: "Ícono o emoji" });
   await user.click(trigger);
   const rocket = screen.getByRole("option", { name: "Cohete" });
   expect(rocket).toHaveAttribute("aria-selected", "false");
@@ -179,7 +180,14 @@ it("updates the selected icon, Spanish trigger label and accessible selection", 
   expect(trigger.querySelector("svg")).toHaveClass("lucide-rocket");
   expect(rocket).toHaveAttribute("aria-selected", "true");
   expect(screen.getByRole("option", { name: "Corazón" })).toHaveAttribute("aria-selected", "false");
-  expect(rocket).toHaveClass("[&>span]:hidden!", "data-[highlighted]:bg-accent", "data-[highlighted]:text-accent-foreground");
+  expect(rocket).toHaveClass("aria-selected:ring-primary", "data-[highlighted]:bg-accent");
+});
+it.each(["icon", "emoji"] as const)("marks a decoration's %s error on the shared picker trigger", field => {
+  const block = collectionBlock("benefits", 1);
+  mount(block, [{ blockId: block.id, field: `content.items[0].${field}`, code: "invalid" }]);
+  const trigger = screen.getByRole("button", { name: "Ícono o emoji" });
+  expect(trigger).toHaveAttribute("aria-invalid", "true");
+  expect(trigger.getAttribute("aria-describedby")).toContain(screen.getByText("Revisa este dato.").id);
 });
 it("counts Unicode code points, warns near the limit, and associates field errors", () => {
   const block = defaultBlock("hero");
@@ -200,8 +208,8 @@ const collections: [BlockType, number, number][] = [["values",1,8],["benefits",1
 // one UI addition, reorder needs two distinct items, removal needs min + 1.
 function collectionBlock(type: BlockType, count: number): SiteBlock {
   const templates: Record<string, object> = {
-    values: { icon: "heart", title: null, description: null },
-    benefits: { icon: "gift", title: null, description: null },
+    values: { icon: "heart", emoji: null, title: null, description: null },
+    benefits: { icon: "gift", emoji: null, title: null, description: null },
     stats: { value: null, label: null },
     process: { title: null, description: null, duration: null },
     gallery: { image: null, alt: null, caption: null },
@@ -336,7 +344,7 @@ it("picks a contract icon with the public site's icon mapping", async () => {
   mount(defaultBlock("benefits"));
   fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
   const user = userEvent.setup();
-  await user.click(screen.getByRole("combobox", { name: "Ícono" }));
+  await user.click(screen.getByRole("button", { name: "Ícono o emoji" }));
   const option = await screen.findByRole("option", { name: "Cohete" });
   expect(option.querySelector("svg")).toHaveClass("lucide-rocket");
   await user.click(option);

@@ -72,11 +72,11 @@ export function SiteBlockContent({ block, company, jobs, offices, jobsHref, stor
       return <div data-layout={marker} className={cn("grid gap-8", !grid && "lg:grid-cols-[1fr_1.5fr] lg:gap-12")}>
         <Heading block={block}>{block.type === "values" && block.content.mission && <p className="text-base leading-relaxed text-muted-foreground">{block.content.mission}</p>}</Heading>
         {grid ? <div className={cn("grid gap-5 sm:grid-cols-2", block.type === "values" && "lg:grid-cols-3")}>{items.map((item, index) => {
-          const Icon = SITE_ICONS[item.icon];
-          return <Card key={index}><CardHeader><Icon data-site-icon={item.icon} aria-hidden="true" className="mb-4 size-7 text-(--site-brand-text)" /><CardTitle><h3>{item.title}</h3></CardTitle></CardHeader>{item.description && <CardContent><p className="leading-relaxed text-muted-foreground">{item.description}</p></CardContent>}</Card>;
+          const Icon = item.icon ? SITE_ICONS[item.icon] : null;
+          return <Card key={index}><CardHeader>{item.emoji ? <span data-site-emoji="" aria-hidden="true" className="mb-4 inline-flex size-7 items-center justify-center text-[1.75rem] leading-none">{item.emoji}</span> : Icon && <Icon data-site-icon={item.icon!} aria-hidden="true" className="mb-4 size-7 text-(--site-brand-text)" />}<CardTitle><h3>{item.title}</h3></CardTitle></CardHeader>{item.description && <CardContent><p className="leading-relaxed text-muted-foreground">{item.description}</p></CardContent>}</Card>;
         })}</div> : <ItemGroup>{items.map((item, index) => {
-          const Icon = SITE_ICONS[item.icon];
-          return <Item key={index} variant="outline" role="listitem"><ItemMedia variant="icon"><Icon data-site-icon={item.icon} aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle><h3>{item.title}</h3></ItemTitle>{item.description && <ItemDescription className="line-clamp-none">{item.description}</ItemDescription>}</ItemContent></Item>;
+          const Icon = item.icon ? SITE_ICONS[item.icon] : null;
+          return <Item key={index} variant="outline" role="listitem"><ItemMedia variant="icon">{item.emoji ? <span data-site-emoji="" aria-hidden="true" className="inline-flex size-4 items-center justify-center text-base leading-none">{item.emoji}</span> : Icon && <Icon data-site-icon={item.icon!} aria-hidden="true" />}</ItemMedia><ItemContent><ItemTitle><h3>{item.title}</h3></ItemTitle>{item.description && <ItemDescription className="line-clamp-none">{item.description}</ItemDescription>}</ItemContent></Item>;
         })}</ItemGroup>}
       </div>;
     }

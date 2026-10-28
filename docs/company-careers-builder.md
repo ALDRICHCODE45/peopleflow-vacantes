@@ -36,6 +36,29 @@ no entra en el documento guardado. Si otra persona guarda primero, el editor no
 sobrescribe en silencio: **Cargar versión** descarta los cambios locales tras
 confirmación y usa la versión más reciente conocida del servidor.
 
+## Íconos o emojis en valores y beneficios
+
+Cada elemento usa **un ícono o un emoji**, nunca ambos. Abre **Ícono o emoji**:
+
+- **Íconos** ofrece 111 opciones agrupadas, con nombres y búsqueda en español
+  (no necesitas escribir acentos).
+- **Emojis** incluye 120 opciones de cultura laboral. También puedes pegar el
+  que tú prefieras y pulsar **Usar emoji**. Si no es válido, el campo explica cómo
+  corregirlo sin modificar el borrador ni interrumpir su guardado.
+
+Se acepta una secuencia completa, incluidos tonos de piel, banderas y uniones
+como 👩‍💻, de hasta 32 bytes UTF-8. No se recortan espacios ni se aceptan dos
+emojis separados. El validador usa `Intl.Segmenter` y la gramática del backend
+con su tabla `Extended_Pictographic` de Unicode 15.0 fijada; las uniones ZWJ
+válidas según esa gramática se conservan aunque un navegador más nuevo las
+segmente distinto. Esto también mantiene símbolos como ♡, no solo emojis RGI.
+Los nuevos elementos empiezan con un ícono. Los documentos antiguos se leen
+con `emoji: null`; si no tenían ningún símbolo, siguen siendo legibles y el
+editor pedirá elegir uno antes de guardar una edición.
+
+Los símbolos públicos son decorativos (`aria-hidden`); el título y la descripción
+del elemento conservan la información accesible en todas las variantes.
+
 ## Verificación local
 
 Usa la fixture y un build aislado, no el servidor dev del usuario:

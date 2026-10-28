@@ -15,6 +15,7 @@ try {
   };
   module.exports = {
     ...require("../../src/features/company-site/model.ts"),
+    ...require("../../src/features/company-site/api/validation.ts"),
     ...require("../../src/features/company-site/defaults.ts"),
     ...require("../../src/features/company-site/slug.ts"),
   };

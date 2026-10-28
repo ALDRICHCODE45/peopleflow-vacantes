@@ -2,14 +2,13 @@ import { readFileSync } from "node:fs";
 import { publicDetail } from "./public-jobs.mjs";
 import product from "./site-product-model.cjs";
 import { receiveSiteMedia } from "./site-media.mjs";
-const { siteDraftSchema, defaultSiteDraft, publishIssues, validateSlug } = product;
+const { siteDraftSchema, defaultSiteDraft, publishIssues, validateSlug, draftFieldErrors } = product;
 const initialTime = "2026-10-27T09:00:00Z";
 const colors = { orange: "#EA580C", green: "#15803D" };
 const referencedMedia = (document, available) => {
   const ids = new Set([...JSON.stringify(document).matchAll(/"media_id":"([^"]+)"/g)].map(match => match[1]));
   return available.filter(item => ids.has(item.id));
 };
-const fieldPath = path => path.reduce((text, part) => typeof part === "number" ? `${text}[${part}]` : text ? `${text}.${part}` : part, "");
 
 export const nexoCompanyId = "b478fb93-71b8-47bf-8eaa-b726d63e01a0";
 const company = { id: nexoCompanyId, name: "Nexo Labs" };
@@ -52,15 +51,15 @@ const blocks = [
   ["hero", "split", { title: "Tu siguiente gran paso empieza aquí", subtitle: "En Nexo Labs creamos tecnología con propósito desde México. Trae tu curiosidad: aquí tus ideas sí cuentan.", cover: ref(0) }],
   ["story", "text_image", { title: "Conectamos talento, creamos oportunidades", body: storyBody, image: ref(4) }],
   ["values", "grid", { mission: "Queremos que encontrar una buena oportunidad sea más sencillo, cercano y justo para todas las personas.", items: [
-    { icon: "handshake", title: "La confianza va primero", description: "Hablamos con claridad, escuchamos y cumplimos lo que acordamos." },
-    { icon: "lightbulb", title: "Aprendemos haciendo", description: "Probamos ideas pequeñas, compartimos lo aprendido y mejoramos en equipo." },
-    { icon: "users", title: "Nadie construye a solas", description: "Tu perspectiva importa. Diseñamos con personas, no solo para ellas." },
+    { icon: "handshake", emoji: null, title: "La confianza va primero", description: "Hablamos con claridad, escuchamos y cumplimos lo que acordamos." },
+    { icon: "lightbulb", emoji: null, title: "Aprendemos haciendo", description: "Probamos ideas pequeñas, compartimos lo aprendido y mejoramos en equipo." },
+    { icon: "users", emoji: null, title: "Nadie construye a solas", description: "Tu perspectiva importa. Diseñamos con personas, no solo para ellas." },
   ] }],
   ["benefits", "compact", { items: [
-    { icon: "stethoscope", title: "Cuida de ti", description: "Seguro de gastos médicos mayores y acompañamiento para tu bienestar." },
-    { icon: "graduation-cap", title: "Sigue creciendo", description: "Presupuesto anual para cursos, libros y conferencias que tú eliges." },
-    { icon: "clock", title: "Tiempo para tu vida", description: "Horarios flexibles y vacaciones adicionales desde tu primer año." },
-    { icon: "laptop", title: "Herramientas a tu medida", description: "Equipo de trabajo y apoyo para tu espacio en casa." },
+    { icon: "stethoscope", emoji: null, title: "Cuida de ti", description: "Seguro de gastos médicos mayores y acompañamiento para tu bienestar." },
+    { icon: "graduation-cap", emoji: null, title: "Sigue creciendo", description: "Presupuesto anual para cursos, libros y conferencias que tú eliges." },
+    { icon: "clock", emoji: null, title: "Tiempo para tu vida", description: "Horarios flexibles y vacaciones adicionales desde tu primer año." },
+    { icon: "laptop", emoji: null, title: "Herramientas a tu medida", description: "Equipo de trabajo y apoyo para tu espacio en casa." },
   ] }],
   ["stats", "row", { items: [{ value: "85", label: "Personas en el equipo" }, { value: "2", label: "Ciudades: Monterrey y Guadalajara" }, { value: "40%", label: "Promociones internas este año" }] }],
   ["process", "timeline", { items: [
@@ -139,7 +138,7 @@ export function createCompanySitesFixture() {
       if (typeof body?.slug === "string" && validateSlug(body.slug.trim()) === "reserved") return fail(422, "slug_reserved", { field: "slug" });
       if (typeof body?.slug === "string" && body.slug.trim() === "otra-empresa") return fail(409, "slug_taken", { field: "slug" });
       const parsed = siteDraftSchema.safeParse(body);
-      if (!parsed.success) return fail(400, "validation_error", { fields: parsed.error.issues.map(issue => ({ field: fieldPath(issue.path) || "draft", code: issue.code === "unrecognized_keys" ? "unknown_key" : issue.code === "too_big" || issue.message.startsWith("Maximum") ? "too_long" : issue.message.includes("Duplicate") ? "duplicate" : "invalid" })) });
+      if (!parsed.success) return fail(400, "validation_error", { fields: draftFieldErrors(parsed.error.issues) });
       const refs = [...JSON.stringify(parsed.data).matchAll(/"media_id":"([^"]+)"/g)].map(match => match[1]);
       if (refs.some(id => !allMedia().some(item => item.id === id))) return fail(400, "validation_error", { fields: [{ field: "blocks", code: "invalid" }] });
       if (JSON.stringify(parsed.data) !== JSON.stringify(draft)) { draft = parsed.data; changed(); }

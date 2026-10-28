@@ -22,6 +22,7 @@ function fieldCode(issue: ZodIssue): FieldError["code"] {
   if (issue.code === "unrecognized_keys") return "unknown_key";
   if (issue.code === "invalid_type" && issue.received === "undefined") return "required";
   if (issue.code === "custom") {
+    if (["required", "not_allowed", "invalid", "too_long"].includes(issue.params?.wireCode)) return issue.params!.wireCode as FieldError["code"];
     if (/^Maximum \d+/.test(issue.message) || ["plain_budget", "canonical_budget"].includes(issue.params?.kind)) return "too_long";
     if (issue.message === "Duplicate block id") return "duplicate";
     if (issue.message === "Required block cannot be hidden") return "not_allowed";
