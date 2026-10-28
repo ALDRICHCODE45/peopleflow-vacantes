@@ -27,7 +27,7 @@ import styles from "./site-settings.module.css";
 
 export const COMPANY_SETTINGS_HREF = "/empresa/configuracion";
 function ColorChip({ color, palette = false }: { color: string; palette?: boolean }) {
-  return <span aria-hidden="true" data-palette-swatch={palette ? "" : undefined} className={cn("block size-6 shrink-0 rounded-md ring-1 ring-border", styles.chip)} style={{ "--sample-brand": color } as CSSProperties} />;
+  return <span aria-hidden="true" data-palette-swatch={palette ? "" : undefined} className={cn("block shrink-0 rounded-md ring-1 ring-border", palette ? "size-4" : "size-6", styles.chip)} style={{ "--sample-brand": color } as CSSProperties} />;
 }
 const COLOR_FIELDS = [
   { key: "brand_color", label: "Principal", role: "brand-text", description: "Identifica tu marca en franjas, títulos y enlaces." },
@@ -65,15 +65,15 @@ export function BrandSettings({ theme, onChange }: { theme: SiteDraft["theme"]; 
   const tokens = siteBrandTokens(theme.brand_color, theme.accent_color, theme.background_color);
   return <FieldGroup>
     <div className="flex flex-col gap-1"><h2 className="text-base font-semibold">Tu marca, tu identidad</h2><p className="text-sm text-muted-foreground">Elige una paleta o personaliza tus colores. El texto se ajusta para que se lea bien.</p></div>
-    <FieldSet><FieldLegend id="palette-label" variant="label">Paletas</FieldLegend>
+    <FieldSet className={cn("min-w-0", styles.paletteContainer)}><FieldLegend id="palette-label" variant="label">Paletas</FieldLegend>
       {/* Official Field choice-card pattern: the whole label selects its radio. */}
       <RadioGroup aria-labelledby="palette-label" value={selected} onValueChange={value => {
         const next = PALETTE_PRESETS.find(p => p.name === value);
         setCustom(!next); setReset(current => current + 1);
         if (next) onChange({ ...theme, brand_color: next.brand_color, accent_color: next.accent_color, background_color: next.background_color });
-      }} className={styles.paletteGrid}>
-        {PALETTE_PRESETS.map(p => <FieldLabel key={p.name} className="has-data-checked:ring-2 has-data-checked:ring-primary" htmlFor={`palette-${p.name}`}><Field orientation="horizontal"><FieldContent><FieldTitle>{p.name}</FieldTitle><span className="flex flex-wrap gap-1" aria-hidden="true">{[p.brand_color, p.accent_color, p.background_color].map((color, index) => <ColorChip key={index} color={color} palette />)}</span></FieldContent><RadioGroupItem id={`palette-${p.name}`} value={p.name} /></Field></FieldLabel>)}
-        <FieldLabel htmlFor="palette-custom" className="col-span-full has-data-checked:ring-2 has-data-checked:ring-primary"><Field orientation="horizontal"><FieldContent><FieldTitle>Personalizado</FieldTitle></FieldContent><RadioGroupItem id="palette-custom" value="custom" /></Field></FieldLabel>
+      }} className={cn("min-w-0 gap-2 p-1", styles.paletteGrid)}>
+        {PALETTE_PRESETS.map(p => <FieldLabel key={p.name} className="box-border min-w-0 has-data-checked:ring-2 has-data-checked:ring-primary *:data-[slot=field]:p-2" htmlFor={`palette-${p.name}`}><Field orientation="horizontal" className="h-18 min-w-0 gap-2"><FieldContent className="min-w-0"><FieldTitle className="max-w-full truncate">{p.name}</FieldTitle><span className="flex gap-1" aria-hidden="true">{[p.brand_color, p.accent_color, p.background_color].map((color, index) => <ColorChip key={index} color={color} palette />)}</span></FieldContent><RadioGroupItem id={`palette-${p.name}`} value={p.name} /></Field></FieldLabel>)}
+        <FieldLabel htmlFor="palette-custom" className="col-span-full box-border min-w-0 has-data-checked:ring-2 has-data-checked:ring-primary *:data-[slot=field]:p-2"><Field orientation="horizontal" className="min-w-0"><FieldContent className="min-w-0"><FieldTitle>Personalizado</FieldTitle></FieldContent><RadioGroupItem id="palette-custom" value="custom" /></Field></FieldLabel>
       </RadioGroup>
     </FieldSet>
     <FieldSet><FieldLegend>Personalizar</FieldLegend><FieldDescription>Conservamos tus colores originales. El sitio adapta los tonos en claro y oscuro sin cambiar lo que guardas.</FieldDescription><FieldGroup>

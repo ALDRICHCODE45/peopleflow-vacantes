@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useGroupRef, usePanelRef, type Layout } from "react-resizable-panels";
-import { readEditorLayout, saveEditorLayout } from "./editor-layout";
+import { defaultEditorLayout, EDITOR_PANEL_SIZES, readEditorLayout, saveEditorLayout } from "./editor-layout";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { saveDraftAction } from "../api/actions";
 import type { SiteState } from "../api/model";
@@ -78,7 +78,9 @@ function PreviewScroll({ desktop, children }: { desktop: boolean; children: Reac
 function Placeholder({ title, description, icon: Icon = Settings }: { title: string; description: string; icon?: typeof Settings }) {
   return <Empty><EmptyHeader><EmptyMedia variant="icon"><Icon aria-hidden="true" /></EmptyMedia><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader></Empty>;
 }
-function DesktopPanels({ sections, properties, children, focused }: { sections: ReactNode; properties: ReactNode; children: ReactNode; focused: boolean }) {
+type PanelControls = { sectionsToggle?: ReactNode; propertiesToggle?: ReactNode };
+type PreviewContent = (controls: PanelControls) => ReactNode;
+function DesktopPanels({ sections, properties, children, focused }: { sections: ReactNode; properties: ReactNode; children: PreviewContent; focused: boolean }) {
   // This component mounts only inside the client-owned EditorSession, so the
   // persisted layout is available before its first paint (no hydration swap).
   const [initial] = useState(readEditorLayout);
@@ -86,6 +88,15 @@ function DesktopPanels({ sections, properties, children, focused }: { sections: 
   const group = useGroupRef();
   const left = usePanelRef();
   const right = usePanelRef();
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (initial) return;
+    const element = root.current?.querySelector<HTMLElement>('[data-group]');
+    if (!element) return;
+    // The engine allocates the group's inner width minus its two separators.
+    const width = element.getBoundingClientRect().width - Array.from(element.querySelectorAll<HTMLElement>('[data-separator]')).reduce((sum, handle) => sum + handle.getBoundingClientRect().width, 0);
+    if (width > 0) group.current?.setLayout(defaultEditorLayout(width, parseFloat(getComputedStyle(document.documentElement).fontSize) || 16));
+  }, [initial, group]);
   const previous = useRef<Layout | null>(null);
   const toggling = useRef(false);
   const focusing = useRef(focused);
@@ -109,29 +120,29 @@ function DesktopPanels({ sections, properties, children, focused }: { sections: 
     if (focusing.current) return;
     setCollapsed(current => current.sections === (layout.sections === 0) && current.properties === (layout.properties === 0) ? current : { sections: layout.sections === 0, properties: layout.properties === 0 });
   }
-  return <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-    <div role="group" className="flex shrink-0 items-center justify-between gap-2" aria-label="Paneles del editor">
-      {([['sections', 'secciones', PanelLeft, left], ['properties', 'propiedades', PanelRight, right]] as const).map(([id, label, Icon, panel]) => {
-        const expanded = !focused && !collapsed[id];
-        const action = `${expanded ? 'Ocultar' : 'Mostrar'} ${label}`;
-        return <Tooltip key={id}><TooltipTrigger render={<Button variant="outline" size="icon" className="size-10" disabled={focused} aria-label={action} aria-expanded={expanded} aria-controls={`editor-${id}`} onClick={() => { toggling.current = true; if (panel.current?.isCollapsed()) panel.current.expand(); else panel.current?.collapse(); }} />}><Icon aria-hidden="true" /></TooltipTrigger><TooltipContent>{focused ? 'Sal de la vista enfocada para mostrar los paneles' : action}</TooltipContent></Tooltip>;
-      })}
-    </div>
+  function toggle(id: 'sections' | 'properties') {
+    const expanded = !focused && !collapsed[id];
+    const action = `${expanded ? 'Ocultar' : 'Mostrar'} ${id === 'sections' ? 'secciones' : 'propiedades'}`;
+    const panel = id === 'sections' ? left : right;
+    const Icon = id === 'sections' ? PanelLeft : PanelRight;
+    return <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon" className="size-10" disabled={focused} aria-label={action} aria-expanded={expanded} aria-controls={`editor-${id}`} onClick={() => { toggling.current = true; if (panel.current?.isCollapsed()) panel.current.expand(); else panel.current?.collapse(); }} />}><Icon aria-hidden="true" /></TooltipTrigger><TooltipContent>{focused ? 'Sal de la vista enfocada para mostrar los paneles' : action}</TooltipContent></Tooltip>;
+  }
+  return <div ref={root} className="flex min-h-0 min-w-0 flex-1 flex-col">
     <ResizablePanelGroup id="careers-editor" orientation="horizontal" groupRef={group} defaultLayout={initial} className="min-h-0 flex-1" onLayoutChange={track} onLayoutChanged={(layout, meta) => { if (!focusing.current && (meta.isUserInteraction || toggling.current)) { saveEditorLayout(meta.requestedLayout ?? layout); toggling.current = false; } }}>
-      <ResizablePanel id="sections" panelRef={left} defaultSize="17.5rem" minSize="14rem" maxSize="24rem" collapsible collapsedSize={0} groupResizeBehavior="preserve-pixel-size" className="h-full min-w-0">
-        <aside id="editor-sections" hidden={focused || collapsed.sections} data-editor-region="sections" aria-label="Organizar sitio" className="h-full min-h-0 min-w-0"><ScrollArea className="h-full min-w-0"><div className="p-1">{sections}</div></ScrollArea></aside>
+      <ResizablePanel id="sections" panelRef={left} defaultSize={EDITOR_PANEL_SIZES.sections.default} minSize={EDITOR_PANEL_SIZES.sections.min} maxSize={EDITOR_PANEL_SIZES.sections.max} collapsible collapsedSize={0} groupResizeBehavior="preserve-pixel-size" className="h-full min-w-0">
+        <aside id="editor-sections" hidden={focused || collapsed.sections} data-editor-region="sections" aria-label="Organizar sitio" className="h-full min-h-0 min-w-0"><ScrollArea className="h-full min-w-0"><div className="p-1 pr-3">{sections}</div></ScrollArea></aside>
       </ResizablePanel>
       <ResizableHandle withHandle disabled={focused} aria-label="Ajustar secciones" onDoubleClick={persistReset} />
-      <ResizablePanel id="preview" minSize="16rem" className="flex h-full min-h-0 min-w-0 flex-col">{children}</ResizablePanel>
+      <ResizablePanel id="preview" minSize={EDITOR_PANEL_SIZES.preview.min} className="flex h-full min-h-0 min-w-0 flex-col">{children({ sectionsToggle: toggle('sections'), propertiesToggle: toggle('properties') })}</ResizablePanel>
       <ResizableHandle withHandle disabled={focused} aria-label="Ajustar propiedades" onDoubleClick={persistReset} />
-      <ResizablePanel id="properties" panelRef={right} defaultSize="24rem" minSize="18rem" maxSize="32rem" collapsible collapsedSize={0} groupResizeBehavior="preserve-pixel-size" className="h-full min-w-0">
+      <ResizablePanel id="properties" panelRef={right} defaultSize={EDITOR_PANEL_SIZES.properties.default} minSize={EDITOR_PANEL_SIZES.properties.min} maxSize={EDITOR_PANEL_SIZES.properties.max} collapsible collapsedSize={0} groupResizeBehavior="preserve-pixel-size" className="h-full min-w-0">
         <aside id="editor-properties" hidden={focused || collapsed.properties} data-editor-region="properties" aria-label="Propiedades de la sección" className="h-full min-h-0 min-w-0"><ScrollArea className="h-full min-w-0"><div className="p-3">{properties}</div></ScrollArea></aside>
       </ResizablePanel>
     </ResizablePanelGroup>
   </div>;
 }
-function EditorSurface({ desktop, sections, properties, focused, children }: { desktop: boolean; sections: ReactNode; properties: ReactNode; focused: boolean; children: ReactNode }) {
-  return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused}>{children}</DesktopPanels> : children;
+function EditorSurface({ desktop, sections, properties, focused, children }: { desktop: boolean; sections: ReactNode; properties: ReactNode; focused: boolean; children: PreviewContent }) {
+  return desktop ? <DesktopPanels sections={sections} properties={properties} focused={focused}>{children}</DesktopPanels> : children({});
 }
 function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<CareersSiteEditorProps, "initialSite"> & { controller: AutosaveController; onLoadSite: (site: SiteState) => void }) {
   const { editor, status } = useAutosave(controller);
@@ -182,7 +193,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     {editor.fieldErrors.some(error => error.blockId === selected.id) && <p role="status" className="text-sm text-muted-foreground">Esta sección tiene campos que revisar.</p>}
   </> : <Placeholder title="Selecciona una sección" description="Elige una sección en tu página o en la vista previa para cambiar su diseño." icon={LayoutTemplate} />}</div>;
   const sections = <Tabs value={tab} onValueChange={value => setTab(String(value))} className="flex min-w-0 flex-col gap-5">
-    <TabsList variant="line" aria-label="Editor del sitio"><TabsTrigger value="sections">Secciones</TabsTrigger><TabsTrigger value="brand">Marca</TabsTrigger><TabsTrigger value="settings">Configuración</TabsTrigger></TabsList>
+    <TabsList variant="line" aria-label="Editor del sitio" className="w-full"><TabsTrigger value="sections" className="flex-1 px-1">Secciones</TabsTrigger><TabsTrigger value="brand" className="flex-1 px-1">Marca</TabsTrigger><TabsTrigger value="settings" className="flex-1 px-1">Ajustes</TabsTrigger></TabsList>
     <TabsContent value="sections"><SectionList editor={editor} controller={controller} onSelect={id => { select(id); setSectionsOpen(false); if (!desktop) setPropertiesOpen(true); }} onDelete={setDeleting} onAdd={() => { setSectionsOpen(false); setLibrary(true); }} /></TabsContent>
     <TabsContent value="brand"><BrandSettings theme={editor.draft.theme} onChange={theme => controller.dispatch({ type: "theme", theme })} /></TabsContent>
     <TabsContent value="settings" className="px-1 py-1 pr-3"><SiteSettings draft={editor.draft} savedSlug={editor.lastSaved.slug} slugError={editor.fieldErrors.find(error => error.field === "slug" && !error.blockId)} company={preview.company} onSlug={slug => controller.dispatch({ type: "slug", slug })} onSeo={seo => controller.dispatch({ type: "seo", seo })} /></TabsContent>
@@ -203,14 +214,15 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
     {/* A single editor surface. Sidebars own independent desktop scroll; mobile
         uses the page, with only the currently open Sheet owning a scroll area. */}
     <EditorSurface desktop={desktop} sections={sections} properties={properties} focused={previewFocused}>
-      <div data-editor-region="preview" className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-2 xl:p-3"><p className="text-xs text-muted-foreground">Vista previa en vivo</p>
+      {({ sectionsToggle, propertiesToggle }) => <div data-editor-region="preview" className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted">
+        <div role="group" aria-label="Herramientas de vista previa" className="flex items-center gap-2 border-b border-border p-2 xl:p-3">{sectionsToggle}<p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">Vista previa en vivo</p>
           <div className="flex flex-wrap items-center gap-2"><span aria-label="Zoom de la vista previa" className="text-xs text-muted-foreground tabular-nums">{Math.round(zoom * 100)} %</span>
           <ToggleGroup variant="segmented" aria-label="Dispositivo de vista previa" value={[device]} onValueChange={values => { if (values[0]) setDevice(values[0]); }}>
             {([["desktop", "Escritorio", Monitor], ["tablet", "Tableta", Tablet], ["mobile", "Móvil", Smartphone]] as const).map(([value, label, Icon]) => <ToggleGroupItem key={value} value={value} aria-label={label}><Icon aria-hidden="true" /></ToggleGroupItem>)}
           </ToggleGroup>
           {desktop && <Button variant="ghost" size="icon" className="size-10" aria-label="Enfocar vista previa" aria-pressed={previewFocused} onClick={() => setPreviewFocused(value => !value)}>{previewFocused ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</Button>}
           </div>
+          {propertiesToggle}
         </div>
         <PreviewScroll desktop={desktop}>
           <Card className="mx-auto w-full overflow-hidden [--card-spacing:--spacing(2)]" style={{ maxWidth: deviceWidth }} data-device={device}>
@@ -219,7 +231,7 @@ function EditorSession({ controller, role, preview, notice, onLoadSite }: Omit<C
           </Card>
           <p className="mt-4 text-center text-xs text-muted-foreground">Haz clic en una sección para seleccionarla.</p>
         </PreviewScroll>
-      </div>
+      </div>}
     </EditorSurface>
     <p className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"><Lock className="size-4 shrink-0" aria-hidden="true" />Tus cambios solo son visibles para tu equipo hasta que publiques.</p>
     <SectionLibrary open={library} onOpenChange={setLibrary} editor={editor} controller={controller} />

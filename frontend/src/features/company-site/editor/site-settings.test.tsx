@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import styles from "./site-settings.module.css";
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { PALETTE_PRESETS } from "../palettes";
@@ -27,6 +29,20 @@ it("shows original and adjusted brand color while keeping the chosen hex", () =>
   expect(screen.getByLabelText("Principal")).toHaveValue("#FFFF00");
   fireEvent.change(screen.getByLabelText("Principal"), { target: { value: "nope" } });
   expect(screen.getByText("Usa un color hexadecimal de seis dígitos.")).toBeVisible();
+});
+it("uses contained two-column palette cards with a narrow-panel fallback", () => {
+  render(<Harness brand />);
+  const grid = screen.getByRole("radiogroup", { name: "Paletas" });
+  expect(grid).toHaveClass(styles.paletteGrid, "min-w-0");
+  expect(grid.parentElement).toHaveClass(styles.paletteContainer);
+  for (const radio of within(grid).getAllByRole("radio")) {
+    expect(radio.closest('[data-slot="field-label"]')).toHaveClass("min-w-0", "box-border");
+  }
+  const css = readFileSync("src/features/company-site/editor/site-settings.module.css", "utf8");
+  expect(css).toMatch(/container-type:\s*inline-size/);
+  expect(css).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  expect(css).toMatch(/@container[^\n]*\(max-width:\s*17rem\)/);
+  expect(css).not.toMatch(/(?:^|[;{])\s*width:\s*\d+(?:px|rem)/m);
 });
 it("selects a palette with three swatches and fills all three color inputs", () => {
   const { container } = render(<Harness brand />);

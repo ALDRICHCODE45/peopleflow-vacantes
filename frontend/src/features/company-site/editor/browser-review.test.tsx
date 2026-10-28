@@ -27,6 +27,7 @@ function props() {
 const intoView = vi.fn();
 const originalScroll = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
 beforeEach(() => {
+  localStorage.clear();
   paneWidth = 415; observers.length = 0; intoView.mockClear();
   // The resizable engine reads pixel widths and rem units; jsdom has no layout.
   document.documentElement.style.fontSize = "16px";
@@ -77,6 +78,22 @@ it("keeps the identity, public link and save status in one header without a seco
   expect(within(header).getByRole("status", { name: "Estado del guardado" })).toBeVisible();
   expect(within(header).getByRole("link", { name: "/empresas/nexo-labs" })).toHaveAttribute("target", "_blank");
   expect(within(header).getByRole("link", { name: "/empresas/nexo-labs" })).toHaveAttribute("rel", "noopener noreferrer");
+});
+it("places panel toggles at the preview toolbar edges, reachable with both panes collapsed", async () => {
+  render(<CareersSiteEditor {...props()} />);
+  await screen.findByRole("heading", { name: "Tu página" });
+  const toolbar = screen.getByRole("group", { name: "Herramientas de vista previa" });
+  const buttons = within(toolbar).getAllByRole("button");
+  expect(buttons[0]).toHaveAccessibleName("Ocultar secciones");
+  expect(buttons.at(-1)).toHaveAccessibleName("Ocultar propiedades");
+  expect(buttons[0]).toHaveClass("size-10", "hover:bg-muted");
+  expect(screen.queryByRole("group", { name: "Paneles del editor" })).toBeNull();
+  fireEvent.click(buttons[0]); fireEvent.click(buttons.at(-1)!);
+  expect(within(toolbar).getByLabelText("Mostrar secciones")).toBeEnabled();
+  expect(within(toolbar).getByLabelText("Mostrar propiedades")).toBeEnabled();
+  fireEvent.click(screen.getByLabelText("Enfocar vista previa"));
+  expect(within(toolbar).getByLabelText("Mostrar secciones")).toBeDisabled();
+  expect(within(toolbar).getByLabelText("Mostrar propiedades")).toBeDisabled();
 });
 it("bounds the desktop workspace below the header and gives each column one ScrollArea", async () => {
   const { container } = render(<CareersSiteEditor {...props()} />); await screen.findByRole("heading", { name: "Tu página" });
@@ -216,7 +233,7 @@ it("makes the real preview viewport a named, visibly focusable keyboard scroll r
   expect(screen.getByRole("region", { name: "Vista previa en vivo" })).toBe(viewport);
   expect(viewport).toHaveClass("focus-visible:ring-[3px]", "focus-visible:ring-ring/50");
   const user = userEvent.setup();
-  act(() => screen.getByRole("button", { name: "Enfocar vista previa" }).focus());
+  act(() => screen.getByRole("button", { name: "Ocultar propiedades" }).focus());
   await user.tab(); expect(viewport).toHaveFocus();
   // Base UI can recompute a non-overflowing/temporarily unloaded viewport as -1.
   // The local accessibility contract must survive those later measurements.

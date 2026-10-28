@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+import { EDITOR_LAYOUT_KEY } from "./editor-layout";
 import { CareersSiteEditor, CareersSiteEditorLoading, CareersSiteEditorError } from "./index";
 import { publishedFixture } from "../public/fixtures.test-support";
 import { defaultBlock } from "../defaults";
@@ -79,20 +80,30 @@ it.each(["secciones", "propiedades"])("collapses and expands %s with an always r
 it("restores collapsed panes after remount and does not persist temporary focus", async () => {
   const props = await mount();
   fireEvent.click(screen.getByLabelText("Ocultar secciones"));
-  const saved = localStorage.getItem("peopleflow.careers-editor.layout");
+  const saved = localStorage.getItem(EDITOR_LAYOUT_KEY);
   expect(saved).not.toBeNull();
   fireEvent.click(screen.getByLabelText("Enfocar vista previa"));
   expect(screen.queryByRole("complementary")).toBeNull();
   fireEvent.click(screen.getByLabelText("Enfocar vista previa"));
   expect(screen.getByLabelText("Mostrar secciones")).toHaveAttribute("aria-expanded", "false");
   expect(screen.getByLabelText("Ocultar propiedades")).toHaveAttribute("aria-expanded", "true");
-  expect(localStorage.getItem("peopleflow.careers-editor.layout")).toBe(saved);
+  expect(localStorage.getItem(EDITOR_LAYOUT_KEY)).toBe(saved);
   cleanup(); render(<CareersSiteEditor {...props} />);
   expect(await screen.findByLabelText("Mostrar secciones")).toHaveAttribute("aria-expanded", "false");
 });
+it.each([[1202, 256, 608, 336], [1002, 256, 448, 296], [972, 234, 448, 288]])("applies first-load widths at a %ipx group without saving a preference", async (width, sections, preview, properties) => {
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const size = this.hasAttribute("data-group") ? width : this.hasAttribute("data-separator") ? 1 : 0;
+    return { left: 0, right: size, top: 0, bottom: 600, x: 0, y: 0, width: size, height: 600, toJSON() {} };
+  });
+  await mount();
+  const panels = Array.from(document.querySelectorAll<HTMLElement>('[data-panel]')).map(panel => Number(panel.style.flexGrow));
+  [sections, preview, properties].forEach((pixels, index) => expect(panels[index]).toBeCloseTo(pixels / (width - 2) * 100));
+  expect(localStorage.getItem(EDITOR_LAYOUT_KEY)).toBeNull();
+});
 it("restores requested widths before paint and preserves them across focus", async () => {
   const layout = { sections: 20, preview: 45, properties: 35 };
-  localStorage.setItem("peopleflow.careers-editor.layout", JSON.stringify({ v: 1, layout }));
+  localStorage.setItem(EDITOR_LAYOUT_KEY, JSON.stringify({ v: 1, layout }));
   await mount();
   const panels = () => Array.from(document.querySelectorAll<HTMLElement>('[data-panel]')).map(panel => panel.style.flexGrow);
   const before = panels();
@@ -118,14 +129,14 @@ it("persists keyboard resizing and double-click resets", async () => {
   const before = separator.getAttribute("aria-valuenow");
   fireEvent.keyDown(separator, { key: "ArrowRight" });
   expect(separator.getAttribute("aria-valuenow")).not.toBe(before);
-  const saved = JSON.parse(localStorage.getItem("peopleflow.careers-editor.layout")!);
+  const saved = JSON.parse(localStorage.getItem(EDITOR_LAYOUT_KEY)!);
   expect(saved.layout.sections).toBeGreaterThan(0);
   cleanup(); render(<CareersSiteEditor {...props} />);
   await screen.findByLabelText("Ocultar secciones");
   expect(Number(document.querySelector<HTMLElement>('[data-panel][id="sections"]')!.style.flexGrow)).toBeCloseTo(saved.layout.sections);
   fireEvent.doubleClick(screen.getByLabelText("Ajustar secciones"), { clientX: 400, clientY: 300 });
-  const reset = JSON.parse(localStorage.getItem("peopleflow.careers-editor.layout")!);
-  expect(reset.layout.sections).toBeCloseTo(280 / 1200 * 100);
+  const reset = JSON.parse(localStorage.getItem(EDITOR_LAYOUT_KEY)!);
+  expect(reset.layout.sections).toBeCloseTo(256 / 1200 * 100);
 });
 it("keeps an inner gutter between selected section borders and the scrollbar", async () => {
   await mount();
@@ -208,7 +219,7 @@ it("keeps recruiter draft editing available, publish disabled, placeholders hone
   expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Agregar sección" })).toBeEnabled();
   await user.click(screen.getByRole("tab", { name: "Marca" })); expect(screen.getByLabelText("Principal")).toBeVisible();
-  await user.click(screen.getByRole("tab", { name: "Configuración" })); expect(screen.getByLabelText("Dirección pública")).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "Ajustes" })); expect(screen.getByLabelText("Dirección pública")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Ver como visitante" }));
   const visitor = await screen.findByRole("dialog", { name: "Vista previa pública" });
   const visitorFrame = within(visitor).getByTitle("Vista del visitante") as HTMLIFrameElement;
