@@ -145,6 +145,42 @@ it.each(["hover", "focus"] as const)("names each icon with a tooltip on %s", asy
   await user.click(option);
   expect(screen.getByTestId("content")).toHaveTextContent('"icon":"rocket"');
 });
+it("keeps icon selection accessible without a separate visible check indicator", async () => {
+  const block = defaultBlock("values");
+  mount(block);
+  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  const user = userEvent.setup({ delay: null });
+  const trigger = screen.getByRole("combobox", { name: "Ícono" });
+  expect(trigger).toHaveTextContent("Corazón");
+  expect(trigger.querySelector("svg")).toHaveClass("lucide-heart");
+  await user.click(trigger);
+  const selected = screen.getByRole("option", { name: "Corazón", selected: true });
+  expect(selected).toHaveAttribute("data-selected");
+  // jsdom does not load Tailwind: assert the scoped indicator-hiding rule,
+  // not indicator removal (Base UI still owns the selection semantics).
+  expect(selected).toHaveClass("[&>span+span]:hidden!");
+  for (const option of screen.getAllByRole("option")) {
+    expect(option).toHaveAccessibleName(option.querySelector(".sr-only")!.textContent!);
+    expect(option).toHaveClass("aspect-square", "min-h-10", "p-0", "[&>span:first-child]:justify-center", "[&>span:first-child]:items-center");
+  }
+  expect(selected).toHaveClass("data-selected:ring-2", "data-selected:ring-inset", "data-selected:ring-ring");
+});
+it("updates the selected icon, Spanish trigger label and accessible selection", async () => {
+  mount(defaultBlock("values"));
+  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  const user = userEvent.setup({ delay: null });
+  const trigger = screen.getByRole("combobox", { name: "Ícono" });
+  await user.click(trigger);
+  const rocket = screen.getByRole("option", { name: "Cohete" });
+  expect(rocket).toHaveAttribute("aria-selected", "false");
+  await user.click(rocket);
+  expect(screen.getByTestId("content")).toHaveTextContent('"icon":"rocket"');
+  expect(trigger).toHaveTextContent("Cohete");
+  expect(trigger.querySelector("svg")).toHaveClass("lucide-rocket");
+  expect(rocket).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByRole("option", { name: "Corazón" })).toHaveAttribute("aria-selected", "false");
+  expect(rocket).toHaveClass("[&>span+span]:hidden!", "data-highlighted:bg-accent", "data-highlighted:text-accent-foreground");
+});
 it("counts Unicode code points, warns near the limit, and associates field errors", () => {
   const block = defaultBlock("hero");
   block.content = { title: "😀".repeat(72), subtitle: null, cover: null };
