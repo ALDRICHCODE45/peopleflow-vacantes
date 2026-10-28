@@ -4,11 +4,15 @@ Guía para continuar en otra computadora exactamente donde quedó el trabajo del
 backend en `feat/vacancy-checklist-backend` y frontend en `feat/vacancy-checklist` (incluye
 `chore/backlog-small-fixes`), con la misma base de datos y los mismos archivos subidos.
 
-Lo que **no** viaja con `git clone` y hay que llevar a mano (nunca lo subas a ningún lado):
+El dump de la base (migración 48) y el tar de CVs/imágenes **sí viajan con el clone**: están
+commiteados en `.transfer/` de la rama `feat/vacancy-checklist-backend` (decisión del usuario:
+repo privado, datos solo de prueba). El resto de `.transfer/` sigue ignorado por git.
+
+Lo que **no** viaja con `git clone` y hay que llevar a mano (USB o nube privada; **nunca** al
+repo ni dentro de `.transfer/`, porque tiene credenciales):
 
 | Qué | Dónde está hoy |
 | --- | --- |
-| Dump de la base (migración 48) y CVs/imágenes | `peopleflow-vacantes/.transfer/` (ignorada por git) |
 | `backend/.env` | `peopleflow-vacantes/backend/.env` |
 | `frontend/.env` y `frontend/.env.local` | `peopleflow-vacantes-frontend/frontend/` |
 | Sesión de Playwright (opcional) | `peopleflow-vacantes-frontend/frontend/.playwright-auth/` |
@@ -21,15 +25,13 @@ cd ~/Desktop/workspace/peopleflow-vacantes
 # 1. Subir las tres ramas (main ya está en GitHub).
 git push -u origin chore/backlog-small-fixes feat/vacancy-checklist feat/vacancy-checklist-backend
 
-# 2. Juntar los .env en la carpeta privada .transfer/ (ignorada por git).
-cp backend/.env .transfer/backend.env
-cp ../peopleflow-vacantes-frontend/frontend/.env .transfer/frontend.env
-cp ../peopleflow-vacantes-frontend/frontend/.env.local .transfer/frontend.env.local
-cp -r ../peopleflow-vacantes-frontend/frontend/.playwright-auth .transfer/playwright-auth   # opcional
-chmod -R go-rwx .transfer
-
-# 3. Copiar .transfer/ a la laptop por un medio privado (USB, scp a tu propia máquina).
-ls -la .transfer
+# 2. Juntar los .env en una carpeta FUERA del repo y llevarla por USB o nube privada.
+mkdir -p ~/peopleflow-env && chmod 700 ~/peopleflow-env
+cp backend/.env ~/peopleflow-env/backend.env
+cp ../peopleflow-vacantes-frontend/frontend/.env ~/peopleflow-env/frontend.env
+cp ../peopleflow-vacantes-frontend/frontend/.env.local ~/peopleflow-env/frontend.env.local
+cp -r ../peopleflow-vacantes-frontend/frontend/.playwright-auth ~/peopleflow-env/playwright-auth   # opcional
+ls -la ~/peopleflow-env
 ```
 
 Integridad esperada en la laptop (`sha256sum .transfer/*`):
@@ -52,15 +54,14 @@ git switch feat/vacancy-checklist-backend
 # 2. Worktree del frontend, en su rama (una rama no puede estar en dos worktrees).
 git worktree add ../peopleflow-vacantes-frontend feat/vacancy-checklist
 
-# 3. Poner .transfer/ en la raíz del clone y verificar.
-#    (copiala desde tu USB a ~/Desktop/workspace/peopleflow-vacantes/.transfer)
-chmod -R go-rwx .transfer && sha256sum .transfer/*.dump .transfer/*.tar.gz
+# 3. El dump y el tar llegaron con el clone: verificar.
+sha256sum .transfer/*.dump .transfer/*.tar.gz
 
-# 4. Archivos .env.
-cp .transfer/backend.env backend/.env
-cp .transfer/frontend.env ../peopleflow-vacantes-frontend/frontend/.env
-cp .transfer/frontend.env.local ../peopleflow-vacantes-frontend/frontend/.env.local
-cp -r .transfer/playwright-auth ../peopleflow-vacantes-frontend/frontend/.playwright-auth   # opcional
+# 4. Archivos .env (copiá ~/peopleflow-env desde tu USB o nube privada).
+cp ~/peopleflow-env/backend.env backend/.env
+cp ~/peopleflow-env/frontend.env ../peopleflow-vacantes-frontend/frontend/.env
+cp ~/peopleflow-env/frontend.env.local ../peopleflow-vacantes-frontend/frontend/.env.local
+cp -r ~/peopleflow-env/playwright-auth ../peopleflow-vacantes-frontend/frontend/.playwright-auth   # opcional
 
 # 5. Base de datos: Postgres 16 vacío y restaurar el dump.
 #    NO corras `make db-migrate` antes: el dump ya trae el esquema y goose en la versión 48.
