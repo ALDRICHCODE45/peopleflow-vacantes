@@ -15,11 +15,11 @@ Frontend side of SRCH-4 (closes the «org pool + audited edits» unit). Branch `
 ## Tasks
 
 - [x] T1 — S1–S6: agree the contract with the backend — route: intercom — commit: — (backend feat/org-candidate-edits c915bf4)
-- [ ] T2 — S1–S3: edit form in the candidate sheet (manual direct, organic correction layer with original visible) — route: worker — commit: —
-- [ ] T3 — S4: «Historial de cambios» — route: worker — commit: —
-- [ ] T4 — S5: corrected CV upload and current/original CV — route: worker — commit: —
-- [ ] T6 — S6: board reads corrections (sheet, profile, CV current/original) — route: worker — commit: —
-- [ ] T5 — browser QA (function + design, light/dark/mobile), docs, review queue — route: inline — commit: —
+- [x] T2 — S1–S3: edit form in the candidate sheet (manual direct, organic correction layer with original visible) — route: worker — commit: cba09844
+- [x] T3 — S4: «Historial de cambios» — route: worker — commit: 2858390e
+- [x] T4 — S5: corrected CV upload and current/original CV — route: worker — commit: 625e3a97
+- [x] T6 — S6: board reads corrections (sheet, profile, CV current/original) — route: worker — commit: bb05deaa
+- [x] T5 — browser QA (function + design, light/dark/mobile), docs, review queue — route: inline — commit: 39a61e3d
 
 ## Log
 
@@ -48,3 +48,8 @@ Frontend side of SRCH-4 (closes the «org pool + audited edits» unit). Branch `
 - **L23.** Native review: START for d036fad9 (history, 453 lines, base 2aa59a24) was refused with `lens_context_budget_exceeded` (no authority created). 75ec759b (622), ae5d8f73 (652), c68f6c9b (390) and 42e21fb7 (337) are as large or larger. Plan for T5: after E4 browser QA, build a review branch from 659b6390 with the SAME final tree split into smaller chained commits (model+client, presentation, tests per feature), review each with its parent as baseRef, verify `git diff feat/org-candidate-edits-ui <review-branch>` is empty, and hand that branch to the backend for the merge. The original branch is not rewritten.
 - **L24.** Browser QA E4 (API 722944f9, board dark desktop): board loads with E4 shapes; organic correction (years 5) shows «5 años» + «Corregido» in the board sheet with «Incluye correcciones de tu empresa.»; current CV «CV-Flores-Corregido.pdf» (backend «.pdf.pdf» fix confirmed) and original «cv.pdf» download through the new route; card shows the current CV name. Same borderless outline-link defect as L21 in the board sheet → fixed test-first with `cn(buttonVariants(...))` (RED 2 → GREEN 355/355, tsc OK). Full suite before this fix: eslint 0 errors (2 of 8 warnings are ours: ref counters incremented in effect cleanup on purpose to drop stale responses, not DOM refs), vitest 385 files / 6963 tests. The dev server died once silently (likely memory) and was restarted.
 - **L25.** Native review (T5): the original commits exceeded the reviewer budget (L23), so the same final tree was rebuilt without checkout as the 17-piece chain `review/org-candidate-edits-ui` from 659b6390 (`git diff feat/org-candidate-edits-ui review/org-candidate-edits-ui` empty before this entry). Each piece was reviewed with its parent as base and approved + acknowledged: 01 history model/client (risk, reliability), 02 history section, 03 edit contract/PATCH, 04 edit draft + summary, 05 edit form (resilience, readability, reliability), 06 form tests, 07 CV model/upload client (risk, resilience, reliability), 08 process card CV, 09 sheet integration, 10 sheet edit tests, 11 sheet CV tests, 12 list refresh/relative time/organic items, 13 pool CV routes (risk), 14 board contract (one pi relay WebSocket failure, same group reoffered once, then approved), 15 board sheet, 16 board original-CV route + request-path allowlist, 17 this documentation. No blocking finding; non-blocking advisories are listed in `frontend-backlog.md`. Full suite on the identical tree: vitest 385 files / 6963 tests, eslint 0 errors, tsc OK (L24 board border fix re-run 355/355). This branch is the one handed to the backend for the merge.
+- **L26.** (2026-10-28, bookkeeping) T2 ticked: evidence L11–L12, L25 / cba09844 in main.
+- **L27.** (2026-10-28, bookkeeping) T3 ticked: evidence L10, L25 / 2858390e in main.
+- **L28.** (2026-10-28, bookkeeping) T4 ticked: evidence L19–L21, L25 / 625e3a97 in main.
+- **L29.** (2026-10-28, bookkeeping) T6 ticked: evidence L22, L24–L25 / bb05deaa in main.
+- **L30.** (2026-10-28, bookkeeping) T5 ticked: evidence L13–L25 / 39a61e3d in main.
