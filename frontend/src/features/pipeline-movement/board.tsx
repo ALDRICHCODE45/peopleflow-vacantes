@@ -26,14 +26,22 @@ import { BoardFilters } from "./board-filters";
 import { activeFilterCount, applyFilters, type FilterSelection } from "./filters";
 import { boardFilterDimensions } from "./board-filter-dimensions";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
+import { ChecklistProvider, useBoardChecklist } from "@/features/vacancy-checklist/board/state";
+import { ChecklistComparison, ChecklistReminder, ChecklistRetry } from "@/features/vacancy-checklist/board/ui";
+import { orderByFit } from "@/features/vacancy-checklist/board/fit";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
 type Props = { vacancyId: string; vacancyTitle?: string; publishedAt?: string | null; onLifecycleChange?: (lifecycle: Lifecycle) => void };
 export function MovementBoard(props: Props) {
   return <BoardSession key={props.vacancyId} {...props} />;
 }
-function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange }: Props) {
-  const state = useMovementBoard(vacancyId);
+function BoardSession(props: Props) {
+  const state = useMovementBoard(props.vacancyId);
+  return <ChecklistProvider vacancyId={props.vacancyId} readOnly={state.board?.lifecycle.process === "finished"}><BoardContent {...props} state={state} /></ChecklistProvider>;
+}
+function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange, state }: Props & { state: ReturnType<typeof useMovementBoard> }) {
+  const checklist = useBoardChecklist()!;
+  const [bestFit, setBestFit] = useState(false);
   const languages = useLanguageCatalog();
   const [filters, setFilters] = useState<FilterSelection>({});
   const [selected, setSelected] = useState<string | null>(null);
@@ -42,8 +50,9 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange 
   const { board, confirmation, pending, stale } = state;
   useEffect(() => { if (board) onLifecycleChange?.(board.lifecycle); }, [board?.lifecycle, onLifecycleChange]);
   const readOnly = board?.lifecycle.process === "finished";
-  const dimensions = board ? boardFilterDimensions(board, languages.data?.items) : [];
-  const visibleItems = applyFilters(board?.participations ?? [], dimensions, filters);
+  const dimensions = board ? boardFilterDimensions(board, languages.data?.items, checklist.checklist?.criteria, checklist.marks) : [];
+  const matchingItems = applyFilters(board?.participations ?? [], dimensions, filters);
+  const visibleItems = bestFit && checklist.checklist?.criteria.length ? orderByFit(matchingItems, checklist.checklist.criteria, checklist.marks) : matchingItems;
   const restoreFocus = useRef<string | null>(null);
   useEffect(() => {
     const id = restoreFocus.current;
@@ -72,6 +81,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange 
     title={`¿Mover a ${confirmation.item.candidate.full_name} a ${to}?`}
     description={`Pasa de ${from} a ${to}. El cambio queda en su historial.${confirmation.placementExit ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación." : ""}`}
     confirmLabel="Mover" pendingLabel="Moviendo…" pending={confirming} confirmDisabled={state.reading || stale} onConfirm={state.confirmMove}>
+    <ChecklistReminder item={confirmation.item} target={confirmation.target} />
     {stale && <ActionStatus id="placement-check-status" tone="info" text={state.reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} />}
   </ConfirmActionDialog>;
   const substate = state.substateConfirmation;
@@ -105,6 +115,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange 
           {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />{state.columns.pending === "preview" ? "Revisando el impacto…" : "Guardando y actualizando columnas…"}</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} action={state.columns.notice.link && <Link className="inline-flex min-h-10 items-center underline" href={state.columns.notice.link.href}>{state.columns.notice.link.title}</Link>} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : !state.columns.locked && <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground lg:flex"><GripVertical aria-hidden="true" className="size-3.5" />Reordena columnas y revisa el impacto antes de guardar</span>}
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
+      {(checklist.failed || !!checklist.checklist?.criteria.length) && <div className="flex flex-wrap items-center gap-3"><ChecklistRetry />{checklist.checklist?.criteria.length ? <Button type="button" variant="outline" className="min-h-10" aria-pressed={bestFit} onClick={() => setBestFit(value => !value)}>Ordenar: Mejor ajuste</Button> : null}<ChecklistComparison vacancyId={vacancyId} /></div>}
       <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} />
       <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}

@@ -29,6 +29,8 @@ import { plural } from "@/features/employer-vacancies/plural";
 import { educationLabels, normalizedProfileLabel } from "./profile-filter-dimensions";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
+import { useBoardChecklist } from "@/features/vacancy-checklist/board/state";
+import { ChecklistPanel } from "@/features/vacancy-checklist/board/ui";
 import type { Board, CorrectedField, Failure, History, Participation, ParticipationDetail } from "./model";
 
 type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
@@ -36,6 +38,7 @@ export function CandidateSheet(props: Props) {
   return <Sheet open onOpenChange={open => { if (!open) props.onClose(); }}><CandidateSession key={props.item.id} {...props} /></Sheet>;
 }
 function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, children }: Props) {
+  const checklist = useBoardChecklist();
   const manual = item.source === "manual";
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [tab, setTab] = useState("summary");
@@ -102,11 +105,12 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       <div className="px-6 pb-5"><TabsList aria-label="Secciones de la ficha" className="w-full group-data-horizontal/tabs:h-11">
         <TabsTrigger value="summary">Resumen</TabsTrigger>
         <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
+        {checklist?.checklist?.criteria.length ? <TabsTrigger value="checklist">Checklist</TabsTrigger> : null}
         <TabsTrigger value="history">Historial <Badge variant="secondary">{loaded?.history.items.length ?? "…"}</Badge></TabsTrigger>
       </TabsList></div><Separator />
       <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
         <TabsContent value={tab} className="p-6" aria-busy={reading}>
-          {reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
+          {tab === "checklist" ? <ChecklistPanel item={item} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
             description={failure.reason === "unauthenticated" ? "Tu sesión expiró. No se modificó el candidato; inicia sesión de nuevo." : "No se modificó el candidato. Puedes volver a cargar las respuestas y el historial."}
             primaryAction={{ label: "Reintentar", disabled: reading, "aria-describedby": notice ? "detail-read-status" : undefined, onClick: () => { setReading(true); setNotice(null); setAttempt(value => value + 1); } }}>
             {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}

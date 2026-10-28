@@ -23,6 +23,7 @@ import { filePresentation, Hint, initials, stageClass } from "./pipeline-present
 import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
 import type { BoardColumnOrder } from "./use-board-column-order";
 import { ColumnOrderControls } from "./column-order-controls";
+import { ChecklistFit, ChecklistSelection } from "@/features/vacancy-checklist/board/ui";
 
 type Props = {
   board: Board; pending: Set<string>; locked: boolean; notices: Record<string, Notice>; columnOrder?: BoardColumnOrder;
@@ -55,6 +56,8 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
       <CardAction className="row-span-1 self-center"><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
+      <ChecklistFit item={item} />
+      <ChecklistSelection item={item} />
       {item.source === "manual" && <Badge variant="accent">Ingreso manual</Badge>}
       {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}
       <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span>{item.source === "manual" ? "Agregado" : "Postuló"} <MovementDate value={item.applied_at} compact /></span></p>
