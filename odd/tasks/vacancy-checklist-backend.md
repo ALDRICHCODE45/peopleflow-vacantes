@@ -27,9 +27,9 @@ Backend half of the vacancy checklist. Contract: `docs/contracts/vacancy-checkli
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
 | T1 | all | inline — contract review, adjustments sent to frontend | — |
-| T2 | S1, S2 | inline — pure package `jobs/application/checklist` (decode, validate, ETag, marks) + unit tests | — |
-| T3 | S1, S2, S4 | inline — migration, draftstore checklist GET/PUT, handler, routes, integration tests | — |
-| T4 | S3, S4 | inline — marks storage, endpoints, integration tests | — |
+| T2 | S1, S2 | inline — pure package `jobs/application/checklist` (decode, validate, ETag, marks) + unit tests | f84da991 |
+| T3 | S1, S2, S4 | worker — migration, draftstore checklist GET/PUT, handler, routes, integration tests | 6e6ab52e |
+| T4 | S3, S4 | worker — marks storage, endpoints, integration tests | 8273cade |
 | T5 | all | inline — docs, live run for frontend QA, review, merge | — |
 
 ## Log
@@ -44,3 +44,6 @@ Backend half of the vacancy checklist. Contract: `docs/contracts/vacancy-checkli
   (new id when kind/params change); identical mark write no-op; marked_by.full_name resolved at read; audit snapshots
   are JSON strings; at most one location criterion. Branch renamed `feat/vacancy-checklist-backend` (frontend owns
   `feat/vacancy-checklist`).
+- **L3** Verification: `go vet ./...`, `go test ./...` (incl. scripts/closure after fixing the archguard `"code"` literal
+  and regenerating sqlc models) and integration `go test -p 1 -tags=integration` on cmd/api, applications v2 and jobs
+  against draft_test: all green. Commit slices: T2 grammar, T3 checklist storage, T4 marks (each its own commit).
