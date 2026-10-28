@@ -49,7 +49,7 @@ export function defaultBlock(type: BlockType): SiteBlock {
 export function defaultSiteDraft(): SiteDraft {
   return {
     slug: null,
-    theme: { brand_color: "#7835DB", font_pair: "classic" },
+    theme: { brand_color: "#7835DB", accent_color: null, background_color: null, font_pair: "classic" },
     seo: { title: null, description: null },
     blocks: [defaultBlock("hero"), defaultBlock("jobs")],
   };

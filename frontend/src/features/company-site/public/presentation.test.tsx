@@ -1,12 +1,14 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import "@testing-library/jest-dom/vitest";
 import { CompanySitePage } from "./company-site-page";
 import { CompanySitePresentation } from "./company-site-presentation";
 import { loadPreviewData, resolveOfficeLabels } from "./preview-data";
 import { publishedFixture } from "./fixtures.test-support";
 import { defaultBlock } from "../defaults";
+import { PALETTE_PRESETS } from "../palettes";
+import { siteBrandTokens } from "./theme-tokens";
 import * as geo from "@/features/geo/client";
 import * as read from "./read";
 import { listItem, vacancyDetail, legacyDetail } from "@/features/jobs/api/public-fixtures";
@@ -36,6 +38,22 @@ it("server wrapper and shared presentation produce identical public markup, with
   expect(shared).toBe(server);
   expect(shared).not.toContain("data-editor");
   expect(shared).not.toContain("Editar Portada");
+});
+it.each(PALETTE_PRESETS)("keeps $name computed tokens identical across server rendering and hydration", async palette => {
+  const data = publishedFixture();
+  data.site.theme = { ...data.site.theme, brand_color: palette.brand_color, accent_color: palette.accent_color, background_color: palette.background_color };
+  const ui = await CompanySitePage({ data, jobs: [] });
+  const server = renderToString(ui);
+  const parsed = new DOMParser().parseFromString(server, "text/html");
+  const container = document.createElement("div"); container.append(...parsed.body.childNodes);
+  document.body.append(container);
+  const tokenNames = Object.keys(siteBrandTokens(palette.brand_color, palette.accent_color, palette.background_color));
+  const before = tokenNames.map(name => (container.firstElementChild as HTMLElement).style.getPropertyValue(name));
+  const hydrated = render(ui, { container, hydrate: true });
+  expect(tokenNames.map(name => (hydrated.container.firstElementChild as HTMLElement).style.getPropertyValue(name))).toEqual(before);
+  const root = hydrated.container.firstElementChild as HTMLElement;
+  expect(root).toHaveAttribute("data-site-palette", "true");
+  for (const [name, value] of Object.entries(siteBrandTokens(palette.brand_color, palette.accent_color, palette.background_color))) expect(root.style.getPropertyValue(name)).toBe(value);
 });
 it("only editor mode exposes selectable empty sections and selected outline", () => {
   const data = publishedFixture(); const story = defaultBlock("story"); data.site.blocks.push(story);

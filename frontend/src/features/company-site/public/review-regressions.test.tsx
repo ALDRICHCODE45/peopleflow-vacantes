@@ -108,8 +108,11 @@ it.each(["banner", "simple"] as const)("%s closing centers the action with its h
     expect(cta).toHaveAttribute("data-brand-inverse");
     expect(cta).toHaveClass("bg-primary", "text-primary-foreground");
     const css = readFileSync("src/features/company-site/public/site-theme.module.css", "utf8");
-    expect(css).toContain("--primary: var(--site-surface-foreground)");
-    expect(css).toContain("--primary-foreground: var(--site-brand)");
+    expect(css).toContain("--primary: var(--site-banner-accent)");
+    expect(css).toContain("--primary-foreground: var(--site-on-banner-accent)");
+    // Null accent keeps the original inverse principal CTA.
+    expect(css).toContain("--site-banner-accent-light, var(--site-on-brand)");
+    expect(css).toContain("--site-on-banner-accent-light, var(--site-brand)");
   }
 });
 it("uses downward arrows for in-page actions and outward arrows for external destinations", async () => {

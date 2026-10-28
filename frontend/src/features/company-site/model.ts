@@ -52,6 +52,8 @@ export const siteDraftSchema = z.object({
   slug: text(60).refine(value => value === null || validateSlug(value) === null, "Invalid or reserved slug"),
   theme: z.object({
     brand_color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).transform(value => value.toUpperCase()),
+    accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).transform(value => value.toUpperCase()).nullable().default(null),
+    background_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).transform(value => value.toUpperCase()).nullable().default(null),
     font_pair: z.enum(["classic", "editorial", "modern"]),
   }).strict(),
   seo: z.object({ title: text(60), description: text(160) }).strict(),

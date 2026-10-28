@@ -1,5 +1,8 @@
 /* User-selected brand samples are data, not a second application palette. */
 .chip { background-color: var(--sample-brand); }
+/* Follow the resizable panel width, not the viewport: names and all three
+   swatches need room even when the properties pane is narrow. */
+.paletteGrid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); }
 .fontSample { font-family: var(--font-sans), sans-serif; }
 .fontSample[data-font-pair="editorial"] .heading { font-family: var(--font-site-editorial), serif; }
 .fontSample[data-font-pair="modern"] { font-family: var(--font-site-modern), sans-serif; }

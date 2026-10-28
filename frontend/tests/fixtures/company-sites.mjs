@@ -218,7 +218,7 @@ export function createCompanySitesFixture() {
         next[key] = value;
       }
       if (next.brand !== state.brand || next.font !== state.font) {
-        const theme = { brand_color: colors[next.brand], font_pair: next.font };
+        const theme = { ...draft.theme, brand_color: colors[next.brand], font_pair: next.font };
         draft = { ...draft, theme };
         if (snapshot) snapshot = { ...snapshot, theme: { ...theme } };
       }

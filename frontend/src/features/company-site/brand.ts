@@ -39,14 +39,26 @@ function fromHsl(h: number, s: number, l: number): string {
 
 /** Preserve hue/saturation and step HSL lightness by 1%; never mutate the saved brand. */
 export function adjustedBrandColor(hex: string, background: string): { color: string; adjusted: boolean } {
-  if (contrastRatio(hex, background) >= 4.5) return { color: hex, adjusted: false };
+  return adjustedColorOn(hex, [background]);
+}
+
+/** Search all surfaces together: sequential adjustments can undo an earlier pair. */
+export function adjustedColorOn(hex: string, backgrounds: string[], minimum = 4.5): { color: string; adjusted: boolean } {
+  const passes = (color: string) => backgrounds.every(background => contrastRatio(color, background) >= minimum);
+  if (passes(hex)) return { color: hex, adjusted: false };
   const [h, s, initial] = hsl(hex);
   // The black/white crossover guarantees the chosen endpoint can reach 4.5.
-  const direction = readableOn(background) === "#000000" ? -1 : 1;
+  const direction = readableOn(backgrounds[0]) === "#000000" ? -1 : 1;
   for (let step = 1; step <= 100; step += 1) {
     const lightness = Math.max(0, Math.min(1, initial + direction * step / 100));
     const color = fromHsl(h, s, lightness);
-    if (contrastRatio(color, background) >= 4.5) return { color, adjusted: true };
+    if (passes(color)) return { color, adjusted: true };
   }
-  return { color: readableOn(background), adjusted: true };
+  return { color: readableOn(backgrounds[0]), adjusted: true };
+}
+
+/** Preserve background hue, cap saturation at 25%, fix dark lightness at 8%. */
+export function darkBackground(hex: string): string {
+  const [h, s] = hsl(hex);
+  return fromHsl(h, Math.min(s, .25), .08);
 }
