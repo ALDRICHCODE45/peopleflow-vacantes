@@ -2,10 +2,61 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080", apiTimeoutMs: 8000 } }));
 import { getSite, putDraft, publishSite, unpublishSite, slugAvailability } from "./client";
 import { decodeMediaError } from "./model";
-import { defaultSiteDraft } from "../defaults";
+import { defaultBlock, defaultSiteDraft } from "../defaults";
+import { createAutosave } from "../autosave";
+import { fieldMessage, TextField } from "../editor/forms/fields";
+import { createElement } from "react";
+import { render, screen } from "@testing-library/react";
+it("marks a locally invalid benefit without HTTP, then saves the corrected draft for publication", async () => {
+  const initial = state(); const benefit = defaultBlock("benefits");
+  if (benefit.type !== "benefits") throw new Error("fixture");
+  benefit.content.items = [{ icon: "heart", title: "😀".repeat(61), description: null }];
+  const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+  const draft = { ...initial.draft, blocks: [...initial.draft.blocks, benefit] };
+  const index = initial.draft.blocks.length;
+  const result = await putDraft("token", { body: draft, ifMatch: '"7"' });
+  expect(result).toEqual({ kind: "invalid", fields: [{ field: `blocks[${index}].content.items[0].title`, code: "too_long" }] });
+  expect(fetchMock).not.toHaveBeenCalled();
+  const c = createAutosave(initial, '"7"', input => putDraft("token", input));
+  c.dispatch({ type: "add", block: benefit });
+  await expect(c.flush()).resolves.toEqual({ ok: false, reason: "invalid" });
+  expect(c.getSnapshot().status.kind).toBe("invalid");
+  const error = fieldMessage(c.getSnapshot().editor.fieldErrors, benefit.id, "content.items[0].title");
+  render(createElement(TextField, { label: "Beneficio", value: benefit.content.items[0].title, onChange: vi.fn(), max: 60, description: "Título", error }));
+  expect(screen.getByRole("textbox").getAttribute("aria-invalid")).toBe("true");
+  expect(error).toBe("Acorta este texto.");
+  benefit.content.items[0].title = "Salud";
+  c.dispatch({ type: "content", id: benefit.id, content: benefit.content });
+  respond({ ...initial, draft: c.getSnapshot().editor.draft });
+  await expect(c.flush()).resolves.toEqual({ ok: true, version: 7 });
+  expect(c.getSnapshot().editor.fieldErrors).toEqual([]);
+  respond({ ...initial, draft: c.getSnapshot().editor.draft });
+  expect(await publishSite("token", '"7"')).toMatchObject({ kind: "success" });
+  c.dispose();
+});
 const state = () => ({ draft: defaultSiteDraft(), draft_version: 7, published: null, has_unpublished_changes: true, media: [], updated_at: "2026-10-27T00:00:00Z" });
 const respond = (body: unknown, status = 200, etag = '"7"') => vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status, headers: { etag } })));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+it.each([
+  ["offices", { items: [{ name: "Oficina", location: { country: "MX" }, address: null, map_url: "http://example.com" }] }, "content.items[0].map_url", "invalid"],
+  ["story", { title: null, image: null, body: { schema_version: 1, document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "a".repeat(5001) }] }] } } }, "content.body", "too_long"],
+  ["hero", { title: null, subtitle: null, cover: null, extra: true }, "", "unknown_key"],
+] as const)("maps local %s errors to existing controls or the block fallback", async (type, content, suffix, code) => {
+  const draft = defaultSiteDraft(); const candidate = { ...defaultBlock(type), content };
+  const index = type === "hero" ? 0 : draft.blocks.length;
+  if (index === 0) draft.blocks[0] = candidate as typeof draft.blocks[number];
+  else draft.blocks.push(candidate as typeof draft.blocks[number]);
+  vi.stubGlobal("fetch", vi.fn());
+  expect(await putDraft("token", { body: draft, ifMatch: '\"7\"' })).toEqual({ kind: "invalid", fields: [{ field: `blocks[${index}]${suffix ? `.${suffix}` : ""}`, code }] });
+  expect(fetch).not.toHaveBeenCalled();
+});
+it("logs only fixed reason codes for malformed requests and unrecognized responses", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  expect(await putDraft("private-token", { body: state().draft, ifMatch: "secret-invalid-tag" })).toEqual({ kind: "invalid_request" });
+  respond({ private: "content" }, 500);
+  await putDraft("private-token", { body: state().draft, ifMatch: '\"7\"' });
+  expect(warn.mock.calls).toEqual([["company_site_request_failed", "invalid_request"], ["company_site_request_failed", "unrecognized"]]);
+});
 it("GET decodes state and authenticated no-store transport", async () => {
   const data = state(); respond(data); expect(await getSite("token")).toEqual({ kind: "success", data, etag: '"7"' });
   expect(fetch).toHaveBeenCalledWith("http://localhost:8080/v2/me/company/site", expect.objectContaining({ cache: "no-store", redirect: "error", headers: expect.any(Headers) }));

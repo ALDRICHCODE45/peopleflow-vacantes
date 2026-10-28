@@ -94,6 +94,15 @@ export function createAutosave(initial: SiteState, etag: string, save: SaveDraft
   }
   return {
     flush: flushLatest,
+    /** Explicit retry never bypasses authentication or conflict resolution. */
+    retry() {
+      if (disposed || snapshot.status.kind !== "error" || snapshot.status.failure.kind === "unauthenticated") return flushLatest();
+      // The failed response may hide a completed write. Retry the current
+      // document even if the user reverted to the last confirmed baseline.
+      unconfirmed = true;
+      emit(snapshot.editor, { kind: "idle" });
+      return flushLatest();
+    },
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     dispatch(action: EditAction) {

@@ -5,6 +5,18 @@ import type { SiteResult, SiteState } from "./api/model";
 const data = (): SiteState => ({ draft: defaultSiteDraft(), draft_version: 1, published: null, has_unpublished_changes: false, media: [], updated_at: "2026-10-27T00:00:00Z" });
 const deferred = () => { let resolve!: (result: SiteResult) => void; const promise = new Promise<SiteResult>(r => { resolve = r; }); return { promise, resolve }; };
 beforeEach(() => vi.useFakeTimers()); afterEach(() => vi.useRealTimers());
+it("explicit retry saves the current draft even after reverting an unrecognized write", async () => {
+  const initial = data();
+  const save = vi.fn().mockResolvedValueOnce({ kind: "unrecognized" }).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body, draft_version: 2 }, etag: '\"2\"' }));
+  const c = createAutosave(initial, '\"1\"', save);
+  c.dispatch({ type: "slug", slug: "changed" });
+  await c.flush();
+  c.dispatch({ type: "slug", slug: initial.draft.slug });
+  await expect(c.retry()).resolves.toEqual({ ok: true, version: 2 });
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[1][0].body).toEqual(initial.draft);
+  c.dispose();
+});
 it("flush shares a promise, waits for in-flight and queued edits, and cancels the debounce", async () => {
   const initial = data(); const pending = deferred();
   const save = vi.fn().mockReturnValueOnce(pending.promise).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...initial, draft: body, draft_version: 3 }, etag: '"3"' }));
