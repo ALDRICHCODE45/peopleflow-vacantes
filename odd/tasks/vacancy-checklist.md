@@ -46,7 +46,7 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
 | T4 | S3–S5 | worker — board: card fit, «Mejor ajuste» order, fit filter, sheet «Checklist» tab with marks | b9e1c1e4 |
 | T5 | S8 | worker — reminder with inline marks in the move confirmation | b9e1c1e4 |
 | T6 | S6, S7 | worker — comparison view and terna report (print + CSV) | ea0f75b5 |
-| T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | — |
+| T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | 9bd31e5a, 8aa1b1d0 |
 
 ## Log
 
@@ -142,3 +142,10 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
   → tighter triggers and container padding below sm, measured 340/340 in the browser. Data note: the checklist saved in
   round 1 keeps the old label «Idioma en: mínimo C1» (saved before P7); new suggestions use catalog names.
   Docs: guide step 91 and review-queue item 3.
+- **L18** Closing: two more UI convention guards caught the QA round (outline link not merged through `cn`, chips
+  combobox popup not anchored) → fixed (chips field moved to `editor/multi-choice-field.tsx`). Delivery gate on the
+  final tree 8aa1b1d0: tsc 0, lint 0 errors / 13 baseline warnings, vitest 455 files / 8160 passed / 1 skipped. Native
+  review assess unavailable here (`package-local-binary-missing`), reported, not retried. Not merged: per the review
+  queue nothing reaches `main` before the user's browser review; backend told to hold `feat/vacancy-checklist-backend`
+  (421b8616) and keep :8080 for that review. Data left in the dev DB by QA: the 16-criterion checklist on
+  «Software Developer» (round-1 mark cleared; no candidate moved).
