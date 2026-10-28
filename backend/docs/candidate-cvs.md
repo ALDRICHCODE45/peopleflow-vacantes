@@ -57,6 +57,9 @@ nosniff`; no static file-serving route exists.
 
 ## Storage and operations
 
+Company site images can independently use [private S3/MinIO](site-media.md).
+Those settings do not change candidate CV storage.
+
 **`CV_STORAGE_ROOT` is optional.** When unset/empty, the API starts normally;
 all `/v2/me/cvs*` methods return `503 cv_storage_unavailable` with `{error,code}`
 and `Cache-Control: no-store`, after authentication and the candidate-role gate

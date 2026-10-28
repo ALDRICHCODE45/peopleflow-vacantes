@@ -39,14 +39,15 @@ WITH catalog AS (
  FROM jobs j JOIN companies c ON c.id=j.company_id
  WHERE j.status='published' AND j.deleted_at IS NULL AND j.published_at IS NOT NULL
    AND c.status='active' AND c.deleted_at IS NULL
+   AND ($6::uuid IS NULL OR j.company_id=$6::uuid)
    -- Legacy has no structured geography or declared remote scope.
-   AND COALESCE(cardinality($6::text[]),0)=0
    AND COALESCE(cardinality($7::text[]),0)=0
-   AND ($8::text='' OR j.work_mode<>'remote')
+   AND COALESCE(cardinality($8::text[]),0)=0
+   AND ($9::text='' OR j.work_mode<>'remote')
    -- Legacy salaries have no pay period or gross/net basis (SAL-6).
-   AND $9::text=''
+   AND $10::text=''
    -- Legacy has no language requirements; years/education minima are absent.
-   AND COALESCE(cardinality($10::text[]),0)=0
+   AND COALESCE(cardinality($11::text[]),0)=0
  UNION ALL
  SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
         p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
@@ -87,50 +88,51 @@ WITH catalog AS (
  JOIN vacancy_processes v ON v.id=p.id AND v.company_id=p.company_id
  JOIN companies c ON c.id=p.company_id
  WHERE v.status='published' AND c.status='active' AND c.deleted_at IS NULL
+   AND ($6::uuid IS NULL OR p.company_id=$6::uuid)
    -- Cast parameters, not indexed columns. Codes are validated before search.
-   AND (COALESCE(cardinality($6::text[]),0)=0 OR
-        (p.country_code='MX' AND p.state_code=ANY($6::text[]::char(2)[])))
    AND (COALESCE(cardinality($7::text[]),0)=0 OR
-        (p.country_code='MX' AND p.municipality_code=ANY($7::text[]::char(5)[])))
-   AND ($8::text='' OR p.work_mode<>'remote' OR
+        (p.country_code='MX' AND p.state_code=ANY($7::text[]::char(2)[])))
+   AND (COALESCE(cardinality($8::text[]),0)=0 OR
+        (p.country_code='MX' AND p.municipality_code=ANY($8::text[]::char(5)[])))
+   AND ($9::text='' OR p.work_mode<>'remote' OR
         p.remote_scope_kind='anywhere' OR
-        (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[$8::text::char(2)]))
-   AND (COALESCE(cardinality($10::text[]),0)=0 OR EXISTS (
+        (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[$9::text::char(2)]))
+   AND (COALESCE(cardinality($11::text[]),0)=0 OR EXISTS (
         SELECT 1 FROM jsonb_array_elements(p.requirements_profile->'languages') AS required_language
-        WHERE required_language->>'code'=ANY($10::text[])))
+        WHERE required_language->>'code'=ANY($11::text[])))
    -- "What I have": an absent minimum matches; equality is inclusive.
    -- NULLIF prevents casting the inactive empty parameter to numeric.
-   AND (NULLIF($11::text,'')::numeric IS NULL OR
+   AND (NULLIF($12::text,'')::numeric IS NULL OR
         p.requirements_profile->>'min_years_of_experience' IS NULL OR
-        (p.requirements_profile->>'min_years_of_experience')::numeric <= NULLIF($11::text,'')::numeric)
-   AND ($12::text='' OR
+        (p.requirements_profile->>'min_years_of_experience')::numeric <= NULLIF($12::text,'')::numeric)
+   AND ($13::text='' OR
         p.requirements_profile->>'min_education_level' IS NULL OR
         array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], p.requirements_profile->>'min_education_level') <=
-        array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], $12::text))
+        array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], $13::text))
    -- SAL-5..SAL-8: compare only the published projection compensation, which
    -- is NULL when hidden or incomplete, in identical units. Offer [lo,hi]
    -- (fixed: lo=hi=amount) overlaps the requested bounds inclusively; an empty
    -- bound is open. Amounts are canonical two-decimal strings.
-   AND ($9::text='' OR (
-        p.compensation->>'currency'=$9::text
-    AND p.compensation->>'pay_period'=$13::text
-    AND p.compensation->>'basis'=$14::text
+   AND ($10::text='' OR (
+        p.compensation->>'currency'=$10::text
+    AND p.compensation->>'pay_period'=$14::text
+    AND p.compensation->>'basis'=$15::text
     -- NULLIF, not OR, keeps an open bound from ever casting '' to numeric.
-    AND (NULLIF($15::text,'')::numeric IS NULL OR
-         COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric >= NULLIF($15::text,'')::numeric)
     AND (NULLIF($16::text,'')::numeric IS NULL OR
-         COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric <= NULLIF($16::text,'')::numeric)))
+         COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric >= NULLIF($16::text,'')::numeric)
+    AND (NULLIF($17::text,'')::numeric IS NULL OR
+         COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric <= NULLIF($17::text,'')::numeric)))
 ), ranked AS (
- SELECT catalog.id, catalog.source, catalog.published_at, catalog.location_label, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$17::text))::float8 AS search_rank
+ SELECT catalog.id, catalog.source, catalog.published_at, catalog.location_label, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$18::text))::float8 AS search_rank
  FROM catalog
- WHERE ($17::text='' OR search_vector @@ websearch_to_tsquery('spanish',$17::text))
-   AND (COALESCE(cardinality($18::text[]),0)=0 OR work_mode=ANY($18::text[]))
-   AND ($19::text='' OR work_schedule=$19::text)
-   AND ($20::text='' OR contract_type=$20::text)
-   AND ($21::text='' OR professional_area=$21::text)
+ WHERE ($18::text='' OR search_vector @@ websearch_to_tsquery('spanish',$18::text))
+   AND (COALESCE(cardinality($19::text[]),0)=0 OR work_mode=ANY($19::text[]))
+   AND ($20::text='' OR work_schedule=$20::text)
+   AND ($21::text='' OR contract_type=$21::text)
+   AND ($22::text='' OR professional_area=$22::text)
    -- The UNION body already maps legacy mid to semi_senior.
-   AND (COALESCE(cardinality($22::text[]),0)=0 OR body->>'seniority'=ANY($22::text[]))
-   AND ($23::uuid IS NULL OR id=$23::uuid)
+   AND (COALESCE(cardinality($23::text[]),0)=0 OR body->>'seniority'=ANY($23::text[]))
+   AND ($24::uuid IS NULL OR id=$24::uuid)
 )
 SELECT body,search_rank FROM ranked
 WHERE ($1::timestamptz IS NULL OR
@@ -147,6 +149,7 @@ type SearchPublicJobsParams struct {
 	CursorSource      string             `json:"cursor_source"`
 	CursorID          uuid.UUID          `json:"cursor_id"`
 	PageLimit         int32              `json:"page_limit"`
+	CompanyID         pgtype.UUID        `json:"company_id"`
 	States            []string           `json:"states"`
 	Municipalities    []string           `json:"municipalities"`
 	ApplicantCountry  string             `json:"applicant_country"`
@@ -182,6 +185,7 @@ func (q *Queries) SearchPublicJobs(ctx context.Context, arg SearchPublicJobsPara
 		arg.CursorSource,
 		arg.CursorID,
 		arg.PageLimit,
+		arg.CompanyID,
 		arg.States,
 		arg.Municipalities,
 		arg.ApplicantCountry,

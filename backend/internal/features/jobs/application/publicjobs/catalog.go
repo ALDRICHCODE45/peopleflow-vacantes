@@ -83,6 +83,7 @@ type Position struct {
 	ID          uuid.UUID `json:"id"`
 }
 type Query struct {
+	CompanyID                                                         string
 	Q, WorkSchedule, ContractType, ProfessionalArea, ApplicantCountry string
 	States, Municipalities, WorkModes                                 []string
 	Languages, Seniorities                                            []string
@@ -155,7 +156,7 @@ func ParseQuery(raw string) (Query, error) {
 		for _, pair := range strings.Split(raw, "&") {
 			key, value, _ := strings.Cut(pair, "=")
 			key, _ = url.QueryUnescape(key)
-			if isGeoFilter(key) || isSalaryFilter(key) || isProfileFilter(key) {
+			if key == "company_id" || isGeoFilter(key) || isSalaryFilter(key) || isProfileFilter(key) {
 				if _, err := url.QueryUnescape(value); err != nil || strings.Contains(pair, ";") {
 					return Query{}, ErrInvalidFilter
 				}
@@ -166,6 +167,17 @@ func ParseQuery(raw string) (Query, error) {
 	q := Query{Limit: 20}
 	salary := map[string]string{}
 	for key, vs := range values {
+		if key == "company_id" {
+			if len(vs) != 1 || len(vs[0]) != 36 {
+				return Query{}, ErrInvalidFilter
+			}
+			id, err := uuid.Parse(vs[0])
+			if err != nil {
+				return Query{}, ErrInvalidFilter
+			}
+			q.CompanyID = id.String()
+			continue
+		}
 		if isProfileFilter(key) {
 			if err := parseProfileFilter(&q, key, vs); err != nil {
 				return Query{}, err
@@ -419,6 +431,10 @@ func filterHash(q Query) string {
 	}
 	if q.EducationLevel != "" {
 		filters = append(filters, []string{"education_level", q.EducationLevel})
+	}
+	// Inactive company filtering preserves every pre-existing cursor binding.
+	if q.CompanyID != "" {
+		filters = append(filters, []string{"company_id", q.CompanyID})
 	}
 	raw, _ := json.Marshal(filters)
 	sum := sha256.Sum256(raw)

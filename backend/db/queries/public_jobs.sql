@@ -28,6 +28,7 @@ WITH catalog AS (
  FROM jobs j JOIN companies c ON c.id=j.company_id
  WHERE j.status='published' AND j.deleted_at IS NULL AND j.published_at IS NOT NULL
    AND c.status='active' AND c.deleted_at IS NULL
+   AND (sqlc.narg('company_id')::uuid IS NULL OR j.company_id=sqlc.narg('company_id')::uuid)
    -- Legacy has no structured geography or declared remote scope.
    AND COALESCE(cardinality(sqlc.arg('states')::text[]),0)=0
    AND COALESCE(cardinality(sqlc.arg('municipalities')::text[]),0)=0
@@ -76,6 +77,7 @@ WITH catalog AS (
  JOIN vacancy_processes v ON v.id=p.id AND v.company_id=p.company_id
  JOIN companies c ON c.id=p.company_id
  WHERE v.status='published' AND c.status='active' AND c.deleted_at IS NULL
+   AND (sqlc.narg('company_id')::uuid IS NULL OR p.company_id=sqlc.narg('company_id')::uuid)
    -- Cast parameters, not indexed columns. Codes are validated before search.
    AND (COALESCE(cardinality(sqlc.arg('states')::text[]),0)=0 OR
         (p.country_code='MX' AND p.state_code=ANY(sqlc.arg('states')::text[]::char(2)[])))

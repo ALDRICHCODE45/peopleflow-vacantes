@@ -32,9 +32,14 @@ import (
 	cvspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres/cvs"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
+	companyentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
+	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
+	sitespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/postgres"
+	sitess3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/s3"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
@@ -43,6 +48,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
 	dashboardapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dashboard"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
@@ -52,9 +58,55 @@ import (
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
+
+// companySiteValidator adapts rich-text validation at the composition boundary.
+func companySiteValidator() *sitesapp.Validator {
+	return sitesapp.NewValidator(func(value any) (*sitesapp.RichDocument, error) {
+		doc, err := draftrich.ValidateDocument(value)
+		if err != nil || doc == nil {
+			return nil, err
+		}
+		return &sitesapp.RichDocument{Canonical: doc.Canonical, Plain: doc.Plain}, nil
+	})
+}
+func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
+	validator := companySiteValidator()
+	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)), events)
+	companies := usecases.NewCompanyService(postgres.NewCompanyRepository(pool, events), geopostgres.NewReader(db.New(pool)))
+	return siteshttp.New(store, draftjson.Decode, validator).WithMedia(store, storage).WithPublic(store, companySitePublicCompany(companies))
+}
+
+// Adapt the existing company read path here; feature slices do not import
+// companies application/infrastructure. ReadLocation returns the same shared
+// DTO and serializer used by GET /companies/{id}.
+func companySitePublicCompany(service *usecases.CompanyService) sitesapp.ReadPublicCompany {
+	return func(ctx context.Context, id uuid.UUID) (sitesapp.PublicCompany, error) {
+		c, err := service.GetCompanyByID(ctx, id)
+		if errors.Is(err, companyentities.ErrCompanyNotFound) {
+			return sitesapp.PublicCompany{}, sitesapp.ErrSiteNotFound
+		}
+		if err != nil {
+			return sitesapp.PublicCompany{}, err
+		}
+		if c.DeletedAt != nil || c.Status.String() != "active" {
+			return sitesapp.PublicCompany{}, sitesapp.ErrSiteNotFound
+		}
+		location, err := service.ReadLocation(ctx, c.Location)
+		if err != nil {
+			return sitesapp.PublicCompany{}, err
+		}
+		var description *string
+		if c.Description != nil {
+			value := c.Description.Value()
+			description = &value
+		}
+		return sitesapp.PublicCompany{ID: c.ID, Name: c.Name.Value(), LogoURL: c.LogoURL, Description: description, Website: c.Website, LinkedInURL: c.LinkedInURL, InstagramURL: c.InstagramURL, FacebookURL: c.FacebookURL, TwitterURL: c.TwitterURL, Location: location}, nil
+	}
+}
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
@@ -101,6 +153,13 @@ func run() error {
 
 	cvConfig, err := runtimeconfig.LoadCVConfig(os.Getenv)
 	if err != nil {
+		return err
+	}
+
+	siteConfig, err := runtimeconfig.LoadSiteMediaConfig(os.Getenv)
+	if err != nil {
+		// Config errors are static messages, never the raw environment values.
+		slog.Error("site media configuration invalid", "reason", err.Error())
 		return err
 	}
 
@@ -182,6 +241,7 @@ func run() error {
 	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
 	// An absent root disables only CV routes, after their usual identity gates.
 	var cvHandler *cvshttp.Handler
+	var siteStorage sitesapp.Storage
 	var movementStorage movementpostgres.Storage
 	var manualStorage manualCVStorage
 	if cvConfig.Root != "" {
@@ -190,10 +250,19 @@ func run() error {
 			return errors.New("initialize private CV storage")
 		}
 		defer privateCVStorage.Close()
+		siteStorage = privateCVStorage
 		movementStorage = privateCVStorage
 		manualStorage = manualCVStorage{local: privateCVStorage}
 		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
 	}
+	if siteConfig.Mode == "s3" {
+		siteStorage, err = sitess3.New(ctx, sitess3.Options{Bucket: siteConfig.Bucket, Region: siteConfig.Region, Prefix: siteConfig.Prefix, Endpoint: siteConfig.Endpoint, ForcePathStyle: siteConfig.ForcePathStyle})
+		if err != nil {
+			return err
+		}
+	}
+	// Explicit allowlist; never log the SDK config, endpoint or credentials.
+	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo)
 	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore), draftjson.Decode)
 
@@ -283,6 +352,7 @@ func run() error {
 
 	// WS6B-1b-b: router.go owns the chi router; the composition root passes it.
 	r := newRouter(routerDeps{
+		siteHandler: newCompanySiteHandler(pool, auditRepo, siteStorage),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		requireCandidate: requireCandidate, identityHandler: identityHandler,
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,

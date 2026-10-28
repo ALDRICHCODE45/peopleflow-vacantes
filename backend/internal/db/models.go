@@ -224,6 +224,39 @@ type CompanyMember struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type CompanySite struct {
+	CompanyID        uuid.UUID          `json:"company_id"`
+	Draft            []byte             `json:"draft"`
+	DraftVersion     int64              `json:"draft_version"`
+	DraftSlug        pgtype.Text        `json:"draft_slug"`
+	Published        []byte             `json:"published"`
+	PublishedVersion pgtype.Int8        `json:"published_version"`
+	PublishedSlug    pgtype.Text        `json:"published_slug"`
+	PublishedAt      pgtype.Timestamptz `json:"published_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	UpdatedBy        uuid.UUID          `json:"updated_by"`
+}
+
+type CompanySiteMedium struct {
+	ID          uuid.UUID          `json:"id"`
+	CompanyID   uuid.UUID          `json:"company_id"`
+	Kind        string             `json:"kind"`
+	StorageKey  string             `json:"storage_key"`
+	ContentType string             `json:"content_type"`
+	Width       int32              `json:"width"`
+	Height      int32              `json:"height"`
+	ByteSize    int64              `json:"byte_size"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+}
+
+type CompanySiteSlugHistory struct {
+	Slug      string             `json:"slug"`
+	CompanyID uuid.UUID          `json:"company_id"`
+	RetiredAt pgtype.Timestamptz `json:"retired_at"`
+}
+
 type GeoCatalogImport struct {
 	ID         int64              `json:"id"`
 	Source     string             `json:"source"`

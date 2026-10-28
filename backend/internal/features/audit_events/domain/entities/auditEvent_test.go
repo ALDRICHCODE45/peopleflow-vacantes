@@ -78,6 +78,9 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 		EventApplicationTransitioned: true,
 		EventCompanyUpdated:          true,
 		EventCompanyDeleted:          true,
+		EventCompanySitePublished:    true,
+		EventCompanySiteUnpublished:  true,
+		EntityCompanySite:            true,
 		EventJobDraftCreated:         true,
 		EventJobDraftSaved:           true,
 		EventVacancyPaused:           true,
@@ -263,7 +266,7 @@ func eventTypeEmitLiteralsOutsideEntities(t *testing.T) []string {
 			if uerr != nil {
 				return true
 			}
-			if value == "CompanyUpdated" || value == "CompanyDeleted" || value == "company" {
+			if value == "CompanyUpdated" || value == "CompanyDeleted" || value == "company" || value == "CompanySitePublished" || value == "CompanySiteUnpublished" || value == "company_site" {
 				violations = append(violations, fset.Position(lit.Pos()).String())
 			}
 			return true

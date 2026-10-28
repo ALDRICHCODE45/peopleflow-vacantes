@@ -59,6 +59,8 @@ const (
 	EventVacancyClosed          = "VacancyClosed"
 	EventVacancyProcessFinished = "VacancyProcessFinished"
 	EventVacancyReopened        = "VacancyReopened"
+	EventCompanySitePublished   = "CompanySitePublished"
+	EventCompanySiteUnpublished = "CompanySiteUnpublished"
 )
 
 // Entity-type constants — companion to the closed event set.
@@ -72,6 +74,7 @@ const (
 const (
 	EntityApplication = "application"
 	EntityCompany     = "company"
+	EntityCompanySite = "company_site"
 	// EntityJobDraft is the private draft authoring resource entity type.
 	EntityJobDraft = "job_draft"
 	// EntityJobDraftRequester is the requester catalog entry entity type.
