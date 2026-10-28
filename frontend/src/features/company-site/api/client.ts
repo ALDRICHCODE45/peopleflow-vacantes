@@ -18,6 +18,7 @@ function diagnostic<T extends Failure>(failure: T): T {
 export type SaveInput = { body: unknown; ifMatch: string };
 const path = "/v2/me/company/site";
 const validTag = (tag: unknown): tag is string => typeof tag === "string" && /^"[1-9]\d*"$/.test(tag);
+// Infer the parsed output, not the legacy input with optional palette keys.
 async function request<T>(token: string, suffix: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>, method = "GET", body?: unknown, ifMatch?: string): Promise<{ kind: "success"; data: T; etag?: string } | Failure> {
   if (!token?.trim()) return { kind: "unauthenticated" };
   const { serverEnv } = await import("@/lib/env/server");

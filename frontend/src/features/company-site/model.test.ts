@@ -151,6 +151,22 @@ describe("draft limits", () => {
   });
 });
 
+describe("palette wire contract", () => {
+  it("normalizes legacy missing colors to null and writes canonical strict themes", () => {
+    const draft = defaultSiteDraft();
+    const parsed = siteDraftSchema.parse({ ...draft, theme: { brand_color: "#7835DB", font_pair: "classic" } });
+    expect(parsed.theme).toEqual({ brand_color: "#7835DB", accent_color: null, background_color: null, font_pair: "classic" });
+    expect(siteDraftSchema.parse(parsed)).toEqual(parsed);
+  });
+  it.each(["accent_color", "background_color"])("validates exact nullable hex and uppercases %s", key => {
+    const draft = defaultSiteDraft();
+    for (const value of [null, "#abcdef", "#000000", "#FFFFFF"]) {
+      expect(siteDraftSchema.parse({ ...draft, theme: { ...draft.theme, [key]: value } }).theme).toHaveProperty(key, typeof value === "string" ? value.toUpperCase() : null);
+    }
+    for (const value of ["#123", "#GGGGGG", " #abcdef ", "", 123, false]) expect(siteDraftSchema.safeParse({ ...draft, theme: { ...draft.theme, [key]: value } }).success).toBe(false);
+  });
+});
+
 describe("wire invariants", () => {
   const variants = {
     hero: ["photo", "split", "centered"], story: ["text", "text_image"], values: ["grid", "list"],
@@ -268,7 +284,7 @@ describe("publication and defaults", () => {
   it("fresh defaults are independent, saveable and have the expected publish issues", () => {
     const draft = defaultSiteDraft();
     expect(siteDraftSchema.parse(draft)).toEqual(draft);
-    expect(draft.theme).toEqual({ brand_color: "#7835DB", font_pair: "classic" });
+    expect(draft.theme).toEqual({ brand_color: "#7835DB", accent_color: null, background_color: null, font_pair: "classic" });
     expect(draft.seo).toEqual({ title: null, description: null });
     expect(draft.blocks.map(b => b.type)).toEqual(["hero", "jobs"]);
     expect(defaultSiteDraft().blocks[0].id).not.toBe(draft.blocks[0].id);

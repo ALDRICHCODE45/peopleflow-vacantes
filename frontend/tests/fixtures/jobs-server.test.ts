@@ -78,6 +78,36 @@ test("all 111 fixture icons save in contract order and missing emoji normalizes"
   }
 });
 
+test("palette fixture keeps canonical keys across visual controls and legacy writes", async () => {
+  await json("/__reset");
+  await json("/__site?brand=green");
+  const initialRaw = await (await siteRequest()).json();
+  expect(initialRaw.draft.theme).toEqual({ brand_color: "#15803D", accent_color: null, background_color: null, font_pair: "modern" });
+  const legacy = { ...initialRaw.draft, theme: { brand_color: "#15803D", font_pair: "modern" } };
+  const response = await siteRequest("/draft", "PUT", legacy, '"1"');
+  expect(response.status).toBe(200);
+  expect((await response.json()).draft.theme).toEqual(initialRaw.draft.theme);
+});
+test("palette fixture validates exact nullable hex with backend paths and uppercase storage", async () => {
+  await json("/__reset");
+  const initial = await readDraft();
+  for (const key of ["accent_color", "background_color"]) {
+    for (const value of ["#123", " #abcdef ", "#GGGGGG", false, 42, ""]) {
+      const response = await siteRequest("/draft", "PUT", { ...initial.draft, theme: { ...initial.draft.theme, [key]: value } }, '"1"');
+      expect(response.status).toBe(400);
+      expect(decodeFailure(400, await response.json())).toEqual({ kind: "invalid", fields: [{ field: `theme.${key}`, code: "invalid" }] });
+    }
+  }
+  expect(await readDraft()).toEqual(initial);
+  const response = await siteRequest("/draft", "PUT", { ...initial.draft, theme: { ...initial.draft.theme, accent_color: "#abcdef", background_color: "#fedcba" } }, '"1"');
+  expect(response.status).toBe(200);
+  const state = await response.json();
+  expect(state.draft.theme).toMatchObject({ accent_color: "#ABCDEF", background_color: "#FEDCBA" });
+  const published = await siteRequest("/publish", "POST", undefined, '"2"');
+  expect(published.status).toBe(200);
+  expect((await json("/v2/company-sites/nexo-labs")).site.theme).toEqual(state.draft.theme);
+});
+
 test("authenticated draft starts from Nexo's snapshot and saves canonically with CAS and no-op", async () => {
   await json("/__reset");
   const initial = await readDraft();
@@ -331,13 +361,13 @@ test("site controls change branding and only company jobs; reset restores defaul
   const defaultSite = await json("/v2/company-sites/nexo-labs");
   await json("/__site?brand=green&font=editorial&jobs=empty");
   const green = publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs"));
-  expect(green.site.theme).toEqual({ brand_color: "#15803D", font_pair: "editorial" });
+  expect(green.site.theme).toEqual({ brand_color: "#15803D", accent_color: null, background_color: null, font_pair: "editorial" });
   expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}`)).items).toEqual([]);
   expect(publicJobsListSchema.parse(await json("/v2/jobs")).items).toHaveLength(2);
   await json("/__site?brand=orange&font=modern&jobs=default");
-  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs")).site.theme).toEqual({ brand_color: "#EA580C", font_pair: "modern" });
+  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs")).site.theme).toEqual({ brand_color: "#EA580C", accent_color: null, background_color: null, font_pair: "modern" });
   expect((await fetch(`${origin}/__site?brand=green&font=unknown&jobs=empty`)).status).toBe(400);
-  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs")).site.theme).toEqual({ brand_color: "#EA580C", font_pair: "modern" });
+  expect(publicSiteSchema.parse(await json("/v2/company-sites/nexo-labs")).site.theme).toEqual({ brand_color: "#EA580C", accent_color: null, background_color: null, font_pair: "modern" });
   expect(publicJobsListSchema.parse(await json(`/v2/jobs?company_id=${nexo}`)).items).toHaveLength(2);
   await json("/__reset");
   expect(await json("/v2/company-sites/nexo-labs")).toEqual(defaultSite);

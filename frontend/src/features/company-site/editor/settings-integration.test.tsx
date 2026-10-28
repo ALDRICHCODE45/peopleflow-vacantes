@@ -58,7 +58,7 @@ it("updates the real preview font attribute immediately", async () => {
 it("updates the preview with the adjusted brand color immediately", async () => {
   render(<CareersSiteEditor {...props()} />);
   await screen.findByRole("tab", { name: "Marca" }); fireEvent.click(screen.getByRole("tab", { name: "Marca" }));
-  fireEvent.change(screen.getByLabelText("Color de marca"), { target: { value: "#FFFF00" } });
+  fireEvent.change(screen.getByLabelText("Principal"), { target: { value: "#FFFF00" } });
   expect(frame().querySelector<HTMLElement>("[data-font-pair]")!.style.getPropertyValue("--site-brand-light")).not.toBe("#FFFF00");
 });
 it("uses profile identity in both the real preview and settings summary", async () => {

@@ -207,7 +207,7 @@ it("keeps recruiter draft editing available, publish disabled, placeholders hone
   expect(screen.getByText(RECRUITER_PUBLISH_REASON)).toBeVisible();
   expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Agregar sección" })).toBeEnabled();
-  await user.click(screen.getByRole("tab", { name: "Marca" })); expect(screen.getByLabelText("Color de marca")).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "Marca" })); expect(screen.getByLabelText("Principal")).toBeVisible();
   await user.click(screen.getByRole("tab", { name: "Configuración" })); expect(screen.getByLabelText("Dirección pública")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Ver como visitante" }));
   const visitor = await screen.findByRole("dialog", { name: "Vista previa pública" });

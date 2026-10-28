@@ -6,14 +6,17 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
-import { adjustedBrandColor, FONT_PAIRS } from "../brand";
+import { FONT_PAIRS } from "../brand";
+import { PALETTE_PRESETS } from "../palettes";
+import { SITE_THEME_SURFACES, siteBrandTokens } from "../public/theme-tokens";
 import { slugAvailabilityAction } from "../api/actions";
 import type { FieldError as SiteFieldError } from "../api/model";
 import type { SiteDraft } from "../model";
@@ -23,26 +26,59 @@ import { slugFromName, validateSlug } from "../slug";
 import styles from "./site-settings.module.css";
 
 export const COMPANY_SETTINGS_HREF = "/empresa/configuracion";
-const SWATCHES = ["#7835DB", "#0F766E", "#285548", "#C2410C", "#1D4ED8", "#BE185D"];
-function ColorChip({ color }: { color: string }) {
-  return <span aria-hidden="true" className={cn("block size-6 shrink-0 rounded-md ring-1 ring-border", styles.chip)} style={{ "--sample-brand": color } as CSSProperties} />;
+function ColorChip({ color, palette = false }: { color: string; palette?: boolean }) {
+  return <span aria-hidden="true" data-palette-swatch={palette ? "" : undefined} className={cn("block size-6 shrink-0 rounded-md ring-1 ring-border", styles.chip)} style={{ "--sample-brand": color } as CSSProperties} />;
+}
+const COLOR_FIELDS = [
+  { key: "brand_color", label: "Principal", role: "brand-text", description: "Identifica tu marca en franjas, títulos y enlaces." },
+  { key: "accent_color", label: "Acento/CTA", role: "accent", description: "Destaca acciones como Ver vacantes. Vacío usa el principal." },
+  { key: "background_color", label: "Fondo", role: "page", description: "Define el fondo claro. Vacío conserva el fondo original." },
+] as const;
+type ColorField = typeof COLOR_FIELDS[number];
+function BrandColorField({ field, value, sample, tokens, onEdit, onChange }: { field: ColorField; value: string | null; sample: string; tokens: Record<string, string>; onEdit: () => void; onChange: (value: string | null) => void }) {
+  const [hex, setHex] = useState(value ?? "");
+  useEffect(() => setHex(value ?? ""), [value]);
+  const valid = /^#[\da-f]{6}$/i.test(hex) || hex === "" && field.key !== "brand_color";
+  const id = `brand-${field.key}`;
+  const adjustments = value === null ? [] : (["light", "dark"] as const).flatMap(mode => {
+    const roles = field.key === "accent_color" ? ["accent", "banner-accent"] : field.key === "brand_color" ? ["brand", "brand-text"] : ["page"];
+    const colors = [...new Set(roles.map(role => tokens[`--site-${role}-${mode}`]).filter((color): color is string => Boolean(color) && color !== value))];
+    return colors.map(color => ({ mode, color }));
+  });
+  return <Field data-invalid={!valid || undefined}>
+    <FieldLabel htmlFor={id}>{field.label}</FieldLabel>
+    <InputGroup className="min-h-10"><InputGroupInput id={id} value={hex} placeholder={`Automático (${sample})`} maxLength={7} spellCheck={false} aria-invalid={!valid} aria-describedby={`${id}-note${!valid ? ` ${id}-error` : ""}`} onChange={event => {
+      const next = event.target.value.toUpperCase(); setHex(next); onEdit();
+      if (/^#[\da-f]{6}$/i.test(next)) onChange(next);
+      else if (next === "" && field.key !== "brand_color") onChange(null);
+    }} /><InputGroupAddon><ColorChip color={sample} /></InputGroupAddon></InputGroup>
+    {!valid && <FieldError id={`${id}-error`}>Usa un color hexadecimal de seis dígitos.</FieldError>}
+    <FieldDescription id={`${id}-note`}>{field.description}</FieldDescription>
+    {adjustments.length > 0 && <div role="status" aria-label={`Ajustes de ${field.label}`} className="flex gap-2 text-sm text-muted-foreground"><TriangleAlert aria-hidden="true" className="mt-1 size-4 shrink-0" /><div className="flex min-w-0 flex-col gap-2"><p>Ajustamos el tono para que el texto se lea bien</p>{adjustments.map(result => <div key={`${result.mode}-${result.color}`} className="flex flex-wrap items-center gap-2"><ColorChip color={value!} /><span>{value} → {result.color}</span><ColorChip color={result.color} /><span className="text-xs">Tema {result.mode === "light" ? "claro" : "oscuro"}</span></div>)}</div></div>}
+  </Field>;
 }
 export function BrandSettings({ theme, onChange }: { theme: SiteDraft["theme"]; onChange: (theme: SiteDraft["theme"]) => void }) {
-  const [hex, setHex] = useState(theme.brand_color);
-  useEffect(() => setHex(theme.brand_color), [theme.brand_color]);
-  const valid = /^#[\da-f]{6}$/i.test(hex);
-  const adjustments = ([ ["claro", "#FFFFFF"], ["oscuro", "#000000"] ] as const).map(([label, surface]) => ({ label, ...adjustedBrandColor(theme.brand_color, surface) })).filter(result => result.adjusted);
+  const [custom, setCustom] = useState(false);
+  const [reset, setReset] = useState(0);
+  const preset = PALETTE_PRESETS.find(p => p.brand_color === theme.brand_color && p.accent_color === theme.accent_color && p.background_color === theme.background_color);
+  const selected = custom ? "custom" : preset?.name ?? "custom";
+  const tokens = siteBrandTokens(theme.brand_color, theme.accent_color, theme.background_color);
   return <FieldGroup>
-    <div className="flex flex-col gap-1"><h2 className="text-base font-semibold">Tu marca, tu identidad</h2><p className="text-sm text-muted-foreground">El color y la tipografía se aplican a todo tu sitio.</p></div>
-    <Field data-invalid={!valid || undefined}><FieldLabel htmlFor="brand-color">Color de marca</FieldLabel>
-      <ToggleGroup aria-label="Colores sugeridos" value={[theme.brand_color]} onValueChange={values => { if (values[0]) onChange({ ...theme, brand_color: values[0] }); }} className="flex flex-wrap" variant="outline">
-        {SWATCHES.map(color => <ToggleGroupItem key={color} value={color} aria-label={`Color ${color}`} className="size-10"><ColorChip color={color} /></ToggleGroupItem>)}
-      </ToggleGroup>
-      <InputGroup className="min-h-10"><InputGroupInput id="brand-color" value={hex} maxLength={7} spellCheck={false} aria-invalid={!valid} aria-describedby={!valid ? "brand-error" : undefined} onChange={event => { const value = event.target.value.toUpperCase(); setHex(value); if (/^#[\da-f]{6}$/i.test(value)) onChange({ ...theme, brand_color: value }); }} /><InputGroupAddon><ColorChip color={theme.brand_color} /></InputGroupAddon></InputGroup>
-      {!valid && <FieldError id="brand-error">Usa un color hexadecimal de seis dígitos.</FieldError>}
-      <FieldDescription>Elige un tono sugerido o escribe tu color hexadecimal.</FieldDescription>
-    </Field>
-    {adjustments.length > 0 && <div role="status" className="flex gap-2 text-sm text-muted-foreground"><TriangleAlert aria-hidden="true" className="mt-1 size-4 shrink-0" /><div className="flex flex-col gap-2"><p>Ajustamos el tono para que el texto se lea bien</p>{adjustments.map(result => <div key={result.label} className="flex flex-wrap items-center gap-2"><ColorChip color={theme.brand_color} /><span>{theme.brand_color} → {result.color}</span><ColorChip color={result.color} /><span className="text-xs">Tema {result.label}</span></div>)}</div></div>}
+    <div className="flex flex-col gap-1"><h2 className="text-base font-semibold">Tu marca, tu identidad</h2><p className="text-sm text-muted-foreground">Elige una paleta o personaliza tus colores. El texto se ajusta para que se lea bien.</p></div>
+    <FieldSet><FieldLegend id="palette-label" variant="label">Paletas</FieldLegend>
+      {/* Official Field choice-card pattern: the whole label selects its radio. */}
+      <RadioGroup aria-labelledby="palette-label" value={selected} onValueChange={value => {
+        const next = PALETTE_PRESETS.find(p => p.name === value);
+        setCustom(!next); setReset(current => current + 1);
+        if (next) onChange({ ...theme, brand_color: next.brand_color, accent_color: next.accent_color, background_color: next.background_color });
+      }} className={styles.paletteGrid}>
+        {PALETTE_PRESETS.map(p => <FieldLabel key={p.name} className="has-data-checked:ring-2 has-data-checked:ring-primary" htmlFor={`palette-${p.name}`}><Field orientation="horizontal"><FieldContent><FieldTitle>{p.name}</FieldTitle><span className="flex flex-wrap gap-1" aria-hidden="true">{[p.brand_color, p.accent_color, p.background_color].map((color, index) => <ColorChip key={index} color={color} palette />)}</span></FieldContent><RadioGroupItem id={`palette-${p.name}`} value={p.name} /></Field></FieldLabel>)}
+        <FieldLabel htmlFor="palette-custom" className="col-span-full has-data-checked:ring-2 has-data-checked:ring-primary"><Field orientation="horizontal"><FieldContent><FieldTitle>Personalizado</FieldTitle></FieldContent><RadioGroupItem id="palette-custom" value="custom" /></Field></FieldLabel>
+      </RadioGroup>
+    </FieldSet>
+    <FieldSet><FieldLegend>Personalizar</FieldLegend><FieldDescription>Conservamos tus colores originales. El sitio adapta los tonos en claro y oscuro sin cambiar lo que guardas.</FieldDescription><FieldGroup>
+      {COLOR_FIELDS.map(field => <BrandColorField key={`${field.key}-${reset}`} field={field} value={theme[field.key]} sample={theme[field.key] ?? (field.key === "accent_color" ? theme.brand_color : SITE_THEME_SURFACES.light.page)} tokens={tokens} onEdit={() => setCustom(true)} onChange={value => onChange({ ...theme, [field.key]: value })} />)}
+    </FieldGroup></FieldSet>
     <Separator />
     <Field><FieldLabel id="font-pair">Tipografía</FieldLabel><FieldDescription>Tres combinaciones pensadas para leerse bien en cualquier pantalla.</FieldDescription>
       <ToggleGroup aria-labelledby="font-pair" value={[theme.font_pair]} onValueChange={values => { const pair = values[0]; if (pair && Object.hasOwn(FONT_PAIRS, pair)) onChange({ ...theme, font_pair: pair as SiteDraft["theme"]["font_pair"] }); }} orientation="vertical" className="w-full items-stretch" variant="outline">
