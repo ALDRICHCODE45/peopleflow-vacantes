@@ -16,7 +16,6 @@ const [FRONTEND_JOB, GO_JOB] = ACME_WIRE_JOBS;
 const wireOnly = enrichJob(WIRE_ONLY_JOB);
 const enriched = enrichJob(FRONTEND_JOB);
 const goJob = enrichJob(GO_JOB);
-const COMPANY_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 /** Every literal paint a token-only card must never carry in a class list. */
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 /** Claim-like or action-like copy this prototype must never state as real. */
@@ -76,15 +75,14 @@ describe("VacancyCard layout and affordances", () => {
     expect(container.querySelectorAll("button")).toHaveLength(1);
   });
 
-  it("keeps the canonical CTA beside the opt-in company link on exact public hrefs", () => {
-    const { container, rerender } = render(<VacancyCard job={enriched} />);
+  it("keeps canonical vacancy links and the company as plain text", () => {
+    const { container } = render(<VacancyCard job={enriched} />);
     expect(screen.getByText("Acme").closest("a")).toBeNull();
     const cta = screen.getByRole("link", { name: "Ver vacante" });
     expect([cta.getAttribute("href"), cta.className.includes("min-h-10")]).toEqual([`/vacantes/${FRONTEND_JOB.id}`, true]);
     expect(container.querySelectorAll("a")).toHaveLength(2);
-    rerender(<VacancyCard job={enriched} companyHref={COMPANY_HREF} />);
-    expect(screen.getByRole("link", { name: "Acme" })).toHaveAttribute("href", COMPANY_HREF);
-    expect(container.querySelectorAll("a")).toHaveLength(3);
+    expect(screen.queryByRole("link", { name: "Acme" })).toBeNull();
+    expect(source).not.toContain("companyHref");
   });
 });
 
@@ -154,7 +152,7 @@ describe("VacancyCard enriched state", () => {
 
 describe("VacancyCard responsive, motion, and token contract", () => {
   it("keeps the card overflow-safe with token surfaces, restrained hover, and reduced-motion guards", () => {
-    const { container } = render(<VacancyCard job={enriched} companyHref={COMPANY_HREF} />);
+    const { container } = render(<VacancyCard job={enriched} />);
     const classes = container.querySelector('[data-slot="card"]')?.className ?? "";
     for (const utility of ["bg-card", "[overflow-wrap:anywhere]", "group", "hover:shadow-lg", "duration-200", "motion-safe:hover:-translate-y-0.5", "motion-reduce:transition-none", "motion-reduce:translate-none"]) expect(classes).toContain(utility);
     expect(classes).not.toMatch(/(?:^|\s)(?:p-0|py-0|gap-\d)/u);

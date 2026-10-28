@@ -61,9 +61,6 @@ function renderMarketingNavbar() {
 
 // ─── Public mode helpers ─────────────────────────────────────────────────────
 
-// Literal, not imported from the implementation: the canonical prototype
-// company route must stay truthful even if that constant drifts.
-const EMPRESAS_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 const renderPublicNavbar = () => render(<PeopleFlowNavbar mode="public" />);
 
 /** Find a header link whose trimmed text matches exactly. */
@@ -398,12 +395,11 @@ describe("PeopleFlowNavbar public mode", () => {
     );
     expect(
       links.map((a) => [a.textContent?.trim(), a.getAttribute("href")]),
-    ).toEqual([
-      ["Vacantes", "/vacantes"],
-      ["Empresas", EMPRESAS_HREF],
-    ]);
+    ).toEqual([["Vacantes", "/vacantes"]]);
     // The unsupported placeholder is removed and no anchor is a bare hash.
     expect(findHeaderLink(header, "Recursos")).toBeUndefined();
+    expect(findHeaderLink(header, "Empresas")).toBeUndefined();
+    expect(header.querySelector('a[href^="/empresas/"]')).toBeNull();
     for (const anchor of Array.from(header.querySelectorAll("a"))) {
       expect(anchor.getAttribute("href"), anchor.textContent!).not.toBe("#");
     }
@@ -445,7 +441,7 @@ describe("PeopleFlowNavbar public mode", () => {
       header.querySelector("a[aria-label='PeopleFlow']"),
       "public brand",
     );
-    for (const label of ["Vacantes", "Empresas", "Publicar vacante"]) {
+    for (const label of ["Vacantes", "Publicar vacante"]) {
       expectNavTarget(findHeaderLink(header, label) ?? null, label);
     }
   });

@@ -20,6 +20,18 @@ item — legacy catalog rows now say they take no online applications.
 
 ## Known issues
 
+- `tests/e2e/root.spec.ts` «root foundation matrix» (4 cases) fails on main's behavior: the home page now requests
+  `/api/auth/session` because `IngresarMenu` shows «Mi cuenta» to signed-in visitors (3e2c28f3), while the spec forbids any
+  same-origin `/api` request from the root. Update the spec's allowlist (or make the menu read the session lazily).
+
+- Full-suite flakiness under load (`nice` + other processes): a different heavy test fails per run and passes alone —
+  `manual-intake/sheet.test.tsx` «limits studies to ten…», `empresa/vacantes/borradores/nuevo/page.test.tsx` «mounts the
+  five-step draft editor…», `jobs/drafts/ui/draft-save-flow.test.tsx` «keeps edits made during an in-flight save…»
+  (2026-10-27). Make them lighter like the careers form tests (split, minimal fixtures), never raise timeouts.
+
+- axe `region` (moderate) on every `(empresa)` page: content in `[data-slot=sidebar-header]` sits outside any landmark
+  (seen on `/empresa/dashboard` and `/empresa/sitio`, production build, 2026-10-27). App-shell fix, not page-level.
+
 - **Next 16 upgrade** — blocked by hosting: Amplify Hosting supports Next 12–15 only (design D1). Next 16 also fixes
   the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known
   migration work: `middleware.ts` → `proxy.ts` (on 16 the old name answers a plain 500), flat `eslint-config-next`
@@ -28,6 +40,9 @@ item — legacy catalog rows now say they take no online applications.
   (`useLinkStatus`, `next-16-upgrade.md` L9); the detail «Volver»/breadcrumb links into the list do not yet.
 
 ## Waiting on the backend
+
+- **Vacancy → company careers site** — link vacancy → company careers site once the jobs API exposes the published site slug.
+  Company UUIDs are not public-site addresses; until then, render company names without a careers link.
 
 - **Legacy seed in production?** The six published legacy jobs and their companies (Acme SA, Globex Holdings,
   Initech LLC) come from `backend/db/migrations/00008_jobs_seed.sql`, described as dev-only but shipped as a goose

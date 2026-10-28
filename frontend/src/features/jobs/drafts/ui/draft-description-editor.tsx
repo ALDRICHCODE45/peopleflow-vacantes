@@ -6,6 +6,7 @@ import { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import {
   BoldIcon,
+  EllipsisIcon,
   ItalicIcon,
   LinkIcon,
   ListIcon,
@@ -18,6 +19,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -94,6 +97,10 @@ export type DraftDescriptionEditorProps = {
   /** Present only while invalid, so `aria-invalid` stays truthful. */
   error?: string;
   publicationRequired?: boolean;
+  ariaLabel?: string;
+  label?: string;
+  toolbarLabel?: string;
+  compactToolbar?: boolean;
 };
 
 const SIZE_LABELS: Record<FontSizePreset, string> = {
@@ -128,6 +135,10 @@ export function DraftDescriptionEditor({
   onChange,
   error,
   publicationRequired = false,
+  ariaLabel = "Descripción de la vacante",
+  label = "Descripción",
+  toolbarLabel = "Formato de la descripción",
+  compactToolbar = false,
 }: DraftDescriptionEditorProps) {
   const hostRef = React.useRef<HTMLDivElement | null>(null);
   const editorRef = React.useRef<Editor | null>(null);
@@ -136,6 +147,7 @@ export function DraftDescriptionEditor({
   /** The last value this component produced or accepted; it is never echoed. */
   const lastValueRef = React.useRef<DraftRichDescription>(value);
   const initialValueRef = React.useRef<DraftRichDescription>(value);
+  const initialAriaLabelRef = React.useRef(ariaLabel);
   const [, forceRender] = React.useState(0);
 
   const [linkOpen, setLinkOpen] = React.useState(false);
@@ -158,7 +170,7 @@ export function DraftDescriptionEditor({
       editorProps: {
         attributes: {
           id: "draft-description-content",
-          "aria-label": "Descripción de la vacante",
+          "aria-label": initialAriaLabelRef.current,
           "aria-multiline": "true",
           class: EDITOR_SURFACE_CLASS,
         },
@@ -179,6 +191,10 @@ export function DraftDescriptionEditor({
       editorRef.current = null;
     };
   }, []);
+
+  React.useEffect(() => {
+    editorRef.current?.view.dom.setAttribute("aria-label", ariaLabel);
+  }, [ariaLabel]);
 
   // External value changes re-sync the surface; our own emissions never echo.
   React.useEffect(() => {
@@ -220,13 +236,13 @@ export function DraftDescriptionEditor({
 
   return (
     <Field data-invalid={invalid} id="draft-description">
-      <FieldLabel htmlFor="draft-description-content">Descripción <PublicationRequired required={publicationRequired} /></FieldLabel>
+      <FieldLabel htmlFor="draft-description-content">{label} <PublicationRequired required={publicationRequired} /></FieldLabel>
       {/* Tiptap needs a contenteditable host; this frame is not a replacement form control. */}
       <div data-pf-description-frame="" className="overflow-hidden rounded-2xl border border-input focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30">
         <div
           role="toolbar"
-          aria-label="Formato de la descripción"
-          className="flex flex-wrap items-center gap-1 border-b bg-muted/40 p-1"
+          aria-label={toolbarLabel}
+          className={compactToolbar ? "flex flex-nowrap items-center gap-1 border-b bg-muted/40 p-1" : "flex flex-wrap items-center gap-1 border-b bg-muted/40 p-1"}
         >
           <Toggle
             pressed={active("bold")}
@@ -250,7 +266,27 @@ export function DraftDescriptionEditor({
             <ItalicIcon data-icon="inline-start" />
             <span className="sr-only">Cursiva</span>
           </Toggle>
-          <ToggleGroup
+          {compactToolbar ? <>
+            <Select value={activeSizePreset} onValueChange={value => {
+              const preset = FONT_SIZE_PRESETS.find(candidate => candidate === value);
+              if (preset) run(instance => instance.chain().focus().setFontSizePreset(preset).run());
+            }}>
+              <SelectTrigger className="h-10 w-auto min-w-28 shrink-0" aria-label="Tamaño de letra"><SelectValue placeholder="Tamaño">{activeSizePreset === null ? "Tamaño" : { small: "Pequeño", normal: "Normal", large: "Grande" }[activeSizePreset]}</SelectValue></SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}><SelectGroup>{FONT_SIZE_PRESETS.map(preset => <SelectItem key={preset} value={preset}>{SIZE_LABELS[preset]}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+            {/* Secondary commands live in a native menu: compact mode stays one
+                row at 280px without shrinking independent touch targets. */}
+            <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" />} aria-label="Más formato"><EllipsisIcon aria-hidden="true" /></DropdownMenuTrigger>
+              <DropdownMenuContent align="end"><DropdownMenuGroup>
+                <DropdownMenuCheckboxItem className="min-h-10" checked={active("bulletList")} onCheckedChange={() => run(instance => instance.chain().focus().toggleBulletList().run())}><ListIcon aria-hidden="true" />Lista con viñetas</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem className="min-h-10" checked={active("orderedList")} onCheckedChange={() => run(instance => instance.chain().focus().toggleOrderedList().run())}><ListOrderedIcon aria-hidden="true" />Lista numerada</DropdownMenuCheckboxItem>
+                <DropdownMenuItem className="min-h-10" onClick={() => { setLinkError(null); setLinkOpen(open => !open); }}><LinkIcon aria-hidden="true" />Agregar enlace</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-10" disabled={!active("link")} onClick={() => run(instance => instance.chain().focus().unsetLink().run())}><UnlinkIcon aria-hidden="true" />Quitar enlace</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-10" disabled={!(editor?.can().undo() ?? false)} onClick={() => run(instance => instance.chain().focus().undo().run())}><Undo2Icon aria-hidden="true" />Deshacer</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-10" disabled={!(editor?.can().redo() ?? false)} onClick={() => run(instance => instance.chain().focus().redo().run())}><Redo2Icon aria-hidden="true" />Rehacer</DropdownMenuItem>
+              </DropdownMenuGroup></DropdownMenuContent>
+            </DropdownMenu>
+          </> : <><ToggleGroup
             aria-label="Tamaño de letra"
             value={activeSizePreset === null ? [] : [activeSizePreset]}
             onValueChange={(next) => {
@@ -332,12 +368,12 @@ export function DraftDescriptionEditor({
           >
             <Redo2Icon data-icon="inline-start" />
             <span className="sr-only">Rehacer</span>
-          </Button>
+          </Button></>}
         </div>
 
         {linkOpen ? (
           <div className="flex flex-wrap items-end gap-2 rounded-2xl bg-muted/40 p-3">
-            <Field data-invalid={linkError !== null} className="min-w-64 flex-1">
+            <Field data-invalid={linkError !== null} className={compactToolbar ? "min-w-0 flex-1" : "min-w-64 flex-1"}>
               <FieldLabel htmlFor={linkInputId}>Dirección del enlace</FieldLabel>
               <Input
                 id={linkInputId}

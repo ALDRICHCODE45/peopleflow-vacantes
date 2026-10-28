@@ -23,9 +23,12 @@ describe("single application-facing request path", () => {
     const fetchCallers = files.filter((file) => /\bfetch\(/.test(source(file)));
     expect(fetchCallers.map(rel).sort()).toEqual([
       "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
+      "app/media/sitios/[id]/route.ts",
       "components/auth/CandidateAuthControls.tsx",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
+      "features/company-site/api/file-client.ts",
+      "features/company-site/upload.ts",
       "features/employer-team/client.ts",
       "features/geo/use-geo-catalog.ts",
       "features/languages/use-language-catalog.ts",
@@ -130,6 +133,31 @@ describe("single application-facing request path", () => {
     expect(route).not.toMatch(/\bfetch\(/);
   });
 
+  it("keeps careers-site uploads on a fixed same-origin route and backend calls server-only", () => {
+    const upload = source(join(SRC, "features/company-site/upload.ts"));
+    expect(upload).toContain('fetch("/api/company/site/media"');
+    expect(upload).toContain('credentials: "same-origin"');
+    expect(upload).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:|credentials: "include"/);
+    const adapter = source(join(SRC, "features/company-site/api/file-client.ts"));
+    expect(adapter).toContain('import "server-only"');
+    expect(adapter).toContain('redirect: "error"');
+    expect(adapter).toContain('cache: "no-store"');
+    expect(adapter).toContain('"/v2/me/company/site/media"');
+    const route = source(join(SRC, "app/api/company/site/media/route.ts"));
+    expect(route).toContain("getActionAccessToken()");
+    expect(route).toContain("readBoundedBody(request.body, CAP");
+    expect(route).not.toMatch(/\bfetch\(/);
+  });
+
+  it("keeps the careers-site media proxy anonymous, fixed to the media path and without redirects", () => {
+    const route = source(join(SRC, "app/media/sitios/[id]/route.ts"));
+    expect(route).toContain('credentials: "omit"');
+    expect(route).toContain('redirect: "error"');
+    expect(route).toContain("`/v2/company-sites/media/${id}`");
+    expect(route).toMatch(/z\.string\(\)\.uuid\(\)\.safeParse\(id\)/);
+    expect(route).not.toMatch(/request\.headers|cookies\(|authorization/i);
+  });
+
   it("reaches the transport only through the guarded API functions", () => {
     const importers = files.filter((file) =>
       /lib\/api\/server"/.test(source(file)),
@@ -138,6 +166,8 @@ describe("single application-facing request path", () => {
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
       "features/candidate/profile-client.ts",
+      "features/company-site/api/client.ts",
+      "features/company-site/public/read.ts",
       "features/employer-company/api/company-client.ts",
       "features/employer-dashboard/client.ts",
       "features/employer-team/client.ts",
@@ -177,6 +207,8 @@ describe("single application-facing request path", () => {
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
       "features/candidate/profile-client.ts",
+      "features/company-site/api/client.ts",
+      "features/company-site/public/read.ts",
       "features/employer-company/api/company-client.ts",
       "features/employer-dashboard/client.ts",
       "features/employer-team/client.ts",
@@ -224,12 +256,14 @@ describe("single application-facing request path", () => {
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts",
       "app/api/company/manual-candidates/[vacancyId]/route.ts",
+      "app/api/company/site/media/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",
       "app/api/geo/countries/mx/postal-codes/[cp]/route.ts",
       "app/api/geo/countries/mx/states/[state]/municipalities/route.ts",
       "app/api/geo/countries/mx/states/route.ts",
       "app/api/geo/countries/route.ts",
+      "app/media/sitios/[id]/route.ts",
     ]);
     for (const handler of handlers) {
       expect(source(handler)).not.toMatch(/lib\/api\/(?:server|requestJson)/);

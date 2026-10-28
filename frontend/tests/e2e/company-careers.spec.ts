@@ -1,116 +1,136 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-const COMPANY_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
-const FRONTEND_DETAIL = "/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
-// The local jobs API this fully local prototype route must never reach.
-const fixtureUrl = process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
-// Every enriched prototype extra the redesigned page must stop rendering.
-const ENRICHMENT_COPY = /Destacada|Verificada por PeopleFlow|postulantes|Responde en|SALARIO MENSUAL/iu;
-// UISC-03A: no rendered implementation-status vocabulary may survive either.
-const PROHIBITED_DISPLAY_COPY = /demostraci|fictici|\bprototipo\b|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó]/iu;
-// Document horizontal overflow in pixels; anything above zero fails.
-const overflowPx = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+// Production Next on :3100, existing HTTP fixture on :4010. No auth bypass:
+// employer cookies are supplied by the harness and never read or logged here.
+const APP = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://localhost:3100";
+const FIXTURE = process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
+const PUBLIC = `${APP}/empresas/nexo-labs`;
+const EDITOR = `${APP}/empresa/sitio`;
+const HERO = "Tu siguiente gran paso empieza aquí";
+const storageState = process.env.PLAYWRIGHT_EMPLOYER_STORAGE_STATE;
+const fixtureHeaders = { authorization: "Bearer e2e-fixture-only" };
 
-test("company careers keeps the editorial hero, working anchors, and a wire-only vacancy list", async ({ page }) => {
-  // A mutation would be any non-GET request; an API call would be any request
-  // to the jobs fixture, which this route never needs.
-  const nonGet: string[] = [], apiTraffic: string[] = [];
-  page.on("request", (entry) => {
-    if (entry.url().startsWith(fixtureUrl)) apiTraffic.push(`${entry.method()} ${entry.url()}`);
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(entry.method())) nonGet.push(`${entry.method()} ${entry.url()}`);
-  });
-
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(COMPANY_PATH);
-
-  // Exactly one H1, and both hero anchors jump to real in-page sections.
-  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Acme");
-
-  // The hero is an immersive photo overlay: the copy rides the image through a
-  // dark scrim, and no opaque card wraps the headline.
-  const hero = page.locator("[data-pf-hero]");
-  await expect(hero).toBeVisible();
-  await expect(hero).toHaveAttribute("data-pf-hero-cover", "true");
-  await expect(hero.locator("[data-pf-hero-overlay]")).toHaveCount(1);
-  // No opaque card sits between the headline and the photo-backed overlay.
-  const opaqueAncestor = await page
-    .getByRole("heading", { level: 1 })
-    .evaluate((node) => {
-      for (let el = node.parentElement; el instanceof HTMLElement; el = el.parentElement) {
-        if (el.hasAttribute("data-pf-hero")) break;
-        if (el.className.includes("bg-background") || el.className.includes("bg-card")) {
-          return el.className;
-        }
-      }
-      return null;
-    });
-  expect(opaqueAncestor).toBeNull();
-  expect((await hero.boundingBox())?.height ?? 0).toBeGreaterThan(480);
-
-  await page.getByRole("link", { name: "Conoce la empresa" }).click();
-  await expect(page).toHaveURL(/#sobre-empresa$/u);
-  await expect(page.locator("#sobre-empresa")).toBeVisible();
-  await page.getByRole("link", { name: "Ver vacantes" }).click();
-  await expect(page).toHaveURL(/#vacantes$/u);
-  await expect(page.locator("#vacantes")).toBeVisible();
-
-  // The vacancy list is wire-backed only: canonical links, no enrichment,
-  // no save control, and the company never links back to the employer route.
-  const list = page.getByRole("list", { name: "Vacantes en Acme" });
-  await expect(list).toBeVisible();
-  const rows = list.getByRole("listitem");
-  await expect(rows).toHaveCount(2);
-  await expect(rows.first().getByRole("heading", { level: 3 }).getByRole("link")).toHaveAttribute("href", FRONTEND_DETAIL);
-  await expect(list).not.toContainText(ENRICHMENT_COPY);
-  await expect(list).not.toContainText(PROHIBITED_DISPLAY_COPY);
-  await expect(list.getByRole("button")).toHaveCount(0);
-  await expect(list.getByRole("note")).toHaveCount(0);
-  await expect(list.locator("[data-prototype-featured]")).toHaveCount(0);
-  expect([await list.getByRole("link").count(), await list.getByRole("link", { name: "Acme" }).count()]).toEqual([4, 0]);
-
-  // Mobile: the same list keeps zero horizontal overflow.
-  await page.setViewportSize({ width: 375, height: 812 });
-  await expect(rows.first()).toBeVisible();
-  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
-
-  // Frozen local fixtures: the page reaches neither the jobs API nor a mutation.
-  expect(apiTraffic).toEqual([]);
-  const diagnostics = nonGet.filter((entry) => entry.includes("__nextjs") || entry.includes("/_next/"));
-  test.info().annotations.push({ type: "non-GET requests", description: JSON.stringify({ diagnostics, mutations: nonGet.filter((e) => !diagnostics.includes(e)) }) });
-  expect(nonGet.filter((entry) => !diagnostics.includes(entry))).toEqual([]);
+// The mutable fixture is shared: each scenario starts independently, in order.
+test.describe.configure({ mode: "default" });
+test.beforeEach(async ({ request }) => {
+  const reset = await request.get(`${FIXTURE}/__reset`);
+  expect(reset.ok(), "Start tests/fixtures/jobs-server.mjs on :4010 before this suite").toBe(true);
 });
 
-// The complete 92-test acceptance corpus had no company-page axe scan, so the
-// root/list/detail/company WCAG A/AA matrix was incomplete; this closes it.
-const COMPANY_VIEWPORTS = {
-  desktop: { width: 1440, height: 900 },
-  mobile: { width: 375, height: 812 },
-} as const;
+async function editHero(page: Page, title: string) {
+  await page.goto(EDITOR);
+  await expect(page.getByRole("button", { name: "Seleccionar Portada", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Seleccionar Portada", exact: true }).click();
+  await page.getByLabel("Título principal", { exact: true }).fill(title);
+  await expect(page.frameLocator('iframe[title="Vista previa del sitio"]').getByRole("heading", { level: 1 })).toHaveText(title);
+  await expect(page.getByRole("status", { name: "Estado del guardado" })).toHaveText("Cambios guardados");
+}
 
-const COMPANY_SCHEMES = ["light", "dark"] as const;
+test("public site renders its hero, own navigation, all jobs and working filters", async ({ page }) => {
+  await page.goto(PUBLIC);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(HERO);
+  const nav = page.getByRole("navigation", { name: "Secciones de la empresa" });
+  await expect(nav).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Ver vacantes", exact: true })).toHaveAttribute("href", /#bloque-/);
+  await expect(page.getByRole("link", { name: "PeopleFlow para empresas" })).toHaveAttribute("href", "/");
+  const jobs = page.locator('[aria-label="Vacantes de la empresa"]');
+  await expect(jobs.getByRole("link")).toHaveCount(7);
+  await page.getByLabel("Buscar por título", { exact: true }).fill("plataforma");
+  await expect(jobs.getByRole("link")).toHaveCount(1);
+  await expect(jobs.getByRole("link", { name: "Ingeniera de plataforma" })).toHaveAttribute("href", /\/vacantes\/b478/);
+  await page.getByLabel("Buscar por título", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
+  await page.getByRole("combobox", { name: "Modalidad", exact: true }).click();
+  await page.getByRole("option", { name: "Remoto", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("status").filter({ hasText: "2 vacantes coinciden" })).toBeVisible();
+  await page.getByRole("button", { name: "Ver resultados", exact: true }).click();
+  await expect(jobs.getByRole("link")).toHaveCount(2);
+  await page.getByRole("button", { name: "Filtros (1)", exact: true }).click();
+  await page.getByRole("combobox", { name: "Estado", exact: true }).click();
+  await page.getByRole("option", { name: "Nuevo León", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Ver resultados", exact: true }).click();
+  await expect(jobs.getByRole("link")).toHaveCount(1);
+  await expect(jobs.getByRole("link")).toHaveAccessibleName("Ingeniera de plataforma");
+});
 
-test.describe("company careers axe WCAG A/AA matrix", () => {
-  for (const scheme of COMPANY_SCHEMES) {
-    for (const [label, viewport] of Object.entries(COMPANY_VIEWPORTS)) {
-      test.describe(`${scheme} scheme, ${label} ${viewport.width}x${viewport.height}`, () => {
-        test.use({ colorScheme: scheme, viewport });
+test("old slug permanently redirects to the current slug", async ({ request, page }) => {
+  const response = await request.get(`${APP}/empresas/nexo-equipo`, { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  expect(new URL(response.headers().location, APP).pathname).toBe("/empresas/nexo-labs");
+  await page.goto(`${APP}/empresas/nexo-equipo`);
+  await expect(page).toHaveURL(PUBLIC);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(HERO);
+});
 
-        test(`company careers has no WCAG A/AA violations at ${label} width in ${scheme} scheme @a11y`, async ({
-          page,
-        }) => {
-          await page.goto(COMPANY_PATH);
-          await expect(
-            page.getByRole("list", { name: "Vacantes en Acme" }),
-          ).toBeVisible();
-          expect(page.viewportSize()).toEqual(viewport);
-          const results = await new AxeBuilder({ page })
-            .withTags(["wcag2a", "wcag2aa"])
-            .analyze();
-          expect(results.violations).toEqual([]);
-        });
-      });
-    }
-  }
+test("unknown slug shows the unavailable site state, never a prototype", async ({ page }) => {
+  const response = await page.goto(`${APP}/empresas/empresa-desconocida`);
+  expect(response?.status()).toBe(404);
+  await expect(page.getByText("Este sitio no está disponible", { exact: true })).toBeVisible();
+  await expect(page.locator('[aria-label="Vacantes de la empresa"]')).toHaveCount(0);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`public careers site is accessible in ${theme} @a11y`, async ({ page }) => {
+    await page.addInitScript(value => localStorage.setItem("pf-theme", value), theme);
+    await page.goto(PUBLIC);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(HERO);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.evaluate(() => document.fonts.ready);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+}
+
+test.describe("employer careers builder", () => {
+  test.use({ storageState, viewport: { width: 1440, height: 1000 } });
+  test.beforeEach(() => {
+    test.skip(!storageState, "Set PLAYWRIGHT_EMPLOYER_STORAGE_STATE to a valid localhost employer session to run editor scenarios.");
+  });
+
+  test("selecting and editing the hero updates preview and autosaves", async ({ page, request }) => {
+    const title = "Construye tu futuro con Nexo";
+    await editHero(page, title);
+    const draft = await request.get(`${FIXTURE}/v2/me/company/site`, { headers: fixtureHeaders });
+    expect(draft.ok()).toBe(true);
+    expect((await draft.json()).draft.blocks.find((block: { type: string }) => block.type === "hero").content.title).toBe(title);
+    // Autosave changes the draft, not the public snapshot.
+    await page.goto(PUBLIC);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(HERO);
+  });
+
+  test("a taken slug stays local and does not poison unrelated autosaves", async ({ page, request }) => {
+    await page.goto(EDITOR);
+    await page.getByRole("tab", { name: "Configuración", exact: true }).click();
+    await page.getByLabel("Dirección pública", { exact: true }).fill("otra-empresa");
+    await expect(page.getByRole("status", { name: "Disponibilidad de dirección" })).toHaveText("En uso");
+    await page.getByLabel("Título SEO", { exact: true }).fill("Nuestro equipo Nexo");
+    await expect(page.getByRole("status", { name: "Estado del guardado" })).toHaveText("Cambios guardados");
+    const response = await request.get(`${FIXTURE}/v2/me/company/site`, { headers: fixtureHeaders });
+    expect(response.ok()).toBe(true);
+    expect((await response.json()).draft).toMatchObject({ slug: "nexo-labs", seo: { title: "Nuestro equipo Nexo" } });
+    await expect(page.getByRole("link", { name: "/empresas/nexo-labs", exact: true })).toBeVisible();
+  });
+
+  test("confirmed publication exposes the saved hero on the public page", async ({ page }) => {
+    const title = "Tu talento transforma Nexo";
+    await editHero(page, title);
+    await page.getByRole("button", { name: "Publicar", exact: true }).click();
+    const confirmation = page.getByRole("alertdialog", { name: "¿Publicar tu sitio?" });
+    await expect(confirmation.getByRole("button", { name: "Cancelar", exact: true })).toBeFocused();
+    await confirmation.getByRole("button", { name: "Publicar sitio", exact: true }).click();
+    await expect(page.locator("#publication-status")).toHaveText("Sitio publicado");
+    await page.goto(PUBLIC);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+  });
+
+  test("recruiters edit the draft but cannot publish", async ({ page, request }) => {
+    expect((await request.get(`${FIXTURE}/__site-draft?role=recruiter`)).ok()).toBe(true);
+    await page.goto(EDITOR);
+    await expect(page.getByRole("button", { name: "Publicar", exact: true })).toBeDisabled();
+    await expect(page.getByText("Solo la persona dueña de la empresa puede publicar. Tus cambios quedan guardados en el borrador.", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Título principal", { exact: true })).toBeEnabled();
+  });
 });

@@ -24,7 +24,6 @@ const COMPOSITION_FILES = [
   "src/app/layout.tsx",
   "src/app/(marketing)/page.tsx",
   "src/components/brand/logo.tsx",
-  "src/components/shells/PublicShell.tsx",
 ] as const;
 
 const BASE_URL = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";

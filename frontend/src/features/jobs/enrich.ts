@@ -1,4 +1,4 @@
-import type { CompanyProfile } from "../company-profile/model";
+import type { PrototypeCompanyIdentity } from "./prototype-company";
 import type { JobItem } from "./types";
 /**
  * Prototype read view for one public vacancy: the untouched wire `JobItem` plus
@@ -128,7 +128,7 @@ export function enrichJob(job: JobItem): PrototypeJobView {
 /** Keeps the vacancies of `profile` by exact id or source name, in caller order. */
 export function jobsForPrototypeCompany(
   jobs: readonly JobItem[],
-  profile: CompanyProfile,
+  profile: PrototypeCompanyIdentity,
 ): PrototypeJobView[] {
   return jobs
     .filter(

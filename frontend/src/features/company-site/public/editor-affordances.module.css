@@ -1,0 +1,25 @@
+/* Editor-only tokens resolve outside .site's company-brand overrides. */
+.section {
+  position: relative;
+  cursor: pointer;
+}
+.section:hover {
+  outline: calc(1px * var(--editor-inverse-scale, 1)) solid var(--editor-primary);
+  outline-offset: calc(-1px * var(--editor-inverse-scale, 1));
+}
+.section:focus-visible,
+.section[data-editor-selected="true"] {
+  outline: calc(2px * var(--editor-inverse-scale, 1)) solid var(--editor-primary);
+  outline-offset: calc(-2px * var(--editor-inverse-scale, 1));
+}
+.label {
+  --primary: var(--editor-primary);
+  --primary-foreground: var(--editor-primary-foreground);
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-family: var(--font-sans), sans-serif;
+  transform: scale(var(--editor-inverse-scale, 1));
+  transform-origin: top left;
+  pointer-events: none;
+}

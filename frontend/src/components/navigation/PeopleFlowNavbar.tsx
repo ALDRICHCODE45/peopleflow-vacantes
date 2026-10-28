@@ -8,7 +8,6 @@ import { PeopleFlowLogo } from "@/components/brand/logo";
 import { IngresarMenu } from "@/components/navigation/IngresarMenu";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { buttonVariants } from "@/components/ui/button";
-import { PROTOTYPE_COMPANY_ID } from "@/features/company-profile/model";
 
 export type NavbarMode = "candidate" | "marketing" | "candidate-marketing" | "public";
 
@@ -31,15 +30,6 @@ const floatingShellClass =
   "pointer-events-none sticky top-0 z-50 px-3 pt-3 sm:px-6 sm:pt-4";
 const floatingSurfaceClass =
   "pointer-events-auto mx-auto flex max-w-[1280px] items-center justify-between rounded-2xl border border-border/80 bg-background/70 px-3 py-2.5 shadow-lg backdrop-blur-md transition-colors duration-300 sm:px-5 sm:py-3";
-
-// Empresas points at the canonical prototype company microsite already owned
-// by the company-profile model, so the header never invents a route.
-const EMPRESAS_HREF = `/empresas/${PROTOTYPE_COMPANY_ID}`;
-
-// Quiet public nav item: muted by default, foreground on hover, so the browsed
-// destinations share one honest resting/hover pair.
-const publicNavItem =
-  "text-muted-foreground transition-colors hover:text-foreground";
 
 const CandidateNavbar = React.memo(function CandidateNavbar() {
   return (
@@ -154,7 +144,7 @@ const CandidateMarketingNavbar = React.memo(function CandidateMarketingNavbar() 
 // Public mode reuses the marketing capsule for every browsing route rendered
 // through `PublicShell` (board, canonical detail, company careers). Only
 // destinations that really exist are listed: the brand home, the board, the
-// canonical prototype company, the shared Ingresar menu, the shared theme
+// shared Ingresar menu, the shared theme
 // control, and the publish CTA. The unsupported `Recursos` placeholder is gone
 // entirely, so every public anchor leads somewhere real.
 const PublicNavbar = React.memo(function PublicNavbar() {
@@ -186,12 +176,6 @@ const PublicNavbar = React.memo(function PublicNavbar() {
               className={`${focusRing} ${navTarget} font-semibold text-foreground transition-colors hover:text-foreground`}
             >
               Vacantes
-            </Link>
-            <Link
-              href={EMPRESAS_HREF}
-              className={`${focusRing} ${navTarget} ${publicNavItem}`}
-            >
-              Empresas
             </Link>
           </div>
         </div>
@@ -233,8 +217,8 @@ const PublicNavbar = React.memo(function PublicNavbar() {
  *
  * - `public` mode: the same detached floating capsule on every public browsing
  *   route rendered through `PublicShell` (board, canonical detail, company
- *   careers), carrying the brand home, `Vacantes` -> `/vacantes`, `Empresas`
- *   -> the canonical prototype company, the shared Ingresar menu, the shared
+ *   careers), carrying the brand home, `Vacantes` -> `/vacantes`,
+ *   the shared Ingresar menu, the shared
  *   theme control, and `Publicar vacante` -> `/empresa/vacantes/borradores/nuevo`
  *   (the canonical draft editor). Desktop destinations collapse below md;
  *   the retained controls stay reachable at

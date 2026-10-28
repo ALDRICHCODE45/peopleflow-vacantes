@@ -1,0 +1,52 @@
+/* Scoped token definitions: no v0 classes or application-wide theme changes. */
+.site {
+  --site-brand: var(--site-brand-light);
+  --site-on-brand: var(--site-on-brand-light);
+  --site-brand-text: var(--site-brand-text-light);
+  --primary: var(--site-brand);
+  --primary-foreground: var(--site-on-brand);
+  --ring: var(--site-brand);
+  --site-band: var(--site-band-light);
+  --font-heading: var(--font-sans), sans-serif;
+  font-family: var(--font-sans), sans-serif;
+}
+:global(.dark) .site {
+  --site-brand: var(--site-brand-dark);
+  --site-on-brand: var(--site-on-brand-dark);
+  --site-brand-text: var(--site-brand-text-dark);
+  --site-band: var(--site-band-dark);
+}
+.site[data-font-pair="editorial"] {
+  --font-heading: var(--font-site-editorial), serif;
+}
+.site[data-font-pair="modern"] {
+  --font-heading: var(--font-site-modern), sans-serif;
+  font-family: var(--font-site-modern), sans-serif;
+}
+.site :is(h1, h2, h3) { font-family: var(--font-heading); }
+/* One contrast decision owns every foreground on a brand surface in either theme. */
+.site :is([data-brand-surface], [data-brand-banner]) {
+  --site-surface-foreground: var(--site-on-brand);
+  --foreground: var(--site-surface-foreground);
+  --card-foreground: var(--site-surface-foreground);
+  --muted-foreground: var(--site-surface-foreground);
+  --primary-foreground: var(--site-surface-foreground);
+  --ring: var(--site-surface-foreground);
+}
+/* Link primitives consume text-strength ink without changing brand fills. */
+.site [data-brand-text-link] {
+  --primary: var(--site-brand-text);
+}
+/* Solid inverse CTA: the brand's readable ink becomes its background. */
+.site [data-brand-inverse] {
+  --primary: var(--site-surface-foreground);
+  --primary-foreground: var(--site-brand);
+}
+/* Re-theme the primitives, not their individual children. Socials use ghost on brand. */
+.site [data-brand-banner] {
+  --background: var(--site-brand);
+  --card: var(--site-brand);
+  --primary: var(--site-brand);
+  --muted: color-mix(in srgb, var(--site-brand), var(--site-on-brand) 10%);
+  --border: color-mix(in srgb, var(--site-brand), var(--site-on-brand) 35%);
+}

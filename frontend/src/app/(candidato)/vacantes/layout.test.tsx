@@ -61,9 +61,10 @@ it("only the literal candidato segment applies the client guard", async () => {
   render(await GroupLayout({ children: <PrivateLayout><h1>Privado</h1></PrivateLayout> }));
   expect(within(screen.getByTestId("guard")).getByRole("heading", { name: "Privado" })).toBeVisible();
 });
-it("the companies route group keeps PublicShell chrome outside the app frame", () => {
+it("the companies route group renders children without PeopleFlow chrome or the app frame", () => {
   render(<PublicLayout><h1>Empresa</h1></PublicLayout>);
-  expect(document.querySelector("[data-pf-public-navbar]")).not.toBeNull();
-  expect(document.querySelector("footer")).not.toBeNull();
+  expect(screen.getByRole("heading", { name: "Empresa" })).toBeVisible();
+  expect(document.querySelector("[data-pf-public-navbar]")).toBeNull();
+  expect(document.querySelector("footer")).toBeNull();
   expect(document.querySelector("[data-slot=sidebar-wrapper]")).toBeNull();
 });
