@@ -1,6 +1,7 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useContext, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Briefcase } from "lucide-react";
@@ -17,6 +18,7 @@ import { editorial, modern } from "./fonts";
 import { SiteNavigation } from "./site-navigation";
 import { SiteBlockContent, SocialLinks } from "./site-blocks";
 import type { CompanySitePresentationProps } from "./presentation-types";
+import { SitePortalContext } from "./site-portal";
 import styles from "./site-theme.module.css";
 import editorStyles from "./editor-affordances.module.css";
 
@@ -40,11 +42,20 @@ export function hasSiteBlockContent(block: SiteBlock): boolean {
 /** No reads, server imports or alternate rendering tree: the editor uses this exact page.
  * Editor affordances are opt-in; without onSelectBlock public markup is unchanged. */
 export function CompanySitePresentation({ site, company, jobs, jobsAvailable = true, officeLabels, selectedBlockId, onSelectBlock }: CompanySitePresentationProps) {
+  const previewContainer = useContext(SitePortalContext);
+  const [portalRoot, setPortalRoot] = useState<HTMLDivElement | null>(null);
+  const [previewRoot, setPreviewRoot] = useState<HTMLDivElement | null>(null);
   const blocks = site.blocks.filter(block => !block.hidden && (onSelectBlock || hasSiteBlockContent(block)));
   const style = siteBrandTokens(site.theme.brand_color, site.theme.accent_color, site.theme.background_color) as CSSProperties;
   const jobsBlock = blocks.find(block => block.type === "jobs");
   const storyBlock = blocks.find(block => block.type === "story");
-  return <div data-font-pair={site.theme.font_pair} data-site-palette={Boolean(site.theme.accent_color || site.theme.background_color)} style={style} className={cn(styles.site, editorial.variable, modern.variable, "min-w-0 bg-background text-foreground [overflow-wrap:anywhere]")}>
+  const themeProps = {
+    "data-font-pair": site.theme.font_pair,
+    "data-site-palette": Boolean(site.theme.accent_color || site.theme.background_color),
+    style,
+    className: cn(styles.site, editorial.variable, modern.variable, "min-w-0 bg-background text-foreground [overflow-wrap:anywhere]"),
+  };
+  return <SitePortalContext value={previewContainer === undefined ? portalRoot : previewRoot}><div ref={setPortalRoot} {...themeProps}>
     <Link href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:rounded-xl focus:bg-background focus:px-4 focus:py-3 focus:text-foreground focus:outline-2 focus:outline-ring">Saltar al contenido</Link>
     <header className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-6 sm:px-10 lg:px-16">
       <div className="flex min-w-0 shrink-0 items-center gap-3"><Avatar className="size-10"><AvatarImage src={company.logo_url ?? undefined} alt={`Logo de ${company.name}`} /><AvatarFallback>{company.name.slice(0, 1)}</AvatarFallback></Avatar><p className="max-w-[16ch] text-lg font-semibold tracking-tight [overflow-wrap:anywhere]">{company.name}</p></div>
@@ -68,5 +79,9 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
       <SocialLinks company={company} />
       <p className="w-full basis-full text-xs text-muted-foreground">Impulsado por <Link href="/" aria-label="PeopleFlow para empresas" className="inline-flex min-h-10 items-center font-semibold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring">PeopleFlow</Link></p>
     </footer>
-  </div>;
+  </div>
+    {/* The preview viewport is a body sibling, not a descendant of the page.
+        Repeat only its theme scope, never the page content or landmarks. */}
+    {previewContainer && createPortal(<div ref={setPreviewRoot} {...themeProps} data-site-overlay-root="" className={cn(themeProps.className, "pointer-events-none [&>*]:pointer-events-auto")} />, previewContainer)}
+  </SitePortalContext>;
 }

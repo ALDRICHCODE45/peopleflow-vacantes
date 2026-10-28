@@ -11,6 +11,9 @@
   --card: var(--site-card-light, #FFFFFF);
   --foreground: var(--site-foreground-light, #1A1626);
   --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --border: color-mix(in srgb, var(--foreground) 18%, var(--background));
   --muted-foreground: var(--site-secondary-light, #6B6480);
   --muted: var(--site-muted-light, #F1EEF7);
   --primary: var(--site-accent);
@@ -43,7 +46,18 @@
   --font-heading: var(--font-site-modern), sans-serif;
   font-family: var(--font-site-modern), sans-serif;
 }
-.site :is(h1, h2, h3) { font-family: var(--font-heading); }
+.site :is(h1, h2, h3, [data-slot="sheet-title"]) { font-family: var(--font-heading); }
+/* The site root must not establish a fixed-position containing block: sheets
+   use the document viewport, including inside the preview iframe. */
+@media (prefers-reduced-motion: reduce) {
+  .site [data-slot="sheet-content"],
+  .site [data-slot="combobox-content"] {
+    translate: none;
+    transform: none;
+    animation: none;
+    transition-property: opacity;
+  }
+}
 /* One contrast decision owns every foreground on a brand surface in either theme. */
 .site [data-brand-banner] {
   --site-surface-foreground: var(--site-on-brand);
@@ -90,9 +104,20 @@
   --secondary: var(--site-accent);
   --secondary-foreground: var(--site-on-accent);
 }
-/* Opaque outlines keep the measured 3:1 token at full strength, offset onto
-   the surrounding surface (not the contrasting CTA fill). */
-.site[data-site-palette="true"] :focus-visible {
+/* Popup fields may share their white/dark fill with the popup. An opaque
+   foreground boundary stays >= 4.5:1 on both the page and card poles, exceeding
+   the 3:1 field-boundary minimum without weakening text or the focus ring. */
+.site :is([data-slot="sheet-content"], [data-slot="combobox-content"], [data-slot="popover-content"]) {
+  --input: var(--background);
+  --muted: var(--background);
+  --site-field-border: var(--foreground);
+}
+.site :is([data-slot="sheet-content"], [data-slot="combobox-content"], [data-slot="popover-content"]) :is([data-slot="combobox-chips"], [data-slot="input-group"], [data-slot="input"]:not([data-slot="input-group"] *), [data-slot="textarea"]:not([data-slot="input-group"] *)) {
+  border-color: var(--site-field-border);
+}
+/* Bare focusables need an outline, but primitives (including their inner
+   inputs) and custom ring owners must not receive a second rectangular cue. */
+.site[data-site-palette="true"] :focus-visible:not([data-slot]):not([class*="focus-visible:ring"]) {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }

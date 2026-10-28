@@ -82,6 +82,7 @@ function SheetContent({
     side = "right",
     presentation = "floating",
     showCloseButton = true,
+    container,
     ...props
 }: SheetPrimitive.Popup.Props & {
     side?: "top" | "right" | "bottom" | "left";
@@ -92,10 +93,15 @@ function SheetContent({
      */
     presentation?: "floating" | "edge";
     showCloseButton?: boolean;
+    /** Scope both backdrop and panel to a themed root or another document. */
+    container?: SheetPrimitive.Portal.Props["container"];
 }) {
     return (
-        <SheetPortal>
-            <SheetOverlay />
+        <SheetPortal container={container}>
+            {/* A scoped sheet can live in another document inside a parent
+                Dialog (visitor preview). That document still needs a backdrop;
+                preserve Base UI's default nesting behavior for unscoped sheets. */}
+            <SheetOverlay forceRender={container != null ? true : undefined} />
             <SheetPrimitive.Popup
                 data-slot="sheet-content"
                 data-side={side}

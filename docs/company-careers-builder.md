@@ -16,6 +16,22 @@ Los datos de identidad (nombre, logo, descripción y redes) vienen del perfil de
 empresa; se editan en `/empresa/configuracion`, no se duplican en el borrador.
 Las vacantes son las publicadas de esa empresa, con búsqueda y filtros.
 
+## Buscar y filtrar vacantes
+
+**Filtros** ofrece Área, Modalidad, Ubicación, Jornada, Tipo de contrato y Nivel.
+Ubicación muestra el nombre del estado donde se ubica la vacante, no su estado de
+publicación. Solo aparecen los filtros y las opciones presentes en las vacantes
+cargadas; las opciones se ordenan alfabéticamente en español.
+
+Puedes elegir varias opciones de un mismo filtro: basta con que coincida una.
+Al combinar filtros, la vacante debe cumplir todos. El conteo cambia en vivo;
+**Quitar filtros** restaura la búsqueda completa. No se hacen nuevas consultas.
+
+El panel conserva la paleta, la tipografía y el tema del sitio. Tanto su contenido
+como su fondo oscurecido permanecen dentro de la vista previa, también al usar
+**Ver como visitante**. Las filas y tarjetas destacan con un anillo de marca al
+pasar el puntero o recibir foco, sin quedar tapadas por la siguiente vacante.
+
 ## Guardar y publicar
 
 1. Edita una sección y revisa el resultado en la vista previa. «Cambios guardados»

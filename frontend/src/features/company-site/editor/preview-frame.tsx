@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { SitePortalContext } from "../public/site-portal";
 
 type PreviewFrameProps = {
   title: string; children: ReactNode; viewportWidth?: number;
@@ -18,6 +19,7 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
   const [height, setHeight] = useState(720);
   const [available, setAvailable] = useState(viewportWidth ?? 1280);
   const [mount, setMount] = useState<HTMLDivElement | null>(null);
+  const [portalViewport, setPortalViewport] = useState<HTMLDivElement | null>(null);
   const width = viewportWidth ?? available;
   const scale = Math.min(1, available / width);
   useEffect(() => {
@@ -37,6 +39,12 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
     // These resolve OUTSIDE the site's brand scope, preserving the app's editor ink.
     content.className = "[--editor-primary:var(--primary)] [--editor-primary-foreground:var(--primary-foreground)]";
     document.body.append(content); setMount(content);
+    // Kept outside the measured content: opening an overlay cannot change the
+    // page's document height. Its transform contains fixed panels/backdrops.
+    const overlayViewport = document.createElement("div");
+    overlayViewport.dataset.previewPortalViewport = "";
+    Object.assign(overlayViewport.style, { position: "absolute", left: "0px", transform: "translateZ(0)", pointerEvents: "none" });
+    document.body.append(overlayViewport); setPortalViewport(overlayViewport);
     let styles: Node[] = [];
     const copyStyles = () => {
       for (const node of styles) node.parentNode?.removeChild(node);
@@ -51,8 +59,43 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
     mutation.observe(host.documentElement, { attributes: true, attributeFilter: ["class"] });
     const measure = () => { const next = Math.ceil(content.getBoundingClientRect().height); if (next > 0) setHeight(next); };
     const resize = new ResizeObserver(measure); resize.observe(content); measure();
-    return () => { mutation.disconnect(); resize.disconnect(); for (const node of styles) node.parentNode?.removeChild(node); content.remove(); };
+    return () => { mutation.disconnect(); resize.disconnect(); for (const node of styles) node.parentNode?.removeChild(node); content.remove(); overlayViewport.remove(); };
   }, [document]);
+  useEffect(() => {
+    if (!portalViewport || !iframe.current || !fit.current) return;
+    const frame = iframe.current;
+    const host = frame.ownerDocument.defaultView!;
+    // Intersect every clipping ancestor, including Dialog's scroll body and the
+    // editor ScrollArea. The window is the viewport on the mobile editor page.
+    const ancestors: HTMLElement[] = [];
+    for (let node = fit.current.parentElement; node; node = node.parentElement) ancestors.push(node);
+    const clipping = ancestors.filter(node => /auto|scroll|hidden|clip/.test(host.getComputedStyle(node).overflowY) || node.dataset.slot === "scroll-area-viewport");
+    const measure = () => {
+      const bounds = frame.getBoundingClientRect();
+      let top = Math.max(0, bounds.top);
+      let bottom = Math.min(host.innerHeight, bounds.bottom);
+      for (const node of clipping) {
+        const clip = node.getBoundingClientRect();
+        top = Math.max(top, clip.top);
+        bottom = Math.min(bottom, clip.bottom);
+      }
+      // Parent coordinates are CSS pixels after scaling; the portal uses the
+      // iframe's natural coordinates and is always full device width.
+      portalViewport.style.top = `${Math.max(0, top - bounds.top) / scale}px`;
+      portalViewport.style.height = `${Math.max(0, bottom - top) / scale}px`;
+      portalViewport.style.width = `${width}px`;
+    };
+    const resize = new ResizeObserver(measure);
+    for (const node of [fit.current, ...ancestors]) resize.observe(node);
+    host.addEventListener("scroll", measure, { capture: true, passive: true });
+    host.addEventListener("resize", measure);
+    measure();
+    return () => {
+      resize.disconnect();
+      host.removeEventListener("scroll", measure, true);
+      host.removeEventListener("resize", measure);
+    };
+  }, [portalViewport, scale, width, height]);
   useEffect(() => {
     // Geometry only: the chip and outline counter the iframe transform while
     // the published content keeps its true device layout and typography.
@@ -74,7 +117,7 @@ export function PreviewFrame({ title, children, viewportWidth, selectedBlockId, 
     if (delta) viewport.scrollTo({ top: Math.max(0, viewport.scrollTop + delta), behavior: "instant" });
   }, [document, selectedBlockId, scale]);
   return <div ref={fit} data-preview-fit="" className="min-w-0 w-full">
-    {mount && createPortal(children, mount)}
+    {mount && createPortal(<SitePortalContext value={portalViewport}>{children}</SitePortalContext>, mount)}
     <div data-preview-stage="" className="relative mx-auto overflow-hidden" style={{ width: width * scale, height: height * scale }}>
       <iframe ref={iframe} title={title} className="absolute top-0 left-0 block origin-top-left border-0" width={width} height={height}
         style={{ width, height, transform: `scale(${scale})` }} onLoad={() => setDocument(iframe.current?.contentDocument ?? null)} />

@@ -127,7 +127,7 @@ it("filters by modalidad and estado through the real controls without a network 
   const panel = await screen.findByRole("dialog", { name: "Filtrar vacantes" });
   expect(panel.querySelector('[data-slot="sheet-header"] [data-slot="sheet-title"]')).not.toBeNull();
   expect(within(panel).getByRole("combobox", { name: "Modalidad" })).toBeEnabled();
-  expect(within(panel).getByRole("combobox", { name: "Estado" })).toBeEnabled();
+  expect(within(panel).getByRole("combobox", { name: "Ubicación" })).toBeEnabled();
   fireEvent.click(within(panel).getByRole("option", { name: "Híbrido" }));
   fireEvent.click(within(panel).getByRole("option", { name: "Ciudad de México" }));
   expect(panel.querySelector('[data-slot="sheet-footer"] [role="status"]')).toHaveTextContent("1 vacante coincide");
