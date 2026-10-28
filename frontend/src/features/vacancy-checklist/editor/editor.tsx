@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
-import { StateCard } from "@/components/feedback/state-card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { ConfigReadOnlyNotice, useConfigLifecycle } from "@/features/employer-vacancies/vacancy-config/lifecycle";
@@ -19,7 +19,7 @@ import { suggestCriteria, type SuggestionFields } from "../suggest";
 import { CriterionDialog } from "./criterion-dialog";
 import { CriteriaRows } from "./rows";
 import { failureNotice, fieldErrors, type Notice } from "./feedback";
-export type ChecklistEditorProps = { draftId: string; checklist: Checklist; etag: string; stages: DraftPipelineStage[]; fields: SuggestionFields; questions: ScreeningQuestionV2[]; lifecycle?: Lifecycle };
+export type ChecklistEditorProps = { draftId: string; checklist: Checklist; etag: string; stages: DraftPipelineStage[]; fields: SuggestionFields; questions: ScreeningQuestionV2[]; lifecycle?: Lifecycle; languageName?: (code: string) => string };
 const bodyOf = (checklist: Checklist): ChecklistBody => ({ criteria: checklist.criteria, reminder_stage_ids: checklist.reminder_stage_ids });
 /** Normalize schema key order/scalars: GET and PUT can have different object insertion order. */
 const equal = (a: ChecklistBody, b: ChecklistBody) => {
@@ -29,7 +29,7 @@ const equal = (a: ChecklistBody, b: ChecklistBody) => {
 };
 const noResponse = (): Result<Checklist> => ({ ok: false, reason: "no_response", reference: {} });
 /** Independent full-replacement save with opaque ETag, explicit read-only recovery, never PUT replay. */
-export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages, fields, questions, lifecycle }: ChecklistEditorProps) {
+export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages, fields, questions, lifecycle, languageName }: ChecklistEditorProps) {
   const { readOnly: lifecycleReadOnly } = useConfigLifecycle(lifecycle);
   const [finished, setFinished] = useState(false);
   const readOnly = lifecycleReadOnly || finished;
@@ -95,14 +95,14 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
   }
   const disabled = pending || readOnly || !!recovery;
   return <div ref={root} className="flex flex-col gap-5">
-    {body.criteria.length === 0 && <StateCard icon={ListChecks} tone="empty" title="Todavía no tienes criterios" description="Este checklist es interno, nunca es público y se contrasta automáticamente con cada candidato." primaryAction={{ label: "Sugerir desde la vacante", disabled, onClick: () => { const criteria = suggestCriteria(fields, questions); edit({ ...body, criteria }); if (!criteria.length) report({ tone: "info", title: "No encontramos criterios para sugerir", description: "Agrega un criterio o completa los requisitos de la vacante." }); } }} />}
     <Card aria-labelledby="checklist-heading">
       <CardHeader className="border-b"><CardTitle><h3 id="checklist-heading">Checklist</h3></CardTitle><CardDescription>Define lo obligatorio y lo deseable. Solo lo ve tu equipo; nunca rechaza ni mueve candidatos.</CardDescription></CardHeader>
       <CardContent><FieldGroup>
         {readOnly && <ConfigReadOnlyNotice />}
+        {body.criteria.length === 0 && <Empty><EmptyHeader><EmptyMedia variant="icon"><ListChecks aria-hidden="true" /></EmptyMedia><EmptyTitle>Todavía no tienes criterios</EmptyTitle><EmptyDescription>Este checklist es interno, nunca es público y se contrasta automáticamente con cada candidato.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row"><Button type="button" className="min-h-10" disabled={disabled} onClick={() => { const criteria = suggestCriteria(fields, questions, languageName); edit({ ...body, criteria }); if (!criteria.length) report({ tone: "info", title: "No encontramos criterios para sugerir", description: "Agrega un criterio o completa los requisitos de la vacante." }); }}>Sugerir desde la vacante</Button><Button type="button" variant="outline" className="min-h-10" disabled={disabled} onClick={() => setDialog("new")}>Agregar criterio</Button></EmptyContent></Empty>}
         {!!body.criteria.length && <CriteriaRows criteria={body.criteria} errors={errors.rows} disabled={disabled} onChange={criteria => edit({ ...body, criteria })} onEdit={setDialog} />}
-        <Button type="button" variant="outline" className="min-h-10" disabled={disabled || body.criteria.length >= 50} onClick={() => setDialog("new")}>Agregar criterio</Button>
-        <FieldSet disabled={disabled}><FieldLegend>Recordatorio al mover</FieldLegend><FieldDescription>Te recordaremos los criterios obligatorios sin evaluar al mover a estas etapas. Puedes continuar sin marcarlos.</FieldDescription><FieldGroup>
+        {!!body.criteria.length && <Button type="button" variant="outline" className="min-h-10" disabled={disabled || body.criteria.length >= 50} onClick={() => setDialog("new")}>Agregar criterio</Button>}
+        <FieldSet disabled={disabled}><FieldLegend>Recordatorio al mover</FieldLegend><FieldDescription>Te recordaremos los criterios obligatorios sin evaluar al mover a estas etapas. Puedes continuar sin marcarlos.</FieldDescription><FieldGroup data-slot="checkbox-group">
           {stages.map(stage => <Field key={stage.id} orientation="horizontal" data-invalid={!!errors.reminders}><Checkbox id={`reminder-${stage.id}`} disabled={disabled} checked={body.reminder_stage_ids.includes(stage.id)} aria-invalid={!!errors.reminders} aria-describedby={errors.reminders ? "reminders-error" : undefined} onCheckedChange={checked => edit({ ...body, reminder_stage_ids: checked ? [...body.reminder_stage_ids, stage.id] : body.reminder_stage_ids.filter(id => id !== stage.id) })} /><FieldLabel htmlFor={`reminder-${stage.id}`} className="min-h-10">{stage.name}</FieldLabel></Field>)}
           {errors.reminders && <FieldError id="reminders-error">{errors.reminders}</FieldError>}
         </FieldGroup></FieldSet>

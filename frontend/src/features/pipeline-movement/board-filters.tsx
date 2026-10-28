@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import type { BoardFilterDimension } from "./board-filter-dimensions";
 import { activeFilterCount, clearFilters, filterChips, dimensionOptions, optionCount, toggleFilter, type FilterSelection } from "./filters";
 
-type Props<Item> = { items: readonly Item[]; dimensions: BoardFilterDimension<Item>[]; selection: FilterSelection; onChange: (selection: FilterSelection) => void; resultCount: number };
+type Props<Item> = { toolbar?: React.ReactNode; items: readonly Item[]; dimensions: BoardFilterDimension<Item>[]; selection: FilterSelection; onChange: (selection: FilterSelection) => void; resultCount: number };
 
 function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Props<Item>, "items" | "selection" | "onChange"> & { dimension: BoardFilterDimension<Item> }) {
   const [search, setSearch] = useState("");
@@ -95,7 +95,7 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
   </Field>;
 }
 
-export function BoardFilters<Item>({ items, dimensions, selection, onChange, resultCount }: Props<Item>) {
+export function BoardFilters<Item>({ items, dimensions, selection, onChange, resultCount, toolbar }: Props<Item>) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const count = activeFilterCount(selection);
@@ -112,6 +112,7 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
           <BoardFilterChips dimensions={dimensions} selection={selection} onChange={onChange} onEdit={() => setOpen(true)} />
           <Button type="button" variant="ghost" className="min-h-10 shrink-0" onClick={() => onChange(clearFilters(selection))}><RotateCcw aria-hidden="true" data-icon="inline-start" />Limpiar</Button>
         </>}
+        {toolbar && <div className="ml-auto flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{toolbar}</div>}
       </CardContent>
     </Card>
     {count > 0 && <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">

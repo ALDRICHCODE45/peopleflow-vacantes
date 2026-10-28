@@ -13,7 +13,8 @@ import { LocationField } from "@/features/geo/location-field";
 import { useGeoCatalog } from "@/features/geo/use-geo-catalog";
 import type { ScreeningQuestionV2 } from "@/features/jobs/drafts/screening-v2/model";
 import { criterionSchema, type Criterion } from "../model";
-import { ChoiceField, MultiChoiceField } from "./controls";
+import { ChoiceField } from "./controls";
+import { MultiChoiceField } from "./multi-choice-field";
 
 export const KIND_LABELS: Record<Criterion["kind"], string> = { min_years_experience: "Años de experiencia", seniority: "Seniority", education: "Estudios", language: "Idioma", skill: "Habilidad", location: "Ubicación", screening_answer: "Respuesta de filtro", manual: "Manual" };
 const defaults: Record<Criterion["kind"], Record<string, unknown>> = { min_years_experience: { min: "1" }, seniority: { accepted: [] }, education: { min_level: "bachelor", accepts_in_progress: false }, language: { code: "", min_level: "B2" }, skill: { name: "" }, location: { country: "", states: [] }, screening_answer: { question_id: "", accepted_option_ids: [] }, manual: {} };
@@ -23,7 +24,7 @@ function automaticLabel(criterion: Criterion, questions: ScreeningQuestionV2[], 
     case "min_years_experience": return `Al menos ${criterion.params.min} años de experiencia`;
     case "seniority": return `Nivel ${criterion.params.accepted.map(level => SENIORITY_LABELS[level]).join(", ")}`;
     case "education": return `Escolaridad mínima: ${EDUCATION_LEVEL_LABELS[criterion.params.min_level]}${criterion.params.accepts_in_progress ? " (acepta en curso)" : ""}`;
-    case "language": return `Idioma ${languages.find(item => item.code === criterion.params.code)?.name ?? criterion.params.code}: mínimo ${criterion.params.min_level}`;
+    case "language": return `Idioma: ${languages.find(item => item.code === criterion.params.code)?.name ?? criterion.params.code} · mínimo ${criterion.params.min_level}`;
     case "skill": return `Habilidad: ${criterion.params.name}`;
     case "location": return `Ubicación: ${countries.find(item => item.id === criterion.params.country)?.name ?? "Elige un país"}${criterion.params.states.length ? ` · ${states.filter(item => criterion.params.states.includes(item.id)).map(item => item.name).join(", ")}` : ""}`;
     case "screening_answer": return questions.find(item => item.id.toLowerCase() === criterion.params.question_id.toLowerCase())?.prompt.slice(0, 200) ?? "Respuesta de filtro";
@@ -33,9 +34,9 @@ function automaticLabel(criterion: Criterion, questions: ScreeningQuestionV2[], 
 function LanguageControls({ value, onChange, errors }: { value: Extract<Criterion, { kind: "language" }>["params"]; onChange: (params: Record<string, unknown>, label?: string) => void; errors: Record<string, string> }) {
   const catalog = useLanguageCatalog();
   return <>
-    {catalog.status === "loading" || catalog.status === "idle" ? <Skeleton aria-label="Cargando idiomas" className="h-10 w-full" /> : <ChoiceField label="Idioma" options={(catalog.data?.items ?? []).map(item => ({ value: item.code, label: item.name }))} value={value.code} onChange={code => onChange({ code }, `Idioma ${catalog.data?.items.find(item => item.code === code)?.name ?? code}: mínimo ${value.min_level}`)} error={errors.code} />}
+    {catalog.status === "loading" || catalog.status === "idle" ? <Skeleton aria-label="Cargando idiomas" className="h-10 w-full" /> : <ChoiceField label="Idioma" options={(catalog.data?.items ?? []).map(item => ({ value: item.code, label: item.name }))} value={value.code} onChange={code => onChange({ code }, `Idioma: ${catalog.data?.items.find(item => item.code === code)?.name ?? code} · mínimo ${value.min_level}`)} error={errors.code} />}
     {catalog.status === "error" && <Field><FieldError>No pudimos cargar los idiomas.</FieldError><Button variant="outline" onClick={catalog.retry}>Reintentar idiomas</Button></Field>}
-    <ChoiceField label="Nivel mínimo" options={CEFR_LEVELS.map(value => ({ value, label: value === "native" ? "Nativo" : value }))} value={value.min_level} onChange={min_level => onChange({ min_level }, `Idioma ${catalog.data?.items.find(item => item.code === value.code)?.name ?? value.code}: mínimo ${min_level}`)} error={errors.min_level} />
+    <ChoiceField label="Nivel mínimo" options={CEFR_LEVELS.map(value => ({ value, label: value === "native" ? "Nativo" : value }))} value={value.min_level} onChange={min_level => onChange({ min_level }, `Idioma: ${catalog.data?.items.find(item => item.code === value.code)?.name ?? value.code} · mínimo ${min_level}`)} error={errors.min_level} />
   </>;
 }
 function LocationControls({ value, onChange, errors }: { value: Extract<Criterion, { kind: "location" }>["params"]; onChange: (params: Record<string, unknown>, label?: string) => void; errors: Record<string, string> }) {

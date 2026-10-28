@@ -16,6 +16,10 @@ it("suggests every structured source first with required importance and fresh UU
   expect(checklistBodySchema.safeParse({ criteria: result, reminder_stage_ids: [] }).success).toBe(true);
   expect(new Set([...result, ...suggestCriteria(fields, questions)].map(c => c.id)).size).toBe(result.length * 2);
 });
+it("labels language suggestions with catalog names", () => {
+  const criteria = suggestCriteria({ languages: [{ code: "en", min_level: "C1" }] }, [], code => code === "en" ? "Inglés" : code);
+  expect(criteria[0].label).toBe("Idioma: Inglés · mínimo C1");
+});
 it.each(["remote", null, undefined] as const)("does not suggest location for %s", work_mode => expect(suggestCriteria({ work_mode, location: { country: "MX" } }, [])).toEqual([]));
 it("accepts the expanded location returned by draft GET", () => {
   const result = suggestCriteria({ work_mode: "onsite", location: { country: { id: "MX", name: "México" }, state: { id: "09", name: "CDMX" }, municipality: null, postal_code: null, label: "CDMX, México" } }, []);

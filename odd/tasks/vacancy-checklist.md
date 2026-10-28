@@ -40,12 +40,12 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T1 | all | inline — contract + feature document, backend review | — |
-| T2 | S1–S3, S9 | worker — checklist model, server client/actions, evaluation, suggestions from the vacancy, summary/sort | — |
-| T3 | S1, S8 | worker — «Checklist» module in the vacancy configuration (editor + reminder stages) | — |
-| T4 | S3–S5 | worker — board: card fit, «Mejor ajuste» order, fit filter, sheet «Checklist» tab with marks | — |
-| T5 | S8 | worker — reminder with inline marks in the move confirmation | — |
-| T6 | S6, S7 | worker — comparison view and terna report (print + CSV) | — |
+| T1 | all | inline — contract + feature document, backend review | 4ac0bef4, 52590a1b, 5bfa2787 |
+| T2 | S1–S3, S9 | worker — checklist model, server client/actions, evaluation, suggestions from the vacancy, summary/sort | 77a0c1cd |
+| T3 | S1, S8 | worker — «Checklist» module in the vacancy configuration (editor + reminder stages) | 2c608a1d |
+| T4 | S3–S5 | worker — board: card fit, «Mejor ajuste» order, fit filter, sheet «Checklist» tab with marks | b9e1c1e4 |
+| T5 | S8 | worker — reminder with inline marks in the move confirmation | b9e1c1e4 |
+| T6 | S6, S7 | worker — comparison view and terna report (print + CSV) | ea0f75b5 |
 | T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | — |
 
 ## Log
@@ -84,3 +84,61 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
   the board payload with rules fixed in the contract (backend stores criteria and marks only); a missing skill is
   «sin evaluar», not «no cumple»; last write wins on marks (audited); terna report excludes contact data; default
   reminder stages = every stage after «Nuevo» when the checklist is first saved; max 50 criteria.
+- **L6** Backend review (session 01a18189-c774, 13 + 2 adjustments) folded into the contract: opaque `vc1-…` ETag separate
+  from the decimal `version`, `412 version_conflict`, `428 precondition_required`, `too_long` for array limits, location by
+  geo catalog ids with at most one location criterion, screening only single-choice questions with case-insensitive
+  ids, `409 process_finished` on writes once the process ended, idempotent no-op PUTs, `marked_by` resolved at read,
+  editor rule «new id when kind/params change». Only the frontend edits the contract file. Backend branch
+  `feat/vacancy-checklist-backend` (validation f84da991).
+- **L7** T2 (worker mvrvh51y-3-8vw4): `frontend/src/features/vacancy-checklist/` model, client, actions, evaluate, suggest;
+  RED observed per rule → GREEN 166/166; tsc and eslint clean; parent re-ran 166/166. Commit 77a0c1cd. Slice boundary:
+  the branch passes ~400 authored lines here (868 in 6 commits incl. the backlog fixes); delivery is commit-by-commit
+  review, one commit per task.
+- **L8** Launched in parallel: T3 (mvrw0u48-4-4icn, vacancy-config + vacancy-checklist/editor) and T4+T5 merged into one
+  worker (mvrw1j1i-5-k4v0, pipeline-movement + vacancy-checklist/board) because both change the board dialogs. T6 waits
+  for T3: the runtime's surface-overlap check reads the `[jobId]` route segment as a glob and rejects it next to T3.
+- **L9** T4+T5 (worker mvrw1j1i-5-k4v0): board ChecklistProvider (non-blocking load, quiet retry), fit line on cards,
+  «Ordenar: Mejor ajuste», «Checklist» filter dimension, sheet «Checklist» tab (optimistic marks, rollback,
+  process_finished), reminder inside the existing move confirmation, 2–5 selection linking to `/pipeline/comparar?ids=`.
+  Worker RED → GREEN 18 focused; its broad run timed out under parallel load, parent re-ran pipeline-movement +
+  checklist board + pipeline route: 429/429. Commit b9e1c1e4.
+- **L10** T3 (worker mvrw0u48 → continued as mvrw2iam-6-rzyg): the config shell routes each module to
+  `/configuracion/<slug>`, so the worker built `VacancyChecklistModule` (client loads) + editor + nav entry, and the
+  parent wrote `configuracion/checklist/page.tsx` mirroring «Solicitud» (RED: missing page → GREEN). Worker RED 26
+  → GREEN; parent: configuracion + employer-vacancies + vacancy-checklist 602/602, tsc clean. Commit 2c608a1d. T6
+  launched (mvrwuo5s-7-smdi).
+- **L11** T6 worker stopped on UI rules: no local `shadcn-reference/table.md` (§19) and §26 (RichDataTable for person
+  tables). Parent decision: §19 asks to read the official docs first, not for a pre-existing file — the worker reads
+  them and adds `docs/design/shadcn-reference/table.md`; §26 governs listing tables, while the comparison is a
+  criteria × candidates matrix (2–5 columns), so it uses shadcn `Table` with §26.1 cell rules, horizontal ScrollArea
+  and a sticky criterion column on mobile.
+- **L12** T6 (worker mvrwwiei-8-eyq6): `/pipeline/comparar` route, comparison builder, matrix, print stylesheet scoped
+  by `body:has([data-comparison-report])` (no effect on other pages), formula-safe CSV without contact data, official
+  Table reference. Worker RED → GREEN 22 new; checklist + pipeline routes 230/230, tsc and eslint clean. Commit ea0f75b5.
+- **L13** Backend ready (msg 5cefd37c): binary from `feat/vacancy-checklist-backend` @421b8616 on :8080, migration 00048
+  applied, go vet + go test ./... green; seed vacancy 01a13ce2-ddaf-73e7-848c-367979b20ead «Software Developer» (4
+  participations, 3 single_choice_informative + 1 open question).
+- **L14** T7 browser QA round 1 (own Playwright, :3000 dev + :8080, employer session, 1440 px). Works end to end: empty
+  config → «Sugerir desde la vacante» drafted 16 criteria (seniority, language, 5 skills, 9 requirement lines) →
+  saved (toast); board loads fit for 4 candidates; sheet tab marks a criterion (persisted, shown as «reclutador» in the
+  comparison); move confirmation lists pending required criteria and still moves; 3-candidate comparison renders; no
+  page errors, no 4xx/5xx. Design defects sent to a fix worker: P1 clipped card fit pill; P2 full-width «Comparar»
+  on every card; P3 sort toggle alone on its row; P4 sheet tab with an always-open note per criterion; P5 reminder
+  lists all 11 pending as tall cards; P6 unknown results show a source («perfil», «Sin fuente»); P7 language label
+  shows the code («Idioma en»); P8 two stacked cards in the empty config + confusing importance checkbox + loose
+  reminder spacing; P9 comparison truncates labels/fit and shows two navigations. Screenshots /tmp/pf-cl/0*.png.
+- **L15** The full suite during the fix worker exposed a real T2 defect: `vacancy-checklist/client.ts` was missing from
+  the guarded transport inventory (`jobs/requestPath.test.ts`) and its bodyless DELETE 204 uses a same-origin guarded
+  `fetch` like `employer-team/client.ts`; registered in both lists (9bd31e5a). Risk item 2 (transport guard allowlist).
+- **L16** Backend request (msg 82474209): never finish a real process to test `process_finished`; it is covered by
+  backend integration (TestChecklistFlowRetiredReminderAndFinishedProcess) and by mocked 409 tests in the UI.
+- **L17** P1–P9 fixed (worker mvrxk9r2-9-hosg): RED 11 → GREEN, checklist + pipeline + config + routes 978/978.
+  Browser round 2 (1440 px light/dark, 390 px mobile): compact fit line, opt-in «Comparar candidatos» selection with
+  «Comparar (3)», sort toggle inside the filter bar, compact sheet rows with collapsed notes, reminder capped at five +
+  «y 5 más», no source on unknown results, single config card + Obligatorio|Deseable toggle, comparison readable in dark
+  and scrolls with a sticky criterion column on mobile; no page overflow at 390 px; live DELETE of the round-1 mark
+  returned the automatic result («cumple · perfil»). Parent fixes with RED → GREEN: fit icon follows its tone (check
+  only when every required criterion is met); the fourth sheet tab clipped «Resumen» at 390 px (tablist 352 > 324 px)
+  → tighter triggers and container padding below sm, measured 340/340 in the browser. Data note: the checklist saved in
+  round 1 keeps the old label «Idioma en: mínimo C1» (saved before P7); new suggestions use catalog names.
+  Docs: guide step 91 and review-queue item 3.

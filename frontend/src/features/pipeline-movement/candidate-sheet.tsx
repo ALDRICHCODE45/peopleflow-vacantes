@@ -102,7 +102,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       {errorNotice && <ActionStatus id="detail-action-status" tone={errorNotice.tone} text={errorNotice.text} />}
     </SheetHeader>
     <Tabs value={tab} onValueChange={value => setTab(String(value))} className="min-h-0 flex-1 gap-0">
-      <div className="px-6 pb-5"><TabsList aria-label="Secciones de la ficha" className="w-full group-data-horizontal/tabs:h-11">
+      <div className="px-6 pb-5 max-sm:px-4"><TabsList aria-label="Secciones de la ficha" className="w-full group-data-horizontal/tabs:h-11 max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]">
         <TabsTrigger value="summary">Resumen</TabsTrigger>
         <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
         {checklist?.checklist?.criteria.length ? <TabsTrigger value="checklist">Checklist</TabsTrigger> : null}

@@ -25,6 +25,9 @@ it.each([["required", "met", -1], ["required", "not_met", 1], ["desirable", "met
   const b = summarize([], base, []); const a = structuredClone(b); a[importance][result] = 1;
   expect(Math.sign(compareFit(a, b))).toBe(sign); expect(Math.sign(compareFit(b, a))).toBe(-sign); expect(compareFit(b, b)).toBe(0);
 });
+it.each(["auto", "none"] as const)("omits unknown unmarked source %s", source => {
+  expect(sourceLabel({ source, result: "unknown" }, c("skill", { name: "SQL" }))).toBeNull();
+});
 it("sort precedence and labels", () => {
   const a = summarize([], base, []); const b = structuredClone(a); a.required.met = 1; a.required.not_met = 10; b.desirable.met = 100;
   expect(compareFit(a, b)).toBeLessThan(0);

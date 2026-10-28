@@ -788,3 +788,15 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     estados vacíos, no personas ficticias. Con la red lenta se ven esqueletos; si falla la
     consulta, «Reintentar» recupera los datos sin mutaciones. Sin sesión o membresía activa
     no se muestran datos de empresa. Revisa también celular y ambos temas.
+
+91. **Checklist de la vacante (interno).** Frontend `feat/vacancy-checklist`, backend
+    `feat/vacancy-checklist-backend` (migración 00048). En una vacante con candidatos abre
+    «Configuración › Checklist»: «Sugerir desde la vacante» arma los criterios (seniority, idiomas,
+    habilidades, preguntas de filtro evaluadas y una línea por requisito). Cambia uno a «Deseable»,
+    ajusta «Recordatorio al mover» y guarda. En el pipeline cada card muestra «N/M obligatorios» y
+    cuántos quedan sin evaluar; prueba «Ordenar: Mejor ajuste» y el filtro «Checklist». En la ficha,
+    pestaña «Checklist», marca ✓/✗ un criterio, agrega una nota y luego «Quitar marca» (vuelve el
+    resultado automático). Mueve a un candidato a una etapa con recordatorio: aparecen hasta cinco
+    obligatorios sin evaluar y puedes mover sin marcarlos. Con «Comparar candidatos» elige 2 a 5,
+    abre la comparación, imprime/guarda el PDF (tema claro, sin menú) y descarga el CSV (sin correo
+    ni teléfono). Revisa celular (390 px) y tema oscuro. El checklist nunca descarta ni mueve a nadie.

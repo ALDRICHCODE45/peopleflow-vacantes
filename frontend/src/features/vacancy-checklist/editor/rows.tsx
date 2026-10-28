@@ -1,8 +1,8 @@
 "use client";
 import { Ellipsis, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { FieldError } from "@/components/ui/field";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { updateCriterionIdentity, type Criterion } from "../model";
@@ -23,7 +23,7 @@ export function CriteriaRows({ criteria, onChange, onEdit, disabled, errors }: {
     <ItemContent>
       <ItemTitle><span aria-hidden="true">{index + 1}.</span><span>{criterion.label}</span></ItemTitle>
       <ItemDescription>{KIND_LABELS[criterion.kind]} · {criterion.kind === "manual" ? "Lo marcas tú" : criterion.kind === "skill" ? "Se evalúa solo si el candidato la declara" : "Se evalúa solo"}</ItemDescription>
-      <Field orientation="horizontal"><Checkbox id={`required-${criterion.id}`} disabled={disabled} checked={criterion.importance === "required"} aria-labelledby={`importance-name-${criterion.id}`} onCheckedChange={checked => onChange(criteria.map((item, position) => position === index ? updateCriterionIdentity(item, { ...item, importance: checked ? "required" : "desirable" }) : item))} /><FieldLabel htmlFor={`required-${criterion.id}`} className="min-h-10"><span id={`importance-name-${criterion.id}`} className="sr-only">Obligatorio: {criterion.label}</span><span aria-hidden="true">{criterion.importance === "required" ? "Obligatorio" : "Deseable"}</span></FieldLabel></Field>
+      <ToggleGroup variant="segmented" aria-label={`Importancia: ${criterion.label}`} disabled={disabled} value={[criterion.importance]} onValueChange={values => { const importance = values[0]; if (importance === "required" || importance === "desirable") onChange(criteria.map((item, position) => position === index ? updateCriterionIdentity(item, { ...item, importance }) : item)); }}><ToggleGroupItem value="required">Obligatorio</ToggleGroupItem><ToggleGroupItem value="desirable">Deseable</ToggleGroupItem></ToggleGroup>
       {errors[index] && <FieldError id={`criterion-error-${criterion.id}`}>{errors[index]}</FieldError>}
     </ItemContent>
     <ItemActions>

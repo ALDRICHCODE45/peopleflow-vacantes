@@ -11,7 +11,7 @@ export function comparisonCsv(model: Comparison, title: string, company: string,
     ["Candidato", "Etapa", "Ajuste", "Importancia", "Criterio", "Resultado", "Fuente", "Nota del reclutador"]];
   model.candidates.forEach((candidate, index) => model.groups.forEach(group => group.rows.forEach(row => {
     const cell = row.cells[index];
-    rows.push([candidate.name, stages[candidate.stageId] ?? "Etapa no disponible", fitLine(candidate.summary), group.label, row.label, resultLabel(cell.result), cell.source ?? "Sin fuente", cell.note ?? ""]);
+    rows.push([candidate.name, stages[candidate.stageId] ?? "Etapa no disponible", fitLine(candidate.summary), group.label, row.label, resultLabel(cell.result), cell.source ?? "", cell.note ?? ""]);
   })));
   return "\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }

@@ -1,6 +1,7 @@
 "use client";
 import { Fragment } from "react";
 import { Check, CircleHelp, Download, Printer, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TruncatedText } from "@/components/data-table/truncated-text";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,18 +52,19 @@ export function ComparisonReport({ model, title, company = "", date, stages }: {
             <TableHead scope="col" className="criterion-column sticky left-0 z-10 w-52 bg-background">Criterio</TableHead>
             {model.candidates.map(candidate => <TableHead scope="col" key={candidate.id} className="w-72 py-3">
               <TruncatedText text={candidate.name} className="text-sm font-semibold" />
-              <TruncatedText text={`${stages[candidate.stageId] ?? "Etapa no disponible"} · ${fitLine(candidate.summary)}`} className="text-xs font-normal text-muted-foreground" />
+              <p className="text-xs font-normal text-muted-foreground">{stages[candidate.stageId] ?? "Etapa no disponible"}</p>
+              <p className="whitespace-normal text-xs font-normal text-muted-foreground">{fitLine(candidate.summary)}</p>
             </TableHead>)}
           </TableRow></TableHeader>
           {model.groups.map(group => <TableBody key={group.label}>
             <TableRow><TableHead scope="rowgroup" colSpan={model.candidates.length + 1} className="bg-muted">{group.label}</TableHead></TableRow>
             {group.rows.map(row => <TableRow key={row.id}>
-              <TableHead scope="row" className="criterion-column sticky left-0 z-10 bg-background"><TruncatedText text={row.label} /></TableHead>
+              <TableHead scope="row" className="criterion-column sticky left-0 z-10 bg-background"><Tooltip><TooltipTrigger render={<span tabIndex={0} title={row.label} className="line-clamp-2 whitespace-normal break-words text-sm font-medium" />}>{row.label}</TooltipTrigger><TooltipContent>{row.label}</TooltipContent></Tooltip></TableHead>
               {row.cells.map((cell, index) => {
                 const Icon = cell.result === "met" ? Check : cell.result === "not_met" ? X : CircleHelp;
                 const tone = cell.result === "met" ? "text-status-success" : cell.result === "not_met" ? "text-status-review" : "text-muted-foreground";
                 return <TableCell key={model.candidates[index].id} className="align-top">
-                  <p className="flex items-center gap-1 text-sm font-medium"><Icon className={`size-4 shrink-0 ${tone}`} aria-hidden="true" />{resultLabel(cell.result)}<span className="text-xs font-normal text-muted-foreground"> · {cell.source ?? "Sin fuente"}</span></p>
+                  <p className="flex items-center gap-1 text-sm font-medium"><Icon className={`size-4 shrink-0 ${tone}`} aria-hidden="true" />{resultLabel(cell.result)}{cell.source && <span className="text-xs font-normal text-muted-foreground"> · {cell.source}</span>}</p>
                   {cell.note && <TruncatedText text={cell.note} className="comparison-note text-xs text-muted-foreground" />}
                 </TableCell>;
               })}

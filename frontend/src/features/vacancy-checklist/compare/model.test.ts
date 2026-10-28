@@ -35,6 +35,8 @@ describe("comparison CSV", () => {
   expect(csv).toContain('"Candidato","Etapa","Ajuste","Importancia","Criterio","Resultado","Fuente","Nota del reclutador"');
   expect(csv).toContain('"Nota, ""larga""\nsegunda línea"');
   expect(csv.endsWith("\r\n")).toBe(true);
+  expect(csv).toContain('"sin evaluar","",""');
+  expect(csv).not.toContain("Sin fuente");
   expect(csv).not.toMatch(/Email|Teléfono|email|phone|ana@example.com/);
  });
  it.each(["=SUM(1)", "+cmd", "@x", "-1", "\t =1"])("neutralizes formulas in all free text: %s", value => {

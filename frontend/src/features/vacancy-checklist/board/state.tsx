@@ -17,6 +17,7 @@ function useChecklist(vacancyId: string, readOnly: boolean) {
   const locks = useRef(new Set<string>());
   const live = useRef(true);
   const [selection, setSelection] = useState<string[]>([]);
+  const [selecting, setSelecting] = useState(false);
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   useEffect(() => {
     let current = true;
@@ -65,7 +66,9 @@ function useChecklist(vacancyId: string, readOnly: boolean) {
       locks.current.delete(key); if (live.current) setPending(new Set(locks.current));
     }
   }
-  return { checklist, marks, failed, reading, retry: () => setAttempt(value => value + 1), disabled: readOnly || finished, notice, pending, update, selection,
+  return { checklist, marks, failed, reading, retry: () => setAttempt(value => value + 1), disabled: readOnly || finished, notice, pending, update, selection, selecting,
+    startSelection: () => setSelecting(true),
+    cancelSelection: () => { setSelecting(false); setSelection([]); },
     select: (id: string) => setSelection(values => values.includes(id) ? values.filter(value => value !== id) : values.length < 5 ? [...values, id] : values) };
 }
 export type BoardChecklist = ReturnType<typeof useChecklist>;

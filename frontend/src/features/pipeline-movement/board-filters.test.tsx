@@ -22,6 +22,10 @@ vi.mock("@/components/ui/select", async () => {
   };
 });
 vi.mock("./actions", () => ({ loadBoardAction: vi.fn() }));
+vi.mock("@/features/vacancy-checklist/actions", () => ({
+  loadChecklistAction: vi.fn(async () => ({ ok: true, data: { version: "0", criteria: [], reminder_stage_ids: [] } })),
+  loadChecklistMarksAction: vi.fn(async () => ({ ok: true, data: { items: [] } })),
+}));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }, { code: "es", name: "Español" }] } }) }));
 vi.mock("./use-board-column-order", () => ({ useBoardColumnOrder: (_id: string, board: unknown) => ({ board, locked: true, structureLocked: true }) }));
 vi.mock("@/features/jobs/drafts/pipeline/delivery-actions", () => ({ loadDeliveryStatusAction: vi.fn(async () => ({ ok: false })) }));

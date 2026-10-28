@@ -7,7 +7,7 @@ export type SuggestionFields = Partial<Pick<DraftPostBody["fields"], "min_years_
 export type SuggestionQuestion = { id: string; type: string; prompt: string; correct_option_id?: string };
 const boundedLabel = (value: string) => [...value.trim()].slice(0, 200).join("");
 /** Draft requirements are nullable plain/Markdown strings, not rich description JSON. */
-export function suggestCriteria(fields: SuggestionFields, screeningQuestions: readonly SuggestionQuestion[]): Criterion[] {
+export function suggestCriteria(fields: SuggestionFields, screeningQuestions: readonly SuggestionQuestion[], languageName: (code: string) => string = code => code): Criterion[] {
   const criteria: Criterion[] = [];
   const seen = new Set<string>();
   const add = (kind: Criterion["kind"], params: unknown, label: string, importance: Criterion["importance"] = "required") => {
@@ -21,7 +21,7 @@ export function suggestCriteria(fields: SuggestionFields, screeningQuestions: re
   if (fields.min_years_of_experience !== null && fields.min_years_of_experience !== undefined) add("min_years_experience", { min: fields.min_years_of_experience }, `Al menos ${fields.min_years_of_experience} años de experiencia`);
   if (fields.seniority) add("seniority", { accepted: [fields.seniority] }, `Nivel ${SENIORITY_LABELS[fields.seniority]}`);
   if (fields.min_education_level) add("education", { min_level: fields.min_education_level, accepts_in_progress: fields.accepts_in_progress_education ?? false }, `Escolaridad mínima: ${EDUCATION_LEVEL_LABELS[fields.min_education_level]}${fields.accepts_in_progress_education ? " (acepta en curso)" : ""}`);
-  for (const language of fields.languages ?? []) add("language", language, `Idioma ${language.code}: mínimo ${language.min_level}`);
+  for (const language of fields.languages ?? []) add("language", language, `Idioma: ${languageName(language.code)} · mínimo ${language.min_level}`);
   for (const skill of fields.skills ?? []) add("skill", { name: skill.trim() }, `Habilidad: ${skill.trim()}`);
   if ((fields.work_mode === "onsite" || fields.work_mode === "hybrid") && fields.location) {
     const { country, state } = fields.location;

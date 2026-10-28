@@ -54,7 +54,7 @@ export function compareFit(a: FitSummary, b: FitSummary): number {
 export function resultLabel(result: Evaluation["result"]): string {
   return { met: "cumple", not_met: "no cumple", unknown: "sin evaluar" }[result];
 }
-/** No source is rendered for an unmarked manual criterion. */
+/** Unknown unmarked results carry no evidence source, including automatic criteria. */
 export function sourceLabel(evaluation: Evaluation, criterion: Criterion): string | null {
-  return evaluation.source === "none" ? null : evaluation.source === "mark" ? "reclutador" : criterion.kind === "screening_answer" ? "respuesta" : "perfil";
+  return evaluation.result === "unknown" || evaluation.source === "none" ? null : evaluation.source === "mark" ? "reclutador" : criterion.kind === "screening_answer" ? "respuesta" : "perfil";
 }

@@ -35,8 +35,12 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("explains the internal empty state, suggests criteria and preselects reminders only for version zero", async () => {
   editor();
   expect(screen.getByText(/interno.*nunca.*público.*automáticamente/i)).toBeVisible();
+  expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Agregar criterio" }).closest('[data-slot="empty-content"]')).not.toBeNull();
   expect(screen.getByRole("checkbox", { name: "Nuevos" })).not.toBeChecked();
   expect(screen.getByRole("checkbox", { name: "Entrevista" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Entrevista" }).closest('[data-slot="checkbox-group"]')).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Sugerir desde la vacante" }).parentElement).toHaveClass("flex-col", "sm:flex-row");
   fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
   expect(screen.getByText("Al menos 3 años de experiencia")).toBeVisible();
   expect(screen.getByText("Habilidad: SQL")).toBeVisible();
@@ -67,7 +71,7 @@ it.each([
   expect(sent).toMatchObject({ kind, importance: "required" });
   const params = { min_years_experience: { min: "1" }, seniority: { accepted: ["senior"] }, education: { min_level: "bachelor", accepts_in_progress: false }, language: { code: "en", min_level: "B2" }, skill: { name: "SQL" }, location: { country: "MX", states: ["09"] }, screening_answer: { question_id: id, accepted_option_ids: [option] }, manual: {} };
   expect(sent.params).toEqual(params[kind as keyof typeof params]);
-  if (kind === "language") expect(sent.label).toContain("Inglés");
+  if (kind === "language") expect(sent.label).toBe("Idioma: Inglés · mínimo B2");
   if (kind === "location") expect(sent.label).toContain("México");
 });
 it("preserves identity on label/importance edits and replaces it on parameter changes", async () => {
@@ -76,7 +80,8 @@ it("preserves identity on label/importance edits and replaces it on parameter ch
   fireEvent.click(screen.getByRole("button", { name: "Editar Disponibilidad" }));
   fireEvent.change(screen.getByLabelText("Etiqueta"), { target: { value: "Experiencia" } });
   fireEvent.click(screen.getByRole("button", { name: "Aplicar criterio" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Obligatorio: Experiencia" }));
+  const importance = screen.getByRole("group", { name: "Importancia: Experiencia" });
+  fireEvent.click(within(importance).getByRole("button", { name: "Deseable" }));
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(saveChecklistAction).toHaveBeenCalledTimes(1));
   expect((vi.mocked(saveChecklistAction).mock.calls[0][0].body as Checklist).criteria[0]).toMatchObject({ id, label: "Experiencia", importance: "desirable" });

@@ -8,7 +8,7 @@ vi.mock("@/features/employer-company/actions", () => ({ loadCompanyStateAction: 
 vi.mock("@/features/pipeline-movement/actions", () => ({ loadBoardAction: mocks.board }));
 vi.mock("../actions", () => ({ loadChecklistAction: mocks.checklist, loadChecklistMarksAction: mocks.marks }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: mocks.draft }));
-vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: () => <header>Comparar</header> }));
+vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent }: { title: string; parent: { label: string } }) => <header>{parent.label} / {title}</header> }));
 const ids = `${item.id},${id(15)}`;
 const criteria = [{ id: id(30), label: "SQL", importance: "required", kind: "skill", params: { name: "SQL" } }];
 beforeEach(() => {
@@ -31,6 +31,18 @@ describe("comparison page", () => {
   fireEvent.click(screen.getByRole("button", { name: "Imprimir / Guardar PDF" }));
   expect(print).toHaveBeenCalledOnce();
   print.mockRestore();
+ });
+ it("exposes two-line long criteria and separates stage from non-truncated fit with one navigation", async () => {
+  const label = "Experiencia sólida en el diseño y consumo de APIs RESTful y bases de datos relacionales";
+  mocks.checklist.mockResolvedValue({ ok: true, data: { version: "1", criteria: [{ ...criteria[0], label }], reminder_stage_ids: [] } });
+  render(<ComparisonPage jobId={id(90)} ids={ids} />);
+  await screen.findByRole("table");
+  expect(screen.queryByRole("navigation", { name: "Vacante y proceso" })).toBeNull();
+  expect(screen.getByRole("banner").textContent).toContain("Desarrollador");
+  const full = screen.getByTitle(label);
+  expect(full.className).toContain("line-clamp-2");
+  expect(screen.getAllByText(/Obligatorios 0\/1/)[0].className).not.toContain("truncate");
+  expect(screen.queryByText(/Sin fuente|sin evaluar · perfil/)).toBeNull();
  });
  it("exports the same comparison and renders recruiter notes without contact fields", async () => {
   const download = vi.spyOn(csv, "downloadComparisonCsv").mockImplementation(() => {});

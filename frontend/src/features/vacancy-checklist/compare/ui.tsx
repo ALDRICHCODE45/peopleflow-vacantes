@@ -49,13 +49,8 @@ export function ComparisonPage({ jobId, ids }: { jobId: string; ids: string }) {
   const back = `/empresa/vacantes/${jobId}/pipeline`;
   const data = state.kind === "ready" ? state.data : null;
   return <div className="flex min-w-0 flex-col gap-4">
-    <SiteHeader title="Comparar" parent={{ label: "Pipeline", href: back }} />
+    <SiteHeader title={data ? `${data.title} · Comparar` : "Comparar"} parent={{ label: "Pipeline", href: back }} />
     <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5">
-      <nav aria-label="Vacante y proceso" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground" data-comparison-controls>
-        <Link href="/empresa/vacantes">Vacantes</Link><span aria-hidden="true">›</span>
-        <Link href={back} className="truncate">{data?.title ?? "Vacante"}</Link><span aria-hidden="true">›</span>
-        <Link href={back}>Pipeline</Link><span aria-hidden="true">›</span><span aria-current="page">Comparar</span>
-      </nav>
       {state.kind === "loading" ? <ComparisonSkeleton count={new Set(ids.split(",")).size} />
         : state.kind === "failed" ? <StateCard icon={CircleAlert} tone="error" title={state.reason === "unauthenticated" ? "Tu sesión expiró" : state.reason === "forbidden" ? "No tienes permiso para comparar" : "No pudimos cargar la comparación"} description="Tus datos no cambiaron. Vuelve a intentar o regresa al pipeline."
           primaryAction={state.reason === "unauthenticated" ? { label: "Iniciar sesión", href: `/empresa/login?next=${encodeURIComponent(`${back}/comparar?ids=${ids}`)}` } : state.reason === "forbidden" ? { label: "Volver al pipeline", href: back } : { label: "Reintentar", onClick: () => setAttempt(n => n + 1) }} />

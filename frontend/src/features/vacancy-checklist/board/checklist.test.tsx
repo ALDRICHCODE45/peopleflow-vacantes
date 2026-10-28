@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChecklistProvider, useBoardChecklist } from "@/features/vacancy-checklist/board/state";
 import { ChecklistFit, ChecklistPanel, ChecklistReminder, ChecklistComparison, ChecklistSelection, ChecklistRetry } from "@/features/vacancy-checklist/board/ui";
@@ -20,12 +20,13 @@ const move = vi.fn();
 const mount = (target?: string) => render(<ChecklistProvider vacancyId="vacancy"><Harness target={target} /></ChecklistProvider>);
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubGlobal("PointerEvent", MouseEvent);
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: checklist });
   vi.mocked(loadChecklistMarksAction).mockResolvedValue({ ok: true, data: { items: [] } });
   vi.mocked(setChecklistMarkAction).mockResolvedValue({ ok: true, data: mark });
   vi.mocked(clearChecklistMarkAction).mockResolvedValue({ ok: true, data: null });
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("does not obstruct or decorate a board with an empty checklist", async () => {
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: [] } });
   mount();
@@ -34,9 +35,12 @@ it("does not obstruct or decorate a board with an empty checklist", async () => 
   expect(screen.queryByText(/Obligatorios/)).not.toBeInTheDocument();
   expect(screen.queryByText("Antes de mover")).not.toBeInTheDocument();
 });
-it("shows fit, unknown result and source, saves a note, clears to automatic", async () => {
+it("shows compact grouped rows with collapsed notes and saves a note, clears to automatic", async () => {
   mount("other");
-  expect(await screen.findByText("Obligatorios 0/1 · 1 sin evaluar")).toBeVisible();
+  expect(await screen.findByLabelText(/Ajuste al checklist/)).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Obligatorios" })).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Agregar nota: Entrevista" }));
   expect(screen.getByText("sin evaluar")).toBeVisible();
   fireEvent.change(screen.getByLabelText("Nota de Entrevista"), { target: { value: "Observación" } });
   fireEvent.click(screen.getByRole("button", { name: "Marcar cumple: Entrevista" }));
@@ -48,20 +52,21 @@ it("shows fit, unknown result and source, saves a note, clears to automatic", as
 });
 it("rejects notes over 500 code points without writing", async () => {
   mount("other");
-  const field = await screen.findByLabelText("Nota de Entrevista");
+  fireEvent.click(await screen.findByRole("button", { name: "Agregar nota: Entrevista" }));
+  const field = screen.getByLabelText("Nota de Entrevista");
   fireEvent.change(field, { target: { value: "a".repeat(501) } });
   expect(screen.getByText("La nota no puede superar 500 caracteres.")).toBeVisible();
   expect(screen.getByRole("button", { name: "Marcar cumple: Entrevista" })).toBeDisabled();
   expect(setChecklistMarkAction).not.toHaveBeenCalled();
 });
-it("renders distinct automatic profile and answer sources", async () => {
+it("hides unknown automatic profile and answer sources", async () => {
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: [
     { id: "years", label: "Experiencia", importance: "required", kind: "min_years_experience", params: { min: "3" } },
     { id: "answer", label: "Disponibilidad", importance: "desirable", kind: "screening_answer", params: { question_id: "q", accepted_option_ids: ["yes"] } },
   ] } });
   mount("other");
-  expect(await screen.findByText(/perfil/)).toBeVisible();
-  expect(screen.getByText(/respuesta/)).toBeVisible();
+  await screen.findByRole("button", { name: "Marcar cumple: Experiencia" });
+  expect(screen.queryByText(/perfil|respuesta/)).not.toBeInTheDocument();
 });
 it("rolls back an uncertain failure and retains the board", async () => {
   vi.mocked(setChecklistMarkAction).mockRejectedValueOnce(new Error("offline"));
@@ -89,17 +94,76 @@ it("never blocks a move without marks and saves inline marks", async () => {
   await waitFor(() => expect(setChecklistMarkAction).toHaveBeenCalledOnce());
   await waitFor(() => expect(screen.queryByText("Antes de mover")).not.toBeInTheDocument());
 });
-it("hides reminders for other stages and links selected participation ids", async () => {
+it("hides reminders for other stages and opts into comparison selection, cancel clears it", async () => {
   mount("other");
-  fireEvent.click(await screen.findByRole("button", { name: `Seleccionar para comparar: ${item.candidate.full_name}` }));
+  await screen.findByLabelText(/Ajuste al checklist/);
+  expect(screen.queryByRole("checkbox", { name: /Seleccionar para comparar/ })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Comparar candidatos" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: `Seleccionar para comparar: ${item.candidate.full_name}` }));
   expect(screen.queryByRole("link", { name: /Comparar/ })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Seleccionar para comparar: Otro" }));
-  expect(screen.getByRole("link", { name: "Comparar 2 candidatos" })).toHaveAttribute("href", `/empresa/vacantes/vacancy/pipeline/comparar?ids=${item.id},second`);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar para comparar: Otro" }));
+  expect(screen.getByRole("link", { name: "Comparar (2)" })).toHaveAttribute("href", `/empresa/vacantes/vacancy/pipeline/comparar?ids=${item.id},second`);
   expect(screen.queryByText("Antes de mover")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Comparar candidatos" }));
+  expect(screen.getByRole("button", { name: "Comparar (0)" })).toBeDisabled();
+});
+it("limits selection to five, still allows deselection and does not write marks", async () => {
+  render(<ChecklistProvider vacancyId="vacancy">{Array.from({ length: 6 }, (_, n) => <ChecklistSelection key={n} item={{ ...item, id: `p${n}`, candidate: { ...item.candidate, full_name: `Persona ${n}` } }} />)}<ChecklistComparison vacancyId="vacancy" /></ChecklistProvider>);
+  fireEvent.click(await screen.findByRole("button", { name: "Comparar candidatos" }));
+  for (let n = 0; n < 5; n++) fireEvent.click(screen.getByRole("checkbox", { name: `Seleccionar para comparar: Persona ${n}` }));
+  expect(screen.getByRole("link", { name: "Comparar (5)" })).toHaveAttribute("href", "/empresa/vacantes/vacancy/pipeline/comparar?ids=p0,p1,p2,p3,p4");
+  expect(screen.getByRole("checkbox", { name: "Seleccionar para comparar: Persona 5" })).toHaveAttribute("aria-disabled", "true");
+  fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar para comparar: Persona 0" }));
+  expect(screen.getByRole("link", { name: "Comparar (4)" })).toBeVisible();
+  expect(screen.getByRole("checkbox", { name: "Seleccionar para comparar: Persona 5" })).not.toHaveAttribute("aria-disabled", "true");
+  expect(setChecklistMarkAction).not.toHaveBeenCalled();
+});
+it("caps compact move reminder at five pending required criteria", async () => {
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: Array.from({ length: 11 }, (_, n) => ({ ...criterion, id: `c${n}`, label: `Criterio ${n}` })) } });
+  mount();
+  const reminder = await screen.findByRole("region", { name: "Antes de mover" });
+  expect(within(reminder).getAllByRole("button", { name: /Marcar cumple antes/ })).toHaveLength(5);
+  expect(within(reminder).getByText("y 6 más — revísalos en la ficha del candidato")).toBeVisible();
+  expect(within(reminder).queryByText(/sin evaluar ·|Sin fuente/)).not.toBeInTheDocument();
+});
+it.each(["light", "dark"])("keeps compact fit and notes flexible at 256px card / 390px sheet widths in %s theme (structural)", async theme => {
+  document.documentElement.className = theme;
+  const { container } = mount("other");
+  const fit = await screen.findByLabelText(/Ajuste al checklist/);
+  expect(fit).toHaveClass("flex-wrap", "min-w-0");
+  expect(fit.className).not.toMatch(/(?:^|\s)h-/);
+  const badge = fit.querySelector('[data-slot="badge"]')!;
+  expect(badge).toHaveAttribute("data-variant", "neutral");
+  expect(badge).toHaveTextContent("0/1 obligatorios");
+  expect(badge.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  // A check icon only when every required criterion is met; neutral fit uses the unknown icon.
+  expect(badge.querySelector("svg")).toHaveAttribute("data-fit-icon", "neutral");
+  expect(fit.querySelector('[data-slot="badge"]')).not.toHaveClass("whitespace-normal");
+  const panel = screen.getByRole("region", { name: "Checklist del candidato" });
+  expect(panel).toHaveClass("min-w-0");
+  expect(panel.querySelector('[data-slot="item-title"]')).toHaveClass("line-clamp-none");
+  expect(panel.querySelector('[data-slot="item-title"] span')).toHaveClass("line-clamp-2", "break-words");
+  expect(panel.querySelector('[data-pf-action-status-slot]')).toBeNull();
+  expect(container.innerHTML).not.toMatch(/(?:bg|text)-(?:red|green|blue)-\d/);
+  document.documentElement.className = "";
+});
+it("retains known automatic sources and existing notes behind Editar nota", async () => {
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: [criterion, { id: "skill", label: "SQL", importance: "desirable", kind: "skill", params: { name: "SQL" } }] } });
+  vi.mocked(loadChecklistMarksAction).mockResolvedValue({ ok: true, data: { items: [mark] } });
+  mount("other");
+  expect(await screen.findByText("Observación")).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Marcar cumple: Entrevista" })).toHaveAttribute("aria-pressed", "true");
+  const edit = screen.getByRole("button", { name: "Editar nota: Entrevista" });
+  expect(edit).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(edit);
+  expect(screen.getByLabelText("Nota de Entrevista")).toHaveValue("Observación");
 });
 it("offers one quiet read retry after load failure", async () => {
   vi.mocked(loadChecklistAction).mockRejectedValueOnce(new Error("offline"));
   mount();
   fireEvent.click(await screen.findByRole("button", { name: "Reintentar checklist" }));
-  expect(await screen.findByText(/Obligatorios/)).toBeVisible();
+  expect(await screen.findByLabelText(/Ajuste al checklist/)).toBeVisible();
 });

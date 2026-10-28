@@ -32,17 +32,17 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("opens the checklist tab independently of detail loading", async () => {
   render(<MovementBoard vacancyId="vacancy" />);
-  await screen.findByText("Obligatorios 1/1");
+  await screen.findByText("1/1 obligatorios");
   fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
   fireEvent.click(await screen.findByRole("tab", { name: "Checklist" }));
   expect(await screen.findByRole("region", { name: "Checklist del candidato" })).toBeVisible();
-  expect(screen.getByText(/perfil/)).toBeVisible();
+  expect(screen.queryByText(/perfil/)).not.toBeInTheDocument();
 });
 it("shows the reminder in the actual confirmation and moves without marks", async () => {
   const board = boardFixture();
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { version: "1", reminder_stage_ids: [board.stages[1].id], criteria: [{ id: "c", label: "Entrevista", kind: "manual", params: {}, importance: "required" }] } });
   render(<MovementBoard vacancyId="vacancy" />);
-  await screen.findAllByText(/Obligatorios/);
+  await screen.findAllByLabelText(/Ajuste al checklist/);
   fireEvent.click(screen.getByRole("button", { name: `Mover ${board.participations[0].id} a ${board.stages[1].name}` }));
   const dialog = await screen.findByRole("alertdialog");
   expect(within(dialog).getByRole("region", { name: "Antes de mover" })).toBeVisible();
@@ -52,14 +52,19 @@ it("shows the reminder in the actual confirmation and moves without marks", asyn
 });
 it("integrates card fit and stable best-fit ordering in columns", async () => {
   render(<MovementBoard vacancyId="vacancy" />);
-  expect(await screen.findByText("Obligatorios 1/1")).toBeVisible();
+  expect(await screen.findByText("1/1 obligatorios")).toBeVisible();
   const column = screen.getByRole("region", { name: "Candidatos en Entrada" });
-  fireEvent.click(screen.getByRole("button", { name: "Ordenar: Mejor ajuste" }));
+  const toolbar = screen.getByRole("group", { name: "Filtros del pipeline" });
+  const sort = within(toolbar).getByRole("button", { name: "Ordenar: Mejor ajuste" });
+  expect(sort).toHaveAttribute("aria-pressed", "false");
+  expect(sort.parentElement).toHaveClass("min-w-0", "flex-wrap");
+  fireEvent.click(sort);
+  expect(sort).toHaveAttribute("aria-pressed", "true");
   expect(within(column).getAllByRole("listitem").map(row => row.textContent)).toEqual([expect.stringContaining("Beatriz"), expect.stringContaining("Ana"), expect.stringContaining("Carlos")]);
 });
 it.each([ ["Cumple todos los obligatorios", "Beatriz"], ["Con obligatorios sin evaluar", "Ana Pérez"], ["No cumple algún obligatorio", "Carlos"] ])("integrates %s with counts", async (option, candidate) => {
   render(<MovementBoard vacancyId="vacancy" />);
-  await screen.findByText("Obligatorios 1/1");
+  await screen.findByText("1/1 obligatorios");
   fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
   const sheet = await screen.findByRole("dialog", { name: "Filtrar candidatos" });
   fireEvent.click(within(sheet).getByRole("button", { name: "Checklist" }));

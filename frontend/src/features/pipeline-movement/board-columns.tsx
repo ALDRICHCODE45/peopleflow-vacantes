@@ -44,7 +44,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   const FileIcon = filePresentation(item.cv.name) === "pdf" ? FileText : FileType2;
   return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55")}
     onClick={event => {
-      if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu']")) return;
+      if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu'],[role='checkbox']")) return;
       onDetail(item.id);
     }}>
     <CardHeader className="items-center gap-2 px-0">
@@ -53,11 +53,10 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
         <CardTitle className="min-w-0 text-sm font-medium"><Hint text={item.candidate.full_name}><Button type="button" variant="ghost" className="h-auto min-h-10 w-full justify-start whitespace-normal p-0 text-left text-sm font-medium hover:bg-transparent"
           id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} onClick={() => onDetail(item.id)}><span className="line-clamp-2 break-words leading-5">{item.candidate.full_name}</span></Button></Hint></CardTitle>
       </div>
-      <CardAction className="row-span-1 self-center"><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
+      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
       <ChecklistFit item={item} />
-      <ChecklistSelection item={item} />
       {item.source === "manual" && <Badge variant="accent">Ingreso manual</Badge>}
       {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}
       <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span>{item.source === "manual" ? "Agregado" : "Postuló"} <MovementDate value={item.applied_at} compact /></span></p>

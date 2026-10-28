@@ -11,6 +11,7 @@ vi.mock("@/features/vacancy-checklist/actions", () => ({ loadChecklistAction: vi
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }] } }) }));
 const read = filledDraftRead();
 beforeEach(() => {
   vi.resetAllMocks();
@@ -20,12 +21,16 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 it("loads checklist, employer draft and current pipeline only when mounted", async () => {
+  const seed = draftEditSeedFromRead(read);
+  seed.model.fields.languages = [{ code: "en", min_level: "C1" }];
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed, identity: { draftId: read.id, etag: '"draft"' } });
   const { container } = render(<VacancyChecklistModule draftId={read.id} />);
   expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
   expect(await screen.findByRole("heading", { name: "Checklist" })).toBeVisible();
   expect(loadChecklistAction).toHaveBeenCalledWith(read.id); expect(loadDraftPipelineAction).toHaveBeenCalledWith(read.id);
   fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
   expect(screen.getByText("Al menos 1.5 años de experiencia")).toBeVisible();
+  expect(screen.getByText("Idioma: Inglés · mínimo C1")).toBeVisible();
 });
 it("uses the shared full-section error and explicitly retries all reads", async () => {
   vi.mocked(loadChecklistAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
