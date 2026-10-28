@@ -92,7 +92,7 @@ is finished; paused or closed vacancies still accept them.
 1. `GET /v2/me/company/job-drafts/{id}/checklist` → `200 Checklist` + `ETag`.
    A never-saved checklist returns `{"version":"0","criteria":[],"reminder_stage_ids":[]}` with its own ETag (never 404).
 2. `PUT /v2/me/company/job-drafts/{id}/checklist` with `If-Match` = the ETag from GET (also for the never-saved state).
-   No If-Match → `428 precondition_required`; mismatch → `412 precondition_failed`; malformed, weak, `*` or list → `400`.
+   No If-Match → `428 precondition_required`; mismatch → `412 version_conflict`; malformed, weak, `*` or list → `400`.
    Body `{ "criteria": [...], "reminder_stage_ids": [...] }`, full replacement → `200 Checklist` + new `ETag`.
    An identical PUT is a no-op (same version, no event). Otherwise one audit event `JobDraftChecklistConfigured`
    (entity `job_draft`, metadata JSON strings `{version, previous, new}`) in the same transaction.
@@ -130,8 +130,8 @@ Input: one criterion, the participation's **effective** board profile (`profile`
   `unknown`; other country → `not_met`; `states` empty → `met`; state in `states` → `met`; state null → `unknown`;
   else `not_met`.
 - `screening_answer`: no answer for `question_id` (question added after the candidate applied, deleted, or not
-  answered) → `unknown`; answered option in `accepted_option_ids` (ids compared case-insensitively) → `met`; else
-  `not_met`.
+  answered) → `unknown`; answered option in `accepted_option_ids` → `met`; else `not_met`. Question and option ids are
+  compared case-insensitively (responses echo the vacancy's exact spelling).
 
 Summary per participation: counts of `met` / `not_met` / `unknown` split by importance. Board order «Mejor ajuste»:
 required met desc, required not_met asc, desirable met desc, required unknown asc, then the board's own order.
