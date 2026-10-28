@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarCheck, ClipboardList, Columns3 } from "lucide-react";
+import { CalendarCheck, ClipboardList, Columns3, ListChecks } from "lucide-react";
 import { cn } from "cn";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -17,12 +17,14 @@ import { PipelineEditorSkeleton } from "../stage-config/loading";
 import { DeliverySkeleton } from "../delivery-config/loading";
 import { ManagementSkeleton } from "../management-config/loading";
 import { ConfigLifecycleProvider } from "./lifecycle";
+import { ChecklistSkeleton } from "@/features/vacancy-checklist/editor/loading";
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 
 export const VACANCY_CONFIG_MODULES = [
   { slug: "columnas", title: "Columnas del pipeline", description: "Nombres, orden y columnas propias.", icon: Columns3 },
   { slug: "entrega", title: "Entrega", description: "Columna de corte, objetivo y fecha compromiso.", icon: CalendarCheck },
   { slug: "solicitud", title: "Solicitud", description: "Fecha de solicitud y plazas a cubrir.", icon: ClipboardList },
+  { slug: "checklist", title: "Checklist", description: "Criterios internos y recordatorios al mover.", icon: ListChecks },
 ] as const;
 
 /** Owns the vacancy header and gates sub-modules on an authorized draft read. */
@@ -60,7 +62,7 @@ export function VacancyConfigShell({ draftId, children }: { draftId: string; chi
                 <section aria-label="Configuración de la vacante" className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
                   <span role="status" className="sr-only">Cargando configuración</span>
                   <div aria-hidden="true" className="min-w-0 lg:self-start"><ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">{VACANCY_CONFIG_MODULES.map(module => <li key={module.slug} className="flex min-h-10 min-w-0 items-start gap-2 rounded-2xl px-3 py-3"><Skeleton className="mt-0.5 size-4 shrink-0" /><span className="flex min-w-0 flex-1 flex-col gap-1"><Skeleton className="h-5 w-32 max-w-full" /><Skeleton className="h-8 w-full" /></span></li>)}</ul></div>
-                  <div aria-hidden="true" className="flex min-w-0 flex-col gap-5">{pathname?.endsWith("/entrega") ? <DeliverySkeleton /> : pathname?.endsWith("/solicitud") ? <ManagementSkeleton /> : <PipelineEditorSkeleton />}</div>
+                  <div aria-hidden="true" className="flex min-w-0 flex-col gap-5">{pathname?.endsWith("/checklist") ? <ChecklistSkeleton /> : pathname?.endsWith("/entrega") ? <DeliverySkeleton /> : pathname?.endsWith("/solicitud") ? <ManagementSkeleton /> : <PipelineEditorSkeleton />}</div>
                 </section>
               ) : (
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">

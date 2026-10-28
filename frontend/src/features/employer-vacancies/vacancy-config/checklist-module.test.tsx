@@ -1,0 +1,37 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { VacancyChecklistModule } from "./checklist-module";
+import { loadChecklistAction, saveChecklistAction } from "@/features/vacancy-checklist/actions";
+import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
+import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
+import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
+import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
+vi.mock("@/features/vacancy-checklist/actions", () => ({ loadChecklistAction: vi.fn(), saveChecklistAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+const read = filledDraftRead();
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { version: "0", criteria: [], reminder_stage_ids: [] }, etag: '"checklist"' });
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: draftEditSeedFromRead(read), identity: { draftId: read.id, etag: '"draft"' } });
+  vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { version: "0", structure_locked: false, stages: [{ id: read.id, kind: "new", name: "Nuevos" }], retired: [], exit: { id: read.id, kind: "discarded", name: "Descartados" }, limits: { maxCustomStages: 10, nameMaxLength: 40 } } });
+});
+afterEach(cleanup);
+it("loads checklist, employer draft and current pipeline only when mounted", async () => {
+  const { container } = render(<VacancyChecklistModule draftId={read.id} />);
+  expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+  expect(await screen.findByRole("heading", { name: "Checklist" })).toBeVisible();
+  expect(loadChecklistAction).toHaveBeenCalledWith(read.id); expect(loadDraftPipelineAction).toHaveBeenCalledWith(read.id);
+  fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
+  expect(screen.getByText("Al menos 1.5 años de experiencia")).toBeVisible();
+});
+it("uses the shared full-section error and explicitly retries all reads", async () => {
+  vi.mocked(loadChecklistAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
+  render(<VacancyChecklistModule draftId={read.id} />);
+  expect(await screen.findByRole("heading", { name: "No hubo respuesta del servidor" })).toBeVisible();
+  expect(saveChecklistAction).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+  expect(await screen.findByRole("heading", { name: "Checklist" })).toBeVisible();
+});
