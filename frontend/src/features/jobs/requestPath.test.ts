@@ -38,6 +38,8 @@ describe("single application-facing request path", () => {
       "features/org-candidates/cv/upload.ts",
       "features/org-candidates/detail/file-client.ts",
       "features/pipeline-movement/file-client.ts",
+      // Bodyless DELETE 204 (clear a checklist mark), same-origin guarded like employer-team.
+      "features/vacancy-checklist/client.ts",
       "lib/api/requestJson.ts",
     ]);
   });
@@ -194,6 +196,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/history/history-client.ts",
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
+      "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/auth/backend-check.ts",
     ]);
@@ -235,6 +238,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/history/history-client.ts",
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
+      "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/api/server.ts",
       "lib/auth/backend-check.ts",
