@@ -134,6 +134,21 @@ func TestCompanySiteRoutes(t *testing.T) {
 			if tt.status == http.StatusOK && s.calls != 1 {
 				t.Fatal("handler not reached")
 			}
+			if tt.status == http.StatusOK && tt.path == "/v2/me/company/site" {
+				var body map[string]any
+				if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				theme := body["draft"].(map[string]any)["theme"].(map[string]any)
+				if len(theme) != 4 {
+					t.Fatal(theme)
+				}
+				for _, key := range []string{"accent_color", "background_color"} {
+					if value, ok := theme[key]; !ok || value != nil {
+						t.Fatal(key, theme)
+					}
+				}
+			}
 		})
 	}
 }

@@ -49,13 +49,9 @@ func (s *Store) Publish(ctx context.Context, company, user uuid.UUID, version in
 	if current.DraftVersion != version {
 		return current, app.ErrVersionConflict
 	}
-	value, err := s.decode(current.Draft)
+	doc, err := s.storedDocument(current.Draft)
 	if err != nil {
 		return current, err
-	}
-	doc, fields := s.validator.ValidateDocument(value)
-	if len(fields) > 0 {
-		return current, fmt.Errorf("stored site document invalid")
 	}
 	var logo, name bool
 	if err = tx.QueryRow(ctx, `SELECT COALESCE(btrim(logo_url),'')<>'', btrim(name)<>'' FROM companies WHERE id=$1 FOR SHARE`, company).Scan(&logo, &name); err != nil {
@@ -147,13 +143,9 @@ func (s *Store) read(ctx context.Context, tx pgx.Tx, company uuid.UUID) (app.Cur
 		out.Published = &app.Published{Version: *version, Slug: *slug, PublishedAt: *at}
 	}
 	out.HasUnpublishedChanges = len(published) == 0 || !equalJSON(out.Draft, published)
-	value, err := s.decode(out.Draft)
+	doc, err := s.storedDocument(out.Draft)
 	if err != nil {
 		return out, err
-	}
-	doc, fields := s.validator.ValidateDocument(value)
-	if len(fields) > 0 {
-		return out, fmt.Errorf("stored site document invalid")
 	}
 	out.Draft = doc.Canonical
 	out.Media = []app.Media{}
@@ -173,6 +165,20 @@ func (s *Store) read(ctx context.Context, tx pgx.Tx, company uuid.UUID) (app.Cur
 	}
 	return out, nil
 }
+
+// storedDocument is shared by draft reads and publish preflight.
+func (s *Store) storedDocument(raw []byte) (*app.Document, error) {
+	value, err := s.decode(raw)
+	if err != nil {
+		return nil, err
+	}
+	doc, fields := s.validator.ValidateStoredDocument(value)
+	if len(fields) > 0 {
+		return nil, fmt.Errorf("stored site document invalid")
+	}
+	return doc, nil
+}
+
 func equalJSON(a, b []byte) bool {
 	var x, y any
 	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {

@@ -64,7 +64,7 @@ func (v *Validator) VisibleDocument(value any) (*Document, error) {
 		}
 		m["blocks"] = visible
 	}
-	doc, fields := v.ValidateDocument(m)
+	doc, fields := v.ValidateStoredDocument(m)
 	if len(fields) != 0 {
 		return nil, errors.New("invalid published site")
 	}
