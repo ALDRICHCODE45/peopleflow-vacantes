@@ -41,5 +41,6 @@ confirmación y usa la versión más reciente conocida del servidor.
 Usa la fixture y un build aislado, no el servidor dev del usuario:
 [guía de preview y e2e](local-production-preview.md#careers-sitio-público-y-editor).
 El [contrato v1](contracts/company-careers-site-v1.md) detalla validación,
-ETag, snapshots y errores. El adaptador S3 del backend sigue pendiente (T7);
-esta entrega no lo configura.
+ETag, snapshots y errores. Las imágenes se guardan en disco o en S3 según la
+configuración del backend ([backend/docs/site-media.md](../backend/docs/site-media.md));
+el frontend no cambia entre ambos modos.
