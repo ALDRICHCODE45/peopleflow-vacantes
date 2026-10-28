@@ -31,12 +31,15 @@ function list() { return screen.getByRole("list", { name: "Secciones del sitio" 
 function frame() { return within((screen.getByTitle("Vista previa del sitio") as HTMLIFrameElement).contentDocument!.body); }
 function row(name: string) { return within(list()).getByRole("button", { name: `Seleccionar ${name}` }).closest('[role="listitem"]') as HTMLElement; }
 beforeEach(() => {
+  localStorage.clear();
+  document.documentElement.style.fontSize = "16px";
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) { return this.hasAttribute("data-panel") ? 400 : 0; });
   vi.stubGlobal("PointerEvent", MouseEvent);
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} unobserve() {} });
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   vi.mocked(saveDraftAction).mockImplementation(async ({ body }) => ({ kind: "success", data: { ...fixture().initialSite, draft: body as SiteState["draft"], draft_version: 8 }, etag: '"8"' }));
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 vi.mock("./media", () => ({ ImageField: ({ label }: { label: string }) => <p>{label}</p> }));
 it.each([[false, false, "Sin publicar", "neutral"], [true, false, "Publicado", "success"], [true, true, "Cambios sin publicar", "review"]] as const)("distinguishes publication badge tones (published=%s, changes=%s)", async (published, changes, label, tone) => {
   const props = fixture();
@@ -55,11 +58,74 @@ it("shows only the selected section heading and description in the mobile proper
   render(<CareersSiteEditor {...fixture()} />);
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Propiedades" }));
+  expect(screen.queryByRole("button", { name: "Ocultar secciones" })).toBeNull();
+  expect(document.querySelector('[data-slot="resizable-panel-group"]')).toBeNull();
   const sheet = await screen.findByRole("dialog", { name: "Portada" });
   expect(within(sheet).getAllByRole("heading")).toHaveLength(1);
   expect(within(sheet).getByRole("heading", { name: "Portada" })).toBeVisible();
   expect(within(sheet).getAllByText("Cambia la composición sin perder contenido.")).toHaveLength(1);
   expect(within(sheet).queryByText("Propiedades de Portada")).not.toBeInTheDocument();
+});
+it.each(["secciones", "propiedades"])("collapses and expands %s with an always reachable toggle", async side => {
+  await mount();
+  const toggle = screen.getByLabelText(`Ocultar ${side}`);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(document.getElementById(toggle.getAttribute("aria-controls")!)).toBeInTheDocument();
+  fireEvent.click(toggle);
+  expect(screen.getByLabelText(`Mostrar ${side}`)).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(screen.getByLabelText(`Mostrar ${side}`));
+  expect(screen.getByLabelText(`Ocultar ${side}`)).toHaveAttribute("aria-expanded", "true");
+});
+it("restores collapsed panes after remount and does not persist temporary focus", async () => {
+  const props = await mount();
+  fireEvent.click(screen.getByLabelText("Ocultar secciones"));
+  const saved = localStorage.getItem("peopleflow.careers-editor.layout");
+  expect(saved).not.toBeNull();
+  fireEvent.click(screen.getByLabelText("Enfocar vista previa"));
+  expect(screen.queryByRole("complementary")).toBeNull();
+  fireEvent.click(screen.getByLabelText("Enfocar vista previa"));
+  expect(screen.getByLabelText("Mostrar secciones")).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByLabelText("Ocultar propiedades")).toHaveAttribute("aria-expanded", "true");
+  expect(localStorage.getItem("peopleflow.careers-editor.layout")).toBe(saved);
+  cleanup(); render(<CareersSiteEditor {...props} />);
+  expect(await screen.findByLabelText("Mostrar secciones")).toHaveAttribute("aria-expanded", "false");
+});
+it("restores requested widths before paint and preserves them across focus", async () => {
+  const layout = { sections: 20, preview: 45, properties: 35 };
+  localStorage.setItem("peopleflow.careers-editor.layout", JSON.stringify({ v: 1, layout }));
+  await mount();
+  const panels = () => Array.from(document.querySelectorAll<HTMLElement>('[data-panel]')).map(panel => panel.style.flexGrow);
+  const before = panels();
+  expect(before.map(Number)).toEqual([20, 45, 35]);
+  fireEvent.click(screen.getByLabelText("Enfocar vista previa"));
+  expect(panels().map(Number)).toEqual([0, 100, 0]);
+  fireEvent.click(screen.getByLabelText("Enfocar vista previa"));
+  expect(panels()).toEqual(before);
+});
+it("persists keyboard resizing and double-click resets", async () => {
+  vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) {
+    return this.id === "preview" || this.getAttribute("aria-label") === "Ajustar secciones" ? 400 : this.id === "properties" || this.getAttribute("aria-label") === "Ajustar propiedades" ? 800 : 0;
+  });
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    if (this.hasAttribute("data-group")) return { left: 0, right: 1200, top: 0, bottom: 600, x: 0, y: 0, width: 1200, height: 600, toJSON() {} };
+    const index = ["sections", "preview", "properties"].indexOf(this.id);
+    const left = index >= 0 ? index * 400 : this.getAttribute("aria-label") === "Ajustar secciones" ? 400 : 800;
+    return { left, right: left + (index >= 0 ? 400 : 1), top: 0, bottom: 600, x: left, y: 0, width: index >= 0 ? 400 : 1, height: 600, toJSON() {} };
+  });
+  const props = await mount();
+  const separator = screen.getByRole("separator", { name: "Ajustar secciones" });
+  expect(separator).toHaveAttribute("tabindex", "0");
+  const before = separator.getAttribute("aria-valuenow");
+  fireEvent.keyDown(separator, { key: "ArrowRight" });
+  expect(separator.getAttribute("aria-valuenow")).not.toBe(before);
+  const saved = JSON.parse(localStorage.getItem("peopleflow.careers-editor.layout")!);
+  expect(saved.layout.sections).toBeGreaterThan(0);
+  cleanup(); render(<CareersSiteEditor {...props} />);
+  await screen.findByLabelText("Ocultar secciones");
+  expect(Number(document.querySelector<HTMLElement>('[data-panel][id="sections"]')!.style.flexGrow)).toBeCloseTo(saved.layout.sections);
+  fireEvent.doubleClick(screen.getByLabelText("Ajustar secciones"), { clientX: 400, clientY: 300 });
+  const reset = JSON.parse(localStorage.getItem("peopleflow.careers-editor.layout")!);
+  expect(reset.layout.sections).toBeCloseTo(280 / 1200 * 100);
 });
 it("keeps an inner gutter between selected section borders and the scrollbar", async () => {
   await mount();

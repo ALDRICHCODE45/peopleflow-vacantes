@@ -1,0 +1,22 @@
+import "../browser-platform.test-support";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, expect, it } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { ItemList } from "./item-list";
+afterEach(cleanup);
+it("gives long titles, menu, drag and disclosure their own slots", () => {
+  const title = "Seguro médico para ti y toda tu familia sin restricciones";
+  render(<ItemList items={[title]} summary={item => item} onChange={() => {}} create={() => ""} min={1} max={5}>{() => <p>Contenido</p>}</ItemList>);
+  const copy = screen.getByText(title);
+  expect(copy).toHaveAttribute("title", title);
+  expect(copy).toHaveClass("line-clamp-2", "break-words");
+  const disclosure = screen.getByRole("button", { name: title });
+  const menu = screen.getByRole("button", { name: "Acciones de elemento 1" });
+  const drag = screen.getByRole("button", { name: "Arrastrar elemento 1" });
+  expect(disclosure).toHaveAttribute("aria-expanded", "true");
+  expect(menu).toHaveAttribute("aria-haspopup", "menu");
+  expect(disclosure).not.toContainElement(menu);
+  expect(disclosure).not.toContainElement(drag);
+  expect(disclosure).not.toContainElement(copy);
+  expect(disclosure.parentElement?.parentElement?.parentElement).toBe(menu.parentElement);
+});

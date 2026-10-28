@@ -28,6 +28,9 @@ const intoView = vi.fn();
 const originalScroll = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
 beforeEach(() => {
   paneWidth = 415; observers.length = 0; intoView.mockClear();
+  // The resizable engine reads pixel widths and rem units; jsdom has no layout.
+  document.documentElement.style.fontSize = "16px";
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) { return this.hasAttribute("data-panel") ? 400 : 0; });
   Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: intoView });
   vi.stubGlobal("PointerEvent", MouseEvent);
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));

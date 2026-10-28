@@ -15,9 +15,9 @@ function Row({ id, title, index, count, min, move, remove, children }: { id: str
   const drag = useDraggable({ id }); const drop = useDroppable({ id });
   return <AccordionItem value={id} ref={node => { drag.setNodeRef(node); drop.setNodeRef(node); }} className={cn(drag.isDragging && "opacity-50", drop.isOver && "ring-2 ring-inset ring-ring")}>
     {/* The drag handle and action menu are siblings, never nested in the disclosure button. */}
-    <div className="flex items-center gap-1">
+    <div className="flex min-w-0 items-center gap-2">
       <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 touch-none" ref={drag.setActivatorNodeRef} {...drag.listeners} {...drag.attributes} aria-label={`Arrastrar elemento ${index + 1}`}><GripVertical aria-hidden="true" /></Button>
-      <div className="min-w-0 flex-1"><AccordionTrigger><span className="min-w-0 truncate">{title}</span></AccordionTrigger></div>
+      <span title={title} className="min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium">{title}</span>
       <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10 shrink-0" />} aria-label={`Acciones de elemento ${index + 1}`}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuContent align="end"><DropdownMenuGroup>
           <DropdownMenuItem className="min-h-10" disabled={index === 0} onClick={() => move(index, index - 1)}><ArrowUp aria-hidden="true" />Subir</DropdownMenuItem>
@@ -25,6 +25,9 @@ function Row({ id, title, index, count, min, move, remove, children }: { id: str
           <DropdownMenuItem className="min-h-10" variant="destructive" disabled={count <= min} onClick={() => remove(index)}><Trash2 aria-hidden="true" />Eliminar</DropdownMenuItem>
         </DropdownMenuGroup></DropdownMenuContent>
       </DropdownMenu>
+      {/* Icon-only disclosure retains the installed trigger's native geometry.
+          Its own slot keeps the menu outside the title and chevron hit area. */}
+      <div className="shrink-0"><AccordionTrigger aria-label={title} /></div>
     </div>
     <AccordionContent><div className="flex min-w-0 flex-col gap-5">{children}</div></AccordionContent>
   </AccordionItem>;
