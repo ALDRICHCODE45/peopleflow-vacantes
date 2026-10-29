@@ -80,6 +80,9 @@ infra de aws».
 - **E1** Email delivery of the invitation link (SES; blocked on a registered domain, `docs/decision-email-provider.md`).
 - **E2** Automatic reminders (needs a scheduler and E1).
 - **E3** Scheduled run of the retention purge (F1 ships the one-shot purge command and read-time hiding).
+- **E4** Deployment hardening of the public link (L32): redact `/evaluacion/{token}` from hosting, proxy and load
+  balancer logs; trust only known proxy hosts for the redirect origin; a stable Server Actions encryption key across
+  instances; a production-browser inspection of the Flight payload.
 
 ## Tasks
 
@@ -94,7 +97,7 @@ infra de aws».
 | T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | a5c657c6 |
 | T8 | S9, S10 | worker — board: card status rows, sheet tab not-finished states, send / copy link / remind / revoke (flows/05) | |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
-| T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | |
+| T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | |
 | T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | |
 | T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
@@ -252,3 +255,14 @@ infra de aws».
   tones, no review. The failing «uncertain comparison» test had stale fixtures (pre-L25 rationale), fixed RED → GREEN.
   `board.tsx:54` exhaustive-deps warning predates T9. Solo delivery gate (nothing else running): 78 files / 1451
   passed, tsc 0 errors. Commit a28ee619. Browser QA and the canvas handoff «implemented» remain for T12.
+- **L31** T10b (worker mvt6hfw7-f-pf9t): Route Handler `evaluacion/[token]/route.ts` (shape check `^[A-Za-z0-9_-]{32,128}$`,
+  cookie `pf_assessment` httpOnly / Secure in production / SameSite=Lax / Path=/evaluacion / session, 303 to
+  `/evaluacion`, no-store, no-referrer, no backend call; malformed link sets no cookie and keeps an existing one),
+  static `evaluacion/page.tsx` reading the cookie server-side, router-state probe test. Parent removed the obsolete
+  `[token]/page.tsx` + test. Parent re-ran candidate + evaluacion: 3 files / 33 passed, tsc clean. Commit 01cd8bb6
+  (own commit, risk item 2). Independent re-verify mvt6qq3h-h-mjzi launched. T8 worker mvt6pkht-g-8qe5 launched.
+- **L32** Independent re-verify (mvt6qq3h-h-mjzi): PASS for 01cd8bb6 — no token in the static Flight router state, the
+  five Server Action captures encrypted (SWC `encryptActionBoundArgs`), cookie attributes and malformed-link
+  preservation, 303 + no-store + no-referrer without backend call, neutral missing-cookie screen, previous behavior;
+  33/33 and 39/39 with its probes; tsc 0. S4, S11 (public path), S12 (this slice) PASS. Residual deployment checks
+  recorded as E4.
