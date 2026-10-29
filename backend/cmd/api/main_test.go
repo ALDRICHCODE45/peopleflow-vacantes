@@ -1603,6 +1603,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/link",
 		"Post /v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/reminders",
 		"Post /v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/revoke",
+		"Get /v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/result",
+		"Post /v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/comparisons",
 		"Get /v2/me/company/job-drafts/{id}/psychometric-profile",
 		"Put /v2/me/company/job-drafts/{id}/psychometric-profile",
 		"Get /v2/me/company/job-drafts/{id}/checklist",

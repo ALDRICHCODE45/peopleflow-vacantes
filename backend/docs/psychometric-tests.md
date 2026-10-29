@@ -1,9 +1,9 @@
-# Vacancy psychometric assessments (B3–B7)
+# Vacancy psychometric assessments (B3–B7, B9)
 
 Employers can save a private, vacancy-scoped profile for `ipip60-mx` and manage
 invitations and issue single-display links. Stage entry can automatically create invitations.
-These slices collect consent and answers, but do not deliver messages, expose
-results or move/reject anyone. Completion stores immutable scoring snapshots. The authoritative wire contract
+These slices collect consent and answers and expose audited employer-only
+results, but do not deliver messages or move/reject anyone. Completion stores immutable scoring snapshots. The authoritative wire contract
 is [psychometric-tests-v1](../../docs/contracts/psychometric-tests-v1.md).
 
 ## Read, edit, save
@@ -280,8 +280,53 @@ UTC), and `PsychometricAssessmentFinished` audit commit atomically. Actor and
 PII-free metadata follow consent conventions. An audit failure rolls everything
 back. Concurrent finishes serialize under the invitation lock: one succeeds,
 the other gets assessment_finished, leaving exactly one result/comparison/audit.
-B8 rate limits and B9 employer result reads remain deliberately absent. This is
-not release-ready without those follow-ups and notice review.
+B8 rate limits remain a separate slice. This is not release-ready without
+retention purge and notice review.
+
+## Employer results and comparisons (B9)
+
+Both routes use Bearer authentication and the same recruiter membership and
+owner-or-principal vacancy gate as invitations, with `Cache-Control: no-store`.
+Neither needs `If-Match` or a request body.
+
+- `GET /v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/result`
+  returns `200 Result`. Unfinished invitations and those whose `purge_after`
+  has arrived return `404 not_found`, as do foreign/unknown vacancies and
+  invitations belonging to another vacancy. Every successful read co-writes
+  `PsychometricResultViewed` with the recruiter actor and invitation.
+- `POST …/psychometric-invitations/{iid}/comparisons` returns `201 Comparison`.
+  It uses the current **confirmed** profile, regardless of enabled, and the
+  invitation's pinned content/scoring versions. Unconfirmed profiles return
+  `409 profile_unconfirmed`; unfinished/past-retention invitations return 404.
+  The contract's employer-write rule applies here too: a finished process
+  rejects POST with `409 process_finished`; result GET remains available.
+
+GET never calls scoring or loads a mutable content bank. It projects the stored
+result and reads comparison rows in `(created_at, id)` ascending order; the last
+row is the non-null `latest_comparison`, and `comparisons` lists every immutable
+ID/profile_version in that same order. A finished result without its required
+initial comparison fails closed as an internal invariant violation.
+
+The strict wire projection follows contract update `75c0c690`: interpretation
+`intro_text` comes from stored `prepend`, and `hypothesis_text` from stored
+`hypothesis`, as plain strings. All three section texts remain unchanged.
+Headings, comparison `question_ids`, and guide `tier`/`context_label` stay stored
+but are omitted from the wire. Guide order, question text (including STAR),
+quality, bands and sums are preserved.
+
+POST reuses B2 `scoring.Recompare` on the stored observed competencies/quality;
+it does not rescore answers or select a new interpretation. The full B2 comparison
+and full confirmed profile are inserted through the same snapshot writer used by
+finish. Earlier comparisons and the original result snapshot are never updated;
+creating a comparison does not restart retention. Its response uses the same
+wire projection as `latest_comparison`.
+
+Both operations hold draft → process → participation → invitation locks and
+check server wall-clock retention after acquiring them. Comparison insertion and
+`PsychometricComparisonCreated` audit (actor, invitation, `comparison_id`,
+`profile_version`, vacancy and participation) commit in one transaction. Audit
+failure rolls back the operation, returning only an internal-error envelope—no
+result/comparison payload or unaudited comparison row.
 
 ## Verification
 

@@ -9,6 +9,7 @@ const (
 	CodeNoticeChanged         Code = "notice_changed"
 	CodeAssessmentFinished    Code = "assessment_finished"
 	CodeProfileDisabled       Code = "profile_disabled"
+	CodeProfileUnconfirmed    Code = "profile_unconfirmed"
 	CodeAlreadyFinished       Code = "already_finished"
 	CodeParticipationInactive Code = "participation_inactive"
 	CodeInvitationClosed      Code = "invitation_closed"
@@ -25,7 +26,7 @@ func WritePsychometricIncomplete(w http.ResponseWriter, missing []int) {
 }
 
 func PsychometricErrorCodes() []Code {
-	return []Code{CodeProfileDisabled, CodeAlreadyFinished, CodeParticipationInactive, CodeInvitationClosed, CodeAssessmentUnavailable, CodeConsentRequired, CodeNoticeChanged, CodeAssessmentFinished, CodeIncomplete}
+	return []Code{CodeProfileDisabled, CodeAlreadyFinished, CodeParticipationInactive, CodeInvitationClosed, CodeAssessmentUnavailable, CodeConsentRequired, CodeNoticeChanged, CodeAssessmentFinished, CodeIncomplete, CodeProfileUnconfirmed}
 }
 func resolvePsychometricError(code Code) (Definition, bool) {
 	switch code {
@@ -39,6 +40,8 @@ func resolvePsychometricError(code Code) (Definition, bool) {
 		return Definition{code, 409, "psychometric notice changed"}, true
 	case CodeAssessmentFinished:
 		return Definition{code, 409, "psychometric assessment finished"}, true
+	case CodeProfileUnconfirmed:
+		return Definition{code, 409, "psychometric profile unconfirmed"}, true
 	case CodeProfileDisabled:
 		return Definition{code, 409, "psychometric profile disabled"}, true
 	case CodeAlreadyFinished:

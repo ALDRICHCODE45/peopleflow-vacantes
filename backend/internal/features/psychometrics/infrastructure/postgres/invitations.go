@@ -23,6 +23,7 @@ import (
 type InvitationJobContext interface {
 	PsychometricInvitationsContext(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID, bool) (string, error)
 	AuditPsychometricInvitation(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string) error
+	AuditPsychometricComparison(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string) error
 }
 type InvitationsStore struct {
 	pool *pgxpool.Pool

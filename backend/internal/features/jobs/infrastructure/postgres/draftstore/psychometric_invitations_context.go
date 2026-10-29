@@ -42,7 +42,21 @@ func (s *Store) PsychometricStageCurrent(ctx context.Context, tx pgx.Tx, id, sta
 // AuditPsychometricInvitation keeps the existing audit repository's validation
 // and transaction invariants. No candidate data, tokens or answers enter audits.
 func (s *Store) AuditPsychometricInvitation(ctx context.Context, tx pgx.Tx, actor, vacancy, participation, invitation uuid.UUID, eventType string) error {
-	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "psychometric_invitation", EntityID: invitation, Metadata: map[string]string{"vacancy_id": vacancy.String(), "participation_id": participation.String()}}
+	return s.auditPsychometricInvitation(ctx, tx, actor, vacancy, participation, invitation, eventType, nil)
+}
+
+// AuditPsychometricComparison uses the same append/validation boundary as every
+// other invitation audit, with only the immutable comparison authority added.
+func (s *Store) AuditPsychometricComparison(ctx context.Context, tx pgx.Tx, actor, vacancy, participation, invitation, comparison uuid.UUID, version string) error {
+	return s.auditPsychometricInvitation(ctx, tx, actor, vacancy, participation, invitation, "PsychometricComparisonCreated", map[string]string{"comparison_id": comparison.String(), "profile_version": version})
+}
+
+func (s *Store) auditPsychometricInvitation(ctx context.Context, tx pgx.Tx, actor, vacancy, participation, invitation uuid.UUID, eventType string, extra map[string]string) error {
+	metadata := map[string]string{"vacancy_id": vacancy.String(), "participation_id": participation.String()}
+	for key, value := range extra {
+		metadata[key] = value
+	}
+	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "psychometric_invitation", EntityID: invitation, Metadata: metadata}
 	if actor == uuid.Nil {
 		event.ActorType = audit.ActorTypeSystem
 		event.ActorID = nil

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/assessment"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/content"
@@ -56,33 +55,16 @@ func (s *AssessmentStore) finishAssessment(ctx context.Context, tx pgx.Tx, a ass
 	if err != nil {
 		return assessment.Result{}, err
 	}
-	p, version, err := read(ctx, tx, v.process)
+	var profileSnapshot []byte
+	in.Profile, profileSnapshot, err = confirmedProfile(ctx, tx, v.process)
 	if err != nil {
 		return assessment.Result{}, err
-	}
-	var profileSnapshot []byte
-	if p.Confirmed {
-		in.Profile = &scoring.Profile{Version: strconv.FormatInt(version, 10), Competencies: []scoring.Requirement{}}
-		for _, c := range p.Competencies {
-			in.Profile.Competencies = append(in.Profile.Competencies, scoring.Requirement{CompetencyID: c.CompetencyID, Importance: c.Importance, DesiredBand: c.DesiredBand})
-		}
-		// Retain the full confirmed profile (rationale/task included), not just the
-		// scoring projection. Unconfirmed drafts are not comparison authority.
-		rendered, e := render(v.process, p, version)
-		if e != nil {
-			return assessment.Result{}, e
-		}
-		profileSnapshot = rendered.Body
 	}
 	result, err := scoring.Score(artifact, in)
 	if err != nil {
 		return assessment.Result{}, err
 	}
 	snapshot, err := json.Marshal(result)
-	if err != nil {
-		return assessment.Result{}, err
-	}
-	comparison, err := json.Marshal(result.Comparison)
 	if err != nil {
 		return assessment.Result{}, err
 	}
@@ -93,7 +75,7 @@ func (s *AssessmentStore) finishAssessment(ctx context.Context, tx pgx.Tx, a ass
 	if _, err = tx.Exec(ctx, `INSERT INTO psychometric_results(invitation_id,content_version,scoring_version,finished_at,snapshot) VALUES($1,$2,$3,$4,$5)`, v.i.ID, result.ContentVersion, result.ScoringVersion, finishedAt, snapshot); err != nil {
 		return assessment.Result{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO psychometric_comparisons(id,invitation_id,profile_version,profile_snapshot,content_version,scoring_version,created_at,snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, uuid.New(), v.i.ID, result.Comparison.ProfileVersion, profileSnapshot, result.ContentVersion, result.ScoringVersion, finishedAt, comparison); err != nil {
+	if _, err = insertComparison(ctx, tx, v.i.ID, finishedAt, result.Comparison, profileSnapshot); err != nil {
 		return assessment.Result{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE psychometric_invitations SET finished_at=$2,purge_after=(($2::timestamptz AT TIME ZONE 'UTC')+interval '12 months') AT TIME ZONE 'UTC' WHERE id=$1`, v.i.ID, finishedAt); err != nil {

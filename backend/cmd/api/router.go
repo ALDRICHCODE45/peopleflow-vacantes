@@ -270,6 +270,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/link", d.psychometricInvitationsHandler.Link)
 		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/reminders", d.psychometricInvitationsHandler.Remind)
 		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/revoke", d.psychometricInvitationsHandler.Revoke)
+		r.Get("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/result", d.psychometricInvitationsHandler.Result)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/comparisons", d.psychometricInvitationsHandler.Compare)
 		r.Get("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Get)
 		r.Put("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Put)
 		r.Get("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.GetChecklist)
