@@ -283,3 +283,8 @@ fe4cfc6 |
   data (`features/candidate/prototype-*`), while «Postulaciones» loads real applications. Parent proposed the list
   shape in the contract (join by `application_id` = `/v2/me/applications` `items[].id`) and asked the backend; T11
   resumes after agreement, with the data-layer files added to its surfaces.
+- **L36** Backend agreed the list (msg 9da83c61): `/v2/me/applications` `items[].id` IS the participation id
+  (`v2/store.go:223`, source 'organic'), so `application_id` = participation id for organic participations, else null;
+  tiebreak by id. Backend proposed listing only the latest invitation per (participation, test). User choice
+  (question): «Solo la más reciente (Recomendado)» — the validated artboards 01 and 03 drop «Evaluaciones anteriores»
+  (parent edit; README and 03 tradeoff updated). Contract marked agreed.

@@ -20,7 +20,7 @@
     {
       "file": "03-en-la-postulacion-movil.html",
       "title": "En la postulación · Móvil",
-      "tradeoff": "Conserva el contexto y un CTA de ancho completo; el historial se consulta al desplegar y desplazar.",
+      "tradeoff": "Conserva el contexto y un CTA de ancho completo; muestra solo la invitación vigente de cada postulación.",
       "width": 390,
       "height": 844
     }

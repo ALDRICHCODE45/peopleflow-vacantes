@@ -20,7 +20,7 @@ Propuesta para T11, S11 (acceso por cuenta) y S12. D7 se conserva: no hay puntaj
 - No se sustituye el aviso por un resumen. Se conserva su texto completo, retención de 12 meses, ARCO con la empresa, decisión humana y condición de revisión legal pendiente.
 - En este boceto, «Anterior» y «Siguiente», tema, «Ver vacante» y destinos sin artboard son placeholders habilitados e inertes. No se simulan guardados, envíos ni resultados. La transición consentimiento → pregunta es solo navegación de vista; no administra las 63 preguntas ni representa un consentimiento persistido.
 - Volver mantiene el shell. En móvil, el botón de menú abre un diálogo de navegación con la cuenta de Mariana y los mismos grupos; Escape y «Cerrar menú» lo cierran.
-- 01 y 03 permiten buscar por puesto/empresa. Los registros cerrados no tienen controles de respuesta o de resultados. En móvil, «Evaluaciones anteriores» revela las invitaciones expirada y revocada; en desktop está expandido para comparar estados.
+- 01 y 03 permiten buscar por puesto/empresa. Los registros cerrados no tienen controles de respuesta o de resultados. Cada postulación muestra solo su invitación más reciente (usuario, L36); no hay historial de invitaciones anteriores.
 - En 02, «Revisar pendiente» lleva a la sección Evaluaciones. Solo la invitación pendiente ofrece «Responder evaluación»; finalizada, expirada y revocada son filas de solo lectura. No se ofrece una ruta de escritura para ellas.
 
 ## Integración posterior (no implementada)
