@@ -1,0 +1,1899 @@
+{
+  "content_version": "psychometrics.content.v1",
+  "scoring_version": "psychometrics.scoring.v1",
+  "test": "ipip60-mx",
+  "instruction": "Lee cada frase y elige qué tan bien te describe en general. No hay respuestas correctas o incorrectas. Puedes cambiar tus respuestas antes de terminar.",
+  "attribution": "IPIP (ipip.ori.org), public domain; translation by David R. Frez Puente and Leticia Ortega Luque, edited by PeopleFlow.",
+  "scale": [
+    {
+      "value": 1,
+      "label": "No me describe nada"
+    },
+    {
+      "value": 2,
+      "label": "Me describe poco"
+    },
+    {
+      "value": 3,
+      "label": "Me describe a medias"
+    },
+    {
+      "value": 4,
+      "label": "Me describe bastante"
+    },
+    {
+      "value": 5,
+      "label": "Me describe totalmente"
+    }
+  ],
+  "facets": [
+    {
+      "id": "facet.n1",
+      "label": "Anticipación de dificultades",
+      "band_texts": [
+        "Declara poca anticipación de dificultades.",
+        "Declara cierta anticipación de dificultades.",
+        "Declara anticipar dificultades con frecuencia."
+      ]
+    },
+    {
+      "id": "facet.n2",
+      "label": "Reacción ante contratiempos",
+      "band_texts": [
+        "Declara poca reacción de enojo ante contratiempos.",
+        "Declara cierta reacción de enojo ante contratiempos.",
+        "Declara reaccionar con enojo ante contratiempos con frecuencia."
+      ]
+    },
+    {
+      "id": "facet.n6",
+      "label": "Respuesta ante la presión",
+      "band_texts": [
+        "Declara poca dificultad para mantener la calma ante la presión.",
+        "Declara cierta dificultad para mantener la calma ante la presión.",
+        "Declara dificultad frecuente para mantener la calma ante la presión."
+      ]
+    },
+    {
+      "id": "facet.e1",
+      "label": "Acercamiento a otras personas",
+      "band_texts": [
+        "Declara poco acercamiento a otras personas.",
+        "Declara cierto acercamiento a otras personas.",
+        "Declara acercarse con facilidad a otras personas."
+      ]
+    },
+    {
+      "id": "facet.e3",
+      "label": "Iniciativa para dirigir",
+      "band_texts": [
+        "Declara poca iniciativa para dirigir.",
+        "Declara cierta iniciativa para dirigir.",
+        "Declara mucha iniciativa para dirigir."
+      ]
+    },
+    {
+      "id": "facet.e5",
+      "label": "Búsqueda de experiencias intensas",
+      "band_texts": [
+        "Declara poca búsqueda de experiencias intensas.",
+        "Declara cierta búsqueda de experiencias intensas.",
+        "Declara una marcada búsqueda de experiencias intensas."
+      ]
+    },
+    {
+      "id": "facet.o4",
+      "label": "Preferencia por la variedad",
+      "band_texts": [
+        "Declara poca preferencia por la variedad frente a lo conocido.",
+        "Declara cierta preferencia por la variedad frente a lo conocido.",
+        "Declara una marcada preferencia por la variedad frente a lo conocido."
+      ]
+    },
+    {
+      "id": "facet.o5",
+      "label": "Interés por ideas abstractas",
+      "band_texts": [
+        "Declara poco interés por explorar ideas abstractas.",
+        "Declara cierto interés por explorar ideas abstractas.",
+        "Declara mucho interés por explorar ideas abstractas."
+      ]
+    },
+    {
+      "id": "facet.a3",
+      "label": "Disposición a ayudar",
+      "band_texts": [
+        "Declara poca disposición a dedicar tiempo a ayudar.",
+        "Declara cierta disposición a dedicar tiempo a ayudar.",
+        "Declara mucha disposición a dedicar tiempo a ayudar."
+      ]
+    },
+    {
+      "id": "facet.a4",
+      "label": "Trato sin confrontación",
+      "band_texts": [
+        "Declara poca distancia respecto a la confrontación.",
+        "Declara cierta distancia respecto a la confrontación.",
+        "Declara evitar la confrontación."
+      ]
+    },
+    {
+      "id": "facet.c2",
+      "label": "Preferencia por el orden",
+      "band_texts": [
+        "Declara poca preferencia por mantener el orden.",
+        "Declara cierta preferencia por mantener el orden.",
+        "Declara una marcada preferencia por mantener el orden."
+      ]
+    },
+    {
+      "id": "facet.c3",
+      "label": "Cumplimiento de compromisos",
+      "band_texts": [
+        "Declara poco seguimiento de compromisos y reglas.",
+        "Declara cierto seguimiento de compromisos y reglas.",
+        "Declara mucho seguimiento de compromisos y reglas."
+      ]
+    },
+    {
+      "id": "facet.c4",
+      "label": "Esfuerzo por lograr objetivos",
+      "band_texts": [
+        "Declara poco esfuerzo por superar lo esperado.",
+        "Declara cierto esfuerzo por superar lo esperado.",
+        "Declara mucho esfuerzo por superar lo esperado."
+      ]
+    },
+    {
+      "id": "facet.c5",
+      "label": "Seguimiento de planes",
+      "band_texts": [
+        "Declara poco seguimiento de planes e inicio de tareas.",
+        "Declara cierto seguimiento de planes e inicio de tareas.",
+        "Declara mucho seguimiento de planes e inicio de tareas."
+      ]
+    },
+    {
+      "id": "facet.c6",
+      "label": "Reflexión antes de actuar",
+      "band_texts": [
+        "Declara poca reflexión antes de actuar.",
+        "Declara cierta reflexión antes de actuar.",
+        "Declara mucha reflexión antes de actuar."
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "item.ipip.1",
+      "number": 1,
+      "facet_id": "facet.n1",
+      "key": "+",
+      "text": "Me preocupo por las cosas."
+    },
+    {
+      "id": "item.ipip.2",
+      "number": 2,
+      "facet_id": "facet.e1",
+      "key": "+",
+      "text": "Hago amigos fácilmente."
+    },
+    {
+      "id": "item.ipip.6",
+      "number": 6,
+      "facet_id": "facet.n2",
+      "key": "+",
+      "text": "Me enojo fácilmente."
+    },
+    {
+      "id": "item.ipip.10",
+      "number": 10,
+      "facet_id": "facet.c2",
+      "key": "+",
+      "text": "Me gusta ordenar y organizar las cosas."
+    },
+    {
+      "id": "item.ipip.12",
+      "number": 12,
+      "facet_id": "facet.e3",
+      "key": "+",
+      "text": "Tomo el mando."
+    },
+    {
+      "id": "item.ipip.14",
+      "number": 14,
+      "facet_id": "facet.a3",
+      "key": "+",
+      "text": "Me gusta ayudar a otros."
+    },
+    {
+      "id": "item.ipip.15",
+      "number": 15,
+      "facet_id": "facet.c3",
+      "key": "+",
+      "text": "Mantengo mis promesas."
+    },
+    {
+      "id": "item.ipip.18",
+      "number": 18,
+      "facet_id": "facet.o4",
+      "key": "+",
+      "text": "Prefiero la variedad en vez de la rutina."
+    },
+    {
+      "id": "item.ipip.19",
+      "number": 19,
+      "facet_id": "facet.a4",
+      "key": "-",
+      "text": "Me gusta una buena confrontación."
+    },
+    {
+      "id": "item.ipip.20",
+      "number": 20,
+      "facet_id": "facet.c4",
+      "key": "+",
+      "text": "Trabajo duro."
+    },
+    {
+      "id": "item.ipip.22",
+      "number": 22,
+      "facet_id": "facet.e5",
+      "key": "+",
+      "text": "Me encanta la emoción."
+    },
+    {
+      "id": "item.ipip.23",
+      "number": 23,
+      "facet_id": "facet.o5",
+      "key": "+",
+      "text": "Me encanta leer temas desafiantes."
+    },
+    {
+      "id": "item.ipip.25",
+      "number": 25,
+      "facet_id": "facet.c5",
+      "key": "+",
+      "text": "Siempre estoy preparado."
+    },
+    {
+      "id": "item.ipip.26",
+      "number": 26,
+      "facet_id": "facet.n6",
+      "key": "+",
+      "text": "Pierdo la calma fácilmente."
+    },
+    {
+      "id": "item.ipip.30",
+      "number": 30,
+      "facet_id": "facet.c6",
+      "key": "-",
+      "text": "Me aviento a hacer cosas sin pensar."
+    },
+    {
+      "id": "item.ipip.31",
+      "number": 31,
+      "facet_id": "facet.n1",
+      "key": "+",
+      "text": "Temo lo peor."
+    },
+    {
+      "id": "item.ipip.32",
+      "number": 32,
+      "facet_id": "facet.e1",
+      "key": "+",
+      "text": "Me siento cómodo entre personas."
+    },
+    {
+      "id": "item.ipip.36",
+      "number": 36,
+      "facet_id": "facet.n2",
+      "key": "+",
+      "text": "Me irrito fácilmente."
+    },
+    {
+      "id": "item.ipip.40",
+      "number": 40,
+      "facet_id": "facet.c2",
+      "key": "-",
+      "text": "A menudo olvido poner las cosas en su lugar."
+    },
+    {
+      "id": "item.ipip.42",
+      "number": 42,
+      "facet_id": "facet.e3",
+      "key": "+",
+      "text": "Trato de guiar a otros."
+    },
+    {
+      "id": "item.ipip.44",
+      "number": 44,
+      "facet_id": "facet.a3",
+      "key": "+",
+      "text": "Me preocupo por los demás."
+    },
+    {
+      "id": "item.ipip.45",
+      "number": 45,
+      "facet_id": "facet.c3",
+      "key": "+",
+      "text": "Digo la verdad."
+    },
+    {
+      "id": "item.ipip.48",
+      "number": 48,
+      "facet_id": "facet.o4",
+      "key": "-",
+      "text": "Prefiero apegarme a las cosas que sé."
+    },
+    {
+      "id": "item.ipip.49",
+      "number": 49,
+      "facet_id": "facet.a4",
+      "key": "-",
+      "text": "Grito a la gente."
+    },
+    {
+      "id": "item.ipip.50",
+      "number": 50,
+      "facet_id": "facet.c4",
+      "key": "+",
+      "text": "Hago más de lo que se espera de mí."
+    },
+    {
+      "id": "item.ipip.52",
+      "number": 52,
+      "facet_id": "facet.e5",
+      "key": "+",
+      "text": "Me gusta buscar aventuras."
+    },
+    {
+      "id": "item.ipip.53",
+      "number": 53,
+      "facet_id": "facet.o5",
+      "key": "-",
+      "text": "Evito discusiones filosóficas."
+    },
+    {
+      "id": "item.ipip.55",
+      "number": 55,
+      "facet_id": "facet.c5",
+      "key": "+",
+      "text": "Llevo a cabo mis planes."
+    },
+    {
+      "id": "item.ipip.56",
+      "number": 56,
+      "facet_id": "facet.n6",
+      "key": "+",
+      "text": "Me abrumo por acontecimientos."
+    },
+    {
+      "id": "item.ipip.60",
+      "number": 60,
+      "facet_id": "facet.c6",
+      "key": "-",
+      "text": "Tomo decisiones precipitadas."
+    },
+    {
+      "id": "item.ipip.61",
+      "number": 61,
+      "facet_id": "facet.n1",
+      "key": "+",
+      "text": "Tengo miedo a muchas cosas."
+    },
+    {
+      "id": "item.ipip.62",
+      "number": 62,
+      "facet_id": "facet.e1",
+      "key": "-",
+      "text": "Evito tener contacto con otros."
+    },
+    {
+      "id": "item.ipip.66",
+      "number": 66,
+      "facet_id": "facet.n2",
+      "key": "+",
+      "text": "Pierdo los estribos."
+    },
+    {
+      "id": "item.ipip.70",
+      "number": 70,
+      "facet_id": "facet.c2",
+      "key": "-",
+      "text": "Dejo desorden en mi cuarto."
+    },
+    {
+      "id": "item.ipip.72",
+      "number": 72,
+      "facet_id": "facet.e3",
+      "key": "+",
+      "text": "Tomo el control de las cosas."
+    },
+    {
+      "id": "item.ipip.74",
+      "number": 74,
+      "facet_id": "facet.a3",
+      "key": "-",
+      "text": "Soy indiferente a los sentimientos de los demás."
+    },
+    {
+      "id": "item.ipip.75",
+      "number": 75,
+      "facet_id": "facet.c3",
+      "key": "-",
+      "text": "Rompo las reglas."
+    },
+    {
+      "id": "item.ipip.78",
+      "number": 78,
+      "facet_id": "facet.o4",
+      "key": "-",
+      "text": "No me agradan los cambios."
+    },
+    {
+      "id": "item.ipip.79",
+      "number": 79,
+      "facet_id": "facet.a4",
+      "key": "-",
+      "text": "Insulto a las personas."
+    },
+    {
+      "id": "item.ipip.80",
+      "number": 80,
+      "facet_id": "facet.c4",
+      "key": "-",
+      "text": "Hago el trabajo mínimo para salir adelante."
+    },
+    {
+      "id": "item.ipip.82",
+      "number": 82,
+      "facet_id": "facet.e5",
+      "key": "+",
+      "text": "Disfruto ser imprudente."
+    },
+    {
+      "id": "item.ipip.83",
+      "number": 83,
+      "facet_id": "facet.o5",
+      "key": "-",
+      "text": "Se me dificulta entender las ideas abstractas."
+    },
+    {
+      "id": "item.ipip.85",
+      "number": 85,
+      "facet_id": "facet.c5",
+      "key": "-",
+      "text": "Pierdo mi tiempo."
+    },
+    {
+      "id": "item.ipip.86",
+      "number": 86,
+      "facet_id": "facet.n6",
+      "key": "+",
+      "text": "Siento que no puedo hacer frente a las cosas."
+    },
+    {
+      "id": "item.ipip.90",
+      "number": 90,
+      "facet_id": "facet.c6",
+      "key": "-",
+      "text": "Me precipito al hacer las cosas."
+    },
+    {
+      "id": "item.ipip.91",
+      "number": 91,
+      "facet_id": "facet.n1",
+      "key": "+",
+      "text": "Me estreso fácilmente."
+    },
+    {
+      "id": "item.ipip.92",
+      "number": 92,
+      "facet_id": "facet.e1",
+      "key": "-",
+      "text": "Mantengo a los demás a distancia."
+    },
+    {
+      "id": "item.ipip.96",
+      "number": 96,
+      "facet_id": "facet.n2",
+      "key": "-",
+      "text": "No me molestan fácilmente."
+    },
+    {
+      "id": "item.ipip.100",
+      "number": 100,
+      "facet_id": "facet.c2",
+      "key": "-",
+      "text": "Dejo mis pertenencias regadas."
+    },
+    {
+      "id": "item.ipip.102",
+      "number": 102,
+      "facet_id": "facet.e3",
+      "key": "-",
+      "text": "Espero a que otros guíen el camino."
+    },
+    {
+      "id": "item.ipip.104",
+      "number": 104,
+      "facet_id": "facet.a3",
+      "key": "-",
+      "text": "No dedico tiempo a los demás."
+    },
+    {
+      "id": "item.ipip.105",
+      "number": 105,
+      "facet_id": "facet.c3",
+      "key": "-",
+      "text": "Rompo mis promesas."
+    },
+    {
+      "id": "item.ipip.108",
+      "number": 108,
+      "facet_id": "facet.o4",
+      "key": "-",
+      "text": "Soy apegado a las formas convencionales."
+    },
+    {
+      "id": "item.ipip.109",
+      "number": 109,
+      "facet_id": "facet.a4",
+      "key": "-",
+      "text": "Cuando me la hacen me la pagan."
+    },
+    {
+      "id": "item.ipip.110",
+      "number": 110,
+      "facet_id": "facet.c4",
+      "key": "-",
+      "text": "Invierto poco tiempo y esfuerzo en mi trabajo."
+    },
+    {
+      "id": "item.ipip.112",
+      "number": 112,
+      "facet_id": "facet.e5",
+      "key": "+",
+      "text": "Me comporto de manera desenfrenada y descontrolada."
+    },
+    {
+      "id": "item.ipip.113",
+      "number": 113,
+      "facet_id": "facet.o5",
+      "key": "-",
+      "text": "No me interesan las discusiones teóricas."
+    },
+    {
+      "id": "item.ipip.115",
+      "number": 115,
+      "facet_id": "facet.c5",
+      "key": "-",
+      "text": "Me cuesta comenzar tareas."
+    },
+    {
+      "id": "item.ipip.116",
+      "number": 116,
+      "facet_id": "facet.n6",
+      "key": "-",
+      "text": "Mantengo la calma bajo presión."
+    },
+    {
+      "id": "item.ipip.120",
+      "number": 120,
+      "facet_id": "facet.c6",
+      "key": "-",
+      "text": "Actúo sin pensar."
+    }
+  ],
+  "attention": [
+    {
+      "id": "attention.1",
+      "text": "Para esta frase, elige «Me describe poco».",
+      "expected": 2,
+      "position": 16
+    },
+    {
+      "id": "attention.2",
+      "text": "Para esta frase, elige «Me describe totalmente».",
+      "expected": 5,
+      "position": 32
+    },
+    {
+      "id": "attention.3",
+      "text": "Para esta frase, elige «Me describe a medias».",
+      "expected": 3,
+      "position": 48
+    }
+  ],
+  "order": [
+    {
+      "position": 1,
+      "id": "item.ipip.1"
+    },
+    {
+      "position": 2,
+      "id": "item.ipip.2"
+    },
+    {
+      "position": 3,
+      "id": "item.ipip.6"
+    },
+    {
+      "position": 4,
+      "id": "item.ipip.10"
+    },
+    {
+      "position": 5,
+      "id": "item.ipip.12"
+    },
+    {
+      "position": 6,
+      "id": "item.ipip.14"
+    },
+    {
+      "position": 7,
+      "id": "item.ipip.15"
+    },
+    {
+      "position": 8,
+      "id": "item.ipip.18"
+    },
+    {
+      "position": 9,
+      "id": "item.ipip.19"
+    },
+    {
+      "position": 10,
+      "id": "item.ipip.20"
+    },
+    {
+      "position": 11,
+      "id": "item.ipip.22"
+    },
+    {
+      "position": 12,
+      "id": "item.ipip.23"
+    },
+    {
+      "position": 13,
+      "id": "item.ipip.25"
+    },
+    {
+      "position": 14,
+      "id": "item.ipip.26"
+    },
+    {
+      "position": 15,
+      "id": "item.ipip.30"
+    },
+    {
+      "position": 16,
+      "id": "attention.1"
+    },
+    {
+      "position": 17,
+      "id": "item.ipip.31"
+    },
+    {
+      "position": 18,
+      "id": "item.ipip.32"
+    },
+    {
+      "position": 19,
+      "id": "item.ipip.36"
+    },
+    {
+      "position": 20,
+      "id": "item.ipip.40"
+    },
+    {
+      "position": 21,
+      "id": "item.ipip.42"
+    },
+    {
+      "position": 22,
+      "id": "item.ipip.44"
+    },
+    {
+      "position": 23,
+      "id": "item.ipip.45"
+    },
+    {
+      "position": 24,
+      "id": "item.ipip.48"
+    },
+    {
+      "position": 25,
+      "id": "item.ipip.49"
+    },
+    {
+      "position": 26,
+      "id": "item.ipip.50"
+    },
+    {
+      "position": 27,
+      "id": "item.ipip.52"
+    },
+    {
+      "position": 28,
+      "id": "item.ipip.53"
+    },
+    {
+      "position": 29,
+      "id": "item.ipip.55"
+    },
+    {
+      "position": 30,
+      "id": "item.ipip.56"
+    },
+    {
+      "position": 31,
+      "id": "item.ipip.60"
+    },
+    {
+      "position": 32,
+      "id": "attention.2"
+    },
+    {
+      "position": 33,
+      "id": "item.ipip.61"
+    },
+    {
+      "position": 34,
+      "id": "item.ipip.62"
+    },
+    {
+      "position": 35,
+      "id": "item.ipip.66"
+    },
+    {
+      "position": 36,
+      "id": "item.ipip.70"
+    },
+    {
+      "position": 37,
+      "id": "item.ipip.72"
+    },
+    {
+      "position": 38,
+      "id": "item.ipip.74"
+    },
+    {
+      "position": 39,
+      "id": "item.ipip.75"
+    },
+    {
+      "position": 40,
+      "id": "item.ipip.78"
+    },
+    {
+      "position": 41,
+      "id": "item.ipip.79"
+    },
+    {
+      "position": 42,
+      "id": "item.ipip.80"
+    },
+    {
+      "position": 43,
+      "id": "item.ipip.82"
+    },
+    {
+      "position": 44,
+      "id": "item.ipip.83"
+    },
+    {
+      "position": 45,
+      "id": "item.ipip.85"
+    },
+    {
+      "position": 46,
+      "id": "item.ipip.86"
+    },
+    {
+      "position": 47,
+      "id": "item.ipip.90"
+    },
+    {
+      "position": 48,
+      "id": "attention.3"
+    },
+    {
+      "position": 49,
+      "id": "item.ipip.91"
+    },
+    {
+      "position": 50,
+      "id": "item.ipip.92"
+    },
+    {
+      "position": 51,
+      "id": "item.ipip.96"
+    },
+    {
+      "position": 52,
+      "id": "item.ipip.100"
+    },
+    {
+      "position": 53,
+      "id": "item.ipip.102"
+    },
+    {
+      "position": 54,
+      "id": "item.ipip.104"
+    },
+    {
+      "position": 55,
+      "id": "item.ipip.105"
+    },
+    {
+      "position": 56,
+      "id": "item.ipip.108"
+    },
+    {
+      "position": 57,
+      "id": "item.ipip.109"
+    },
+    {
+      "position": 58,
+      "id": "item.ipip.110"
+    },
+    {
+      "position": 59,
+      "id": "item.ipip.112"
+    },
+    {
+      "position": 60,
+      "id": "item.ipip.113"
+    },
+    {
+      "position": 61,
+      "id": "item.ipip.115"
+    },
+    {
+      "position": 62,
+      "id": "item.ipip.116"
+    },
+    {
+      "position": 63,
+      "id": "item.ipip.120"
+    }
+  ],
+  "bands": [
+    {
+      "id": "band.low",
+      "label": "Bajo",
+      "min": 4,
+      "max": 9,
+      "explanation": "En conjunto, se describe poco de esta manera."
+    },
+    {
+      "id": "band.medium",
+      "label": "Medio",
+      "min": 10,
+      "max": 14,
+      "explanation": "Se describe de esta manera en parte; conviene precisar en qué situaciones."
+    },
+    {
+      "id": "band.high",
+      "label": "Alto",
+      "min": 15,
+      "max": 20,
+      "explanation": "En conjunto, se describe así con claridad."
+    }
+  ],
+  "competencies": [
+    {
+      "id": "comp.organizacion",
+      "name": "Orden para avanzar",
+      "definition": "Organizar recursos y dar seguimiento a un plan hasta cerrar tareas.",
+      "facets": [
+        {
+          "id": "facet.c2",
+          "direction": "positive"
+        },
+        {
+          "id": "facet.c5",
+          "direction": "positive"
+        }
+      ],
+      "rationale": "Preference for order plus following plans may support task tracking; actual delivery needs examples. Narrow conscientiousness research is background [R2], not validation of this pairing."
+    },
+    {
+      "id": "comp.compromisos",
+      "name": "Cuidado de acuerdos",
+      "definition": "Acordar entregables, cumplir lo acordado y avisar cuando hace falta ajustar.",
+      "facets": [
+        {
+          "id": "facet.c3",
+          "direction": "positive"
+        },
+        {
+          "id": "facet.c4",
+          "direction": "positive"
+        }
+      ],
+      "rationale": "Keeping commitments plus effort may support agreed delivery; no inference of honesty. [R2] does not establish these weights or this definition."
+    },
+    {
+      "id": "comp.coordinacion",
+      "name": "Impulso para coordinar",
+      "definition": "Proponer un rumbo y acercarse a otras personas para repartir y revisar el trabajo.",
+      "facets": [
+        {
+          "id": "facet.e3",
+          "direction": "positive"
+        },
+        {
+          "id": "facet.e1",
+          "direction": "positive"
+        }
+      ],
+      "rationale": "Taking charge and approaching others may facilitate coordination; neither establishes effective management. Broad trait–competency work [R1] is background only."
+    },
+    {
+      "id": "comp.colaboracion",
+      "name": "Apoyo entre pares",
+      "definition": "Ofrecer ayuda y resolver diferencias sin romper los acuerdos de trabajo.",
+      "facets": [
+        {
+          "id": "facet.a3",
+          "direction": "positive"
+        },
+        {
+          "id": "facet.a4",
+          "direction": "positive"
+        }
+      ],
+      "rationale": "Time for others and less confrontation may support assistance; avoiding disagreement can also impede useful challenge. [R1] does not validate this link."
+    },
+    {
+      "id": "comp.exploracion",
+      "name": "Apertura a probar",
+      "definition": "Considerar alternativas y comprender ideas antes de probar cambios en el trabajo.",
+      "facets": [
+        {
+          "id": "facet.o4",
+          "direction": "positive"
+        },
+        {
+          "id": "facet.o5",
+          "direction": "positive"
+        }
+      ],
+      "rationale": "Variety preference and abstract interest may support exploration, not ability or innovation outcomes. [R1] is background only."
+    },
+    {
+      "id": "comp.deliberacion",
+      "name": "Pausa para decidir",
+      "definition": "Revisar consecuencias y elegir cuánto comprobar antes de actuar.",
+      "facets": [
+        {
+          "id": "facet.c6",
+          "direction": "positive"
+        },
+        {
+          "id": "facet.e5",
+          "direction": "negative"
+        }
+      ],
+      "rationale": "Reflection and less pursuit of intense experiences may support checking consequences; too much checking can delay action. Editorial hypothesis, not an established scale. [R1, R2] are background only."
+    },
+    {
+      "id": "comp.presion",
+      "name": "Manejo de la presión",
+      "definition": "Mantener la calma y avanzar de manera efectiva ante presión, contratiempos y frustración en tareas de trabajo.",
+      "facets": [
+        {
+          "id": "facet.n1",
+          "direction": "negative"
+        },
+        {
+          "id": "facet.n2",
+          "direction": "negative"
+        },
+        {
+          "id": "facet.n6",
+          "direction": "negative"
+        }
+      ],
+      "rationale": "Less anticipation of difficulties, less reaction to setbacks and less difficulty staying steady may support effective action under pressure. Three-facet editorial hypothesis, not a health, mood or cause inference; confirm with work actions only."
+    }
+  ],
+  "interpretation_prepend": "Esto resume lo que la persona declaró; son posibilidades para explorar, no conductas comprobadas.",
+  "hypothesis": "La relación con esta competencia es una hipótesis. Confírmala con ejemplos de trabajo.",
+  "interpretation_headings": [
+    "Cómo se puede ver en el trabajo",
+    "Fortalezas",
+    "Áreas a desarrollar"
+  ],
+  "library": [
+    {
+      "id": "lib.organizacion.low",
+      "competency_id": "comp.organizacion",
+      "band": "band.low",
+      "work_text": "Podría trabajar con menos estructura previa.\nConviene precisar cómo recuerda pendientes y cierra tareas.",
+      "strengths_text": "Podría ajustar la secuencia cuando cambian las prioridades.\nPuede aportar ejemplos de soluciones sin un plan detallado.",
+      "development_text": "Acordar una lista breve de entregables y fechas.\nProbar una revisión diaria de pendientes hasta cerrarlos."
+    },
+    {
+      "id": "lib.organizacion.medium",
+      "competency_id": "comp.organizacion",
+      "band": "band.medium",
+      "work_text": "Podría combinar un plan básico con ajustes sobre la marcha.\nConviene precisar cuándo usa un método de seguimiento.",
+      "strengths_text": "Podría alternar entre estructura y flexibilidad.\nPuede aportar ejemplos de cómo reorganiza un día con cambios.",
+      "development_text": "Definir qué pendientes siempre deben quedar registrados.\nRevisar qué cambios hacen perder continuidad al plan."
+    },
+    {
+      "id": "lib.organizacion.high",
+      "competency_id": "comp.organizacion",
+      "band": "band.high",
+      "work_text": "Podría usar un orden definido y seguir sus planes con constancia.\nConviene precisar cómo ajusta el plan cuando deja de servir.",
+      "strengths_text": "Podría sostener una rutina de revisión y cierre.\nPuede aportar ejemplos de tareas que mantuvo visibles hasta terminarlas.",
+      "development_text": "Reservar margen para cambios de prioridad.\nEvitar que mantener el orden desplace una entrega urgente."
+    },
+    {
+      "id": "lib.compromisos.low",
+      "competency_id": "comp.compromisos",
+      "band": "band.low",
+      "work_text": "Podría necesitar acuerdos más concretos para sostener una entrega.\nConviene preguntar cómo decide qué compromisos puede asumir.",
+      "strengths_text": "Podría cuestionar una expectativa poco realista antes de aceptarla.\nPuede aportar ejemplos de ajustes de alcance que ayudaron a entregar.",
+      "development_text": "Acordar qué se entrega, para cuándo y con qué criterio.\nAvisar con anticipación si un compromiso necesita cambiar."
+    },
+    {
+      "id": "lib.compromisos.medium",
+      "competency_id": "comp.compromisos",
+      "band": "band.medium",
+      "work_text": "Podría sostener acuerdos de manera distinta según la tarea.\nConviene precisar qué facilita mantener el esfuerzo hasta entregar.",
+      "strengths_text": "Podría equilibrar el alcance acordado y los recursos disponibles.\nPuede aportar ejemplos de acuerdos que renegoció a tiempo.",
+      "development_text": "Distinguir un ajuste válido de una entrega que quedó pendiente.\nRegistrar los cambios de fecha y confirmar quién los acepta."
+    },
+    {
+      "id": "lib.compromisos.high",
+      "competency_id": "comp.compromisos",
+      "band": "band.high",
+      "work_text": "Podría dedicar esfuerzo a cumplir y superar lo acordado.\nConviene precisar cómo evita asumir más de lo que puede entregar.",
+      "strengths_text": "Podría dar continuidad a compromisos exigentes.\nPuede aportar ejemplos de seguimiento hasta cumplir una entrega.",
+      "development_text": "Revisar capacidad antes de aceptar trabajo adicional.\nAcordar cuándo basta con cumplir el alcance sin ampliarlo."
+    },
+    {
+      "id": "lib.coordinacion.low",
+      "competency_id": "comp.coordinacion",
+      "band": "band.low",
+      "work_text": "Podría preferir contribuir sin tomar la dirección del grupo.\nConviene precisar cómo comunica una propuesta cuando hace falta.",
+      "strengths_text": "Podría dejar espacio para que otras personas conduzcan.\nPuede aportar ejemplos de contribuciones desde un rol de apoyo.",
+      "development_text": "Practicar una propuesta breve de rumbo y responsables.\nAcordar cuándo necesita tomar la iniciativa aunque no dirija siempre."
+    },
+    {
+      "id": "lib.coordinacion.medium",
+      "competency_id": "comp.coordinacion",
+      "band": "band.medium",
+      "work_text": "Podría tomar la iniciativa en algunos grupos y seguir en otros.\nConviene precisar qué condiciones le ayudan a coordinar.",
+      "strengths_text": "Podría alternar entre proponer y acompañar.\nPuede aportar ejemplos de cómo comparte la coordinación.",
+      "development_text": "Definir quién decide y quién da seguimiento en cada tarea.\nPracticar cómo acercarse a un equipo nuevo para acordar un plan."
+    },
+    {
+      "id": "lib.coordinacion.high",
+      "competency_id": "comp.coordinacion",
+      "band": "band.high",
+      "work_text": "Podría acercarse al grupo y proponer una dirección con frecuencia.\nConviene precisar cómo incorpora propuestas distintas a la propia.",
+      "strengths_text": "Podría iniciar conversaciones para repartir el trabajo.\nPuede aportar ejemplos de cómo movilizó una tarea compartida.",
+      "development_text": "Pedir aportaciones antes de fijar el rumbo.\nRevisar cuándo conviene ceder la coordinación a otra persona."
+    },
+    {
+      "id": "lib.colaboracion.low",
+      "competency_id": "comp.colaboracion",
+      "band": "band.low",
+      "work_text": "Podría concentrarse en su propia tarea y expresar diferencias de forma directa.\nConviene precisar cómo responde cuando alguien necesita apoyo.",
+      "strengths_text": "Podría hacer visibles desacuerdos que requieren una decisión.\nPuede aportar ejemplos de límites que protegieron una entrega.",
+      "development_text": "Acordar cómo pedir y ofrecer ayuda sin perder prioridades.\nPracticar desacuerdos centrados en la tarea y el siguiente paso."
+    },
+    {
+      "id": "lib.colaboracion.medium",
+      "competency_id": "comp.colaboracion",
+      "band": "band.medium",
+      "work_text": "Podría ofrecer apoyo según la carga y el contexto.\nConviene precisar cómo mantiene el acuerdo cuando hay diferencias.",
+      "strengths_text": "Podría equilibrar ayuda y responsabilidad propia.\nPuede aportar ejemplos de una diferencia que resolvió con otra persona.",
+      "development_text": "Definir qué apoyo puede ofrecer y en qué plazo.\nConfirmar acuerdos después de una conversación difícil."
+    },
+    {
+      "id": "lib.colaboracion.high",
+      "competency_id": "comp.colaboracion",
+      "band": "band.high",
+      "work_text": "Podría dedicar tiempo a ayudar y procurar evitar confrontaciones.\nConviene precisar cómo plantea un desacuerdo necesario.",
+      "strengths_text": "Podría facilitar apoyo entre pares.\nPuede aportar ejemplos de cómo ayudó a destrabar una tarea compartida.",
+      "development_text": "Poner límites cuando ayudar compromete una entrega propia.\nExpresar diferencias importantes aunque la conversación resulte incómoda."
+    },
+    {
+      "id": "lib.exploracion.low",
+      "competency_id": "comp.exploracion",
+      "band": "band.low",
+      "work_text": "Podría preferir métodos conocidos y explicaciones concretas.\nConviene precisar cómo responde cuando un proceso necesita cambiar.",
+      "strengths_text": "Podría dar continuidad a procedimientos que ya funcionan.\nPuede aportar ejemplos de aplicación consistente de un método conocido.",
+      "development_text": "Probar cambios pequeños con un criterio de resultado.\nPedir ejemplos concretos para comprender una propuesta nueva."
+    },
+    {
+      "id": "lib.exploracion.medium",
+      "competency_id": "comp.exploracion",
+      "band": "band.medium",
+      "work_text": "Podría combinar métodos conocidos con algunas alternativas.\nConviene precisar qué necesita para decidir probar un cambio.",
+      "strengths_text": "Podría comparar una propuesta con la práctica actual.\nPuede aportar ejemplos de mejoras que probó sin cambiar todo el proceso.",
+      "development_text": "Definir qué evidencia justifica una prueba.\nRegistrar lo aprendido antes de extender o abandonar el cambio."
+    },
+    {
+      "id": "lib.exploracion.high",
+      "competency_id": "comp.exploracion",
+      "band": "band.high",
+      "work_text": "Podría buscar variedad y dedicar tiempo a ideas nuevas.\nConviene precisar cómo convierte una alternativa en una prueba concreta.",
+      "strengths_text": "Podría abrir opciones cuando el método habitual no basta.\nPuede aportar ejemplos de preguntas que ayudaron a replantear una tarea.",
+      "development_text": "Limitar las pruebas simultáneas para poder terminarlas.\nAcordar cuándo mantener un método que ya cumple el objetivo."
+    },
+    {
+      "id": "lib.deliberacion.low",
+      "competency_id": "comp.deliberacion",
+      "band": "band.low",
+      "work_text": "Podría pasar a la acción con pocas comprobaciones previas.\nConviene precisar cómo distingue decisiones reversibles de otras.",
+      "strengths_text": "Podría dar un primer paso sin esperar todos los datos.\nPuede aportar ejemplos de avances rápidos que después revisó.",
+      "development_text": "Definir qué comprobaciones no se pueden omitir.\nAcordar un punto de revisión antes de comprometer más recursos."
+    },
+    {
+      "id": "lib.deliberacion.medium",
+      "competency_id": "comp.deliberacion",
+      "band": "band.medium",
+      "work_text": "Podría ajustar cuánto revisa según la decisión.\nConviene precisar qué criterio usa para dejar de comprobar y actuar.",
+      "strengths_text": "Podría combinar revisión previa y aprendizaje al ejecutar.\nPuede aportar ejemplos de comprobaciones proporcionales a la tarea.",
+      "development_text": "Hacer explícito el criterio para decidir con información suficiente.\nRegistrar cuándo una comprobación adicional sí cambia la decisión."
+    },
+    {
+      "id": "lib.deliberacion.high",
+      "competency_id": "comp.deliberacion",
+      "band": "band.high",
+      "work_text": "Podría revisar consecuencias y evitar decisiones precipitadas.\nConviene precisar cómo actúa cuando el tiempo para revisar es limitado.",
+      "strengths_text": "Podría detectar consecuencias antes de comprometer recursos.\nPuede aportar ejemplos de comprobaciones que evitaron retrabajo.",
+      "development_text": "Poner un límite de tiempo a decisiones reversibles.\nDistinguir una comprobación útil de una que solo retrasa el siguiente paso."
+    },
+    {
+      "id": "lib.presion.low",
+      "competency_id": "comp.presion",
+      "band": "band.low",
+      "work_text": "Podría necesitar pausar y ordenar pasos cuando una tarea se complica.\nConviene precisar qué hace para retomar el avance ante un contratiempo.",
+      "strengths_text": "Podría identificar cuándo necesita aclarar prioridades o pedir apoyo.\nPuede aportar ejemplos de cómo retomó una tarea exigente.",
+      "development_text": "Acordar un primer paso manejable ante un bloqueo.\nDefinir cuándo avisar y qué apoyo de trabajo solicitar."
+    },
+    {
+      "id": "lib.presion.medium",
+      "competency_id": "comp.presion",
+      "band": "band.medium",
+      "work_text": "Podría sostener el avance ante algunas exigencias y ajustar su respuesta en otras.\nConviene precisar qué acciones le sirven cuando aumenta la presión de una entrega.",
+      "strengths_text": "Podría combinar una pausa con acciones para seguir avanzando.\nPuede aportar ejemplos de ajustes ante un contratiempo.",
+      "development_text": "Identificar qué pasos de trabajo conviene priorizar cuando algo falla.\nAcordar cómo comunicar un bloqueo antes de comprometer la entrega."
+    },
+    {
+      "id": "lib.presion.high",
+      "competency_id": "comp.presion",
+      "band": "band.high",
+      "work_text": "Podría mantener la calma y seguir actuando ante contratiempos de trabajo.\nConviene precisar cómo reconoce cuándo necesita apoyo o ajustar el alcance.",
+      "strengths_text": "Podría sostener pasos concretos cuando una tarea se dificulta.\nPuede aportar ejemplos de cómo resolvió una entrega bajo presión.",
+      "development_text": "Revisar límites y recursos aunque parezca posible seguir avanzando.\nEvitar que mantener la calma sustituya avisar de una dificultad importante."
+    }
+  ],
+  "interview_introduction": "Te voy a pedir ejemplos de tu experiencia de trabajo. Puedes usar ejemplos de proyectos o actividades de estudio si aún no has trabajado. No necesitas compartir nombres ni información privada.",
+  "interviewer_instruction": "Busca ejemplos concretos y acciones propias. Si algo no queda claro, pide un detalle; no asumas una intención.",
+  "star": "¿Cuál era la situación y qué necesitabas lograr? ¿Qué hiciste tú, qué resultado hubo y qué aprendiste?",
+  "questions": [
+    {
+      "id": "q.organizacion.low.1",
+      "competency_id": "comp.organizacion",
+      "selector": "low",
+      "text": "Cuéntame de una ocasión en que tuviste varios pendientes y no contabas con un plan detallado. ¿Cómo decidiste por dónde empezar?",
+      "good_answer_checklist": "Prioridades explícitas, acciones de seguimiento y resultado de la secuencia elegida."
+    },
+    {
+      "id": "q.organizacion.low.2",
+      "competency_id": "comp.organizacion",
+      "selector": "low",
+      "text": "Háblame de una tarea que se te estaba quedando pendiente. ¿Qué hiciste para retomarla y cerrarla?",
+      "good_answer_checklist": "Detección del pendiente, mecanismo concreto para retomarlo y cierre o aprendizaje."
+    },
+    {
+      "id": "q.organizacion.medium.1",
+      "competency_id": "comp.organizacion",
+      "selector": "medium",
+      "text": "Cuéntame de un día en que combinaste tareas planeadas con una solicitud inesperada. ¿Cómo reorganizaste el trabajo?",
+      "good_answer_checklist": "Cambio de prioridades explicado y seguimiento de lo que quedó pendiente."
+    },
+    {
+      "id": "q.organizacion.medium.2",
+      "competency_id": "comp.organizacion",
+      "selector": "medium",
+      "text": "Describe una ocasión en que decidiste registrar un pendiente y otra en que no lo hiciste. ¿Qué diferencia hubo en el resultado?",
+      "good_answer_checklist": "Criterio de registro y efectos concretos de cada elección."
+    },
+    {
+      "id": "q.organizacion.high.1",
+      "competency_id": "comp.organizacion",
+      "selector": "high",
+      "text": "Cuéntame de un proyecto en que seguiste un plan hasta cerrar todas las tareas. ¿Cómo comprobaste el avance?",
+      "good_answer_checklist": "Método verificable de seguimiento, responsabilidades y cierre."
+    },
+    {
+      "id": "q.organizacion.high.2",
+      "competency_id": "comp.organizacion",
+      "selector": "high",
+      "text": "Háblame de una ocasión en que tu plan dejó de funcionar. ¿Qué cambiaste para poder entregar?",
+      "good_answer_checklist": "Capacidad de ajustar el método, conservar pendientes visibles y entregar."
+    },
+    {
+      "id": "q.organizacion.adjacent.1",
+      "competency_id": "comp.organizacion",
+      "selector": "adjacent",
+      "text": "Cuéntame de una tarea que te pidió más o menos estructura de la que acostumbras usar. ¿Cómo ajustaste tu forma de organizarte?",
+      "good_answer_checklist": "Diferencia concreta de exigencia, ajuste propio y efecto en la entrega."
+    },
+    {
+      "id": "q.organizacion.adjacent.2",
+      "competency_id": "comp.organizacion",
+      "selector": "adjacent",
+      "text": "Describe una ocasión en que otra persona necesitaba un seguimiento distinto al tuyo. ¿Cómo acordaron la manera de revisar los pendientes?",
+      "good_answer_checklist": "Acuerdo explícito de seguimiento y evidencia de que funcionó o se corrigió."
+    },
+    {
+      "id": "q.organizacion.distant.1",
+      "competency_id": "comp.organizacion",
+      "selector": "distant",
+      "text": "Háblame de una entrega cuya forma de organización era muy distinta a la habitual para ti. ¿Qué hiciste y qué apoyo usaste?",
+      "good_answer_checklist": "Distancia entre hábitos y tarea, recursos usados y resultado sin atribuirlo solo a un rasgo."
+    },
+    {
+      "id": "q.organizacion.distant.2",
+      "competency_id": "comp.organizacion",
+      "selector": "distant",
+      "text": "Cuéntame de una ocasión en que tuviste que cambiar por completo cómo llevabas los pendientes. ¿Qué mantuviste después de esa experiencia?",
+      "good_answer_checklist": "Adaptación concreta, límites encontrados y aprendizaje aplicable a la tarea de la vacante."
+    },
+    {
+      "id": "q.organizacion.quality.1",
+      "competency_id": "comp.organizacion",
+      "selector": "quality",
+      "text": "Al responder esta evaluación, ¿hubo alguna frase que tuvieras que releer? Cuéntame además de una ocasión en que revisaste cómo organizabas tus pendientes.",
+      "good_answer_checklist": "Contexto de lectura sin exigir explicación privada y ejemplo verificable de organización."
+    },
+    {
+      "id": "q.organizacion.quality.2",
+      "competency_id": "comp.organizacion",
+      "selector": "quality",
+      "text": "¿Cómo elegiste tus respuestas sobre seguimiento de tareas en esta evaluación? Cuéntame de una entrega que ayude a entenderlas.",
+      "good_answer_checklist": "Proceso explicado con sus propias palabras y acciones concretas de seguimiento."
+    },
+    {
+      "id": "q.compromisos.low.1",
+      "competency_id": "comp.compromisos",
+      "selector": "low",
+      "text": "Cuéntame de una entrega que no pudiste sostener como se había acordado. ¿Qué hiciste cuando lo notaste?",
+      "good_answer_checklist": "Aviso, ajuste de alcance o fecha y efecto sobre quienes dependían de la entrega."
+    },
+    {
+      "id": "q.compromisos.low.2",
+      "competency_id": "comp.compromisos",
+      "selector": "low",
+      "text": "Háblame de una ocasión en que una expectativa de trabajo te pareció poco realista. ¿Qué acordaste finalmente?",
+      "good_answer_checklist": "Negociación concreta, responsabilidades explícitas y seguimiento del acuerdo."
+    },
+    {
+      "id": "q.compromisos.medium.1",
+      "competency_id": "comp.compromisos",
+      "selector": "medium",
+      "text": "Describe una ocasión en que tuviste que ajustar un compromiso sin dejar de entregar lo esencial. ¿Cómo lo acordaste?",
+      "good_answer_checklist": "Distinción de alcance esencial, comunicación y resultado confirmado."
+    },
+    {
+      "id": "q.compromisos.medium.2",
+      "competency_id": "comp.compromisos",
+      "selector": "medium",
+      "text": "Cuéntame de una tarea que requirió más esfuerzo del que esperabas. ¿Qué hiciste para mantener o ajustar lo acordado?",
+      "good_answer_checklist": "Revisión de recursos, decisiones propias y cierre del compromiso."
+    },
+    {
+      "id": "q.compromisos.high.1",
+      "competency_id": "comp.compromisos",
+      "selector": "high",
+      "text": "Háblame de un compromiso exigente que mantuviste hasta entregar. ¿Cómo diste seguimiento?",
+      "good_answer_checklist": "Esfuerzo concreto, cumplimiento comprobable y manejo de obstáculos."
+    },
+    {
+      "id": "q.compromisos.high.2",
+      "competency_id": "comp.compromisos",
+      "selector": "high",
+      "text": "Cuéntame de una ocasión en que te pidieron hacer más de lo acordado. ¿Cómo decidiste hasta dónde llegar?",
+      "good_answer_checklist": "Límites de capacidad, acuerdo del alcance y efecto sobre la entrega original."
+    },
+    {
+      "id": "q.compromisos.adjacent.1",
+      "competency_id": "comp.compromisos",
+      "selector": "adjacent",
+      "text": "Describe una tarea cuyo nivel de seguimiento de acuerdos era distinto al habitual para ti. ¿Qué ajustaste?",
+      "good_answer_checklist": "Exigencia de la tarea, adaptación y confirmación de lo entregado."
+    },
+    {
+      "id": "q.compromisos.adjacent.2",
+      "competency_id": "comp.compromisos",
+      "selector": "adjacent",
+      "text": "Cuéntame de una ocasión en que tuviste que cambiar cuánto esfuerzo dedicabas a una entrega. ¿Cómo acordaste lo suficiente?",
+      "good_answer_checklist": "Criterio proporcional al trabajo y acuerdo con quien recibía el resultado."
+    },
+    {
+      "id": "q.compromisos.distant.1",
+      "competency_id": "comp.compromisos",
+      "selector": "distant",
+      "text": "Háblame de un proyecto con exigencias de entrega muy distintas a las que conocías. ¿Cómo afrontaste esa diferencia?",
+      "good_answer_checklist": "Diferencia identificada, apoyos o ajustes y evidencia de cumplimiento o aprendizaje."
+    },
+    {
+      "id": "q.compromisos.distant.2",
+      "competency_id": "comp.compromisos",
+      "selector": "distant",
+      "text": "Cuéntame de una ocasión en que tu forma habitual de asumir compromisos no alcanzó para la tarea. ¿Qué cambiaste?",
+      "good_answer_checklist": "Reconocimiento de límites, renegociación y seguimiento posterior sin juicios sobre intención."
+    },
+    {
+      "id": "q.compromisos.quality.1",
+      "competency_id": "comp.compromisos",
+      "selector": "quality",
+      "text": "¿Cómo interpretaste las frases sobre compromisos en esta evaluación? Cuéntame de una entrega que tomaste como referencia.",
+      "good_answer_checklist": "Comprensión de las frases y acuerdo concreto usado como ejemplo."
+    },
+    {
+      "id": "q.compromisos.quality.2",
+      "competency_id": "comp.compromisos",
+      "selector": "quality",
+      "text": "Al elegir tus respuestas, ¿recordaste una situación específica de entrega? Cuéntame qué ocurrió y cómo diste seguimiento.",
+      "good_answer_checklist": "Contexto de respuesta y contraste con acciones propias, sin exigir una explicación privada."
+    },
+    {
+      "id": "q.coordinacion.low.1",
+      "competency_id": "comp.coordinacion",
+      "selector": "low",
+      "text": "Háblame de un proyecto en que otra persona llevaba la coordinación. ¿Cómo hiciste llegar tus propuestas?",
+      "good_answer_checklist": "Contribución propia, canal de comunicación y efecto en la tarea compartida."
+    },
+    {
+      "id": "q.coordinacion.low.2",
+      "competency_id": "comp.coordinacion",
+      "selector": "low",
+      "text": "Cuéntame de una ocasión en que hizo falta proponer un siguiente paso y nadie lo había hecho. ¿Qué hiciste?",
+      "good_answer_checklist": "Iniciativa concreta o solicitud de apoyo, acuerdo del paso y resultado."
+    },
+    {
+      "id": "q.coordinacion.medium.1",
+      "competency_id": "comp.coordinacion",
+      "selector": "medium",
+      "text": "Describe una ocasión en que compartiste la coordinación de una tarea. ¿Cómo repartieron decisiones y seguimiento?",
+      "good_answer_checklist": "Responsabilidades claras y transición entre proponer y acompañar."
+    },
+    {
+      "id": "q.coordinacion.medium.2",
+      "competency_id": "comp.coordinacion",
+      "selector": "medium",
+      "text": "Cuéntame de un equipo en que al principio preferiste escuchar y después propusiste una dirección. ¿Qué cambió?",
+      "good_answer_checklist": "Lectura de la tarea, propuesta propia y respuesta del equipo."
+    },
+    {
+      "id": "q.coordinacion.high.1",
+      "competency_id": "comp.coordinacion",
+      "selector": "high",
+      "text": "Háblame de una ocasión en que propusiste el rumbo de un trabajo compartido. ¿Cómo incorporaste las ideas del grupo?",
+      "good_answer_checklist": "Iniciativa, escucha, distribución de responsabilidades y resultado."
+    },
+    {
+      "id": "q.coordinacion.high.2",
+      "competency_id": "comp.coordinacion",
+      "selector": "high",
+      "text": "Cuéntame de una ocasión en que cediste la coordinación a otra persona. ¿Cómo decidiste hacerlo y qué pasó?",
+      "good_answer_checklist": "Flexibilidad de rol, acuerdo de transición y continuidad de la tarea."
+    },
+    {
+      "id": "q.coordinacion.adjacent.1",
+      "competency_id": "comp.coordinacion",
+      "selector": "adjacent",
+      "text": "Describe un proyecto que te pidió tomar más o menos iniciativa de la habitual. ¿Cómo ajustaste tu participación?",
+      "good_answer_checklist": "Diferencia de rol, conducta ajustada y efecto sobre el trabajo."
+    },
+    {
+      "id": "q.coordinacion.adjacent.2",
+      "competency_id": "comp.coordinacion",
+      "selector": "adjacent",
+      "text": "Cuéntame de una ocasión en que el equipo esperaba una coordinación distinta a la que propusiste. ¿Cómo lo resolvieron?",
+      "good_answer_checklist": "Expectativas aclaradas, acuerdo y revisión del resultado."
+    },
+    {
+      "id": "q.coordinacion.distant.1",
+      "competency_id": "comp.coordinacion",
+      "selector": "distant",
+      "text": "Háblame de una tarea en que tu papel de coordinación fue muy distinto al acostumbrado. ¿Qué apoyos necesitaste?",
+      "good_answer_checklist": "Diferencia concreta, recursos usados y resultado de la adaptación."
+    },
+    {
+      "id": "q.coordinacion.distant.2",
+      "competency_id": "comp.coordinacion",
+      "selector": "distant",
+      "text": "Cuéntame de una ocasión en que tu manera habitual de dirigir o acompañar no funcionó. ¿Qué cambiaste?",
+      "good_answer_checklist": "Ejemplo específico, cambio propio y efecto comprobable en el equipo."
+    },
+    {
+      "id": "q.coordinacion.quality.1",
+      "competency_id": "comp.coordinacion",
+      "selector": "quality",
+      "text": "¿Qué situaciones recordaste al responder sobre tomar la iniciativa? Cuéntame una en que participaste en coordinar una tarea.",
+      "good_answer_checklist": "Referencia usada al responder y acciones propias de coordinación o apoyo."
+    },
+    {
+      "id": "q.coordinacion.quality.2",
+      "competency_id": "comp.coordinacion",
+      "selector": "quality",
+      "text": "Al responder la evaluación, ¿alguna frase sobre trabajar con otras personas te resultó poco clara? Cuéntame un proyecto que ayude a precisar tu respuesta.",
+      "good_answer_checklist": "Aclaración sin sugerir una respuesta correcta y contraste con trabajo real."
+    },
+    {
+      "id": "q.colaboracion.low.1",
+      "competency_id": "comp.colaboracion",
+      "selector": "low",
+      "text": "Cuéntame de una ocasión en que te pidieron ayuda mientras tenías una entrega propia. ¿Qué hiciste?",
+      "good_answer_checklist": "Prioridades, límites comunicados y efecto de ofrecer o no ofrecer apoyo."
+    },
+    {
+      "id": "q.colaboracion.low.2",
+      "competency_id": "comp.colaboracion",
+      "selector": "low",
+      "text": "Háblame de un desacuerdo de trabajo que expresaste de forma directa. ¿Cómo llegaron al siguiente paso?",
+      "good_answer_checklist": "Diferencia centrada en la tarea, acciones y acuerdo o aprendizaje."
+    },
+    {
+      "id": "q.colaboracion.medium.1",
+      "competency_id": "comp.colaboracion",
+      "selector": "medium",
+      "text": "Describe una ocasión en que decidiste cuánto apoyo podías dar a otra persona. ¿Qué acordaron?",
+      "good_answer_checklist": "Alcance del apoyo, responsabilidad propia y seguimiento."
+    },
+    {
+      "id": "q.colaboracion.medium.2",
+      "competency_id": "comp.colaboracion",
+      "selector": "medium",
+      "text": "Cuéntame de una diferencia que resolviste con alguien con quien debías seguir trabajando. ¿Qué hiciste después de conversar?",
+      "good_answer_checklist": "Acuerdo concreto y continuidad de la colaboración."
+    },
+    {
+      "id": "q.colaboracion.high.1",
+      "competency_id": "comp.colaboracion",
+      "selector": "high",
+      "text": "Háblame de una ocasión en que ayudaste a destrabar el trabajo de otra persona. ¿Cómo cuidaste también tus entregas?",
+      "good_answer_checklist": "Ayuda específica, límites y resultados para ambas tareas."
+    },
+    {
+      "id": "q.colaboracion.high.2",
+      "competency_id": "comp.colaboracion",
+      "selector": "high",
+      "text": "Cuéntame de una ocasión en que tuviste que expresar un desacuerdo aunque preferías evitar la confrontación. ¿Cómo lo planteaste?",
+      "good_answer_checklist": "Diferencia necesaria, forma de comunicarla y efecto sobre el acuerdo."
+    },
+    {
+      "id": "q.colaboracion.adjacent.1",
+      "competency_id": "comp.colaboracion",
+      "selector": "adjacent",
+      "text": "Describe una tarea que requirió más o menos apoyo entre pares del que acostumbras dar. ¿Cómo te ajustaste?",
+      "good_answer_checklist": "Exigencia concreta, ajuste del apoyo y efecto sobre las entregas."
+    },
+    {
+      "id": "q.colaboracion.adjacent.2",
+      "competency_id": "comp.colaboracion",
+      "selector": "adjacent",
+      "text": "Cuéntame de una ocasión en que tu manera de expresar una diferencia no era la que esperaba el equipo. ¿Qué cambiaste?",
+      "good_answer_checklist": "Expectativas aclaradas y cambio de conducta sin ocultar el tema de trabajo."
+    },
+    {
+      "id": "q.colaboracion.distant.1",
+      "competency_id": "comp.colaboracion",
+      "selector": "distant",
+      "text": "Háblame de un proyecto cuya forma de apoyarse y resolver diferencias era muy distinta a la habitual para ti. ¿Qué hiciste?",
+      "good_answer_checklist": "Diferencia identificada, adaptación concreta y resultado compartido."
+    },
+    {
+      "id": "q.colaboracion.distant.2",
+      "competency_id": "comp.colaboracion",
+      "selector": "distant",
+      "text": "Cuéntame de una ocasión en que tu forma habitual de ayudar o poner límites no funcionó. ¿Qué acordaste después?",
+      "good_answer_checklist": "Revisión de la experiencia, nuevo acuerdo y seguimiento."
+    },
+    {
+      "id": "q.colaboracion.quality.1",
+      "competency_id": "comp.colaboracion",
+      "selector": "quality",
+      "text": "¿Qué entendiste por ayudar a otras personas al responder esta evaluación? Cuéntame un ejemplo que usaste como referencia.",
+      "good_answer_checklist": "Comprensión de la frase y conducta de apoyo descrita sin generalizaciones."
+    },
+    {
+      "id": "q.colaboracion.quality.2",
+      "competency_id": "comp.colaboracion",
+      "selector": "quality",
+      "text": "Al responder sobre diferencias con otras personas, ¿pensaste en alguna situación de trabajo? Cuéntame qué pasó y qué hiciste tú.",
+      "good_answer_checklist": "Contexto de respuesta y acciones verificables para manejar una diferencia."
+    },
+    {
+      "id": "q.exploracion.low.1",
+      "competency_id": "comp.exploracion",
+      "selector": "low",
+      "text": "Cuéntame de una ocasión en que te pidieron cambiar un método que ya conocías. ¿Cómo decidiste qué hacer?",
+      "good_answer_checklist": "Criterio para mantener o probar, acciones y resultado."
+    },
+    {
+      "id": "q.exploracion.low.2",
+      "competency_id": "comp.exploracion",
+      "selector": "low",
+      "text": "Háblame de una idea nueva que al principio te resultó difícil de aplicar. ¿Qué ejemplo o prueba te ayudó a entenderla?",
+      "good_answer_checklist": "Búsqueda de explicación concreta y aprendizaje comprobable."
+    },
+    {
+      "id": "q.exploracion.medium.1",
+      "competency_id": "comp.exploracion",
+      "selector": "medium",
+      "text": "Describe una ocasión en que probaste una alternativa sin abandonar todo el proceso anterior. ¿Qué comparaste?",
+      "good_answer_checklist": "Prueba delimitada, criterio de comparación y aprendizaje."
+    },
+    {
+      "id": "q.exploracion.medium.2",
+      "competency_id": "comp.exploracion",
+      "selector": "medium",
+      "text": "Cuéntame de una propuesta nueva que aceptaste en parte. ¿Cómo elegiste qué cambiar y qué mantener?",
+      "good_answer_checklist": "Evaluación de alternativas y resultado de la combinación."
+    },
+    {
+      "id": "q.exploracion.high.1",
+      "competency_id": "comp.exploracion",
+      "selector": "high",
+      "text": "Háblame de una ocasión en que propusiste una alternativa al método habitual. ¿Cómo la convertiste en una prueba?",
+      "good_answer_checklist": "Paso concreto, criterio de resultado y revisión de lo aprendido."
+    },
+    {
+      "id": "q.exploracion.high.2",
+      "competency_id": "comp.exploracion",
+      "selector": "high",
+      "text": "Cuéntame de una ocasión en que decidiste no cambiar algo aunque tenías ideas nuevas. ¿Qué te llevó a mantenerlo?",
+      "good_answer_checklist": "Límite de exploración, evidencia considerada y efecto de mantener el método."
+    },
+    {
+      "id": "q.exploracion.adjacent.1",
+      "competency_id": "comp.exploracion",
+      "selector": "adjacent",
+      "text": "Describe una tarea que pidió más o menos cambios de los que sueles buscar. ¿Cómo ajustaste tu manera de trabajar?",
+      "good_answer_checklist": "Exigencia de la tarea, cambio de enfoque y resultado."
+    },
+    {
+      "id": "q.exploracion.adjacent.2",
+      "competency_id": "comp.exploracion",
+      "selector": "adjacent",
+      "text": "Cuéntame de una ocasión en que otra persona esperaba un nivel distinto de detalle para comprender una idea. ¿Qué hiciste?",
+      "good_answer_checklist": "Ajuste de explicación y comprobación de comprensión compartida."
+    },
+    {
+      "id": "q.exploracion.distant.1",
+      "competency_id": "comp.exploracion",
+      "selector": "distant",
+      "text": "Háblame de un proyecto cuyo nivel de cambio era muy distinto al que preferías. ¿Cómo lo abordaste?",
+      "good_answer_checklist": "Diferencia identificada, apoyos usados y resultado de la adaptación."
+    },
+    {
+      "id": "q.exploracion.distant.2",
+      "competency_id": "comp.exploracion",
+      "selector": "distant",
+      "text": "Cuéntame de una ocasión en que tu forma habitual de probar o mantener métodos no sirvió. ¿Qué aprendiste y qué hiciste distinto?",
+      "good_answer_checklist": "Revisión de un caso concreto y cambio de conducta aplicado."
+    },
+    {
+      "id": "q.exploracion.quality.1",
+      "competency_id": "comp.exploracion",
+      "selector": "quality",
+      "text": "¿Qué tipo de cambios recordaste al responder esta evaluación? Cuéntame de uno que hayas tenido que aplicar.",
+      "good_answer_checklist": "Referencia concreta y acciones propias para comprender o probar el cambio."
+    },
+    {
+      "id": "q.exploracion.quality.2",
+      "competency_id": "comp.exploracion",
+      "selector": "quality",
+      "text": "Al responder sobre ideas nuevas, ¿hubo alguna frase que interpretaras de más de una forma? Cuéntame un ejemplo de trabajo que aclare cómo la entendiste.",
+      "good_answer_checklist": "Aclaración de significado sin pedir respuestas preferidas y ejemplo verificable."
+    },
+    {
+      "id": "q.deliberacion.low.1",
+      "competency_id": "comp.deliberacion",
+      "selector": "low",
+      "text": "Cuéntame de una ocasión en que actuaste con poca información y después revisaste la decisión. ¿Qué ocurrió?",
+      "good_answer_checklist": "Primer paso, comprobaciones posteriores y consecuencias reconocidas."
+    },
+    {
+      "id": "q.deliberacion.low.2",
+      "competency_id": "comp.deliberacion",
+      "selector": "low",
+      "text": "Háblame de una decisión en que habría sido útil comprobar algo antes de actuar. ¿Qué hiciste al darte cuenta?",
+      "good_answer_checklist": "Dato omitido, corrección y aprendizaje sobre comprobaciones mínimas."
+    },
+    {
+      "id": "q.deliberacion.medium.1",
+      "competency_id": "comp.deliberacion",
+      "selector": "medium",
+      "text": "Describe una ocasión en que decidiste que ya tenías información suficiente para actuar. ¿Qué criterio usaste?",
+      "good_answer_checklist": "Criterio explícito, consecuencias consideradas y resultado."
+    },
+    {
+      "id": "q.deliberacion.medium.2",
+      "competency_id": "comp.deliberacion",
+      "selector": "medium",
+      "text": "Cuéntame de dos decisiones de una misma tarea que requirieron distinta revisión. ¿Cómo elegiste cuánto comprobar?",
+      "good_answer_checklist": "Revisión proporcional a consecuencias y tiempo disponible."
+    },
+    {
+      "id": "q.deliberacion.high.1",
+      "competency_id": "comp.deliberacion",
+      "selector": "high",
+      "text": "Háblame de una ocasión en que revisar consecuencias antes de actuar evitó retrabajo. ¿Qué comprobaste?",
+      "good_answer_checklist": "Comprobación concreta y relación verificable con el resultado."
+    },
+    {
+      "id": "q.deliberacion.high.2",
+      "competency_id": "comp.deliberacion",
+      "selector": "high",
+      "text": "Cuéntame de una decisión que debías tomar con poco tiempo para revisar. ¿Cómo limitaste las comprobaciones?",
+      "good_answer_checklist": "Priorización de información esencial y acción dentro del plazo."
+    },
+    {
+      "id": "q.deliberacion.adjacent.1",
+      "competency_id": "comp.deliberacion",
+      "selector": "adjacent",
+      "text": "Describe una tarea que te pidió decidir más rápido o revisar más de lo habitual. ¿Cómo ajustaste tu proceso?",
+      "good_answer_checklist": "Diferencia de exigencia, revisión proporcional y efecto de la decisión."
+    },
+    {
+      "id": "q.deliberacion.adjacent.2",
+      "competency_id": "comp.deliberacion",
+      "selector": "adjacent",
+      "text": "Cuéntame de una ocasión en que otra persona esperaba una comprobación distinta antes de avanzar. ¿Qué acordaron?",
+      "good_answer_checklist": "Criterio compartido, límites de tiempo y resultado."
+    },
+    {
+      "id": "q.deliberacion.distant.1",
+      "competency_id": "comp.deliberacion",
+      "selector": "distant",
+      "text": "Háblame de una decisión cuyo ritmo y consecuencias eran muy distintos a los habituales para ti. ¿Qué apoyo usaste?",
+      "good_answer_checklist": "Diferencia concreta, consulta o comprobación y resultado."
+    },
+    {
+      "id": "q.deliberacion.distant.2",
+      "competency_id": "comp.deliberacion",
+      "selector": "distant",
+      "text": "Cuéntame de una ocasión en que tu manera habitual de revisar antes de actuar no funcionó. ¿Qué cambiaste en la siguiente decisión?",
+      "good_answer_checklist": "Revisión de consecuencias y cambio aplicado, no promesa general."
+    },
+    {
+      "id": "q.deliberacion.quality.1",
+      "competency_id": "comp.deliberacion",
+      "selector": "quality",
+      "text": "¿Cómo interpretaste las frases sobre decidir antes de actuar en esta evaluación? Cuéntame una decisión que ayude a entender tus respuestas.",
+      "good_answer_checklist": "Comprensión de las frases y acciones concretas de revisión o ejecución."
+    },
+    {
+      "id": "q.deliberacion.quality.2",
+      "competency_id": "comp.deliberacion",
+      "selector": "quality",
+      "text": "Al responder esta evaluación, ¿cómo decidiste cuándo una respuesta te describía? Cuéntame además una ocasión en que comprobaste una decisión de trabajo.",
+      "good_answer_checklist": "Proceso de respuesta sin atribuir intención y contraste con una decisión real."
+    },
+    {
+      "id": "q.presion.low.1",
+      "competency_id": "comp.presion",
+      "selector": "low",
+      "text": "Cuéntame de una tarea en que un contratiempo te dificultó avanzar. ¿Qué primer paso diste para retomarla?",
+      "good_answer_checklist": "Acción concreta, prioridad y resultado del intento, sin pedir causas privadas."
+    },
+    {
+      "id": "q.presion.low.2",
+      "competency_id": "comp.presion",
+      "selector": "low",
+      "text": "Háblame de una entrega bajo presión para la que necesitaste apoyo. ¿Cómo lo pediste y qué acordaron?",
+      "good_answer_checklist": "Apoyo de trabajo solicitado, acuerdo y seguimiento de la entrega."
+    },
+    {
+      "id": "q.presion.medium.1",
+      "competency_id": "comp.presion",
+      "selector": "medium",
+      "text": "Describe una ocasión en que aumentó la presión de una entrega. ¿Qué mantuviste y qué ajustaste para seguir avanzando?",
+      "good_answer_checklist": "Priorización, ajustes propios y efecto sobre el avance."
+    },
+    {
+      "id": "q.presion.medium.2",
+      "competency_id": "comp.presion",
+      "selector": "medium",
+      "text": "Cuéntame de una tarea que no salió al primer intento. ¿Cómo decidiste el siguiente paso?",
+      "good_answer_checklist": "Revisión del intento y decisión concreta para retomar el trabajo."
+    },
+    {
+      "id": "q.presion.high.1",
+      "competency_id": "comp.presion",
+      "selector": "high",
+      "text": "Háblame de una ocasión en que mantuviste el avance mientras surgían contratiempos. ¿Qué hiciste tú?",
+      "good_answer_checklist": "Pasos verificables y resultado, no una afirmación general de calma."
+    },
+    {
+      "id": "q.presion.high.2",
+      "competency_id": "comp.presion",
+      "selector": "high",
+      "text": "Cuéntame de una entrega bajo presión en que decidiste ajustar el alcance o pedir apoyo aunque podías seguir trabajando. ¿Cómo lo acordaste?",
+      "good_answer_checklist": "Reconocimiento de límites de la tarea, comunicación y acuerdo."
+    },
+    {
+      "id": "q.presion.adjacent.1",
+      "competency_id": "comp.presion",
+      "selector": "adjacent",
+      "text": "Describe una tarea con una presión de entrega distinta a la habitual para ti. ¿Cómo ajustaste tus pasos de trabajo?",
+      "good_answer_checklist": "Exigencia concreta y adaptación con resultado observable."
+    },
+    {
+      "id": "q.presion.adjacent.2",
+      "competency_id": "comp.presion",
+      "selector": "adjacent",
+      "text": "Cuéntame de una ocasión en que el equipo necesitaba otra forma de responder a un contratiempo. ¿Qué cambiaste en tu trabajo?",
+      "good_answer_checklist": "Expectativa aclarada, acción propia y efecto sobre la tarea."
+    },
+    {
+      "id": "q.presion.distant.1",
+      "competency_id": "comp.presion",
+      "selector": "distant",
+      "text": "Háblame de una entrega con contratiempos muy distintos a los que conocías. ¿Qué plan y apoyos de trabajo usaste?",
+      "good_answer_checklist": "Diferencia de exigencia, recursos y resultado sin atribuir causas privadas."
+    },
+    {
+      "id": "q.presion.distant.2",
+      "competency_id": "comp.presion",
+      "selector": "distant",
+      "text": "Cuéntame de una ocasión en que tu forma habitual de avanzar bajo presión no bastó. ¿Qué acordaste para retomar la tarea?",
+      "good_answer_checklist": "Cambio de pasos, comunicación y aprendizaje aplicado."
+    },
+    {
+      "id": "q.presion.quality.1",
+      "competency_id": "comp.presion",
+      "selector": "quality",
+      "text": "Al responder esta evaluación, ¿cómo entendiste las frases sobre contratiempos? Cuéntame una tarea que ayude a precisar tus respuestas.",
+      "good_answer_checklist": "Comprensión de las frases y acciones de trabajo, sin explorar salud o estado de ánimo."
+    },
+    {
+      "id": "q.presion.quality.2",
+      "competency_id": "comp.presion",
+      "selector": "quality",
+      "text": "¿Hubo alguna instrucción de esta evaluación que necesitaras releer? Cuéntame además cómo retomaste una tarea después de un obstáculo.",
+      "good_answer_checklist": "Contexto de lectura y ejemplo concreto, sin exigir explicaciones privadas."
+    }
+  ],
+  "selection": {
+    "max_questions": 8,
+    "block_slots": 4,
+    "ordinary_with_quality": 3,
+    "questions_per_block": 2,
+    "importance_order": [
+      "Clave",
+      "Importante",
+      "null"
+    ],
+    "focus_order": [
+      "distant",
+      "adjacent",
+      "none"
+    ],
+    "quality_fallback": "comp.organizacion",
+    "rules": "Selection inputs are the immutable result bands, fit entries, focus instances and confirmed profile snapshot, plus content/scoring versions. No live vacancy edits, candidate attributes, answer speed ordering, randomization or AI. The backend selects at completion and stores the selected questions with the initial comparison. A later explicit comparison uses the same pinned content/scoring pair and immutable bands, but the newly confirmed profile; it stores a separate guide without overwriting the first. The frontend renders that stored guide; it does not select or receive the full bank.\n\n1. Build one ordinary block per relevant competency (Clave or Importante). With no confirmed profile or no relevant entries, build one per catalog competency with null importance/fit and use the observed band; this is an exploratory guide, not job comparison. A competency's selector is its gap focus if present (`distant` or `adjacent`), otherwise its observed band. Each block contains that selector's questions 1 then 2.\n2. Sort ordinary blocks by job importance (Clave, Importante, null), then focus priority (distant, adjacent, none), then competency id lexicographically ascending. This preserves job importance as primary priority; fit is already determined by importance and gap. No selection uses a numeric total match score.\n3. If `focus.quality` exists, reserve one of four block slots for its routed competency (routing in the bands document). Take the first three ordinary blocks, then append the quality block (questions 1 and 2). Otherwise take the first four ordinary blocks. Thus the guide has 2–8 questions in pairs, with at most 8; fewer relevant competencies means fewer ordinary blocks, not padding with irrelevant competencies. A competency can have an ordinary block and a quality block, but question ids differ. No duplicate question ids.\n4. Render in that order. Persist the entire resolved Spanish question plus fixed STAR follow-up, good-answer checklist, question id, competency id, observed band, selector, fit (nullable), desired band (nullable), importance (nullable), originating focus id/type if any and triggered signal ids for quality. Also store ordered ids, profile version (nullable), scoring_version and content_version. Quality routing must be labeled «Contexto de respuesta», not presented as a competency gap.\n5. For band blocks show the competency name and observed band as origin. For gap blocks additionally show desired band, importance, fit and focus type. For quality blocks show observed band for context plus tier and triggering signals; never imply that this band caused the quality signal. Lookup failure or missing input is an incomplete guide, not permission to invent a question or silently switch versions.\n\nExamples: with seven relevant competencies and no quality focus, select four ordinary blocks = eight questions; with one relevant competency and quality focus, select its ordinary block then the routed quality block = four questions. With no confirmed profile and no signals, choose comp.colaboracion, comp.compromisos, comp.coordinacion and comp.deliberacion and their observed-band questions (the first four ids alphabetically). With only comp.presion relevant, observed band.low and desired band.high at importance.clave, choose q.presion.distant.1 then q.presion.distant.2; if quality is present, append q.presion.quality.1 then q.presion.quality.2. Every question includes the fixed STAR follow-up. Repeat selection with identical stored inputs and versions yields identical ordered ids and text. Changing an interviewer note never regenerates a guide."
+  },
+  "quality": {
+    "signals": [
+      {
+        "id": "signal.attention",
+        "calculation": "Number of final instructed responses not matching the expected value, denominator 3",
+        "mild": "Exactly 1 miss",
+        "strong": "2 or 3 misses",
+        "mild_min": 1,
+        "strong_min": 2,
+        "denominator": 3,
+        "fast_below_ms": 0,
+        "requires_complete_timing": false,
+        "always_known_v1": false
+      },
+      {
+        "id": "signal.long_string",
+        "calculation": "Longest consecutive run of identical raw 1–5 personality answers, in fixed retained-item order. Ignore attention insertions; do not reverse-key here.",
+        "mild": "Run length 7–11",
+        "strong": "Run length ≥12",
+        "mild_min": 7,
+        "strong_min": 12,
+        "denominator": 0,
+        "fast_below_ms": 0,
+        "requires_complete_timing": false,
+        "always_known_v1": false
+      },
+      {
+        "id": "signal.fast",
+        "calculation": "Count personality items with measured cumulative active viewing time strictly below 2000 ms; divide by 60. Require valid time for all 60 or mark unknown.",
+        "mild": "Count 12–29 of 60",
+        "strong": "Count ≥30 of 60",
+        "mild_min": 12,
+        "strong_min": 30,
+        "denominator": 60,
+        "fast_below_ms": 2000,
+        "requires_complete_timing": true,
+        "always_known_v1": false
+      },
+      {
+        "id": "signal.changes",
+        "calculation": "Sum of value changes + clearing events + re-answer-after-clearing events across 60 personality items. First answer excluded; same-value saves, replayed events and retries excluded.",
+        "mild": "Count ≥30",
+        "strong": "Never strong on its own",
+        "mild_min": 30,
+        "strong_min": null,
+        "denominator": 60,
+        "fast_below_ms": 0,
+        "requires_complete_timing": false,
+        "always_known_v1": true
+      }
+    ],
+    "tiers": [
+      {
+        "id": "tier.relevantes",
+        "label": "Señales relevantes",
+        "rule": "Any strong signal OR at least 2 mild signals"
+      },
+      {
+        "id": "tier.algunas",
+        "label": "Algunas señales",
+        "rule": "Exactly 1 mild signal and no strong signals"
+      },
+      {
+        "id": "tier.sin",
+        "label": "Sin señales",
+        "rule": "No observed mild or strong signals"
+      }
+    ],
+    "relevant_mild_min": 2,
+    "relevant_strong_min": 1,
+    "some_mild_count": 1,
+    "semantics": "- Start active time when the item is visibly presented in the active tab; pause on hidden tab, navigation away or suspended session. Sum visible intervals over revisits. Time is cumulative per item, not just time to its last click. No negative, non-finite or missing duration is usable. Keep milliseconds; exactly 2000 ms is not fast. Do not infer time for an offline gap from server timestamps.\n- Client time is forgeable. Retain server receipt timestamps for audit, but never treat client or server timing as proof. The \u003c2 s/item boundary is a heuristic; reading style, device and accessibility can affect it. No time limit, lockout or penalty follows.\n- Record separately: value-to-different-value, nonempty-to-empty, and empty-to-value after a prior answer. Example: empty → 2 → 4 → empty → 3 gives one value change, one clear, one re-answer: total 3. A clearing followed by re-answering is intentionally two interactions, not two value changes.\n- The server derives transitions from its ordered accepted PUT/DELETE writes, with a required UUID `event_id` on each write; a replayed event_id is a no-op, not another edit. No client change counter is accepted. A same-value PUT is not a change and updates cumulative elapsed time on a revisit. Deleting an already empty answer is not another clear. Track per-item subtotals, aggregate counts and whether collection was complete. Never infer unseen edits from final answers. In v1 the stream is server-observed and therefore always complete for every write after consent, so `signal.changes` is always known; `unknown` applies only to data without a server-observed stream (for example a future import or legacy content version). Attention-item edit counts may be stored separately, but never added to this denominator or threshold.",
+    "messages": [
+      {
+        "id": "tier.sin",
+        "text": "No se detectaron patrones que requieran seguimiento con la información disponible. Esto no confirma por sí solo la calidad de las respuestas."
+      },
+      {
+        "id": "tier.algunas",
+        "text": "Hay un patrón que conviene aclarar. Pregunta cómo fue la experiencia al responder y confirma ejemplos de trabajo antes de sacar conclusiones."
+      },
+      {
+        "id": "tier.relevantes",
+        "text": "Hay patrones que requieren más contexto. Confirma cómo se respondió y contrasta lo declarado con ejemplos de trabajo; no los uses como motivo de descarte."
+      },
+      {
+        "id": "signal.attention",
+        "text": "No coincidieron {misses} de 3 instrucciones de respuesta. Pregunta si las instrucciones fueron claras."
+      },
+      {
+        "id": "signal.long_string",
+        "text": "Se repitió la misma opción en {run} frases seguidas. Confirma con ejemplos si las frases describen situaciones distintas."
+      },
+      {
+        "id": "signal.fast",
+        "text": "Se registraron menos de 2 segundos en {fast_count} de 60 frases. El tiempo registrado puede ser incompleto o modificable; pregunta cómo se respondió."
+      },
+      {
+        "id": "signal.changes",
+        "text": "Se registraron {value_changes} cambios de opción, {clears} borrados y {reanswers} respuestas después de borrar: {total} interacciones. Cambiar una respuesta puede ser una reconsideración; pregunta qué motivó los ajustes."
+      }
+    ]
+  },
+  "notice": {
+    "version": "1",
+    "text": "Esta evaluación es para apoyar a la empresa que te está considerando para una vacante a preparar una entrevista y explorar cómo tu manera de trabajar se relaciona con las tareas del puesto. No es un diagnóstico ni una prueba de salud. Sus relaciones con competencias son hipótesis que deben contrastarse con ejemplos de trabajo.\n\nLa evaluación reúne siete competencias: orden para avanzar, cuidado de acuerdos, impulso para coordinar, apoyo entre pares, apertura a probar, pausa para decidir y manejo de la presión. Para explorarlas pregunta por quince tendencias:\n\n- Anticipar dificultades.\n- Reaccionar ante contratiempos.\n- Mantener la calma ante la presión.\n- Acercarte a otras personas.\n- Tomar la iniciativa para dirigir.\n- Buscar experiencias intensas.\n- Preferir la variedad.\n- Interesarte por ideas abstractas.\n- Dedicar tiempo a ayudar.\n- Evitar la confrontación.\n- Preferir el orden.\n- Dar seguimiento a compromisos y reglas.\n- Esforzarte por lograr objetivos.\n- Seguir planes y terminar tareas.\n- Reflexionar antes de actuar.\n\nSe guardan tus respuestas a 60 frases y 3 instrucciones de atención, el tiempo visible acumulado por frase y el registro de cambios de opción, borrados y respuestas después de borrar. También se guardan tu consentimiento, las fechas de la evaluación y el resultado vinculado a tu postulación. Los tiempos y cambios solo ayudan a contextualizar cómo se respondió: no prueban que hayas mentido ni cambian tus bandas de personalidad. No te pedimos explicar causas privadas, tu salud ni tu estado de ánimo.\n\nSolo los reclutadores de la empresa contratante pueden consultar el resultado. En esta primera versión no se te muestra el resultado. Siempre decide una persona: la evaluación por sí sola nunca rechaza, descarta ni mueve tu postulación. No hay una decisión automática de contratación basada en este resultado.\n\nTus respuestas, los registros de respuesta y el resultado se conservan durante 12 meses desde que termines la evaluación. Si no la terminas, el plazo se cuenta desde su vencimiento; si se revoca antes de terminar, desde la revocación. Al finalizar ese plazo dejan de estar disponibles para consulta y se eliminan mediante el proceso de depuración.\n\nPuedes oponerte al tratamiento o solicitar acceso, rectificación, cancelación u oposición (derechos ARCO) contactando directamente a la empresa contratante mediante los canales de contacto que te proporcionó para tu postulación. En esta versión la empresa atiende estas solicitudes de forma manual. Si no deseas participar, comunícalo a la empresa para que una persona atienda tu solicitud; esta evaluación no decide por sí sola sobre tu postulación.\n\nAl seleccionar «Acepto y quiero comenzar», das tu consentimiento expreso y electrónico para el tratamiento descrito en este aviso. Antes de aceptarlo no se muestran las frases ni se registran respuestas a la evaluación.",
+    "sha256": "12363fa144b4f53b24ec74d8b54b6c7c4689f2ce971d2d4aefd9c29323ec3bdf"
+  }
+}

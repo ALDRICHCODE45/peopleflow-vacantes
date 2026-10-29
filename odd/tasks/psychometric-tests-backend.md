@@ -25,7 +25,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
 | T1 | all | inline — capability evidence + contract rounds 1–2 with frontend | — |
-| T2 | S1 | worker — B1 content artifact + loader + docs drift guard | pending |
+| T2 | S1 | worker — B1 content artifact + immutable loader + docs drift guard implemented; vet/focused tests pass; archguard reports existing locked docker/minio/Dockerfile path | pending |
 | T3 | S2 | worker — B2 pure scoring package + table tests from the docs' examples | pending |
 | T4 | S3–S10 | B3–B10, one commit each; B5/B8/B10 isolated for verification | pending |
 
