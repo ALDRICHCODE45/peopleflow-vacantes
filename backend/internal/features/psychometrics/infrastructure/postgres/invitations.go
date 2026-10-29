@@ -114,7 +114,7 @@ func (s *InvitationsStore) ListInvitations(ctx context.Context, company, actor, 
 	if err != nil {
 		return invitations.Result{}, err
 	}
-	rows, err := tx.Query(ctx, invitationProjection+`JOIN process_participations p ON p.id=i.participation_id WHERE p.process_id=$1 AND i.id=(SELECT newest.id FROM psychometric_invitations newest WHERE newest.participation_id=i.participation_id ORDER BY newest.created_at DESC,newest.id DESC LIMIT 1) ORDER BY i.participation_id`, id)
+	rows, err := tx.Query(ctx, invitationProjection+`JOIN process_participations p ON p.id=i.participation_id WHERE p.process_id=$1 AND isfinite(i.purge_after) AND i.purge_after>$2 AND i.id=(SELECT newest.id FROM psychometric_invitations newest WHERE newest.participation_id=i.participation_id ORDER BY newest.created_at DESC,newest.id DESC LIMIT 1) ORDER BY i.participation_id`, id, now)
 	if err != nil {
 		return invitations.Result{}, err
 	}

@@ -81,7 +81,7 @@ func (s *AssessmentStore) load(ctx context.Context, tx pgx.Tx, a assessment.Acce
 	}
 	// Revalidate ownership and the token digest after waiting for all locks. A
 	// concurrent rotation/revoke/expiry must invalidate the original resolution.
-	err = tx.QueryRow(ctx, `SELECT c.name,v.title,i.revoked_at,i.token_hash FROM psychometric_invitations i JOIN process_participations p ON p.id=i.participation_id JOIN vacancy_public_projections v ON v.id=p.process_id JOIN companies c ON c.id=v.company_id WHERE i.id=$1 AND ($2::boolean OR p.candidate_id=(SELECT id FROM users WHERE cognito_sub=$3 AND user_type='candidate' AND deleted_at IS NULL))`, id, a.Public, a.Subject).Scan(&v.company, &v.title, &v.revoked, &v.tokenHash)
+	err = tx.QueryRow(ctx, `SELECT c.name,v.title,i.revoked_at,i.token_hash FROM psychometric_invitations i JOIN process_participations p ON p.id=i.participation_id JOIN vacancy_public_projections v ON v.id=p.process_id JOIN companies c ON c.id=v.company_id WHERE i.id=$1 AND isfinite(i.purge_after) AND i.purge_after>$4 AND ($2::boolean OR p.candidate_id=(SELECT id FROM users WHERE cognito_sub=$3 AND user_type='candidate' AND deleted_at IS NULL))`, id, a.Public, a.Subject, now).Scan(&v.company, &v.title, &v.revoked, &v.tokenHash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return v, candidateNotFound(a)
 	}
@@ -305,7 +305,7 @@ type accountAssessment struct {
 }
 
 func (s *AssessmentStore) List(ctx context.Context, subject string) (assessment.Result, error) {
-	rows, err := s.invitations.pool.Query(ctx, `SELECT i.id,CASE WHEN p.source='organic' THEN p.id ELSE NULL END,v.id,v.title,c.id,c.name,i.created_at,i.expires_at,i.finished_at,i.consented_at,i.revoked_at,i.answered_count,i.total_count,clock_timestamp() FROM psychometric_invitations i JOIN process_participations p ON p.id=i.participation_id JOIN vacancy_public_projections v ON v.id=p.process_id JOIN companies c ON c.id=v.company_id WHERE p.candidate_id=(SELECT id FROM users WHERE cognito_sub=$1 AND user_type='candidate' AND deleted_at IS NULL) AND i.superseded_at IS NULL AND i.id=(SELECT n.id FROM psychometric_invitations n WHERE n.participation_id=i.participation_id AND n.test=i.test ORDER BY n.created_at DESC,n.id DESC LIMIT 1)`, subject)
+	rows, err := s.invitations.pool.Query(ctx, `SELECT i.id,CASE WHEN p.source='organic' THEN p.id ELSE NULL END,v.id,v.title,c.id,c.name,i.created_at,i.expires_at,i.finished_at,i.consented_at,i.revoked_at,i.answered_count,i.total_count,clock_timestamp() FROM psychometric_invitations i JOIN process_participations p ON p.id=i.participation_id JOIN vacancy_public_projections v ON v.id=p.process_id JOIN companies c ON c.id=v.company_id WHERE p.candidate_id=(SELECT id FROM users WHERE cognito_sub=$1 AND user_type='candidate' AND deleted_at IS NULL) AND isfinite(i.purge_after) AND i.purge_after>clock_timestamp() AND i.superseded_at IS NULL AND i.id=(SELECT n.id FROM psychometric_invitations n WHERE n.participation_id=i.participation_id AND n.test=i.test ORDER BY n.created_at DESC,n.id DESC LIMIT 1)`, subject)
 	if err != nil {
 		return assessment.Result{}, err
 	}

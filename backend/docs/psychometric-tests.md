@@ -1,4 +1,4 @@
-# Vacancy psychometric assessments (B3–B7, B9)
+# Vacancy psychometric assessments (B3–B10)
 
 Employers can save a private, vacancy-scoped profile for `ipip60-mx` and manage
 invitations and issue single-display links. Stage entry can automatically create invitations.
@@ -136,7 +136,7 @@ an unfinished invitation changes it to `revoked_at + 12 calendar months`;
 revoking a finished one preserves its finish-based anchor. Reminders, retries
 and expiry-slot supersession do not restart retention. UTC calendar arithmetic
 clamps leap-day anniversaries to the last valid day. B7 will set the finish-based
-anchor; B10 owns purge execution.
+anchor; B10 executes the one-shot purge described below.
 
 `PsychometricInvitationCreated`, `PsychometricReminderRecorded` and
 `PsychometricInvitationRevoked` are co-written in the mutation transaction on
@@ -280,7 +280,7 @@ UTC), and `PsychometricAssessmentFinished` audit commit atomically. Actor and
 PII-free metadata follow consent conventions. An audit failure rolls everything
 back. Concurrent finishes serialize under the invitation lock: one succeeds,
 the other gets assessment_finished, leaving exactly one result/comparison/audit.
-This is not release-ready without retention purge and notice review.
+Notice review is still required before release.
 
 ## Public rate limits (B8)
 
@@ -367,6 +367,71 @@ check server wall-clock retention after acquiring them. Comparison insertion and
 `profile_version`, vacancy and participation) commit in one transaction. Audit
 failure rolls back the operation, returning only an internal-error envelope—no
 result/comparison payload or unaudited comparison row.
+
+## Retention purge (B10)
+
+From `backend/`, supply `DATABASE_URL` explicitly in the environment (no dotenv
+loading). Do not put the DSN on the command line or in logs:
+
+```sh
+go run ./cmd/psychometric-purge          # dry run, no changes
+go run ./cmd/psychometric-purge -execute # perform deletion
+go run ./cmd/psychometric-purge -help
+```
+
+Both modes print only aggregate counts, one `table=count` line for
+`psychometric_invitations`, `psychometric_answers`,
+`psychometric_answer_events`, `psychometric_consents`, `psychometric_results`
+and `psychometric_comparisons`, in that order. Invitation counts mean **scrubbed
+tombstones**, not deleted invitation rows. No IDs, tokens, answers or PII are
+printed. Success exits 0; configuration/database failures exit 1 with only
+`psychometric purge failed` on stderr. Invalid arguments use the same static
+failure; `-help` prints usage without connecting.
+
+The database wall clock determines eligibility: finite, non-NULL `purge_after`
+**at or before** that clock. Future, NULL and non-finite deadlines are untouched.
+The existing UTC 12-calendar-month anchors remain unchanged: finish for finished
+invitations (even if later revoked), revocation for unfinished revoked ones, and
+expiry otherwise, including partial answers. Every comparison follows the same
+invitation deadline; creating one never extends retention.
+
+Dry run uses one read-only, repeatable-read transaction. Execute locks at most
+100 eligible invitations per transaction with `FOR UPDATE SKIP LOCKED`, deletes
+all their comparisons, results, answer events/timing, current answers/timing and
+consents, then clears token hashes, consent timestamps and answered counters.
+Invitation identity, lifecycle timestamps, retention and administrative metadata
+remain as a minimal assessment-free tombstone. This preserves audit entity
+references and the finished-invitation uniqueness/no-retake rule; deleting the
+invitation would silently allow a new assessment after a retained finish.
+Non-psychometric tables, vacancy profiles and audit rows are never modified.
+
+Each batch commits independently. Concurrent commands partition unlocked work
+without double-counting: eligibility is rechecked in a fresh statement after row
+locking, so a concurrent purge's deleted children cannot survive in the original
+SELECT snapshot and inflate tombstone counts. A locked invitation can be deferred
+to its owner or a later rerun. Purge takes no parent locks, so it does not invert the normal
+parent-first write protocol. Reruns report zero for already scrubbed invitations.
+On failure, earlier committed batches remain deleted; rerun safely. Scheduling
+is **E3, later**; this command neither starts a worker nor installs deployment
+resources.
+
+Before physical deletion, past-retention data is already unavailable: B9 result
+GET and comparison POST return 404; candidate public token lookup and its
+transactional recheck return assessment_unavailable, account detail/items return
+not_found, and both account and employer invitation lists omit retained-expired
+rows. Latest-invitation selection happens before this filter, so an older
+invitation is never resurrected. Pre-retention expired/revoked account entries
+remain visible read-only as before.
+
+Focused purge verification (must PASS, not SKIP) uses only the guarded loopback
+`DRAFT_TEST_DATABASE_URL` database named `draft_test`. Tests create and clean a
+unique schema, apply the real 00050/00051 assessment DDL with isolated parent
+fixtures, and run the public command `run` function through independent database
+connections, including concurrent invocations:
+
+```sh
+go test -tags=integration ./cmd/psychometric-purge -count=1 -v
+```
 
 ## Verification
 
