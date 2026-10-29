@@ -142,3 +142,7 @@ infra de aws».
   expires_at, audited result reads fail without audit. Agent decisions (for the user's review): presentation order fixed
   per content version; manual send on a discarded or exited participation → `409 participation_inactive`. Slices:
   public token endpoints and retention/purge each get their own commit for independent verification.
+- **L12** User choices (question): U1 retention «12 meses (Recomendado)», U2 link expiry «7 días (Recomendado)».
+  Backend agreed with the contract (msg de24c12b) after 3 nits (total_count from the pinned version, revoked_at anchor
+  for purge_after, no automatic invitation for discarded/exited participations), folded in; agreement is subject to
+  the cut points and ids of `docs/psychometrics/*-v1.md`.

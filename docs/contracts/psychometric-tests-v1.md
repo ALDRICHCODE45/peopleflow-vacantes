@@ -1,6 +1,7 @@
 # Psychometric tests v1 (employer-configured, candidate-answered)
 
-Status: **v-next after backend review (2026-10-28, 16 adjustments folded in)**. Frontend branch `feat/psychometric-tests`. Only the frontend edits
+Status: **agreed with the backend (2026-10-28)** after review (16 adjustments + 3 nits), subject to the cut points and
+ids of `docs/psychometrics/*-v1.md`. Frontend branch `feat/psychometric-tests`. Only the frontend edits
 this file. Feature document: `odd/tasks/psychometric-tests.md` (S1–S12, decisions L8–L10). Content (items, keys,
 bands, competencies, texts, questions): `docs/psychometrics/*-v1.md`. Backend capability evidence and proposals folded
 in from the backend session (feature document L9).
@@ -39,7 +40,7 @@ An optional, per-vacancy personality assessment whose result is read against the
     { "competency_id": "comp.organizacion", "importance": "key" | "important", "desired_band": "low" | "medium" | "high" }
   ],                               // competencies absent here are «No relevante»
   "auto_send_stage_ids": ["uuid"], // S10: stages whose entry creates an invitation; 0..n; current pipeline, not exit/retired
-  "expires_in_days": 7             // 1..30, applies to invitations created after the save
+  "expires_in_days": 7             // 1..30, default 7 (U2), applies to invitations created after the save
 }
 
 // Invitation (one participation × one test)
@@ -55,8 +56,8 @@ An optional, per-vacancy personality assessment whose result is read against the
   "created_at": "RFC 3339",
   "expires_at": "RFC 3339",
   "consented_at": "RFC 3339 | null",
-  "answered_count": 0,             // 0..120 (116 personality + attention items)
-  "total_count": 120,
+  "answered_count": 0,             // 0..total_count
+  "total_count": 120,              // from the pinned content_version: 116 personality + its attention items
   "finished_at": "RFC 3339 | null",
   "last_reminded_at": "RFC 3339 | null",
   "reminder_count": 0
@@ -149,6 +150,8 @@ in the same lifecycle states as the checklist.
 
 Inside the same transaction as the stage entry, when the profile is enabled and the entered stage is in
 `auto_send_stage_ids`, create an invitation (`origin = auto`) unless an active or a finished non-revoked one exists.
+A discarded or exited participation never gets an automatic invitation (mirrors `409 participation_inactive`; only
+recovery enters a stage from discard, and the participation is active again).
 Entry kinds that trigger: board move (`board/store.go` Move) and recovery (`board/discard.go`); candidate apply and
 manual intake only when their initial stage is configured. Pipeline relocation (`pipeline_impact.go`) and substate
 changes never trigger. A configured stage retired later is ignored at trigger time. An insert failure fails the move
@@ -197,8 +200,9 @@ The candidate never sees scores or results in v1 (D7).
 - Separate tables for profile, invitation, consent, answers + telemetry and result; no psychometric data on
   participation rows.
 - `purge_after` is always computable at write time: `finished_at + retention` for finished invitations, and
-  `expires_at + retention` for unfinished ones (partial answers included). Past it, results and answers are hidden at
-  read time and deleted by a one-shot `cmd/` purge command (its scheduled run is E3). **Open (U1): retention period.**
+  `revoked_at + retention` for unfinished revoked ones, and `expires_at + retention` for the other unfinished ones
+  (partial answers included). Retention = **12 months** (U1). Past it, results and answers are hidden at read time and
+  deleted by a one-shot `cmd/` purge command (its scheduled run is E3).
 - Audit events as listed above, including every recruiter view of a result. Encryption at rest is infrastructure.
 - The consent notice text (Mexican Spanish, versioned) states purpose, who sees the result, retention and the right to
   oppose. It is **authored in `docs/psychometrics/` and served by the backend** from the content artifact, which holds
@@ -211,8 +215,8 @@ The candidate never sees scores or results in v1 (D7).
 - **B3 (resolved)** Content (item bank, keys, bands, competency relations, rules, question bank, notice text) ships as
   a versioned backend artifact (embedded file or migration seed) referenced by `content_version`/`scoring_version`; the
   frontend gets item text and options only, and owns the display texts of the library and bank by id.
-- **U1 (user)** Retention period (proposal: 12 months, anchored as above).
-- **U2 (user)** Default `expires_in_days` (proposal: 7).
+- **U1 (resolved, user)** Retention 12 months, anchored as above.
+- **U2 (resolved, user)** Default `expires_in_days` = 7.
 
 ## Out of scope (v1)
 
