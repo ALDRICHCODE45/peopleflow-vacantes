@@ -36,14 +36,19 @@ processes remain editable; a finished process rejects PUT with
 
 Each competency entry has exactly `competency_id`, `importance`, `desired_band`,
 `rationale` and `task`. Importance is `importance.clave`, `importance.importante`
-or `importance.no_relevante`. The last requires null `desired_band`; the others
-require `band.low`, `band.medium` or `band.high`. Default entries are no relevante,
-null band, empty rationale and null task.
+or `importance.no_relevante`. No relevante requires null `desired_band`,
+`rationale` and `task`, even in drafts; any non-null value yields that field's
+`not_allowed` error. Never-saved defaults use these three nulls. Clave and
+Importante require `band.low`, `band.medium` or `band.high`.
 
 Text is trimmed and counted as Unicode characters. Rationale is at most 1000
-characters and task at most 300. Unconfirmed drafts may leave them empty.
-Confirmation requires a nonempty rationale on **every** entry and a nonempty task
-for Clave; other tasks may be null, but if supplied must also be nonempty.
+characters and a Clave task at most 300. Clave/Importante drafts accept both null
+and empty-string rationale as empty, preserving their wire representation;
+confirmation requires 1–1000 characters after trim (`required` for null/empty).
+Only Clave accepts a task: null/empty is allowed while drafting, but confirmation
+requires 1–300 trimmed characters. Importante, like No relevante, requires null
+task in every state; non-null is `not_allowed`. Confirming an all-No-relevante
+profile needs no rationale or task.
 A save with `confirmed: false` clears `confirmed_at`, including when requirements
 change. Explicit `confirmed: true` confirms changed requirements at server time;
 identical confirmed saves retain their timestamp. Non-requirement edits preserve
@@ -71,11 +76,11 @@ to the company-scoped draft; its Down refuses to remove retained profiles.
 From `backend/`:
 
 ```sh
-go test ./internal/features/psychometrics/...
+go test -count=1 ./internal/features/psychometrics/...
 go test ./cmd/api -run '^(TestPsychometricProfileRoutes|TestRouteTopology_ExactRegistrations)$' -count=1
-go test -tags integration ./cmd/api -run '^TestPsychometricProfileFlow' -count=1
+go test -tags integration ./cmd/api -run '^(TestPsychometricProfile|TestChecklistFlow)' -count=1
 go test -tags integration ./db/migrations -run '^TestPsychometricProfileMigrationGuardedDown$' -count=1
-go vet ./... && go test ./...
+go vet ./...
 go run ./cmd/archguard
 ```
 

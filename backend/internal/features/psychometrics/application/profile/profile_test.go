@@ -32,7 +32,7 @@ func TestDefaultsAndReplacement(t *testing.T) {
 		t.Fatal(p)
 	}
 	for i, c := range p.Competencies {
-		if c.CompetencyID != d.Competencies[i].ID || c.Importance != "importance.no_relevante" || c.DesiredBand != nil || c.Rationale != "" || c.Task != nil {
+		if c.CompetencyID != d.Competencies[i].ID || c.Importance != "importance.no_relevante" || c.DesiredBand != nil || c.Rationale != nil || c.Task != nil {
 			t.Fatal(c)
 		}
 	}
@@ -62,21 +62,23 @@ func TestValidationRules(t *testing.T) {
 		}},
 		{"unknown catalog", "competencies[0].competency_id", "invalid", func(m map[string]any) { entry(m)["competency_id"] = "comp.unknown" }},
 		{"importance", "competencies[0].importance", "invalid", func(m map[string]any) { entry(m)["importance"] = "clave" }},
-		{"irrelevant band", "competencies[0].desired_band", "invalid", func(m map[string]any) { entry(m)["desired_band"] = "band.high" }},
+		{"irrelevant band", "competencies[0].desired_band", "not_allowed", func(m map[string]any) { entry(m)["desired_band"] = "band.high" }},
 		{"relevant band required", "competencies[0].desired_band", "required", func(m map[string]any) { entry(m)["importance"] = "importance.importante" }},
 		{"band canonical", "competencies[0].desired_band", "invalid", func(m map[string]any) {
 			entry(m)["importance"] = "importance.importante"
 			entry(m)["desired_band"] = "high"
 		}},
-		{"rationale required", "competencies[0].rationale", "required", func(m map[string]any) { confirm(m); entry(m)["rationale"] = "  " }},
-		{"rationale long", "competencies[0].rationale", "too_long", func(m map[string]any) { entry(m)["rationale"] = strings.Repeat("á", 1001) }},
-		{"key task required", "competencies[0].task", "required", func(m map[string]any) {
-			confirm(m)
-			entry(m)["importance"] = "importance.clave"
-			entry(m)["desired_band"] = "band.low"
+		{"rationale required", "competencies[0].rationale", "required", func(m map[string]any) { relevant(m, "importance.importante"); confirm(m); entry(m)["rationale"] = "  " }},
+		{"rationale long", "competencies[0].rationale", "too_long", func(m map[string]any) {
+			relevant(m, "importance.importante")
+			entry(m)["rationale"] = strings.Repeat("á", 1001)
 		}},
-		{"task long", "competencies[0].task", "too_long", func(m map[string]any) { entry(m)["task"] = strings.Repeat("á", 301) }},
-		{"optional task empty on confirmation", "competencies[0].task", "required", func(m map[string]any) { confirm(m); entry(m)["task"] = " " }},
+		{"key task required", "competencies[0].task", "required", func(m map[string]any) {
+			relevant(m, "importance.clave")
+			confirm(m)
+		}},
+		{"task long", "competencies[0].task", "too_long", func(m map[string]any) { relevant(m, "importance.clave"); entry(m)["task"] = strings.Repeat("á", 301) }},
+		{"irrelevant task on confirmation", "competencies[0].task", "not_allowed", func(m map[string]any) { confirm(m); entry(m)["task"] = " " }},
 		{"unknown entry key", "competencies[0].extra", "not_allowed", func(m map[string]any) { entry(m)["extra"] = false }},
 		{"exit or retired stage", "auto_send_stage_ids[0]", "invalid", func(m map[string]any) { m["auto_send_stage_ids"] = []string{"exit"} }},
 		{"duplicate stage", "auto_send_stage_ids[1]", "duplicate", func(m map[string]any) { m["auto_send_stage_ids"] = []string{"stage", "stage"} }},
@@ -103,10 +105,17 @@ func TestValidationRules(t *testing.T) {
 	}
 }
 func entry(m map[string]any) map[string]any { return m["competencies"].([]any)[0].(map[string]any) }
+func relevant(m map[string]any, importance string) {
+	entry(m)["importance"] = importance
+	entry(m)["desired_band"] = "band.low"
+}
 func confirm(m map[string]any) {
 	m["confirmed"] = true
 	for _, c := range m["competencies"].([]any) {
-		c.(map[string]any)["rationale"] = "Trabajo"
+		entry := c.(map[string]any)
+		if entry["importance"] == "importance.clave" || entry["importance"] == "importance.importante" {
+			entry["rationale"] = "Trabajo"
+		}
 	}
 }
 func TestTrimUnicodeBoundariesAndDrafts(t *testing.T) {
@@ -119,7 +128,7 @@ func TestTrimUnicodeBoundariesAndDrafts(t *testing.T) {
 		entry(m)["task"] = " " + strings.Repeat("ñ", 300) + " "
 		m["expires_in_days"] = days
 		p, err := profile.Replace(encoded(m), nil)
-		if err != nil || len([]rune(p.Competencies[0].Rationale)) != 1000 || len([]rune(*p.Competencies[0].Task)) != 300 {
+		if err != nil || p.Competencies[0].Rationale == nil || len([]rune(*p.Competencies[0].Rationale)) != 1000 || len([]rune(*p.Competencies[0].Task)) != 300 {
 			t.Fatal(p, err)
 		}
 	}

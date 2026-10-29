@@ -29,7 +29,7 @@ type Competency struct {
 	CompetencyID string  `json:"competency_id"`
 	Importance   string  `json:"importance"`
 	DesiredBand  *string `json:"desired_band"`
-	Rationale    string  `json:"rationale"`
+	Rationale    *string `json:"rationale"`
 	Task         *string `json:"task"`
 }
 type Profile struct {
@@ -229,7 +229,7 @@ func Replace(raw []byte, stages []string) (Profile, error) {
 				if band, exists := c["desired_band"]; exists {
 					if importance == "importance.no_relevante" {
 						if band != nil {
-							add(path+"desired_band", "invalid")
+							add(path+"desired_band", "not_allowed")
 						}
 					} else if importance == "importance.clave" || importance == "importance.importante" {
 						if band == nil {
@@ -249,8 +249,17 @@ func Replace(raw []byte, stages []string) (Profile, error) {
 					if !exists {
 						continue
 					}
-					required := p.Confirmed && (key == "rationale" || importance == "importance.clave")
-					if key == "task" && x == nil {
+					forbidden := importance == "importance.no_relevante" || (key == "task" && importance == "importance.importante")
+					if forbidden {
+						if x != nil {
+							add(path+key, "not_allowed")
+						}
+						continue
+					}
+					relevant := importance == "importance.clave" || importance == "importance.importante"
+					required := p.Confirmed && relevant && (key == "rationale" || importance == "importance.clave")
+					// Drafts accept null and empty text as empty, preserving their wire shape.
+					if x == nil {
 						if required {
 							add(path+key, "required")
 						}
@@ -268,11 +277,11 @@ func Replace(raw []byte, stages []string) (Profile, error) {
 					}
 					if utf8.RuneCountInString(s) > max {
 						add(path+key, "too_long")
-					} else if s == "" && p.Confirmed {
+					} else if s == "" && required {
 						add(path+key, "required")
 					}
 					if key == "rationale" {
-						out.Rationale = s
+						out.Rationale = &s
 					} else {
 						out.Task = &s
 					}
