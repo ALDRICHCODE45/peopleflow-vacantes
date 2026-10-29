@@ -21,7 +21,7 @@ import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
 import { SubstateSelect } from "./substate-controls";
 import { discardGroupLabel, discardReasonLabel } from "./discard-text";
-import { allowedMoveTargets } from "./helpers";
+import { allowedMoveTargets, isBackwardMove } from "./helpers";
 import { participationCvHref } from "./cv-href";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import type { Notice } from "./board-feedback";
@@ -99,7 +99,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       <SheetDescription className="text-xs">{manual ? <>Agregado{detail.added_by ? ` por ${detail.added_by.name}` : ""} el <MovementDate value={detail.applied_at} /></> : <>Postuló el <MovementDate value={detail.applied_at} /> <span className="px-1">·</span> Fuente: Orgánica</>}</SheetDescription>
       {/* Evaluation context and its action stay together above the scrolling tabs. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-wrap">
-        {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
+        {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} isBackward={stage => isBackwardMove(board, item, stage)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
         {onSubstate && <SubstateSelect board={board} item={item} onChange={onSubstate} disabled={locked} describedBy={errorNotice ? "detail-action-status" : undefined} />}
         {onDisposition && <Button id={`candidate-disposition-${item.id}`} type="button" variant="outline" className={cn("h-10", !item.discard && "border-destructive/25 text-destructive")} disabled={locked} aria-label={item.discard ? "Recuperar" : "Descartar"} aria-describedby={errorNotice ? "detail-action-status" : undefined} onClick={() => onDisposition(item.id, item.discard ? "recover" : "discard")}>
           {item.discard ? <RotateCcw aria-hidden="true" data-icon="inline-start" /> : <UserRoundX aria-hidden="true" data-icon="inline-start" />}{item.discard ? "Recuperar" : "Descartar"}

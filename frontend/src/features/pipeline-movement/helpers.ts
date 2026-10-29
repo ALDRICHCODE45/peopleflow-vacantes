@@ -5,6 +5,11 @@ export function allowedMoveTargets(board: Board, item: Participation): Board["st
   const current = board.stages.findIndex(stage => stage.id === item.stage_id);
   return current < 0 ? [] : board.stages.filter((_, index) => index < current || index === current + 1);
 }
+/** A move to an earlier stage of the board order goes back; the next stage goes forward. */
+export function isBackwardMove(board: Board, item: Participation, target: string): boolean {
+  const index = (id: string) => board.stages.findIndex(stage => stage.id === id);
+  return index(target) < index(item.stage_id);
+}
 export function leavesPlacement(board: Board, item: Participation, target: string): boolean {
   return board.stages.some(stage => stage.id === item.stage_id && stage.kind === "placement")
     && allowedMoveTargets(board, item).some(stage => stage.id === target);

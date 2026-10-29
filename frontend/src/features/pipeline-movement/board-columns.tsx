@@ -12,7 +12,7 @@ import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { allowedMoveTargets } from "./helpers";
+import { allowedMoveTargets, isBackwardMove } from "./helpers";
 import { discardGroupLabel, discardReasonLabel } from "./discard-text";
 import type { Board, Participation } from "./model";
 import type { Notice } from "./board-feedback";
@@ -53,7 +53,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
         <CardTitle className="min-w-0 text-sm font-medium"><Hint text={item.candidate.full_name}><Button type="button" variant="ghost" className="h-auto min-h-10 w-full justify-start whitespace-normal p-0 text-left text-sm font-medium hover:bg-transparent"
           id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} onClick={() => onDetail(item.id)}><span className="line-clamp-2 break-words leading-5">{item.candidate.full_name}</span></Button></Hint></CardTitle>
       </div>
-      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
+      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
       <ChecklistFit item={item} />

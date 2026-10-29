@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { allowedMoveTargets, leavesPlacement, applyMoveToBoard } from "./helpers";
+import { allowedMoveTargets, isBackwardMove, leavesPlacement, applyMoveToBoard } from "./helpers";
 import { boardSchema, moveSchema } from "./model";
 import { board as rawBoard, moved as rawMove, item, id } from "./test-fixtures";
 const board = boardSchema.parse(rawBoard), moved = moveSchema.parse(rawMove);
@@ -8,6 +8,11 @@ it("allows exactly the next stage forward, all earlier stages backward, not same
   expect(allowedMoveTargets(board, { ...item, stage_id: id(4) }).map(stage => stage.id)).toEqual([id(1), id(2), id(3), id(5)]);
   expect(allowedMoveTargets(board, { ...item, stage_id: id(5) }).map(stage => stage.id)).toEqual([id(1), id(2), id(3), id(4)]);
   expect(allowedMoveTargets(board, { ...item, stage_id: id(6) })).toEqual([]);
+});
+it("tells backward moves (earlier stages) from the forward one by board order", () => {
+  const at4 = { ...item, stage_id: id(4) };
+  expect(allowedMoveTargets(board, at4).map(stage => isBackwardMove(board, at4, stage.id))).toEqual([true, true, true, false]);
+  expect(isBackwardMove(board, item, id(2))).toBe(false);
 });
 it("requires a Placement exit confirmation only when leaving Placement for an allowed target", () => {
   expect(leavesPlacement(board, { ...item, stage_id: id(5) }, id(1))).toBe(true);

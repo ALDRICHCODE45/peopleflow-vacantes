@@ -250,6 +250,17 @@ it.each(["substate", "recover"] as const)("finished %s controls remain disabled 
   expect(operation === "recover" ? within(sheet).getByRole("button", { name: "Recuperar" }) : within(sheet).getByRole("combobox", { name: "Subestado" })).toBeDisabled();
 });
 function menu() { fireEvent.click(screen.getByRole("button", { name: "Acciones de Ana Pérez" })); return screen.getByRole("menu"); }
+it("points backward moves left and the next stage right in the card menu", async () => {
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  const board = boardFixture();
+  board.participations[0].stage_id = board.stages[1].id;
+  await mount(board);
+  const actions = menu();
+  const back = within(actions).getByRole("menuitem", { name: board.stages[0].name });
+  const forward = within(actions).getByRole("menuitem", { name: board.stages[2].name });
+  expect(back.querySelector("svg[data-direction]")).toHaveAttribute("data-direction", "back");
+  expect(forward.querySelector("svg[data-direction]")).toHaveAttribute("data-direction", "forward");
+});
 function move(label = "Revisión", confirm = true) {
   fireEvent.click(within(menu()).getByRole("menuitem", { name: label }));
   if (confirm && !screen.getByRole("alertdialog").textContent?.includes("disminuyen en una")) fireEvent.click(screen.getByRole("button", { name: "Mover" }));
