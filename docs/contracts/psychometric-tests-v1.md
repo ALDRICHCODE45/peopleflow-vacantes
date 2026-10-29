@@ -57,7 +57,7 @@ An optional, per-vacancy personality assessment whose result is read against the
   "expires_at": "RFC 3339",
   "consented_at": "RFC 3339 | null",
   "answered_count": 0,             // 0..total_count
-  "total_count": 120,              // from the pinned content_version: 116 personality + its attention items
+  "total_count": 119,              // from the pinned content_version: 116 personality + 3 attention items (ipip116-mx-1)
   "finished_at": "RFC 3339 | null",
   "last_reminded_at": "RFC 3339 | null",
   "reminder_count": 0
@@ -190,7 +190,10 @@ is rejected.
    keys, unknown keys → `400`; `value` integer 1..5 (required); `client_elapsed_ms` 0..3,600,000 and `change_count`
    0..1,000 optional. The server stamps `received_at` and counts writes per position itself; client values are used
    only for quality signals, never for scores. Last write wins until finish. `409 assessment_finished` after finish.
-5. `POST {base}/finish` → `200 { "status": "finished" }`; `422 incomplete` with `data.missing_positions`. Scoring runs
+   `client_elapsed_ms` is the cumulative visible time on that item (`docs/psychometrics/quality-signals-v1.md`).
+5. `DELETE {base}/answers/{position}` → `204` (the candidate clears an answer; S4 «borras y luego vuelves a
+   ponerlo»). Idempotent; the server records the clear event for `signal.changes`. Same errors as 4.
+6. `POST {base}/finish` → `200 { "status": "finished" }`; `422 incomplete` with `data.missing_positions`. Scoring runs
    in this transaction; audit `PsychometricAssessmentFinished`.
 
 The candidate never sees scores or results in v1 (D7).

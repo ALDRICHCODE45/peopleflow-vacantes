@@ -150,3 +150,11 @@ infra de aws».
   deseado vs obtenido», 03 «Guía primero» (sheet tab «Psicometría», 1440×900, 560 px sheet). Parent screenshots at 1440:
   all three render; «Por explorar» and «Foco de atención» share the review tone (worker choice so a focus never reads
   as rejection) and differ only by text; the heading shows a focus outline on load. Pending the user's choice.
+- **L14** T3 (worker mvt1zrj8 → mvt2239g-3-4gtf, after the parent clarified that the health prohibition covers our
+  authored text, not source provenance): `docs/psychometrics/` README, item-bank (116 items, 29 facets, official key
+  audited 116/116, 53 reversed), quality-signals (3 attention items at positions 30/60/90 → 119 positions), bands (4–9
+  / 10–14 / 15–20) and 6 competencies, interpretation library (18 entries), interview bank (72 questions). Parent
+  review: no competency uses an N facet (the worker kept borderline facets out pending the user), while the artboards
+  show «Manejo de la presión»; items 11 and 71 got the same Spanish wording. Contract follow-ups: `total_count` 119
+  and `DELETE {base}/answers/{position}` for clear events (signal.changes). Pending user review: 23 corrections,
+  facet labels, borderline facets N1–N6, E6, O3.
