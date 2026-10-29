@@ -122,7 +122,9 @@ Profile validation: exactly the seven catalog ids (including `comp.presion`), no
 Importance is one of the three canonical ids. `importance.no_relevante` requires null desired_band, null rationale and
 null task (user decision L25); otherwise one canonical band is required. To confirm, every `importance.clave` or
 `importance.importante` entry requires a job-related `rationale`, 1..1000 characters after trim; `task` is required
-for `importance.clave`, 1..300 characters after trim, otherwise null.
+for `importance.clave`, 1..300 characters after trim, otherwise null (a task on `importance.importante` →
+`not_allowed`). On clave/importante entries `rationale` is always a string: `""` in a draft, `null` → `invalid`
+(L28); non-null values on `importance.no_relevante` → `not_allowed`.
 Unconfirmed drafts may have empty rationale/task. `confirmed_at` is server-owned and null when unconfirmed; an edit
 to competency requirements requires explicit reconfirmation in that save or clears confirmation. `enabled` only
 controls invitation creation; an enabled unconfirmed profile never blocks assessment completion. Default entries are

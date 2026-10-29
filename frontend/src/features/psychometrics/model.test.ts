@@ -58,3 +58,11 @@ it("asks for rationale only on relevant competencies (L25)", () => {
   expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...body.competencies[0], task: "Tarea" }, ...rest] }).success).toBe(false);
   expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...relevant, rationale: "" }, ...rest] }).success).toBe(true);
 });
+it("allows a task only on key competencies and a string rationale on relevant drafts (L28)", () => {
+  const importante = { competency_id: "comp.organizacion", importance: "importance.importante", desired_band: "band.medium", rationale: "", task: null };
+  const rest = body.competencies.slice(1);
+  expect(m.profileBodySchema.safeParse({ ...body, competencies: [importante, ...rest] }).success).toBe(true);
+  expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...importante, task: "Tarea" }, ...rest] }).success).toBe(false);
+  expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...importante, rationale: null }, ...rest] }).success).toBe(false);
+  expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...importante, importance: "importance.clave", task: "Tarea" }, ...rest] }).success).toBe(true);
+});

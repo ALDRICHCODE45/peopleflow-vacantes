@@ -91,7 +91,7 @@ infra de aws».
 | T4 | S2, S7, S9–S12 | design — artboards: vacancy profile module, candidate test flow + consent, card status, sheet result | |
 | T5 | all | inline — contract `docs/contracts/psychometric-tests-v1.md`, backend review | |
 | T6 | S2–S12 | worker — `features/psychometrics/` model, codec, client, server actions, guarded transport inventory, agreed-contract test (mocks of the contract) | e6c9c5e5 |
-| T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | |
+| T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | a5c657c6 |
 | T8 | S9, S10 | worker — board: card status rows, sheet tab not-finished states, send / copy link / remind / revoke (flows/05) | |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | |
@@ -221,3 +221,21 @@ infra de aws».
   artboard had one general rationale. User choice (question): «Solo en las relevantes (Recomendado)» — rationale
   required for Clave and Importante, task for Clave, No relevante asks for nothing (null rationale/task/band). Contract
   and bands-and-competencies updated; backend told.
+- **L26** Parent applied L25 to the data layer test-first (model.test RED 4 → GREEN 570 in psychometrics; commit
+  8d0e134a). T7 (worker mvt4vqn3 → mvt5t62f): `features/psychometrics/profile/` editor, module, loading + the
+  «Psicometría» nav entry; no suggestion rules exist in the content, so «Sugerir desde la vacante» keeps defaults;
+  the skipped Select test was restored with the Entrega Select mock pattern. Parent wrote the route page
+  `configuracion/psicometria/page.tsx` test-first (missing module RED → GREEN). Parent re-ran profile + vacancy-config
+  + route: 9 files / 98 passed; worker: 382 passed, tsc and eslint clean. Commit a5c657c6. Combined runs under
+  parallel workers time out (load), so the delivery gate runs alone.
+- **L27** T10 (worker mvt4wyu7-b-46rn) + parent route page `(public)/evaluacion/[token]/page.tsx` (test-first). Independent
+  verify (mvt5pukb-c-xz6d): FAIL on token containment — Next 15.5.25 encrypts Server Action captures, but the dynamic
+  `[token]` segment is also serialized in clear in the Flight router state
+  (`create-flight-router-state-from-loader-tree.js:25–30`, `app-render.js:573,643–648`; probe output
+  `[["token","private-assessment-token","d"],{}]`). Metadata/routing, error states, telemetry PASS; 18/18 + probes.
+  Parent assessment: the router state reaches the same browser that already holds the URL, so it adds no new
+  recipient, but the URL itself keeps the bearer in history and request logs. Pending the user's decision on the
+  routing (exchange the link for an httpOnly cookie and redirect, or accept).
+- **L28** Backend L25 implemented (msg e7311fac, 800dd86f on B3 base ac17f5e7). Agreed one representation: relevant
+  entries always carry a string rationale ("" in drafts, null invalid); task on importante → not_allowed. Parent
+  mirrored it in the model test-first (RED 1 → GREEN 584 in psychometrics) and in the contract.
