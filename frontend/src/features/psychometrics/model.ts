@@ -26,6 +26,17 @@ const versions = { content_version: z.literal("psychometrics.content.v1"), scori
 export const invitationStatusSchema = z.enum(["created", "in_progress", "finished", "expired", "revoked"]);
 export const invitationSchema = z.object({ id: uuidSchema, participation_id: uuidSchema, test: z.literal("ipip60-mx"), ...versions, status: invitationStatusSchema, origin: z.enum(["manual", "auto"]), created_by: z.object({ id: uuidSchema, full_name: z.string() }).strict().nullable(), trigger_stage_id: uuidSchema.nullable(), created_at: timestamp, expires_at: timestamp, consented_at: timestamp.nullable(), answered_count: count.max(63), total_count: z.literal(63), finished_at: timestamp.nullable(), last_reminded_at: timestamp.nullable(), reminder_count: count }).strict();
 export const invitationsSchema = z.object({ items: z.array(invitationSchema) }).strict();
+/** Account projection deliberately excludes recruiter data and all results (D7). */
+export const accountAssessmentSchema = z.object({
+  id: uuidSchema, application_id: uuidSchema.nullable(),
+  vacancy: z.object({ id: uuidSchema, title: z.string().min(1) }).strict(),
+  company: z.object({ id: uuidSchema, name: z.string().min(1) }).strict(),
+  status: invitationStatusSchema, created_at: timestamp, expires_at: timestamp,
+  finished_at: timestamp.nullable(), answered_count: count.max(63), total_count: z.literal(63), estimated_minutes: z.literal(10),
+}).strict();
+export const accountAssessmentsSchema = z.object({ items: unique(accountAssessmentSchema, item => item.id.toLowerCase()) }).strict();
+export type AccountAssessment = z.infer<typeof accountAssessmentSchema>;
+export type AccountAssessments = z.infer<typeof accountAssessmentsSchema>;
 const competencyObject = z.object({ competency_id: competencyIdSchema, facet_ids: unique(facetIdSchema, s => s), oriented_sums: z.array(z.number().int().min(4).max(20)).min(2).max(3), oriented_sum: z.number().int().min(8).max(60), facet_count: z.number().int().min(2).max(3), index: z.string().regex(/^(?:[4-9]\.[0-9]|1[0-9]\.[0-9]|20\.0)$(?![\s\S])/), band: bandSchema }).strict();
 const sumsValid = (c: z.infer<typeof competencyObject>) => c.facet_ids.length === c.facet_count && c.oriented_sums.length === c.facet_count && c.facet_count === (c.competency_id === "comp.presion" ? 3 : 2) && c.oriented_sum === c.oriented_sums.reduce((a, b) => a + b, 0);
 export const competencySchema = competencyObject.refine(sumsValid);

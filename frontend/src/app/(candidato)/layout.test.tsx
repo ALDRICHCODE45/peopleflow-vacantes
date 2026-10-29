@@ -18,6 +18,7 @@ vi.mock("@/features/identity/area-guards", () => ({ CandidateGuard: ({ children 
 
 import CandidateLayout from "./layout";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
+vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessments: async () => ({ ok: true, data: { items: [] } }) }));
 import DashboardPage, { metadata as dashboardMetadata } from "./candidato/dashboard/page";
 import PostulacionesPage, { metadata as postulacionesMetadata } from "./candidato/postulaciones/page";
 import GuardadasPage, { metadata as guardadasMetadata } from "./candidato/guardadas/page";
@@ -25,7 +26,7 @@ import PerfilPage, { metadata as perfilMetadata } from "./candidato/perfil/page"
 import CvsPage, { metadata as cvsMetadata } from "./candidato/cvs/page";
 import ConfiguracionPage, { metadata as configuracionMetadata } from "./candidato/configuracion/page";
 
-type Destination = { segment: string; title: string; Page: () => React.JSX.Element; metadata: { title?: unknown } };
+type Destination = { segment: string; title: string; Page: () => React.JSX.Element | Promise<React.JSX.Element>; metadata: { title?: unknown } };
 const DESTINATIONS: Destination[] = [
   { segment: "dashboard", title: "Dashboard", Page: DashboardPage, metadata: dashboardMetadata },
   { segment: "postulaciones", title: "Postulaciones", Page: PostulacionesPage, metadata: postulacionesMetadata },
@@ -95,22 +96,22 @@ describe("(candidato) route-group layout owns the single candidate shell", () =>
 describe("candidate destinations resolve as honest content-only routes", () => {
   beforeEach(stubBrowserApis);
 
-  it.each(DESTINATIONS)("$title declares truthful metadata and exactly one matching heading", ({ title, Page, metadata }) => {
+  it.each(DESTINATIONS)("$title declares truthful metadata and exactly one matching heading", async ({ title, Page, metadata }) => {
     expect(metadata.title).toBe(title);
-    render(<CandidateShell><Page /></CandidateShell>);
+    render(<CandidateShell>{await Page()}</CandidateShell>);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(title);
     expect(document.querySelectorAll("main")).toHaveLength(1);
   });
 
-  it("mounts the verified dashboard overview instead of a destination preview", () => {
-    render(<CandidateShell><DashboardPage /></CandidateShell>);
+  it("mounts the verified dashboard overview instead of a destination preview", async () => {
+    render(<CandidateShell>{await DashboardPage()}</CandidateShell>);
     expect(document.querySelector("[data-pf-candidate-overview]")).not.toBeNull();
     expect(document.querySelector('[data-pf-destination="Dashboard"]')).toBeNull();
   });
 
-  it("mounts the verified applications workspace instead of a destination preview", () => {
-    render(<CandidateShell><PostulacionesPage /></CandidateShell>);
+  it("mounts the verified applications workspace instead of a destination preview", async () => {
+    render(<CandidateShell>{await PostulacionesPage()}</CandidateShell>);
     expect(document.querySelector("[data-pf-applications-workspace]")).not.toBeNull();
     expect(document.querySelector('[data-pf-destination="Postulaciones"]')).toBeNull();
   });
@@ -139,9 +140,9 @@ describe("candidate destinations resolve as honest content-only routes", () => {
     expect(document.querySelector('[data-pf-destination="Configuración"]')).toBeNull();
   });
 
-  it.each(DESTINATIONS)("$title activates only its own sidebar destination", ({ segment, title, Page }) => {
+  it.each(DESTINATIONS)("$title activates only its own sidebar destination", async ({ segment, title, Page }) => {
     pathnameMock.mockReturnValue(`/candidato/${segment}`);
-    render(<CandidateShell><Page /></CandidateShell>);
+    render(<CandidateShell>{await Page()}</CandidateShell>);
     const nav = document.querySelector("[data-slot='sidebar-content']") as HTMLElement;
     const active = within(nav).getAllByRole("link").filter((link) => link.hasAttribute("data-active")).map((link) => link.textContent);
     expect(active).toEqual([title]);

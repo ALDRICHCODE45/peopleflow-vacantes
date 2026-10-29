@@ -29,6 +29,8 @@ vi.mock("@/components/candidate-dashboard/candidate-dashboard-overview", async (
   };
 });
 
+vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessments: vi.fn().mockResolvedValue({ ok: true, data: { items: [] } }) }));
+import { loadWorkspaceAssessments } from "@/features/psychometrics/workspace/load";
 import DashboardPage, { metadata } from "./page";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 
@@ -43,7 +45,7 @@ function stubBrowserApis() {
   vi.stubGlobal("innerWidth", 1280);
 }
 
-const renderRoute = () => render(<CandidateShell><DashboardPage /></CandidateShell>);
+const renderRoute = async () => render(<CandidateShell>{await DashboardPage()}</CandidateShell>);
 const metric = (label: string) => document.querySelector(`[data-pf-overview-metric="${label}"]`) as HTMLElement;
 const recentSection = () => document.querySelector("[data-pf-recent-applications]") as HTMLElement;
 
@@ -58,16 +60,16 @@ afterEach(() => {
 describe("candidate dashboard route", () => {
   beforeEach(stubBrowserApis);
 
-  it("keeps Dashboard metadata and exactly one H1 through the shared header", () => {
+  it("keeps Dashboard metadata and exactly one H1 through the shared header", async () => {
     expect(metadata.title).toBe("Dashboard");
-    renderRoute();
+    await renderRoute();
     const headings = screen.getAllByRole("heading", { level: 1 });
     expect(headings).toHaveLength(1);
     expect(headings[0]).toHaveTextContent(/^Dashboard$/u);
   });
 
-  it("supplies exactly the five committed frozen fixtures at the page boundary", () => {
-    renderRoute();
+  it("supplies exactly the five committed frozen fixtures at the page boundary", async () => {
+    await renderRoute();
     const props = overviewSpy.mock.calls[overviewSpy.mock.calls.length - 1]?.[0] as Record<string, unknown>;
     expect(Object.keys(props)).toEqual(["identity", "profile", "applications", "cvs", "messages"]);
     expect(props.identity).toBe(CANDIDATE_IDENTITY);
@@ -80,16 +82,16 @@ describe("candidate dashboard route", () => {
     expect(Object.isFrozen(props.messages)).toBe(true);
   });
 
-  it("renders the frozen expected metrics", () => {
-    renderRoute();
+  it("renders the frozen expected metrics", async () => {
+    await renderRoute();
     expect(metric("Postulaciones")).toHaveTextContent("4 postulaciones registradas");
     expect(metric("En proceso")).toHaveTextContent("2");
     expect(metric("Perfil completo")).toHaveTextContent("100%");
     expect(metric("CVs")).toHaveTextContent("2 CVs disponibles");
   });
 
-  it("shows recent applications with canonical links and an honest historical row", () => {
-    renderRoute();
+  it("shows recent applications with canonical links and an honest historical row", async () => {
+    await renderRoute();
     const recent = recentSection();
     const rows = within(recent).getAllByRole("listitem");
     expect(rows).toHaveLength(3);
@@ -105,18 +107,26 @@ describe("candidate dashboard route", () => {
     expect(within(recent).getByRole("link", { name: "Ver todas mis postulaciones" })).toHaveAttribute("href", "/candidato/postulaciones");
   });
 
-  it("renders no implementation-status disclosure", () => {
-    renderRoute();
+  it("renders no implementation-status disclosure", async () => {
+    await renderRoute();
     expect(screen.queryByRole("note")).toBeNull();
     expect(document.querySelector("[data-pf-candidate-overview-disclosure]")).toBeNull();
   });
 
-  it("activates only Dashboard inside the shared candidate shell", () => {
+  it("activates only Dashboard inside the shared candidate shell", async () => {
     pathnameMock.mockReturnValue("/candidato/dashboard");
-    renderRoute();
+    await renderRoute();
     const nav = document.querySelector("[data-slot='sidebar-content']") as HTMLElement;
     const active = within(nav).getAllByRole("link").filter((link) => link.hasAttribute("data-active")).map((link) => link.textContent);
     expect(active).toEqual(["Dashboard"]);
+  });
+
+  it("loads real pending assessments separately from prototype overview objects", async () => {
+    vi.mocked(loadWorkspaceAssessments).mockResolvedValueOnce({ ok: true, data: { items: [{ id: "10000000-0000-4000-8000-000000000001", application_id: null, vacancy: { id: "10000000-0000-4000-8000-000000000002", title: "Real vacancy" }, company: { id: "10000000-0000-4000-8000-000000000003", name: "Real company" }, status: "created", created_at: "2026-10-29T12:00:00Z", expires_at: "2099-01-01T00:00:00Z", finished_at: null, answered_count: 0, total_count: 63, estimated_minutes: 10 }] } });
+    await renderRoute();
+    expect(screen.getByRole("heading", { name: "Pendientes" })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Revisar pendiente/ })).toHaveAttribute("href", "/candidato/evaluaciones/10000000-0000-4000-8000-000000000001");
+    expect(overviewSpy.mock.calls.at(-1)?.[0].applications).toBe(CANDIDATE_APPLICATIONS);
   });
 
   it("replaces the placeholder preview and owns no shell, side effect or fixture literal", () => {

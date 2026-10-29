@@ -89,6 +89,20 @@ async function candidateRequest<T>(input: CandidateInput, suffix: string, schema
     return !result.ok && result.reason === "rate_limited" && retryAfter && /^(?:[0-9]+|[A-Za-z]{3}, [0-9]{2} [A-Za-z]{3} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} GMT)$(?![\s\S])/.test(retryAfter) ? { ...result, retryAfter } : result;
   } catch { return fail("no_response"); }
 }
+/** Standard authenticated GET transport; server ordering and latest-only projection are preserved. */
+export async function getAccountAssessments({ token }: { token: string }): Promise<m.Result<m.AccountAssessments>> {
+  if (!token?.trim()) return fail("unauthenticated");
+  try {
+    const { serverEnv } = await import("@/lib/env/server");
+    const result = await requestJson(new URL("/v2/me/assessments", serverEnv.apiBaseUrl).toString(), {
+      method: "GET", expectedStatus: 200, headers: { authorization: `Bearer ${token.trim()}` },
+      redirect: "error", timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
+      decoder: value => m.accountAssessmentsSchema.parse(value), errorDecoder: value => envelopeSchema.parse(value),
+    });
+    if (!result.ok) return result.error.kind === "invalid_response" ? fail("unrecognized_response") : failure("status" in result.error ? result.error.status : undefined, result.envelope);
+    return { ok: true, data: result.data };
+  } catch { return fail("no_response"); }
+}
 export async function getAssessment(input: CandidateInput): Promise<m.Result<m.CandidateBase>> { return candidateRequest(input, "", m.candidateBaseSchema); }
 export async function getItems(input: CandidateInput): Promise<m.Result<m.CandidateItems>> { return candidateRequest(input, "/items", m.candidateItemsSchema); }
 async function candidateWrite<T>(input: CandidateBodyInput, suffix: string, bodySchema: z.ZodType<T>, method: string): Promise<m.Result<null>> {

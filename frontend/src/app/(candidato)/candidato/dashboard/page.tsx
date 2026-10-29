@@ -1,4 +1,9 @@
 import type { Metadata } from "next"
+import { loadWorkspaceAssessments } from "@/features/psychometrics/workspace/load"
+import { PendingAssessments } from "@/features/psychometrics/workspace/assessments"
+import { DashboardPageContent } from "@/components/dashboard-page-content"
+import { StateCard } from "@/components/feedback/state-card"
+import { CircleAlert } from "lucide-react"
 
 import { CandidateDashboardOverview } from "@/components/candidate-dashboard/candidate-dashboard-overview"
 import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"
@@ -13,13 +18,17 @@ export const metadata: Metadata = {
 /**
  * Candidate dashboard route: the `(candidato)` layout owns the single shell, so
  * this page owns only its header plus the props-only overview. Every metric is
- * derived from the five committed frozen fixtures; the page fetches, stores,
- * navigates and mutates nothing.
+ * derived from the five frozen fixtures. Real assessment tasks are loaded separately
+ * and never inserted into those prototype applications or metrics.
  */
-export default function Page() {
+export default async function Page() {
+  const assessments = await loadWorkspaceAssessments()
   return (
     <>
       <CandidateHeader title="Dashboard" />
+      {(!assessments.ok || assessments.data.items.some(item => item.status === "created" || item.status === "in_progress")) && <DashboardPageContent width="screen-2xl">
+        {assessments.ok ? <PendingAssessments items={assessments.data.items} /> : <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar las evaluaciones" description="Tus respuestas guardadas se conservan. Consulta de nuevo para revisar tus pendientes." primaryAction={{ label: "Consultar de nuevo", href: "/candidato/dashboard" }} />}
+      </DashboardPageContent>}
       <CandidateDashboardOverview
         identity={CANDIDATE_IDENTITY}
         profile={CANDIDATE_PROFILE}
