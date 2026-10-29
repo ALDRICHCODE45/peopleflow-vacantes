@@ -98,7 +98,7 @@ infra de aws».
 fe4cfc6 |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
-| T11 | S11 | worker — candidate workspace list of assessments (account path) | |
+| T11 | S11 | worker — candidate workspace list of assessments (account path) | 6d758bd2 |
 | T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | |
 | T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
 
@@ -288,3 +288,11 @@ fe4cfc6 |
   tiebreak by id. Backend proposed listing only the latest invitation per (participation, test). User choice
   (question): «Solo la más reciente (Recomendado)» — the validated artboards 01 and 03 drop «Evaluaciones anteriores»
   (parent edit; README and 03 tradeoff updated). Contract marked agreed.
+- **L37** T11 (worker mvt89x8a → mvtaewdq-k-rjk3): account list in client/model, `workspace/` blocks and server loader,
+  «Postulaciones» joins real applications by `application_id` (manual-intake invitations listed on their own), dashboard
+  «Pendientes» from the real list kept apart from the prototype data, `/candidato/evaluaciones/[iid]` reusing the
+  verified flow with the account prefix; `(candidato)/layout.test.tsx` adapted to async pages only (assertions kept,
+  approved). Environment findings: the shell ran Node 25.2.1 while the project requires Node 22 (`.nvmrc`, engines);
+  host stalls come from macOS Gatekeeper/XProtect (`syspolicyd` ~100% CPU) assessing every new executable (backend
+  msg a3753fca; fix is user-owned: Developer Tools permission for the terminal). Parent gate on Node 22.23.4 (also
+  covers T6–T10): 128 files / 2154 passed, tsc 0, eslint clean. Commit 6d758bd2. From now on every gate runs on Node 22.
