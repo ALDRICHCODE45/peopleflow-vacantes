@@ -90,7 +90,7 @@ infra de aws».
 | T3 | S2–S6, S8 | worker — content spec: corrected 116-item bank, keys, bands, competency catalog, interpretation library, question bank, signal rules | |
 | T4 | S2, S7, S9–S12 | design — artboards: vacancy profile module, candidate test flow + consent, card status, sheet result | |
 | T5 | all | inline — contract `docs/contracts/psychometric-tests-v1.md`, backend review | |
-| T6 | S2–S12 | worker — `features/psychometrics/` model, codec, client, server actions, guarded transport inventory, agreed-contract test (mocks of the contract) | |
+| T6 | S2–S12 | worker — `features/psychometrics/` model, codec, client, server actions, guarded transport inventory, agreed-contract test (mocks of the contract) | e6c9c5e5 |
 | T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | |
 | T8 | S9, S10 | worker — board: card status rows, sheet tab not-finished states, send / copy link / remind / revoke (flows/05) | |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | |
@@ -198,3 +198,16 @@ infra de aws».
   '^TestDocumentationDrift$' -update-content`); B2 9a8d330d pure scoring/quality/fit/guide with the docs examples as
   table tests; 938a265c merged; B3 (migration + profile GET/PUT) started. Every docs/psychometrics change → send the
   commit to the backend.
+- **L21** T6 (worker mvt3pd5f-7-sqbo): `features/psychometrics/` model (strict Zod, wire ids), client (employer 1–9,
+  both candidate prefixes, typed errors incl. 412/428/429 Retry-After, token never logged), actions, link, contract
+  and boundary tests; registered in the guarded transport inventory. RED → GREEN reported per suite; parent re-ran
+  vitest 8 files / 611 passed, tsc clean, eslint clean. Commit e6c9c5e5. T9 launched (worker mvt49edv-8-k2g5) with
+  the design handoff of the chosen artboard `psychometric-result/03-guia-primero.html` (+ band matrix of 02); 01 and
+  02 stay as alternatives. Constraint: the result GET writes an audit view, so it is fetched only when the tab opens.
+- **L22** (user, canvas comment w9ifyg2t on flows/05, verbatim): «noto que usas en algunos lados estse color cafe y
+  sinceramente no me gusta nada. se que lo ocupas como resaltado pero considero que no embona para nada en la paleta
+  de colores de peopleflow, en general, el uso de este color no me gusta nada.» Applied to flows/05 only (skill:
+  iterate the targeted artboard): `review` badge → primary accent, notice border → primary on a primary 6% surface;
+  resolved. T9 worker told: no `review` tone in the psychometric UI («Por explorar» / «Foco de atención» = accent,
+  focus distinguished by an icon). `--status-review` still appears in flows/01, flows/02 and result/01–03 and is a
+  product-wide token; pending the user's decision on its scope.
