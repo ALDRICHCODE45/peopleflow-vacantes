@@ -90,7 +90,14 @@ infra de aws».
 | T3 | S2–S6, S8 | worker — content spec: corrected 116-item bank, keys, bands, competency catalog, interpretation library, question bank, signal rules | |
 | T4 | S2, S7, S9–S12 | design — artboards: vacancy profile module, candidate test flow + consent, card status, sheet result | |
 | T5 | all | inline — contract `docs/contracts/psychometric-tests-v1.md`, backend review | |
-| T6+ | — | implementation tasks split after the contract | |
+| T6 | S2–S12 | worker — `features/psychometrics/` model, codec, client, server actions, guarded transport inventory, agreed-contract test (mocks of the contract) | |
+| T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | |
+| T8 | S9, S10 | worker — board: card status rows, sheet tab not-finished states, send / copy link / remind / revoke (flows/05) | |
+| T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | |
+| T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | |
+| T11 | S11 | worker — candidate workspace list of assessments (account path) | |
+| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | |
+| T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
 
 ## Log
 
@@ -179,3 +186,8 @@ infra de aws».
   contract R2-1…R2-10 + backend additions (integer band rule S < 10n / S < 15n, display index half-up to 1 place;
   thresholds of 60: fast 12–29 / ≥30, changes ≥30, long_string 7–11 / ≥12). Parent renamed the test id
   `ipip116-mx` → `ipip60-mx` (unreleased). Worker checks: 209 unique ids, all 32 contract ids exist, diff-check clean.
+- **L18** Backend final check (msg 6f33243b): contract AGREED @fc9f00ce; nits folded (PUT profile body without
+  version/confirmed_at, `confirmed` writable; changes stream always known in v1; estimated_minutes 10). Backend branch
+  `feat/psychometric-tests-backend` from fc9f00ce, starting B1 (content artifact + drift guard) and B2 (pure scoring);
+  tell the backend the commit of every content change. Frontend implementation split into T6–T13; T6 does not depend
+  on the user's wording or design review, T7–T11 follow the chosen artboards.
