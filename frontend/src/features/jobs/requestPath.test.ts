@@ -252,6 +252,7 @@ describe("single application-facing request path", () => {
   it("allows only identity handlers, the candidate/recruiter CV file boundaries and the public geo catalog, not client stores", () => {
     const handlers = files.filter((file) => file.endsWith("route.ts"));
     expect(handlers.map(rel).sort()).toEqual([
+      "app/(public)/evaluacion/[token]/route.ts",
       "app/api/auth/[...nextauth]/route.ts",
       "app/api/auth/backend-check/route.ts",
       "app/api/auth/cognito/logout/route.ts",
