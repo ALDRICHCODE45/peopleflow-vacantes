@@ -26,7 +26,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
 |----|-------|-------|--------|
 | T1 | all | inline — capability evidence + contract rounds 1–2 with frontend | — |
 | T2 | S1 | worker — B1 content artifact + immutable loader + docs drift guard implemented; vet/focused tests pass; archguard reports existing locked docker/minio/Dockerfile path | 43d48088 |
-| T3 | S2 | worker — B2 pure scoring package + table tests from the docs' examples | pending |
+| T3 | S2 | worker — B2 pure scoring implemented: pinned facet/competency scoring, half-up display, interpretation snapshots, quality transitions/tiers, fit/focus and deterministic STAR guide; public-API boundary tables pass; RED missing-package failure observed before implementation, GREEN focused tests + go vet ./... pass; no docs ambiguities or B1 gaps found | pending |
 | T4 | S3–S10 | B3–B10, one commit each; B5/B8/B10 isolated for verification | pending |
 
 ## Log
