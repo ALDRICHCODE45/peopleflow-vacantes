@@ -76,9 +76,10 @@ type routerDeps struct {
 	readinessLogger  *slog.Logger
 	readinessMetrics rtmetrics.ReadinessMetrics
 
-	psychometricProfileHandler *profilehttp.Handler
-	checklistHandler           *jobshttp.ChecklistHandler
-	checklistMarksHandler      *jobshttp.ChecklistMarksHandler
+	psychometricProfileHandler     *profilehttp.Handler
+	psychometricInvitationsHandler *profilehttp.InvitationsHandler
+	checklistHandler               *jobshttp.ChecklistHandler
+	checklistMarksHandler          *jobshttp.ChecklistMarksHandler
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -244,6 +245,10 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/checklist/marks", d.checklistMarksHandler.Get)
 		r.Put("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Put)
 		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Delete)
+		r.Get("/v2/me/company/job-drafts/{id}/psychometric-invitations", d.psychometricInvitationsHandler.List)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/psychometric-invitations", d.psychometricInvitationsHandler.Create)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/reminders", d.psychometricInvitationsHandler.Remind)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/revoke", d.psychometricInvitationsHandler.Revoke)
 		r.Get("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Get)
 		r.Put("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Put)
 		r.Get("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.GetChecklist)

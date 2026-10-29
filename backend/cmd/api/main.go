@@ -379,9 +379,10 @@ func run() error {
 		// nil defaults for both. Still no exporter, no metrics endpoint.
 		readinessLogger: slog.Default(), readinessMetrics: runtimemetrics.Default,
 
-		psychometricProfileHandler: newPsychometricProfileHandler(pool, draftStore),
-		checklistHandler:           checklistHandler,
-		checklistMarksHandler:      checklistMarksHandler,
+		psychometricProfileHandler:     newPsychometricProfileHandler(pool, draftStore),
+		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, draftStore),
+		checklistHandler:               checklistHandler,
+		checklistMarksHandler:          checklistMarksHandler,
 	})
 	// Hardened server + lifecycle from the runtime packages (WS6B-1a):
 	// Run serves until ctx is cancelled, drains with the configured

@@ -22,7 +22,7 @@ func TestPsychometricProfileMigrationGuardedDown(t *testing.T) {
 	if err := pool.QueryRow(context.Background(), `SELECT to_regclass('job_draft_psychometric_profiles') IS NULL`).Scan(&absent); err != nil || !absent {
 		t.Fatal(absent, err)
 	}
-	gooseUpAll(t, db)
+	gooseUpTo(t, db, 49)
 	ctx := context.Background()
 	_, company, actor := seedPrereqs(ctx, t, pool)
 	id := uuid.New()

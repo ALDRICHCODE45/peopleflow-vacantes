@@ -15,6 +15,11 @@ import (
 
 // Compile-time pin for the jobs-owned adapter's complete transaction port.
 var _ profilepostgres.JobContext = (*draftstore.Store)(nil)
+var _ profilepostgres.InvitationJobContext = (*draftstore.Store)(nil)
+
+func newPsychometricInvitationsHandler(pool *pgxpool.Pool, jobs *draftstore.Store) *profilehttp.InvitationsHandler {
+	return profilehttp.NewInvitationsHandler(profilepostgres.NewInvitationsStore(pool, jobs), writeProfileContextError)
+}
 
 // Cross-feature composition stays here, not in either feature package.
 func newPsychometricProfileHandler(pool *pgxpool.Pool, jobs *draftstore.Store) *profilehttp.Handler {
