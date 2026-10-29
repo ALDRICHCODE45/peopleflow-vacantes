@@ -217,3 +217,7 @@ infra de aws».
 - **L24** (user, verbatim): «perfecto, me gusta mucho.», then (question) «Sí, apruebo las 5» — flows/01–05 validated
   (§21: not changed while implementing). T7 and T10 launch in parallel (disjoint surfaces); T8 waits for T9 because
   both change `candidate-sheet.tsx` and `board.tsx`.
+- **L25** T7 worker found the contract (R2-3 as written) required a rationale on all 7 entries, while the approved
+  artboard had one general rationale. User choice (question): «Solo en las relevantes (Recomendado)» — rationale
+  required for Clave and Importante, task for Clave, No relevante asks for nothing (null rationale/task/band). Contract
+  and bands-and-competencies updated; backend told.

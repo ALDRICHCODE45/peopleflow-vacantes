@@ -8,7 +8,7 @@ it.each([
   { competencies: body.competencies.slice(1) }, { competencies: body.competencies.map(() => body.competencies[0]) },
   { competencies: body.competencies.map(c => ({ ...c, importance: "clave" })) },
   { competencies: body.competencies.map(c => ({ ...c, desired_band: "band.high" })) },
-  { confirmed: true, confirmed_at: "2026-10-29T00:00:00Z" }, { auto_send_stage_ids: [id, id.toUpperCase()] },
+  { confirmed: true, confirmed_at: "2026-10-29T00:00:00Z", competencies: [{ ...body.competencies[0], importance: "importance.importante", desired_band: "band.medium", rationale: "" }, ...body.competencies.slice(1)] }, { auto_send_stage_ids: [id, id.toUpperCase()] },
 ])("rejects invalid profile %#", patch => expect(m.profileSchema.safeParse({ ...profile, ...patch }).success).toBe(false));
 it("validates confirmation rationale/task after trim and draft bounds", () => {
   const confirmed = { ...body, confirmed: true, competencies: body.competencies.map(c => ({ ...c, importance: "importance.clave", desired_band: "band.low", rationale: " Motivo ", task: " Tarea " })) };
@@ -47,4 +47,14 @@ it("guards candidate privacy, scale, position, answers and exact telemetry keys"
   expect(m.answerBodySchema.parse({ event_id: id, value: 1, client_elapsed_ms: 0 })).toEqual({ event_id: id, value: 1, client_elapsed_ms: 0 });
   expect(m.answerBodySchema.parse({ event_id: id, value: 5, client_elapsed_ms: 3600000 })).toEqual({ event_id: id, value: 5, client_elapsed_ms: 3600000 });
   expect(m.clearAnswerBodySchema.safeParse({ event_id: id, value: 1 }).success).toBe(false);
+});
+it("asks for rationale only on relevant competencies (L25)", () => {
+  const relevant = { competency_id: "comp.organizacion", importance: "importance.importante", desired_band: "band.medium", rationale: "Coordina entregas semanales.", task: null };
+  const rest = body.competencies.slice(1);
+  const confirmed = { ...body, confirmed: true, competencies: [relevant, ...rest] };
+  expect(m.profileBodySchema.safeParse(confirmed).success).toBe(true);
+  expect(m.profileBodySchema.safeParse({ ...confirmed, competencies: [{ ...relevant, rationale: " " }, ...rest] }).success).toBe(false);
+  expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...body.competencies[0], rationale: "Motivo" }, ...rest] }).success).toBe(false);
+  expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...body.competencies[0], task: "Tarea" }, ...rest] }).success).toBe(false);
+  expect(m.profileBodySchema.safeParse({ ...body, competencies: [{ ...relevant, rationale: "" }, ...rest] }).success).toBe(true);
 });
