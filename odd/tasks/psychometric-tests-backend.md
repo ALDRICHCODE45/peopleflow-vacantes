@@ -125,3 +125,13 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   B10 49504063; frontend code (merged in, e.g. f4ce0aef) is reviewed by the frontend session. Each slice: detached
   worktree under .scratch at the slice head, start with the full 40-char parent sha as baseRef + committedOnly. B2's
   open lineage: finish it (cheap) or abandon. Then the single merge with the frontend.
+- **L18.** Native review (RDD on), agreed high-risk scope plus the B2 probe, one detached `.scratch` worktree per commit,
+  baseRef = full parent sha, committedOnly. Approved and acknowledged: B2 9a8d330d (advisory R2-001 quality.go:85-92),
+  B3 ac17f5e7 (advisory profile.go:162-166 validation order), B4 ee7f19ba (advisory leap-day retention test assertion),
+  B5 09e71378, B7 45dfd028 (advisory decoder rejection coverage), B7b e8a05157, B8a 6f5e1df8 (advisories: unknown
+  concurrency, fixed by 2169fb25; R4-capacity-sweep: at a full key cap every new-key request sweeps all keys under the
+  lock, O(n) per request, still present, later work), B8b 2169fb25, B8d e1304a49, B10 49504063. B8c 3bd9e297:
+  correction_required on R3-known-state-cleared (an inconclusive 404/5xx/no-write answer cleared a validated token);
+  already fixed in e1304a49 (settle keeps validation except on assessment_unavailable; TestOnlyAssessmentUnavailable-
+  ClearsValidation) and B8d approved on that code. Abandoning the B8c lineage failed (the host turns the required
+  string input into an object); lineage review-18379eb5092e0e95 stays open in .scratch/review-b8c, review-only.
