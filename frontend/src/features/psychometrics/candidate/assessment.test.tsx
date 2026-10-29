@@ -74,6 +74,15 @@ it("renders the backend notice tendencies as a semantic list without changing th
   fireEvent.click(screen.getByRole("checkbox")); await click("Aceptar y comenzar");
   expect(calls.find(call => call.path === "/consent")?.body).toEqual({ notice_version: "1", text_sha256: hash });
 });
+it("never retries a failed consent once the box is unchecked", async () => {
+  render(await AssessmentPage());
+  fireEvent.click(screen.getByRole("checkbox")); failNext = { status: 429, code: "rate_limited", retry: "5" };
+  await click("Aceptar y comenzar"); expect(calls.filter(c => c.path === "/consent")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("checkbox")); expect(screen.getByRole("checkbox").getAttribute("aria-checked")).toBe("false");
+  await click("Reintentar");
+  expect(calls.filter(c => c.path === "/consent")).toHaveLength(1);
+  expect(screen.queryByRole("radio")).toBeNull(); privateOutput();
+});
 it("reloads a changed notice without accepting it or loading items", async () => {
   render(await AssessmentPage()); fireEvent.click(screen.getByRole("checkbox"));
   failNext = { status: 409, code: "notice_changed" }; await click("Aceptar y comenzar");

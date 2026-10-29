@@ -50,7 +50,10 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
   const [failure, setFailure] = useState<Failure | null>(initial && !initial.ok ? initial : null);
   const [unavailable, setUnavailable] = useState(initial ? initial.ok ? ["expired", "revoked"].includes(initial.data.base.status) : closed(initial) : false);
   const [finished, setFinished] = useState(!!initial?.ok && initial.data.base.status === "finished");
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAcceptedState] = useState(false);
+  // A retry replays an older closure: consent reads the current box, never the render that failed.
+  const acceptedNow = useRef(false);
+  const setAccepted = (value: boolean) => { acceptedNow.current = value; setAcceptedState(value); };
   const [pending, setPending] = useState(false);
   const [position, setPosition] = useState(() => initial?.ok ? firstMissing(initial.data) : 0);
   const retry = useRef<null | (() => Promise<void>)>(null);
@@ -134,7 +137,7 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
     setPosition(target);
   }
   async function consent() {
-    if (!accepted || !data?.base.consent) return;
+    if (!acceptedNow.current || !data?.base.consent) return;
     const { notice_version, text_sha256 } = data.base.consent;
     const result = await actions.consentAction({ notice_version, text_sha256 });
     if (!result.ok) {
