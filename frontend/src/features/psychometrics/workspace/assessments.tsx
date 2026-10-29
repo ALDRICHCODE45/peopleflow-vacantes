@@ -44,7 +44,7 @@ export function PendingAssessments({ items }: { items: AccountAssessment[] }) {
     <CardContent><ItemGroup>{pending.map(item => <Item key={item.id}>
       <ItemMedia variant="icon"><ClipboardList aria-hidden="true" /></ItemMedia>
       <ItemContent><ItemTitle>Evaluación · {item.vacancy.title}</ItemTitle><ItemDescription>{item.company.name} · Disponible hasta el {date.format(new Date(item.expires_at))}</ItemDescription></ItemContent>
-      <ItemActions><Link href={href(item)} className={buttonVariants({ variant: "outline" })}>Revisar pendiente<ArrowRight aria-hidden="true" data-icon="inline-end" /></Link></ItemActions>
+      <ItemActions><Link href={href(item)} className={cn(buttonVariants({ variant: "outline" }))}>Revisar pendiente<ArrowRight aria-hidden="true" data-icon="inline-end" /></Link></ItemActions>
     </Item>)}</ItemGroup></CardContent>
   </Card>;
 }
