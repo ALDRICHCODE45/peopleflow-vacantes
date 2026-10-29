@@ -76,6 +76,7 @@ type routerDeps struct {
 	readinessLogger  *slog.Logger
 	readinessMetrics rtmetrics.ReadinessMetrics
 
+	psychometricAssessmentHandler  *profilehttp.AssessmentHandler
 	psychometricProfileHandler     *profilehttp.Handler
 	psychometricInvitationsHandler *profilehttp.InvitationsHandler
 	checklistHandler               *jobshttp.ChecklistHandler
@@ -121,6 +122,23 @@ func newRouter(d routerDeps) chi.Router {
 	r.Get("/v2/jobs", d.publicJobsHandler.List)
 	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
 	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)
+	r.Group(func(r chi.Router) {
+		r.Use(profilehttp.AssessmentPrivacy)
+		r.Get("/v2/assessments/{token}", d.psychometricAssessmentHandler.Get)
+		r.Post("/v2/assessments/{token}/consent", d.psychometricAssessmentHandler.Consent)
+		r.Get("/v2/assessments/{token}/items", d.psychometricAssessmentHandler.Items)
+		r.Put("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Put)
+		r.Delete("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Delete)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(profilehttp.AssessmentPrivacy, d.requireAuth, d.requireCandidate)
+		r.Get("/v2/me/assessments", d.psychometricAssessmentHandler.List)
+		r.Get("/v2/me/assessments/{iid}", d.psychometricAssessmentHandler.Get)
+		r.Post("/v2/me/assessments/{iid}/consent", d.psychometricAssessmentHandler.Consent)
+		r.Get("/v2/me/assessments/{iid}/items", d.psychometricAssessmentHandler.Items)
+		r.Put("/v2/me/assessments/{iid}/answers/{position}", d.psychometricAssessmentHandler.Put)
+		r.Delete("/v2/me/assessments/{iid}/answers/{position}", d.psychometricAssessmentHandler.Delete)
+	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
 		r.Get("/v2/me/cvs", d.cvHandler.List)

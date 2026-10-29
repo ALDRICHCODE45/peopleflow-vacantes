@@ -25,6 +25,10 @@ func newPsychometricInvitationsHandler(pool *pgxpool.Pool, jobs *draftstore.Stor
 	return profilehttp.NewInvitationsHandler(profilepostgres.NewInvitationsStore(pool, jobs), writeProfileContextError)
 }
 
+func newPsychometricAssessmentHandler(pool *pgxpool.Pool, jobs *draftstore.Store) *profilehttp.AssessmentHandler {
+	return profilehttp.NewAssessmentHandler(profilepostgres.NewAssessmentStore(pool, jobs))
+}
+
 // Cross-feature composition stays here, not in either feature package.
 func newPsychometricProfileHandler(pool *pgxpool.Pool, jobs *draftstore.Store) *profilehttp.Handler {
 	return profilehttp.NewHandler(profilepostgres.NewStore(pool, jobs), writeProfileContextError)

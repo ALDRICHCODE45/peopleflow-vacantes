@@ -27,6 +27,8 @@ func TestPsychometricInvitationMigrationGuardedDown(t *testing.T) {
 		t.Fatal(absent, err)
 	}
 	gooseUpAll(t, db)
+	// Exercise 00050 specifically, independently of later empty migrations.
+	gooseDownTo(t, db, 50)
 	_, company, actor := seedPrereqs(ctx, t, pool)
 	id, pid, cv, iid := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	exec := func(q string, args ...any) {

@@ -1,9 +1,9 @@
-# Vacancy psychometric assessments (B3–B6)
+# Vacancy psychometric assessments (B3–B7, partial)
 
 Employers can save a private, vacancy-scoped profile for `ipip60-mx` and manage
 invitations and issue single-display links. Stage entry can automatically create invitations.
-These slices do not deliver messages, collect answers, expose
-results or move/reject anyone. The authoritative wire contract
+These slices collect consent and answers, but do not deliver messages, expose
+results or move/reject anyone. B7 finish/scoring persistence remains a follow-up. The authoritative wire contract
 is [psychometric-tests-v1](../../docs/contracts/psychometric-tests-v1.md).
 
 ## Read, edit, save
@@ -208,15 +208,67 @@ commits a transaction. Its jobs adapter only reads current stages using the
 existing pipeline reader, so it cannot invert manual send's parent-first locks.
 Profile/pipeline writers share the caller's draft lock.
 
+## Candidate access (B7 read/consent/answers)
+
+Public `/v2/assessments/{token}` and account `/v2/me/assessments/{iid}`
+share the same pinned assessment. Account access uses the live candidate role
+and participation candidate ID, never a token. Every registered candidate
+response, including authentication and validation errors, has `Cache-Control:
+no-store` and `Referrer-Policy: no-referrer`. Observability records route patterns,
+never tokens. Public malformed, unknown, revoked and expired links produce the
+same `404 assessment_unavailable` envelope and headers.
+
+- `GET {base}` returns company/vacancy, 10 estimated minutes, computed status,
+  answer counts, expiry and the pinned notice version/text/hash (null after consent).
+- `POST {base}/consent` accepts only `notice_version` and `text_sha256`;
+  mismatch is `409 notice_changed`. Acceptance sets in_progress and stores a
+  separate consent row plus `PsychometricConsentGiven` atomically. Identical
+  acceptance is a no-op. Public consent uses system actor; account consent uses
+  the existing user actor convention (candidate user ID). Metadata contains only
+  vacancy/participation IDs; the audit vocabulary has no `candidate` actor type.
+- `GET {base}/items` requires consent and returns scale labels and 63 ordinary
+  `{position,text,value}` prompts in pinned order. No keys, facets, original
+  item numbers or attention identity leave the backend.
+- `PUT {base}/answers/{position}` requires UUID `event_id`, integer `value`
+  1–5 and optional integer `client_elapsed_ms` 0–3,600,000. Omitted elapsed
+  replaces prior timing with null. Unknown keys are `400 validation_error`
+  (`fields[].code: not_allowed`); malformed/duplicate JSON is `400 invalid_request`.
+- `DELETE {base}/answers/{position}` accepts only UUID `event_id` and clears
+  value/timing. Both answer methods return empty `204`. Invalid or out-of-range
+  positions are `404 not_found`, following the existing target-ID convention.
+  Replayed IDs are no-ops across methods and positions while still writable.
+  Accepted same-value PUTs refresh timing without changing answered_count;
+  deleting an empty position does not decrement it. All accepted new events
+  are retained, including these no-op value transitions, for B2 to classify.
+
+Each write locks draft → process → participation → invitation, samples server
+wall-clock time after locks, and rechecks token rotation, expiry, revocation,
+finish and consent. Account closed writes are `409 invitation_closed`; finished
+writes are `409 assessment_finished` on both paths. Replays pass the same gates.
+
+`GET /v2/me/assessments` returns only the latest per participation/test, excludes
+superseded rows, uses the public vacancy title, and never includes scores.
+Organic `application_id` is the participation ID; manual is null. Answerable
+rows come first by expiry/id ascending; other rows use creation/id descending.
+
+Migration `00051` separates consent, current nullable answers and ordered events
+(unique event UUID and server sequence per invitation). It reserves JSONB
+snapshot tables for immutable B2 results and initial/future comparisons, pinned
+to content/scoring versions. Down refuses retained assessment data. **Finish is
+not routed yet**: incomplete reporting, B2 result/comparison creation, finish
+retention and finish audit/concurrency verification belong to the B7 follow-up.
+B8 rate limits and B9 employer result reads remain deliberately absent. This is
+not a release-ready public assessment without those follow-ups and notice review.
+
 ## Verification
 
 From `backend/`:
 
 ```sh
-go test -count=1 ./internal/features/psychometrics/... ./internal/shared/...
-go test ./cmd/api -run 'Route' -count=1
-go test -tags integration ./cmd/api -run '^(TestPsychometric|TestChecklistFlow|TestBoard)' -count=1
-go test -tags integration ./db/migrations -run '^TestPsychometric.*MigrationGuardedDown$' -count=1
+go test -count=1 -timeout 300s ./internal/...
+go test -count=1 -timeout 300s ./cmd/api
+go test -tags integration -count=1 -timeout 600s ./cmd/api -run '^(TestPsychometric|TestBoard|TestChecklistFlow|TestCandidate|TestApply)'
+go test -tags integration -count=1 -timeout 300s ./db/migrations -run '^TestPsychometric'
 go vet ./...
 go run ./cmd/archguard
 ```

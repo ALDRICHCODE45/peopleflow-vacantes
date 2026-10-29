@@ -381,6 +381,7 @@ func run() error {
 
 		psychometricProfileHandler:     newPsychometricProfileHandler(pool, draftStore),
 		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, draftStore),
+		psychometricAssessmentHandler:  newPsychometricAssessmentHandler(pool, draftStore),
 		checklistHandler:               checklistHandler,
 		checklistMarksHandler:          checklistMarksHandler,
 	})

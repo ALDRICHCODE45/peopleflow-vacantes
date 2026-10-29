@@ -7,9 +7,10 @@ import (
 )
 
 func TestPsychometricErrorExtension(t *testing.T) {
-	messages := []string{"psychometric profile disabled", "psychometric assessment already finished", "participation inactive", "psychometric invitation closed"}
+	messages := []string{"psychometric profile disabled", "psychometric assessment already finished", "participation inactive", "psychometric invitation closed", "psychometric assessment unavailable", "psychometric consent required", "psychometric notice changed", "psychometric assessment finished"}
+	statuses := []int{409, 409, 409, 409, 404, 403, 409, 409}
 	codes := PsychometricErrorCodes()
-	if len(codes) != 4 {
+	if len(codes) != len(messages) {
 		t.Fatal(codes)
 	}
 	for i, code := range codes {
@@ -17,7 +18,7 @@ func TestPsychometricErrorExtension(t *testing.T) {
 			def := Resolve(code)
 			w := httptest.NewRecorder()
 			WriteCatalogError(w, def)
-			if def.Code != code || w.Code != 409 || w.Body.String() != fmt.Sprintf("{\"error\":%q,\"code\":%q}\n", messages[i], code) {
+			if def.Code != code || w.Code != statuses[i] || w.Body.String() != fmt.Sprintf("{\"error\":%q,\"code\":%q}\n", messages[i], code) {
 				t.Fatal(def, w.Code, w.Body.String())
 			}
 			for _, base := range ListCodes() {

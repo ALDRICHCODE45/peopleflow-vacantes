@@ -280,6 +280,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 	}
 	router := newRouter(routerDeps{
 		requireAuth:          requireAuth,
+		requireCandidate:     identityhttp.RequireCandidateRole(identityUserRepo),
 		requireRecruiter:     requireRecruiter,
 		requireOwner:         requireOwner,
 		jobHandler:           jobHandler,
@@ -298,6 +299,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 
 		psychometricProfileHandler:     newPsychometricProfileHandler(pool, store),
 		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, store),
+		psychometricAssessmentHandler:  newPsychometricAssessmentHandler(pool, store),
 		checklistHandler:               jobshttp.NewChecklistHandler(store),
 		checklistMarksHandler:          jobshttp.NewChecklistMarksHandler(store),
 
