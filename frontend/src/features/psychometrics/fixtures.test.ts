@@ -1,0 +1,22 @@
+import { expect, it } from "vitest";
+import { profileSchema, invitationSchema, resultSchema, candidateBaseSchema, candidateItemsSchema } from "./model";
+export const id = "10000000-0000-4000-8000-000000000001";
+export const date = "2026-10-29T12:00:00Z";
+export const competencyIds = ["comp.organizacion", "comp.compromisos", "comp.coordinacion", "comp.colaboracion", "comp.exploracion", "comp.deliberacion", "comp.presion"];
+export const facetIds = ["facet.c2", "facet.c5", "facet.c3", "facet.c4", "facet.e3", "facet.e1", "facet.a3", "facet.a4", "facet.o4", "facet.o5", "facet.c6", "facet.e5", "facet.n1", "facet.n2", "facet.n6"];
+export const body = { enabled: false, test: "ipip60-mx", confirmed: false, competencies: competencyIds.map(competency_id => ({ competency_id, importance: "importance.no_relevante", desired_band: null, rationale: null, task: null })), auto_send_stage_ids: [], expires_in_days: 7 };
+export const profile = { ...body, version: "0", confirmed_at: null };
+export const invitation = { id, participation_id: id, test: "ipip60-mx", content_version: "psychometrics.content.v1", scoring_version: "psychometrics.scoring.v1", status: "created", origin: "manual", created_by: { id, full_name: "Ana" }, trigger_stage_id: null, created_at: date, expires_at: date, consented_at: null, answered_count: 0, total_count: 63, finished_at: null, last_reminded_at: null, reminder_count: 0 };
+export const competencies = competencyIds.map((competency_id, i) => { const facet_ids = facetIds.slice(i * 2, i === 6 ? 15 : i * 2 + 2); return { competency_id, facet_ids, oriented_sums: facet_ids.map(() => 10), oriented_sum: facet_ids.length * 10, facet_count: facet_ids.length, index: "10.0", band: "band.medium" }; });
+export const comparison = { id, profile_version: null, created_at: date, content_version: invitation.content_version, scoring_version: invitation.scoring_version, competencies: competencies.map(c => ({ ...c, desired_band: null, importance: "importance.no_relevante", direction: null, fit: null })), focus_areas: [], guide: [{ question_id: "q.organizacion.medium.1", competency_id: "comp.organizacion", text: "Texto almacenado STAR", good_answer_checklist: "Ejemplo", observed_band: "band.medium", desired_band: null, importance: "importance.no_relevante", fit: null, selector: "medium", originating_focus_type: null, signal_ids: [] }] };
+export const quality = { tier: "tier.sin", partial: false, signals: [{ id: "signal.attention", severity: "none", counts: { misses: 0, total: 3 } }, { id: "signal.long_string", severity: "none", counts: { run: 1 } }, { id: "signal.fast", severity: "none", counts: { fast_count: 0, total: 60 } }, { id: "signal.changes", severity: "none", counts: { value_changes: 0, clears: 0, reanswers: 0, total: 0 } }] };
+export const result = { invitation_id: id, content_version: invitation.content_version, scoring_version: invitation.scoring_version, finished_at: date, facets: facetIds.map(facet_id => ({ facet_id, sum: 10, band: "band.medium" })), competencies, interpretations: competencyIds.map(competency_id => ({ id: `lib.${competency_id.slice(5)}.medium`, competency_id, band: "band.medium", work_text: "Trabajo", strengths_text: "Fortaleza", development_text: "Desarrollo" })), quality, latest_comparison: comparison, comparisons: [{ id, profile_version: null }] };
+export const base = { company_name: "Empresa", vacancy_title: "Puesto", estimated_minutes: 10, status: "created", answered_count: 0, total_count: 63, expires_at: date, consent: { notice_version: "1", text: "Aviso", text_sha256: "a".repeat(64) } };
+export const items = { scale: ["No me describe nada", "Me describe poco", "Me describe a medias", "Me describe bastante", "Me describe totalmente"].map((label, i) => ({ value: i + 1, label })), items: Array.from({ length: 63 }, (_, i) => ({ position: i + 1, text: "Pregunta", value: null })) };
+it("keeps the contract-only fixtures valid without a backend", () => {
+  expect(profileSchema.parse(profile)).toEqual(profile);
+  expect(invitationSchema.parse(invitation)).toEqual(invitation);
+  expect(resultSchema.parse(result)).toEqual(result);
+  expect(candidateBaseSchema.parse(base)).toEqual(base);
+  expect(candidateItemsSchema.parse(items)).toEqual(items);
+});

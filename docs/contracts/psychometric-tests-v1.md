@@ -119,13 +119,14 @@ An optional, per-vacancy personality assessment whose result is read against the
 ```
 
 Profile validation: exactly the seven catalog ids (including `comp.presion`), no missing/duplicate/unknown ids.
-Importance is one of the three canonical ids. `importance.no_relevante` requires null desired_band; otherwise one
-canonical band is required. To confirm, each entry requires a job-related `rationale`, 1..1000 characters after trim;
-`task` is required for `importance.clave`, 1..300 characters after trim, otherwise nullable (if supplied, same bounds).
+Importance is one of the three canonical ids. `importance.no_relevante` requires null desired_band, null rationale and
+null task (user decision L25); otherwise one canonical band is required. To confirm, every `importance.clave` or
+`importance.importante` entry requires a job-related `rationale`, 1..1000 characters after trim; `task` is required
+for `importance.clave`, 1..300 characters after trim, otherwise null.
 Unconfirmed drafts may have empty rationale/task. `confirmed_at` is server-owned and null when unconfirmed; an edit
 to competency requirements requires explicit reconfirmation in that save or clears confirmation. `enabled` only
 controls invitation creation; an enabled unconfirmed profile never blocks assessment completion. Default entries are
-`importance.no_relevante`, desired_band null, rationale empty and task null. Unconfirmed → bands and exploratory
+`importance.no_relevante`, desired_band null, rationale null and task null. Unconfirmed → bands and exploratory
 guide only, fit/direction null, no gap focus; confirmed and enabled are independent.
 
 Scoring: four scored items per facet, negative item = `6 − value`, sum 4–20; facet bands 4–9 / 10–14 / 15–20.

@@ -29,6 +29,11 @@ principal» landmark (axe `region`), the three full-suite flaky tests made light
 - **Loading feedback on other links into `/vacantes`** — the sidebar «Vacantes» link shows a spinner while pending
   (`useLinkStatus`, `next-16-upgrade.md` L9); the detail «Volver»/breadcrumb links into the list do not yet.
 
+- **Amber/brown `review` tone across the product** — user (2026-10-29, psychometric design review): «en general, el uso
+  de este color no me gusta nada». Removed from the psychometric UI only (`odd/tasks/psychometric-tests.md` L22–L23);
+  `--status-review` still paints review badges, pipeline stage tints and other screens (9 source files). Changing it
+  product-wide touches validated screens (§21), so it needs its own design pass and the user's review.
+
 ## Waiting on the backend
 
 - **Vacancy → company careers site** — link vacancy → company careers site once the jobs API exposes the published site slug.

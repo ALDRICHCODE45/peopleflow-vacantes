@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "w9ifyg2t",
+      "file": "05-tarjeta-y-ficha-estados.html",
+      "selector": "#finished > section:nth-of-type(1)",
+      "excerpt": "El perfil de la vacante cambió Ves la comparación guardada con el perfil v2. El perfil actual es v3. Las bandas no cambian y la comparación anterior se conserva. Comparar con el perfil actual Crea una comparación nueva solo si tú lo solicitas.",
+      "comment": "noto que usas en algunos lados estse color cafe y sinceramente no me gusta nada. se que lo ocupas como resaltado pero considero que no embona para nada en la paleta de colores de peopleflow, en general, el uso de este color no me gusta nada.",
+      "createdAt": "2026-10-29T05:52:29.113Z",
+      "status": "resolved",
+      "sentAt": "2026-10-29T05:52:29.240Z",
+      "resolvedAt": "2026-10-29T05:54:09.518Z"
+    }
+  ]
+}
