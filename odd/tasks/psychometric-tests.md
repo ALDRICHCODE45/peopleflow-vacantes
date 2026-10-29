@@ -19,8 +19,9 @@ implementation; the user pushes.
   tan alineado está el candidato con las competencias que realmente requiere la posición, sin limitarse a decirme si es
   apto o no apto.» Employer-only module in the vacancy configuration: competencies with importance, suggested from the
   vacancy; the result shows fit per competency, never «apto / no apto».
-- **S3 Instrument.** User: «creo que lo mejor es usar ipip». IPIP-NEO-120 in its Mexican Spanish translation (30
-  facets), plus attention and consistency items. Recruiter: «Dar resultados confiables y objetivos: que las pruebas
+- **S3 Instrument.** User: «creo que lo mejor es usar ipip», then chose «Corregir traducción + quitar Liberalismo»
+  (L10). IPIP-NEO-120 without facet O6 Liberalism (29 facets, 116 items), in our corrected Mexican Spanish version
+  reviewed by the user or the recruiter, plus attention and consistency items scored apart from personality. Recruiter: «Dar resultados confiables y objetivos: que las pruebas
   estén validadas, tengan criterios claros y reduzcan los sesgos, en lugar de etiquetar a las personas con base en un
   resultado aislado.»
 - **S4 Telemetry as signals, not verdicts.** User: «median muchas cosas, tiempos de respuesta, si cambias de respuesta,
@@ -29,23 +30,27 @@ implementation; the user pushes.
 - **S5 Practical interpretation.** Recruiter: «Traducir los resultados en información práctica: no solo decirme que
   alguien tiene liderazgo, sino explicarme cómo podría reflejarlo en el trabajo, cuáles son sus fortalezas y qué áreas
   tendría que desarrollar.» Texts come from an authored library per competency and level (user chose «a) como base»):
-  the same scores always give the same text.
+  the same scores always give the same text. Levels are bands by meaning of what the candidate stated (user chose
+  «Bandas por significado», L10), never percentiles against foreign norms. Competencies are our own catalog; the
+  link between traits and competencies is presented as a hypothesis to explore in the interview.
 - **S6 Focus areas.** Recruiter: «Identificar focos de atención: posibles áreas de riesgo, incompatibilidades con las
   exigencias del puesto o aspectos que valdría la pena profundizar durante la entrevista, sin convertirlos
   automáticamente en motivos de descarte.» The assessment never rejects, discards or moves a candidate.
 - **S7 Clear for non-specialists.** Recruiter: «Ahorrar tiempo: que el reporte sea claro, visual, fácil de interpretar
   y que no tenga que ser especialista en psicometría para entender qué significan los resultados.» Result lives in the
   candidate sheet, not only in a document.
-- **S8 AI interview guide.** Recruiter: «Generar preguntas de entrevista personalizadas: que, con base en los
-  resultados, me sugiera qué preguntarle al candidato para validar o profundizar en ciertas competencias.» User: «b
-  solo para redactar las preguntas de entrevista». Generated once per candidate and vacancy and stored; each question
-  cites the competency and level that originates it; the model receives competency levels and the job profile only,
-  never name, contact data or individual answers.
+- **S8 Interview guide.** Recruiter: «Generar preguntas de entrevista personalizadas: que, con base en los
+  resultados, me sugiera qué preguntarle al candidato para validar o profundizar en ciertas competencias.» User chose
+  «Banco redactado en F1, IA en F2» (L10): F1 picks questions from an authored bank by competency, band and focus
+  area (deterministic, no AI); each question cites the competency and band that originates it. AI wording is D10.
 - **S9 Tracked in the pipeline.** Recruiter: «nunca tuvimos como tal control, solo mandábamos la liga pero jamás
   entrábamos». User: «nosotros podriamos llevarlo al siguiente nivel agregando aparte la incorporacion directa enel
-  sistema». Status on the card and sheet (sent, in progress, finished, expired) and reminders.
+  sistema». Status on the card and sheet (sent, in progress, finished, expired); «Recordar» is a recruiter action
+  that records the reminder and copies the link again.
 - **S10 Sending.** User chose «Ambos»: manual from the card or sheet always available, and optional automatic sending
-  when a candidate enters a stage configured in the vacancy.
+  when a candidate enters a stage configured in the vacancy. Without email (L9, L10) «sending» creates the invitation
+  (idempotent: one active per participation and test); the recruiter delivers it with «Copiar enlace». Email
+  delivery comes last in this feature (E1).
 - **S11 Candidate access.** User chose «Ambos»: unique expiring link with a token (no account needed), and candidates
   with a PeopleFlow account also see it in their workspace. Mobile, progress saved.
 - **S12 Consent and privacy.** Express electronic consent before the first item (LFPDPPP art. 8), privacy notice,
@@ -59,19 +64,30 @@ User: «es importante que anotes todo lo que dejamos para despues, o fuera del f
 - **D2** Psychometric section in the terna report (comparison, PDF/CSV) for the client.
 - **D3** Cognitive ability tests (ICAR; confirm commercial terms of the 2026 item release first).
 - **D4** Company-authored situational judgment tests (SJT), assisted by the system, with the recruiter's best answer.
-- **D5** Local norms built from PeopleFlow data (F1 uses published IPIP norms with their caveat).
+- **D5** Local norms built from PeopleFlow data (F1 uses bands by meaning, S5).
 - **D6** Short screening battery for volume roles (F1 has one battery: IPIP-NEO-120).
 - **D7** Candidate feedback report (an optional summary returned to the candidate).
 - **D8** Licensed classic tests (Cleaver, Terman, 16PF, Raven) only through a licensed partner, if ever.
 - **D9** Legal review of sensitive-data handling before launch (user-owned).
+- **D10** AI-personalized interview questions (Bedrock by IAM role, only competency levels + job profile, stored with
+  model id and prompt version) — F2 (L10).
+
+## Last in this feature (needs AWS infrastructure)
+
+User: «van a haber cosas que hay que dejar para al ultimo de esta feature porque ahora aun no hay configuracion de
+infra de aws».
+
+- **E1** Email delivery of the invitation link (SES; blocked on a registered domain, `docs/decision-email-provider.md`).
+- **E2** Automatic reminders (needs a scheduler and E1).
+- **E3** Scheduled run of the retention purge (F1 ships the one-shot purge command and read-time hiding).
 
 ## Tasks
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
 | T1 | — | inline — discovery record + feature document | 2d56f109 |
-| T2 | S3, S5 | research — instrument content: IPIP-NEO-120 Mexican items, scoring keys, norms, license text; facet → competency mapping (Bartram «Great Eight» to confirm) | |
-| T3 | S2, S5, S6, S8 | inline — competency catalog, interpretation library structure, focus-area and telemetry-signal rules | |
+| T2 | S3, S5 | research — instrument content: IPIP-NEO-120 Mexican items, scoring keys, norms, license text; facet → competency mapping | 50fcf5f3 |
+| T3 | S2–S6, S8 | worker — content spec: corrected 116-item bank, keys, bands, competency catalog, interpretation library, question bank, signal rules | |
 | T4 | S2, S7, S9–S12 | design — artboards: vacancy profile module, candidate test flow + consent, card status, sheet result | |
 | T5 | all | inline — contract `docs/contracts/psychometric-tests-v1.md`, backend review | |
 | T6+ | — | implementation tasks split after the contract | |
@@ -111,3 +127,8 @@ User: «es importante que anotes todo lo que dejamos para despues, o fuera del f
   and recruiter views; purge_after + one-shot purge command, hidden at read time after retention; backend scores,
   keys never reach the client, scoring_version stored; client timings only for quality flags, server stamps
   received_at. High-risk slices: public token (security) and sensitive data/retention.
+- **L10** User choices (question): instrument «Corregir traducción + quitar Liberalismo (Recomendado)»; scores «Bandas
+  por significado (Recomendado)»; delivery (verbatim) «si, pero van a haber cosas que hay que dejar para al ultimo de
+  esta feature porque ahora aun no hay configuracion de infra de aws.» → section «Last in this feature»; interview
+  guide «Banco redactado en F1, IA en F2 (Recomendado)» → D10. Slice note: 50fcf5f3 closed the first ~400-line slice
+  (docs only).
