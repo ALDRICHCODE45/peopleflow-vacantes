@@ -65,3 +65,8 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   (pure unit packages killed at 6 min). User added the terminal to Privacy & Security → Developer Tools (2026-10-29);
   parent re-measured draftjson tests 6 min → 2 s, then verified B6 and committed it. Account list agreed (frontend
   36ed3d22, merged f4ce0aef): only the latest invitation per (participation, test), user «Solo la más reciente».
+- **L8.** B7b finish committed e8a05157 after the Mac reboot: 44 psychometric/checklist integration tests PASS on the
+  isolated `draft_test` (`DRAFT_TEST_DATABASE_URL` must be exported, otherwise they SKIP silently); independent
+  verify launched. Delivery decision, user verbatim: «la entrega debe ser merge hermano. porque todo ya estara
+  validado y revisado (nativamente tambien si es necesario).» → one merge of the feature branch into main once
+  B8–B10 are validated and reviewed, coordinated with the frontend; no chained PRs.
