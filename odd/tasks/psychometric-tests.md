@@ -238,7 +238,8 @@ infra de aws».
   routing (exchange the link for an httpOnly cookie and redirect, or accept).
 - **L28** Backend L25 implemented (msg e7311fac, 800dd86f on B3 base ac17f5e7). Agreed one representation: relevant
   entries always carry a string rationale ("" in drafts, null invalid); task on importante → not_allowed. Parent
-  mirrored it in the model test-first (RED 1 → GREEN 584 in psychometrics) and in the contract.
+  mirrored it in the model test-first (RED 1 → GREEN 584 in psychometrics) and in the contract. Backend aligned
+  (msg f12ff95f, 03d5b922): null rationale on a relevant entry → invalid, clave task nullable while drafting; B4 started.
 - **L29** User choice (question): «Canjear por cookie y redirigir (Recomendado)» — `/evaluacion/{token}` stores the token
   in an httpOnly cookie (Secure in production, SameSite=Lax so the cross-site link from email/WhatsApp still carries it
   after the redirect, path `/evaluacion`, session lifetime: reopening the link resumes) and answers 303 to
