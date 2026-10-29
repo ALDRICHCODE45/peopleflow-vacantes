@@ -25,7 +25,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
 | T1 | all | inline — capability evidence + contract rounds 1–2 with frontend | — |
-| T2 | S1 | worker — B1 content artifact + immutable loader + docs drift guard implemented; vet/focused tests pass; archguard reports existing locked docker/minio/Dockerfile path | pending |
+| T2 | S1 | worker — B1 content artifact + immutable loader + docs drift guard implemented; vet/focused tests pass; archguard reports existing locked docker/minio/Dockerfile path | 43d48088 |
 | T3 | S2 | worker — B2 pure scoring package + table tests from the docs' examples | pending |
 | T4 | S3–S10 | B3–B10, one commit each; B5/B8/B10 isolated for verification | pending |
 
@@ -40,3 +40,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   months, expiry default 7 days, no AI in F1, email/reminders/scheduled purge last (E1–E3).
 - **L3.** Contract agreed @fc9f00ce with nits n1–n4 sent (PUT profile body, changes always known in v1,
   estimated_minutes, DELETE body).
+- **L4.** B1 committed 43d48088 (worker; `go vet ./...` and psychometrics tests pass). Slice size is dominated by the
+  generated `content.v1.json` (1,899 lines of data) and the frontend docs base; code is ~900 lines. `go run
+  ./cmd/archguard` fails on the pre-existing `backend/docker/minio/Dockerfile` (f03af5fe, on main), unrelated to this
+  feature. Merged frontend 938a265c (3f5ec00f).
