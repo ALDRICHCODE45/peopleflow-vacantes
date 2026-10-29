@@ -191,3 +191,10 @@ infra de aws».
   `feat/psychometric-tests-backend` from fc9f00ce, starting B1 (content artifact + drift guard) and B2 (pure scoring);
   tell the backend the commit of every content change. Frontend implementation split into T6–T13; T6 does not depend
   on the user's wording or design review, T7–T11 follow the chosen artboards.
+- **L19** (user, verbatim): «Si hermano, si lo recomiendas si.» — frontend implementation starts with T6 (worker
+  mvt3pd5f-7-sqbo), then T9 on its model, while the user reviews the flow artboards and the content wording.
+- **L20** Backend progress (msg 38dea3f1, `feat/psychometric-tests-backend`): B1 43d48088 embedded content artifact
+  `psychometrics.content.v1` + docs drift guard (regenerate: `go test ./internal/features/psychometrics/content -run
+  '^TestDocumentationDrift$' -update-content`); B2 9a8d330d pure scoring/quality/fit/guide with the docs examples as
+  table tests; 938a265c merged; B3 (migration + profile GET/PUT) started. Every docs/psychometrics change → send the
+  commit to the backend.

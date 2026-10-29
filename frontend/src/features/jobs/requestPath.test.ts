@@ -38,6 +38,8 @@ describe("single application-facing request path", () => {
       "features/org-candidates/cv/upload.ts",
       "features/org-candidates/detail/file-client.ts",
       "features/pipeline-movement/file-client.ts",
+      // Candidate consent/answer 204 and Retry-After: validated segments, configured-origin guard.
+      "features/psychometrics/client.ts",
       // Bodyless DELETE 204 (clear a checklist mark), same-origin guarded like employer-team.
       "features/vacancy-checklist/client.ts",
       "lib/api/requestJson.ts",
@@ -90,7 +92,7 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
-  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
+  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
     const adapter = source(join(SRC, file));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');
@@ -196,6 +198,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/history/history-client.ts",
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
+      "features/psychometrics/client.ts",
       "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/auth/backend-check.ts",
@@ -238,6 +241,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/history/history-client.ts",
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
+      "features/psychometrics/client.ts",
       "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/api/server.ts",
