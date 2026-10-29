@@ -115,3 +115,13 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   SKIPs elsewhere, archguard only docker/minio/Dockerfile. User decision before merge, verbatim: «Sí, revisión nativa
   primero» and «como lo recomiendes, pero la revvision nativa en este caso si hay que correrla». gentle_review inspect
   → stop rdd_disabled: RDD is the user's switch; merge waits for native review.
+- **L17.** Native review: the whole branch (~18k lines) fails `lens_context_budget_exceeded`; a ~1.4k-line slice fits.
+  B2 slice started in detached worktree `.scratch/review-b2` (HEAD 9a8d330d, baseRef eb9893cfcf3925a3ce677e78bf5221d2d2ae624a,
+  committedOnly): lineage review-6d2135e559476df6, tier medium, state reviewing, waiting for the reviewer collect
+  (capture tools were not directly callable in that session). User decision, verbatim: «vamos a cerrar esta sesion y
+  abrir una nueva para ver si se resuelve el bloqueo asi, y si, el alcance de la revision lo haremos como recomiendas.»
+  Agreed scope (recommended): high-risk backend slices only — data/migrations B3 ac17f5e7, B4 ee7f19ba, B7 45dfd028;
+  security B5 09e71378 and B8 6f5e1df8, 2169fb25, 3bd9e297, e1304a49; concurrency/retention B7b e8a05157; deletion
+  B10 49504063; frontend code (merged in, e.g. f4ce0aef) is reviewed by the frontend session. Each slice: detached
+  worktree under .scratch at the slice head, start with the full 40-char parent sha as baseRef + committedOnly. B2's
+  open lineage: finish it (cheap) or abandon. Then the single merge with the frontend.
