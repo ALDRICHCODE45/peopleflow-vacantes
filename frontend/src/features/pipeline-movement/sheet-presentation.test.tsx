@@ -33,6 +33,8 @@ it("has one close, counted tabs, real vacancy footer and newest-first activity",
   expect(within(sheet).getAllByRole("button", { name: /Cerrar/ })).toHaveLength(1);
   expect(within(sheet).getByRole("button", { name: "Cerrar ficha" })).toBeVisible();
   expect(await within(sheet).findByRole("tab", { name: "Respuestas 2" })).toBeVisible();
+  // Up to four tabs (with Checklist) fit a 390px viewport: triggers tighten below sm instead of clipping «Resumen».
+  expect(within(sheet).getByRole("tab", { name: "Respuestas 2" }).closest('[data-slot="tabs-list"]')!.className).toContain("max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]");
   expect(within(sheet).getByText("Software Developer")).toBeVisible();
   expect(sheet).not.toHaveTextContent("Postulación #");
   expect(within(sheet).getByRole("link", { name: "Descargar CV" })).toHaveAttribute("download");

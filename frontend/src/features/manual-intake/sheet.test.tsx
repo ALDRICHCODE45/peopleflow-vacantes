@@ -288,8 +288,10 @@ it.each(["candidate.education[0].status", "candidate.languages[0].code", "candid
 });
 it("limits studies to ten and lets a removed slot be reused", () => {
  mount();
- for (let i = 0; i < 10; i++) fireEvent.click(screen.getByRole("button", { name: "Agregar estudio" }));
- expect(screen.getByRole("button", { name: "Agregar estudio" })).toBeDisabled();
+ // One role lookup for the stable button: ten whole-sheet role queries made this slow under full-suite load.
+ const add = screen.getByRole("button", { name: "Agregar estudio" });
+ for (let i = 0; i < 10; i++) fireEvent.click(add);
+ expect(add).toBeDisabled();
  expect(screen.getAllByRole("group", { name: /^Estudio \d+$/ })).toHaveLength(10);
  fireEvent.click(screen.getByRole("button", { name: "Quitar estudio 3" }));
  expect(screen.getByRole("button", { name: "Agregar estudio" })).toBeEnabled();

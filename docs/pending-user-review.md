@@ -30,6 +30,11 @@ el backend va en su rama indicada, con `make db-migrate`.
    de empresa (sin sesión va al login y vuelve a la página pedida) y el arreglo del aviso de
    error tras un ingreso correcto con Cognito.
 
+3. **Checklist de la vacante** (paso 91 de `docs/employer-manual-test.md`): frontend
+   `feat/vacancy-checklist`, backend `feat/vacancy-checklist-backend`. Checklist interno por
+   vacante que se evalúa solo contra cada candidato, marcas del reclutador, ajuste en el tablero,
+   recordatorio al mover, comparación y reporte de terna (PDF y CSV).
+
 **Cognito (S3):** resuelto en código el acceso de «Crear cuenta» al formulario de
 registro, conservando la transacción NextAuth y sus parámetros. Pendiente de
 verificación real en el navegador. **Acción del usuario en la consola de AWS:**

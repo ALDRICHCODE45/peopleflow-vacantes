@@ -64,7 +64,7 @@
 ### Frontend
 
 - ✅ Mockups HTML completos en `design/screens/` (job board, detalle, postulación wizard, dashboard empresa, logins, theming claro/oscuro).
-- 🔲 `frontend/` (Next.js) vacío — sin código de app todavía.
+- ✅ App Next.js 15 implementada en `frontend/`: espacios de candidato y empresa, vacantes públicas y constructor de sitios de empleo. Pendientes en `odd/tasks/frontend-backlog.md`.
 
 ### Infra / workers
 
@@ -95,7 +95,7 @@
 - 🔲 **Cobertura `Create`/`GetByID` del repo `companies`** (requiere Postgres vivo — hoy solo hay unit tests con stub).
 - 🔲 **Test de CHECK constraints a nivel DB** (además del VO) en `companies` (`size`, `founded_year`) — evidencia por `information_schema`, no inspección estática.
 - 🔲 **Separar commits RED de GREEN** en ciclos futuros (práctica; hoy el TDD RED-first no es git-reconstruible).
-- 🔲 **Frontend** (`Next.js`) — mockups HTML listos en `design/screens/`, sin código de app.
+- ✅ **Frontend** — app Next.js 15 implementada en `frontend/` (candidato, empresa, vacantes públicas y constructor de sitios de empleo); pendientes en `odd/tasks/frontend-backlog.md`.
 - ✅ **PostConfirmation de Cognito** — ENTREGADO: ejecutable `cmd/postconfirmation` (adaptador del trigger PostConfirmation, errores propagados como fallo de Lambda) sobre el `PostConfirmationHandler` idempotente de `identity`.
 - ✅ **Audit events para companies** — ENTREGADO (2026-08-26, `companies-audit`): `CompanyUpdated`/`CompanyDeleted` co-escritos atómicamente desde `PATCH/DELETE /me/company`. Vocabulario cerrado de audit_events a 4 eventos.
 - ✅ **Hardening read-side `c.deleted_at IS NULL`** en queries públicas de jobs (`SearchJobs` + `GetJobByID`) — ENTREGADO: el inline-close tapa la fuga del flujo de borrado; el predicado es defense-in-depth para un futuro code path que deje una vacante `published` con empresa tombstonada. Cubierto por tests de integración (Search + GetByID, fixture con empresa `active` + `deleted_at` seteado).

@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, type RefObject } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from "@dnd-kit/core";
-import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole } from "lucide-react";
+import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole, UserPlus } from "lucide-react";
 import { cn } from "cn";
 import { plural } from "@/features/employer-vacancies/plural";
 import { ActionStatus } from "@/components/feedback/action-status";
@@ -12,7 +12,7 @@ import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { allowedMoveTargets } from "./helpers";
+import { allowedMoveTargets, isBackwardMove } from "./helpers";
 import { discardGroupLabel, discardReasonLabel } from "./discard-text";
 import type { Board, Participation } from "./model";
 import type { Notice } from "./board-feedback";
@@ -23,6 +23,7 @@ import { filePresentation, Hint, initials, stageClass } from "./pipeline-present
 import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
 import type { BoardColumnOrder } from "./use-board-column-order";
 import { ColumnOrderControls } from "./column-order-controls";
+import { ChecklistFit, ChecklistSelection } from "@/features/vacancy-checklist/board/ui";
 
 type Props = {
   board: Board; pending: Set<string>; locked: boolean; notices: Record<string, Notice>; columnOrder?: BoardColumnOrder;
@@ -43,7 +44,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   const FileIcon = filePresentation(item.cv.name) === "pdf" ? FileText : FileType2;
   return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55")}
     onClick={event => {
-      if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu']")) return;
+      if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu'],[role='checkbox']")) return;
       onDetail(item.id);
     }}>
     <CardHeader className="items-center gap-2 px-0">
@@ -52,12 +53,13 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
         <CardTitle className="min-w-0 text-sm font-medium"><Hint text={item.candidate.full_name}><Button type="button" variant="ghost" className="h-auto min-h-10 w-full justify-start whitespace-normal p-0 text-left text-sm font-medium hover:bg-transparent"
           id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} onClick={() => onDetail(item.id)}><span className="line-clamp-2 break-words leading-5">{item.candidate.full_name}</span></Button></Hint></CardTitle>
       </div>
-      <CardAction className="row-span-1 self-center"><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
+      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
-      {item.source === "manual" && <Badge variant="accent">Ingreso manual</Badge>}
+      <ChecklistFit item={item} />
       {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}
-      <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span>{item.source === "manual" ? "Agregado" : "Postuló"} <MovementDate value={item.applied_at} compact /></span></p>
+      {/* The origin shares the date line instead of an extra pill: «Ingreso manual · 21 oct» / «Postuló 17 oct». */}
+      <p className="flex items-center gap-2">{item.source === "manual" ? <UserPlus aria-hidden="true" className="size-3.5 shrink-0" /> : <CalendarDays aria-hidden="true" className="size-3.5 shrink-0" />}<span>{item.source === "manual" ? <><span>Ingreso manual</span> · </> : "Postuló "}<MovementDate value={item.applied_at} compact /></span></p>
       <p className="flex items-center gap-2"><Clock3 aria-hidden="true" className="size-3.5 shrink-0" /><span>En la etapa desde <MovementDate value={item.moved_at} compact /></span></p>
     </CardContent>
     <Separator />

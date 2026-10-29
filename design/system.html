@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>PeopleFlow — design system</title>
+<style>
+:root{--background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);--muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;--status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);--status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);--brand:oklch(0.54 0.15 292.581);--radius:.625rem}
+.dark{--background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--primary:oklch(0.432 0.232 292.759);--muted:#171226;--muted-foreground:#A79FBF;--border:#262233;--status-info:oklch(0.78 0.12 245);--status-review:oklch(0.82 0.12 78);--status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);--brand:oklch(0.70 0.14 292.759)}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#F7F5FB;color:#1A1626}
+main{display:grid;grid-template-columns:1fr 1fr;gap:0;width:1440px}
+section.pane{background:var(--background);color:var(--foreground);padding:40px}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}h2{font-size:13px;font-weight:600;margin:28px 0 12px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.04em}
+p{margin:0;font-size:12px;color:var(--muted-foreground)}
+.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sw{border:1px solid var(--border);border-radius:calc(var(--radius)*1.4);overflow:hidden;background:var(--card)}
+.sw i{display:block;height:44px}.sw span{display:block;padding:6px 8px;font-size:11px}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:calc(var(--radius)*.8);border:1px solid transparent;font-size:12px;font-weight:500}
+.accent{border-color:color-mix(in oklch,var(--primary) 40%,transparent);background:color-mix(in oklch,var(--primary) 12%,transparent)}
+.t{--t:var(--muted-foreground);color:var(--t);border-color:color-mix(in oklch,var(--t) 40%,transparent);background:color-mix(in oklch,var(--t) 10%,transparent)}
+.neutral{background:var(--muted);color:var(--muted-foreground);border-color:var(--border)}
+.type div{margin-bottom:8px}.radius{display:flex;gap:10px}.radius b{width:56px;height:40px;background:var(--muted);border:1px solid var(--border)}
+.btn{display:inline-flex;align-items:center;height:40px;padding:0 16px;border-radius:999px;font-size:14px;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--foreground)}
+.btn.primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent}
+.card{background:var(--card);border-radius:calc(var(--radius)*1.4);padding:12px;width:260px;box-shadow:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent);font-size:12px;color:var(--muted-foreground)}
+.card strong{display:block;color:var(--foreground);font-size:14px;font-weight:500;margin-bottom:6px}
+</style>
+</head>
+<body>
+<main>
+
+<section class="pane " aria-label="Tema claro">
+  <h1>PeopleFlow · Claro</h1><p>Tokens de frontend/src/app/globals.css</p>
+  <h2>Color</h2>
+  <div class="swatches"><div class="sw"><i style="background:var(--background)"></i><span>background</span></div><div class="sw"><i style="background:var(--card)"></i><span>card</span></div><div class="sw"><i style="background:var(--muted)"></i><span>muted</span></div><div class="sw"><i style="background:var(--border)"></i><span>border</span></div><div class="sw"><i style="background:var(--foreground)"></i><span>foreground</span></div><div class="sw"><i style="background:var(--muted-foreground)"></i><span>muted-fg</span></div><div class="sw"><i style="background:var(--primary)"></i><span>primary</span></div><div class="sw"><i style="background:var(--brand)"></i><span>brand strong</span></div><div class="sw"><i style="background:var(--status-info)"></i><span>info</span></div><div class="sw"><i style="background:var(--status-review)"></i><span>review</span></div><div class="sw"><i style="background:var(--status-success)"></i><span>success</span></div><div class="sw"><i style="background:var(--status-danger)"></i><span>danger</span></div></div>
+  <h2>Tipografía (Inter)</h2>
+  <div class="type"><div style="font-size:20px;font-weight:600">Pipeline 20/600</div><div style="font-size:14px;font-weight:500">Nombre de candidato 14/500</div><div style="font-size:12px;color:var(--muted-foreground)">Metadato 12/400 muted</div></div>
+  <h2>Radio</h2>
+  <div class="radius"><b style="border-radius:calc(var(--radius)*0.6)"></b><b style="border-radius:calc(var(--radius)*0.8)"></b><b style="border-radius:calc(var(--radius)*1)"></b><b style="border-radius:calc(var(--radius)*1.4)"></b><b style="border-radius:calc(var(--radius)*1.8)"></b></div>
+  <h2>Badge</h2>
+  <div class="badges"><span class="badge accent">accent</span><span class="badge t" style="--t:var(--status-info)">info</span><span class="badge t" style="--t:var(--status-review)">review</span><span class="badge t" style="--t:var(--status-success)">success</span><span class="badge t" style="--t:var(--status-danger)">danger</span><span class="badge neutral">neutral</span></div>
+  <h2>Botón</h2>
+  <div class="badges"><span class="btn primary">Mover</span><span class="btn">Cancelar</span></div>
+  <h2>Card de candidato</h2>
+  <div class="card"><strong>Ana Pérez Gómez</strong>Postuló 17 oct<br>En la etapa desde 19 oct</div>
+</section>
+
+<section class="pane dark" aria-label="Tema oscuro">
+  <h1>PeopleFlow · Oscuro</h1><p>Tokens de frontend/src/app/globals.css</p>
+  <h2>Color</h2>
+  <div class="swatches"><div class="sw"><i style="background:var(--background)"></i><span>background</span></div><div class="sw"><i style="background:var(--card)"></i><span>card</span></div><div class="sw"><i style="background:var(--muted)"></i><span>muted</span></div><div class="sw"><i style="background:var(--border)"></i><span>border</span></div><div class="sw"><i style="background:var(--foreground)"></i><span>foreground</span></div><div class="sw"><i style="background:var(--muted-foreground)"></i><span>muted-fg</span></div><div class="sw"><i style="background:var(--primary)"></i><span>primary</span></div><div class="sw"><i style="background:var(--brand)"></i><span>brand strong</span></div><div class="sw"><i style="background:var(--status-info)"></i><span>info</span></div><div class="sw"><i style="background:var(--status-review)"></i><span>review</span></div><div class="sw"><i style="background:var(--status-success)"></i><span>success</span></div><div class="sw"><i style="background:var(--status-danger)"></i><span>danger</span></div></div>
+  <h2>Tipografía (Inter)</h2>
+  <div class="type"><div style="font-size:20px;font-weight:600">Pipeline 20/600</div><div style="font-size:14px;font-weight:500">Nombre de candidato 14/500</div><div style="font-size:12px;color:var(--muted-foreground)">Metadato 12/400 muted</div></div>
+  <h2>Radio</h2>
+  <div class="radius"><b style="border-radius:calc(var(--radius)*0.6)"></b><b style="border-radius:calc(var(--radius)*0.8)"></b><b style="border-radius:calc(var(--radius)*1)"></b><b style="border-radius:calc(var(--radius)*1.4)"></b><b style="border-radius:calc(var(--radius)*1.8)"></b></div>
+  <h2>Badge</h2>
+  <div class="badges"><span class="badge accent">accent</span><span class="badge t" style="--t:var(--status-info)">info</span><span class="badge t" style="--t:var(--status-review)">review</span><span class="badge t" style="--t:var(--status-success)">success</span><span class="badge t" style="--t:var(--status-danger)">danger</span><span class="badge neutral">neutral</span></div>
+  <h2>Botón</h2>
+  <div class="badges"><span class="btn primary">Mover</span><span class="btn">Cancelar</span></div>
+  <h2>Card de candidato</h2>
+  <div class="card"><strong>Ana Pérez Gómez</strong>Postuló 17 oct<br>En la etapa desde 19 oct</div>
+</section>
+</main>
+</body>
+</html>

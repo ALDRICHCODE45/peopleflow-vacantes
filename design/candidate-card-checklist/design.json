@@ -1,0 +1,35 @@
+{
+  "title": "Card de candidato con checklist",
+  "brief": "Card del pipeline menos amontonada: cómo mostrar el ajuste al checklist (y el origen) sin apilar píldoras, respetando la card aprobada en v0 (§14.3).",
+  "feature": "odd/tasks/vacancy-checklist.md",
+  "artboards": [
+    {
+      "file": "00-actual.html",
+      "title": "Actual (referencia)",
+      "tradeoff": "Lo que hay hoy: dos píldoras apiladas y un conteo suelto que mezcla obligatorios y deseables",
+      "width": 1280,
+      "height": 760
+    },
+    {
+      "file": "01-barra-segmentada.html",
+      "title": "Barra segmentada",
+      "tradeoff": "Proporción de un vistazo y escala a muchos criterios; el número exacto vive en texto y tooltip",
+      "width": 1280,
+      "height": 760
+    },
+    {
+      "file": "02-anillo-encabezado.html",
+      "title": "Anillo en el encabezado",
+      "tradeoff": "La card más limpia y corta; el número solo pide tooltip para tener contexto",
+      "width": 1280,
+      "height": 760
+    },
+    {
+      "file": "03-contadores-senales.html",
+      "title": "Contadores de señales",
+      "tradeoff": "Separa cumple / no cumple / sin evaluar con íconos; agrega una superficie más",
+      "width": 1280,
+      "height": 760
+    }
+  ]
+}

@@ -505,14 +505,17 @@ for (const scheme of SCHEMES) {
           focus?.outlineStyle !== "none" || focus?.boxShadow !== "none",
         ).toBe(true);
 
-        // No root API requests: same-origin /api traffic is rejected. The
-        // reference fonts are self-hosted from public/fonts (same origin),
-        // so no cross-origin font CDN is allowed either.
+        // No root API requests: same-origin /api traffic is rejected, except
+        // the token-free NextAuth session projection that IngresarMenu reads
+        // to offer «Mi cuenta» to signed-in visitors. The reference fonts are
+        // self-hosted from public/fonts (same origin), so no cross-origin font
+        // CDN is allowed either.
         for (const url of requestUrls) {
           const parsed = new URL(url);
           expect(
             (parsed.origin === BASE_URL &&
-              !parsed.pathname.startsWith("/api")) ||
+              (!parsed.pathname.startsWith("/api") ||
+                parsed.pathname === "/api/auth/session")) ||
               /^(data|blob|about):/.test(parsed.protocol),
             `unexpected request from root: ${url}`,
           ).toBe(true);

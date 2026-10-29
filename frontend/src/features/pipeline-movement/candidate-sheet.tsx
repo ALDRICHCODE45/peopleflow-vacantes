@@ -21,7 +21,7 @@ import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
 import { SubstateSelect } from "./substate-controls";
 import { discardGroupLabel, discardReasonLabel } from "./discard-text";
-import { allowedMoveTargets } from "./helpers";
+import { allowedMoveTargets, isBackwardMove } from "./helpers";
 import { participationCvHref } from "./cv-href";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import type { Notice } from "./board-feedback";
@@ -29,16 +29,25 @@ import { plural } from "@/features/employer-vacancies/plural";
 import { educationLabels, normalizedProfileLabel } from "./profile-filter-dimensions";
 import { SENIORITY_LABELS } from "@/features/candidate/model";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
+import { useBoardChecklist } from "@/features/vacancy-checklist/board/state";
+import { ChecklistPanel } from "@/features/vacancy-checklist/board/ui";
 import type { Board, CorrectedField, Failure, History, Participation, ParticipationDetail } from "./model";
 
-type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
+type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; tabRequest?: { tab: string }; children?: ReactNode };
 export function CandidateSheet(props: Props) {
   return <Sheet open onOpenChange={open => { if (!open) props.onClose(); }}><CandidateSession key={props.item.id} {...props} /></Sheet>;
 }
-function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, children }: Props) {
+function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, tabRequest, children }: Props) {
+  const checklist = useBoardChecklist();
   const manual = item.source === "manual";
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const [tab, setTab] = useState("summary");
+  const [tab, setTab] = useState(tabRequest?.tab ?? "summary");
+  // A new request (e.g. «Revisar en la ficha» from the move confirmation) switches the open sheet's tab.
+  const [seenRequest, setSeenRequest] = useState(tabRequest);
+  if (tabRequest !== seenRequest) {
+    setSeenRequest(tabRequest);
+    if (tabRequest) setTab(tabRequest.tab);
+  }
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ detail: ParticipationDetail; history: History } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -90,7 +99,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       <SheetDescription className="text-xs">{manual ? <>Agregado{detail.added_by ? ` por ${detail.added_by.name}` : ""} el <MovementDate value={detail.applied_at} /></> : <>Postuló el <MovementDate value={detail.applied_at} /> <span className="px-1">·</span> Fuente: Orgánica</>}</SheetDescription>
       {/* Evaluation context and its action stay together above the scrolling tabs. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-wrap">
-        {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
+        {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} isBackward={stage => isBackwardMove(board, item, stage)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
         {onSubstate && <SubstateSelect board={board} item={item} onChange={onSubstate} disabled={locked} describedBy={errorNotice ? "detail-action-status" : undefined} />}
         {onDisposition && <Button id={`candidate-disposition-${item.id}`} type="button" variant="outline" className={cn("h-10", !item.discard && "border-destructive/25 text-destructive")} disabled={locked} aria-label={item.discard ? "Recuperar" : "Descartar"} aria-describedby={errorNotice ? "detail-action-status" : undefined} onClick={() => onDisposition(item.id, item.discard ? "recover" : "discard")}>
           {item.discard ? <RotateCcw aria-hidden="true" data-icon="inline-start" /> : <UserRoundX aria-hidden="true" data-icon="inline-start" />}{item.discard ? "Recuperar" : "Descartar"}
@@ -99,14 +108,15 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       {errorNotice && <ActionStatus id="detail-action-status" tone={errorNotice.tone} text={errorNotice.text} />}
     </SheetHeader>
     <Tabs value={tab} onValueChange={value => setTab(String(value))} className="min-h-0 flex-1 gap-0">
-      <div className="px-6 pb-5"><TabsList aria-label="Secciones de la ficha" className="w-full group-data-horizontal/tabs:h-11">
+      <div className="px-6 pb-5 max-sm:px-4"><TabsList aria-label="Secciones de la ficha" className="w-full group-data-horizontal/tabs:h-11 max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]">
         <TabsTrigger value="summary">Resumen</TabsTrigger>
         <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
+        {checklist?.checklist?.criteria.length ? <TabsTrigger value="checklist">Checklist</TabsTrigger> : null}
         <TabsTrigger value="history">Historial <Badge variant="secondary">{loaded?.history.items.length ?? "…"}</Badge></TabsTrigger>
       </TabsList></div><Separator />
       <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
         <TabsContent value={tab} className="p-6" aria-busy={reading}>
-          {reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
+          {tab === "checklist" ? <ChecklistPanel item={item} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
             description={failure.reason === "unauthenticated" ? "Tu sesión expiró. No se modificó el candidato; inicia sesión de nuevo." : "No se modificó el candidato. Puedes volver a cargar las respuestas y el historial."}
             primaryAction={{ label: "Reintentar", disabled: reading, "aria-describedby": notice ? "detail-read-status" : undefined, onClick: () => { setReading(true); setNotice(null); setAttempt(value => value + 1); } }}>
             {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}

@@ -144,39 +144,6 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     expect(screen.queryByText(/Al pulsar Guardar borrador/)).not.toBeInTheDocument();
     expect(document.querySelector('[data-pf-draft-save-bar]')).toHaveTextContent("Sin guardado automático");
 
-    // Topic Cards retain accessible headings and remain reachable in every section.
-    const steps = [
-      {
-        heading: "Paso 1 de 5: Información básica",
-        sections: ["El puesto que estás buscando", "¿Dónde trabajará?", "Solicitante"],
-      },
-      {
-        heading: "Paso 2 de 5: Descripción y perfil",
-        sections: ["Cuéntales sobre la oportunidad", "Habilidades e idiomas"],
-      },
-      {
-        heading: "Paso 3 de 5: Compensación y beneficios",
-        sections: ["Una oferta clara desde el inicio", "Más que un sueldo"],
-      },
-      {
-        heading: "Paso 4 de 5: Preguntas de filtro",
-        sections: ["Conoce mejor a quienes se postulan"],
-      },
-      {
-        heading: "Paso 5 de 5: Revisión y publicación",
-        sections: [],
-      },
-    ];
-    for (let step = 1; step <= steps.length; step += 1) {
-      goToStep(step);
-      expect(
-        screen.getByRole("heading", { name: steps[step - 1].heading }),
-      ).toBeVisible();
-      for (const heading of steps[step - 1].sections) {
-        expect(screen.getByRole("heading", { name: heading, level: 3 })).toBeVisible();
-      }
-    }
-
     expect(
       screen.getByRole("button", { name: "Guardar borrador" }),
     ).toBeInTheDocument();
@@ -197,6 +164,24 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     ).toBe(true);
     // The narrow legacy measure must not come back anywhere in the route.
     expect(content!.querySelector(".max-w-3xl")).toBeNull();
+  });
+
+  // Topic Cards retain accessible headings and remain reachable in every section.
+  // One step per test keeps each case light under full-suite load (no raised timeouts).
+  it.each([
+    { step: 1, heading: "Paso 1 de 5: Información básica", sections: ["El puesto que estás buscando", "¿Dónde trabajará?", "Solicitante"] },
+    { step: 2, heading: "Paso 2 de 5: Descripción y perfil", sections: ["Cuéntales sobre la oportunidad", "Habilidades e idiomas"] },
+    { step: 3, heading: "Paso 3 de 5: Compensación y beneficios", sections: ["Una oferta clara desde el inicio", "Más que un sueldo"] },
+    { step: 4, heading: "Paso 4 de 5: Preguntas de filtro", sections: ["Conoce mejor a quienes se postulan"] },
+    { step: 5, heading: "Paso 5 de 5: Revisión y publicación", sections: [] },
+  ])("reaches $heading with its section headings", ({ step, heading, sections }) => {
+    render(<Page />);
+    goToStep(step);
+    const form = document.querySelector<HTMLElement>("[data-pf-local-draft-form]")!;
+    expect(within(form).getByRole("heading", { name: heading })).toBeVisible();
+    for (const name of sections) {
+      expect(within(form).getByRole("heading", { name, level: 3 })).toBeVisible();
+    }
   });
 });
 

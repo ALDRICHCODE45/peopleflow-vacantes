@@ -40,10 +40,10 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
 - [x] T5 — S10, S11: minimal public renderer + `/empresas/[slug]` route on the contract (404 for unpublished/unknown,
   308 for an old slug), media proxy from the frontend origin, Acme public route and its navbar link removed — route:
   worker — commit: see L13 (route removal 277c7edf)
-- [ ] T6 — S1–S11: dress editor and public site with the approved v0 design (L18–L19; source in `.v0-review-site/`),
+- [x] T6 — S1–S11: dress editor and public site with the approved v0 design (L18–L19; source in `.v0-review-site/`),
   composed from installed shadcn primitives per `docs/frontend-ui-design-rules.md`, wired to the T3/T4 model, API and
   autosave (never v0's simplified model). Delivered in reviewable slices, each reviewed in the browser (looks, details,
-  system design — not only behavior) from the review worktree (L20):
+  system design — not only behavior) from the review worktree (L20) — commit: bb6664a0:
   - [x] T6a — fixture: `/v2/company-sites/{slug}`, media and `/v2/jobs?company_id=` in `tests/fixtures` — route: worker — commit: see L21
   - [x] T6b — public site: all 13 sections × variants, brand tokens + contrast, font pairs, header/footer, socials —
     route: worker — commit: cbdf943d (site), 579f24de (route without app header, L22)
@@ -54,7 +54,7 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
     preview) + publish flow (checklist, confirm, success, unpublish) — route: worker — commit: see L44
   - [x] T6f — remove the prototype editor/profile and prototype `/empresas/<uuid>` links; e2e on the fixture; docs — route:
     worker + parent deletions — commit: see L47
-- [ ] T7 — S6: S3 storage adapter for site media (last task of the feature, L17) — route: backend — commit: —
+- [x] T7 — S6: S3 storage adapter for site media (last task of the feature, L17) — route: backend — commit: f03af5fe
 
 ## Log
 
@@ -354,3 +354,5 @@ tonight's work is the base without UI (contract, model, state, autosave, minimal
   backend» (worktree `peopleflow-vacantes`, branch `feat/company-careers-site`).
 - L49 (2026-10-27): Backend reported MinIO no longer publishes public Docker images (docker.io/quay.io/ghcr.io denied). User chose verbatim: «1. Compilar MinIO desde el código fuente» — local image built from source via a repo Dockerfile, in backend/docker-compose.minio.yml. Relayed to backend session 01a16b3c.
 - L50 (2026-10-27): T7 done in backend `feat/company-careers-site` @ f03af5fe (S3 adapter via aws-sdk-go-v2, MinIO built from RELEASE.2025-10-15T17-29-55Z; independent verify ×2 + native review approved). Frontend unchanged. Live test `careers-site.live.test.ts` against :8090 in S3 mode: 1/1 passed (steps 1–9: private draft, media upload/serve, publish, public read, slug move, foreign isolation, unpublish). Note: seeded company ids are v7-shaped (`11111111-1111-7111-8111-…`, `22222222-2222-7222-8222-…`).
+- L51 (2026-10-28, bookkeeping) T6 ticked: evidence L47–L48 / bb6664a0 in main.
+- L52 (2026-10-28, bookkeeping) T7 ticked: evidence L50 / f03af5fe in main.

@@ -897,6 +897,13 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   por ítem. Su `DialogFooter` usa `ActionBar` (sección 12); no son confirmaciones.
 - Si el resultado de la acción es incierto (sin respuesta), el diálogo ofrece
   «Comprobar», que solo lee el estado; nunca reintenta solo.
+- Una confirmación no contiene un formulario. Un recordatorio de pendientes dentro de
+  ella es **un** aviso (`Item variant="outline"` con medallón): conteo, los primeros
+  nombres en dos líneas como máximo y un botón que lleva a donde se completan (ej.
+  «Revisar en la ficha» del checklist al mover), nunca una fila con controles por ítem.
+- Un texto que se corta con `truncate` dentro de un hijo flex (como `ItemTitle`, que es
+  `flex w-fit`) necesita `min-w-0` en ese hijo; si no, no se achica y empuja a sus
+  vecinos fuera del contenedor (scroll horizontal en el diálogo).
 
 - Un diálogo con una lista que puede crecer (faltantes, resultados) tiene alto máximo
   (`max-h-[min(44rem,calc(100dvh-2rem))]`) y **un solo** contenedor de scroll entre el
@@ -1075,7 +1082,14 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
   dashed de 96px, no un `Empty` repetido.
 - Tarjetas `Card` con composición nativa, avatar de 32px, nombre 14px/500 de dos
   líneas con tooltip, metadatos de fechas, `Separator` y archivo por extensión o
-  motivo/grupo de descarte. Menú: destinos permitidos → «Ver ficha» → «Descartar»;
+  motivo/grupo de descarte. El origen manual comparte la línea de fecha («Ingreso manual ·
+  21 oct», ícono `UserPlus`), no es otra píldora. El ajuste al checklist es una fila de datos
+  («Checklist · 1/12 obligatorios») con una barra segmentada (un segmento por obligatorio:
+  cumple `status-success`, no cumple `status-review`, sin evaluar `border`; más de 24 se
+  agrupan en tres tramos proporcionales) y el desglose en un tooltip, nunca un badge
+  (`design/candidate-card-checklist/01-barra-segmentada.html`). Las flechas del menú
+  «Mover a…» indican la dirección: ← etapas anteriores, → la siguiente.
+  Menú: destinos permitidos → «Ver ficha» → «Descartar»;
   descartada: «Recuperar» → «Ver ficha». La manija dnd-kit sigue independiente,
   disponible con foco y siempre visible en pantallas pequeñas; su target de 40px
   ocupa el aire alrededor de la fila compacta del CV, no añade otra fila de acciones.

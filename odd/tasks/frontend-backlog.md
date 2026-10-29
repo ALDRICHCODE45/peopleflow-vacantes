@@ -8,7 +8,9 @@ Sheet footers, skills casing, outline links, candidate-edit advisories with a de
 panel voseo. Shipped in `fix/vacantes-lost-navigation` (see `next-16-upgrade.md`): lost client navigations
 between `/vacantes` search variants. Retired in `fix/legacy-application-retired` (2026-10-26): the legacy
 application wizard (prototype candidate «Ximena Barrera», no submission) and with it the legacy application phone
-item — legacy catalog rows now say they take no online applications.
+item — legacy catalog rows now say they take no online applications. Shipped in `chore/backlog-small-fixes`
+(2026-10-28): root spec allowlist for the token-free `/api/auth/session` read, sidebar inside one «Navegación
+principal» landmark (axe `region`), the three full-suite flaky tests made lighter (no raised timeouts).
 
 ## Product gaps
 
@@ -19,18 +21,6 @@ item — legacy catalog rows now say they take no online applications.
   grammar. Deferred by the user (2026-10-23).
 
 ## Known issues
-
-- `tests/e2e/root.spec.ts` «root foundation matrix» (4 cases) fails on main's behavior: the home page now requests
-  `/api/auth/session` because `IngresarMenu` shows «Mi cuenta» to signed-in visitors (3e2c28f3), while the spec forbids any
-  same-origin `/api` request from the root. Update the spec's allowlist (or make the menu read the session lazily).
-
-- Full-suite flakiness under load (`nice` + other processes): a different heavy test fails per run and passes alone —
-  `manual-intake/sheet.test.tsx` «limits studies to ten…», `empresa/vacantes/borradores/nuevo/page.test.tsx` «mounts the
-  five-step draft editor…», `jobs/drafts/ui/draft-save-flow.test.tsx` «keeps edits made during an in-flight save…»
-  (2026-10-27). Make them lighter like the careers form tests (split, minimal fixtures), never raise timeouts.
-
-- axe `region` (moderate) on every `(empresa)` page: content in `[data-slot=sidebar-header]` sits outside any landmark
-  (seen on `/empresa/dashboard` and `/empresa/sitio`, production build, 2026-10-27). App-shell fix, not page-level.
 
 - **Next 16 upgrade** — blocked by hosting: Amplify Hosting supports Next 12–15 only (design D1). Next 16 also fixes
   the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known
@@ -50,6 +40,12 @@ item — legacy catalog rows now say they take no online applications.
   their call.
 
 ## Waiting on the user
+
+- **Company profile data seen on the published careers site** (`careers-builder-polish.md` L15, parked by the user
+  2026-10-28): the company `logo_url` (img.magnific.com) is stored with literal backslashes (`\?semt\=…`) and returns
+  404, so the site header falls back to the initial «T»; the office item shows only «México» because its location has
+  the country only. Data, not code — fix the profile values (and decide whether the profile form should reject such
+  URLs).
 
 - **Browser checks without a recorded defect** — board Estado/Municipio filters with a new application from a located
   profile; candidate view of «Vacante cerrada» (closing the process vs closing only the publication).

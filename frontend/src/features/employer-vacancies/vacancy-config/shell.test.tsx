@@ -56,7 +56,7 @@ it("lists only implemented modules with active navigation and descriptions", asy
   render(shell());
   const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
   const links = within(nav).getAllByRole("link");
-  expect(VACANCY_CONFIG_MODULES.map(module => module.slug)).toEqual(["columnas", "entrega", "solicitud"]);
+  expect(VACANCY_CONFIG_MODULES.map(module => module.slug)).toEqual(["columnas", "entrega", "solicitud", "checklist"]);
   expect(links).toHaveLength(VACANCY_CONFIG_MODULES.length);
   for (const [index, module] of VACANCY_CONFIG_MODULES.entries()) {
     expect(links[index]).toHaveTextContent(module.title);
@@ -75,7 +75,7 @@ it("does not expose a Subestados link on its obsolete route", async () => {
   const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
   const links = within(nav).getAllByRole("link");
   expect(links[0]).not.toHaveAttribute("aria-current");
-  expect(links).toHaveLength(3);
+  expect(links).toHaveLength(4);
   expect(within(nav).queryByRole("link", { name: /Subestados/ })).not.toBeInTheDocument();
 });
 it("marks Entrega current after the columns link", async () => {

@@ -117,7 +117,10 @@ it("labels manual cards without claiming an application", async () => {
   const board = boardFixture();
   Object.assign(board.participations[0], { source: "manual", added_by: { id: "recruiter", name: "Luis" } });
   await mount(board);
-  expect(screen.getByText("Ingreso manual")).toHaveAttribute("data-slot", "badge");
+  // The origin lives in the date line (no extra pill): «Ingreso manual · 21 oct».
+  const origin = screen.getByText("Ingreso manual");
+  expect(origin).not.toHaveAttribute("data-slot", "badge");
+  expect(origin.closest("p")).toHaveTextContent(/^Ingreso manual · \d{1,2} \w{3}$/);
   expect(screen.queryByText(/Postuló/)).not.toBeInTheDocument();
 });
 it("adds a manual card in place, focuses it and shows its origin in the sheet", async () => {
@@ -250,6 +253,17 @@ it.each(["substate", "recover"] as const)("finished %s controls remain disabled 
   expect(operation === "recover" ? within(sheet).getByRole("button", { name: "Recuperar" }) : within(sheet).getByRole("combobox", { name: "Subestado" })).toBeDisabled();
 });
 function menu() { fireEvent.click(screen.getByRole("button", { name: "Acciones de Ana Pérez" })); return screen.getByRole("menu"); }
+it("points backward moves left and the next stage right in the card menu", async () => {
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  const board = boardFixture();
+  board.participations[0].stage_id = board.stages[1].id;
+  await mount(board);
+  const actions = menu();
+  const back = within(actions).getByRole("menuitem", { name: board.stages[0].name });
+  const forward = within(actions).getByRole("menuitem", { name: board.stages[2].name });
+  expect(back.querySelector("svg[data-direction]")).toHaveAttribute("data-direction", "back");
+  expect(forward.querySelector("svg[data-direction]")).toHaveAttribute("data-direction", "forward");
+});
 function move(label = "Revisión", confirm = true) {
   fireEvent.click(within(menu()).getByRole("menuitem", { name: label }));
   if (confirm && !screen.getByRole("alertdialog").textContent?.includes("disminuyen en una")) fireEvent.click(screen.getByRole("button", { name: "Mover" }));

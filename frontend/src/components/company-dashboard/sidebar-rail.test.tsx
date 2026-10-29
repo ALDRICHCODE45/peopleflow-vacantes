@@ -55,6 +55,15 @@ describe.each([
     }
   });
 
+  it("keeps brand, destinations and account inside one navigation landmark (axe region)", () => {
+    stubBrowserApis();
+    render(<Shell defaultOpen>contenido</Shell>);
+    const landmark = screen.getByRole("navigation", { name: "Navegación principal" });
+    for (const slot of ["sidebar-header", "sidebar-content", "sidebar-footer"]) {
+      expect(landmark).toContainElement(document.querySelector<HTMLElement>(`[data-slot='${slot}']`));
+    }
+  });
+
   it("centers every 40px square and its contents, including action, active link and account", () => {
     pathnameMock.mockReturnValue(_name === "employer" ? "/empresa/vacantes" : "/candidato/postulaciones");
     stubBrowserApis();
