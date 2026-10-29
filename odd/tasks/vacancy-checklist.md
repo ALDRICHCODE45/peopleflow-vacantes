@@ -52,7 +52,7 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
 | T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | 9bd31e5a, 8aa1b1d0 |
 | T8 | S8 | inline — user review: reminder as a compact notice + «Revisar en la ficha» (no inline marks) | cd127b76 |
 | T9 | — | inline — user review: move menu arrow points left for earlier stages | ec013cc4 |
-| T10 | S5, S8 | inline — card fit as segmented bar (chosen artboard 01) + reminder only on forward moves | see L21 |
+| T10 | S5, S8 | inline — card fit as segmented bar (chosen artboard 01) + reminder only on forward moves | bd949eea |
 
 ## Log
 
