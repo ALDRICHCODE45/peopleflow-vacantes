@@ -33,7 +33,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
 | T7 | S3–S10 | worker + parent — B6 StageEntryHook port (applications) implemented by psychometrics; move/recovery/intake/apply only; system audit; parent ran archguard (only Dockerfile), go test ./internal/..., integration board/movement/discard/manual/apply/pipeline/checklist/psychometric all green | 533136c8 |
 | T8 | S3–S10 | B7 public/account read, consent, items and ordered/idempotent answers; account latest list; privacy headers, B5 recheck under B4 locks, consent audit and guarded migration 00051. B7b adds finish: pinned B2 output and initial comparison/full confirmed profile snapshot, sorted incomplete positions, atomic finish retention/audit and exactly-once concurrent completion; assessment_finished on both paths. RED missing finish routes observed; focused finish HTTP GREEN (snapshot equality, changes 1/1/1, unconfirmed profile, concurrency, audit rollback). B8/B9 unchanged. | 45dfd028, e8a05157 |
 | T9 | S3–S10 | B8 public limiter + headers (own commit, security) | pending |
-| T10 | S3–S10 | B9 result GET audited + comparisons | pending |
+| T10 | S3–S10 | worker — B9 result GET (audited, strict projection per contract 75c0c690) + comparisons POST (B2 Recompare on stored bands, immutable history, 409 profile_unconfirmed/process_finished, 404 unfinished/past retention). RED missing routes; GREEN 49 psychometric/checklist integration on draft_test, unit, vet; archguard only Dockerfile | ae26f78f |
 | T11 | S3–S10 | B10 retention purge (own commit, data deletion) | pending |
 
 ## Log
