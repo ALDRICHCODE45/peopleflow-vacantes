@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/invitations"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/profile"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/content"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -161,43 +162,57 @@ func (s *InvitationsStore) CreateInvitation(ctx context.Context, company, actor,
 	if !p.Enabled {
 		return invitations.Result{}, invitations.ErrProfileDisabled
 	}
-	now, err := invitationNow(ctx, tx)
+	i, created, err := s.createForParticipation(ctx, tx, pid, p, &actor, nil)
 	if err != nil {
 		return invitations.Result{}, err
+	}
+	if !created {
+		return invitationResult(i, 200)
+	}
+	return s.commitInvitation(ctx, tx, actor, id, i, "PsychometricInvitationCreated", 201)
+}
+
+// createForParticipation is the single slot/pinning/retention protocol for manual
+// and automatic creation. Caller owns the process and participation locks.
+func (s *InvitationsStore) createForParticipation(ctx context.Context, tx pgx.Tx, pid uuid.UUID, p profile.Profile, actor, trigger *uuid.UUID) (invitations.Invitation, bool, error) {
+	now, err := invitationNow(ctx, tx)
+	if err != nil {
+		return invitations.Invitation{}, false, err
 	}
 	var finished bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM psychometric_invitations WHERE participation_id=$1 AND test=$2 AND finished_at IS NOT NULL AND revoked_at IS NULL)`, pid, p.Test).Scan(&finished); err != nil {
-		return invitations.Result{}, err
+		return invitations.Invitation{}, false, err
 	}
 	if finished {
-		return invitations.Result{}, invitations.ErrAlreadyFinished
+		return invitations.Invitation{}, false, invitations.ErrAlreadyFinished
 	}
 	current, err := scanInvitation(tx.QueryRow(ctx, invitationProjection+`WHERE i.participation_id=$1 AND i.test=$2 AND i.finished_at IS NULL AND i.revoked_at IS NULL AND i.superseded_at IS NULL FOR UPDATE OF i`, pid, p.Test), now)
 	if err == nil && current.Active() {
-		return invitationResult(current, 200)
+		return current, false, nil
 	}
 	if err != nil && !errors.Is(err, invitations.ErrNotFound) {
-		return invitations.Result{}, err
+		return invitations.Invitation{}, false, err
 	}
 	// Release expired slots without changing their visible status or retention.
 	if _, err = tx.Exec(ctx, `UPDATE psychometric_invitations SET superseded_at=$3 WHERE participation_id=$1 AND test=$2 AND finished_at IS NULL AND revoked_at IS NULL AND superseded_at IS NULL AND expires_at <= $3`, pid, p.Test, now); err != nil {
-		return invitations.Result{}, err
+		return invitations.Invitation{}, false, err
 	}
 	artifact, err := content.Load(content.Version)
 	if err != nil {
-		return invitations.Result{}, err
+		return invitations.Invitation{}, false, err
 	}
 	catalog := artifact.Snapshot()
 	iid := uuid.New()
 	expires := now.AddDate(0, 0, p.ExpiresInDays)
-	if _, err = tx.Exec(ctx, `INSERT INTO psychometric_invitations(id,participation_id,test,content_version,scoring_version,total_count,origin,created_by,created_at,expires_at,purge_after) VALUES($1,$2,$3,$4,$5,$6,'manual',$7,$8,$9,(($9::timestamptz AT TIME ZONE 'UTC')+interval '12 months') AT TIME ZONE 'UTC')`, iid, pid, catalog.Test, catalog.ContentVersion, catalog.ScoringVersion, len(catalog.Order), actor, now, expires); err != nil {
-		return invitations.Result{}, err
+	origin := "manual"
+	if trigger != nil {
+		origin = "auto"
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO psychometric_invitations(id,participation_id,test,content_version,scoring_version,total_count,origin,created_by,created_at,expires_at,purge_after,trigger_stage_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,(($10::timestamptz AT TIME ZONE 'UTC')+interval '12 months') AT TIME ZONE 'UTC',$11)`, iid, pid, catalog.Test, catalog.ContentVersion, catalog.ScoringVersion, len(catalog.Order), origin, actor, now, expires, trigger); err != nil {
+		return invitations.Invitation{}, false, err
 	}
 	i, err := scanInvitation(tx.QueryRow(ctx, invitationProjection+`WHERE i.id=$1`, iid), now)
-	if err != nil {
-		return invitations.Result{}, err
-	}
-	return s.commitInvitation(ctx, tx, actor, id, i, "PsychometricInvitationCreated", 201)
+	return i, true, err
 }
 func (s *InvitationsStore) RemindInvitation(ctx context.Context, company, actor, id, iid uuid.UUID) (invitations.Result, error) {
 	return s.mutateInvitation(ctx, company, actor, id, iid, "remind")

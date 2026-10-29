@@ -264,7 +264,7 @@ func run() error {
 	// Explicit allowlist; never log the SDK config, endpoint or credentials.
 	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo)
-	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore), draftjson.Decode)
+	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore).WithStageEntryHook(newPsychometricStageEntryHook(draftStore)), draftjson.Decode)
 
 	// Jobs wiring: jobs repo (sqlc data layer over the same pool)
 	// -> service -> handler. Public read slice — no identity user
@@ -283,7 +283,7 @@ func run() error {
 	// event and (for create) the idempotency record commit atomically. The
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
-	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualStorage)
+	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode).WithStageEntryHook(newPsychometricStageEntryHook(draftStore))).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(movementStorage))).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)

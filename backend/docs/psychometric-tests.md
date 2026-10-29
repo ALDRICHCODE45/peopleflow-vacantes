@@ -1,7 +1,8 @@
-# Vacancy psychometric assessments (B3–B5)
+# Vacancy psychometric assessments (B3–B6)
 
 Employers can save a private, vacancy-scoped profile for `ipip60-mx` and manage
-invitations and issue single-display links. These slices do not auto-send, collect answers, expose
+invitations and issue single-display links. Stage entry can automatically create invitations.
+These slices do not deliver messages, collect answers, expose
 results or move/reject anyone. The authoritative wire contract
 is [psychometric-tests-v1](../../docs/contracts/psychometric-tests-v1.md).
 
@@ -31,7 +32,7 @@ processes remain editable; a finished process rejects PUT with
 | `confirmed` | Writable boolean, default false. |
 | `confirmed_at` | Server RFC 3339 timestamp, null while unconfirmed. |
 | `competencies` | Exactly one entry per each of the seven embedded catalog IDs, including `comp.presion`. Defaults follow catalog order. |
-| `auto_send_stage_ids` | Array of distinct current progression-stage IDs of this vacancy's pipeline; exit/retired/foreign/unknown stages are invalid. Default `[]`. GET silently hides stages no longer current, without rewriting storage/version. No auto-send runs in B3. |
+| `auto_send_stage_ids` | Array of distinct current progression-stage IDs of this vacancy's pipeline; exit/retired/foreign/unknown stages are invalid. Default `[]`. GET silently hides stages no longer current, without rewriting storage/version. B6 creates invitations on configured stage entry. |
 | `expires_in_days` | Integer 1–30 inclusive, default 7. |
 
 Each competency entry has exactly `competency_id`, `importance`, `desired_band`,
@@ -176,6 +177,37 @@ failures remain internal errors. This is not a constant-time database guarantee.
 Candidate writes must recheck availability under the B4 lock order; lookup alone
 does not authorize a later write. B7/B8 own public responses, headers and limits.
 
+## Automatic invitations (B6)
+
+Board moves, discard recovery, manual intake and candidate apply call the optional
+applications-owned `StageEntryHook` in their existing transaction, after updating
+or inserting the participation and its history. Nil hooks are no-ops. Production
+wiring injects the psychometrics implementation; applications never imports its
+infrastructure. Pipeline relocation/not-applicable history and substate changes
+never call the hook. The board move response is unchanged: refetch the invitation
+list after a move.
+
+Only an enabled profile and a configured **current progression stage** create an
+invitation. Retired stage IDs, discarded/exited participations, existing active
+invitations and non-revoked finishes silently skip creation. Confirmation is not
+required. Automatic and manual creation reuse one slot/pinning/expiry/retention
+function, including expired-slot supersession; no token or delivery is generated.
+Automatic invitations have `origin: auto`, `created_by: null`, and the entered
+`trigger_stage_id`.
+
+`PsychometricInvitationCreated` uses `actor_type: system`, `actor_id: null` for
+all automatic entries, even recruiter-caused moves. This records the automatic
+policy decision rather than misattributing creation; the separate move/recovery/
+intake audit retains its human actor. Vacancy and participation metadata follow
+B4. Audit or database failures roll back the stage/history and invitation together.
+
+Lock order remains **draft → process → participation → invitation**. Apply and
+manual intake own newly inserted participation rows; move/recovery lock existing
+rows before calling. The hook never acquires a draft/process lock or opens or
+commits a transaction. Its jobs adapter only reads current stages using the
+existing pipeline reader, so it cannot invert manual send's parent-first locks.
+Profile/pipeline writers share the caller's draft lock.
+
 ## Verification
 
 From `backend/`:
@@ -194,7 +226,7 @@ a dedicated **loopback** database named **draft_test**; never the development DB
 The harness refuses other hosts/database names, never reads ambient
 `DATABASE_URL`, migrates only the isolated DB and cleans up its fixtures. With no
 dedicated DSN it skips; a skip is not database verification. Archguard's existing
-`docker/minio/Dockerfile` locked-non-goal failure is unrelated to B3–B5. On macOS's
+`docker/minio/Dockerfile` locked-non-goal failure is unrelated to B3–B6. On macOS's
 bash 3.2, the pre-existing `scripts/closure/gate:44` command-substitution/case
 syntax also breaks closure receipt tests in the full suite; it is not a profile
 failure.

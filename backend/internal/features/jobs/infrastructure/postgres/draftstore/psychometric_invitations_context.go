@@ -23,9 +23,29 @@ func (s *Store) PsychometricInvitationsContext(ctx context.Context, tx pgx.Tx, c
 	return config.Exit.ID, nil
 }
 
+// PsychometricStageCurrent reads without acquiring any parent locks. Stage-entry
+// callers already hold draft/process ownership; acquiring them here would invert
+// the manual-send lock order.
+func (s *Store) PsychometricStageCurrent(ctx context.Context, tx pgx.Tx, id, stage uuid.UUID) (bool, error) {
+	stages, err := checklistStages(ctx, tx, id)
+	if err != nil {
+		return false, err
+	}
+	for _, current := range stages {
+		if current == stage.String() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // AuditPsychometricInvitation keeps the existing audit repository's validation
 // and transaction invariants. No candidate data, tokens or answers enter audits.
 func (s *Store) AuditPsychometricInvitation(ctx context.Context, tx pgx.Tx, actor, vacancy, participation, invitation uuid.UUID, eventType string) error {
 	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "psychometric_invitation", EntityID: invitation, Metadata: map[string]string{"vacancy_id": vacancy.String(), "participation_id": participation.String()}}
+	if actor == uuid.Nil {
+		event.ActorType = audit.ActorTypeSystem
+		event.ActorID = nil
+	}
 	return s.audit.Append(ctx, tx, event)
 }

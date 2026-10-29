@@ -17,6 +17,10 @@ import (
 var _ profilepostgres.JobContext = (*draftstore.Store)(nil)
 var _ profilepostgres.InvitationJobContext = (*draftstore.Store)(nil)
 
+func newPsychometricStageEntryHook(jobs *draftstore.Store) *profilepostgres.StageEntryHook {
+	return profilepostgres.NewStageEntryHook(jobs)
+}
+
 func newPsychometricInvitationsHandler(pool *pgxpool.Pool, jobs *draftstore.Store) *profilehttp.InvitationsHandler {
 	return profilehttp.NewInvitationsHandler(profilepostgres.NewInvitationsStore(pool, jobs), writeProfileContextError)
 }
