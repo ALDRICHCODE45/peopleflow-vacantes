@@ -168,3 +168,7 @@ infra de aws».
   stored guide text, consent notice in docs). Backend slicing B1–B10 proposed (content artifact + drift guard, pure
   scoring, profile, invitations, link mint, auto-trigger, candidate endpoints, limiter, result + comparisons,
   retention; security and deletion slices in their own commits).
+- **L16** T4b (worker mvt2lfem-6-fldz): `design/psychometric-flows/` — 01 perfil del puesto (1440), 02 consentimiento,
+  03 preguntas, 04 final + no disponible (390 mobile), 05 card and sheet states (1440). Parent screenshots: all render.
+  Mismatch found: artboard 03 uses an agreement scale («Muy en desacuerdo … Muy de acuerdo») while the item bank and
+  the attention items use the IPIP accuracy scale («Muy inexacto …»); pending the user's choice of wording.

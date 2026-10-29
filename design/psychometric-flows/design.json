@@ -1,0 +1,42 @@
+{
+  "title": "Psicometría · Configuración, candidato y estados",
+  "brief": "Un artboard por pantalla para Gerente de Operaciones: perfil opcional, consentimiento expreso, 63 preguntas a ritmo propio y seguimiento de invitaciones sin correo. Español de México. Estados alternativos mediante selectores locales; acciones de producto inertes.",
+  "feature": "odd/tasks/psychometric-tests.md",
+  "artboards": [
+    {
+      "file": "01-perfil-del-puesto.html",
+      "title": "Perfil del puesto",
+      "tradeoff": "Siete competencias comparables en el mismo formulario; la configuración completa requiere desplazamiento vertical.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-candidato-consentimiento.html",
+      "title": "Antes de comenzar",
+      "tradeoff": "Consentimiento y privacidad explícitos antes de responder; el aviso completo requiere desplazamiento en móvil.",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "03-candidato-preguntas.html",
+      "title": "Una pregunta a tu ritmo",
+      "tradeoff": "Una afirmación y cinco opciones grandes reducen presión; revisar todo exige volver por pasos.",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "04-candidato-final.html",
+      "title": "Cierre y acceso no disponible",
+      "tradeoff": "Un estado público neutral protege la privacidad; el motivo específico se resuelve con reclutamiento.",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "05-tarjeta-y-ficha-estados.html",
+      "title": "Seguimiento en tarjeta y ficha",
+      "tradeoff": "Las filas de estado permiten escanear el pipeline; las acciones y comparaciones se consultan en la ficha.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}
