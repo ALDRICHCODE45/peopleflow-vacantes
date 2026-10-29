@@ -302,11 +302,18 @@ echoed. Rejected requests do not reach the handler and consume no budget. Once
 an IP exhausts its unknown-lookup budget, every public request from it is
 limited until that window ends.
 
-Every admitted request reserves one unknown-lookup slot for its IP while it is
-in flight; the reservation becomes a counted lookup only when the handler
-answers `assessment_unavailable`, and is released otherwise (also on panic).
-A concurrent burst therefore cannot exceed the 30-lookup budget. When only
-in-flight reservations block an IP, the `429` asks `Retry-After: 1`.
+A request on a token not yet proven valid reserves one unknown-lookup slot for
+its IP while it is in flight; the reservation becomes a counted lookup only
+when the handler answers `assessment_unavailable`, and is released otherwise
+(also on panic). A concurrent burst of unknown tokens therefore cannot exceed
+the 30-lookup budget. A token is proven valid for the rest of its window when a
+real handler writes a non-404, non-5xx response; such requests neither reserve
+nor wait on reservations, so a shared NAT IP is limited only by the 300/600
+budgets (and by an exhausted unknown budget). The catch-all 404 and server
+errors prove nothing, and a later `assessment_unavailable` (for example after
+revocation) clears the mark. Residual: when 30 requests on not-yet-proven
+tokens are in flight from one IP, the next unproven one gets
+`429` with `Retry-After: 1`.
 
 Unmatched paths and methods under `/v2/assessments/{token}` are answered by a
 catch-all inside the same group: `404 not_found` with the privacy headers, and
