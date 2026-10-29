@@ -172,3 +172,10 @@ infra de aws».
   03 preguntas, 04 final + no disponible (390 mobile), 05 card and sheet states (1440). Parent screenshots: all render.
   Mismatch found: artboard 03 uses an agreement scale («Muy en desacuerdo … Muy de acuerdo») while the item bank and
   the attention items use the IPIP accuracy scale («Muy inexacto …»); pending the user's choice of wording.
+- **L17** User choice (question): scale ««Me describe…» (Recomendado)» — No me describe nada / Me describe poco / Me
+  describe a medias / Me describe bastante / Me describe totalmente, applied to the item bank, the attention items and
+  artboard 03. T3 + T5 v-next (worker mvt2kwap-5-6qyw): 60 items, 15 facets, 63 positions (attention at 16/32/48),
+  7 competencies (comp.presion, N1/N2/N6 negative), 21 library entries, 84 questions, consent-notice-v1.md (pending D9),
+  contract R2-1…R2-10 + backend additions (integer band rule S < 10n / S < 15n, display index half-up to 1 place;
+  thresholds of 60: fast 12–29 / ≥30, changes ≥30, long_string 7–11 / ≥12). Parent renamed the test id
+  `ipip116-mx` → `ipip60-mx` (unreleased). Worker checks: 209 unique ids, all 32 contract ids exist, diff-check clean.
