@@ -3,6 +3,11 @@
 In-product psychometric assessment linked to the vacancy: job psychometric profile, IPIP-NEO-120 with telemetry,
 tracking in the pipeline, consent, practical result with focus areas and an AI interview guide. Branch
 `feat/psychometric-tests` (from main 40002dfb). Discovery and sources: `odd/discovery/psychometric-tests.md`.
+Rules: UI follows `docs/frontend-ui-design-rules.md` (shadcn first, §2 decision order, §3 tokens, §10 visual
+presence, §16 design for the decision, §21 validated design is not changed while implementing) and `design/system.md`;
+artboards under `design/<slug>/` on the gentle-design canvas before any UI code. Contract owned by the frontend
+(`docs/contracts/psychometric-tests-v1.md`), reviewed by the backend session (worktree `peopleflow-vacantes`) before
+implementation; the user pushes.
 
 ## Specs
 
@@ -64,7 +69,7 @@ User: «es importante que anotes todo lo que dejamos para despues, o fuera del f
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T1 | — | inline — discovery record + feature document | |
+| T1 | — | inline — discovery record + feature document | 2d56f109 |
 | T2 | S3, S5 | research — instrument content: IPIP-NEO-120 Mexican items, scoring keys, norms, license text; facet → competency mapping (Bartram «Great Eight» to confirm) | |
 | T3 | S2, S5, S6, S8 | inline — competency catalog, interpretation library structure, focus-area and telemetry-signal rules | |
 | T4 | S2, S7, S9–S12 | design — artboards: vacancy profile module, candidate test flow + consent, card status, sheet result | |
@@ -87,3 +92,22 @@ User: «es importante que anotes todo lo que dejamos para despues, o fuera del f
 - **L7** User choices (question): candidate access «Ambos»; sending «Ambos»; scope: «Si me cierra el alcanze pero es
   importante que anotes todo lo que dejamos para despues, o fuera del f1, como lo del checklist o terna, me explico?»
   → section «Out of F1».
+- **L8** T2 (explore mvt1oeg1-1-l0tm; parent spot-checked items 28/58/88/118/60/73 and the C3 label): findings in the
+  discovery record «Instrument content research». Plan corrections: the Mexican translation has errors (C3
+  «Debilidad», item 73 «relaciones», item 60 «rápidas»); facet O6 asks votes and moral positions (sensitive data);
+  IPIP advises against published norms; Great Eight titles are SHL copyright (research only) and no validated facet →
+  competency weights exist, so the competency catalog is our own and the mapping is presented as a hypothesis to
+  explore in the interview.
+- **L9** Backend capability evidence (msg 693de502, session 01a1857a-48e5, main 40002dfb): no public token mechanism,
+  scheduler, email, LLM or app-level encryption exist; stage entry happens inside one pgx tx (board Move
+  `board/store.go:276`, recovery `board/discard.go:121`, manual intake `board/manual_create.go:132`, apply
+  `v2/store.go:182`) and append-only `audit_events` exist. Backend proposals: opaque 256-bit token stored as SHA-256
+  with expires_at/revoked_at and one subject, identical 404/410 for unknown/expired/revoked, `/v2/me/assessments` for
+  account holders; expiration computed at read time (no job); delivery by «Copiar enlace», manual «Recordar»;
+  automatic send = auto-create the invitation (idempotent, one active per participation and test) on move + recovery,
+  apply/manual only when the first stage is configured, never on pipeline relocation; Bedrock by IAM role behind an
+  interface with a fake, explicit recruiter action, only competency levels + job profile (possible F2); separate tables
+  for invitation, consent (notice version + text hash), responses/telemetry, result; audit on send, consent, finish
+  and recruiter views; purge_after + one-shot purge command, hidden at read time after retention; backend scores,
+  keys never reach the client, scoring_version stored; client timings only for quality flags, server stamps
+  received_at. High-risk slices: public token (security) and sensitive data/retention.

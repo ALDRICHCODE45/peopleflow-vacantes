@@ -173,6 +173,37 @@ Implications:
   https://psicotest.mitiendanube.com/mx/productos/test-cleaver-version-basica/); the rights holder behind those copies
   was not identified. Treat as unverified licensing.
 
+### Instrument content research (T2, explore mvt1oeg1-1-l0tm, 2026-10-28)
+
+- IPIP-NEO-120 (Johnson 2014): 30 facets × 4 items, official +/− key and facet alphas (.63–.88, 619,150 internet
+  respondents) at https://ipip.ori.org/30FacetNEO-PI-RItems.htm; scale 1–5, reverse with `6 − response`, facet
+  4–20 (https://ipip.ori.org/newScoringInstructions.htm). Mexican page has all 120 items; facet j of a domain starts
+  at `domainStart + 5×(j−1)` (N/E/O/A/C start 1/2/3/4/5), other items +30/+60/+90.
+- Reverse-keyed ids: N 51,81,96,101,106,111,116; E 62,67,92,97,102,107; O 48,53,68,73,78,83,88,98,103,108,113,118;
+  A 9,19,24,39,49,54,69,74,79,84,89,94,99,104,109,114,119; C 30,40,60,70,75,80,85,90,100,105,110,115,120. To
+  re-verify against the official key when the item bank is built.
+- Mexican translation by David R. Frez Puente and Leticia Ortega Luque (https://ipip.ori.org/newItemTranslations.htm);
+  no Mexican validation or norms report. Verified errors (parent spot check): facet C3 Dutifulness labelled
+  «Debilidad»; item 73 «Rarely notice my emotional reactions» → «relaciones emocionales»; item 60 «Make rush
+  decisions» → «Tomo decisiones rápidas» (rash ≠ fast). IPIP allows editing and translating; no separate
+  translator-specific declaration found.
+- Facet O6 Liberalism asks political and moral positions: 28 «Tiendo a votar por políticos liberales», 88 «Tiendo a
+  votar por candidatos políticos conservadores», 58, 118. Political opinions and moral beliefs are sensitive data
+  (LFPDPPP art. 2 fr. VI) and not job-relevant.
+- Norms: Kajonius & Johnson 2019 Table A1, all 30 facets, US online volunteers N=320,128, «likely not nationally
+  representative» (https://pmc.ncbi.nlm.nih.gov/articles/PMC7871748/). IPIP: «Most 'norms' are misleading, and
+  therefore they should not be used», recommends local reference samples (https://ipip.ori.org/newNorms.htm). No
+  Mexican norms for the 120/300 versions found; Argentina IPIP-NEO-300 study N=499 (facet α .59–.88) not transferable.
+- Attention/consistency: option overuse, infrequent responses, psychometric synonym/antonym pairs
+  (https://ipip.ori.org/newValidity.htm); instructed-response checks, long-string, response time (< 2 s/item is a
+  heuristic, not a validated threshold, https://www.frontiersin.org/journals/education/articles/10.3389/feduc.2023.1197324/full).
+  Signals detect possible insufficient effort, not lying; calibrate in a pilot.
+- Bartram 2005 Great Eight (https://doi.org/10.1037/0021-9010.90.6.1185): competency titles are SHL copyright, free
+  for research with acknowledgment only. Observed Big Five–competency correlations are small (.07–.18), and no
+  validated facet → competency weights exist. Narrow conscientiousness facets add prediction depending on occupation
+  (Dudley et al. 2006, https://pubmed.ncbi.nlm.nih.gov/16435937/). IPIP gives no interpretation manual and cautions
+  against sorting people into categories (https://ipip.ori.org/InterpretingIndividualIPIPScaleScores.htm).
+
 ## Mexican data protection (LFPDPPP, new law DOF 2025-03-20, last reform 2025-11-14)
 
 Source: http://www.diputados.gob.mx/LeyesBiblio/pdf/LFPDPPP.pdf.
