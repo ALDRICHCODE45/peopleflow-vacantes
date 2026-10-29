@@ -76,3 +76,8 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   development_text, hypothesis_text} (intro_text ← stored prepend, hypothesis_text ← stored hypothesis, plain strings);
   the wire omits headings, question_ids, guide tier and context_label, which stay in the stored snapshots. Comparison
   POST on a finished process → 409 process_finished. B8 runs in parallel; it is wired into the router after B9.
+- **L10.** B9 committed ae26f78f, B8 committed 6f5e1df8 (independent verify launched). T12 frontend browser QA env:
+  API binary from 2de130a3 on :8080 against the local Docker `peopleflow_vacancies` (user-declared disposable,
+  disposable-postgres-bootstrap S1), migrated 48 → 51; vacancy A 01a13ce2-ddaf-73e7-848c-367979b20ead (profile
+  confirmed, finished + candidate-account invitations), vacancy B 01a1413b-ca57-70f2-b188-b4c523c3491b (unconfirmed).
+  `.env.example` is blocked by the safety policy, so `TRUSTED_PROXY_CIDRS` is documented in docs/psychometric-tests.md only.
