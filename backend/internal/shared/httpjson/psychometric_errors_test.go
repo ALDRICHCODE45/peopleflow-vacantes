@@ -7,8 +7,8 @@ import (
 )
 
 func TestPsychometricErrorExtension(t *testing.T) {
-	messages := []string{"psychometric profile disabled", "psychometric assessment already finished", "participation inactive", "psychometric invitation closed", "psychometric assessment unavailable", "psychometric consent required", "psychometric notice changed", "psychometric assessment finished"}
-	statuses := []int{409, 409, 409, 409, 404, 403, 409, 409}
+	messages := []string{"psychometric profile disabled", "psychometric assessment already finished", "participation inactive", "psychometric invitation closed", "psychometric assessment unavailable", "psychometric consent required", "psychometric notice changed", "psychometric assessment finished", "psychometric assessment incomplete"}
+	statuses := []int{409, 409, 409, 409, 404, 403, 409, 409, 422}
 	codes := PsychometricErrorCodes()
 	if len(codes) != len(messages) {
 		t.Fatal(codes)

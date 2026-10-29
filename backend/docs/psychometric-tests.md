@@ -1,9 +1,9 @@
-# Vacancy psychometric assessments (B3–B7, partial)
+# Vacancy psychometric assessments (B3–B7)
 
 Employers can save a private, vacancy-scoped profile for `ipip60-mx` and manage
 invitations and issue single-display links. Stage entry can automatically create invitations.
 These slices collect consent and answers, but do not deliver messages, expose
-results or move/reject anyone. B7 finish/scoring persistence remains a follow-up. The authoritative wire contract
+results or move/reject anyone. Completion stores immutable scoring snapshots. The authoritative wire contract
 is [psychometric-tests-v1](../../docs/contracts/psychometric-tests-v1.md).
 
 ## Read, edit, save
@@ -208,7 +208,7 @@ commits a transaction. Its jobs adapter only reads current stages using the
 existing pipeline reader, so it cannot invert manual send's parent-first locks.
 Profile/pipeline writers share the caller's draft lock.
 
-## Candidate access (B7 read/consent/answers)
+## Candidate access (B7)
 
 Public `/v2/assessments/{token}` and account `/v2/me/assessments/{iid}`
 share the same pinned assessment. Account access uses the live candidate role
@@ -233,6 +233,11 @@ same `404 assessment_unavailable` envelope and headers.
   1–5 and optional integer `client_elapsed_ms` 0–3,600,000. Omitted elapsed
   replaces prior timing with null. Unknown keys are `400 validation_error`
   (`fields[].code: not_allowed`); malformed/duplicate JSON is `400 invalid_request`.
+- `POST {base}/finish` needs no body. It requires consent and all 63 positions;
+  missing answers yield `422 incomplete` with sorted `data.missing_positions`,
+  without changing rows, counters, snapshots or audit. Success returns only
+  `200 {"status":"finished"}`, never scores. Duplicate finishes and all later
+  candidate writes return `409 assessment_finished` on both access paths.
 - `DELETE {base}/answers/{position}` accepts only UUID `event_id` and clears
   value/timing. Both answer methods return empty `204`. Invalid or out-of-range
   positions are `404 not_found`, following the existing target-ID convention.
@@ -252,13 +257,31 @@ Organic `application_id` is the participation ID; manual is null. Answerable
 rows come first by expiry/id ascending; other rows use creation/id descending.
 
 Migration `00051` separates consent, current nullable answers and ordered events
-(unique event UUID and server sequence per invitation). It reserves JSONB
-snapshot tables for immutable B2 results and initial/future comparisons, pinned
-to content/scoring versions. Down refuses retained assessment data. **Finish is
-not routed yet**: incomplete reporting, B2 result/comparison creation, finish
-retention and finish audit/concurrency verification belong to the B7 follow-up.
+(unique event UUID and server sequence per invitation), plus immutable result
+and comparison snapshots. Its existing schema needs no change for finish.
+Down refuses retained assessment data.
+
+Finish reuses the B2 scorer inside the same locked transaction, using the pinned
+artifact, final answers and accepted events in server-sequence order. The shared
+draft lock serializes profile saves: the current confirmed profile, independent
+of enabled, supplies comparison authority. An unconfirmed profile yields null
+profile_version and null profile_snapshot, with exploratory guide only.
+
+`psychometric_results.snapshot` is the complete immutable B2 `Result` JSON,
+including its original `latest_comparison`. The separate initial comparison row
+stores B2 `Comparison` JSON plus its ID/time/version columns and the full confirmed
+profile snapshot (including version, rationale and task). B9 must select the
+latest comparison row when assembling a report, not treat the result's embedded
+initial comparison as mutable latest state. Later profile edits never rewrite
+either snapshot. Content/scoring versions are stored on both rows.
+
+Result, comparison, finished_at, finish-based purge_after (12 calendar months in
+UTC), and `PsychometricAssessmentFinished` audit commit atomically. Actor and
+PII-free metadata follow consent conventions. An audit failure rolls everything
+back. Concurrent finishes serialize under the invitation lock: one succeeds,
+the other gets assessment_finished, leaving exactly one result/comparison/audit.
 B8 rate limits and B9 employer result reads remain deliberately absent. This is
-not a release-ready public assessment without those follow-ups and notice review.
+not release-ready without those follow-ups and notice review.
 
 ## Verification
 

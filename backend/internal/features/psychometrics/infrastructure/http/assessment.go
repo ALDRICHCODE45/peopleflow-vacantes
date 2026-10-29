@@ -7,6 +7,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/assessment"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/scoring"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ func (h *AssessmentHandler) Items(w http.ResponseWriter, r *http.Request)   { h.
 func (h *AssessmentHandler) Consent(w http.ResponseWriter, r *http.Request) { h.serve(w, r, "consent") }
 func (h *AssessmentHandler) Put(w http.ResponseWriter, r *http.Request)     { h.serve(w, r, "put") }
 func (h *AssessmentHandler) Delete(w http.ResponseWriter, r *http.Request)  { h.serve(w, r, "delete") }
+func (h *AssessmentHandler) Finish(w http.ResponseWriter, r *http.Request)  { h.serve(w, r, "finish") }
 func (h *AssessmentHandler) List(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.store == nil {
 		assessmentError(w, errors.New("missing assessment store"))
@@ -99,6 +101,11 @@ func (h *AssessmentHandler) respond(w http.ResponseWriter, result assessment.Res
 	}
 }
 func assessmentError(w http.ResponseWriter, err error) {
+	var incomplete *scoring.IncompleteError
+	if errors.As(err, &incomplete) {
+		httpjson.WritePsychometricIncomplete(w, incomplete.MissingPositions)
+		return
+	}
 	var invalid *assessment.Invalid
 	if errors.As(err, &invalid) {
 		httpjson.WriteValidationError(w, invalid.Fields)

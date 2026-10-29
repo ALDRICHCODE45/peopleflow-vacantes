@@ -170,11 +170,9 @@ func (s *AssessmentStore) Execute(ctx context.Context, a assessment.Access, acti
 			if _, err = tx.Exec(ctx, `UPDATE psychometric_invitations SET consented_at=$2 WHERE id=$1`, v.i.ID, now); err != nil {
 				return assessment.Result{}, err
 			}
-			actor := uuid.Nil
-			if !a.Public {
-				if err = tx.QueryRow(ctx, `SELECT candidate_id FROM process_participations WHERE id=$1`, v.participation).Scan(&actor); err != nil {
-					return assessment.Result{}, err
-				}
+			actor, err := assessmentActor(ctx, tx, a, v.participation)
+			if err != nil {
+				return assessment.Result{}, err
 			}
 			if err = s.invitations.jobs.AuditPsychometricInvitation(ctx, tx, actor, v.process, v.participation, v.i.ID, "PsychometricConsentGiven"); err != nil {
 				return assessment.Result{}, err
@@ -186,6 +184,9 @@ func (s *AssessmentStore) Execute(ctx context.Context, a assessment.Access, acti
 		}
 		if action == "items" {
 			return assessmentItems(ctx, tx, v.i.ID, d)
+		}
+		if action == "finish" {
+			return s.finishAssessment(ctx, tx, a, v, artifact)
 		}
 		if position < 1 || position > len(d.Order) {
 			return assessment.Result{}, assessment.ErrNotFound
