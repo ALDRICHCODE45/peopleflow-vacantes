@@ -296,3 +296,8 @@ fe4cfc6 |
   host stalls come from macOS Gatekeeper/XProtect (`syspolicyd` ~100% CPU) assessing every new executable (backend
   msg a3753fca; fix is user-owned: Developer Tools permission for the terminal). Parent gate on Node 22.23.4 (also
   covers T6–T10): 128 files / 2154 passed, tsc 0, eslint clean. Commit 6d758bd2. From now on every gate runs on Node 22.
+- **L38** User added the terminal to Developer Tools and restarted Ghostty: shell speed back to normal in both sessions.
+  Backend (msg f857df55): B6 auto-trigger 533136c8, B7a candidate read/consent/answers committed, B7b in progress.
+  Contract wording aligned: account-path write on a finished invitation → 409 assessment_finished (invitation_closed
+  only for expired/revoked); answer PUT/DELETE outside 1..63 → 404 not_found; consent audit actor = candidate user
+  (account) or system (public). Frontend already handles both codes (no code change).
