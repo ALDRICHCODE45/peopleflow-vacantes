@@ -110,3 +110,8 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
 - **L15.** Independent verify of e1304a49: S8 met, no blockers (100000-key cap stays fail-closed with validated
   keys; settle/admit share the mutex; retrospective RED of the lifecycle tests on ac2e7ab9). Verifier probes pinned
   in 6dbed356. Backend slices B1–B10 complete and verified; next: joint close with frontend and the single merge.
+- **L16.** Final backend suite at 58d6d59a: vet clean; 2140 integration PASS; only failures are pre-existing
+  scripts/closure (bash 3.2) and env-gated cmd/migrate + localbootstrap (need a CREATEDB DATABASE_URL), 184 env-gated
+  SKIPs elsewhere, archguard only docker/minio/Dockerfile. User decision before merge, verbatim: «Sí, revisión nativa
+  primero» and «como lo recomiendes, pero la revvision nativa en este caso si hay que correrla». gentle_review inspect
+  → stop rdd_disabled: RDD is the user's switch; merge waits for native review.
