@@ -93,7 +93,7 @@ infra de aws».
 | T6 | S2–S12 | worker — `features/psychometrics/` model, codec, client, server actions, guarded transport inventory, agreed-contract test (mocks of the contract) | e6c9c5e5 |
 | T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | a5c657c6 |
 | T8 | S9, S10 | worker — board: card status rows, sheet tab not-finished states, send / copy link / remind / revoke (flows/05) | |
-| T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | |
+| T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | |
 | T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | |
@@ -244,3 +244,10 @@ infra de aws».
   after the redirect, path `/evaluacion`, session lifetime: reopening the link resumes) and answers 303 to
   `/evaluacion`; the page reads the cookie server-side. One assessment per browser at a time (the last link opened
   wins). The exchange never calls the backend (no oracle) and rejects malformed tokens without setting a cookie.
+  Worker mvt6hfw7-f-pf9t implements it.
+- **L30** T9 (worker mvt49edv → mvt4aksl → mvt5t62k): `features/psychometrics/sheet/` provider (board-scoped invitations,
+  mounted in `board.tsx`), result tab (guide first, band matrix, focus areas, quality tier, facets, comparisons with
+  history and no automatic replay), labels; result GET only on tab open; scrollable tab rail at 390 px; accent/info
+  tones, no review. The failing «uncertain comparison» test had stale fixtures (pre-L25 rationale), fixed RED → GREEN.
+  `board.tsx:54` exhaustive-deps warning predates T9. Solo delivery gate (nothing else running): 78 files / 1451
+  passed, tsc 0 errors. Commit a28ee619. Browser QA and the canvas handoff «implemented» remain for T12.
