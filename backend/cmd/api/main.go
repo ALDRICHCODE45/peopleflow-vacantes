@@ -57,6 +57,7 @@ import (
 	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -160,6 +161,11 @@ func run() error {
 	if err != nil {
 		// Config errors are static messages, never the raw environment values.
 		slog.Error("site media configuration invalid", "reason", err.Error())
+		return err
+	}
+
+	trustedProxies, err := runtimeconfig.LoadTrustedProxyCIDRs(os.Getenv)
+	if err != nil {
 		return err
 	}
 
@@ -382,6 +388,7 @@ func run() error {
 		psychometricProfileHandler:     newPsychometricProfileHandler(pool, draftStore),
 		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, draftStore),
 		psychometricAssessmentHandler:  newPsychometricAssessmentHandler(pool, draftStore),
+		publicAssessmentLimit:          ratelimit.NewAssessment(ratelimit.DefaultLimits(), trustedProxies, nil).Middleware,
 		checklistHandler:               checklistHandler,
 		checklistMarksHandler:          checklistMarksHandler,
 	})

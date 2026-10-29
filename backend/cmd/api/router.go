@@ -27,6 +27,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	runtimemw "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -79,8 +80,10 @@ type routerDeps struct {
 	psychometricAssessmentHandler  *profilehttp.AssessmentHandler
 	psychometricProfileHandler     *profilehttp.Handler
 	psychometricInvitationsHandler *profilehttp.InvitationsHandler
-	checklistHandler               *jobshttp.ChecklistHandler
-	checklistMarksHandler          *jobshttp.ChecklistMarksHandler
+	// publicAssessmentLimit guards only the public token prefix (B8).
+	publicAssessmentLimit func(http.Handler) http.Handler
+	checklistHandler      *jobshttp.ChecklistHandler
+	checklistMarksHandler *jobshttp.ChecklistMarksHandler
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -89,6 +92,10 @@ func newRouter(d routerDeps) chi.Router {
 	// A missing composition dependency fails closed, never grants candidate access.
 	if d.requireCandidate == nil {
 		d.requireCandidate = identityhttp.RequireCandidateRole(nil)
+	}
+	// The public assessment prefix is never served unlimited.
+	if d.publicAssessmentLimit == nil {
+		d.publicAssessmentLimit = ratelimit.NewAssessment(ratelimit.DefaultLimits(), nil, nil).Middleware
 	}
 	r := chi.NewRouter()
 	// Task 6.3 production wiring (design §8.3): RequestID runs FIRST (the
@@ -123,7 +130,7 @@ func newRouter(d routerDeps) chi.Router {
 	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
 	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)
 	r.Group(func(r chi.Router) {
-		r.Use(profilehttp.AssessmentPrivacy)
+		r.Use(profilehttp.AssessmentPrivacy, d.publicAssessmentLimit)
 		r.Get("/v2/assessments/{token}", d.psychometricAssessmentHandler.Get)
 		r.Post("/v2/assessments/{token}/consent", d.psychometricAssessmentHandler.Consent)
 		r.Post("/v2/assessments/{token}/finish", d.psychometricAssessmentHandler.Finish)

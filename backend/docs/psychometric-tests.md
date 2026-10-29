@@ -280,8 +280,38 @@ UTC), and `PsychometricAssessmentFinished` audit commit atomically. Actor and
 PII-free metadata follow consent conventions. An audit failure rolls everything
 back. Concurrent finishes serialize under the invitation lock: one succeeds,
 the other gets assessment_finished, leaving exactly one result/comparison/audit.
-B8 rate limits remain a separate slice. This is not release-ready without
-retention purge and notice review.
+This is not release-ready without retention purge and notice review.
+
+## Public rate limits (B8)
+
+Only the public token prefix `/v2/assessments/{token}/…` is limited; the
+account prefix `/v2/me/assessments` is not. The limiter runs after
+`AssessmentPrivacy`, so a `429` also carries `Cache-Control: no-store` and
+`Referrer-Policy: no-referrer`.
+
+| Budget | Limit per 10-minute window |
+|---|---|
+| per token (keyed by its SHA-256, never the raw token) | 300 requests |
+| per client IP | 600 requests |
+| per client IP, unknown-token lookups (`assessment_unavailable`) | 30 |
+
+Exceeding any budget returns `429 rate_limited` with `Retry-After` in
+delta-seconds (the longest remaining window) and the plain envelope
+`{"error":"too many requests","code":"rate_limited"}`; the token is never
+echoed. Rejected requests do not reach the handler and consume no budget. Once
+an IP exhausts its unknown-lookup budget, every public request from it is
+limited until that window ends.
+
+Windows are fixed and start at a key's first request. The client IP is the
+`RemoteAddr` host; only when that peer is inside `TRUSTED_PROXY_CIDRS`
+(comma-separated CIDRs, for the production ALB; unset locally) is
+`X-Forwarded-For` read, taking the rightmost untrusted hop, and a malformed
+header falls back to the peer. An invalid or `/0` value aborts startup. IPv6
+clients share their /64. The limiter is in-process and per instance
+(distributed limiting is later infrastructure). It holds at most 100000 keys:
+expired keys are swept, and when the cap is still reached new keys fail closed
+with `429`. The router installs the default limiter even when the composition
+root omits it.
 
 ## Employer results and comparisons (B9)
 
