@@ -146,3 +146,7 @@ infra de aws».
   Backend agreed with the contract (msg de24c12b) after 3 nits (total_count from the pinned version, revoked_at anchor
   for purge_after, no automatic invitation for discarded/exited participations), folded in; agreement is subject to
   the cut points and ids of `docs/psychometrics/*-v1.md`.
+- **L13** T4 (worker mvt23dsx-4-jgtj): `design/psychometric-result/` — 01 «Resumen por competencia», 02 «Matriz
+  deseado vs obtenido», 03 «Guía primero» (sheet tab «Psicometría», 1440×900, 560 px sheet). Parent screenshots at 1440:
+  all three render; «Por explorar» and «Foco de atención» share the review tone (worker choice so a focus never reads
+  as rejection) and differ only by text; the heading shows a focus outline on load. Pending the user's choice.

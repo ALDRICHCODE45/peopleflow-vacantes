@@ -1,0 +1,28 @@
+{
+  "title": "Psicometría · Resultado en la ficha de candidato",
+  "brief": "Tres estructuras para convertir un resultado finalizado en una entrevista útil: resumen por competencia, matriz de bandas y guía primero. Reclutadores mexicanos sin formación psicométrica. Datos ilustrativos de Mariana Robles Treviño para Gerente de Operaciones, finalizado el 27 oct. Tema claro, ficha flotante de 560 px, identidad y pie fijos, un único scroll interno; todos los artboards mantienen un viewport de 1440 × 900.",
+  "feature": "odd/tasks/psychometric-tests.md",
+  "artboards": [
+    {
+      "file": "01-resumen-por-competencia.html",
+      "title": "Resumen por competencia",
+      "tradeoff": "Prioriza el escaneo de siete competencias; la interpretación se despliega por competencia y las preguntas quedan más abajo en el scroll.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-matriz-deseado-vs-obtenido.html",
+      "title": "Matriz deseado vs obtenido",
+      "tradeoff": "Visualiza coincidencias y distancias entre bandas ordinales sin puntajes; exige aprender una leyenda y ocupa más alto que la lista.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-guia-primero.html",
+      "title": "Guía primero",
+      "tradeoff": "La entrevista es la superficie principal, con interpretación junto a la pregunta; comparar las siete competencias requiere abrir el respaldo al final.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}
