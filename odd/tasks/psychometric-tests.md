@@ -356,3 +356,15 @@ fe4cfc6 |
   (1–30 404, 31 → 429) → A3 200 and the UI shows «Pregunta 3 de 63 · 2 respondidas» → another random token 429,
   Retry-After 599, body {error, code}. T12 QA complete; delivery: single merge with the backend after their verify
   and review.
+- **L46** User (verbatim): «mi pregunta ahora hacia ti es, si podemos hacer la verificacion nativa sobre tu codigo, ya
+  que anteriormente rdd estaba desactivado.» → chose «Por cortes, primero los de riesgo». Native review (RDD on), one
+  detached `.review/` worktree per slice, baseRef = slice parent, committed-only; all approved and acknowledged:
+  S1 T10 01cd8bb6..555d6c4b (review-b558c5b4d26163a1) CRITICAL R3-consent-retry → correction 09345169, validated,
+  ported 69dd2d19; S2 T12 fixes f3af42e2..46eb8d7f (review-4e430335f8bcb3b2); S3 T6 e6c9c5e5 (review-03f3d4180ab3e6ca,
+  clean); S4 T7 8d0e134a..9ace0a59 (review-da7f4c8d7747ef86); S5 T9 a28ee619 (review-85bfcc4ba60e1fb4) CRITICAL
+  R3-comparison-cache-reversion → correction 48681613, validated, ported 403fb998; S6 T8 5fe4cfc6
+  (review-8e5d87a5f2d81b22); S7 T11 6d758bd2..75c0c690 (review-b4bea44a655184c6, clean); S8 ports + docs
+  46eb8d7f..403fb998 (review-dcba36b7a3937511, clean). Correction commits kept under refs/gentle-review/*.
+  Non-blocking advisories, follow-ups (FU): reload loses historical item timing (assessment-flow reload, S1);
+  capture-session origin normalization; mounted workspace read retry/recovery (S2); profile confirmation read-back
+  after save (editor ~96-98, S4); dropped board refresh and profile-read recovery in sheet state (~32, ~56-57, S6).
