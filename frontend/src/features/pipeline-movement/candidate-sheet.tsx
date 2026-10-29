@@ -32,7 +32,8 @@ import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { useBoardChecklist } from "@/features/vacancy-checklist/board/state";
 import { ChecklistPanel } from "@/features/vacancy-checklist/board/ui";
 import type { Board, CorrectedField, Failure, History, Participation, ParticipationDetail } from "./model";
-import { useInvitations, useSheetResult } from "@/features/psychometrics/sheet/state";
+import { useInvitationProfile, useInvitations, useSheetResult } from "@/features/psychometrics/sheet/state";
+import { InvitationPanel, useInvitationManagement } from "@/features/psychometrics/sheet/invitations";
 import { PsychometricPanel } from "@/features/psychometrics/sheet/result";
 
 type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; tabRequest?: { tab: string }; children?: ReactNode };
@@ -53,6 +54,9 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
   const invitations = useInvitations();
   const invitation = invitations?.items.find(value => value.participation_id === item.id);
   const psychometric = useSheetResult(vacancyId, invitation, tab === "psychometrics");
+  const invitationProfile = useInvitationProfile(vacancyId, !!invitations && !invitations.reading && !invitations.failed && !invitation);
+  const showPsychometrics = !!invitation || (invitationProfile?.ok && invitationProfile.data.enabled);
+  const invitationManagement = useInvitationManagement({ vacancyId, participationId: item.id, invitation, locked: !!locked || board.lifecycle.process === "finished" });
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ detail: ParticipationDetail; history: History } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -116,16 +120,16 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       {invitations?.failed && <div className="px-4 pb-2 sm:px-6"><Button type="button" variant="ghost" className="min-h-10" disabled={invitations.reading} onClick={invitations.retry}>Actualizar psicometría</Button></div>}
       {/* Five full labels cannot fit a 390px sheet. Scroll the rail, not the panel;
           keep native target geometry, keyboard navigation and an inset for focus. */}
-      <div className="min-w-0 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:thin] sm:px-6"><TabsList activateOnFocus={false} aria-label="Secciones de la ficha" className={cn("group-data-horizontal/tabs:h-11", invitation ? "w-max min-w-full" : "w-full max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]")}>
+      <div className="min-w-0 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:thin] sm:px-6"><TabsList activateOnFocus={false} aria-label="Secciones de la ficha" className={cn("group-data-horizontal/tabs:h-11", showPsychometrics ? "w-max min-w-full" : "w-full max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]")}>
         <TabsTrigger value="summary">Resumen</TabsTrigger>
         <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
         {checklist?.checklist?.criteria.length ? <TabsTrigger value="checklist">Checklist</TabsTrigger> : null}
         <TabsTrigger value="history">Historial <Badge variant="secondary">{loaded?.history.items.length ?? "…"}</Badge></TabsTrigger>
-        {invitation && <TabsTrigger value="psychometrics">Psicometría</TabsTrigger>}
+        {showPsychometrics && <TabsTrigger value="psychometrics">Psicometría</TabsTrigger>}
       </TabsList></div><Separator />
       <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
         <TabsContent value={tab} className="p-6" aria-busy={tab === "psychometrics" ? invitation?.status === "finished" && !psychometric.value : reading}>
-          {tab === "psychometrics" && invitation ? <PsychometricPanel invitation={invitation} session={psychometric} locked={board.lifecycle.process === "finished"} /> : tab === "checklist" ? <ChecklistPanel item={item} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
+          {tab === "psychometrics" ? invitation?.status === "finished" ? <PsychometricPanel invitation={invitation} session={psychometric} locked={board.lifecycle.process === "finished"} /> : <InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} /> : tab === "checklist" ? <ChecklistPanel item={item} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
             description={failure.reason === "unauthenticated" ? "Tu sesión expiró. No se modificó el candidato; inicia sesión de nuevo." : "No se modificó el candidato. Puedes volver a cargar las respuestas y el historial."}
             primaryAction={{ label: "Reintentar", disabled: reading, "aria-describedby": notice ? "detail-read-status" : undefined, onClick: () => { setReading(true); setNotice(null); setAttempt(value => value + 1); } }}>
             {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}

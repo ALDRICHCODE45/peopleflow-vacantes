@@ -6,7 +6,7 @@ import { failureTitle, readConsequence } from "./feedback";
 import type { AssessmentResult, Invitation, Profile, Result } from "../model";
 
 const unavailable = { ok: false, reason: "no_response", reference: {} } as const;
-const Context = createContext<{ items: Invitation[]; failed: boolean; reading: boolean; retry: () => void } | null>(null);
+const Context = createContext<{ items: Invitation[]; failed: boolean; reading: boolean; retry: () => void; adopt: (invitation: Invitation) => void } | null>(null);
 export const useInvitations = () => useContext(Context);
 /** Board-owned status read; never contains result data. A failed optional read stays quiet. */
 export function InvitationsProvider({ vacancyId, movementKey, children }: { vacancyId: string; movementKey?: string; children: ReactNode }) {
@@ -16,6 +16,7 @@ export function InvitationsProvider({ vacancyId, movementKey, children }: { vaca
   const [attempt, setAttempt] = useState(0);
   const request = useRef<{ attempt: number; promise: ReturnType<typeof loadInvitationsAction> } | null>(null);
   const previousMovement = useRef(movementKey);
+  const revision = useRef(0);
   useEffect(() => {
     let live = true;
     // The initial board arrival establishes the baseline, not an extra read.
@@ -26,14 +27,37 @@ export function InvitationsProvider({ vacancyId, movementKey, children }: { vaca
       setReading(true);
       request.current = { attempt, promise: loadInvitationsAction(vacancyId).catch(() => unavailable) };
     }
+    const startedAt = revision.current;
     void request.current.promise.then(value => {
-      if (!live) return;
+      if (!live || startedAt !== revision.current) return;
       if (value.ok) setItems(value.data.items);
       setFailed(!value.ok); setReading(false);
     });
     return () => { live = false; };
   }, [vacancyId, movementKey, attempt]);
-  return <Context.Provider value={{ items, failed, reading, retry: () => { setReading(true); setAttempt(n => n + 1); } }}>{children}</Context.Provider>;
+  function adopt(invitation: Invitation) {
+    // A confirmed write wins over older board reads. One latest invitation per participation.
+    revision.current += 1;
+    request.current = null;
+    setItems(previous => [...previous.filter(item => item.participation_id !== invitation.participation_id), invitation]);
+    setReading(false); setFailed(false);
+  }
+  return <Context.Provider value={{ items, failed, reading, adopt, retry: () => { setReading(true); setAttempt(n => n + 1); } }}>{children}</Context.Provider>;
+}
+
+/** Only an open sheet without an invitation needs the creation gate. Never fetch
+ * this eagerly for cards or alongside the audited result's existing profile read. */
+export function useInvitationProfile(vacancyId: string, needed: boolean) {
+  const [profile, setProfile] = useState<Result<Profile> | null>(null);
+  const request = useRef<ReturnType<typeof loadProfileAction> | null>(null);
+  useEffect(() => {
+    if (!needed) return;
+    let live = true;
+    request.current ??= loadProfileAction(vacancyId).catch(() => unavailable);
+    void request.current.then(value => { if (live) setProfile(value); });
+    return () => { live = false; };
+  }, [vacancyId, needed]);
+  return profile;
 }
 
 /** Owned by the open candidate session, not the mounted tab. An audited read is only

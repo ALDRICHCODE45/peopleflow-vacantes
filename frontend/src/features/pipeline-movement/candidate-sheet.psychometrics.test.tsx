@@ -83,13 +83,14 @@ it("invitation failures do not block the sheet and offer quiet explicit retry", 
   expect(notifyActionResult).not.toHaveBeenCalled();
   expect(actions.loadResultAction).not.toHaveBeenCalled();
 });
-it.each(["created", "in_progress", "expired", "revoked"] as const)("%s is just state and progress, never a result read or management UI", async status => {
+it.each(["created", "in_progress", "expired", "revoked"] as const)("%s retains progress without an audited result read",  async status => {
   vi.mocked(actions.loadInvitationsAction).mockResolvedValue({ ok: true, data: { items: [{ ...invitationSchema.parse({ ...invitation, status, answered_count: 12 }), participation_id: boardFixture().participations[0].id }] } });
   render(<Harness />); await openTab();
   expect(screen.getByText(/12 de 63 respuestas/)).toHaveClass("text-muted-foreground");
   expect(actions.loadResultAction).not.toHaveBeenCalled();
   expect(actions.loadProfileAction).not.toHaveBeenCalled();
-  expect(screen.queryByRole("button", { name: /Enviar|Recordar|Revocar|Copiar enlace/ })).not.toBeInTheDocument();
+  if (status === "created" || status === "in_progress") expect(screen.getByRole("button", { name: "Copiar enlace" })).toBeVisible();
+  else expect(screen.queryByRole("button", { name: /Enviar|Recordar|Revocar|Copiar enlace/ })).not.toBeInTheDocument();
 });
 it("shows result skeleton during the real wait and a persistent failure with explicit retry", async () => {
   let resolve!: (v: Awaited<ReturnType<typeof actions.loadResultAction>>) => void;
