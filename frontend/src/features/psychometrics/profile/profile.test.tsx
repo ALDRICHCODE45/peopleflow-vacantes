@@ -41,6 +41,26 @@ it("renders never-saved defaults, seven disabled bands and does not invent sugge
   fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
   expect(screen.getByText("No hay reglas de sugerencia disponibles")).toBeVisible(); expect(saveProfileAction).not.toHaveBeenCalled();
 });
+it("shows the competency hypothesis once for the whole list", () => {
+  mount();
+  expect(screen.getAllByText("La relación con esta competencia es una hipótesis. Confírmala con ejemplos de trabajo.")).toHaveLength(1);
+});
+it("shows only the supporting fields required by each row's importance", () => {
+  const data = profile();
+  data.competencies[0] = { ...data.competencies[0], importance: "importance.clave", desired_band: "band.high", rationale: "Plan semanal", task: "Cerrar entregas" };
+  data.competencies[1] = { ...data.competencies[1], importance: "importance.importante", desired_band: "band.medium", rationale: "Cumplir acuerdos" };
+  mount(data);
+  expect(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ })).toHaveValue("Cerrar entregas");
+  expect(screen.getByRole("textbox", { name: /Justificación laboral de Orden/ })).toHaveValue("Plan semanal");
+  expect(screen.getByRole("textbox", { name: /Justificación laboral de Cuidado/ })).toHaveValue("Cumplir acuerdos");
+  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Cuidado/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Impulso/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: /Justificación laboral de Impulso/ })).not.toBeInTheDocument();
+  expect(screen.getAllByRole("textbox")).toHaveLength(3);
+  expect(screen.getByRole("combobox", { name: "Banda deseada de Impulso para coordinar" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Banda deseada de Impulso para coordinar" })).toHaveTextContent("Sin banda");
+  expect(saveProfileAction).not.toHaveBeenCalled();
+});
 it("saves full replacement with opaque If-Match and adopts the new version", async () => {
   mount(); fireEvent.click(screen.getByRole("switch")); fireEvent.click(screen.getByRole("checkbox", { name: "Entrevista" }));
   fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "30" } });
