@@ -132,3 +132,13 @@ infra de aws».
   esta feature porque ahora aun no hay configuracion de infra de aws.» → section «Last in this feature»; interview
   guide «Banco redactado en F1, IA en F2 (Recomendado)» → D10. Slice note: 50fcf5f3 closed the first ~400-line slice
   (docs only).
+- **L11** T5: draft contract cde6f026 → backend review (msg 7266fb75, 16 adjustments) folded in: revoke-on-mint
+  hash-only token returned as `{token, expires_at}` (frontend composes the URL), in-process rate limits on the public
+  prefix, `{error, code, data}` envelope with a codes table, account path lists closed invitations (identical 404 is
+  public-only), expiry checked in every write tx, content pinned per invitation with fixed presentation order, exact
+  answer body, at most one finished invitation per participation (re-takes out of scope), stage validation and retired
+  stages ignored, board move response unchanged, fit + questions recomputed on read for a newer profile (snapshot kept),
+  consent text authored in docs and served by the backend, ARCO handled manually, purge_after anchored at finished_at or
+  expires_at, audited result reads fail without audit. Agent decisions (for the user's review): presentation order fixed
+  per content version; manual send on a discarded or exited participation → `409 participation_inactive`. Slices:
+  public token endpoints and retention/purge each get their own commit for independent verification.
