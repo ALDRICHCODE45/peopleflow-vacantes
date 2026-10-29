@@ -278,3 +278,8 @@ fe4cfc6 |
   postulación» (chosen, handed off; 03 is its mobile view) + only the «Pendientes» block of 02 on the candidate
   dashboard; the rest of 02 stays an alternative. The account path answers inside the candidate shell at
   `/candidato/evaluaciones/[iid]` (the iid is not a credential: access is by session and candidate match).
+- **L35** T11 worker (mvt89x8a-j-4sek) stopped before writing: the contract named `GET /v2/me/assessments` without a
+  response shape, and the data layer had no list schema. Also found: the candidate dashboard still renders prototype
+  data (`features/candidate/prototype-*`), while «Postulaciones» loads real applications. Parent proposed the list
+  shape in the contract (join by `application_id` = `/v2/me/applications` `items[].id`) and asked the backend; T11
+  resumes after agreement, with the data-layer files added to its surfaces.

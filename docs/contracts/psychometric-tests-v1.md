@@ -257,6 +257,15 @@ Two access paths over the same invitation: public by token, and the candidate wo
   participation's candidate, never by token. The identical-404 rule is public-only: the list shows expired, revoked and
   finished invitations with their status (read-only); writes on a closed invitation → `409 invitation_closed`; another
   candidate's `iid` → `404`.
+- Account list (L35, **proposed, pending backend agreement**): `GET /v2/me/assessments` → `200 { "items": [
+  { "id": "uuid", "application_id": "uuid | null", "vacancy": { "id": "uuid", "title": "…" },
+  "company": { "id": "uuid", "name": "…" }, "status": "created | in_progress | finished | expired | revoked",
+  "created_at", "expires_at", "finished_at": "RFC 3339 | null", "answered_count", "total_count",
+  "estimated_minutes" } ] }` — every invitation of the session's candidate, answerable ones first (`created`,
+  `in_progress`, by `expires_at` ascending), then the rest by `created_at` descending; no cursor in v1.
+  `application_id` is the same id as `GET /v2/me/applications` `items[].id`, so the workspace joins by it; `null` when
+  the participation has no candidate application (for example manual intake later linked to the account). Never any
+  result, band or score (D7).
 
 Per invitation (`{base}` = either prefix). Expiry is checked against server time inside every write transaction
 (consent, answers, finish): an invitation that expires mid-test rejects further writes, and finish after `expires_at`
