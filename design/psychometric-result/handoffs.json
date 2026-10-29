@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "03-guia-primero.html",
+  "handoffs": {
+    "03-guia-primero.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-10-29T05:41:56.944Z",
+      "startedAt": "2026-10-29T05:42:18.669Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/psychometric-tests.md",
+      "note": "T9: guide first + band matrix from 02 in the competencies section"
+    }
+  }
+}

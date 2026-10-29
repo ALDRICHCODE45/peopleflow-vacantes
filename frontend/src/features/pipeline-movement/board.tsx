@@ -30,6 +30,7 @@ import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { ChecklistProvider, useBoardChecklist } from "@/features/vacancy-checklist/board/state";
 import { ChecklistComparison, ChecklistReminder, ChecklistRetry } from "@/features/vacancy-checklist/board/ui";
 import { orderByFit } from "@/features/vacancy-checklist/board/fit";
+import { InvitationsProvider } from "@/features/psychometrics/sheet/state";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
 type Props = { vacancyId: string; vacancyTitle?: string; publishedAt?: string | null; onLifecycleChange?: (lifecycle: Lifecycle) => void };
@@ -38,7 +39,7 @@ export function MovementBoard(props: Props) {
 }
 function BoardSession(props: Props) {
   const state = useMovementBoard(props.vacancyId);
-  return <ChecklistProvider vacancyId={props.vacancyId} readOnly={state.board?.lifecycle.process === "finished"}><BoardContent {...props} state={state} /></ChecklistProvider>;
+  return <InvitationsProvider vacancyId={props.vacancyId} movementKey={state.board?.participations.map(item => `${item.id}:${item.stage_id}:${item.moved_at}`).join("|")}><ChecklistProvider vacancyId={props.vacancyId} readOnly={state.board?.lifecycle.process === "finished"}><BoardContent {...props} state={state} /></ChecklistProvider></InvitationsProvider>;
 }
 function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange, state }: Props & { state: ReturnType<typeof useMovementBoard> }) {
   const checklist = useBoardChecklist()!;

@@ -280,6 +280,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 	}
 	router := newRouter(routerDeps{
 		requireAuth:          requireAuth,
+		requireCandidate:     identityhttp.RequireCandidateRole(identityUserRepo),
 		requireRecruiter:     requireRecruiter,
 		requireOwner:         requireOwner,
 		jobHandler:           jobHandler,
@@ -296,11 +297,14 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 		publicationHandler:   jobshttp.NewPublicationHandler(store),
 		lifecycleHandler:     jobshttp.NewLifecycleHandler(store),
 
-		checklistHandler:      jobshttp.NewChecklistHandler(store),
-		checklistMarksHandler: jobshttp.NewChecklistMarksHandler(store),
+		psychometricProfileHandler:     newPsychometricProfileHandler(pool, store),
+		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, store),
+		psychometricAssessmentHandler:  newPsychometricAssessmentHandler(pool, store),
+		checklistHandler:               jobshttp.NewChecklistHandler(store),
+		checklistMarksHandler:          jobshttp.NewChecklistMarksHandler(store),
 
 		// Match main.go; tests that upload CVs supply their own temporary storage.
-		movementHandler:   movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{store}, files, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualFiles),
+		movementHandler:   movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{store}, files, draftjson.Decode).WithStageEntryHook(newPsychometricStageEntryHook(store))).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		publicJobsHandler: jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries))),
 		requesterHandler:  jobshttp.NewRequesterHandler(store),
 		queries:           queries,

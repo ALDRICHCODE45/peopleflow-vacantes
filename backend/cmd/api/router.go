@@ -23,9 +23,12 @@ import (
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
+	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	runtimemw "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -75,6 +78,11 @@ type routerDeps struct {
 	readinessLogger  *slog.Logger
 	readinessMetrics rtmetrics.ReadinessMetrics
 
+	psychometricAssessmentHandler  *profilehttp.AssessmentHandler
+	psychometricProfileHandler     *profilehttp.Handler
+	psychometricInvitationsHandler *profilehttp.InvitationsHandler
+	// publicAssessmentLimit guards only the public token prefix (B8).
+	publicAssessmentLimit func(http.Handler) http.Handler
 	checklistHandler      *jobshttp.ChecklistHandler
 	checklistMarksHandler *jobshttp.ChecklistMarksHandler
 }
@@ -85,6 +93,10 @@ func newRouter(d routerDeps) chi.Router {
 	// A missing composition dependency fails closed, never grants candidate access.
 	if d.requireCandidate == nil {
 		d.requireCandidate = identityhttp.RequireCandidateRole(nil)
+	}
+	// The public assessment prefix is never served unlimited.
+	if d.publicAssessmentLimit == nil {
+		d.publicAssessmentLimit = ratelimit.NewAssessment(ratelimit.DefaultLimits(), nil, nil).Middleware
 	}
 	r := chi.NewRouter()
 	// Task 6.3 production wiring (design §8.3): RequestID runs FIRST (the
@@ -118,6 +130,30 @@ func newRouter(d routerDeps) chi.Router {
 	r.Get("/v2/jobs", d.publicJobsHandler.List)
 	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
 	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)
+	r.Group(func(r chi.Router) {
+		r.Use(profilehttp.AssessmentPrivacy, d.publicAssessmentLimit)
+		// Unmatched paths and methods under a token stay limited and private.
+		// Registered first: chi's Handle covers every method of the pattern, and
+		// the method routes below then override it for their own methods.
+		r.Handle("/v2/assessments/{token}", http.HandlerFunc(publicAssessmentNotFound))
+		r.Handle("/v2/assessments/{token}/*", http.HandlerFunc(publicAssessmentNotFound))
+		r.Get("/v2/assessments/{token}", d.psychometricAssessmentHandler.Get)
+		r.Post("/v2/assessments/{token}/consent", d.psychometricAssessmentHandler.Consent)
+		r.Post("/v2/assessments/{token}/finish", d.psychometricAssessmentHandler.Finish)
+		r.Get("/v2/assessments/{token}/items", d.psychometricAssessmentHandler.Items)
+		r.Put("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Put)
+		r.Delete("/v2/assessments/{token}/answers/{position}", d.psychometricAssessmentHandler.Delete)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(profilehttp.AssessmentPrivacy, d.requireAuth, d.requireCandidate)
+		r.Get("/v2/me/assessments", d.psychometricAssessmentHandler.List)
+		r.Get("/v2/me/assessments/{iid}", d.psychometricAssessmentHandler.Get)
+		r.Post("/v2/me/assessments/{iid}/consent", d.psychometricAssessmentHandler.Consent)
+		r.Post("/v2/me/assessments/{iid}/finish", d.psychometricAssessmentHandler.Finish)
+		r.Get("/v2/me/assessments/{iid}/items", d.psychometricAssessmentHandler.Items)
+		r.Put("/v2/me/assessments/{iid}/answers/{position}", d.psychometricAssessmentHandler.Put)
+		r.Delete("/v2/me/assessments/{iid}/answers/{position}", d.psychometricAssessmentHandler.Delete)
+	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
 		r.Get("/v2/me/cvs", d.cvHandler.List)
@@ -242,6 +278,15 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/checklist/marks", d.checklistMarksHandler.Get)
 		r.Put("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Put)
 		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Delete)
+		r.Get("/v2/me/company/job-drafts/{id}/psychometric-invitations", d.psychometricInvitationsHandler.List)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/psychometric-invitations", d.psychometricInvitationsHandler.Create)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/link", d.psychometricInvitationsHandler.Link)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/reminders", d.psychometricInvitationsHandler.Remind)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/revoke", d.psychometricInvitationsHandler.Revoke)
+		r.Get("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/result", d.psychometricInvitationsHandler.Result)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/comparisons", d.psychometricInvitationsHandler.Compare)
+		r.Get("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Get)
+		r.Put("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Put)
 		r.Get("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.GetChecklist)
 		r.Put("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.PutChecklist)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.GetSubstates)
@@ -283,4 +328,10 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/me/company/requesters", requesterHandlers.CreateRequester)
 	})
 	return r
+}
+
+// publicAssessmentNotFound answers unmatched public token paths and methods
+// with the catalog 404 after the privacy and rate-limit middleware ran.
+func publicAssessmentNotFound(w http.ResponseWriter, _ *http.Request) {
+	httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeNotFound))
 }

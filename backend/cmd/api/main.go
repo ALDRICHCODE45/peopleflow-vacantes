@@ -57,6 +57,7 @@ import (
 	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -163,6 +164,11 @@ func run() error {
 		return err
 	}
 
+	trustedProxies, err := runtimeconfig.LoadTrustedProxyCIDRs(os.Getenv)
+	if err != nil {
+		return err
+	}
+
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
@@ -264,7 +270,7 @@ func run() error {
 	// Explicit allowlist; never log the SDK config, endpoint or credentials.
 	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo)
-	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore), draftjson.Decode)
+	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore).WithStageEntryHook(newPsychometricStageEntryHook(draftStore)), draftjson.Decode)
 
 	// Jobs wiring: jobs repo (sqlc data layer over the same pool)
 	// -> service -> handler. Public read slice — no identity user
@@ -283,7 +289,7 @@ func run() error {
 	// event and (for create) the idempotency record commit atomically. The
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
-	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualStorage)
+	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode).WithStageEntryHook(newPsychometricStageEntryHook(draftStore))).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(movementStorage))).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
@@ -379,8 +385,12 @@ func run() error {
 		// nil defaults for both. Still no exporter, no metrics endpoint.
 		readinessLogger: slog.Default(), readinessMetrics: runtimemetrics.Default,
 
-		checklistHandler:      checklistHandler,
-		checklistMarksHandler: checklistMarksHandler,
+		psychometricProfileHandler:     newPsychometricProfileHandler(pool, draftStore),
+		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, draftStore),
+		psychometricAssessmentHandler:  newPsychometricAssessmentHandler(pool, draftStore),
+		publicAssessmentLimit:          ratelimit.NewAssessment(ratelimit.DefaultLimits(), trustedProxies, nil).Middleware,
+		checklistHandler:               checklistHandler,
+		checklistMarksHandler:          checklistMarksHandler,
 	})
 	// Hardened server + lifecycle from the runtime packages (WS6B-1a):
 	// Run serves until ctx is cancelled, drains with the configured

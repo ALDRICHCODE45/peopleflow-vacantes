@@ -26,15 +26,25 @@ type Storage interface {
 	Open(context.Context, string) (io.ReadCloser, error)
 }
 type Store struct {
-	pool    *pgxpool.Pool
-	audit   auditport.AuditEventRepository
-	vacancy app.VacancyContext
-	storage Storage
-	decode  app.JSONDecoder
+	pool       *pgxpool.Pool
+	audit      auditport.AuditEventRepository
+	vacancy    app.VacancyContext
+	storage    Storage
+	decode     app.JSONDecoder
+	stageEntry intake.StageEntryHook
 }
 
 func NewStore(pool *pgxpool.Pool, audit auditport.AuditEventRepository, vacancy app.VacancyContext, storage Storage, decode app.JSONDecoder) *Store {
-	return &Store{pool, audit, vacancy, storage, decode}
+	return &Store{pool: pool, audit: audit, vacancy: vacancy, storage: storage, decode: decode}
+}
+
+// WithStageEntryHook is optional; nil retains the original no-op behavior.
+func (s *Store) WithStageEntryHook(h intake.StageEntryHook) *Store { s.stageEntry = h; return s }
+func (s *Store) stageEntered(ctx context.Context, tx pgx.Tx, process, participation uuid.UUID, stage, kind string) error {
+	if s.stageEntry == nil {
+		return nil
+	}
+	return s.stageEntry.OnStageEntered(ctx, tx, process, participation, uuid.MustParse(stage), kind)
 }
 
 var _ app.Store = (*Store)(nil)
@@ -314,6 +324,9 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 		return app.Moved{}, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter','move')`, uuid.New(), pid, request.ToStageID, actor, at, item.StageID, hire, departure); err != nil {
+		return app.Moved{}, err
+	}
+	if err = s.stageEntered(ctx, tx, id, pid, request.ToStageID, "move"); err != nil {
 		return app.Moved{}, err
 	}
 	next, err := coverage(ctx, tx, id, p)

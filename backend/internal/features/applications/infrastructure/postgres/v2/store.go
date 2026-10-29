@@ -18,15 +18,18 @@ import (
 const fingerprintAlgorithm = "go-json-v1+sha256"
 
 type Store struct {
-	pool     *pgxpool.Pool
-	audit    auditport.AuditEventRepository
-	rules    app.VacancyRules
-	delivery app.DeliveryRecorder
+	pool       *pgxpool.Pool
+	audit      auditport.AuditEventRepository
+	rules      app.VacancyRules
+	delivery   app.DeliveryRecorder
+	stageEntry app.StageEntryHook
 }
 
 func NewStore(pool *pgxpool.Pool, audit auditport.AuditEventRepository, rules app.VacancyRules, delivery app.DeliveryRecorder) *Store {
-	return &Store{pool, audit, rules, delivery}
+	return &Store{pool: pool, audit: audit, rules: rules, delivery: delivery}
 }
+
+func (s *Store) WithStageEntryHook(h app.StageEntryHook) *Store { s.stageEntry = h; return s }
 
 var _ app.Store = (*Store)(nil)
 
@@ -181,6 +184,11 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at) VALUES($1,$2,$3,$4,$5)`, uuid.New(), id, stage, candidate, at); err != nil {
 		return app.Result{}, err
+	}
+	if s.stageEntry != nil {
+		if err = s.stageEntry.OnStageEntered(ctx, tx, vacancy, id, stage, "apply"); err != nil {
+			return app.Result{}, err
+		}
 	}
 	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &candidate, EventType: "VacancyApplicationSubmitted", EntityType: "process_participation", EntityID: id, Metadata: map[string]string{"vacancy_id": vacancy.String(), "stage_id": stage.String(), "source": "organic"}}
 	if err = s.audit.Append(ctx, tx, event); err != nil {

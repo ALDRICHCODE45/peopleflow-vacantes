@@ -132,6 +132,9 @@ func (s *Store) CreateManual(ctx context.Context, company, actor, id uuid.UUID, 
 		if _, err := tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind) VALUES($1,$2,$3,$4,$5,NULL,false,false,'recruiter','intake')`, uuid.New(), pid, validated.StageID, actor, at); err != nil {
 			return app.ManualCreated{}, err
 		}
+		if err := s.stageEntered(ctx, tx, id, pid, validated.StageID.String(), "intake"); err != nil {
+			return app.ManualCreated{}, err
+		}
 		if err := s.vacancy.RecordDelivery(ctx, tx, id, actor, validated.StageID, at); err != nil {
 			return app.ManualCreated{}, err
 		}

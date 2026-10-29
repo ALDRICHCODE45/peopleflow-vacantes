@@ -17,6 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";
 import type { ApplicationsPage, Failure } from "@/features/candidate-applications/model";
+import type { AccountAssessment, AccountAssessments, Result } from "@/features/psychometrics/model";
+import { AssessmentBlock, StandaloneAssessments } from "@/features/psychometrics/workspace/assessments";
 const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
 /** Case- and accent-insensitive comparison key (same rule as the former prototype search). */
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
@@ -29,7 +31,7 @@ const STATUS_EXPLANATION = {
   closed: "El proceso de tu postulación finalizó.",
 } satisfies Record<ApplicationsPage["items"][number]["status"], string>;
 
-function ApplicationCard({ item }: { item: ApplicationsPage["items"][number] }) {
+function ApplicationCard({ item, assessment }: { item: ApplicationsPage["items"][number]; assessment?: AccountAssessment }) {
   // An active application of a vacancy whose process the company finished (§21.5); a discard keeps «Finalizada».
   const vacancyClosed = item.vacancy.state === "closed";
   return <Card className="h-full min-w-0">
@@ -50,6 +52,7 @@ function ApplicationCard({ item }: { item: ApplicationsPage["items"][number] }) 
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><MessageSquare aria-hidden="true" className="size-3.5" />Mensaje de la empresa</p>
         <p className="max-w-prose whitespace-pre-wrap break-words text-sm text-muted-foreground">{item.message}</p>
       </div>}
+      {assessment && <AssessmentBlock item={assessment} />}
     </CardContent>
     <CardFooter className={APPLICATION_FOOTER}>
       <Link href={`/vacantes/${item.vacancy.id}`} className={cn(buttonVariants({ variant: "outline" }), "min-h-10 w-full sm:w-auto")}>Ver vacante<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Link>
@@ -78,7 +81,7 @@ function ApplicationsSkeleton() {
     </li>)}</ul>
   </section>;
 }
-export function ApplicationsWorkspace() {
+export function ApplicationsWorkspace({ assessments }: { assessments?: Result<AccountAssessments> } = {}) {
   const [data, setData] = useState<ApplicationsPage>();
   const [failure, setFailure] = useState<Failure>();
   const [pending, setPending] = useState(false);
@@ -111,6 +114,8 @@ export function ApplicationsWorkspace() {
   }
   return <DashboardPageContent data-pf-applications-workspace width="screen-2xl" className="gap-5">
     <header className="flex flex-col gap-2"><h2 className="font-heading text-2xl font-semibold">Postulaciones</h2><p className="max-w-prose text-sm text-muted-foreground">Consulta las vacantes a las que te postulaste.</p></header>
+    {assessments && !assessments.ok && <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar las evaluaciones" description="Tus respuestas guardadas se conservan. Vuelve a abrir Postulaciones para consultar tus evaluaciones." primaryAction={{ label: "Consultar de nuevo", href: "/candidato/postulaciones" }} />}
+    <StandaloneAssessments items={assessments?.ok ? assessments.data.items.filter(item => item.application_id === null) : []} />
     {!data && !failure ? <ApplicationsSkeleton /> : <>
       {data?.items.length === 0 && !failure && <StateCard icon={Briefcase} tone="empty" title="Todavía no te postulaste a ninguna vacante" description="Tus postulaciones aparecerán aquí cuando envíes una. Mientras tanto, explora las vacantes disponibles." primaryAction={{ label: "Explorar vacantes", href: "/vacantes" }} />}
       {!data && failure && <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar las postulaciones" description="Tus postulaciones no cambiaron. Vuelve a consultar para verlas."
@@ -122,7 +127,7 @@ export function ApplicationsWorkspace() {
         {needle !== "" && data.next_cursor && <p className="text-sm text-muted-foreground">La búsqueda cubre las postulaciones cargadas. Carga más para buscar en el resto.</p>}
       </div>}
       {!!data?.items.length && visible.length === 0 && <Empty><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold">Ninguna postulación coincide con «{query.trim()}».</EmptyTitle><EmptyDescription>Prueba con otro puesto o empresa, o limpia la búsqueda para ver tus postulaciones cargadas.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row sm:justify-center"><Button className="min-h-10 w-full sm:w-auto" onClick={() => setQuery("")}>Limpiar búsqueda</Button></EmptyContent></Empty>}
-      {visible.length > 0 && <ul className={APPLICATION_GRID}>{visible.map(item => <li key={item.id} className="min-w-0"><ApplicationCard item={item} /></li>)}</ul>}
+      {visible.length > 0 && <ul className={APPLICATION_GRID}>{visible.map(item => <li key={item.id} className="min-w-0"><ApplicationCard item={item} assessment={assessments?.ok ? assessments.data.items.find(assessment => assessment.application_id?.toLowerCase() === item.id.toLowerCase() && assessment.vacancy.id.toLowerCase() === item.vacancy.id.toLowerCase()) : undefined} /></li>)}</ul>}
       {data && (failure || loaded || data.next_cursor) && <ActionBar status={failure ? <ActionStatus id="applications-status" tone="error" text="No pudimos cargar las postulaciones" action={failure.reason === "unauthenticated" ? <Link href="/candidato/ingresar" className="inline-flex min-h-10 items-center underline">Ingresar como candidato</Link> : undefined} /> : loaded ? <ActionStatus id="applications-status" tone="success" text="Postulaciones cargadas" /> : null}>
         {(failure || data?.next_cursor) && <Button variant="outline" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={failure || loaded ? "applications-status" : undefined} onClick={() => void loadMore()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{failure ? "Reintentar" : "Cargar más"}</Button>}
       </ActionBar>}

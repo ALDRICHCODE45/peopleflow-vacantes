@@ -126,6 +126,11 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind,reason_group,reason_code,comment,candidate_message) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter',$9,$10,$11,$12,$13)`, uuid.New(), pid, target, actor, at, item.StageID, hire, departure, kind, group, code, req.Comment, req.CandidateMessage); err != nil {
 		return app.Moved{}, err
 	}
+	if recovering {
+		if err = s.stageEntered(ctx, tx, id, pid, target, "recovery"); err != nil {
+			return app.Moved{}, err
+		}
+	}
 	next, err := coverage(ctx, tx, id, p)
 	if err != nil {
 		return app.Moved{}, err

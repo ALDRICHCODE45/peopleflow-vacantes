@@ -160,6 +160,11 @@ This is the default list, not a requirement to pass through `Descartados` as a n
 - Checklist access uses the recruiter owner-or-principal gate (foreign/non-principal vacancies are `404`). Finished processes reject writes with `409 process_finished`; reads remain available. Criteria inform comparison only; the backend does not evaluate, reject or move candidates in v1.
 - `GET …/checklist/marks` returns current-criterion marks for all participations of the process, including discarded candidates, ordered by participation/criterion. `PUT/DELETE …/participations/{pid}/checklist-marks/{criterion_id}` sets or clears a recruiter verdict (`met`/`not_met`, optional trimmed note up to 500 characters). Writes are last-write-wins; identical writes and absent deletes are no-ops. Removing a criterion hides, but retains, its marks; re-adding its ID restores them. Recruiter names are resolved at read time.
 
+### 5.3 Private psychometric profile (v1, B3)
+
+- `GET/PUT /v2/me/company/job-drafts/{id}/psychometric-profile` stores the seven catalog competencies, desired bands, job rationales/tasks, enabled/confirmed flags, current progression auto-send stages and expiry (1–30 days, default 7). Never-saved profiles are disabled/unconfirmed at version `0`; PUT requires the opaque `pp1-…` ETag and replaces all writable fields.
+- The checklist's access and lifecycle gates apply. Confirmation is explicit and independent of enabled; server timestamps cannot be supplied. GET hides retired auto-send stages. Changed saves co-write `JobDraftPsychometricProfileConfigured` with version and JSON-string previous/new snapshots; rejected and identical saves change nothing. This slice creates no invitations and never rejects or moves candidates. See [backend endpoint details](../backend/docs/psychometric-tests.md).
+
 ## 6. Delivery configuration, cutoff and commitment date
 
 - **CFG-1.** Delivery cutoff column is configurable per process. Original-process delivery starts at publication; replacement delivery starts at its explicit configured start. Neither is a freely configurable clock-start choice.
