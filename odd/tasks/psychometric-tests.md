@@ -214,3 +214,6 @@ infra de aws».
 - **L23** User choice (question): «Psicometría completa (Recomendado)» — `--status-review` replaced by the primary
   accent in flows/01, flows/02 and result/01–03 (0 occurrences left in both designs); the product-wide change is a
   backlog item in `odd/tasks/frontend-backlog.md` (Known issues).
+- **L24** (user, verbatim): «perfecto, me gusta mucho.», then (question) «Sí, apruebo las 5» — flows/01–05 validated
+  (§21: not changed while implementing). T7 and T10 launch in parallel (disjoint surfaces); T8 waits for T9 because
+  both change `candidate-sheet.tsx` and `board.tsx`.
