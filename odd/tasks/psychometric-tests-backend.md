@@ -103,3 +103,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   validation lasts 24 h from the latest non-404/non-5xx answer (renewed, cleared by assessment_unavailable, counts
   toward the key cap); the 30 budget gates only not-yet-validated tokens; in-flight rule unchanged; residual: a
   never-validated-in-24h token behind an exhausted IP waits ≤10 min. Fix e1304a49; 59 psychometric/purge integration PASS.
+- **L14.** Frontend T12 complete against QA API 01a8b713: public flow, employer result/guide/matrix/comparisons,
+  unconfirmed suppression, candidate account path and the 429 re-check (A3 validated first → 30× 404, 31st 429,
+  A3 still 200 with «Pregunta 3 de 63 · 2 respondidas», random token 429 Retry-After 599) all pass; no contract or
+  zod mismatch. Frontend ready to coordinate the single merge once backend verify/review close.
