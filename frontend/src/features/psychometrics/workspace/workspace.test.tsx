@@ -33,15 +33,18 @@ it("omits Pendientes when every invitation is closed or the list is empty", () =
   const { container, rerender } = render(<PendingAssessments items={[]} />); expect(container).toBeEmptyDOMElement();
   rerender(<PendingAssessments items={[{ ...assessment, status: "expired" }, { ...assessment, status: "revoked" }]} />); expect(container).toBeEmptyDOMElement();
 });
+vi.mock("./load", () => ({ loadWorkspaceAssessmentsAction: vi.fn() }));
+import { loadWorkspaceAssessmentsAction } from "./load";
 vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn() }));
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";
 import { ApplicationsWorkspace } from "@/features/candidate/applications-workspace";
 import { page } from "@/features/candidate-applications/test-fixtures";
 it("joins only the matching real application and keeps manual invitations on their own", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
-  render(<ApplicationsWorkspace assessments={{ ok: true, data: { items: [{ ...assessment, application_id: page.items[0].id, vacancy: { ...assessment.vacancy, id: page.items[0].vacancy.id } }, { ...assessment, id: assessment.vacancy.id, vacancy: { ...assessment.vacancy, title: "Ingreso manual" } }] } }} />);
+  vi.mocked(loadWorkspaceAssessmentsAction).mockResolvedValue({ ok: true, data: { items: [{ ...assessment, application_id: page.items[0].id, vacancy: { ...assessment.vacancy, id: page.items[0].vacancy.id } }, { ...assessment, id: assessment.vacancy.id, vacancy: { ...assessment.vacancy, title: "Ingreso manual" } }] } });
+  render(<ApplicationsWorkspace />);
   const card = (await screen.findByRole("link", { name: "Backend Go" })).closest('[data-slot="card"]') as HTMLElement;
   expect(within(card).getByRole("link", { name: /Responder evaluación/ })).toHaveAttribute("href", `/candidato/evaluaciones/${assessment.id}`);
-  expect(screen.getByRole("heading", { name: "Ingreso manual" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Ingreso manual" })).toBeVisible();
   expect(screen.getAllByRole("link", { name: /Responder evaluación/ })).toHaveLength(2);
 });

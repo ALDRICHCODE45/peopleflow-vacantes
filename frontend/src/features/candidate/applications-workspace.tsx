@@ -17,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";
 import type { ApplicationsPage, Failure } from "@/features/candidate-applications/model";
-import type { AccountAssessment, AccountAssessments, Result } from "@/features/psychometrics/model";
+import type { AccountAssessment } from "@/features/psychometrics/model";
+import { AssessmentsLoading, useWorkspaceAssessments } from "@/features/psychometrics/workspace/mounted";
 import { AssessmentBlock, StandaloneAssessments } from "@/features/psychometrics/workspace/assessments";
 const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
 /** Case- and accent-insensitive comparison key (same rule as the former prototype search). */
@@ -81,7 +82,8 @@ function ApplicationsSkeleton() {
     </li>)}</ul>
   </section>;
 }
-export function ApplicationsWorkspace({ assessments }: { assessments?: Result<AccountAssessments> } = {}) {
+export function ApplicationsWorkspace() {
+  const assessments = useWorkspaceAssessments();
   const [data, setData] = useState<ApplicationsPage>();
   const [failure, setFailure] = useState<Failure>();
   const [pending, setPending] = useState(false);
@@ -114,6 +116,7 @@ export function ApplicationsWorkspace({ assessments }: { assessments?: Result<Ac
   }
   return <DashboardPageContent data-pf-applications-workspace width="screen-2xl" className="gap-5">
     <header className="flex flex-col gap-2"><h2 className="font-heading text-2xl font-semibold">Postulaciones</h2><p className="max-w-prose text-sm text-muted-foreground">Consulta las vacantes a las que te postulaste.</p></header>
+    {!assessments && <AssessmentsLoading />}
     {assessments && !assessments.ok && <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar las evaluaciones" description="Tus respuestas guardadas se conservan. Vuelve a abrir Postulaciones para consultar tus evaluaciones." primaryAction={{ label: "Consultar de nuevo", href: "/candidato/postulaciones" }} />}
     <StandaloneAssessments items={assessments?.ok ? assessments.data.items.filter(item => item.application_id === null) : []} />
     {!data && !failure ? <ApplicationsSkeleton /> : <>

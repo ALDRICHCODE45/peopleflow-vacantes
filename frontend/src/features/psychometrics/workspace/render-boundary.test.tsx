@@ -1,0 +1,25 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn(async () => "session") }));
+vi.mock("../client", () => ({ getAccountAssessments: vi.fn() }));
+vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn(async () => ({ ok: true, data: { items: [], next_cursor: null } })) }));
+vi.mock("@/components/candidate-dashboard/candidate-dashboard-overview", () => ({ CandidateDashboardOverview: () => null }));
+vi.mock("@/components/candidate-dashboard/candidate-header", () => ({ CandidateHeader: () => null }));
+import { getActionAccessToken } from "@/lib/auth/action-session";
+import { getAccountAssessments } from "../client";
+import Dashboard from "@/app/(candidato)/candidato/dashboard/page";
+import Applications from "@/app/(candidato)/candidato/postulaciones/page";
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+it.each([Dashboard, Applications])("defers private session resolution until mount and shows loading then error", async Page => {
+  let resolve!: (value: Awaited<ReturnType<typeof getAccountAssessments>>) => void;
+  vi.mocked(getAccountAssessments).mockResolvedValue({ ok: true, data: { items: [] } });
+  const element = await Page();
+  expect(getActionAccessToken).not.toHaveBeenCalled();
+  vi.mocked(getAccountAssessments).mockReturnValue(new Promise(done => { resolve = done; }));
+  render(element);
+  expect(screen.getByLabelText("Cargando evaluaciones")).toBeVisible();
+  await act(async () => { resolve({ ok: false, reason: "no_response", reference: {} }); });
+  expect(await screen.findByText("No pudimos cargar las evaluaciones")).toBeVisible();
+  expect(getActionAccessToken).toHaveBeenCalledTimes(1);
+});

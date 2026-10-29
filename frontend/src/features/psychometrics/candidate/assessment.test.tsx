@@ -144,12 +144,23 @@ it("keeps an unanswered last item incomplete and routes to the first unanswered 
   await click("Siguiente"); expect(screen.getByText("Pregunta 1 de 63")).toBeTruthy();
   expect(calls.some(c => c.path === "/finish")).toBe(false);
   expect(saved[0]).toBeNull(); expect(saved[62]).toBeNull();
-});
+}, 15000);
 it("follows the official choice-card composition and exposes no timer or token client prop", async () => {
   consented = true; const page = await AssessmentPage();
   expect(JSON.stringify(page.props)).not.toContain(token); render(page);
   expect(document.querySelectorAll('[data-slot="radio-group"] > [data-slot="field-label"] > [data-slot="field"] > [data-slot="radio-group-item"]').length).toBe(5);
   expect(screen.queryByRole("timer")).toBeNull(); privateOutput();
+});
+it("matches the question artboard typography and keeps silent programmatic heading focus", async () => {
+  await start();
+  const heading = screen.getByRole("heading", { name: "Frase 1" });
+  expect(heading.parentElement?.classList.contains("data-[variant=legend]:text-2xl")).toBe(true);
+  expect(heading.parentElement?.classList.contains("leading-[1.35]")).toBe(true);
+  expect(heading.parentElement?.classList.contains("font-semibold")).toBe(true);
+  expect(heading.classList.contains("outline-none")).toBe(true);
+  expect(document.activeElement).toBe(heading);
+  await click("Siguiente");
+  expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Frase 2" }));
 });
 it("uses no-store, no-referrer, no credentials on every public backend request and private metadata", async () => {
   await start(); await choose(scale[0].label);

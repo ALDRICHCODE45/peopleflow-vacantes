@@ -1,6 +1,6 @@
 # Public assessment — T10
 
-Covers S4 (answer events and visible time), S11 (account-free, mobile, saved progress) and S12 (backend notice and explicit consent). The account workspace is T11, not this implementation. No scores are sent to or shown by this surface.
+Covers S4 (answer events and visible time), S11 (account-free, mobile, saved progress) and S12 (backend notice and explicit consent). The account workspace is T11. T12a reuses this flow without `initial` data on the account path: a single mounted `reloadAction` resolves the session in a cookie-writable Server Action, with «Cargando evaluación» until settled. Public initial loading remains server-side. No scores are sent to or shown by this surface.
 
 ## Route integration (L29)
 
@@ -45,7 +45,7 @@ Official snapshots read from `docs/design/shadcn-reference/` before implementati
 | Progress | progress.md Basic | Real answered count/max; label outside the native track |
 | Navigation | button.md Outline/Default; spinner.md Button | Minimum target size required by approved mobile artboard; native geometry otherwise |
 | Terminal/error states | empty.md empty-demo via existing StateCard | Identical neutral unavailable state; final content and company/vacancy from backend |
-| Pending operations | spinner.md Button | Real pending work only; initial content loaded server-side, so no invented skeleton |
+| Pending operations | spinner.md Button | Real pending work only; public initial content loaded server-side, account initial read uses the existing Spinner after mount |
 
 Validated references: `design/psychometric-flows/02-candidato-consentimiento.html`, `03-candidato-preguntas.html`, `04-candidato-final.html`. The artboard state switcher is preview-only and not shipped. Added clear/finalize/retry controls are required functional states. No `review` tone, raw colors or manual dark-mode colors.
 

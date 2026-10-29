@@ -29,5 +29,5 @@ export async function AccountAssessmentPage({ invitationId }: { invitationId: st
   async function answerAction(position: number, body: unknown) { "use server"; return authenticated(invitationId, input => client.putAnswer({ ...input, position, body })); }
   async function clearAction(position: number, body: unknown) { "use server"; return authenticated(invitationId, input => client.deleteAnswer({ ...input, position, body })); }
   async function finishAction() { "use server"; return authenticated(invitationId, client.finishAssessment); }
-  return <AssessmentFlow account initial={await load(invitationId)} actions={{ reloadAction, consentAction, answerAction, clearAction, finishAction }} />;
+  return <AssessmentFlow account actions={{ reloadAction, consentAction, answerAction, clearAction, finishAction }} />;
 }

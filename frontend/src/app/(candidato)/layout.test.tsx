@@ -18,7 +18,7 @@ vi.mock("@/features/identity/area-guards", () => ({ CandidateGuard: ({ children 
 
 import CandidateLayout from "./layout";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
-vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessments: async () => ({ ok: true, data: { items: [] } }) }));
+vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: async () => ({ ok: true, data: { items: [] } }) }));
 import DashboardPage, { metadata as dashboardMetadata } from "./candidato/dashboard/page";
 import PostulacionesPage, { metadata as postulacionesMetadata } from "./candidato/postulaciones/page";
 import GuardadasPage, { metadata as guardadasMetadata } from "./candidato/guardadas/page";

@@ -29,8 +29,8 @@ vi.mock("@/components/candidate-dashboard/candidate-dashboard-overview", async (
   };
 });
 
-vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessments: vi.fn().mockResolvedValue({ ok: true, data: { items: [] } }) }));
-import { loadWorkspaceAssessments } from "@/features/psychometrics/workspace/load";
+vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: vi.fn().mockResolvedValue({ ok: true, data: { items: [] } }) }));
+import { loadWorkspaceAssessmentsAction } from "@/features/psychometrics/workspace/load";
 import DashboardPage, { metadata } from "./page";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 
@@ -122,9 +122,9 @@ describe("candidate dashboard route", () => {
   });
 
   it("loads real pending assessments separately from prototype overview objects", async () => {
-    vi.mocked(loadWorkspaceAssessments).mockResolvedValueOnce({ ok: true, data: { items: [{ id: "10000000-0000-4000-8000-000000000001", application_id: null, vacancy: { id: "10000000-0000-4000-8000-000000000002", title: "Real vacancy" }, company: { id: "10000000-0000-4000-8000-000000000003", name: "Real company" }, status: "created", created_at: "2026-10-29T12:00:00Z", expires_at: "2099-01-01T00:00:00Z", finished_at: null, answered_count: 0, total_count: 63, estimated_minutes: 10 }] } });
+    vi.mocked(loadWorkspaceAssessmentsAction).mockResolvedValueOnce({ ok: true, data: { items: [{ id: "10000000-0000-4000-8000-000000000001", application_id: null, vacancy: { id: "10000000-0000-4000-8000-000000000002", title: "Real vacancy" }, company: { id: "10000000-0000-4000-8000-000000000003", name: "Real company" }, status: "created", created_at: "2026-10-29T12:00:00Z", expires_at: "2099-01-01T00:00:00Z", finished_at: null, answered_count: 0, total_count: 63, estimated_minutes: 10 }] } });
     await renderRoute();
-    expect(screen.getByRole("heading", { name: "Pendientes" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Pendientes" })).toBeVisible();
     expect(screen.getByRole("link", { name: /Revisar pendiente/ })).toHaveAttribute("href", "/candidato/evaluaciones/10000000-0000-4000-8000-000000000001");
     expect(overviewSpy.mock.calls.at(-1)?.[0].applications).toBe(CANDIDATE_APPLICATIONS);
   });
