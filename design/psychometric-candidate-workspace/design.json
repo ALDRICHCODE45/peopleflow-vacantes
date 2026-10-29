@@ -1,0 +1,28 @@
+{
+  "title": "Evaluaciones en el espacio del candidato",
+  "brief": "Dos ubicaciones para que Mariana Robles Treviño encuentre y responda sus evaluaciones desde su cuenta; consentimiento y pregunta validados dentro del shell, estados cerrados de solo lectura y sin resultados.",
+  "feature": "odd/tasks/psychometric-tests.md",
+  "artboards": [
+    {
+      "file": "01-en-la-postulacion.html",
+      "title": "En la postulación",
+      "tradeoff": "Mantiene la evaluación junto al proceso que la solicita; exige entrar a Postulaciones para descubrirla.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-bandeja-de-pendientes.html",
+      "title": "Bandeja de pendientes",
+      "tradeoff": "Hace visible el siguiente paso desde el Dashboard; añade una bandeja que se consulta separada de la postulación.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-en-la-postulacion-movil.html",
+      "title": "En la postulación · Móvil",
+      "tradeoff": "Conserva el contexto y un CTA de ancho completo; muestra solo la invitación vigente de cada postulación.",
+      "width": 390,
+      "height": 844
+    }
+  ]
+}

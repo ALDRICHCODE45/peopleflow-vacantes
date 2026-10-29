@@ -24,6 +24,7 @@ import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
 import type { BoardColumnOrder } from "./use-board-column-order";
 import { ColumnOrderControls } from "./column-order-controls";
 import { ChecklistFit, ChecklistSelection } from "@/features/vacancy-checklist/board/ui";
+import { PsychometricCardStatus } from "@/features/psychometrics/card/status";
 
 type Props = {
   board: Board; pending: Set<string>; locked: boolean; notices: Record<string, Notice>; columnOrder?: BoardColumnOrder;
@@ -57,6 +58,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
       <ChecklistFit item={item} />
+      <PsychometricCardStatus participationId={item.id} />
       {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}
       {/* The origin shares the date line instead of an extra pill: «Ingreso manual · 21 oct» / «Postuló 17 oct». */}
       <p className="flex items-center gap-2">{item.source === "manual" ? <UserPlus aria-hidden="true" className="size-3.5 shrink-0" /> : <CalendarDays aria-hidden="true" className="size-3.5 shrink-0" />}<span>{item.source === "manual" ? <><span>Ingreso manual</span> · </> : "Postuló "}<MovementDate value={item.applied_at} compact /></span></p>

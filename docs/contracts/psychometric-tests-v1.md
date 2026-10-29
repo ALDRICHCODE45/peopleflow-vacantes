@@ -122,7 +122,9 @@ Profile validation: exactly the seven catalog ids (including `comp.presion`), no
 Importance is one of the three canonical ids. `importance.no_relevante` requires null desired_band, null rationale and
 null task (user decision L25); otherwise one canonical band is required. To confirm, every `importance.clave` or
 `importance.importante` entry requires a job-related `rationale`, 1..1000 characters after trim; `task` is required
-for `importance.clave`, 1..300 characters after trim, otherwise null.
+for `importance.clave`, 1..300 characters after trim, otherwise null (a task on `importance.importante` →
+`not_allowed`). On clave/importante entries `rationale` is always a string: `""` in a draft, `null` → `invalid`
+(L28); non-null values on `importance.no_relevante` → `not_allowed`.
 Unconfirmed drafts may have empty rationale/task. `confirmed_at` is server-owned and null when unconfirmed; an edit
 to competency requirements requires explicit reconfirmation in that save or clears confirmation. `enabled` only
 controls invitation creation; an enabled unconfirmed profile never blocks assessment completion. Default entries are
@@ -255,6 +257,16 @@ Two access paths over the same invitation: public by token, and the candidate wo
   participation's candidate, never by token. The identical-404 rule is public-only: the list shows expired, revoked and
   finished invitations with their status (read-only); writes on a closed invitation → `409 invitation_closed`; another
   candidate's `iid` → `404`.
+- Account list (L35–L36, **agreed**): `GET /v2/me/assessments` → `200 { "items": [
+  { "id": "uuid", "application_id": "uuid | null", "vacancy": { "id": "uuid", "title": "…" },
+  "company": { "id": "uuid", "name": "…" }, "status": "created | in_progress | finished | expired | revoked",
+  "created_at", "expires_at", "finished_at": "RFC 3339 | null", "answered_count", "total_count",
+  "estimated_minutes" } ] }` — only the latest invitation per (participation, test) of the session's candidate
+  (superseded expired invitations are not listed; user L36), answerable ones first (`created`, `in_progress`, by
+  `expires_at` ascending, `id` ascending), then the rest by `created_at` descending, `id` descending; no cursor in v1.
+  `application_id` is the participation id, equal to `GET /v2/me/applications` `items[].id`, when the participation
+  source is organic, so the workspace joins 1:1 by it; `null` otherwise (manual intake). `vacancy.title` comes from the
+  same public projection as `/v2/me/applications`. Never any result, band or score (D7).
 
 Per invitation (`{base}` = either prefix). Expiry is checked against server time inside every write transaction
 (consent, answers, finish): an invitation that expires mid-test rejects further writes, and finish after `expires_at`

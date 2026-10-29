@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "01-en-la-postulacion.html",
+  "handoffs": {
+    "01-en-la-postulacion.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-10-29T07:34:02.986Z",
+      "startedAt": "2026-10-29T07:34:17.721Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/psychometric-tests.md",
+      "note": "T11: 01 en la postulación + bloque «Pendientes» de 02 en el dashboard"
+    }
+  }
+}

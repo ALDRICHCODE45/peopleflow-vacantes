@@ -80,6 +80,9 @@ infra de aws».
 - **E1** Email delivery of the invitation link (SES; blocked on a registered domain, `docs/decision-email-provider.md`).
 - **E2** Automatic reminders (needs a scheduler and E1).
 - **E3** Scheduled run of the retention purge (F1 ships the one-shot purge command and read-time hiding).
+- **E4** Deployment hardening of the public link (L32): redact `/evaluacion/{token}` from hosting, proxy and load
+  balancer logs; trust only known proxy hosts for the redirect origin; a stable Server Actions encryption key across
+  instances; a production-browser inspection of the Flight payload.
 
 ## Tasks
 
@@ -91,10 +94,10 @@ infra de aws».
 | T4 | S2, S7, S9–S12 | design — artboards: vacancy profile module, candidate test flow + consent, card status, sheet result | |
 | T5 | all | inline — contract `docs/contracts/psychometric-tests-v1.md`, backend review | |
 | T6 | S2–S12 | worker — `features/psychometrics/` model, codec, client, server actions, guarded transport inventory, agreed-contract test (mocks of the contract) | e6c9c5e5 |
-| T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | |
-| T8 | S9, S10 | worker — board: card status rows, sheet tab not-finished states, send / copy link / remind / revoke (flows/05) | |
-| T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | |
-| T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | |
+| T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | a5c657c6 |
+fe4cfc6 |
+| T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
+| T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | |
 | T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | |
 | T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
@@ -221,3 +224,67 @@ infra de aws».
   artboard had one general rationale. User choice (question): «Solo en las relevantes (Recomendado)» — rationale
   required for Clave and Importante, task for Clave, No relevante asks for nothing (null rationale/task/band). Contract
   and bands-and-competencies updated; backend told.
+- **L26** Parent applied L25 to the data layer test-first (model.test RED 4 → GREEN 570 in psychometrics; commit
+  8d0e134a). T7 (worker mvt4vqn3 → mvt5t62f): `features/psychometrics/profile/` editor, module, loading + the
+  «Psicometría» nav entry; no suggestion rules exist in the content, so «Sugerir desde la vacante» keeps defaults;
+  the skipped Select test was restored with the Entrega Select mock pattern. Parent wrote the route page
+  `configuracion/psicometria/page.tsx` test-first (missing module RED → GREEN). Parent re-ran profile + vacancy-config
+  + route: 9 files / 98 passed; worker: 382 passed, tsc and eslint clean. Commit a5c657c6. Combined runs under
+  parallel workers time out (load), so the delivery gate runs alone.
+- **L27** T10 (worker mvt4wyu7-b-46rn) + parent route page `(public)/evaluacion/[token]/page.tsx` (test-first). Independent
+  verify (mvt5pukb-c-xz6d): FAIL on token containment — Next 15.5.25 encrypts Server Action captures, but the dynamic
+  `[token]` segment is also serialized in clear in the Flight router state
+  (`create-flight-router-state-from-loader-tree.js:25–30`, `app-render.js:573,643–648`; probe output
+  `[["token","private-assessment-token","d"],{}]`). Metadata/routing, error states, telemetry PASS; 18/18 + probes.
+  Parent assessment: the router state reaches the same browser that already holds the URL, so it adds no new
+  recipient, but the URL itself keeps the bearer in history and request logs. Pending the user's decision on the
+  routing (exchange the link for an httpOnly cookie and redirect, or accept).
+- **L28** Backend L25 implemented (msg e7311fac, 800dd86f on B3 base ac17f5e7). Agreed one representation: relevant
+  entries always carry a string rationale ("" in drafts, null invalid); task on importante → not_allowed. Parent
+  mirrored it in the model test-first (RED 1 → GREEN 584 in psychometrics) and in the contract. Backend aligned
+  (msg f12ff95f, 03d5b922): null rationale on a relevant entry → invalid, clave task nullable while drafting; B4 started.
+- **L29** User choice (question): «Canjear por cookie y redirigir (Recomendado)» — `/evaluacion/{token}` stores the token
+  in an httpOnly cookie (Secure in production, SameSite=Lax so the cross-site link from email/WhatsApp still carries it
+  after the redirect, path `/evaluacion`, session lifetime: reopening the link resumes) and answers 303 to
+  `/evaluacion`; the page reads the cookie server-side. One assessment per browser at a time (the last link opened
+  wins). The exchange never calls the backend (no oracle) and rejects malformed tokens without setting a cookie.
+  Worker mvt6hfw7-f-pf9t implements it.
+- **L30** T9 (worker mvt49edv → mvt4aksl → mvt5t62k): `features/psychometrics/sheet/` provider (board-scoped invitations,
+  mounted in `board.tsx`), result tab (guide first, band matrix, focus areas, quality tier, facets, comparisons with
+  history and no automatic replay), labels; result GET only on tab open; scrollable tab rail at 390 px; accent/info
+  tones, no review. The failing «uncertain comparison» test had stale fixtures (pre-L25 rationale), fixed RED → GREEN.
+  `board.tsx:54` exhaustive-deps warning predates T9. Solo delivery gate (nothing else running): 78 files / 1451
+  passed, tsc 0 errors. Commit a28ee619. Browser QA and the canvas handoff «implemented» remain for T12.
+- **L31** T10b (worker mvt6hfw7-f-pf9t): Route Handler `evaluacion/[token]/route.ts` (shape check `^[A-Za-z0-9_-]{32,128}$`,
+  cookie `pf_assessment` httpOnly / Secure in production / SameSite=Lax / Path=/evaluacion / session, 303 to
+  `/evaluacion`, no-store, no-referrer, no backend call; malformed link sets no cookie and keeps an existing one),
+  static `evaluacion/page.tsx` reading the cookie server-side, router-state probe test. Parent removed the obsolete
+  `[token]/page.tsx` + test. Parent re-ran candidate + evaluacion: 3 files / 33 passed, tsc clean. Commit 01cd8bb6
+  (own commit, risk item 2). Independent re-verify mvt6qq3h-h-mjzi launched. T8 worker mvt6pkht-g-8qe5 launched.
+- **L32** Independent re-verify (mvt6qq3h-h-mjzi): PASS for 01cd8bb6 — no token in the static Flight router state, the
+  five Server Action captures encrypted (SWC `encryptActionBoundArgs`), cookie attributes and malformed-link
+  preservation, 303 + no-store + no-referrer without backend call, neutral missing-cookie screen, previous behavior;
+  33/33 and 39/39 with its probes; tsc 0. S4, S11 (public path), S12 (this slice) PASS. Residual deployment checks
+  recorded as E4.
+- **L33** T8 (worker mvt6pkht-g-8qe5): card status rows (`features/psychometrics/card/`), sheet management (send, copy
+  link with revoke-previous confirmation, remind, revoke; token only in the clipboard write), refetch after moves,
+  shared provider. Delivery gate (alone): 81 files, 1 failure — the route-handler inventory in
+  `jobs/requestPath.test.ts` did not list T10's `evaluacion/[token]/route.ts` (a real guard, same class as the checklist
+  L15); parent registered it (555d6c4b, risk item 2: transport guard allowlist; the handler makes no backend call).
+  Then 1486 + inventory green, tsc 0. T8 commit 5fe4cfc6. T11 artboards (worker mvt71zi9-i-8b6u)
+  `design/psychometric-candidate-workspace/` 01 «En la postulación», 02 «Bandeja de pendientes», 03 mobile of 01;
+  parent screenshots render; commit 3bf38c73; pending the user's choice.
+- **L34** (user, verbatim): «si hermano estoy de acuerdo con tu recomendaqcion» — T11 = artboard 01 «En la
+  postulación» (chosen, handed off; 03 is its mobile view) + only the «Pendientes» block of 02 on the candidate
+  dashboard; the rest of 02 stays an alternative. The account path answers inside the candidate shell at
+  `/candidato/evaluaciones/[iid]` (the iid is not a credential: access is by session and candidate match).
+- **L35** T11 worker (mvt89x8a-j-4sek) stopped before writing: the contract named `GET /v2/me/assessments` without a
+  response shape, and the data layer had no list schema. Also found: the candidate dashboard still renders prototype
+  data (`features/candidate/prototype-*`), while «Postulaciones» loads real applications. Parent proposed the list
+  shape in the contract (join by `application_id` = `/v2/me/applications` `items[].id`) and asked the backend; T11
+  resumes after agreement, with the data-layer files added to its surfaces.
+- **L36** Backend agreed the list (msg 9da83c61): `/v2/me/applications` `items[].id` IS the participation id
+  (`v2/store.go:223`, source 'organic'), so `application_id` = participation id for organic participations, else null;
+  tiebreak by id. Backend proposed listing only the latest invitation per (participation, test). User choice
+  (question): «Solo la más reciente (Recomendado)» — the validated artboards 01 and 03 drop «Evaluaciones anteriores»
+  (parent edit; README and 03 tradeoff updated). Contract marked agreed.
