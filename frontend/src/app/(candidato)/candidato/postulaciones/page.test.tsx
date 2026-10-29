@@ -8,8 +8,8 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/candidato/postulaciones
 vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn() }));
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";
 import { page, id } from "@/features/candidate-applications/test-fixtures";
-vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessments: vi.fn().mockResolvedValue({ ok: true, data: { items: [] } }) }));
-import { loadWorkspaceAssessments } from "@/features/psychometrics/workspace/load";
+vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: vi.fn().mockResolvedValue({ ok: true, data: { items: [] } }) }));
+import { loadWorkspaceAssessmentsAction } from "@/features/psychometrics/workspace/load";
 import PostulacionesPage, { metadata } from "./page";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 beforeEach(() => {
@@ -20,7 +20,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 it("keeps metadata, one header and one live workspace inside the existing shell", async () => {
   expect(metadata.title).toBe("Postulaciones"); render(<CandidateShell>{await PostulacionesPage()}</CandidateShell>);
-  expect(loadWorkspaceAssessments).toHaveBeenCalledTimes(1);
+  expect(loadWorkspaceAssessmentsAction).toHaveBeenCalledTimes(1);
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   expect(document.querySelectorAll("[data-pf-applications-workspace]")).toHaveLength(1);
   expect(await screen.findByRole("link", { name: "Backend Go" })).toHaveAttribute("href", `/vacantes/${id}`);
@@ -30,6 +30,7 @@ it("keeps metadata, one header and one live workspace inside the existing shell"
 });
 it("passes no prototype fixtures and leaves fetching and state in the workspace", () => {
   const source = readFileSync(join(process.cwd(), "src/app/(candidato)/candidato/postulaciones/page.tsx"), "utf8");
-  expect(source).toContain("<ApplicationsWorkspace assessments={await loadWorkspaceAssessments()} />");
+  expect(source).toContain("<ApplicationsWorkspace />");
+  expect(source).not.toContain("loadWorkspaceAssessments");
   expect(source).not.toMatch(/prototype-|CANDIDATE_APPLICATIONS|CandidateShell|use client|useEffect|fetch\(/);
 });

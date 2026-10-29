@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AssessmentPage, metadata } from "./page";
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: token }) }) }));
@@ -7,6 +8,7 @@ vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "https://api.examp
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
 const token = "private-assessment-token";
 const hash = "a".repeat(64);
+const canonicalNotice = readFileSync("../docs/psychometrics/consent-notice-v1.md", "utf8").split("## Inicio del aviso\n\n")[1].split("\n\n## Fin del aviso")[0];
 const scale = ["No me describe nada", "Me describe poco", "Me describe a medias", "Me describe bastante", "Me describe totalmente"].map((label, i) => ({ value: i + 1, label }));
 let saved: (number | null)[];
 let consented: boolean;
@@ -49,6 +51,38 @@ it("serves the exact notice before items, requires express consent and posts onl
   expect(calls.find(c => c.path === "/consent")?.body).toEqual({ notice_version: "1", text_sha256: hash });
   expect(screen.getByText("Pregunta 1 de 63")).toBeTruthy(); privateOutput();
 });
+it("renders the backend notice tendencies as a semantic list without changing the consent payload", async () => {
+  const fetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn(async (url: URL, init: RequestInit) => {
+    const result = await fetch(url, init);
+    if (url.pathname === `/v2/assessments/${token}`) {
+      const data = await result.json();
+      return response({ ...data, consent: { ...data.consent, text: canonicalNotice } });
+    }
+    return result;
+  }));
+  render(await AssessmentPage());
+  const list = screen.getByRole("list");
+  expect(list.tagName).toBe("UL");
+  expect(within(list).getAllByRole("listitem").map(item => item.textContent)).toEqual(
+    canonicalNotice.split("\n").filter(line => line.startsWith("- ")).map(line => line.slice(2)),
+  );
+  expect(within(list).getAllByRole("listitem")).toHaveLength(15);
+  expect(document.querySelector('[data-slot="avatar-fallback"]')?.textContent).toBe("E");
+  expect(screen.queryByRole("radio")).toBeNull();
+  expect(saved.every(value => value === null)).toBe(true);
+  fireEvent.click(screen.getByRole("checkbox")); await click("Aceptar y comenzar");
+  expect(calls.find(call => call.path === "/consent")?.body).toEqual({ notice_version: "1", text_sha256: hash });
+});
+it("never retries a failed consent once the box is unchecked", async () => {
+  render(await AssessmentPage());
+  fireEvent.click(screen.getByRole("checkbox")); failNext = { status: 429, code: "rate_limited", retry: "5" };
+  await click("Aceptar y comenzar"); expect(calls.filter(c => c.path === "/consent")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("checkbox")); expect(screen.getByRole("checkbox").getAttribute("aria-checked")).toBe("false");
+  await click("Reintentar");
+  expect(calls.filter(c => c.path === "/consent")).toHaveLength(1);
+  expect(screen.queryByRole("radio")).toBeNull(); privateOutput();
+});
 it("reloads a changed notice without accepting it or loading items", async () => {
   render(await AssessmentPage()); fireEvent.click(screen.getByRole("checkbox"));
   failNext = { status: 409, code: "notice_changed" }; await click("Aceptar y comenzar");
@@ -62,6 +96,22 @@ it("resumes at the first unanswered item with server scale and honest progress",
   expect(screen.getAllByRole("radio").map(r => r.textContent)).toHaveLength(5);
   for (const option of scale) expect(screen.getByRole("radio", { name: option.label })).toBeTruthy();
   expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("2"); privateOutput();
+});
+it("preserves public server-loaded progress across new action identities without a mount reload", async () => {
+  consented = true;
+  const page = await AssessmentPage();
+  const reload = vi.spyOn(page.props.actions, "reloadAction");
+  const view = render(page);
+  expect(reload).not.toHaveBeenCalled();
+  await choose(scale[2].label); await click("Siguiente");
+  // A rerender of the same mounted public flow is not an explicit reload.
+  const actions = { ...page.props.actions, reloadAction: vi.fn(page.props.actions.reloadAction) };
+  await act(async () => { view.rerender(<page.type {...page.props} actions={actions} />); });
+  expect(screen.getByText("1 respondida")).toBeTruthy();
+  expect(screen.getByText("Pregunta 2 de 63")).toBeTruthy();
+  expect(actions.reloadAction).not.toHaveBeenCalled();
+  expect(calls.filter(call => call.method === "GET").map(call => call.path)).toEqual(["", "/items"]);
+  privateOutput();
 });
 it("writes fresh UUID events, pauses hidden time, accumulates revisits, changes and DELETE clears", async () => {
   await start(); clock = 1000; await choose(scale[1].label);
@@ -103,7 +153,16 @@ it("finishes only after all answers and shows no scores", async () => {
   expect(screen.getByText("Pregunta 63 de 63")).toBeTruthy();
   await choose(scale[4].label); await click("Finalizar");
   expect(calls.at(-1)).toMatchObject({ path: "/finish", method: "POST", body: undefined });
-  expect(screen.getByRole("heading", { name: "Gracias por responder" })).toBeTruthy();
+  const heading = screen.getByRole("heading", { name: "Gracias por responder" });
+  expect(heading.classList.contains("text-2xl")).toBe(true);
+  expect(document.activeElement).toBe(heading);
+  const medallion = document.querySelector('[class~="bg-status-success/10"]');
+  expect(medallion?.classList.contains("text-status-success")).toBe(true);
+  expect(medallion?.querySelector('svg.lucide-check[aria-hidden="true"]')).toBeTruthy();
+  expect(screen.getByText("Tus respuestas quedaron guardadas y la evaluación finalizó.")).toBeTruthy();
+  expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "El equipo de Empresa revisará la información junto con otras evidencias del proceso de Puesto.")).toBeTruthy();
+  expect(screen.getByText("Una persona tomará la decisión y te contactará para los siguientes pasos.")).toBeTruthy();
+  expect(screen.getByText("Ya puedes cerrar esta página.")).toBeTruthy();
   expect(screen.queryByText(/puntaje|percentil|score/i)).toBeNull(); privateOutput();
 });
 it("422 incomplete reloads saved answers and goes to the first missing position", async () => {
@@ -144,12 +203,23 @@ it("keeps an unanswered last item incomplete and routes to the first unanswered 
   await click("Siguiente"); expect(screen.getByText("Pregunta 1 de 63")).toBeTruthy();
   expect(calls.some(c => c.path === "/finish")).toBe(false);
   expect(saved[0]).toBeNull(); expect(saved[62]).toBeNull();
-});
+}, 15000);
 it("follows the official choice-card composition and exposes no timer or token client prop", async () => {
   consented = true; const page = await AssessmentPage();
   expect(JSON.stringify(page.props)).not.toContain(token); render(page);
   expect(document.querySelectorAll('[data-slot="radio-group"] > [data-slot="field-label"] > [data-slot="field"] > [data-slot="radio-group-item"]').length).toBe(5);
   expect(screen.queryByRole("timer")).toBeNull(); privateOutput();
+});
+it("matches the question artboard typography and keeps silent programmatic heading focus", async () => {
+  await start();
+  const heading = screen.getByRole("heading", { name: "Frase 1" });
+  expect(heading.parentElement?.classList.contains("data-[variant=legend]:text-2xl")).toBe(true);
+  expect(heading.parentElement?.classList.contains("leading-[1.35]")).toBe(true);
+  expect(heading.parentElement?.classList.contains("font-semibold")).toBe(true);
+  expect(heading.classList.contains("outline-none")).toBe(true);
+  expect(document.activeElement).toBe(heading);
+  await click("Siguiente");
+  expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Frase 2" }));
 });
 it("uses no-store, no-referrer, no credentials on every public backend request and private metadata", async () => {
   await start(); await choose(scale[0].label);

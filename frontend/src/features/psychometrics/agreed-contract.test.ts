@@ -10,7 +10,7 @@ it("uses the backend-agreed v1 contract, not a draft substitute", () => {
 });
 it("matches every contract error table code exactly", () => {
   const table = contract.split("## Error codes")[1].split("## Employer endpoints")[0];
-  expect([...table.matchAll(/^\| `([^`]+)` \|/gm)].map(m => m[1]).sort()).toEqual([...ERROR_CODES].sort());
+  expect([...table.matchAll(/^\| `([^`]+)` \|/gm)].map(m => m[1]).sort()).toEqual([...ERROR_CODES, "not_found"].sort()); // not_found: existing catalog code listed for the position rule
 });
 it("uses canonical catalog ids without aliases", () => {
   const bands = doc("docs/psychometrics/bands-and-competencies-v1.md");

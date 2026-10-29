@@ -85,7 +85,8 @@ An optional, per-vacancy personality assessment whose result is read against the
     "facet_ids": ["facet.c2", "facet.c5"], "oriented_sums": [9, 10],
     "oriented_sum": 19, "facet_count": 2, "index": "9.5", "band": "band.low" }], // exactly 7
   "interpretations": [{ "id": "lib.organizacion.low", "competency_id": "comp.organizacion",
-    "band": "band.low", "work_text": "…", "strengths_text": "…", "development_text": "…" }], // exactly 7
+    "band": "band.low", "intro_text": "…", "work_text": "…", "strengths_text": "…", "development_text": "…",
+    "hypothesis_text": "…" }], // exactly 7
   "quality": {
     "tier": "tier.algunas", "partial": false,
     "signals": [
@@ -156,7 +157,10 @@ never change. The result's latest_comparison.competencies carries the complete p
 The backend stores and returns resolved question text **including the fixed STAR follow-up**, good-answer checklist,
 selection metadata and ordered ids, maximum 8 questions, using the content's deterministic block rules (Clave before
 Importante, distance descending, id ascending; quality last with a reserved block). Interpretation ids and all three
-text sections are snapshots, with the required introductory and hypothesis sentences preserved. The frontend renders
+text sections are snapshots, with the required introductory and hypothesis sentences preserved as their own stored
+strings: `intro_text` (the fixed prepend) rendered before the three sections and `hypothesis_text` (the competency
+hypothesis sentence) after them. The wire projection omits static UI labels (section headings, the quality context
+label), guide `tier` (use quality.tier) and comparison `question_ids` (guide order is the order). The frontend renders
 stored text. No live profile or mutable bank lookup changes an existing report.
 
 Quality: every signal has severity `none|mild|strong|unknown` and the counts shape above; unavailable counts are null,
@@ -253,7 +257,17 @@ Two access paths over the same invitation: public by token, and the candidate wo
   URL path is never logged (`internal/runtime/middleware/request.go:51`).
 - Rate limits (public prefix only; in-process limiter, distributed is infrastructure later): per token hash 300
   requests / 10 min; per IP 600 requests / 10 min plus 30 unknown-token lookups / 10 min; exceeding any →
-  `429 rate_limited` with `Retry-After`. IP = `RemoteAddr` unless `TRUSTED_PROXY_CIDRS` is set (production ALB).
+  `429 rate_limited` with `Retry-After`. A token becomes validated when a handler answers it with a non-404,
+  non-5xx response; the validation lasts 24 hours from its latest such response (renewed on each one) and is cleared
+  at once by an `assessment_unavailable` answer. Validated marks count toward the in-memory key cap (100000,
+  fail-closed: a token that cannot be marked stays unvalidated). The 30 unknown-token budget gates only requests on
+  not-yet-validated tokens: once an IP has spent it, those requests get `429 rate_limited` with `Retry-After` = the
+  rest of that unknown window, while validated tokens keep working, limited only by 300/token and 600/IP.
+  Unknown-token lookups in flight count toward the 30 budget and validated traffic never reserves a lookup slot;
+  while 30 lookups for not-yet-validated tokens are in flight from one IP, further unvalidated requests get
+  `429 rate_limited` with `Retry-After: 1`. Accepted residual: a valid token not validated in the last 24 hours,
+  behind an IP whose unknown budget is spent, gets 429 until that window ends (at most 10 minutes). IP = `RemoteAddr` unless
+  `TRUSTED_PROXY_CIDRS` is set (production ALB).
 - Account: `/v2/me/assessments` (list) and `/v2/me/assessments/{iid}/…` behind `RequireCandidateRole`, matched by the
   participation's candidate, never by token. The identical-404 rule is public-only: the list shows expired, revoked and
   finished invitations with their status (read-only); writes on an expired or revoked invitation →

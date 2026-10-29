@@ -1,10 +1,12 @@
 # Candidate account assessments (T11)
 
-`/candidato/postulaciones` loads `/v2/me/assessments` on the server, preserving the backend's latest-only ordering. The live applications workspace joins `application_id` to the real application id, with vacancy identity checked as well. Manual-intake invitations (`application_id: null`) render separately. Pagination and application search remain local to the existing live applications workspace.
+`/candidato/postulaciones` and the dashboard load `/v2/me/assessments` through `loadWorkspaceAssessmentsAction` after client mount (with the installed Spinner while pending), never during Server Component render: session refresh writes cookies. The action runs on the server, preserving the backend's latest-only ordering. The live applications workspace joins `application_id` to the real application id, with vacancy identity checked as well. Manual-intake invitations (`application_id: null`) render separately. Pagination and application search remain local to the existing live applications workspace.
 
 Dashboard still consumes frozen prototype application/profile fixtures. Its real `Pendientes` block is independent: assessments never enter prototype objects, metrics or messages. It disappears when no invitation is answerable. No history block is rendered (L36).
 
 `/candidato/evaluaciones/[iid]` remains inside the candidate shell, with noindex metadata. It reuses `AssessmentFlow`, resolving the current session server-side for every read/write. Account 404s and closed writes render the neutral `Ya no está disponible`; closed invitations never load items. Scores/results are neither requested nor rendered.
+
+Application assessment Items use a single-column grid for status → full wrapping details/date → action. This avoids the wrapped-flex column interaction with ItemHeader's `basis-full`; descriptions are not line-clamped. In-progress status includes the saved count: `En curso · n de 63` (using the invitation's actual total).
 
 ## shadcn composition audit
 

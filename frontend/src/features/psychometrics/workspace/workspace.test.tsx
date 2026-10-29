@@ -7,11 +7,22 @@ export const assessment: AccountAssessment = { id: "10000000-0000-4000-8000-0000
 afterEach(cleanup);
 it.each(["created", "in_progress"] as const)("renders %s with saved progress, expiry and the account flow link", status => {
   render(<AssessmentBlock item={{ ...assessment, status, answered_count: status === "created" ? 0 : 16 }} />);
-  expect(screen.getByText(status === "created" ? "Pendiente" : "En curso")).toHaveAttribute("data-variant", "accent");
+  expect(screen.getByText(status === "created" ? "Pendiente" : "En curso · 16 de 63")).toHaveAttribute("data-variant", "accent");
   expect(screen.getByText("~10 min · 63 preguntas · Tu avance se guarda")).toBeVisible();
   expect(screen.getByText(/Disponible hasta/)).toBeVisible();
   expect(screen.getByRole("link", { name: status === "created" ? /Responder evaluación/ : /Continuar evaluación/ })).toHaveAttribute("href", `/candidato/evaluaciones/${assessment.id}`);
   expect(screen.queryByText(/score|puntaje|percentil|band.high/i)).toBeNull();
+});
+it("stacks status, unclipped details and action vertically inside an application", () => {
+  const { container } = render(<AssessmentBlock item={assessment} />);
+  const block = screen.getByLabelText("Evaluación Pendiente");
+  // Explicit grid rows avoid ItemHeader's basis-full making a wrapped flex
+  // column spread its content and action into adjacent columns.
+  expect(block).toHaveClass("grid", "grid-cols-1");
+  expect(Array.from(block.children).map(child => child.getAttribute("data-slot"))).toEqual(["item-header", "item-content", "item-actions"]);
+  for (const description of container.querySelectorAll('[data-slot="item-description"]')) {
+    expect(description).toHaveClass("line-clamp-none", "break-words");
+  }
 });
 it.each(["finished", "expired", "revoked"] as const)("keeps %s read-only without scores or history", status => {
   const { container } = render(<AssessmentBlock item={{ ...assessment, status, finished_at: status === "finished" ? "2026-10-30T12:00:00Z" : null }} />);
@@ -33,15 +44,18 @@ it("omits Pendientes when every invitation is closed or the list is empty", () =
   const { container, rerender } = render(<PendingAssessments items={[]} />); expect(container).toBeEmptyDOMElement();
   rerender(<PendingAssessments items={[{ ...assessment, status: "expired" }, { ...assessment, status: "revoked" }]} />); expect(container).toBeEmptyDOMElement();
 });
+vi.mock("./load", () => ({ loadWorkspaceAssessmentsAction: vi.fn() }));
+import { loadWorkspaceAssessmentsAction } from "./load";
 vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn() }));
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";
 import { ApplicationsWorkspace } from "@/features/candidate/applications-workspace";
 import { page } from "@/features/candidate-applications/test-fixtures";
 it("joins only the matching real application and keeps manual invitations on their own", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
-  render(<ApplicationsWorkspace assessments={{ ok: true, data: { items: [{ ...assessment, application_id: page.items[0].id, vacancy: { ...assessment.vacancy, id: page.items[0].vacancy.id } }, { ...assessment, id: assessment.vacancy.id, vacancy: { ...assessment.vacancy, title: "Ingreso manual" } }] } }} />);
+  vi.mocked(loadWorkspaceAssessmentsAction).mockResolvedValue({ ok: true, data: { items: [{ ...assessment, application_id: page.items[0].id, vacancy: { ...assessment.vacancy, id: page.items[0].vacancy.id } }, { ...assessment, id: assessment.vacancy.id, vacancy: { ...assessment.vacancy, title: "Ingreso manual" } }] } });
+  render(<ApplicationsWorkspace />);
   const card = (await screen.findByRole("link", { name: "Backend Go" })).closest('[data-slot="card"]') as HTMLElement;
   expect(within(card).getByRole("link", { name: /Responder evaluación/ })).toHaveAttribute("href", `/candidato/evaluaciones/${assessment.id}`);
-  expect(screen.getByRole("heading", { name: "Ingreso manual" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Ingreso manual" })).toBeVisible();
   expect(screen.getAllByRole("link", { name: /Responder evaluación/ })).toHaveLength(2);
 });

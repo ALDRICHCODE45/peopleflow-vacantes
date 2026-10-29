@@ -1,6 +1,6 @@
 # Public assessment — T10
 
-Covers S4 (answer events and visible time), S11 (account-free, mobile, saved progress) and S12 (backend notice and explicit consent). The account workspace is T11, not this implementation. No scores are sent to or shown by this surface.
+Covers S4 (answer events and visible time), S11 (account-free, mobile, saved progress) and S12 (backend notice and explicit consent). The account workspace is T11. T12a reuses this flow without `initial` data on the account path: a single mounted `reloadAction` resolves the session in a cookie-writable Server Action, with «Cargando evaluación» until settled. Bootstrap captures the initial data/load action once per mounted flow. Cookie-writing account actions can refresh the RSC tree and replace every action identity; this must not re-subscribe to the settled bootstrap promise and replay stale consent, answers or position. Explicit consent/incomplete/retry reloads still use the latest action. Public initial loading remains server-side. No scores are sent to or shown by this surface.
 
 ## Route integration (L29)
 
@@ -26,7 +26,7 @@ There are no console calls, analytics calls, exception messages containing input
 
 ## Response semantics
 
-- Consent shows the exact backend text as plain text with preserved line breaks; its version/hash alone are posted. A changed notice is reloaded and the checkbox resets. Items are not fetched before consent.
+- Consent shows the exact backend wording as escaped text, with paragraphs and semantic lists for the backend's hyphen-prefixed bullet blocks; its version/hash alone are posted. The company name supplies an initials Avatar (no image required). A changed notice is reloaded and the checkbox resets. Items are not fetched before consent.
 - Selecting an option immediately saves it. Previous/next saves a new same-value event before leaving an answered item, including on a revisit. Clear sends DELETE with only a fresh UUID. Actions are serialized; a failed write leaves the confirmed local and backend answer unchanged and disables competing edits until explicit retry.
 - A retry captures the same body (UUID, value and elapsed time) for uncertain PUT/DELETE outcomes. No automatic retries, no per-render events. Transient errors retain a persistent ActionStatus and use the shared toast helper. Successful per-option autosaves use the confirmed selected option/progress rather than a toast per keystroke; errors never rely on transient feedback alone.
 - A monotonic per-item clock pauses on hidden tabs, pagehide, item navigation and unmount, resuming on visibility/pageshow. No visible timer or time limit. It sums intervals across in-memory revisits and caps optional telemetry at the contract limit.
@@ -44,9 +44,11 @@ Official snapshots read from `docs/design/shadcn-reference/` before implementati
 | Answers | radio-group.md Choice Card + Fieldset; field.md Choice Card | FieldSet/Legend/Description/Group → RadioGroup → FieldLabel → horizontal Field → RadioGroupItem + FieldContent/FieldTitle |
 | Progress | progress.md Basic | Real answered count/max; label outside the native track |
 | Navigation | button.md Outline/Default; spinner.md Button | Minimum target size required by approved mobile artboard; native geometry otherwise |
-| Terminal/error states | empty.md empty-demo via existing StateCard | Identical neutral unavailable state; final content and company/vacancy from backend |
-| Pending operations | spinner.md Button | Real pending work only; initial content loaded server-side, so no invented skeleton |
+| Terminal/error states | empty.md empty-demo via existing StateCard; Card → Header/Title → Content for completion | Identical neutral unavailable state; local completion card uses the success-token check medallion, 24px heading and one content inset because StateCard has no success tone |
+| Pending operations | spinner.md Button | Real pending work only; public initial content loaded server-side, account initial read uses the existing Spinner after mount |
 
 Validated references: `design/psychometric-flows/02-candidato-consentimiento.html`, `03-candidato-preguntas.html`, `04-candidato-final.html`. The artboard state switcher is preview-only and not shipped. Added clear/finalize/retry controls are required functional states. No `review` tone, raw colors or manual dark-mode colors.
 
-Pending parent QA: compare at 390px and desktop, light/dark, long notice and names, selected/focused/disabled options, keyboard navigation, all terminal states, and compiled RSC payload/token handling. The allowed runner here is Vitest/TypeScript/ESLint, not a browser or production build.
+Question navigation keeps the clear action as a link-style Button alongside the change-answer guidance. Like a wizard step with no result (§12), it reserves feedback space only when a failure exists; the live ActionStatus and retry behavior remain unchanged. The existing 24px question legend and silent programmatic focus are preserved. Mobile question spacing accounts for the real route shell: compact gaps and 50px choice cards (minimum 48px targets), with desktop padding retained. Long prompts may scroll; no fixed height or overflow clipping hides content.
+
+Parent QA should compare at 390px and desktop, light/dark, long notice and names, selected/focused/disabled options, keyboard navigation, all terminal states, and compiled RSC payload/token handling. Component tests cover both public and account entry points; browser checks must not accept consent or answer a shared QA invitation.

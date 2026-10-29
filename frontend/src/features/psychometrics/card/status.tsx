@@ -1,5 +1,5 @@
 "use client";
-import { ClipboardList } from "lucide-react";
+import { Check, ClipboardList } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useInvitations } from "../sheet/state";
 import { invitationStatusLabels as statusLabels } from "../sheet/invitation-labels";
@@ -15,8 +15,9 @@ export function invitationStatusText(invitation: Invitation) {
 export function PsychometricCardStatus({ participationId }: { participationId: string }) {
   const invitation = useInvitations()?.items.find(item => item.participation_id === participationId);
   if (!invitation) return null;
+  const Icon = invitation.status === "finished" ? Check : ClipboardList;
   return <div className="flex flex-col gap-1.5">
-    <div className="flex items-start gap-2"><ClipboardList aria-hidden="true" className="size-3.5 shrink-0" /><div><p className="text-foreground">Psicometría</p><p>{invitationStatusText(invitation)}</p></div></div>
+    <div className="flex items-start gap-2"><Icon aria-hidden="true" className="size-3.5 shrink-0" /><div><p className="text-foreground">Psicometría</p><p>{invitationStatusText(invitation)}</p></div></div>
     {invitation.status === "in_progress" && <Progress aria-label="Preguntas respondidas" value={invitation.answered_count} max={invitation.total_count} />}
   </div>;
 }

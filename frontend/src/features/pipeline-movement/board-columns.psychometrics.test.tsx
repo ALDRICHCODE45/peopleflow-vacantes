@@ -25,6 +25,8 @@ it.each([
   const other = document.getElementById(`candidate-card-${board.participations[1].id}`)! as HTMLElement;
   expect(within(other).queryByText("Psicometría")).not.toBeInTheDocument();
   expect(card.querySelector('[data-variant="review"]')).toBeNull();
+  // Artboard 05: a check marks the finished state, the clipboard every other one.
+  expect(card.querySelector(status === "finished" ? "svg.lucide-check" : "svg.lucide-clipboard-list")).not.toBeNull();
 });
 it("refreshes automatic invitations after a confirmed movement without changing the move response", async () => {
   const board = boardFixture();

@@ -3,6 +3,8 @@ node_modules/
 out/
 coverage/
 playwright-report/
+# Captured local login sessions (credentials): never commit
+.playwright-auth/
 test-results/
 *.tsbuildinfo
 .env*.local

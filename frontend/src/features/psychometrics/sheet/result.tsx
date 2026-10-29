@@ -26,11 +26,11 @@ export function PsychometricPanel({ invitation, session, locked }: { invitation:
   return <StoredResult data={session.value.data} session={session} locked={locked} />;
 }
 
-function FitBadge({ competency }: { competency: ComparedCompetency }) {
+function FitBadge({ competency, confirmed }: { competency: ComparedCompetency; confirmed: boolean }) {
   // Both gaps use the brand accent, never amber/brown or danger. Search means
   // clarify an adjacent difference; Flag marks a key two-band gap without a verdict.
   const Icon = competency.fit === "fit.alineado" ? CircleCheck : competency.fit === "fit.atencion" ? Flag : Search;
-  return <Badge variant={competency.fit === "fit.alineado" ? "success" : competency.fit ? "accent" : "neutral"}><Icon aria-hidden="true" data-icon="inline-start" />{fitLabel(competency)}</Badge>;
+  return <Badge variant={competency.fit === "fit.alineado" ? "success" : competency.fit ? "accent" : "neutral"}><Icon aria-hidden="true" data-icon="inline-start" />{fitLabel(competency, confirmed)}</Badge>;
 }
 function BandMatrix({ competency }: { competency: ComparedCompetency }) {
   return <div role="region" aria-label={`Bandas · ${competencyLabels[competency.competency_id]}`} className="flex flex-col gap-2">
@@ -100,9 +100,10 @@ function StoredResult({ data, session, locked }: { data: AssessmentResult; sessi
       <p className="text-xs leading-5 text-muted-foreground">Bandas por significado, no percentiles. Ninguna banda es intrínsecamente mejor. Contorno: deseado · Relleno: obtenido.</p>
       {comparison.competencies.map(c => {
         const interpretation = data.interpretations.find(i => i.competency_id === c.competency_id)!;
-        return <section key={c.competency_id} aria-label={competencyLabels[c.competency_id]} className="flex flex-col gap-4 border-b pb-5"><div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="text-sm font-medium">{competencyLabels[c.competency_id]}</h4><p className="text-xs text-muted-foreground">{importanceLabels[c.importance]}</p></div><FitBadge competency={c} /></div><BandMatrix competency={c} />
+        return <section key={c.competency_id} aria-label={competencyLabels[c.competency_id]} className="flex flex-col gap-4 border-b pb-5"><div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="text-sm font-medium">{competencyLabels[c.competency_id]}</h4><p className="text-xs text-muted-foreground">{importanceLabels[c.importance]}</p></div><FitBadge competency={c} confirmed={comparison.profile_version !== null} /></div><BandMatrix competency={c} />
+          <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">{interpretation.intro_text}</p>
           <dl className="flex flex-col gap-3 text-sm leading-6">{[["Cómo se puede ver en el trabajo", interpretation.work_text], ["Fortalezas", interpretation.strengths_text], ["Áreas a desarrollar", interpretation.development_text]].map(([label, text]) => <div key={label}><dt className="text-xs font-medium text-muted-foreground">{label}</dt><dd className="whitespace-pre-wrap break-words">{text}</dd></div>)}</dl>
-          <p className="text-xs leading-5 text-muted-foreground">La relación con esta competencia es una hipótesis. Confírmala con ejemplos de trabajo.</p>
+          <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">{interpretation.hypothesis_text}</p>
         </section>;
       })}
     </section>

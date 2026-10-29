@@ -34,4 +34,8 @@ export function questionReason(q: GuideQuestion) {
   return `${importanceLabels[q.importance]} · banda ${bandLabels[q.observed_band]} · ${q.selector === "quality" ? "seguimiento de cómo se respondió" : q.fit ? fitLabels[q.fit] : "explorar con ejemplos de trabajo"}${q.desired_band ? ` · deseado: ${bandLabels[q.desired_band]}` : ""}`;
 }
 export function comparisonLabel(version: string | null) { return version === null ? "Perfil sin confirmar" : `Perfil versión ${version}`; }
-export function fitLabel(c: ComparedCompetency) { return c.fit ? fitLabels[c.fit] : "sin perfil confirmado"; }
+/** fit is null for two causes (contract): the comparison has no confirmed profile, or the competency is no relevante. */
+export function fitLabel(c: ComparedCompetency, confirmed: boolean) {
+  if (c.fit) return fitLabels[c.fit];
+  return confirmed ? "No se compara" : "sin perfil confirmado";
+}

@@ -99,7 +99,8 @@ fe4cfc6 |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | 6d758bd2 |
-| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | |
+| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | f3af42e2, 95fc0c59, 46f308e1, 5fa1487f, df89d4be, e0e36d9d, 46eb8d7f, abaa6299, effabc49 |
+| T12a | S11, S12 | worker — fix: account reads resolve the session in a mounted Server Action, not during render (workspace list + `/candidato/evaluaciones/[iid]` initial load); question heading size and programmatic-focus outline | 27b31339, e0e36d9d |
 | T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
 
 ## Log
@@ -301,3 +302,69 @@ fe4cfc6 |
   Contract wording aligned: account-path write on a finished invitation → 409 assessment_finished (invitation_closed
   only for expired/revoked); answer PUT/DELETE outside 1..63 → 404 not_found; consent audit actor = candidate user
   (account) or system (public). Frontend already handles both codes (no code change).
+- **L39** (user, verbatim): «si por favor, dame la hoja.» — review sheet for the recruiter (worker mvtfkate-l-h4uy,
+  `docs/psychometrics/revision/`). Worker found 11 translation corrections in the 60-item bank, not 23: the 23 were
+  counted on the 116-item bank (L14) before the L15 reduction; the parent had kept quoting 23 to the user.
+- **L40** (backend B9 question, frontend decision): Result interpretations gain stored `intro_text` (fixed prepend,
+  rendered before the three sections) and `hypothesis_text` (rendered after); the sheet no longer hardcodes the
+  hypothesis sentence and now shows the intro it was missing. Wire omits static headings, the quality context label,
+  guide `tier` and comparison `question_ids`. latest_comparison stays non-nullable (finish inserts the initial
+  comparison in the same transaction). B8 429 body is a plain {error, code} envelope with Retry-After delta-seconds.
+- **L41** T12 started against the backend QA API (127.0.0.1:8080, binary 49504063 = B7b+B9+B8+B8 fix+B10, local
+  disposable Postgres). User (verbatim): «no lo puedes hacaer tu???? es que me tengo que ir a dormir, y te quiero dejar
+  haciendolo, aun no tenemos el archivo de la sesion para uqe puedas entrar como reclutador o como candidato cierto? hay
+  que hacerlo» → `frontend/tests/e2e/capture-session.mjs` + ignored `.playwright-auth/` (0600); employer and candidate
+  sessions captured by the user. Profile A confirmed through the UI (backend DB check: version 1, confirmed; the
+  Importante entry landed on comp.compromisos, user filled «Cuidado de acuerdos»; editor mapping verified correct).
+  Invitation A1 (Mariana Ortega Silva) sent and link copied through the sheet; a QA log printed the first link path, so
+  it was rotated with «Copiar enlace» (old token → 404, new → 200). User: «recuerda tu system design, shadcn, revisar no
+  solo funcionalidad, tambien diseno» — QA covers design against the artboards and the UI rules.
+- **L42** T12 public QA (verify mvtkmgcu): A1 consent → 63 answers → finish → reload final, resume and clear after reload,
+  unknown token neutral: pass; no zod issues. `incomplete` 422 not reachable from the UI (no finish before the last
+  answer). Design: question prompt renders ~16px instead of artboard 03's 24px (`FieldLegend` variant class
+  `data-[variant=legend]:text-base` outranks `text-2xl`) and the programmatically focused heading shows a focus box;
+  minors: consent lacks the company mark and the tendency list is hyphen text, final card uses the info tone instead
+  of success and a 20px title, mobile question page exceeds 844px. Card status verified (Enviada · vence / En curso ·
+  n de 63 / Finalizado; the gender mix comes from artboard 05). Candidate account QA found a BLOCKER: dashboard and
+  postulaciones show «No pudimos cargar las evaluaciones» and the account assessment page cannot load, because
+  `psychometrics/workspace/load.ts` and `candidate/account-page.tsx` call `getActionAccessToken()` during Server
+  Component render (it writes session cookies, Server Actions only); no API request leaves. T11 tests mocked it. → T12a.
+- **L43** T12 fixes: 95fc0c59 («No se compara» for no relevante on a confirmed comparison), 46f308e1 (finished card
+  check icon), 27b31339 (T12a: account reads in mounted Server Actions; browser-verified dashboard shows the pending
+  assessment; question 24px, no heading focus box), 5fa1487f (compact profile rows per artboard 01, per-entry rationale
+  kept per L28). Backend B8 (msg 506dd081) contract decision, option A accepted by the frontend contract owner:
+  unknown-token lookups in flight count toward the 30 budget, validated tokens never reserve a slot, residual burst →
+  429 Retry-After: 1. Delivery strategy (user, backend msg 91dfd5ab): one merge of both feature branches into main
+  after validation and review, no chained PRs; slice boundaries are the work-unit commits.
+- **L44** T12 closing evidence (night run, user asleep). Candidate account QA with A2 found stale state after every
+  account write (each Server Action refreshes the route; the mount effect re-subscribed to the cached initial promise
+  and replayed stale consent/answers) → e0e36d9d, plus the vertical application block with «En curso · n de 63» and the
+  real mobile question route fitting 390×844 (account footer 811px, public 832px). Browser-verified on fresh account
+  invitation B1 (vacancy B profile enabled, unconfirmed): three answers advance without reload; public A3 two answers.
+  A2 finished end to end through the UI. df89d4be consent/final/question parity; 46eb8d7f outline link through `cn`
+  (guard red since T11). 429 vs binary 49504063: request 31 of random tokens → 429, Retry-After 600, no-store,
+  no-referrer, body {error, code}; UI shows «Demasiados intentos, espera N segundos». FINDING sent to backend: after the
+  unknown budget is exhausted a validated token (A3) is also 429 from that IP; re-check pending on the backend fix.
+  Temporary T12 diagnostics in client.ts reverted (never committed). Quiet full suite (Node 22, dev server stopped):
+  8909 passed / 4 failed / 1 skipped; the button guard was real (fixed); combobox, icon-picker and rich description
+  timeouts pass when run alone (load-induced). tsc 0. Minor open items for the user: «espera N segundos» could read in
+  minutes; the disabled «Sin banda» select truncates in the narrow band column; the single hypothesis sentence still
+  says «esta competencia»; artboard 05 mixes «Enviada» and «Finalizado».
+- **L45** Backend (msg 3357e439) confirmed the validated-token exhaustion finding; contract effabc49 agreed: 24h
+  validation renewed per non-404/non-5xx answer, cleared on assessment_unavailable, 30 unknown budget gates only
+  not-yet-validated tokens. Re-check vs QA API 01a8b713 (msg df7c0d3b) from 127.0.0.1: A3 200 → 31 random tokens
+  (1–30 404, 31 → 429) → A3 200 and the UI shows «Pregunta 3 de 63 · 2 respondidas» → another random token 429,
+  Retry-After 599, body {error, code}. T12 QA complete; delivery: single merge with the backend after their verify
+  and review.
+- **L46** User (verbatim): «mi pregunta ahora hacia ti es, si podemos hacer la verificacion nativa sobre tu codigo, ya
+  que anteriormente rdd estaba desactivado.» → chose «Por cortes, primero los de riesgo». Native review (RDD on), one
+  detached `.review/` worktree per slice, baseRef = slice parent, committed-only; all approved and acknowledged:
+  S1 T10 01cd8bb6..555d6c4b (review-b558c5b4d26163a1) CRITICAL R3-consent-retry → correction 09345169, validated,
+  ported 69dd2d19; S2 T12 fixes f3af42e2..46eb8d7f (review-4e430335f8bcb3b2); S3 T6 e6c9c5e5 (review-03f3d4180ab3e6ca,
+  clean); S4 T7 8d0e134a..9ace0a59 (review-da7f4c8d7747ef86); S5 T9 a28ee619 (review-85bfcc4ba60e1fb4) CRITICAL
+  R3-comparison-cache-reversion → correction 48681613, validated, ported 403fb998; S6 T8 5fe4cfc6
+  (review-8e5d87a5f2d81b22); S7 T11 6d758bd2..75c0c690 (review-b4bea44a655184c6, clean); S8 ports + docs
+  46eb8d7f..403fb998 (review-dcba36b7a3937511, clean). Correction commits kept under refs/gentle-review/*.
+  Non-blocking advisories, follow-ups (FU): reload loses historical item timing (assessment-flow reload, S1);
+  capture-session origin normalization; mounted workspace read retry/recovery (S2); profile confirmation read-back
+  after save (editor ~96-98, S4); dropped board refresh and profile-read recovery in sheet state (~32, ~56-57, S6).

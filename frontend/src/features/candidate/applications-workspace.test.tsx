@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: async () => ({ ok: true, data: { items: [] } }) }));
 vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";

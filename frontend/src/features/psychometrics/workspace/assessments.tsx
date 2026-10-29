@@ -14,17 +14,17 @@ const labels = { created: "Pendiente", in_progress: "En curso", finished: "Final
 
 /** Item outline follows item-demo: a task within an application, never a nested Card. */
 export function AssessmentBlock({ item }: { item: AccountAssessment }) {
-  return <Item variant="outline" className="flex-col items-stretch" aria-label={`Evaluación ${labels[item.status]}`}>
+  return <Item variant="outline" className="grid grid-cols-1 items-stretch" aria-label={`Evaluación ${labels[item.status]}`}>
     <ItemHeaderContent item={item} />
-    <ItemContent>
+    <ItemContent className="min-w-0">
       {answerable(item) ? <>
-        <ItemDescription>Conoce tu forma de trabajar: afirmaciones sobre cómo sueles actuar.</ItemDescription>
-        <ItemDescription>~{item.estimated_minutes} min · {item.total_count} preguntas · Tu avance se guarda</ItemDescription>
-        <ItemDescription>Disponible hasta el {date.format(new Date(item.expires_at))}</ItemDescription>
+        <ItemDescription className="line-clamp-none break-words">Conoce tu forma de trabajar: afirmaciones sobre cómo sueles actuar.</ItemDescription>
+        <ItemDescription className="line-clamp-none break-words">~{item.estimated_minutes} min · {item.total_count} preguntas · Tu avance se guarda</ItemDescription>
+        <ItemDescription className="line-clamp-none break-words">Disponible hasta el {date.format(new Date(item.expires_at))}</ItemDescription>
         {item.status === "in_progress" && <Progress value={item.answered_count} max={item.total_count} aria-label="Preguntas respondidas" />}
       </> : <>
-        <ItemDescription>{item.status === "finished" && item.finished_at ? `Terminaste el ${date.format(new Date(item.finished_at))}. Tus respuestas quedaron guardadas.` : "Ya no está disponible"}</ItemDescription>
-        <ItemDescription>Solo lectura · La decisión siempre la toma una persona.</ItemDescription>
+        <ItemDescription className="line-clamp-none break-words">{item.status === "finished" && item.finished_at ? `Terminaste el ${date.format(new Date(item.finished_at))}. Tus respuestas quedaron guardadas.` : "Ya no está disponible"}</ItemDescription>
+        <ItemDescription className="line-clamp-none break-words">Solo lectura · La decisión siempre la toma una persona.</ItemDescription>
       </>}
     </ItemContent>
     {answerable(item) && <ItemActions><Link href={href(item)} className={cn(buttonVariants(), "w-full sm:w-auto")}>{item.status === "in_progress" ? "Continuar evaluación" : "Responder evaluación"}<ArrowRight aria-hidden="true" data-icon="inline-end" /></Link></ItemActions>}
@@ -33,7 +33,7 @@ export function AssessmentBlock({ item }: { item: AccountAssessment }) {
 function ItemHeaderContent({ item }: { item: AccountAssessment }) {
   return <ItemHeader>
     <ItemTitle><ClipboardList aria-hidden="true" className="size-4" />Evaluación</ItemTitle>
-    <Badge variant={answerable(item) ? "accent" : item.status === "finished" ? "success" : "neutral"} dot>{labels[item.status]}</Badge>
+    <Badge variant={answerable(item) ? "accent" : item.status === "finished" ? "success" : "neutral"} dot>{labels[item.status]}{item.status === "in_progress" && ` · ${item.answered_count} de ${item.total_count}`}</Badge>
   </ItemHeader>;
 }
 export function PendingAssessments({ items }: { items: AccountAssessment[] }) {
@@ -44,7 +44,7 @@ export function PendingAssessments({ items }: { items: AccountAssessment[] }) {
     <CardContent><ItemGroup>{pending.map(item => <Item key={item.id}>
       <ItemMedia variant="icon"><ClipboardList aria-hidden="true" /></ItemMedia>
       <ItemContent><ItemTitle>Evaluación · {item.vacancy.title}</ItemTitle><ItemDescription>{item.company.name} · Disponible hasta el {date.format(new Date(item.expires_at))}</ItemDescription></ItemContent>
-      <ItemActions><Link href={href(item)} className={buttonVariants({ variant: "outline" })}>Revisar pendiente<ArrowRight aria-hidden="true" data-icon="inline-end" /></Link></ItemActions>
+      <ItemActions><Link href={href(item)} className={cn(buttonVariants({ variant: "outline" }))}>Revisar pendiente<ArrowRight aria-hidden="true" data-icon="inline-end" /></Link></ItemActions>
     </Item>)}</ItemGroup></CardContent>
   </Card>;
 }
