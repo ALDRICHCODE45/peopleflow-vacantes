@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	ErrUnavailable           = errors.New("psychometric assessment unavailable")
 	ErrNotFound              = errors.New("psychometric invitation not found")
 	ErrProfileDisabled       = errors.New("psychometric profile disabled")
 	ErrAlreadyFinished       = errors.New("psychometric assessment already finished")
@@ -63,7 +64,13 @@ type Result struct {
 	Body   []byte
 	Status int
 }
+type Link struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 type Store interface {
+	MintLink(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (Result, error)
 	ListInvitations(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (Result, error)
 	CreateInvitation(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (Result, error)
 	RemindInvitation(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (Result, error)

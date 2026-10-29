@@ -2,6 +2,9 @@ package postgres
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"time"
@@ -197,12 +200,15 @@ func (s *InvitationsStore) CreateInvitation(ctx context.Context, company, actor,
 	return s.commitInvitation(ctx, tx, actor, id, i, "PsychometricInvitationCreated", 201)
 }
 func (s *InvitationsStore) RemindInvitation(ctx context.Context, company, actor, id, iid uuid.UUID) (invitations.Result, error) {
-	return s.mutateInvitation(ctx, company, actor, id, iid, false)
+	return s.mutateInvitation(ctx, company, actor, id, iid, "remind")
 }
 func (s *InvitationsStore) RevokeInvitation(ctx context.Context, company, actor, id, iid uuid.UUID) (invitations.Result, error) {
-	return s.mutateInvitation(ctx, company, actor, id, iid, true)
+	return s.mutateInvitation(ctx, company, actor, id, iid, "revoke")
 }
-func (s *InvitationsStore) mutateInvitation(ctx context.Context, company, actor, id, iid uuid.UUID, revoke bool) (invitations.Result, error) {
+func (s *InvitationsStore) MintLink(ctx context.Context, company, actor, id, iid uuid.UUID) (invitations.Result, error) {
+	return s.mutateInvitation(ctx, company, actor, id, iid, "link")
+}
+func (s *InvitationsStore) mutateInvitation(ctx context.Context, company, actor, id, iid uuid.UUID, action string) (invitations.Result, error) {
 	tx, _, err := s.begin(ctx, company, actor, id, true)
 	if err != nil {
 		return invitations.Result{}, err
@@ -233,8 +239,24 @@ func (s *InvitationsStore) mutateInvitation(ctx context.Context, company, actor,
 	if err != nil {
 		return invitations.Result{}, err
 	}
+	if action == "link" {
+		if !i.Active() {
+			return invitations.Result{}, invitations.ErrInvitationClosed
+		}
+		var entropy [32]byte
+		if _, err = rand.Read(entropy[:]); err != nil {
+			return invitations.Result{}, errors.New("psychometric link generation failed")
+		}
+		token := base64.RawURLEncoding.EncodeToString(entropy[:])
+		// Hash the encoded wire bytes, never the decoded random bytes.
+		hash := sha256.Sum256([]byte(token))
+		if _, err = tx.Exec(ctx, `UPDATE psychometric_invitations SET token_hash=$2 WHERE id=$1`, iid, hash[:]); err != nil {
+			return invitations.Result{}, err
+		}
+		return s.commitInvitationValue(ctx, tx, actor, id, i, "PsychometricLinkIssued", 200, invitations.Link{Token: token, ExpiresAt: i.ExpiresAt})
+	}
 	event := "PsychometricReminderRecorded"
-	if revoke {
+	if action == "revoke" {
 		if i.Status == "revoked" {
 			return invitationResult(i, 200)
 		}
@@ -256,10 +278,13 @@ func (s *InvitationsStore) mutateInvitation(ctx context.Context, company, actor,
 	return s.commitInvitation(ctx, tx, actor, id, i, event, 200)
 }
 func (s *InvitationsStore) commitInvitation(ctx context.Context, tx pgx.Tx, actor, id uuid.UUID, i invitations.Invitation, event string, status int) (invitations.Result, error) {
+	return s.commitInvitationValue(ctx, tx, actor, id, i, event, status, i)
+}
+func (s *InvitationsStore) commitInvitationValue(ctx context.Context, tx pgx.Tx, actor, id uuid.UUID, i invitations.Invitation, event string, status int, value any) (invitations.Result, error) {
 	if err := s.jobs.AuditPsychometricInvitation(ctx, tx, actor, id, i.ParticipationID, i.ID, event); err != nil {
 		return invitations.Result{}, err
 	}
-	result, err := invitationResult(i, status)
+	result, err := invitationResult(value, status)
 	if err != nil {
 		return invitations.Result{}, err
 	}

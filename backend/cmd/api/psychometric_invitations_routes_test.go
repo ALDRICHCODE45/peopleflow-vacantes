@@ -35,10 +35,14 @@ func (s *invitationRouteStore) RevokeInvitation(context.Context, uuid.UUID, uuid
 	s.calls++
 	return s.result, s.err
 }
+func (s *invitationRouteStore) MintLink(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (invitations.Result, error) {
+	s.calls++
+	return s.result, s.err
+}
 func TestPsychometricInvitationRoutes(t *testing.T) {
 	base := "/v2/me/company/job-drafts/" + routeTestDraftID.String()
 	auth := map[string]string{"X-Test-Sub": "sub", "X-Test-Role": routeTestRecruiterHeader}
-	for _, route := range []struct{ method, path string }{{"GET", base + "/psychometric-invitations"}, {"POST", base + "/participations/" + uuid.NewString() + "/psychometric-invitations"}, {"POST", base + "/psychometric-invitations/" + uuid.NewString() + "/reminders"}, {"POST", base + "/psychometric-invitations/" + uuid.NewString() + "/revoke"}} {
+	for _, route := range []struct{ method, path string }{{"POST", base + "/psychometric-invitations/" + uuid.NewString() + "/link"}, {"GET", base + "/psychometric-invitations"}, {"POST", base + "/participations/" + uuid.NewString() + "/psychometric-invitations"}, {"POST", base + "/psychometric-invitations/" + uuid.NewString() + "/reminders"}, {"POST", base + "/psychometric-invitations/" + uuid.NewString() + "/revoke"}} {
 		for _, tc := range []struct {
 			name          string
 			headers       map[string]string

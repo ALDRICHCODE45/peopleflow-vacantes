@@ -76,7 +76,7 @@ func TestPsychometricInvitationFlowAuditFailureRollsBack(t *testing.T) {
 	iid := created["id"].(string)
 	path := f.base + "/psychometric-invitations/" + iid
 	reject()
-	for _, suffix := range []string{"/reminders", "/revoke"} {
+	for _, suffix := range []string{"/link", "/reminders", "/revoke"} {
 		invitationError(t, f, path+suffix, f.actor.token, 500, "internal_error", "an internal error occurred")
 	}
 	// Even expiry slot release must roll back if the replacement's audit fails.

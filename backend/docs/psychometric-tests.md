@@ -1,7 +1,7 @@
-# Vacancy psychometric assessments (B3–B4)
+# Vacancy psychometric assessments (B3–B5)
 
 Employers can save a private, vacancy-scoped profile for `ipip60-mx` and manage
-invitations. These slices do not issue links, auto-send, collect answers, expose
+invitations and issue single-display links. These slices do not auto-send, collect answers, expose
 results or move/reject anyone. The authoritative wire contract
 is [psychometric-tests-v1](../../docs/contracts/psychometric-tests-v1.md).
 
@@ -145,6 +145,37 @@ change, including expired-slot release. The migration Down locks the invitation
 table and refuses rollback while any invitation remains. A nullable, 32-byte,
 unique-when-present `token_hash` is reserved for B5; B4 never sets it.
 
+## Employer links (B5)
+
+`POST /v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/link`
+returns `200 {"token":"…","expires_at":"RFC 3339"}` with
+`Cache-Control: no-store`. It uses the same recruiter/vacancy gates and requires
+no body or `If-Match`. Unknown/foreign invitations or vacancies are `404`;
+finished processes are `409 process_finished`; finished, revoked or expired
+invitations are `409 invitation_closed`. Expiry is checked using server wall
+clock time after acquiring the B4 locks.
+
+Each successful call generates 32 fresh bytes with `crypto/rand` and encodes them
+as unpadded base64url (43 ASCII characters). **The stored SHA-256 is over the
+43 encoded ASCII/UTF-8 bytes exactly as sent in `token`, not the decoded random
+bytes.** Only that 32-byte digest is persisted in `token_hash`. The frontend
+composes its own `/evaluacion/{token}` URL. Do not log the token, put it in audit
+metadata or errors, or persist it client-side. It is returned only on mint.
+
+The hash replacement and `PsychometricLinkIssued` audit (actor and invitation,
+with existing vacancy/participation metadata) commit in one transaction. Audit
+failure rolls back the replacement. A previous token becomes unavailable as soon
+as the new hash commits; concurrent issuers leave only the last committed token
+valid. Progress, account access, invitation expiry and retention are unchanged.
+
+`InvitationsStore.LookupToken` is available internally but **has no public route**
+until B7. It accepts exactly 43 base64url characters, hashes the same wire bytes,
+and executes the same query shape for every input. Malformed, unknown, revoked
+and expired tokens return `uuid.Nil` and the identical `ErrUnavailable`; database
+failures remain internal errors. This is not a constant-time database guarantee.
+Candidate writes must recheck availability under the B4 lock order; lookup alone
+does not authorize a later write. B7/B8 own public responses, headers and limits.
+
 ## Verification
 
 From `backend/`:
@@ -163,7 +194,7 @@ a dedicated **loopback** database named **draft_test**; never the development DB
 The harness refuses other hosts/database names, never reads ambient
 `DATABASE_URL`, migrates only the isolated DB and cleans up its fixtures. With no
 dedicated DSN it skips; a skip is not database verification. Archguard's existing
-`docker/minio/Dockerfile` locked-non-goal failure is unrelated to B3/B4. On macOS's
+`docker/minio/Dockerfile` locked-non-goal failure is unrelated to B3–B5. On macOS's
 bash 3.2, the pre-existing `scripts/closure/gate:44` command-substitution/case
 syntax also breaks closure receipt tests in the full suite; it is not a profile
 failure.

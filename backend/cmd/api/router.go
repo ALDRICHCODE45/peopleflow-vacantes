@@ -247,6 +247,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Delete)
 		r.Get("/v2/me/company/job-drafts/{id}/psychometric-invitations", d.psychometricInvitationsHandler.List)
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/psychometric-invitations", d.psychometricInvitationsHandler.Create)
+		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/link", d.psychometricInvitationsHandler.Link)
 		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/reminders", d.psychometricInvitationsHandler.Remind)
 		r.Post("/v2/me/company/job-drafts/{id}/psychometric-invitations/{iid}/revoke", d.psychometricInvitationsHandler.Revoke)
 		r.Get("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Get)

@@ -19,6 +19,7 @@ type InvitationsHandler struct {
 func NewInvitationsHandler(store invitations.Store, contextError func(http.ResponseWriter, error)) *InvitationsHandler {
 	return &InvitationsHandler{store, contextError}
 }
+func (h *InvitationsHandler) Link(w http.ResponseWriter, r *http.Request)   { h.serve(w, r, "link") }
 func (h *InvitationsHandler) List(w http.ResponseWriter, r *http.Request)   { h.serve(w, r, "list") }
 func (h *InvitationsHandler) Create(w http.ResponseWriter, r *http.Request) { h.serve(w, r, "create") }
 func (h *InvitationsHandler) Remind(w http.ResponseWriter, r *http.Request) { h.serve(w, r, "remind") }
@@ -48,6 +49,8 @@ func (h *InvitationsHandler) serve(w http.ResponseWriter, r *http.Request, actio
 	}
 	var result invitations.Result
 	switch action {
+	case "link":
+		result, err = h.store.MintLink(r.Context(), cc.CompanyID, cc.UserID, id, target)
 	case "list":
 		result, err = h.store.ListInvitations(r.Context(), cc.CompanyID, cc.UserID, id)
 	case "create":
