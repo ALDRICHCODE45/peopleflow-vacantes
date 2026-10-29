@@ -107,3 +107,6 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   unconfirmed suppression, candidate account path and the 429 re-check (A3 validated first → 30× 404, 31st 429,
   A3 still 200 with «Pregunta 3 de 63 · 2 respondidas», random token 429 Retry-After 599) all pass; no contract or
   zod mismatch. Frontend ready to coordinate the single merge once backend verify/review close.
+- **L15.** Independent verify of e1304a49: S8 met, no blockers (100000-key cap stays fail-closed with validated
+  keys; settle/admit share the mutex; retrospective RED of the lifecycle tests on ac2e7ab9). Verifier probes pinned
+  in 6dbed356. Backend slices B1–B10 complete and verified; next: joint close with frontend and the single merge.
