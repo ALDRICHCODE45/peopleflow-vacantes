@@ -30,7 +30,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
 | T4 | S3 | worker — B3 profile GET/PUT + migration 00049 + jobs adapter; L25 follow-up (rationale only for relevant competencies); relevant rationale always a string (null → invalid, frontend 2026-10-29) | ac17f5e7, 800dd86f |
 | T5 | S3–S10 | worker — B4 implemented: migration 00050, status-only board list, idempotent manual send, reminders/revoke, in-tx audits and error catalog; participation locking + expired-slot supersession preserve status/retention. RED missing package/table and unpublished-target 500 observed; GREEN focused/shared, routes, isolated API/checklist/board, guarded Downs and vet; archguard only pre-existing Dockerfile. B5–B10 remain separate. | ee7f19ba |
 | T6 | S3–S10 | worker — B5 link mint implemented: crypto/rand 256-bit base64url, wire-byte SHA-256 only, in-tx rotation/audit with B4 gates/locks, no-store; unrouted lookup unifies malformed/unknown/revoked/expired. RED missing route/lookup observed; GREEN unit/routes + isolated DB rotation/concurrency/closed/audit rollback, migrations and vet pass; archguard only pre-existing Dockerfile. B6–B10 remain separate. (independent verify PASS) | 09e71378 |
-| T7 | S3–S10 | B6 auto-trigger on stage entry | pending |
+| T7 | S3–S10 | worker + parent — B6 StageEntryHook port (applications) implemented by psychometrics; move/recovery/intake/apply only; system audit; parent ran archguard (only Dockerfile), go test ./internal/..., integration board/movement/discard/manual/apply/pipeline/checklist/psychometric all green | 533136c8 |
 | T8 | S3–S10 | B7 candidate endpoints (public + account) | pending |
 | T9 | S3–S10 | B8 public limiter + headers (own commit, security) | pending |
 | T10 | S3–S10 | B9 result GET audited + comparisons | pending |
@@ -61,3 +61,7 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   code, merged as shared history): «profile `rationale` is required only for importance.clave and
   importance.importante (task only for clave). importance.no_relevante ⇒ desired_band, rationale AND task are null
   (always, also in drafts); never-saved defaults = no_relevante with rationale null.» B3 follow-up in progress.
+- **L7.** B6 worker timed out during a host stall: macOS syspolicyd/XProtect assessed every freshly built test binary
+  (pure unit packages killed at 6 min). User added the terminal to Privacy & Security → Developer Tools (2026-10-29);
+  parent re-measured draftjson tests 6 min → 2 s, then verified B6 and committed it. Account list agreed (frontend
+  36ed3d22, merged f4ce0aef): only the latest invitation per (participation, test), user «Solo la más reciente».
