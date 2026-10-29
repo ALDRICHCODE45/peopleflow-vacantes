@@ -99,7 +99,7 @@ fe4cfc6 |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | 6d758bd2 |
-| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | f3af42e2, 95fc0c59, 46f308e1, 5fa1487f, df89d4be, e0e36d9d, 46eb8d7f |
+| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | f3af42e2, 95fc0c59, 46f308e1, 5fa1487f, df89d4be, e0e36d9d, 46eb8d7f, abaa6299, effabc49 |
 | T12a | S11, S12 | worker — fix: account reads resolve the session in a mounted Server Action, not during render (workspace list + `/candidato/evaluaciones/[iid]` initial load); question heading size and programmatic-focus outline | 27b31339, e0e36d9d |
 | T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
 
@@ -350,3 +350,9 @@ fe4cfc6 |
   timeouts pass when run alone (load-induced). tsc 0. Minor open items for the user: «espera N segundos» could read in
   minutes; the disabled «Sin banda» select truncates in the narrow band column; the single hypothesis sentence still
   says «esta competencia»; artboard 05 mixes «Enviada» and «Finalizado».
+- **L45** Backend (msg 3357e439) confirmed the validated-token exhaustion finding; contract effabc49 agreed: 24h
+  validation renewed per non-404/non-5xx answer, cleared on assessment_unavailable, 30 unknown budget gates only
+  not-yet-validated tokens. Re-check vs QA API 01a8b713 (msg df7c0d3b) from 127.0.0.1: A3 200 → 31 random tokens
+  (1–30 404, 31 → 429) → A3 200 and the UI shows «Pregunta 3 de 63 · 2 respondidas» → another random token 429,
+  Retry-After 599, body {error, code}. T12 QA complete; delivery: single merge with the backend after their verify
+  and review.
