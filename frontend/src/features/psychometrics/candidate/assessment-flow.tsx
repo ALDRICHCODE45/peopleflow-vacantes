@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { cn } from "cn";
 import { Check, LockKeyhole, CircleAlert } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
@@ -36,7 +38,7 @@ function message(failure: Failure) {
   return "No pudimos confirmar el guardado. Puedes reintentar sin duplicar tu respuesta.";
 }
 
-export function AssessmentFlow({ initial, actions }: { initial: Result<AssessmentData>; actions: Actions }) {
+export function AssessmentFlow({ initial, actions, account = false }: { initial: Result<AssessmentData>; actions: Actions; account?: boolean }) {
   const [data, setData] = useState(initial.ok ? initial.data : null);
   const [failure, setFailure] = useState<Failure | null>(initial.ok ? null : initial);
   const [unavailable, setUnavailable] = useState(initial.ok ? ["expired", "revoked"].includes(initial.data.base.status) : closed(initial));
@@ -156,8 +158,9 @@ export function AssessmentFlow({ initial, actions }: { initial: Result<Assessmen
   const status = <ActionStatusSlot>{failure && <ActionStatus id="assessment-status" tone="error" text={message(failure)} />}</ActionStatusSlot>;
   const controlsDisabled = pending || !!failure;
 
-  return <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-5 px-5 py-6 text-sm">
-    {unavailable || (data && ["expired", "revoked"].includes(data.base.status)) ? <div className="my-auto"><StateCard headingLevel={1} icon={LockKeyhole} tone="empty" title="Esta evaluación no está disponible" description={<>Contacta al equipo de reclutamiento que te compartió el enlace para revisar cómo continuar.<br /><br />Puedes cerrar esta página.</>} /></div>
+  return <main className={cn("mx-auto flex w-full flex-col gap-5 px-5 py-6 text-sm", account ? "max-w-3xl" : "min-h-dvh max-w-lg")}>
+    {account && <Link href="/candidato/postulaciones" className={cn(buttonVariants({ variant: "ghost" }), "self-start")}>← Volver a Postulaciones</Link>}
+    {unavailable || (data && ["expired", "revoked"].includes(data.base.status)) ? <div className="my-auto"><StateCard headingLevel={1} icon={LockKeyhole} tone="empty" title={account ? "Ya no está disponible" : "Esta evaluación no está disponible"} description={account ? "Puedes volver a tus postulaciones para consultar el estado de tu proceso." : <>Contacta al equipo de reclutamiento que te compartió el enlace para revisar cómo continuar.<br /><br />Puedes cerrar esta página.</>} /></div>
       : finished && data ? <div className="my-auto"><StateCard headingLevel={1} icon={Check} tone="info" title="Gracias por responder" description={<>Tus respuestas quedaron guardadas y la evaluación finalizó.<br /><br />El equipo de {data.base.company_name} revisará la información junto con otras evidencias del proceso de <strong>{data.base.vacancy_title}</strong>.<br /><br />Una persona tomará la decisión y te contactará para los siguientes pasos.<br /><br />Ya puedes cerrar esta página.</>} /></div>
       : !data ? <div className="my-auto"><StateCard headingLevel={1} icon={CircleAlert} tone="error" title="No pudimos cargar la evaluación" description={failure ? message(failure) : "Vuelve a intentarlo. Tus respuestas guardadas se conservan."} primaryAction={{ label: pending ? "Cargando…" : "Reintentar", onClick: retryAction, disabled: pending }} /></div>
       : <>
@@ -171,7 +174,7 @@ export function AssessmentFlow({ initial, actions }: { initial: Result<Assessmen
             <Button type="submit" className="min-h-12 w-full" disabled={pending || !accepted} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}Aceptar y comenzar</Button>
             {status}
           </form>
-          <p className="mt-auto text-center text-xs text-muted-foreground">No necesitas crear una cuenta · PeopleFlow</p>
+          <p className="mt-auto text-center text-xs text-muted-foreground">{account ? "Puedes retomar desde tu cuenta mientras la invitación esté vigente." : "No necesitas crear una cuenta · PeopleFlow"}</p>
         </> : current && data.items ? <>
           <div className="mt-2 grid gap-2"><div className="flex justify-between gap-3"><strong>Pregunta {position + 1} de {data.items.items.length}</strong><span className="text-xs text-muted-foreground">{answeredLabel(data.items.items.filter(i => i.value !== null).length)}</span></div><Progress value={data.items.items.filter(i => i.value !== null).length} max={data.items.items.length} aria-label="Preguntas respondidas" /></div>
           <FieldSet className="mt-3" disabled={controlsDisabled}>
@@ -185,7 +188,7 @@ export function AssessmentFlow({ initial, actions }: { initial: Result<Assessmen
           </FieldSet>
           <p className="text-[13px] text-muted-foreground">Puedes volver a las preguntas anteriores y cambiar tus respuestas antes de finalizar.</p>
           <Button variant="ghost" className="min-h-10 self-start" disabled={controlsDisabled || current.value === null} onClick={() => write(null)}>Borrar respuesta</Button>
-          <footer className="mt-auto grid gap-3 pt-6"><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="min-h-12" disabled={controlsDisabled || position === 0} onClick={() => navigate(position - 1)}>Anterior</Button><Button className="min-h-12" disabled={controlsDisabled} onClick={next} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{position === data.items.items.length - 1 && data.items.items.every(i => i.value !== null) ? "Finalizar" : "Siguiente"}</Button></div>{status}<p className="text-center text-xs text-muted-foreground">Tu avance se guarda</p><p className="text-center text-xs text-muted-foreground">Puedes cerrar y retomar desde el mismo enlace<br />mientras esté vigente.</p></footer>
+          <footer className="mt-auto grid gap-3 pt-6"><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="min-h-12" disabled={controlsDisabled || position === 0} onClick={() => navigate(position - 1)}>Anterior</Button><Button className="min-h-12" disabled={controlsDisabled} onClick={next} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{position === data.items.items.length - 1 && data.items.items.every(i => i.value !== null) ? "Finalizar" : "Siguiente"}</Button></div>{status}<p className="text-center text-xs text-muted-foreground">Tu avance se guarda</p><p className="text-center text-xs text-muted-foreground">{account ? "Puedes cerrar y retomar desde tu cuenta mientras esté vigente." : <>Puedes cerrar y retomar desde el mismo enlace<br />mientras esté vigente.</>}</p></footer>
         </> : <Spinner aria-label="Cargando evaluación" />}
         {failure && <Button variant="outline" className="min-h-10" onClick={retryAction} disabled={pending}>Reintentar</Button>}
       </>}

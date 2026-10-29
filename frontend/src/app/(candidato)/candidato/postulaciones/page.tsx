@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { loadWorkspaceAssessments } from "@/features/psychometrics/workspace/load"
 
 import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"
 import { ApplicationsWorkspace } from "@/features/candidate/applications-workspace"
@@ -8,11 +9,11 @@ export const metadata: Metadata = {
 }
 
 /** The candidate layout guards identity; the workspace loads the private list. */
-export default function Page() {
+export default async function Page() {
   return (
     <>
       <CandidateHeader title="Postulaciones" />
-      <ApplicationsWorkspace />
+      <ApplicationsWorkspace assessments={await loadWorkspaceAssessments()} />
     </>
   )
 }

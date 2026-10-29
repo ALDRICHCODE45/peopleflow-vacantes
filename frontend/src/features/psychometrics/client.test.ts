@@ -9,6 +9,7 @@ const target = { ...read, invitationId: id };
 const etag = '"pp1-never-saved"';
 const employerPrefix = `/v2/me/company/job-drafts/${id}`;
 const endpoints = [
+  { call: () => c.getAccountAssessments({ token: " session " }), method: "GET", path: "/v2/me/assessments", payload: { items: [] }, status: 200 },
   { call: () => c.getProfile(read), method: "GET", path: `${employerPrefix}/psychometric-profile`, payload: profile, status: 200, etag: true, body: undefined },
   { call: () => c.saveProfile({ ...read, body, ifMatch: etag }), method: "PUT", path: `${employerPrefix}/psychometric-profile`, payload: profile, status: 200, etag: true, body },
   { call: () => c.getInvitations(read), method: "GET", path: `${employerPrefix}/psychometric-invitations`, payload: { items: [invitation] }, status: 200 },
@@ -56,6 +57,13 @@ for (const endpoint of [...endpoints, ...candidates]) {
     expect(await endpoint.call()).toEqual({ ok: false, reason: "no_response", reference: {} }); expect(fetch).toHaveBeenCalledTimes(1);
   });
 }
+it("guards the account list session and rejects result data in list responses", async () => {
+  const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+  expect(await c.getAccountAssessments({ token: " " })).toEqual({ ok: false, reason: "unauthenticated", reference: {} });
+  expect(fetch).not.toHaveBeenCalled();
+  fetch.mockResolvedValue(new Response(JSON.stringify({ items: [], scores: [1] })));
+  expect(await c.getAccountAssessments({ token: "session" })).toMatchObject({ ok: false, reason: "unrecognized_response" });
+});
 it("guards identifiers, credentials, profile preconditions and candidate payloads before transport", async () => {
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
   const bad = { access: "public" as const, assessmentToken: "." };

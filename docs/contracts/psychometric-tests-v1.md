@@ -181,8 +181,9 @@ Envelope: `{"error": "…", "code": "…", "data": {…}}` (standard of `httpjso
 | `assessment_unavailable` | 404 | public token unknown, revoked or expired (identical response for all three) |
 | `consent_required` | 403 | items or answers before consent |
 | `notice_changed` | 409 | consent with a notice version or text hash that is not the invitation's |
-| `assessment_finished` | 409 | candidate write after finish |
-| `invitation_closed` | 409 | link, reminder or account write on a finished, expired or revoked invitation |
+| `assessment_finished` | 409 | candidate write after finish (public and account paths) |
+| `invitation_closed` | 409 | link or reminder on a finished, expired or revoked invitation; account-path candidate write on an expired or revoked invitation |
+| `not_found` | 404 | existing catalog code; also answer PUT/DELETE with a position outside the pinned range (1..63 in v1) |
 | `incomplete` | 422 | finish with unanswered positions; `data.missing_positions` |
 | `profile_disabled` | 409 | manual send while the profile is not enabled |
 | `profile_unconfirmed` | 409 | explicit comparison creation without a current confirmed profile |
@@ -255,8 +256,9 @@ Two access paths over the same invitation: public by token, and the candidate wo
   `429 rate_limited` with `Retry-After`. IP = `RemoteAddr` unless `TRUSTED_PROXY_CIDRS` is set (production ALB).
 - Account: `/v2/me/assessments` (list) and `/v2/me/assessments/{iid}/…` behind `RequireCandidateRole`, matched by the
   participation's candidate, never by token. The identical-404 rule is public-only: the list shows expired, revoked and
-  finished invitations with their status (read-only); writes on a closed invitation → `409 invitation_closed`; another
-  candidate's `iid` → `404`.
+  finished invitations with their status (read-only); writes on an expired or revoked invitation →
+  `409 invitation_closed`, on a finished one → `409 assessment_finished` (as on the public path); another candidate's
+  `iid` → `404`.
 - Account list (L35–L36, **agreed**): `GET /v2/me/assessments` → `200 { "items": [
   { "id": "uuid", "application_id": "uuid | null", "vacancy": { "id": "uuid", "title": "…" },
   "company": { "id": "uuid", "name": "…" }, "status": "created | in_progress | finished | expired | revoked",
@@ -276,12 +278,14 @@ is rejected.
    "total_count", "expires_at", "consent": { "notice_version": "1", "text": "…", "text_sha256": "…" } | null }`
    (`consent` null once accepted).
 2. `POST {base}/consent` body `{ "notice_version": "1", "text_sha256": "…" }` → `204`. Mismatch → `409 notice_changed`.
-   Stores notice version, text hash and `consented_at`; audit `PsychometricConsentGiven`.
+   Stores notice version, text hash and `consented_at`; audit `PsychometricConsentGiven` (actor: the candidate user on
+   the account path, the system actor on the public token path).
 3. `GET {base}/items` → `200 { "scale": [{ "value": 1, "label": "…" } …5], "items": [{ "position": 1, "text": "…",
    "value": 3 | null }] }` — every position in the pinned presentation order, text and the saved answer only (no
    facet, no key, no item number). `403 consent_required` before consent.
 4. `PUT {base}/answers/{position}` body `{ "event_id": "uuid", "value": 3, "client_elapsed_ms": 4200 }` → `204`.
-   Exact keys; unknown keys (including the removed client change counter) → `400 validation_error`.
+   Exact keys; unknown keys (including the removed client change counter) → `400 validation_error`. A position
+   outside the pinned range → `404 not_found` (also for DELETE).
    `event_id` UUID and integer `value` 1..5 required; `client_elapsed_ms` optional integer 0..3,600,000.
    It is cumulative **visible** milliseconds across revisits, paused when hidden or away; optional telemetry never
    blocks completion. Server stamps received_at, orders and deduplicates accepted writes per invitation.
