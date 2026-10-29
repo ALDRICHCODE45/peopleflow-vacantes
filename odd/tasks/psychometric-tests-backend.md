@@ -70,3 +70,9 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   verify launched. Delivery decision, user verbatim: «la entrega debe ser merge hermano. porque todo ya estara
   validado y revisado (nativamente tambien si es necesario).» → one merge of the feature branch into main once
   B8–B10 are validated and reviewed, coordinated with the frontend; no chained PRs.
+- **L9.** B7b independent verify PASS (S7; S9 initial persistence; S10 finish anchor). Frontend asked B9 first for T12
+  browser QA (strict zod; latest_comparison non-nullable; no If-Match). B9 contract change agreed with the frontend,
+  contract 75c0c690: Result interpretations[] = {id, competency_id, band, intro_text, work_text, strengths_text,
+  development_text, hypothesis_text} (intro_text ← stored prepend, hypothesis_text ← stored hypothesis, plain strings);
+  the wire omits headings, question_ids, guide tier and context_label, which stay in the stored snapshots. Comparison
+  POST on a finished process → 409 process_finished. B8 runs in parallel; it is wired into the router after B9.
