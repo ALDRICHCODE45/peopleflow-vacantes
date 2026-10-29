@@ -108,6 +108,7 @@ func entry(m map[string]any) map[string]any { return m["competencies"].([]any)[0
 func relevant(m map[string]any, importance string) {
 	entry(m)["importance"] = importance
 	entry(m)["desired_band"] = "band.low"
+	entry(m)["rationale"] = ""
 }
 func confirm(m map[string]any) {
 	m["confirmed"] = true
@@ -135,9 +136,23 @@ func TestTrimUnicodeBoundariesAndDrafts(t *testing.T) {
 	m := body(t, profile.Empty())
 	entry(m)["importance"] = "importance.clave"
 	entry(m)["desired_band"] = "band.low"
-	entry(m)["task"] = " "
-	if _, err := profile.Replace(encoded(m), nil); err != nil {
-		t.Fatal(err)
+	entry(m)["rationale"] = ""
+	for _, task := range []any{nil, " "} {
+		entry(m)["task"] = task
+		p, err := profile.Replace(encoded(m), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Competencies[0].Rationale == nil || *p.Competencies[0].Rationale != "" {
+			t.Fatal(p)
+		}
+		if task == nil {
+			if p.Competencies[0].Task != nil {
+				t.Fatal(p)
+			}
+		} else if p.Competencies[0].Task == nil || *p.Competencies[0].Task != "" {
+			t.Fatal(p)
+		}
 	}
 }
 func TestMalformedAndExactJSON(t *testing.T) {

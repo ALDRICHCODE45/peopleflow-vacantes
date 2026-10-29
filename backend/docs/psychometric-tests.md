@@ -42,9 +42,10 @@ or `importance.no_relevante`. No relevante requires null `desired_band`,
 Importante require `band.low`, `band.medium` or `band.high`.
 
 Text is trimmed and counted as Unicode characters. Rationale is at most 1000
-characters and a Clave task at most 300. Clave/Importante drafts accept both null
-and empty-string rationale as empty, preserving their wire representation;
-confirmation requires 1–1000 characters after trim (`required` for null/empty).
+characters and a Clave task at most 300. Clave/Importante rationale must always
+be a string: `""` is allowed while drafting; null is `invalid` in drafts and on
+confirmation. Confirmation requires 1–1000 characters after trim (`required`
+for an empty or whitespace-only string).
 Only Clave accepts a task: null/empty is allowed while drafting, but confirmation
 requires 1–300 trimmed characters. Importante, like No relevante, requires null
 task in every state; non-null is `not_allowed`. Confirming an all-No-relevante

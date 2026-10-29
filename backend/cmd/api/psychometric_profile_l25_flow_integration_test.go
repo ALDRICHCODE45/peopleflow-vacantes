@@ -97,6 +97,26 @@ func TestPsychometricProfileL25RelevantDraftEmptyAndConfirmation(t *testing.T) {
 				if importance == "importance.clave" {
 					c["task"] = ""
 				}
+				if empty == nil {
+					if importance == "importance.clave" {
+						c["task"] = "Tarea"
+					}
+					before := profileSnapshot(t, h, id)
+					for _, confirmed := range []bool{false, true} {
+						m["confirmed"] = confirmed
+						rejected := h.do(t, "PUT", path, profileEncode(t, m), owner.token, map[string]string{"If-Match": tag})
+						draftFlowAssertNoStore(t, rejected)
+						obj := draftFlowObject(t, rejected.body)
+						want := []any{map[string]any{"field": "competencies[0].rationale", "code": "invalid"}}
+						if rejected.status != 400 || len(obj) != 3 || obj["code"] != "validation_error" || obj["error"] != "validation failed" || !reflect.DeepEqual(obj["fields"], want) {
+							t.Fatalf("%d %s", rejected.status, rejected.body)
+						}
+						if before != profileSnapshot(t, h, id) {
+							t.Fatal("null relevant rationale changed storage/version/audit")
+						}
+					}
+					return
+				}
 				r := h.do(t, "PUT", path, profileEncode(t, m), owner.token, map[string]string{"If-Match": tag})
 				version++
 				got := profileAssert(t, r, id, version)

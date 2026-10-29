@@ -258,9 +258,11 @@ func Replace(raw []byte, stages []string) (Profile, error) {
 					}
 					relevant := importance == "importance.clave" || importance == "importance.importante"
 					required := p.Confirmed && relevant && (key == "rationale" || importance == "importance.clave")
-					// Drafts accept null and empty text as empty, preserving their wire shape.
+					// A relevant rationale is always a string ("" while drafting); a Clave task may be null in drafts.
 					if x == nil {
-						if required {
+						if key == "rationale" && relevant {
+							add(path+key, "invalid")
+						} else if required {
 							add(path+key, "required")
 						}
 						continue

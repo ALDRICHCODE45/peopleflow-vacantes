@@ -27,7 +27,14 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
 | T1 | all | inline — capability evidence + contract rounds 1–2 with frontend | — |
 | T2 | S1 | worker — B1 content artifact + immutable loader + docs drift guard implemented; vet/focused tests pass; archguard reports existing locked docker/minio/Dockerfile path | 43d48088 |
 | T3 | S2 | worker — B2 pure scoring implemented: pinned facet/competency scoring, half-up display, interpretation snapshots, quality transitions/tiers, fit/focus and deterministic STAR guide; public-API boundary tables pass; RED missing-package failure observed before implementation, GREEN focused tests + go vet ./... pass; no docs ambiguities or B1 gaps found | 9a8d330d |
-| T4 | S3–S10 | B3/S3 committed ac17f5e7; L25 follow-up (uncommitted): nullable rationale, always-null No relevante fields and non-Clave tasks, relevant-only confirmation; Clave/Importante drafts accept null or empty rationale. Test-first RED observed; focused/isolated profile + checklist flows, drift guard, guarded-migration tests and vet pass. Full-suite closure failures on macOS bash 3.2 and archguard Dockerfile violation are parent-verified pre-existing. B4–B10 pending, one commit each; B5/B8/B10 isolated for verification | pending |
+| T4 | S3 | worker — B3 profile GET/PUT + migration 00049 + jobs adapter; L25 follow-up (rationale only for relevant competencies); relevant rationale always a string (null → invalid, frontend 2026-10-29) | ac17f5e7, 800dd86f |
+| T5 | S3–S10 | worker — B4 invitations employer side (migration 00050, list/create/reminders/revoke) | pending |
+| T6 | S3–S10 | B5 link mint (own commit, security) | pending |
+| T7 | S3–S10 | B6 auto-trigger on stage entry | pending |
+| T8 | S3–S10 | B7 candidate endpoints (public + account) | pending |
+| T9 | S3–S10 | B8 public limiter + headers (own commit, security) | pending |
+| T10 | S3–S10 | B9 result GET audited + comparisons | pending |
+| T11 | S3–S10 | B10 retention purge (own commit, data deletion) | pending |
 
 ## Log
 

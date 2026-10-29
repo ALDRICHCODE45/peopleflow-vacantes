@@ -200,10 +200,14 @@ func TestPsychometricProfileFlowValidation(t *testing.T) {
 		{"unknown id", "competencies[0].competency_id", "invalid", func(m map[string]any) { profileEntry(m)["competency_id"] = "comp.unknown" }},
 		{"importance canonical", "competencies[0].importance", "invalid", func(m map[string]any) { profileEntry(m)["importance"] = "clave" }},
 		{"no relevance band", "competencies[0].desired_band", "not_allowed", func(m map[string]any) { profileEntry(m)["desired_band"] = "band.high" }},
-		{"relevant needs band", "competencies[0].desired_band", "required", func(m map[string]any) { profileEntry(m)["importance"] = "importance.importante" }},
+		{"relevant needs band", "competencies[0].desired_band", "required", func(m map[string]any) {
+			profileEntry(m)["importance"] = "importance.importante"
+			profileEntry(m)["rationale"] = ""
+		}},
 		{"canonical band", "competencies[0].desired_band", "invalid", func(m map[string]any) {
 			profileEntry(m)["importance"] = "importance.clave"
 			profileEntry(m)["desired_band"] = "high"
+			profileEntry(m)["rationale"] = ""
 		}},
 		{"trimmed rationale", "competencies[0].rationale", "required", func(m map[string]any) {
 			profileEntry(m)["importance"] = "importance.importante"
@@ -224,6 +228,7 @@ func TestPsychometricProfileFlowValidation(t *testing.T) {
 		{"long task", "competencies[0].task", "too_long", func(m map[string]any) {
 			profileEntry(m)["importance"] = "importance.clave"
 			profileEntry(m)["desired_band"] = "band.low"
+			profileEntry(m)["rationale"] = ""
 			profileEntry(m)["task"] = strings.Repeat("ñ", 301)
 		}},
 		{"irrelevant supplied task", "competencies[0].task", "not_allowed", func(m map[string]any) { profileConfirm(m); profileEntry(m)["task"] = " " }},
@@ -277,6 +282,7 @@ func TestPsychometricProfileFlowConfirmationReplacementAndBounds(t *testing.T) {
 	m := profileBody(t)
 	profileEntry(m)["importance"] = "importance.clave"
 	profileEntry(m)["desired_band"] = "band.low"
+	profileEntry(m)["rationale"] = ""
 	profileEntry(m)["task"] = " "
 	m["expires_in_days"] = 1
 	got := put(m, 1)

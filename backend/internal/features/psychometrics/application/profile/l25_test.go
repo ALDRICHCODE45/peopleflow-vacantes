@@ -78,6 +78,14 @@ func TestL25RelevantDraftsAndConfirmation(t *testing.T) {
 						c["task"] = " Tarea "
 					}
 					p, err := profile.Replace(encoded(m), nil)
+					if rationale == nil {
+						// A relevant entry always carries a string rationale, "" while drafting.
+						inv, ok := err.(*profile.Invalid)
+						if !ok || !reflect.DeepEqual(inv.Fields, []httpjson.ValidationField{{Field: "competencies[0].rationale", Code: "invalid"}}) {
+							t.Fatalf("err=%v", err)
+						}
+						return
+					}
 					if confirmed && rationale != " Trabajo " {
 						inv, ok := err.(*profile.Invalid)
 						if !ok || !reflect.DeepEqual(inv.Fields, []httpjson.ValidationField{{Field: "competencies[0].rationale", Code: "required"}}) {
