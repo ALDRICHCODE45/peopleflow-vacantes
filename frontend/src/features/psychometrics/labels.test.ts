@@ -1,6 +1,15 @@
 import { expect, it } from "vitest";
 import { COMPETENCY_IDS, FACET_IDS } from "./model";
-import { bandLabels, competencyLabels, facetLabels, fitLabels, importanceLabels, signalReason, tierLabels, tierMessages } from "./labels";
+import { bandLabels, competencyLabels, facetLabels, fitLabel, fitLabels, importanceLabels, signalReason, tierLabels, tierMessages } from "./labels";
+import { comparison } from "./fixtures.test";
+import type { ComparedCompetency } from "./model";
+it("labels a null fit by its cause: unconfirmed comparison, or a no relevante competency on a confirmed one", () => {
+  const base = comparison.competencies[0] as ComparedCompetency;
+  expect(fitLabel({ ...base, importance: "importance.no_relevante", fit: null }, true)).toBe("No se compara");
+  expect(fitLabel({ ...base, importance: "importance.no_relevante", fit: null }, false)).toBe("sin perfil confirmado");
+  expect(fitLabel({ ...base, importance: "importance.clave", desired_band: "band.high", fit: null }, false)).toBe("sin perfil confirmado");
+  expect(fitLabel({ ...base, importance: "importance.clave", desired_band: "band.high", fit: "fit.atencion", direction: "below" }, true)).toBe("Foco de atención");
+});
 it("labels every canonical display id without aliases or diagnostic facet names", () => {
   expect(Object.keys(competencyLabels)).toEqual([...COMPETENCY_IDS]);
   expect(Object.keys(facetLabels)).toEqual([...FACET_IDS]);
