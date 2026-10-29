@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AssessmentPage, metadata } from "./page";
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: token }) }) }));
@@ -7,6 +8,7 @@ vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "https://api.examp
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
 const token = "private-assessment-token";
 const hash = "a".repeat(64);
+const canonicalNotice = readFileSync("../docs/psychometrics/consent-notice-v1.md", "utf8").split("## Inicio del aviso\n\n")[1].split("\n\n## Fin del aviso")[0];
 const scale = ["No me describe nada", "Me describe poco", "Me describe a medias", "Me describe bastante", "Me describe totalmente"].map((label, i) => ({ value: i + 1, label }));
 let saved: (number | null)[];
 let consented: boolean;
@@ -48,6 +50,29 @@ it("serves the exact notice before items, requires express consent and posts onl
   fireEvent.click(screen.getByRole("checkbox")); await click("Aceptar y comenzar");
   expect(calls.find(c => c.path === "/consent")?.body).toEqual({ notice_version: "1", text_sha256: hash });
   expect(screen.getByText("Pregunta 1 de 63")).toBeTruthy(); privateOutput();
+});
+it("renders the backend notice tendencies as a semantic list without changing the consent payload", async () => {
+  const fetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn(async (url: URL, init: RequestInit) => {
+    const result = await fetch(url, init);
+    if (url.pathname === `/v2/assessments/${token}`) {
+      const data = await result.json();
+      return response({ ...data, consent: { ...data.consent, text: canonicalNotice } });
+    }
+    return result;
+  }));
+  render(await AssessmentPage());
+  const list = screen.getByRole("list");
+  expect(list.tagName).toBe("UL");
+  expect(within(list).getAllByRole("listitem").map(item => item.textContent)).toEqual(
+    canonicalNotice.split("\n").filter(line => line.startsWith("- ")).map(line => line.slice(2)),
+  );
+  expect(within(list).getAllByRole("listitem")).toHaveLength(15);
+  expect(document.querySelector('[data-slot="avatar-fallback"]')?.textContent).toBe("E");
+  expect(screen.queryByRole("radio")).toBeNull();
+  expect(saved.every(value => value === null)).toBe(true);
+  fireEvent.click(screen.getByRole("checkbox")); await click("Aceptar y comenzar");
+  expect(calls.find(call => call.path === "/consent")?.body).toEqual({ notice_version: "1", text_sha256: hash });
 });
 it("reloads a changed notice without accepting it or loading items", async () => {
   render(await AssessmentPage()); fireEvent.click(screen.getByRole("checkbox"));
@@ -103,7 +128,16 @@ it("finishes only after all answers and shows no scores", async () => {
   expect(screen.getByText("Pregunta 63 de 63")).toBeTruthy();
   await choose(scale[4].label); await click("Finalizar");
   expect(calls.at(-1)).toMatchObject({ path: "/finish", method: "POST", body: undefined });
-  expect(screen.getByRole("heading", { name: "Gracias por responder" })).toBeTruthy();
+  const heading = screen.getByRole("heading", { name: "Gracias por responder" });
+  expect(heading.classList.contains("text-2xl")).toBe(true);
+  expect(document.activeElement).toBe(heading);
+  const medallion = document.querySelector('[class~="bg-status-success/10"]');
+  expect(medallion?.classList.contains("text-status-success")).toBe(true);
+  expect(medallion?.querySelector('svg.lucide-check[aria-hidden="true"]')).toBeTruthy();
+  expect(screen.getByText("Tus respuestas quedaron guardadas y la evaluación finalizó.")).toBeTruthy();
+  expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "El equipo de Empresa revisará la información junto con otras evidencias del proceso de Puesto.")).toBeTruthy();
+  expect(screen.getByText("Una persona tomará la decisión y te contactará para los siguientes pasos.")).toBeTruthy();
+  expect(screen.getByText("Ya puedes cerrar esta página.")).toBeTruthy();
   expect(screen.queryByText(/puntaje|percentil|score/i)).toBeNull(); privateOutput();
 });
 it("422 incomplete reloads saved answers and goes to the first missing position", async () => {

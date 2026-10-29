@@ -7,6 +7,7 @@ import { Check, LockKeyhole, CircleAlert } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
@@ -178,17 +179,32 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
   const status = <ActionStatusSlot>{failure && <ActionStatus id="assessment-status" tone="error" text={message(failure)} />}</ActionStatusSlot>;
   const controlsDisabled = pending || !!failure;
 
-  return <main className={cn("mx-auto flex w-full flex-col gap-5 px-5 py-6 text-sm", account ? "max-w-3xl" : "min-h-dvh max-w-lg")}>
+  return <main className={cn("mx-auto flex w-full flex-col gap-5 px-5 py-6 text-sm", account ? "max-w-3xl" : "min-h-dvh max-w-lg", showingItem && "gap-4")}>
     {account && <Link href="/candidato/postulaciones" className={cn(buttonVariants({ variant: "ghost" }), "self-start")}>← Volver a Postulaciones</Link>}
     {loading ? <Spinner aria-label="Cargando evaluación" /> : unavailable || (data && ["expired", "revoked"].includes(data.base.status)) ? <div className="my-auto"><StateCard headingLevel={1} icon={LockKeyhole} tone="empty" title={account ? "Ya no está disponible" : "Esta evaluación no está disponible"} description={account ? "Puedes volver a tus postulaciones para consultar el estado de tu proceso." : <>Contacta al equipo de reclutamiento que te compartió el enlace para revisar cómo continuar.<br /><br />Puedes cerrar esta página.</>} /></div>
-      : finished && data ? <div className="my-auto"><StateCard headingLevel={1} icon={Check} tone="info" title="Gracias por responder" description={<>Tus respuestas quedaron guardadas y la evaluación finalizó.<br /><br />El equipo de {data.base.company_name} revisará la información junto con otras evidencias del proceso de <strong>{data.base.vacancy_title}</strong>.<br /><br />Una persona tomará la decisión y te contactará para los siguientes pasos.<br /><br />Ya puedes cerrar esta página.</>} /></div>
+      : finished && data ? <Card className="my-auto text-center [--card-spacing:--spacing(6)]" aria-labelledby="assessment-finished">
+        {/* StateCard has no success tone and its nested Empty narrows this message. */}
+        <CardHeader>
+          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-status-success/10 text-status-success"><Check aria-hidden="true" className="size-6" /></div>
+          <CardTitle><h1 id="assessment-finished" ref={heading} tabIndex={-1} className="text-2xl font-semibold leading-tight outline-none">Gracias por responder</h1></CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 text-muted-foreground">
+          <p>Tus respuestas quedaron guardadas y la evaluación finalizó.</p>
+          <p>El equipo de {data.base.company_name} revisará la información junto con otras evidencias del proceso de <strong>{data.base.vacancy_title}</strong>.</p>
+          <p>Una persona tomará la decisión y te contactará para los siguientes pasos.</p>
+          <p className="text-xs">Ya puedes cerrar esta página.</p>
+        </CardContent>
+      </Card>
       : !data ? <div className="my-auto"><StateCard headingLevel={1} icon={CircleAlert} tone="error" title="No pudimos cargar la evaluación" description={failure ? message(failure) : "Vuelve a intentarlo. Tus respuestas guardadas se conservan."} primaryAction={{ label: pending ? "Cargando…" : "Reintentar", onClick: retryAction, disabled: pending }} /></div>
       : <>
-        <header><p className="font-medium">{data.base.company_name}</p><p className="text-xs text-muted-foreground">{data.base.vacancy_title}</p></header>
+        <header className="flex items-center gap-3">
+          {data.base.consent && <Avatar size="lg" aria-hidden="true"><AvatarFallback>{data.base.company_name.trim().split(/\s+/).slice(0, 2).map(word => word[0]).join("").toLocaleUpperCase("es-MX")}</AvatarFallback></Avatar>}
+          <div className="min-w-0 break-words"><p className="font-medium">{data.base.company_name}</p><p className="text-xs text-muted-foreground">{data.base.vacancy_title}</p></div>
+        </header>
         {data.base.consent ? <>
           <section><h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold leading-tight outline-none">Conoce tu forma<br />de trabajar</h1><p className="mt-3 text-muted-foreground">Responde afirmaciones sobre cómo sueles actuar. No hay respuestas correctas o incorrectas: elige lo que más se parezca a ti.</p></section>
           <div className="flex gap-6 border-y py-3" aria-label="Duración y extensión"><div><strong className="text-base">~{data.base.estimated_minutes} min</strong><p className="text-xs text-muted-foreground">A tu ritmo</p></div><div><strong className="text-base">{data.base.total_count} preguntas</strong><p className="text-xs text-muted-foreground">Tu avance se guarda</p></div></div>
-          <Card><CardHeader><CardTitle><h2>Antes de compartir tus respuestas</h2></CardTitle><CardDescription>Aviso v{data.base.consent.notice_version} · pendiente de aprobación y revisión legal</CardDescription></CardHeader><CardContent><p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{data.base.consent.text}</p></CardContent></Card>
+          <Card><CardHeader><CardTitle><h2>Antes de compartir tus respuestas</h2></CardTitle><CardDescription>Aviso v{data.base.consent.notice_version} · pendiente de aprobación y revisión legal</CardDescription></CardHeader><CardContent className="grid gap-3 break-words text-[13px] leading-relaxed"><ConsentNotice text={data.base.consent.text} /></CardContent></Card>
           <form onSubmit={event => { event.preventDefault(); void run(consent); }} className="grid gap-4">
             <Field orientation="horizontal"><Checkbox id="assessment-consent" checked={accepted} onCheckedChange={value => setAccepted(value === true)} disabled={pending} /><FieldLabel htmlFor="assessment-consent" className="min-h-10">Acepto y quiero comenzar. Leí el aviso y doy mi consentimiento expreso para el tratamiento descrito.</FieldLabel></Field>
             <Button type="submit" className="min-h-12 w-full" disabled={pending || !accepted} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}Aceptar y comenzar</Button>
@@ -206,14 +222,23 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
               {data.items.scale.map(option => <FieldLabel key={option.value} htmlFor={`answer-${option.value}`} className="bg-card has-data-checked:border-primary has-data-checked:bg-primary/5"><Field orientation="horizontal"><RadioGroupItem id={`answer-${option.value}`} value={String(option.value)} /><FieldContent><FieldTitle>{option.label}</FieldTitle></FieldContent></Field></FieldLabel>)}
             </RadioGroup></FieldGroup>
           </FieldSet>
-          <p className="text-[13px] text-muted-foreground">Puedes volver a las preguntas anteriores y cambiar tus respuestas antes de finalizar.</p>
-          <Button variant="ghost" className="min-h-10 self-start" disabled={controlsDisabled || current.value === null} onClick={() => write(null)}>Borrar respuesta</Button>
-          <footer className="mt-auto grid gap-3 pt-6"><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="min-h-12" disabled={controlsDisabled || position === 0} onClick={() => navigate(position - 1)}>Anterior</Button><Button className="min-h-12" disabled={controlsDisabled} onClick={next} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{position === data.items.items.length - 1 && data.items.items.every(i => i.value !== null) ? "Finalizar" : "Siguiente"}</Button></div>{status}<p className="text-center text-xs text-muted-foreground">Tu avance se guarda</p><p className="text-center text-xs text-muted-foreground">{account ? "Puedes cerrar y retomar desde tu cuenta mientras esté vigente." : <>Puedes cerrar y retomar desde el mismo enlace<br />mientras esté vigente.</>}</p></footer>
+          <div className="text-[13px] text-muted-foreground"><p>Puedes volver a las preguntas anteriores y cambiar tus respuestas antes de finalizar.</p><Button variant="link" className="min-h-10 px-0 text-[13px]" disabled={controlsDisabled || current.value === null} onClick={() => write(null)}>Borrar respuesta</Button></div>
+          <footer className="mt-auto grid gap-3 pt-2"><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="min-h-12" disabled={controlsDisabled || position === 0} onClick={() => navigate(position - 1)}>Anterior</Button><Button className="min-h-12" disabled={controlsDisabled} onClick={next} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{position === data.items.items.length - 1 && data.items.items.every(i => i.value !== null) ? "Finalizar" : "Siguiente"}</Button></div>{failure && status}<p className="text-center text-xs text-muted-foreground">Tu avance se guarda</p><p className="text-center text-xs text-muted-foreground">{account ? "Puedes cerrar y retomar desde tu cuenta mientras esté vigente." : <>Puedes cerrar y retomar desde el mismo enlace<br />mientras esté vigente.</>}</p></footer>
         </> : <Spinner aria-label="Cargando evaluación" />}
         {failure && <Button variant="outline" className="min-h-10" onClick={retryAction} disabled={pending}>Reintentar</Button>}
       </>}
     {(finished || unavailable || !data) && <p className="text-center text-xs text-muted-foreground">PeopleFlow · Evaluación</p>}
   </main>;
+}
+// The backend remains the notice's source of truth; only its plain-text bullet
+// markers become semantic markup. Never render notice content as HTML.
+function ConsentNotice({ text }: { text: string }) {
+  return text.split(/\n\s*\n/).map((block, index) => {
+    const lines = block.split("\n");
+    return lines.every(line => line.startsWith("- "))
+      ? <ul key={index} className="list-disc pl-5">{lines.map((line, item) => <li key={item}>{line.slice(2)}</li>)}</ul>
+      : <p key={index} className="whitespace-pre-wrap">{block}</p>;
+  });
 }
 function answeredLabel(count: number) {
   return count === 1 ? "1 respondida" : `${count} respondidas`;
