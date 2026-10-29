@@ -23,6 +23,7 @@ import (
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
+	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	runtimemw "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
@@ -75,8 +76,9 @@ type routerDeps struct {
 	readinessLogger  *slog.Logger
 	readinessMetrics rtmetrics.ReadinessMetrics
 
-	checklistHandler      *jobshttp.ChecklistHandler
-	checklistMarksHandler *jobshttp.ChecklistMarksHandler
+	psychometricProfileHandler *profilehttp.Handler
+	checklistHandler           *jobshttp.ChecklistHandler
+	checklistMarksHandler      *jobshttp.ChecklistMarksHandler
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -242,6 +244,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/checklist/marks", d.checklistMarksHandler.Get)
 		r.Put("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Put)
 		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}", d.checklistMarksHandler.Delete)
+		r.Get("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Get)
+		r.Put("/v2/me/company/job-drafts/{id}/psychometric-profile", d.psychometricProfileHandler.Put)
 		r.Get("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.GetChecklist)
 		r.Put("/v2/me/company/job-drafts/{id}/checklist", checklistHandlers.PutChecklist)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.GetSubstates)

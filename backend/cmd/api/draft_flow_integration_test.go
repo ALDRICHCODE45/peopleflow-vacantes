@@ -296,8 +296,9 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 		publicationHandler:   jobshttp.NewPublicationHandler(store),
 		lifecycleHandler:     jobshttp.NewLifecycleHandler(store),
 
-		checklistHandler:      jobshttp.NewChecklistHandler(store),
-		checklistMarksHandler: jobshttp.NewChecklistMarksHandler(store),
+		psychometricProfileHandler: newPsychometricProfileHandler(pool, store),
+		checklistHandler:           jobshttp.NewChecklistHandler(store),
+		checklistMarksHandler:      jobshttp.NewChecklistMarksHandler(store),
 
 		// Match main.go; tests that upload CVs supply their own temporary storage.
 		movementHandler:   movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{store}, files, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualFiles),

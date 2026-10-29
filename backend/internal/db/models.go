@@ -373,6 +373,12 @@ type JobDraftPipelineConfig struct {
 	Configuration []byte    `json:"configuration"`
 }
 
+type JobDraftPsychometricProfile struct {
+	DraftID uuid.UUID `json:"draft_id"`
+	Version int64     `json:"version"`
+	Profile []byte    `json:"profile"`
+}
+
 type JobDraftRequester struct {
 	ID                   uuid.UUID          `json:"id"`
 	CompanyID            uuid.UUID          `json:"company_id"`
