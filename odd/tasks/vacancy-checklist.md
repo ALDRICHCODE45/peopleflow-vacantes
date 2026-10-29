@@ -49,6 +49,8 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
 | T6 | S6, S7 | worker — comparison view and terna report (print + CSV) | ea0f75b5 |
 | T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | 9bd31e5a, 8aa1b1d0 |
 | T8 | S8 | inline — user review: reminder as a compact notice + «Revisar en la ficha» (no inline marks) | cd127b76 |
+| T9 | — | inline — user review: move menu arrow points left for earlier stages | ec013cc4 |
+| T10 | S5 | design — card fit presentation (`design/candidate-card-checklist/`), then implement the chosen artboard | pending choice |
 
 ## Log
 
@@ -165,3 +167,18 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
   editor is gone. RED 3 → GREEN (checklist + pipeline 605/605). Browser: dialog 660 → 381 px tall at 1440, no
   horizontal overflow at 1440 light/dark and 390 px, «Revisar en la ficha» opens the sheet with «Checklist» selected
   (16 rows, 0 px overflow at 390), no page errors, no 4xx/5xx; nobody moved. Screenshots /tmp/pf-cl/r3-*.png.
+- **L20** (user, verbatim): «no me gusta del todo el diseno de la card, es decir, siento que esta un poco amontonada, los
+  requisitos del checklist, no me gusta como se muestran... no lo se, no esta horriblemente mal, pero siento que algo no
+  cuadra, buca referencias de ux/ui por favor para mejorar el diseno de esta card, la otra es que el dialog solamente
+  sale cuando intengo acutalizar al candidato mediante drag and drop de  la ficha, pero si lo intento hacer de alguna de
+  las otras formas disponibles, no aparece el mensaje del checklist, solamentea aparece el dialogo de que se va a quedar
+  en el historial, y la otra es esta: […] la flecha de "Nuevos" deberia de ser una flecha apuntando a la izquierda porque
+  el estado "Nuevos" es el estado anterior». (2) Reproduced in the browser: drag, card menu and sheet «Mover a…» all
+  show the reminder to «Screening OK» and none to «Nuevos» — the difference is the target stage: «Nuevos» is not a
+  reminder stage in this checklist (default: every stage after «Nuevo»), not the move path. Pending user decision.
+  (3) T9: `isBackwardMove` (helpers) + `CandidateMenu` `isBackward` → `ArrowLeft` for earlier stages, `ArrowRight` for the
+  next one, in the card and the sheet menus; RED 2 → GREEN, pipeline + checklist 607/607, tsc 0. (1) Design sync wrote
+  `design/system.md` + `design/system.html` from `frontend/src/app/globals.css` and `components/ui/badge.tsx`;
+  references: Goodfit ATS pipeline case study (signals over text, segmented scores with hover justification, explicit
+  status) and §10.6 / §14.2 / §14.3. Artboards in `design/candidate-card-checklist/`: 00 actual, 01 barra segmentada,
+  02 anillo en el encabezado, 03 contadores de señales; all move «Ingreso manual» from a pill into the date line.
