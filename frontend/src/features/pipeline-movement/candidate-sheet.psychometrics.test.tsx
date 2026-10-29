@@ -203,6 +203,21 @@ it("compares explicitly with current confirmed profile, replaces guide/fit, pres
   expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole("button", { name: "Comparar con el perfil actual" })).not.toBeInTheDocument();
 });
+it("keeps a confirmed comparison after a tab round-trip instead of replaying the first read", async () => {
+  vi.mocked(actions.loadProfileAction).mockResolvedValue({ ok: true, data: profileSchema.parse({ ...profile, version: "2", confirmed: true, confirmed_at: result.finished_at }) });
+  const next = comparisonSchema.parse({ ...comparison, id: "10000000-0000-4000-8000-000000000002", profile_version: "2", guide: [{ ...comparison.guide[0], text: "Nueva guía almacenada" }] });
+  vi.mocked(actions.createComparisonAction).mockResolvedValue({ ok: true, data: next });
+  render(<Harness />); await openTab();
+  fireEvent.click(await screen.findByRole("button", { name: "Comparar con el perfil actual" }));
+  fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Comparar" }));
+  expect(await screen.findByText("Nueva guía almacenada")).toBeVisible();
+  await act(async () => fireEvent.click(screen.getByRole("tab", { name: "Resumen" })));
+  await openTab();
+  expect(await screen.findByText("Nueva guía almacenada")).toBeVisible();
+  expect(screen.queryByText("Texto almacenado STAR")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Comparar con el perfil actual" })).not.toBeInTheDocument();
+  expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
+});
 it("uncertain comparison never automatically replays or audits again and preserves the shown snapshot", async () => {
   // All requirements remain No relevante: the current contract requires null
   // rationale/task for these entries, even in a confirmed profile.

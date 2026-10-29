@@ -98,7 +98,10 @@ export function useSheetResult(vacancyId: string, invitation: Invitation | undef
     if (!live.current) return;
     if (response.ok) {
       const comparison = response.data;
-      setValue({ ok: true, data: { ...value.data, latest_comparison: comparison, comparisons: [...value.data.comparisons, { id: comparison.id, profile_version: comparison.profile_version }] } });
+      const updated: Result<AssessmentResult> = { ok: true, data: { ...value.data, latest_comparison: comparison, comparisons: [...value.data.comparisons, { id: comparison.id, profile_version: comparison.profile_version }] } };
+      // Reopening the tab replays the retained read: it must carry the confirmed comparison, never the first GET.
+      if (request.current) request.current = { ...request.current, result: Promise.resolve(updated) };
+      setValue(updated);
       setComparisonNotice({ tone: "success", text: "Comparación actualizada" });
       notifyActionResult({ key: "psychometric-comparison", type: "success", title: "Comparación actualizada", description: "Las bandas originales y las comparaciones anteriores se conservaron." });
     } else {
