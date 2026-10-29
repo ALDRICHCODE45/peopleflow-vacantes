@@ -257,7 +257,11 @@ Two access paths over the same invitation: public by token, and the candidate wo
   URL path is never logged (`internal/runtime/middleware/request.go:51`).
 - Rate limits (public prefix only; in-process limiter, distributed is infrastructure later): per token hash 300
   requests / 10 min; per IP 600 requests / 10 min plus 30 unknown-token lookups / 10 min; exceeding any →
-  `429 rate_limited` with `Retry-After`. IP = `RemoteAddr` unless `TRUSTED_PROXY_CIDRS` is set (production ALB).
+  `429 rate_limited` with `Retry-After`. Unknown-token lookups in flight count toward the 30 budget; a token is
+  validated for its 10-minute window once a handler answers it with a non-404, non-5xx response, and validated
+  traffic never reserves a lookup slot. While 30 lookups for not-yet-validated tokens are in flight from one IP,
+  further unvalidated requests get `429 rate_limited` with `Retry-After: 1`. IP = `RemoteAddr` unless
+  `TRUSTED_PROXY_CIDRS` is set (production ALB).
 - Account: `/v2/me/assessments` (list) and `/v2/me/assessments/{iid}/…` behind `RequireCandidateRole`, matched by the
   participation's candidate, never by token. The identical-404 rule is public-only: the list shows expired, revoked and
   finished invitations with their status (read-only); writes on an expired or revoked invitation →

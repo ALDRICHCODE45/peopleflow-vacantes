@@ -99,7 +99,8 @@ fe4cfc6 |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | 6d758bd2 |
-| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | |
+| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | f3af42e2 |
+| T12a | S11, S12 | worker — fix: account reads resolve the session in a mounted Server Action, not during render (workspace list + `/candidato/evaluaciones/[iid]` initial load); question heading size and programmatic-focus outline | |
 | T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
 
 ## Log
@@ -309,3 +310,29 @@ fe4cfc6 |
   hypothesis sentence and now shows the intro it was missing. Wire omits static headings, the quality context label,
   guide `tier` and comparison `question_ids`. latest_comparison stays non-nullable (finish inserts the initial
   comparison in the same transaction). B8 429 body is a plain {error, code} envelope with Retry-After delta-seconds.
+- **L41** T12 started against the backend QA API (127.0.0.1:8080, binary 49504063 = B7b+B9+B8+B8 fix+B10, local
+  disposable Postgres). User (verbatim): «no lo puedes hacaer tu???? es que me tengo que ir a dormir, y te quiero dejar
+  haciendolo, aun no tenemos el archivo de la sesion para uqe puedas entrar como reclutador o como candidato cierto? hay
+  que hacerlo» → `frontend/tests/e2e/capture-session.mjs` + ignored `.playwright-auth/` (0600); employer and candidate
+  sessions captured by the user. Profile A confirmed through the UI (backend DB check: version 1, confirmed; the
+  Importante entry landed on comp.compromisos, user filled «Cuidado de acuerdos»; editor mapping verified correct).
+  Invitation A1 (Mariana Ortega Silva) sent and link copied through the sheet; a QA log printed the first link path, so
+  it was rotated with «Copiar enlace» (old token → 404, new → 200). User: «recuerda tu system design, shadcn, revisar no
+  solo funcionalidad, tambien diseno» — QA covers design against the artboards and the UI rules.
+- **L42** T12 public QA (verify mvtkmgcu): A1 consent → 63 answers → finish → reload final, resume and clear after reload,
+  unknown token neutral: pass; no zod issues. `incomplete` 422 not reachable from the UI (no finish before the last
+  answer). Design: question prompt renders ~16px instead of artboard 03's 24px (`FieldLegend` variant class
+  `data-[variant=legend]:text-base` outranks `text-2xl`) and the programmatically focused heading shows a focus box;
+  minors: consent lacks the company mark and the tendency list is hyphen text, final card uses the info tone instead
+  of success and a 20px title, mobile question page exceeds 844px. Card status verified (Enviada · vence / En curso ·
+  n de 63 / Finalizado; the gender mix comes from artboard 05). Candidate account QA found a BLOCKER: dashboard and
+  postulaciones show «No pudimos cargar las evaluaciones» and the account assessment page cannot load, because
+  `psychometrics/workspace/load.ts` and `candidate/account-page.tsx` call `getActionAccessToken()` during Server
+  Component render (it writes session cookies, Server Actions only); no API request leaves. T11 tests mocked it. → T12a.
+- **L43** T12 fixes: 95fc0c59 («No se compara» for no relevante on a confirmed comparison), 46f308e1 (finished card
+  check icon), 27b31339 (T12a: account reads in mounted Server Actions; browser-verified dashboard shows the pending
+  assessment; question 24px, no heading focus box), 5fa1487f (compact profile rows per artboard 01, per-entry rationale
+  kept per L28). Backend B8 (msg 506dd081) contract decision, option A accepted by the frontend contract owner:
+  unknown-token lookups in flight count toward the 30 budget, validated tokens never reserve a slot, residual burst →
+  429 Retry-After: 1. Delivery strategy (user, backend msg 91dfd5ab): one merge of both feature branches into main
+  after validation and review, no chained PRs; slice boundaries are the work-unit commits.
