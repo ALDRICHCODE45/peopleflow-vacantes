@@ -6,6 +6,8 @@ Dashboard still consumes frozen prototype application/profile fixtures. Its real
 
 `/candidato/evaluaciones/[iid]` remains inside the candidate shell, with noindex metadata. It reuses `AssessmentFlow`, resolving the current session server-side for every read/write. Account 404s and closed writes render the neutral `Ya no está disponible`; closed invitations never load items. Scores/results are neither requested nor rendered.
 
+Application assessment Items use a single-column grid for status → full wrapping details/date → action. This avoids the wrapped-flex column interaction with ItemHeader's `basis-full`; descriptions are not line-clamped. In-progress status includes the saved count: `En curso · n de 63` (using the invitation's actual total).
+
 ## shadcn composition audit
 
 | Surface | Official local reference | Composition |

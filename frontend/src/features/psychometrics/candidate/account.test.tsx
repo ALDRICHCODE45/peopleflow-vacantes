@@ -60,6 +60,32 @@ it("reuses consent → saved questions → final on the account prefix without e
   await click("button", "Finalizar"); expect(screen.getByRole("heading", { name: "Gracias por responder" })).toBeVisible();
   expect(document.body).not.toHaveTextContent(/puntaje|score|percentil|private-session/);
 });
+it("never reapplies the mount snapshot when cookie-writing actions refresh the route", async () => {
+  consented = true;
+  const element = await AccountAssessmentPage({ invitationId: iid });
+  const load = vi.spyOn(element.props.actions, "reloadAction");
+  const view = render(element);
+  await screen.findByText("Pregunta 1 de 63");
+  expect(load).toHaveBeenCalledTimes(1);
+  for (let index = 1; index <= 63; index++) {
+    await click("radio", "Opción 3");
+    // A cookie-writing Server Action returns a refreshed RSC tree. All action
+    // identities change while the same client flow remains mounted.
+    const refreshed = await AccountAssessmentPage({ invitationId: iid });
+    expect(refreshed.props.actions.reloadAction).not.toBe(element.props.actions.reloadAction);
+    const refreshedLoad = vi.spyOn(refreshed.props.actions, "reloadAction");
+    await act(async () => { view.rerender(refreshed); });
+    expect(refreshedLoad).not.toHaveBeenCalled();
+    expect(screen.getByText(index === 1 ? "1 respondida" : `${index} respondidas`)).toBeVisible();
+    expect(screen.getByText(`Pregunta ${index} de 63`)).toBeVisible();
+    await click("button", index === 63 ? "Finalizar" : "Siguiente");
+    await act(async () => { view.rerender(await AccountAssessmentPage({ invitationId: iid })); });
+    if (index < 63) expect(screen.getByText(`Pregunta ${index + 1} de 63`)).toBeVisible();
+  }
+  expect(screen.getByRole("heading", { name: "Gracias por responder" })).toBeVisible();
+  expect(load).toHaveBeenCalledTimes(1);
+  expect(calls.filter(call => call.method === "GET").map(call => call.path)).toEqual(["", "/items"]);
+}, 30000);
 it.each(["expired", "revoked"])("renders %s read-only even when consent is outstanding", async closed => {
   status = closed; render(await AccountAssessmentPage({ invitationId: iid }));
   expect(await screen.findByRole("heading", { name: "Ya no está disponible" })).toBeVisible();

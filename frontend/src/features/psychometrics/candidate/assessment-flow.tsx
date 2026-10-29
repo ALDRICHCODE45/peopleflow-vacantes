@@ -40,7 +40,10 @@ function message(failure: Failure) {
 }
 
 export function AssessmentFlow({ initial, actions, account = false }: { initial?: Result<AssessmentData>; actions: Actions; account?: boolean }) {
-  const { reloadAction } = actions;
+  // Bootstrap belongs to this mounted flow, not to a refreshed RSC actions
+  // object. Re-subscribing to the resolved promise would replay stale answers
+  // (or consent) over newer local writes after a cookie-writing Server Action.
+  const [bootstrap] = useState(() => ({ initial, reloadAction: actions.reloadAction }));
   const [loading, setLoading] = useState(!initial);
   const initialRequest = useRef<Promise<Result<AssessmentData>> | null>(null);
   const [data, setData] = useState(initial?.ok ? initial.data : null);
@@ -90,9 +93,9 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
     };
   }, [showingItem, itemPosition]); // A value edit must not restart this item's clock.
   useEffect(() => {
-    if (initial) return;
+    if (bootstrap.initial) return;
     let active = true;
-    initialRequest.current ??= reloadAction().catch(() => ({ ok: false, reason: "no_response", reference: {} }) as const);
+    initialRequest.current ??= bootstrap.reloadAction().catch(() => ({ ok: false, reason: "no_response", reference: {} }) as const);
     void initialRequest.current.then(result => {
       if (!active) return;
       if (result.ok) {
@@ -105,7 +108,7 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
       setLoading(false);
     });
     return () => { active = false; };
-  }, [initial, reloadAction]);
+  }, [bootstrap]);
   useEffect(() => { heading.current?.focus(); }, [position, finished, unavailable, loading, data?.base.consent]);
   useEffect(() => () => dismissActionResult("assessment-write"), []);
 
@@ -179,7 +182,7 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
   const status = <ActionStatusSlot>{failure && <ActionStatus id="assessment-status" tone="error" text={message(failure)} />}</ActionStatusSlot>;
   const controlsDisabled = pending || !!failure;
 
-  return <main className={cn("mx-auto flex w-full flex-col gap-5 px-5 py-6 text-sm", account ? "max-w-3xl" : "min-h-dvh max-w-lg", showingItem && "gap-4")}>
+  return <main className={cn("mx-auto flex w-full flex-col gap-5 px-5 py-6 text-sm", account ? "max-w-3xl" : "min-h-dvh max-w-lg", showingItem && "gap-3 py-3 sm:gap-4 sm:py-6")}>
     {account && <Link href="/candidato/postulaciones" className={cn(buttonVariants({ variant: "ghost" }), "self-start")}>← Volver a Postulaciones</Link>}
     {loading ? <Spinner aria-label="Cargando evaluación" /> : unavailable || (data && ["expired", "revoked"].includes(data.base.status)) ? <div className="my-auto"><StateCard headingLevel={1} icon={LockKeyhole} tone="empty" title={account ? "Ya no está disponible" : "Esta evaluación no está disponible"} description={account ? "Puedes volver a tus postulaciones para consultar el estado de tu proceso." : <>Contacta al equipo de reclutamiento que te compartió el enlace para revisar cómo continuar.<br /><br />Puedes cerrar esta página.</>} /></div>
       : finished && data ? <Card className="my-auto text-center [--card-spacing:--spacing(6)]" aria-labelledby="assessment-finished">
@@ -213,17 +216,17 @@ export function AssessmentFlow({ initial, actions, account = false }: { initial?
           <p className="mt-auto text-center text-xs text-muted-foreground">{account ? "Puedes retomar desde tu cuenta mientras la invitación esté vigente." : "No necesitas crear una cuenta · PeopleFlow"}</p>
         </> : current && data.items ? <>
           <div className="mt-2 grid gap-2"><div className="flex justify-between gap-3"><strong>Pregunta {position + 1} de {data.items.items.length}</strong><span className="text-xs text-muted-foreground">{answeredLabel(data.items.items.filter(i => i.value !== null).length)}</span></div><Progress value={data.items.items.filter(i => i.value !== null).length} max={data.items.items.length} aria-label="Preguntas respondidas" /></div>
-          <FieldSet className="mt-3" disabled={controlsDisabled}>
+          <FieldSet className="min-w-0 gap-3 sm:mt-3 sm:gap-6" disabled={controlsDisabled}>
             <FieldLegend className="data-[variant=legend]:text-2xl font-semibold leading-[1.35]"><span ref={heading} tabIndex={-1} className="outline-none" role="heading" aria-level={1}>{current.text}</span></FieldLegend>
             <FieldDescription>¿Qué tanto te describe esta afirmación?</FieldDescription>
-            {/* Official RadioGroup Choice Card composition; native Field padding gives
-                large mobile targets, without overriding the radio's geometry. */}
-            <FieldGroup><RadioGroup key={current.position} value={current.value === null ? "" : String(current.value)} onValueChange={value => write(Number(value))} aria-label="Qué tanto te describe" disabled={controlsDisabled}>
-              {data.items.scale.map(option => <FieldLabel key={option.value} htmlFor={`answer-${option.value}`} className="bg-card has-data-checked:border-primary has-data-checked:bg-primary/5"><Field orientation="horizontal"><RadioGroupItem id={`answer-${option.value}`} value={String(option.value)} /><FieldContent><FieldTitle>{option.label}</FieldTitle></FieldContent></Field></FieldLabel>)}
+            {/* Keep the official choice-card composition; 48px mobile targets
+                leave room for the real account shell, navigation and clear. */}
+            <FieldGroup><RadioGroup key={current.position} value={current.value === null ? "" : String(current.value)} onValueChange={value => write(Number(value))} aria-label="Qué tanto te describe" className="gap-2 sm:gap-3" disabled={controlsDisabled}>
+              {data.items.scale.map(option => <FieldLabel key={option.value} htmlFor={`answer-${option.value}`} className="bg-card *:data-[slot=field]:min-h-12 *:data-[slot=field]:py-3 sm:*:data-[slot=field]:p-4 has-data-checked:border-primary has-data-checked:bg-primary/5"><Field orientation="horizontal"><RadioGroupItem id={`answer-${option.value}`} value={String(option.value)} /><FieldContent><FieldTitle>{option.label}</FieldTitle></FieldContent></Field></FieldLabel>)}
             </RadioGroup></FieldGroup>
           </FieldSet>
           <div className="text-[13px] text-muted-foreground"><p>Puedes volver a las preguntas anteriores y cambiar tus respuestas antes de finalizar.</p><Button variant="link" className="min-h-10 px-0 text-[13px]" disabled={controlsDisabled || current.value === null} onClick={() => write(null)}>Borrar respuesta</Button></div>
-          <footer className="mt-auto grid gap-3 pt-2"><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="min-h-12" disabled={controlsDisabled || position === 0} onClick={() => navigate(position - 1)}>Anterior</Button><Button className="min-h-12" disabled={controlsDisabled} onClick={next} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{position === data.items.items.length - 1 && data.items.items.every(i => i.value !== null) ? "Finalizar" : "Siguiente"}</Button></div>{failure && status}<p className="text-center text-xs text-muted-foreground">Tu avance se guarda</p><p className="text-center text-xs text-muted-foreground">{account ? "Puedes cerrar y retomar desde tu cuenta mientras esté vigente." : <>Puedes cerrar y retomar desde el mismo enlace<br />mientras esté vigente.</>}</p></footer>
+          <footer className="mt-auto grid gap-2 pt-1 sm:gap-3 sm:pt-2"><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="min-h-12" disabled={controlsDisabled || position === 0} onClick={() => navigate(position - 1)}>Anterior</Button><Button className="min-h-12" disabled={controlsDisabled} onClick={next} aria-describedby="assessment-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{position === data.items.items.length - 1 && data.items.items.every(i => i.value !== null) ? "Finalizar" : "Siguiente"}</Button></div>{failure && status}<p className="text-center text-xs text-muted-foreground">Tu avance se guarda</p><p className="text-center text-xs text-muted-foreground">{account ? "Puedes cerrar y retomar desde tu cuenta mientras esté vigente." : <>Puedes cerrar y retomar desde el mismo enlace<br />mientras esté vigente.</>}</p></footer>
         </> : <Spinner aria-label="Cargando evaluación" />}
         {failure && <Button variant="outline" className="min-h-10" onClick={retryAction} disabled={pending}>Reintentar</Button>}
       </>}

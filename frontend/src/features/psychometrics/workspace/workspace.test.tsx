@@ -7,11 +7,22 @@ export const assessment: AccountAssessment = { id: "10000000-0000-4000-8000-0000
 afterEach(cleanup);
 it.each(["created", "in_progress"] as const)("renders %s with saved progress, expiry and the account flow link", status => {
   render(<AssessmentBlock item={{ ...assessment, status, answered_count: status === "created" ? 0 : 16 }} />);
-  expect(screen.getByText(status === "created" ? "Pendiente" : "En curso")).toHaveAttribute("data-variant", "accent");
+  expect(screen.getByText(status === "created" ? "Pendiente" : "En curso · 16 de 63")).toHaveAttribute("data-variant", "accent");
   expect(screen.getByText("~10 min · 63 preguntas · Tu avance se guarda")).toBeVisible();
   expect(screen.getByText(/Disponible hasta/)).toBeVisible();
   expect(screen.getByRole("link", { name: status === "created" ? /Responder evaluación/ : /Continuar evaluación/ })).toHaveAttribute("href", `/candidato/evaluaciones/${assessment.id}`);
   expect(screen.queryByText(/score|puntaje|percentil|band.high/i)).toBeNull();
+});
+it("stacks status, unclipped details and action vertically inside an application", () => {
+  const { container } = render(<AssessmentBlock item={assessment} />);
+  const block = screen.getByLabelText("Evaluación Pendiente");
+  // Explicit grid rows avoid ItemHeader's basis-full making a wrapped flex
+  // column spread its content and action into adjacent columns.
+  expect(block).toHaveClass("grid", "grid-cols-1");
+  expect(Array.from(block.children).map(child => child.getAttribute("data-slot"))).toEqual(["item-header", "item-content", "item-actions"]);
+  for (const description of container.querySelectorAll('[data-slot="item-description"]')) {
+    expect(description).toHaveClass("line-clamp-none", "break-words");
+  }
 });
 it.each(["finished", "expired", "revoked"] as const)("keeps %s read-only without scores or history", status => {
   const { container } = render(<AssessmentBlock item={{ ...assessment, status, finished_at: status === "finished" ? "2026-10-30T12:00:00Z" : null }} />);

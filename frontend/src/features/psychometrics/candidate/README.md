@@ -1,6 +1,6 @@
 # Public assessment — T10
 
-Covers S4 (answer events and visible time), S11 (account-free, mobile, saved progress) and S12 (backend notice and explicit consent). The account workspace is T11. T12a reuses this flow without `initial` data on the account path: a single mounted `reloadAction` resolves the session in a cookie-writable Server Action, with «Cargando evaluación» until settled. Public initial loading remains server-side. No scores are sent to or shown by this surface.
+Covers S4 (answer events and visible time), S11 (account-free, mobile, saved progress) and S12 (backend notice and explicit consent). The account workspace is T11. T12a reuses this flow without `initial` data on the account path: a single mounted `reloadAction` resolves the session in a cookie-writable Server Action, with «Cargando evaluación» until settled. Bootstrap captures the initial data/load action once per mounted flow. Cookie-writing account actions can refresh the RSC tree and replace every action identity; this must not re-subscribe to the settled bootstrap promise and replay stale consent, answers or position. Explicit consent/incomplete/retry reloads still use the latest action. Public initial loading remains server-side. No scores are sent to or shown by this surface.
 
 ## Route integration (L29)
 
@@ -49,6 +49,6 @@ Official snapshots read from `docs/design/shadcn-reference/` before implementati
 
 Validated references: `design/psychometric-flows/02-candidato-consentimiento.html`, `03-candidato-preguntas.html`, `04-candidato-final.html`. The artboard state switcher is preview-only and not shipped. Added clear/finalize/retry controls are required functional states. No `review` tone, raw colors or manual dark-mode colors.
 
-Question navigation keeps the clear action as a link-style Button alongside the change-answer guidance. Like a wizard step with no result (§12), it reserves feedback space only when a failure exists; the live ActionStatus and retry behavior remain unchanged. The existing 24px question legend and silent programmatic focus are preserved.
+Question navigation keeps the clear action as a link-style Button alongside the change-answer guidance. Like a wizard step with no result (§12), it reserves feedback space only when a failure exists; the live ActionStatus and retry behavior remain unchanged. The existing 24px question legend and silent programmatic focus are preserved. Mobile question spacing accounts for the real route shell: compact gaps and 50px choice cards (minimum 48px targets), with desktop padding retained. Long prompts may scroll; no fixed height or overflow clipping hides content.
 
 Parent QA should compare at 390px and desktop, light/dark, long notice and names, selected/focused/disabled options, keyboard navigation, all terminal states, and compiled RSC payload/token handling. Component tests cover both public and account entry points; browser checks must not accept consent or answer a shared QA invitation.

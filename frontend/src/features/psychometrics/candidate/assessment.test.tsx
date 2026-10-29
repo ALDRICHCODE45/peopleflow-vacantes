@@ -88,6 +88,22 @@ it("resumes at the first unanswered item with server scale and honest progress",
   for (const option of scale) expect(screen.getByRole("radio", { name: option.label })).toBeTruthy();
   expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("2"); privateOutput();
 });
+it("preserves public server-loaded progress across new action identities without a mount reload", async () => {
+  consented = true;
+  const page = await AssessmentPage();
+  const reload = vi.spyOn(page.props.actions, "reloadAction");
+  const view = render(page);
+  expect(reload).not.toHaveBeenCalled();
+  await choose(scale[2].label); await click("Siguiente");
+  // A rerender of the same mounted public flow is not an explicit reload.
+  const actions = { ...page.props.actions, reloadAction: vi.fn(page.props.actions.reloadAction) };
+  await act(async () => { view.rerender(<page.type {...page.props} actions={actions} />); });
+  expect(screen.getByText("1 respondida")).toBeTruthy();
+  expect(screen.getByText("Pregunta 2 de 63")).toBeTruthy();
+  expect(actions.reloadAction).not.toHaveBeenCalled();
+  expect(calls.filter(call => call.method === "GET").map(call => call.path)).toEqual(["", "/items"]);
+  privateOutput();
+});
 it("writes fresh UUID events, pauses hidden time, accumulates revisits, changes and DELETE clears", async () => {
   await start(); clock = 1000; await choose(scale[1].label);
   expect(writes()[0].body).toEqual({ event_id: expect.stringMatching(/^[a-f0-9-]{36}$/), value: 2, client_elapsed_ms: 1000 });
