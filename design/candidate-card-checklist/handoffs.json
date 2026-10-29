@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chosen": "01-barra-segmentada.html",
+  "handoffs": {
+    "01-barra-segmentada.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-10-29T00:40:09.406Z",
+      "startedAt": "2026-10-29T00:40:27.155Z",
+      "implementedAt": "2026-10-29T00:52:42.533Z",
+      "feature": "odd/tasks/vacancy-checklist.md",
+      "note": "Implementada en bd949eea: barra segmentada + tooltip, origen manual en la línea de fecha. Verificada en 1440 claro/oscuro y 390.",
+      "previewUrl": "http://localhost:3000/empresa/vacantes/01a13ce2-ddaf-73e7-848c-367979b20ead/pipeline"
+    }
+  }
+}
