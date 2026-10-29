@@ -95,7 +95,7 @@ infra de aws».
 | T5 | all | inline — contract `docs/contracts/psychometric-tests-v1.md`, backend review | |
 | T6 | S2–S12 | worker — `features/psychometrics/` model, codec, client, server actions, guarded transport inventory, agreed-contract test (mocks of the contract) | e6c9c5e5 |
 | T7 | S1, S2, S10 | worker — vacancy configuration module «Psicometría» `/configuracion/psicometria` (artboard flows/01) | a5c657c6 |
-| T8 | S9, S10 | worker — board: card status rows, sheet tab not-finished states, send / copy link / remind / revoke (flows/05) | |
+fe4cfc6 |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | |
@@ -266,3 +266,11 @@ infra de aws».
   preservation, 303 + no-store + no-referrer without backend call, neutral missing-cookie screen, previous behavior;
   33/33 and 39/39 with its probes; tsc 0. S4, S11 (public path), S12 (this slice) PASS. Residual deployment checks
   recorded as E4.
+- **L33** T8 (worker mvt6pkht-g-8qe5): card status rows (`features/psychometrics/card/`), sheet management (send, copy
+  link with revoke-previous confirmation, remind, revoke; token only in the clipboard write), refetch after moves,
+  shared provider. Delivery gate (alone): 81 files, 1 failure — the route-handler inventory in
+  `jobs/requestPath.test.ts` did not list T10's `evaluacion/[token]/route.ts` (a real guard, same class as the checklist
+  L15); parent registered it (555d6c4b, risk item 2: transport guard allowlist; the handler makes no backend call).
+  Then 1486 + inventory green, tsc 0. T8 commit 5fe4cfc6. T11 artboards (worker mvt71zi9-i-8b6u)
+  `design/psychometric-candidate-workspace/` 01 «En la postulación», 02 «Bandeja de pendientes», 03 mobile of 01;
+  parent screenshots render; commit 3bf38c73; pending the user's choice.
