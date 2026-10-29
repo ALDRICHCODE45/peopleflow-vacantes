@@ -28,6 +28,7 @@ import (
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	runtimemw "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -131,6 +132,11 @@ func newRouter(d routerDeps) chi.Router {
 	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)
 	r.Group(func(r chi.Router) {
 		r.Use(profilehttp.AssessmentPrivacy, d.publicAssessmentLimit)
+		// Unmatched paths and methods under a token stay limited and private.
+		// Registered first: chi's Handle covers every method of the pattern, and
+		// the method routes below then override it for their own methods.
+		r.Handle("/v2/assessments/{token}", http.HandlerFunc(publicAssessmentNotFound))
+		r.Handle("/v2/assessments/{token}/*", http.HandlerFunc(publicAssessmentNotFound))
 		r.Get("/v2/assessments/{token}", d.psychometricAssessmentHandler.Get)
 		r.Post("/v2/assessments/{token}/consent", d.psychometricAssessmentHandler.Consent)
 		r.Post("/v2/assessments/{token}/finish", d.psychometricAssessmentHandler.Finish)
@@ -322,4 +328,10 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/me/company/requesters", requesterHandlers.CreateRequester)
 	})
 	return r
+}
+
+// publicAssessmentNotFound answers unmatched public token paths and methods
+// with the catalog 404 after the privacy and rate-limit middleware ran.
+func publicAssessmentNotFound(w http.ResponseWriter, _ *http.Request) {
+	httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeNotFound))
 }

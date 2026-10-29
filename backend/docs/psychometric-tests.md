@@ -302,6 +302,16 @@ echoed. Rejected requests do not reach the handler and consume no budget. Once
 an IP exhausts its unknown-lookup budget, every public request from it is
 limited until that window ends.
 
+Every admitted request reserves one unknown-lookup slot for its IP while it is
+in flight; the reservation becomes a counted lookup only when the handler
+answers `assessment_unavailable`, and is released otherwise (also on panic).
+A concurrent burst therefore cannot exceed the 30-lookup budget. When only
+in-flight reservations block an IP, the `429` asks `Retry-After: 1`.
+
+Unmatched paths and methods under `/v2/assessments/{token}` are answered by a
+catch-all inside the same group: `404 not_found` with the privacy headers, and
+they count against the same budgets.
+
 Windows are fixed and start at a key's first request. The client IP is the
 `RemoteAddr` host; only when that peer is inside `TRUSTED_PROXY_CIDRS`
 (comma-separated CIDRs, for the production ALB; unset locally) is

@@ -243,3 +243,99 @@ type outer struct {
 }
 
 func (o *outer) RecordCatalogCode(code string) { o.code = code }
+
+// Unknown lookups are reserved at admission, so a concurrent burst cannot
+// exceed the budget while earlier requests are still in flight.
+func TestConcurrentUnknownBurstNeverExceedsBudget(t *testing.T) {
+	l := ratelimit.NewAssessment(ratelimit.DefaultLimits(), nil, nil)
+	gate := make(chan struct{})
+	var entered atomic.Int64
+	h := l.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		entered.Add(1)
+		<-gate
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeAssessmentUnavailable))
+	}))
+	var wg sync.WaitGroup
+	limited := new(atomic.Int64)
+	for i := 0; i < 60; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r := httptest.NewRequest("GET", "/", nil)
+			r.RemoteAddr = "192.0.2.1:1"
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, r)
+			if rec.Code == 429 {
+				limited.Add(1)
+			}
+		}()
+	}
+	deadline := time.Now().Add(time.Second)
+	for entered.Load()+limited.Load() < 60 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	close(gate)
+	wg.Wait()
+	if n := entered.Load(); n != 30 || limited.Load() != 30 {
+		t.Fatalf("admitted=%d limited=%d, want 30/30", n, limited.Load())
+	}
+}
+
+// In-flight reservations of requests that turn out to be known are refunded,
+// and a block caused only by in-flight reservations asks for a 1 s retry.
+func TestInFlightReservationsAreRefundedAndRetrySoon(t *testing.T) {
+	c := &clock{t: time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)}
+	l := ratelimit.NewAssessment(ratelimit.Limits{PerToken: 100, PerIP: 100, UnknownPerIP: 1, Window: 10 * time.Minute, MaxKeys: 100}, nil, c.now)
+	release := make(chan struct{})
+	started := make(chan struct{})
+	h := l.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/slow" {
+			close(started)
+			<-release
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	send := func(path string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", path, nil)
+		r.RemoteAddr = "192.0.2.1:1"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec
+	}
+	done := make(chan struct{})
+	go func() { send("/slow"); close(done) }()
+	<-started
+	if rec := send("/fast"); rec.Code != 429 || rec.Header().Get("Retry-After") != "1" {
+		t.Fatalf("in-flight block: %d %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+	close(release)
+	<-done
+	for i := 0; i < 3; i++ {
+		if rec := send("/fast"); rec.Code != 200 {
+			t.Fatal("known request reservation not refunded", i, rec.Code)
+		}
+	}
+}
+
+// A panicking handler must not leak its reservation.
+func TestPanicReleasesReservation(t *testing.T) {
+	l := ratelimit.NewAssessment(ratelimit.Limits{PerToken: 100, PerIP: 100, UnknownPerIP: 1, Window: time.Minute, MaxKeys: 100}, nil, nil)
+	h := l.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panic" {
+			panic("boom")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	send := func(path string) (code int) {
+		defer func() { _ = recover() }()
+		r := httptest.NewRequest("GET", path, nil)
+		r.RemoteAddr = "192.0.2.1:1"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec.Code
+	}
+	send("/panic")
+	if code := send("/ok"); code != 200 {
+		t.Fatal("reservation leaked after panic", code)
+	}
+}

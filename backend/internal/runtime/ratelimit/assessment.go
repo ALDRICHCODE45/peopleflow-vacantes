@@ -34,6 +34,9 @@ type counter struct {
 	expires        time.Time
 	unknown        int
 	unknownExpires time.Time
+	// pending counts admitted requests still in flight. Each one reserves an
+	// unknown-lookup slot until its handler proves the token known.
+	pending int
 }
 
 // Assessment owns all counters; an IP key also owns its unknown-lookup window.
@@ -63,10 +66,9 @@ func (a *Assessment) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		recorder := &catalogRecorder{ResponseWriter: w}
+		// Deferred so a panicking handler still releases its reservation.
+		defer func() { a.settle(ipKey, recorder.code == string(httpjson.CodeAssessmentUnavailable)) }()
 		next.ServeHTTP(recorder, r)
-		if recorder.code == string(httpjson.CodeAssessmentUnavailable) {
-			a.recordUnknown(ipKey)
-		}
 	})
 }
 
@@ -96,8 +98,17 @@ func (a *Assessment) admit(tokenKey, ipKey string) time.Duration {
 			wait = max(wait, c.expires.Sub(now))
 		}
 	}
-	if c := a.keys[ipKey]; c != nil && now.Before(c.unknownExpires) && c.unknown >= a.limits.UnknownPerIP {
-		wait = max(wait, c.unknownExpires.Sub(now))
+	if c := a.keys[ipKey]; c != nil {
+		unknown := 0
+		if now.Before(c.unknownExpires) {
+			unknown = c.unknown
+		}
+		if unknown >= a.limits.UnknownPerIP {
+			wait = max(wait, c.unknownExpires.Sub(now))
+		} else if unknown+c.pending >= a.limits.UnknownPerIP {
+			// Only in-flight reservations block: they settle within a request.
+			wait = max(wait, time.Second)
+		}
 	}
 	if wait > 0 {
 		return wait
@@ -130,27 +141,33 @@ func (a *Assessment) admit(tokenKey, ipKey string) time.Duration {
 		}
 		c.count++
 	}
+	a.keys[ipKey].pending++
 	return 0
 }
 
 func (a *Assessment) sweep(now time.Time) {
 	for key, c := range a.keys {
-		if !now.Before(c.expires) && !now.Before(c.unknownExpires) {
+		if c.pending == 0 && !now.Before(c.expires) && !now.Before(c.unknownExpires) {
 			delete(a.keys, key)
 		}
 	}
 }
 
-func (a *Assessment) recordUnknown(ipKey string) {
+// settle releases the admission's reservation and, for an unknown token,
+// converts it into a counted lookup. Keys with pending requests are never
+// swept, so the admission's IP key still exists here.
+func (a *Assessment) settle(ipKey string, unknown bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	now := a.now()
-	// Never allocate after the handler: the admission's IP key reserves space.
-	// A slow response whose reservation was swept cannot restore an expired key.
 	c := a.keys[ipKey]
 	if c == nil {
 		return
 	}
+	c.pending--
+	if !unknown {
+		return
+	}
+	now := a.now()
 	if !now.Before(c.unknownExpires) {
 		c.unknown = 0
 		c.unknownExpires = now.Add(a.limits.Window)
