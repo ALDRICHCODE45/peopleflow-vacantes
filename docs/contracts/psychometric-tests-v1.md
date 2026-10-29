@@ -1,6 +1,7 @@
 # Psychometric tests v1 (employer-configured, candidate-answered)
 
-Status: **agreed, round 2 folded in, pending user approval of wording**. Includes R2-1…R2-10 and the exact-integer band/display-index clarification. Nothing is released until the user approves the wording. Frontend branch `feat/psychometric-tests`. Only the frontend edits
+Status: **agreed with the backend (2026-10-29, final check @fc9f00ce + nits n1–n3), pending user approval of
+wording**. Includes R2-1…R2-10 and the exact-integer band/display-index clarification. Nothing is released until the user approves the wording. Frontend branch `feat/psychometric-tests`. Only the frontend edits
 this file. Feature document: `odd/tasks/psychometric-tests.md` (S1–S12, decisions L8–L15). Content (items, keys,
 bands, competencies, texts, questions): `docs/psychometrics/*-v1.md`. Backend capability evidence and proposals folded
 in from the backend session (feature document L9).
@@ -195,7 +196,8 @@ in the same lifecycle states as the checklist.
 
 1. `GET /v2/me/company/job-drafts/{id}/psychometric-profile` → `200 Profile` + `ETag` (never-saved state as in the
    checklist, never 404). Retired `auto_send_stage_ids` are dropped from GET silently.
-2. `PUT …/psychometric-profile` with `If-Match` (`428` missing, `412 version_conflict` mismatch). Full replacement →
+2. `PUT …/psychometric-profile` with `If-Match` (`428` missing, `412 version_conflict` mismatch). Body = Profile
+   without `version` and `confirmed_at` (server-owned); `confirmed` is writable. Full replacement →
    `200 Profile` + new `ETag`; identical PUT is a no-op. Each `auto_send_stage_ids` entry must be a current progression
    stage of the vacancy's pipeline, not the exit → `auto_send_stage_ids[k]` `invalid`. Audit
    `JobDraftPsychometricProfileConfigured`.
@@ -257,7 +259,7 @@ Per invitation (`{base}` = either prefix). Expiry is checked against server time
 (consent, answers, finish): an invitation that expires mid-test rejects further writes, and finish after `expires_at`
 is rejected.
 
-1. `GET {base}` → `200 { "company_name", "vacancy_title", "estimated_minutes": 20, "status", "answered_count",
+1. `GET {base}` → `200 { "company_name", "vacancy_title", "estimated_minutes": 10, "status", "answered_count",
    "total_count", "expires_at", "consent": { "notice_version": "1", "text": "…", "text_sha256": "…" } | null }`
    (`consent` null once accepted).
 2. `POST {base}/consent` body `{ "notice_version": "1", "text_sha256": "…" }` → `204`. Mismatch → `409 notice_changed`.
