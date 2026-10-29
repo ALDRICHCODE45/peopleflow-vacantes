@@ -99,8 +99,8 @@ fe4cfc6 |
 | T9 | S4–S8 | worker — sheet result: guide first + band matrix (chosen result/03 + 02), comparisons | a28ee619 |
 | T10 | S4, S11, S12 | worker — public candidate flow `/evaluacion/[token]`: consent, one item per screen, telemetry (event_id, cumulative visible time), final and unavailable (flows/02–04). Risk item 2 (public token route) | 01cd8bb6 |
 | T11 | S11 | worker — candidate workspace list of assessments (account path) | 6d758bd2 |
-| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | f3af42e2 |
-| T12a | S11, S12 | worker — fix: account reads resolve the session in a mounted Server Action, not during render (workspace list + `/candidato/evaluaciones/[iid]` initial load); question heading size and programmatic-focus outline | |
+| T12 | all | inline — browser QA against the backend, guide step, review queue, delivery | f3af42e2, 95fc0c59, 46f308e1, 5fa1487f, df89d4be, e0e36d9d, 46eb8d7f |
+| T12a | S11, S12 | worker — fix: account reads resolve the session in a mounted Server Action, not during render (workspace list + `/candidato/evaluaciones/[iid]` initial load); question heading size and programmatic-focus outline | 27b31339, e0e36d9d |
 | T13 | E1–E3 | later — email delivery, automatic reminders, scheduled purge once AWS infrastructure exists | |
 
 ## Log
@@ -336,3 +336,17 @@ fe4cfc6 |
   unknown-token lookups in flight count toward the 30 budget, validated tokens never reserve a slot, residual burst →
   429 Retry-After: 1. Delivery strategy (user, backend msg 91dfd5ab): one merge of both feature branches into main
   after validation and review, no chained PRs; slice boundaries are the work-unit commits.
+- **L44** T12 closing evidence (night run, user asleep). Candidate account QA with A2 found stale state after every
+  account write (each Server Action refreshes the route; the mount effect re-subscribed to the cached initial promise
+  and replayed stale consent/answers) → e0e36d9d, plus the vertical application block with «En curso · n de 63» and the
+  real mobile question route fitting 390×844 (account footer 811px, public 832px). Browser-verified on fresh account
+  invitation B1 (vacancy B profile enabled, unconfirmed): three answers advance without reload; public A3 two answers.
+  A2 finished end to end through the UI. df89d4be consent/final/question parity; 46eb8d7f outline link through `cn`
+  (guard red since T11). 429 vs binary 49504063: request 31 of random tokens → 429, Retry-After 600, no-store,
+  no-referrer, body {error, code}; UI shows «Demasiados intentos, espera N segundos». FINDING sent to backend: after the
+  unknown budget is exhausted a validated token (A3) is also 429 from that IP; re-check pending on the backend fix.
+  Temporary T12 diagnostics in client.ts reverted (never committed). Quiet full suite (Node 22, dev server stopped):
+  8909 passed / 4 failed / 1 skipped; the button guard was real (fixed); combobox, icon-picker and rich description
+  timeouts pass when run alone (load-induced). tsc 0. Minor open items for the user: «espera N segundos» could read in
+  minutes; the disabled «Sin banda» select truncates in the narrow band column; the single hypothesis sentence still
+  says «esta competencia»; artboard 05 mixes «Enviada» and «Finalizado».
