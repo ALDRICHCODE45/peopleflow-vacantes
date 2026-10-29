@@ -37,10 +37,15 @@ type counter struct {
 	// pending counts admitted requests still in flight on tokens not yet
 	// proven valid. Each reserves an unknown-lookup slot until it settles.
 	pending int
-	// known marks a token key whose last real response proved it valid within
-	// the token window; its requests neither reserve nor wait on reservations.
-	known bool
+	// validUntil marks a token key proven valid by its latest real response,
+	// for ValidationTTL. Validated requests neither reserve nor wait on
+	// reservations, and an exhausted unknown budget does not block them.
+	validUntil time.Time
 }
+
+// ValidationTTL is how long a token stays validated after its latest
+// non-404, non-5xx handler response (renewed on each one).
+const ValidationTTL = 24 * time.Hour
 
 // Assessment owns all counters; an IP key also owns its unknown-lookup window.
 type Assessment struct {
@@ -88,7 +93,7 @@ func (a *Assessment) admit(tokenKey, ipKey string) (reserved bool, wait time.Dur
 		a.nextSweep = now.Add(a.limits.Window / 10)
 	}
 	known := false
-	if c := a.keys[tokenKey]; c != nil && c.known && now.Before(c.expires) {
+	if c := a.keys[tokenKey]; c != nil && now.Before(c.validUntil) {
 		known = true
 	}
 	checks := []struct {
@@ -111,7 +116,8 @@ func (a *Assessment) admit(tokenKey, ipKey string) (reserved bool, wait time.Dur
 		if now.Before(c.unknownExpires) {
 			unknown = c.unknown
 		}
-		if unknown >= a.limits.UnknownPerIP {
+		// The unknown budget gates only tokens not yet validated.
+		if !known && unknown >= a.limits.UnknownPerIP {
 			wait = max(wait, c.unknownExpires.Sub(now))
 		} else if !known && unknown+c.pending >= a.limits.UnknownPerIP {
 			// Only in-flight reservations block: they settle within a request.
@@ -145,7 +151,6 @@ func (a *Assessment) admit(tokenKey, ipKey string) (reserved bool, wait time.Dur
 		}
 		if !now.Before(c.expires) {
 			c.count = 0
-			c.known = false
 			c.expires = now.Add(a.limits.Window)
 		}
 		c.count++
@@ -159,7 +164,7 @@ func (a *Assessment) admit(tokenKey, ipKey string) (reserved bool, wait time.Dur
 
 func (a *Assessment) sweep(now time.Time) {
 	for key, c := range a.keys {
-		if c.pending == 0 && !now.Before(c.expires) && !now.Before(c.unknownExpires) {
+		if c.pending == 0 && !now.Before(c.expires) && !now.Before(c.unknownExpires) && !now.Before(c.validUntil) {
 			delete(a.keys, key)
 		}
 	}
@@ -181,7 +186,12 @@ func (a *Assessment) settle(tokenKey, ipKey string, reserved bool, o outcome) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if t := a.keys[tokenKey]; t != nil {
-		t.known = o == outcomeKnown
+		switch o {
+		case outcomeKnown:
+			t.validUntil = a.now().Add(ValidationTTL)
+		case outcomeUnknown:
+			t.validUntil = time.Time{}
+		}
 	}
 	c := a.keys[ipKey]
 	if c == nil {

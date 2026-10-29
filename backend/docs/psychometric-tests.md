@@ -298,22 +298,31 @@ account prefix `/v2/me/assessments` is not. The limiter runs after
 Exceeding any budget returns `429 rate_limited` with `Retry-After` in
 delta-seconds (the longest remaining window) and the plain envelope
 `{"error":"too many requests","code":"rate_limited"}`; the token is never
-echoed. Rejected requests do not reach the handler and consume no budget. Once
-an IP exhausts its unknown-lookup budget, every public request from it is
-limited until that window ends.
+echoed. Rejected requests do not reach the handler and consume no budget.
 
-A request on a token not yet proven valid reserves one unknown-lookup slot for
-its IP while it is in flight; the reservation becomes a counted lookup only
-when the handler answers `assessment_unavailable`, and is released otherwise
-(also on panic). A concurrent burst of unknown tokens therefore cannot exceed
-the 30-lookup budget. A token is proven valid for the rest of its window when a
-real handler writes a non-404, non-5xx response; such requests neither reserve
-nor wait on reservations, so a shared NAT IP is limited only by the 300/600
-budgets (and by an exhausted unknown budget). The catch-all 404 and server
-errors prove nothing, and a later `assessment_unavailable` (for example after
-revocation) clears the mark. Residual: when 30 requests on not-yet-proven
-tokens are in flight from one IP, the next unproven one gets
-`429` with `Retry-After: 1`.
+A token becomes **validated** when a real handler writes a non-404, non-5xx
+response for it; the validation lasts 24 hours from its latest such response
+(renewed on each one, surviving the 10-minute windows) and is cleared at once
+by an `assessment_unavailable` answer (revoked, expired or unknown). The
+catch-all 404 and server errors neither validate nor clear. Validated marks
+live on token keys, so they count toward the key cap. The unknown-lookup
+budget gates only tokens not yet validated:
+
+- Once an IP has spent its 30 unknown lookups in the window, requests on
+  not-yet-validated tokens get `429` with `Retry-After` = the rest of that
+  unknown window; validated tokens keep working, limited only by 300/token
+  and 600/IP. A shared NAT IP therefore cannot be locked out by typos or an
+  attacker behind it.
+- A request on a not-yet-validated token reserves one unknown-lookup slot for
+  its IP while in flight; the reservation becomes a counted lookup only when
+  the handler answers `assessment_unavailable` and is released otherwise (also
+  on panic), so a concurrent burst of unknown tokens cannot exceed 30. While
+  30 such requests are in flight from one IP, the next not-yet-validated one
+  gets `429` with `Retry-After: 1`. Validated requests never reserve or wait.
+
+Accepted residual (contract effabc49): a valid candidate whose token was not
+validated in the last 24 hours, behind an IP whose unknown budget is spent,
+gets `429` until that window ends (at most 10 minutes).
 
 Unmatched paths and methods under `/v2/assessments/{token}` are answered by a
 catch-all inside the same group: `404 not_found` with the privacy headers, and
