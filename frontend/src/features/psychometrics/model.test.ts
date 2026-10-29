@@ -20,6 +20,7 @@ it.each([
   { competencies: result.competencies.map(c => ({ ...c, index: 10 })) },
   { competencies: result.competencies.map(c => ({ ...c, band: "high" })) },
   { facets: result.facets.slice(1) }, { interpretations: result.interpretations.slice(1) },
+  ...["intro_text", "hypothesis_text"].map(key => ({ interpretations: result.interpretations.map(i => Object.fromEntries(Object.entries(i).filter(([k]) => k !== key))) })),
   { quality: { ...result.quality, tier: "none" } },
   { quality: { ...result.quality, signals: [{ id: "signal.attention", severity: "none", counts: { changes: 2 } }] } },
   { latest_comparison: { ...comparison, competencies: comparison.competencies.map(c => ({ ...c, fit: "apto" })) } },

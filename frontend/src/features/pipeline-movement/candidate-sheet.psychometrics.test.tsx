@@ -109,11 +109,18 @@ it("renders only stored guide and interpretations, copies plain text after succe
   const data = stored(); data.latest_comparison.guide[0].text = "Pregunta guardada\nSTAR guardado";
   data.latest_comparison.guide[0].good_answer_checklist = "Evidencia guardada";
   data.interpretations[0].work_text = "Interpretación guardada";
+  data.interpretations[0].intro_text = "Introducción guardada";
+  data.interpretations[0].hypothesis_text = "Hipótesis guardada";
   vi.mocked(actions.loadResultAction).mockResolvedValue({ ok: true, data });
   render(<Harness />); await openTab();
   expect(await screen.findByText(/Pregunta guardada/)).toHaveTextContent("STAR guardado");
   expect(screen.getByText(/Por qué se sugiere:/)).toHaveTextContent("Medio");
   expect(screen.getByText("Interpretación guardada")).toBeVisible();
+  const section = screen.getByText("Interpretación guardada").closest("section")!;
+  expect(section.textContent!.indexOf("Introducción guardada")).toBeGreaterThan(-1);
+  expect(section.textContent!.indexOf("Introducción guardada")).toBeLessThan(section.textContent!.indexOf("Interpretación guardada"));
+  expect(section.textContent!.indexOf("Hipótesis guardada")).toBeGreaterThan(section.textContent!.indexOf("Interpretación guardada"));
+  expect(document.body).not.toHaveTextContent("Confírmala con ejemplos de trabajo");
   expect(screen.getAllByText("sin perfil confirmado")).toHaveLength(7);
   expect(screen.getByRole("button", { name: /Ver detalle por rasgo/ })).toHaveAttribute("aria-expanded", "false");
   fireEvent.click(screen.getByRole("button", { name: "Copiar guía" }));

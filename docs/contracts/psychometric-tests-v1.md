@@ -85,7 +85,8 @@ An optional, per-vacancy personality assessment whose result is read against the
     "facet_ids": ["facet.c2", "facet.c5"], "oriented_sums": [9, 10],
     "oriented_sum": 19, "facet_count": 2, "index": "9.5", "band": "band.low" }], // exactly 7
   "interpretations": [{ "id": "lib.organizacion.low", "competency_id": "comp.organizacion",
-    "band": "band.low", "work_text": "…", "strengths_text": "…", "development_text": "…" }], // exactly 7
+    "band": "band.low", "intro_text": "…", "work_text": "…", "strengths_text": "…", "development_text": "…",
+    "hypothesis_text": "…" }], // exactly 7
   "quality": {
     "tier": "tier.algunas", "partial": false,
     "signals": [
@@ -156,7 +157,10 @@ never change. The result's latest_comparison.competencies carries the complete p
 The backend stores and returns resolved question text **including the fixed STAR follow-up**, good-answer checklist,
 selection metadata and ordered ids, maximum 8 questions, using the content's deterministic block rules (Clave before
 Importante, distance descending, id ascending; quality last with a reserved block). Interpretation ids and all three
-text sections are snapshots, with the required introductory and hypothesis sentences preserved. The frontend renders
+text sections are snapshots, with the required introductory and hypothesis sentences preserved as their own stored
+strings: `intro_text` (the fixed prepend) rendered before the three sections and `hypothesis_text` (the competency
+hypothesis sentence) after them. The wire projection omits static UI labels (section headings, the quality context
+label), guide `tier` (use quality.tier) and comparison `question_ids` (guide order is the order). The frontend renders
 stored text. No live profile or mutable bank lookup changes an existing report.
 
 Quality: every signal has severity `none|mild|strong|unknown` and the counts shape above; unavailable counts are null,

@@ -301,3 +301,11 @@ fe4cfc6 |
   Contract wording aligned: account-path write on a finished invitation → 409 assessment_finished (invitation_closed
   only for expired/revoked); answer PUT/DELETE outside 1..63 → 404 not_found; consent audit actor = candidate user
   (account) or system (public). Frontend already handles both codes (no code change).
+- **L39** (user, verbatim): «si por favor, dame la hoja.» — review sheet for the recruiter (worker mvtfkate-l-h4uy,
+  `docs/psychometrics/revision/`). Worker found 11 translation corrections in the 60-item bank, not 23: the 23 were
+  counted on the 116-item bank (L14) before the L15 reduction; the parent had kept quoting 23 to the user.
+- **L40** (backend B9 question, frontend decision): Result interpretations gain stored `intro_text` (fixed prepend,
+  rendered before the three sections) and `hypothesis_text` (rendered after); the sheet no longer hardcodes the
+  hypothesis sentence and now shows the intro it was missing. Wire omits static headings, the quality context label,
+  guide `tier` and comparison `question_ids`. latest_comparison stays non-nullable (finish inserts the initial
+  comparison in the same transaction). B8 429 body is a plain {error, code} envelope with Retry-After delta-seconds.
