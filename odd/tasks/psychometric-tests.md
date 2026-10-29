@@ -211,3 +211,6 @@ infra de aws».
   resolved. T9 worker told: no `review` tone in the psychometric UI («Por explorar» / «Foco de atención» = accent,
   focus distinguished by an icon). `--status-review` still appears in flows/01, flows/02 and result/01–03 and is a
   product-wide token; pending the user's decision on its scope.
+- **L23** User choice (question): «Psicometría completa (Recomendado)» — `--status-review` replaced by the primary
+  accent in flows/01, flows/02 and result/01–03 (0 occurrences left in both designs); the product-wide change is a
+  backlog item in `odd/tasks/frontend-backlog.md` (Known issues).
