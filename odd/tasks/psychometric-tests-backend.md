@@ -44,3 +44,13 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   generated `content.v1.json` (1,899 lines of data) and the frontend docs base; code is ~900 lines. `go run
   ./cmd/archguard` fails on the pre-existing `backend/docker/minio/Dockerfile` (f03af5fe, on main), unrelated to this
   feature. Merged frontend 938a265c (3f5ec00f).
+- **L5.** B3 committed ac17f5e7 (worker + parent verification). Parent ran on an isolated `draft_test` in the Docker
+  Postgres (geo seeded with `cmd/geoimport -skip-postal-codes`): `go test -tags integration ./cmd/api -run
+  '^(TestPsychometricProfile|TestChecklistFlow)'` ok, so the earlier checklist geo failure was the empty fixture DB.
+  Full `go test ./...` fails only `scripts/closure`: macOS bash 3.2 cannot parse `case … ;;` inside `$(…)`
+  (scripts/closure/gate:44, pre-existing on main). Jobs adapter `draftstore/psychometric_profile_context.go` reuses
+  the checklist guards without cross-feature imports (parent-approved).
+- **L6.** Frontend relayed user decision L25 (8d0e134a, merged 6b7b7e75; the frontend branch now also carries frontend
+  code, merged as shared history): «profile `rationale` is required only for importance.clave and
+  importance.importante (task only for clave). importance.no_relevante ⇒ desired_band, rationale AND task are null
+  (always, also in drafts); never-saved defaults = no_relevante with rationale null.» B3 follow-up in progress.
