@@ -274,3 +274,7 @@ fe4cfc6 |
   Then 1486 + inventory green, tsc 0. T8 commit 5fe4cfc6. T11 artboards (worker mvt71zi9-i-8b6u)
   `design/psychometric-candidate-workspace/` 01 «En la postulación», 02 «Bandeja de pendientes», 03 mobile of 01;
   parent screenshots render; commit 3bf38c73; pending the user's choice.
+- **L34** (user, verbatim): «si hermano estoy de acuerdo con tu recomendaqcion» — T11 = artboard 01 «En la
+  postulación» (chosen, handed off; 03 is its mobile view) + only the «Pendientes» block of 02 on the candidate
+  dashboard; the rest of 02 stays an alternative. The account path answers inside the candidate shell at
+  `/candidato/evaluaciones/[iid]` (the iid is not a credential: access is by session and candidate match).
