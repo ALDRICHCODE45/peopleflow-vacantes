@@ -20,7 +20,7 @@ implementation; the user pushes.
   apto o no apto.» Employer-only module in the vacancy configuration: competencies with importance, suggested from the
   vacancy; the result shows fit per competency, never «apto / no apto».
 - **S3 Instrument.** User: «creo que lo mejor es usar ipip», then chose «Corregir traducción + quitar Liberalismo»
-  (L10). IPIP-NEO-120 without facet O6 Liberalism (29 facets, 116 items), in our corrected Mexican Spanish version
+  (L10), then «Solo las que sirven» (L15). The IPIP-NEO-120 facets that feed a competency (15 facets, 60 items), in our corrected Mexican Spanish version
   reviewed by the user or the recruiter, plus attention and consistency items scored apart from personality. Recruiter: «Dar resultados confiables y objetivos: que las pruebas
   estén validadas, tengan criterios claros y reduzcan los sesgos, en lugar de etiquetar a las personas con base en un
   resultado aislado.»
@@ -158,3 +158,13 @@ infra de aws».
   show «Manejo de la presión»; items 11 and 71 got the same Spanish wording. Contract follow-ups: `total_count` 119
   and `DELETE {base}/answers/{position}` for clear events (signal.changes). Pending user review: 23 corrections,
   facet labels, borderline facets N1–N6, E6, O3.
+- **L15** User choices (question): facets «Solo las que sirven (Recomendado)» — the 12 facets that feed competencies +
+  N1/N2/N6 for a new competency «Manejo de la presión»: 15 facets, 60 items (data minimization, LFPDPPP arts. 8 and
+  12); design «03 + matriz de la 02 (Recomendado)» — chosen direction: interview guide first (artboard 03) with the
+  desired-vs-obtained band matrix of artboard 02 in the competencies section; 01 and plain 02/03 stay as alternatives.
+  Backend content check (msg adc5dfb0): bands and ids OK; round 2 (R2-1…R2-10) makes the contract adopt the content
+  model (content ids on the wire, README version names, confirmed profile with rationale and task, explicit comparisons
+  instead of recompute-on-read, richer result/focus/quality shapes, server-derived changes with client event_id,
+  stored guide text, consent notice in docs). Backend slicing B1–B10 proposed (content artifact + drift guard, pure
+  scoring, profile, invitations, link mint, auto-trigger, candidate endpoints, limiter, result + comparisons,
+  retention; security and deletion slices in their own commits).
