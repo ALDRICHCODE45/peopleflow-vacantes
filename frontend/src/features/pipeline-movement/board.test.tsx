@@ -117,7 +117,10 @@ it("labels manual cards without claiming an application", async () => {
   const board = boardFixture();
   Object.assign(board.participations[0], { source: "manual", added_by: { id: "recruiter", name: "Luis" } });
   await mount(board);
-  expect(screen.getByText("Ingreso manual")).toHaveAttribute("data-slot", "badge");
+  // The origin lives in the date line (no extra pill): «Ingreso manual · 21 oct».
+  const origin = screen.getByText("Ingreso manual");
+  expect(origin).not.toHaveAttribute("data-slot", "badge");
+  expect(origin.closest("p")).toHaveTextContent(/^Ingreso manual · \d{1,2} \w{3}$/);
   expect(screen.queryByText(/Postuló/)).not.toBeInTheDocument();
 });
 it("adds a manual card in place, focuses it and shows its origin in the sheet", async () => {

@@ -50,6 +50,22 @@ it("shows the reminder in the actual confirmation and moves without marks", asyn
   fireEvent.click(within(dialog).getByRole("button", { name: "Mover" }));
   await waitFor(() => expect(moveParticipationAction).toHaveBeenCalledOnce());
 });
+it("reminds only when moving forward, never when sending a candidate back", async () => {
+  const board = boardFixture();
+  board.participations = [{ ...board.participations[0], stage_id: board.stages[1].id }];
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { version: "1", reminder_stage_ids: [board.stages[0].id, board.stages[2].id], criteria: [{ id: "c", label: "Entrevista", kind: "manual", params: {}, importance: "required" }] } });
+  render(<MovementBoard vacancyId="vacancy" />);
+  await screen.findAllByLabelText(/Ajuste al checklist/);
+  const id = board.participations[0].id;
+  fireEvent.click(screen.getByRole("button", { name: `Mover ${id} a ${board.stages[0].name}` }));
+  const back = await screen.findByRole("alertdialog");
+  expect(within(back).queryByRole("region", { name: "Antes de mover" })).not.toBeInTheDocument();
+  fireEvent.click(within(back).getByRole("button", { name: "Cancelar" }));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: `Mover ${id} a ${board.stages[2].name}` }));
+  expect(within(await screen.findByRole("alertdialog")).getByRole("region", { name: "Antes de mover" })).toBeVisible();
+});
 it("reviews pending criteria from the confirmation in the sheet Checklist tab without moving", async () => {
   const board = boardFixture();
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { version: "1", reminder_stage_ids: [board.stages[1].id], criteria: [{ id: "c", label: "Entrevista", kind: "manual", params: {}, importance: "required" }] } });

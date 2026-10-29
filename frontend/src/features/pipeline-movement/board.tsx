@@ -13,6 +13,7 @@ import { plural } from "@/features/employer-vacancies/plural";
 import { ManualIntakeSheet } from "@/features/manual-intake/sheet";
 import { loadParticipationAction } from "./actions";
 import type { Participation } from "./model";
+import { isBackwardMove } from "./helpers";
 import { BoardDelivery } from "./board-delivery";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { BoardLifecycle } from "./board-lifecycle";
@@ -82,7 +83,8 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
     title={`¿Mover a ${confirmation.item.candidate.full_name} a ${to}?`}
     description={`Pasa de ${from} a ${to}. El cambio queda en su historial.${confirmation.placementExit ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación." : ""}`}
     confirmLabel="Mover" pendingLabel="Moviendo…" pending={confirming} confirmDisabled={state.reading || stale} onConfirm={state.confirmMove}>
-    <ChecklistReminder item={confirmation.item} target={confirmation.target} onReview={() => { const id = confirmation.item.id; state.closeConfirmation(); setSheetTab({ id, tab: "checklist" }); setSelected(id); }} />
+    {/* Sending a candidate back never reminds: the checklist only nudges forward moves. */}
+    {board && !isBackwardMove(board, confirmation.item, confirmation.target) && <ChecklistReminder item={confirmation.item} target={confirmation.target} onReview={() => { const id = confirmation.item.id; state.closeConfirmation(); setSheetTab({ id, tab: "checklist" }); setSelected(id); }} />}
     {stale && <ActionStatus id="placement-check-status" tone="info" text={state.reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} />}
   </ConfirmActionDialog>;
   const substate = state.substateConfirmation;

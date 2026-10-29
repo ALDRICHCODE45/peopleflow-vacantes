@@ -8,6 +8,7 @@ import { cn } from "cn";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
 import { plural } from "@/features/employer-vacancies/plural";
 import { ActionStatus } from "@/components/feedback/action-status";
@@ -15,26 +16,36 @@ import type { Participation } from "@/features/pipeline-movement/model";
 import { MovementDate } from "@/features/pipeline-movement/board-states";
 import { evaluateCriterion, resultLabel, sourceLabel, summarize } from "../evaluate";
 import type { Criterion, Mark } from "../model";
-import { fitLine, fitTone, pendingRequired } from "./fit";
+import { fitLine, pendingRequired } from "./fit";
 import { useBoardChecklist } from "./state";
 
 export function ChecklistRetry() {
   const state = useBoardChecklist();
   return state?.failed ? <Button type="button" variant="ghost" disabled={state.reading} onClick={state.retry}>Reintentar checklist</Button> : null;
 }
+const SEGMENT_CLASS = { met: "bg-status-success", not_met: "bg-status-review", unknown: "bg-border" } as const;
+/** One segment per criterion, cumple → no cumple → sin evaluar; past 24 they collapse into three proportional runs. */
+function fitSegments(counts: { met: number; not_met: number; unknown: number }) {
+  const runs = (["met", "not_met", "unknown"] as const).map(result => ({ result, count: counts[result] })).filter(run => run.count > 0);
+  return counts.met + counts.not_met + counts.unknown > 24 ? runs : runs.flatMap(run => Array.from({ length: run.count }, () => ({ result: run.result, count: 1 })));
+}
+// Data visualized, not a status pill (§10.6, §16): label row + segmented bar, breakdown in a tooltip.
 export function ChecklistFit({ item }: { item: Participation }) {
   const state = useBoardChecklist();
   if (!state?.checklist?.criteria.length) return null;
   const fit = summarize(state.checklist.criteria, item, state.marks);
   const required = fit.required.met + fit.required.not_met + fit.required.unknown;
-  const unknown = fit.required.unknown + fit.desirable.unknown;
-  const tone = fitTone(fit);
-  // The icon follows the tone: a check only when every required criterion is met.
-  const FitIcon = tone === "success" ? Check : tone === "review" ? X : CircleHelp;
-  return <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1" aria-label={`Ajuste al checklist: ${fitLine(fit)}`}>
-    <Badge variant={tone}><FitIcon aria-hidden="true" data-icon="inline-start" data-fit-icon={tone} />{fit.required.met}/{required} obligatorios</Badge>
-    {unknown > 0 && <span className="text-xs text-muted-foreground">{unknown} sin evaluar</span>}
-  </div>;
+  const desirable = fit.desirable.met + fit.desirable.not_met + fit.desirable.unknown;
+  const counts = required ? fit.required : fit.desirable;
+  const rows: [string, string][] = [[required ? "Obligatorios cumplidos" : "Deseables cumplidos", `${counts.met} de ${required || desirable}`], ["No cumple", String(counts.not_met)], ["Sin evaluar", String(counts.unknown)]];
+  if (required && desirable) rows.push(["Deseables cumplidos", `${fit.desirable.met} de ${desirable}`]);
+  return <Tooltip>
+    <TooltipTrigger render={<div className="flex min-w-0 flex-col gap-1.5" aria-label={`Ajuste al checklist: ${fitLine(fit)}`} />}>
+      <span className="flex min-w-0 items-center gap-1.5 text-xs"><ListChecks aria-hidden="true" className="size-3.5 shrink-0" /><span className="font-medium text-foreground">Checklist</span><span className="ml-auto tabular-nums">{counts.met}/{required || desirable} {required ? "obligatorios" : "deseables"}</span></span>
+      <span aria-hidden="true" className="flex h-1.5 gap-0.5">{fitSegments(counts).map((segment, index) => <span key={index} data-segment={segment.result} className={cn("rounded-[2px]", SEGMENT_CLASS[segment.result])} style={{ flexGrow: segment.count, flexBasis: 0 }} />)}</span>
+    </TooltipTrigger>
+    <TooltipContent className="flex-col items-stretch gap-0.5 py-2"><span className="font-semibold">Checklist</span>{rows.map(([label, value]) => <span key={label} className="flex justify-between gap-6"><span>{label}</span><span className="tabular-nums">{value}</span></span>)}</TooltipContent>
+  </Tooltip>;
 }
 function CriterionRow({ criterion, item }: { criterion: Criterion; item: Participation }) {
   const state = useBoardChecklist()!;

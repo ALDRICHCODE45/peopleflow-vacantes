@@ -152,15 +152,10 @@ it.each(["light", "dark"])("keeps compact fit and notes flexible at 256px card /
   document.documentElement.className = theme;
   const { container } = mount("other");
   const fit = await screen.findByLabelText(/Ajuste al checklist/);
-  expect(fit).toHaveClass("flex-wrap", "min-w-0");
-  expect(fit.className).not.toMatch(/(?:^|\s)h-/);
-  const badge = fit.querySelector('[data-slot="badge"]')!;
-  expect(badge).toHaveAttribute("data-variant", "neutral");
-  expect(badge).toHaveTextContent("0/1 obligatorios");
-  expect(badge.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
-  // A check icon only when every required criterion is met; neutral fit uses the unknown icon.
-  expect(badge.querySelector("svg")).toHaveAttribute("data-fit-icon", "neutral");
-  expect(fit.querySelector('[data-slot="badge"]')).not.toHaveClass("whitespace-normal");
+  expect(fit).toHaveClass("min-w-0");
+  expect(within(fit).getByText("0/1 obligatorios")).toBeVisible();
+  // A data line, not a status pill (§16): no badge on the card.
+  expect(fit.querySelector('[data-slot="badge"]')).toBeNull();
   const panel = screen.getByRole("region", { name: "Checklist del candidato" });
   expect(panel).toHaveClass("min-w-0");
   expect(panel.querySelector('[data-slot="item-title"]')).toHaveClass("line-clamp-none");
@@ -168,6 +163,25 @@ it.each(["light", "dark"])("keeps compact fit and notes flexible at 256px card /
   expect(panel.querySelector('[data-pf-action-status-slot]')).toBeNull();
   expect(container.innerHTML).not.toMatch(/(?:bg|text)-(?:red|green|blue)-\d/);
   document.documentElement.className = "";
+});
+it("draws one bar segment per required criterion, ordered cumple, no cumple, sin evaluar", async () => {
+  const required = ["a", "b", "c"].map(id => ({ ...criterion, id, label: `Criterio ${id}` }));
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: [...required, { ...criterion, id: "d", label: "Deseable", importance: "desirable" }] } });
+  vi.mocked(loadChecklistMarksAction).mockResolvedValue({ ok: true, data: { items: [{ ...mark, criterion_id: "c", verdict: "met" }, { ...mark, criterion_id: "a", verdict: "not_met" }] } });
+  mount("other");
+  const fit = await screen.findByLabelText(/Ajuste al checklist/);
+  await waitFor(() => expect(within(fit).getByText("1/3 obligatorios")).toBeVisible());
+  expect([...fit.querySelectorAll("[data-segment]")].map(segment => segment.getAttribute("data-segment"))).toEqual(["met", "not_met", "unknown"]);
+  expect(fit).toHaveAccessibleName("Ajuste al checklist: Obligatorios 1/3 · Deseables 0/1 · 2 sin evaluar");
+});
+it("keeps the bar to three proportional segments past 24 required criteria", async () => {
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: Array.from({ length: 30 }, (_, n) => ({ ...criterion, id: `c${n}`, label: `Criterio ${n}` })) } });
+  mount("other");
+  const fit = await screen.findByLabelText(/Ajuste al checklist/);
+  expect(within(fit).getByText("0/30 obligatorios")).toBeVisible();
+  const segments = [...fit.querySelectorAll<HTMLElement>("[data-segment]")];
+  expect(segments.map(segment => segment.getAttribute("data-segment"))).toEqual(["unknown"]);
+  expect(segments[0].style.flexGrow).toBe("30");
 });
 it("retains known automatic sources and existing notes behind Editar nota", async () => {
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: [criterion, { id: "skill", label: "SQL", importance: "desirable", kind: "skill", params: { name: "SQL" } }] } });

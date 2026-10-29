@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, type RefObject } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from "@dnd-kit/core";
-import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole } from "lucide-react";
+import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole, UserPlus } from "lucide-react";
 import { cn } from "cn";
 import { plural } from "@/features/employer-vacancies/plural";
 import { ActionStatus } from "@/components/feedback/action-status";
@@ -57,9 +57,9 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
       <ChecklistFit item={item} />
-      {item.source === "manual" && <Badge variant="accent">Ingreso manual</Badge>}
       {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}
-      <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span>{item.source === "manual" ? "Agregado" : "Postuló"} <MovementDate value={item.applied_at} compact /></span></p>
+      {/* The origin shares the date line instead of an extra pill: «Ingreso manual · 21 oct» / «Postuló 17 oct». */}
+      <p className="flex items-center gap-2">{item.source === "manual" ? <UserPlus aria-hidden="true" className="size-3.5 shrink-0" /> : <CalendarDays aria-hidden="true" className="size-3.5 shrink-0" />}<span>{item.source === "manual" ? <><span>Ingreso manual</span> · </> : "Postuló "}<MovementDate value={item.applied_at} compact /></span></p>
       <p className="flex items-center gap-2"><Clock3 aria-hidden="true" className="size-3.5 shrink-0" /><span>En la etapa desde <MovementDate value={item.moved_at} compact /></span></p>
     </CardContent>
     <Separator />

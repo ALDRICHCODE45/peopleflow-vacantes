@@ -1082,7 +1082,14 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
   dashed de 96px, no un `Empty` repetido.
 - Tarjetas `Card` con composición nativa, avatar de 32px, nombre 14px/500 de dos
   líneas con tooltip, metadatos de fechas, `Separator` y archivo por extensión o
-  motivo/grupo de descarte. Menú: destinos permitidos → «Ver ficha» → «Descartar»;
+  motivo/grupo de descarte. El origen manual comparte la línea de fecha («Ingreso manual ·
+  21 oct», ícono `UserPlus`), no es otra píldora. El ajuste al checklist es una fila de datos
+  («Checklist · 1/12 obligatorios») con una barra segmentada (un segmento por obligatorio:
+  cumple `status-success`, no cumple `status-review`, sin evaluar `border`; más de 24 se
+  agrupan en tres tramos proporcionales) y el desglose en un tooltip, nunca un badge
+  (`design/candidate-card-checklist/01-barra-segmentada.html`). Las flechas del menú
+  «Mover a…» indican la dirección: ← etapas anteriores, → la siguiente.
+  Menú: destinos permitidos → «Ver ficha» → «Descartar»;
   descartada: «Recuperar» → «Ver ficha». La manija dnd-kit sigue independiente,
   disponible con foco y siempre visible en pantallas pequeñas; su target de 40px
   ocupa el aire alrededor de la fila compacta del CV, no añade otra fila de acciones.

@@ -24,13 +24,15 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
   and the source of each result is visible (perfil, respuesta, reclutador).
 - **S4 One-click recruiter marks.** In the candidate sheet the recruiter marks any criterion ✓/✗ (optional note) or
   clears it; a mark overrides the automatic result and shows who and when; audited by the backend.
-- **S5 Fit on the board.** Each card shows its fit summary (e.g. «Obligatorios 4/5 · 1 sin evaluar»); the board can be
+- **S5 Fit on the board.** Each card shows its fit summary as «Checklist · 4/5 obligatorios» with a segmented bar and
+  the breakdown in a tooltip (L21, artboard `design/candidate-card-checklist/01-barra-segmentada.html`); the board can be
   ordered by «Mejor ajuste» and filtered by fit. Value appears without any manual input.
 - **S6 Comparison.** Compare selected candidates side by side, criterion by criterion.
 - **S7 Shortlist report for the client.** User: «1. Si, incluirlo en el reporte.» From the comparison, export the
   terna as a printable report (PDF through the browser) and CSV: candidates × criteria with results and recruiter notes.
   No contact data by default.
-- **S8 Non-blocking reminder.** User: «3. si, el recordatorio suena bien.» When moving a candidate into a stage chosen in
+- **S8 Non-blocking reminder.** User: «3. si, el recordatorio suena bien.» When moving a candidate forward (never back,
+  L21) into a stage chosen in
   the checklist's reminder stages, the move confirmation shows one compact notice (count of required criteria still
   «sin evaluar», the first names, «Puedes mover sin marcarlos.») and «Revisar en la ficha», which opens the candidate
   sheet on its «Checklist» tab; marks are made only in the sheet (L19). The move works without marking anything.
@@ -50,7 +52,7 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
 | T7 | all | inline — browser QA against the backend, guide step, review queue, delivery | 9bd31e5a, 8aa1b1d0 |
 | T8 | S8 | inline — user review: reminder as a compact notice + «Revisar en la ficha» (no inline marks) | cd127b76 |
 | T9 | — | inline — user review: move menu arrow points left for earlier stages | ec013cc4 |
-| T10 | S5 | design — card fit presentation (`design/candidate-card-checklist/`), then implement the chosen artboard | pending choice |
+| T10 | S5, S8 | inline — card fit as segmented bar (chosen artboard 01) + reminder only on forward moves | see L21 |
 
 ## Log
 
@@ -182,3 +184,10 @@ fit on the board, comparison and a shortlist («terna») report. Branch `feat/va
   references: Goodfit ATS pipeline case study (signals over text, segmented scores with hover justification, explicit
   status) and §10.6 / §14.2 / §14.3. Artboards in `design/candidate-card-checklist/`: 00 actual, 01 barra segmentada,
   02 anillo en el encabezado, 03 contadores de señales; all move «Ingreso manual» from a pill into the date line.
+- **L21** User choices (question): card «01 · Barra segmentada» (chosen artboard; 02 and 03 stay as alternatives) and
+  reminder «Solo al avanzar». T10: `ChecklistFit` = data row «Checklist · N/M obligatorios» + one segment per required
+  criterion (cumple/no cumple/sin evaluar, three proportional runs past 24) + tooltip breakdown, no badge (`fitTone`
+  removed); card origin in the date line («Ingreso manual · 21 oct», `UserPlus`); the board renders the reminder only
+  when `isBackwardMove` is false. RED 5 → GREEN, pipeline + checklist 610/610, tsc 0. Browser (1440 light/dark, 390):
+  12 segments per card, 0 px overflow in fit row and card, tooltip «1 de 12 · No cumple 1 · Sin evaluar 10 · Deseables
+  0 de 4», no page errors. Docs: §14.3 card rule, guide step 91.
