@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { VacancyChecklistModule } from "./checklist-module";
 import { loadChecklistAction, saveChecklistAction } from "@/features/vacancy-checklist/actions";
@@ -29,8 +29,10 @@ it("loads checklist, employer draft and current pipeline only when mounted", asy
   expect(await screen.findByRole("heading", { name: "Checklist" })).toBeVisible();
   expect(loadChecklistAction).toHaveBeenCalledWith(read.id); expect(loadDraftPipelineAction).toHaveBeenCalledWith(read.id);
   fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
-  expect(screen.getByText("Al menos 1.5 años de experiencia")).toBeVisible();
-  expect(screen.getByText("Idioma: Inglés · mínimo C1")).toBeVisible();
+  // The selected criterion is also the detail heading (list and detail, R9); assert the suggested list itself.
+  const criteria = screen.getByRole("list", { name: "Criterios del checklist" });
+  expect(within(criteria).getByText("Al menos 1.5 años de experiencia")).toBeVisible();
+  expect(within(criteria).getByText("Idioma: Inglés · mínimo C1")).toBeVisible();
 });
 it("uses the shared full-section error and explicitly retries all reads", async () => {
   vi.mocked(loadChecklistAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
