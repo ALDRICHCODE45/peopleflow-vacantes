@@ -79,6 +79,19 @@ describe("candidate application contracts", () => {
     fetchMock.mockResolvedValue(Response.json(data));
     expect(await loadApplications({ token: "private-token" })).toEqual({ ok: true, data });
   });
+  it.each([undefined, "2026-10-16T12:00:00Z", "2026-10-20T09:30:00Z", "2026-10-20T03:30:00-06:00"])("accepts the optional last visible change updated_at %s", async updated_at => {
+    const data = { ...page, items: [{ ...page.items[0], ...(updated_at && { updated_at }) }] };
+    fetchMock.mockResolvedValue(Response.json(data));
+    expect(await loadApplications({ token: "private-token" })).toEqual({ ok: true, data });
+  });
+  it.each([null, "", "2026-02-30T12:00:00Z", "2026-03-05T09:30:00", "2020-01-01T00:00:00Z"])("rejects a malformed or pre-application updated_at %j", async updated_at => {
+    fetchMock.mockResolvedValue(Response.json({ ...page, items: [{ ...page.items[0], updated_at }] }));
+    expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
+  });
+  it("still rejects any other unknown item key next to updated_at", async () => {
+    fetchMock.mockResolvedValue(Response.json({ ...page, items: [{ ...page.items[0], updated_at: "2026-10-20T09:30:00Z", stage: "entrevista" }] }));
+    expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
+  });
   it("pages the candidate list with encoded opaque cursor", async () => {
     fetchMock.mockResolvedValue(Response.json(page));
     expect(await loadApplications({ token: "private-token", query: { cursor: "a+/=", limit: 10 } })).toEqual({ ok: true, data: page });
