@@ -32,7 +32,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | R1 | S1 | worker — design directions: psychometrics tab summary + full report (page vs large dialog vs expandable sheet) | |
 | R2 | S1 | worker — implement design/psychometric-report/03-ficha-expandible.html (chosen): compact tab summary + expandable two-column sheet, preparation panel, uniform report sections | d0a4c42f |
 | R3 | S2 | design directions: candidate comparison | |
-| R4 | S2 | worker — implement design/candidate-comparison/01-resumen-y-matriz.html (chosen) in features/vacancy-checklist/compare | |
+| R4 | S2 | worker — implement design/candidate-comparison/01-resumen-y-matriz.html (chosen) in features/vacancy-checklist/compare | 53a0967a |
 | R5 | S3 | design directions: candidate applications | |
 | R6 | S3 | implement chosen R5 | |
 | R7 | S4 | design directions: psychometric profile configuration without a long flat form | |
@@ -96,3 +96,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   two-column workspace, Lucía's in-progress block with menu; parent widened the panorama scale column (130→156px) so
   «Medio» fits. Handoff marked implemented. R4 continues with an authorized shared checklist-bar extraction in
   vacancy-checklist/board.
+- **L11** R4 implemented (53a0967a): shared ChecklistFitSummary extracted from board ChecklistFit (authorized, markup
+  pinned by test); RED 2 → GREEN; 250 tests in checklist + compare route + board columns; tsc 0. Parent print check
+  found empty segments printing black (print --border black) and the hover hint on paper → --border mid grey, hint
+  print:hidden. Handoff marked implemented.
