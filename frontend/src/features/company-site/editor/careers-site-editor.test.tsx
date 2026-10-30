@@ -163,7 +163,21 @@ it("adds from the thirteen-type library, with protected types disabled and expla
   await user.click(within(library).getByRole("button", { name: "Agregar Historia" }));
   expect(row("Historia")).toHaveTextContent("Incompleta");
   expect(screen.getByRole("heading", { name: "Propiedades de Historia" })).toBeVisible();
-  expect(frame().getByText("Agrega contenido a esta sección para verla en tu sitio.")).toBeInTheDocument();
+  expect(frame().getByRole("heading", { level: 3, name: "Nuestra historia todavía no tiene contenido" })).toBeInTheDocument();
+});
+it("shows the nothing-selected properties state after deleting the selected block", async () => {
+  const props = fixture(); props.initialSite.draft.blocks.push(defaultBlock("story"));
+  render(<CareersSiteEditor {...props} />);
+  await screen.findByRole("heading", { name: "Tu página" });
+  fireEvent.click(within(row("Historia")).getByRole("button", { name: "Seleccionar Historia" }));
+  fireEvent.click(within(row("Historia")).getByRole("menuitem", { name: "Eliminar" }));
+  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Eliminar sección" }));
+  const panel = screen.getByRole("complementary", { name: "Propiedades de la sección" });
+  const heading = within(panel).getByRole("heading", { name: "Selecciona una sección para verla aquí", level: 3 });
+  expect(within(panel).getByText("Elige una sección de la lista o de la vista previa para cambiar su contenido y diseño.")).toBeVisible();
+  expect(heading.closest('[data-slot="empty"]')?.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(heading.closest('[data-slot="empty"]')?.querySelector("svg")).toHaveClass("lucide-layout-template");
+  expect(within(panel).queryByRole("button")).not.toBeInTheDocument();
 });
 it("reorders with keyboard actions, hides/shows, duplicates and confirms deletion", async () => {
   const props = fixture(); props.initialSite.draft.blocks.splice(1, 0, defaultBlock("story"));

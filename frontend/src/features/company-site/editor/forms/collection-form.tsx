@@ -1,6 +1,18 @@
 "use client";
 
 import { useId } from "react";
+import { SECTION_ICONS } from "../section-list";
+
+const COLLECTION_EMPTY = {
+  values: { noun: "valores", action: "Agregar valor", description: "Explica qué guía a tu equipo. Agrega el primer valor para empezar." },
+  benefits: { noun: "beneficios", action: "Agregar beneficio", description: "Cuenta qué ofrece tu empresa a quienes se suman al equipo. Agrega el primer beneficio para empezar." },
+  stats: { noun: "cifras", action: "Agregar cifra", description: "Comparte datos reales sobre tu empresa. Agrega una cifra y explica qué representa." },
+  process: { noun: "pasos", action: "Agregar paso", description: "Cuenta cómo es tu proceso de selección. Agrega el primer paso para empezar." },
+  gallery: { noun: "fotos", action: "Agregar foto", description: "Muestra cómo se vive en tu empresa. Agrega una foto con su texto alternativo." },
+  testimonials: { noun: "testimonios", action: "Agregar testimonio", description: "Comparte la experiencia de tu equipo. Necesitas su permiso para publicarla." },
+  offices: { noun: "oficinas", action: "Agregar oficina", description: "Ayuda a las personas a conocer tus sedes. Agrega una oficina para empezar." },
+  faq: { noun: "preguntas frecuentes", action: "Agregar pregunta", description: "Resuelve dudas sobre tu empresa. Agrega una pregunta y su respuesta." },
+} as const;
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { LocationField } from "@/features/geo/location-field";
@@ -23,7 +35,8 @@ export function CollectionForm({ block, dispatch, fieldErrors }: FormProps) {
   function list<T>(items: T[], blank: () => T, min: number, max: number, summary: (item: T) => string | null, fields: (item: T, index: number, update: (patch: Partial<T>) => void) => ReactNode) {
     // Each switch branch supplies its own item type and complete blank template.
     const set = (next: T[]) => dispatch({ type: "content", id: block.id, content: { ...block.content, items: next } as SiteBlock["content"] });
-    return <ItemList items={items} create={blank} min={min} max={max} onChange={set} error={error("items")} summary={(item, i) => summary(item)?.trim() || `Elemento ${i + 1}`}>
+    const copy = COLLECTION_EMPTY[block.type as keyof typeof COLLECTION_EMPTY];
+    return <ItemList empty={{ title: `Todavía no hay ${copy.noun}`, description: copy.description, action: copy.action, icon: SECTION_ICONS[block.type] }} items={items} create={blank} min={min} max={max} onChange={set} error={error("items")} summary={(item, i) => summary(item)?.trim() || `Elemento ${i + 1}`}>
       {(item, i) => fields(item, i, patch => set(items.map((entry, j) => j === i ? { ...entry, ...patch } : entry)))}
     </ItemList>;
   }

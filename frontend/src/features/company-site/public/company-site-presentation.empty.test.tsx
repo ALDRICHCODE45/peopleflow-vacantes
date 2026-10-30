@@ -1,0 +1,30 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { CompanySitePresentation } from "./company-site-presentation";
+import { publishedFixture } from "./fixtures.test-support";
+import { defaultBlock } from "../defaults";
+vi.mock("next/font/google", () => ({ Fraunces: () => ({ variable: "editorial" }), Plus_Jakarta_Sans: () => ({ variable: "modern" }) }));
+afterEach(cleanup);
+it("offers complete blank-section anatomy and selects that block", () => {
+  const data = publishedFixture(); const story = defaultBlock("story"); data.site.blocks.push(story);
+  const select = vi.fn();
+  render(<CompanySitePresentation site={data.site} company={data.company} jobs={[]} officeLabels={new Map()} onSelectBlock={select} />);
+  const heading = screen.getByRole("heading", { level: 3, name: "Nuestra historia todavía no tiene contenido" });
+  const empty = heading.closest('[data-slot="empty"]') as HTMLElement;
+  expect(within(empty).getByText("Cuenta cómo empezó tu empresa y qué la mueve. Completa esta sección para verla en tu sitio.")).toBeVisible();
+  expect(empty.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(empty.querySelector("svg")).toHaveClass("lucide-book-open");
+  fireEvent.click(within(empty).getByRole("button", { name: "Completar sección" }));
+  expect(select).toHaveBeenCalledExactlyOnceWith(story.id);
+});
+it("keeps every empty optional block omitted for visitors", () => {
+  const data = publishedFixture();
+  const optional = (["story", "values", "benefits", "stats", "process", "gallery", "testimonials", "video", "offices", "faq", "closing"] as const).map(defaultBlock);
+  data.site.blocks.push(...optional);
+  const { container } = render(<CompanySitePresentation site={data.site} company={data.company} jobs={[]} officeLabels={new Map()} />);
+  for (const block of optional) expect(container.querySelector(`#bloque-${block.id}`)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Completar sección" })).not.toBeInTheDocument();
+  expect(container.querySelector('[data-block-type="hero"]')).toBeInTheDocument();
+  expect(container.querySelector('[data-block-type="jobs"]')).toBeInTheDocument();
+});

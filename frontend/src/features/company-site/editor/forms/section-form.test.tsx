@@ -69,7 +69,7 @@ it.each(cases)("%s renders current fields and edits through the reducer", async 
   const block = defaultBlock(type);
   if ("items" in block.content) {
     mount(block);
-    fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Agregar / }));
   } else {
     Object.assign(block.content, { [key]: "Actual" });
     mount(block);
@@ -77,6 +77,30 @@ it.each(cases)("%s renders current fields and edits through the reducer", async 
   }
   fireEvent.change(screen.getByLabelText(label), { target: { value: "Nuevo" } });
   expect(screen.getByTestId("content")).toHaveTextContent(`"${key}":"Nuevo"`);
+});
+const emptyCollections = [
+  ["values", "valores", "valor", "Explica qué guía a tu equipo. Agrega el primer valor para empezar.", "compass"],
+  ["benefits", "beneficios", "beneficio", "Cuenta qué ofrece tu empresa a quienes se suman al equipo. Agrega el primer beneficio para empezar.", "gift"],
+  ["stats", "cifras", "cifra", "Comparte datos reales sobre tu empresa. Agrega una cifra y explica qué representa.", "chart-no-axes-column"],
+  ["process", "pasos", "paso", "Cuenta cómo es tu proceso de selección. Agrega el primer paso para empezar.", "sliders-horizontal"],
+  ["gallery", "fotos", "foto", "Muestra cómo se vive en tu empresa. Agrega una foto con su texto alternativo.", "images"],
+  ["testimonials", "testimonios", "testimonio", "Comparte la experiencia de tu equipo. Necesitas su permiso para publicarla.", "message-square-quote"],
+  ["offices", "oficinas", "oficina", "Ayuda a las personas a conocer tus sedes. Agrega una oficina para empezar.", "map-pin"],
+  ["faq", "preguntas frecuentes", "pregunta", "Resuelve dudas sobre tu empresa. Agrega una pregunta y su respuesta.", "circle-question-mark"],
+] as const;
+it.each(emptyCollections)("%s has a complete collection empty with its existing add action", (type, noun, singular, description, icon) => {
+  mount(defaultBlock(type));
+  const heading = screen.getByRole("heading", { name: `Todavía no hay ${noun}`, level: 3 });
+  const empty = heading.closest('[data-slot="empty"]')!;
+  expect(within(empty as HTMLElement).getByText(description)).toBeVisible();
+  expect(empty.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(empty.querySelector("svg")).toHaveClass(`lucide-${icon}`);
+  const add = within(empty as HTMLElement).getByRole("button", { name: `Agregar ${singular}` });
+  expect(savedItems()).toEqual([]);
+  fireEvent.click(add);
+  expect(savedItems()).toHaveLength(1);
+  expect(screen.queryByRole("heading", { name: `Todavía no hay ${noun}` })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Elemento 1" })).toHaveAttribute("aria-expanded", "true");
 });
 const textFields: [BlockType, [string, string, number][]][] = [
   ["hero", [["Título principal", "title", 80], ["Subtítulo", "subtitle", 200]]],
@@ -138,7 +162,7 @@ it("lets long text grow from three to ten lines before scrolling", () => {
 });
 it.each(["hover", "focus"] as const)("names each icon with a tooltip on %s", async interaction => {
   mount(defaultBlock("benefits"));
-  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Agregar beneficio" }));
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Ícono o emoji" }));
   const option = screen.getByRole("option", { name: "Cohete" });
@@ -152,7 +176,7 @@ it.each(["hover", "focus"] as const)("names each icon with a tooltip on %s", asy
 it("keeps icon selection accessible without a separate visible check indicator", async () => {
   const block = defaultBlock("values");
   mount(block);
-  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Agregar valor" }));
   const user = userEvent.setup({ delay: null });
   const trigger = screen.getByRole("button", { name: "Ícono o emoji" });
   expect(trigger).toHaveTextContent("Corazón");
@@ -168,7 +192,7 @@ it("keeps icon selection accessible without a separate visible check indicator",
 });
 it("updates the selected icon, Spanish trigger label and accessible selection", async () => {
   mount(defaultBlock("values"));
-  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Agregar valor" }));
   const user = userEvent.setup({ delay: null });
   const trigger = screen.getByRole("button", { name: "Ícono o emoji" });
   await user.click(trigger);
@@ -288,7 +312,7 @@ it("maps indexed field errors only to the owning item", () => {
 it.each([["hero", "Imagen de portada", "cover"], ["story", "Imagen de la historia", "story"], ["gallery", "Imagen", "gallery"], ["testimonials", "Foto", "portrait"]] as const)("%s delegates the correct image kind", (type, label, kind) => {
   const block = defaultBlock(type);
   mount(block);
-  if ("items" in block.content) fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  if ("items" in block.content) fireEvent.click(screen.getByRole("button", { name: /^Agregar / }));
   const image = screen.getByRole("button", { name: label });
   expect(image.parentElement).toHaveAttribute("data-kind", kind);
   fireEvent.click(image);
@@ -332,7 +356,7 @@ it("uses the real story editor with the story accessible name", () => {
 });
 it("wires testimonial consent and image refs", async () => {
   mount(defaultBlock("testimonials"));
-  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Agregar testimonio" }));
   const consent = screen.getByRole("switch", { name: "Tengo permiso para publicar este testimonio" });
   expect(consent).not.toBeChecked();
   fireEvent.click(consent);
@@ -342,7 +366,7 @@ it("wires testimonial consent and image refs", async () => {
 });
 it("picks a contract icon with the public site's icon mapping", async () => {
   mount(defaultBlock("benefits"));
-  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Agregar beneficio" }));
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Ícono o emoji" }));
   const option = await screen.findByRole("option", { name: "Cohete" });
