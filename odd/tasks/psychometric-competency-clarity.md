@@ -22,9 +22,9 @@ backend content change.
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| C1 | S1–S4 | canvas — `design/psychometric-competency-help/` (names + popovers in configuration and candidate sheet) → user choice | |
+| C1 | S1–S4 | canvas — `design/psychometric-competency-help/` (names + popovers in configuration and candidate sheet) → user choice | 2bffafb8 (L5) |
 | C2 | S1 | backend request — rename competencies in the versioned content (`content.v1.json`), ids unchanged | backend branch, uncommitted (L6) |
-| C3 | S1–S4 | implement chosen design; single frontend source for names/descriptions; tests | |
+| C3 | S1–S4 | implement chosen design; single frontend source for names/descriptions; tests | 52360ebf |
 
 ## Log
 
@@ -58,3 +58,10 @@ backend content change.
   local main ef73f9ff): content.v1.json competencies[].name renamed (ids, definitions, facets, rationale byte-identical),
   docs/psychometrics/bands-and-competencies-v1.md and README.md updated; TestDocumentationDrift RED → GREEN. No content
   version bump: `name` is only checked non-empty by the loader, not in scoring, snapshots, API responses or checksums.
+- **L7** C3 implemented 52360ebf (worker + parent): competency-copy.ts single source, InfoPopover, profile list/detail/
+  fields/Confirmar perfil and candidate sheet. Parent replaced the worker's test shell (it imported Base UI internals
+  from node_modules) with a public popup-shell mock; the real positioner loops in jsdom on this screen. Escape, outside
+  click and focus return verified in Chrome (click and Enter, competency and field triggers); no old names on the page;
+  no overflow at 390px. 1141/1141 in psychometrics + pipeline-movement, tsc 0, eslint clean. Native review
+  review-53cce7ab9ebf2ac8 approved; advisories R2-001 (candidate-sheet.psychometrics.test.tsx:153) and R3-001
+  (help.test.tsx:10-13, shell mock) → follow-up. Handoff 01-configuracion implemented.
