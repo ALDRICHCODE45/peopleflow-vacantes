@@ -104,6 +104,46 @@
 - ✅ **Enforcement "empresa viva" en escritura** — ENTREGADO en dos capas complementarias: (a) los write paths de jobs (`CreateJob`, `UpdateJob`, `SoftDeleteJob`, `GetJobForUpdate`) y el apply gate de applications (`CreateApplication`) rechazan empresas tombstoned (`status='active'` + `deleted_at` seteado — `SoftDeleteCompany` preserva el status, así que `status='active'` solo no es gate de "empresa viva"). Jobs → `ErrCompanyNotActive` (409) / `ErrJobNotFound` en `GetJobForUpdate`; applications → `ErrJobNotApplicable` (404). Cubierto por tests de integración live-DB (fixture empresa active + tombstone + job published, RED→GREEN). Companion del hardening read-side (b59604c). (b) `RequireCompanyRole` endurecido con un gate de liveness de empresa (`require-company-role-tombstone-gate`): la middleware resuelve la membresía del sujeto y ANTES de comparar el rol sondea la liveness de la empresa (mismo predicado `deleted_at IS NULL` de `GetCompanyByID`); empresa tombstonada (`deleted_at IS NOT NULL`) o empresa inexistente (`ErrCompanyNotFound`) colapsan al MISMO `403 Forbidden` con reason `company is inactive`, el handler nunca corre y no se inyecta `CompanyContext`. Cubre TODA ruta role-gated: `POST /jobs`, `PATCH /jobs/{id}`, `DELETE /jobs/{id}`, `GET/PATCH /jobs/{jobId}/applications[/...]` (list / detail / transition), `PATCH /me/company`, `DELETE /me/company`, y las mutaciones de `company_members` (list / add / update / remove del subtree `/me/company/members`). No aplica a rutas `RequireAuth`-only: `GET /me/company` (R7-S3 devuelve `404 company not found`: `GetCompanyByID` filtra `deleted_at IS NULL`; la fila de membership sobrevive solo como historial en DB, sin archived-company response), `POST /jobs/{jobId}/applications` (apply candidato — sigue `404 job not applicable` si la JOB-empresa está tombstonada), `GET /me/applications`, `/me/profile`. Las guardas SQL del punto (a) se RETIENEN como defense-in-depth: un bypass o mis-wire de la middleware seguiría viendo `ErrCompanyNotActive` (409) / `ErrJobNotFound` (404) / `ErrJobNotApplicable` (404) según la ruta, pero la API de producción nunca alcanza esas status para empresa-miembro tombstonada (siempre `403 company is inactive` primero).
 - 🔲 **Conversión FX de salarios** — hoy el filtro `currency` es match exacto (USD/MXN first-class), sin conversión.
 
+### Psicométricos (entregado 2026-10-30, pusheado) — pendientes
+
+Feature completa en `main` (backend B1–B10 + frontend, rediseño, estados vacíos y claridad de competencias). Detalle e
+historia en `odd/tasks/psychometric-tests-backend.md` (L1–L19) y `odd/tasks/psychometric-tests.md`.
+
+**Antes de producción**
+- 🔲 **`TRUSTED_PROXY_CIDRS`** con los rangos del ALB. Sin esa variable todos los candidatos detrás del ALB comparten su IP y el
+  presupuesto de 600 pedidos / 10 min del limitador público. Agregarla también a `backend/.env.example` (el agente no pudo:
+  ruta bloqueada por la política de seguridad).
+- 🔲 **Aviso de consentimiento (D9)** — revisión legal y aprobación de redacción del aviso v1 antes de congelar el artefacto.
+- 🔲 **Purga programada (E3)** — `cmd/psychometric-purge` es one-shot (dry run por defecto, `-execute` borra). Falta agendarlo
+  (y sus credenciales) en la infraestructura.
+- 🔲 **Emails e invitaciones/recordatorios por correo (E1–E2)** — hoy el reclutador copia el link; depende de la decisión de
+  email (`docs/decision-email-provider.md`).
+
+**Robustez / deuda técnica**
+- 🔲 **Barrido O(n) del limitador al tope de claves** (`internal/runtime/ratelimit/assessment.go`, advertencia de revisión
+  nativa R4-capacity-sweep): con las 100000 claves vivas, cada pedido que necesita una clave nueva recorre todo el mapa bajo
+  el lock antes de responder 429. Memoria acotada, pero costo de CPU bajo ataque. Opción: barrer solo en el tick periódico
+  o llevar un índice de vencimientos.
+- 🔲 **Limitador distribuido** — hoy es en memoria y por instancia (acordado en el contrato como infraestructura posterior).
+- 🔲 **B10 sin probar en vivo**: carreras purga vs. escritores reales (candidato respondiendo/terminando, empleador
+  recomparando) — solo respaldadas por el orden de locks — y comparación directa contra la base en rutas no tocadas.
+- 🔲 **Advertencias no bloqueantes de la revisión nativa**: `scoring/quality.go:85-92` (legibilidad); `application/profile/
+  profile.go:162-166` (orden de validación); `cmd/api/psychometric_invitations_flow_integration_test.go:106` (aserción de
+  retención del 29 de febrero); `application/assessment/assessment.go:56-85` (cobertura de rechazos del decodificador).
+- 🔲 **`cmd/api` escucha en todas las interfaces** (`":"+PORT`), no solo loopback — revisar para entornos locales/QA.
+
+**Herramientas / proceso**
+- 🔲 **Lineage de revisión nativa abierto** `review-18379eb5092e0e95` (B8c `3bd9e297`, `correction_required`): su hallazgo ya
+  está corregido en `e1304a49` (aprobado). No se pudo abandonar desde Pi: el host convierte el `input` JSON en objeto y la
+  operación exige texto. Cerrarlo con la CLI `gentle-ai review abandon` y reportar el bug del host. Limpiar después el
+  worktree `.scratch/review-b8c` y las vistas en `.git/gentle-ai/candidate-views/` cuya limpieza quedó diferida por timeout.
+- 🔲 **Integración silenciosa**: sin `DRAFT_TEST_DATABASE_URL` los tests de integración hacen SKIP y la corrida dice `ok`;
+  `cmd/migrate` y `localbootstrap` necesitan un `DATABASE_URL` con `CREATEDB`; `scripts/closure` falla con bash 3.2 de macOS;
+  `archguard` marca `docker/minio/Dockerfile` (preexistente). Un test unitario de `cmd/api` falló una vez sin identificarse
+  (no se reprodujo en 5 corridas).
+- 🔲 **Ramas ya mergeadas para borrar** (decisión del usuario): `feat/psychometric-tests-backend`,
+  `feat/psychometric-competency-clarity-backend` y las del frontend.
+
 ## Stack decidido (no re-discutir)
 
 - Router: **chi** | Datos: **sqlc + pgx/v5** | DI: **manual** | Migraciones: **goose**

@@ -135,3 +135,8 @@ wording NOT frozen until user approval and legal review D9). Branch `feat/psycho
   already fixed in e1304a49 (settle keeps validation except on assessment_unavailable; TestOnlyAssessmentUnavailable-
   ClearsValidation) and B8d approved on that code. Abandoning the B8c lineage failed (the host turns the required
   string input into an object); lineage review-18379eb5092e0e95 stays open in .scratch/review-b8c, review-only.
+- **L19.** Delivered and pushed (2026-10-30): main 4781bd35 (psychometric tests ef73f9ff, competency names dc9cdb75,
+  frontend redesign/empty states/clarity, test fix d67b2041); suites green on main (frontend 9008 passed; backend 2227
+  integration PASS, env-gated only). User verbatim: «todos los pendientes que tengas en la mira, anotalos junto a los otros
+  que ya teniamos anotados, es importante que no los dejemos pasar ni los olvidemos.» Open follow-ups are tracked in
+  docs/ROADMAP.md «Psicométricos — pendientes».
