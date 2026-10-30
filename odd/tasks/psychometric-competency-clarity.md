@@ -65,3 +65,6 @@ backend content change.
   no overflow at 390px. 1141/1141 in psychometrics + pipeline-movement, tsc 0, eslint clean. Native review
   review-53cce7ab9ebf2ac8 approved; advisories R2-001 (candidate-sheet.psychometrics.test.tsx:153) and R3-001
   (help.test.tsx:10-13, shell mock) → follow-up. Handoff 01-configuracion implemented.
+- **L8** User (verbatim): «si hermano, merge por favor.» → joint local merge into main (backend 01d945c9, then the
+  frontend tip 01f1290b, which carries the redesign, empty states and this change). Merge-ready sha sent to the backend
+  session, which runs the agreed recipe; the user pushes.
