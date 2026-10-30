@@ -30,9 +30,9 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | R1 | S1 | worker — design directions: psychometrics tab summary + full report (page vs large dialog vs expandable sheet) | |
-| R2 | S1 | worker — implement design/psychometric-report/03-ficha-expandible.html (chosen): compact tab summary + expandable two-column sheet, preparation panel, uniform report sections | |
+| R2 | S1 | worker — implement design/psychometric-report/03-ficha-expandible.html (chosen): compact tab summary + expandable two-column sheet, preparation panel, uniform report sections | d0a4c42f |
 | R3 | S2 | design directions: candidate comparison | |
-| R4 | S2 | implement chosen R3 | |
+| R4 | S2 | worker — implement design/candidate-comparison/01-resumen-y-matriz.html (chosen) in features/vacancy-checklist/compare | |
 | R5 | S3 | design directions: candidate applications | |
 | R6 | S3 | implement chosen R5 | |
 | R7 | S4 | design directions: psychometric profile configuration without a long flat form | |
@@ -89,3 +89,10 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   marked Texto no disponible; the Docker requirement keeps its visible ellipsis. No artboard chosen or implemented.
   Canvas/browser tools unavailable in this worker: opening the canvas and visual/interaction verification remain for
   the parent (`/gentle:design open candidate-comparison`). No commits made; unrelated R2 changes preserved.
+- **L9** User chose design/candidate-comparison/01-resumen-y-matriz.html via the canvas implement handoff (02 and 03 are
+  alternatives); handoff in_progress; R4 delegated in parallel with R2 (disjoint surfaces).
+- **L10** R2 implemented (d0a4c42f): RED 5 new cases → GREEN; 1106/1106 in pipeline-movement + psychometrics; tsc 0;
+  eslint clean. Parent browser check (employer session): CTA visible above the fold at 1440×900, expanded 1280px
+  two-column workspace, Lucía's in-progress block with menu; parent widened the panorama scale column (130→156px) so
+  «Medio» fits. Handoff marked implemented. R4 continues with an authorized shared checklist-bar extraction in
+  vacancy-checklist/board.
