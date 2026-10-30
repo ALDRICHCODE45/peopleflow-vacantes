@@ -22,7 +22,7 @@ gets a deliberate, consistent empty state, defined first in the design system an
 | --- | --- | --- | --- |
 | E1 | S5 | explore — inventory every empty state (file:line, trigger, form, copy, verdict) | inventory file |
 | E2 | S3, S4 | parent — `design/system.md` empty-state section (anatomy, variants, copy, actions, icon tone) | |
-| E3 | S1, S2, S3 | canvas — `design/empty-states/` board with every empty state, user approval | |
+| E3 | S1, S2, S3 | canvas — `design/empty-states/` board with every empty state, user approval | 996fe837 (approved L6) |
 | E4 | S1, S2, S5 | implement approved empty states by area (slices + native review per code commit) | |
 | E5 | S1 | browser QA of each empty state (isolated or read-only data) | |
 
@@ -46,3 +46,12 @@ gets a deliberate, consistent empty state, defined first in the design system an
   unreachable by contract), 02-candidato (7), 03-publico (5); README catalogs screen → title → action. «Invitar miembro»
   and «Marcar CV principal» require backend (not offered). Open: keep «Evaluaciones adicionales» visible when empty?
   team-without-members reachable? Awaiting user approval.
+- **L6** User (verbatim): «1.si . y lo demas como tu lo recomiendes» → board approved as is; «Evaluaciones adicionales»
+  stays hidden when the candidate has none (each application already shows its own assessment); «Invitar miembro» and
+  «CV principal» become a backend request for a second stage (not offered in the UI now).
+- **L7** E4 plan (work-unit slices, native review per code commit): A shared `SectionEmpty` (in-card / no-results /
+  nothing-selected variants) next to `StateCard`; B employer lists (vacancies, talent, team, dashboard); C candidate
+  sheet tabs + psychometric invitation/result + checklist detail; D careers editor; E candidate side; F public.
+- **L8** E4-A 1e1c1c59: `SectionEmpty` (RED 3 → GREEN, 66/66 feedback, tsc 0, eslint clean; docs §22.1 + system.md);
+  assess 103 lines reviewDue false. Workers launched in parallel with disjoint surfaces: E4-B (employer lists), E4-C
+  (sheet/psychometrics/checklist detail), E4-E (candidate side). E4-D and E4-F next wave to keep machine load bounded.
