@@ -3,13 +3,14 @@
   "chosen": "04-bandeja-compacta.html",
   "handoffs": {
     "04-bandeja-compacta.html": {
-      "status": "in_progress",
+      "status": "implemented",
       "queued": false,
       "sentAt": "2026-10-30T06:14:27.584Z",
       "startedAt": "2026-10-30T06:16:33.660Z",
-      "implementedAt": null,
+      "implementedAt": "2026-10-30T06:44:27.966Z",
       "feature": "odd/tasks/redesign-psychometrics-ux.md",
-      "note": "R6 started with the real API statuses (Enviada / En proceso / Cerrada); extra states not implemented."
+      "note": "Implemented with the real API statuses: counted filters, compact rows, side detail with assessment and dated activity, full-screen mobile detail.",
+      "previewUrl": "http://localhost:3000/candidato/postulaciones"
     }
   }
 }

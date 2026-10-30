@@ -34,7 +34,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | R3 | S2 | design directions: candidate comparison | |
 | R4 | S2 | worker — implement design/candidate-comparison/01-resumen-y-matriz.html (chosen) in features/vacancy-checklist/compare | 53a0967a |
 | R5 | S3 | design directions: candidate applications | |
-| R6 | S3 | worker — implement design/candidate-applications/04-bandeja-compacta.html (chosen) with the real API statuses | |
+| R6 | S3 | worker — implement design/candidate-applications/04-bandeja-compacta.html (chosen) with the real API statuses | b5b94f73 |
 | R7 | S4 | design directions: psychometric profile configuration without a long flat form | |
 | R8 | S4 | worker — implement design/psychometric-profile-config/03-lista-maestra-detalle.html (chosen) | 38e8c7f7 |
 | R9 | S5 | design + implement checklist configuration | |
@@ -142,3 +142,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   (≈160→116px: segments hidden, idle status sr-only). Handoff implemented. User (verbatim): «me gusta la ultima propuesta
   de de mis postulacaiones, las otras no me gustan, las ultimas.» → 04-bandeja-compacta chosen; R6 started with the real
   statuses only (Enviada / En proceso / Cerrada); the extra-states frame is not implemented (backend decision pending).
+- **L19** R8 native review review-a7e496791d7c547b approved (clean). R6 implemented (b5b94f73): RED 6 → GREEN, 147 in
+  the area (+52 phone timeout load-only, passes alone), tsc 0; parent fixes: activity «Terminaste la evaluación»
+  (was «Evaluación enviada», ambiguous) and no filler status line on open applications. Handoff implemented. Native
+  review review-248877abd06f8587 approved; advisory R3-expiry-selection (applications-workspace.tsx:42) → follow-up.
