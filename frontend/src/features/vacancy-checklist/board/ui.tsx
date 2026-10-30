@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
 import { plural } from "@/features/employer-vacancies/plural";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ActionStatus } from "@/components/feedback/action-status";
 import type { Participation } from "@/features/pipeline-movement/model";
 import { MovementDate } from "@/features/pipeline-movement/board-states";
@@ -97,9 +99,13 @@ function WriteStatus({ id }: { id: string }) {
   const state = useBoardChecklist()!;
   return state.notice ? <ActionStatus id={id} tone={state.notice.tone} text={state.notice.text} /> : state.disabled ? <ActionStatus id={id} tone="info" text="El proceso finalizó. Las marcas están en solo lectura." /> : null;
 }
-export function ChecklistPanel({ item }: { item: Participation }) {
+export function ChecklistPanel({ item, vacancyId, readOnly = false }: { item: Participation; vacancyId?: string; readOnly?: boolean }) {
   const state = useBoardChecklist();
-  if (!state?.checklist?.criteria.length) return null;
+  if (!state) return null;
+  if (vacancyId && state.reading && !state.checklist) return <div aria-busy="true"><span role="status" className="sr-only">Cargando checklist</span><Skeleton aria-hidden="true" className="h-32 w-full" /></div>;
+  if (vacancyId && state.failed && !state.checklist) return <StateCard icon={ListChecks} tone="error" title="No pudimos cargar el checklist" description="No se modificaron los criterios ni las marcas. Puedes volver a cargar el checklist." primaryAction={{ label: "Reintentar checklist", onClick: state.retry }} />;
+  if (!state.checklist) return null;
+  if (!state.checklist.criteria.length) return vacancyId ? <SectionEmpty icon={ListChecks} tone="info" title="Esta vacante todavía no tiene criterios" description={readOnly || state.disabled ? "El proceso finalizó. El checklist está en solo lectura." : "Define qué revisar en cada candidato con un checklist interno. No rechaza ni mueve personas automáticamente."} primaryAction={{ label: readOnly || state.disabled ? "Ver checklist" : "Agregar criterio", href: `/empresa/vacantes/${vacancyId}/configuracion/checklist` }} /> : null;
   const fit = summarize(state.checklist.criteria, item, state.marks);
   return <section aria-label="Checklist del candidato" className="flex min-w-0 flex-col gap-3">
     <p className="text-sm text-muted-foreground">Evaluación interna. Las marcas del reclutador prevalecen sobre el resultado automático.</p>

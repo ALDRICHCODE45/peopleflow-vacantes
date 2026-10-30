@@ -37,6 +37,18 @@ async function choose(label: string, text: string) {
 }
 beforeEach(() => { vi.stubGlobal("PointerEvent", MouseEvent); vi.resetAllMocks(); vi.mocked(loadChecklistAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} }); vi.mocked(saveChecklistAction).mockImplementation(async input => ({ ok: true, etag: '"saved"', data: { ...(input.body as object), version: "1" } as Checklist })); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("shows the nothing-selected detail beside the unchanged empty list", () => {
+  editor({ ...empty, version: "1" });
+  const detail = screen.getByRole("region", { name: "Detalle del criterio" });
+  expect(within(detail).getByRole("heading", { name: "Selecciona un criterio para verlo aquí", level: 3 })).toBeVisible();
+  expect(within(detail).getByText("Agrega un criterio en la lista para empezar. Sus datos aparecerán en este panel.")).toBeVisible();
+  expect(detail.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(within(detail).queryByRole("button")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Agregar criterio" }));
+  expect(within(detail).getByLabelText("Etiqueta")).toHaveValue("");
+  expect(screen.queryByText("Selecciona un criterio para verlo aquí")).not.toBeInTheDocument();
+});
 it("selects rows into an inline detail and updates importance badges and counts", () => {
   editor({ ...empty, version: "1", criteria: [manual, { ...manual, id: nextId, label: "Otro" }] });
   fireEvent.click(screen.getByRole("button", { name: "Seleccionar Otro" }));
@@ -74,7 +86,7 @@ it("counts reminder stages in its own card", () => {
 it("explains the internal empty state, suggests criteria and preselects reminders only for version zero", async () => {
   editor();
   expect(screen.getByText(/interno.*nunca.*público.*automáticamente/i)).toBeVisible();
-  expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(3);
+  expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(4);
   expect(screen.getByRole("button", { name: "Agregar criterio" }).closest('[data-slot="empty-content"]')).not.toBeNull();
   expect(screen.getByRole("checkbox", { name: "Nuevos" })).not.toBeChecked();
   expect(screen.getByRole("checkbox", { name: "Entrevista" })).toBeChecked();

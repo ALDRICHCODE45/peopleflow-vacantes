@@ -48,6 +48,25 @@ beforeEach(() => {
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
 });
 afterEach(cleanup);
+it("empty focos and guide navigate to competencies without another read", async () => {
+  const data = stored(); data.latest_comparison.focus_areas = []; data.latest_comparison.guide = [];
+  vi.mocked(actions.loadResultAction).mockResolvedValue({ ok: true, data });
+  render(<Harness />); await openTab(false);
+  const focus = await screen.findByRole("heading", { name: "No hay focos para esta comparación", level: 3 });
+  expect(focus.closest('[data-slot="empty"]')?.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  expect(screen.getByText("No se guardaron temas para profundizar. Revisa las competencias y confirma lo declarado con ejemplos de trabajo.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Ver competencias" }));
+  expect(await screen.findByRole("region", { name: "Competencias" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Esta comparación no tiene preguntas", level: 3 })).toBeVisible();
+  expect(screen.getByText("No se guardaron preguntas para la entrevista. Puedes revisar las competencias para preparar tus propios ejemplos.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Copiar guía" })).toBeDisabled();
+  const guide = screen.getByRole("heading", { name: "Esta comparación no tiene preguntas" }).closest('[data-slot="empty"]')!;
+  expect(guide.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  fireEvent.click(within(guide as HTMLElement).getByRole("button", { name: "Ver competencias" }));
+  expect(screen.getByRole("heading", { name: "Competencias" })).toHaveFocus();
+  expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
+  expect(document.body).not.toHaveTextContent(/apto|%/i);
+});
 it("expands and reduces the same sheet without another audited read and restores focus", async () => {
   render(<Harness />); await openTab(false);
   const expand = await screen.findByRole("button", { name: "Ver informe completo" });

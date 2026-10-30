@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { ConfigReadOnlyNotice, useConfigLifecycle } from "@/features/employer-vacancies/vacancy-config/lifecycle";
@@ -156,8 +157,8 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
       </FieldGroup></CardContent>
       <CardFooter className="border-t text-xs text-muted-foreground">Hasta 50 criterios. Se contrastan con cada candidato.</CardFooter>
     </Card>
-    {criterion && <Card id="checklist-detail" role="region" aria-label="Detalle del criterio" tabIndex={-1} className="min-w-0 scroll-mt-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
-      <CardHeader className="border-b"><CardTitle><h4 className="flex items-center gap-2"><Check aria-hidden="true" className="size-4 shrink-0" />{criterion.label || "Nuevo criterio"}</h4></CardTitle><CardDescription>Criterio {index + 1} de {criteria.length} · {KIND_LABELS[criterion.kind]}</CardDescription><CardAction><CriterionMenu criterion={criterion} index={index} length={criteria.length} disabled={disabled} onAction={action => {
+    <Card id="checklist-detail" role="region" aria-label="Detalle del criterio" tabIndex={-1} className="min-w-0 scroll-mt-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
+      {criterion ? <><CardHeader className="border-b"><CardTitle><h4 className="flex items-center gap-2"><Check aria-hidden="true" className="size-4 shrink-0" />{criterion.label || "Nuevo criterio"}</h4></CardTitle><CardDescription>Criterio {index + 1} de {criteria.length} · {KIND_LABELS[criterion.kind]}</CardDescription><CardAction><CriterionMenu criterion={criterion} index={index} length={criteria.length} disabled={disabled} onAction={action => {
         if (disabled) return;
         edit({ ...body, criteria: applyCriterionAction(body.criteria, index, action) });
         setSelected(action === "remove" ? Math.max(0, Math.min(index, criteria.length - 2)) : index + (action === "up" ? -1 : 1));
@@ -167,7 +168,8 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
         <CriterionFields draft={criterion} questions={questions} errors={detailErrors} onChange={next => edit({ ...body, criteria: body.criteria.map((item, i) => i === index ? next : item) })} />
       </FieldGroup></FieldSet></CardContent>
       <CardFooter className="border-t text-xs text-muted-foreground">{criterion.kind === "manual" ? "Lo marcas tú" : criterion.kind === "skill" ? "Se evalúa solo si el candidato la declara" : "Se evalúa solo"}. {criterion.importance === "required" ? "Los obligatorios sin evaluar se recuerdan al mover." : "Los deseables suman al ajuste; nunca bloquean."}</CardFooter>
-    </Card>}
+    </> : <><CardHeader className="border-b"><CardTitle><h4>Detalle del criterio</h4></CardTitle></CardHeader><CardContent><SectionEmpty icon={ListChecks} tone="info" title="Selecciona un criterio para verlo aquí" description="Agrega un criterio en la lista para empezar. Sus datos aparecerán en este panel." /></CardContent></>}
+    </Card>
     </div>
     <Card role="region" aria-label="Guardar checklist" size="sm" className="sticky bottom-3 z-10"><CardContent className="[&_[data-pf-action-bar]]:max-sm:flex-wrap [&_[data-pf-action-bar-actions]]:max-sm:w-full [&_[data-pf-action-bar]>div:last-child]:max-sm:basis-full"><ActionBar status={<div className="flex flex-col gap-2"><p className="text-sm font-medium">{summary}</p>{notice ? <ActionStatus id="checklist-save-status" tone={notice.tone} text={notice.title} action={recovery && <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => void recover()}>{recovery === "reload" ? "Cargar versión actual" : "Comprobar"}</Button>} /> : <span className="text-xs text-muted-foreground max-sm:sr-only">{dirty ? "Cambios sin guardar" : "No hay cambios pendientes."}</span>}</div>}> 
         <Button type="button" variant="ghost" className="min-h-10" disabled={!dirty || disabled} onClick={() => edit(baseline)}>Descartar cambios</Button>

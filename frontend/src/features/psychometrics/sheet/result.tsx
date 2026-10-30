@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, ClipboardList, CircleCheck, Copy, GitCompareArrows, Grid2X2, Info, Search, Flag, SlidersHorizontal, Activity } from "lucide-react";
+import { ArrowRight, MessageSquareText, ClipboardList, CircleCheck, Copy, GitCompareArrows, Grid2X2, Info, Search, Flag, SlidersHorizontal, Activity } from "lucide-react";
 import { cn } from "cn";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { MovementDate } from "@/features/pipeline-movement/board-states";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
@@ -50,7 +50,7 @@ function BandMatrix({ competency, mini = false }: { competency: ComparedCompeten
 }
 function ReportSection({ id, title, meta, icon: Icon, action, footnote, children }: { id: string; title: string; meta: string; icon: typeof Info; action?: ReactNode; footnote?: string; children: ReactNode }) {
   return <section id={`psychometric-${id}`} aria-labelledby={`psychometric-${id}-title`} className="scroll-mt-6"><Card>
-    <CardHeader className="border-b"><CardTitle><h3 id={`psychometric-${id}-title`} className="flex items-center gap-3 text-base font-semibold"><Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />{title}</h3></CardTitle><CardDescription className="text-xs">{meta}</CardDescription>{action && <CardAction>{action}</CardAction>}</CardHeader>
+    <CardHeader className="border-b"><CardTitle><h3 id={`psychometric-${id}-title`} tabIndex={id === "competencies" ? -1 : undefined} className="flex items-center gap-3 text-base font-semibold"><Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />{title}</h3></CardTitle><CardDescription className="text-xs">{meta}</CardDescription>{action && <CardAction>{action}</CardAction>}</CardHeader>
     <CardContent className="flex min-w-0 flex-col gap-4">{children}</CardContent>{footnote && <CardFooter className="border-t text-xs leading-5 text-muted-foreground">{footnote}</CardFooter>}
   </Card></section>;
 }
@@ -78,7 +78,7 @@ function FocusRows({ data, onNavigate }: { data: AssessmentResult; onNavigate?: 
       const question = comparison.guide.find(q => q.competency_id === competency && q.originating_focus_type === focus.type);
       const index = question ? comparison.guide.indexOf(question) + 1 : null;
       return <li key={`${focus.type}-${competency}`} className="flex flex-col gap-1 border-b py-2"><p className="text-xs leading-5 text-muted-foreground">{focusMessages[focus.type]}</p>{question && <a className="inline-flex min-h-10 items-center justify-between gap-2 text-sm underline underline-offset-4" href={`#psychometric-${question.question_id}`} onClick={onNavigate ? event => { event.preventDefault(); onNavigate(`psychometric-${question.question_id}`); } : undefined}>{competencyLabels[competency]} · Pregunta {index}<ArrowRight aria-hidden="true" className="size-4 shrink-0" /></a>}</li>;
-    })}</ul> : <p className="text-xs text-muted-foreground">No hay focos almacenados en esta comparación.</p>}
+    })}</ul> : <SectionEmpty icon={Flag} tone="empty" title="No hay focos para esta comparación" description="No se guardaron temas para profundizar. Revisa las competencias y confirma lo declarado con ejemplos de trabajo." primaryAction={{ label: "Ver competencias", onClick: () => onNavigate?.("psychometric-competencies-title") }} />}
   </section>;
 }
 function InvitationTimeline({ invitation }: { invitation: Invitation }) {
@@ -144,9 +144,9 @@ function StoredResult({ data, invitation, session, locked, expanded, onExpand, c
         <nav aria-label="Apartados del informe" className="flex shrink-0 gap-2 overflow-x-auto border-b bg-card px-4 py-2">{sections.map(([id, text]) => <a key={id} href={`#psychometric-${id}`} aria-current={activeSection === id ? "location" : undefined} onClick={() => setActiveSection(id)} className={cn(buttonVariants({ variant: "link" }), "min-h-10", activeSection !== id && "text-muted-foreground")}>{text}</a>)}</nav>
         <div ref={reportScroll} tabIndex={0} aria-label="Contenido del informe" className="min-h-0 flex-1 bg-muted p-4 lg:overflow-y-auto lg:p-6"><article className="mx-auto flex max-w-[820px] min-w-0 flex-col gap-6">
           <ReportSection id="guide" title="Guía de entrevista" meta={`${plural(comparison.guide.length, "pregunta del banco redactado", "preguntas del banco redactado")}. Pide contexto, acciones y resultados.`} icon={ClipboardList}>
-            <p className="text-xs leading-5 text-muted-foreground">{introduction}</p><FocusRows data={data} />
+            <p className="text-xs leading-5 text-muted-foreground">{introduction}</p><FocusRows data={data} onNavigate={id => setAnchor(id)} />
             <ol className="flex list-none flex-col gap-4">{comparison.guide.map((q, index) => <li key={q.question_id} id={`psychometric-${q.question_id}`} tabIndex={-1} className="scroll-mt-6 outline-none"><Card size="sm"><CardHeader><CardTitle><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{String(index + 1).padStart(2, "0")}</Badge><span className="text-sm">{competencyLabels[q.competency_id]}</span>{q.fit && <FitBadge competency={{ ...comparison.competencies.find(c => c.competency_id === q.competency_id)!, fit: q.fit }} confirmed={comparison.profile_version !== null} />}</div></CardTitle></CardHeader><CardContent className="flex flex-col gap-3"><p className="whitespace-pre-wrap break-words text-sm leading-6">{q.text}</p><p className="text-xs leading-5 text-muted-foreground">Por qué se sugiere: {questionReason(q)}.</p><Disclosure label="Qué escuchar en el ejemplo"><p className="whitespace-pre-wrap break-words">{q.good_answer_checklist}</p></Disclosure></CardContent></Card></li>)}</ol>
-            {!comparison.guide.length && <p className="text-sm text-muted-foreground">No hay preguntas almacenadas para esta comparación.</p>}
+            {!comparison.guide.length && <SectionEmpty icon={MessageSquareText} tone="empty" title="Esta comparación no tiene preguntas" description="No se guardaron preguntas para la entrevista. Puedes revisar las competencias para preparar tus propios ejemplos." primaryAction={{ label: "Ver competencias", onClick: () => setAnchor("psychometric-competencies-title") }} />}
           </ReportSection>
           <ReportSection id="competencies" title="Competencias" meta="El puesto y sus respuestas" icon={SlidersHorizontal}><p className="text-xs leading-5 text-muted-foreground">Bandas por significado, no percentiles. Ninguna banda es intrínsecamente mejor. Contorno: deseado · Relleno: obtenido.</p><CompetencyRows data={data} /></ReportSection>
           <ReportSection id="quality" title="Cómo se respondió" meta="Contexto de respuesta" icon={Activity} action={tierChip} footnote="Estas señales no prueban una intención ni cambian las bandas de personalidad."><p className="text-sm leading-6">{tierMessages[data.quality.tier]}</p>{data.quality.partial && <p className="text-sm text-muted-foreground">Información parcial: no se registraron todos los tiempos o cambios de respuesta.</p>}<ul>{[...data.quality.signals].sort((a, b) => ["signal.attention", "signal.long_string", "signal.fast", "signal.changes"].indexOf(a.id) - ["signal.attention", "signal.long_string", "signal.fast", "signal.changes"].indexOf(b.id)).map(signal => { const reason = signalReason(signal); return reason ? <li key={signal.id} className="flex items-start gap-3 border-t py-4 text-sm leading-6"><Info aria-hidden="true" className="mt-1 size-4 shrink-0 text-muted-foreground" /><p>{reason}</p></li> : null; })}</ul></ReportSection>

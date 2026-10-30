@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, Languages, Mail, MapPin, Phone, Sparkles, BriefcaseBusiness, RotateCcw, TrendingUp, UserRoundX, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, History as HistoryIcon, MessageSquareText, Languages, Mail, MapPin, Phone, Sparkles, BriefcaseBusiness, RotateCcw, TrendingUp, UserRoundX, X } from "lucide-react";
 import { cn } from "cn";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DocumentItem } from "@/components/document/document-item";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -131,13 +131,13 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       <div className={cn("min-w-0 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:thin] sm:px-6", expanded && "hidden")}><TabsList activateOnFocus={false} aria-label="Secciones de la ficha" className={cn("group-data-horizontal/tabs:h-11", showPsychometrics ? "w-max min-w-full" : "w-full max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]")}>
         <TabsTrigger value="summary">Resumen</TabsTrigger>
         <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
-        {checklist?.checklist?.criteria.length ? <TabsTrigger value="checklist">Checklist</TabsTrigger> : null}
+        {checklist && <TabsTrigger value="checklist">Checklist</TabsTrigger>}
         <TabsTrigger value="history">Historial <Badge variant="secondary">{loaded?.history.items.length ?? "…"}</Badge></TabsTrigger>
         {showPsychometrics && <TabsTrigger value="psychometrics">Psicometría</TabsTrigger>}
       </TabsList></div><Separator />
       <ScrollArea className={cn("pf-sheet-scroll min-h-0 flex-1", expanded && "[&_[data-slot=scroll-area-content]]:h-full [&_[data-slot=scroll-area-viewport]]:overflow-hidden!")} key={tab}>
         <TabsContent value={tab} className={expanded ? "h-full min-h-0" : "p-6"} aria-busy={tab === "psychometrics" ? invitation?.status === "finished" && !psychometric.value : reading}>
-          {tab === "psychometrics" ? invitation?.status === "finished" ? <PsychometricPanel invitation={invitation} session={psychometric} locked={!!locked || board.lifecycle.process === "finished"} expanded={expanded} onExpand={() => setExpanded(true)} candidateName={item.candidate.full_name} stageName={stageName(item.stage_id)} vacancyTitle={vacancyTitle} invitationBlock={<InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} />} /> : <InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} /> : tab === "checklist" ? <ChecklistPanel item={item} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
+          {tab === "psychometrics" ? invitation?.status === "finished" ? <PsychometricPanel invitation={invitation} session={psychometric} locked={!!locked || board.lifecycle.process === "finished"} expanded={expanded} onExpand={() => setExpanded(true)} candidateName={item.candidate.full_name} stageName={stageName(item.stage_id)} vacancyTitle={vacancyTitle} invitationBlock={<InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} />} /> : <InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} /> : tab === "checklist" ? <ChecklistPanel item={item} vacancyId={vacancyId} readOnly={!!locked || board.lifecycle.process === "finished"} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
             description={failure.reason === "unauthenticated" ? "Tu sesión expiró. No se modificó el candidato; inicia sesión de nuevo." : "No se modificó el candidato. Puedes volver a cargar las respuestas y el historial."}
             primaryAction={{ label: "Reintentar", disabled: reading, "aria-describedby": notice ? "detail-read-status" : undefined, onClick: () => { setReading(true); setNotice(null); setAttempt(value => value + 1); } }}>
             {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}
@@ -167,7 +167,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
               <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-xs leading-5 text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />Esta información es visible únicamente para tu equipo de reclutamiento.</p>
             </div>}
             {tab === "answers" && <section className="flex flex-col gap-6"><SectionTitle>Preguntas de filtro</SectionTitle>
-              {loaded.detail.screening.length ? <dl className="flex flex-col gap-6">{loaded.detail.screening.map(answer => <div key={answer.question_id} className="flex flex-col gap-2 border-b pb-5"><dt className="break-words text-[13px] text-muted-foreground">{answer.prompt}</dt><dd className="whitespace-pre-wrap break-words text-sm leading-6">{answer.type === "open" ? answer.answer.text : answer.answer.label}</dd></div>)}</dl> : <p className="text-sm text-muted-foreground">No hay respuestas a preguntas de filtro.</p>}
+              {loaded.detail.screening.length ? <dl className="flex flex-col gap-6">{loaded.detail.screening.map(answer => <div key={answer.question_id} className="flex flex-col gap-2 border-b pb-5"><dt className="break-words text-[13px] text-muted-foreground">{answer.prompt}</dt><dd className="whitespace-pre-wrap break-words text-sm leading-6">{answer.type === "open" ? answer.answer.text : answer.answer.label}</dd></div>)}</dl> : <SectionEmpty icon={MessageSquareText} tone="empty" title="Todavía no hay respuestas" description="Esta postulación no incluye respuestas de filtro. Puedes consultar el perfil y el CV en Resumen." primaryAction={{ label: "Ver resumen", onClick: () => setTab("summary") }} />}
             </section>}
             {tab === "history" && <section className="flex flex-col gap-6"><SectionTitle>{manual ? "Actividad del candidato" : "Actividad de la postulación"}</SectionTitle>
               {events.length ? <ol>{events.map((entry, index) => <li key={`${entry.at}-${index}`} className="relative flex gap-4 pb-7 last:pb-0">
@@ -181,7 +181,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
                   <div className="flex items-center gap-2 text-xs text-muted-foreground"><Avatar className="size-5 shrink-0"><AvatarFallback className="text-[9px]">{initials(entry.actor.full_name)}</AvatarFallback></Avatar><span>{entry.actor.full_name} · {entry.actor.kind === "candidate" ? "Candidato" : "Reclutador"}</span></div>
                   <p className="text-xs tabular-nums text-muted-foreground"><MovementDate value={entry.at} withTime /></p>
                 </div>
-              </li>)}</ol> : <p className="text-sm text-muted-foreground">No hay movimientos registrados.</p>}
+              </li>)}</ol> : <SectionEmpty icon={HistoryIcon} tone="empty" title="Todavía no hay actividad registrada" description="Aquí verás los movimientos y cambios de etapa de esta postulación. Mientras tanto, puedes revisar su información en Resumen." primaryAction={{ label: "Ver resumen", onClick: () => setTab("summary") }} />}
             </section>}
           </>}
         </TabsContent>

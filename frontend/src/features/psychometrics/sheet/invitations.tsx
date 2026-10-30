@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Bell, CalendarDays, ClipboardList, Clock3, Copy, Ellipsis, Send, ShieldX, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -117,12 +117,8 @@ export function InvitationPanel({ invitation, session, candidateName, stageName,
   const selected = session.confirmation && operations[session.confirmation];
   const blocked = locked || session.pending || session.uncertain || session.checking;
   const status = <ActionStatusSlot>{session.notice && <ActionStatus id="psychometric-invitation-status" tone={session.notice.tone} text={session.notice.text} action={session.notice.configuration && <Link className="inline-flex min-h-10 items-center underline" href={`/empresa/vacantes/${vacancyId}/configuracion/psicometria`}>Configurar psicometría</Link>} />}</ActionStatusSlot>;
-  function action(operation: Operation, primary = false) {
-    const { label, icon: Icon } = operations[operation];
-    return <Button type="button" variant={primary ? "default" : "outline"} className="min-h-10 shrink-0" disabled={blocked} aria-describedby="psychometric-invitation-status" onClick={() => session.setConfirmation(operation)}>{session.pending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <Icon aria-hidden="true" data-icon="inline-start" />}{label}</Button>;
-  }
   return <div className="flex min-w-0 flex-col gap-3">
-    {!invitation ? <Empty><EmptyHeader><EmptyMedia variant="icon"><ClipboardList aria-hidden="true" /></EmptyMedia><EmptyTitle><h2 className="text-xl font-semibold">Aún no hay evaluación</h2></EmptyTitle><EmptyDescription>Crea la invitación y comparte el enlace. Podrás seguir el avance desde aquí, sin mover a {candidateName} de etapa.</EmptyDescription></EmptyHeader><EmptyContent>{action("send", true)}<p className="text-xs text-muted-foreground">Se crea una invitación, no se envía correo. Después podrás copiar el enlace. Disponible aunque no haya una etapa automática.</p></EmptyContent></Empty> : <>
+    {!invitation ? <><SectionEmpty icon={ClipboardList} tone="info" title="Aún no hay evaluación" description={`Crea una invitación para conocer cómo ${candidateName} describe su forma de trabajar. Después podrás copiar y compartir el enlace, sin cambiarla de etapa.`} primaryAction={{ label: "Invitar a evaluación", disabled: blocked, "aria-describedby": "psychometric-invitation-status", onClick: () => session.setConfirmation("send") }} /><p className="text-center text-xs text-muted-foreground">No se envía correo. Tú compartes el enlace.</p></> : <>
       <Item variant="outline" size="sm"><ItemContent><ItemTitle>Invitación · {statusLabels[invitation.status]}</ItemTitle><ItemDescription>{invitation.origin === "auto" ? "Automática" : "Manual"} · <MovementDate value={invitation.created_at} /> · {plural(invitation.reminder_count, "recordatorio", "recordatorios")}</ItemDescription></ItemContent><ItemActions>
         <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de la invitación de ${candidateName}`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><DropdownMenuGroup>{(["copy", "remind", "revoke"] as const).map(operation => { const { label, icon: Icon } = operations[operation]; return <DropdownMenuItem key={operation} className="min-h-10" variant={operation === "revoke" ? "destructive" : "default"} disabled={!active || blocked} onClick={() => session.setConfirmation(operation)}><Icon aria-hidden="true" />{label}</DropdownMenuItem>; })}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
       </ItemActions></Item>

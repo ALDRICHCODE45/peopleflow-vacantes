@@ -69,7 +69,7 @@ it("creates or adopts an existing invitation only after confirmation, without mi
   vi.mocked(actions.loadInvitationsAction).mockResolvedValue({ ok: true, data: { items: [] } });
   render(<Harness />); await openTab();
   expect(screen.getByText("Aún no hay evaluación")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Enviar evaluación" }));
+  fireEvent.click(screen.getByRole("button", { name: "Invitar a evaluación" }));
   expect(actions.createInvitationAction).not.toHaveBeenCalled();
   await confirm("Enviar evaluación");
   expect(await screen.findByRole("button", { name: /Acciones de la invitación/ })).toBeVisible();
@@ -77,6 +77,18 @@ it("creates or adopts an existing invitation only after confirmation, without mi
   expect(actions.createInvitationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: boardFixture().participations[0].id });
   expect(actions.mintLinkAction).not.toHaveBeenCalled();
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Invitación disponible" }));
+});
+it.each([false, true])("empty invitation preserves eligibility and confirmation (finished=%s)", async finished => {
+  vi.mocked(actions.loadInvitationsAction).mockResolvedValue({ ok: true, data: { items: [] } });
+  render(<Harness finished={finished} />); await openTab();
+  const heading = screen.getByRole("heading", { name: "Aún no hay evaluación", level: 3 });
+  expect(heading.closest('[data-slot="empty"]')?.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(screen.getByText("Crea una invitación para conocer cómo Ana Pérez describe su forma de trabajar. Después podrás copiar y compartir el enlace, sin cambiarla de etapa.")).toBeVisible();
+  expect(screen.getByText("No se envía correo. Tú compartes el enlace.")).toBeVisible();
+  const action = screen.getByRole("button", { name: "Invitar a evaluación" });
+  if (finished) expect(action).toBeDisabled();
+  else { fireEvent.click(action); expect(await screen.findByRole("alertdialog")).toBeVisible(); }
+  expect(actions.createInvitationAction).not.toHaveBeenCalled();
 });
 it("copies only after revoke-previous confirmation and never renders the bearer", async () => {
   render(<Harness />); await openTab();
@@ -119,7 +131,7 @@ it.each(["already_finished", "participation_inactive", "process_finished", "prof
   vi.mocked(actions.loadInvitationsAction).mockResolvedValue({ ok: true, data: { items: [] } });
   vi.mocked(actions.createInvitationAction).mockResolvedValue({ ok: false, reason, reference: { status: 409, code: reason } });
   render(<Harness />); await openTab();
-  fireEvent.click(screen.getByRole("button", { name: "Enviar evaluación" })); await confirm("Enviar evaluación");
+  fireEvent.click(screen.getByRole("button", { name: "Invitar a evaluación" })); await confirm("Enviar evaluación");
   expect(await screen.findByText("No se creó la invitación")).toBeVisible();
   expect(screen.getByText("Aún no hay evaluación")).toBeVisible();
   if (reason === "profile_disabled") expect(screen.getByRole("link", { name: "Configurar psicometría" })).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/configuracion/psicometria`);
