@@ -1,0 +1,10 @@
+{
+  "title": "Tus CVs · Rediseño",
+  "brief": "Rediseño completo de la biblioteca de CVs del candidato (/candidato/cvs) con los datos reales: nombre, tipo, tamaño, fecha, uso en postulaciones y límites (10 CVs, PDF o Word hasta 5 MB). Cada artboard incluye los estados con CVs, vacía, subiendo, error y límite.",
+  "feature": "odd/tasks/candidate-cvs-dashboard-redesign.md",
+  "artboards": [
+    { "file": "01-biblioteca-lista.html", "title": "Biblioteca en lista", "tradeoff": "Compacta y escaneable, zona de carga siempre visible arriba; menos presencia visual de cada documento", "width": 1440, "height": 900 },
+    { "file": "02-galeria-documentos.html", "title": "Galería de documentos", "tradeoff": "Cada CV se reconoce como documento y «Agregar CV» vive en la grilla; ocupa más espacio y la vista del papel es decorativa (no hay miniaturas reales)", "width": 1440, "height": 900 },
+    { "file": "03-lista-y-panel.html", "title": "Lista y panel de carga", "tradeoff": "Carga, espacio disponible y guía en un panel fijo que enseña a usar la biblioteca; más elementos en pantalla y en móvil el panel queda arriba", "width": 1440, "height": 900 }
+  ]
+}
