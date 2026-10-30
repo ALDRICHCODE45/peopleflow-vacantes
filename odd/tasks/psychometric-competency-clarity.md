@@ -23,7 +23,7 @@ backend content change.
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | C1 | S1–S4 | canvas — `design/psychometric-competency-help/` (names + popovers in configuration and candidate sheet) → user choice | |
-| C2 | S1 | backend request — rename competencies in the versioned content (`content.v1.json`), ids unchanged | |
+| C2 | S1 | backend request — rename competencies in the versioned content (`content.v1.json`), ids unchanged | backend branch, uncommitted (L6) |
 | C3 | S1–S4 | implement chosen design; single frontend source for names/descriptions; tests | |
 
 ## Log
@@ -54,3 +54,7 @@ backend content change.
   comp.coordinacion «Coordinación del trabajo», comp.colaboracion «Colaboración en equipo», comp.exploracion
   «Exploración de alternativas», comp.deliberacion «Revisión antes de decidir», comp.presion «Manejo de presión
   laboral». Popover texts (7 competencies + common footer + 5 fields) approved as written in the board.
+- **L6** Backend session reports C2 done, uncommitted on branch feat/psychometric-competency-clarity-backend (from
+  local main ef73f9ff): content.v1.json competencies[].name renamed (ids, definitions, facets, rationale byte-identical),
+  docs/psychometrics/bands-and-competencies-v1.md and README.md updated; TestDocumentationDrift RED → GREEN. No content
+  version bump: `name` is only checked non-empty by the loader, not in scoring, snapshots, API responses or checksums.
