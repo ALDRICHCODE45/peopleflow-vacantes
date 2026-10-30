@@ -42,3 +42,7 @@ gets a deliberate, consistent empty state, defined first in the design system an
   delivery; careers editor empties incomplete; public catalog offers filter recovery when nothing is filtered).
 - **L4** E2 done: design/system.md «Empty states» section — anatomy, copy, actions, variants (page/section StateCard,
   in a card, no results, nothing selected, compact exceptions) and no silent disappearance.
+- **L5** E3 board written (worker): design/empty-states/00-anatomia (5 variants), 01-empresa (18 proposals; Entrega
+  unreachable by contract), 02-candidato (7), 03-publico (5); README catalogs screen → title → action. «Invitar miembro»
+  and «Marcar CV principal» require backend (not offered). Open: keep «Evaluaciones adicionales» visible when empty?
+  team-without-members reachable? Awaiting user approval.

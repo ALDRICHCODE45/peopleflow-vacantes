@@ -1,0 +1,11 @@
+{
+  "title": "Estados vacíos",
+  "brief": "Propuestas de estados vacíos para toda la experiencia de PeopleFlow, desde la primera vacante hasta la búsqueda pública. Anatomía compartida basada en el pipeline en borrador, acciones reales y límites de datos explícitos. Diseño únicamente; pendiente de aprobación del usuario.",
+  "feature": "odd/tasks/empty-states.md",
+  "artboards": [
+    { "file": "00-anatomia.html", "title": "Anatomía · cinco variantes", "tradeoff": "Cinco composiciones lado a lado con tamaños, tonos, copy y excepciones compactas. Referencia normativa, no alternativas visuales.", "width": 1440, "height": 1161 },
+    { "file": "01-empresa.html", "title": "Empresa · primera visita y paneles", "tradeoff": "19 entradas: vacantes, talento, equipo, ficha, psicometría, checklist, editor y dashboard. Entrega vacía excluida por invariantes. Pregunta abierta: confirmar alcance real de equipo sin miembros; invitar requiere backend.", "width": 1440, "height": 8191 },
+    { "file": "02-candidato.html", "title": "Candidato · búsqueda, perfil y CV", "tradeoff": "Siete marcos: búsqueda con texto y solo filtro, estudios, selector de CV, CV sin principal y dos colecciones de evaluaciones. Principal requiere backend; se ofrece solo revisar CVs. Pregunta abierta: visibilidad permanente de evaluaciones adicionales sin invitaciones.", "width": 1440, "height": 3224 },
+    { "file": "03-publico.html", "title": "Público · catálogo y vista previa", "tradeoff": "Cinco marcos: empresa sin vacantes con salida al catálogo, filtros de empresa, catálogo realmente vacío, búsqueda sin resultados y simulación sin preguntas. No suscripciones ni recepción espontánea de CVs. Sin preguntas bloqueantes.", "width": 1440, "height": 2646 }
+  ]
+}
