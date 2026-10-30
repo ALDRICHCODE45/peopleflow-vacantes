@@ -21,9 +21,9 @@ gets a deliberate, consistent empty state, defined first in the design system an
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | E1 | S5 | explore — inventory every empty state (file:line, trigger, form, copy, verdict) | inventory file |
-| E2 | S3, S4 | parent — `design/system.md` empty-state section (anatomy, variants, copy, actions, icon tone) | |
+| E2 | S3, S4 | parent — `design/system.md` empty-state section (anatomy, variants, copy, actions, icon tone) | 6fc36e7d |
 | E3 | S1, S2, S3 | canvas — `design/empty-states/` board with every empty state, user approval | 996fe837 (approved L6) |
-| E4 | S1, S2, S5 | implement approved empty states by area (slices + native review per code commit) | |
+| E4 | S1, S2, S5 | implement approved empty states by area (slices + native review per code commit) | 1e1c1c59, 072f5ecd, 2d7428de, f7950ab6, cce16fc7, 3fabb4a5 (+ b8cb0924) |
 | E5 | S1 | browser QA of each empty state (isolated or read-only data) | |
 
 ## Log
@@ -61,3 +61,6 @@ gets a deliberate, consistent empty state, defined first in the design system an
   board/ui.tsx:106-107 → follow-up). b8cb0924 fixes the R9 regression in checklist-module.test (label in list and detail).
   board.test «adds a manual card…» fails only under load (passes alone). Second wave: E4-D running; E4-F waits for D
   (writer-overlap guard misreads the «(empresa)» path).
+- **L10** Second wave landed with native reviews approved and acknowledged: E4-D cce16fc7 (930 in area;
+  review-219634add63bf28b clean), E4-F 3fabb4a5 (3450 in area; touched files 64/64 exit 0 — the earlier exit 1 was a
+  vitest worker RPC timeout under load; review-1825dab142c5384e clean). E4 complete; next E5 browser QA.
