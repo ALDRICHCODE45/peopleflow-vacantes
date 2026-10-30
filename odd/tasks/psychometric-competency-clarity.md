@@ -44,3 +44,8 @@ backend content change.
   (`features/psychometrics/labels.ts`, `profile/editor.tsx:26`). Proposed names (for the canvas, not yet approved):
   Organización y seguimiento, Cumplimiento de compromisos, Iniciativa para coordinar, Trabajo en equipo, Apertura al
   cambio, Reflexión antes de actuar, Trabajo bajo presión. Ids stay unchanged, so stored results keep working.
+- **L4** C1 board written: design/psychometric-competency-help/ — 01-configuracion (new names, ⓘ trigger on each competency
+  and on Importancia, Banda deseada, Tarea concreta, Justificación laboral and Confirmar perfil; one popover open),
+  02-ficha-candidato (same pattern in the sheet), 03-nombres (old → proposed → popover text, one alternative name per
+  competency). Checks: 27 triggers, keyboard/Escape/click-outside, one popover at a time, zero console errors. Awaiting
+  the user's choice of names and copy.
