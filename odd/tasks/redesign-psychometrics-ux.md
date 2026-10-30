@@ -146,3 +146,8 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   the area (+52 phone timeout load-only, passes alone), tsc 0; parent fixes: activity «Terminaste la evaluación»
   (was «Evaluación enviada», ambiguous) and no filler status line on open applications. Handoff implemented. Native
   review review-248877abd06f8587 approved; advisory R3-expiry-selection (applications-workspace.tsx:42) → follow-up.
+- **L20** User (2026-10-30): «las cards estan muy "flaquitas" este tipo de card larga y estirada es un candidato perfecto el
+  componente item de shadcn […] las tabs de la configuracion de la psicometria tiene errores/cosas que se ven mal
+  visualmente, especialmente cuando esta seleccionada la tab o tiene hover state». Fixed in 4335cc86 (applications rows
+  as Item outline; competency rows reuse the vacancy-config active treatment, focus ring keyboard-only). 584/585 (+52
+  phone timeout load-only), tsc 0, eslint clean. Native review review-680c3f15738781a3 approved clean.
