@@ -17,7 +17,7 @@ User-facing content is Mexican Spanish using tú; specifications and rationale a
 
 ## L15 scope and computation boundaries
 
-- 15 facets × 4 = 60 personality items, plus 3 attention = 63 prompts. Retain C2/C5, C3/C4, E3/E1, A3/A4, O4/O5, C6/E5 and N1/N2/N6. The first six pairs feed six competencies; the last three feed comp.presion («Manejo de la presión»), all negative direction. No other facet is administered. Excluded-facet provenance and minimization rationale (LFPDPPP arts. 8/12) are in the item bank.
+- 15 facets × 4 = 60 personality items, plus 3 attention = 63 prompts. Retain C2/C5, C3/C4, E3/E1, A3/A4, O4/O5, C6/E5 and N1/N2/N6. The first six pairs feed six competencies; the last three feed comp.presion («Manejo de presión laboral»), all negative direction. No other facet is administered. Excluded-facet provenance and minimization rationale (LFPDPPP arts. 8/12) are in the item bank.
 - Fixed ascending original-number order per content version; insert attention after retained items 15/30/45, exactly positions 16/32/48. Never shuffle. Keep surviving item/facet ids and keys stable.
 - Finish requires all 63 valid final answers; no prorating or partial result. Attention correctness never blocks finishing.
 - Reverse item = `6 − response`; facet sum = 4–20. No domain scores, personality total, foreign percentiles, ranking or overall fit.

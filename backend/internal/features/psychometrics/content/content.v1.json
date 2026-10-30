@@ -885,7 +885,7 @@
   "competencies": [
     {
       "id": "comp.organizacion",
-      "name": "Orden para avanzar",
+      "name": "Planificación y seguimiento",
       "definition": "Organizar recursos y dar seguimiento a un plan hasta cerrar tareas.",
       "facets": [
         {
@@ -901,7 +901,7 @@
     },
     {
       "id": "comp.compromisos",
-      "name": "Cuidado de acuerdos",
+      "name": "Seguimiento de acuerdos",
       "definition": "Acordar entregables, cumplir lo acordado y avisar cuando hace falta ajustar.",
       "facets": [
         {
@@ -917,7 +917,7 @@
     },
     {
       "id": "comp.coordinacion",
-      "name": "Impulso para coordinar",
+      "name": "Coordinación del trabajo",
       "definition": "Proponer un rumbo y acercarse a otras personas para repartir y revisar el trabajo.",
       "facets": [
         {
@@ -933,7 +933,7 @@
     },
     {
       "id": "comp.colaboracion",
-      "name": "Apoyo entre pares",
+      "name": "Colaboración en equipo",
       "definition": "Ofrecer ayuda y resolver diferencias sin romper los acuerdos de trabajo.",
       "facets": [
         {
@@ -949,7 +949,7 @@
     },
     {
       "id": "comp.exploracion",
-      "name": "Apertura a probar",
+      "name": "Exploración de alternativas",
       "definition": "Considerar alternativas y comprender ideas antes de probar cambios en el trabajo.",
       "facets": [
         {
@@ -965,7 +965,7 @@
     },
     {
       "id": "comp.deliberacion",
-      "name": "Pausa para decidir",
+      "name": "Revisión antes de decidir",
       "definition": "Revisar consecuencias y elegir cuánto comprobar antes de actuar.",
       "facets": [
         {
@@ -981,7 +981,7 @@
     },
     {
       "id": "comp.presion",
-      "name": "Manejo de la presión",
+      "name": "Manejo de presión laboral",
       "definition": "Mantener la calma y avanzar de manera efectiva ante presión, contratiempos y frustración en tareas de trabajo.",
       "facets": [
         {
