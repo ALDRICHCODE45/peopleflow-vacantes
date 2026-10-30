@@ -30,7 +30,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | R1 | S1 | worker — design directions: psychometrics tab summary + full report (page vs large dialog vs expandable sheet) | |
-| R2 | S1 | implement the chosen R1 artboard | |
+| R2 | S1 | worker — implement design/psychometric-report/03-ficha-expandible.html (chosen): compact tab summary + expandable two-column sheet, preparation panel, uniform report sections | |
 | R3 | S2 | design directions: candidate comparison | |
 | R4 | S2 | implement chosen R3 | |
 | R5 | S3 | design directions: candidate applications | |
@@ -75,3 +75,17 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   background; header icon + title + meta + one action; body; footnote), same disclosure everywhere, question cards,
   competency rows with mini band scale, comparison history as timeline, no native ▸ or browser lists. Applies to every
   report section in R2.
+- **L7** User (verbatim): «me convence hermano.» → 03-ficha-expandible.html is the chosen artboard (01 and 02 are
+  alternatives); gentle_design implement handoff started (in_progress). R2 delegated.
+- **L8** R3 / S2 directions authored in `design/candidate-comparison/`: `01-resumen-y-matriz.html`
+  (segmented candidate summaries + compact grouped matrices), `02-tarjetas-lado-a-lado.html` (one repeated candidate
+  card anatomy + Solo diferencias), and `03-criterio-primero.html` (criterion cards distributing people by result +
+  group filters). Manifest: `design/candidate-comparison/design.json`; all artboards target 1440px. L6 anatomy retained:
+  elevated card, icon/identity + title + metadata + contextual action, body and footnote. Each retains print/PDF,
+  complete CSV, stages, checklist counts, evidence sources and notes; ordering uses checklist only, never psychometrics.
+  Self-check: background, foreground, card, primary, primary-foreground, muted, muted-foreground, border and
+  status-info/review/success match `design/system.md`; system UI font fallback only, visible focus, semantic tables/lists,
+  reduced-motion and responsive/print styles included. Two desirable labels unavailable in the screenshot are explicitly
+  marked Texto no disponible; the Docker requirement keeps its visible ellipsis. No artboard chosen or implemented.
+  Canvas/browser tools unavailable in this worker: opening the canvas and visual/interaction verification remain for
+  the parent (`/gentle:design open candidate-comparison`). No commits made; unrelated R2 changes preserved.
