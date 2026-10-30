@@ -20,6 +20,7 @@ import type { AssessmentResult, ComparedCompetency, Invitation } from "../model"
 import { bandLabels, competencyLabels, comparisonLabel, facetLabels, fitLabel, focusMessages, importanceLabels, questionReason, signalReason, statusLabels, tierLabels, tierMessages } from "../labels";
 import type { useSheetResult } from "./state";
 import { readConsequence } from "./feedback";
+import { CompetencyHelp, HelpProvider } from "../help/info-popover";
 
 type Session = ReturnType<typeof useSheetResult>;
 type Presentation = { expanded: boolean; onExpand: () => void; candidateName: string; stageName: string; vacancyTitle?: string; invitationBlock: ReactNode };
@@ -60,7 +61,7 @@ function CompetencyRows({ data, compact = false }: { data: AssessmentResult; com
     const interpretation = data.interpretations.find(i => i.competency_id === c.competency_id)!;
     return <section key={c.competency_id} aria-label={competencyLabels[c.competency_id]} className="flex min-w-0 flex-col gap-3 border-b py-3 last:border-0">
       <div className={cn("grid items-center gap-2", compact ? "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-1 xl:grid-cols-[minmax(0,1fr)_156px_auto]")}>
-        <div><h4 className="text-sm font-medium">{competencyLabels[c.competency_id]}</h4><p className="text-xs text-muted-foreground">{importanceLabels[c.importance]}</p></div>
+        <div className="flex min-w-0 items-center gap-1"><div className="min-w-0 flex-1"><h4 className="text-sm font-medium">{competencyLabels[c.competency_id]}</h4><p className="text-xs text-muted-foreground">{importanceLabels[c.importance]}</p></div><CompetencyHelp competencyId={c.competency_id} /></div>
         {compact ? <Badge variant="neutral">{bandLabels[c.band]}</Badge> : <BandMatrix competency={c} />}
         <div className="max-sm:col-span-full"><FitBadge competency={c} confirmed={comparison.profile_version !== null} /></div>
       </div>
@@ -123,7 +124,7 @@ function StoredResult({ data, invitation, session, locked, expanded, onExpand, c
   const status = <div className="flex flex-wrap items-center gap-2"><Badge variant="success" dot>Finalizado</Badge><span className="text-xs text-muted-foreground"><MovementDate value={data.finished_at} /></span></div>;
   const fitGroups = [...new Set(comparison.competencies.map(c => fitLabel(c, comparison.profile_version !== null)))];
   const tierChip = <Badge variant={data.quality.tier === "tier.sin" ? "neutral" : "info"}>{tierLabels[data.quality.tier]}</Badge>;
-  return <div className={expanded ? "grid h-full min-h-0 min-w-0 grid-cols-1 overflow-y-auto lg:grid-cols-[300px_minmax(0,1fr)] lg:overflow-hidden" : "flex min-w-0 flex-col gap-4"} data-pf-psychometric-result="">
+  return <HelpProvider><div className={expanded ? "grid h-full min-h-0 min-w-0 grid-cols-1 overflow-y-auto lg:grid-cols-[300px_minmax(0,1fr)] lg:overflow-hidden" : "flex min-w-0 flex-col gap-4"} data-pf-psychometric-result="">
     {!expanded ? <>
       <header className="flex flex-col gap-3">{status}<h2 className="text-xl font-semibold">Prepara tu entrevista</h2><p className="text-sm leading-6 text-muted-foreground">{introduction}</p><Button id="psychometric-expand" type="button" className="min-h-10 w-full" onClick={onExpand}>Ver informe completo<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></header>
       {invitationBlock}<section aria-label="Competencias"><div className="flex items-center justify-between gap-2"><h3 className="text-base font-semibold">Competencias</h3><span className="text-xs text-muted-foreground">{comparisonLabel(comparison.profile_version)}</span></div><CompetencyRows data={data} compact /></section>
@@ -157,7 +158,7 @@ function StoredResult({ data, invitation, session, locked, expanded, onExpand, c
       </div>
     </>}
     <ConfirmActionDialog icon={GitCompareArrows} open={confirm} onOpenChange={setConfirm} title="¿Comparar con el perfil actual?" description="Se guardará una nueva comparación y guía. Las bandas originales y el historial no cambian." confirmLabel="Comparar" pendingLabel="Comparando…" pending={session.comparing} onConfirm={() => { void session.compare().then(() => setConfirm(false)); }} />
-  </div>;
+  </div></HelpProvider>;
 }
 
 /** Compact loading state: result counts and eligibility are unknown until the audited read. */

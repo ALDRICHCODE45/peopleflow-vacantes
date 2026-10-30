@@ -23,7 +23,7 @@ const selectRow = (name: string) => fireEvent.click(screen.getByRole("button", {
 const bandGroup = () => screen.getByRole("group", { name: "Banda deseada" });
 it("renders never-saved defaults, seven disabled bands and does not invent suggestions", () => {
   mount(); expect(screen.getByRole("switch")).not.toBeChecked(); expect(screen.getByText("Perfil sin confirmar")).toHaveAttribute("data-variant", "accent");
-  for (const name of ["Orden para avanzar", "Cuidado de acuerdos", "Impulso para coordinar", "Apoyo entre pares", "Apertura a probar", "Pausa para decidir", "Manejo de la presión"]) {
+  for (const name of ["Planificación y seguimiento", "Seguimiento de acuerdos", "Coordinación del trabajo", "Colaboración en equipo", "Exploración de alternativas", "Revisión antes de decidir", "Manejo de presión laboral"]) {
     selectRow(name);
     for (const band of within(bandGroup()).getAllByRole("button")) expect(band).toBeDisabled();
   }
@@ -33,25 +33,25 @@ it("renders never-saved defaults, seven disabled bands and does not invent sugge
   fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
   expect(screen.getByText("No hay reglas de sugerencia disponibles")).toBeVisible(); expect(saveProfileAction).not.toHaveBeenCalled();
 });
-it("shows the competency hypothesis once for the whole list", () => {
+it("keeps the competency hypothesis inside on-demand help", () => {
   mount();
-  expect(screen.getAllByText("La relación con esta competencia es una hipótesis. Confírmala con ejemplos de trabajo.")).toHaveLength(1);
+  expect(screen.queryByText("La relación con esta competencia es una hipótesis. Confírmala con ejemplos de trabajo.")).not.toBeInTheDocument();
 });
 it("shows only the supporting fields required by each row's importance", () => {
   const data = profile();
   data.competencies[0] = { ...data.competencies[0], importance: "importance.clave", desired_band: "band.high", rationale: "Plan semanal", task: "Cerrar entregas" };
   data.competencies[1] = { ...data.competencies[1], importance: "importance.importante", desired_band: "band.medium", rationale: "Cumplir acuerdos" };
   mount(data);
-  expect(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ })).toHaveValue("Cerrar entregas");
-  expect(screen.getByRole("textbox", { name: /Justificación laboral de Orden/ })).toHaveValue("Plan semanal");
+  expect(screen.getByRole("textbox", { name: /Tarea concreta de Planificación/ })).toHaveValue("Cerrar entregas");
+  expect(screen.getByRole("textbox", { name: /Justificación laboral de Planificación/ })).toHaveValue("Plan semanal");
   expect(screen.getAllByRole("textbox")).toHaveLength(2);
-  selectRow("Cuidado de acuerdos");
-  expect(screen.getByRole("textbox", { name: /Justificación laboral de Cuidado/ })).toHaveValue("Cumplir acuerdos");
-  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Cuidado/ })).not.toBeInTheDocument();
+  selectRow("Seguimiento de acuerdos");
+  expect(screen.getByRole("textbox", { name: /Justificación laboral de Seguimiento/ })).toHaveValue("Cumplir acuerdos");
+  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Seguimiento/ })).not.toBeInTheDocument();
   expect(screen.getAllByRole("textbox")).toHaveLength(1);
-  selectRow("Impulso para coordinar");
-  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Impulso/ })).not.toBeInTheDocument();
-  expect(screen.queryByRole("textbox", { name: /Justificación laboral de Impulso/ })).not.toBeInTheDocument();
+  selectRow("Coordinación del trabajo");
+  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Coordinación/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: /Justificación laboral de Coordinación/ })).not.toBeInTheDocument();
   expect(screen.queryAllByRole("textbox")).toHaveLength(0);
   for (const band of within(bandGroup()).getAllByRole("button")) expect(band).toBeDisabled();
   expect(screen.getByText("Sin banda", { selector: "p" })).toBeVisible();
@@ -75,8 +75,8 @@ it.each([0, 31, 1.5])("rejects expiration %s without writing", async value => {
 it("requires rationale only on relevant competencies and task only on key competencies to confirm", async () => {
   const data = profile(); data.competencies[0] = { ...data.competencies[0], importance: "importance.clave", desired_band: "band.low", rationale: "" }; mount(data);
   fireEvent.click(screen.getByRole("button", { name: "Confirmar perfil" }));
-  await waitFor(() => expect(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ })).toHaveFocus()); expect(saveProfileAction).not.toHaveBeenCalled();
-  fireEvent.change(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ }), { target: { value: "Cerrar entregas" } });
+  await waitFor(() => expect(screen.getByRole("textbox", { name: /Tarea concreta de Planificación/ })).toHaveFocus()); expect(saveProfileAction).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByRole("textbox", { name: /Tarea concreta de Planificación/ }), { target: { value: "Cerrar entregas" } });
   for (const field of screen.getAllByRole("textbox", { name: /Justificación laboral/ })) fireEvent.change(field, { target: { value: "Trabajo concreto" } });
   fireEvent.click(screen.getByRole("button", { name: "Confirmar perfil" })); await screen.findByText(/Perfil confirmado ·/);
   expect(saveProfileAction).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ confirmed: true, enabled: false }) }));
@@ -98,17 +98,17 @@ it("maps server fields, preserves input and focuses first visual error", async (
 it("selects importance and a desired low band, then clears the band when irrelevant", async () => {
   mount();
   fireEvent.click(screen.getByRole("button", { name: "Clave" }));
-  expect(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ })).toBeVisible();
-  expect(screen.getByRole("textbox", { name: /Justificación laboral de Orden/ })).toHaveValue("");
+  expect(screen.getByRole("textbox", { name: /Tarea concreta de Planificación/ })).toBeVisible();
+  expect(screen.getByRole("textbox", { name: /Justificación laboral de Planificación/ })).toHaveValue("");
   const band = screen.getByRole("button", { name: "Medio" }); expect(band).not.toBeDisabled(); expect(band).toHaveAttribute("aria-pressed", "true");
   fireEvent.click(screen.getByRole("button", { name: "Bajo" }));
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" })); await screen.findByText("Perfil guardado");
   expect(saveProfileAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ confirmed: false, competencies: expect.arrayContaining([expect.objectContaining({ competency_id: "comp.organizacion", importance: "importance.clave", desired_band: "band.low", task: null })]) }) }));
-  fireEvent.change(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ }), { target: { value: "Cerrar entregas" } });
-  fireEvent.change(screen.getByRole("textbox", { name: /Justificación laboral de Orden/ }), { target: { value: "Trabajo concreto" } });
+  fireEvent.change(screen.getByRole("textbox", { name: /Tarea concreta de Planificación/ }), { target: { value: "Cerrar entregas" } });
+  fireEvent.change(screen.getByRole("textbox", { name: /Justificación laboral de Planificación/ }), { target: { value: "Trabajo concreto" } });
   fireEvent.click(screen.getByRole("button", { name: "No relevante" }));
-  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Orden/ })).not.toBeInTheDocument();
-  expect(screen.queryByRole("textbox", { name: /Justificación laboral de Orden/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: /Tarea concreta de Planificación/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: /Justificación laboral de Planificación/ })).not.toBeInTheDocument();
   expect(band).toBeDisabled(); fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(saveProfileAction).toHaveBeenCalledTimes(2));
   expect(saveProfileAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ competencies: expect.arrayContaining([expect.objectContaining({ competency_id: "comp.organizacion", desired_band: null, rationale: null, task: null })]) }) }));
@@ -116,7 +116,7 @@ it("selects importance and a desired low band, then clears the band when irrelev
 it("initializes Importante with a middle band and empty rationale; drafts save but confirmation requires rationale only", async () => {
   mount(); fireEvent.click(screen.getByRole("button", { name: "Importante" }));
   expect(screen.getByRole("button", { name: "Medio" })).toHaveAttribute("aria-pressed", "true");
-  const rationale = screen.getByRole("textbox", { name: /Justificación laboral de Orden/ }); expect(rationale).toHaveValue(""); expect(screen.queryByRole("textbox", { name: /Tarea concreta/ })).not.toBeInTheDocument();
+  const rationale = screen.getByRole("textbox", { name: /Justificación laboral de Planificación/ }); expect(rationale).toHaveValue(""); expect(screen.queryByRole("textbox", { name: /Tarea concreta/ })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" })); await screen.findByText("Perfil guardado");
   expect(saveProfileAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ competencies: expect.arrayContaining([expect.objectContaining({ importance: "importance.importante", desired_band: "band.medium", rationale: "", task: null })]) }) }));
   fireEvent.click(screen.getByRole("button", { name: "Confirmar perfil" })); await waitFor(() => expect(rationale).toHaveFocus()); expect(rationale).toHaveAttribute("aria-invalid", "true"); expect(saveProfileAction).toHaveBeenCalledTimes(1);
@@ -124,7 +124,7 @@ it("initializes Importante with a middle band and empty rationale; drafts save b
 });
 it("labels competencies by id even if the server returns a different order", () => {
   const data = profile(); data.competencies.reverse(); data.competencies[0] = { ...data.competencies[0], importance: "importance.importante", desired_band: "band.medium", rationale: "Presión laboral" }; mount(data);
-  expect(screen.getByRole("textbox", { name: "Justificación laboral de Manejo de la presión *" })).toHaveValue("Presión laboral");
+  expect(screen.getByRole("textbox", { name: "Justificación laboral de Manejo de presión laboral *" })).toHaveValue("Presión laboral");
 });
 it("locks writes after process_finished while preserving captured values", async () => {
   vi.mocked(saveProfileAction).mockResolvedValue({ ok: false, reason: "process_finished", reference: { status: 409 } }); mount(); fireEvent.click(screen.getByRole("switch")); fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));

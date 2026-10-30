@@ -103,5 +103,12 @@ filter or search is actually active, never on a truly empty catalog.
 | Nothing selected | Master-detail with no selection | `SectionEmpty` in the detail panel: icon of the list subject, instruction «Selecciona … para verlo aquí», no button |
 | Compact (exception) | Board columns (dashed 96px placeholder, §13.12/14), field-level «Sin dato», combobox «Sin coincidencias.», form notices | Text allowed; these are the only plain-text empties |
 
+## On-demand help (`frontend/src/features/psychometrics/help/info-popover.tsx`)
+
+Explanations that would crowd a dense screen live behind a visible ghost ⓘ trigger (16px glyph, ≥40px target,
+accessible name «¿Qué es …?» or «Ayuda: …») that opens a shadcn `Popover` with title, one or two sentences and an
+optional muted footer. Never shown by default; one open at a time; Escape / outside click close it and focus returns to
+the trigger. A trigger inside a selectable row is its own button and never selects the row.
+
 A section never disappears silently when its emptiness is meaningful to the person (a tab, a panel, a list the
 person manages); optional public content (job detail sections, careers-site blocks) may be omitted.

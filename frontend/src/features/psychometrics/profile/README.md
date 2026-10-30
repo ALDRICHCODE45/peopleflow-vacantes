@@ -11,7 +11,11 @@ Reference: `design/psychometric-profile-config/03-lista-maestra-detalle.html` (c
 - Detail uses segmented ToggleGroups for importance and desired band. No relevante disables the band, shows Sin banda and clears band/rationale/task to null. Relevant importance initializes the middle band and an empty rationale. Clave alone shows task. Fields have trimmed Unicode code-point counters (300 / 1000), matching validation.
 - `requirements.ts` drives row completeness, progress segments, the summary and save/confirm validation. Confirm selects the first invalid competency, mounts its detail and focuses its first invalid field, with FieldError. Server field errors follow the same selection/focus path.
 - The sticky action surface shows completeness and Guardar cambios / Confirmar perfil. Draft saves allow empty task/rationale. Editing requirements clears confirmation; general settings preserve it. Server confirmation dates use Mexico City time.
-- Sugerir desde la vacante preserves the draft and explains that no inference rules exist; it never invents requirements. The hypothesis remains visible once in the detail.
+- Sugerir desde la vacante preserves the draft and explains that no inference rules exist; it never invents requirements. The hypothesis note stays in the page footnote; each competency's own hypothesis sentence lives in its help popover.
+
+## Competency names and on-demand help
+
+Reference: `design/psychometric-competency-help/` (names and copy approved, `odd/tasks/psychometric-competency-clarity.md` L5). `../competency-copy.ts` is the single source of competency names (ids unchanged), descriptions, the common footer and field help; `../labels.ts` derives names from it. `../help/info-popover.tsx` renders a visible ghost ⓘ trigger (≥40px, accessible name «¿Qué es …?» / «Ayuda: …») and the description only on demand; one help is open at a time inside `HelpProvider`. Row help is a separate button and never selects the row. Triggers sit next to each list row, the detail heading, Importancia en el puesto, Banda deseada, Tarea concreta, Justificación laboral and Confirmar perfil, and next to each competency in the candidate sheet.
 - Errors preserve input. ETag conflicts/missing preconditions require Cargar versión actual; uncertain writes offer Comprobar and never automatically replay PUT. Process-finished rejection locks writes. Profile changes affect future evaluations, not earlier snapshots.
 
 ## Composition audit

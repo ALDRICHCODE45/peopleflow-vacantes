@@ -1,4 +1,4 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useState, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -14,6 +14,13 @@ vi.mock("./actions", () => ({ loadHistoryAction: vi.fn(), loadParticipationActio
 vi.mock("@/features/psychometrics/actions", () => ({ loadInvitationsAction: vi.fn(), loadProfileAction: vi.fn(), loadResultAction: vi.fn(), createComparisonAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({}) }));
+// The anchored Base UI positioner loops in jsdom inside this screen, so only the popup shell is
+// replaced (real Root, Trigger, Title and our open/close logic). Escape, outside click and focus
+// return are Base UI behavior, verified in the browser (odd/tasks/psychometric-competency-clarity.md).
+vi.mock("@/components/ui/popover", async importOriginal => ({
+  ...await importOriginal<typeof import("@/components/ui/popover")>(),
+  PopoverContent: ({ children, ...props }: { children?: ReactNode; "data-help-popover"?: string }) => props["data-help-popover"] !== undefined && children ? <div role="dialog" aria-label="Ayuda">{children}</div> : null,
+}));
 const stored = () => resultSchema.parse(result);
 function Harness() {
   const [open, setOpen] = useState(true);
@@ -89,9 +96,32 @@ it("folds No relevante competencies into one compact disclosure", async () => {
   render(<Harness />); await openTab(false);
   const disclosure = await screen.findByRole("button", { name: /No relevante · 7 competencias/ });
   expect(disclosure).toHaveAttribute("aria-expanded", "false");
-  expect(screen.queryByText("Apertura a probar")).not.toBeInTheDocument();
+  expect(screen.queryByText("Exploración de alternativas")).not.toBeInTheDocument();
   fireEvent.click(disclosure);
-  expect(await screen.findByText("Apertura a probar")).toBeVisible();
+  expect(await screen.findByText("Exploración de alternativas")).toBeVisible();
+});
+it("offers the same on-demand competency copy in the compact sheet without extra reads or closing the sheet", async () => {
+  render(<Harness />); await openTab(false);
+  fireEvent.click(await screen.findByRole("button", { name: /No relevante · 7 competencias/ }));
+  const names = ["Planificación y seguimiento", "Seguimiento de acuerdos", "Coordinación del trabajo", "Colaboración en equipo", "Exploración de alternativas", "Revisión antes de decidir", "Manejo de presión laboral"];
+  for (const name of names) expect(screen.getByRole("heading", { name })).toBeVisible();
+  const text = "Acordar entregas, cumplir lo acordado y avisar si hace falta ajustar; el cuestionario considera lo que la persona declara sobre seguir compromisos y esforzarse por superar lo esperado. No demuestra su honestidad ni garantiza que cumpla: pide ejemplos de trabajo.";
+  const footer = "La relación con esta competencia es una hipótesis. Confírmala con ejemplos de trabajo.";
+  expect(screen.queryByText(text)).not.toBeInTheDocument();
+  expect(screen.queryByText(footer)).not.toBeInTheDocument();
+  const trigger = screen.getByRole("button", { name: "¿Qué es Seguimiento de acuerdos?" });
+  fireEvent.click(trigger);
+  const popup = await screen.findByRole("dialog", { name: "Ayuda" });
+  expect(within(popup).getByText("Seguimiento de acuerdos")).toBeVisible();
+  expect(within(popup).getByText(text)).toBeVisible();
+  expect(within(popup).getByText(footer)).toBeVisible();
+  fireEvent.click(within(popup).getByRole("button", { name: "Cerrar ayuda" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Ayuda" })).not.toBeInTheDocument());
+  expect(screen.queryByText(text)).not.toBeInTheDocument();
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("button", { name: "Ver informe completo" })).toBeVisible();
+  expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
+  expect(actions.createComparisonAction).not.toHaveBeenCalled();
 });
 it("loads invitations once per board and never audits on mount/hover/focus, including StrictMode", async () => {
   render(<StrictMode><Harness /></StrictMode>);
@@ -120,7 +150,7 @@ it("drops the result cache when the sheet closes but keeps the board invitation 
   render(<Harness />); await openTab();
   await screen.findByText("Texto almacenado STAR");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Cerrar ficha" })));
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog", { name: "Ayuda" })).not.toBeInTheDocument();
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Abrir ficha" })));
   await openTab();
   expect(await screen.findByText("Texto almacenado STAR")).toBeVisible();
@@ -237,7 +267,7 @@ it("focus links target the matching ordered question and accent badges differ by
   c.guide[0] = { ...c.guide[0], selector: "distant", originating_focus_type: "focus.distant", fit: "fit.atencion" };
   vi.mocked(actions.loadResultAction).mockResolvedValue({ ok: true, data });
   render(<Harness />); await openTab(); await screen.findByText("Texto almacenado STAR");
-  const link = screen.getByRole("link", { name: /Orden para avanzar · Pregunta 1/ });
+  const link = screen.getByRole("link", { name: /Planificación y seguimiento · Pregunta 1/ });
   expect(document.getElementById(link.getAttribute("href")!.slice(1))).toHaveTextContent("Texto almacenado STAR");
   const competencies = within(screen.getByRole("region", { name: "Competencias" }));
   const focus = competencies.getByText("Foco de atención").closest('[data-slot="badge"]')!;
@@ -246,7 +276,7 @@ it("focus links target the matching ordered question and accent badges differ by
   expect(explore).toHaveAttribute("data-variant", "accent");
   expect(focus.querySelector("svg")).not.toBeNull(); expect(explore.querySelector("svg")).not.toBeNull();
   expect(focus.querySelector("svg")?.getAttribute("class")).not.toEqual(explore.querySelector("svg")?.getAttribute("class"));
-  const matrix = competencies.getByRole("region", { name: "Bandas · Orden para avanzar" });
+  const matrix = competencies.getByRole("region", { name: "Bandas · Planificación y seguimiento" });
   expect(within(matrix).getByText("Alto")).toHaveAttribute("data-desired", "true");
   expect(within(matrix).getByText("Bajo")).toHaveAttribute("data-obtained", "true");
 });
