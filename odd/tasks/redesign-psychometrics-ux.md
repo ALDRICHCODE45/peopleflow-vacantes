@@ -166,3 +166,6 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 - **L24** User: «mejor intentemoslo de nuevo con este mismo limite». Retry with the same relay limit succeeded: review
   review-5af0b318c07384a1 approved and acknowledged; advisory R2-001 (readability, criterion-dialog.tsx:55-59, the
   automatic-label heuristic) → follow-up. R9 row → 6ac9a4fb.
+- **L25** R9 browser QA on the live page (16 criteria): list + detail work, language shows «Idioma: Inglés · mínimo C1»,
+  no horizontal overflow at 390px. Fixed truncated list titles (9726df1c: two-line titles, wider list column; 32/32,
+  eslint clean); assess: 4 lines, reviewDue false (under budget) → no native review. Handoff implemented.
