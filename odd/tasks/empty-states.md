@@ -55,3 +55,9 @@ gets a deliberate, consistent empty state, defined first in the design system an
 - **L8** E4-A 1e1c1c59: `SectionEmpty` (RED 3 → GREEN, 66/66 feedback, tsc 0, eslint clean; docs §22.1 + system.md);
   assess 103 lines reviewDue false. Workers launched in parallel with disjoint surfaces: E4-B (employer lists), E4-C
   (sheet/psychometrics/checklist detail), E4-E (candidate side). E4-D and E4-F next wave to keep machine load bounded.
+- **L9** First wave landed, each slice with native review approved and acknowledged: E4-E 072f5ecd (567/567 in area;
+  review-e65edc0e27ed29a8 clean), E4-B 2d7428de (1042 in area; creation route is /empresa/vacantes/borradores/nuevo;
+  review-4125f4d83f8448bf clean), E4-C f7950ab6 (684 in area; review-10422ba0082fc3d5, advisory R3-001
+  board/ui.tsx:106-107 → follow-up). b8cb0924 fixes the R9 regression in checklist-module.test (label in list and detail).
+  board.test «adds a manual card…» fails only under load (passes alone). Second wave: E4-D running; E4-F waits for D
+  (writer-overlap guard misreads the «(empresa)» path).
