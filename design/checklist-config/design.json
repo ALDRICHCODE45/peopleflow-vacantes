@@ -1,0 +1,28 @@
+{
+  "title": "Checklist de la vacante",
+  "brief": "R9 / S5: la configuración del checklist apila tarjetas grandes repetidas (siete criterios llenan la pantalla). Tres estructuras compactas con el mismo shell de configuración y las capacidades reales del editor: ocho tipos de criterio, Obligatorio / Deseable, editar con el diálogo actual, subir, bajar y quitar en un menú, agregar hasta 50, recordatorio al mover por etapa, Guardar / Descartar. Siete criterios reales de Software Developer; los cuatro últimos (años, escolaridad, pregunta de filtro y manual) son ilustrativos para mostrar todos los modos de evaluación. Las etapas del recordatorio son ilustrativas. Anatomía L6 y tokens de design/system.md; filas tipo Item con el estado activo del menú de configuración. Guardar no persiste ni simula respuestas del servidor.",
+  "feature": "odd/tasks/redesign-psychometrics-ux.md",
+  "artboards": [
+    {
+      "file": "01-lista-agrupada.html",
+      "title": "Lista agrupada",
+      "tradeoff": "Recomendada: el cambio más chico sobre lo que ya funciona. Filas Item de una línea agrupadas en Obligatorio y Deseable, con el selector, editar y el menú alineados a la derecha; once criterios caben arriba del pliegue. Cambiar la importancia mueve la fila de grupo (se anuncia), así que el número de orden deja de ser consecutivo dentro de cada grupo. Editar sigue en el diálogo actual.",
+      "width": 1440,
+      "height": 1080
+    },
+    {
+      "file": "02-lista-y-detalle.html",
+      "title": "Lista y detalle",
+      "tradeoff": "Misma estructura que la psicometría elegida: lista compacta seleccionable y el criterio en detalle, editable en la página sin diálogo. Consistente entre apartados y con espacio para preguntas de filtro largas; cambiar la importancia de muchos criterios exige seleccionarlos uno por uno. Reemplaza el diálogo por el panel (sin backend nuevo).",
+      "width": 1440,
+      "height": 1080
+    },
+    {
+      "file": "03-tabla-por-tipo.html",
+      "title": "Tabla por tipo",
+      "tradeoff": "La más densa: tabla agrupada por tipo (Perfil, Idioma, Habilidades, Filtros y revisión manual) con filtro Obligatorios / Deseables. Escanea muy rápido checklists largos; agrupar por tipo separa el número de orden de la posición visual y en móvil necesita otra presentación (lista).",
+      "width": 1440,
+      "height": 1080
+    }
+  ]
+}

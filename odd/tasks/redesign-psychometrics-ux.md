@@ -151,3 +151,8 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   visualmente, especialmente cuando esta seleccionada la tab o tiene hover state». Fixed in 4335cc86 (applications rows
   as Item outline; competency rows reuse the vacancy-config active treatment, focus ring keyboard-only). 584/585 (+52
   phone timeout load-only), tsc 0, eslint clean. Native review review-680c3f15738781a3 approved clean.
+- **L21** User: «Si, arranca por favor.» — R9 / S5 directions in design/checklist-config/: 01-lista-agrupada (Item rows
+  grouped Obligatorio / Deseable, recommended), 02-lista-y-detalle (same structure as the chosen psychometric 03, inline
+  editing instead of the dialog), 03-tabla-por-tipo (dense table grouped by kind with an importance filter). Only real
+  editor capabilities; 4 of 11 criteria and the stage names are illustrative. Seen: the live page labels the language
+  criterion «Idioma en: mínimo C1» (code, not name) — fix during R9 implementation.
