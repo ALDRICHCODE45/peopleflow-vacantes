@@ -64,3 +64,8 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   `design/psychometric-report/design.json`. No artboard chosen yet; the parent/user decides before R2.
   Self-check uses only `design/system.md` colors and system UI font fallback. Canvas tool/browser preview unavailable
   in the worker; visual verification and opening the canvas remain for the parent.
+- **L5** User canvas comment ytuqbtn2 on 03 (verbatim): «Sinceramente esta version me gusta demasiado hermano, de verdad, sin
+  embargo me gustaria mejorar/pulir esta seccion del "resumen" del reclutador, me explico?? siento que le hace falta,
+  que dices?» → direction 03 (ficha expandible) preferred; its aside redesigned as a preparation panel (panorama mini
+  matrix + fit counts, guide/comparison/quality actions, invitation timeline, footnote). Commit 734cee6d; comment
+  resolved. Pending for R2: lift «Ver informe completo» above the fold in the compact tab.
