@@ -78,3 +78,20 @@ candidate dashboard with real data only; design on the canvas before each implem
 - **L9** Answers: CV rows — «Sí, quedaron bien» (V2 browser QA by the user; handoff 03 implemented). Dashboard cards —
   «Sí, así (Recomendado)» → S6. **Slice boundary:** the CV delivery (V1–V2) ends at 453e0e9a; the dashboard (D2–D4)
   is the next slice.
+- **L10** D2 (S2, S3, S6): dashboard directions in `design/candidate-dashboard-redesign/`: `01-resumen-dividido.html`
+  (four cards + balanced pending/recent panels), `02-agenda-de-acciones.html` (full-width action queue + recent
+  application cards), `03-bitacora-personal.html` (2×2 cards + recent-update timeline and pending rail). Each includes
+  Con actividad / Primera visita / Al día, actionable cards and only Enviada / En proceso / Cerrada; recency represents
+  the requested D3 `updated_at`, not an API integration. `design.json` records 1440×900 viewports and tradeoffs.
+  No direction chosen yet; product links are inert in these standalone design examples. Token/font self-check completed;
+  browser overflow, focus and state-switcher verification remain pending (no browser runner supplied to this worker).
+- **L11** D3: backend (session 01a18f07) proposes `updated_at` always present, RFC3339, derived from
+  participation_stage_history (no migration): time of the last candidate-visible change (submitted↔in_process,
+  discard→closed with message, recovery); internal moves keeping the visible status do not bump it; equals applied_at
+  otherwise; ordering stays applied_at DESC (dashboard sorts client-side); contract doc backend/docs/vacancy-applications.md
+  «Candidate list (private)». Frontend agreed (recovery counts) and accepts it first: 59532e0b — optional, RFC3339 with
+  offset, >= applied_at, other unknown keys still rejected; RED 3 accept cases, GREEN 481/481 on Node 22, tsc 0, eslint
+  clean. Backend waits for the user's go-ahead in its own session.
+  D2 parent check (headless, canvas): 01/02/03 load with no page or console errors; each of «Con actividad»,
+  «Primera visita», «Al día» changes the content; no horizontal overflow at 1440 or 390; no Contratada/Rechazada/
+  En revisión/saved/recommended copy. Awaiting the user's choice.
