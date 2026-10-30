@@ -18,6 +18,12 @@ candidate dashboard with real data only; design on the canvas before each implem
   `design/candidate-cvs-redesign/03-lista-y-panel.html` (list + sticky upload panel: drop zone, capacity, usage tips)
   with the «Usado en postulaciones» badge and its ⓘ popover from 01. Upload, rename, delete, download, failure,
   uncertain-upload, storage-unavailable, wrong-role and limit behavior stay as today.
+- **S6 Dashboard data (D1).** User accepted the proposal «Sí, así»: four cards — **Por atender** (pending
+  assessments + new company messages), **Postulaciones activas** (submitted + in process, with breakdown), **Perfil**
+  (completeness and which fields are missing), **CVs** («n de max» and how many were sent in applications); below, the
+  pending list and recent applications on real data; remove the Contratada/Rechazada stacked bar and the prototype
+  saved vacancies; ask the backend for a per-application `updated_at` (last status change) to show and sort by recent
+  activity.
 - **S4 Order.** CVs first, then the dashboard, as separate deliveries (user choice, L3).
 
 ## Tasks
@@ -26,9 +32,9 @@ candidate dashboard with real data only; design on the canvas before each implem
 | --- | --- | --- | --- |
 | V1 | S1 | canvas — `design/candidate-cvs-redesign/` directions → user choice: 03 + badge of 01 (L6) | a178cbeb, this commit |
 | V2 | S1, S5 | worker — implement 03 + badge of 01 in `cv-workspace.tsx`; keep upload/rename/delete/failure behavior; tests | this commit (L7) |
-| D1 | S2, S3 | agree with the user which data each dashboard card and section shows (real data; backend changes allowed) | |
+| D1 | S2, S3, S6 | agree with the user which data each dashboard card and section shows (real data; backend changes allowed) | decided (L9) |
 | D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
-| D3 | S2, S3 | backend request for any new data agreed in D1 (if needed) | |
+| D3 | S6 | backend request: per-application `updated_at` (last status change) in the candidate applications list | |
 | D4 | S2, S3 | implement dashboard on real data; remove prototype fixtures from the route; tests | |
 
 ## Log
@@ -69,3 +75,6 @@ candidate dashboard with real data only; design on the canvas before each implem
   added no height and rows collapsed to two text lines. Fix: the tile is an in-flow grid column (44×52, row-span 2),
   rows center vertically with more padding, PDF/Word tiles tinted with status-danger/status-info as in 03. RED on the
   previous code (tile test), GREEN 562/562 on Node 22, tsc 0, eslint clean.
+- **L9** Answers: CV rows — «Sí, quedaron bien» (V2 browser QA by the user; handoff 03 implemented). Dashboard cards —
+  «Sí, así (Recomendado)» → S6. **Slice boundary:** the CV delivery (V1–V2) ends at 453e0e9a; the dashboard (D2–D4)
+  is the next slice.
