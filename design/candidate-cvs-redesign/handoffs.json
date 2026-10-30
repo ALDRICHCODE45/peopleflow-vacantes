@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "03-lista-y-panel.html",
+  "handoffs": {
+    "03-lista-y-panel.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-10-30T23:17:54.824Z",
+      "startedAt": "2026-10-30T23:18:21.779Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/candidate-cvs-dashboard-redesign.md",
+      "note": "Implementando en cv-workspace.tsx (V2)"
+    }
+  }
+}

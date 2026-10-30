@@ -14,6 +14,10 @@ candidate dashboard with real data only; design on the canvas before each implem
 - **S3 Keep the dashboard cards.** «el tema es que las tarjetas es lo unico que si me convence jaja, si me gustaria
   dejarlas dentro del diseno, posiblemente cambiar la data que muestra por data nueva, de nuevo, estoy abierto a
   platicarlo, no importa si hay que cambiar el backend.»
+- **S5 Chosen CV design.** «todo el diseno de la tercera opcion, pero agregando el badge de la primera» — artboard
+  `design/candidate-cvs-redesign/03-lista-y-panel.html` (list + sticky upload panel: drop zone, capacity, usage tips)
+  with the «Usado en postulaciones» badge and its ⓘ popover from 01. Upload, rename, delete, download, failure,
+  uncertain-upload, storage-unavailable, wrong-role and limit behavior stay as today.
 - **S4 Order.** CVs first, then the dashboard, as separate deliveries (user choice, L3).
 
 ## Tasks
@@ -21,7 +25,7 @@ candidate dashboard with real data only; design on the canvas before each implem
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | V1 | S1 | canvas — `design/candidate-cvs-redesign/` directions → user choice: 03 + badge of 01 (L6) | a178cbeb, this commit |
-| V2 | S1 | implement chosen CV design; keep upload/rename/delete/failure behavior; tests | |
+| V2 | S1, S5 | worker — implement 03 + badge of 01 in `cv-workspace.tsx`; keep upload/rename/delete/failure behavior; tests | this commit (L7) |
 | D1 | S2, S3 | agree with the user which data each dashboard card and section shows (real data; backend changes allowed) | |
 | D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
 | D3 | S2, S3 | backend request for any new data agreed in D1 (if needed) | |
@@ -54,3 +58,9 @@ candidate dashboard with real data only; design on the canvas before each implem
   explico?» → 03-lista-y-panel updated with the 01 badge + ⓘ popover (green check text removed). Chosen artboard:
   03-lista-y-panel.html; 01 and 02 are alternatives. Headless: no errors, popover opens, Escape returns focus to ⓘ, no
   overflow at 1440 (limit state) and 390.
+- **L7** V2 implemented by worker (presentation only in `cv-workspace.tsx`; same upload/rename/delete/recovery paths;
+  drag-and-drop calls the same `selected()`; generic `InfoPopover` reused). Deviations from 03: neutral file tiles,
+  spinner instead of a fabricated progress percentage, badge beside the name only at 2xl. Worker ran on Node 25 (49
+  `localStorage.clear` failures in untouched tests); parent rerun on the required Node 22.23.4: 47 files / 649 tests
+  passed (candidate, candidate-cvs, (candidato) routes, candidate-dashboard), `tsc` 0, eslint clean on changed files.
+  Browser QA pending: candidate login is real Cognito, asked the user to check /candidato/cvs in their browser.
