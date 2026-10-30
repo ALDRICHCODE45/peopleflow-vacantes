@@ -36,7 +36,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | R5 | S3 | design directions: candidate applications | |
 | R6 | S3 | implement chosen R5 | |
 | R7 | S4 | design directions: psychometric profile configuration without a long flat form | |
-| R8 | S4 | implement chosen R7 | |
+| R8 | S4 | worker — implement design/psychometric-profile-config/03-lista-maestra-detalle.html (chosen) | |
 | R9 | S5 | design + implement checklist configuration | |
 | R10 | S6 | worker — sort control with visible state, explanation and unchanged-order feedback | e434a6fc |
 
@@ -128,3 +128,13 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 - **L15** R10 implemented (e434a6fc): «Orden: Llegada / Mejor ajuste (checklist)» Select, criterion tooltip on hover
   and focus, polite «Ya estaban en orden de mejor ajuste»; 670/670 in pipeline-movement + vacancy-checklist, tsc 0;
   browser-checked by the parent. Native review review-9375bb5b78af3885 approved (clean), acknowledged.
+- **L16** User (verbatim): «para la configuracion de la psicometria me gusta mucho el tercer diseno, y en "Mis
+  postulaciones" sinceramente no me convence ningun diseno, el primero creo que va bien encaminado, pero igualmente no
+  me convence» (+ screenshot of 01). → R7 chosen 03-lista-maestra-detalle (01, 02 alternatives); R8 started. R5: parent
+  diagnosis of 01 — ~330px cards for one application, generic Enviada/Seguimiento/Cierre stepper, repeated filler line,
+  underlined titles, native select, assessment block takes half the card → new artboard 04 «bandeja compacta»: ~72px
+  rows with next-step chip, segmented filters, side detail panel with timeline/assessment/messages.
+- **L17** R5 / S3: added 04-bandeja-compacta.html after L16, keeping 01–03: 72px inbox rows with a single next-step
+  chip only when there is something to do, segmented filters with counts, side detail with dated activity, assessment
+  without results and closing message; mobile full-screen detail. Real-contract statuses primary; extra statuses only in
+  a labelled secondary frame. Chrome-verified 1440×900 and 390×844. Waiting for the user's choice (R6).

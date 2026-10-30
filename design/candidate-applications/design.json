@@ -1,6 +1,6 @@
 {
   "title": "Mis postulaciones",
-  "brief": "R5 / S3: tres propuestas para Flores Vazquez Bryan Aldrich. Mantener una anatomía repetida de tarjeta elevada sobre fondo muted (L6): icono + identidad + metadatos + estado, cuerpo, pie con una acción contextual. Comparar escaneo por estado, agrupación por momento y atención primero. Solo estados y fechas de evaluación; nunca resultados psicométricos. Escritorio 1440×900; las tres propuestas se reorganizan a 390×844, sin reducir texto ni controles.",
+  "brief": "R5 / S3: cuatro direcciones para Flores Vazquez Bryan Aldrich. 01–03 preservadas como alternativas rechazadas en L16; 04 replantea la pantalla como bandeja compacta + detalle lateral, con filtros segmentados y cronología fechada. L6: identidad + metadatos + estado, cuerpo y pie contextual con anatomía consistente. Solo estados y fechas de evaluación; nunca resultados psicométricos. Escritorio 1440×900 y móvil 390×844.",
   "feature": "odd/tasks/redesign-psychometrics-ux.md",
   "artboards": [
     {
@@ -23,9 +23,19 @@
       "tradeoff": "Dos tarjetas de atención antes del historial completo como lista compacta. Hace evidente qué puedes hacer hoy; repite la identidad de esas postulaciones en el historial y aleja los procesos sin pendientes. Las acciones de evaluación y mensaje solo aparecen arriba para evitar entradas duplicadas.",
       "width": 1440,
       "height": 900
+    },
+    {
+      "file": "04-bandeja-compacta.html",
+      "title": "Bandeja compacta",
+      "tradeoff": "Cinco filas de 72px permiten comparar postulaciones sin repetir evaluaciones ni pasos genéricos. Un panel concentra la actividad fechada, la evaluación y el mensaje de cierre. El detalle requiere seleccionar una fila y ocupa ancho; en móvil pasa a pantalla completa y las filas con pendiente crecen para conservar targets cómodos. El chip de la fila abre el detalle, no inicia la evaluación: un paso adicional antes de Continuar. Los estados extra y Nuevo mensaje quedan en un marco secundario fuera del contrato y sus conteos.",
+      "width": 1440,
+      "height": 900
     }
   ],
   "implementationNotes": [
+    "04 / L16: principal con Enviada, En proceso y Cerrada; Cerrada incluye mensaje público, sin inferir contratación o rechazo. La segunda Software Developer conserva su título real y descriptor. Dos pendientes de evaluación (3/63 y 0/63), evaluación finalizada con fecha y sin resultados. Datos, cronología y mensajes son ilustrativos: R6 no puede asumir un endpoint de actividad ni inventarlo. Si el backend no entrega un evento o mensaje, omitirlo. En revisión / Contratada / Rechazada y Nuevo mensaje solo aparecen en el marco Si el backend expone más estados, sin sumarse a los filtros.",
+    "04: búsqueda local sin acentos, filtros segmentados con conteos, selección y detalle responsive funcionan solo como presentación. El chip de siguiente paso abre el detalle; Continuar evaluación, Responder evaluación, Ver vacante y Nuevo mensaje son placeholders habilitados e inertes. Móvil: vista de detalle a pantalla completa, Escape y botón de regreso, foco inicial al título y restauración al control original, fondo inert y ciclo de Tab. Sin peticiones, almacenamiento, navegación de producto ni falsas confirmaciones.",
+    "04 self-check: misma paleta y fallback system UI de design/system.md; badge neutral/info/process/review/success/danger con tintes derivados, sombras y radios del sistema, foco primary visible y movimiento reducido. Anatomía de secciones: icono + título + estado opcional, contenido, pie de metadatos. Composición futura: Card/Item, Avatar, Badge, ToggleGroup segmented, InputGroup, Sheet responsive, Progress; HTML autónomo no importa React ni implementa producto. Las notas posteriores sobre Select y pasos genéricos describen únicamente 01–03, preservadas sin cambios.",
     "Diseño solamente: ninguna dirección está elegida ni implementada. Búsqueda y filtros son locales, ignoran mayúsculas y acentos, anuncian resultados y ofrecen limpiar cuando no hay coincidencias. Las acciones de producto están habilitadas e inertes: no navegan, no abren evaluaciones, no leen mensajes, no escriben ni simulan éxito.",
     "Contenido ilustrativo solicitado: cinco postulaciones y avance 3/63. Las capturas reales muestran dos Software Developer de Trust People Company y avance 10/63. La segunda vacante se distingue con un descriptor, no un título inventado.",
     "Diferencia de contratos que R6 debe resolver con el padre: candidate-applications/model.ts expone submitted / in_process / closed, mensajes solo al cierre y vacancy.state open / closed. candidate/portfolio-model.ts usa submitted / in_review / hired / rejected y publicJobHref nullable; los mensajes de application-message.tsx son locales al dashboard. Los estados En revisión / Contratada / Rechazada, Nuevo mensaje y vacante histórica del brief no autorizan inventar nuevos campos en la API.",
