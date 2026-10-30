@@ -158,3 +158,8 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   criterion «Idioma en: mínimo C1» (code, not name) — fix during R9 implementation.
 - **L22** User (verbatim): «El segundo hermano, se ve muy bien,» → R9 chosen design/checklist-config/02-lista-y-detalle.html
   (01, 03 alternatives); handoff in_progress; implementation delegated (context backstop).
+- **L23** R9 implemented (6ac9a4fb) inline after two worker stalls: master/detail, inline CriterionFields (dialog removed),
+  reminders card, language label resolved to catalog name for generated labels only. 243/243 checklist, 35/35 config
+  route, tsc 0, eslint clean. Browser QA not done: dev server compile 445–930 s under load (page stuck on spinner).
+  Native review review-5af0b318c07384a1 blocked: first capture native timeout, relaunch pi-host-relay-timeout
+  (967902 ms > 956620 ms limit). Needs user decision.
