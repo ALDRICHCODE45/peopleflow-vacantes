@@ -20,7 +20,7 @@ candidate dashboard with real data only; design on the canvas before each implem
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| V1 | S1 | canvas — `design/candidate-cvs-redesign/` directions → user choice | |
+| V1 | S1 | canvas — `design/candidate-cvs-redesign/` directions → user choice: 03 + badge of 01 (L6) | a178cbeb, this commit |
 | V2 | S1 | implement chosen CV design; keep upload/rename/delete/failure behavior; tests | |
 | D1 | S2, S3 | agree with the user which data each dashboard card and section shows (real data; backend changes allowed) | |
 | D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
@@ -49,3 +49,8 @@ candidate dashboard with real data only; design on the canvas before each implem
   03-lista-y-panel (list + sticky upload panel with capacity and usage tips). Each has a design-only state switcher
   (con CVs / vacía / subiendo / error / límite). Headless check: no page errors in any state, menu Escape returns
   focus, no horizontal overflow at 1440 and 390. Awaiting the user's choice.
+- **L6** User (verbatim): «Me gusta mucho la tercera opcion hermano, peroo me gusta el badge de "Usado en postulaciones"
+  de la primera opcion, entonces, todo el diseno de la tercera opcion, pero agregando el badge de la primera, me
+  explico?» → 03-lista-y-panel updated with the 01 badge + ⓘ popover (green check text removed). Chosen artboard:
+  03-lista-y-panel.html; 01 and 02 are alternatives. Headless: no errors, popover opens, Escape returns focus to ⓘ, no
+  overflow at 1440 (limit state) and 390.
