@@ -34,9 +34,9 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | R3 | S2 | design directions: candidate comparison | |
 | R4 | S2 | worker — implement design/candidate-comparison/01-resumen-y-matriz.html (chosen) in features/vacancy-checklist/compare | 53a0967a |
 | R5 | S3 | design directions: candidate applications | |
-| R6 | S3 | implement chosen R5 | |
+| R6 | S3 | worker — implement design/candidate-applications/04-bandeja-compacta.html (chosen) with the real API statuses | |
 | R7 | S4 | design directions: psychometric profile configuration without a long flat form | |
-| R8 | S4 | worker — implement design/psychometric-profile-config/03-lista-maestra-detalle.html (chosen) | |
+| R8 | S4 | worker — implement design/psychometric-profile-config/03-lista-maestra-detalle.html (chosen) | 38e8c7f7 |
 | R9 | S5 | design + implement checklist configuration | |
 | R10 | S6 | worker — sort control with visible state, explanation and unchanged-order feedback | e434a6fc |
 
@@ -138,3 +138,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   chip only when there is something to do, segmented filters with counts, side detail with dated activity, assessment
   without results and closing message; mobile full-screen detail. Real-contract statuses primary; extra statuses only in
   a labelled secondary frame. Chrome-verified 1440×900 and 390×844. Waiting for the user's choice (R6).
+- **L18** R8 implemented (38e8c7f7): RED 5 → GREEN 27/27, tsc 0, eslint clean; parent compacted the mobile sticky bar
+  (≈160→116px: segments hidden, idle status sr-only). Handoff implemented. User (verbatim): «me gusta la ultima propuesta
+  de de mis postulacaiones, las otras no me gustan, las ultimas.» → 04-bandeja-compacta chosen; R6 started with the real
+  statuses only (Enviada / En proceso / Cerrada); the extra-states frame is not implemented (backend decision pending).

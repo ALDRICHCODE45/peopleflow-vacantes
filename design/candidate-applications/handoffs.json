@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "04-bandeja-compacta.html",
+  "handoffs": {
+    "04-bandeja-compacta.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-10-30T06:14:27.584Z",
+      "startedAt": "2026-10-30T06:16:33.660Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/redesign-psychometrics-ux.md",
+      "note": "R6 started with the real API statuses (Enviada / En proceso / Cerrada); extra states not implemented."
+    }
+  }
+}
