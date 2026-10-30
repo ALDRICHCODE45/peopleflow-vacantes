@@ -20,7 +20,24 @@ function Harness() {
   const board = boardFixture();
   return <InvitationsProvider vacancyId={vacancyId}><button onClick={() => setOpen(true)}>Abrir ficha</button>{open && <CandidateSheet vacancyId={vacancyId} item={board.participations[0]} board={board} onClose={() => setOpen(false)} />}</InvitationsProvider>;
 }
-async function openTab() { const tab = await screen.findByRole("tab", { name: "Psicometría" }); await act(async () => fireEvent.click(tab)); }
+async function openReport() {
+  const expand = await screen.findByRole("button", { name: "Ver informe completo" });
+  await act(async () => fireEvent.click(expand));
+  // These legacy assertions inspect the stored detail, now behind explicit disclosures.
+  const excluded = screen.queryByRole("button", { name: /No relevante ·/ });
+  if (excluded) await act(async () => fireEvent.click(excluded));
+  for (const trigger of screen.queryAllByRole("button", { name: /Interpretación ·/ })) await act(async () => fireEvent.click(trigger));
+}
+async function openTab(full = true) {
+  const tab = await screen.findByRole("tab", { name: "Psicometría" });
+  await act(async () => fireEvent.click(tab));
+  if (full && screen.queryByRole("button", { name: "Ver informe completo" })) await openReport();
+}
+async function summaryTab() {
+  const reduce = screen.queryByRole("button", { name: "Reducir ficha" });
+  if (reduce) await act(async () => fireEvent.click(reduce));
+  await act(async () => fireEvent.click(screen.getByRole("tab", { name: "Resumen" })));
+}
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detailFixture() });
@@ -31,6 +48,32 @@ beforeEach(() => {
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
 });
 afterEach(cleanup);
+it("expands and reduces the same sheet without another audited read and restores focus", async () => {
+  render(<Harness />); await openTab(false);
+  const expand = await screen.findByRole("button", { name: "Ver informe completo" });
+  expect(expand).toBeVisible();
+  expect(screen.queryByRole("complementary", { name: "Preparación del reclutador" })).not.toBeInTheDocument();
+  fireEvent.click(expand);
+  expect(await screen.findByRole("complementary", { name: "Preparación del reclutador" })).toBeVisible();
+  const heading = screen.getByRole("heading", { name: "Ficha del candidato / Psicometría" });
+  expect(heading).toHaveFocus();
+  for (const name of ["Guía de entrevista", "Competencias", "Cómo se respondió", "Detalle por rasgo", "Comparación con la vacante"]) {
+    expect(screen.getByRole("region", { name })).toBeVisible();
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Reducir ficha" }));
+  expect(await screen.findByRole("button", { name: "Ver informe completo" })).toHaveFocus();
+  expect(screen.queryByRole("complementary", { name: "Preparación del reclutador" })).not.toBeInTheDocument();
+  expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
+  expect(actions.loadProfileAction).toHaveBeenCalledTimes(1);
+});
+it("folds No relevante competencies into one compact disclosure", async () => {
+  render(<Harness />); await openTab(false);
+  const disclosure = await screen.findByRole("button", { name: /No relevante · 7 competencias/ });
+  expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByText("Apertura a probar")).not.toBeInTheDocument();
+  fireEvent.click(disclosure);
+  expect(await screen.findByText("Apertura a probar")).toBeVisible();
+});
 it("loads invitations once per board and never audits on mount/hover/focus, including StrictMode", async () => {
   render(<StrictMode><Harness /></StrictMode>);
   const tab = await screen.findByRole("tab", { name: "Psicometría" });
@@ -39,7 +82,7 @@ it("loads invitations once per board and never audits on mount/hover/focus, incl
   expect(actions.loadProfileAction).not.toHaveBeenCalled();
   expect(actions.loadInvitationsAction).toHaveBeenCalledTimes(1);
   await act(async () => fireEvent.click(tab));
-  expect(await screen.findByText("Cuestionario de personalidad laboral")).toBeVisible();
+  expect(await screen.findByText("Prepara tu entrevista")).toBeVisible();
   expect(actions.loadResultAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, invitationId: id });
 });
 // Separate lifetimes keep each assertion tied to one observable transition,
@@ -47,7 +90,7 @@ it("loads invitations once per board and never audits on mount/hover/focus, incl
 it("caches the audited result across tab switches within an open sheet", async () => {
   render(<Harness />); await openTab();
   await screen.findByText("Texto almacenado STAR");
-  await act(async () => fireEvent.click(screen.getByRole("tab", { name: "Resumen" })));
+  await summaryTab();
   expect(screen.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
   await openTab();
   expect(await screen.findByText("Texto almacenado STAR")).toBeVisible();
@@ -89,7 +132,7 @@ it.each(["created", "in_progress", "expired", "revoked"] as const)("%s retains p
   expect(screen.getByText(/12 de 63 respuestas/)).toHaveClass("text-muted-foreground");
   expect(actions.loadResultAction).not.toHaveBeenCalled();
   expect(actions.loadProfileAction).not.toHaveBeenCalled();
-  if (status === "created" || status === "in_progress") expect(screen.getByRole("button", { name: "Copiar enlace" })).toBeVisible();
+  if (status === "created" || status === "in_progress") expect(screen.getByRole("button", { name: /Acciones de la invitación/ })).toHaveAttribute("aria-haspopup", "menu");
   else expect(screen.queryByRole("button", { name: /Enviar|Recordar|Revocar|Copiar enlace/ })).not.toBeInTheDocument();
 });
 it("shows result skeleton during the real wait and a persistent failure with explicit retry", async () => {
@@ -102,6 +145,7 @@ it("shows result skeleton during the real wait and a persistent failure with exp
   expect(await screen.findByText("No pudimos cargar el resultado")).toBeVisible();
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", reference: expect.objectContaining({ status: 500 }) }));
   fireEvent.click(screen.getByRole("button", { name: "Reintentar resultado" }));
+  await openReport();
   await screen.findByText("Texto almacenado STAR");
   expect(actions.loadResultAction).toHaveBeenCalledTimes(2);
 });
@@ -121,16 +165,16 @@ it("renders only stored guide and interpretations, copies plain text after succe
   expect(section.textContent!.indexOf("Introducción guardada")).toBeLessThan(section.textContent!.indexOf("Interpretación guardada"));
   expect(section.textContent!.indexOf("Hipótesis guardada")).toBeGreaterThan(section.textContent!.indexOf("Interpretación guardada"));
   expect(document.body).not.toHaveTextContent("Confírmala con ejemplos de trabajo");
-  expect(screen.getAllByText("sin perfil confirmado")).toHaveLength(7);
-  expect(screen.getByRole("button", { name: /Ver detalle por rasgo/ })).toHaveAttribute("aria-expanded", "false");
+  expect(within(screen.getByRole("region", { name: "Competencias" })).getAllByText("sin perfil confirmado")).toHaveLength(7);
+  expect(screen.getByRole("button", { name: "Mostrar las 15 facetas" })).toHaveAttribute("aria-expanded", "false");
   fireEvent.click(screen.getByRole("button", { name: "Copiar guía" }));
   await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("Pregunta guardada\nSTAR guardado")));
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Guía copiada" }));
-  fireEvent.click(screen.getByRole("button", { name: /Ver detalle por rasgo/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Mostrar las 15 facetas" }));
   const facets = await screen.findByRole("region", { name: "Bandas por rasgo" });
   expect(facets.querySelectorAll("dt")).toHaveLength(15);
   expect(facets).not.toHaveTextContent(/10|sum|%/);
-  expect(screen.getByText("Cuestionario de personalidad laboral")).not.toHaveAttribute("tabindex");
+  expect(screen.getByRole("heading", { name: "Guía de entrevista" })).not.toHaveAttribute("tabindex");
   expect(document.body).not.toHaveTextContent(/apto|%/i);
 });
 it.each([
@@ -156,7 +200,7 @@ it("quality uses exact plain wording, partial disclosure and triggered counts, n
   data.quality = { tier: "tier.relevantes", partial: true, signals: [{ id: "signal.attention", severity: "mild", counts: { misses: 1, total: 3 } }, { id: "signal.long_string", severity: "strong", counts: { run: 12 } }, { id: "signal.fast", severity: "unknown", counts: null }, { id: "signal.changes", severity: "mild", counts: { value_changes: 10, clears: 10, reanswers: 10, total: 30 } }] };
   vi.mocked(actions.loadResultAction).mockResolvedValue({ ok: true, data });
   render(<Harness />); await openTab();
-  expect(await screen.findByText("Señales relevantes")).toHaveAttribute("data-variant", "info");
+  for (const badge of await screen.findAllByText("Señales relevantes")) expect(badge).toHaveAttribute("data-variant", "info");
   expect(document.querySelector('[data-pf-psychometric-result] [data-variant="review"]')).toBeNull();
   expect(screen.getByText("Información parcial: no se registraron todos los tiempos o cambios de respuesta.")).toBeVisible();
   expect(screen.getByText(/No coincidieron 1 de 3/)).toBeVisible();
@@ -176,13 +220,14 @@ it("focus links target the matching ordered question and accent badges differ by
   render(<Harness />); await openTab(); await screen.findByText("Texto almacenado STAR");
   const link = screen.getByRole("link", { name: /Orden para avanzar · Pregunta 1/ });
   expect(document.getElementById(link.getAttribute("href")!.slice(1))).toHaveTextContent("Texto almacenado STAR");
-  const focus = screen.getByText("Foco de atención").closest('[data-slot="badge"]')!;
-  const explore = screen.getByText("Por explorar").closest('[data-slot="badge"]')!;
+  const competencies = within(screen.getByRole("region", { name: "Competencias" }));
+  const focus = competencies.getByText("Foco de atención").closest('[data-slot="badge"]')!;
+  const explore = competencies.getByText("Por explorar").closest('[data-slot="badge"]')!;
   expect(focus).toHaveAttribute("data-variant", "accent");
   expect(explore).toHaveAttribute("data-variant", "accent");
   expect(focus.querySelector("svg")).not.toBeNull(); expect(explore.querySelector("svg")).not.toBeNull();
   expect(focus.querySelector("svg")?.getAttribute("class")).not.toEqual(explore.querySelector("svg")?.getAttribute("class"));
-  const matrix = screen.getByRole("region", { name: "Bandas · Orden para avanzar" });
+  const matrix = competencies.getByRole("region", { name: "Bandas · Orden para avanzar" });
   expect(within(matrix).getByText("Alto")).toHaveAttribute("data-desired", "true");
   expect(within(matrix).getByText("Bajo")).toHaveAttribute("data-obtained", "true");
 });
@@ -201,7 +246,7 @@ it("compares explicitly with current confirmed profile, replaces guide/fit, pres
   expect(screen.getAllByText("Trabajo")).toHaveLength(7);
   expect(actions.createComparisonAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, invitationId: id });
   expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
-  expect(screen.queryByRole("button", { name: "Comparar con el perfil actual" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Comparar con el perfil actual" })).toBeDisabled();
 });
 it("keeps a confirmed comparison after a tab round-trip instead of replaying the first read", async () => {
   vi.mocked(actions.loadProfileAction).mockResolvedValue({ ok: true, data: profileSchema.parse({ ...profile, version: "2", confirmed: true, confirmed_at: result.finished_at }) });
@@ -211,11 +256,11 @@ it("keeps a confirmed comparison after a tab round-trip instead of replaying the
   fireEvent.click(await screen.findByRole("button", { name: "Comparar con el perfil actual" }));
   fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Comparar" }));
   expect(await screen.findByText("Nueva guía almacenada")).toBeVisible();
-  await act(async () => fireEvent.click(screen.getByRole("tab", { name: "Resumen" })));
+  await summaryTab();
   await openTab();
   expect(await screen.findByText("Nueva guía almacenada")).toBeVisible();
   expect(screen.queryByText("Texto almacenado STAR")).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Comparar con el perfil actual" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Comparar con el perfil actual" })).toBeDisabled();
   expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
 });
 it("uncertain comparison never automatically replays or audits again and preserves the shown snapshot", async () => {
@@ -248,24 +293,24 @@ it("preserves all eight stored questions in returned order, including their STAR
   vi.mocked(actions.loadResultAction).mockResolvedValue({ ok: true, data });
   render(<Harness />); await openTab();
   const guide = await screen.findByRole("region", { name: "Guía de entrevista" });
-  expect(Array.from(guide.querySelectorAll("ol > li > p:first-of-type")).map(p => p.textContent)).toEqual(data.latest_comparison.guide.map(q => q.text));
+  expect(Array.from(guide.querySelectorAll('ol > li [data-slot="card-content"] > p:first-of-type')).map(p => p.textContent)).toEqual(data.latest_comparison.guide.map(q => q.text));
   expect(within(guide).getByText("8 preguntas del banco redactado. Pide contexto, acciones y resultados.")).toBeVisible();
-  fireEvent.click(within(guide).getByRole("button", { name: "Copiar guía" }));
+  fireEvent.click(screen.getByRole("button", { name: "Copiar guía" }));
   await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1));
   const copied = vi.mocked(navigator.clipboard.writeText).mock.calls[0][0];
   data.latest_comparison.guide.forEach(q => { expect(copied).toContain(q.text); expect(copied).toContain(q.good_answer_checklist); });
 });
 it("does not offer a new comparison for an unconfirmed current profile", async () => {
   render(<Harness />); await openTab(); await screen.findByText("Texto almacenado STAR");
-  expect(screen.queryByRole("button", { name: "Comparar con el perfil actual" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Comparar con el perfil actual" })).toBeDisabled();
   expect(actions.createComparisonAction).not.toHaveBeenCalled();
-  expect(screen.getByText("Sin señales")).toHaveAttribute("data-variant", "neutral");
+  for (const badge of screen.getAllByText("Sin señales")) expect(badge).toHaveAttribute("data-variant", "neutral");
 });
 it("preserves the shown result when the profile read fails, without guessing whether a newer profile exists", async () => {
   vi.mocked(actions.loadProfileAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
   render(<Harness />); await openTab();
   expect(await screen.findByText("Texto almacenado STAR")).toBeVisible();
   expect(screen.getByText("No pudimos consultar el perfil actual. Se conserva la comparación almacenada.")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Comparar con el perfil actual" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Comparar con el perfil actual" })).toBeDisabled();
   expect(actions.loadResultAction).toHaveBeenCalledTimes(1);
 });

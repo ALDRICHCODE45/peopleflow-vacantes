@@ -45,6 +45,13 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
   const manual = item.source === "manual";
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [tab, setTab] = useState(tabRequest?.tab ?? "summary");
+  const [expanded, setExpanded] = useState(false);
+  const wasExpanded = useRef(false);
+  useEffect(() => {
+    if (expanded) document.getElementById("psychometric-report-heading")?.focus();
+    else if (wasExpanded.current) document.getElementById("psychometric-expand")?.focus();
+    wasExpanded.current = expanded;
+  }, [expanded]);
   // A new request (e.g. «Revisar en la ficha» from the move confirmation) switches the open sheet's tab.
   const [seenRequest, setSeenRequest] = useState(tabRequest);
   if (tabRequest !== seenRequest) {
@@ -93,12 +100,13 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
   const FileIcon = filePresentation(detail.cv.name) === "pdf" ? FileText : FileType2;
   const events = loaded ? [...loaded.history.items].reverse().sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : [];
   const errorNotice = actionNotice?.tone !== "success" ? actionNotice : undefined;
-  return <SheetContent showCloseButton={false} initialFocus={titleRef} className="pf-candidate-sheet gap-0 bg-card data-[side=right]:w-full data-[side=right]:sm:max-w-[560px]" finalFocus={() => document.getElementById(`candidate-detail-${item.id}`) ?? document.getElementById("board-substate-filter")}>
+  return <SheetContent showCloseButton={false} initialFocus={titleRef} className={cn("pf-candidate-sheet gap-0 bg-card data-[side=right]:w-full", expanded ? "data-[side=right]:sm:max-w-[min(1280px,calc(100dvw-2*var(--sheet-inset)))]" : "data-[side=right]:sm:max-w-[560px]")} finalFocus={() => document.getElementById(`candidate-detail-${item.id}`) ?? document.getElementById("board-substate-filter")}>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6">
-      <span className="flex items-center gap-2 text-xs text-muted-foreground"><span aria-hidden="true" className="size-1.5 rounded-full bg-muted-foreground" />Ficha del candidato</span>
+      {expanded ? <h2 id="psychometric-report-heading" tabIndex={-1} className="text-base font-semibold outline-none">Ficha del candidato / Psicometría</h2> : <span className="flex items-center gap-2 text-xs text-muted-foreground"><span aria-hidden="true" className="size-1.5 rounded-full bg-muted-foreground" />Ficha del candidato</span>}
+      {expanded && <Button type="button" variant="outline" className="min-h-10 sm:ml-auto" onClick={() => setExpanded(false)}>Reducir ficha</Button>}
       <Hint text="Cerrar ficha"><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Cerrar ficha" onClick={onClose}><X aria-hidden="true" /></Button></Hint>
     </div>
-    <SheetHeader className="gap-4">
+    <SheetHeader className={cn("gap-4", expanded && "hidden")}>
       <div className="flex items-center gap-3"><Avatar className="size-12 shrink-0"><AvatarFallback className="bg-secondary text-lg text-muted-foreground">{initials(detail.candidate.full_name)}</AvatarFallback></Avatar>
         <div className="flex min-w-0 flex-col gap-1.5"><div className="flex min-w-0 flex-wrap items-center gap-2"><SheetTitle ref={titleRef} tabIndex={-1} title={detail.candidate.full_name} className="min-w-0 break-words text-lg font-semibold outline-none">{detail.candidate.full_name}</SheetTitle>{detail.corrected_fields.includes("full_name") && <Badge variant="accent">Corregido</Badge>}</div>
           {stage && <Badge variant="neutral" dot className={cn("stage-badge max-w-full", stageClass(stage.kind))}><span className="truncate">{stage.name}</span></Badge>}
@@ -120,16 +128,16 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       {invitations?.failed && <div className="px-4 pb-2 sm:px-6"><Button type="button" variant="ghost" className="min-h-10" disabled={invitations.reading} onClick={invitations.retry}>Actualizar psicometría</Button></div>}
       {/* Five full labels cannot fit a 390px sheet. Scroll the rail, not the panel;
           keep native target geometry, keyboard navigation and an inset for focus. */}
-      <div className="min-w-0 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:thin] sm:px-6"><TabsList activateOnFocus={false} aria-label="Secciones de la ficha" className={cn("group-data-horizontal/tabs:h-11", showPsychometrics ? "w-max min-w-full" : "w-full max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]")}>
+      <div className={cn("min-w-0 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:thin] sm:px-6", expanded && "hidden")}><TabsList activateOnFocus={false} aria-label="Secciones de la ficha" className={cn("group-data-horizontal/tabs:h-11", showPsychometrics ? "w-max min-w-full" : "w-full max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]")}>
         <TabsTrigger value="summary">Resumen</TabsTrigger>
         <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
         {checklist?.checklist?.criteria.length ? <TabsTrigger value="checklist">Checklist</TabsTrigger> : null}
         <TabsTrigger value="history">Historial <Badge variant="secondary">{loaded?.history.items.length ?? "…"}</Badge></TabsTrigger>
         {showPsychometrics && <TabsTrigger value="psychometrics">Psicometría</TabsTrigger>}
       </TabsList></div><Separator />
-      <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
-        <TabsContent value={tab} className="p-6" aria-busy={tab === "psychometrics" ? invitation?.status === "finished" && !psychometric.value : reading}>
-          {tab === "psychometrics" ? invitation?.status === "finished" ? <PsychometricPanel invitation={invitation} session={psychometric} locked={board.lifecycle.process === "finished"} /> : <InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} /> : tab === "checklist" ? <ChecklistPanel item={item} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
+      <ScrollArea className={cn("pf-sheet-scroll min-h-0 flex-1", expanded && "[&_[data-slot=scroll-area-content]]:h-full [&_[data-slot=scroll-area-viewport]]:overflow-hidden!")} key={tab}>
+        <TabsContent value={tab} className={expanded ? "h-full min-h-0" : "p-6"} aria-busy={tab === "psychometrics" ? invitation?.status === "finished" && !psychometric.value : reading}>
+          {tab === "psychometrics" ? invitation?.status === "finished" ? <PsychometricPanel invitation={invitation} session={psychometric} locked={!!locked || board.lifecycle.process === "finished"} expanded={expanded} onExpand={() => setExpanded(true)} candidateName={item.candidate.full_name} stageName={stageName(item.stage_id)} vacancyTitle={vacancyTitle} invitationBlock={<InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} />} /> : <InvitationPanel invitation={invitation} session={invitationManagement} vacancyId={vacancyId} candidateName={item.candidate.full_name} stageName={stageName} locked={!!locked || board.lifecycle.process === "finished"} /> : tab === "checklist" ? <ChecklistPanel item={item} /> : reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <StateCard icon={Info} tone="error" title="No pudimos cargar el detalle"
             description={failure.reason === "unauthenticated" ? "Tu sesión expiró. No se modificó el candidato; inicia sesión de nuevo." : "No se modificó el candidato. Puedes volver a cargar las respuestas y el historial."}
             primaryAction={{ label: "Reintentar", disabled: reading, "aria-describedby": notice ? "detail-read-status" : undefined, onClick: () => { setReading(true); setNotice(null); setAttempt(value => value + 1); } }}>
             {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}
@@ -179,7 +187,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
         </TabsContent>
       </ScrollArea>
     </Tabs>
-    <SheetFooter className="border-t py-4 text-xs text-muted-foreground"><span className="truncate">{vacancyTitle}</span></SheetFooter>
+    <SheetFooter className={cn("border-t py-4 text-xs text-muted-foreground", expanded && "hidden")}><span className="truncate">{vacancyTitle}</span></SheetFooter>
     {children}
   </SheetContent>;
 }
