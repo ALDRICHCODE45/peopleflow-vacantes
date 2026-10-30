@@ -13,7 +13,7 @@ import { loadChecklistAction, loadChecklistMarksAction } from "../actions";
 import { buildComparison, type Comparison, type StageNames } from "./model";
 import { ComparisonReport, ComparisonSkeleton } from "./report";
 
-type Loaded = { model: Comparison; stages: StageNames; title: string; company: string; date: string };
+type Loaded = { model: Comparison; stages: StageNames; stageKinds: Readonly<Record<string, string>>; title: string; company: string; date: string };
 type State = { kind: "loading" } | { kind: "failed"; reason: string } | { kind: "ready"; data: Loaded };
 export function ComparisonPage({ jobId, ids }: { jobId: string; ids: string }) {
   const [attempt, setAttempt] = useState(0);
@@ -38,6 +38,7 @@ export function ComparisonPage({ jobId, ids }: { jobId: string; ids: string }) {
         setState({ kind: "ready", data: {
           model: buildComparison(checklist.data, marks.data.items, board.data.participations, ids ? ids.split(",") : []),
           stages: Object.fromEntries([...board.data.retired_stages, ...board.data.stages, board.data.exit].map(stage => [stage.id, stage.name])),
+          stageKinds: Object.fromEntries([...board.data.retired_stages, ...board.data.stages, board.data.exit].map(stage => [stage.id, stage.kind])),
           title: draft.seed.model.fields.title || "Sin título", company: company?.kind === "exists" ? company.company.name : "",
           date: new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" }).format(new Date()),
         } });

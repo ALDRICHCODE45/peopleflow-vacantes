@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { id, item, board } from "@/features/pipeline-movement/test-fixtures";
 import { ComparisonPage } from "./ui";
 import * as csv from "./csv";
@@ -20,11 +20,47 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 describe("comparison page", () => {
+ it("summarizes each person and exposes the legend, evidence names and checklist-only order", async () => {
+  mocks.board.mockResolvedValue({ ok: true, data: { ...board, participations: [item, { ...item, id: id(15), candidate: { ...item.candidate, full_name: "Bea" }, profile: { ...item.profile, skills: ["SQL"] } }] } });
+  render(<ComparisonPage jobId={id(90)} ids={ids} />);
+  const summaries = await screen.findByRole("region", { name: "Resumen por candidato" });
+  const cards = within(summaries).getAllByRole("article");
+  expect(within(cards[0]).getByRole("heading", { name: "Bea" })).toBeTruthy();
+  expect(within(cards[1]).getByRole("heading", { name: "Ana Pérez" })).toBeTruthy();
+  expect(within(cards[0]).getByText("1/1 obligatorios")).toBeTruthy();
+  expect(within(cards[0]).getByText("Obligatorios 1/1 · Deseables 0/0")).toBeTruthy();
+  expect(within(cards[0]).getByText("0 sin evaluar · No equivale a no cumplir")).toBeTruthy();
+  expect(within(cards[1]).getByText("0/1 obligatorios")).toBeTruthy();
+  expect(within(cards[1]).getByText("1 sin evaluar · No equivale a no cumplir")).toBeTruthy();
+  for (const card of cards) expect(within(card).getByText(board.stages[0].name)).toBeTruthy();
+  expect(screen.getByRole("group", { name: "Leyenda" }).textContent).toMatch(/Cumple.*No cumple.*Sin evaluar/);
+  expect(screen.getByLabelText("Cumple · fuente: perfil")).toBeTruthy();
+  expect(screen.getByLabelText("Sin evaluar")).toBeTruthy();
+  expect(screen.getByText("El checklist informa; no descarta ni mueve candidatos.")).toBeTruthy();
+  expect(screen.getByText("Ordenados por mejor ajuste del checklist · No incluye psicometría")).toBeTruthy();
+ });
+ it("expands and collapses full criterion text independently per section", async () => {
+  const label = "Experiencia sólida en el diseño y consumo de APIs RESTful y bases de datos relacionales, incluyendo administración, optimización y mantenimiento de PostgreSQL";
+  mocks.checklist.mockResolvedValue({ ok: true, data: { version: "1", criteria: [{ ...criteria[0], label }, { id: id(31), label: "Entrevista", importance: "desirable", kind: "manual", params: {} }], reminder_stage_ids: [] } });
+  render(<ComparisonPage jobId={id(90)} ids={ids} />);
+  const [expand, other] = await screen.findAllByRole("button", { name: "Expandir textos" });
+  const criterion = screen.getByTitle(label);
+  expect(criterion.className).toContain("line-clamp-2");
+  expect(expand.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(expand);
+  expect(screen.getByRole("button", { name: "Contraer textos" }).getAttribute("aria-expanded")).toBe("true");
+  expect(criterion.className).not.toContain("line-clamp-2");
+  expect(criterion.textContent).toBe(label);
+  expect(other.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.getByTitle("Entrevista").className).toContain("line-clamp-2");
+  fireEvent.click(screen.getByRole("button", { name: "Contraer textos" }));
+  expect(criterion.className).toContain("line-clamp-2");
+ });
  it("renders the named criteria matrix, stage, fit and print action", async () => {
   const print = vi.spyOn(window, "print").mockImplementation(() => {});
   const { container } = render(<ComparisonPage jobId={id(90)} ids={ids} />);
   await screen.findByRole("table", { name: /Comparación/ });
-  expect(screen.getByText("Bea")).toBeTruthy();
+  expect(screen.getAllByText("Bea").length).toBeGreaterThan(0);
   expect(screen.getByText("Obligatorios")).toBeTruthy();
   expect(screen.getAllByText(/Obligatorios 0\/1/).length).toBeGreaterThan(0);
   expect(container.querySelector('[data-slot="scroll-area"]')).toBeTruthy();

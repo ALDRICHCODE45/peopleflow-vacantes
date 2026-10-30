@@ -29,6 +29,17 @@ describe("comparison model", () => {
  });
 });
 describe("comparison CSV", () => {
+ it("preserves the complete export format and best-fit order independently of presentation", () => {
+  const model = buildComparison({ ...checklist, criteria: [checklist.criteria[1]] }, [], people, people.map(p => p.id));
+  expect(comparisonCsv(model, "Desarrollo", "Empresa", "28 oct 2026", { [item.stage_id]: "Nuevos" })).toBe('\uFEFF' + [
+   '"Vacante","Desarrollo"',
+   '"Empresa","Empresa"',
+   '"Fecha","28 oct 2026"',
+   '"Candidato","Etapa","Ajuste","Importancia","Criterio","Resultado","Fuente","Nota del reclutador"',
+   '"Bea","Nuevos","Obligatorios 1/1","Obligatorios","SQL","cumple","perfil",""',
+   '"Ana Pérez","Nuevos","Obligatorios 0/1 · 1 sin evaluar","Obligatorios","SQL","sin evaluar","",""',
+  ].join('\r\n') + '\r\n');
+ });
  it("has BOM, CRLF, headers, quoted notes and no contact fields", () => {
   const csv = comparisonCsv(buildComparison(checklist, marks, [detail, people[1]], people.map(p => p.id)), "Desarrollo", "Empresa", "28 oct 2026");
   expect(csv.startsWith('\uFEFF"Vacante"')).toBe(true);

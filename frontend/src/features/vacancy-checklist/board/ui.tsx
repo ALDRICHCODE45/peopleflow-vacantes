@@ -14,7 +14,7 @@ import { plural } from "@/features/employer-vacancies/plural";
 import { ActionStatus } from "@/components/feedback/action-status";
 import type { Participation } from "@/features/pipeline-movement/model";
 import { MovementDate } from "@/features/pipeline-movement/board-states";
-import { evaluateCriterion, resultLabel, sourceLabel, summarize } from "../evaluate";
+import { evaluateCriterion, resultLabel, sourceLabel, summarize, type FitSummary } from "../evaluate";
 import type { Criterion, Mark } from "../model";
 import { fitLine, pendingRequired } from "./fit";
 import { useBoardChecklist } from "./state";
@@ -33,7 +33,10 @@ function fitSegments(counts: { met: number; not_met: number; unknown: number }) 
 export function ChecklistFit({ item }: { item: Participation }) {
   const state = useBoardChecklist();
   if (!state?.checklist?.criteria.length) return null;
-  const fit = summarize(state.checklist.criteria, item, state.marks);
+  return <ChecklistFitSummary fit={summarize(state.checklist.criteria, item, state.marks)} />;
+}
+/** Read-only presentation shared by board cards and comparison; no context or profile data. */
+export function ChecklistFitSummary({ fit }: { fit: FitSummary }) {
   const required = fit.required.met + fit.required.not_met + fit.required.unknown;
   const desirable = fit.desirable.met + fit.desirable.not_met + fit.desirable.unknown;
   const counts = required ? fit.required : fit.desirable;
