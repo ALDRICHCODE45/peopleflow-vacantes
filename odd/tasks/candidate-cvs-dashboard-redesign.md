@@ -64,3 +64,8 @@ candidate dashboard with real data only; design on the canvas before each implem
   `localStorage.clear` failures in untouched tests); parent rerun on the required Node 22.23.4: 47 files / 649 tests
   passed (candidate, candidate-cvs, (candidato) routes, candidate-dashboard), `tsc` 0, eslint clean on changed files.
   Browser QA pending: candidate login is real Cognito, asked the user to check /candidato/cvs in their browser.
+- **L8** User (verbatim): «Bien, muy buena base, pero las cards de los cvs estan muy "flacas" me sigues? muy delgadas,
+  no se ven como en el diseno propuesto.» Root cause: the file tile was absolutely positioned inside CardHeader, so it
+  added no height and rows collapsed to two text lines. Fix: the tile is an in-flow grid column (44×52, row-span 2),
+  rows center vertically with more padding, PDF/Word tiles tinted with status-danger/status-info as in 03. RED on the
+  previous code (tile test), GREEN 562/562 on Node 22, tsc 0, eslint clean.

@@ -160,6 +160,9 @@ describe("real CV workspace", () => {
     expect(title.querySelector("h3")).toHaveAttribute("title", cv.name);
     expect(title.querySelector("h3")).toHaveClass("truncate");
     expect(title.querySelector('[aria-hidden="true"]')).toHaveTextContent("PDF");
+    // The tile stays in the row's flow (its own grid column) so it sets the row height; an absolute tile made rows thin.
+    expect(title.querySelector('[aria-hidden="true"]')).not.toHaveClass("absolute");
+    expect(title.querySelector('[aria-hidden="true"]')).toHaveClass("col-start-1", "row-span-2", "h-13", "text-status-danger");
     expect(title).toHaveTextContent(cv.name);
     expect(header.querySelector('[data-slot="card-description"]')).not.toHaveClass("pl-14");
     expect(header.querySelector('[data-pf-cv-actions-trigger]')).toHaveAccessibleName(`Acciones de ${cv.name}`);

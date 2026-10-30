@@ -4,6 +4,7 @@ import { CircleAlert, Download, Ellipsis, FileText, Pencil, Send, ShieldCheck, T
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,24 +28,25 @@ const DATE_FORMAT = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZo
 const DECIMAL_FORMAT = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
 const formatSize = (bytes: number) => bytes >= 1048576 ? `${DECIMAL_FORMAT.format(bytes / 1048576)} MB` : `${DECIMAL_FORMAT.format(Math.round(bytes / 1024))} KB`;
 const LAYOUT = "grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]";
-const ROW_HEADER = "relative min-w-0 pl-[calc(var(--card-spacing)+3.5rem)] has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)_auto] 2xl:has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)_auto_auto]";
+// Rows are a grid: the file tile is its own in-flow column so it sets the row height, as in the chosen artboard.
+const ROW_HEADER = "min-w-0 grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 has-data-[slot=card-action]:grid-cols-[2.75rem_minmax(0,1fr)_auto] 2xl:has-data-[slot=card-action]:grid-cols-[2.75rem_minmax(0,1fr)_auto_auto]";
+const TILE = "col-start-1 row-span-2 row-start-1 flex h-13 w-11 flex-col items-center justify-center gap-0.5 rounded-md border";
 type Status = { tone: "success" | "error"; text: string; failure?: CvFailure };
 function CvCard({ cv, onEdit }: { cv: Cv; onEdit: (mode: "rename" | "delete") => void }) {
   const [download, rename, remove] = cvRowActions(cv);
   const type = cv.content_type === "application/pdf" ? "PDF" : "Word";
-  return <li className="min-w-0"><Card size="sm" data-pf-cv-card={cv.id}>
+  return <li className="min-w-0"><Card size="sm" data-pf-cv-card={cv.id} className="py-3.5">
     <CardHeader className={ROW_HEADER}>
-      <CardTitle className="min-w-0 text-sm">
-        {/* File identity tile shares the header rather than introducing a nested document card. */}
-        <span aria-hidden="true" className="absolute top-0 left-(--card-spacing) flex h-13 w-11 flex-col items-center justify-center gap-1 rounded-md bg-muted text-muted-foreground"><FileText className="size-5" /><span className="text-[10px] font-semibold">{type}</span></span>
-        <h3 className="truncate" title={cv.name}>{cv.name}</h3>
+      <CardTitle className="contents">
+        <span aria-hidden="true" className={cn(TILE, type === "PDF" ? "border-status-danger/25 bg-status-danger/10 text-status-danger" : "border-status-info/25 bg-status-info/10 text-status-info")}><FileText className="size-5" /><span className="text-[10px] font-semibold">{type}</span></span>
+        <h3 className="col-start-2 row-start-1 min-w-0 self-end truncate text-sm font-medium" title={cv.name}>{cv.name}</h3>
       </CardTitle>
-      <CardDescription className="col-start-1 row-start-2 text-xs">{type} · {formatSize(cv.size)} · Subido el {DATE_FORMAT.format(new Date(cv.uploaded_at))}</CardDescription>
+      <CardDescription className="col-start-2 row-start-2 self-start text-xs">{type} · {formatSize(cv.size)} · Subido el {DATE_FORMAT.format(new Date(cv.uploaded_at))}</CardDescription>
       {/* Contents exposes the badge and actions to the header grid: below metadata on small
           screens, beside the identity on wide screens, with no duplicate help controls. */}
       <CardAction className="contents">
-        {cv.in_use && <div className="col-span-2 col-start-1 row-start-3 flex items-center 2xl:col-span-1 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1"><Badge variant="success">Usado en postulaciones</Badge><InfoPopover title="Usado en postulaciones" description="Enviaste este CV en al menos una postulación." footer="Cada postulación guarda su copia: si lo renombras o eliminas, lo que la empresa recibió no cambia." accessibleName="¿Qué significa usado en postulaciones?" /></div>}
-        <div className="col-start-2 row-span-2 row-start-1 flex items-center gap-1 2xl:col-start-3">
+        {cv.in_use && <div className="col-start-2 row-start-3 flex items-center 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1"><Badge variant="success">Usado en postulaciones</Badge><InfoPopover title="Usado en postulaciones" description="Enviaste este CV en al menos una postulación." footer="Cada postulación guarda su copia: si lo renombras o eliminas, lo que la empresa recibió no cambia." accessibleName="¿Qué significa usado en postulaciones?" /></div>}
+        <div className="col-start-3 row-span-2 row-start-1 flex items-center gap-1 2xl:col-start-4">
         <Button nativeButton={false} role="link" render={<a href={download.href} />} variant="ghost" className="min-h-10 max-sm:size-10" aria-label={`Descargar ${cv.name}`}><Download aria-hidden="true" /><span className="hidden sm:inline">Descargar</span></Button>
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de ${cv.name}`} data-pf-cv-actions-trigger={cv.id} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
@@ -63,10 +65,10 @@ function LoadingCvs() {
   return <section aria-busy="true" aria-label="Biblioteca de CVs" className={LAYOUT}>
     <span role="status" className="sr-only">Cargando CVs</span>
     <div aria-hidden="true" className="min-w-0"><Skeleton className="mb-3 h-4 w-40" /><ul className="grid gap-3">{[0, 1].map(key => <li key={key}>
-      <Card size="sm" aria-hidden="true"><CardHeader className={ROW_HEADER}>
-        <CardTitle><Skeleton className="absolute top-0 left-(--card-spacing) h-13 w-11" /><Skeleton className="h-5 w-44 max-w-full" /></CardTitle>
-        <CardDescription className="col-start-1 row-start-2"><Skeleton className="h-4 w-56 max-w-full" /></CardDescription>
-        <CardAction className="contents"><Skeleton className="col-span-2 col-start-1 row-start-3 h-10 w-48 max-w-full 2xl:col-span-1 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1" /><Skeleton className="col-start-2 row-span-2 row-start-1 h-10 w-20 2xl:col-start-3" /></CardAction>
+      <Card size="sm" aria-hidden="true" className="py-3.5"><CardHeader className={ROW_HEADER}>
+        <CardTitle className="contents"><Skeleton className="col-start-1 row-span-2 row-start-1 h-13 w-11" /><Skeleton className="col-start-2 row-start-1 h-5 w-44 max-w-full self-end" /></CardTitle>
+        <CardDescription className="col-start-2 row-start-2 self-start"><Skeleton className="h-4 w-56 max-w-full" /></CardDescription>
+        <CardAction className="contents"><Skeleton className="col-start-2 row-start-3 h-10 w-48 max-w-full 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1" /><Skeleton className="col-start-3 row-span-2 row-start-1 h-10 w-20 2xl:col-start-4" /></CardAction>
       </CardHeader></Card>
     </li>)}</ul></div>
     <Card aria-hidden="true" data-pf-cv-loading-upload className="order-first xl:order-last"><CardHeader><CardTitle><Skeleton className="h-5 w-28" /></CardTitle></CardHeader><CardContent className="grid gap-5"><Skeleton className="h-52 w-full" /><Skeleton className="h-14 w-full" /><Skeleton className="h-44 w-full" /></CardContent></Card>
