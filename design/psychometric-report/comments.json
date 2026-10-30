@@ -11,6 +11,18 @@
       "status": "resolved",
       "sentAt": "2026-10-30T03:26:21.255Z",
       "resolvedAt": "2026-10-30T03:31:06.798Z"
+    },
+    {
+      "id": "x3dg96i8",
+      "file": "03-ficha-expandible.html",
+      "selector": "#expanded-report > div",
+      "excerpt": "Guía de entrevista Copiar guía Este resultado resume lo que la persona declaró. Confírmalo con ejemplos de trabajo; no demuestra por sí solo cómo trabaja. 8 preguntas del banco redactado · Comparación guardada con perfil v2 Focos para tu entrevista Orden para avanzar Preguntas 1–2 → Impulso para coo",
+      "comment": "Hay muchas partes dentro del detalle, que se ven muy planas, parece un documento de word pero ni si quiera un documento de word bonito o trabajado, parece que simplemente se puso ahi porque ahi cabia (yo se que no es el caso), y no me mal interpretes, no quiero que saque luces o que tenga 20 colores distintos, quiero que tenga consistencia, sigue reglas de ux/ui para este tipo de casos (busca en internet, tambien busca disenos especificos de ejemplo que te puedan ayudar, dribble o donde quieras), pero no veo consistencia, no veo mucho orden, me sigues??",
+      "createdAt": "2026-10-30T03:45:02.453Z",
+      "status": "resolved",
+      "sentAt": "2026-10-30T03:45:02.510Z",
+      "resolvedAt": "2026-10-30T03:52:57.506Z",
+      "screenshot": ".screenshots/x3dg96i8.png"
     }
   ]
 }

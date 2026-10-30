@@ -69,3 +69,9 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   que dices?» → direction 03 (ficha expandible) preferred; its aside redesigned as a preparation panel (panorama mini
   matrix + fit counts, guide/comparison/quality actions, invitation timeline, footnote). Commit 734cee6d; comment
   resolved. Pending for R2: lift «Ver informe completo» above the fold in the compact tab.
+- **L6** Canvas comment x3dg96i8 on 03 (report column flat, «parece un documento de word», no consistency, research UX/UI
+  patterns): researched record/detail views (Appian SAIL, SAP Fiori), assessment report case studies (dribbble
+  22915821, LayersRank, Circadian), interview guide tools (ReCo). Rule adopted: ONE section anatomy (card on muted
+  background; header icon + title + meta + one action; body; footnote), same disclosure everywhere, question cards,
+  competency rows with mini band scale, comparison history as timeline, no native ▸ or browser lists. Applies to every
+  report section in R2.

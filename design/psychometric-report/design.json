@@ -20,7 +20,7 @@
     {
       "file": "03-ficha-expandible.html",
       "title": "Ficha expandible · Espacio de trabajo",
-      "tradeoff": "Conserva un panel de preparación con panorama de bandas, guía e invitación junto al informe; exige scroll lateral independiente, oculta casi todo el tablero y agrega un modo a la ficha.",
+      "tradeoff": "Conserva el panel de preparación y organiza el informe en tarjetas uniformes, preguntas agrupadas y profundidad bajo demanda; exige scroll lateral independiente, oculta casi todo el tablero y agrega un modo a la ficha.",
       "width": 1440,
       "height": 2300
     }
