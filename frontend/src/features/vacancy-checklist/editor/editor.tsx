@@ -147,7 +147,7 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
         {stages.map(stage => <Field key={stage.id} orientation="horizontal" data-invalid={!!errors.reminders} className="w-auto"><FieldLabel className="min-h-10 rounded-xl border px-3 has-data-checked:border-primary/40 has-data-checked:bg-primary/10"><Checkbox id={`reminder-${stage.id}`} disabled={disabled} checked={body.reminder_stage_ids.includes(stage.id)} aria-invalid={!!errors.reminders} aria-describedby={errors.reminders ? "reminders-error" : undefined} onCheckedChange={checked => edit({ ...body, reminder_stage_ids: checked ? [...body.reminder_stage_ids, stage.id] : body.reminder_stage_ids.filter(id => id !== stage.id) })} />{stage.name}</FieldLabel></Field>)}
       </FieldGroup>{errors.reminders && <FieldError id="reminders-error">{errors.reminders}</FieldError>}</FieldSet></CardContent>
     </Card>
-    <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(0,1.5fr)]">
+    <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(20rem,1fr)_minmax(0,1.2fr)]">
     <Card aria-labelledby="checklist-master-title">
       <CardHeader className="border-b"><CardTitle><h4 id="checklist-master-title" className="flex items-center gap-2"><ListChecks aria-hidden="true" className="size-4" />Criterios</h4></CardTitle><CardDescription>{summary}</CardDescription><CardAction><Button type="button" variant="outline" disabled={disabled || criteria.length >= 50} onClick={add}><Plus aria-hidden="true" />Agregar</Button></CardAction></CardHeader>
       <CardContent><FieldGroup>
