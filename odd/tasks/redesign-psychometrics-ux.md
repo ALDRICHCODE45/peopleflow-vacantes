@@ -38,7 +38,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | R7 | S4 | design directions: psychometric profile configuration without a long flat form | |
 | R8 | S4 | implement chosen R7 | |
 | R9 | S5 | design + implement checklist configuration | |
-| R10 | S6 | sort control with visible state, explanation and unchanged-order feedback | |
+| R10 | S6 | worker — sort control with visible state, explanation and unchanged-order feedback | e434a6fc |
 
 ## Log
 
@@ -125,3 +125,6 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   detail panel), 02-pasos-guiados (stepper + live summary), 03-lista-maestra-detalle (master/detail, recommended for
   recurring edits); manifest linked, L6/tokens self-check; parent browser check at 1440×1080: no horizontal overflow,
   sticky save/confirm bar with completeness. Waiting for the user's choice (R8).
+- **L15** R10 implemented (e434a6fc): «Orden: Llegada / Mejor ajuste (checklist)» Select, criterion tooltip on hover
+  and focus, polite «Ya estaban en orden de mejor ajuste»; 670/670 in pipeline-movement + vacancy-checklist, tsc 0;
+  browser-checked by the parent. Native review review-9375bb5b78af3885 approved (clean), acknowledged.
