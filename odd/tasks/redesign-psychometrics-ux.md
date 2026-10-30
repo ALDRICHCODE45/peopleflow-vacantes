@@ -100,3 +100,6 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   pinned by test); RED 2 → GREEN; 250 tests in checklist + compare route + board columns; tsc 0. Parent print check
   found empty segments printing black (print --border black) and the hover hint on paper → --border mid grey, hint
   print:hidden. Handoff marked implemented.
+- **L12** Native review (RDD on), one slice per work unit in detached `.review/` worktrees: R2 d0a4c42f
+  (review-51ae501d1ee0d28d, approved; advisory R3-001 candidate-sheet.tsx:52 focus restoration on expand/collapse →
+  follow-up) and R4 53a0967a (review-9ef6225578090431, approved, clean). Both acknowledged; worktrees removed.
