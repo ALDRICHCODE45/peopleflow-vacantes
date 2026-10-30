@@ -181,8 +181,10 @@ describe("VacancyPortfolio empty states", () => {
     const { container } = renderPortfolio();
     const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
     expect(empty).toHaveTextContent("Todavía no hay vacantes");
-    expect(empty).toHaveTextContent("Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
-    expect(within(empty).queryAllByRole("link")).toHaveLength(0);
+    expect(empty).toHaveTextContent("Crea tu primera vacante para recibir candidatos y dar seguimiento a tu proceso. Se guarda como borrador hasta que la publiques.");
+    expect(within(empty).getByRole("heading", { name: "Todavía no hay vacantes", level: 2 })).toBeVisible();
+    expect(within(empty).getByRole("link", { name: "Crear vacante" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+    expect(empty.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
     expect(within(empty).queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
     expect(Array.from(container.querySelectorAll("[data-pf-vacancy-metric] h3")).map(metric => metric.textContent)).toEqual(["0", "0", "0", "0", "0"]);
@@ -194,7 +196,7 @@ describe("VacancyPortfolio empty states", () => {
     const { container } = renderPortfolio();
     await user.type(screen.getByLabelText("Buscar vacante"), "algo");
     await user.click(filterButton(/Activas/));
-    expect(container.querySelector("[data-pf-vacancy-empty]")).toHaveTextContent("Todavía no hay vacantes");
+    expect(container.querySelector("[data-pf-vacancy-empty]")).toHaveTextContent("Sin resultados");
     expect(rowIds(container)).toEqual([]);
     const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
     expect(within(empty).queryAllByRole("link")).toHaveLength(0);

@@ -40,12 +40,37 @@ describe("JobsResults v2 composition", () => {
   it("keeps an Empty state with a reset and no list", () => {
     const { container } = render(<JobsResults result={listOf([])} query={{ q: "react" }} />);
     expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
-    expect(screen.getByText("No hay vacantes")).toBeVisible();
-    expect(screen.getByText("No hay vacantes")).toHaveClass("text-xl", "font-semibold");
-    expect(screen.getByText(/Quita los filtros para volver a ver/u)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Quitar filtros" })).toHaveClass("w-full", "sm:w-auto");
-    expect(screen.getByRole("link", { name: "Quitar filtros" })).toHaveAttribute("href", "/vacantes");
+    expect(screen.getByRole("heading", { name: "Sin resultados", level: 2 })).toHaveClass("text-xl", "font-semibold");
+    expect(screen.getByText("No encontramos vacantes para «react». Limpia los filtros para consultar el catálogo.")).toBeVisible();
+    expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+    expect(container.querySelector('.lucide-search-x')).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Limpiar filtros" })).toHaveClass("w-full", "sm:w-auto");
+    expect(screen.getByRole("link", { name: "Limpiar filtros" })).toHaveAttribute("href", "/vacantes");
     expect(screen.queryByRole("list", { name: "Listado de vacantes" })).toBeNull();
+  });
+  it.each([{}, { q: "   ", work_mode: [] }])("distinguishes a truly empty catalog: %j", query => {
+    const { container } = render(<JobsResults result={listOf([])} query={query} />);
+    expect(screen.getByRole("heading", { name: "Todavía no hay vacantes publicadas", level: 2 })).toBeVisible();
+    expect(screen.getByText("Las oportunidades aparecerán aquí cuando las empresas las publiquen. No hay ninguna disponible por ahora; puedes volver al inicio de PeopleFlow.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Ir al inicio" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("link", { name: /filtros/i })).toBeNull();
+    expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+    expect(container.querySelector('.lucide-briefcase')).not.toBeNull();
+  });
+  it.each(["", "Diseño"])("names active filters with query %j", q => {
+    render(<JobsResults result={listOf([])} query={{ q, work_mode: "remote" }} />);
+    expect(screen.getByRole("heading", { name: "Sin resultados", level: 2 })).toBeVisible();
+    expect(screen.getByText(q ? "No encontramos vacantes para «Diseño» con la modalidad «Remoto». Limpia los filtros para consultar el catálogo." : "No hay vacantes que coincidan con la modalidad «Remoto». Limpia los filtros para consultar el catálogo.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Limpiar filtros" })).toHaveAttribute("href", "/vacantes");
+  });
+  it.each([{}, { q: "Diseño", work_mode: "remote", state: ["09", "14"] }])("recovers an exhausted cursor without claiming catalog emptiness: %j", filters => {
+    const { container } = render(<JobsResults result={listOf([])} query={{ ...filters, cursor: "opaque" }} />);
+    expect(screen.getByRole("heading", { name: "No hay más vacantes en esta búsqueda", level: 2 })).toBeVisible();
+    expect(screen.getByText("Vuelve al inicio de la búsqueda conservando tus filtros.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Volver al inicio de la búsqueda" })).toHaveAttribute("href", filters.q ? "/vacantes?q=Dise%C3%B1o&state=09&state=14&work_mode=remote" : "/vacantes");
+    expect(screen.queryByRole("link", { name: "Limpiar filtros" })).toBeNull();
+    expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+    expect(container.querySelector('.lucide-search-x')).not.toBeNull();
   });
   it("preserves every active filter and opaque cursor on the next link only", () => {
     const query = { q: "Go", state: ["09", "14"], work_mode: "hybrid", work_schedule: "full_time", contract_type: "indefinite", professional_area: "technology_systems" };

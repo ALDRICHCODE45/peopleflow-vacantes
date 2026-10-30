@@ -1,0 +1,49 @@
+{
+  "title": "Mis postulaciones",
+  "brief": "R5 / S3: cuatro direcciones para Flores Vazquez Bryan Aldrich. 01–03 preservadas como alternativas rechazadas en L16; 04 replantea la pantalla como bandeja compacta + detalle lateral, con filtros segmentados y cronología fechada. L6: identidad + metadatos + estado, cuerpo y pie contextual con anatomía consistente. Solo estados y fechas de evaluación; nunca resultados psicométricos. Escritorio 1440×900 y móvil 390×844.",
+  "feature": "odd/tasks/redesign-psychometrics-ux.md",
+  "artboards": [
+    {
+      "file": "01-lista-con-estado.html",
+      "title": "Lista con estado",
+      "tradeoff": "Una postulación por fila elevada: identidad, línea de estado y siguiente acción a la derecha. Permite comparar rápidamente y filtrar por estado; el detalle de la evaluación alarga las filas y se apila en móvil. El título ofrece el acceso secundario a la vacante.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-tarjetas-con-progreso.html",
+      "title": "Tarjetas con progreso",
+      "tradeoff": "Grupos verticales En proceso / En revisión / Enviadas / Cerradas, con grilla de dos tarjetas y bloque de evaluación integrado. Es la continuidad más cercana a la pantalla actual y conserva contexto; requiere más scroll y deja espacio libre en grupos con una sola postulación.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-pendientes-primero.html",
+      "title": "Pendientes primero",
+      "tradeoff": "Dos tarjetas de atención antes del historial completo como lista compacta. Hace evidente qué puedes hacer hoy; repite la identidad de esas postulaciones en el historial y aleja los procesos sin pendientes. Las acciones de evaluación y mensaje solo aparecen arriba para evitar entradas duplicadas.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "04-bandeja-compacta.html",
+      "title": "Bandeja compacta",
+      "tradeoff": "Cinco filas de 72px permiten comparar postulaciones sin repetir evaluaciones ni pasos genéricos. Un panel concentra la actividad fechada, la evaluación y el mensaje de cierre. El detalle requiere seleccionar una fila y ocupa ancho; en móvil pasa a pantalla completa y las filas con pendiente crecen para conservar targets cómodos. El chip de la fila abre el detalle, no inicia la evaluación: un paso adicional antes de Continuar. Los estados extra y Nuevo mensaje quedan en un marco secundario fuera del contrato y sus conteos.",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "implementationNotes": [
+    "04 / L16: principal con Enviada, En proceso y Cerrada; Cerrada incluye mensaje público, sin inferir contratación o rechazo. La segunda Software Developer conserva su título real y descriptor. Dos pendientes de evaluación (3/63 y 0/63), evaluación finalizada con fecha y sin resultados. Datos, cronología y mensajes son ilustrativos: R6 no puede asumir un endpoint de actividad ni inventarlo. Si el backend no entrega un evento o mensaje, omitirlo. En revisión / Contratada / Rechazada y Nuevo mensaje solo aparecen en el marco Si el backend expone más estados, sin sumarse a los filtros.",
+    "04: búsqueda local sin acentos, filtros segmentados con conteos, selección y detalle responsive funcionan solo como presentación. El chip de siguiente paso abre el detalle; Continuar evaluación, Responder evaluación, Ver vacante y Nuevo mensaje son placeholders habilitados e inertes. Móvil: vista de detalle a pantalla completa, Escape y botón de regreso, foco inicial al título y restauración al control original, fondo inert y ciclo de Tab. Sin peticiones, almacenamiento, navegación de producto ni falsas confirmaciones.",
+    "04 self-check: misma paleta y fallback system UI de design/system.md; badge neutral/info/process/review/success/danger con tintes derivados, sombras y radios del sistema, foco primary visible y movimiento reducido. Anatomía de secciones: icono + título + estado opcional, contenido, pie de metadatos. Composición futura: Card/Item, Avatar, Badge, ToggleGroup segmented, InputGroup, Sheet responsive, Progress; HTML autónomo no importa React ni implementa producto. Las notas posteriores sobre Select y pasos genéricos describen únicamente 01–03, preservadas sin cambios.",
+    "Diseño solamente: ninguna dirección está elegida ni implementada. Búsqueda y filtros son locales, ignoran mayúsculas y acentos, anuncian resultados y ofrecen limpiar cuando no hay coincidencias. Las acciones de producto están habilitadas e inertes: no navegan, no abren evaluaciones, no leen mensajes, no escriben ni simulan éxito.",
+    "Contenido ilustrativo solicitado: cinco postulaciones y avance 3/63. Las capturas reales muestran dos Software Developer de Trust People Company y avance 10/63. La segunda vacante se distingue con un descriptor, no un título inventado.",
+    "Diferencia de contratos que R6 debe resolver con el padre: candidate-applications/model.ts expone submitted / in_process / closed, mensajes solo al cierre y vacancy.state open / closed. candidate/portfolio-model.ts usa submitted / in_review / hired / rejected y publicJobHref nullable; los mensajes de application-message.tsx son locales al dashboard. Los estados En revisión / Contratada / Rechazada, Nuevo mensaje y vacante histórica del brief no autorizan inventar nuevos campos en la API.",
+    "Los tres pasos Enviada / Seguimiento / Cierre son una síntesis visual del estado público, no el pipeline interno ni una promesa de que todas las personas recorren etapas. Finalizar una evaluación nunca avanza la postulación. Cerradas puede contener Contratada, Rechazada o Finalizada; el motivo no se deduce de psicometría.",
+    "Al implementar, preservar búsqueda sobre páginas cargadas, aviso de búsqueda parcial cuando next_cursor exista, Cargar más sin duplicados, errores con listado conservado y Reintentar explícito, estados de sesión, skeleton estructural y vacío con Explorar vacantes. El mock muestra cinco registros cargados completos; no inventa un cursor ni un botón Cargar más que no corresponda.",
+    "Preservar evaluaciones sin application_id como sección independiente; Pendiente → Responder evaluación, En curso → Continuar evaluación con answered_count/total_count y vencimiento, Finalizada → Terminaste el… y solo lectura, Expirada/Revocada → Ya no está disponible sin acción. No mostrar resultados, bandas, ajuste, puntajes o recomendaciones al candidato. Los ejemplos visibles cubren En curso y Finalizada.",
+    "Composición destino: Card + CardHeader (CardTitle, CardDescription, CardAction) + CardContent + CardFooter; Item outline para evaluación integrada, Progress y Badge semánticos, InputGroup para búsqueda y Select para el único filtro de estado. Los HTML son autónomos, sin dependencias, fuentes remotas ni recursos externos.",
+    "Self-check: colores background #F7F5FB, foreground #1A1626, card #FFFFFF, muted #F1EEF7, muted-foreground #6B6480, border #E4DFF0, primary oklch(0.491 0.27 292.581), primary-foreground oklch(0.969 0.016 293.756), status-info oklch(0.45 0.16 250), status-review oklch(0.47 0.12 70), status-success oklch(0.46 0.13 152), y status-danger oklch(0.45 0.2 25) en 01. Solo tokens de design/system.md; tintes y sombras usan sus recetas. Fuente ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif: fallback aprobado. Radio base .625rem y múltiplos del sistema. Semántica de listas/landmarks, foco visible, controles ≥40px, progreso etiquetado y prefers-reduced-motion en los tres.",
+    "Referencias actuales: /tmp/t12qa/r5/current-desktop-1440x900.png (full page) y /tmp/t12qa/r5/current-mobile-390x844.png (full page). gentle_design no está disponible en este worker: abrir el canvas queda al padre con /gentle:design open candidate-applications. No se pudo consultar list ni su detección de fuentes obsoletas; tokens contrastados con el documento existente, sin modificarlo."
+  ]
+}

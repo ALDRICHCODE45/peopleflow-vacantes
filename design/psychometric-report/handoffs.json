@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chosen": "03-ficha-expandible.html",
+  "handoffs": {
+    "03-ficha-expandible.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-10-30T03:59:02.849Z",
+      "startedAt": "2026-10-30T03:59:20.710Z",
+      "implementedAt": "2026-10-30T04:24:10.392Z",
+      "feature": "odd/tasks/redesign-psychometrics-ux.md",
+      "note": "Implemented in d0a4c42f: compact tab with CTA above the fold, invitation actions menu, expandable 1280px workspace with preparation panel and uniform report sections. Open Mariana Ortega Silva → Psicometría.",
+      "previewUrl": "http://localhost:3000/empresa/vacantes/01a13ce2-ddaf-73e7-848c-367979b20ead/pipeline"
+    }
+  }
+}

@@ -15,6 +15,23 @@ beforeEach(() => {
   vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: historyFixture() });
 });
 afterEach(cleanup);
+it.each([
+  ["Respuestas 0", "Todavía no hay respuestas", "Esta postulación no incluye respuestas de filtro. Puedes consultar el perfil y el CV en Resumen."],
+  ["Historial 0", "Todavía no hay actividad registrada", "Aquí verás los movimientos y cambios de etapa de esta postulación. Mientras tanto, puedes revisar su información en Resumen."],
+])("empty %s offers a real return to summary", async (tab, title, description) => {
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), screening: [] } });
+  vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: { ...historyFixture(), items: [] } });
+  render(<SheetHarness />);
+  fireEvent.click(await screen.findByRole("tab", { name: tab }));
+  const heading = await screen.findByRole("heading", { name: title, level: 3 });
+  const empty = heading.closest('[data-slot="empty"]')!;
+  expect(within(empty as HTMLElement).getByText(description)).toBeVisible();
+  expect(empty.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  expect(empty.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Ver resumen" }));
+  expect(screen.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
+  expect(await screen.findByRole("region", { name: "Perfil" })).toBeVisible();
+});
 function SheetHarness() {
   const [open, setOpen] = useState(true);
   const board = boardFixture();

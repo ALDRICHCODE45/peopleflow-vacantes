@@ -47,8 +47,14 @@ it.each(["table", "cards"])("initial loading mirrors %s", async view => {
 });
 it("distinguishes empty pool from no filtered results and clears URL filters", async () => {
  vi.mocked(listCandidatesAction).mockResolvedValue({ ok: true, data: { items: [], total: 0, next_cursor: null } });
- const first = render(<OrgCandidatesWorkspace />); expect(await screen.findByText("Todavía no hay candidatos en tu organización")).toBeTruthy(); first.unmount();
- window.history.replaceState(null, "", "/empresa/talento?q=Nope"); render(<OrgCandidatesWorkspace />); expect(await screen.findByText("Sin resultados")).toBeTruthy();
+ const first = render(<OrgCandidatesWorkspace />);
+ expect(await screen.findByRole("heading", { name: "Todavía no hay candidatos", level: 2 })).toBeVisible();
+ expect(screen.getByText("Tu base reúne a los candidatos de tu organización. Para agregar al primero, abre el tablero de una vacante.")).toBeVisible();
+ expect(screen.getByRole("link", { name: "Ir a mis vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+ expect(first.container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+ expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull(); first.unmount();
+ window.history.replaceState(null, "", "/empresa/talento?q=Nope"); render(<OrgCandidatesWorkspace />); expect(await screen.findByRole("heading", { name: "Sin resultados", level: 3 })).toBeVisible();
+ expect(screen.getByText("No hay candidatos que coincidan con «Nope». Limpia los filtros para volver a ver tu base de talento.")).toBeVisible();
  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" })); await waitFor(() => expect(window.location.search).not.toContain("q="));
 });
 it.each(["unauthenticated", "forbidden", "invalid_filter"] as const)("shows a safe %s failure", async reason => {

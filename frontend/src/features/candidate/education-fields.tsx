@@ -1,6 +1,7 @@
 "use client";
 import { Fragment, type ReactNode } from "react";
-import { Trash2 } from "lucide-react";
+import { GraduationCap, Trash2 } from "lucide-react";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +14,14 @@ const labels = { level: "Nivel", institution: "Institución", field: "Carrera o 
 const keys = Object.keys(labels) as (keyof EducationDraft)[];
 const options = { level: EDUCATION_LEVELS.map(value => ({ value, label: EDUCATION_LEVEL_LABELS[value] })), status: EDUCATION_STATUSES.map(value => ({ value, label: EDUCATION_STATUS_LABELS[value] })) };
 export function EducationFields({ value, onChange, issues, disabled, embedded = false, requiredMarker }: { value: readonly EducationDraft[]; onChange: (value: EducationDraft[]) => void; issues: readonly ProfileDraftIssue[]; disabled?: boolean; embedded?: boolean; requiredMarker?: ReactNode }) {
+  const addStudy = () => onChange([...value, { level: "", institution: "", field: "", status: "", start_year: "", end_year: "" }]);
   const errorFor = (path: string) => issues.find(issue => issue.path === path)?.message;
   const fields = <FieldSet data-pf-profile-group="education" disabled={disabled} className="gap-4">
       <FieldLegend className="sr-only">Formación académica</FieldLegend>
       {errorFor("education") && <FieldError>{errorFor("education")}</FieldError>}
+      {value.length === 0 && <SectionEmpty icon={GraduationCap} tone="empty" title="Todavía no agregas tus estudios"
+        description="Comparte tu formación para que las empresas conozcan tu perfil. Puedes agregar estudios terminados o en curso."
+        primaryAction={{ label: "Agregar estudio", disabled, onClick: addStudy }} />}
       <FieldGroup>{value.map((study, index) => <Fragment key={index}>
         {index > 0 && <Separator />}
         <FieldSet className="gap-4">
@@ -44,7 +49,7 @@ export function EducationFields({ value, onChange, issues, disabled, embedded = 
           </Field>;
         })}</FieldGroup>
       </FieldSet></Fragment>)}</FieldGroup>
-      <Button type="button" variant="outline" data-pf-profile-education-add className="min-h-10 w-fit" disabled={disabled || value.length >= 10} onClick={() => onChange([...value, { level: "", institution: "", field: "", status: "", start_year: "", end_year: "" }])}>Agregar estudio</Button>
+      {value.length > 0 && <Button type="button" variant="outline" data-pf-profile-education-add className="min-h-10 w-fit" disabled={disabled || value.length >= 10} onClick={addStudy}>Agregar estudio</Button>}
     </FieldSet>;
   if (embedded) return fields;
   return <Card size="sm" data-pf-profile-section-card="" className="shadow-none ring-border/70">

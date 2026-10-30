@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Settings2, Tags, UserPlus, UsersRound } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Info, Settings2, Tags, UserPlus, UsersRound } from "lucide-react";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { ImpactDetails } from "@/features/employer-vacancies/stage-config/impact-details";
 import { Spinner } from "@/components/ui/spinner";
@@ -44,6 +45,7 @@ function BoardSession(props: Props) {
 function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange, state }: Props & { state: ReturnType<typeof useMovementBoard> }) {
   const checklist = useBoardChecklist()!;
   const [bestFit, setBestFit] = useState(false);
+  const [sortNotice, setSortNotice] = useState("");
   const languages = useLanguageCatalog();
   const [filters, setFilters] = useState<FilterSelection>({});
   const [selected, setSelected] = useState<string | null>(null);
@@ -56,6 +58,21 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
   const dimensions = board ? boardFilterDimensions(board, languages.data?.items, checklist.checklist?.criteria, checklist.marks) : [];
   const matchingItems = applyFilters(board?.participations ?? [], dimensions, filters);
   const visibleItems = bestFit && checklist.checklist?.criteria.length ? orderByFit(matchingItems, checklist.checklist.criteria, checklist.marks) : matchingItems;
+  function changeOrder(value: string | null) {
+    const nextBestFit = value === "fit";
+    if (nextBestFit === bestFit) return;
+    if (nextBestFit && checklist.checklist?.criteria.length) {
+      const sorted = orderByFit(matchingItems, checklist.checklist.criteria, checklist.marks);
+      // Global interleaving is invisible: compare only the order inside each column.
+      const changed = [...new Set(visibleItems.map(item => item.stage_id))].some(stageId => {
+        const before = visibleItems.filter(item => item.stage_id === stageId);
+        const after = sorted.filter(item => item.stage_id === stageId);
+        return before.some((item, index) => item.id !== after[index]?.id);
+      });
+      setSortNotice(changed ? "Ordenado por mejor ajuste" : "Ya estaban en orden de mejor ajuste");
+    } else setSortNotice("Ordenado por llegada");
+    setBestFit(nextBestFit);
+  }
   const restoreFocus = useRef<string | null>(null);
   useEffect(() => {
     const id = restoreFocus.current;
@@ -119,7 +136,14 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
           {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />{state.columns.pending === "preview" ? "Revisando el impacto…" : "Guardando y actualizando columnas…"}</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} action={state.columns.notice.link && <Link className="inline-flex min-h-10 items-center underline" href={state.columns.notice.link.href}>{state.columns.notice.link.title}</Link>} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : !state.columns.locked && <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground lg:flex"><GripVertical aria-hidden="true" className="size-3.5" />Reordena columnas y revisa el impacto antes de guardar</span>}
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
-      <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <Button type="button" variant={bestFit ? "secondary" : "outline"} className="min-h-10" aria-pressed={bestFit} onClick={() => setBestFit(value => !value)}>Ordenar: Mejor ajuste</Button> : null}<ChecklistComparison vacancyId={vacancyId} /></>} />
+      <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Select items={[{ value: "arrival", label: "Llegada" }, { value: "fit", label: "Mejor ajuste (checklist)" }]} value={bestFit ? "fit" : "arrival"} onValueChange={changeOrder}>
+          <SelectTrigger aria-label="Orden" className="min-h-10"><span>Orden: </span><SelectValue /></SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}><SelectGroup><SelectItem value="arrival">Llegada</SelectItem><SelectItem value="fit">Mejor ajuste (checklist)</SelectItem></SelectGroup></SelectContent>
+        </Select>
+        <Hint text="Ordena cada columna por los criterios de la checklist: obligatorios cumplidos, luego deseables. No mueve ni descarta candidatos."><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Cómo se ordenan los candidatos"><Info aria-hidden="true" /></Button></Hint>
+      </div> : null}<ChecklistComparison vacancyId={vacancyId} /></>} />
+      <p role={sortNotice ? "status" : undefined} aria-label="Orden de candidatos" aria-live="polite" aria-atomic="true" className="sr-only">{sortNotice}</p>
       <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
       {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} tabRequest={sheetTab?.id === selectedItem.id ? sheetTab : undefined} onClose={() => { setSelected(null); setSheetTab(undefined); }} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}

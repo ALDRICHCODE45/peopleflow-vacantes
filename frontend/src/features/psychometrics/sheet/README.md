@@ -17,24 +17,33 @@ T9 covers S4–S8. T8 extends the same board provider and candidate session for 
 
 ## Visual mapping
 
-Reference: result/03 (guide first), then the ordinal band matrix from result/02. Existing candidate identity, actions and footer remain unchanged. The heading has no autofocus; the existing candidate title keeps its outline-free initial focus.
+R2 / S1 reference: `design/psychometric-report/03-ficha-expandible.html`, with preparation-panel and uniform-section refinements from L5–L6 in `odd/tasks/redesign-psychometrics-ux.md`.
+
+- The normal 560px sheet keeps its existing candidate identity/actions/tabs/footer. The compact finished tab presents status, **Prepara tu entrevista**, then **Ver informe completo** before invitation and competency rows, so the primary entry stays above the fold at 1440×900. No relevante rows share one initially collapsed disclosure; focus links expand into the matching stored guide question.
+- **Ver informe completo** widens the same Sheet to at most 1280px and the viewport gutter. No new modal, route, result reader or invitation store is created. **Reducir ficha** restores compact mode. Focus moves to the workspace heading on expansion and back to the primary entry on reduction; Escape remains the Sheet close action.
+- Desktop preparation and report columns scroll independently. Small screens stack the preparation panel and report in a single scrolling workspace rather than squeezing two columns. Report sub-navigation uses section anchors and an active-location marker; it never reads data.
+- Every report section uses `Card → CardHeader[CardTitle, CardDescription, optional CardAction] → CardContent → optional CardFooter`, with a heading icon and muted metadata. The same installed Accordion composition handles all disclosures: interpretation label/text pairs, evidence checklists, excluded competencies, invitation metadata and facets. Question cards retain stored question/STAR text and evidence verbatim; no follow-up text is synthesized.
+- The aside uses the same comparison/guide/copy logic and fit semantics as the report. The comparison button remains visible but disabled with its reason when the current profile is unconfirmed, unavailable, unchanged, or writes are blocked. A changed profile still requires confirmation; uncertainty still blocks replay. Guide copy is placed in the preparation panel as the single copy entry point.
+- Invitation actions are an installed DropdownMenu in ItemActions. **Copiar enlace**, **Recordar**, **Revocar** retain their existing shared confirmations, consequences and uncertainty handling. Closed invitations keep the menu with disabled actions and an explanation; metadata remains accessible in **Detalles de la invitación**. The creation empty state is unchanged.
+- Intentional adaptations from the static artboard: native component spacing/radii/targets and Badge number chips; actual stored data/counts, not example values; one guide copy action in the aside, not duplicated in the report header; stored STAR remains part of the stored question, never generated as an extra line.
 
 | Pattern | Installed primitive / saved official example |
 |---|---|
 | Sheet identity / body / footer | Existing Sheet, `sheet-demo`; controlled opening, existing custom close |
 | Sections | Existing Tabs + TabsList + TabsTrigger + TabsContent, `tabs-demo` |
 | Guide evidence and facet disclosure | Accordion → Item → Trigger + Content, official Basic composition, initially collapsed |
-| Quality summary | Item → Media + Content → Title + Description, `item-demo`, outline variant |
+| Uniform report sections / question cards | Card Basic composition (`card.md`), question cards use `size="sm"`; report sections carry real headings, header icons and metadata |
+| Quality summary | Uniform report Card, tier Badge in CardAction; signal rows retain exact `signalReason` wording and counts |
 | Labels | Badge, With Icon; semantic product variants |
 | Copy / comparison | Button, With Icon / Outline; shared ConfirmActionDialog follows official AlertDialog composition |
 | Failed read | Shared StateCard follows `empty-demo` |
-| Loading | Skeleton in matching guide-first section order, native Item/Accordion slots; unknown question/focus counts cannot be predicted before the audited read |
+| Loading | Skeleton follows the compact status/intro/CTA/invitation/row layout; unknown question/focus counts cannot be predicted before the audited read |
 | Ordinal matrix | Minimal presentation-only three-cell grid, not progress, controls or percentages |
 | Invitation empty state | Empty → Header[Media, Title, Description] + Content, `empty-demo`; same sheet surface, no nested Card |
 | Invitation progress | Progress, official Basic example; numeric value/max are the server's answered/total counts |
-| Invitation actions | Button With Icon, Outline alternatives; ActionBar reserves the result on the left. Shared controlled ConfirmActionDialog, official Basic AlertDialog with details; no trigger because actions are controlled |
+| Invitation actions | Item → Content[Title, Description] + Actions[DropdownMenu]; `dropdown-menu.md` Basic/Icons with Trigger rendered as Button, Content → Group → Items. Shared controlled ConfirmActionDialog, official Basic AlertDialog with details; no trigger because actions are controlled |
 | Invitation status | Badge semantic accent/info/neutral with dot; compact card status is a plain data row, matching the draggable-card exception |
 
 User color feedback supersedes the original artboards: Alineado uses **success**; Por explorar and Foco de atención both use **accent**, distinguished by Search vs Flag icons and their text. A flag marks a key two-band difference, not rejection. Quality uses neutral/info. Changed-profile notices use a primary left border and primary 6% surface. No review/amber/brown tone is used.
 
-Five unabridged tabs use a horizontally scrollable rail with focus inset, rather than smaller native targets or clipped labels. Browser measurement at 390px, light/dark screenshots, long-text review and comparison against the artboards still require browser QA; jsdom does not establish visual fit. No browser runner was authorized in this implementation handoff.
+Five unabridged tabs use a horizontally scrollable rail with focus inset, rather than smaller native targets or clipped labels. R2 browser QA uses the authorized read-only employer session and existing server; no invitation or comparison writes are executed. Screenshots and viewport/scroll measurements are reported in the implementation handoff. jsdom replaces only menu portal/positioning behavior in invitation-flow tests; the actual installed menu is checked in Chrome. Broader long-text/error/confirmation visual QA remains parent-owned.

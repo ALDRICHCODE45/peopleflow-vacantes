@@ -56,6 +56,21 @@ const modules = () => [...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((
 
 afterEach(cleanup);
 
+it.each([1, 2])("explains %s CVs without a primary and offers only the library", total => {
+  renderOverview({ cvs: CANDIDATE_CVS.slice(0, total).map(cv => ({ ...cv, isPrimary: false })) });
+  const snapshot = section("cv-snapshot");
+  expect(within(snapshot).getByRole("heading", { level: 3, name: "Aún no hay un CV principal" })).toBeVisible();
+  expect(within(snapshot).getByText(`Tienes ${total} ${total === 1 ? "CV" : "CVs"} en tu biblioteca. Por ahora no puedes marcar uno como principal; puedes abrir la biblioteca para revisar tus documentos.`)).toBeVisible();
+  expect(snapshot.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(snapshot.querySelector('[data-slot="empty-icon"] svg')).toHaveClass("lucide-star");
+  const links = within(snapshot).getAllByRole("link");
+  expect(links).toHaveLength(1);
+  expect(links[0]).toHaveAccessibleName("Ver mis CVs");
+  expect(links[0]).toHaveAttribute("href", "/candidato/cvs");
+  expect(links[0].closest('[data-slot="empty-content"]')).not.toBeNull();
+  expect(within(snapshot).queryByRole("button")).toBeNull();
+});
+
 it("puts every dashboard card heading in CardTitle and KPI support in CardDescription", () => {
   const { container } = renderOverview();
   for (const card of container.querySelectorAll('[data-slot="card"]')) {

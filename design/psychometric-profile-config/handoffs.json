@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chosen": "03-lista-maestra-detalle.html",
+  "handoffs": {
+    "03-lista-maestra-detalle.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-10-30T05:57:50.190Z",
+      "startedAt": "2026-10-30T05:58:47.108Z",
+      "implementedAt": "2026-10-30T06:16:33.661Z",
+      "feature": "odd/tasks/redesign-psychometrics-ux.md",
+      "note": "Implemented: general settings card, master/detail competencies, segmented controls, sticky save/confirm bar (compact on mobile).",
+      "previewUrl": "http://localhost:3000/empresa/vacantes/01a13ce2-ddaf-73e7-848c-367979b20ead/configuracion/psicometria"
+    }
+  }
+}

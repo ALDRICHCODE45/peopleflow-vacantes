@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { ArrowUpRight, Check, Download } from "lucide-react";
+import { ArrowUpRight, Check, Download, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { RichDataTable, type RichDataTableProps } from "@/components/data-table/rich-data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { getCandidateContactsAction } from "../contacts/contacts-actions";
 import { CONTACTS_EXPORT_FAILURE } from "../contacts/contacts-model";
@@ -87,11 +88,12 @@ export function CandidateResults({ items, view, languages, onOpen, toolbar, sele
  // focused control. Dynamic selection travels through context instead.
  const richColumns = React.useMemo(() => candidateColumns(languages, onOpen, true), [languages, onOpen]);
  const sorted = React.useMemo(() => direction === "none" ? items : [...items].sort((a, b) => (direction === "ascending" ? 1 : -1) * a.full_name.localeCompare(b.full_name, "es-MX")), [items, direction]);
- const content = fallback !== undefined ? fallback : view === "cards" ? <div className="flex min-w-0 flex-col gap-4 px-(--card-spacing)">
+ const emptyState = <SectionEmpty icon={Users} tone="empty" title="Todavía no hay candidatos" description="Tu base reúne a los candidatos de tu organización. Para agregar al primero, abre el tablero de una vacante." primaryAction={{ label: "Ir a mis vacantes", href: "/empresa/vacantes" }} />;
+ const content = fallback !== undefined ? fallback : items.length === 0 ? emptyState : view === "cards" ? <div className="flex min-w-0 flex-col gap-4 px-(--card-spacing)">
   <div className="flex items-center gap-3 text-xs text-muted-foreground"><SelectAllCheckbox all={selection.all} some={selection.some} onToggle={selection.toggleAll} />Seleccionar todos los cargados</div>
   <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Tarjetas de candidatos">{sorted.map(item => <CandidateCard key={candidateKey(item)} item={item} languages={languages} onOpen={onOpen} selection={selection} />)}</div>
  </div> : undefined;
- return <CandidateTableContext.Provider value={{ selection, toggleSort }}><RichDataTable id="org-candidates" columns={richColumns} data={sorted} getRowId={candidateKey} defaultPinning={defaultPinning} onRowActivate={onOpen ? item => onOpen({ kind: item.kind, id: item.id }) : undefined} emptyState="Sin candidatos" toolbar={toolbar} compactControls content={content} sortState={{ id: "candidate", direction }}
+ return <CandidateTableContext.Provider value={{ selection, toggleSort }}><RichDataTable id="org-candidates" columns={richColumns} data={sorted} getRowId={candidateKey} defaultPinning={defaultPinning} onRowActivate={onOpen ? item => onOpen({ kind: item.kind, id: item.id }) : undefined} emptyState={emptyState} toolbar={toolbar} compactControls content={content} sortState={{ id: "candidate", direction }}
   beforeContent={visibleColumns => selectedItems.length > 0 ? <div aria-label="Selección de candidatos" className="mx-(--card-spacing) flex flex-wrap items-center gap-3 rounded-lg bg-muted p-3">
    <span role="status" className="mr-auto text-sm font-medium">{selectedItems.length} {selectedItems.length === 1 ? "seleccionado" : "seleccionados"}</span>
    <Button type="button" variant="outline" className="min-h-10" disabled={exporting} aria-busy={exporting} onClick={() => void exportSelected(visibleColumns)}>{exporting ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <Download aria-hidden="true" data-icon="inline-start" />}Exportar seleccionados</Button>

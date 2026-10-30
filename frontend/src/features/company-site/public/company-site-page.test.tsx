@@ -96,8 +96,8 @@ it("search filters locally and clear restores the list with the Empty compositio
   fireEvent.change(screen.getByRole("textbox", { name: "Buscar por título" }), { target: { value: "frontend" } });
   expect(screen.queryByRole("link", { name: "Backend Go" })).toBeNull(); expect(screen.getByRole("link", { name: "Ingeniera Frontend" })).toBeVisible();
   fireEvent.change(screen.getByRole("textbox", { name: "Buscar por título" }), { target: { value: "inexistente" } });
-  expect(screen.getByText("No encontramos vacantes con estos filtros.").closest('[data-slot="empty"]')).not.toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Quitar filtros" })); expect(screen.getByRole("link", { name: "Backend Go" })).toBeVisible();
+  expect(screen.getByText("Sin resultados").closest('[data-slot="empty"]')).not.toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" })); expect(screen.getByRole("link", { name: "Backend Go" })).toBeVisible();
 });
 it("modalidad and estado filters combine with title, and missing state does not masquerade as a state", () => {
   expect(filterCompanyJobs(jobs, { search: "back", modes: ["hybrid"], states: ["09"] })).toEqual([jobs[0]]);
@@ -137,6 +137,6 @@ it("filters by modalidad and estado through the real controls without a network 
 });
 it("jobs show the honest no-vacancies state", () => {
   render(<CompanyJobs jobs={[]} />);
-  expect(screen.getByText("Por ahora no hay vacantes abiertas. Vuelve pronto.").closest('[data-slot="empty"]')).not.toBeNull();
+  expect(screen.getByText("Por ahora no hay vacantes abiertas").closest('[data-slot="empty"]')).not.toBeNull();
   expect(screen.queryByRole("textbox")).toBeNull();
 });

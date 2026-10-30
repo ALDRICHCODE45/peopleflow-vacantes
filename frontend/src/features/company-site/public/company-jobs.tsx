@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useId, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Briefcase, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Briefcase, Search, SearchX, SlidersHorizontal } from "lucide-react";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -89,7 +89,15 @@ export function CompanyJobs({ jobs, variant = "list" }: { jobs: PublicJobItem[];
   const portalContainer = useSitePortalContainer();
   const clear = () => setFilters(emptyFilters());
   const count = dimensionDefinitions.reduce((total, dimension) => total + (filters[dimension.key]?.length ?? 0), 0);
-  if (!jobs.length) return <StateCard icon={Briefcase} tone="empty" title="Por ahora no hay vacantes abiertas. Vuelve pronto." description="Las nuevas oportunidades aparecerán aquí cuando se publiquen." />;
+  const query = filters.search.trim();
+  const activeDimensions = dimensions.flatMap(dimension => {
+    const selected = dimension.options.filter(option => filters[dimension.key]?.includes(option.value));
+    if (!selected.length) return [];
+    const subject = { areas: "el área", modes: "la modalidad", states: "la ubicación", schedules: "la jornada", contracts: "el tipo de contrato", levels: "el nivel" }[dimension.key];
+    return [`${subject} ${selected.map(option => `«${option.label}»`).join(", ")}`];
+  }).join(" y ");
+  const noResultsDescription = `${query ? `No encontramos vacantes para «${query}»${activeDimensions ? ` con ${activeDimensions}` : ""}` : `No hay vacantes que coincidan con ${activeDimensions}`}. Limpia los filtros para ver las oportunidades de esta empresa.`;
+  if (!jobs.length) return <StateCard icon={Briefcase} tone="empty" title="Por ahora no hay vacantes abiertas" description="Las nuevas oportunidades de esta empresa aparecerán aquí cuando se publiquen. Mientras tanto, puedes explorar el catálogo de PeopleFlow." primaryAction={{ label: "Explorar vacantes en PeopleFlow", href: "/vacantes" }} />;
   return <div className="flex flex-col gap-4">
     <div data-job-controls className="flex flex-col gap-3 md:flex-row md:items-end">
     <Field className="min-w-0 md:flex-1"><FieldLabel htmlFor={id}>Buscar por título</FieldLabel><InputGroup className="min-h-10"><InputGroupInput id={id} value={filters.search} onChange={event => setFilters({ ...filters, search: event.target.value })} /><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon></InputGroup></Field>
@@ -106,6 +114,6 @@ export function CompanyJobs({ jobs, variant = "list" }: { jobs: PublicJobItem[];
     </Sheet>
     </div>
     <p role="status" className="text-sm text-muted-foreground">{shown.length === 1 ? "1 vacante" : `${shown.length} vacantes`}</p>
-    {shown.length ? <div aria-label="Vacantes de la empresa" className="flex flex-col gap-8">{variant === "by_area" ? [...new Set(shown.map(job => job.professional_area))].map(area => <section key={area ?? "other"} className="flex flex-col gap-4"><div className="flex items-center gap-3"><h3 className="text-xl font-medium">{areaLabel(area)}</h3><Badge variant="secondary">{shown.filter(job => job.professional_area === area).length}</Badge></div><JobResults jobs={shown.filter(job => job.professional_area === area)} cards={false} /></section>) : <JobResults jobs={shown} cards={variant === "cards"} />}</div> : <StateCard icon={Search} tone="empty" title="No encontramos vacantes con estos filtros." description="Prueba otra búsqueda o consulta todas las oportunidades." primaryAction={{ label: "Quitar filtros", onClick: clear }} />}
+    {shown.length ? <div aria-label="Vacantes de la empresa" className="flex flex-col gap-8">{variant === "by_area" ? [...new Set(shown.map(job => job.professional_area))].map(area => <section key={area ?? "other"} className="flex flex-col gap-4"><div className="flex items-center gap-3"><h3 className="text-xl font-medium">{areaLabel(area)}</h3><Badge variant="secondary">{shown.filter(job => job.professional_area === area).length}</Badge></div><JobResults jobs={shown.filter(job => job.professional_area === area)} cards={false} /></section>) : <JobResults jobs={shown} cards={variant === "cards"} />}</div> : <StateCard icon={SearchX} tone="empty" title="Sin resultados" description={noResultsDescription} primaryAction={query || count ? { label: "Limpiar filtros", onClick: clear } : undefined} />}
   </div>;
 }

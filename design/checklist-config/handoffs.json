@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "02-lista-y-detalle.html",
+  "handoffs": {
+    "02-lista-y-detalle.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-10-30T07:19:51.791Z",
+      "startedAt": "2026-10-30T07:20:00.430Z",
+      "implementedAt": "2026-10-30T16:36:12.988Z",
+      "feature": "odd/tasks/redesign-psychometrics-ux.md",
+      "previewUrl": "http://localhost:3000/empresa/vacantes/01a13ce2-ddaf-73e7-848c-367979b20ead/configuracion/checklist"
+    }
+  }
+}

@@ -11,7 +11,7 @@ import { accentAvatar, accentIcon, accentTab, accentTabCount } from "../accent";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { MovementDate } from "@/features/pipeline-movement/board-states";
 import { discardReasonLabel } from "@/features/pipeline-movement/discard-text";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
@@ -136,10 +136,10 @@ const DetailSession = forwardRef<DetailSessionHandle, { candidate: OrgCandidateI
       </TabsContent>
       {/* Keep sessions mounted across tabs: selected files, action status and cursor pages survive navigation. */}
       <TabsContent value="processes" keepMounted className="min-h-0 overflow-y-auto overscroll-contain p-6">
-        <Processes detail={data} busy={busy} onBusyChange={onBusyChange} onConfirmationChange={onConfirmationChange} onCvSaved={cvSaved} onCvConflict={refreshConflict} />
+        <Processes detail={data} onViewSummary={() => setTab("summary")} busy={busy} onBusyChange={onBusyChange} onConfirmationChange={onConfirmationChange} onCvSaved={cvSaved} onCvConflict={refreshConflict} />
       </TabsContent>
       <TabsContent value="history" keepMounted className="min-h-0 overflow-y-auto overscroll-contain p-6">
-        <ChangeHistory candidate={{ kind, id }} refreshKey={historyRefreshKey} />
+        <ChangeHistory candidate={{ kind, id }} refreshKey={historyRefreshKey} onViewSummary={() => setTab("summary")} />
       </TabsContent>
     </Tabs> : <div className="min-h-0 flex-1 overflow-y-auto border-t p-6" aria-busy={result === null}>
       {!result ? <DetailSkeleton /> : !result.ok ? <StateCard icon={Info} tone={result.reason === "not_found" ? "empty" : "error"}
@@ -204,14 +204,14 @@ function newestParticipations(detail: OrgCandidateDetail) {
 function ActiveProcesses({ detail, onViewAll }: { detail: OrgCandidateDetail; onViewAll: () => void }) {
   const items = newestParticipations(detail).filter(item => item.state === "active" && item.vacancy.lifecycle.process === "active");
   return <section aria-label="Procesos activos" className="flex flex-col gap-5">
-    <div className="flex items-center justify-between gap-3"><SectionTitle>Procesos activos</SectionTitle><Button type="button" variant="ghost" className="min-h-10" onClick={onViewAll}>Ver todos<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></div>
-    {items.length ? <ItemGroup>{items.map(item => <Item key={item.id} size="sm" role="listitem"><ItemContent className="min-w-0"><ItemTitle className="line-clamp-none break-words">{item.vacancy.title}</ItemTitle><ItemDescription className="text-xs">{item.source === "manual" ? "Ingreso manual" : "Postulación"} · <MovementDate value={item.applied_at} /></ItemDescription></ItemContent><Badge variant="info" dot>{item.stage.name}</Badge></Item>)}</ItemGroup> : <p className="text-sm text-muted-foreground">Sin procesos activos</p>}
+    <div className="flex items-center justify-between gap-3"><SectionTitle>Procesos activos</SectionTitle>{items.length > 0 && <Button type="button" variant="ghost" className="min-h-10" onClick={onViewAll}>Ver todos<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>}</div>
+    {items.length ? <ItemGroup>{items.map(item => <Item key={item.id} size="sm" role="listitem"><ItemContent className="min-w-0"><ItemTitle className="line-clamp-none break-words">{item.vacancy.title}</ItemTitle><ItemDescription className="text-xs">{item.source === "manual" ? "Ingreso manual" : "Postulación"} · <MovementDate value={item.applied_at} /></ItemDescription></ItemContent><Badge variant="info" dot>{item.stage.name}</Badge></Item>)}</ItemGroup> : <SectionEmpty icon={BriefcaseBusiness} tone="empty" title="No tiene procesos activos" description={detail.participations.length ? "No hay participaciones activas en procesos en curso. Puedes consultar sus participaciones anteriores en Procesos." : "No hay participaciones de esta persona en las vacantes de tu organización. No puedes vincularla desde esta ficha; puedes volver a revisar su perfil."} primaryAction={{ label: "Ver todos los procesos", onClick: onViewAll }} />}
   </section>;
 }
 type CvCallbacks = { busy: boolean; onBusyChange: (busy: boolean) => void; onConfirmationChange: (confirmation: CvConfirmation | null) => void; onCvSaved: (detail: OrgCandidateDetail) => void; onCvConflict: () => Promise<void> };
-function Processes({ detail, ...cvCallbacks }: { detail: OrgCandidateDetail } & CvCallbacks) {
+function Processes({ detail, onViewSummary, ...cvCallbacks }: { detail: OrgCandidateDetail; onViewSummary: () => void } & CvCallbacks) {
   const items = newestParticipations(detail);
-  return <section aria-label="Procesos" className="flex flex-col gap-6"><SectionTitle>Todas sus oportunidades</SectionTitle>{items.length ? <div role="list" className="flex flex-col gap-6">{items.map((item, index) => <div key={item.id} className="contents">{index > 0 && <Separator />}<ParticipationItem item={item} candidate={detail} {...cvCallbacks} /></div>)}</div> : <p className="text-sm text-muted-foreground">Sin procesos</p>}</section>;
+  return <section aria-label="Procesos" className="flex flex-col gap-6"><SectionTitle>Todas sus oportunidades</SectionTitle>{items.length ? <div role="list" className="flex flex-col gap-6">{items.map((item, index) => <div key={item.id} className="contents">{index > 0 && <Separator />}<ParticipationItem item={item} candidate={detail} {...cvCallbacks} /></div>)}</div> : <SectionEmpty icon={BriefcaseBusiness} tone="empty" title="Todavía no tiene procesos" description="No hay participaciones de esta persona en las vacantes de tu organización. No puedes vincularla desde esta ficha; puedes volver a revisar su perfil." primaryAction={{ label: "Ver resumen", onClick: onViewSummary }} />}</section>;
 }
 function ParticipationItem({ item, candidate, busy, onBusyChange, onCvSaved, onCvConflict, onConfirmationChange }: { item: OrgCandidateParticipation; candidate: OrgCandidateDetail } & CvCallbacks) {
   const publication = item.vacancy.lifecycle.publication;

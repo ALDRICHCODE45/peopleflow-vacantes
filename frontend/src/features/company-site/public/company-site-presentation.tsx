@@ -4,11 +4,10 @@ import { useContext, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { Briefcase } from "lucide-react";
+import { BookOpen, Briefcase, ChartNoAxesColumn, Compass, Gift, HelpCircle, Images, LayoutTemplate, MapPin, MessageSquareQuote, SlidersHorizontal, Video } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { deriveDraftDescriptionPlain } from "@/features/jobs/drafts/rich/plain";
 import { cn } from "@/lib/utils";
 import { BLOCK_LIBRARY } from "../defaults";
@@ -23,6 +22,12 @@ import styles from "./site-theme.module.css";
 import editorStyles from "./editor-affordances.module.css";
 
 const anchor = (block: SiteBlock) => `bloque-${block.id}`;
+const blockIcons = { hero: LayoutTemplate, story: BookOpen, values: Compass, benefits: Gift, stats: ChartNoAxesColumn, process: SlidersHorizontal, gallery: Images, testimonials: MessageSquareQuote, video: Video, offices: MapPin, jobs: Briefcase, faq: HelpCircle, closing: LayoutTemplate };
+function BlankSection({ block, onSelect }: { block: SiteBlock; onSelect?: (id: string) => void }) {
+  const title = ("title" in block.content && block.content.title) || (block.type === "story" ? "Nuestra historia" : BLOCK_LIBRARY[block.type].label);
+  const description = block.type === "story" ? "Cuenta cómo empezó tu empresa y qué la mueve." : BLOCK_LIBRARY[block.type].description;
+  return <SectionEmpty icon={blockIcons[block.type]} tone="info" title={<span id={`${anchor(block)}-title`}>{title} todavía no tiene contenido</span>} description={`${description} Completa esta sección para verla en tu sitio.`} primaryAction={onSelect ? { label: "Completar sección", onClick: () => onSelect(block.id) } : undefined} />;
+}
 /** Draft preview and public read share honest omission; no invented content. */
 export function hasSiteBlockContent(block: SiteBlock): boolean {
   switch (block.type) {
@@ -70,7 +75,7 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
       } : {})}
       className={cn("scroll-mt-6", (block.type === "story" || block.type === "jobs" || block.type === "stats" && block.variant === "row" || block.type === "benefits" && block.variant === "grid" || block.type === "video" && block.variant === "split") && "bg-(--site-band)", onSelectBlock && editorStyles.section)}>
       {onSelectBlock && selectedBlockId === block.id && <Badge data-editor-label="" className={editorStyles.label}>{BLOCK_LIBRARY[block.type].label}</Badge>}
-      <div className="mx-auto max-w-7xl px-6 py-10 sm:px-10 sm:py-14 lg:px-16 lg:py-16">{!hasSiteBlockContent(block) ? <Empty><EmptyHeader><EmptyTitle><h2 id={`${anchor(block)}-title`}>{BLOCK_LIBRARY[block.type].label}</h2></EmptyTitle><EmptyDescription>Agrega contenido a esta sección para verla en tu sitio.</EmptyDescription></EmptyHeader></Empty> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsBlock ? `#${anchor(jobsBlock)}` : undefined} storyHref={storyBlock ? `#${anchor(storyBlock)}` : undefined} />}</div>
+      <div className="mx-auto max-w-7xl px-6 py-10 sm:px-10 sm:py-14 lg:px-16 lg:py-16">{!hasSiteBlockContent(block) ? <BlankSection block={block} onSelect={onSelectBlock} /> : block.type === "jobs" && !jobsAvailable ? <StateCard icon={Briefcase} tone="error" title={<span id={`${anchor(block)}-title`}>No pudimos cargar las vacantes</span>} description="La vista previa de las vacantes no está disponible. El contenido del sitio no cambió." /> : <SiteBlockContent block={block} company={company} jobs={jobs} offices={officeLabels} jobsHref={jobsBlock ? `#${anchor(jobsBlock)}` : undefined} storyHref={storyBlock ? `#${anchor(storyBlock)}` : undefined} />}</div>
     </section>)}
     </main>
     <Separator />

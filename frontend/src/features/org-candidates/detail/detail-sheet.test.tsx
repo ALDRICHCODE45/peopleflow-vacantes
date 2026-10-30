@@ -49,8 +49,14 @@ it("uses Sin dato and honest attribution for missing facts and no processes", as
   const contact = await screen.findByRole("region", { name: "Contacto" });
   expect(within(contact).getAllByText("Sin dato")).toHaveLength(2);
   expect(screen.getByText(/Agregado por Cuenta no disponible ·/)).toBeVisible();
-  expect(screen.getByText("Sin procesos activos")).toBeVisible();
-  expect(within(await processes()).getByText("Sin procesos")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "No tiene procesos activos", level: 3 })).toBeVisible();
+  expect(within(screen.getByRole("region", { name: "Procesos activos" })).getByText("No hay participaciones de esta persona en las vacantes de tu organización. No puedes vincularla desde esta ficha; puedes volver a revisar su perfil.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Ver todos los procesos" }));
+  const section = screen.getByRole("region", { name: "Procesos" });
+  expect(within(section).getByRole("heading", { name: "Todavía no tiene procesos", level: 3 })).toBeVisible();
+  expect(section.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  fireEvent.click(within(section).getByRole("button", { name: "Ver resumen" }));
+  expect(screen.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
 });
 it("orders participations newest first and shows lifecycle, substate, discard, source and CV", async () => {
   const data = detailFixture(); const current = data.participations[0];
@@ -108,6 +114,20 @@ it("does not request until opened and discards a stale candidate response", asyn
   vi.mocked(loadOrgCandidateDetailAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
   view.rerender(<OrgCandidateDetailSheet candidate={identity} onOpenChange={vi.fn()} />); view.rerender(<OrgCandidateDetailSheet candidate={{ kind: "organic", id: id(10) }} onOpenChange={vi.fn()} />);
   await screen.findByRole("heading", { name: "Lucía Ramírez Torres" }); await act(async () => resolve({ ok: true, data: { ...detailFixture(), full_name: "Viejo" } })); expect(screen.queryByText("Viejo")).not.toBeInTheDocument();
+});
+it("offers previous participations when none is active and returns from empty history to Resumen", async () => {
+  const data = detailFixture(); data.participations[0].state = "discarded";
+  vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: true, data }); open();
+  await screen.findByRole("heading", { name: "No tiene procesos activos", level: 3 });
+  const active = screen.getByRole("region", { name: "Procesos activos" });
+  expect(within(active).getByText("No hay participaciones activas en procesos en curso. Puedes consultar sus participaciones anteriores en Procesos.")).toBeVisible();
+  expect(active.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  fireEvent.click(within(active).getByRole("button", { name: "Ver todos los procesos" }));
+  expect(screen.getByRole("link", { name: "Frontend" })).toBeVisible();
+  fireEvent.click(screen.getByRole("tab", { name: "Historial" }));
+  await screen.findByRole("heading", { name: "Todavía no hay cambios", level: 3 });
+  fireEvent.click(within(screen.getByRole("region", { name: "Historial de cambios" })).getByRole("button", { name: "Ver resumen" }));
+  expect(screen.getByRole("tab", { name: "Resumen" })).toHaveAttribute("aria-selected", "true");
 });
 it("underlines the process vacancy link only on hover (QA L8)", async () => {
   open(); const section = await processes(); const link = within(section).getByRole("link", { name: "Frontend" }); expect(link).not.toHaveClass("underline"); expect(link).toHaveClass("hover:underline");

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { FileText, Upload } from "lucide-react";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -70,17 +71,19 @@ export function CvPicker({ library, selected, onSelect, onLibrary, error, onBusy
   return <FieldGroup>
     <FieldSet>
       <FieldLegend>CV</FieldLegend>
-      <FieldDescription>Elige un CV de tu biblioteca. Es obligatorio.</FieldDescription>
+      {library.items.length === 0 ? <SectionEmpty icon={FileText} tone="empty" title="Todavía no tienes un CV"
+        description="Sube tu CV para completar esta postulación. Se agregará a tu biblioteca y quedará seleccionado para esta vacante."
+        primaryAction={{ label: "Subir CV", disabled: busy || needsCheck, onClick: () => input.current?.click() }} /> : <FieldDescription>Elige un CV de tu biblioteca. Es obligatorio.</FieldDescription>}
       <Field data-invalid={!!error}>
-        <ToggleGroup aria-label="CV de tu biblioteca" aria-invalid={!!error} aria-describedby={error ? "cv-choice-error" : undefined} variant="outline" orientation="vertical" className="w-full" value={selected ? [selected] : []} onValueChange={values => { if (values[0]) onSelect(values[0]); }} disabled={busy}>
+        {library.items.length > 0 && <ToggleGroup aria-label="CV de tu biblioteca" aria-invalid={!!error} aria-describedby={error ? "cv-choice-error" : undefined} variant="outline" orientation="vertical" className="w-full" value={selected ? [selected] : []} onValueChange={values => { if (values[0]) onSelect(values[0]); }} disabled={busy}>
           {library.items.map(cv => <ToggleGroupItem key={cv.id} value={cv.id} aria-label={cv.name} className="min-h-10 justify-start whitespace-normal break-words"><FileText aria-hidden="true" data-icon="inline-start" />{cv.name}</ToggleGroupItem>)}
-        </ToggleGroup>
+        </ToggleGroup>}
         {error && <FieldError id="cv-choice-error">{error}</FieldError>}
       </Field>
     </FieldSet>
     <Field data-invalid={!!fileError} data-disabled={busy || needsCheck || library.items.length >= library.limits.max_cvs}>
-      <FieldLabel htmlFor="apply-cv-upload"><Upload aria-hidden="true" className="size-4" />Subir un CV nuevo</FieldLabel>
-      <Input ref={input} id="apply-cv-upload" type="file" accept={`${library.limits.content_types.join(",")},.pdf,.docx`} disabled={busy || needsCheck || library.items.length >= library.limits.max_cvs} className="min-h-10" aria-invalid={!!fileError} aria-describedby="apply-cv-upload-help apply-cv-upload-error apply-cv-upload-status" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; void upload(file); }} />
+      <FieldLabel className={library.items.length === 0 ? "sr-only" : undefined} htmlFor="apply-cv-upload"><Upload aria-hidden="true" className="size-4" />Subir un CV nuevo</FieldLabel>
+      <Input ref={input} id="apply-cv-upload" type="file" accept={`${library.limits.content_types.join(",")},.pdf,.docx`} disabled={busy || needsCheck || library.items.length >= library.limits.max_cvs} className={library.items.length === 0 ? "sr-only" : "min-h-10"} aria-invalid={!!fileError} aria-describedby="apply-cv-upload-help apply-cv-upload-error apply-cv-upload-status" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; void upload(file); }} />
       <FieldDescription id="apply-cv-upload-help">PDF o Word (.docx), hasta {library.limits.max_bytes / 1024 / 1024} MB. {library.items.length} de {library.limits.max_cvs} CVs en tu biblioteca. Cada postulación conserva su copia.</FieldDescription>
       {fileError && <FieldError id="apply-cv-upload-error">{fileError}</FieldError>}
       <ActionBar status={status ? <ActionStatus id="apply-cv-upload-status" tone={status.tone} text={status.text} /> : null}>{needsCheck ? <Button ref={checkButton} variant="outline" className="min-h-10" disabled={busy} aria-describedby="apply-cv-upload-status" onClick={() => void checkLibrary()}>{busy && <Spinner aria-hidden="true" data-icon="inline-start" />}Comprobar biblioteca</Button> : busy && <Spinner aria-label="Subiendo CV" />}</ActionBar>

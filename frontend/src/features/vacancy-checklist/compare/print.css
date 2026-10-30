@@ -5,9 +5,14 @@
   body:has([data-comparison-report]) {
     --background: white;
     --foreground: black;
+    --card: white;
+    --card-foreground: black;
+    --popover: white;
+    --popover-foreground: black;
     --muted: white;
     --muted-foreground: black;
-    --border: black;
+    /* Mid grey: table rules stay visible and empty checklist segments never read as data. */
+    --border: #9ca3af;
     color-scheme: light;
     height: auto !important;
     min-height: 0 !important;
@@ -70,6 +75,17 @@
     white-space: pre-wrap !important;
     text-overflow: clip !important;
   }
-  [data-comparison-report] .comparison-print-summary { display: block !important; margin-top: 1rem; }
+  [data-comparison-report] [data-comparison-controls] { display: none !important; }
+  [data-comparison-report] .comparison-print-evidence { display: block !important; }
+  [data-comparison-report] .comparison-criterion {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+  }
+  [data-comparison-report] .comparison-summaries { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 8px; margin-block: 12px; }
+  [data-comparison-report] [role="article"] { break-inside: avoid; }
+  [data-comparison-report] [role="region"] { margin-block: 12px; }
+  [data-comparison-report] [data-slot="card"] { box-shadow: none !important; }
+  [data-comparison-report] .comparison-table [data-slot="tooltip-trigger"] { display: none !important; }
   [data-comparison-report] [data-slot="card-footer"] { margin-top: 1rem; }
 }

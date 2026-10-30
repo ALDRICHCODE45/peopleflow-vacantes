@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "01-configuracion.html",
+  "handoffs": {
+    "01-configuracion.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-10-30T20:55:04.075Z",
+      "startedAt": null,
+      "implementedAt": "2026-10-30T20:55:04.075Z",
+      "previewUrl": "http://localhost:3000/empresa/vacantes/01a13ce2-ddaf-73e7-848c-367979b20ead/configuracion/psicometria"
+    }
+  }
+}

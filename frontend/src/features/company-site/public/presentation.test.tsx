@@ -84,5 +84,5 @@ it("loads preview jobs with honest availability instead of treating a failed cat
   const preview = await loadPreviewData(data.company, data.site.blocks);
   render(<CompanySitePresentation site={data.site} {...preview} />);
   expect(screen.getByText("No pudimos cargar las vacantes")).toBeVisible();
-  expect(screen.queryByText("Por ahora no hay vacantes abiertas. Vuelve pronto.")).toBeNull();
+  expect(screen.queryByText("Por ahora no hay vacantes abiertas")).toBeNull();
 });

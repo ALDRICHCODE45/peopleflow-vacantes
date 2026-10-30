@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck } from "lucide-react";
+import { BriefcaseBusiness, CirclePause, FilePenLine, SearchIcon, SearchX, SquareKanban, Users, CircleCheck } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
@@ -138,11 +138,13 @@ export function VacancyPortfolio() {
   const results = drafts.items.filter(draft => (status === "all" || (draft.status === "published" ? "active" : draft.status) === status) && (!needle || normalize(draft.title || "Sin título").includes(needle)));
   const filtersActive = query.trim() !== "" || status !== "all";
   const emptyDrafts = status === "draft" && draftCount === 0 && !query.trim();
-  const emptyDescription = drafts.items.length === 0
-    ? "Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques."
+  const emptyDescription = !filtersActive
+    ? "Crea tu primera vacante para recibir candidatos y dar seguimiento a tu proceso. Se guarda como borrador hasta que la publiques."
     : emptyDrafts
       ? "Crea una vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques."
-      : "No hay vacantes que coincidan con la búsqueda y el estado seleccionados. Limpia los filtros para volver a ver el listado.";
+      : query.trim()
+        ? `No hay vacantes que coincidan con «${query.trim()}». Limpia los filtros para volver a ver el listado.`
+        : `No hay vacantes con el estado ${STATUS_FILTERS.find(filter => filter.value === status)?.label}. Limpia los filtros para volver a ver el listado.`;
   const clearFilters = () => { setQuery(""); setStatus("all"); };
   const failure = drafts.failure;
   const noSnapshot = drafts.items.length === 0 && (drafts.pending || failure);
@@ -179,8 +181,9 @@ export function VacancyPortfolio() {
               </div>}
               {loadingDraftRows && <DraftSkeletonRows />}
               {drafts.capped && <p className={cn(META, "px-5 py-3")}>Se muestran hasta 500 vacantes. El listado puede estar incompleto; los más recientes aparecen primero.</p>}
-              {results.length === 0 ? (drafts.pending || failure) ? null : <StateCard data-pf-vacancy-empty icon={status === "draft" ? FilePenLine : SearchIcon} tone="empty"
-                title={drafts.items.length === 0 ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"} description={emptyDescription}>
+              {results.length === 0 ? (drafts.pending || failure) ? null : <StateCard data-pf-vacancy-empty icon={filtersActive ? emptyDrafts ? FilePenLine : SearchX : BriefcaseBusiness} tone="empty"
+                title={!filtersActive ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"} description={emptyDescription}
+                primaryAction={!filtersActive ? { label: "Crear vacante", href: "/empresa/vacantes/borradores/nuevo" } : undefined}>
                 {filtersActive && <Button type="button" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}
               </StateCard> : <ul className="divide-y divide-border">{results.map(draft => <VacancyRow key={draft.id} draft={draft} onPublished={drafts.published} onLifecycleChanged={drafts.lifecycleChanged} />)}</ul>}
               {!failure && drafts.retried && <div className="px-5"><ActionStatusSlot>{!drafts.pending && <ActionStatus id="portfolio-drafts-status" tone="success" text="Borradores cargados" />}</ActionStatusSlot></div>}

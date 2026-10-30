@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chosen": "01-resumen-y-matriz.html",
+  "handoffs": {
+    "01-resumen-y-matriz.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-10-30T04:15:11.011Z",
+      "startedAt": "2026-10-30T04:15:35.483Z",
+      "implementedAt": "2026-10-30T04:41:34.573Z",
+      "feature": "odd/tasks/redesign-psychometrics-ux.md",
+      "note": "Implemented in 53a0967a: per-person summary cards with the shared segmented bar, grouped icon matrices with source/note tooltips, expandable criteria, light print with full evidence. Open «Comparar candidatos» on the pipeline.",
+      "previewUrl": "http://localhost:3000/empresa/vacantes/01a13ce2-ddaf-73e7-848c-367979b20ead/pipeline"
+    }
+  }
+}

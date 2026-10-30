@@ -1,12 +1,11 @@
 import type { ComparedCompetency, Competency, GuideQuestion, Invitation, Quality } from "./model";
+import { competencyCopy } from "./competency-copy";
 export const bandLabels = { "band.low": "Bajo", "band.medium": "Medio", "band.high": "Alto" } as const;
 export const importanceLabels = { "importance.clave": "Clave", "importance.importante": "Importante", "importance.no_relevante": "No relevante" } as const;
 export const fitLabels = { "fit.alineado": "Alineado", "fit.explorar": "Por explorar", "fit.atencion": "Foco de atención" } as const;
 export const tierLabels = { "tier.sin": "Sin señales", "tier.algunas": "Algunas señales", "tier.relevantes": "Señales relevantes" } as const;
 export const statusLabels: Record<Invitation["status"], string> = { created: "Enviado", in_progress: "En curso", finished: "Finalizado", expired: "Vencido", revoked: "Revocado" };
-export const competencyLabels: Record<Competency["competency_id"], string> = {
-  "comp.organizacion": "Orden para avanzar", "comp.compromisos": "Cuidado de acuerdos", "comp.coordinacion": "Impulso para coordinar", "comp.colaboracion": "Apoyo entre pares", "comp.exploracion": "Apertura a probar", "comp.deliberacion": "Pausa para decidir", "comp.presion": "Manejo de la presión",
-};
+export const competencyLabels = Object.fromEntries(Object.entries(competencyCopy).map(([id, copy]) => [id, copy.name])) as Record<Competency["competency_id"], string>;
 export const facetLabels = {
   "facet.c2": "Preferencia por el orden", "facet.c5": "Seguimiento de planes", "facet.c3": "Cumplimiento de compromisos", "facet.c4": "Esfuerzo por lograr objetivos", "facet.e3": "Iniciativa para dirigir", "facet.e1": "Acercamiento a otras personas", "facet.a3": "Disposición a ayudar", "facet.a4": "Trato sin confrontación", "facet.o4": "Preferencia por la variedad", "facet.o5": "Interés por ideas abstractas", "facet.c6": "Reflexión antes de actuar", "facet.e5": "Búsqueda de experiencias intensas", "facet.n1": "Anticipación de dificultades", "facet.n2": "Reacción ante contratiempos", "facet.n6": "Respuesta ante la presión",
 } as const;

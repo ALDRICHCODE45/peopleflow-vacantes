@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { BriefcaseBusiness } from "lucide-react";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import {
@@ -46,7 +46,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly DraftListRo
       data-pf-active-vacancies=""
       className="flex flex-col gap-4"
     >
-      <Card>
+      <Card {...(active.length === 0 ? { "data-pf-active-vacancies-empty": "" } : {})}>
       <CardHeader>
         <CardTitle><h2
           id={HEADING_ID}
@@ -64,10 +64,9 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly DraftListRo
       </CardHeader>
       <CardContent>
       {active.length === 0 ? (
-        <StateCard data-pf-active-vacancies-empty="" icon={BriefcaseBusiness} tone="empty" title="No hay vacantes activas"
-          description="Aquí verás los procesos de tus vacantes activas. Mientras tanto, revisa tus vacantes y prepara la siguiente publicación.">
-          <Link href="/empresa/vacantes" data-pf-active-vacancies-portfolio="" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Ver todas</Link>
-        </StateCard>
+        <SectionEmpty icon={BriefcaseBusiness} tone="empty" title="Todavía no hay vacantes activas"
+          description="Aquí verás tus procesos cuando publiques una vacante. Revisa tus vacantes para preparar la siguiente publicación."
+          primaryAction={{ label: "Ver mis vacantes", href: "/empresa/vacantes" }} />
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {active.map((vacancy) => {

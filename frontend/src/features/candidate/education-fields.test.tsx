@@ -11,6 +11,22 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { EducationFields } from "./education-fields";
 afterEach(cleanup);
+function EmptyStudies({ embedded }: { embedded: boolean }) {
+ const [value, setValue] = useState<EducationDraft[]>([]);
+ return <EducationFields embedded={embedded} value={value} onChange={setValue} issues={[]} />;
+}
+it.each([false, true])("explains empty education and adds the first editable study (embedded=%s)", async embedded => {
+ const { container } = render(<EmptyStudies embedded={embedded} />);
+ expect(screen.getByRole("heading", { level: 3, name: "Todavía no agregas tus estudios" })).toBeVisible();
+ expect(screen.getByText("Comparte tu formación para que las empresas conozcan tu perfil. Puedes agregar estudios terminados o en curso.")).toBeVisible();
+ expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+ expect(container.querySelector('[data-slot="empty-icon"] svg')).toHaveClass("lucide-graduation-cap");
+ await userEvent.setup().click(screen.getByRole("button", { name: "Agregar estudio" }));
+ expect(screen.getByRole("group", { name: "Estudio 1" })).toBeVisible();
+ expect(screen.getByLabelText("Institución")).toHaveValue("");
+ expect(screen.queryByRole("heading", { name: "Todavía no agregas tus estudios" })).toBeNull();
+ expect(screen.getAllByRole("button", { name: "Agregar estudio" })).toHaveLength(1);
+});
 it("keeps the default Card surface", () => {
  const { container } = render(<EducationFields value={[]} onChange={() => {}} issues={[]} />);
  expect(container.querySelector('[data-slot="card"]')).not.toBeNull();

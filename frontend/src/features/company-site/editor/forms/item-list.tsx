@@ -7,7 +7,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { SectionEmpty } from "@/components/feedback/state-card";
+import type { LucideIcon } from "lucide-react";
 import { FieldError } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +35,7 @@ function Row({ id, title, index, count, min, move, remove, children }: { id: str
 }
 /** Wire items have no ids. Local identities travel with the item on moves and
  * removals so disclosure, focus, and buffered fields don't attach to another item. */
-export function ItemList<T>({ items, onChange, create, summary, children, min, max, error }: { items: T[]; onChange: (items: T[]) => void; create: () => T; summary: (item: T, index: number) => string; children: (item: T, index: number) => ReactNode; min: number; max: number; error?: string }) {
+export function ItemList<T>({ items, onChange, create, summary, children, min, max, error, empty }: { empty?: { title: string; description: string; action: string; icon: LucideIcon };  items: T[]; onChange: (items: T[]) => void; create: () => T; summary: (item: T, index: number) => string; children: (item: T, index: number) => ReactNode; min: number; max: number; error?: string }) {
   const prefix = useId(); const serial = useRef(items.length);
   const [keys, setKeys] = useState(() => items.map((_, i) => `${prefix}-${i}`));
   const [open, setOpen] = useState<string[]>(() => keys.slice(0, 1));
@@ -58,10 +59,15 @@ export function ItemList<T>({ items, onChange, create, summary, children, min, m
     onChange(items.filter((_, i) => i !== index));
   }
   function drop({ active, over }: DragEndEvent) { if (over) move(ids.indexOf(String(active.id)), ids.indexOf(String(over.id))); }
+  function add() {
+    if (items.length >= max) return;
+    const key = `${prefix}-${serial.current++}`;
+    setKeys([...ids, key]); setOpen([key]); onChange([...items, create()]);
+  }
   return <div className="flex min-w-0 flex-col gap-3">
     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Para publicar: de {min} a {max} elementos.</p><Badge variant="secondary">{items.length}/{max}</Badge></div>
     {error && <FieldError>{error}</FieldError>}
-    {items.length === 0 ? <Empty><EmptyHeader><EmptyTitle>Cuenta más sobre tu empresa</EmptyTitle><EmptyDescription>Agrega tu primer elemento para empezar.</EmptyDescription></EmptyHeader></Empty> :
+    {items.length === 0 && empty ? <SectionEmpty icon={empty.icon} tone="info" title={empty.title} description={empty.description} primaryAction={{ label: empty.action, onClick: add, disabled: items.length >= max, "aria-describedby": `${prefix}-limit` }} /> :
       <DndContext sensors={sensors} onDragEnd={drop} accessibility={{ screenReaderInstructions: { draggable: "Arrastra desde la manija o usa Subir y Bajar en el menú de acciones." }, announcements: {
         onDragStart: ({ active }) => `Moviendo elemento ${ids.indexOf(String(active.id)) + 1}.`,
         onDragOver: ({ over }) => over ? `Destino: posición ${ids.indexOf(String(over.id)) + 1}.` : "Fuera de la lista.",
@@ -70,7 +76,7 @@ export function ItemList<T>({ items, onChange, create, summary, children, min, m
       } }}>
         <Accordion value={open} onValueChange={setOpen}>{items.map((item, index) => <Row key={ids[index]} id={ids[index]} title={summary(item, index)} index={index} count={items.length} min={min} move={move} remove={remove}>{children(item, index)}</Row>)}</Accordion>
       </DndContext>}
-    <Button type="button" variant="outline" className="min-h-10" disabled={items.length >= max} aria-describedby={`${prefix}-limit`} onClick={() => { if (items.length >= max) return; const key = `${prefix}-${serial.current++}`; setKeys([...ids, key]); setOpen([key]); onChange([...items, create()]); }}><Plus aria-hidden="true" data-icon="inline-start" />Agregar</Button>
+    {(items.length > 0 || !empty) && <Button type="button" variant="outline" className="min-h-10" disabled={items.length >= max} aria-describedby={`${prefix}-limit`} onClick={add}><Plus aria-hidden="true" data-icon="inline-start" />Agregar</Button>}
     <p id={`${prefix}-limit`} className="text-xs text-muted-foreground">{items.length >= max ? `Llegaste al límite de ${max} elementos.` : items.length <= min && items.length > 0 ? `Conserva al menos ${min} ${min === 1 ? "elemento" : "elementos"} para publicar.` : "Puedes cambiar el orden con la manija o desde el menú de cada elemento."}</p>
   </div>;
 }

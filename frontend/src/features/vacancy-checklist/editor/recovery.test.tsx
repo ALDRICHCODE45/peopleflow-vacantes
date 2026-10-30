@@ -42,10 +42,10 @@ it("conflict recovery reads once and replaces local work only on explicit reload
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, etag: '"fresh"', data: { ...baseline, version: "2", criteria: [{ ...baseline.criteria[0], label: "Actualizado por tu equipo" }] } });
   setup(); change();
   expect(await screen.findByText("Esto cambió en otro lugar")).toBeVisible();
-  expect(screen.getByText("Disponibilidad")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Seleccionar Disponibilidad" })).toBeVisible();
   expect(loadChecklistAction).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Cargar versión actual" }));
-  expect(await screen.findByText("Actualizado por tu equipo")).toBeVisible();
+  expect(await screen.findByRole("button", { name: "Seleccionar Actualizado por tu equipo" })).toBeVisible();
   expect(loadChecklistAction).toHaveBeenCalledTimes(1);
   expect(saveChecklistAction).toHaveBeenCalledTimes(1);
 });
@@ -56,7 +56,8 @@ it("keeps all four rows and attaches a stale question to row four, then focuses 
   const message = await screen.findByText("La pregunta ya no existe; quítala o cámbiala");
   expect(within(screen.getAllByRole("listitem")[3]).getByText(message.textContent!)).toBeVisible();
   expect(screen.getAllByRole("listitem")).toHaveLength(4);
-  await waitFor(() => expect(screen.getByRole("button", { name: "Editar Criterio 4" })).toHaveFocus());
+  await waitFor(() => expect(screen.getByRole("region", { name: "Detalle del criterio" })).toHaveFocus());
+  expect(screen.getByLabelText("Etiqueta")).toHaveValue("Criterio 4");
 });
 it("distinguishes duplicated questions from deleted questions", () => {
   expect(fieldErrors([{ field: "criteria[3].params.question_id", code: "duplicate" }]).rows[3]).toBe("Este criterio está repetido; quítalo o cámbialo");

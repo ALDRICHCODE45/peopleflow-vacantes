@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChecklistProvider, useBoardChecklist } from "@/features/vacancy-checklist/board/state";
-import { ChecklistFit, ChecklistPanel, ChecklistReminder, ChecklistComparison, ChecklistSelection, ChecklistRetry } from "@/features/vacancy-checklist/board/ui";
+import { ChecklistFitSummary, ChecklistFit, ChecklistPanel, ChecklistReminder, ChecklistComparison, ChecklistSelection, ChecklistRetry } from "@/features/vacancy-checklist/board/ui";
 import { loadChecklistAction, loadChecklistMarksAction, setChecklistMarkAction, clearChecklistMarkAction } from "../actions";
 import { boardFixture } from "@/features/pipeline-movement/board-fixture";
 import type { Checklist, Mark } from "../model";
@@ -173,6 +173,14 @@ it("draws one bar segment per required criterion, ordered cumple, no cumple, sin
   await waitFor(() => expect(within(fit).getByText("1/3 obligatorios")).toBeVisible());
   expect([...fit.querySelectorAll("[data-segment]")].map(segment => segment.getAttribute("data-segment"))).toEqual(["met", "not_met", "unknown"]);
   expect(fit).toHaveAccessibleName("Ajuste al checklist: Obligatorios 1/3 · Deseables 0/1 · 2 sin evaluar");
+});
+it("keeps ChecklistFit markup identical to the context-free summary presentation", async () => {
+  const { container } = render(<><ChecklistProvider vacancyId="vacancy"><ChecklistFit item={item} /></ChecklistProvider><section data-reference><ChecklistFitSummary fit={{ required: { met: 0, not_met: 0, unknown: 1 }, desirable: { met: 0, not_met: 0, unknown: 0 } }} /></section></>);
+  await waitFor(() => expect(screen.getAllByLabelText(/Ajuste al checklist/)).toHaveLength(2));
+  const fits = screen.getAllByLabelText(/Ajuste al checklist/);
+  expect(fits[0].innerHTML).toBe(fits[1].innerHTML);
+  expect(fits[0].className).toBe(fits[1].className);
+  expect(container.querySelectorAll('[data-segment="unknown"]')).toHaveLength(2);
 });
 it("keeps the bar to three proportional segments past 24 required criteria", async () => {
   vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { ...checklist, criteria: Array.from({ length: 30 }, (_, n) => ({ ...criterion, id: `c${n}`, label: `Criterio ${n}` })) } });

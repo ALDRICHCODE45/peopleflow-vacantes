@@ -43,6 +43,14 @@ it.each(["failure", "throw"])("does not download on contact %s and shows the C4 
  expect(downloadCandidateCsv).not.toHaveBeenCalled();
  await waitFor(() => expect(screen.getByRole("button", { name: "Exportar seleccionados" })).not.toBeDisabled());
 });
+it.each(["table", "cards"] as const)("gives a standalone empty %s the same talent recovery", view => {
+ const { container } = render(<CandidateResults items={[]} view={view} languages={languages} />);
+ expect(screen.getByRole("heading", { name: "Todavía no hay candidatos", level: 3 })).toBeVisible();
+ expect(screen.getByText("Tu base reúne a los candidatos de tu organización. Para agregar al primero, abre el tablero de una vacante.")).toBeVisible();
+ expect(screen.getByRole("link", { name: "Ir a mis vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+ expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+ expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
+});
 it("matches the approved row anatomy using primitive slots, including corrections and origin", () => {
   show({ ...candidate, corrected_fields: ["full_name"] } as OrgCandidate);
   const row = screen.getByText(candidate.full_name).closest('tr')!;

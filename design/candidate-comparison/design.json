@@ -1,0 +1,28 @@
+{
+  "title": "Comparar candidatos",
+  "brief": "R3 / S2: devolver profundidad y pertenencia a PeopleFlow a la comparación de Software Developer · Trust People Company. Tres estructuras distintas con una anatomía estable de tarjeta (identidad o icono, título y metadatos, una acción contextual, cuerpo y pie), barras segmentadas del checklist y cuatro candidatos. Conservar impresión/PDF, CSV completo, etapas, fuentes perfil/reclutador/respuesta, notas y orden por mejor ajuste exclusivamente del checklist. El checklist informa; no descarta ni mueve candidatos. Sin puntuaciones ni ranking psicométrico. Datos ilustrativos consistentes: Mariana 4/12 obligatorios, 1/4 deseables, 10 sin evaluar; Ana 0/12 y 16 sin evaluar. Los dos últimos deseables no son legibles en la captura y se muestran como Texto no disponible; el requisito de Docker conserva el corte visible. La redacción de experiencia Backend se recuperó de un test existente. Sin elección de artboard ni implementación de producto en esta entrega.",
+  "feature": "odd/tasks/redesign-psychometrics-ux.md",
+  "artboards": [
+    {
+      "file": "01-resumen-y-matriz.html",
+      "title": "Resumen y matriz",
+      "tradeoff": "La lectura más rápida para cruzar cuatro personas: resúmenes elevados y dos matrices compactas, con símbolos y leyenda en vez de repetir estados. Fuente y nota al enfocar o pasar el puntero; textos expandibles. Conserva densidad tabular y requiere scroll horizontal en pantallas angostas. La impresión revela la evidencia y el CSV siempre incluye todos los datos.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-tarjetas-lado-a-lado.html",
+      "title": "Tarjetas lado a lado",
+      "tradeoff": "Da contexto estable a cada persona y hace visibles fuentes y diferencias dentro de una única tarjeta por candidato. Solo diferencias reduce el ruido sin convertir lo desconocido en incumplimiento. Repite etiquetas y exige más recorrido vertical; al expandir un texto las filas pueden perder alineación. En móvil las personas se apilan; impresión y CSV conservan los 16 criterios aunque se filtre la vista.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-criterio-primero.html",
+      "title": "Criterio primero",
+      "tradeoff": "Organiza la siguiente verificación: una tarjeta por criterio distribuye a las personas entre cumple, no cumple y sin evaluar, con evidencia desplegable y filtros por grupo. Anatomía consistente y guía lateral, sin aspecto de documento plano. Excelente para preparar entrevistas; más larga y menos directa para seguir a una sola persona. Impresión y CSV incluyen todos los grupos, no solo el filtro visible.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}

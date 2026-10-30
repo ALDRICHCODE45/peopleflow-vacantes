@@ -1,13 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, CalendarDays, ClipboardList, Clock3, Copy, Send, ShieldX, UserRound } from "lucide-react";
+import { Bell, CalendarDays, ClipboardList, Clock3, Copy, Ellipsis, Send, ShieldX, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
-import { ActionBar, ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { plural } from "@/features/employer-vacancies/plural";
+import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { MovementDate } from "@/features/pipeline-movement/board-states";
@@ -113,25 +117,21 @@ export function InvitationPanel({ invitation, session, candidateName, stageName,
   const selected = session.confirmation && operations[session.confirmation];
   const blocked = locked || session.pending || session.uncertain || session.checking;
   const status = <ActionStatusSlot>{session.notice && <ActionStatus id="psychometric-invitation-status" tone={session.notice.tone} text={session.notice.text} action={session.notice.configuration && <Link className="inline-flex min-h-10 items-center underline" href={`/empresa/vacantes/${vacancyId}/configuracion/psicometria`}>Configurar psicometría</Link>} />}</ActionStatusSlot>;
-  function action(operation: Operation, primary = false) {
-    const { label, icon: Icon } = operations[operation];
-    return <Button type="button" variant={primary ? "default" : "outline"} className="min-h-10 shrink-0" disabled={blocked} aria-describedby="psychometric-invitation-status" onClick={() => session.setConfirmation(operation)}>{session.pending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <Icon aria-hidden="true" data-icon="inline-start" />}{label}</Button>;
-  }
-  return <div className="flex min-w-0 flex-col gap-6">
-    {!invitation ? <Empty><EmptyHeader><EmptyMedia variant="icon"><ClipboardList aria-hidden="true" /></EmptyMedia><EmptyTitle><h2 className="text-xl font-semibold">Aún no hay evaluación</h2></EmptyTitle><EmptyDescription>Crea la invitación y comparte el enlace. Podrás seguir el avance desde aquí, sin mover a {candidateName} de etapa.</EmptyDescription></EmptyHeader><EmptyContent>{action("send", true)}<p className="text-xs text-muted-foreground">Se crea una invitación, no se envía correo. Después podrás copiar el enlace. Disponible aunque no haya una etapa automática.</p></EmptyContent></Empty> : <>
-      <header className="flex flex-col gap-3"><Badge variant={invitation.status === "in_progress" ? "info" : invitation.status === "created" ? "accent" : "neutral"} dot>{statusLabels[invitation.status]}</Badge><h2 className="text-xl font-semibold">{invitation.status === "in_progress" ? "La evaluación está en marcha" : invitation.status === "created" ? "La evaluación está lista para compartir" : "El acceso está cerrado"}</h2><p className="text-sm text-muted-foreground">{invitation.answered_count} de {invitation.total_count} respuestas. {active ? "El resultado estará disponible cuando termine." : "La persona ya no puede continuar con esta invitación."}</p>{invitation.status === "in_progress" && <Progress aria-label="Preguntas respondidas" value={invitation.answered_count} max={invitation.total_count} />}</header>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+  return <div className="flex min-w-0 flex-col gap-3">
+    {!invitation ? <><SectionEmpty icon={ClipboardList} tone="info" title="Aún no hay evaluación" description={`Crea una invitación para conocer cómo ${candidateName} describe su forma de trabajar. Después podrás copiar y compartir el enlace, sin cambiarla de etapa.`} primaryAction={{ label: "Invitar a evaluación", disabled: blocked, "aria-describedby": "psychometric-invitation-status", onClick: () => session.setConfirmation("send") }} /><p className="text-center text-xs text-muted-foreground">No se envía correo. Tú compartes el enlace.</p></> : <>
+      <Item variant="outline" size="sm"><ItemContent><ItemTitle>Invitación · {statusLabels[invitation.status]}</ItemTitle><ItemDescription>{invitation.origin === "auto" ? "Automática" : "Manual"} · <MovementDate value={invitation.created_at} /> · {plural(invitation.reminder_count, "recordatorio", "recordatorios")}</ItemDescription></ItemContent><ItemActions>
+        <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de la invitación de ${candidateName}`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><DropdownMenuGroup>{(["copy", "remind", "revoke"] as const).map(operation => { const { label, icon: Icon } = operations[operation]; return <DropdownMenuItem key={operation} className="min-h-10" variant={operation === "revoke" ? "destructive" : "default"} disabled={!active || blocked} onClick={() => session.setConfirmation(operation)}><Icon aria-hidden="true" />{label}</DropdownMenuItem>; })}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
+      </ItemActions></Item>
+      {invitation.status !== "finished" && <header className="flex flex-col gap-3"><Badge variant={invitation.status === "in_progress" ? "info" : invitation.status === "created" ? "accent" : "neutral"} dot>{statusLabels[invitation.status]}</Badge><p className="text-sm text-muted-foreground">{invitation.status === "in_progress" && "En curso · "}{invitation.answered_count} de {invitation.total_count} respuestas. {active ? "El resultado estará disponible cuando termine." : "La persona ya no puede continuar con esta invitación."}</p>{invitation.status === "in_progress" && <Progress aria-label="Preguntas respondidas" value={invitation.answered_count} max={invitation.total_count} />}</header>}
+      {!active && <p className="text-xs text-muted-foreground">El acceso está cerrado. Copiar enlace, recordar y revocar solo están disponibles para invitaciones activas.</p>}
+      <Accordion><AccordionItem value="invitation"><AccordionTrigger>Detalles de la invitación</AccordionTrigger><AccordionContent><dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
         <dt className="flex items-center gap-2 text-xs text-muted-foreground"><UserRound aria-hidden="true" className="size-4" />Creación</dt><dd className="text-right">{invitation.origin === "auto" ? `Automática${invitation.trigger_stage_id ? ` · al entrar a ${stageName(invitation.trigger_stage_id)}` : ""}` : `Manual${invitation.created_by ? ` · ${invitation.created_by.full_name}` : ""}`}</dd>
         <dt className="flex items-center gap-2 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-4" />Invitación</dt><dd className="text-right"><MovementDate value={invitation.created_at} withTime /></dd>
         <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 aria-hidden="true" className="size-4" />Vigencia</dt><dd className="text-right">Hasta <MovementDate value={invitation.expires_at} withTime /></dd>
         <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Bell aria-hidden="true" className="size-4" />Último recordatorio</dt><dd className="text-right">{invitation.last_reminded_at ? <MovementDate value={invitation.last_reminded_at} withTime /> : "Sin recordatorios"}</dd>
-      </dl>
-      <p className="text-xs text-muted-foreground">No se envió correo. Comparte el enlace por tu canal habitual. Crear otra invitación no duplica una que siga activa.</p>
-      {active && <section className="flex flex-col gap-4" aria-labelledby="psychometric-manage-title"><h3 id="psychometric-manage-title" className="text-base font-semibold">Gestionar invitación</h3><aside role="note" className="rounded-lg border-l-2 border-primary bg-primary/[0.06] p-4 text-sm"><strong>El enlace anterior deja de funcionar</strong><p>Al copiar o recordar se genera un enlace nuevo. El avance se conserva y la fecha de vencimiento no cambia.</p></aside>
-        {(["copy", "remind", "revoke"] as const).map(operation => <div key={operation} className="border-b pb-4"><ActionBar status={<div><h4 className="text-sm font-medium">{operation === "copy" ? "Comparte el acceso" : operation === "remind" ? "Registra un recordatorio" : "Cierra el acceso"}</h4><p className="text-xs text-muted-foreground">{operation === "copy" ? "Obtén un enlace nuevo para esta evaluación." : operation === "remind" ? "Queda en el historial y copia un enlace nuevo. Tú lo compartes; no se envía correo." : "Revocar impide continuar por enlace o cuenta."}</p>{session.notice?.operation === operation && <ActionStatus id="psychometric-invitation-status" tone={session.notice.tone} text={session.notice.text} />}</div>}>{action(operation, operation === "copy")}</ActionBar></div>)}
-      </section>}
+      </dl><p className="text-xs text-muted-foreground">No se envió correo. Comparte el enlace por tu canal habitual. Crear otra invitación no duplica una que siga activa.</p></AccordionContent></AccordionItem></Accordion>
     </>}
-    {(!invitation || !active) && status}
+    {status}
     {session.uncertain && <Button type="button" variant="outline" className="min-h-10 self-start" disabled={session.checking || session.pending} onClick={session.check}>{session.checking && <Spinner aria-hidden="true" data-icon="inline-start" />}Comprobar invitación</Button>}
     {selected && <ConfirmActionDialog open onOpenChange={open => { if (!open) session.setConfirmation(null); }} icon={selected.icon} title={`${selected.title} para ${candidateName}?`} description={selected.description} confirmLabel={selected.label} pendingLabel="Procesando…" pending={session.pending} confirmDisabled={locked || session.uncertain} tone={session.confirmation === "revoke" ? "destructive" : "default"} onConfirm={() => void session.execute()}>
       <dl className="grid grid-cols-2 gap-3 text-sm"><dt className="flex items-center gap-2 text-muted-foreground"><UserRound aria-hidden="true" className="size-4" />Persona</dt><dd>{candidateName}</dd>{invitation && <><dt className="flex items-center gap-2 text-muted-foreground"><ClipboardList aria-hidden="true" className="size-4" />Evaluación</dt><dd>{statusLabels[invitation.status]}</dd></>}</dl>

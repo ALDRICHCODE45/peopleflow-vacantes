@@ -1,0 +1,28 @@
+{
+  "title": "Competencias claras",
+  "brief": "Nombres cotidianos y ayuda breve bajo demanda para configurar el perfil psicométrico y consultar la ficha del candidato. Propuesta editorial para aprobar; no modifica el producto ni el contenido versionado.",
+  "feature": "odd/tasks/psychometric-competency-clarity.md",
+  "artboards": [
+    {
+      "file": "01-configuracion.html",
+      "title": "Configuración · Lista maestra y detalle",
+      "tradeoff": "Conserva la estructura elegida y agrega ayuda en botones independientes de 40 px. El popover de ejemplo inicia abierto solo para revisión; los textos no ocupan espacio permanente. Pregunta: ¿se aprueban los siete nombres y las cinco ayudas de campos?",
+      "width": 1440,
+      "height": 1508
+    },
+    {
+      "file": "02-ficha-candidato.html",
+      "title": "Ficha del candidato · Resumen compacto",
+      "tradeoff": "Mantiene la ficha de 560 px y nombres completos, con una línea adicional si es necesaria. El popover puede cubrir filas mientras se consulta. Pregunta: ¿los nombres Trabajo en equipo y Trabajo bajo presión se entienden con el límite que explica la ayuda?",
+      "width": 1440,
+      "height": 1250
+    },
+    {
+      "file": "03-nombres.html",
+      "title": "Nombres y textos · Mesa editorial",
+      "tradeoff": "Expone todos los textos solo en esta mesa de aprobación, fuera de la interfaz del producto. Facilita comparar significados, pero no representa la densidad real de las pantallas. Pregunta: ¿nombre propuesto o alternativa en cada fila?",
+      "width": 1440,
+      "height": 1150
+    }
+  ]
+}

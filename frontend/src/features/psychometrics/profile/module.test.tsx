@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -5,6 +6,11 @@ import { VacancyPsychometricsModule } from "./index";
 import { loadProfileAction, saveProfileAction } from "../actions";
 import { COMPETENCY_IDS, type Profile } from "../model";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
+// Avoid Base UI portal positioning in jsdom; product controls stay real.
+vi.mock("@/components/ui/popover", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/components/ui/popover")>();
+  return { ...actual, PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>, PopoverTitle: ({ children }: { children: ReactNode }) => <h5>{children}</h5> };
+});
 vi.mock("../actions", () => ({ loadProfileAction: vi.fn(), saveProfileAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
@@ -19,7 +25,8 @@ it("loads profile and current progression stages on mount, never exit or retired
   expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull(); expect(screen.getByRole("status")).toHaveTextContent("Cargando perfil psicométrico");
   expect(await screen.findByRole("heading", { name: "Psicometría" })).toBeVisible();
   expect(loadProfileAction).toHaveBeenCalledWith("vacancy"); expect(loadDraftPipelineAction).toHaveBeenCalledWith("vacancy");
-  expect(screen.getByRole("checkbox", { name: "Nuevos" })).not.toBeChecked();
+  fireEvent.click(screen.getByRole("button", { name: "Crear invitación al entrar a estas etapas" }));
+  expect(await screen.findByRole("checkbox", { name: "Nuevos" })).not.toBeChecked();
   expect(screen.queryByRole("checkbox", { name: "Retirada" })).not.toBeInTheDocument(); expect(screen.queryByRole("checkbox", { name: "Descartados" })).not.toBeInTheDocument(); expect(saveProfileAction).not.toHaveBeenCalled();
 });
 it("uses the shared section error and retries reads only on request", async () => {

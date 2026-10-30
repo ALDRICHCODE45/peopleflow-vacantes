@@ -1,0 +1,41 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { CandidateSheet } from "./candidate-sheet";
+import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
+import { ChecklistProvider } from "@/features/vacancy-checklist/board/state";
+import { loadChecklistAction, loadChecklistMarksAction } from "@/features/vacancy-checklist/actions";
+import { loadHistoryAction, loadParticipationAction } from "./actions";
+vi.mock("./actions", () => ({ loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn() }));
+vi.mock("@/features/vacancy-checklist/actions", () => ({ loadChecklistAction: vi.fn(), loadChecklistMarksAction: vi.fn() }));
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({}) }));
+beforeEach(() => {
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detailFixture() });
+  vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: historyFixture() });
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { version: "1", criteria: [], reminder_stage_ids: [] } });
+  vi.mocked(loadChecklistMarksAction).mockResolvedValue({ ok: true, data: { items: [] } });
+});
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+it("preserves the populated checklist panel and mark controls", async () => {
+  vi.mocked(loadChecklistAction).mockResolvedValue({ ok: true, data: { version: "1", criteria: [{ id: "criterion", kind: "manual", params: {}, label: "Entrevista", importance: "required" }], reminder_stage_ids: [] } });
+  const board = boardFixture();
+  render(<ChecklistProvider vacancyId={vacancyId}><CandidateSheet vacancyId={vacancyId} item={board.participations[0]} board={board} onClose={() => {}} /></ChecklistProvider>);
+  fireEvent.click(await screen.findByRole("tab", { name: "Checklist" }));
+  expect(await screen.findByRole("region", { name: "Checklist del candidato" })).toBeVisible();
+  expect(screen.getByText("Evaluación interna. Las marcas del reclutador prevalecen sobre el resultado automático.")).toBeVisible();
+  expect(screen.getByText("Obligatorios 0/1 · 1 sin evaluar")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Marcar cumple: Entrevista" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Marcar no cumple: Entrevista" })).toBeEnabled();
+  expect(screen.queryByText("Esta vacante todavía no tiene criterios")).not.toBeInTheDocument();
+});
+it.each([false, true])("keeps empty checklist discoverable (readOnly=%s)", async readOnly => {
+  const board = boardFixture();
+  if (readOnly) board.lifecycle.process = "finished";
+  render(<ChecklistProvider vacancyId={vacancyId} readOnly={readOnly}><CandidateSheet vacancyId={vacancyId} item={board.participations[0]} board={board} onClose={() => {}} /></ChecklistProvider>);
+  fireEvent.click(await screen.findByRole("tab", { name: "Checklist" }));
+  const heading = await screen.findByRole("heading", { name: "Esta vacante todavía no tiene criterios", level: 3 });
+  expect(heading.closest('[data-slot="empty"]')?.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(screen.getByText(readOnly ? "El proceso finalizó. El checklist está en solo lectura." : "Define qué revisar en cada candidato con un checklist interno. No rechaza ni mueve personas automáticamente.")).toBeVisible();
+  expect(screen.getByRole("link", { name: readOnly ? "Ver checklist" : "Agregar criterio" })).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/configuracion/checklist`);
+  if (readOnly) expect(screen.queryByRole("link", { name: "Agregar criterio" })).not.toBeInTheDocument();
+});
