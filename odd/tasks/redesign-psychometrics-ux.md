@@ -103,3 +103,21 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 - **L12** Native review (RDD on), one slice per work unit in detached `.review/` worktrees: R2 d0a4c42f
   (review-51ae501d1ee0d28d, approved; advisory R3-001 candidate-sheet.tsx:52 focus restoration on expand/collapse →
   follow-up) and R4 53a0967a (review-9ef6225578090431, approved, clean). Both acknowledged; worktrees removed.
+- **L13** R5 / S3 directions authored in `design/candidate-applications/`: `01-lista-con-estado.html`
+  (scannable independent rows, public-state timeline and next action), `02-tarjetas-con-progreso.html`
+  (two-column cards grouped En proceso / En revisión / Enviadas / Cerradas, integrated evaluation), and
+  `03-pendientes-primero.html` (attention cards before a compact complete history). Manifest: `design.json`, title
+  «Mis postulaciones», linked to this feature; each direction records its tradeoff. All target 1440×900 and adapt to
+  390×844. L6 retained: elevated card on muted foundation, icon + identity + meta + state, body, consistent footnote/
+  contextual action; no flat document, internal recruitment stages or candidate-facing psychometric results.
+  Current-page read-only references captured with the candidate helper under `/tmp/t12qa/r5/`:
+  `current-desktop-1440x900.png` and `current-mobile-390x844.png` (both full page). Requested five-case sample and
+  3/63 progress are illustrative; the current session has two applications and 10/63. R6 contract caveat recorded in
+  the manifest: live API exposes Enviada / En proceso / Finalizada, whereas En revisión / Contratada / Rechazada,
+  local unread messages and historical nullable links belong to the portfolio model; no API expansion authorized.
+  Self-check: only `design/system.md` colors, tints, radius/shadow recipes and system UI fallback; semantic lists,
+  landmarks, visible focus, ≥40px controls and reduced-motion rules. Chrome checked all three at both widths:
+  no horizontal overflow, one h1/main, no external assets or JS errors; accent-insensitive search, empty/clear and
+  applicable status filters passed. Product actions remain enabled/inert, with historical entries unlinked.
+  Design-only work: no meaningful production RED/GREEN; frontend untouched, no commit. Canvas tool unavailable:
+  parent opens `/gentle:design open candidate-applications`; no direction chosen and R6 remains pending.
