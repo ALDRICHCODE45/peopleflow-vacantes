@@ -6,6 +6,20 @@ import { MovementBoard } from "./board";
 import { boardFixture, detailFixture, historyFixture } from "./board-fixture";
 import { loadBoardAction, loadParticipationAction, loadHistoryAction, moveParticipationAction } from "./actions";
 import { loadChecklistAction, loadChecklistMarksAction } from "@/features/vacancy-checklist/actions";
+// Match delivery-config's context-backed Select boundary; preserve product values/options.
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  type Value = { value: string; items: { value: string; label: string }[]; change: (value: string) => void };
+  const Context = React.createContext<Value>({ value: "", items: [], change: () => {} });
+  return {
+    Select: ({ value, items, onValueChange, children }: Value & { onValueChange: Value["change"]; children: React.ReactNode }) => <Context.Provider value={{ value, items, change: onValueChange }}>{children}</Context.Provider>,
+    SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) => <button role="combobox" aria-expanded="true" aria-controls="board-sort-options" {...props}>{children}</button>,
+    SelectValue: () => { const context = React.useContext(Context); return context.items.find(item => item.value === context.value)?.label; },
+    SelectContent: ({ children }: { children: React.ReactNode }) => <div role="listbox" id="board-sort-options">{children}</div>,
+    SelectGroup: ({ children }: { children: React.ReactNode }) => <div role="group">{children}</div>,
+    SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => { const context = React.useContext(Context); return <button role="option" aria-selected={context.value === value} onClick={() => context.change(value)}>{children}</button>; },
+  };
+});
 vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadParticipationAction: vi.fn(), loadHistoryAction: vi.fn(), moveParticipationAction: vi.fn() }));
 // Only the menu portal boundary is replaced; real board confirmation and moves remain.
 vi.mock("./candidate-menu", () => ({ CandidateMenu: ({ item, targets, onMove }: { item: { id: string }; targets: { id: string; name: string }[]; onMove: (id: string, target: string) => void }) => <>{targets.map(target => <button key={target.id} onClick={() => onMove(item.id, target.id)}>Mover {item.id} a {target.name}</button>)}</> }));
@@ -85,11 +99,11 @@ it("integrates card fit and stable best-fit ordering in columns", async () => {
   expect(await screen.findByText("1/1 obligatorios")).toBeVisible();
   const column = screen.getByRole("region", { name: "Candidatos en Entrada" });
   const toolbar = screen.getByRole("group", { name: "Filtros del pipeline" });
-  const sort = within(toolbar).getByRole("button", { name: "Ordenar: Mejor ajuste" });
-  expect(sort).toHaveAttribute("aria-pressed", "false");
-  expect(sort.parentElement).toHaveClass("min-w-0", "flex-wrap");
+  const sort = within(toolbar).getByRole("combobox", { name: "Orden" });
+  expect(sort).toHaveTextContent("Orden: Llegada");
   fireEvent.click(sort);
-  expect(sort).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(await screen.findByRole("option", { name: "Mejor ajuste (checklist)" }));
+  expect(sort).toHaveTextContent("Orden: Mejor ajuste");
   expect(within(column).getAllByRole("listitem").map(row => row.textContent)).toEqual([expect.stringContaining("Beatriz"), expect.stringContaining("Ana"), expect.stringContaining("Carlos")]);
 });
 it.each([ ["Cumple todos los obligatorios", "Beatriz"], ["Con obligatorios sin evaluar", "Ana Pérez"], ["No cumple algún obligatorio", "Carlos"] ])("integrates %s with counts", async (option, candidate) => {
