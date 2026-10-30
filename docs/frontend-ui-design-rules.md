@@ -1428,6 +1428,27 @@ y acciones alternativas cuando hagan falta.
 - **Tono del ícono:** error y sin permiso usan `destructive/10`; vacíos y no encontrado usan
   `muted`; información (en borrador, pendiente) usa `primary/10`.
 
+### 22.1 Vacíos dentro de una tarjeta, sin resultados y nada seleccionado
+
+Origen (usuario, 2026-10-30): «es importante cubrir de buena manera todos los posibles estados de
+la ui […] no se ve el empty state, y eso si es sumamente importante porque los usuarios nuevos van a
+caer en ese estado». Estándar completo y variantes: `design/system.md` («Empty states»); propuestas
+aprobadas por pantalla: `design/empty-states/`.
+
+- **Tres estados, siempre:** cargando (skeleton), con contenido y vacío. Toda pantalla, pestaña,
+  panel o lista que la persona gestiona diseña su vacío; nunca desaparece en silencio ni queda en
+  un párrafo suelto.
+- **Con qué:** una pantalla o sección completa usa `StateCard`; una tarjeta, pestaña, sección de
+  ficha o panel de detalle que ya vive dentro de una `Card` usa `SectionEmpty` (mismo archivo):
+  la misma anatomía sin `Card` anidada, `py-8`, título 16/600 con nivel 3 por defecto.
+- **Sin resultados:** ícono `SearchX`/`FilterX`, título «Sin resultados», la descripción cita la
+  búsqueda solo si no está vacía (si no, nombra el filtro) y la acción es «Limpiar filtros».
+  Nunca se ofrece «Limpiar filtros» cuando no hay filtro ni búsqueda activos: eso es un vacío real.
+- **Nada seleccionado:** ícono del objeto de la lista, instrucción «Selecciona … para verlo aquí»,
+  sin botón.
+- **Excepciones compactas** (texto permitido): placeholder de columna del tablero (§13.12/14),
+  «Sin dato» de un campo, «Sin coincidencias.» de un combobox y avisos dentro de un formulario.
+
 ## 23. Diálogos dentro de otras superficies modales
 
 Origen (usuario, 2026-10-20): «no hay ese fondo blurreado que pone shadcn en este tipo de

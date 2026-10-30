@@ -98,9 +98,9 @@ filter or search is actually active, never on a truly empty catalog.
 | Variant | When | Composition |
 | --- | --- | --- |
 | Page / section | A whole screen or a page section has no data yet | `StateCard` (Card + Empty, py-10), tone `empty` or `info` |
-| In a card | A card, tab or sheet section is empty while the rest of the page has content | `Empty` inside the card body (py-8), same anatomy, smaller title (16/600); never a bare paragraph |
-| No results | Filter or search returns nothing | `Empty` with `SearchX`/`FilterX` icon, title «Sin resultados», description quotes the non-empty query or names the filters, action «Limpiar filtros» |
-| Nothing selected | Master-detail with no selection | `Empty` in the detail panel: icon of the list subject, instruction «Selecciona … para verlo aquí», no button |
+| In a card | A card, tab or sheet section is empty while the rest of the page has content | `SectionEmpty` (same file as `StateCard`): `Empty` inside the card body (py-8), same anatomy, smaller title (16/600, heading level 3); never a bare paragraph |
+| No results | Filter or search returns nothing | `SectionEmpty` (or `StateCard` for a whole page) with `SearchX`/`FilterX` icon, title «Sin resultados», description quotes the non-empty query or names the filters, action «Limpiar filtros» |
+| Nothing selected | Master-detail with no selection | `SectionEmpty` in the detail panel: icon of the list subject, instruction «Selecciona … para verlo aquí», no button |
 | Compact (exception) | Board columns (dashed 96px placeholder, §13.12/14), field-level «Sin dato», combobox «Sin coincidencias.», form notices | Text allowed; these are the only plain-text empties |
 
 A section never disappears silently when its emptiness is meaningful to the person (a tab, a panel, a list the
