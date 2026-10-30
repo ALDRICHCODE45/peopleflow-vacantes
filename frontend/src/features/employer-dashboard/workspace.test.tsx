@@ -55,7 +55,7 @@ it("shows honest empty states", async () => {
   mocks.drafts.mockReturnValue({ ...drafts, items: [] });
   render(<DashboardWorkspace />);
   expect(await screen.findByText("Sin candidatos")).toBeInTheDocument();
-  expect(screen.getByText("No hay vacantes activas")).toBeInTheDocument();
+  expect(screen.getByText("Todavía no hay vacantes activas")).toBeInTheDocument();
 });
 it("retries both reads only after an explicit request", async () => {
   mocks.load.mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
@@ -76,7 +76,7 @@ it("does not imply a failed vacancy read is an empty company", async () => {
   mocks.drafts.mockReturnValue({ ...drafts, failure: { ok: false, reason: "no_response", reference: {} } });
   render(<DashboardWorkspace />);
   expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el dashboard");
-  expect(screen.queryByText("No hay vacantes activas")).toBeNull();
+  expect(screen.queryByText("Todavía no hay vacantes activas")).toBeNull();
 });
 it("reports the existing list cap rather than implying a complete active panel", async () => {
   mocks.drafts.mockReturnValue({ ...drafts, capped: true });
