@@ -37,7 +37,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
 | R6 | S3 | worker — implement design/candidate-applications/04-bandeja-compacta.html (chosen) with the real API statuses | b5b94f73 |
 | R7 | S4 | design directions: psychometric profile configuration without a long flat form | |
 | R8 | S4 | worker — implement design/psychometric-profile-config/03-lista-maestra-detalle.html (chosen) | 38e8c7f7 |
-| R9 | S5 | design + implement checklist configuration | |
+| R9 | S5 | design + implement checklist configuration | 6ac9a4fb |
 | R10 | S6 | worker — sort control with visible state, explanation and unchanged-order feedback | e434a6fc |
 
 ## Log
@@ -163,3 +163,6 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   route, tsc 0, eslint clean. Browser QA not done: dev server compile 445–930 s under load (page stuck on spinner).
   Native review review-5af0b318c07384a1 blocked: first capture native timeout, relaunch pi-host-relay-timeout
   (967902 ms > 956620 ms limit). Needs user decision.
+- **L24** User: «mejor intentemoslo de nuevo con este mismo limite». Retry with the same relay limit succeeded: review
+  review-5af0b318c07384a1 approved and acknowledged; advisory R2-001 (readability, criterion-dialog.tsx:55-59, the
+  automatic-label heuristic) → follow-up. R9 row → 6ac9a4fb.
