@@ -44,11 +44,30 @@ describe("DraftQuestionnairePreview empty state", () => {
       screen.getByRole("heading", { name: "Simular cuestionario" }),
     ).toBeInTheDocument();
     expect(screen.getByText(LOCAL_NOTICE)).toBeInTheDocument();
-    expect(screen.getByText("Todavía no hay preguntas")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Todavía no hay preguntas", level: 3 })).toBeVisible();
+    expect(screen.getByText("Puedes agregarlas en Preguntas de filtro del editor")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Editar preguntas" })).toBeNull();
+    expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+    expect(container.querySelector('.lucide-message-square')).not.toBeNull();
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
     expect(container.querySelector("form")).toBeNull();
     expect(container.querySelector('[data-slot="questionnaire"]')).toBeNull();
     expect(screen.queryByText(/^Pregunta \d+ de \d+$/)).toBeNull();
   });
+});
+
+it("offers editing only through the supplied callback", async () => {
+  const edit = vi.fn();
+  const { container } = render(<DraftQuestionnairePreview questions={[]} onEditQuestions={edit} />);
+  expect(screen.getByRole("heading", { name: "Todavía no hay preguntas", level: 3 })).toBeVisible();
+  expect(screen.getByText("Agrega preguntas para ver cómo las respondería una persona al postular. La simulación estará disponible cuando tengas al menos una.")).toBeVisible();
+  expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-primary/10");
+  expect(container.querySelector('.lucide-message-square')).not.toBeNull();
+  const action = screen.getByRole("button", { name: "Editar preguntas" });
+  expect(action).toHaveClass("bg-primary", "min-h-10");
+  await userEvent.setup().click(action);
+  expect(edit).toHaveBeenCalledOnce();
+  expect(container.querySelector("form")).toBeNull();
 });
 
 describe("DraftQuestionnairePreview simulation", () => {

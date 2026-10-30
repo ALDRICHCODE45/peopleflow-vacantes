@@ -1,17 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { LockIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LockIcon, MessageSquare } from "lucide-react";
+import { SectionEmpty } from "@/components/feedback/state-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import {
   Questionnaire,
   QuestionnaireActions,
@@ -51,7 +44,7 @@ const LOCAL_NOTICE = "Vista previa local. Tus respuestas no se envían ni se gua
 const RESET_NOTICE = "Al editar las preguntas, la simulación se reinicia.";
 const EMPTY_TITLE = "Todavía no hay preguntas";
 const EMPTY_DESCRIPTION =
-  "Agrega preguntas para simular cómo las respondería una persona candidata.";
+  "Agrega preguntas para ver cómo las respondería una persona al postular. La simulación estará disponible cuando tengas al menos una.";
 
 /**
  * The installed primitive keeps `sm:min-h-0` on its own controls, so its
@@ -104,15 +97,10 @@ export function DraftQuestionnairePreview({
       </CardHeader>
       <CardContent>
       {questions.length === 0 ? (
-        <Empty>
-          <EmptyHeader className="max-w-md">
-            <EmptyTitle className="text-xl font-semibold">{EMPTY_TITLE}</EmptyTitle>
-            <EmptyDescription>{EMPTY_DESCRIPTION}</EmptyDescription>
-          </EmptyHeader>
-          {onEditQuestions && <EmptyContent>
-            <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" onClick={onEditQuestions}>Editar preguntas</Button>
-          </EmptyContent>}
-        </Empty>
+        <SectionEmpty icon={MessageSquare} tone="info" title={EMPTY_TITLE}
+          description={onEditQuestions ? EMPTY_DESCRIPTION : "Puedes agregarlas en Preguntas de filtro del editor"}
+          primaryAction={onEditQuestions ? { label: "Editar preguntas", onClick: onEditQuestions } : undefined}
+        />
       ) : (
         <QuestionnaireSimulation key={fingerprint} questions={questions} />
       )}

@@ -77,6 +77,43 @@ it("shows all six dimensions, location help, live count, active value count and 
   expect(panel.querySelector('[data-slot="sheet-footer"] [role="status"]')).toHaveTextContent("3 vacantes coinciden");
   expect(document.querySelector('[data-slot="sheet-trigger"]')).toHaveTextContent(/^Filtros$/);
 });
+it("offers the real catalog when the company has no jobs", () => {
+  const { container } = render(<CompanyJobs jobs={[]} />);
+  expect(screen.getByRole("heading", { name: "Por ahora no hay vacantes abiertas", level: 2 })).toBeVisible();
+  expect(screen.getByText("Las nuevas oportunidades de esta empresa aparecerán aquí cuando se publiquen. Mientras tanto, puedes explorar el catálogo de PeopleFlow.")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Explorar vacantes en PeopleFlow" })).toHaveAttribute("href", "/vacantes");
+  expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
+  expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  expect(container.querySelector('.lucide-briefcase')).not.toBeNull();
+});
+it("quotes only a non-empty search and clearing restores jobs", () => {
+  const { container } = render(<CompanyJobs jobs={jobs} />);
+  const search = screen.getByRole("textbox", { name: "Buscar por título" });
+  fireEvent.change(search, { target: { value: "  inexistente  " } });
+  expect(screen.getByRole("heading", { name: "Sin resultados", level: 2 })).toBeVisible();
+  expect(screen.getByText("No encontramos vacantes para «inexistente». Limpia los filtros para ver las oportunidades de esta empresa.")).toBeVisible();
+  expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  expect(container.querySelector('.lucide-search-x')).not.toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  expect(search).toHaveValue("");
+  expect(screen.getByRole("link", { name: jobs[0].title })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
+});
+it("names active dimensions without quoting a blank search and clears them", () => {
+  render(<CompanyJobs jobs={jobs} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Buscar por título" }), { target: { value: "   " } });
+  fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+  const panel = screen.getByRole("dialog");
+  fireEvent.click(within(panel).getByRole("option", { name: "Ingeniería" }));
+  fireEvent.click(within(panel).getByRole("option", { name: "Remoto" }));
+  fireEvent.click(within(panel).getByRole("button", { name: "Ver resultados" }));
+  expect(screen.getByRole("heading", { name: "Sin resultados", level: 2 })).toBeVisible();
+  expect(screen.getByText("No hay vacantes que coincidan con el área «Ingeniería» y la modalidad «Remoto». Limpia los filtros para ver las oportunidades de esta empresa.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  for (const job of jobs) expect(screen.getByRole("link", { name: job.title })).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "Buscar por título" })).toHaveValue("");
+  expect(screen.getByRole("button", { name: "Filtros" })).toBeVisible();
+});
 it.each(["list", "cards", "by_area"] as const)("%s links lift above siblings with visible branded hover/focus and a trailing arrow", variant => {
   render(<CompanyJobs jobs={jobs} variant={variant} />);
   for (const job of jobs) {
