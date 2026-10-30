@@ -49,3 +49,8 @@ backend content change.
   02-ficha-candidato (same pattern in the sheet), 03-nombres (old → proposed → popover text, one alternative name per
   competency). Checks: 27 triggers, keyboard/Escape/click-outside, one popover at a time, zero console errors. Awaiting
   the user's choice of names and copy.
+- **L5** User (verbatim): «1. la alternativa hermano. 2. asi estan bien.» → final names (alternative column of
+  03-nombres): comp.organizacion «Planificación y seguimiento», comp.compromisos «Seguimiento de acuerdos»,
+  comp.coordinacion «Coordinación del trabajo», comp.colaboracion «Colaboración en equipo», comp.exploracion
+  «Exploración de alternativas», comp.deliberacion «Revisión antes de decidir», comp.presion «Manejo de presión
+  laboral». Popover texts (7 competencies + common footer + 5 fields) approved as written in the board.
