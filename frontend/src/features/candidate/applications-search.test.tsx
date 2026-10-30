@@ -31,10 +31,11 @@ it("explains an empty search and clears it", async () => {
   render(<ApplicationsWorkspace />);
   const search = await screen.findByRole("searchbox", { name: "Buscar por puesto o empresa" });
   fireEvent.change(search, { target: { value: "zzz" } });
-  expect(screen.getByText("Ninguna postulación coincide con «zzz».")).toBeVisible();
-  const clear = screen.getByRole("button", { name: "Limpiar búsqueda" });
+  expect(screen.getByRole("heading", { level: 3, name: "Sin resultados" })).toBeVisible();
+  expect(screen.getByText("Ninguna de las postulaciones cargadas coincide con «zzz». Limpia los filtros para verlas de nuevo.")).toBeVisible();
+  const clear = screen.getByRole("button", { name: "Limpiar filtros" });
   expect(clear).toHaveClass("bg-primary", "w-full", "sm:w-auto");
-  expect(screen.getByText("Ninguna postulación coincide con «zzz».").closest('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+  expect(screen.getByRole("heading", { name: "Sin resultados" })).toHaveClass("text-base", "font-semibold");
   fireEvent.click(clear);
   expect(search).toHaveValue("");
   expect(within(screen.getByRole("list")).getAllByRole("listitem")).toHaveLength(2);

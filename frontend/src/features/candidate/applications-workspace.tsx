@@ -1,15 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Briefcase, CircleAlert, Search } from "lucide-react";
+import { Briefcase, CircleAlert, Search, SearchX } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";
@@ -93,7 +92,9 @@ export function ApplicationsWorkspace() {
         </div>
         {data.next_cursor && <p className="text-sm text-muted-foreground">{needle !== "" ? "La búsqueda cubre las postulaciones cargadas. Carga más para buscar en el resto." : "Los conteos cubren las postulaciones cargadas. Carga más para consultar el resto."}</p>}
       </>}
-      {!!data?.items.length && visible.length === 0 && <Empty><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold">Ninguna postulación coincide con «{query.trim()}».</EmptyTitle><EmptyDescription>Prueba con otro puesto o empresa, o limpia la búsqueda para ver tus postulaciones cargadas.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row sm:justify-center"><Button className="min-h-10 w-full sm:w-auto" onClick={() => { setQuery(""); setFilter("all"); }}>Limpiar búsqueda</Button></EmptyContent></Empty>}
+      {!!data?.items.length && visible.length === 0 && <SectionEmpty icon={SearchX} tone="empty" title="Sin resultados"
+        description={query.trim() ? `Ninguna de las postulaciones cargadas coincide con «${query.trim()}». Limpia los filtros para verlas de nuevo.` : `No hay postulaciones cargadas con el filtro «${filters.find(option => option.value === filter)!.label}». Limpia los filtros para volver a ver tu lista.`}
+        primaryAction={{ label: "Limpiar filtros", onClick: () => { setQuery(""); setFilter("all"); } }} />}
       {visible.length > 0 && <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_368px]">
         <div className="flex min-w-0 flex-col gap-3"><p role="status" className="text-xs text-muted-foreground">{visible.length === 1 ? "1 postulación" : `${visible.length} postulaciones`}</p><ul aria-label="Mis postulaciones" className="grid gap-2">{visible.map(item => <li key={item.id} className="min-w-0"><ApplicationRow item={item} assessment={assessmentFor(item)} now={now} selected={selected?.id === item.id} onSelect={target => select(item, target)} /></li>)}</ul><p className="text-xs text-muted-foreground">Solo verás aquí los estados de tu postulación, no las etapas internas de la empresa.</p></div>
         {selected && <ApplicationDetail item={selected} assessment={assessmentFor(selected)} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} returnFocus={returnFocus} />}

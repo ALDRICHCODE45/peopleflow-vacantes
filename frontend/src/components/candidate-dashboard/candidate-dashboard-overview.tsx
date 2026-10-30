@@ -1,12 +1,12 @@
 import Link from "next/link"
-import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CircleCheckBig, Clock3, FileText, Files, HardDrive, Languages, Link2Off } from "lucide-react"
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CircleCheckBig, Clock3, FileText, Files, HardDrive, Languages, Link2Off, Star } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { Badge, type BadgeVariant } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { StateCard } from "@/components/feedback/state-card"
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
 
@@ -315,7 +315,9 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
                     description="Cuando agregues un CV, vas a ver aquí su información. Puedes subirlo desde tu biblioteca."
                     primaryAction={{ href: "/candidato/cvs", label: "Ver mis CVs" }} />
                 ) : primary === undefined ? (
-                  <p className="text-sm text-muted-foreground">Tienes {countLabel(cvTotal, "CV", "CVs")}, pero ninguno está marcado como principal.</p>
+                  <SectionEmpty icon={Star} tone="info" title="Aún no hay un CV principal"
+                    description={`Tienes ${countLabel(cvTotal, "CV", "CVs")} en tu biblioteca. Por ahora no puedes marcar uno como principal; puedes abrir la biblioteca para revisar tus documentos.`}
+                    primaryAction={{ href: "/candidato/cvs", label: "Ver mis CVs" }} />
                 ) : (
                   <>
                     <Item size="sm" variant="muted">
@@ -339,7 +341,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
                   </>
                 )}
               </CardContent>
-              {cvTotal > 0 && <CardFooter>
+              {primary !== undefined && <CardFooter>
                 <Link href="/candidato/cvs" className={PRIMARY_LINK}>Ver mis CVs</Link>
               </CardFooter>}
             </Card>

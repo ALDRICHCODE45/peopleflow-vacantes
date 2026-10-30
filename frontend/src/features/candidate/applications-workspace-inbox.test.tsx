@@ -23,6 +23,42 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 const rows = () => screen.getByRole("list", { name: "Mis postulaciones" });
+it.each([
+  { filter: "Por atender", status: "submitted" as const },
+  { filter: "En proceso", status: "submitted" as const },
+  { filter: "Cerradas", status: "submitted" as const },
+])("names the $filter filter for whitespace-only search and resets both controls", async ({ filter, status }) => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [{ ...page.items[0], status }], next_cursor: null } });
+  vi.mocked(loadWorkspaceAssessmentsAction).mockResolvedValue({ ok: true, data: { items: [] } });
+  const { container } = render(<ApplicationsWorkspace />);
+  const search = await screen.findByRole("searchbox", { name: "Buscar por puesto o empresa" });
+  fireEvent.change(search, { target: { value: "   " } });
+  fireEvent.click(screen.getByRole("button", { name: `${filter} 0` }));
+  expect(screen.getByRole("heading", { level: 3, name: "Sin resultados" })).toBeVisible();
+  expect(screen.getByText(`No hay postulaciones cargadas con el filtro «${filter}». Limpia los filtros para volver a ver tu lista.`)).toBeVisible();
+  expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  expect(container.querySelector('[data-slot="empty-icon"] svg')).toHaveClass("lucide-search-x");
+  expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  expect(search).toHaveValue("");
+  expect(screen.getByRole("button", { name: "Todas 1" })).toHaveAttribute("aria-pressed", "true");
+  expect(within(rows()).getAllByRole("listitem")).toHaveLength(1);
+});
+it("quotes only the trimmed non-empty search and preserves the next cursor", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: applications, next_cursor: "next" } });
+  const { container } = render(<ApplicationsWorkspace />);
+  const search = await screen.findByRole("searchbox", { name: "Buscar por puesto o empresa" });
+  fireEvent.click(screen.getByRole("button", { name: "Cerradas 1" }));
+  fireEvent.change(search, { target: { value: "  Diseño  " } });
+  expect(screen.getByRole("heading", { level: 3, name: "Sin resultados" })).toBeVisible();
+  expect(screen.getByText("Ninguna de las postulaciones cargadas coincide con «Diseño». Limpia los filtros para verlas de nuevo.")).toBeVisible();
+  expect(container.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  expect(screen.getByRole("button", { name: "Cargar más" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  expect(search).toHaveValue("");
+  expect(screen.getByRole("button", { name: "Todas 4" })).toHaveAttribute("aria-pressed", "true");
+  expect(within(rows()).getAllByRole("listitem")).toHaveLength(4);
+});
 it("counts and filters real statuses and only unexpired created/in-progress assessments", async () => {
   render(<ApplicationsWorkspace />);
   const user = userEvent.setup();
