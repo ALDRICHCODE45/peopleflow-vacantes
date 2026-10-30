@@ -1,0 +1,28 @@
+{
+  "title": "Configuración de psicometría",
+  "brief": "R7 / S4: reducir la carga y el desplazamiento de la configuración psicométrica de Software Developer sin perder el shell de configuración ni los siete requisitos del perfil. Tres estructuras: tablero por importancia con detalle lateral, pasos guiados con resumen vivo y lista maestra con detalle. Mantienen activación independiente, etapas automáticas sin correo, vigencia de 1 a 30 días, sugerencias sin inferencia inventada, guardado de borrador frente a confirmación y la nota de hipótesis. La primera dirección muestra una vigencia inválida; la tercera, un perfil ya confirmado que pierde la confirmación al editar requisitos. Anatomía L6 y tokens de design/system.md. Interacciones locales para explorar estructura y validación; Guardar y Confirmar no persisten ni simulan respuestas exitosas del servidor.",
+  "feature": "odd/tasks/redesign-psychometrics-ux.md",
+  "artboards": [
+    {
+      "file": "01-tablero-de-importancia.html",
+      "title": "Tablero de importancia",
+      "tradeoff": "Hace visible la distribución Clave / Importante / No relevante y permite mover tarjetas con teclado, sin depender del arrastre. El detalle lateral evita repetir campos; exige seleccionar cada competencia y ofrece menos espacio para textos largos. La vigencia de 31 días muestra el error y el bloqueo de confirmación. Mejor para priorizar visualmente que para editar muchas justificaciones seguidas.",
+      "width": 1440,
+      "height": 1080
+    },
+    {
+      "file": "02-pasos-guiados.html",
+      "title": "Pasos guiados",
+      "tradeoff": "Reduce la carga inicial con cuatro pasos y una revisión final; navegación libre y resumen lateral conservan el contexto. Abre en Justificar para mostrar el trabajo relevante. Requiere más cambios de paso al corregir varios tipos de datos y el resumen consume ancho. No bloquea el guardado del borrador por justificaciones vacías.",
+      "width": 1440,
+      "height": 1080
+    },
+    {
+      "file": "03-lista-maestra-detalle.html",
+      "title": "Lista maestra y detalle",
+      "tradeoff": "Recomendada para la edición recurrente: mantiene las siete competencias, la importancia, la banda y la completitud a la vista, con los ajustes generales separados. El detalle tiene espacio para escribir sin repetir formularios. Comparar dos justificaciones requiere cambiar de selección; en móvil la lista se coloca antes del detalle. Muestra el estado confirmado con fecha y su invalidación al editar requisitos.",
+      "width": 1440,
+      "height": 1080
+    }
+  ]
+}

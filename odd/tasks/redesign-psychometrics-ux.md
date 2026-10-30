@@ -121,3 +121,7 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   applicable status filters passed. Product actions remain enabled/inert, with historical entries unlinked.
   Design-only work: no meaningful production RED/GREEN; frontend untouched, no commit. Canvas tool unavailable:
   parent opens `/gentle:design open candidate-applications`; no direction chosen and R6 remains pending.
+- **L14** R7 / S4: three directions in design/psychometric-profile-config/ — 01-tablero-de-importancia (importance lanes +
+  detail panel), 02-pasos-guiados (stepper + live summary), 03-lista-maestra-detalle (master/detail, recommended for
+  recurring edits); manifest linked, L6/tokens self-check; parent browser check at 1440×1080: no horizontal overflow,
+  sticky save/confirm bar with completeness. Waiting for the user's choice (R8).
