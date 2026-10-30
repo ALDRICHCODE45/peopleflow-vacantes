@@ -156,3 +156,5 @@ Visual review after the psychometric tests merge (local main ef73f9ff, not pushe
   editing instead of the dialog), 03-tabla-por-tipo (dense table grouped by kind with an importance filter). Only real
   editor capabilities; 4 of 11 criteria and the stage names are illustrative. Seen: the live page labels the language
   criterion «Idioma en: mínimo C1» (code, not name) — fix during R9 implementation.
+- **L22** User (verbatim): «El segundo hermano, se ve muy bien,» → R9 chosen design/checklist-config/02-lista-y-detalle.html
+  (01, 03 alternatives); handoff in_progress; implementation delegated (context backstop).

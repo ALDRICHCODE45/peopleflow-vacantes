@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "02-lista-y-detalle.html",
+  "handoffs": {
+    "02-lista-y-detalle.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-10-30T07:19:51.791Z",
+      "startedAt": "2026-10-30T07:20:00.430Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/redesign-psychometrics-ux.md"
+    }
+  }
+}
