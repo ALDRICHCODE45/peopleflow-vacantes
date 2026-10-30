@@ -70,3 +70,38 @@ and the component recipes the canvas needs.
   name 14/500 with tooltip, metadata lines with 14px icons, `Separator`, file row (icon + truncated name), drag handle
   40px revealed on hover/focus. Menu: allowed stages → «Ver ficha» → «Descartar».
 - **Targets** ≥ 40px for independent controls; semantic tokens only, no raw colors in product code (§3).
+
+## Empty states (`frontend/src/components/feedback/state-card.tsx`, `components/ui/empty.tsx`, rules §22)
+
+Reference: the draft vacancy pipeline («Esta vacante todavía no tiene pipeline»,
+`features/employer-vacancies/draft-pipeline-state.tsx`). New users land on empty states first, so every screen,
+section, tab and panel that can be empty designs that state explicitly; loading (skeleton), content and empty are
+three separate states and none is skipped.
+
+**Anatomy (shadcn `empty-demo`).** `EmptyHeader` → `EmptyMedia variant="icon"` (40px rounded tile, 20px icon of the
+subject, never a generic one) + `EmptyTitle` + `EmptyDescription` (max-w-md, centered) → `EmptyContent` with one
+primary `Button` and optionally one secondary `outline` on the same row (stacked below `sm`) → optional discreet
+`variant="link"` alternative. Buttons are ≥ 40px. Icon tile tone: `muted` for empty / no results, `primary/10` for
+informational «not yet» (draft, pending, not configured), `destructive/10` only for errors and permissions.
+
+**Copy.** Title says what is (not) there in plain words, from the person's side: «Todavía no hay vacantes»,
+«Aún no hay evaluación». Description says why it is empty and what happens next or what to do, in one or two
+sentences; for first-time states it also says what the thing is for. Never jargon, never «0 items», never blame.
+
+**Actions.** The primary action creates or starts the missing thing (Crear vacante, Agregar criterio, Subir CV,
+Invitar a evaluación); the secondary is the next useful path (Explorar vacantes, Ver configuración). A state with
+nothing the person can do says so and offers where to go. Filter recovery (Limpiar filtros) appears only when a
+filter or search is actually active, never on a truly empty catalog.
+
+**Variants.**
+
+| Variant | When | Composition |
+| --- | --- | --- |
+| Page / section | A whole screen or a page section has no data yet | `StateCard` (Card + Empty, py-10), tone `empty` or `info` |
+| In a card | A card, tab or sheet section is empty while the rest of the page has content | `Empty` inside the card body (py-8), same anatomy, smaller title (16/600); never a bare paragraph |
+| No results | Filter or search returns nothing | `Empty` with `SearchX`/`FilterX` icon, title «Sin resultados», description quotes the non-empty query or names the filters, action «Limpiar filtros» |
+| Nothing selected | Master-detail with no selection | `Empty` in the detail panel: icon of the list subject, instruction «Selecciona … para verlo aquí», no button |
+| Compact (exception) | Board columns (dashed 96px placeholder, §13.12/14), field-level «Sin dato», combobox «Sin coincidencias.», form notices | Text allowed; these are the only plain-text empties |
+
+A section never disappears silently when its emptiness is meaningful to the person (a tab, a panel, a list the
+person manages); optional public content (job detail sections, careers-site blocks) may be omitted.
