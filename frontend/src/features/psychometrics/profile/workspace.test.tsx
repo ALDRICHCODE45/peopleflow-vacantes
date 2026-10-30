@@ -11,6 +11,24 @@ const mount = (data = profile()) => render(<ProfileEditor draftId="vacancy" prof
 const row = (name: string) => within(screen.getByRole("list", { name: "Seleccionar competencia" })).getByRole("button", { name: new RegExp(name) });
 beforeEach(() => vi.stubGlobal("PointerEvent", MouseEvent));
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
+it("uses aligned active items with keyboard-only focus and explicit hover states", () => {
+  mount();
+  const first = row("Orden para avanzar");
+  const second = row("Cuidado de acuerdos");
+  for (const item of [first, second]) {
+    expect(item).toHaveClass("rounded-2xl", "px-3", "py-3", "outline-none", "transition-colors", "hover:bg-muted", "hover:text-foreground", "focus-visible:ring-3", "focus-visible:ring-ring/30");
+    expect(item).not.toHaveAttribute("data-slot", "button");
+  }
+  expect(first).toHaveAttribute("aria-pressed", "true");
+  expect(first).toHaveClass("bg-card", "text-foreground", "shadow-sm", "ring-1", "ring-primary/40");
+  expect(second).toHaveClass("text-muted-foreground");
+  fireEvent.click(second);
+  expect(second).toHaveAttribute("aria-pressed", "true");
+  expect(second).toHaveClass("bg-card", "text-foreground", "shadow-sm", "ring-1", "ring-primary/40");
+  expect(first).toHaveAttribute("aria-pressed", "false");
+  expect(first).not.toHaveClass("ring-1");
+  expect(saveProfileAction).not.toHaveBeenCalled();
+});
 it("selects a competency without losing the previous detail's captured input", () => {
   mount(); fireEvent.change(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ }), { target: { value: "Planificar entregas" } });
   fireEvent.click(row("Cuidado de acuerdos"));

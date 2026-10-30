@@ -11,6 +11,7 @@ import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
+import { Item } from "@/components/ui/item";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -151,9 +152,9 @@ export function ProfileEditor({ draftId, profile, etag: initialEtag, stages }: {
         <CardContent><ul aria-label="Seleccionar competencia" className="flex flex-col gap-2">{body.competencies.map((item, index) => {
           const missing = Object.keys(requirementErrors(item, true)).length > 0 || Object.keys(errors).some(key => key.startsWith(`competencies[${index}].`));
           const status = item.importance === "importance.no_relevante" ? "—" : missing ? "Pendiente" : "✓";
-          return <li key={item.competency_id}><Button type="button" variant="ghost" aria-pressed={index === selected} aria-controls="psychometric-detail" className={cn("h-auto min-h-10 w-full flex-col items-stretch whitespace-normal text-left", index === selected && "bg-card shadow-sm ring-1 ring-primary/40")} onClick={() => setSelected(index)}>
-            <span className="font-medium">{nameOf(item)}</span><span className="flex flex-wrap items-center gap-2 text-xs"><Badge variant={item.importance === "importance.clave" ? "accent" : "neutral"}>{importance.find(option => option.value === item.importance)?.label}</Badge><span className="text-muted-foreground">{bands.find(option => option.value === item.desired_band)?.label ?? "Sin banda"}</span><span className="ml-auto" aria-label={status === "✓" ? "Completa" : status === "—" ? "Sin detalle requerido" : "Pendiente"}>{status}</span></span>
-          </Button></li>;
+          return <li key={item.competency_id}><Item size="sm" render={<button type="button" />} aria-pressed={index === selected} aria-controls="psychometric-detail" className={cn("min-h-10 w-full flex-col items-stretch gap-1.5 rounded-2xl px-3 py-3 text-left outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:border-transparent focus-visible:ring-3 focus-visible:ring-ring/30", index === selected ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground")} onClick={() => setSelected(index)}>
+            <span className="font-medium text-foreground">{nameOf(item)}</span><span className="flex flex-wrap items-center gap-2 text-xs"><Badge variant={item.importance === "importance.clave" ? "accent" : "neutral"}>{importance.find(option => option.value === item.importance)?.label}</Badge><span className="text-muted-foreground">{bands.find(option => option.value === item.desired_band)?.label ?? "Sin banda"}</span><span className="ml-auto" aria-label={status === "✓" ? "Completa" : status === "—" ? "Sin detalle requerido" : "Pendiente"}>{status}</span></span>
+          </Item></li>;
         })}</ul></CardContent>
         <CardFooter className="flex-col items-start gap-1 border-t text-xs text-muted-foreground"><span>{complete} de {relevant.length} relevantes completas</span><span>Selecciona una competencia para revisarla.</span></CardFooter>
       </Card>

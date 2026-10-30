@@ -44,6 +44,13 @@ it("selects rows and next-step chips without starting an evaluation, with real d
   const { container } = render(<ApplicationsWorkspace />);
   const chip = await screen.findByRole("button", { name: "Evaluación · 10 de 63" });
   expect(within(rows()).getAllByRole("button", { name: /Evaluación/ })).toHaveLength(2);
+  for (const row of within(rows()).getAllByRole("listitem")) {
+    const item = row.querySelector('[data-slot="item"]');
+    expect(item).toHaveAttribute("data-variant", "outline");
+    expect(item).toHaveAttribute("data-size", "default");
+    for (const slot of ["item-media", "item-content", "item-title", "item-description", "item-actions"]) expect(item?.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
+  }
+  expect(within(rows()).getByRole("link", { name: "Backend Go" }).closest('[data-slot="item"]')).toHaveClass("bg-card", "text-foreground", "shadow-sm", "ring-1", "ring-primary/40");
   expect(screen.getByRole("link", { name: /Continuar evaluación/ })).toHaveAttribute("href", "/candidato/evaluaciones/invitation");
   expect(screen.getByRole("heading", { name: "Actividad del proceso" })).toBeVisible();
   expect(screen.getByText("Postulaste").parentElement?.querySelector("time")).toHaveAttribute("datetime", applications[0].applied_at);

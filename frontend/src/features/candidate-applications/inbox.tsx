@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { AssessmentBlock, actionableAssessment } from "@/features/psychometrics/workspace/assessments";
 import type { AccountAssessment } from "@/features/psychometrics/model";
 import type { ApplicationsPage } from "./model";
@@ -15,7 +16,6 @@ export type Application = ApplicationsPage["items"][number];
 const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
 const relative = new Intl.RelativeTimeFormat("es-MX", { numeric: "always" });
 const initials = (name: string) => name.trim().split(/\s+/u).slice(0, 2).map(word => Array.from(word)[0]).join("").toUpperCase();
-const rowLayout = "grid min-w-0 grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 xl:grid-cols-[32px_minmax(0,1fr)_auto_auto]";
 export const applicationStatus = (item: Application) => item.status === "closed" ? "Cerrada" : item.vacancy.state === "closed" ? "Vacante cerrada" : item.status === "submitted" ? "Enviada" : "En proceso";
 function Status({ item, detail = false }: { item: Application; detail?: boolean }) {
   return <Badge variant={item.status === "closed" || item.vacancy.state === "closed" ? "neutral" : item.status === "submitted" ? "info" : "review"} dot>{detail ? `Estado: ${applicationStatus(item)}` : applicationStatus(item)}</Badge>;
@@ -26,18 +26,20 @@ function appliedAgo(value: string, now: number) {
 }
 export function ApplicationRow({ item, assessment, selected, onSelect, now }: { item: Application; assessment?: AccountAssessment; selected: boolean; onSelect: (target: HTMLElement) => void; now: number }) {
   const actionable = assessment && actionableAssessment(assessment, now);
-  return <Card size="sm" data-pf-application-row data-selected={selected} className={cn("relative cursor-pointer [--card-spacing:--spacing(3)]", selected && "ring-2 ring-primary/60")} onClick={event => onSelect(event.currentTarget.querySelector("a")!)}>
-    {/* Compact identity-only card; the full record is in the selected detail (R6). */}
-    <CardContent><div className={rowLayout}>
-      <Avatar className="size-8" aria-hidden="true"><AvatarFallback>{initials(item.company.name)}</AvatarFallback></Avatar>
-      <div className="min-w-0"><h3 className="truncate text-sm font-medium">
-        {/* Preserve the public vacancy href as a no-JS / modified-click fallback; normal activation selects detail. */}
-        <Link href={`/vacantes/${item.vacancy.id}`} aria-current={selected ? "true" : undefined} aria-controls="application-detail" className="rounded-md outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring" onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) event.preventDefault(); else event.stopPropagation(); }}>{item.vacancy.title}</Link>
-      </h3><p className="truncate text-xs text-muted-foreground" title={item.company.name}>{item.company.name}</p></div>
-      <div className="flex flex-col items-start gap-1"><Status item={item} /><span className="hidden whitespace-nowrap text-[11px] text-muted-foreground sm:block">Postulada {appliedAgo(item.applied_at, now)}</span></div>
-      {actionable && <div className="relative col-span-2 col-start-2 xl:col-span-1 xl:col-start-auto"><Button variant="outline" className="min-h-10" onClick={event => { event.stopPropagation(); onSelect(event.currentTarget); }}>{assessment.status === "in_progress" ? `Evaluación · ${assessment.answered_count} de ${assessment.total_count}` : "Evaluación pendiente"}</Button></div>}
-    </div></CardContent>
-  </Card>;
+  return <Item variant="outline" data-pf-application-row data-selected={selected} className={cn("relative min-w-0 cursor-pointer outline-none transition-colors hover:bg-muted hover:text-foreground has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/30", selected ? "border-transparent bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground")} onClick={event => onSelect(event.currentTarget.querySelector("a")!)}>
+    <ItemMedia><Avatar className="size-10" aria-hidden="true"><AvatarFallback>{initials(item.company.name)}</AvatarFallback></Avatar></ItemMedia>
+    <ItemContent className="min-w-0">
+      <ItemTitle className="text-foreground"><h3 className="truncate">
+        {/* Preserve the vacancy href for no-JS / modified clicks; ordinary activation selects the full record. */}
+        <Link href={`/vacantes/${item.vacancy.id}`} aria-current={selected ? "true" : undefined} aria-controls="application-detail" className="outline-none after:absolute after:inset-0 after:rounded-2xl" onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) event.preventDefault(); else event.stopPropagation(); }}>{item.vacancy.title}</Link>
+      </h3></ItemTitle>
+      <ItemDescription>{item.company.name} · Postulada {appliedAgo(item.applied_at, now)}</ItemDescription>
+    </ItemContent>
+    <ItemActions className="flex-wrap">
+      <Status item={item} />
+      {actionable && <Button variant="outline" className="relative min-h-10" onClick={event => { event.stopPropagation(); onSelect(event.currentTarget); }}>{assessment.status === "in_progress" ? `Evaluación · ${assessment.answered_count} de ${assessment.total_count}` : "Evaluación pendiente"}</Button>}
+    </ItemActions>
+  </Item>;
 }
 
 function Activity({ item, assessment }: { item: Application; assessment?: AccountAssessment }) {
@@ -84,6 +86,6 @@ export function ApplicationDetail({ item, assessment, mobileOpen, onClose, retur
 export function ApplicationsSkeleton() {
   return <section aria-busy="true" aria-label="Postulaciones" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando postulaciones</span>
     <div data-pf-applications-loading-search aria-hidden="true" className="flex flex-wrap justify-between gap-3"><Skeleton className="h-9 w-96 max-w-full" /><Skeleton className="h-11 w-60" /></div>
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_368px]"><ul aria-label="Mis postulaciones" className="grid gap-2">{[0, 1, 2].map(index => <li key={index}><Card size="sm" aria-hidden="true" className="[--card-spacing:--spacing(3)]"><CardContent><div className={rowLayout}><Skeleton className="size-8 rounded-full" /><div className="flex flex-col gap-1"><Skeleton className="h-5 w-36 max-w-full" /><Skeleton className="h-4 w-24" /></div><Skeleton className="h-5 w-16" /></div></CardContent></Card></li>)}</ul><Skeleton aria-hidden="true" className="hidden h-96 w-full lg:block" /></div>
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_368px]"><ul aria-label="Mis postulaciones" className="grid gap-2">{[0, 1, 2].map(index => <li key={index}><Item variant="outline" aria-hidden="true"><ItemMedia><Skeleton className="size-10 rounded-full" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-36 max-w-full" /></ItemTitle><Skeleton className="h-4 w-48 max-w-full"><ItemDescription /></Skeleton></ItemContent><ItemActions><Skeleton className="h-5 w-16" /></ItemActions></Item></li>)}</ul><Skeleton aria-hidden="true" className="hidden h-96 w-full lg:block" /></div>
   </section>;
 }

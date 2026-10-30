@@ -41,11 +41,11 @@ it("shows a structural skeleton during the real initial read", () => {
   const { container } = render(<ApplicationsWorkspace />);
   expect(screen.getByText("Cargando postulaciones")).toBeInTheDocument();
   expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-  const placeholders = container.querySelectorAll('[data-slot="card"]');
+  const placeholders = container.querySelectorAll('[data-slot="item"]');
   expect(placeholders).toHaveLength(3);
   for (const card of placeholders) {
-    expect(card).toHaveAttribute("data-size", "sm");
-    expect(card.querySelector('[data-slot="card-content"]')).not.toBeNull();
+    expect(card).toHaveAttribute("data-size", "default");
+    expect(card.querySelector('[data-slot="item-content"]')).not.toBeNull();
     expect(card).toHaveAttribute("aria-hidden", "true");
   }
   expect(container.querySelector('[data-pf-applications-loading-search]')).not.toBeNull();
@@ -53,11 +53,11 @@ it("shows a structural skeleton during the real initial read", () => {
 it("mirrors the loaded inbox slots and responsive row layout in the initial skeleton", async () => {
   vi.mocked(loadApplicationsAction).mockReturnValue(new Promise(() => {}));
   const loading = render(<ApplicationsWorkspace />);
-  const skeleton = loading.container.querySelector('[data-slot="card"]')!;
-  const sequence = (card: Element) => [...card.querySelectorAll('[data-slot^="card-"]')].map(node => node.getAttribute("data-slot"));
+  const skeleton = loading.container.querySelector('[data-slot="item"]')!;
+  const sequence = (card: Element) => [...card.querySelectorAll('[data-slot^="item-"]')].map(node => node.getAttribute("data-slot"));
   const expected = sequence(skeleton);
   const grid = skeleton.closest("ul")!.className;
-  const layout = skeleton.querySelector('[data-slot="card-content"] > div')!.className;
+  const layout = skeleton.querySelector('[data-slot="item-content"]')!.className;
   loading.unmount();
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
   const loaded = render(<ApplicationsWorkspace />);
@@ -65,7 +65,7 @@ it("mirrors the loaded inbox slots and responsive row layout in the initial skel
   const card = loaded.container.querySelector('[data-pf-application-row]')!;
   expect(sequence(card)).toEqual(expected);
   expect(card.closest("ul")).toHaveAttribute("class", grid);
-  expect(card.querySelector('[data-slot="card-content"] > div')).toHaveAttribute("class", layout);
+  expect(card.querySelector('[data-slot="item-content"]')).toHaveAttribute("class", layout);
 });
 it("makes the empty state's next step prominent, readable and mobile-width", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } });
