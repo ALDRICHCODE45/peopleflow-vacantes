@@ -1,0 +1,28 @@
+{
+  "title": "Psicometría · Resumen en la ficha e informe completo",
+  "brief": "Tres estructuras para preparar la entrevista desde un resumen accionable en la ficha: página propia, diálogo amplio o ficha expandible. Cada artboard muestra el resumen y el informe denso con guía STAR, siete competencias, interpretaciones plegables, calidad, quince facetas e historial. Sin puntaje global ni decisión automática; las relaciones con el puesto son hipótesis. Datos ilustrativos coherentes con el contrato vigente y textos del banco redactado. La dirección 01 incluye una invitación en curso. Ninguna dirección ha sido elegida todavía.",
+  "feature": "odd/tasks/redesign-psychometrics-ux.md",
+  "artboards": [
+    {
+      "file": "01-informe-en-pagina.html",
+      "title": "Informe en página · Recomendada",
+      "tradeoff": "Lectura amplia, índice persistente e impresión completa; separa el análisis del tablero.",
+      "width": 1440,
+      "height": 3000
+    },
+    {
+      "file": "02-informe-en-dialog.html",
+      "title": "Informe en diálogo · Bajo demanda",
+      "tradeoff": "Mantiene el pipeline como contexto y reutiliza el patrón de vista previa; exige scroll interno y carece de ruta propia.",
+      "width": 1440,
+      "height": 2300
+    },
+    {
+      "file": "03-ficha-expandible.html",
+      "title": "Ficha expandible · Espacio de trabajo",
+      "tradeoff": "Conserva identidad e invitación junto al informe; oculta casi todo el tablero y agrega un modo a la ficha.",
+      "width": 1440,
+      "height": 2300
+    }
+  ]
+}
