@@ -54,8 +54,9 @@ it("joins only the matching real application and keeps manual invitations on the
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
   vi.mocked(loadWorkspaceAssessmentsAction).mockResolvedValue({ ok: true, data: { items: [{ ...assessment, application_id: page.items[0].id, vacancy: { ...assessment.vacancy, id: page.items[0].vacancy.id } }, { ...assessment, id: assessment.vacancy.id, vacancy: { ...assessment.vacancy, title: "Ingreso manual" } }] } });
   render(<ApplicationsWorkspace />);
-  const card = (await screen.findByRole("link", { name: "Backend Go" })).closest('[data-slot="card"]') as HTMLElement;
-  expect(within(card).getByRole("link", { name: /Responder evaluación/ })).toHaveAttribute("href", `/candidato/evaluaciones/${assessment.id}`);
+  await screen.findByRole("link", { name: "Backend Go" });
+  const detail = screen.getByRole("complementary", { name: "Detalle de postulación" });
+  expect(within(detail).getByRole("link", { name: /Responder evaluación/ })).toHaveAttribute("href", `/candidato/evaluaciones/${assessment.id}`);
   expect(await screen.findByRole("heading", { name: "Ingreso manual" })).toBeVisible();
   expect(screen.getAllByRole("link", { name: /Responder evaluación/ })).toHaveLength(2);
 });
