@@ -73,8 +73,10 @@ it("keeps diacritic-insensitive name/email search and clears empty results", asy
   await user.type(screen.getByRole("searchbox"), "JOSE");
   expect(screen.queryByText("Ana Real")).not.toBeInTheDocument();
   await user.clear(screen.getByRole("searchbox")); await user.type(screen.getByRole("searchbox"), "missing");
-  expect(screen.getByText("Sin resultados")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+  expect(screen.getByRole("heading", { name: "Sin resultados", level: 2 })).toBeVisible();
+  expect(screen.getByText("No hay miembros que coincidan con “missing”.")).toBeVisible();
+  expect(document.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));
   expect(screen.getByText("Ana Real")).toBeInTheDocument();
 });
 it("shows deleted users without inventing contact or workload", async () => {
@@ -178,7 +180,12 @@ it("shows loading skeletons and a genuine empty state", async () => {
   mount(); expect(screen.getByText("Cargando equipo")).toBeInTheDocument();
   expect(document.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
   await act(async () => resolve({ ok: true, members: [] }));
-  expect(screen.getByText("Todavía no hay miembros del equipo")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Todavía no hay miembros del equipo", level: 2 })).toBeVisible();
+  expect(screen.getByText("Aquí verás quiénes tienen acceso a tu empresa y su carga de trabajo. No puedes agregar miembros desde esta pantalla; puedes revisar la configuración de tu empresa.")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Ver configuración" })).toHaveAttribute("href", "/empresa/configuracion");
+  expect(document.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  expect(screen.queryByRole("button", { name: "Invitar miembro" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
   expect(document.querySelector('[data-slot="card"] [data-slot="card"]')).not.toBeInTheDocument();
 });
 it("does not reference an absent action status from the row menu", async () => {

@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LayoutGrid, List, Search, Users } from "lucide-react";
+import { LayoutGrid, List, Search, SearchX, Users } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,7 +72,7 @@ export function OrgCandidatesWorkspace({ onOpenCandidate, updatedCandidate }: { 
   : "No pudimos consultar los candidatos. Puedes volver a intentarlo.";
  const fallback = initial ? <CandidateResultsSkeleton view={resultView} /> : !page?.items.length ? <div className="px-(--card-spacing)">
   {failure ? <StateCard icon={Users} tone={failure.reason === "forbidden" ? "forbidden" : "error"} title={filterError ? "No pudimos aplicar los filtros" : "No pudimos cargar los candidatos"} description={errorDescription} primaryAction={{ label: filterError ? "Limpiar filtros" : "Reintentar", onClick: filterError ? clear : retry }} />
-   : page ? <StateCard icon={Users} tone="empty" title={filtered ? "Sin resultados" : "Todavía no hay candidatos en tu organización"} description={filtered ? "No hay candidatos que coincidan con estos filtros." : "Agrega un candidato desde el tablero de una vacante para comenzar."} primaryAction={filtered ? { label: "Limpiar filtros", onClick: clear } : undefined} /> : null}
+   : page ? filtered ? <SectionEmpty icon={SearchX} tone="empty" title="Sin resultados" description={state.filters.q?.trim() ? `No hay candidatos que coincidan con «${state.filters.q.trim()}». Limpia los filtros para volver a ver tu base de talento.` : "No hay candidatos que coincidan con estos filtros. Limpia los filtros para volver a ver tu base de talento."} primaryAction={{ label: "Limpiar filtros", onClick: clear }} /> : <StateCard icon={Users} tone="empty" title="Todavía no hay candidatos" description="Tu base reúne a los candidatos de tu organización. Para agregar al primero, abre el tablero de una vacante." primaryAction={{ label: "Ir a mis vacantes", href: "/empresa/vacantes" }} /> : null}
  </div> : undefined;
  return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
   <SummaryBand data={summary.data} pending={summary.pending} failure={summary.failure} onRetry={() => void refreshSummary()} />

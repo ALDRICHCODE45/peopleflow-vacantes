@@ -106,13 +106,18 @@ it("does not leak entries or late responses across candidate changes", async () 
   let resolve!: (result: HistoryResult) => void;
   vi.mocked(loadOrgCandidateHistoryAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; })).mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: null } });
   const view = open(); view.rerender(<ChangeHistory candidate={{ kind: "organic", id: id(10) }} refreshKey={0} />);
-  expect(await screen.findByText("Sin cambios todavía")).toBeVisible();
+  expect(await screen.findByText("Todavía no hay cambios")).toBeVisible();
   await act(async () => resolve({ ok: true, data: page }));
   expect(screen.queryByText("Tomás Ríos")).not.toBeInTheDocument();
 });
 it("shows the empty state", async () => {
-  vi.mocked(loadOrgCandidateHistoryAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } }); open();
-  expect(await screen.findByText("Sin cambios todavía")).toBeVisible(); expect(screen.queryByRole("button", { name: "Ver más" })).not.toBeInTheDocument();
+  vi.mocked(loadOrgCandidateHistoryAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } });
+  const summary = vi.fn(); render(<ChangeHistory candidate={identity} refreshKey={0} onViewSummary={summary} />);
+  expect(await screen.findByRole("heading", { name: "Todavía no hay cambios", level: 3 })).toBeVisible();
+  expect(screen.getByText("Aquí aparecerán las correcciones de datos y CV que haga tu equipo. Si necesitas revisar la información actual, vuelve a Resumen.")).toBeVisible();
+  expect(document.querySelector('[data-slot="empty-icon"]')).toHaveClass("bg-muted");
+  fireEvent.click(screen.getByRole("button", { name: "Ver resumen" })); expect(summary).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "Ver más" })).not.toBeInTheDocument();
 });
 it.each(["not_found", "unauthenticated", "forbidden", "server_error", "no_response", "unrecognized_response"] as const)("shows a safe %s error and retries the first page", async reason => {
   vi.mocked(loadOrgCandidateHistoryAction).mockResolvedValueOnce({ ok: false, reason, reference: {} }); open();

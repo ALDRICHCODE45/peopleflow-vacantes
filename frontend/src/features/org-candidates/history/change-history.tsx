@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { StateCard } from "@/components/feedback/state-card";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import type { LanguageCatalog } from "@/features/languages/model";
 import type { DetailFailure, OrgCandidateIdentity } from "../detail/detail-model";
@@ -14,12 +14,12 @@ import { loadOrgCandidateHistoryAction } from "./history-actions";
 import type { HistoryEntry, HistoryResult, OrgCandidateHistory } from "./history-model";
 import { historyChangeText, historyDate } from "./history-presentation";
 
-type Props = { candidate: OrgCandidateIdentity; refreshKey: number };
+type Props = { candidate: OrgCandidateIdentity; refreshKey: number; onViewSummary?: () => void };
 /** Cursor-backed timeline. A candidate switch owns a fresh read session. */
-export function ChangeHistory({ candidate, refreshKey }: Props) {
-  return <HistorySession key={`${candidate.kind}:${candidate.id}`} candidate={candidate} refreshKey={refreshKey} />;
+export function ChangeHistory({ candidate, refreshKey, onViewSummary }: Props) {
+  return <HistorySession key={`${candidate.kind}:${candidate.id}`} candidate={candidate} refreshKey={refreshKey} onViewSummary={onViewSummary} />;
 }
-function HistorySession({ candidate: { kind, id }, refreshKey }: Props) {
+function HistorySession({ candidate: { kind, id }, refreshKey, onViewSummary }: Props) {
   const catalog = useLanguageCatalog();
   const [page, setPage] = useState<OrgCandidateHistory | null>(null);
   const [failure, setFailure] = useState<{ result: DetailFailure; cursor?: string } | null>(null);
@@ -55,7 +55,7 @@ function HistorySession({ candidate: { kind, id }, refreshKey }: Props) {
     <h3 className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">Historial de cambios</h3>
     {!page && pending && <HistorySkeleton />}
     {page && page.items.length > 0 && <ItemGroup className="gap-0">{page.items.map(entry => <HistoryItem key={entry.id} entry={entry} languages={catalog.data?.items ?? []} />)}</ItemGroup>}
-    {page && page.items.length === 0 && !failure && <StateCard icon={History} tone="empty" title="Sin cambios todavía" description="Las correcciones que haga tu equipo aparecerán aquí." />}
+    {page && page.items.length === 0 && !failure && <SectionEmpty icon={History} tone="empty" title="Todavía no hay cambios" description="Aquí aparecerán las correcciones de datos y CV que haga tu equipo. Si necesitas revisar la información actual, vuelve a Resumen." primaryAction={onViewSummary ? { label: "Ver resumen", onClick: onViewSummary } : undefined} />}
     {failure && <StateCard icon={Info} tone="error" role="status" title="No pudimos cargar el historial"
       description={failure.result.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo para consultar el historial."
         : failure.result.reason === "forbidden" ? "Tu cuenta no tiene permiso para consultar este historial."

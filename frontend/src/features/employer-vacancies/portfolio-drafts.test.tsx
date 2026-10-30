@@ -220,8 +220,8 @@ it("points an empty Borradores filter to the header and offers only clearing fil
  const { container } = renderPortfolio(); await waitFor(() => expect(screen.queryByText("Cargando vacantes")).not.toBeInTheDocument());
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 0" }));
  const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
- expect(empty).toHaveTextContent("Todavía no hay vacantes");
- expect(empty).toHaveTextContent("Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
+ expect(empty).toHaveTextContent("No hay borradores que mostrar");
+ expect(empty).toHaveTextContent("Crea una vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
  expect(within(empty).queryAllByRole("link")).toHaveLength(0);
  const clear = within(empty).getByRole("button", { name: "Limpiar filtros" });
  expect(within(empty).getAllByRole("button")).toEqual([clear]);
@@ -230,14 +230,15 @@ it("points an empty Borradores filter to the header and offers only clearing fil
  expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(0);
  expect(screen.getByRole("tab", { name: "Todas 0" })).toHaveAttribute("aria-selected", "true");
 });
-it("points to the single header action without its own create button when the portfolio is empty", async () => {
+it("offers the existing creation route inside the confirmed empty portfolio", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
  const { container } = renderPortfolio();
  await waitFor(() => expect(screen.queryByText("Cargando vacantes")).not.toBeInTheDocument());
  const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
  expect(within(empty).getByText("Todavía no hay vacantes")).toHaveClass("text-xl", "font-semibold");
- expect(empty).toHaveTextContent("Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
- expect(within(empty).queryAllByRole("link")).toHaveLength(0);
+ expect(empty).toHaveTextContent("Crea tu primera vacante para recibir candidatos y dar seguimiento a tu proceso. Se guarda como borrador hasta que la publiques.");
+ expect(within(empty).getByRole("link", { name: "Crear vacante" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+ expect(within(empty).getAllByRole("link")).toHaveLength(1);
  expect(within(empty).queryAllByRole("button")).toHaveLength(0);
  expect(empty.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Ellipsis, SearchIcon, Users } from "lucide-react";
+import { Ellipsis, SearchIcon, SearchX, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,9 +79,9 @@ export function TeamWorkspace({ members, drafts = [], workloadPending = false, w
       {feedback}
       <div data-pf-team-count role={loading ? undefined : "status"} aria-live="polite" className={META}>{loading ? <Skeleton aria-hidden="true" className="h-4 w-24" /> : plural(results.length, "miembro", "miembros")}</div>
       {!loading && results.length === 0 ? (
-        <StateCard icon={Users} tone="empty" title={members.length === 0 ? "Todavía no hay miembros del equipo" : "Sin resultados"}
-          description={members.length === 0 ? "Aquí se mostrarán las personas de tu equipo y su carga de trabajo." : "No hay miembros que coincidan con la búsqueda. Limpia la búsqueda para volver a ver tu equipo."}
-          primaryAction={members.length > 0 ? { label: "Limpiar búsqueda", onClick: () => setQuery("") } : undefined} />
+        <StateCard icon={query.trim() ? SearchX : Users} tone="empty" title={query.trim() ? "Sin resultados" : "Todavía no hay miembros del equipo"}
+          description={query.trim() ? `No hay miembros que coincidan con “${query.trim()}”.` : "Aquí verás quiénes tienen acceso a tu empresa y su carga de trabajo. No puedes agregar miembros desde esta pantalla; puedes revisar la configuración de tu empresa."}
+          primaryAction={query.trim() ? { label: "Limpiar filtros", onClick: () => setQuery("") } : { label: "Ver configuración", href: "/empresa/configuracion" }} />
       ) : <Card data-pf-team-results>
         {/* The existing visual column header stays unchanged; this title names the list for AT. */}
         <CardHeader className="sr-only"><CardTitle><h2>Miembros del equipo</h2></CardTitle><CardDescription>Personas, roles y carga de trabajo</CardDescription></CardHeader>
