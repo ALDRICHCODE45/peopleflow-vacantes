@@ -1,11 +1,12 @@
 "use client";
-import { Ellipsis, Pencil } from "lucide-react";
+import { Ellipsis } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Badge } from "@/components/ui/badge";
 import { FieldError } from "@/components/ui/field";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { updateCriterionIdentity, type Criterion } from "../model";
+import type { Criterion } from "../model";
 import { KIND_LABELS } from "./criterion-dialog";
 export type CriterionAction = "up" | "down" | "remove";
 export function criterionActions(index: number, length: number): { key: CriterionAction; label: string; disabled: boolean }[] {
@@ -18,17 +19,16 @@ export function applyCriterionAction(criteria: Criterion[], index: number, actio
   if (nextIndex < 0 || nextIndex >= criteria.length) return criteria;
   const next = [...criteria]; [next[index], next[nextIndex]] = [next[nextIndex], next[index]]; return next;
 }
-export function CriteriaRows({ criteria, onChange, onEdit, disabled, errors }: { criteria: Criterion[]; onChange: (criteria: Criterion[]) => void; onEdit: (criterion: Criterion) => void; disabled: boolean; errors: Record<number, string> }) {
-  return <ItemGroup role="list" aria-label="Criterios del checklist">{criteria.map((criterion, index) => <Item key={criterion.id} role="listitem" variant="outline" size="sm" aria-label={`Criterio ${index + 1}: ${criterion.label}`}>
-    <ItemContent>
-      <ItemTitle><span aria-hidden="true">{index + 1}.</span><span>{criterion.label}</span></ItemTitle>
-      <ItemDescription>{KIND_LABELS[criterion.kind]} · {criterion.kind === "manual" ? "Lo marcas tú" : criterion.kind === "skill" ? "Se evalúa solo si el candidato la declara" : "Se evalúa solo"}</ItemDescription>
-      <ToggleGroup variant="segmented" aria-label={`Importancia: ${criterion.label}`} disabled={disabled} value={[criterion.importance]} onValueChange={values => { const importance = values[0]; if (importance === "required" || importance === "desirable") onChange(criteria.map((item, position) => position === index ? updateCriterionIdentity(item, { ...item, importance }) : item)); }}><ToggleGroupItem value="required">Obligatorio</ToggleGroupItem><ToggleGroupItem value="desirable">Deseable</ToggleGroupItem></ToggleGroup>
-      {errors[index] && <FieldError id={`criterion-error-${criterion.id}`}>{errors[index]}</FieldError>}
-    </ItemContent>
-    <ItemActions>
-      <Button type="button" variant="ghost" size="icon" className="size-10" disabled={disabled} aria-label={`Editar ${criterion.label}`} aria-invalid={!!errors[index]} aria-describedby={errors[index] ? `criterion-error-${criterion.id}` : undefined} onClick={() => onEdit(criterion)}><Pencil aria-hidden="true" /></Button>
-      <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" disabled={disabled} aria-label={`Acciones de ${criterion.label}`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{criterionActions(index, criteria.length).filter(action => action.key !== "remove").map(action => <DropdownMenuItem key={action.key} className="min-h-10" disabled={disabled || action.disabled} onClick={() => onChange(applyCriterionAction(criteria, index, action.key))}>{action.label}</DropdownMenuItem>)}</DropdownMenuGroup><DropdownMenuSeparator /><DropdownMenuGroup><DropdownMenuItem variant="destructive" className="min-h-10" disabled={disabled} onClick={() => onChange(applyCriterionAction(criteria, index, "remove"))}>Quitar criterio</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
-    </ItemActions>
-  </Item>)}</ItemGroup>;
+export function CriterionMenu({ criterion, index, length, disabled, onAction }: { criterion: Criterion; index: number; length: number; disabled: boolean; onAction: (action: CriterionAction) => void }) {
+  return <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" disabled={disabled} aria-label={`Acciones de ${criterion.label || "Nuevo criterio"}`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{criterionActions(index, length).filter(action => action.key !== "remove").map(action => <DropdownMenuItem key={action.key} className="min-h-10" disabled={disabled || action.disabled} onClick={() => onAction(action.key)}>{action.label}</DropdownMenuItem>)}</DropdownMenuGroup><DropdownMenuSeparator /><DropdownMenuGroup><DropdownMenuItem variant="destructive" className="min-h-10" disabled={disabled} onClick={() => onAction("remove")}>Quitar criterio</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>;
+}
+export function CriteriaRows({ criteria, selected, onSelect, errors }: { criteria: Criterion[]; selected: number; onSelect: (index: number) => void; errors: Record<number, string> }) {
+  return <ul aria-label="Criterios del checklist" className="flex min-w-0 flex-col gap-2">{criteria.map((criterion, index) => <li key={criterion.id}>
+    <Item size="sm" render={<button type="button" />} aria-label={`Seleccionar ${criterion.label || "Nuevo criterio"}`} aria-pressed={selected === index} aria-controls="checklist-detail" aria-describedby={errors[index] ? `criterion-error-${criterion.id}` : undefined} onClick={() => onSelect(index)} className={cn("min-h-16 w-full flex-nowrap gap-3 rounded-2xl px-3 py-3 text-left outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:border-transparent focus-visible:ring-3 focus-visible:ring-ring/30", selected === index ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground")}>
+      <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-semibold">{index + 1}</span>
+      <ItemContent className="min-w-0"><ItemTitle className="max-w-full"><span className="truncate">{criterion.label || "Nuevo criterio"}</span></ItemTitle><ItemDescription>{KIND_LABELS[criterion.kind]}</ItemDescription></ItemContent>
+      <Badge variant={criterion.importance === "required" ? "accent" : "neutral"}>{criterion.importance === "required" ? "Obligatorio" : "Deseable"}</Badge>
+    </Item>
+    {errors[index] && <FieldError id={`criterion-error-${criterion.id}`}>{errors[index]}</FieldError>}
+  </li>)}</ul>;
 }

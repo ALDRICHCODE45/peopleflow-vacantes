@@ -1,25 +1,22 @@
 "use client";
-import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ActionBar } from "@/components/feedback/action-status";
 import { CEFR_LEVELS, EDUCATION_LEVEL_LABELS, SENIORITY_LABELS } from "@/features/candidate/model";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { LocationField } from "@/features/geo/location-field";
 import { useGeoCatalog } from "@/features/geo/use-geo-catalog";
 import type { ScreeningQuestionV2 } from "@/features/jobs/drafts/screening-v2/model";
-import { criterionSchema, type Criterion } from "../model";
+import type { Criterion } from "../model";
 import { ChoiceField } from "./controls";
 import { MultiChoiceField } from "./multi-choice-field";
 
 export const KIND_LABELS: Record<Criterion["kind"], string> = { min_years_experience: "Años de experiencia", seniority: "Seniority", education: "Estudios", language: "Idioma", skill: "Habilidad", location: "Ubicación", screening_answer: "Respuesta de filtro", manual: "Manual" };
-const defaults: Record<Criterion["kind"], Record<string, unknown>> = { min_years_experience: { min: "1" }, seniority: { accepted: [] }, education: { min_level: "bachelor", accepts_in_progress: false }, language: { code: "", min_level: "B2" }, skill: { name: "" }, location: { country: "", states: [] }, screening_answer: { question_id: "", accepted_option_ids: [] }, manual: {} };
+export const defaults: Record<Criterion["kind"], Record<string, unknown>> = { min_years_experience: { min: "1" }, seniority: { accepted: [] }, education: { min_level: "bachelor", accepts_in_progress: false }, language: { code: "", min_level: "B2" }, skill: { name: "" }, location: { country: "", states: [] }, screening_answer: { question_id: "", accepted_option_ids: [] }, manual: {} };
 const entries = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => ({ value, label }));
-function automaticLabel(criterion: Criterion, questions: ScreeningQuestionV2[], languages: { code: string; name: string }[], states: { id: string; name: string }[], countries: { id: string; name: string }[]) {
+export function automaticLabel(criterion: Criterion, questions: ScreeningQuestionV2[], languages: { code: string; name: string }[], states: { id: string; name: string }[], countries: { id: string; name: string }[]) {
   switch (criterion.kind) {
     case "min_years_experience": return `Al menos ${criterion.params.min} años de experiencia`;
     case "seniority": return `Nivel ${criterion.params.accepted.map(level => SENIORITY_LABELS[level]).join(", ")}`;
@@ -47,35 +44,22 @@ function LocationControls({ value, onChange, errors }: { value: Extract<Criterio
     {catalog.states.status === "error" && <Field><FieldError>No pudimos cargar los estados.</FieldError><Button variant="outline" onClick={catalog.states.retry}>Reintentar estados</Button></Field>}
   </>;
 }
-/** Controlled dialog-demo: opened by an add button or a row, so there is no DialogTrigger.
- * Header/footer stay fixed with one scrolling body (UI rules §13.8 and §23). */
-export function CriterionDialog({ initial, questions, onApply, onClose }: { initial?: Criterion; questions: ScreeningQuestionV2[]; onApply: (criterion: Criterion) => void; onClose: () => void }) {
-  const [draft, setDraft] = useState<Criterion>(() => initial ?? { id: crypto.randomUUID(), kind: "manual", params: {}, label: "", importance: "required" });
-  const [customLabel, setCustomLabel] = useState(!!initial);
-  const [catalogLabel, setCatalogLabel] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const body = useRef<HTMLDivElement>(null);
+/** Catalog-backed criterion fields rendered inline in the checklist detail panel. */
+export function CriterionFields({ draft, questions, errors = {}, onChange }: { draft: Criterion; questions: ScreeningQuestionV2[]; errors?: Record<string, string>; onChange: (criterion: Criterion) => void }) {
   const selectable = questions.filter(question => question.type !== "open");
-  const update = (params: Record<string, unknown>, label?: string) => {
-    setDraft(previous => ({ ...previous, params: { ...previous.params, ...params } }) as Criterion);
-    if (label !== undefined) setCatalogLabel(label);
-  };
-  const label = customLabel ? draft.label : catalogLabel ?? automaticLabel(draft, questions, [], [], []);
-  function apply() {
-    const parsed = criterionSchema.safeParse({ ...draft, label });
-    if (!parsed.success) {
-      setErrors(Object.fromEntries(parsed.error.issues.map(issue => [String(issue.path.at(-1)), "Revisa este dato"])));
-      requestAnimationFrame(() => body.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
-      return;
-    }
-    onApply(parsed.data);
+  const catalog = useLanguageCatalog();
+  const languages = catalog.data?.items ?? [];
+  const geo = useGeoCatalog(null, draft.kind === "location" && draft.params.country === "MX");
+  const states = geo.states.data?.items ?? [];
+  const countries = geo.countries.data?.items ?? [];
+  const generated = automaticLabel(draft, questions, languages, states, countries);
+  const automatic = !draft.label || draft.label === generated || draft.label === automaticLabel(draft, questions, [], [], []);
+  function update(params: Record<string, unknown>, label?: string) {
+    const next = { ...draft, params: { ...draft.params, ...params } } as Criterion;
+    onChange({ ...next, label: automatic ? label ?? automaticLabel(next, questions, languages, states, countries) : draft.label });
   }
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-xl">
-      <DialogHeader><DialogTitle>{initial ? "Editar criterio" : "Agregar criterio"}</DialogTitle><DialogDescription>Define qué necesitas contrastar. Solo lo ve tu equipo.</DialogDescription></DialogHeader>
-      <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-1">
-        <FieldGroup>
-          <ChoiceField label="Tipo de criterio" options={entries(KIND_LABELS)} value={draft.kind} onChange={kind => { setDraft({ ...draft, kind, params: defaults[kind as Criterion["kind"]] } as Criterion); setErrors({}); setCatalogLabel(null); }} />
+  return <FieldGroup>
+          <ChoiceField label="Tipo de criterio" options={entries(KIND_LABELS)} value={draft.kind} onChange={kind => { const next = { ...draft, kind, params: defaults[kind as Criterion["kind"]] } as Criterion; onChange({ ...next, label: automatic ? automaticLabel(next, questions, languages, states, countries) : draft.label }); }} />
           {draft.kind === "min_years_experience" && <Field data-invalid={!!errors.min}><FieldLabel htmlFor="criterion-years">Años mínimos</FieldLabel><Input id="criterion-years" type="number" min="0" step="0.1" className="min-h-10" value={draft.params.min} onChange={event => update({ min: event.target.value })} aria-invalid={!!errors.min} />{errors.min && <FieldError>{errors.min}</FieldError>}</Field>}
           {draft.kind === "seniority" && <MultiChoiceField label="Niveles aceptados" options={entries(SENIORITY_LABELS)} value={draft.params.accepted} onChange={accepted => update({ accepted })} error={errors.accepted} />}
           {draft.kind === "education" && <><ChoiceField label="Escolaridad mínima" options={entries(EDUCATION_LEVEL_LABELS)} value={draft.params.min_level} onChange={min_level => update({ min_level })} error={errors.min_level} /><Field orientation="horizontal"><Checkbox id="criterion-progress" checked={draft.params.accepts_in_progress} onCheckedChange={accepts_in_progress => update({ accepts_in_progress })} /><FieldLabel htmlFor="criterion-progress" className="min-h-10">Acepta en curso</FieldLabel></Field></>}
@@ -83,10 +67,6 @@ export function CriterionDialog({ initial, questions, onApply, onClose }: { init
           {draft.kind === "skill" && <Field data-invalid={!!errors.name}><FieldLabel htmlFor="criterion-skill">Habilidad</FieldLabel><Input id="criterion-skill" className="min-h-10" value={draft.params.name} onChange={event => update({ name: event.target.value })} aria-invalid={!!errors.name} />{errors.name && <FieldError>{errors.name}</FieldError>}</Field>}
           {draft.kind === "location" && <LocationControls value={draft.params} onChange={update} errors={errors} />}
           {draft.kind === "screening_answer" && <><ChoiceField label="Pregunta" options={selectable.map(question => ({ value: question.id, label: question.prompt }))} value={draft.params.question_id} onChange={question_id => update({ question_id, accepted_option_ids: [] })} error={errors.question_id} /><MultiChoiceField label="Respuestas aceptadas" options={(selectable.find(question => question.id.toLowerCase() === (draft.params as { question_id: string }).question_id.toLowerCase())?.options ?? []).map(option => ({ value: option.id, label: option.label }))} value={draft.params.accepted_option_ids} onChange={accepted_option_ids => update({ accepted_option_ids })} error={errors.accepted_option_ids} /></>}
-          <Field data-invalid={!!errors.label}><FieldLabel htmlFor="criterion-label">Etiqueta</FieldLabel><Input id="criterion-label" className="min-h-10" value={label} onChange={event => { setCustomLabel(true); setDraft({ ...draft, label: event.target.value }); }} aria-invalid={!!errors.label} />{errors.label && <FieldError>{errors.label}</FieldError>}</Field>
-        </FieldGroup>
-      </div>
-      <DialogFooter><ActionBar status={null}><DialogClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cancelar</DialogClose><Button type="button" className="min-h-10" onClick={apply}>Aplicar criterio</Button></ActionBar></DialogFooter>
-    </DialogContent>
-  </Dialog>;
+          <Field data-invalid={!!errors.label}><FieldLabel htmlFor="criterion-label">Etiqueta</FieldLabel><Input id="criterion-label" className="min-h-10" value={draft.label} onChange={event => onChange({ ...draft, label: event.target.value })} aria-invalid={!!errors.label} />{errors.label && <FieldError>{errors.label}</FieldError>}</Field>
+        </FieldGroup>;
 }

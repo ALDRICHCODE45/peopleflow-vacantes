@@ -4,6 +4,11 @@ vi.mock("@/components/ui/combobox", async importOriginal => ({
   ...await importOriginal<typeof import("@/components/ui/combobox")>(),
   ComboboxContent: ({ children }: { children: ReactNode }) => <div data-slot="combobox-content">{children}</div>,
 }));
+// Keep the real menu items and handlers inline; floating positioning does not run in jsdom (same pattern as company-site tests).
+vi.mock("@/components/ui/dropdown-menu", async importOriginal => {
+  const parts = await importOriginal<typeof import("@/components/ui/dropdown-menu")>();
+  return { ...parts, DropdownMenuContent: ({ children }: { children: ReactNode }) => <parts.DropdownMenuGroup>{children}</parts.DropdownMenuGroup> };
+});
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -15,7 +20,7 @@ vi.mock("../actions", () => ({ loadChecklistAction: vi.fn(), saveChecklistAction
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }] } }) }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoPostalCode: () => ({ status: "idle" }), useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }] } }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }, { id: "15", name: "Estado de México" }] } } }) }));
-// Base UI menus cannot open reliably in jsdom (§13.7). Exercise the same exported row commands below.
+// The exported commands also pin disabled bounds and identity preservation.
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const nextId = "223e4567-e89b-42d3-a456-426614174000";
 const option = "323e4567-e89b-42d3-a456-426614174000";
@@ -32,17 +37,51 @@ async function choose(label: string, text: string) {
 }
 beforeEach(() => { vi.stubGlobal("PointerEvent", MouseEvent); vi.resetAllMocks(); vi.mocked(loadChecklistAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} }); vi.mocked(saveChecklistAction).mockImplementation(async input => ({ ok: true, etag: '"saved"', data: { ...(input.body as object), version: "1" } as Checklist })); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("selects rows into an inline detail and updates importance badges and counts", () => {
+  editor({ ...empty, version: "1", criteria: [manual, { ...manual, id: nextId, label: "Otro" }] });
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Otro" }));
+  const detail = screen.getByRole("region", { name: "Detalle del criterio" });
+  expect(within(detail).getByLabelText("Etiqueta")).toHaveValue("Otro");
+  fireEvent.click(within(detail).getByRole("button", { name: "Deseable" }));
+  expect(within(screen.getByRole("button", { name: "Seleccionar Otro" })).getByText("Deseable")).toBeVisible();
+  expect(screen.getAllByText("1 obligatorios · 1 deseables")).toHaveLength(2);
+});
+it("adds a selected inline draft and focuses client-invalid detail without writing", async () => {
+  editor({ ...empty, version: "1", criteria: [manual] });
+  fireEvent.click(screen.getByRole("button", { name: "Agregar" }));
+  expect(screen.getByLabelText("Etiqueta")).toHaveValue("");
+  expect(screen.getByText("Criterio 2 de 2 · Manual")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Disponibilidad" }));
+  fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  await waitFor(() => expect(screen.getByRole("region", { name: "Detalle del criterio" })).toHaveFocus());
+  expect(screen.getByLabelText("Etiqueta")).toHaveValue("");
+  expect(saveChecklistAction).not.toHaveBeenCalled();
+});
+it("resolves automatic language labels without changing custom stored labels", () => {
+  const language: Criterion = { ...manual, kind: "language", params: { code: "en", min_level: "C1" }, label: "Idioma en: mínimo C1" };
+  editor({ ...empty, version: "1", criteria: [language, { ...language, id: nextId, label: "Inglés para ventas" }] });
+  expect(screen.getByRole("button", { name: "Seleccionar Idioma: Inglés · mínimo C1" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Inglés para ventas" }));
+  expect(screen.getByLabelText("Etiqueta")).toHaveValue("Inglés para ventas");
+});
+it("counts reminder stages in its own card", () => {
+  editor();
+  const reminders = screen.getByRole("region", { name: "Recordatorio al mover" });
+  expect(within(reminders).getByText("1 etapa")).toBeVisible();
+  fireEvent.click(within(reminders).getByRole("checkbox", { name: "Nuevos" }));
+  expect(within(reminders).getByText("2 etapas")).toBeVisible();
+});
 it("explains the internal empty state, suggests criteria and preselects reminders only for version zero", async () => {
   editor();
   expect(screen.getByText(/interno.*nunca.*público.*automáticamente/i)).toBeVisible();
-  expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+  expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(3);
   expect(screen.getByRole("button", { name: "Agregar criterio" }).closest('[data-slot="empty-content"]')).not.toBeNull();
   expect(screen.getByRole("checkbox", { name: "Nuevos" })).not.toBeChecked();
   expect(screen.getByRole("checkbox", { name: "Entrevista" })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: "Entrevista" }).closest('[data-slot="checkbox-group"]')).not.toBeNull();
   expect(screen.getByRole("button", { name: "Sugerir desde la vacante" }).parentElement).toHaveClass("flex-col", "sm:flex-row");
   fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
-  expect(screen.getByText("Al menos 3 años de experiencia")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Seleccionar Al menos 3 años de experiencia" })).toBeVisible();
   expect(screen.getByText("Habilidad: SQL")).toBeVisible();
   expect(screen.getByText("¿Viajas?")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
@@ -51,7 +90,7 @@ it("explains the internal empty state, suggests criteria and preselects reminder
 it("does not preselect stages for an already saved empty checklist", () => { editor({ ...empty, version: "1" }); expect(screen.getByRole("checkbox", { name: "Entrevista" })).not.toBeChecked(); });
 it.each([
   ["Años de experiencia", "min_years_experience"], ["Seniority", "seniority"], ["Estudios", "education"], ["Idioma", "language"], ["Habilidad", "skill"], ["Ubicación", "location"], ["Respuesta de filtro", "screening_answer"], ["Manual", "manual"],
-])("adds %s through the dialog and sends its validated params", async (name, kind) => {
+])("adds %s through inline detail and sends its validated params", async (name, kind) => {
   editor(); fireEvent.click(screen.getByRole("button", { name: "Agregar criterio" }));
   await choose("Tipo de criterio", name);
   if (kind === "seniority") await choose("Niveles aceptados", "Senior");
@@ -60,11 +99,9 @@ it.each([
   if (kind === "location") { await choose("País", "México"); await choose("Estados", "Ciudad de México"); }
   if (kind === "screening_answer") { await choose("Pregunta", "¿Viajas?"); await choose("Respuestas aceptadas", "Sí"); }
   if (kind === "manual") fireEvent.change(screen.getByLabelText("Etiqueta"), { target: { value: "Disponibilidad" } });
-  const dialog = screen.getByRole("dialog");
-  expect(document.querySelector('[data-slot="dialog-overlay"]')).not.toBeNull();
-  expect(dialog.querySelector('[data-slot="dialog-header"] [data-slot="dialog-title"]')).not.toBeNull();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Aplicar criterio" }));
-  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  const detail = screen.getByRole("region", { name: "Detalle del criterio" });
+  expect(detail.querySelector('[data-slot="card-header"] [data-slot="card-title"]')).not.toBeNull();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(saveChecklistAction).toHaveBeenCalled());
   const sent = (vi.mocked(saveChecklistAction).mock.calls[0][0].body as Checklist).criteria[0];
@@ -77,23 +114,36 @@ it.each([
 it("preserves identity on label/importance edits and replaces it on parameter changes", async () => {
   const criterion: Criterion = { ...manual, kind: "min_years_experience", params: { min: "3" } };
   editor({ ...empty, version: "1", criteria: [criterion] });
-  fireEvent.click(screen.getByRole("button", { name: "Editar Disponibilidad" }));
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Disponibilidad" }));
   fireEvent.change(screen.getByLabelText("Etiqueta"), { target: { value: "Experiencia" } });
-  fireEvent.click(screen.getByRole("button", { name: "Aplicar criterio" }));
   const importance = screen.getByRole("group", { name: "Importancia: Experiencia" });
   fireEvent.click(within(importance).getByRole("button", { name: "Deseable" }));
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(saveChecklistAction).toHaveBeenCalledTimes(1));
   expect((vi.mocked(saveChecklistAction).mock.calls[0][0].body as Checklist).criteria[0]).toMatchObject({ id, label: "Experiencia", importance: "desirable" });
-  fireEvent.click(screen.getByRole("button", { name: "Editar Experiencia" }));
+  fireEvent.click(screen.getByRole("button", { name: "Seleccionar Experiencia" }));
   fireEvent.change(screen.getByLabelText("Años mínimos"), { target: { value: "5" } });
-  fireEvent.click(screen.getByRole("button", { name: "Aplicar criterio" }));
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(saveChecklistAction).toHaveBeenCalledTimes(2));
   const sent = vi.mocked(saveChecklistAction).mock.calls[1][0];
   expect(sent.ifMatch).toBe('"saved"');
   expect((sent.body as Checklist).criteria[0].id).not.toBe(id);
   expect((sent.body as Checklist).criteria[0].params).toEqual({ min: "5" });
+});
+it("uses the detail menu to move the selection and remove it to its neighbor", async () => {
+  editor({ ...empty, version: "1", criteria: [manual, { ...manual, id: nextId, label: "Otro" }] });
+  async function action(name: string) {
+    fireEvent.click(screen.getByRole("button", { name: "Acciones de Disponibilidad" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name }));
+  }
+  await action("Bajar");
+  expect(screen.getByText("Criterio 2 de 2 · Manual")).toBeVisible();
+  expect(screen.getByLabelText("Etiqueta")).toHaveValue("Disponibilidad");
+  await action("Subir");
+  expect(screen.getByText("Criterio 1 de 2 · Manual")).toBeVisible();
+  await action("Quitar criterio");
+  expect(screen.queryByRole("button", { name: "Seleccionar Disponibilidad" })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Etiqueta")).toHaveValue("Otro");
 });
 it("removes and reorders without changing ids; exposes accessible row menus", () => {
   const other = { ...manual, id: nextId, label: "Otro" };
