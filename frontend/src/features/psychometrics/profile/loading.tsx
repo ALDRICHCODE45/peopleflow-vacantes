@@ -1,9 +1,25 @@
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+
 export function ProfileSkeleton() {
-  return <Card aria-busy="true" aria-label="Psicometría"><span role="status" className="sr-only">Cargando perfil psicométrico</span>
-    <CardHeader className="border-b max-sm:has-data-[slot=card-action]:grid-cols-1"><CardTitle><Skeleton className="h-5 w-32" /></CardTitle><CardDescription><Skeleton className="h-4 w-64 max-w-full" /></CardDescription><CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start"><Skeleton className="h-5 w-32" /></CardAction></CardHeader>
-    <CardContent aria-hidden="true" className="flex flex-col gap-6"><Skeleton className="h-10 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-10 w-48" /><Skeleton className="h-10 w-full" /><div><Skeleton className="hidden h-4 w-full sm:block" />{Array.from({ length: 7 }, (_, index) => <div key={index} className="grid grid-cols-2 items-center gap-3 border-b border-border py-3 sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_7rem]"><Skeleton className="col-span-2 h-5 w-40 max-w-full sm:col-span-1" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>)}</div><Skeleton className="h-4 w-full" /><div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_10rem]"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div></CardContent>
-    <CardFooter className="border-t" aria-hidden="true"><Skeleton className="h-20 w-full" /></CardFooter>
-  </Card>;
+  return <div aria-busy="true" aria-label="Psicometría" className="flex min-w-0 flex-col gap-5">
+    <span role="status" className="sr-only">Cargando perfil psicométrico</span>
+    <div aria-hidden="true" className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-col gap-2"><Skeleton className="h-7 w-32" /><Skeleton className="h-5 w-64 max-w-full" /></div><Skeleton className="h-5 w-40" /></div>
+    <Card aria-hidden="true"><CardHeader className="border-b"><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardDescription><Skeleton className="h-5 w-48" /></CardDescription><CardAction><Skeleton className="h-5 w-24" /></CardAction></CardHeader>
+      <CardContent className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem]">{Array.from({ length: 3 }, (_, index) => <div key={index} className="flex flex-col gap-2"><Skeleton className="h-5 w-40 max-w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-5 w-full" /></div>)}</CardContent>
+      <CardFooter className="border-t"><Skeleton className="h-8 w-full" /></CardFooter>
+    </Card>
+    <div aria-hidden="true" className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.5fr)]">
+      <Card><CardHeader className="border-b"><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardDescription><Skeleton className="h-5 w-32" /></CardDescription><CardAction><Skeleton className="h-5 w-6" /></CardAction></CardHeader>
+        <CardContent className="flex flex-col gap-2">{Array.from({ length: 7 }, (_, index) => <div key={index} className="flex flex-col gap-2"><Skeleton className="h-5 w-40 max-w-full" /><Skeleton className="h-5 w-full" /></div>)}</CardContent>
+        <CardFooter className="border-t"><Skeleton className="h-10 w-full" /></CardFooter>
+      </Card>
+      <Card className="min-w-0"><CardHeader className="border-b"><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardDescription><Skeleton className="h-5 w-48 max-w-full" /></CardDescription><CardAction className="col-start-1 row-span-1 row-start-3 justify-self-start"><Skeleton className="h-10 w-56 max-w-full" /></CardAction></CardHeader>
+        <CardContent className="flex flex-col gap-6"><div className="flex flex-col gap-3"><Skeleton className="h-5 w-40" /><Skeleton className="h-9 w-full" /></div><div className="flex flex-col gap-3"><Skeleton className="h-5 w-32" /><Skeleton className="h-9 w-full" /><Skeleton className="h-5 w-20" /></div><Skeleton className="h-12 w-full" /></CardContent>
+        <CardFooter className="border-t"><Skeleton className="h-10 w-full" /></CardFooter>
+      </Card>
+    </div>
+    <Skeleton aria-hidden="true" className="h-10 w-full" />
+    <Card aria-hidden="true" className="sticky bottom-3"><CardContent className="flex flex-col gap-3"><Skeleton className="h-6 w-48" /><Skeleton className="h-10 w-full" /></CardContent></Card>
+  </div>;
 }

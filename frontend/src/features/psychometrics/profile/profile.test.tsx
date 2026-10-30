@@ -1,28 +1,16 @@
 import * as React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { loadProfileAction, saveProfileAction } from "../actions";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { COMPETENCY_IDS, type Profile } from "../model";
 import { ProfileEditor } from "./editor";
-// Same controlled Select boundary as delivery-config/editor.test.tsx: jsdom cannot position Base UI portals.
-// Keep product handlers/body assertions real; popup positioning and Base UI keyboard behavior need browser QA.
-vi.mock("@/components/ui/select", () => {
-  type State = { value: string | null; items: { value: string; label: string }[]; disabled?: boolean; id: string; open: boolean; toggle: () => void; change: (value: string) => void };
-  const Context = React.createContext<State>({ value: null, items: [], id: "", open: false, toggle: () => {}, change: () => {} });
-  return {
-    Select: ({ value, items, disabled, onValueChange, children }: Omit<State, "id" | "open" | "toggle" | "change"> & { onValueChange: State["change"]; children: React.ReactNode }) => {
-      const [open, setOpen] = React.useState(false);
-      const id = React.useId();
-      return <Context.Provider value={{ value, items, disabled, id, open, toggle: () => { if (!disabled) setOpen(!open); }, change: next => { if (!disabled) { onValueChange(next); setOpen(false); } } }}>{children}</Context.Provider>;
-    },
-    SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) => { const state = React.useContext(Context); return <button type="button" role="combobox" aria-controls={state.id} aria-expanded={state.open} disabled={state.disabled} onClick={state.toggle} {...props}>{children}</button>; },
-    SelectValue: ({ placeholder }: { placeholder?: string }) => { const state = React.useContext(Context); return state.items.find(item => item.value === state.value)?.label ?? placeholder; },
-    SelectContent: ({ children }: { children: React.ReactNode }) => { const state = React.useContext(Context); return state.open ? <div role="listbox" id={state.id}>{children}</div> : null; },
-    SelectGroup: ({ children }: { children: React.ReactNode }) => <div role="group">{children}</div>,
-    SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => { const state = React.useContext(Context); return <button type="button" role="option" aria-selected={state.value === value} onClick={() => state.change(value)}>{children}</button>; },
-  };
+// jsdom cannot position Base UI portals. Only the popup shell is replaced;
+// the real trigger, controlled open state, checkboxes and saved bodies remain exercised.
+vi.mock("@/components/ui/popover", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/components/ui/popover")>();
+  return { ...actual, PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, PopoverTitle: ({ children }: { children: React.ReactNode }) => <h5>{children}</h5> };
 });
 vi.mock("../actions", () => ({ loadProfileAction: vi.fn(), saveProfileAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
@@ -31,10 +19,14 @@ const stages = [{ id: "123e4567-e89b-42d3-a456-426614174000", kind: "screening" 
 const mount = (data = profile()) => render(<ProfileEditor draftId="vacancy" profile={data} etag={'"pp1"'} stages={stages} />);
 beforeEach(() => { vi.stubGlobal("PointerEvent", MouseEvent); vi.resetAllMocks(); vi.mocked(saveProfileAction).mockImplementation(async input => ({ ok: true, data: { ...input.body as Profile, version: "1", confirmed_at: (input.body as Profile).confirmed ? "2026-10-29T12:00:00Z" : null }, etag: '"pp2"' })); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+const selectRow = (name: string) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${name}`) }));
+const bandGroup = () => screen.getByRole("group", { name: "Banda deseada" });
 it("renders never-saved defaults, seven disabled bands and does not invent suggestions", () => {
   mount(); expect(screen.getByRole("switch")).not.toBeChecked(); expect(screen.getByText("Perfil sin confirmar")).toHaveAttribute("data-variant", "accent");
-  expect(screen.getAllByRole("combobox", { name: /Banda deseada/ })).toHaveLength(7);
-  for (const band of screen.getAllByRole("combobox", { name: /Banda deseada/ })) expect(band).toBeDisabled();
+  for (const name of ["Orden para avanzar", "Cuidado de acuerdos", "Impulso para coordinar", "Apoyo entre pares", "Apertura a probar", "Pausa para decidir", "Manejo de la presión"]) {
+    selectRow(name);
+    for (const band of within(bandGroup()).getAllByRole("button")) expect(band).toBeDisabled();
+  }
   expect(screen.getByRole("spinbutton")).toHaveValue(7);
   expect(screen.queryByRole("textbox", { name: /Justificación laboral/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("textbox", { name: /Tarea concreta/ })).not.toBeInTheDocument();
@@ -52,17 +44,21 @@ it("shows only the supporting fields required by each row's importance", () => {
   mount(data);
   expect(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ })).toHaveValue("Cerrar entregas");
   expect(screen.getByRole("textbox", { name: /Justificación laboral de Orden/ })).toHaveValue("Plan semanal");
+  expect(screen.getAllByRole("textbox")).toHaveLength(2);
+  selectRow("Cuidado de acuerdos");
   expect(screen.getByRole("textbox", { name: /Justificación laboral de Cuidado/ })).toHaveValue("Cumplir acuerdos");
   expect(screen.queryByRole("textbox", { name: /Tarea concreta de Cuidado/ })).not.toBeInTheDocument();
+  expect(screen.getAllByRole("textbox")).toHaveLength(1);
+  selectRow("Impulso para coordinar");
   expect(screen.queryByRole("textbox", { name: /Tarea concreta de Impulso/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("textbox", { name: /Justificación laboral de Impulso/ })).not.toBeInTheDocument();
-  expect(screen.getAllByRole("textbox")).toHaveLength(3);
-  expect(screen.getByRole("combobox", { name: "Banda deseada de Impulso para coordinar" })).toBeDisabled();
-  expect(screen.getByRole("combobox", { name: "Banda deseada de Impulso para coordinar" })).toHaveTextContent("Sin banda");
+  expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+  for (const band of within(bandGroup()).getAllByRole("button")) expect(band).toBeDisabled();
+  expect(screen.getByText("Sin banda", { selector: "p" })).toBeVisible();
   expect(saveProfileAction).not.toHaveBeenCalled();
 });
 it("saves full replacement with opaque If-Match and adopts the new version", async () => {
-  mount(); fireEvent.click(screen.getByRole("switch")); fireEvent.click(screen.getByRole("checkbox", { name: "Entrevista" }));
+  mount(); fireEvent.click(screen.getByRole("switch")); fireEvent.click(screen.getByRole("button", { name: "Crear invitación al entrar a estas etapas" })); fireEvent.click(await screen.findByRole("checkbox", { name: "Entrevista" })); fireEvent.click(screen.getByRole("button", { name: "Crear invitación al entrar a estas etapas" }));
   fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "30" } });
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await screen.findByText("Perfil guardado");
@@ -100,17 +96,17 @@ it("maps server fields, preserves input and focuses first visual error", async (
   await waitFor(() => expect(screen.getAllByRole("textbox", { name: /Justificación laboral/ })[0]).toHaveFocus()); expect(screen.getAllByRole("textbox", { name: /Justificación laboral/ })[0]).toHaveAttribute("aria-invalid", "true"); expect(screen.getByRole("spinbutton")).toHaveAttribute("aria-invalid", "true"); expect(screen.getByRole("switch")).toBeChecked();
 });
 it("selects importance and a desired low band, then clears the band when irrelevant", async () => {
-  mount(); const importance = screen.getByRole("combobox", { name: "Importancia de Orden para avanzar" });
-  fireEvent.click(importance); fireEvent.click(await screen.findByRole("option", { name: "Clave" }));
+  mount();
+  fireEvent.click(screen.getByRole("button", { name: "Clave" }));
   expect(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ })).toBeVisible();
   expect(screen.getByRole("textbox", { name: /Justificación laboral de Orden/ })).toHaveValue("");
-  const band = screen.getByRole("combobox", { name: "Banda deseada de Orden para avanzar" }); expect(band).not.toBeDisabled(); expect(band).toHaveTextContent("Medio");
-  fireEvent.click(band); fireEvent.click(await screen.findByRole("option", { name: "Bajo" }));
+  const band = screen.getByRole("button", { name: "Medio" }); expect(band).not.toBeDisabled(); expect(band).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Bajo" }));
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" })); await screen.findByText("Perfil guardado");
   expect(saveProfileAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ confirmed: false, competencies: expect.arrayContaining([expect.objectContaining({ competency_id: "comp.organizacion", importance: "importance.clave", desired_band: "band.low", task: null })]) }) }));
   fireEvent.change(screen.getByRole("textbox", { name: /Tarea concreta de Orden/ }), { target: { value: "Cerrar entregas" } });
   fireEvent.change(screen.getByRole("textbox", { name: /Justificación laboral de Orden/ }), { target: { value: "Trabajo concreto" } });
-  fireEvent.click(importance); fireEvent.click(await screen.findByRole("option", { name: "No relevante" }));
+  fireEvent.click(screen.getByRole("button", { name: "No relevante" }));
   expect(screen.queryByRole("textbox", { name: /Tarea concreta de Orden/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("textbox", { name: /Justificación laboral de Orden/ })).not.toBeInTheDocument();
   expect(band).toBeDisabled(); fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
@@ -118,8 +114,8 @@ it("selects importance and a desired low band, then clears the band when irrelev
   expect(saveProfileAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ competencies: expect.arrayContaining([expect.objectContaining({ competency_id: "comp.organizacion", desired_band: null, rationale: null, task: null })]) }) }));
 });
 it("initializes Importante with a middle band and empty rationale; drafts save but confirmation requires rationale only", async () => {
-  mount(); fireEvent.click(screen.getByRole("combobox", { name: "Importancia de Orden para avanzar" })); fireEvent.click(await screen.findByRole("option", { name: "Importante" }));
-  expect(screen.getByRole("combobox", { name: "Banda deseada de Orden para avanzar" })).toHaveTextContent("Medio");
+  mount(); fireEvent.click(screen.getByRole("button", { name: "Importante" }));
+  expect(screen.getByRole("button", { name: "Medio" })).toHaveAttribute("aria-pressed", "true");
   const rationale = screen.getByRole("textbox", { name: /Justificación laboral de Orden/ }); expect(rationale).toHaveValue(""); expect(screen.queryByRole("textbox", { name: /Tarea concreta/ })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" })); await screen.findByText("Perfil guardado");
   expect(saveProfileAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ competencies: expect.arrayContaining([expect.objectContaining({ importance: "importance.importante", desired_band: "band.medium", rationale: "", task: null })]) }) }));
