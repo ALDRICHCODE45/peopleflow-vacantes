@@ -30,6 +30,18 @@ candidate dashboard with real data only; design on the canvas before each implem
 - **S8 Message read state from the backend.** User chose «Pedir al backend «leído»»: the backend stores when the
   candidate read each company message (read_at + mark as read), the same on every device. Until it exists, «Por
   atender» counts only pending assessments and company messages stay visible in their application in the log.
+- **S9 Richer dashboard (supersedes the look of S7).** «la verdad es que no me gusta, [screenshot] es muy plano, muy
+  seco, no tiene mucho chiste.... este era el dashboard antiguo: [screenshot] y es mucho mejor en terminos de diseno,
+  igualmente me gustaria alguna grafica como la que se muestra en el dashboard de la empresa, pero no solo quiero poner
+  una grafica por ponerla, quiero algo que realmente valga la pena para el candidato, y aparte mejorar el diseno.»
+  Base the new design on the old dashboard's structure (pending banner on top, greeting, four compact KPI cards with
+  the number as hero, recent applications + side panel) on real data (S6, S8 stay).
+- **S10 Charts that answer candidate questions.** User selected all three: «¿Estoy siendo constante?» (applications
+  per week over 3 months / 30 days, colored by current status, like the employer chart), «¿Está funcionando?»
+  (what happened to the applications: in process / sent / closed with the advance rate as headline), «¿Cuánto tardan
+  en responder?» (average days until a company first moves an application — needs a backend first-change timestamp).
+- **S11 Greeting name.** «No, usar el nombre completo»: greet with the full `full_name` (the first token can be a
+  surname, e.g. «Hola, Flores»).
 - **S4 Order.** CVs first, then the dashboard, as separate deliveries (user choice, L3).
 
 ## Tasks
@@ -42,6 +54,9 @@ candidate dashboard with real data only; design on the canvas before each implem
 | D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
 | D3 | S6 | backend request: per-application `updated_at` (last status change) in the candidate applications list | |
 | D4 | S2, S3, S6, S7, S8 | worker — implement 03 on real data; remove prototype fixtures from the route; tests | this commit (L13) |
+| D6 | S9, S10, S11 | canvas — `design/candidate-dashboard-v2/` directions on the old structure with the three charts → user choice | |
+| D7 | S10 | backend request: first candidate-visible change timestamp per application (response time) | |
+| D8 | S9, S10, S11 | implement the chosen v2 design on real data; tests | |
 | D5 | S8 | backend request: message read state; then the frontend counts unread messages in «Por atender» | |
 
 ## Log
@@ -123,3 +138,8 @@ candidate dashboard with real data only; design on the canvas before each implem
   earlier/unknown keys); applications-workspace tests byte-identical to origin/main; 156 tests passed on Node 22 in an
   isolated copy; S6 met, S7 met for shared-code interaction, S8 met for the interim frontend. Verifier scratch left at
   /tmp/candidate-verify.XwOneb (outside the repo).
+- **L15** User browser QA of a8736c6c rejected the look (S9 verbatim) and asked for meaningful charts. Parent analysis:
+  the 03 implementation lost the old hierarchy (pending banner first), the compact number-first cards and the visual
+  side panel. Found greeting bug «Hola, Flores» (first token of full_name «Flores Vazquez Bryan Aldrich»). Answers:
+  charts — all three (S10); name — «No, usar el nombre completo» (S11). D4's data layer stays; its presentation is
+  replaced by D8.
