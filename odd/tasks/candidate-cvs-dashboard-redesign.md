@@ -54,7 +54,7 @@ candidate dashboard with real data only; design on the canvas before each implem
 | D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
 | D3 | S6 | backend request: per-application `updated_at` (last status change) in the candidate applications list | |
 | D4 | S2, S3, S6, S7, S8 | worker — implement 03 on real data; remove prototype fixtures from the route; tests | this commit (L13) |
-| D6 | S9, S10, S11 | canvas — `design/candidate-dashboard-v2/` directions on the old structure with the three charts → user choice | |
+| D6 | S9, S10, S11 | canvas — `design/candidate-dashboard-v2/` directions on the old structure with the three charts → user choice | 4ac59acb, 21412d46 (L19, L22) |
 | D7 | S10 | backend request: first candidate-visible change timestamp per application (response time) | |
 | D8 | S9, S10, S11 | implement the chosen v2 design on real data; tests | |
 | D5 | S8 | backend request: message read state; then the frontend counts unread messages in «Por atender» | |
@@ -203,3 +203,5 @@ candidate dashboard with real data only; design on the canvas before each implem
   timeouts at load average 19–23 in files untouched on this branch (empty diff vs origin/main); their isolated rerun hit
   the 110 s command limit under the same load. tsc 0, eslint 0 errors. **Pending:** re-run those two files when the
   load drops. Process fix: run the full suite before every code commit.
+- **L22** User (verbatim): «si hermano, aprobado» → design 02-tres-preguntas (21412d46) approved for D8. Slice boundary:
+  D8 is the next slice (dashboard v2 presentation on the existing data layer).
