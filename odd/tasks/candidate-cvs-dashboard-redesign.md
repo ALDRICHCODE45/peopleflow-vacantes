@@ -165,3 +165,10 @@ candidate dashboard with real data only; design on the canvas before each implem
   three artboards load with no errors; every state/period toggle works; full name shown; no forbidden copy; 01 overflowed
   at 390 because its screen-reader-only <table> ignored width:1px — fixed with `table.sr{display:block}`; now no
   overflow at 1440 or 390 in any state of 01/02/03. Awaiting the user's choice.
+- **L18** D7 ready (backend 8f8b66df, local). D5 name confirmed `message_read_at` (null whenever message is null, DB CHECK;
+  {error, code} on both 409s); backend implementing on feat/applications-message-read. Frontend accepts it: optional
+  nullable, requires a message and >= applied_at — RED 3 accept cases, GREEN 568/569 (Node 22), tsc 0, eslint clean.
+  The one failure, «S3 profile phone saves > sends +52…» (profile-workspace.test.tsx), exceeded the 5 s test timeout
+  (5231 ms) with machine load average 29; that file imports nothing from candidate-applications and is untouched on this
+  branch. Its single re-run timed out at the 120 s command limit under the same load. **Pending:** re-run
+  profile-workspace.test.tsx when the load drops.

@@ -97,6 +97,15 @@ describe("candidate application contracts", () => {
     fetchMock.mockResolvedValue(Response.json({ ...page, items: [{ ...page.items[0], first_response_at }] }));
     expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
   });
+  it.each([["submitted", null, undefined], ["submitted", null, null], ["closed", "Gracias por tu interés.", null], ["closed", "Gracias por tu interés.", "2026-10-21T09:00:00.5Z"]])("accepts message_read_at for status %s, message %j, read %j", async (status, message, message_read_at) => {
+    const data = { ...page, items: [{ ...page.items[0], status, message, ...(message_read_at !== undefined && { message_read_at }) }] };
+    fetchMock.mockResolvedValue(Response.json(data));
+    expect(await loadApplications({ token: "private-token" })).toEqual({ ok: true, data });
+  });
+  it.each([[null, "2026-10-21T09:00:00Z"], ["Gracias por tu interés.", "2020-01-01T00:00:00Z"], ["Gracias por tu interés.", ""], ["Gracias por tu interés.", "2026-10-21T09:00:00"]])("rejects message_read_at without a message or malformed (message %j, read %j)", async (message, message_read_at) => {
+    fetchMock.mockResolvedValue(Response.json({ ...page, items: [{ ...page.items[0], status: "closed", message, message_read_at }] }));
+    expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
+  });
   it("still rejects any other unknown item key next to updated_at", async () => {
     fetchMock.mockResolvedValue(Response.json({ ...page, items: [{ ...page.items[0], updated_at: "2026-10-20T09:30:00Z", stage: "entrevista" }] }));
     expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
