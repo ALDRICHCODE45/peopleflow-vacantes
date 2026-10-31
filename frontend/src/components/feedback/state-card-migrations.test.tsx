@@ -12,7 +12,6 @@ it.each([
   "features/pipeline-movement/candidate-sheet.tsx",
   "features/candidate-applications/wizard.tsx",
   "features/company-site/public/company-jobs.tsx",
-  "components/candidate-dashboard/candidate-dashboard-overview.tsx",
   "components/company-dashboard/data-table.tsx",
   "features/employer-team/team-workspace.tsx",
   "features/employer-vacancies/vacancy-portfolio.tsx",
@@ -25,6 +24,8 @@ it.each([
 // Sections that already live inside a Card use the in-card variant (design/system.md «Empty states»).
 it.each([
   "components/company-dashboard/active-vacancies.tsx",
+  "components/candidate-dashboard/candidate-dashboard-overview.tsx",
+  "features/candidate/dashboard/charts.tsx",
 ])("%s delegates its in-card empty state to SectionEmpty", (file) => {
   const source = readFileSync(resolve("src", file), "utf8");
   expect(source.includes('from "@/components/feedback/state-card"')).toBe(true);

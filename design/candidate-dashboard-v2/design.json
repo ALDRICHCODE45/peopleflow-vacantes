@@ -1,0 +1,28 @@
+{
+  "title": "Dashboard candidato · Volver a una búsqueda con vida",
+  "brief": "D6: recuperar el banner Pendientes, el saludo completo, cuatro KPIs compactos con cifras protagonistas y las postulaciones recientes con lateral. Tres composiciones para constancia, resultados y primera respuesta, con datos de muestra coherentes y estados Con actividad / Primera visita / Al día. Acciones de producto habilitadas e inertes; controles de diseño, períodos y pestañas funcionales. No es integración de API. Respuesta depende del primer cambio visible del backend.",
+  "feature": "odd/tasks/candidate-cvs-dashboard-redesign.md",
+  "artboards": [
+    {
+      "file": "01-ritmo-protagonista.html",
+      "title": "Ritmo protagonista",
+      "tradeoff": "Una gráfica semanal de ancho completo da contexto y conserva el gesto visual del dashboard de empresa; resultados y respuesta se leen en el lateral, pero quedan más abajo y la página exige más desplazamiento.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-tres-preguntas.html",
+      "title": "Tres preguntas",
+      "tradeoff": "Tres tarjetas de insight con el mismo peso permiten comparar todas las preguntas sin cambiar de vista; la evolución semanal tiene menos detalle horizontal y el estado lateral repite intencionalmente parte del resumen de resultados.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-perspectivas-en-panel.html",
+      "title": "Perspectivas en panel",
+      "tradeoff": "Postulaciones e insight conviven sin empujar la actividad hacia abajo; el área apilada recuerda la gráfica de empresa. Las tres preguntas existen en pestañas accesibles, pero no pueden compararse a la vez y requieren descubrimiento e interacción.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}

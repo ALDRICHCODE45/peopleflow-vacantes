@@ -1,0 +1,28 @@
+{
+  "title": "Dashboard de candidato · Ximena Ruiz",
+  "brief": "Tres direcciones para /candidato/dashboard: conservar cuatro tarjetas accionables, priorizar evaluaciones y mensajes de empresas, y seguir postulaciones con los estados reales. Ejemplos ilustrativos de S6; no son una conexión a la API. Cada dirección incluye Con actividad, Primera visita y Al día. La recencia representa el updated_at solicitado en D3, no la fecha de postulación.",
+  "feature": "odd/tasks/candidate-cvs-dashboard-redesign.md",
+  "artboards": [
+    {
+      "file": "01-resumen-dividido.html",
+      "title": "Resumen dividido",
+      "tradeoff": "Cuatro tarjetas y dos paneles equilibrados permiten escanear pendientes y procesos a la vez; la evaluación comparte protagonismo con el resto de la información.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-agenda-de-acciones.html",
+      "title": "Agenda de acciones",
+      "tradeoff": "Una agenda de ancho completo destaca el vencimiento y la acción inmediata; las postulaciones quedan en segundo plano y sus tarjetas ocupan más ancho por proceso que una lista.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-bitacora-personal.html",
+      "title": "Bitácora personal",
+      "tradeoff": "Las tarjetas en dos filas dan espacio a las descripciones y la bitácora destaca la recencia de cada postulación; consume más altura y desplaza parte del contenido por debajo del primer pliegue. La línea conecta postulaciones, no un historial de eventos.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}

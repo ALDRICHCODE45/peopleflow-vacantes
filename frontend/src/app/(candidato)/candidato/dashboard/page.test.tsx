@@ -1,147 +1,21 @@
-import * as React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import "@testing-library/jest-dom/vitest";
-vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: "candidate" } } }) }));
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
-import { CANDIDATE_APPLICATION_MESSAGES } from "@/features/candidate/prototype-messages";
-import { CANDIDATE_APPLICATIONS, CANDIDATE_CVS } from "@/features/candidate/prototype-portfolio";
-
-const { pathnameMock, overviewSpy } = vi.hoisted(() => ({
-  pathnameMock: vi.fn<() => string | null>(() => "/candidato/dashboard"),
-  overviewSpy: vi.fn(),
-}));
-vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
-// Wrap the real overview so the route test observes the exact props at the boundary
-// while still rendering the committed metric and link behavior.
-vi.mock("@/components/candidate-dashboard/candidate-dashboard-overview", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/components/candidate-dashboard/candidate-dashboard-overview")>();
-  const RealOverview = actual.CandidateDashboardOverview;
-  return {
-    ...actual,
-    CandidateDashboardOverview: (props: React.ComponentProps<typeof RealOverview>) => {
-      overviewSpy(props);
-      return <RealOverview {...props} />;
-    },
-  };
-});
-
-vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: vi.fn().mockResolvedValue({ ok: true, data: { items: [] } }) }));
-import { loadWorkspaceAssessmentsAction } from "@/features/psychometrics/workspace/load";
-import DashboardPage, { metadata } from "./page";
-import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
-
-const SOURCE = readFileSync(join(process.cwd(), "src/app/(candidato)/candidato/dashboard/page.tsx"), "utf8");
-
-function stubBrowserApis() {
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false, media: "", onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: () => false,
-  }));
-  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal("innerWidth", 1280);
-}
-
-const renderRoute = async () => render(<CandidateShell>{await DashboardPage()}</CandidateShell>);
-const metric = (label: string) => document.querySelector(`[data-pf-overview-metric="${label}"]`) as HTMLElement;
-const recentSection = () => document.querySelector("[data-pf-recent-applications]") as HTMLElement;
-
-afterEach(() => {
+import { expect, it, vi } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+vi.mock("@/components/candidate-dashboard/candidate-header", () => ({ CandidateHeader: () => <h1>Dashboard</h1> }));
+vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn(async () => ({ ok: true, data: { items: [], next_cursor: null } })) }));
+vi.mock("@/features/candidate-cvs/actions", () => ({ loadCvsAction: vi.fn(async () => ({ ok: true, data: { items: [], limits: { max_cvs: 7 } } })) }));
+vi.mock("@/features/candidate/profile-actions", () => ({ loadProfileAction: vi.fn(async () => ({ ok: true, data: { profile: null, languages: { languages: [] } } })) }));
+vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: vi.fn(async () => ({ ok: true, data: { items: [] } })) }));
+import Page, { metadata } from "./page";
+it("renders the real empty account, never imports prototype modules, and keeps the route header", async () => {
+  const source = readFileSync("src/app/(candidato)/candidato/dashboard/page.tsx", "utf8");
+  expect(source).not.toMatch(/prototype-/);
+  expect(metadata.title).toBe("Dashboard");
+  render(await Page());
+  expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  expect(await screen.findByText("de 7")).toBeVisible();
+  expect(screen.getByRole("region", { name: "CVs" })).toHaveTextContent("0 de 7");
+  expect(screen.queryByText(/Ximena|Acme|Contratada|Rechazada/)).toBeNull();
   cleanup();
-  vi.unstubAllGlobals();
-  overviewSpy.mockReset();
-  pathnameMock.mockReturnValue("/candidato/dashboard");
-  localStorage.clear();
-});
-
-describe("candidate dashboard route", () => {
-  beforeEach(stubBrowserApis);
-
-  it("keeps Dashboard metadata and exactly one H1 through the shared header", async () => {
-    expect(metadata.title).toBe("Dashboard");
-    await renderRoute();
-    const headings = screen.getAllByRole("heading", { level: 1 });
-    expect(headings).toHaveLength(1);
-    expect(headings[0]).toHaveTextContent(/^Dashboard$/u);
-  });
-
-  it("supplies exactly the five committed frozen fixtures at the page boundary", async () => {
-    await renderRoute();
-    const props = overviewSpy.mock.calls[overviewSpy.mock.calls.length - 1]?.[0] as Record<string, unknown>;
-    expect(Object.keys(props)).toEqual(["identity", "profile", "applications", "cvs", "messages"]);
-    expect(props.identity).toBe(CANDIDATE_IDENTITY);
-    expect(props.profile).toBe(CANDIDATE_PROFILE);
-    expect(props.applications).toBe(CANDIDATE_APPLICATIONS);
-    expect(props.cvs).toBe(CANDIDATE_CVS);
-    expect(props.messages).toBe(CANDIDATE_APPLICATION_MESSAGES);
-    expect(Object.isFrozen(props.applications)).toBe(true);
-    expect(Object.isFrozen(props.cvs)).toBe(true);
-    expect(Object.isFrozen(props.messages)).toBe(true);
-  });
-
-  it("renders the frozen expected metrics", async () => {
-    await renderRoute();
-    expect(metric("Postulaciones")).toHaveTextContent("4 postulaciones registradas");
-    expect(metric("En proceso")).toHaveTextContent("2");
-    expect(metric("Perfil completo")).toHaveTextContent("100%");
-    expect(metric("CVs")).toHaveTextContent("2 CVs disponibles");
-  });
-
-  it("shows recent applications with canonical links and an honest historical row", async () => {
-    await renderRoute();
-    const recent = recentSection();
-    const rows = within(recent).getAllByRole("listitem");
-    expect(rows).toHaveLength(3);
-    expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining("Desarrolladora Go"),
-      expect.stringContaining("Ingeniera Frontend"),
-      expect.stringContaining("Analista de Datos"),
-    ]);
-    expect(within(rows[0]).getByRole("link", { name: /Ver vacante de Desarrolladora Go/u })).toHaveAttribute("href", CANDIDATE_APPLICATIONS[0].publicJobHref);
-    expect(within(rows[1]).getByRole("link", { name: /Ver vacante de Ingeniera Frontend/u })).toHaveAttribute("href", CANDIDATE_APPLICATIONS[1].publicJobHref);
-    expect(within(rows[2]).queryByRole("link")).toBeNull();
-    expect(rows[2]).toHaveTextContent("Vacante histórica sin enlace");
-    expect(within(recent).getByRole("link", { name: "Ver todas mis postulaciones" })).toHaveAttribute("href", "/candidato/postulaciones");
-  });
-
-  it("renders no implementation-status disclosure", async () => {
-    await renderRoute();
-    expect(screen.queryByRole("note")).toBeNull();
-    expect(document.querySelector("[data-pf-candidate-overview-disclosure]")).toBeNull();
-  });
-
-  it("activates only Dashboard inside the shared candidate shell", async () => {
-    pathnameMock.mockReturnValue("/candidato/dashboard");
-    await renderRoute();
-    const nav = document.querySelector("[data-slot='sidebar-content']") as HTMLElement;
-    const active = within(nav).getAllByRole("link").filter((link) => link.hasAttribute("data-active")).map((link) => link.textContent);
-    expect(active).toEqual(["Dashboard"]);
-  });
-
-  it("loads real pending assessments separately from prototype overview objects", async () => {
-    vi.mocked(loadWorkspaceAssessmentsAction).mockResolvedValueOnce({ ok: true, data: { items: [{ id: "10000000-0000-4000-8000-000000000001", application_id: null, vacancy: { id: "10000000-0000-4000-8000-000000000002", title: "Real vacancy" }, company: { id: "10000000-0000-4000-8000-000000000003", name: "Real company" }, status: "created", created_at: "2026-10-29T12:00:00Z", expires_at: "2099-01-01T00:00:00Z", finished_at: null, answered_count: 0, total_count: 63, estimated_minutes: 10 }] } });
-    await renderRoute();
-    expect(await screen.findByRole("heading", { name: "Pendientes" })).toBeVisible();
-    expect(screen.getByRole("link", { name: /Revisar pendiente/ })).toHaveAttribute("href", "/candidato/evaluaciones/10000000-0000-4000-8000-000000000001");
-    expect(overviewSpy.mock.calls.at(-1)?.[0].applications).toBe(CANDIDATE_APPLICATIONS);
-  });
-
-  it("replaces the placeholder preview and owns no shell, side effect or fixture literal", () => {
-    expect(SOURCE).not.toMatch(/["']use client["']/u);
-    for (const forbidden of ["CandidateDestinationShell", "data-pf-destination", "preview", "summary"]) {
-      expect(SOURCE, `page must not keep placeholder ${forbidden}`).not.toContain(forbidden);
-    }
-    for (const forbidden of ["SidebarProvider", "Sidebar", "CandidateShell", "candidate-theme", "next/headers", "next/navigation", "useRouter", "fetch(", "localStorage", "sessionStorage", "document.cookie", "useState", "useEffect", "onClick", "<form", "<input", "<main", "window.", "redirect("]) {
-      expect(SOURCE, `page must not own ${forbidden}`).not.toContain(forbidden);
-    }
-    expect(SOURCE).toContain('import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"');
-    expect(SOURCE).toContain('import { CandidateDashboardOverview } from "@/components/candidate-dashboard/candidate-dashboard-overview"');
-    for (const fixture of ["CANDIDATE_IDENTITY", "CANDIDATE_PROFILE", "CANDIDATE_APPLICATIONS", "CANDIDATE_CVS", "CANDIDATE_APPLICATION_MESSAGES"]) {
-      expect(SOURCE, `page must wire ${fixture}`).toContain(fixture);
-    }
-    expect(SOURCE).toContain('title="Dashboard"');
-  });
 });

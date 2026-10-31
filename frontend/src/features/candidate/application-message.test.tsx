@@ -31,6 +31,23 @@ const island = () => document.querySelector(`[data-pf-application-message="${mes
 const openButton = () => within(island()).getByRole("button", { name: "Ver mensaje" });
 
 describe("ApplicationMessage", () => {
+  it("preserves the default unread indication and trigger label", () => {
+    render(<ApplicationMessage message={message} />);
+    expect(screen.getByText("Nuevo mensaje")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Ver mensaje" })).toBeVisible();
+  });
+
+  it("can omit the unread indication and label the same dialog Leer mensaje", async () => {
+    render(<ApplicationMessage message={{ applicationId: message.applicationId, sender: message.sender, subject: message.subject, body: message.body }} showUnread={false} triggerLabel="Leer mensaje" />);
+    expect(screen.queryByText("Nuevo mensaje")).toBeNull();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Leer mensaje" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(message.subject);
+    expect(dialog.querySelector("time")).toBeNull();
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeInTheDocument();
+    for (const paragraph of message.body) expect(dialog).toHaveTextContent(paragraph);
+    expect(screen.queryByText("Nuevo mensaje")).toBeNull();
+  });
   it("shows the unread notice and opens the real letter on Ver mensaje", async () => {
     const user = userEvent.setup();
     render(<ApplicationMessage message={message} />);

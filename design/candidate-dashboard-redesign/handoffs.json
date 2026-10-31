@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "03-bitacora-personal.html",
+  "handoffs": {
+    "03-bitacora-personal.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-10-31T00:15:41.569Z",
+      "startedAt": "2026-10-31T00:16:08.120Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/candidate-cvs-dashboard-redesign.md",
+      "note": "D4: implementando con datos reales (worker)"
+    }
+  }
+}

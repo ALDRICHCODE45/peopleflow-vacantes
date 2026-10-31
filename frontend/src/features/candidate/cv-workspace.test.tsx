@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -8,6 +9,11 @@ import { loadCvsAction } from "@/features/candidate-cvs/actions";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { cv, library } from "@/features/candidate-cvs/test-fixtures";
 import { CvWorkspace } from "./cv-workspace";
+// Keep the real popover controls; only replace the jsdom-looping anchored shell.
+vi.mock("@/components/ui/popover", async importOriginal => ({
+  ...await importOriginal<typeof import("@/components/ui/popover")>(),
+  PopoverContent: ({ children }: { children?: ReactNode }) => children ? <div role="dialog" aria-label="Ayuda">{children}</div> : null,
+}));
 const fetchMock = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -21,6 +27,38 @@ function selectFile(file: File) { fireEvent.change(screen.getByLabelText("Archiv
 const unavailableTitle = "Los CVs no están disponibles en este momento";
 const unavailableDescription = "Puedes intentarlo más tarde; lo que ya escribiste se conserva.";
 describe("real CV workspace", () => {
+  it("explains the in-use badge only on demand", async () => {
+    await ready();
+    const description = "Enviaste este CV en al menos una postulación.";
+    expect(screen.queryByText(description)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "¿Qué significa usado en postulaciones?" }));
+    expect(await screen.findByRole("dialog", { name: "Ayuda" })).toHaveTextContent(description);
+    expect(screen.getByRole("dialog", { name: "Ayuda" })).toHaveTextContent("Cada postulación guarda su copia: si lo renombras o eliminas, lo que la empresa recibió no cambia.");
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar ayuda" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+  it.each([false, true])("uses the picker upload path for drops (invalid: %s)", async invalid => {
+    await ready();
+    fetchMock.mockResolvedValue(Response.json({ ...cv, id: "b12b3456-1234-4234-8234-123456789abc" }, { status: 201 }));
+    const file = new File(["pdf"], invalid ? "cv.exe" : "cv.pdf", { type: invalid ? "application/octet-stream" : "application/pdf" });
+    const drop = screen.getByRole("region", { name: "Subir un CV" });
+    fireEvent.dragOver(drop);
+    expect(drop).toHaveAttribute("data-drag-over", "true");
+    fireEvent.drop(drop, { dataTransfer: { files: [file] } });
+    expect(drop).toHaveAttribute("data-drag-over", "false");
+    if (invalid) {
+      expect(await screen.findByRole("alert")).toHaveTextContent("Sube un PDF o un documento de Word (.docx).");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(screen.getByText("1 de 10")).toBeVisible();
+      expect(screen.getByRole("heading", { name: cv.name })).toBeVisible();
+    } else {
+      await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "CV subido" })));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/candidate/cvs");
+      expect(fetchMock.mock.calls[0][1].body.get("file")).toBe(file);
+      expect(screen.getByText("2 de 10")).toBeVisible();
+    }
+  });
   it.each(["no_response", "unauthenticated"] as const)("shows a recovery card for initial %s", async reason => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: false, reason, reference: {} });
     render(<CvWorkspace />);
@@ -33,7 +71,7 @@ describe("real CV workspace", () => {
   it("wraps the empty library and its existing uploader in a card", async () => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [] } });
     render(<CvWorkspace />);
-    const title = await screen.findByRole("heading", { name: "Sin CVs" });
+    const title = await screen.findByRole("heading", { name: "Todavía no tienes CVs" });
     expect(title.closest('[data-slot="card"]')).not.toBeNull();
     expect(screen.getByLabelText("Archivo del CV")).toBeEnabled();
   });
@@ -72,16 +110,16 @@ describe("real CV workspace", () => {
     const { container } = render(<CvWorkspace />);
     expect(screen.getByRole("status")).toHaveTextContent("Cargando CVs");
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(1);
-    expect(screen.queryByText("Sin CVs")).toBeNull();
+    expect(screen.queryByText("Todavía no tienes CVs")).toBeNull();
     const cards = container.querySelectorAll('[data-slot="card"]');
-    expect(cards).toHaveLength(2);
-    for (const card of cards) {
+    expect(cards).toHaveLength(3);
+    for (const card of [...cards].slice(0, 2)) {
       expect(card).toHaveAttribute("aria-hidden", "true");
-      for (const slot of ["card-header", "card-title", "card-action", "card-content"]) expect(card.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
-      expect(card.querySelectorAll("dl > div")).toHaveLength(1);
+      for (const slot of ["card-header", "card-title", "card-action"]) expect(card.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
       expect(card.querySelector('[data-slot="card-description"]')).not.toBeNull();
     }
-    expect(container.querySelector('[data-pf-cv-loading-upload] [data-slot="field"]')).not.toBeNull();
+    expect(container.querySelector('[data-pf-cv-loading-upload] [data-slot="card-content"]')).not.toBeNull();
+    expect(container.querySelector('[data-pf-cv-loading-upload]')).toHaveClass("order-first", "xl:order-last");
   });
   it("mirrors the loaded CV card slots and facts in the initial skeleton", async () => {
     let finish!: (result: Awaited<ReturnType<typeof loadCvsAction>>) => void;
@@ -90,54 +128,64 @@ describe("real CV workspace", () => {
     const slots = (card: Element) => [...card.querySelectorAll('[data-slot^="card-"]')].map(node => node.getAttribute("data-slot"));
     const skeleton = container.querySelector('[data-slot="card"]')!;
     const expected = slots(skeleton);
-    const factsClass = skeleton.querySelector("dl")!.className;
+    const factsClass = skeleton.querySelector('[data-slot="card-header"]')!.className;
     finish({ ok: true, data: library });
     await screen.findByRole("heading", { name: cv.name });
     const loaded = container.querySelector('[data-pf-cv-card]')!;
     expect(slots(loaded)).toEqual(expected);
-    expect(loaded.querySelector("dl")).toHaveAttribute("class", factsClass);
+    expect(loaded.querySelector('[data-slot="card-header"]')).toHaveAttribute("class", factsClass);
   });
   it("renders the empty state and the server limit counter", async () => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [] } });
     render(<CvWorkspace />);
-    expect(await screen.findByText("Sin CVs")).toBeInTheDocument();
-    expect(screen.getByText("0 de 10 CVs")).toBeInTheDocument();
-    const upload = screen.getByRole("button", { name: "Subir CV" });
+    expect(await screen.findByText("Todavía no tienes CVs")).toBeInTheDocument();
+    expect(screen.getByText("0 de 10")).toBeInTheDocument();
+    expect(screen.getByText("Puedes subir 10 más.")).toBeVisible();
+    expect(screen.getByText("Sube tu primer CV desde el panel. Aparecerá aquí y podrás elegirlo con un clic al postularte.")).toBeVisible();
+    const upload = screen.getByRole("button", { name: "Elegir archivo" });
     expect(upload).toBeEnabled();
     expect(upload).toHaveClass("bg-primary", "w-full", "sm:w-auto");
-    expect(upload.closest('[data-slot="empty-content"]')).not.toBeNull();
-    const title = screen.getByText("Sin CVs");
-    expect(title).toHaveClass("text-xl", "font-semibold");
+    expect(upload.closest('aside')).not.toBeNull();
+    const title = screen.getByText("Todavía no tienes CVs");
+    expect(title).toHaveClass("text-base", "font-semibold");
     expect(title.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
-    expect(screen.getAllByRole("button", { name: "Subir CV" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Elegir archivo" })).toHaveLength(1);
   });
-  it("keeps document identity in the official CardHeader slots without a custom medallion or offset", async () => {
+  it("keeps document identity, file tile and actions in the official CardHeader slots", async () => {
     const { container } = await ready();
     const header = container.querySelector('[data-pf-cv-card] > [data-slot="card-header"]')!;
     expect([...header.children].map(node => node.getAttribute("data-slot"))).toEqual(["card-title", "card-description", "card-action"]);
     const title = header.querySelector('[data-slot="card-title"]')!;
-    expect([...title.children].map(node => node.tagName)).toEqual(["H3"]);
+    expect([...title.children].map(node => node.tagName)).toEqual(["SPAN", "H3"]);
+    expect(title.querySelector("h3")).toHaveAttribute("title", cv.name);
+    expect(title.querySelector("h3")).toHaveClass("truncate");
+    expect(title.querySelector('[aria-hidden="true"]')).toHaveTextContent("PDF");
+    // The tile stays in the row's flow (its own grid column) so it sets the row height; an absolute tile made rows thin.
+    expect(title.querySelector('[aria-hidden="true"]')).not.toHaveClass("absolute");
+    expect(title.querySelector('[aria-hidden="true"]')).toHaveClass("col-start-1", "row-span-2", "h-13", "text-status-danger");
     expect(title).toHaveTextContent(cv.name);
     expect(header.querySelector('[data-slot="card-description"]')).not.toHaveClass("pl-14");
-    expect(header.querySelector('[data-slot="card-action"] button')).toHaveAccessibleName(`Acciones de ${cv.name}`);
+    expect(header.querySelector('[data-pf-cv-actions-trigger]')).toHaveAccessibleName(`Acciones de ${cv.name}`);
   });
   it("mirrors the plain document identity in loading headers without medallions or offsets", () => {
     vi.mocked(loadCvsAction).mockReturnValue(new Promise(() => {}));
     const { container } = render(<CvWorkspace />);
-    for (const header of container.querySelectorAll('[data-slot="card-header"]')) {
-      expect(header.querySelectorAll('[data-slot="card-title"] > [data-slot="skeleton"]')).toHaveLength(1);
+    for (const header of [...container.querySelectorAll('[data-slot="card-header"]')].slice(0, 2)) {
+      expect(header.querySelectorAll('[data-slot="card-title"] > [data-slot="skeleton"]')).toHaveLength(2);
       expect(header.querySelector('[data-slot="card-description"]')).not.toHaveClass("pl-14");
     }
   });
-  it("shows actual name, type, size, es-MX date and neutral in-use badge in the approved cards", async () => {
+  it("shows actual name, type, size, es-MX date and success in-use badge in the chosen list", async () => {
     const { container } = await ready();
     const card = container.querySelector('[data-pf-cv-card]')!;
     expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).toHaveTextContent(cv.name);
-    for (const text of ["PDF", "340 KB", "10 de marzo de 2026", "En uso"]) expect(card).toHaveTextContent(text);
-    expect(screen.getByText("En uso")).toHaveAttribute("data-variant", "neutral");
+    for (const text of ["PDF", "340 KB", "Subido el 10 de marzo de 2026", "Usado en postulaciones"]) expect(card).toHaveTextContent(text);
+    expect(screen.getByText("Usado en postulaciones")).toHaveAttribute("data-variant", "success");
     expect(card.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
     expect(card.querySelector('[data-slot="card-description"]')).toHaveTextContent("PDF · 340 KB");
-    expect(screen.getByText("1 de 10 CVs")).toBeInTheDocument();
+    expect(screen.getByText("1 de 10")).toBeInTheDocument();
+    expect(screen.getByText("Puedes subir 9 más.")).toBeVisible();
+    expect(screen.getByRole("link", { name: `Descargar ${cv.name}` })).toHaveAttribute("href", `/api/candidate/cvs/${cv.id}/file`);
     const trigger = screen.getByRole("button", { name: `Acciones de ${cv.name}` });
     expect(trigger).toHaveAttribute("aria-haspopup", "menu"); expect(trigger.className).toContain("size-10");
     expect(trigger.closest('[data-slot="card-action"]')).not.toBeNull();
@@ -145,8 +193,9 @@ describe("real CV workspace", () => {
   });
   it("shows Word without fabricating primary-role or language data", async () => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [{ ...cv, in_use: false, content_type: library.limits.content_types[1] as "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }] } });
-    render(<CvWorkspace />); expect(await screen.findByText("Word · 340 KB")).toBeInTheDocument();
-    expect(screen.queryByText("En uso")).toBeNull(); expect(screen.queryByText("Principal")).toBeNull();
+    render(<CvWorkspace />); expect(await screen.findByText("Word · 340 KB · Subido el 10 de marzo de 2026")).toBeInTheDocument();
+    expect(screen.queryByText("Usado en postulaciones")).toBeNull(); expect(screen.queryByText("Principal")).toBeNull();
+    expect(screen.queryByRole("button", { name: "¿Qué significa usado en postulaciones?" })).toBeNull();
   });
   it("keeps errors persistent, and allows explicit load retry", async () => {
     vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
@@ -161,7 +210,7 @@ describe("real CV workspace", () => {
     await ready(); selectFile(file);
     expect(await screen.findByText(message)).toBeInTheDocument(); expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Archivo del CV")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText("Archivo del CV")).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Elegir archivo" })).toHaveFocus();
   });
   it("uploads once to the same-origin route, shows Spinner and confirmed success", async () => {
     await ready(); let resolve!: (value: Response) => void;
@@ -184,7 +233,7 @@ describe("real CV workspace", () => {
     await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", description, reference: expect.objectContaining({ status, code }) })));
     expect(screen.getByRole("status")).not.toHaveTextContent("private detail");
     // Focus moves after the failure is reported; wait for it instead of racing the effect under load.
-    if (code === "cv_content_mismatch") await waitFor(() => expect(screen.getByLabelText("Archivo del CV")).toHaveFocus());
+    if (code === "cv_content_mismatch") await waitFor(() => expect(screen.getByRole("button", { name: "Elegir archivo" })).toHaveFocus());
   });
   it.each([[503, "no_response", "No hubo respuesta del servidor"], [502, "unrecognized_response", "No pudimos confirmar el resultado"]])("preserves a sanitized route transport classification %i", async (status, code, title) => {
     await ready(); fetchMock.mockResolvedValue(Response.json({ error: code, code }, { status: Number(status) }));
@@ -195,19 +244,23 @@ describe("real CV workspace", () => {
     await ready(); fetchMock.mockRejectedValue(new Error("secret"));
     selectFile(new File(["%PDF-"], "cv.pdf", { type: "application/pdf" }));
     expect(await screen.findByRole("button", { name: "Comprobar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Subir CV" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
     await waitFor(() => expect(loadCvsAction).toHaveBeenCalledTimes(2));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it("disables upload at the real limit with an associated explanation", async () => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, limits: { ...library.limits, max_cvs: 1 } } });
-    await ready(); expect(screen.getByRole("button", { name: "Subir CV" })).toBeDisabled();
-    expect(screen.getByText("Ya tienes 1 CVs. Elimina uno para subir otro.")).toBeInTheDocument();
+    await ready(); expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Elegir archivo" })).toHaveAccessibleDescription("Ya tienes 1 CVs. Elimina uno para subir otro.");
+    expect(screen.getByText("1 de 1")).toBeVisible();
+    fireEvent.drop(screen.getByRole("region", { name: "Subir un CV" }), { dataTransfer: { files: [new File(["pdf"], "cv.pdf", { type: "application/pdf" })] } });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByText("1 de 1")).toBeVisible();
   });
   it("keeps semantic paint and a responsive document grid", async () => {
     const { container } = await ready();
-    expect(container.querySelector('[data-pf-cv-list]')?.className).toContain("lg:grid-cols-2");
+    expect(container.querySelector('[data-pf-cv-layout]')?.className).toContain("xl:grid-cols-[minmax(0,1fr)_340px]");
     const source = readFileSync("src/features/candidate/cv-workspace.tsx", "utf8");
     expect(source).not.toMatch(/#[0-9a-f]{3,8}\b|(?:rgb|hsl|oklch|color-mix)\(|dark:|space-[xy]-|bg-card\/40/u);
     expect(container.querySelector('[data-pf-cv-workspace]')?.className).toContain("max-w-screen-2xl");

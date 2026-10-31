@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chosen": "03-lista-y-panel.html",
+  "handoffs": {
+    "03-lista-y-panel.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-10-30T23:17:54.824Z",
+      "startedAt": "2026-10-30T23:18:21.779Z",
+      "implementedAt": "2026-10-30T23:43:28.025Z",
+      "feature": "odd/tasks/candidate-cvs-dashboard-redesign.md",
+      "note": "caa96f48 + 453e0e9a (filas con altura del artboard); QA visual aprobada por el usuario",
+      "previewUrl": "http://localhost:3000/candidato/cvs"
+    }
+  }
+}

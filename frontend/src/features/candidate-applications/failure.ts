@@ -1,6 +1,6 @@
 import { CODES, type ErrorEnvelope, type Failure } from "./model";
 export type ClientFailure = { ok: false; error: { kind: string; status?: number }; envelope?: ErrorEnvelope };
-const statuses: Record<string, readonly number[]> = { vacancy_unavailable: [410], vacancy_not_accepting_applications: [409], applicant_country_required: [422], applicant_country_not_allowed: [422], already_applied: [409], questionnaire_changed: [409], invalid_answers: [422], cv_unavailable: [422], invalid_request: [400], idempotency_conflict: [409], invalid_idempotency_key: [400], idempotency_key_required: [400], precondition_required: [428] };
+const statuses: Record<string, readonly number[]> = { vacancy_unavailable: [410], vacancy_not_accepting_applications: [409], applicant_country_required: [422], applicant_country_not_allowed: [422], already_applied: [409], questionnaire_changed: [409], invalid_answers: [422], cv_unavailable: [422], invalid_request: [400], idempotency_conflict: [409], invalid_idempotency_key: [400], idempotency_key_required: [400], precondition_required: [428], message_unavailable: [409], message_changed: [409] };
 export function applicationFailure({ error, envelope }: ClientFailure): Failure {
   const status = error.status;
   const code = envelope && (CODES as readonly string[]).includes(envelope.code) ? envelope.code : undefined;

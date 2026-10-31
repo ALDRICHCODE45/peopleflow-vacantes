@@ -25,6 +25,8 @@ describe("single application-facing request path", () => {
       "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
       "app/media/sitios/[id]/route.ts",
       "components/auth/CandidateAuthControls.tsx",
+      // Bodyless PUT 204 (mark a company message read), server-only to the configured origin.
+      "features/candidate-applications/client.ts",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
       "features/company-site/api/file-client.ts",
