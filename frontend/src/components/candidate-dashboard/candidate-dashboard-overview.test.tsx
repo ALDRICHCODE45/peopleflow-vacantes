@@ -118,6 +118,8 @@ it("shows the three real insight headlines, switches periods, and preserves the 
   const results = screen.getByRole("region", { name: "¿Está funcionando?" });
   expect(results).toHaveTextContent("33% avanzó a proceso");
   expect(results).toHaveTextContent("1 de tus 3 postulaciones");
+  // Shared status order with counts, never Recharts' alphabetical legend order.
+  expect(within(within(results).getByRole("list", { name: "Leyenda de estados" })).getAllByRole("listitem").map(item => item.textContent)).toEqual(["En proceso1", "Enviada1", "Cerrada1"]);
   const response = screen.getByRole("region", { name: "¿Cuánto tardan en responder?" });
   expect(response).toHaveTextContent("0 días en promedio");
   expect(response).toHaveTextContent("1 primera respuesta · 2 aún esperan");

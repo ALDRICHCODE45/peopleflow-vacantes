@@ -28,3 +28,11 @@ it("distinguishes old servers, no responses, partial field rollout and empty acc
   expect(dashboardInsights([base, { ...base, first_response_at: null }]).responses).toMatchObject({ available: true, waiting: 1, unknown: 1, average: null });
   expect(dashboardInsights([])).toMatchObject({ advanceRate: 0, total: 0, responses: { average: null, histogram: [] } });
 });
+it("buckets a DST Sunday locally and counts calendar days without updated_at", () => {
+  // Meaningful under TZ=America/New_York (DST starts 2026-03-08); deterministic in any zone.
+  const applied = new Date(2026, 2, 8, 23, 30);
+  const response = new Date(2026, 2, 9, 0, 30);
+  const data = dashboardInsights([app(applied.toISOString(), { first_response_at: response.toISOString() })], "30d", new Date(2026, 2, 10, 12));
+  expect(data.weeks.find(week => week.week === "2026-03-02")?.submitted).toBe(1);
+  expect(data.responses.average).toBe(1);
+});

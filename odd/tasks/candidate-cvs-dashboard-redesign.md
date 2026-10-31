@@ -219,3 +219,17 @@ candidate dashboard with real data only; design on the canvas before each implem
   Deviations: native Card/SectionEmpty geometry, period toggle wraps under the title in narrow cards, all loaded
   recent applications listed (unread actions stay reachable), chart descriptions describe the loaded applications.
   Browser QA pending (user, real Cognito).
+- **L24** User (verbatim): «si me gusta, mucho mejor pero mira:: [screenshot] algunas cosas estan un poco mal acomodadas,
+  como ese numero en medio de la chart, esta chueco, lo miras?» Donut fixes in `charts.tsx`: two-line center label
+  centered as a group (number cy−8, label cy+18, singular «postulación»), larger hole (64/86); a single 100% slice gets
+  no padding/stroke seam and zero slices are dropped; own legend in the shared order En proceso → Enviada → Cerrada with
+  counts (Recharts sorts legend items by value); chart headers pack rows to the top. RED (legend-order assertion on
+  the previous charts.tsx), GREEN 79/79 dashboard tests, DST regression test from the verifier green in
+  America/New_York, America/Mexico_City and UTC; tsc 0, eslint clean.
+  Independent verify of d331b21c (Risk item 3 + S8 write path): PASS on ApplicationMessage compatibility, mark-read
+  guards (render-free, once per revision, confirmed-only dismissal, 409 refetch), insights edge cases and shadcn charts;
+  S6, S8, S9 (structural), S10, S11 met.
+  Incident: two full-suite runs were invalid — 10 orphaned `node (vitest)` workers (ppid 1) left by `timeout`-wrapped
+  runs kept the load at up to 250; killed (test workers of this worktree only). Next run started on a 1-minute load
+  gate and the load rose again (55 timeouts in untouched files, e.g. LocalDraftForm 152 s). **Pending:** one full-suite
+  run gated on the 5-minute load average.
