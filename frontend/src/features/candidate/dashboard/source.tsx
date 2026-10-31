@@ -1,4 +1,5 @@
 "use client";
+import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -37,6 +38,6 @@ export function SourceError({ failure, retry, label }: { failure: Failure; retry
   return <div role="alert" className="flex flex-col items-start gap-2">
     <p className="flex items-center gap-2 text-sm"><CircleAlert aria-hidden="true" className="size-4 shrink-0 text-destructive" />No pudimos cargar {label}</p>
     <p className="text-xs text-muted-foreground">Tus datos no cambiaron.</p>
-    {failure.reason === "unauthenticated" ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/candidato/login?next=%2Fcandidato%2Fdashboard">Iniciar sesión</Link> : <Button variant="outline" className="min-h-10" onClick={retry}>Reintentar</Button>}
+    {failure.reason === "unauthenticated" ? <Link className={cn(buttonVariants({ variant: "outline" }), "min-h-10")} href="/candidato/login?next=%2Fcandidato%2Fdashboard">Iniciar sesión</Link> : <Button variant="outline" className="min-h-10" onClick={retry}>Reintentar</Button>}
   </div>;
 }

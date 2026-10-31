@@ -192,3 +192,14 @@ candidate dashboard with real data only; design on the canvas before each implem
   only failure was the test's own wrong expectation (already_applied is a known shared code) — fixed to an unknown
   code; tsc 0, eslint clean. Wiring on the dashboard happens in D8. The earlier profile-workspace timeout re-ran green
   at load 3.5: 39/39.
+- **L21** Independent verify of c42107b7 (Risk item 3, shared failure map): PASS — consumers fall back to generic copy;
+  18 old codes × statuses 100–599 map identically (9,000 results); PUT transport guards; contract match. It found a
+  guard I broke: `jobs/drafts/pipeline/server-action-surface.test.ts` pins the public Server Action surface → allowlist
+  gains markMessageReadAction. First FULL frontend suite run (Node 22; earlier runs were folder-scoped) also found:
+  `jobs/requestPath.test.ts` (fetch allowlist → candidate-applications/client.ts added with its 204 rationale, like
+  vacancy-checklist) and `ui/button-variants-merge.test.ts` (real bug from a8736c6c: dashboard «Iniciar sesión» outline
+  link rendered borderless; now `cn(buttonVariants({ variant: "outline" }), "min-h-10")`). Rerun: 9023 passed, 1
+  skipped, 2 failed — combobox.test.tsx (17.4 s) and jobs/drafts/rich/description.test.ts (5155 ms > 5 s), both test
+  timeouts at load average 19–23 in files untouched on this branch (empty diff vs origin/main); their isolated rerun hit
+  the 110 s command limit under the same load. tsc 0, eslint 0 errors. **Pending:** re-run those two files when the
+  load drops. Process fix: run the full suite before every code commit.
