@@ -14,7 +14,7 @@ import (
 func TestP2bPrivateRoutesLiveCandidateGates(t *testing.T) {
 	r := newRouter(routerDeps{requireAuth: identityhttp.RequireAuth(identityRouteVerifier{}), requireCandidate: identityhttp.RequireCandidateRole(identityRouteUsers{}), requireRecruiter: routeRequireAuth, requireOwner: routeRequireAuth})
 	for _, route := range []struct{ method, path string }{
-		{"GET", "/v2/me/cvs"}, {"POST", "/v2/me/cvs"}, {"PATCH", "/v2/me/cvs/not-an-id"}, {"DELETE", "/v2/me/cvs/not-an-id"}, {"GET", "/v2/me/cvs/not-an-id/file"}, {"POST", "/v2/jobs/not-an-id/applications"}, {"GET", "/v2/me/applications"},
+		{"GET", "/v2/me/cvs"}, {"POST", "/v2/me/cvs"}, {"PATCH", "/v2/me/cvs/not-an-id"}, {"DELETE", "/v2/me/cvs/not-an-id"}, {"GET", "/v2/me/cvs/not-an-id/file"}, {"POST", "/v2/jobs/not-an-id/applications"}, {"GET", "/v2/me/applications"}, {"PUT", "/v2/me/applications/not-an-id/message-read"},
 	} {
 		for _, actor := range []struct {
 			token, code string

@@ -115,7 +115,7 @@ candidate ownership. Down refuses while participation/idempotency data exists.
 ## Candidate list (private)
 
 `GET /v2/me/applications?cursor&limit` →
-`{items:[{id,vacancy:{id,title,state},company:{id,name},applied_at,updated_at,first_response_at,status,message}],next_cursor}`.
+`{items:[{id,vacancy:{id,title,state},company:{id,name},applied_at,updated_at,first_response_at,status,message,message_read_at}],next_cursor}`.
 `vacancy.state` is always `open|closed`: **closed only when the internal process is
 finished**, independent from application `status`. Paused and closed-but-active
 vacancies stay open for applicants. No pipeline identity or lifecycle view leaks.
@@ -156,6 +156,39 @@ nulls after recovery and absence of internal reason/comment.
 `TestCandidateUpdatedAtIgnoresInternalMoves` (database) protect `updated_at`; `TestFirstResponseIsTheFirstVisibleChangeAwayFromSubmitted`
 (unit) and the same two database tests protect `first_response_at`. See
 [pipeline-movement.md](pipeline-movement.md) and [pipeline-discard.md](pipeline-discard.md).
+
+### Closing message read state
+
+`message_read_at` is always present: UTC RFC3339, null while unread or whenever
+`message` is null. A read time never precedes `applied_at`. Every discard and
+recovery resets it to null, so a later closing message is unread again.
+
+`PUT /v2/me/applications/{id}/message-read` uses the same live candidate gates
+and no-store headers as the list. Body exactly `{"updated_at":"<RFC3339 value from the list>"}`;
+unknown/duplicate keys, missing/invalid timestamps and malformed IDs return
+400 `invalid_request`. Unknown or foreign organic participation IDs return
+404 `not_found`, without revealing existence. No current closing message returns
+409 `{"error":"message unavailable","code":"message_unavailable"}`; a changed
+visible `updated_at` returns 409
+`{"error":"message changed","code":"message_changed"}`. These use the shared
+application error catalog; neither adds data or details. All rejections write nothing.
+
+Success is 204, empty body, `Cache-Control: no-store`. Repeating with the current
+`updated_at` is a no-op preserving the first read time. The candidate and participation
+are locked in one transaction; the same history projection as the list checks
+freshness. Reading does not change `updated_at`, board versions or history.
+Migration **00052** adds the nullable read timestamp and CHECK invariants; Down
+raises an exception while any read data exists rather than silently erasing it.
+Do not ship the new list key to a shared environment until the frontend confirms
+its strict schema accepts it (S5).
+
+Tests: `TestMessageReadHTTP` covers strict decoding, exact error envelopes, headers
+and empty 204; `TestCandidateMessageReadLifecycle` (integration) covers ownership,
+no-message/stale rejection atomicity, idempotency, list UTC/floor and reset rules;
+`TestMigration00052DownGuard` covers rollback retention and CHECK constraints.
+`TestCandidateListHTTPStrictQueryAndShape`, `TestDiscardRecoveryExactWireAndCandidatePrivacy`
+and `TestSubstateSetClearNoOpWireSnapshotsAndCatalog` pin the nine-key list shape.
+`TestP2bPrivateRoutesLiveCandidateGates` protects the new route's 401/403/no-store gates.
 
 ## §10.5 test map and evidence boundary
 

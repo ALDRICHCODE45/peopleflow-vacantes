@@ -45,7 +45,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 			t.Fatal(err)
 		}
 		obj := movementKeys(t, movementObject(t, raw), "items", "next_cursor")
-		item := movementKeys(t, obj["items"].([]any)[0], "id", "vacancy", "company", "applied_at", "updated_at", "first_response_at", "status", "message")
+		item := movementKeys(t, obj["items"].([]any)[0], "id", "vacancy", "company", "applied_at", "updated_at", "first_response_at", "status", "message", "message_read_at")
 		vacancy := movementKeys(t, item["vacancy"], "id", "title", "state")
 		if vacancy["state"] != "open" {
 			t.Fatal(vacancy)
@@ -56,6 +56,9 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		}
 		if first == nil && item["first_response_at"] != nil || first != nil && (item["first_response_at"] == nil || !wireTime(t, item["first_response_at"]).Equal(*first)) {
 			t.Fatal(item["first_response_at"], first)
+		}
+		if item["message_read_at"] != nil {
+			t.Fatal(item)
 		}
 		if item["status"] != status || item["message"] != message || strings.Contains(string(raw), "Internal explanation") || strings.Contains(string(raw), "recruiter") {
 			t.Fatal(string(raw))

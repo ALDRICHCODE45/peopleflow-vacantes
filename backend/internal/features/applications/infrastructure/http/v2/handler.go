@@ -37,6 +37,10 @@ func writeError(w http.ResponseWriter, err error) {
 		}
 		httpjson.WriteApplicantCountryError(w, httpjson.Resolve(code), restriction.Allowed)
 		return
+	case errors.Is(err, app.ErrMessageUnavailable):
+		code = httpjson.CodeMessageUnavailable
+	case errors.Is(err, app.ErrMessageChanged):
+		code = httpjson.CodeMessageChanged
 	case errors.Is(err, app.ErrInvalidRequest):
 		code = httpjson.CodeInvalidRequest
 	case errors.Is(err, app.ErrNotFound):
@@ -101,6 +105,30 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(201)
 	_, _ = w.Write(result.Body)
 }
+func (h *Handler) MarkMessageRead(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil || id == uuid.Nil {
+		writeError(w, app.ErrInvalidRequest)
+		return
+	}
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1048576))
+	if err != nil {
+		writeError(w, app.ErrInvalidRequest)
+		return
+	}
+	at, err := app.DecodeMessageRead(raw, h.decode)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	if err = h.store.MarkMessageRead(r.Context(), security.ClaimsFromContext(r.Context()).Subject, id, at); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	q, err := app.ParseQuery(r.URL.RawQuery)

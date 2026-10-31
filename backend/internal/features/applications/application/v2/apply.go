@@ -17,6 +17,8 @@ import (
 )
 
 var (
+	ErrMessageUnavailable   = errors.New("message unavailable")
+	ErrMessageChanged       = errors.New("message changed")
 	ErrInvalidRequest       = errors.New("invalid application request")
 	ErrNotFound             = errors.New("vacancy not found")
 	ErrQuestionnaireChanged = errors.New("questionnaire changed")
@@ -68,6 +70,7 @@ type Item struct {
 	FirstResponseAt *time.Time `json:"first_response_at"`
 	Status          string     `json:"status"`
 	Message         *string    `json:"message"`
+	MessageReadAt   *time.Time `json:"message_read_at"`
 }
 type Page struct {
 	Items      []Item  `json:"items"`
@@ -82,6 +85,7 @@ type Query struct {
 	After *Position
 }
 type Store interface {
+	MarkMessageRead(context.Context, string, uuid.UUID, time.Time) error
 	Apply(context.Context, string, uuid.UUID, uuid.UUID, Request) (Result, error)
 	List(context.Context, string, Query) (Page, error)
 }

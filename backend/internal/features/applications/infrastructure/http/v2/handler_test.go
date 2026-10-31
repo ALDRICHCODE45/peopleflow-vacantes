@@ -51,7 +51,10 @@ func TestCandidateListHTTPStrictQueryAndShape(t *testing.T) {
 				t.Fatal(w.Code, body)
 			}
 			item := body["items"].([]any)[0].(map[string]any)
-			if len(item) != 8 || item["first_response_at"] != nil || item["applied_at"] != "2026-10-01T09:00:00Z" || item["updated_at"] != "2026-10-02T09:00:00Z" || item["message"] != nil || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 3 || item["vacancy"].(map[string]any)["state"] != "open" || len(item["company"].(map[string]any)) != 2 {
+			if _, present := item["message_read_at"]; !present || item["message_read_at"] != nil {
+				t.Fatal(item)
+			}
+			if len(item) != 9 || item["first_response_at"] != nil || item["applied_at"] != "2026-10-01T09:00:00Z" || item["updated_at"] != "2026-10-02T09:00:00Z" || item["message"] != nil || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 3 || item["vacancy"].(map[string]any)["state"] != "open" || len(item["company"].(map[string]any)) != 2 {
 				t.Fatal(item)
 			}
 		})
