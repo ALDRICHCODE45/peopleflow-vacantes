@@ -183,3 +183,12 @@ candidate dashboard with real data only; design on the canvas before each implem
   68px desktop, auto on mobile); KPI cards share one grid without progress bars; copy «Evaluaciones por responder».
   Parent browser check: no errors; chart descriptions aligned (556/555/555 px); no overflow at 1440, 1024 and 390 in
   every state and period. Comment resolved.
+- **L20** D5 verified by the backend (9b28e783 on feat/applications-message-read, stacked on 18b5d08f + 8f8b66df; local
+  only): PUT /v2/me/applications/{id}/message-read {updated_at} → 204 no-store; 404 not_found; 409 message_unavailable /
+  message_changed; 400 invalid_request; discard and recovery reset message_read_at. Frontend client + action:
+  `markMessageRead` / `markMessageReadAction` (strict body, uuid id, no-store, redirect error, timeout, bounded error
+  envelope; 204 is the only success; never retries); shared failure map gains message_unavailable / message_changed
+  (409 only). RED (missing exports), GREEN 157/157 in candidate-applications and 662/663 in the wider run where the
+  only failure was the test's own wrong expectation (already_applied is a known shared code) — fixed to an unknown
+  code; tsc 0, eslint clean. Wiring on the dashboard happens in D8. The earlier profile-workspace timeout re-ran green
+  at load 3.5: 39/39.

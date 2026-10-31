@@ -3,8 +3,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "https://api.example.test", apiTimeoutMs: 1000 } }));
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { loadScreening, submitApplication, loadApplications } from "./client";
-import { loadScreeningAction, submitApplicationAction, loadApplicationsAction } from "./actions";
+import { loadScreening, submitApplication, loadApplications, markMessageRead } from "./client";
+import { loadScreeningAction, submitApplicationAction, loadApplicationsAction, markMessageReadAction } from "./actions";
 import { body, id, key, screening, submitted, page } from "./test-fixtures";
 const fetchMock = vi.fn();
 beforeEach(() => { vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); vi.mocked(getActionAccessToken).mockResolvedValue("private-token"); });
@@ -153,6 +153,33 @@ describe("action failure boundary", () => {
     }
     fetchMock.mockResolvedValue(Response.json({ error: "private", code: "cv_unavailable", details }, { status: 422 }));
     expect(await submitApplicationAction(id, key, body)).toEqual({ ok: false, reason: "unrecognized_response", reference: { status: 422 } });
+  });
+  it("marks a company message read with an authenticated no-store PUT carrying the seen updated_at", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    expect(await markMessageReadAction(key, { updated_at: "2026-10-20T09:30:00.123456Z" })).toEqual({ ok: true, data: null });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(`https://api.example.test/v2/me/applications/${key}/message-read`);
+    expect(init).toMatchObject({ method: "PUT", cache: "no-store", redirect: "error", body: JSON.stringify({ updated_at: "2026-10-20T09:30:00.123456Z" }) });
+    expect(new Headers(init.headers).get("authorization")).toBe("Bearer private-token");
+    expect(new Headers(init.headers).get("content-type")).toBe("application/json");
+  });
+  it("rejects an unsafe id or body before fetch", async () => {
+    for (const [target, value] of [["../x", { updated_at: "2026-10-20T09:30:00Z" }], [key, {}], [key, { updated_at: "2026-10-20T09:30:00" }], [key, { updated_at: "2026-10-20T09:30:00Z", extra: true }]] as const)
+      expect(await markMessageRead({ token: "private-token", id: target, body: value })).toMatchObject({ ok: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it.each([[409, "message_unavailable", "message_unavailable"], [409, "message_changed", "message_changed"], [404, "not_found", "not_found"], [400, "invalid_request", "invalid_request"], [401, "unauthenticated", "unauthenticated"], [500, "internal_error", "server_error"], [409, "message_lost", "unrecognized_response"]] as const)("maps message-read %i %s to %s", async (status, code, reason) => {
+    fetchMock.mockResolvedValue(Response.json({ error: "private-token", code }, { status }));
+    const result = await markMessageReadAction(key, { updated_at: "2026-10-20T09:30:00Z" });
+    expect(result).toMatchObject({ ok: false, reason });
+    expect(JSON.stringify(result)).not.toContain("private-token");
+  });
+  it("treats any other success status as unrecognized and never retries", async () => {
+    fetchMock.mockResolvedValue(Response.json({}, { status: 200 }));
+    expect(await markMessageReadAction(key, { updated_at: "2026-10-20T09:30:00Z" })).toMatchObject({ ok: false, reason: "unrecognized_response" });
+    fetchMock.mockRejectedValue(new Error("secret"));
+    expect(await markMessageReadAction(key, { updated_at: "2026-10-20T09:30:00Z" })).toEqual({ ok: false, reason: "no_response", reference: {} });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
   it("sanitizes unknown codes, session exceptions and network errors", async () => {
     fetchMock.mockResolvedValue(Response.json({ error: "secret", code: "secret" }, { status: 400 }));

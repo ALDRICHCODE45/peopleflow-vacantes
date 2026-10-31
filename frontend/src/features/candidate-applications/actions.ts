@@ -1,6 +1,6 @@
 "use server";
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { loadApplications, loadScreening, submitApplication, type ClientResult } from "./client";
+import { loadApplications, loadScreening, markMessageRead, submitApplication, type ClientResult } from "./client";
 import { applicationFailure } from "./failure";
 import type { ApplicationsPage, ApplicationsQuery, Result, Screening, Submitted } from "./model";
 async function authenticated<T>(run: (token: string) => Promise<ClientResult<T>>): Promise<Result<T>> {
@@ -13,3 +13,4 @@ export async function loadScreeningAction(id: unknown): Promise<Result<Screening
 }
 export async function submitApplicationAction(id: unknown, key: unknown, body: unknown): Promise<Result<Submitted>> { return authenticated(token => submitApplication({ token, id, key, body })); }
 export async function loadApplicationsAction(query: ApplicationsQuery = {}): Promise<Result<ApplicationsPage>> { return authenticated(token => loadApplications({ token, query })); }
+export async function markMessageReadAction(id: unknown, body: unknown): Promise<Result<null>> { return authenticated(token => markMessageRead({ token, id, body })); }
