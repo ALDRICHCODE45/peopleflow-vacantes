@@ -64,8 +64,10 @@ type Item struct {
 	Company   Company   `json:"company"`
 	AppliedAt time.Time `json:"applied_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	Status    string    `json:"status"`
-	Message   *string   `json:"message"`
+	// FirstResponseAt is null while the application is untouched.
+	FirstResponseAt *time.Time `json:"first_response_at"`
+	Status          string     `json:"status"`
+	Message         *string    `json:"message"`
 }
 type Page struct {
 	Items      []Item  `json:"items"`

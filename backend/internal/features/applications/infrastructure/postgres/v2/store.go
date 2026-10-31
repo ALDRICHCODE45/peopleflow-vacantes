@@ -264,7 +264,7 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 	return page, nil
 }
 
-// lastVisibleChanges sets UpdatedAt from the page's history in one query.
+// lastVisibleChanges sets UpdatedAt and FirstResponseAt from the page's history in one query.
 // Substate and not-applicable entries never change the visible status.
 func (s *Store) lastVisibleChanges(ctx context.Context, tx pgx.Tx, items []app.Item) error {
 	if len(items) == 0 {
@@ -292,7 +292,12 @@ func (s *Store) lastVisibleChanges(ctx context.Context, tx pgx.Tx, items []app.I
 		return err
 	}
 	for i := range items {
-		items[i].UpdatedAt = app.LastVisibleChange(items[i].AppliedAt, s.rules.InitialStage(items[i].Vacancy.ID), events[items[i].ID]).UTC()
+		initial := s.rules.InitialStage(items[i].Vacancy.ID)
+		items[i].UpdatedAt = app.LastVisibleChange(items[i].AppliedAt, initial, events[items[i].ID]).UTC()
+		if first := app.FirstResponse(items[i].AppliedAt, initial, events[items[i].ID]); first != nil {
+			utc := first.UTC()
+			items[i].FirstResponseAt = &utc
+		}
 	}
 	return nil
 }

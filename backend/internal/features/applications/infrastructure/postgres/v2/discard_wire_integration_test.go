@@ -34,7 +34,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 			t.Fatal(detail)
 		}
 	}
-	assertCandidate := func(status string, message any, updated time.Time) {
+	assertCandidate := func(status string, message any, updated time.Time, first *time.Time) {
 		t.Helper()
 		page, err := m.store.List(context.Background(), m.sub, app.Query{Limit: 20})
 		if err != nil {
@@ -45,7 +45,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 			t.Fatal(err)
 		}
 		obj := movementKeys(t, movementObject(t, raw), "items", "next_cursor")
-		item := movementKeys(t, obj["items"].([]any)[0], "id", "vacancy", "company", "applied_at", "updated_at", "status", "message")
+		item := movementKeys(t, obj["items"].([]any)[0], "id", "vacancy", "company", "applied_at", "updated_at", "first_response_at", "status", "message")
 		vacancy := movementKeys(t, item["vacancy"], "id", "title", "state")
 		if vacancy["state"] != "open" {
 			t.Fatal(vacancy)
@@ -54,19 +54,23 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		if got, err := time.Parse(time.RFC3339Nano, item["updated_at"].(string)); err != nil || !got.Equal(updated) {
 			t.Fatal(item["updated_at"], updated)
 		}
+		if first == nil && item["first_response_at"] != nil || first != nil && (item["first_response_at"] == nil || !wireTime(t, item["first_response_at"]).Equal(*first)) {
+			t.Fatal(item["first_response_at"], first)
+		}
 		if item["status"] != status || item["message"] != message || strings.Contains(string(raw), "Internal explanation") || strings.Contains(string(raw), "recruiter") {
 			t.Fatal(string(raw))
 		}
 	}
 	assertDetail(false)
-	assertCandidate("submitted", nil, m.item.AppliedAt)
+	assertCandidate("submitted", nil, m.item.AppliedAt, nil)
 	target := pipelineconfig.Defaults(m.vacancy).Stages[1].ID
 	moved, err := m.move(t, m.item, target, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	m.item = moved.Item
-	assertCandidate("in_process", nil, moved.Item.MovedAt)
+	firstResponse := moved.Item.MovedAt
+	assertCandidate("in_process", nil, moved.Item.MovedAt, &firstResponse)
 	rec := movementRequest(t, m, "POST", m.vacancy, m.item.ID, "/discard", m.item.ETag, discardBody)
 	if rec.Code != 200 {
 		t.Fatal(rec.Code, rec.Body.String())
@@ -81,7 +85,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		t.Fatal(discarded, rec.Header())
 	}
 	assertDetail(true)
-	assertCandidate("closed", "Thank you\nfor applying.", wireTime(t, d["discarded_at"]))
+	assertCandidate("closed", "Thank you\nfor applying.", wireTime(t, d["discarded_at"]), &firstResponse)
 	rec = movementRequest(t, m, "GET", m.vacancy, uuid.Nil, "", "", "")
 	obj := movementObject(t, rec.Body.Bytes())
 	item := obj["participations"].([]any)[0].(map[string]any)
@@ -100,7 +104,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		t.Fatal(recovered)
 	}
 	assertDetail(false)
-	assertCandidate("in_process", nil, wireTime(t, recovered["moved_at"]))
+	assertCandidate("in_process", nil, wireTime(t, recovered["moved_at"]), &firstResponse)
 	rec = movementRequest(t, m, "GET", m.vacancy, m.item.ID, "/history", "", "")
 	entries := movementKeys(t, movementObject(t, rec.Body.Bytes()), "items")["items"].([]any)
 	if len(entries) != 4 {
@@ -189,7 +193,8 @@ func wireTime(t *testing.T, value any) time.Time {
 	return at
 }
 
-// An internal move that keeps the visible status never bumps updated_at.
+// An internal move that keeps the visible status never bumps updated_at or
+// first_response_at.
 func TestCandidateUpdatedAtIgnoresInternalMoves(t *testing.T) {
 	m := setupMovement(t)
 	stages := pipelineconfig.Defaults(m.vacancy).Stages
@@ -205,7 +210,7 @@ func TestCandidateUpdatedAtIgnoresInternalMoves(t *testing.T) {
 		t.Fatal(err)
 	}
 	item := page.Items[0]
-	if item.Status != "in_process" || !item.UpdatedAt.Equal(first.Item.MovedAt) || item.UpdatedAt.Location() != time.UTC {
+	if item.Status != "in_process" || !item.UpdatedAt.Equal(first.Item.MovedAt) || item.UpdatedAt.Location() != time.UTC || item.FirstResponseAt == nil || !item.FirstResponseAt.Equal(first.Item.MovedAt) {
 		t.Fatal(item, first.Item.MovedAt)
 	}
 }

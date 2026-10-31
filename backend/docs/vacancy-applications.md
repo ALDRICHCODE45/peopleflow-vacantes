@@ -115,7 +115,7 @@ candidate ownership. Down refuses while participation/idempotency data exists.
 ## Candidate list (private)
 
 `GET /v2/me/applications?cursor&limit` →
-`{items:[{id,vacancy:{id,title,state},company:{id,name},applied_at,updated_at,status,message}],next_cursor}`.
+`{items:[{id,vacancy:{id,title,state},company:{id,name},applied_at,updated_at,first_response_at,status,message}],next_cursor}`.
 `vacancy.state` is always `open|closed`: **closed only when the internal process is
 finished**, independent from application `status`. Paused and closed-but-active
 vacancies stay open for applicants. No pipeline identity or lifecycle view leaks.
@@ -135,6 +135,10 @@ a discard (with or without message) and a recovery count. Moves between stages t
 keep the visible status, substate changes and not-applicable marks never count, so no
 pipeline activity leaks. It equals `applied_at` while nothing visible changed. It is
 derived from the participation history at read time; there is no stored column.
+`first_response_at` (RFC3339, always present, null while untouched) is the first
+visible change away from `submitted`: to `in_process` or a discard to `closed`, under
+the same counting rules. A later recovery or move back to `new` never resets it; it
+never precedes `applied_at`.
 Newest first by `applied_at`, ID descending as tie-breaker (`updated_at` never orders
 or pages the list). Only the candidate's new participations;
 legacy applications stay on their legacy endpoint. Internal stages are never exposed.
@@ -149,7 +153,8 @@ status changes). Cut-5 tests `TestDiscardRecoveryEachStageAndCoverage` and
 nulls after recovery and absence of internal reason/comment.
 `TestLastVisibleChangeIgnoresInternalActivity` (unit), the `updated_at` checks in
 `TestDiscardRecoveryExactWireAndCandidatePrivacy` and
-`TestCandidateUpdatedAtIgnoresInternalMoves` (database) protect `updated_at`. See
+`TestCandidateUpdatedAtIgnoresInternalMoves` (database) protect `updated_at`; `TestFirstResponseIsTheFirstVisibleChangeAwayFromSubmitted`
+(unit) and the same two database tests protect `first_response_at`. See
 [pipeline-movement.md](pipeline-movement.md) and [pipeline-discard.md](pipeline-discard.md).
 
 ## §10.5 test map and evidence boundary
