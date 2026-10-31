@@ -41,7 +41,7 @@ candidate dashboard with real data only; design on the canvas before each implem
 | D1 | S2, S3, S6 | agree with the user which data each dashboard card and section shows (real data; backend changes allowed) | decided (L9) |
 | D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
 | D3 | S6 | backend request: per-application `updated_at` (last status change) in the candidate applications list | |
-| D4 | S2, S3, S6, S7, S8 | worker — implement 03 on real data; remove prototype fixtures from the route; tests | |
+| D4 | S2, S3, S6, S7, S8 | worker — implement 03 on real data; remove prototype fixtures from the route; tests | this commit (L13) |
 | D5 | S8 | backend request: message read state; then the frontend counts unread messages in «Por atender» | |
 
 ## Log
@@ -106,3 +106,13 @@ candidate dashboard with real data only; design on the canvas before each implem
   (01 and 02 are alternatives). Exploration: the frontend has no persisted read state — «Nuevo mensaje» clears only for
   the current mount (`features/candidate/application-message.tsx:32`). Asked how «Por atender» counts messages; answer
   «Pedir al backend «leído» (Recomendado)» → S8, D5.
+- **L13** D4 implemented by worker: route mounts a real workspace (`features/candidate/dashboard/`), no prototype
+  imports; four cards on real sources (Por atender = pending assessments only per S8; active = submitted + in_process;
+  Perfil % + missing fields via extracted `profile-completeness.ts`; CVs n de max + used), log sorted by
+  updated_at ?? applied_at with «Postulaste el …» fallback, only Enviada / En proceso / Cerrada, closed + message →
+  «Leer mensaje» through `ApplicationMessage` (new optional `showUnread`/`triggerLabel`, defaults unchanged so
+  Postulaciones renders as before; no fabricated message timestamp). Sources load/fail independently with retry. Scope
+  extension to application-message.{tsx,test.tsx} approved by the parent (defaults preserved). Parent rerun on Node 22:
+  78 files / 1460 tests passed, tsc 0, eslint 0 errors (13 warnings in unchanged files). Deviations: native
+  StateCard/SectionEmpty geometry, md/lg breakpoints, AssessmentBlock keeps real progress, absolute dates. Browser QA
+  pending (real Cognito login): asked the user to check /candidato/dashboard.

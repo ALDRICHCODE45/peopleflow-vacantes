@@ -1,353 +1,101 @@
-import Link from "next/link"
-import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CircleCheckBig, Clock3, FileText, Files, HardDrive, Languages, Link2Off, Star } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
+"use client";
+import { useEffect, type ReactNode } from "react";
+import Link from "next/link";
+import { ArrowRight, BriefcaseBusiness, ClipboardList, Files, UserRound, type LucideIcon } from "lucide-react";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
+import { ApplicationMessage } from "@/features/candidate/application-message";
+import { profileFromWire } from "@/features/candidate/profile-adapter";
+import { missingProfileText, profileCompleteness } from "@/features/candidate/profile-completeness";
+import type { ProfileLanguages, ProfileRead } from "@/features/candidate/profile-api";
+import type { ApplicationsPage } from "@/features/candidate-applications/model";
+import type { CvLibrary } from "@/features/candidate-cvs/model";
+import type { AccountAssessments } from "@/features/psychometrics/model";
+import { isWrongRole, SourceError, SourceErrorCard, SourceLoading, useSource, type Source } from "@/features/candidate/dashboard/source";
+import { loadApplicationsAction } from "@/features/candidate-applications/actions";
+import { loadCvsAction } from "@/features/candidate-cvs/actions";
+import { loadProfileAction } from "@/features/candidate/profile-actions";
+const loadApplications = () => loadApplicationsAction({ limit: 50 });
 
-import { DashboardPageContent } from "@/components/dashboard-page-content"
-import { Badge, type BadgeVariant } from "@/components/ui/badge"
-import { buttonVariants } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { SectionEmpty, StateCard } from "@/components/feedback/state-card"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
+export type CandidateDashboardOverviewProps = {
+  assessments: Source<AccountAssessments>;
+  onFirstVisit: (first: boolean) => void;
+  firstName?: string;
+};
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const quietLink = buttonVariants({ variant: "ghost", size: "sm", className: "min-h-10" });
+const date = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const labels = { submitted: "Enviada", in_process: "En proceso", closed: "Cerrada" } as const;
+const variants = { submitted: "info", in_process: "accent", closed: "neutral" } as const;
 
-import type { CandidateIdentity, CandidateProfile } from "@/features/candidate/model"
-import { APPLICATION_STATUSES, APPLICATION_STATUS_LABELS, CV_LANGUAGE_LABELS, applicationInProcessCount, applicationTotalCount, countApplicationsByStatus, summarizeCvs } from "@/features/candidate/portfolio-model"
-import type { ApplicationStatus, CandidateApplicationView, CandidateCv } from "@/features/candidate/portfolio-model"
-
-import { ApplicationMessage, type CandidateApplicationMessage } from "@/features/candidate/application-message"
-import { cn } from "@/lib/utils";
-
-/** Props-only candidate dashboard overview: every number derives from the passed
-    identity/profile/applications/CVs and the optional messages, with no fetch,
-    storage, navigation, timer or randomness. It is a server component; CDP-05
-    supplies the frozen fixtures, and each message is joined to its row by exact id. */
-export type CandidateDashboardOverviewProps = Readonly<{
-  identity: CandidateIdentity
-  profile: CandidateProfile
-  applications: readonly CandidateApplicationView[]
-  cvs: readonly CandidateCv[]
-  messages?: readonly CandidateApplicationMessage[]
-}>
-
-/** One bounded checklist entry: a Spanish label plus its completeness predicate. */
-type ProfileCheck = readonly [label: string, isFilled: (profile: CandidateProfile) => boolean]
-
-/** Transparent, bounded checklist of meaningful existing profile fields, so no
-    arbitrary server-side completeness claim is invented. A field is complete when
-    it is present (`!== null`) or a non-empty collection. */
-const PROFILE_CHECKS: readonly ProfileCheck[] = [
-  ["Título profesional", (profile) => profile.professionalTitle !== null],
-  ["Resumen profesional", (profile) => profile.summary !== null],
-  ["Teléfono de contacto", (profile) => profile.phone !== null],
-  ["Ubicación", (profile) => profile.location !== null],
-  ["Estudios", (profile) => profile.education.length > 0],
-  ["Seniority", (profile) => profile.seniority !== null],
-  ["Años de experiencia", (profile) => profile.yearsOfExperience !== null],
-  ["Habilidades", (profile) => profile.skills.length > 0],
-  ["Idiomas", (profile) => profile.languages.length > 0],
-  ["LinkedIn", (profile) => profile.linkedinUrl !== null],
-  ["Portafolio", (profile) => profile.portfolioUrl !== null],
-  ["Expectativa salarial", (profile) => profile.expectedSalary !== null],
-]
-
-/** Honest derived score: counts, rounded percentage and missing Spanish labels. */
-export type ProfileCompleteness = Readonly<{ completed: number; total: number; percentage: number; missing: readonly string[] }>
-
-/** Pure profile-completeness score: it walks {@link PROFILE_CHECKS} over the
-    passed profile, reports incomplete profiles honestly, and mutates nothing. */
-export function profileCompleteness(profile: CandidateProfile): ProfileCompleteness {
-  const missing = PROFILE_CHECKS.filter(([, isFilled]) => !isFilled(profile)).map(([label]) => label)
-  const total = PROFILE_CHECKS.length, completed = total - missing.length
-  return { completed, total, percentage: Math.round((completed / total) * 100), missing }
+function Metric<T>({ label, icon: Icon, description, source, loadingLabel, errorLabel, value, children, href, action, hideAction = false }: {
+  label: string; icon: LucideIcon; description: string; source: Source<T>; loadingLabel: string; errorLabel: string;
+  value?: ReactNode; children?: ReactNode; href: string; action: string; hideAction?: boolean;
+}) {
+  if (source.result && !source.result.ok && isWrongRole(source.result)) return <section role="region" aria-label={label}><SourceError failure={source.result} retry={source.retry} label={errorLabel} /></section>;
+  return <Card size="sm" role="region" aria-label={label} aria-busy={!source.result}>
+    <CardHeader>
+      <CardTitle><h2 className="flex items-center gap-3 text-sm font-medium"><span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-foreground"><Icon className="size-5" /></span>{label}</h2></CardTitle>
+      <CardDescription>{description}</CardDescription>
+      {(!source.result || source.result.ok) && <CardAction>{!source.result ? <Skeleton aria-hidden="true" className="h-9 w-16" /> : <strong className="text-3xl font-semibold tracking-tight tabular-nums">{value}</strong>}</CardAction>}
+    </CardHeader>
+    <CardContent>
+      {!source.result ? <SourceLoading label={loadingLabel} compact /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label={errorLabel} /> : children}
+    </CardContent>
+    {!source.result ? <CardFooter><Skeleton aria-hidden="true" className="h-10 w-36" /></CardFooter> : source.result.ok && !hideAction && <CardFooter><Link className={quietLink} href={href}>{action}<ArrowRight aria-hidden="true" data-icon="inline-end" /></Link></CardFooter>}
+  </Card>;
 }
-
-/** Deterministic Mexico Spanish date (UTC) and deterministic KB/MB size text. */
-const DATE_FORMAT = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
-const DECIMAL_FORMAT = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 })
-const formatDate = (value: string): string => DATE_FORMAT.format(new Date(value))
-const formatFileSize = (bytes: number): string => bytes >= 1024 * 1024 ? `${DECIMAL_FORMAT.format(bytes / 1024 / 1024)} MB` : `${DECIMAL_FORMAT.format(Math.round(bytes / 1024))} KB`
-/** Natural Spanish count: singular only for exactly one. */
-const countLabel = (count: number, singular: string, plural: string): string => `${count} ${count === 1 ? singular : plural}`
-
-/**
- * Canonical semantic status variants: the Spanish label always carries the
- * meaning and the shared Badge variant reinforces it through the `--status-*`
- * tokens. No legacy grayscale/violet token and no raw color value is authored
- * here.
- */
-const STATUS_VARIANT: Readonly<Record<ApplicationStatus, BadgeVariant>> = {
-  submitted: "info",
-  in_review: "review",
-  hired: "success",
-  rejected: "danger",
-}
-/** The same four tokens paint the proportional bar segments and legend dots. */
-const STATUS_BAR: Readonly<Record<ApplicationStatus, string>> = {
-  submitted: "bg-status-info",
-  in_review: "bg-status-review",
-  hired: "bg-status-success",
-  rejected: "bg-status-danger",
-}
-
-/**
- * Navigation keeps the anchor element and its link role: the shadcn Button
- * variants, focus ring and 40px target are applied to the Next Link instead of
- * routing it through the Base UI Button, which would relabel the navigation.
- */
-const PRIMARY_LINK = buttonVariants({ size: "sm", className: "min-h-10 w-full sm:w-auto" })
-const OUTLINE_LINK = cn(buttonVariants({ variant: "outline", size: "sm", className: "min-h-10 w-full sm:w-auto" }))
-const QUIET_LINK = buttonVariants({ variant: "ghost", size: "sm", className: "min-h-10" })
-
-/** Quiet field term: it never competes with the value it labels. */
-const META = "text-[12.5px] font-medium text-muted-foreground"
-
-/** Most recent applications first, as a copy so the props array is never reordered. */
-const recentApplications = (applications: readonly CandidateApplicationView[]): readonly CandidateApplicationView[] =>
-  [...applications].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, 3)
-
-/** Circular contextual medallion: the icon anchors the identity of a metric or row. */
-function Medallion({ icon: Icon }: Readonly<{ icon: LucideIcon }>) {
-  return (
-    <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-      <Icon className="size-4" />
-    </span>
-  )
-}
-
-/** Status as text inside its semantic variant: the Spanish label carries the
-    meaning and the shared decorative dot only supplements it. */
-function StatusBadge({ status }: Readonly<{ status: ApplicationStatus }>) {
-  return <Badge variant={STATUS_VARIANT[status]} dot>{APPLICATION_STATUS_LABELS[status]}</Badge>
-}
-
-/** One derived KPI tile: icon medallion, exact label, tabular value and detail. */
-type OverviewMetric = Readonly<{ label: string; icon: LucideIcon; value: string; detail: string }>
-function MetricCard({ label, icon: Icon, value, detail }: OverviewMetric) {
-  return (
-    <Card size="sm" data-pf-overview-metric={label}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2.5">
-          <Medallion icon={Icon} />
-          <h3 className={META}>{label}</h3>
-        </CardTitle>
-        <CardDescription>{detail}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p data-pf-overview-metric-value className="font-heading text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-      </CardContent>
-    </Card>
-  )
-}
-
-/** One recent application as a compact grouped-list row: the semantic `<ul>`
-    owns the dividers, so the Item itself is a quiet `size="sm"` surface with no
-    per-row mini-card. Identity and its status/date metadata share one wrapping
-    `ItemContent` with the native `line-clamp-1` removed, so the title soft-wraps
-    instead of being squeezed by `ItemActions`, which keeps only the truthful live
-    vacancy link or the honest historical note. The optional message island lives
-    below the status/date line, joined by the exact application id, so no other row
-    changes and `ItemActions` never becomes a button tray. */
-function RecentApplicationRow({ application, messages }: Readonly<{ application: CandidateApplicationView; messages: readonly CandidateApplicationMessage[] }>) {
-  const message = messages.find((candidate) => candidate.applicationId === application.id)
-  return (
-    <li data-pf-recent-row={application.id} className="min-w-0">
-      <Item size="sm" className="min-w-0 items-start rounded-none px-0 py-3">
-        <ItemMedia><Medallion icon={BriefcaseBusiness} /></ItemMedia>
-        <ItemContent className="min-w-0">
-          <ItemTitle className="line-clamp-none block w-full">
-            <h4 className="font-heading text-sm font-semibold text-foreground">{application.jobTitle}</h4>
-          </ItemTitle>
-          <ItemDescription className="line-clamp-none break-words">{application.companyName}</ItemDescription>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5">
-            <StatusBadge status={application.status} />
-            <span className="text-sm text-muted-foreground">
-              Actualizada el <time dateTime={application.updatedAt}>{formatDate(application.updatedAt)}</time>
-            </span>
-          </div>
-          {message ? <ApplicationMessage message={message} /> : null}
-        </ItemContent>
-        <ItemActions className="w-full sm:w-auto">
-          {application.publicJobHref === null ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Link2Off aria-hidden="true" className="size-4" />
-              Vacante histórica sin enlace
-            </span>
-          ) : (
-            <Link href={application.publicJobHref} aria-label={`Ver vacante de ${application.jobTitle} en ${application.companyName}`} className={OUTLINE_LINK}>
-              Ver vacante
-              <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
-            </Link>
-          )}
-        </ItemActions>
-      </Item>
-    </li>
-  )
-}
-
-export function CandidateDashboardOverview({ identity, profile, applications, cvs, messages = [] }: CandidateDashboardOverviewProps) {
-  const counts = countApplicationsByStatus(applications)
-  const total = applicationTotalCount(counts), inProcess = applicationInProcessCount(counts)
-  const completeness = profileCompleteness(profile)
-  const { total: cvTotal, primary } = summarizeCvs(cvs)
-  const recent = recentApplications(applications)
-  const firstName = identity.fullName.trim().split(/\s+/u)[0] ?? identity.fullName
-  const missingCount = completeness.missing.length
-  const metrics: readonly OverviewMetric[] = [
-    { label: "Postulaciones", icon: BriefcaseBusiness, value: String(total), detail: countLabel(total, "postulación registrada", "postulaciones registradas") },
-    { label: "En proceso", icon: Clock3, value: String(inProcess), detail: "Enviadas o en revisión" },
-    { label: "Perfil completo", icon: CircleCheckBig, value: `${completeness.percentage}%`, detail: `${completeness.completed} de ${completeness.total} campos completados` },
-    { label: "CVs", icon: Files, value: String(cvTotal), detail: cvTotal === 0 ? "Sin CVs disponibles" : countLabel(cvTotal, "CV disponible", "CVs disponibles") },
-  ]
-
-  return (
-    <DashboardPageContent data-pf-candidate-overview width="screen-2xl" container className="flex-1 gap-4 md:gap-6">
-      <div data-pf-candidate-overview-inner className="flex w-full flex-col gap-4 md:gap-6">
-        <section aria-labelledby="candidate-overview-welcome" className="flex flex-col gap-1">
-          <h2 id="candidate-overview-welcome" className="font-heading text-2xl font-semibold text-foreground">Hola, {firstName}</h2>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            {`Tienes ${countLabel(total, "postulación registrada", "postulaciones registradas")} y ${inProcess} en proceso. Tu perfil está al ${completeness.percentage}% y tienes ${countLabel(cvTotal, "CV disponible", "CVs disponibles")}.`}
-          </p>
-        </section>
-
-        <section aria-label="Resumen de tu búsqueda" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map((metric) => (<MetricCard key={metric.label} {...metric} />))}
-        </section>
-
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-          <section aria-labelledby="candidate-overview-recent" data-pf-recent-applications className="lg:col-span-2">
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle><h3 id="candidate-overview-recent" className="font-heading text-base font-semibold text-foreground">Postulaciones recientes</h3></CardTitle>
-                <CardDescription className="col-start-1 row-start-2">Tus últimos envíos, ordenados por actualización.</CardDescription>
-                {recent.length > 0 && <CardAction className="max-sm:col-span-2 max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start">
-                  <Link href="/candidato/postulaciones" aria-label="Ver todas mis postulaciones" className={QUIET_LINK}>Ver todas</Link>
-                </CardAction>}
-              </CardHeader>
-              <CardContent>
-                {recent.length === 0 ? (
-                  <StateCard icon={BriefcaseBusiness} tone="empty" title="Sin postulaciones"
-                    description="Todavía no tienes postulaciones. Aquí verás tus envíos recientes; explora vacantes para encontrar tu siguiente oportunidad."
-                    primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} />
-                ) : (
-                  <ul className="flex flex-col divide-y divide-border">
-                    {recent.map((application) => (<RecentApplicationRow key={application.id} application={application} messages={messages} />))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </section>
-
-          <section aria-labelledby="candidate-overview-status" data-pf-status-breakdown>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle><h3 id="candidate-overview-status" className="font-heading text-base font-semibold text-foreground">Estado de tus postulaciones</h3></CardTitle>
-                <CardDescription>{countLabel(total, "postulación registrada", "postulaciones registradas")} en total.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div data-pf-status-bar aria-hidden="true" className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
-                  {APPLICATION_STATUSES.map((status) => (
-                    <span key={status} data-pf-status-segment={status} className={`basis-0 ${STATUS_BAR[status]}`} style={{ flexGrow: counts[status] }} />
-                  ))}
-                </div>
-                <ul className="flex flex-col gap-2">
-                  {APPLICATION_STATUSES.map((status) => (
-                    <li key={status} className="flex items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-2 text-sm text-foreground">
-                        <span aria-hidden="true" className={`size-2.5 rounded-full ${STATUS_BAR[status]}`} />
-                        {APPLICATION_STATUS_LABELS[status]}
-                      </span>
-                      <span className="text-sm font-medium tabular-nums text-foreground">{counts[status]}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          </section>
-        </div>
-
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-          <section aria-labelledby="candidate-overview-profile" data-pf-profile-guidance>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle><h3 id="candidate-overview-profile" className="font-heading text-base font-semibold text-foreground">Tu perfil</h3></CardTitle>
-                <CardAction>
-                  <Badge variant={completeness.percentage === 100 ? "success" : "review"}>
-                    {completeness.percentage === 100 ? "Completo" : "Incompleto"}
-                  </Badge>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <Progress value={completeness.percentage} aria-label="Perfil completo" className="w-full">
-                  <ProgressLabel>Perfil completo</ProgressLabel>
-                  <ProgressValue />
-                </Progress>
-                <p className="text-sm text-muted-foreground">{`${completeness.completed} de ${completeness.total} campos completados`}</p>
-                {completeness.percentage === 100 ? (
-                  <p className="text-sm text-muted-foreground">Tu perfil está listo. Completaste los {completeness.total} campos clave.</p>
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    <p>Tu perfil está al {completeness.percentage}%. {missingCount === 1 ? "Te falta 1 campo:" : `Te faltan ${missingCount} campos:`}</p>
-                    <ul className="mt-2 flex flex-col gap-1">
-                      {completeness.missing.map((label) => (
-                        <li key={label} className="flex items-center gap-2 text-foreground">
-                          <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-                          {label}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter>
-                <Link href="/candidato/perfil" className={PRIMARY_LINK}>Revisar mi perfil</Link>
-              </CardFooter>
-            </Card>
-          </section>
-
-          <section aria-labelledby="candidate-overview-cvs" data-pf-cv-snapshot>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle><h3 id="candidate-overview-cvs" className="font-heading text-base font-semibold text-foreground">Tus CVs</h3></CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                {cvTotal === 0 ? (
-                  <StateCard icon={Files} tone="empty" title="Sin CVs"
-                    description="Cuando agregues un CV, vas a ver aquí su información. Puedes subirlo desde tu biblioteca."
-                    primaryAction={{ href: "/candidato/cvs", label: "Ver mis CVs" }} />
-                ) : primary === undefined ? (
-                  <SectionEmpty icon={Star} tone="info" title="Aún no hay un CV principal"
-                    description={`Tienes ${countLabel(cvTotal, "CV", "CVs")} en tu biblioteca. Por ahora no puedes marcar uno como principal; puedes abrir la biblioteca para revisar tus documentos.`}
-                    primaryAction={{ href: "/candidato/cvs", label: "Ver mis CVs" }} />
-                ) : (
-                  <>
-                    <Item size="sm" variant="muted">
-                      <ItemMedia><Medallion icon={FileText} /></ItemMedia>
-                      <ItemContent className="min-w-0">
-                        <ItemTitle className="line-clamp-none block w-full">
-                          <h4 className="font-heading text-sm font-semibold text-foreground">CV principal</h4>
-                        </ItemTitle>
-                        <ItemDescription className="line-clamp-none break-words">{primary.fileName}</ItemDescription>
-                      </ItemContent>
-                      <ItemActions className="w-full sm:w-auto">
-                        <Badge variant="accent">Principal</Badge>
-                      </ItemActions>
-                    </Item>
-                    <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><Languages aria-hidden="true" className="size-3.5 shrink-0" />Idioma</dt><dd className="text-foreground">{CV_LANGUAGE_LABELS[primary.language]}</dd></div>
-                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><HardDrive aria-hidden="true" className="size-3.5 shrink-0" />Tamaño</dt><dd className="text-foreground">{formatFileSize(primary.sizeBytes)}</dd></div>
-                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><CalendarClock aria-hidden="true" className="size-3.5 shrink-0" />Actualizado</dt><dd className="text-foreground"><time dateTime={primary.updatedAt}>{formatDate(primary.updatedAt)}</time></dd></div>
-                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><Files aria-hidden="true" className="size-3.5 shrink-0" />CVs en tu portafolio</dt><dd className="text-foreground">{countLabel(cvTotal, "CV", "CVs")}</dd></div>
-                    </dl>
-                  </>
-                )}
-              </CardContent>
-              {primary !== undefined && <CardFooter>
-                <Link href="/candidato/cvs" className={PRIMARY_LINK}>Ver mis CVs</Link>
-              </CardFooter>}
-            </Card>
-          </section>
-        </div>
-      </div>
-    </DashboardPageContent>
-  )
+/** Profile/CV/application read island. Each action has its own lifetime and feedback;
+ * the parent grid places the independent assessment-hook rail beside this log. */
+export function CandidateDashboardOverview({ assessments, onFirstVisit, firstName }: CandidateDashboardOverviewProps) {
+  const applications = useSource<ApplicationsPage>(loadApplications);
+  const cvs = useSource<CvLibrary>(loadCvsAction);
+  const profile = useSource<{ profile: ProfileRead | null; languages: ProfileLanguages }>(loadProfileAction);
+  const appData = applications.result?.ok ? applications.result.data : undefined;
+  const cvData = cvs.result?.ok ? cvs.result.data : undefined;
+  const profileData = profile.result?.ok ? profile.result.data : undefined;
+  const completeness = profileData ? profileCompleteness(profileData.profile ? profileFromWire(profileData.profile, profileData.languages) : null) : undefined;
+  const firstVisit = !!(appData && appData.items.length === 0 && cvData && cvData.items.length === 0 && completeness && completeness.percentage < 100);
+  useEffect(() => { onFirstVisit(firstVisit); }, [firstVisit, onFirstVisit]);
+  const sent = appData?.items.filter(item => item.status === "submitted").length ?? 0;
+  const process = appData?.items.filter(item => item.status === "in_process").length ?? 0;
+  const pending = assessments.result?.ok ? assessments.result.data.items.length : undefined;
+  const recent = appData ? [...appData.items].sort((a, b) => Date.parse(b.updated_at ?? b.applied_at) - Date.parse(a.updated_at ?? a.applied_at)) : [];
+  return <>
+    <header className="order-1 flex flex-col gap-1 lg:order-none lg:col-span-2">
+      <h2 className="text-2xl font-semibold tracking-tight">{firstName ? `Hola, ${firstName}` : "Tu búsqueda de empleo"}</h2>
+      <p className="text-sm text-muted-foreground">{firstVisit ? "Empieza tu búsqueda: completa tu perfil, sube tu CV y explora vacantes." : pending === 0 ? "Estás al día. Puedes seguir tus postulaciones o explorar nuevas vacantes." : pending !== undefined ? `Tienes ${count(pending, "evaluación pendiente", "evaluaciones pendientes")}.` : "Sigue tus postulaciones y encuentra tu próximo paso."}</p>
+    </header>
+    <section aria-label="Resumen de tu búsqueda" className="order-2 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 lg:order-none lg:col-span-2">
+      <Metric label="Por atender" icon={ClipboardList} description="Evaluaciones pendientes" source={assessments} loadingLabel="Cargando evaluaciones" errorLabel="las evaluaciones" value={pending} href={firstVisit ? "/vacantes" : "#dashboard-attention"} action={firstVisit ? "Explorar vacantes" : "Ver pendientes"}>
+        <p className="text-xs text-muted-foreground">{firstVisit ? "Aquí verás tus próximos pendientes." : pending === 0 ? "Estás al día. No tienes pendientes." : count(pending ?? 0, "evaluación pendiente", "evaluaciones pendientes")}</p>
+      </Metric>
+      <Metric label="Postulaciones activas" icon={BriefcaseBusiness} description="Enviadas y en proceso" source={applications} loadingLabel="Cargando postulaciones" errorLabel="las postulaciones" value={sent + process} href={firstVisit ? "/vacantes" : "/candidato/postulaciones"} action={firstVisit ? "Explorar vacantes" : "Ver postulaciones"}>
+        <p className="text-xs text-muted-foreground">{appData?.items.length === 0 ? "Aún no has enviado postulaciones." : `${count(sent, "enviada", "enviadas")} · ${count(process, "en proceso", "en proceso")}`}</p>
+        {appData?.next_cursor && <p className="mt-2 text-xs text-muted-foreground">Resumen de las últimas {appData.items.length} postulaciones. Consulta todas en Postulaciones.</p>}
+      </Metric>
+      <Metric hideAction={firstVisit} label="Perfil" icon={UserRound} description="Datos de tu perfil" source={profile} loadingLabel="Cargando perfil" errorLabel="tu perfil" value={`${completeness?.percentage}%`} href="/candidato/perfil" action={completeness?.percentage === 100 ? "Ver perfil" : firstVisit ? "Revisar perfil" : "Completar perfil"}>
+        {firstVisit ? <SectionEmpty icon={UserRound} tone="info" title="Prepara tu perfil" description={`Completa tus datos para presentarte a las empresas. Te falta: ${missingProfileText(completeness?.missing ?? [])}.`} primaryAction={{ href: "/candidato/perfil", label: "Completar perfil" }} /> : <p className="text-xs text-muted-foreground">{completeness?.missing.length ? `Te falta: ${missingProfileText(completeness.missing)}` : "Tu perfil está completo."}</p>}
+        <Progress aria-label="Completitud del perfil" value={completeness?.percentage ?? 0} />
+      </Metric>
+      <Metric hideAction={cvData?.items.length === 0} label="CVs" icon={Files} description="Versiones en tu biblioteca" source={cvs} loadingLabel="Cargando CVs" errorLabel="tus CVs" value={`${cvData?.items.length} de ${cvData?.limits.max_cvs}`} href="/candidato/cvs" action="Ir a mis CVs">
+        {cvData?.items.length === 0 ? <SectionEmpty icon={Files} tone="empty" title="Todavía no tienes CVs" description="Sube un CV para elegirlo al postularte." primaryAction={{ href: "/candidato/cvs", label: "Subir CV" }} /> : <p className="text-xs text-muted-foreground">{count(cvData?.items.filter(cv => cv.in_use).length ?? 0, "enviado en postulaciones", "enviados en postulaciones")}</p>}
+      </Metric>
+    </section>
+    <section aria-labelledby="dashboard-recent" className="order-4 min-w-0 lg:order-none lg:col-start-1 lg:row-start-3">
+      <header className="mb-3 flex min-h-10 items-center justify-between gap-3"><div><h2 id="dashboard-recent" className="text-base font-semibold">Postulaciones recientes</h2><p className="text-xs text-muted-foreground">Última actualización de cada proceso</p></div><Link className={quietLink} href="/candidato/postulaciones">Ver todas<ArrowRight aria-hidden="true" /></Link></header>
+      {!applications.result ? <Card size="sm"><CardHeader><CardTitle className="sr-only">Postulaciones</CardTitle></CardHeader><CardContent><SourceLoading label="Cargando postulaciones" /></CardContent></Card> : !applications.result.ok ? <SourceErrorCard failure={applications.result} retry={applications.retry} label="las postulaciones" /> : recent.length === 0 ? <StateCard icon={BriefcaseBusiness} tone="empty" title="Aún no tienes postulaciones" description="Aquí podrás seguir tus procesos después de enviar tu primera postulación. Encuentra una vacante que te interese." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} /> : <ol aria-label="Bitácora de postulaciones" className="pl-2 sm:pl-5">{recent.map(item => <li key={item.id} className="relative border-l border-border pb-3 pl-5 last:border-transparent before:absolute before:top-5 before:-left-1 before:size-2 before:rounded-full before:bg-primary">
+        <Card size="sm">
+          <CardHeader><CardTitle><h3 className="break-words text-sm font-medium"><Link className="inline-flex min-h-10 items-center hover:underline" href="/candidato/postulaciones">{item.vacancy.title}</Link></h3></CardTitle><CardDescription className="break-words text-xs">{item.company.name}</CardDescription><CardAction><Badge variant={variants[item.status]} dot>{labels[item.status]}</Badge></CardAction></CardHeader>
+          <CardFooter className="flex-wrap gap-2 text-xs text-muted-foreground"><p>{item.updated_at ? "Actualizada el " : "Postulaste el "}<time dateTime={item.updated_at ?? item.applied_at}>{date.format(new Date(item.updated_at ?? item.applied_at))}</time></p>
+            {item.status === "closed" && item.message !== null && <ApplicationMessage showUnread={false} triggerLabel="Leer mensaje" message={{ applicationId: item.id, sender: item.company.name, subject: "Mensaje de la empresa", body: item.message.split(/\r?\n/u) }} />}
+          </CardFooter>
+        </Card>
+      </li>)}</ol>}
+    </section>
+  </>;
 }
