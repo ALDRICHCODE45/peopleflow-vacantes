@@ -24,6 +24,12 @@ candidate dashboard with real data only; design on the canvas before each implem
   pending list and recent applications on real data; remove the Contratada/Rechazada stacked bar and the prototype
   saved vacancies; ask the backend for a per-application `updated_at` (last status change) to show and sort by recent
   activity.
+- **S7 Chosen dashboard design.** «el 2 no me gusta nada, el 3 me convence mucho mas.» — artboard
+  `design/candidate-dashboard-redesign/03-bitacora-personal.html` (four cards in two rows, applications as a log ordered
+  by last visible activity).
+- **S8 Message read state from the backend.** User chose «Pedir al backend «leído»»: the backend stores when the
+  candidate read each company message (read_at + mark as read), the same on every device. Until it exists, «Por
+  atender» counts only pending assessments and company messages stay visible in their application in the log.
 - **S4 Order.** CVs first, then the dashboard, as separate deliveries (user choice, L3).
 
 ## Tasks
@@ -35,7 +41,8 @@ candidate dashboard with real data only; design on the canvas before each implem
 | D1 | S2, S3, S6 | agree with the user which data each dashboard card and section shows (real data; backend changes allowed) | decided (L9) |
 | D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
 | D3 | S6 | backend request: per-application `updated_at` (last status change) in the candidate applications list | |
-| D4 | S2, S3 | implement dashboard on real data; remove prototype fixtures from the route; tests | |
+| D4 | S2, S3, S6, S7, S8 | worker — implement 03 on real data; remove prototype fixtures from the route; tests | |
+| D5 | S8 | backend request: message read state; then the frontend counts unread messages in «Por atender» | |
 
 ## Log
 
@@ -95,3 +102,7 @@ candidate dashboard with real data only; design on the canvas before each implem
   D2 parent check (headless, canvas): 01/02/03 load with no page or console errors; each of «Con actividad»,
   «Primera visita», «Al día» changes the content; no horizontal overflow at 1440 or 390; no Contratada/Rechazada/
   En revisión/saved/recommended copy. Awaiting the user's choice.
+- **L12** User (verbatim): «el 2 no me gusta nada, el 3 me convence mucho mas.» → chosen artboard 03-bitacora-personal.html
+  (01 and 02 are alternatives). Exploration: the frontend has no persisted read state — «Nuevo mensaje» clears only for
+  the current mount (`features/candidate/application-message.tsx:32`). Asked how «Por atender» counts messages; answer
+  «Pedir al backend «leído» (Recomendado)» → S8, D5.
