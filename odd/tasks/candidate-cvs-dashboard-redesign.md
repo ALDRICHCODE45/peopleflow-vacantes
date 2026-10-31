@@ -172,3 +172,14 @@ candidate dashboard with real data only; design on the canvas before each implem
   (5231 ms) with machine load average 29; that file imports nothing from candidate-applications and is untouched on this
   branch. Its single re-run timed out at the 120 s command limit under the same load. **Pending:** re-run
   profile-workspace.test.tsx when the load drops.
+- **L19** Canvas comment rzt8dlxg on 02-tres-preguntas (verbatim): «Me gusta mucho sta opcion pero hay mucho que mejorar,
+  hay errores visuales muy obvios y graves, sunpongo que puedes verlos, ademas de que en el diseno real tendras que usar
+  las graficas de shadcn.» → chosen direction: **02-tres-preguntas** (01 and 03 are alternatives); production charts
+  use shadcn `components/ui/chart.tsx` (Recharts + ChartContainer). Fixes (worker + parent): screen-reader table
+  captions rendered over the chart titles (moved into `div.sr`); donut center text inside the hole (shadcn «Donut with
+  Text»); shadcn chart language (header action period toggle, dashed horizontal grid, rounded bars, dot legend,
+  tooltips); 200px weekly plot with regular ticks; response histogram on a baseline in --primary (it reused the
+  «Enviada» color) and without the obsolete backend note; aligned chart header/plot/legend/footer rows (header row
+  68px desktop, auto on mobile); KPI cards share one grid without progress bars; copy «Evaluaciones por responder».
+  Parent browser check: no errors; chart descriptions aligned (556/555/555 px); no overflow at 1440, 1024 and 390 in
+  every state and period. Comment resolved.
