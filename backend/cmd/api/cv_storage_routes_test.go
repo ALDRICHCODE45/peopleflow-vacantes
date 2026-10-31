@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	apphttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
@@ -36,6 +37,10 @@ func (s *storageRouteApplications) Apply(context.Context, string, uuid.UUID, uui
 func (s *storageRouteApplications) List(context.Context, string, app.Query) (app.Page, error) {
 	s.listCalls++
 	return app.Page{Items: []app.Item{}}, nil
+}
+
+func (s *storageRouteApplications) MarkMessageRead(context.Context, string, uuid.UUID, time.Time) error {
+	return nil
 }
 
 type storageRouteCVs struct{ cvapp.Library }
@@ -81,13 +86,23 @@ func TestCVStorageDisabledRoutesAndUnrelatedServices(t *testing.T) {
 		{"GET", "/v2/jobs/11111111-1111-4111-8111-111111111111/screening", 404, "not_found"},
 		{"POST", "/v2/jobs/11111111-1111-4111-8111-111111111111/applications", 201, ""},
 		{"GET", "/v2/me/applications", 200, ""},
+		{"PUT", "/v2/me/applications/11111111-1111-4111-8111-111111111111/message-read", 204, ""},
 	} {
 		t.Run(route.method+route.path, func(t *testing.T) {
 			req := httptest.NewRequest(route.method, route.path, strings.NewReader(`{"cv_id":"11111111-1111-4111-8111-111111111111","questionnaire_revision":"r","answers":[]}`))
+			if route.method == "PUT" {
+				req = httptest.NewRequest(route.method, route.path, strings.NewReader(`{"updated_at":"2026-10-01T09:00:00Z"}`))
+			}
 			req.Header.Set("Authorization", "Bearer candidate")
 			req.Header.Set("Idempotency-Key", uuid.NewString())
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
+			if route.status == 204 {
+				if w.Code != 204 || w.Body.Len() != 0 || w.Header().Get("Cache-Control") != "no-store" {
+					t.Fatal(w.Code, w.Body.String(), w.Header())
+				}
+				return
+			}
 			var body map[string]any
 			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 				t.Fatalf("status %d: invalid JSON", w.Code)

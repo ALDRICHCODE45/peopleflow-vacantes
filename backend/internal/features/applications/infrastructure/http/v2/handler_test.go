@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
@@ -27,7 +28,7 @@ func (f *fakeStore) Apply(context.Context, string, uuid.UUID, uuid.UUID, app.Req
 }
 func (f *fakeStore) List(context.Context, string, app.Query) (app.Page, error) {
 	f.calls++
-	return app.Page{Items: []app.Item{{ID: uuid.New(), Vacancy: app.Vacancy{ID: uuid.New(), Title: "Role", State: "open"}, Company: app.Company{ID: uuid.New(), Name: "Acme"}, Status: "submitted"}}}, f.err
+	return app.Page{Items: []app.Item{{ID: uuid.New(), Vacancy: app.Vacancy{ID: uuid.New(), Title: "Role", State: "open"}, Company: app.Company{ID: uuid.New(), Name: "Acme"}, AppliedAt: time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC), Status: "submitted"}}}, f.err
 }
 func TestCandidateListHTTPStrictQueryAndShape(t *testing.T) {
 	for _, query := range []string{"", "?limit=0", "?limit=1&limit=2", "?unknown=1", "?cursor=bad"} {
@@ -50,7 +51,10 @@ func TestCandidateListHTTPStrictQueryAndShape(t *testing.T) {
 				t.Fatal(w.Code, body)
 			}
 			item := body["items"].([]any)[0].(map[string]any)
-			if len(item) != 6 || item["message"] != nil || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 3 || item["vacancy"].(map[string]any)["state"] != "open" || len(item["company"].(map[string]any)) != 2 {
+			if _, present := item["message_read_at"]; !present || item["message_read_at"] != nil {
+				t.Fatal(item)
+			}
+			if len(item) != 9 || item["first_response_at"] != nil || item["applied_at"] != "2026-10-01T09:00:00Z" || item["updated_at"] != "2026-10-02T09:00:00Z" || item["message"] != nil || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 3 || item["vacancy"].(map[string]any)["state"] != "open" || len(item["company"].(map[string]any)) != 2 {
 				t.Fatal(item)
 			}
 		})

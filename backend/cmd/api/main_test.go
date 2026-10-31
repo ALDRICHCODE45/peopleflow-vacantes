@@ -1553,6 +1553,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /v2/me/cvs/{id}/file",
 		"Post /v2/jobs/{id}/applications",
 		"Get /v2/me/applications",
+		"Put /v2/me/applications/{id}/message-read",
 		"Get /v2/assessments/{token}",
 		"Post /v2/assessments/{token}/consent",
 		"Post /v2/assessments/{token}/finish",

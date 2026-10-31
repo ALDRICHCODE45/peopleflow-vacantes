@@ -163,6 +163,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/cvs/{id}/file", d.cvHandler.File)
 		r.Post("/v2/jobs/{id}/applications", d.participationHandler.Apply)
 		r.Get("/v2/me/applications", d.participationHandler.List)
+		r.Put("/v2/me/applications/{id}/message-read", d.participationHandler.MarkMessageRead)
 	})
 
 	r.Group(func(r chi.Router) {

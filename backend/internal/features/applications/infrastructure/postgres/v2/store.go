@@ -228,7 +228,7 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		at = q.After.At
 		id = q.After.ID
 	}
-	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,CASE WHEN vp.process_status='finished' THEN 'closed' ELSE 'open' END,c.id,c.name,p.created_at,p.stage_id,p.discarded_at IS NOT NULL,CASE WHEN p.discarded_at IS NOT NULL THEN p.candidate_message ELSE NULL END FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND p.source='organic' AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
+	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,CASE WHEN vp.process_status='finished' THEN 'closed' ELSE 'open' END,c.id,c.name,p.created_at,p.stage_id,p.discarded_at IS NOT NULL,CASE WHEN p.discarded_at IS NOT NULL THEN p.candidate_message ELSE NULL END,CASE WHEN p.discarded_at IS NOT NULL AND p.candidate_message IS NOT NULL THEN p.candidate_message_read_at ELSE NULL END FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND p.source='organic' AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
 	if err != nil {
 		return app.Page{}, err
 	}
@@ -238,16 +238,21 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		var item app.Item
 		var stage uuid.UUID
 		var discarded bool
-		if err = rows.Scan(&item.ID, &item.Vacancy.ID, &item.Vacancy.Title, &item.Vacancy.State, &item.Company.ID, &item.Company.Name, &item.AppliedAt, &stage, &discarded, &item.Message); err != nil {
+		if err = rows.Scan(&item.ID, &item.Vacancy.ID, &item.Vacancy.Title, &item.Vacancy.State, &item.Company.ID, &item.Company.Name, &item.AppliedAt, &stage, &discarded, &item.Message, &item.MessageReadAt); err != nil {
 			return app.Page{}, err
 		}
 		item.Status = app.CandidateStatus(stage, s.rules.InitialStage(item.Vacancy.ID), discarded)
 		item.AppliedAt = item.AppliedAt.UTC()
+		if item.MessageReadAt != nil {
+			utc := item.MessageReadAt.UTC()
+			item.MessageReadAt = &utc
+		}
 		page.Items = append(page.Items, item)
 	}
 	if err = rows.Err(); err != nil {
 		return app.Page{}, err
 	}
+	rows.Close()
 	if len(page.Items) > q.Limit {
 		last := page.Items[q.Limit-1]
 		token, err := app.EncodeCursor(app.Position{ID: last.ID, At: last.AppliedAt})
@@ -257,5 +262,90 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		page.NextCursor = &token
 		page.Items = page.Items[:q.Limit]
 	}
+	if err = s.lastVisibleChanges(ctx, tx, page.Items); err != nil {
+		return app.Page{}, err
+	}
 	return page, nil
+}
+
+// MarkMessageRead serializes with recruiter writes on the participation row.
+// Read state does not change visible history, board versions or updated_at.
+func (s *Store) MarkMessageRead(ctx context.Context, sub string, id uuid.UUID, expected time.Time) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	candidate, err := actor(ctx, tx, sub)
+	if err != nil {
+		return err
+	}
+	item := app.Item{ID: id}
+	var discarded bool
+	err = tx.QueryRow(ctx, `SELECT process_id,created_at,discarded_at IS NOT NULL,candidate_message,candidate_message_read_at FROM process_participations WHERE id=$1 AND candidate_id=$2 AND source='organic' FOR UPDATE`, id, candidate).Scan(&item.Vacancy.ID, &item.AppliedAt, &discarded, &item.Message, &item.MessageReadAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if !discarded || item.Message == nil {
+		return app.ErrMessageUnavailable
+	}
+	items := []app.Item{item}
+	if err = s.lastVisibleChanges(ctx, tx, items); err != nil {
+		return err
+	}
+	if !items[0].UpdatedAt.Equal(expected) {
+		return app.ErrMessageChanged
+	}
+	if item.MessageReadAt != nil {
+		return nil
+	}
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	if at.Before(item.AppliedAt) {
+		at = item.AppliedAt.UTC()
+	}
+	if _, err = tx.Exec(ctx, `UPDATE process_participations SET candidate_message_read_at=$2 WHERE id=$1`, id, at); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// lastVisibleChanges sets UpdatedAt and FirstResponseAt from the page's history in one query.
+// Substate and not-applicable entries never change the visible status.
+func (s *Store) lastVisibleChanges(ctx context.Context, tx pgx.Tx, items []app.Item) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(items))
+	for i, item := range items {
+		ids[i] = item.ID
+	}
+	rows, err := tx.Query(ctx, `SELECT participation_id,event_kind,stage_id,candidate_message,created_at FROM participation_stage_history WHERE participation_id=ANY($1) AND event_kind IN ('intake','move','discard','recovery') ORDER BY participation_id,created_at,id`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	events := map[uuid.UUID][]app.VisibleEvent{}
+	for rows.Next() {
+		var pid uuid.UUID
+		var e app.VisibleEvent
+		if err = rows.Scan(&pid, &e.Kind, &e.Stage, &e.Message, &e.At); err != nil {
+			return err
+		}
+		events[pid] = append(events[pid], e)
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	for i := range items {
+		initial := s.rules.InitialStage(items[i].Vacancy.ID)
+		items[i].UpdatedAt = app.LastVisibleChange(items[i].AppliedAt, initial, events[items[i].ID]).UTC()
+		if first := app.FirstResponse(items[i].AppliedAt, initial, events[items[i].ID]); first != nil {
+			utc := first.UTC()
+			items[i].FirstResponseAt = &utc
+		}
+	}
+	return nil
 }
