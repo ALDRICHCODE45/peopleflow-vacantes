@@ -233,3 +233,7 @@ candidate dashboard with real data only; design on the canvas before each implem
   runs kept the load at up to 250; killed (test workers of this worktree only). Next run started on a 1-minute load
   gate and the load rose again (55 timeouts in untouched files, e.g. LocalDraftForm 152 s). **Pending:** one full-suite
   run gated on the 5-minute load average.
+- **L25** Full suite at 403f1253 (Node 22, started on a 5-minute load average < 6): 9040 passed, 1 skipped, 1 failed —
+  `components/ui/combobox.test.tsx` «mounts the portal popup with an accessible combobox and its empty state»
+  (18.9 s > 5 s), untouched on this branch and 29/29 in isolation; the suite itself raised the load to 32. Recorded as a
+  pre-existing load-sensitive test in frontend-backlog.md; no further reruns.

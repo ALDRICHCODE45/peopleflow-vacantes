@@ -106,3 +106,9 @@ test, never as a reason to reopen the reviewed slice.
 - **«Agregar candidato» from Base de talento** (v0 redesign, 2026-10-22): user chose «Sin botón por ahora». Options
   when revisited: open the manual intake asking for the vacancy first (no backend), or create a candidate without a
   process (needs backend).
+
+- **Load-sensitive combobox test** (`odd/tasks/candidate-cvs-dashboard-redesign.md` L25, 2026-10-30):
+  `components/ui/combobox.test.tsx` «mounts the portal popup with an accessible combobox and its empty state» takes
+  ~18 s inside the full suite and exceeds the 5 s default (29/29 in isolation). Find what makes the portal mount slow
+  under jsdom or give it an explicit timeout with a reason. Also: never wrap `pnpm vitest` in `timeout` — it orphans
+  `node (vitest)` workers that keep the machine loaded.
