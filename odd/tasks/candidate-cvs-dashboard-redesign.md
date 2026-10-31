@@ -48,16 +48,16 @@ candidate dashboard with real data only; design on the canvas before each implem
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| V1 | S1 | canvas — `design/candidate-cvs-redesign/` directions → user choice: 03 + badge of 01 (L6) | a178cbeb, this commit |
-| V2 | S1, S5 | worker — implement 03 + badge of 01 in `cv-workspace.tsx`; keep upload/rename/delete/failure behavior; tests | this commit (L7) |
+| V1 | S1 | canvas — `design/candidate-cvs-redesign/` directions → user choice: 03 + badge of 01 (L6) | a178cbeb, c9b19af4 (L5, L6) |
+| V2 | S1, S5 | worker — implement 03 + badge of 01 in `cv-workspace.tsx`; keep upload/rename/delete/failure behavior; tests | caa96f48, 453e0e9a (L7, L8) |
 | D1 | S2, S3, S6 | agree with the user which data each dashboard card and section shows (real data; backend changes allowed) | decided (L9) |
-| D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | |
-| D3 | S6 | backend request: per-application `updated_at` (last status change) in the candidate applications list | |
-| D4 | S2, S3, S6, S7, S8 | worker — implement 03 on real data; remove prototype fixtures from the route; tests | this commit (L13) |
+| D2 | S2, S3 | canvas — dashboard directions keeping the cards → user choice | e162b536; chosen 964343de (L11, L12) |
+| D3 | S6 | backend request: per-application `updated_at` (last status change) in the candidate applications list | backend 18b5d08f; frontend 59532e0b (L11, L17) |
+| D4 | S2, S3, S6, S7, S8 | worker — implement 03 on real data; remove prototype fixtures from the route; tests | a8736c6c, fd3e8ab0 (L13, L21); presentation replaced by D8 |
 | D6 | S9, S10, S11 | canvas — `design/candidate-dashboard-v2/` directions on the old structure with the three charts → user choice | 4ac59acb, 21412d46 (L19, L22) |
-| D7 | S10 | backend request: first candidate-visible change timestamp per application (response time) | |
-| D8 | S9, S10, S11 | implement the chosen v2 design on real data; tests | |
-| D5 | S8 | backend request: message read state; then the frontend counts unread messages in «Por atender» | |
+| D7 | S10 | backend request: first candidate-visible change timestamp per application (response time) | backend 8f8b66df; frontend a732e63f (L17) |
+| D8 | S9, S10, S11 | implement the chosen v2 design on real data; tests | d331b21c, 403f1253 (L23–L25) |
+| D5 | S8 | backend request: message read state; then the frontend counts unread messages in «Por atender» | backend 9b28e783; frontend 9a9e7fe2, c42107b7, fd3e8ab0 (L18, L20, L21) |
 
 ## Log
 
@@ -237,3 +237,7 @@ candidate dashboard with real data only; design on the canvas before each implem
   `components/ui/combobox.test.tsx` «mounts the portal popup with an accessible combobox and its empty state»
   (18.9 s > 5 s), untouched on this branch and 29/29 in isolation; the suite itself raised the load to 32. Recorded as a
   pre-existing load-sensitive test in frontend-backlog.md; no further reruns.
+- **L26** Backend session merged locally (user pushes): a6c82176 (feat/applications-message-read), dcc60a98
+  (feat/candidate-cvs-redesign at 3e2ab5f9), 69f3f1ae (deferred end-to-end browser QA in frontend-backlog «Waiting on
+  the user» — the user postponed it). Commit cells filled with real hashes. Open: end-to-end browser QA (deferred by
+  the user); removal of verifier scratch dirs under /tmp awaiting the user's OK.
