@@ -205,3 +205,17 @@ candidate dashboard with real data only; design on the canvas before each implem
   load drops. Process fix: run the full suite before every code commit.
 - **L22** User (verbatim): «si hermano, aprobado» → design 02-tres-preguntas (21412d46) approved for D8. Slice boundary:
   D8 is the next slice (dashboard v2 presentation on the existing data layer).
+- **L23** D8 implemented by worker (presentation of 02 on the existing data layer): `features/candidate/dashboard/
+  charts.tsx` (shadcn ChartContainer + Recharts: weekly stacked bars with 3 meses / 30 días, donut with total, response
+  histogram; accessible data tables; older-server empty state when first_response_at is absent), pure `insights.ts`
+  (+ tests: local-calendar weeks, periods, month comparison, advance rate, response days, unread predicate), full-name
+  greeting (S11), Pendientes banner, compact KPIs, unread = message && message_read_at null (absent field ≠ unread);
+  opening an unread message calls markMessageReadAction once with updated_at, badge clears only after ok, 409
+  message_changed refetches. `ApplicationMessage` gains optional `onOpen` (defaults unchanged) and drops the prototype
+  type import. Assessment loading/error stays independent (render-boundary regression found by the full suite and
+  fixed without touching that test). Checks (Node 22): focused 29/29; render-boundary 2/2; full suite 9037 passed, 3
+  failed, 1 skipped under load average 20–27 — draft-editor-shell, manual-intake/sheet, combobox; all three untouched
+  (empty diff vs origin/main) and green in isolation at load ~5: 16/16, 66/66, 29/29. tsc 0; eslint 0 errors.
+  Deviations: native Card/SectionEmpty geometry, period toggle wraps under the title in narrow cards, all loaded
+  recent applications listed (unread actions stay reachable), chart descriptions describe the loaded applications.
+  Browser QA pending (user, real Cognito).

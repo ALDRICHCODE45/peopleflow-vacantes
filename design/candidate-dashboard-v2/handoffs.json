@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "02-tres-preguntas.html",
+  "handoffs": {
+    "02-tres-preguntas.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-10-31T03:24:49.300Z",
+      "startedAt": "2026-10-31T03:25:03.535Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/candidate-cvs-dashboard-redesign.md",
+      "note": "D8: implementando con shadcn charts sobre datos reales (worker)"
+    }
+  }
+}

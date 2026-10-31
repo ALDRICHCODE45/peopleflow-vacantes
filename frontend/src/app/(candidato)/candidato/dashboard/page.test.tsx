@@ -14,7 +14,8 @@ it("renders the real empty account, never imports prototype modules, and keeps t
   expect(metadata.title).toBe("Dashboard");
   render(await Page());
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-  expect(await screen.findByText("0 de 7")).toBeVisible();
+  expect(await screen.findByText("de 7")).toBeVisible();
+  expect(screen.getByRole("region", { name: "CVs" })).toHaveTextContent("0 de 7");
   expect(screen.queryByText(/Ximena|Acme|Contratada|Rechazada/)).toBeNull();
   cleanup();
 });

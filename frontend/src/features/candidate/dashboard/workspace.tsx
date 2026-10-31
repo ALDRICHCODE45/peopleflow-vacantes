@@ -12,12 +12,11 @@ export function CandidateDashboardWorkspace() {
   const [attempt, setAttempt] = useState(0);
   const [firstVisit, setFirstVisit] = useState(false);
   const identity = useIdentity();
-  const name = identity.result?.ok ? identity.result.data.user?.full_name.trim().split(/\s+/u)[0] : undefined;
+  const name = identity.result?.ok ? identity.result.data.user?.full_name.trim() : undefined;
   return <DashboardPageContent data-pf-candidate-overview width="screen-2xl" container className="flex-1">
-    <div className="grid w-full min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-8">
-      <CandidateDashboardOverview firstName={name} assessments={{ result: assessments, retry: () => { setAssessments(undefined); setAttempt(value => value + 1); } }} onFirstVisit={setFirstVisit} />
-      <DashboardAssessments key={attempt} firstVisit={firstVisit} onResult={setAssessments} />
-      <p className="order-5 text-xs text-muted-foreground lg:order-none lg:col-span-2">Bitácora personal · Sigue lo que cambió, sin confundirlo con las etapas internas de la empresa.</p>
+    <div className="grid w-full min-w-0 gap-5">
+      <DashboardAssessments readerOnly key={attempt} firstVisit={firstVisit} onResult={setAssessments} />
+      <CandidateDashboardOverview fullName={name} assessments={{ result: assessments, retry: () => { setAssessments(undefined); setAttempt(value => value + 1); } }} onFirstVisit={setFirstVisit} />
     </div>
   </DashboardPageContent>;
 }
