@@ -142,7 +142,16 @@ historia en `odd/tasks/psychometric-tests-backend.md` (L1–L19) y `odd/tasks/ps
   `archguard` marca `docker/minio/Dockerfile` (preexistente). Un test unitario de `cmd/api` falló una vez sin identificarse
   (no se reprodujo en 5 corridas).
 - 🔲 **Ramas ya mergeadas para borrar** (decisión del usuario): `feat/psychometric-tests-backend`,
-  `feat/psychometric-competency-clarity-backend` y las del frontend.
+  `feat/psychometric-competency-clarity-backend` y las del frontend; desde 2026-10-31 también
+  `feat/applications-updated-at`, `feat/applications-message-read` y `feat/candidate-cvs-redesign`.
+
+### Postulaciones del candidato: actividad y mensaje leído (mergeado 2026-10-31) — pendientes
+
+`updated_at`, `first_response_at`, `message_read_at` y `PUT /v2/me/applications/{id}/message-read` (migración 00052).
+Detalle en `odd/tasks/applications-message-read.md` y `backend/docs/vacancy-applications.md`.
+- 🔲 **QA de punta a punta en el navegador** (el usuario la hace más adelante): ver `odd/tasks/frontend-backlog.md`
+  «End-to-end browser QA of the CV library + candidate dashboard redesign».
+- 🔲 **El estado leído no se probó bajo concurrencia real** (el lock `FOR UPDATE` se inspeccionó, no se estresó).
 
 ## Stack decidido (no re-discutir)
 

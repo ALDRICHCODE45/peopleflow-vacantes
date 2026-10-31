@@ -65,6 +65,14 @@ principal» landmark (axe `region`), the three full-suite flaky tests made light
   the country only. Data, not code — fix the profile values (and decide whether the profile form should reject such
   URLs).
 
+- **End-to-end browser QA of the CV library + candidate dashboard redesign** (`candidate-cvs-dashboard-redesign.md`,
+  `applications-message-read.md`; merged 2026-10-31 without it — user verbatim: «la prueba completa la hare en un
+  determinado momento en el futuro cuando ciertas funcionalidades ya esten implementadas al 100»). Never exercised
+  front + backend together: discard with a candidate message → «Nuevo mensaje» and «Por atender» count; open it →
+  read survives a reload (PUT message-read); recover + new discard → unread again; «Actualizada hace…» moves on
+  visible changes only (not on in_process→in_process moves); «¿Cuánto tardan en responder?» uses first_response_at.
+  The local DB has no discarded-with-message application yet.
+
 - **Browser checks without a recorded defect** — board Estado/Municipio filters with a new application from a located
   profile; candidate view of «Vacante cerrada» (closing the process vs closing only the publication).
 
