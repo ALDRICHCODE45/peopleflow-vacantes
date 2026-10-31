@@ -110,7 +110,7 @@ func TestSubstateSetClearNoOpWireSnapshotsAndCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ = json.Marshal(page)
-	movementKeys(t, movementObject(t, raw)["items"].([]any)[0], "id", "vacancy", "company", "applied_at", "status", "message")
+	movementKeys(t, movementObject(t, raw)["items"].([]any)[0], "id", "vacancy", "company", "applied_at", "updated_at", "status", "message")
 	c, err := m.drafts.GetSubstates(ctx, m.company, m.recruiter, m.vacancy)
 	if err != nil {
 		t.Fatal(err)

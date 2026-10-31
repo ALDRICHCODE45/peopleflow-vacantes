@@ -115,7 +115,7 @@ candidate ownership. Down refuses while participation/idempotency data exists.
 ## Candidate list (private)
 
 `GET /v2/me/applications?cursor&limit` →
-`{items:[{id,vacancy:{id,title,state},company:{id,name},applied_at,status,message}],next_cursor}`.
+`{items:[{id,vacancy:{id,title,state},company:{id,name},applied_at,updated_at,status,message}],next_cursor}`.
 `vacancy.state` is always `open|closed`: **closed only when the internal process is
 finished**, independent from application `status`. Paused and closed-but-active
 vacancies stay open for applicants. No pipeline identity or lifecycle view leaks.
@@ -129,7 +129,14 @@ history is recruiter-only. The internal reason and comment are never selected or
 exposed to candidates. Renaming columns does not affect status; recovering or moving
 back to `new` returns it to `submitted`. No stage identity, name or history is exposed.
 The original apply/replay response remains `status: "submitted"`, even after moves.
-Newest first, ID descending as tie-breaker. Only the candidate's new participations;
+`updated_at` (RFC3339, always present, never before `applied_at`) is when the
+candidate-visible `status` or closing `message` last changed: `submitted`↔`in_process`,
+a discard (with or without message) and a recovery count. Moves between stages that
+keep the visible status, substate changes and not-applicable marks never count, so no
+pipeline activity leaks. It equals `applied_at` while nothing visible changed. It is
+derived from the participation history at read time; there is no stored column.
+Newest first by `applied_at`, ID descending as tie-breaker (`updated_at` never orders
+or pages the list). Only the candidate's new participations;
 legacy applications stay on their legacy endpoint. Internal stages are never exposed.
 `limit` defaults to 20, range 1–50; only canonical decimal values. Unknown/repeated
 parameters, invalid encoding and malformed/noncanonical opaque cursors are 400.
@@ -139,7 +146,10 @@ Cut-4 status coverage: `TestCandidateStatusHidesStage` (unit) and
 `TestMovementBoardMovesHistoryCoverageAndRetention` (database; forward and backward
 status changes). Cut-5 tests `TestDiscardRecoveryEachStageAndCoverage` and
 `TestDiscardRecoveryExactWireAndCandidatePrivacy` protect closed/message visibility,
-nulls after recovery and absence of internal reason/comment. See
+nulls after recovery and absence of internal reason/comment.
+`TestLastVisibleChangeIgnoresInternalActivity` (unit), the `updated_at` checks in
+`TestDiscardRecoveryExactWireAndCandidatePrivacy` and
+`TestCandidateUpdatedAtIgnoresInternalMoves` (database) protect `updated_at`. See
 [pipeline-movement.md](pipeline-movement.md) and [pipeline-discard.md](pipeline-discard.md).
 
 ## §10.5 test map and evidence boundary

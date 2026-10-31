@@ -63,6 +63,7 @@ type Item struct {
 	Vacancy   Vacancy   `json:"vacancy"`
 	Company   Company   `json:"company"`
 	AppliedAt time.Time `json:"applied_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 	Status    string    `json:"status"`
 	Message   *string   `json:"message"`
 }

@@ -248,6 +248,7 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 	if err = rows.Err(); err != nil {
 		return app.Page{}, err
 	}
+	rows.Close()
 	if len(page.Items) > q.Limit {
 		last := page.Items[q.Limit-1]
 		token, err := app.EncodeCursor(app.Position{ID: last.ID, At: last.AppliedAt})
@@ -257,5 +258,41 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		page.NextCursor = &token
 		page.Items = page.Items[:q.Limit]
 	}
+	if err = s.lastVisibleChanges(ctx, tx, page.Items); err != nil {
+		return app.Page{}, err
+	}
 	return page, nil
+}
+
+// lastVisibleChanges sets UpdatedAt from the page's history in one query.
+// Substate and not-applicable entries never change the visible status.
+func (s *Store) lastVisibleChanges(ctx context.Context, tx pgx.Tx, items []app.Item) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(items))
+	for i, item := range items {
+		ids[i] = item.ID
+	}
+	rows, err := tx.Query(ctx, `SELECT participation_id,event_kind,stage_id,candidate_message,created_at FROM participation_stage_history WHERE participation_id=ANY($1) AND event_kind IN ('intake','move','discard','recovery') ORDER BY participation_id,created_at,id`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	events := map[uuid.UUID][]app.VisibleEvent{}
+	for rows.Next() {
+		var pid uuid.UUID
+		var e app.VisibleEvent
+		if err = rows.Scan(&pid, &e.Kind, &e.Stage, &e.Message, &e.At); err != nil {
+			return err
+		}
+		events[pid] = append(events[pid], e)
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	for i := range items {
+		items[i].UpdatedAt = app.LastVisibleChange(items[i].AppliedAt, s.rules.InitialStage(items[i].Vacancy.ID), events[items[i].ID]).UTC()
+	}
+	return nil
 }
