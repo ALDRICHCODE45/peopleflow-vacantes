@@ -116,3 +116,10 @@ candidate dashboard with real data only; design on the canvas before each implem
   78 files / 1460 tests passed, tsc 0, eslint 0 errors (13 warnings in unchanged files). Deviations: native
   StateCard/SectionEmpty geometry, md/lg breakpoints, AssessmentBlock keeps real progress, absolute dates. Browser QA
   pending (real Cognito login): asked the user to check /candidato/dashboard.
+- **L14** Independent verify (Risk item 3, shared code), all PASS: Postulaciones never called `ApplicationMessage`
+  (inline message in `candidate-applications/inbox.tsx:63`), so its only caller is the dashboard
+  (`candidate-dashboard-overview.tsx:95`, `showUnread={false}`, «Leer mensaje», no fabricated sentAt); component
+  defaults unchanged and tested; strict schema accepts only optional updated_at (rejects null/empty/invalid/date-only/
+  earlier/unknown keys); applications-workspace tests byte-identical to origin/main; 156 tests passed on Node 22 in an
+  isolated copy; S6 met, S7 met for shared-code interaction, S8 met for the interim frontend. Verifier scratch left at
+  /tmp/candidate-verify.XwOneb (outside the repo).
