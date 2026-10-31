@@ -143,3 +143,25 @@ candidate dashboard with real data only; design on the canvas before each implem
   side panel. Found greeting bug «Hola, Flores» (first token of full_name «Flores Vazquez Bryan Aldrich»). Answers:
   charts — all three (S10); name — «No, usar el nombre completo» (S11). D4's data layer stays; its presentation is
   replaced by D8.
+- **L16** D6 (S6, S8, S9, S10, S11): new directions in `design/candidate-dashboard-v2/`:
+  `01-ritmo-protagonista.html` (full-width weekly chart, recent applications + results/response rail),
+  `02-tres-preguntas.html` (three equal insight cards, recent applications + status panel),
+  `03-perspectivas-en-panel.html` (recent applications beside keyboard-accessible insight tabs + status legend).
+  All restore the pending banner first, full-name greeting and four compact number-led KPIs; Por atender counts
+  assessments only, messages use «Leer mensaje», and statuses are Enviada / En proceso / Cerrada. Each includes
+  Con actividad / Primera visita / Al día, 3-month / 30-day constancy controls, accessible SVGs with hidden data
+  tables, and an explicit first-change backend dependency for response time. Sample data: 12 applications
+  (6 in process, 4 sent, 2 closed), October 4 vs September 2, first-response mean 6 days across 8 responses.
+  `design.json` links this feature, records 1440×900 and honest tradeoffs; no direction chosen or production
+  integration. Token/font self-check completed. Product actions are intentionally inert. No exact browser validation
+  command or canvas tool supplied to this worker: visual, keyboard and overflow checks at 1440/390 remain for the
+  parent; `/gentle:design open candidate-dashboard-v2` opens the canvas. No comments resolved; no commit.
+- **L17** D3 ready on backend branch feat/applications-updated-at (18b5d08f, local): updated_at UTC "Z" with optional
+  µs, always present. D7 in progress: `first_response_at` nullable, key always present, never reset. Frontend accepts it:
+  a732e63f (optional nullable, >= applied_at; µs proven for updated_at) — RED 4 accept cases, GREEN 561/561 on Node 22,
+  tsc 0, eslint clean. D5 proposal accepted (message_read_at always present, null when no message/unread; PUT
+  /v2/me/applications/{id}/message-read {updated_at} → 204 / 404 not_found / 409 message_unavailable|message_changed /
+  400 invalid_request); asked that message_read_at be null whenever message is null. D6 parent check (headless):
+  three artboards load with no errors; every state/period toggle works; full name shown; no forbidden copy; 01 overflowed
+  at 390 because its screen-reader-only <table> ignored width:1px — fixed with `table.sr{display:block}`; now no
+  overflow at 1440 or 390 in any state of 01/02/03. Awaiting the user's choice.
