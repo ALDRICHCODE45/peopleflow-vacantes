@@ -27,7 +27,7 @@ Backend half of frontend `odd/tasks/candidate-cvs-dashboard-redesign.md` D5/S8. 
 ## Tasks
 
 - T1 — S1–S6: migration 00052, list field, PUT route, reset on discard/recovery, contract doc, tests. Route: inline,
-  test-first; independent verify + native review (high risk). Commit: pending.
+  test-first; independent verify + native review (high risk). Commit: 9b28e783. Verify: pass S1–S4, S6; S5 release gate (not shipped).
 
 ## Log
 
@@ -37,3 +37,6 @@ Backend half of frontend `odd/tasks/candidate-cvs-dashboard-redesign.md` D5/S8. 
 - L2 — User, backend session (2026-10-31): «Hacelo con la propuesta» → S4.
 - L3 — Frontend (msg 46bf9967): no objections to S4; asks S6. Will accept `message_read_at` as optional nullable once
   the name is confirmed.
+- L4 — Verify (gentle-ai-verify): pass S1–S4, S6; S5 is the release gate (nothing shipped). Native assess of 9b28e783
+  alone: medium, reviewDue false (under_budget) → no native review lineage started. Slice boundary: D3 18b5d08f + D7
+  8f8b66df (feat/applications-updated-at) | D5 9b28e783 (feat/applications-message-read, stacked).
