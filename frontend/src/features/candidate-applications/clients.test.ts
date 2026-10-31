@@ -79,13 +79,22 @@ describe("candidate application contracts", () => {
     fetchMock.mockResolvedValue(Response.json(data));
     expect(await loadApplications({ token: "private-token" })).toEqual({ ok: true, data });
   });
-  it.each([undefined, "2026-10-16T12:00:00Z", "2026-10-20T09:30:00Z", "2026-10-20T03:30:00-06:00"])("accepts the optional last visible change updated_at %s", async updated_at => {
+  it.each([undefined, "2026-10-16T12:00:00Z", "2026-10-20T09:30:00Z", "2026-10-20T03:30:00-06:00", "2026-10-20T09:30:00.123456Z"])("accepts the optional last visible change updated_at %s", async updated_at => {
     const data = { ...page, items: [{ ...page.items[0], ...(updated_at && { updated_at }) }] };
     fetchMock.mockResolvedValue(Response.json(data));
     expect(await loadApplications({ token: "private-token" })).toEqual({ ok: true, data });
   });
   it.each([null, "", "2026-02-30T12:00:00Z", "2026-03-05T09:30:00", "2020-01-01T00:00:00Z"])("rejects a malformed or pre-application updated_at %j", async updated_at => {
     fetchMock.mockResolvedValue(Response.json({ ...page, items: [{ ...page.items[0], updated_at }] }));
+    expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
+  });
+  it.each([undefined, null, "2026-10-16T12:00:00Z", "2026-10-18T09:00:00.123456Z", "2026-10-18T03:00:00-06:00"])("accepts the optional first visible response first_response_at %j", async first_response_at => {
+    const data = { ...page, items: [{ ...page.items[0], updated_at: "2026-10-20T09:30:00Z", ...(first_response_at !== undefined && { first_response_at }) }] };
+    fetchMock.mockResolvedValue(Response.json(data));
+    expect(await loadApplications({ token: "private-token" })).toEqual({ ok: true, data });
+  });
+  it.each(["", "2026-02-30T12:00:00Z", "2026-10-18T09:00:00", "2020-01-01T00:00:00Z", 0])("rejects a malformed or pre-application first_response_at %j", async first_response_at => {
+    fetchMock.mockResolvedValue(Response.json({ ...page, items: [{ ...page.items[0], first_response_at }] }));
     expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
   });
   it("still rejects any other unknown item key next to updated_at", async () => {
