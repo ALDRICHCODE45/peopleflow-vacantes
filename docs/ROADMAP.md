@@ -141,9 +141,9 @@ historia en `odd/tasks/psychometric-tests-backend.md` (L1–L19) y `odd/tasks/ps
   `cmd/migrate` y `localbootstrap` necesitan un `DATABASE_URL` con `CREATEDB`; `scripts/closure` falla con bash 3.2 de macOS;
   `archguard` marca `docker/minio/Dockerfile` (preexistente). Un test unitario de `cmd/api` falló una vez sin identificarse
   (no se reprodujo en 5 corridas).
-- 🔲 **Ramas ya mergeadas para borrar** (decisión del usuario): `feat/psychometric-tests-backend`,
-  `feat/psychometric-competency-clarity-backend` y las del frontend; desde 2026-10-31 también
-  `feat/applications-updated-at`, `feat/applications-message-read` y `feat/candidate-cvs-redesign`.
+- ✅ **Ramas ya mergeadas borradas** (2026-10-31, pedido del usuario): las 9 ramas locales mergeadas en `main`
+  (psicométricos, rediseño, estados vacíos, claridad de competencias, actividad/mensaje leído y rediseño del candidato).
+  Queda en el remoto `origin/chore/backlog-small-fixes` (no incluida).
 
 ### Postulaciones del candidato: actividad y mensaje leído (mergeado 2026-10-31) — pendientes
 
