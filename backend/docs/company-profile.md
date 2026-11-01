@@ -19,6 +19,12 @@ redaction. Both create and public read return location as the expanded
 [catalog read shape](geo-profiles.md), with a label, or null. A country-only
 international location is valid. Only MX currently supports subdivisions/postal.
 Public `GET /companies/{id}` does **not** expose `updated_at`.
+It always includes `site_slug: string | null`: the current published site's slug
+(`company_sites.published_slug` when `published IS NOT NULL`), or `null` when
+there is no site or it is unpublished. Draft and retired slugs are not returned;
+after unpublishing this field is `null`. For example, `"site_slug":"acme"`
+becomes `"site_slug":null` after unpublish. This additive field is public-read
+only; create, member summary and owner editor responses are unchanged.
 
 ## Member company summary
 

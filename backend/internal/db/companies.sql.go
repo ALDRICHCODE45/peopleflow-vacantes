@@ -139,6 +139,18 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, er
 	return i, err
 }
 
+const getCompanyPublishedSiteSlug = `-- name: GetCompanyPublishedSiteSlug :one
+SELECT published_slug FROM company_sites
+WHERE company_id = $1 AND published IS NOT NULL
+`
+
+func (q *Queries) GetCompanyPublishedSiteSlug(ctx context.Context, companyID uuid.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getCompanyPublishedSiteSlug, companyID)
+	var published_slug pgtype.Text
+	err := row.Scan(&published_slug)
+	return published_slug, err
+}
+
 const isCompanyLive = `-- name: IsCompanyLive :one
 SELECT ((deleted_at IS NULL)::boolean) AS is_live
 FROM companies

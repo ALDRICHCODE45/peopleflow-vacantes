@@ -24,6 +24,10 @@ RETURNING *;
 SELECT * FROM companies
 WHERE id = $1 AND deleted_at IS NULL;
 
+-- name: GetCompanyPublishedSiteSlug :one
+SELECT published_slug FROM company_sites
+WHERE company_id = $1 AND published IS NOT NULL;
+
 -- name: IsCompanyLive :one
 -- Atomic liveness probe for the RequireCompanyRole middleware
 -- (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`

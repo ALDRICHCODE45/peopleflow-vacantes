@@ -93,6 +93,12 @@ type CompanyRepository interface {
 	SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time, event auditentities.AuditEvent) error
 }
 
+// CompanyPublishedSiteReader reads only the current published site slug.
+// An absent or unpublished site returns nil, not a not-found error.
+type CompanyPublishedSiteReader interface {
+	GetPublishedSiteSlug(ctx context.Context, companyID uuid.UUID) (*string, error)
+}
+
 // CompanyEditorUpdater returns the exact row written by PATCH, captured inside
 // the CAS/audit transaction and returned only after commit succeeds. It must not
 // use a post-commit read, which could observe a later PATCH's row and CAS token.

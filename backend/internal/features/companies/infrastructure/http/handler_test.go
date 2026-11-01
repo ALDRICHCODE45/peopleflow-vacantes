@@ -82,6 +82,10 @@ func (r *stubRepo) GetByID(_ context.Context, id uuid.UUID) (*entities.Company, 
 	return nil, entities.ErrCompanyNotFound
 }
 
+func (r *stubRepo) GetPublishedSiteSlug(context.Context, uuid.UUID) (*string, error) {
+	return nil, nil
+}
+
 // GetCompanyForUpdate mirrors GetByID's default return shape so legacy
 // handler tests stay green (they do not exercise the new method).
 func (r *stubRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
