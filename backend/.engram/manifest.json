@@ -8,6 +8,14 @@
       "sessions": 2186,
       "memories": 3630,
       "prompts": 0
+    },
+    {
+      "id": "af2c6604",
+      "created_by": "aldrich_code45",
+      "created_at": "2026-11-01T11:59:31.9114Z",
+      "sessions": 4,
+      "memories": 1,
+      "prompts": 0
     }
   ]
 }
