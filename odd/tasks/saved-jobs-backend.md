@@ -145,3 +145,7 @@ Backend half of frontend `odd/tasks/saved-vacancies.md` over the agreed contract
   (`GetCompanyPublishedSiteSlug`), public shape only; unit + integration GREEN; committed 6ed30a4d on
   feat/company-site-slug. Pre-existing failures on main, not caused here: `scripts/closure` gate syntax error and
   archguard locked-non-goal `docker/minio/Dockerfile`. Not merged to main (user).
+- L9 Native review (RDD on, triggered by the session reminder): lineage review-1cf17690067fcc65 over main..63f8b138,
+  lenses risk/resilience/reliability, APPROVED and acknowledged (authority burned). One non-blocking advisory:
+  R4-rollback-retention-race (WARNING, informational) at `backend/db/migrations/00053_saved_jobs.sql:21-26`, i.e. the
+  Down data check is not under a table lock; follow-up only, no correction opened.
