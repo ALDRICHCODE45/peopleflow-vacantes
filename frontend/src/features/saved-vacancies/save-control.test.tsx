@@ -6,6 +6,7 @@ import { IdentityContext, type IdentityState } from "@/features/identity/identit
 import { notifyActionResult } from "@/components/feedback/notify";
 import { loadSavedJobIdsAction, saveJobAction, removeSavedJobAction } from "./actions";
 import { SavedJobControl } from "./save-control";
+import { SavedJobReturnIntent } from "./return-intent";
 import { PublicVacancyCard } from "@/features/jobs/components/PublicVacancyCard";
 import { PublicJobDetailView } from "@/features/jobs/components/PublicJobDetailView";
 import { legacyDetail, listItem, vacancyDetail } from "@/features/jobs/api/public-fixtures";
@@ -21,9 +22,11 @@ vi.mock("@/components/ui/popover", async importOriginal => ({
 }));
 vi.mock("./actions", () => ({ loadSavedJobIdsAction: vi.fn(), saveJobAction: vi.fn(), removeSavedJobAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
+const navigationHooks = vi.hoisted(() => ({ forbidden: false }));
+vi.mock("./navigate", () => ({ navigateSavedJob: (href: string) => push(href) }));
 const push = vi.fn();
 const replace = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace }), usePathname: () => window.location.pathname, useSearchParams: () => new URLSearchParams(window.location.search) }));
+vi.mock("next/navigation", () => ({ useRouter: () => { if (navigationHooks.forbidden) throw new Error("Router unavailable"); return { push, replace }; }, usePathname: () => window.location.pathname, useSearchParams: () => { if (navigationHooks.forbidden) throw new Error("Search params unavailable"); return new URLSearchParams(window.location.search); } }));
 const id = vacancyDetail.id;
 const title = vacancyDetail.title;
 function identity(role: "candidate" | "recruiter" = "candidate"): IdentityState {
@@ -35,6 +38,7 @@ function mount(state = identity(), children = <SavedJobControl jobId={id} title=
 const success = { ok: true as const, data: { job_id: id, saved_at: "2026-11-01T12:00:00Z" } };
 beforeEach(() => {
   vi.resetAllMocks();
+  navigationHooks.forbidden = false;
   window.history.replaceState(null, "", "/vacantes?q=Go");
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener() {}, removeEventListener() {} })));
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -44,6 +48,27 @@ beforeEach(() => {
   vi.mocked(removeSavedJobAction).mockResolvedValue({ ok: true, data: null });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("renders isolated card and detail placeholders without router or providers", () => {
+  navigationHooks.forbidden = true;
+  render(<><SavedJobControl jobId={id} title={title} /><SavedJobControl jobId={id} title={title} placement="detail"><a href="/postular">Postularme</a></SavedJobControl></>);
+  expect(screen.getByRole("link", { name: "Postularme" })).toBeVisible();
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(loadSavedJobIdsAction).not.toHaveBeenCalled();
+});
+it.each([
+  ["unauthenticated", "card"], ["unauthenticated", "detail"],
+  ["ready", "card"], ["ready", "detail"],
+] as const)("renders %s %s without router or QueryClientProvider", async (status, placement) => {
+  navigationHooks.forbidden = true;
+  mount({ ...identity(), status }, <SavedJobControl jobId={id} title={title} placement={placement} />);
+  const button = screen.getByRole("button", { name: `Guardar ${title}` });
+  await waitFor(() => expect(button).toBeEnabled());
+  if (status === "ready") {
+    fireEvent.click(button);
+    await screen.findByRole("button", { name: `Quitar ${title} de guardadas` });
+    expect(saveJobAction).toHaveBeenCalledTimes(1);
+  } else expect(loadSavedJobIdsAction).not.toHaveBeenCalled();
+});
 it.each(["card", "detail"] as const)("visitor %s popover has auth links, official composition and a toggling trigger", async placement => {
   window.history.replaceState(null, "", "/vacantes?q=Go&guardar=old&guardar=older");
   mount({ ...identity(), status: "unauthenticated" }, <SavedJobControl jobId={id} title={title} placement={placement} />);
@@ -64,12 +89,12 @@ it.each(["card", "detail"] as const)("visitor %s popover has auth links, officia
   expect(trigger).toHaveAttribute("aria-expanded", "false");
   expect(saveJobAction).not.toHaveBeenCalled(); expect(loadSavedJobIdsAction).not.toHaveBeenCalled();
 });
-it("consumes one return intent across controls, rerenders, StrictMode and refresh, saving even an off-page job", async () => {
+it.each(["listing", "detail"] as const)("consumes one %s return intent across controls, rerenders, StrictMode and refresh, saving even an off-page job", async placement => {
   window.history.replaceState(null, "", `/vacantes?q=Go&guardar=${id}#resultados`);
   let finish!: (value: typeof success) => void;
   vi.mocked(saveJobAction).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
   const state = identity();
-  const controls = <StrictMode><SavedJobControl jobId={legacyDetail.id} title="Otra" /><SavedJobControl jobId={id} title={title} /></StrictMode>;
+  const controls = <StrictMode>{placement === "listing" && <SavedJobReturnIntent />}<SavedJobControl jobId={legacyDetail.id} title="Otra" /><SavedJobControl jobId={id} title={title} placement={placement === "detail" ? "detail" : "card"} /></StrictMode>;
   const view = mount({ ...state, status: "loading" }, controls);
   expect(replace).not.toHaveBeenCalled(); expect(saveJobAction).not.toHaveBeenCalled();
   view.rerender(<IdentityContext.Provider value={state}>{controls}</IdentityContext.Provider>);
@@ -93,7 +118,7 @@ it("consumes one return intent across controls, rerenders, StrictMode and refres
 });
 it.each(["visitor", "company", "malformed"])("clears %s intent without saving", async kind => {
   window.history.replaceState(null, "", `/vacantes?q=Go&guardar=${kind === "malformed" ? "bad-id" : id}`);
-  mount(kind === "visitor" ? { ...identity(), status: "unauthenticated" } : identity(kind === "company" ? "recruiter" : "candidate"));
+  mount(kind === "visitor" ? { ...identity(), status: "unauthenticated" } : identity(kind === "company" ? "recruiter" : "candidate"), <SavedJobControl jobId={id} title={title} placement="detail" />);
   await waitFor(() => expect(replace).toHaveBeenCalledWith("/vacantes?q=Go", { scroll: false }));
   expect(saveJobAction).not.toHaveBeenCalled(); expect(notifyActionResult).not.toHaveBeenCalled();
 });
@@ -104,7 +129,7 @@ it.each([
 ] as const)("return intent reports %s once through normal feedback", async (reason, message) => {
   window.history.replaceState(null, "", `/vacantes?guardar=${id}`);
   vi.mocked(saveJobAction).mockResolvedValue({ ok: false, reason, reference: { status: 409, code: reason } });
-  mount();
+  mount(identity(), <SavedJobControl jobId={id} title={title} placement="detail" />);
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", title: message, reference: { status: 409, code: reason, at: expect.any(String) } })));
   expect(screen.getByRole("status")).toHaveTextContent(message);
   expect(saveJobAction).toHaveBeenCalledTimes(1);

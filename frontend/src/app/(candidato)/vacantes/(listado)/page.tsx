@@ -1,4 +1,5 @@
 import * as React from "react";
+import { SavedJobReturnIntent } from "@/features/saved-vacancies/return-intent";
 import { QueryClient } from "@tanstack/react-query";
 import { redirect } from "next/navigation";
 
@@ -41,13 +42,16 @@ export default async function VacantesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const rawQuery = rawSearchText(await searchParams);
+  const { guardar, ...filters } = await searchParams;
+  const rawQuery = rawSearchText(filters);
 
   // Canonical redirect before any API access: non-canonical input (unknown
   // keys, invalid enums, repeated values, unsanitized text) is redirected to
   // its canonical URL and `redirect` throws before the query client exists.
   if (!isCanonicalJobsQuery(rawQuery)) {
-    redirect(buildJobsUrl(parseJobsQuery(rawQuery)));
+    const canonical = buildJobsUrl(parseJobsQuery(rawQuery));
+    const intent = rawSearchText({ guardar });
+    redirect(`${canonical}${intent ? `${canonical.includes("?") ? "&" : "?"}${intent}` : ""}`);
   }
 
   const query: JobsQuery = parseJobsQuery(rawQuery);
@@ -72,6 +76,7 @@ export default async function VacantesPage({
           jornada, tipo de contrato y área profesional.
         </p>
       </section>
+      <React.Suspense fallback={null}><SavedJobReturnIntent /></React.Suspense>
       <JobsNavigationIsland key={routeKey} routeKey={routeKey} query={query}>
         <JobsResults result={result} query={query} />
       </JobsNavigationIsland>

@@ -1,314 +1,188 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-import { ACME_PROTOTYPE_JOBS, ACME_WIRE_JOBS } from "@/features/jobs/prototype-jobs";
+import { legacyDetail, vacancyDetail } from "@/features/jobs/api/public-fixtures";
+import type { SavedJobItem, SavedJobs } from "@/features/saved-vacancies/model";
+import { loadSavedJobsAction, removeSavedJobAction, removeClosedSavedJobsAction, saveJobAction } from "@/features/saved-vacancies/actions";
+import { notifyActionResult } from "@/components/feedback/notify";
+import { savedJobIdsKey, savedJobsQueryClient } from "@/features/saved-vacancies/queries";
+import type { Identity } from "@/features/identity/model";
 import { SavedVacanciesWorkspace } from "./saved-vacancies-workspace";
-
-// Source and rendered copy as text, so the read-only contract, the token paint
-// and the visible Spanish stay asserted here instead of only in the browser.
-const SOURCE = readFileSync(join(process.cwd(), "src/features/candidate/saved-vacancies-workspace.tsx"), "utf8");
-const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
-/** Strips technical comments so the copy audits inspect only product strings. */
-const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
-const IMPLEMENTATION_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda)\b/iu;
-/**
- * Neutral Mexican Spanish only: the rioplatense voseo conjugations and pronouns
- * the product never ships. `\b` keeps ordinary words such as "vosotros"-free
- * product strings intact.
- */
-const VOSEO = /\b(?:vos|sos|tenés|querés|podés|sabés|andá|mirá|elegí|guardá|usá|agregá|revisá)\b/iu;
-/** Removal, re-save or sync vocabulary a saved list could fake; "guardadas" stays allowed. */
-const FAKE_PERSISTENCE_COPY = /guardar|quitar|eliminar|borrar|descartar|deshacer|sincroniz|se guardó/iu;
-
-const HEADING = "Vacantes guardadas";
-const GO_FACTS = [
-  ["Modalidad", "Híbrido"],
-  ["Ubicación", "Monterrey, Nuevo León"],
-] as const;
-const FRONTEND_FACTS = [
-  ["Modalidad", "Remoto"],
-
-] as const;
-
-const renderWorkspace = (savedVacancies = ACME_PROTOTYPE_JOBS) => render(<SavedVacanciesWorkspace savedVacancies={savedVacancies} />);
-const cards = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-pf-saved-vacancy]")) as HTMLElement[];
-const card = (container: HTMLElement, id: string) => container.querySelector(`[data-pf-saved-vacancy="${id}"]`) as HTMLElement;
-const slot = (root: Element, name: string) => root.querySelector(`[data-slot="${name}"]`) as HTMLElement;
-const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
-const factsOf = (root: Element) => {
-  const metadata = root.querySelector("dl[data-pf-saved-vacancy-metadata]") as HTMLElement;
-  return {
-    labels: Array.from(metadata.querySelectorAll("dt")).map((term) => term.textContent as string),
-    values: Array.from(metadata.querySelectorAll("dd")).map((value) => value.textContent as string),
-    terms: Array.from(metadata.querySelectorAll("dt")),
-  };
-};
-
+vi.mock("@/features/saved-vacancies/actions", () => ({ loadSavedJobsAction: vi.fn(), removeSavedJobAction: vi.fn(), removeClosedSavedJobsAction: vi.fn(), saveJobAction: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
+let identity: Identity;
+vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: identity } }) }));
+const date = "2026-11-01T12:00:00Z";
+function row(id: string, overrides: Partial<SavedJobItem> = {}): SavedJobItem {
+  return { job_id: id, saved_at: date, availability: "open", closed_at: null, application: null, job: vacancyDetail, ...overrides };
+}
+const first = row(vacancyDetail.id);
+const legacy = row(legacyDetail.id, { job: legacyDetail });
+const applied = row("11111111-1111-4111-8111-111111111111", { application: { id: "22222222-2222-4222-8222-222222222222", applied_at: date } });
+const closed = row("33333333-3333-4333-8333-333333333333", { availability: "closed", closed_at: date, application: applied.application });
+let items: SavedJobItem[];
+const data = (): SavedJobs => ({ items, total: items.length, limit: 200 });
+const card = (id: string) => document.querySelector(`[data-pf-saved-vacancy="${id}"]`) as HTMLElement;
 beforeEach(() => {
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false, media: "", onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: () => false,
-  }));
+  vi.clearAllMocks();
+  identity = { role: "candidate", user: { id: "candidate" } } as Identity;
+  items = [first, legacy, applied, closed];
+  vi.mocked(loadSavedJobsAction).mockImplementation(async () => ({ ok: true, data: data() }));
+  vi.mocked(removeSavedJobAction).mockImplementation(async id => { items = items.filter(item => item.job_id !== id); return { ok: true, data: null }; });
+  vi.mocked(saveJobAction).mockImplementation(async id => { items = [first, ...items]; return { ok: true, data: { job_id: String(id), saved_at: date } }; });
+  vi.mocked(removeClosedSavedJobsAction).mockImplementation(async () => { items = items.filter(item => item.availability !== "closed"); return { ok: true, data: { removed: 1 } }; });
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
 });
-
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
+afterEach(() => { cleanup(); savedJobsQueryClient(identity).clear(); vi.unstubAllGlobals(); });
+async function loaded() { render(<SavedVacanciesWorkspace />); await screen.findByText("4 guardadas · 2 por postularte"); }
+it("groups by next step preserving backend order, counts closed applications only as closed, and keeps route width", async () => {
+  await loaded();
+  expect(screen.getByRole("heading", { name: "Por postularte 2" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Ya te postulaste 1" })).toBeInTheDocument();
+  expect(Array.from(document.querySelectorAll('[aria-label="Por postularte"] [data-pf-saved-vacancy]')).map(node => node.getAttribute("data-pf-saved-vacancy"))).toEqual([first.job_id, legacy.job_id]);
+  expect(document.querySelector('[data-pf-saved-vacancies-workspace]')).toHaveClass("max-w-screen-2xl");
+  expect(within(card(applied.job_id)).getByRole("link", { name: "Ver postulación" })).toHaveAttribute("href", `/candidato/postulaciones?postulacion=${applied.application!.id}`);
+  expect(within(card(first.job_id)).getByRole("link", { name: "Postularme" })).toHaveAttribute("href", `/vacantes/${first.job_id}/postular`);
+  expect(within(card(legacy.job_id)).queryByRole("link", { name: "Postularme" })).not.toBeInTheDocument();
+  expect(within(card(first.job_id)).getByRole("link", { name: "Ver vacante" })).toHaveAttribute("href", `/vacantes/${first.job_id}`);
 });
-
-it("merges outline borders without changing vacancy destinations", () => {
-  renderWorkspace();
-  for (const job of ACME_PROTOTYPE_JOBS) {
-    const link = screen.getByRole("link", { name: `Ver vacante de ${job.title} en ${job.company.name}` });
-    expect(link).toHaveAttribute("href", `/vacantes/${job.id}`);
-    expect(link).toHaveClass("border-border");
-    expect(link).not.toHaveClass("border-transparent");
-  }
+it("formats both salary shapes with the public card formatter and displays saved dates", async () => {
+  await loaded();
+  expect(card(first.job_id)).toHaveTextContent("$30,000 – $40,000 MXN");
+  expect(card(first.job_id)).toHaveTextContent("Mensual · Bruto");
+  expect(card(legacy.job_id)).toHaveTextContent("$30,000 – $45,000 MXN");
+  expect(card(legacy.job_id)).toHaveTextContent("Periodicidad y neto/bruto no especificados");
+  expect(card(first.job_id)).toHaveTextContent("Guardada el 1 de noviembre de 2026");
 });
-
-describe("saved vacancies fixtures", () => {
-  it("uses the two canonical Acme prototype vacancies as the committed input", () => {
-    expect(ACME_PROTOTYPE_JOBS.map((job) => job.title)).toEqual(["Ingeniera Frontend", "Desarrolladora Go"]);
-    expect(ACME_PROTOTYPE_JOBS.every((job) => Object.isFrozen(job))).toBe(true);
-  });
+it("omits empty groups and uses singular summary", async () => {
+  items = [first]; render(<SavedVacanciesWorkspace />);
+  await screen.findByText("1 guardada · 1 por postularte");
+  expect(screen.queryByRole("heading", { name: /Ya te postulaste/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Ya no disponibles/ })).not.toBeInTheDocument();
 });
-
-describe("saved vacancies introduction", () => {
-  it("leads with the saved-vacancies heading, one context line and the candidate measure with a single padding owner", () => {
-    const { container } = renderWorkspace();
-    const intro = container.querySelector("[data-pf-saved-vacancies-intro]") as HTMLElement;
-    expect(intro.querySelector("h2")).toHaveTextContent(HEADING);
-    expect(intro.querySelectorAll("h2")).toHaveLength(1);
-    const context = intro.querySelector("p") as HTMLElement;
-    expect(context).not.toBeNull();
-    expect(context.textContent?.trim().length).toBeGreaterThan(0);
-    expect(context.className).toContain("text-muted-foreground");
-    const root = container.querySelector("[data-pf-saved-vacancies-workspace]") as HTMLElement;
-    const tokens = root.className.split(/\s+/u);
-    expect(["mx-auto", "w-full", "max-w-screen-2xl"].filter((token) => !tokens.includes(token))).toEqual([]);
-    expect(["px-4", "py-4", "md:py-6", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
-    const owners = Array.from(container.querySelectorAll("[class]")).filter((node) => {
-      const value = (node.getAttribute("class") ?? "").split(/\s+/u);
-      return value.includes("px-4") && value.includes("lg:px-6");
-    });
-    expect(owners).toEqual([root]);
-    expect(intro).not.toBe(root);
-  });
+it("starts the unavailable disclosure collapsed, confirms bulk cleanup with an AlertDialog, and reconciles ids", async () => {
+  await loaded(); const disclosure = screen.getByRole("button", { name: "Ya no disponibles 1" });
+  expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(disclosure);
+  expect(await screen.findByText("Cerró el 1 de noviembre de 2026")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Quitar las que ya no están disponibles" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(removeClosedSavedJobsAction).not.toHaveBeenCalled();
+  expect(dialog.querySelector('[data-slot="alert-dialog-header"] [data-slot="alert-dialog-media"]')).not.toBeNull();
+  expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  expect(removeClosedSavedJobsAction).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Quitar las que ya no están disponibles" }));
+  const invalidate = vi.spyOn(savedJobsQueryClient(identity), "invalidateQueries");
+  fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Quitar vacantes" }));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Quitaste 1 vacante" })));
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: savedJobIdsKey });
+  await waitFor(() => expect(card(closed.job_id)).toBeNull());
 });
-
-describe("saved vacancies grid", () => {
-  it("renders one rich vertical Card per fixture, in fixture order, inside a one/two column grid", () => {
-    const { container } = renderWorkspace();
-    const rendered = cards(container);
-    expect(rendered.map((node) => node.getAttribute("data-pf-saved-vacancy"))).toEqual(ACME_PROTOTYPE_JOBS.map((job) => job.id));
-    expect(rendered).toHaveLength(ACME_PROTOTYPE_JOBS.length);
-    const grid = container.querySelector("[data-pf-saved-vacancies-grid]") as HTMLElement;
-    expect(grid).not.toBeNull();
-    expect(grid.className.split(/\s+/u)).toEqual(expect.arrayContaining(["grid", "grid-cols-1", "lg:grid-cols-2"]));
-    expect(rendered.every((node) => node.parentElement === grid)).toBe(true);
-    for (const node of rendered) {
-      expect(node).toHaveAttribute("data-slot", "card");
-      expect(node.className).toContain("flex-col");
-      expect(node.className.split(/\s+/u)).not.toContain("h-full");
-      expect(grid).toHaveClass("items-start");
-      for (const part of ["card-header", "card-title", "card-description", "card-content", "card-footer"]) expect(slot(node, part), part).not.toBeNull();
-      expect(slot(node, "card-header").className).toContain("border-b");
-      expect(slot(node, "card-footer").className).toContain("border-t");
-      expect(node.className + " " + classesOf(node)).not.toMatch(/min-h-screen|h-screen|min-h-dvh|h-dvh|min-h-svh|h-svh/u);
-    }
-  });
-
-  it("keeps the identity medallion, the company and a real h3 title inside the card header", () => {
-    const { container } = renderWorkspace();
-    for (const job of ACME_PROTOTYPE_JOBS) {
-      const node = card(container, job.id);
-      const header = slot(node, "card-header");
-      const identity = header.querySelector("[data-pf-saved-vacancy-identity]") as HTMLElement;
-      expect(identity).not.toBeNull();
-      expect(identity).toHaveAttribute("aria-hidden", "true");
-      expect(identity.className).toContain("rounded-full");
-      expect(identity.className).toContain("bg-primary/12");
-      expect(identity.className).toContain("text-foreground");
-      expect(identity.querySelector("svg")).not.toBeNull();
-      const heading = header.querySelector("[data-slot='card-title'] h3") as HTMLElement;
-      expect(heading).not.toBeNull();
-      expect(heading).toHaveTextContent(job.title);
-      expect(header).toHaveTextContent(job.company.name);
-      // The title stays plain text: the card's only link is the footer action.
-      expect(heading.closest("a")).toBeNull();
-    }
-  });
-
-  it("labels every fact with a functional icon and renders the values through the canonical job formatters", () => {
-    const { container } = renderWorkspace();
-    for (const [id, expected] of [[ACME_PROTOTYPE_JOBS[1].id, GO_FACTS], [ACME_PROTOTYPE_JOBS[0].id, FRONTEND_FACTS]] as const) {
-      const facts = factsOf(card(container, id));
-      expect(facts.labels).toEqual(expected.map(([label]) => label));
-      expect(facts.values).toEqual(expected.map(([, value]) => value));
-      for (const term of facts.terms) {
-        const icon = term.querySelector("svg") as SVGElement;
-        expect(icon).not.toBeNull();
-        expect(icon).toHaveAttribute("aria-hidden", "true");
-        expect(icon.className.baseVal ?? icon.getAttribute("class")).toContain("size-3.5");
-      }
-    }
-  });
-
-  it("makes missing salary explicit, keeps secondary facts as text and never invents salary conditions", () => {
-    const { container } = renderWorkspace();
-    const facts = factsOf(card(container, ACME_PROTOTYPE_JOBS[0].id));
-    expect(facts.labels).not.toContain("Salario");
-    expect(facts.labels).not.toContain("Ubicación");
-    expect(card(container, ACME_PROTOTYPE_JOBS[0].id)).not.toHaveTextContent("Salario a convenir");
-    expect(card(container, ACME_PROTOTYPE_JOBS[0].id)).not.toHaveTextContent("Monterrey");
-    expect(slot(card(container, ACME_PROTOTYPE_JOBS[0].id), "card-footer")).toHaveTextContent("Salario no publicado");
-    const paid = card(container, ACME_PROTOTYPE_JOBS[1].id);
-    expect(slot(paid, "card-content")).toHaveTextContent("Por contrato · Líder");
-    expect(slot(paid, "card-footer")).toHaveTextContent("MXN 30,000 – MXN 45,000");
-    expect(slot(paid, "card-footer")).toHaveTextContent("Periodicidad y neto/bruto no especificados");
-    expect(slot(paid, "card-footer")).not.toHaveTextContent("Mensual");
-    expect(paid.querySelector('[data-slot="badge"]')).toBeNull();
-  });
-
-  it("renders the received order instead of sorting or filtering the list", () => {
-    const reversed = [...ACME_PROTOTYPE_JOBS].reverse();
-    const { container } = renderWorkspace(reversed);
-    expect(cards(container).map((node) => node.getAttribute("data-pf-saved-vacancy"))).toEqual(reversed.map((job) => job.id));
-    expect(reversed.map((job) => job.id)).not.toEqual(ACME_PROTOTYPE_JOBS.map((job) => job.id));
-  });
-
-  it("reads only wire facts, so an un-enriched vacancy renders the same saved card", () => {
-    const { container } = renderWorkspace(ACME_WIRE_JOBS);
-    expect(cards(container)).toHaveLength(ACME_WIRE_JOBS.length);
-    for (const job of ACME_WIRE_JOBS) {
-      const node = card(container, job.id);
-      expect(node.querySelector("dl[data-pf-saved-vacancy-metadata]")).not.toBeNull();
-      expect(node.querySelectorAll("a")).toHaveLength(1);
-    }
-    // The enriched and the wire-only fixture render exactly the same facts.
-    expect(factsOf(card(container, ACME_PROTOTYPE_JOBS[1].id)).values).toEqual(GO_FACTS.map(([, value]) => value));
-    expect(factsOf(card(container, ACME_PROTOTYPE_JOBS[0].id)).values).toEqual(FRONTEND_FACTS.map(([, value]) => value));
-  });
+it("keeps a row and counts until confirmed, then removes it and offers a working undo outside the toast", async () => {
+  await loaded(); let confirm!: (value: { ok: true; data: null }) => void;
+  vi.mocked(removeSavedJobAction).mockImplementationOnce(() => new Promise(resolve => { confirm = value => { items = items.filter(item => item.job_id !== first.job_id); resolve(value); }; }));
+  const toggle = within(card(first.job_id)).getByRole("button", { name: /Quitar .* de guardadas/ });
+  fireEvent.click(toggle); fireEvent.click(toggle);
+  expect(toggle).toBeDisabled(); expect(card(first.job_id)).not.toBeNull();
+  expect(screen.getByText("4 guardadas · 2 por postularte")).toBeInTheDocument();
+  expect(notifyActionResult).not.toHaveBeenCalled();
+  await act(async () => confirm({ ok: true, data: null }));
+  await waitFor(() => expect(card(first.job_id)).toBeNull());
+  expect(removeSavedJobAction).toHaveBeenCalledTimes(1);
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Quitaste la vacante", action: expect.objectContaining({ title: "Deshacer" }) }));
+  fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+  await waitFor(() => expect(saveJobAction).toHaveBeenCalledWith(first.job_id));
+  await waitFor(() => expect(card(first.job_id)).not.toBeNull());
 });
-
-describe("saved vacancies footer action", () => {
-  it("keeps exactly one canonical Ver vacante link beside compensation in the mobile-stacked footer", () => {
-    const { container } = renderWorkspace();
-    const links = Array.from(container.querySelectorAll("a")) as HTMLElement[];
-    expect(links).toHaveLength(ACME_PROTOTYPE_JOBS.length);
-    for (const job of ACME_PROTOTYPE_JOBS) {
-      const node = card(container, job.id);
-      const footer = slot(node, "card-footer");
-      const cardLinks = Array.from(node.querySelectorAll("a")) as HTMLElement[];
-      expect(cardLinks).toHaveLength(1);
-      const link = cardLinks[0];
-      expect(footer.contains(link)).toBe(true);
-      expect(footer).toHaveClass("flex-col", "sm:flex-row");
-      expect(link).toHaveClass("w-full", "sm:w-auto");
-      expect(link).toHaveAttribute("href", `/vacantes/${job.id}`);
-      expect(link).toHaveAttribute("data-slot", "button");
-      expect(link).toHaveAttribute("aria-label", `Ver vacante de ${job.title} en ${job.company.name}`);
-      expect(link).toHaveTextContent("Ver vacante");
-      expect(link.className).toContain("min-h-10");
-      expect(link.querySelector("svg")).not.toBeNull();
-    }
-    expect(container.querySelector("a[href='#']")).toBeNull();
-    expect(container.querySelector("[data-pf-saved-vacancy] a[target]")).toBeNull();
-  });
+it("preserves rows and counts on mutation failure with persistent retry and sanitized error reference", async () => {
+  await loaded();
+  vi.mocked(removeSavedJobAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 503 } });
+  fireEvent.click(within(card(first.job_id)).getByRole("button", { name: /Quitar .* de guardadas/ }));
+  await screen.findByRole("button", { name: "Reintentar" });
+  expect(card(first.job_id)).not.toBeNull(); expect(screen.getByText("4 guardadas · 2 por postularte")).toBeInTheDocument();
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", title: "El servidor tuvo un problema", reference: { status: 503, at: expect.any(String) } }));
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+  await waitFor(() => expect(card(first.job_id)).toBeNull());
 });
-
-describe("saved vacancies empty state", () => {
-  it("renders an actionable Empty with honest copy and one exploration link", () => {
-    const { container } = renderWorkspace([]);
-    const marker = container.querySelector("[data-pf-saved-vacancies-empty]") as HTMLElement;
-    expect(marker).not.toBeNull();
-    expect(marker).toHaveAttribute("data-slot", "card");
-    expect(marker.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
-    const empty = (marker.matches("[data-slot='empty']") ? marker : marker.querySelector("[data-slot='empty']")) as HTMLElement;
-    expect(empty).not.toBeNull();
-    for (const part of ["empty-header", "empty-title", "empty-description"]) expect(slot(empty, part), part).not.toBeNull();
-    expect(empty).toHaveTextContent("Todavía no tienes vacantes guardadas");
-    expect(empty).toHaveTextContent("Cuando guardes una vacante, va a aparecer en este listado.");
-    expect(empty.className).toMatch(/(?:^|\s)(?:p|py|px)-\d/u);
-    expect(empty).toHaveClass("py-10");
-    expect(cards(container)).toHaveLength(0);
-    expect(container.querySelectorAll("a")).toHaveLength(1);
-    const explore = screen.getByRole("link", { name: "Explorar vacantes" });
-    expect(explore).toHaveAttribute("href", "/vacantes");
-    expect(explore).toHaveClass("bg-primary", "w-full", "sm:w-auto");
-    expect(explore.closest('[data-slot="empty-content"]')).not.toBeNull();
-    expect(slot(empty, "empty-title")).toHaveClass("text-xl", "font-semibold");
-    expect(slot(empty, "empty-header")).toHaveClass("max-w-md");
-    expect(container.querySelector("[data-pf-saved-vacancies-grid]")).toBeNull();
-    // The empty list carries no filter vocabulary and no recovery control, because
-    // this surface has no filter and nothing to recover.
-    expect(empty).not.toHaveTextContent("Sin resultados");
-    expect(container.querySelectorAll("button")).toHaveLength(0);
-  });
+it("shows the limit notice including closed rows", async () => {
+  items = Array.from({ length: 200 }, (_, i) => row(String(i), { availability: "closed" }));
+  render(<SavedVacanciesWorkspace />);
+  expect(await screen.findByText("Llegaste al límite de 200 vacantes guardadas. Quita alguna para guardar otra.")).toBeInTheDocument();
 });
-
-describe("saved vacancies read-only contract", () => {
-  it("renders no control, no form and no fake saved-persistence affordance", () => {
-    const { container } = renderWorkspace();
-    expect(container.querySelectorAll("button")).toHaveLength(0);
-    expect(container.querySelectorAll("form, input, textarea, select")).toHaveLength(0);
-    for (const role of ["switch", "checkbox", "radio", "tab", "listbox", "menu"]) expect(screen.queryAllByRole(role)).toHaveLength(0);
-    expect(FAKE_PERSISTENCE_COPY.test(container.textContent ?? "")).toBe(false);
-    expect(container.querySelectorAll("[data-pf-saved-vacancies-empty]")).toHaveLength(0);
-    expect(container.querySelector("[data-pf-saved-vacancies-disclosure]")).toBeNull();
-    expect(screen.queryByRole("note")).toBeNull();
-  });
-
-  it("keeps the fixture array, its order and its facts untouched", () => {
-    const original = [...ACME_PROTOTYPE_JOBS];
-    const before = JSON.stringify(original);
-    const { container, unmount } = renderWorkspace(original);
-    expect(cards(container).map((node) => node.getAttribute("data-pf-saved-vacancy"))).toEqual(original.map((job) => job.id));
-    expect(JSON.stringify(original)).toBe(before);
-    unmount();
-    cleanup();
-    // Re-rendering the same frozen fixture yields the same order and the same facts.
-    const second = renderWorkspace(ACME_PROTOTYPE_JOBS);
-    expect(cards(second.container).map((node) => node.getAttribute("data-pf-saved-vacancy"))).toEqual(original.map((job) => job.id));
-    expect(factsOf(card(second.container, ACME_PROTOTYPE_JOBS[1].id)).values).toEqual(GO_FACTS.map(([, value]) => value));
-  });
-
-  it("stays a local props surface with only the approved modules, token paint and neutral Mexican copy", () => {
-    const { container } = renderWorkspace();
-    const modules = [...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
-    expect(modules).toEqual([
-      "@/components/dashboard-page-content",
-      "@/components/feedback/state-card",
-      "@/components/ui/button",
-      "@/components/ui/card",
-      "@/features/jobs/enrich",
-      "@/features/jobs/formatters",
-      "cn",
-      "lucide-react",
-      "next/link",
-    ]);
-    // No interactivity means no client boundary: the surface is a server component.
-    expect(SOURCE).not.toMatch(/^\s*["']use client["']/mu);
-    for (const forbidden of [
-      "ACME_PROTOTYPE_JOBS", "prototype-jobs", "@/features/candidate/prototype", "portfolio-model",
-      "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "document.cookie",
-      "next/headers", "next/navigation", "useRouter", "useState", "useEffect", "onClick", "onChange",
-      "<form", "<input", "<button", "window.", "Math.random", "Date.now", "setTimeout", "setInterval",
-      "sort(", "filter(", "slice(", "reverse(", "shift(", "splice(",
-    ]) {
-      expect(SOURCE, `saved-vacancies-workspace.tsx must not declare ${forbidden}`).not.toContain(forbidden);
-    }
-    expect(RAW_COLOR.test(classesOf(container))).toBe(false);
-    expect(Array.from(container.querySelectorAll("[style]"))).toHaveLength(0);
-    expect(SOURCE).not.toMatch(/style=\{\{/u);
-    expect(IMPLEMENTATION_STATUS_COPY.test(stripComments(SOURCE))).toBe(false);
-    expect(VOSEO.test(stripComments(SOURCE))).toBe(false);
-    expect(VOSEO.test(container.textContent ?? "")).toBe(false);
-    // The two formatters that carry the labels and the salary are the shipped ones.
-    for (const formatter of ["employmentTypeLabel", "formatSalary", "seniorityLabel", "workModeLabel"]) expect(SOURCE).toContain(formatter);
-  });
+it("shows the exact actionable empty state", async () => {
+  items = []; render(<SavedVacanciesWorkspace />);
+  expect(await screen.findByText("Todavía no tienes vacantes guardadas")).toBeInTheDocument();
+  expect(screen.getByText("Guarda las vacantes que te interesen para postularte cuando estés listo o lista.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Explorar vacantes" })).toHaveAttribute("href", "/vacantes");
+});
+it("keeps bulk confirmation open on failure, blocks double confirmation, and retries only after another click", async () => {
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Ya no disponibles 1" }));
+  fireEvent.click(screen.getByRole("button", { name: "Quitar las que ya no están disponibles" }));
+  const dialog = await screen.findByRole("alertdialog");
+  let reject!: () => void;
+  vi.mocked(removeClosedSavedJobsAction).mockImplementationOnce(() => new Promise(resolve => { reject = () => resolve({ ok: false, reason: "no_response", reference: {} }); }));
+  const confirm = within(dialog).getByRole("button", { name: "Quitar vacantes" });
+  fireEvent.click(confirm); fireEvent.click(confirm);
+  expect(confirm).toBeDisabled();
+  expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeDisabled();
+  expect(removeClosedSavedJobsAction).toHaveBeenCalledTimes(1);
+  expect(notifyActionResult).not.toHaveBeenCalled();
+  await act(async () => reject());
+  expect(dialog).toBeVisible();
+  expect(card(closed.job_id)).not.toBeNull();
+  expect(screen.getByText("4 guardadas · 2 por postularte")).toBeInTheDocument();
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", title: "No hubo respuesta del servidor" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Reintentar" }));
+  await waitFor(() => expect(card(closed.job_id)).toBeNull());
+});
+it("uses the server bulk result rather than the stale closed count and handles a zero result", async () => {
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Ya no disponibles 1" }));
+  fireEvent.click(screen.getByRole("button", { name: "Quitar las que ya no están disponibles" }));
+  vi.mocked(removeClosedSavedJobsAction).mockResolvedValueOnce({ ok: true, data: { removed: 0 } });
+  fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Quitar vacantes" }));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Quitaste 0 vacantes" })));
+  expect(card(closed.job_id)).not.toBeNull();
+});
+it("keeps unknown closed dates absent and makes missing salary explicit", async () => {
+  items = [row(first.job_id, { availability: "closed", job: { ...vacancyDetail, compensation: null } })];
+  render(<SavedVacanciesWorkspace />);
+  fireEvent.click(await screen.findByRole("button", { name: "Ya no disponibles 1" }));
+  expect(screen.queryByText(/Cerró el/)).not.toBeInTheDocument();
+  expect(screen.getByText("Salario no publicado")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Postularme" })).not.toBeInTheDocument();
+});
+it("preserves the empty state until undo is confirmed and explains a rejected re-save", async () => {
+  items = [first]; render(<SavedVacanciesWorkspace />);
+  const toggle = await screen.findByRole("button", { name: /Quitar .* de guardadas/ });
+  fireEvent.click(toggle);
+  await screen.findByText("Todavía no tienes vacantes guardadas");
+  vi.mocked(saveJobAction).mockResolvedValueOnce({ ok: false, reason: "job_unavailable", reference: { status: 409, code: "job_unavailable" } });
+  fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+  await screen.findByText("Esta vacante ya no está disponible");
+  expect(screen.getByText("0 guardadas · 0 por postularte")).toBeInTheDocument();
+  expect(card(first.job_id)).toBeNull();
+});
+it("reserves real card slots during initial loading", async () => {
+  let finish!: () => void;
+  vi.mocked(loadSavedJobsAction).mockImplementation(() => new Promise(resolve => { finish = () => resolve({ ok: true, data: data() }); }));
+  const { container } = render(<SavedVacanciesWorkspace />);
+  expect(screen.getByText("Cargando vacantes guardadas").closest('[aria-busy="true"]')).not.toBeNull();
+  const cardSlots = (element: Element) => Array.from(element.querySelectorAll('[data-slot^="card-"]')).map(node => node.getAttribute("data-slot"));
+  const sequence = cardSlots(container.querySelector('[data-pf-saved-loading]')!);
+  expect(sequence).toEqual(["card-header", "card-title", "card-description", "card-action", "card-content", "card-footer"]);
+  await act(async () => finish());
+  await screen.findByText("4 guardadas · 2 por postularte");
+  expect(cardSlots(card(first.job_id))).toEqual(sequence);
+});
+it("shows a load error StateCard and a read-only retry", async () => {
+  vi.mocked(loadSavedJobsAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
+  render(<SavedVacanciesWorkspace />);
+  expect(await screen.findByText("No pudimos cargar tus vacantes guardadas")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+  await screen.findByText("4 guardadas · 2 por postularte");
+  expect(removeSavedJobAction).not.toHaveBeenCalled();
 });

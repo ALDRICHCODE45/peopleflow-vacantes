@@ -13,7 +13,7 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => 
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock(), useSearchParams: () => new URLSearchParams() }));
 
 // Layout tests isolate SSR frame ownership; identity behavior is covered by identity/flow.test.tsx.
-vi.mock("@/features/identity/identity-session", () => ({ IdentitySessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>, useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: "candidate" } } }) }));
+vi.mock("@/features/identity/identity-session", () => ({ IdentitySessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>, useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: "candidate", user: { id: "candidate-id", email: "ximena@example.com", full_name: "Ximena Ruiz" } } } }) }));
 vi.mock("@/features/identity/area-guards", () => ({ CandidateGuard: ({ children }: { children: React.ReactNode }) => <section data-testid="candidate-guard">{children}</section> }));
 
 import CandidateLayout from "./layout";

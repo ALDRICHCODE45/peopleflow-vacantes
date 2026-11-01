@@ -29,7 +29,8 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
 | T1 | S1–S7 | Contract draft + negotiation with the backend session (done, L7) | see branch |
 | T2 | S2, S5, S6 | Save control on listing card and detail (client island, ids endpoint) | see L8 |
 | T3 | S3 | Visitor sign-in prompt and auto-save on return | see L9 |
-| T4 | S2, S4, S6 | `/candidato/guardadas` on real data (groups, remove, undo, bulk remove, empty) | — |
+| T4 | S2, S4, S6 | `/candidato/guardadas` on real data (groups, remove, undo, bulk remove, empty) | see L11 |
+| T6 | S2 | `/candidato/postulaciones?postulacion=<id>` selects that application (link target of «Ver postulación») | — |
 | T5 | all | Integration against the real backend, verification | — |
 
 ## Log
@@ -70,5 +71,25 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
   a duplicate). The jsdom hang was the Base UI positioner; tests follow the psychometrics popover pattern (§13.7).
   Parent rerun: 55 saved-vacancies tests pass; tsc, eslint, diff check pass. Browser check of Escape/outside
   click/focus pending (T5).
+- **L10** Backend candidate on `feat/saved-jobs-backend` (51ff88f4 migration 00053 + store, 2eed86a0 endpoints,
+  `backend/docs/saved-jobs.md`); its verification and native review are still running. T5 recipe (disposable DB, never
+  the user's dev DB): `docker run --rm -d --name pf-fe-int -e POSTGRES_USER=pf -e POSTGRES_PASSWORD=pf -e
+  POSTGRES_DB=pf -p 127.0.0.1:<port>:5432 postgres:16`; `cd backend && DATABASE_URL='postgres://pf:pf@127.0.0.1:<port>/pf?sslmode=disable'
+  go run ./cmd/migrate up`; local identity per `backend/docs/local-identity-bootstrap.md`; API with that
+  DATABASE_URL and an isolated PORT; no seed: PUT a public id from GET /v2/jobs; close a vacancy from the employer
+  side for a closed row; `docker stop pf-fe-int` afterwards.
+- **L11** T4 (worker mvxufx8a): real `/candidato/guardadas` grouped Por postularte / Ya te postulaste / Ya no
+  disponibles (bulk remove behind AlertDialog), remove + Deshacer, limit notice, loading/empty/error; «Ver
+  postulación» → `applicationHref(id)` = `/candidato/postulaciones?postulacion=<id>` (parent decision; T6 makes the
+  list honor it). Parent rerun found a regression from T3: the per-card control used useRouter/useSearchParams and
+  broke existing card/detail suites (66/927 failing); layout.test.tsx mocked identity without `user` (test fix). Fix
+  (workers mvxv8hc2, mvxvaawx, mvxwbv41, mvxwdsl8): one `SavedJobReturnIntent` per page (listing page + detail
+  control), controls without router hooks and safe in isolated renders, the listing canonical redirect keeps
+  `guardar`; guardrails: outline buttonVariants through cn, `saved-vacancies/client.ts` added to the requestPath fetch
+  allowlist with its guards (shared `requestJson` untouched: it cannot represent bodyless 204, same as
+  candidate-applications/vacancy-checklist). Evidence (Node 22): full suite `--no-file-parallelism` 9103 passed, 0
+  failed, 1 skipped, two runner onTaskUpdate errors without a file; parent rerun 135/135 on guardrails + saved +
+  layout + listing; tsc and eslint pass. The parallel batch timeout in profile-workspace.test.tsx passes alone and
+  sequentially (known load-sensitive class).
 - **L5** Exploration: no saved storage or endpoint exists in the backend; current Save controls are inert prototype
   placeholders; the real listing card and detail have none; `/candidato/guardadas` renders prototype fixtures.

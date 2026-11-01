@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useMutationState, useQuery } from "@tanstack/react-query";
 import { BookmarkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,9 @@ import { cn } from "@/lib/utils";
 import { loadSavedJobIdsAction, removeSavedJobAction, saveJobAction } from "./actions";
 import { savedJobErrorCopy } from "./feedback";
 import { savedJobIdsKey, savedJobsQueryClient, updateSavedJobIds } from "./queries";
-import { jobIdSchema, type SavedJobsFailure } from "./model";
+import { type SavedJobsFailure } from "./model";
+import { SavedJobReturnIntent } from "./return-intent";
+import { navigateSavedJob } from "./navigate";
 import { VisitorSavePrompt } from "./visitor/save-prompt";
 
 type Props = { jobId: string; title: string; placement?: "card" | "detail"; children?: ReactNode;
@@ -26,47 +27,7 @@ function size(placement: Props["placement"]) { return placement === "detail" ? "
 /** Only this island resolves identity. Its children remain server-rendered public content. */
 export function SavedJobControl(props: Props) {
   const identity = useIdentity();
-  return <><ReturnIntent /> <ResolvedControl {...props} identityState={identity} /></>;
-}
-
-// Shared across islands and StrictMode effect replays, not across page reloads.
-// Reloads retain the URL intent and may safely replay the idempotent PUT.
-const returnSavesInFlight = new Set<string>();
-
-function ReturnIntent() {
-  const identity = useIdentity();
-  const router = useRouter();
-  const params = useSearchParams();
-  const [claimed, setClaimed] = useState<{ jobId: string; identity: Identity; settled: () => void }>();
-  useEffect(() => {
-    if (identity.status === "loading") return;
-    // Read live location, not a stale render snapshot.
-    const search = new URLSearchParams(window.location.search);
-    if (!search.has("guardar")) return;
-    const values = search.getAll("guardar");
-    const pathname = window.location.pathname;
-    function clearIntent() {
-      // Do not erase a newer navigation or a different save intent.
-      const current = new URLSearchParams(window.location.search);
-      if (window.location.pathname !== pathname || current.getAll("guardar").join("\0") !== values.join("\0")) return;
-      current.delete("guardar");
-      const clean = `${pathname}${current.size ? `?${current}` : ""}${window.location.hash}`;
-      window.history.replaceState(window.history.state, "", clean);
-      router.replace(clean, { scroll: false });
-    }
-    if (identity.status === "ready" && identity.result?.ok && identity.result.data.role === "candidate"
-      && values.length === 1 && jobIdSchema.safeParse(values[0]).success) {
-      const jobId = values[0];
-      if (returnSavesInFlight.has(jobId)) return;
-      returnSavesInFlight.add(jobId);
-      setClaimed({ jobId, identity: identity.result.data, settled: () => {
-        clearIntent();
-        returnSavesInFlight.delete(jobId);
-      } });
-    } else clearIntent();
-  }, [identity, params, router]);
-  return claimed && identity.status === "ready" && identity.result?.ok && identity.result.data === claimed.identity
-    ? <CandidateControl jobId={claimed.jobId} title="vacante" identity={claimed.identity} returnIntent={claimed.settled} /> : null;
+  return <>{props.placement === "detail" && <SavedJobReturnIntent />}<ResolvedControl {...props} identityState={identity} /></>;
 }
 
 function ResolvedControl(props: Props & { identityState: ReturnType<typeof useIdentity> }) {
@@ -91,23 +52,21 @@ function Layout({ placement, children, control, status }: Props & { control: Rea
 }
 
 function VisitorControl(props: Props) {
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const returnTo = `${pathname ?? `/vacantes/${props.jobId}`}${params?.toString() ? `?${params}` : ""}`;
+  const [returnTo, setReturnTo] = useState(`/vacantes/${props.jobId}`);
+  const currentReturnTo = () => `${window.location.pathname}${window.location.search}`;
   const trigger = <Button type="button" variant={props.placement === "detail" ? "outline" : "ghost"} size="icon" className={size(props.placement)}
-    aria-pressed={false} aria-label={`Guardar ${props.title}`}>
+    aria-pressed={false} aria-label={`Guardar ${props.title}`} onClick={() => setReturnTo(currentReturnTo())}>
     <BookmarkIcon aria-hidden="true" />
   </Button>;
   return <Layout {...props} control={props.onVisitorSaveT3
     ? <Button type="button" variant={props.placement === "detail" ? "outline" : "ghost"} size="icon" className={size(props.placement)}
-      aria-pressed={false} aria-label={`Guardar ${props.title}`} onClick={() => props.onVisitorSaveT3!(props.jobId, returnTo)}><BookmarkIcon aria-hidden="true" /></Button>
+      aria-pressed={false} aria-label={`Guardar ${props.title}`} onClick={() => props.onVisitorSaveT3!(props.jobId, currentReturnTo())}><BookmarkIcon aria-hidden="true" /></Button>
     : <VisitorSavePrompt jobId={props.jobId} returnTo={returnTo} trigger={trigger} />} />;
 }
 
 type ResultLine = { tone: "success" | "error"; text: string; action?: { title: string; onClick: () => void } | "saved" };
-function CandidateControl(props: Props & { identity: Identity; returnIntent?: () => void }) {
+export function CandidateControl(props: Props & { identity: Identity; returnIntent?: () => void }) {
   const { jobId, title, identity } = props;
-  const router = useRouter();
   const statusId = useId();
   const client = savedJobsQueryClient(identity);
   const key = `saved-job:${jobId}`;
@@ -131,12 +90,12 @@ function CandidateControl(props: Props & { identity: Identity; returnIntent?: ()
       updateSavedJobIds(client, jobId, !remove);
       const title = remove ? "Quitaste la vacante" : "Vacante guardada";
       const description = remove ? "Ya no aparece en tus vacantes guardadas." : "La encontrarás en Vacantes guardadas.";
-      const action = remove ? { title: "Deshacer", onClick: () => run(false) } : { title: "Ver guardadas", onClick: () => router.push("/candidato/guardadas") };
+      const action = remove ? { title: "Deshacer", onClick: () => run(false) } : { title: "Ver guardadas", onClick: () => navigateSavedJob("/candidato/guardadas") };
       setLine({ tone: "success", text: title, action: remove ? action : "saved" });
       notifyActionResult({ key, type: "success", title, description, action });
     } else {
       const copy = savedJobErrorCopy(result, remove);
-      const action = result.reason === "unauthenticated" ? { title: "Iniciar sesión", onClick: () => router.push(candidateAuthHref("login", `${window.location.pathname}${window.location.search}`)) }
+      const action = result.reason === "unauthenticated" ? { title: "Iniciar sesión", onClick: () => navigateSavedJob(candidateAuthHref("login", `${window.location.pathname}${window.location.search}`)) }
         : copy.retry ? { title: "Reintentar", onClick: () => run(remove) } : undefined;
       setLine({ tone: "error", text: copy.title, action });
       notifyActionResult({ key, type: "error", title: copy.title, description: copy.description, action, reference: { ...result.reference, at: new Date().toISOString() } });

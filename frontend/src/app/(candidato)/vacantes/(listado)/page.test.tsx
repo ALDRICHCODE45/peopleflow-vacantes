@@ -28,6 +28,19 @@ describe("/vacantes v2 page", () => {
     await expect(Page({ searchParams: Promise.resolve({ q: " Go ", currency: "MXN", language: "en", work_schedule: ["full_time", "part_time"], contract_type: "bad", work_mode: "hybrid" }) })).rejects.toThrow("redirect:/vacantes?q=Go&work_mode=hybrid");
     expect(read).not.toHaveBeenCalled();
   });
+  it("keeps guardar when redirecting non-canonical filters before reading", async () => {
+    const Page = (await import("./page")).default;
+    await expect(Page({ searchParams: Promise.resolve({ q: " Go ", guardar: legacyDetail.id }) })).rejects.toThrow(`redirect:/vacantes?q=Go&guardar=${legacyDetail.id}`);
+    expect(read).not.toHaveBeenCalled();
+  });
+  it("does not redirect canonical filters with guardar", async () => {
+    read.mockResolvedValue({ ok: true, data: { items: [listItem(legacyDetail)], next_cursor: null } });
+    const Page = (await import("./page")).default;
+    render(await Page({ searchParams: Promise.resolve({ work_mode: "remote", guardar: legacyDetail.id }) }));
+    expect(redirect).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledOnce();
+    expect(screen.getByRole("link", { name: legacyDetail.title })).toBeVisible();
+  });
   it("renders valid public results from one request-scoped read", async () => {
     read.mockResolvedValue({ ok: true, data: { items: [listItem(legacyDetail)], next_cursor: null } });
     const Page = (await import("./page")).default;

@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ReactElement } from "react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent, PopoverHeader, PopoverTitle, PopoverDescription } from "@/components/ui/popover";
 import { candidateAuthHref, safeReturnTo } from "@/features/identity/return-to";
@@ -23,7 +24,7 @@ export function VisitorSavePrompt({ jobId, returnTo, trigger }: { jobId: string;
       </PopoverHeader>
       <div className="flex flex-wrap gap-2">
         <Link className={buttonVariants({ size: "lg" })} href={candidateAuthHref("ingresar", next)}>Crear cuenta</Link>
-        <Link className={buttonVariants({ variant: "outline", size: "lg" })} href={candidateAuthHref("login", next)}>Iniciar sesión</Link>
+        <Link className={cn(buttonVariants({ variant: "outline", size: "lg" }))} href={candidateAuthHref("login", next)}>Iniciar sesión</Link>
       </div></>}
     </PopoverContent>
   </Popover>;
