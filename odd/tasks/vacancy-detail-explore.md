@@ -35,7 +35,7 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
 | --- | --- | --- | --- |
 | T1 | S2–S6, S8 | Related reads (company, similar, company profile) + chip derivation, tests | see L7 |
 | T2 | S1–S3, S6, S7 | Region UI per artboard 03, streaming skeleton, mobile bar, tests | see L9 |
-| T3 | all | Verification: unit, types, lint, browser at 375/1440 light/dark | — |
+| T3 | all | Verification: unit, types, lint, browser at 375/1440 light/dark | see L12 |
 | T4 | S2 | Careers-site link from `site_slug` once the backend ships it (L8) | — |
 
 ## Log
@@ -83,5 +83,9 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
   counts only detail-path reads and checks the last chip against the fixed bar. Evidence (Node 22): focused 63/63 by
   the worker, parent rerun 99/99 (related, guardrails, public-v2, detail page); E2E 52/52 against own services
   (installed Chrome, ports 3310/4310 freed); tsc and eslint pass. Full suite run pending (parent, background).
+- **L12** T3 closed: full suite on the branch after c45b79fd (Node 22, `--no-file-parallelism`): 492 files passed, 1
+  skipped; 9081 tests passed, 1 skipped; exit 0. E2E 52/52 (L11). Native assess: medium, reviewDue false (under
+  budget). Visual acceptance by the user is pending (screenshots of the corrected region were not re-captured after
+  c45b79fd). T4 (careers link) waits on backend `feat/company-site-slug`.
 - **L6** Evidence: `listJobs.ts` forwards `buildJobsUrl`, whose `JobsQuery` drops `company_id` and `limit` (worker
   finding during design); the backend accepts both (S8).
