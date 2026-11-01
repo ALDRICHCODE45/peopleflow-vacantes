@@ -28,7 +28,7 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
 | --- | --- | --- | --- |
 | T1 | S1–S7 | Contract draft + negotiation with the backend session (done, L7) | see branch |
 | T2 | S2, S5, S6 | Save control on listing card and detail (client island, ids endpoint) | see L8 |
-| T3 | S3 | Visitor sign-in prompt and auto-save on return | — |
+| T3 | S3 | Visitor sign-in prompt and auto-save on return | see L9 |
 | T4 | S2, S4, S6 | `/candidato/guardadas` on real data (groups, remove, undo, bulk remove, empty) | — |
 | T5 | all | Integration against the real backend, verification | — |
 
@@ -64,5 +64,11 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
   `onVisitorSaveT3(jobId, returnTo)`; T4 API: `loadSavedJobsAction`, `removeSavedJobAction`,
   `removeClosedSavedJobsAction`, `saveJobAction`. Contract clarifications (fields envelope, job_id asc tie, messages)
   applied.
+- **L9** T3 (workers mvxts9ca + mvxu6gg4): visitor popover `visitor/save-prompt.tsx` with candidate auth links whose
+  `next` carries `?guardar=<jobId>`; on return as candidate one save runs (module-level in-flight set across
+  controls), the param is cleared only after the save settles (a reload mid-request repeats the idempotent PUT, never
+  a duplicate). The jsdom hang was the Base UI positioner; tests follow the psychometrics popover pattern (§13.7).
+  Parent rerun: 55 saved-vacancies tests pass; tsc, eslint, diff check pass. Browser check of Escape/outside
+  click/focus pending (T5).
 - **L5** Exploration: no saved storage or endpoint exists in the backend; current Save controls are inert prototype
   placeholders; the real listing card and detail have none; `/candidato/guardadas` renders prototype fixtures.

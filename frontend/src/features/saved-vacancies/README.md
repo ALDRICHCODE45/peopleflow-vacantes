@@ -1,6 +1,6 @@
-# Saved vacancies — T2
+# Saved vacancies — T2 / T3
 
-Covers S2 (listing/detail controls), S5 (candidate-only saving) and S6 (confirmed results, retry and undo). The saved workspace belongs to T4; visitor return intent belongs to T3.
+Covers S2 (listing/detail controls), S5 (candidate-only saving) and S6 (confirmed results, retry and undo). The saved workspace belongs to T4. T3 adds the visitor prompt and return intent (S3, preserving S5/S6).
 
 ## T4 API
 
@@ -20,7 +20,13 @@ Browser callers import the async functions in `actions.ts`:
 
 ## T3 seam
 
-`SavedJobControl` accepts `onVisitorSaveT3(jobId, returnTo)`. It receives the current internal path including filters. Until T3 implements the prompt and auto-save intent, the fallback uses `candidateAuthHref("login", returnTo)`. Neither visitor nor company sessions call the saved API. Loading reserves the control's dimensions without exposing private state.
+`SavedJobControl` accepts the optional host override `onVisitorSaveT3(jobId, returnTo)`, with the current internal path including filters. Without an override it opens the installed Popover (official Basic composition: trigger → content → header/title/description), with candidate registration/login links built by `candidateAuthHref`. The links preserve filters and replace `guardar` with the job ID.
+
+Each island mounts a return-intent consumer; a module-level in-flight set keyed by job ID lets only one resolved instance execute, including StrictMode replays. A valid single UUID and a resolved candidate trigger one PUT through the existing candidate mutation and feedback. The URL retains `guardar` until that request settles; only then does the consumer clean native history and call `router.replace`, without adding history or scrolling. It preserves other query parameters and the hash, and does not clear a different/newer navigation. A reload while pending retains the intent and can replay the backend's idempotent PUT (an already-saved 200 is normal success), so the save is not lost. After settlement, refresh has no intent to replay. Duplicate/malformed parameters, visitors and company accounts only clear the intent; loading waits. The consumer can save an off-page job. No persistent browser storage or candidate state is added.
+
+Neither visitor nor company sessions call the saved API. Loading reserves the control's dimensions without exposing private state. The return consumer reuses the candidate mutation, ID writer, error copy, retry and confirmed-success notification. It renders a dedicated reserved result slot by the consuming island; browser layout checks remain pending.
+
+T3's full `save-control.test.tsx` passes with 25 tests. Following §13.7 and `psychometrics/profile/help.test.tsx`, tests use real timers, `fireEvent`, ordinary `render`/`screen`/`waitFor`, no custom portal container, and replace only the anchored popup shell. The real Base UI Root, Trigger, Title and Description remain. The positioner loops in jsdom, even with anchor tracking/collision handling disabled; replacing that shell removes the hang. Content, auth hrefs, official composition and trigger toggling are covered. Escape, outside-click dismissal, focus return and actual anchoring remain browser checks, not claims made by the shell double. Auth links follow the Button “As Link” example (`Link` + `buttonVariants`, not Base UI Button rendering an anchor).
 
 ## UI composition
 
