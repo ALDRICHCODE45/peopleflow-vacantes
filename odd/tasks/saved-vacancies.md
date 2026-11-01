@@ -27,7 +27,7 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | T1 | S1–S7 | Contract draft + negotiation with the backend session (done, L7) | see branch |
-| T2 | S2, S5, S6 | Save control on listing card and detail (client island, ids endpoint) | — |
+| T2 | S2, S5, S6 | Save control on listing card and detail (client island, ids endpoint) | see L8 |
 | T3 | S3 | Visitor sign-in prompt and auto-save on return | — |
 | T4 | S2, S4, S6 | `/candidato/guardadas` on real data (groups, remove, undo, bulk remove, empty) | — |
 | T5 | all | Integration against the real backend, verification | — |
@@ -57,5 +57,12 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
   availability mapping, PUT evaluation order, limit counts closed rows, application id = participation id, strict
   bulk query) and answered Q1–Q3 (one table with a generated job_id, advisory lock, stable legacy published_at). The
   frontend accepted all; contract marked agreed. Backend implements on `feat/saved-jobs-backend`. T1 done.
+- **L8** T2 (worker mvxt6q2g): `features/saved-vacancies/{model,client,actions,queries,feedback,save-control}` with
+  all five endpoints behind the CV-style server-action session boundary; footer bookmark on PublicVacancyCard and a
+  joined bookmark with «Postularme» in the detail aside (legacy rows: bookmark below the note). Parent rerun: 72
+  tests pass (46 new + 26 existing card/detail unchanged); tsc, eslint and diff check pass. T3 seam:
+  `onVisitorSaveT3(jobId, returnTo)`; T4 API: `loadSavedJobsAction`, `removeSavedJobAction`,
+  `removeClosedSavedJobsAction`, `saveJobAction`. Contract clarifications (fields envelope, job_id asc tie, messages)
+  applied.
 - **L5** Exploration: no saved storage or endpoint exists in the backend; current Save controls are inert prototype
   placeholders; the real listing card and detail have none; `/candidato/guardadas` renders prototype fixtures.

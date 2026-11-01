@@ -81,7 +81,7 @@ All under the existing candidate group (`identityhttp.NoStore`, `requireAuth`, `
 }
 ```
 
-- Every saved row of the session's candidate (≤ 200, no pagination), ordered by `saved_at` desc, then `job_id`.
+- Every saved row of the session's candidate (≤ 200, no pagination), ordered by `saved_at` desc, then `job_id` asc.
 - The `job` snapshot keys and values are identical to the `/v2/jobs` item for an open job (C1). Legacy rows always
   have `compensation: null` and carry salary only in `legacy_salary`.
 - Availability (C2, resolved at read time): a vacancy is `open` iff its process is `published` and its company is
@@ -107,14 +107,18 @@ Envelope `{"error": "…", "code": "…", "data": {…}}` (`httpjson`). Session 
 | `not_found` | 404 | malformed, unknown or not public job id on `PUT`; malformed id on `DELETE` |
 | `job_unavailable` | 409 | `PUT` of a closed vacancy that is not already saved |
 | `saved_jobs_limit` | 409 | new `PUT` at 200 saved; `data.limit` |
-| `validation_error` | 400 | bulk `DELETE` with a query other than `availability=closed` |
+| `validation_error` | 400 | bulk `DELETE` with a query other than `availability=closed`; shared envelope with `fields` (`[{"field":"availability","code":"invalid"}]`), not `data` |
+
+Messages: `job_unavailable` → «job unavailable», `saved_jobs_limit` → «saved jobs limit reached»; only
+`saved_jobs_limit` carries `data`.
 
 ## Resolved questions (backend answers)
 
 1. Storage: one table `saved_jobs(candidate_id → users ON DELETE CASCADE, legacy_job_id → jobs ON DELETE CASCADE
    NULL, process_id → vacancy_processes ON DELETE CASCADE NULL, CHECK exactly one non-null, job_id generated =
    COALESCE(...), saved_at, PK (candidate_id, job_id))`. The public id round-trips unchanged; hard deletes cascade.
-2. Concurrency: `pg_advisory_xact_lock` per candidate before count + insert.
+2. Concurrency: the candidate's `users` row is locked (`SELECT … FOR UPDATE`, the CV library convention) before
+   count + insert.
 3. Legacy `published_at` is stable: set once on first publish, never reset.
 
 ## Catalog notes used by the frontend
