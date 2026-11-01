@@ -1,0 +1,27 @@
+{
+  "title": "Detalle de la vacante · Seguir explorando",
+  "brief": "Propuestas aditivas para continuar explorando después del detalle: vacantes de la misma empresa, similares por área y ubicación, búsquedas relacionadas y contexto publicado de empresa. Conservar la composición aprobada, sin nuevos endpoints ni métricas inventadas. Fixtures mexicanas en MXN mensual; controles de resultados, sesión y tema.",
+  "artboards": [
+    {
+      "file": "01-dos-carriles.html",
+      "title": "Dos carriles",
+      "tradeoff": "Dos filas visibles facilitan comparar empresa y área sin interacción; alargan la página y dan prioridad a la empresa.",
+      "width": 1440,
+      "height": 2200
+    },
+    {
+      "file": "02-pestanas.html",
+      "title": "Sigue explorando",
+      "tradeoff": "Una sección con pestañas reduce la longitud; la segunda fuente requiere interacción y pierde descubribilidad.",
+      "width": 1440,
+      "height": 2200
+    },
+    {
+      "file": "03-empresa-primero.html",
+      "title": "Empresa primero",
+      "tradeoff": "El contexto de empresa acompaña la lectura y mantiene la postulación al lado; retrasa las oportunidades de otras empresas y requiere más scroll móvil.",
+      "width": 1440,
+      "height": 2200
+    }
+  ]
+}
