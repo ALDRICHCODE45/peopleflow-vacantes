@@ -33,7 +33,7 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| T1 | S2–S6, S8 | Related reads (company, similar, company profile) + chip derivation, tests | — |
+| T1 | S2–S6, S8 | Related reads (company, similar, company profile) + chip derivation, tests | see L7 |
 | T2 | S1–S3, S6, S7 | Region UI per artboard 03, streaming skeleton, mobile bar, tests | — |
 | T3 | all | Verification: unit, types, lint, browser at 375/1440 light/dark | — |
 
@@ -55,5 +55,12 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
   producto o de otra cosa, por favor haganlas ahora, no se detengan, implementenlo todo lo que puedan, mas vale que
   cuando regrese haga correcciones a que se paren toda la noche por una pregunta que no respondi por que estaba
   dormido.» Open choices are decided reasonably and recorded here.
+- **L7** T1 (worker mvxt5erl): `features/jobs/related/{read,chips}.ts` + `api/listRelatedJobs.ts`, RED then GREEN
+  (parent rerun: 23 tests in related + listJobs pass), tsc and eslint pass; public `JobsQuery`/`listJobs` unchanged.
+  Gap: no public id→published careers-site slug and the profile decoder drops industry/size. Parent decisions (user
+  asleep, L5): (a) ask the backend to add the published `site_slug` (nullable) to the public company read, after
+  saved jobs; until then `careersHref` stays null; (b) with no careers site there is no «Ver todas» link (the
+  `/vacantes` grammar has no company filter; adding one is out of scope); (c) T2 may widen the existing company
+  profile decoder to keep `industry_id`/`size` only if label catalogs already exist, else omit them.
 - **L6** Evidence: `listJobs.ts` forwards `buildJobsUrl`, whose `JobsQuery` drops `company_id` and `limit` (worker
   finding during design); the backend accepts both (S8).
