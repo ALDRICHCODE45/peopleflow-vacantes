@@ -38,4 +38,10 @@ The installed Button's icon example and Spinner's button example are followed (`
 
 Success: “Vacante guardada” with “Ver guardadas”. Removal: “Quitaste la vacante” with “Deshacer” (a new PUT). Errors use reviewed Mexican Spanish, persistent error toasts with a sanitized reference/time, and retry/session actions also available outside the toast. IDs-read failures disable the toggle and offer a read-only retry rather than treating failure as an empty list.
 
-Real-backend integration and browser checks (mobile, dark mode and long text) remain for T5/the parent; unit tests use mocked HTTP.
+## T5 real-response contract checks
+
+`fixtures/real-responses.json` contains unmodified response bodies captured with curl from the real backend at `2eed86a0` (branch tip `c1d8f267` adds documentation), using a disposable PostgreSQL database and locally generated PEM authentication. IDs, company names and job titles were synthetic at insertion time; no user credentials or data are included. Captures retain the request method/path/status, bodyless 204, error envelopes, both salary representations, application identity, paused/closed timestamps and backend ordering.
+
+`real-responses.test.ts` validates these bodies through both `model.ts` and the public client result mapping. Its optional live probe exercises all five client functions against `127.0.0.1:8599`, enabled only by `SAVED_JOBS_LIVE_TOKEN` containing a throwaway local candidate token. It expects the disposable fixture at 200 saves with the synthetic IDs from the captures; it removes and re-saves the legacy row. It mocks only server environment configuration, never the live fetch or the application session boundary. Ordinary test runs replay captures without services, credentials or `.env` loading.
+
+Browser checks (mobile, dark mode, visitor sign-in, toast interaction and long text) remain with the parent/user; API/decoder verification does not establish visual or browser acceptance.

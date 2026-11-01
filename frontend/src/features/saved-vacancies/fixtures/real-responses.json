@@ -1,0 +1,570 @@
+[
+  {
+    "name": "empty",
+    "method": "GET",
+    "path": "/v2/me/saved-jobs",
+    "status": 200,
+    "body": {
+      "items": [],
+      "total": 0,
+      "limit": 200
+    }
+  },
+  {
+    "name": "empty-ids",
+    "method": "GET",
+    "path": "/v2/me/saved-jobs/ids",
+    "status": 200,
+    "body": {
+      "job_ids": []
+    }
+  },
+  {
+    "name": "created",
+    "method": "PUT",
+    "path": "/v2/me/saved-jobs/40000000-0000-4000-8000-000000000001",
+    "status": 201,
+    "body": {
+      "job_id": "40000000-0000-4000-8000-000000000001",
+      "saved_at": "2026-11-01T20:15:18.855849Z"
+    }
+  },
+  {
+    "name": "replay",
+    "method": "PUT",
+    "path": "/v2/me/saved-jobs/40000000-0000-4000-8000-000000000001",
+    "status": 200,
+    "body": {
+      "job_id": "40000000-0000-4000-8000-000000000001",
+      "saved_at": "2026-11-01T20:15:18.855849Z"
+    }
+  },
+  {
+    "name": "grouped",
+    "method": "GET",
+    "path": "/v2/me/saved-jobs",
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "job_id": "30000000-0000-4000-8000-000000000001",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": null,
+          "job": {
+            "source": "legacy",
+            "title": "Legacy QA",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": "Mexico",
+            "work_mode": "remote",
+            "compensation": null,
+            "legacy_salary": {
+              "min": "100.00",
+              "max": "200.00",
+              "currency": "MXN"
+            },
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000001",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": null,
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 1",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000002",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": {
+            "id": "60000000-0000-4000-8000-000000000001",
+            "applied_at": "2026-01-02T03:04:05Z"
+          },
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 2",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000003",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "closed",
+          "closed_at": "2026-01-02T03:04:05Z",
+          "application": null,
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 3",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        }
+      ],
+      "total": 4,
+      "limit": 200
+    }
+  },
+  {
+    "name": "closed",
+    "method": "GET",
+    "path": "/v2/me/saved-jobs",
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "job_id": "30000000-0000-4000-8000-000000000001",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": null,
+          "job": {
+            "source": "legacy",
+            "title": "Legacy QA",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": "Mexico",
+            "work_mode": "remote",
+            "compensation": null,
+            "legacy_salary": {
+              "min": "100.00",
+              "max": "200.00",
+              "currency": "MXN"
+            },
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000001",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": null,
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 1",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000002",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": {
+            "id": "60000000-0000-4000-8000-000000000001",
+            "applied_at": "2026-01-02T03:04:05Z"
+          },
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 2",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000003",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "closed",
+          "closed_at": "2026-01-03T03:04:05Z",
+          "application": null,
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 3",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        }
+      ],
+      "total": 4,
+      "limit": 200
+    }
+  },
+  {
+    "name": "ids",
+    "method": "GET",
+    "path": "/v2/me/saved-jobs/ids",
+    "status": 200,
+    "body": {
+      "job_ids": [
+        "30000000-0000-4000-8000-000000000001",
+        "40000000-0000-4000-8000-000000000001",
+        "40000000-0000-4000-8000-000000000002",
+        "40000000-0000-4000-8000-000000000003"
+      ]
+    }
+  },
+  {
+    "name": "bulk",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs?availability=closed",
+    "status": 200,
+    "body": {
+      "removed": 1
+    }
+  },
+  {
+    "name": "bulk-again",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs?availability=closed",
+    "status": 200,
+    "body": {
+      "removed": 0
+    }
+  },
+  {
+    "name": "delete",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs/30000000-0000-4000-8000-000000000001",
+    "status": 204,
+    "body": null
+  },
+  {
+    "name": "anonymous",
+    "method": "GET",
+    "path": "/v2/me/saved-jobs",
+    "status": 401,
+    "body": {
+      "error": "unauthorized",
+      "code": "unauthenticated"
+    }
+  },
+  {
+    "name": "recruiter",
+    "method": "PUT",
+    "path": "/v2/me/saved-jobs/40000000-0000-4000-8000-000000000001",
+    "status": 403,
+    "body": {
+      "error": "candidate role required",
+      "code": "wrong_role"
+    }
+  },
+  {
+    "name": "unknown",
+    "method": "PUT",
+    "path": "/v2/me/saved-jobs/90000000-0000-4000-8000-000000000001",
+    "status": 404,
+    "body": {
+      "error": "not found",
+      "code": "not_found"
+    }
+  },
+  {
+    "name": "malformed",
+    "method": "PUT",
+    "path": "/v2/me/saved-jobs/bad",
+    "status": 404,
+    "body": {
+      "error": "not found",
+      "code": "not_found"
+    }
+  },
+  {
+    "name": "malformed-delete",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs/bad",
+    "status": 404,
+    "body": {
+      "error": "not found",
+      "code": "not_found"
+    }
+  },
+  {
+    "name": "unavailable",
+    "method": "PUT",
+    "path": "/v2/me/saved-jobs/40000000-0000-4000-8000-000000000004",
+    "status": 409,
+    "body": {
+      "error": "job unavailable",
+      "code": "job_unavailable"
+    }
+  },
+  {
+    "name": "limit",
+    "method": "PUT",
+    "path": "/v2/me/saved-jobs/80000000-0000-4000-8000-000000000198",
+    "status": 409,
+    "body": {
+      "error": "saved jobs limit reached",
+      "code": "saved_jobs_limit",
+      "data": {
+        "limit": 200
+      }
+    }
+  },
+  {
+    "name": "bulk-missing",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs",
+    "status": 400,
+    "body": {
+      "error": "validation failed",
+      "code": "validation_error",
+      "fields": [
+        {
+          "field": "availability",
+          "code": "invalid"
+        }
+      ]
+    }
+  },
+  {
+    "name": "bulk-extra",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs?availability=closed&extra=1",
+    "status": 400,
+    "body": {
+      "error": "validation failed",
+      "code": "validation_error",
+      "fields": [
+        {
+          "field": "availability",
+          "code": "invalid"
+        }
+      ]
+    }
+  },
+  {
+    "name": "bulk-repeated",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs?availability=closed&availability=closed",
+    "status": 400,
+    "body": {
+      "error": "validation failed",
+      "code": "validation_error",
+      "fields": [
+        {
+          "field": "availability",
+          "code": "invalid"
+        }
+      ]
+    }
+  },
+  {
+    "name": "bulk-invalid",
+    "method": "DELETE",
+    "path": "/v2/me/saved-jobs?availability=open",
+    "status": 400,
+    "body": {
+      "error": "validation failed",
+      "code": "validation_error",
+      "fields": [
+        {
+          "field": "availability",
+          "code": "invalid"
+        }
+      ]
+    }
+  },
+  {
+    "name": "restored",
+    "method": "GET",
+    "path": "/v2/me/saved-jobs",
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "job_id": "30000000-0000-4000-8000-000000000001",
+          "saved_at": "2026-11-01T20:15:20.983325Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": null,
+          "job": {
+            "source": "legacy",
+            "title": "Legacy QA",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": "Mexico",
+            "work_mode": "remote",
+            "compensation": null,
+            "legacy_salary": {
+              "min": "100.00",
+              "max": "200.00",
+              "currency": "MXN"
+            },
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000001",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": null,
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 1",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "job_id": "40000000-0000-4000-8000-000000000002",
+          "saved_at": "2026-01-01T00:00:00Z",
+          "availability": "open",
+          "closed_at": null,
+          "application": {
+            "id": "60000000-0000-4000-8000-000000000001",
+            "applied_at": "2026-01-02T03:04:05Z"
+          },
+          "job": {
+            "source": "vacancy",
+            "title": "Engineer QA 2",
+            "company": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "QA Company",
+              "logo_url": null
+            },
+            "location_label": null,
+            "work_mode": "remote",
+            "compensation": {
+              "mode": "fixed",
+              "amount": "12500.00",
+              "min": null,
+              "max": null,
+              "currency": "MXN",
+              "pay_period": "monthly",
+              "basis": "gross"
+            },
+            "legacy_salary": null,
+            "published_at": "2026-01-01T00:00:00Z"
+          }
+        }
+      ],
+      "total": 3,
+      "limit": 200
+    }
+  }
+]

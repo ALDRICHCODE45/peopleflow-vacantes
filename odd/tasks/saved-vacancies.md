@@ -31,7 +31,7 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
 | T3 | S3 | Visitor sign-in prompt and auto-save on return | see L9 |
 | T4 | S2, S4, S6 | `/candidato/guardadas` on real data (groups, remove, undo, bulk remove, empty) | see L11 |
 | T6 | S2 | `/candidato/postulaciones?postulacion=<id>` selects that application (link target of «Ver postulación») | see L12 |
-| T5 | all | Integration against the real backend, verification | — |
+| T5 | all | Integration against the real backend, verification | see L14 |
 
 ## Log
 
@@ -95,5 +95,17 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
   is the initial selection (mobile opens its detail; unread messages are marked read as on a manual open); unknown ids
   keep the default; the URL is left untouched (documented). RED 5 → GREEN; parent rerun 210/210 (workspace,
   postulaciones page, layout, candidate-applications); tsc and eslint pass; no visual change.
+- **L13** Backend closed: `feat/saved-jobs-backend` final code commit 2eed86a0 (store 51ff88f4; tip adds docs only);
+  independent verification PASS S1–S9; native assess medium, no review due. Not merged to main. T5 starts.
+- **L14** T5 (workers mvy9k9en/mvy9p5de): backend native review APPROVED (risk, resilience, reliability; one
+  non-blocking warning on the migration Down). Integration against 2eed86a0 on a disposable Postgres with the backend's
+  local PEM JWT mode (no Cognito, no user .env): 65 HTTP exchanges match the contract (201/200 replay, every 404 case,
+  job_unavailable, 204 idempotent DELETE, bulk with the `fields` envelope, ordering, availability incl. pause/resume,
+  application, snapshots equal to the catalog, limit at 200 incl. closed, concurrent 199 → one 201 + one 409, 401/403,
+  no-store). 22 real bodies committed as `fixtures/real-responses.json` (synthetic data, no tokens) and decoded through
+  model.ts and the client mapping (24 tests; one live probe skipped without a token). No frontend or backend defect
+  found. Cleanup confirmed (API, container, temp worktree, keys; ports free). NOT verified: browser flows (the Next
+  session cannot carry a local token without code changes) — visual and interactive acceptance of S2–S6 and the S3
+  sign-in return remain for the user.
 - **L5** Exploration: no saved storage or endpoint exists in the backend; current Save controls are inert prototype
   placeholders; the real listing card and detail have none; `/candidato/guardadas` renders prototype fixtures.
