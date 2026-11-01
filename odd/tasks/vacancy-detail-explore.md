@@ -34,8 +34,9 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | T1 | S2–S6, S8 | Related reads (company, similar, company profile) + chip derivation, tests | see L7 |
-| T2 | S1–S3, S6, S7 | Region UI per artboard 03, streaming skeleton, mobile bar, tests | — |
+| T2 | S1–S3, S6, S7 | Region UI per artboard 03, streaming skeleton, mobile bar, tests | see L9 |
 | T3 | all | Verification: unit, types, lint, browser at 375/1440 light/dark | — |
+| T4 | S2 | Careers-site link from `site_slug` once the backend ships it (L8) | — |
 
 ## Log
 
@@ -62,5 +63,13 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
   saved jobs; until then `careersHref` stays null; (b) with no careers site there is no «Ver todas» link (the
   `/vacantes` grammar has no company filter; adding one is out of scope); (c) T2 may widen the existing company
   profile decoder to keep `industry_id`/`size` only if label catalogs already exist, else omit them.
+- **L8** Backend accepted (a): `GET /companies/{id}` gains `site_slug: string | null` (current published slug), as its
+  own commit on `feat/company-site-slug` after saved jobs. When it lands, add T4 to widen the profile decoder and set
+  `careersHref = /empresas/{site_slug}`.
+- **L9** T2 (worker mvxtgnut): `features/jobs/related/ui.tsx` (company card in a new optional left-column slot,
+  similar grid, chips, Suspense skeletons, mobile bar reusing PublicApplyLink so session copy matches the aside);
+  page starts the related reads without awaiting. RED 12 then GREEN; parent rerun 56 tests pass (existing public-v2
+  and page tests unchanged); tsc, eslint, diff check pass. PublicJobDetailView diff +4/−3 (slot only). Playwright
+  spec written, not yet run (T3).
 - **L6** Evidence: `listJobs.ts` forwards `buildJobsUrl`, whose `JobsQuery` drops `company_id` and `limit` (worker
   finding during design); the backend accepts both (S8).

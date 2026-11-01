@@ -43,8 +43,30 @@ or derive vacancy counts from the returned sample. Completing these fields
 requires a supported published-site locator and an expanded existing profile
 projection outside T1's allowed edit surfaces.
 
-With no description or published careers link, T2 should render only company
-identity and its other vacancies; omit the block when that list is also empty.
+With no description or published careers link, the UI renders only company
+identity and its other vacancies; it omits the block when that list is also empty.
 The public `/vacantes` URL grammar does not accept `company_id`; the fallback
-“all company vacancies” link therefore also needs parent disposition rather
-than passing a silently discarded filter to `buildJobsUrl`.
+“all company vacancies” fallback is intentionally omitted (parent decision L7),
+never passed as a silently discarded filter to `buildJobsUrl`.
+
+## Detail UI (T2)
+
+`ui.tsx` composes the installed Card/Skeleton primitives and company avatar.
+`ExploreDetail` takes the three read promises started by the route after its
+existing request-scoped detail read. Independent Suspense boundaries show shaped
+company and similar-vacancy skeletons without gating the detail. The company
+card occupies the optional `belowContent` slot in the existing left column;
+similar cards and canonical search links follow the complete detail grid.
+
+An unsuccessful company profile omits its card; an unsuccessful vacancy list
+omits its rows but preserves any published company description or careers link.
+Similar results that fail or are empty render nothing. Both lists cap at three.
+No counts, sector, size or careers URL are inferred. Legacy rows keep exploration
+but have no mobile apply bar. Preview callers remain unchanged. The mobile-only
+bar reuses `PublicApplyLink`, including its existing account-role behavior, with
+bottom space reserved independently of optional related content.
+
+`ui.test.tsx` verifies the public UI and pending/resolved composition. The browser
+spec is `tests/e2e/vacancy-detail-explore.spec.ts`; run it against the existing
+jobs/company-sites fixture harness for 375/1440px and light/dark validation.
+It was authored without starting services; browser verification is parent-owned.

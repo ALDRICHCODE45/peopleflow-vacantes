@@ -1,4 +1,4 @@
-import { Fragment, type ComponentProps } from "react";
+import { Fragment, type ComponentProps, type ReactNode } from "react";
 import { BanknoteIcon, Building2Icon, CalendarDaysIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,10 +27,10 @@ function PreviewContent({ children, className }: ComponentProps<"div">) { return
 function PreviewFooter({ children }: ComponentProps<"div">) { return <footer className="flex items-center gap-3">{children}</footer>; }
 function PreviewText({ children, className }: ComponentProps<"div">) { return <div className={className}>{children}</div>; }
 
-type Props = { job: PublicJobDetail; preview?: false; companyLoading?: never } | { job: DraftPublicDetail; preview: true; companyLoading?: boolean };
+type Props = ({ job: PublicJobDetail; preview?: false; companyLoading?: never } | { job: DraftPublicDetail; preview: true; companyLoading?: boolean }) & { belowContent?: ReactNode };
 
 /** Shared content; only modal surfaces and unavailable live actions differ. */
-export function PublicJobDetailView({ job, preview = false, companyLoading = false }: Props) {
+export function PublicJobDetailView({ job, preview = false, companyLoading = false, belowContent }: Props) {
   const company = job.company;
   const hasCompanySlot = company !== null || companyLoading;
   const Card = preview ? PreviewSection : SurfaceCard;
@@ -93,6 +93,7 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
             </Fragment>)}
           </CardContent>
         </Card>}
+        {belowContent}
       </div>
       <aside aria-label="Compensación y postulación" className={PUBLIC_DETAIL_ASIDE}>
         <Card className={PUBLIC_ACTION_CARD}>
