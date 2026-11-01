@@ -1,0 +1,27 @@
+{
+  "title": "Guardar vacantes",
+  "brief": "Propuestas para guardar vacantes desde el listado y el detalle, con estados de candidato, visitante y empresa, feedback de confirmación y error, y /candidato/guardadas conectado a datos reales al implementar. El usuario dijo «Favoritas»; se mapea al nombre existente «Vacantes guardadas». Las maquetas usan datos ilustrativos compartidos y no implementan persistencia ni autenticación.",
+  "artboards": [
+    {
+      "file": "01-marcador-discreto.html",
+      "title": "Marcador discreto",
+      "tradeoff": "Discreto y familiar (como LinkedIn/Indeed); el ícono solo es menos evidente para quien no conoce el patrón",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "02-boton-con-etiqueta.html",
+      "title": "Botón con etiqueta",
+      "tradeoff": "Guardar explícito junto a Ver vacante y visible en el hero; ocupa más espacio. La grilla conserva el detalle de cada guardada, pero permite comparar menos vacantes a la vez que una lista compacta.",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "03-pendientes-primero.html",
+      "title": "Guardadas como pendientes",
+      "tradeoff": "Organiza la búsqueda por el siguiente paso y acerca Guardar a Postularme; el ícono es menos explícito y la agrupación exige disponibilidad y postulación confiables del backend.",
+      "width": 1440,
+      "height": 1000
+    }
+  ]
+}
