@@ -46,6 +46,7 @@ type routerDeps struct {
 	memberHandler        *companieshttp.MemberHandler
 	candidateHandler     *candidateshttp.CandidateHandler
 	publicJobsHandler    *jobshttp.PublicJobsHandler
+	savedJobsHandler     *jobshttp.SavedJobsHandler
 	jobHandler           *jobshttp.JobHandler
 	draftHandler         *jobshttp.DraftHandler
 	draftV2Handler       *jobshttp.DraftV2Handler
@@ -156,6 +157,11 @@ func newRouter(d routerDeps) chi.Router {
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
+		r.Get("/v2/me/saved-jobs/ids", d.savedJobsHandler.IDs)
+		r.Get("/v2/me/saved-jobs", d.savedJobsHandler.List)
+		r.Put("/v2/me/saved-jobs/{jobId}", d.savedJobsHandler.Save)
+		r.Delete("/v2/me/saved-jobs/{jobId}", d.savedJobsHandler.Remove)
+		r.Delete("/v2/me/saved-jobs", d.savedJobsHandler.RemoveClosed)
 		r.Get("/v2/me/cvs", d.cvHandler.List)
 		r.Post("/v2/me/cvs", d.cvHandler.Upload)
 		r.Patch("/v2/me/cvs/{id}", d.cvHandler.Rename)
