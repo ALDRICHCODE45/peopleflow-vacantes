@@ -44,11 +44,11 @@ Backend half of frontend `odd/tasks/saved-vacancies.md` over the agreed contract
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| T1 | S1–S3, S6–S9 | Migration 00053 + application package + postgres store, integration tests incl. concurrency | — |
-| T2 | S1–S6, S9 | HTTP handler, routes, error codes, handler tests, docs/saved-jobs.md | — |
-| T3 | all | Independent verify + native review (high risk) | — |
-| T4 | S10 | Local run on an isolated port + seed instructions to the frontend | — |
-| T5 | S11 | After saved-jobs: `site_slug` on GET /companies/{id}, separate branch feat/company-site-slug | — |
+| T1 | S1–S3, S6–S9 | Migration 00053 + application package + postgres store, integration tests incl. concurrency | 51ff88f4 |
+| T2 | S1–S6, S9 | HTTP handler, routes, error codes, handler tests, docs/saved-jobs.md | 2eed86a0 |
+| T3 | all | Independent verify + native review (high risk) | verify mvxuo1bd PASS S1–S9 |
+| T4 | S10 | Local run on an isolated port + seed instructions to the frontend | instructions sent |
+| T5 | S11 | After saved-jobs: `site_slug` on GET /companies/{id}, separate branch feat/company-site-slug | 6ed30a4d (feat/company-site-slug) |
 
 ## Log
 
@@ -137,3 +137,11 @@ Backend half of frontend `odd/tasks/saved-vacancies.md` over the agreed contract
   Required checks therefore do not all pass: handoff is partial, not verification/review approval.
   Parent retains T3, terminal git actions, container shutdown and T4. No worker-created scratch directory
   or cache remains in the worktree.
+- L8 Close (2026-11-01): independent verifier mvxuo1bd-3-smz7 PASS S1–S9 (vet, unit, savedjobs and API integration;
+  extra probes: rejected save leaves storage digest unchanged, constraint rejections, Down refusal P0001). Native
+  assess on main..HEAD: risk medium, reviewDue false (under_budget), so no native review was started.
+  T4: no seed script; the frontend runs its own disposable Postgres + `cmd/migrate up` + local identity bootstrap and
+  saves through PUT (instructions sent). T5: worker implemented `site_slug` via a companies-owned query
+  (`GetCompanyPublishedSiteSlug`), public shape only; unit + integration GREEN; committed 6ed30a4d on
+  feat/company-site-slug. Pre-existing failures on main, not caused here: `scripts/closure` gate syntax error and
+  archguard locked-non-goal `docker/minio/Dockerfile`. Not merged to main (user).
