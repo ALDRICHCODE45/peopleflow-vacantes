@@ -30,7 +30,7 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
 | T2 | S2, S5, S6 | Save control on listing card and detail (client island, ids endpoint) | see L8 |
 | T3 | S3 | Visitor sign-in prompt and auto-save on return | see L9 |
 | T4 | S2, S4, S6 | `/candidato/guardadas` on real data (groups, remove, undo, bulk remove, empty) | see L11 |
-| T6 | S2 | `/candidato/postulaciones?postulacion=<id>` selects that application (link target of «Ver postulación») | — |
+| T6 | S2 | `/candidato/postulaciones?postulacion=<id>` selects that application (link target of «Ver postulación») | see L12 |
 | T5 | all | Integration against the real backend, verification | — |
 
 ## Log
@@ -91,5 +91,9 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
   failed, 1 skipped, two runner onTaskUpdate errors without a file; parent rerun 135/135 on guardrails + saved +
   layout + listing; tsc and eslint pass. The parallel batch timeout in profile-workspace.test.tsx passes alone and
   sequentially (known load-sensitive class).
+- **L12** T6 (worker mvxxgtwj): page reads `searchParams.postulacion` → `initialApplicationId`; a matching application
+  is the initial selection (mobile opens its detail; unread messages are marked read as on a manual open); unknown ids
+  keep the default; the URL is left untouched (documented). RED 5 → GREEN; parent rerun 210/210 (workspace,
+  postulaciones page, layout, candidate-applications); tsc and eslint pass; no visual change.
 - **L5** Exploration: no saved storage or endpoint exists in the backend; current Save controls are inert prototype
   placeholders; the real listing card and detail have none; `/candidato/guardadas` renders prototype fixtures.
