@@ -11,7 +11,7 @@ import { readCompanyVacancies, readSimilarVacancies, readRelatedCompany } from "
 
 const env = serverEnv as { sampleJobs: boolean };
 const item = (suffix: number, own = false) => ({ ...listItem(vacancyDetail), id: `0198f5a2-7c1b-7ddd-9c2e-${String(suffix).padStart(12, "0")}`, company: own ? vacancyDetail.company : { ...vacancyDetail.company, id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c80b1" } });
-const response = (items: PublicJobItem[]) => new Response(JSON.stringify({ items, next_cursor: null }), { status: 200 });
+const response = (items: PublicJobItem[], next_cursor: string | null = null) => new Response(JSON.stringify({ items, next_cursor }), { status: 200 });
 afterEach(() => { env.sampleJobs = false; vi.unstubAllGlobals(); vi.clearAllMocks(); vi.useRealTimers(); });
 
 it("pins the existing canonical list URL byte-for-byte", async () => {
@@ -33,6 +33,16 @@ it("prefers state, excludes current and own company, and fills uniquely from the
   expect(fetch.mock.calls.map(c => c[0])).toEqual([
     "http://localhost:8080/v2/jobs?state=09&professional_area=technology_systems&limit=7",
     "http://localhost:8080/v2/jobs?professional_area=technology_systems&limit=7",
+  ]);
+});
+it("forwards opaque cursors through the real related adapter", async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(response([item(1, true)], "a+b/="))
+    .mockResolvedValueOnce(response([item(2)]));
+  vi.stubGlobal("fetch", fetch);
+  expect(await readSimilarVacancies({ ...vacancyDetail, location: null })).toEqual({ ok: true, data: [item(2)] });
+  expect(fetch.mock.calls.map(c => c[0])).toEqual([
+    "http://localhost:8080/v2/jobs?professional_area=technology_systems&limit=7",
+    "http://localhost:8080/v2/jobs?professional_area=technology_systems&cursor=a%2Bb%2F%3D&limit=7",
   ]);
 });
 it("does not fill a full state result and caps at 3", async () => {

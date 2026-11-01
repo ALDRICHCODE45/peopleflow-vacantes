@@ -21,6 +21,9 @@ describe("detail exploration", () => {
     expect(within(region).getByRole("heading", { level: 2 })).toHaveTextContent("Sobre Acme");
     expect(within(region).getAllByRole("link")).toHaveLength(3);
     expect(within(region).getByRole("link", { name: /Vacante 0/ })).toHaveAttribute("href", "/vacantes/other-0");
+    within(region).getAllByRole("link").forEach(link => {
+      expect(link.querySelector('[data-slot="avatar"]')).not.toBeNull();
+    });
     expect(region).toHaveTextContent("Ciudad de México · Híbrido");
     expect(region).toHaveTextContent("$30,000 – $40,000 MXN");
     expect(region).toHaveTextContent("Mensual · Bruto");
@@ -66,6 +69,10 @@ describe("detail exploration", () => {
   it("renders canonical search links and omits absent filters", () => {
     const { rerender, container } = render(<RelatedSearches job={vacancyDetail} />);
     expect(screen.getByRole("region", { name: "Sigue buscando" })).toBeVisible();
+    screen.getAllByRole("link").forEach(link => {
+      expect(link).toHaveClass("border-border");
+      expect(link).not.toHaveClass("border-transparent");
+    });
     expect(screen.getAllByRole("link").map(link => link.getAttribute("href"))).toEqual([
       "/vacantes?state=09&professional_area=technology_systems", "/vacantes?state=09",
     ]);
@@ -115,6 +122,14 @@ describe("detail exploration", () => {
     expect(bar).toHaveClass("fixed", "bottom-0", "lg:hidden");
     expect(within(bar).getByRole("link", { name: "Postularme" })).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}/postular`);
     expect(bar.parentElement).toHaveClass("pb-32", "lg:pb-0");
+    expect(bar).toHaveTextContent("$30,000 – $40,000 MXN");
+    expect(bar).toHaveTextContent("Mensual · Bruto");
+  });
+  it("omits mobile salary when the public projection has no compensation (absent or hidden)", () => {
+    render(<MobileApplyBar job={{ ...vacancyDetail, compensation: null }} />);
+    const bar = screen.getByRole("region", { name: "Postulación móvil" });
+    expect(bar).not.toHaveTextContent(/MXN|Salario no publicado|30,000/);
+    expect(within(bar).getByRole("link", { name: "Postularme" })).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}/postular`);
   });
   it("shows the company session note instead of an apply link", () => {
     identity.role = "recruiter";

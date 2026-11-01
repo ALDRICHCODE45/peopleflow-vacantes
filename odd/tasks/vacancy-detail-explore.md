@@ -71,5 +71,17 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
   page starts the related reads without awaiting. RED 12 then GREEN; parent rerun 56 tests pass (existing public-v2
   and page tests unchanged); tsc, eslint, diff check pass. PublicJobDetailView diff +4/−3 (slot only). Playwright
   spec written, not yet run (T3).
+- **L10** T3 verifier (mvxvkghe): S2, S3, S5–S8 PASS; S1 FAIL (chips use buttonVariants without cn, company rows
+  lack avatars, mobile bar lacks salary); S4 FAIL (similar reads never paginate: an excluded first page returns []).
+  Browser 48 passed / 4 failed (all four test defects: request counts now include related reads; scrollIntoView ignores
+  the fixed bar). Guardrails: button-variants-merge and requestPath inventories fail on the branch, pass at c8936470.
+  Full suite capped at 1500 s without summary (unverified). tsc and eslint pass. Parent decision: bounded pagination,
+  at most 3 pages per similar query. Correction worker launched.
+- **L11** Correction (worker mvxx6zj9): chips through cn (outline visible), company rows with avatars, mobile bar with
+  compact salary; similar reads follow next_cursor up to 3 pages per query, stop at 3 results, and a failure on any
+  page omits the section (documented in related/README.md); listRelatedJobs added to requestPath inventories; E2E now
+  counts only detail-path reads and checks the last chip against the fixed bar. Evidence (Node 22): focused 63/63 by
+  the worker, parent rerun 99/99 (related, guardrails, public-v2, detail page); E2E 52/52 against own services
+  (installed Chrome, ports 3310/4310 freed); tsc and eslint pass. Full suite run pending (parent, background).
 - **L6** Evidence: `listJobs.ts` forwards `buildJobsUrl`, whose `JobsQuery` drops `company_id` and `limit` (worker
   finding during design); the backend accepts both (S8).

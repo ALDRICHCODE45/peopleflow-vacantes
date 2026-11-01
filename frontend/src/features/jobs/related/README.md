@@ -19,8 +19,13 @@ keep at most 3. Similar vacancies request `state=<INEGI code>&professional_area=
 remove current/own-company jobs, then fill from the same area without state when
 needed. IDs are deduplicated; state matches come first. Within each response the
 catalog's relevance/publication order is retained. No area means no request;
-no state means one area-only request. A failed fill omits the entire similar
-section, not just the fill. These reads deliberately do not paginate.
+no state means only the area query is used. Each similar query follows
+`next_cursor` for at most 3 pages (up to 6 reads with state + area-only fill),
+stopping immediately once 3 eligible unique vacancies are found or the cursor
+is exhausted. The area-only query starts with no cursor. A failure on any page,
+including a later page after matches were found, omits the entire similar
+section: this preserves S6 and avoids presenting an incomplete failed read as
+successful. Company vacancies remain a single unpaginated `limit=4` read.
 
 Internal `api/listRelatedJobs.ts` owns `RelatedJobsQuery` and `listRelatedJobs`.
 The public `JobsQuery`, `buildJobsUrl` and `listJobs` are unchanged. Sample mode
@@ -64,7 +69,11 @@ Similar results that fail or are empty render nothing. Both lists cap at three.
 No counts, sector, size or careers URL are inferred. Legacy rows keep exploration
 but have no mobile apply bar. Preview callers remain unchanged. The mobile-only
 bar reuses `PublicApplyLink`, including its existing account-role behavior, with
-bottom space reserved independently of optional related content.
+bottom space reserved independently of optional related content. It shows the
+public salary beside the action using `PublicSalary` in a compact layout; null
+compensation (absent or hidden in the public projection) omits that salary.
+Company vacancy rows reuse the small `PublicCompanyAvatar`; outline search
+links merge `buttonVariants` through `cn` to preserve their border.
 
 `ui.test.tsx` verifies the public UI and pending/resolved composition. The browser
 spec is `tests/e2e/vacancy-detail-explore.spec.ts`; run it against the existing

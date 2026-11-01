@@ -8,7 +8,7 @@ import type { PublicJobsList } from "../types";
 import { buildJobsUrl, type JobsQuery } from "../url";
 
 /** Internal catalog controls deliberately do not extend the public URL grammar. */
-export type RelatedJobsQuery = Pick<JobsQuery, "professional_area" | "state" | "seniority" | "work_mode"> & {
+export type RelatedJobsQuery = Pick<JobsQuery, "professional_area" | "state" | "seniority" | "work_mode" | "cursor"> & {
   company_id?: string;
   limit: number;
 };

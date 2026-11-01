@@ -2,10 +2,12 @@ import { Suspense, use, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRightIcon, MapPinIcon, SearchIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PublicCompanyAvatar } from "../components/PublicCompanyAvatar";
 import { PublicApplyLink } from "../components/public-apply-link";
+import { PublicSalary } from "../components/public-salary";
 import { PublicJobDetailView } from "../components/PublicJobDetailView";
 import { formatPublicSalaryParts, workModeLabel } from "../formatters";
 import type { PublicJobDetail, PublicJobItem } from "../types";
@@ -41,8 +43,9 @@ export function CompanySection({ company, vacancies }: CompanyProps) {
       {jobs.length > 0 && <CardContent>
         <h3 className="mb-3 font-semibold">Más vacantes de {profile.name}</h3>
         <ul className="flex flex-col gap-3">{jobs.map(job => <li key={job.id} className="min-w-0 border-t border-border pt-3">
-          <Link href={`/vacantes/${job.id}`} className={`flex min-w-0 flex-col gap-2 p-1 hover:bg-muted ${focus}`}>
-            <h4 className="font-medium break-words">{job.title}</h4><Conditions job={job} /><Salary job={job} />
+          <Link href={`/vacantes/${job.id}`} className={`flex min-w-0 items-start gap-3 p-1 hover:bg-muted ${focus}`}>
+            <PublicCompanyAvatar company={job.company} />
+            <div className="flex min-w-0 flex-1 flex-col gap-2"><h4 className="font-medium break-words">{job.title}</h4><Conditions job={job} /><Salary job={job} /></div>
           </Link>
         </li>)}</ul>
       </CardContent>}
@@ -97,7 +100,7 @@ export function RelatedSearches({ job }: { job: PublicJobDetail }) {
   if (chips.length === 0) return null;
   return <section aria-labelledby="related-search-heading" className="flex flex-col gap-4">
     <h2 id="related-search-heading" className={sectionHeading}>Sigue buscando</h2>
-    <nav aria-label="Búsquedas relacionadas" className="flex flex-wrap gap-2">{chips.map(chip => <Link key={chip.href} href={chip.href} className={buttonVariants({ variant: "outline", className: "min-h-10 max-w-full" })}><SearchIcon aria-hidden="true" data-icon="inline-start" /><span className="min-w-0 truncate" title={chip.label}>{chip.label}</span></Link>)}</nav>
+    <nav aria-label="Búsquedas relacionadas" className="flex flex-wrap gap-2">{chips.map(chip => <Link key={chip.href} href={chip.href} className={cn(buttonVariants({ variant: "outline", className: "min-h-10 max-w-full" }))}><SearchIcon aria-hidden="true" data-icon="inline-start" /><span className="min-w-0 truncate" title={chip.label}>{chip.label}</span></Link>)}</nav>
   </section>;
 }
 export function MobileApplyBar({ job }: { job: PublicJobDetail }) {
@@ -105,7 +108,10 @@ export function MobileApplyBar({ job }: { job: PublicJobDetail }) {
   return <div className="pb-32 lg:pb-0">
     <section aria-labelledby="mobile-apply-heading" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
       <h2 id="mobile-apply-heading" className="sr-only">Postulación móvil</h2>
-      <div className="mx-auto max-w-lg"><PublicApplyLink jobId={job.id} /></div>
+      <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
+        {job.compensation !== null && <div className="min-w-0 flex-1 [&_[data-public-salary]>span:first-child]:text-sm [&_p]:text-xs"><PublicSalary job={job} /></div>}
+        <div className={cn("min-w-0", job.compensation === null ? "w-full" : "max-w-52 shrink-0")}><PublicApplyLink jobId={job.id} /></div>
+      </div>
     </section>
   </div>;
 }

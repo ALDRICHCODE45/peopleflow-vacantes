@@ -50,9 +50,10 @@ for (const width of [375, 1440]) {
       if (width < 1024) {
         await expect(mobile).toBeVisible();
         await expect(mobile.getByRole("link", { name: "Postularme" })).toHaveAttribute("href", await rail.getByRole("link", { name: "Postularme" }).getAttribute("href") as string);
-        await searches.scrollIntoViewIfNeeded();
+        // scrollIntoViewIfNeeded treats fixed overlays as visible viewport.
+        // At the document end, reserved space must clear the sticky bar.
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
         const last = searches.getByRole("link").last();
-        await last.scrollIntoViewIfNeeded();
         const contentBox = await last.boundingBox();
         const barBox = await mobile.boundingBox();
         expect(contentBox!.y + contentBox!.height).toBeLessThanOrEqual(barBox!.y);

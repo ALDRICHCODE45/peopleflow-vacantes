@@ -1,6 +1,6 @@
 import "server-only";
 import { getCompanyProfile } from "@/features/company-site/api/client";
-import { listRelatedJobs } from "../api/listRelatedJobs";
+import { listRelatedJobs, type RelatedJobsQuery } from "../api/listRelatedJobs";
 import type { PublicJobDetail, PublicJobItem } from "../types";
 
 /** A failed optional read has no renderable data: omit that section, not the detail. */
@@ -25,8 +25,6 @@ export async function readSimilarVacancies(job: PublicJobDetail): Promise<Relate
   try {
     const state = job.location?.state?.id;
     const query = { professional_area: job.professional_area, limit: 7 };
-    const first = await listRelatedJobs({ ...query, ...(state ? { state } : {}) });
-    if (!first.ok) return { ok: false };
     const items: PublicJobItem[] = [];
     const seen = new Set<string>();
     const append = (candidates: PublicJobItem[]) => {
@@ -34,15 +32,23 @@ export async function readSimilarVacancies(job: PublicJobDetail): Promise<Relate
         if (item.id === job.id || item.company.id === job.company.id || seen.has(item.id)) continue;
         seen.add(item.id);
         items.push(item);
+        if (items.length === 3) break;
       }
     };
-    append(first.data.items);
-    if (state && items.length < 3) {
-      const fill = await listRelatedJobs(query);
-      if (!fill.ok) return { ok: false };
-      append(fill.data.items);
-    }
-    return { ok: true, data: items.slice(0, 3) };
+    const readPages = async (filters: RelatedJobsQuery): Promise<boolean> => {
+      let cursor: string | undefined;
+      for (let page = 0; page < 3 && items.length < 3; page++) {
+        const result = await listRelatedJobs({ ...filters, ...(cursor ? { cursor } : {}) });
+        if (!result.ok) return false;
+        append(result.data.items);
+        if (!result.data.next_cursor) break;
+        cursor = result.data.next_cursor;
+      }
+      return true;
+    };
+    if (!await readPages({ ...query, ...(state ? { state } : {}) })) return { ok: false };
+    if (state && items.length < 3 && !await readPages(query)) return { ok: false };
+    return { ok: true, data: items };
   } catch { return { ok: false }; }
 }
 
