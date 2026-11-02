@@ -79,6 +79,18 @@ it("reuses the anonymous company read and projects no private or invented fields
   vi.mocked(getCompanyProfile).mockResolvedValue({ ok: false });
   expect(await readRelatedCompany(vacancyDetail)).toEqual({ ok: false });
 });
+it.each([
+  ["nexo-labs", "/empresas/nexo-labs"], ["abc", "/empresas/abc"],
+  ["a".repeat(60), `/empresas/${"a".repeat(60)}`],
+  [undefined, null], [null, null], ["", null], ["ab", null], ["a".repeat(61), null],
+  ["Nexo-labs", null], ["-nexo", null], ["nexo-", null], ["nexo--labs", null],
+  ["nexo_labs", null], [" nexo-labs", null], ["nexo-labs\n", null], ["../nexo", null],
+  ["https://example.com", null], ["méxico", null],
+])("uses only a valid published slug %j for the careers link", async (site_slug, careersHref) => {
+  vi.mocked(getCompanyProfile).mockResolvedValue({ ok: true, company: { ...vacancyDetail.company, description: null, location: null, website: "https://example.com", linkedin_url: null, instagram_url: null, facebook_url: null, twitter_url: null, ...{ site_slug } } });
+  expect(await readRelatedCompany(vacancyDetail)).toEqual({ ok: true, data: { ...vacancyDetail.company, description: null, sector: null, size: null, careersHref } });
+  expect(getCompanyProfile).toHaveBeenCalledExactlyOnceWith(vacancyDetail.company.id);
+});
 it("sample mode is offline, including company filtering and absent legacy area", async () => {
   env.sampleJobs = true; const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
   const { findSampleJob, SAMPLE_JOBS } = await import("../sample-jobs");

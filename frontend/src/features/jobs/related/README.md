@@ -37,16 +37,18 @@ profiles, counts or careers sites.
 and expanded state name. Remote is
 emitted only for a remote vacancy. Every chip href uses `buildJobsUrl`.
 
-## Company contract gap for T2
+## Company profile and published careers link (T4)
 
-The existing anonymous `getCompanyProfile(id)` read exposes name, logo and
-description. Its decoder drops `industry_id` and `size`, and it exposes no
-published careers-site slug. Consequently `RelatedCompany` includes nullable
-`sector`, `size`, and `careersHref`, currently always null. Do not treat the
-company's website as a published careers site, guess a slug from its name/id,
-or derive vacancy counts from the returned sample. Completing these fields
-requires a supported published-site locator and an expanded existing profile
-projection outside T1's allowed edit surfaces.
+The anonymous `getCompanyProfile(id)` read exposes name, logo, description and
+optional/nullable `site_slug`. The strict decoder accepts older backends without
+that field and still rejects unknown keys and malformed field types.
+`readRelatedCompany` sets `careersHref` to `/empresas/{site_slug}` only for a valid
+published slug (3–60 lowercase alphanumeric characters, single internal hyphens,
+no surrounding whitespace or reserved names). Missing, null or invalid slugs
+leave the link absent. The card uses the artboard copy «Conoce la empresa».
+The decoder still drops `industry_id` and `size`; `sector` and `size` stay null.
+Never treat the company's website as a published careers site, guess a slug from
+its name/id, or derive vacancy counts from the returned sample.
 
 With no description or published careers link, the UI renders only company
 identity and its other vacancies; it omits the block when that list is also empty.

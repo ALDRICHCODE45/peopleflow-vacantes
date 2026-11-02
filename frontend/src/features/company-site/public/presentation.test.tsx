@@ -39,6 +39,14 @@ it("server wrapper and shared presentation produce identical public markup, with
   expect(shared).not.toContain("data-editor");
   expect(shared).not.toContain("Editar Portada");
 });
+it.each([false, true])("does not display the profile's site_slug in public/editor presentation (editor=%s)", editor => {
+  const data = publishedFixture();
+  const props = { site: data.site, company: data.company, jobs: [], officeLabels: new Map<string, string>(), ...(editor ? { onSelectBlock: vi.fn() } : {}) };
+  const original = renderToStaticMarkup(<CompanySitePresentation {...props} />);
+  const withLocator = renderToStaticMarkup(<CompanySitePresentation {...props} company={{ ...data.company, ...{ site_slug: "profile-locator-only" } }} />);
+  expect(withLocator).toBe(original);
+  expect(withLocator).not.toContain("profile-locator-only");
+});
 it.each(PALETTE_PRESETS)("keeps $name computed tokens identical across server rendering and hydration", async palette => {
   const data = publishedFixture();
   data.site.theme = { ...data.site.theme, brand_color: palette.brand_color, accent_color: palette.accent_color, background_color: palette.background_color };

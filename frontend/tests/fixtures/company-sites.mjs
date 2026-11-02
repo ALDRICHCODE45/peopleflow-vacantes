@@ -191,7 +191,7 @@ export function createCompanySitesFixture() {
     // the careers editor for the preview identity.
     if (url.pathname.startsWith("/companies/") && request.method === "GET") {
       if (url.pathname !== `/companies/${company.id}`) return json(404, { error: "not found", code: "not_found" });
-      return json(200, { ...publicIdentity(url.origin), industry_id: "tecnologia" });
+      return json(200, { ...publicIdentity(url.origin), industry_id: "tecnologia", site_slug: published?.slug ?? null });
     }
     if (url.pathname === "/me/company" && request.method === "GET") {
       if (!request.headers.authorization?.startsWith("Bearer ")) return json(401, { error: "unauthenticated", code: "unauthenticated" });

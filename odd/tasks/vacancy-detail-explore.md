@@ -36,7 +36,7 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
 | T1 | S2–S6, S8 | Related reads (company, similar, company profile) + chip derivation, tests | see L7 |
 | T2 | S1–S3, S6, S7 | Region UI per artboard 03, streaming skeleton, mobile bar, tests | see L9 |
 | T3 | all | Verification: unit, types, lint, browser at 375/1440 light/dark | see L12 |
-| T4 | S2 | Careers-site link from `site_slug` once the backend ships it (L8) | — |
+| T4 | S2 | Careers-site link from `site_slug` once the backend ships it (L8) | see L14 |
 
 ## Log
 
@@ -87,5 +87,13 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
   skipped; 9081 tests passed, 1 skipped; exit 0. E2E 52/52 (L11). Native assess: medium, reviewDue false (under
   budget). Visual acceptance by the user is pending (screenshots of the corrected region were not re-captured after
   c45b79fd). T4 (careers link) waits on backend `feat/company-site-slug`.
+- **L13** Backend shipped `site_slug` on `GET /companies/{id}` (`feat/company-site-slug`, 6ed30a4d): always present, the
+  published slug or null; owner/private responses unchanged. T4 starts.
+- **L14** T4 (worker mvy9lcn9): company profile decoder keeps `.strict()` and accepts optional nullable `site_slug`;
+  `careersHref = /empresas/{slug}` only for a valid slug, rendered as «Conoce la empresa»; other consumers unchanged
+  (presentation test). RED 5 → GREEN 514/514 (focused + consumers); tsc, eslint pass. E2E 32 passed / 2 failed / 4
+  skipped; the verifier (mvy9yp0g) classified both: company-careers.spec.ts:52 looks for combobox «Estado» but the UI
+  says «Ubicación» — fails identically on clean HEAD (pre-existing test defect, logged in frontend-backlog); the
+  malformed-UUID ERR_NETWORK_IO_SUSPENDED did not reproduce (2/2 pass). Exploration spec 6/6.
 - **L6** Evidence: `listJobs.ts` forwards `buildJobsUrl`, whose `JobsQuery` drops `company_id` and `limit` (worker
   finding during design); the backend accepts both (S8).

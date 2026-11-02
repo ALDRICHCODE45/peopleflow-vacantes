@@ -23,9 +23,8 @@ for (const width of [375, 1440]) {
       const company = page.getByRole("region", { name: "Sobre Nexo Labs" });
       await expect(company).toBeVisible();
       await expect(company).toContainText("Somos un equipo de tecnología en México");
-      // No published careers locator in T1: never guess one from the company id.
-      await expect(company.getByRole("link", { name: /Conoce la empresa|Ver todas/ })).toHaveCount(0);
-      const rows = company.getByRole("link");
+      await expect(company.getByRole("link", { name: "Conoce la empresa" })).toHaveAttribute("href", "/empresas/nexo-labs");
+      const rows = company.locator('a[href^="/vacantes/"]');
       expect(await rows.count()).toBeGreaterThan(0);
       expect(await rows.count()).toBeLessThanOrEqual(3);
       for (const link of await rows.all()) {
@@ -71,6 +70,16 @@ for (const width of [375, 1440]) {
     });
   }
 }
+
+test("a company without a published slug shows only its other vacancies", async ({ page }) => {
+  await page.goto("/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e");
+  const company = page.getByRole("region", { name: "Sobre Acme" });
+  await expect(company).toBeVisible();
+  await expect(company.getByRole("heading", { name: "Más vacantes de Acme" })).toBeVisible();
+  await expect(company.getByRole("link").first()).toHaveAttribute("href", /^\/vacantes\//);
+  await expect(company.locator('a[href^="/empresas/"]')).toHaveCount(0);
+  await expect(company.getByRole("link", { name: /Conoce la empresa|Ver todas/ })).toHaveCount(0);
+});
 
 test("failed company profile omits only that region, preserving detail and similar jobs", async ({ page }) => {
   // The fixture has no public company profile for Acme but has catalog matches.

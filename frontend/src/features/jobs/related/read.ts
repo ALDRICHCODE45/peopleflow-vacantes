@@ -1,5 +1,6 @@
 import "server-only";
 import { getCompanyProfile } from "@/features/company-site/api/client";
+import { validateSlug } from "@/features/company-site/slug";
 import { listRelatedJobs, type RelatedJobsQuery } from "../api/listRelatedJobs";
 import type { PublicJobDetail, PublicJobItem } from "../types";
 
@@ -60,9 +61,10 @@ export async function readRelatedCompany(job: PublicJobDetail): Promise<RelatedR
     if (serverEnv.sampleJobs) return { ok: true, data: { ...job.company, ...absent } };
     const result = await getCompanyProfile(job.company.id);
     if (!result.ok) return { ok: false };
-    // The existing public read has no sector, size or published-site locator.
-    // A company website is not proof that a careers site is published.
-    const { id, name, logo_url, description } = result.company;
-    return { ok: true, data: { ...absent, id, name, logo_url, description } };
+    // Only the published locator proves a careers site exists, never the website.
+    const { id, name, logo_url, description, site_slug } = result.company;
+    const careersHref = typeof site_slug === "string" && site_slug === site_slug.trim() && validateSlug(site_slug) === null
+      ? `/empresas/${site_slug}` : null;
+    return { ok: true, data: { ...absent, id, name, logo_url, description, careersHref } };
   } catch { return { ok: false }; }
 }

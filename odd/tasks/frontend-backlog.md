@@ -34,6 +34,9 @@ principal» landmark (axe `region`), the three full-suite flaky tests made light
   the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known
   migration work: `middleware.ts` → `proxy.ts` (on 16 the old name answers a plain 500), flat `eslint-config-next`
   config, 67 errors from the React Compiler lint rules, production e2e to re-green.
+- **company-careers E2E looks for a combobox «Estado»** — `tests/e2e/company-careers.spec.ts:52` times out; the public
+  careers filter is labeled «Ubicación» (`features/company-site/public/company-jobs.tsx:28`). Fails identically on clean
+  HEAD of `feat/vacancy-detail-explore` (`vacancy-detail-explore.md` L14): stale test, update the locator.
 - **Loading feedback on other links into `/vacantes`** — the sidebar «Vacantes» link shows a spinner while pending
   (`useLinkStatus`, `next-16-upgrade.md` L9); the detail «Volver»/breadcrumb links into the list do not yet.
 
@@ -49,8 +52,9 @@ principal» landmark (axe `region`), the three full-suite flaky tests made light
   re-check in the browser when their fix lands (backend tracks limiter work in `docs/ROADMAP.md` «Psicométricos —
   pendientes»).
 
-- **Vacancy → company careers site** — link vacancy → company careers site once the jobs API exposes the published site slug.
-  Company UUIDs are not public-site addresses; until then, render company names without a careers link.
+- **Vacancy → company careers site** — addressed on `feat/vacancy-detail-explore` («Sobre {Empresa}» → «Conoce la
+  empresa» from `site_slug` on `GET /companies/{id}`, backend `feat/company-site-slug` 6ed30a4d). Remove this item when
+  both branches merge. Company UUIDs are still not public-site addresses.
 
 - **Legacy seed in production?** The six published legacy jobs and their companies (Acme SA, Globex Holdings,
   Initech LLC) come from `backend/db/migrations/00008_jobs_seed.sql`, described as dev-only but shipped as a goose
