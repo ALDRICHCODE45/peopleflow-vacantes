@@ -373,6 +373,10 @@ function sendJson(response, status, payload) {
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
   if (employerDashboardFixture(request, response, url)) return;
+  // A public company without a published careers site, with other catalog jobs.
+  if (request.method === "GET" && url.pathname === `/companies/${job.company.id}`) {
+    return sendJson(response, 200, { ...job.company, industry_id: "tecnologia", location: null, site_slug: null });
+  }
   if (companySitesFixture.handle(request, response, url)) return;
   const v2 = url.pathname === "/v2/jobs" || url.pathname.startsWith("/v2/jobs/");
   const send = (target, status, payload) => sendJson(target, status, v2 ? publicPayload(payload) : payload);

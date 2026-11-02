@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "03-empresa-primero.html",
+  "handoffs": {
+    "03-empresa-primero.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-01T12:29:01.464Z",
+      "startedAt": "2026-11-01T12:30:12.346Z",
+      "implementedAt": "2026-11-01T15:01:24.828Z",
+      "note": "Implemented on feat/vacancy-detail-explore (c45b79fd); careers-site link pending backend site_slug."
+    }
+  }
+}

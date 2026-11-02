@@ -19,6 +19,10 @@ const XSS_TEXT = "<script>alert('xss')</script>";
 const PROHIBITED_DISPLAY_COPY = /demostraci|fictici|\bprototipo\b|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó]/iu;
 const fixtureRequests = (request: APIRequestContext) =>
   request.get(`${fixtureUrl}/__requests`).then((r) => r.json());
+// Related catalog/profile reads are intentional; deduplication concerns only
+// the request-scoped /v2/jobs/{id} detail read, never /v2/jobs?filters.
+const fixtureDetailRequests = async (request: APIRequestContext) =>
+  (await fixtureRequests(request) as string[]).filter(path => /^\/v2\/jobs\/[^/?]+$/.test(path));
 
 async function bufferMainDocuments(
   page: Page,
@@ -212,11 +216,11 @@ test("dedupes metadata/page reads per request", async ({ page, request }) => {
   // One render issues exactly one detail read even though both the metadata
   // generation and the page read need the validated vacancy.
   await page.goto(`/vacantes/${RICH_ID}`);
-  await expect.poll(() => fixtureRequests(request)).toEqual([richRequest]);
+  await expect.poll(() => fixtureDetailRequests(request)).toEqual([richRequest]);
   // A second request re-reads the API: nothing persistent serves it.
   await request.get(`${fixtureUrl}/__reset`);
   await page.goto(`/vacantes/${RICH_ID}`);
-  await expect.poll(() => fixtureRequests(request)).toEqual([richRequest]);
+  await expect.poll(() => fixtureDetailRequests(request)).toEqual([richRequest]);
 });
 
 test("backend 404: noindex after API read", async ({ page, request }) => {
@@ -258,7 +262,7 @@ test("reflects request-time visibility changes on later detail requests", async 
       .getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
   ).toBeVisible();
   await expect
-    .poll(() => fixtureRequests(request))
+    .poll(() => fixtureDetailRequests(request))
     .toEqual([detailRequest, detailRequest]);
 });
 

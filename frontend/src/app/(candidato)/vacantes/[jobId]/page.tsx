@@ -3,7 +3,8 @@ import { UnavailableVacancyCard } from "@/features/candidate-applications/unavai
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { JobDetailView } from "../../../../features/jobs/components/JobDetailView";
+import { ExploreDetail } from "../../../../features/jobs/related/ui";
+import { readCompanyVacancies, readRelatedCompany, readSimilarVacancies } from "../../../../features/jobs/related/read";
 import { createVacanteDetailScope } from "./page-data";
 
 // The detail read is request-scoped: it must run on the Node server on every
@@ -78,5 +79,5 @@ export default async function VacanteDetailPage({
   }
 
   if (result.kind === "unavailable_vacancy") return <UnavailableVacancyCard vacancy={result.vacancy} headingLevel={1} />;
-  return <JobDetailView job={result.job} />;
+  return <ExploreDetail job={result.job} company={readRelatedCompany(result.job)} companyVacancies={readCompanyVacancies(result.job)} similar={readSimilarVacancies(result.job)} />;
 }

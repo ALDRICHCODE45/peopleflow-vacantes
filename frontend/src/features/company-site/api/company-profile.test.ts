@@ -10,7 +10,14 @@ it("decodes the public profile anonymously, ignores unrelated metadata and suppl
   const init = vi.mocked(fetch).mock.calls[0][1]!;
   expect(new Headers(init.headers).has("authorization")).toBe(false);
 });
+it.each(["nexo-labs", null])("accepts the published site_slug %s without exposing unrelated metadata", async site_slug => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ id, name: "Equipo", industry_id: "industry", location: null, site_slug }), { status: 200 })));
+  const result = await getCompanyProfile(id);
+  expect(result).toEqual({ ok: true, company: { id, name: "Equipo", location: null, logo_url: null, description: null, website: null, linkedin_url: null, instagram_url: null, facebook_url: null, twitter_url: null, site_slug } });
+});
 it.each([
+  { id, name: "Equipo", industry_id: "industry", location: null, site_slug: 23 },
+  { id, name: "Equipo", industry_id: "industry", location: null, site_slug: "nexo-labs", unexpected: "private-data" },
   { id, name: "Equipo", industry_id: "industry", location: null, logo_url: "javascript:alert(1)" },
   { id, name: "Equipo", industry_id: "industry", location: null, description: 23 },
   { id, name: "Equipo", industry_id: "industry", location: { country: 23 } },
