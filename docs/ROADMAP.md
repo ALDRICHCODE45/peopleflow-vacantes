@@ -192,6 +192,25 @@ siempre hay que tenerlas en el radar por favor.» — al entregarse se marcan �
 - 🔲 Notas en una vacante guardada, carpetas, recordatorios o alertas, compartir la lista, conteos visibles para el
   empleador y guardado desde cuentas de empresa.
 
+### Próximas tres funcionalidades (definidas 2026-11-02, no implementadas) — pendientes
+
+Fuente de producto: `docs/product/next-three-features.md` (worktree del frontend). Orden: 1) asignación de la vacante,
+1b) visibilidad de la base de talento, 2) auditoría, 3) stakeholder + métricas. Contrato de la 1:
+`docs/contracts/vacancy-team-v1.md` (acordado, decisiones Q1–Q12 del usuario).
+
+- 🔲 **1 — Asignación de la vacante** (`vacancy-team-v1.md`): migración 00054 (equipos, tramos, reasignaciones,
+  renegociación del compromiso, crédito de placement), reemplazo del predicado owner-o-principal en `authorized`
+  (`draftstore/store.go:425`) y `visibleV2Drafts` (`draftstore/list_v2.go:18`), offboarding de miembros.
+- 🔲 **1b — Visibilidad de la base de talento** (Q1): ajuste de la empresa, solo del owner y auditado: «Todos los
+  reclutadores» (por defecto) o «Usuarios seleccionados». El owner y el stakeholder siempre la ven; el que no está en la
+  lista sigue viendo a los candidatos de sus vacantes desde el tablero, y pierde búsqueda global, detalle fuera de una
+  vacante, CV desde la base y exportación de contactos (~8 endpoints de `applications/.../pool`).
+- 🔲 **Notificaciones de equipo** (Q12): ninguna en v1. En el radar: primero in-app, después correo cuando exista SES
+  (`docs/decision-email-provider.md`).
+- 🔲 **Cuotas individuales por reclutador**: para después, opcionales.
+- 🔲 **2 — Auditoría** y **3 — Stakeholder + métricas**: según el documento de producto; `company_id` en `audit_events` y
+  las métricas de «placements que no se sostuvieron» (garantías de reposición) salen de la 1.
+
 ## Stack decidido (no re-discutir)
 
 - Router: **chi** | Datos: **sqlc + pgx/v5** | DI: **manual** | Migraciones: **goose**
