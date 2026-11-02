@@ -1,0 +1,56 @@
+{
+  "title": "Equipo y asignación de la vacante",
+  "brief": "T2 · Propuestas antes de implementar. Tres direcciones estructurales para el equipo y cuatro flujos complementarios. UI en español de México, datos ilustrativos, acciones de escritura inertes y tokens de design/system.md. El usuario elige una dirección; ninguna está elegida todavía.",
+  "feature": "odd/tasks/vacancy-team.md",
+  "artboards": [
+    {
+      "file": "01-equipo-configuracion.html",
+      "title": "01 · Equipo en configuración · S1–S5",
+      "tradeoff": "Lista + detalle facilita comparar personas, funciones y plazos; obliga a salir del pipeline para administrar el equipo.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-franja-y-panel.html",
+      "title": "02 · Franja y panel lateral · S1–S5",
+      "tradeoff": "Mantiene el pipeline como contexto y abre el equipo sin navegar; el panel estrecho exige desplegar la historia y tiene menos espacio para comparar.",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "03-equipo-e-historia.html",
+      "title": "03 · Equipo e historia · S1–S5",
+      "tradeoff": "Página propia con equipo actual y timeline de funciones/relevos; da protagonismo a la trazabilidad, a costa de una navegación adicional y mayor altura.",
+      "width": 1440,
+      "height": 1200
+    },
+    {
+      "file": "04-reasignar-responsable.html",
+      "title": "04 · Reasignar responsable · S3–S5",
+      "tradeoff": "Un único diálogo hace explícitos motivo, permanencia y snapshot; el detalle del estado exige scroll, pero encabezado y acciones permanecen fijos.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "05-placement-y-credito.html",
+      "title": "05 · Salida de placement y crédito · S6",
+      "tradeoff": "Separa la razón del descarte del destino del crédito y conserva la ficha actual; requiere una pregunta adicional al salir de placement.",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "06-renegociar-compromiso.html",
+      "title": "06 · Renegociar compromiso · S5",
+      "tradeoff": "Muestra fecha anterior e impacto sobre plazos heredados antes de confirmar; la fecha publicada deja de ser una edición directa en Entrega.",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "07-baja-y-mis-tramos.html",
+      "title": "07 · Baja del equipo y Mis tramos · S7–S8",
+      "tradeoff": "Vista previa, reparto y revisión final protegen la continuidad antes de una baja atómica; el owner recorre tres pasos, mientras el reclutador conserva solo su resumen sin candidatos.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}

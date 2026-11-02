@@ -35,13 +35,23 @@ the responsible manages collaborators, and placement credit follows the team mod
   access ended, not «la vacante no existe» (`team_access_ended`).
 - **S9** All remaining decisions: «si hermano, voy con esas.» (Q2–Q4, Q7–Q12; no team size limit; no notifications in
   v1).
+- **S10** UI priorities approved («Completamente, a darle.»): shadcn first, never hand-built (rules §1, §2, §5, §19,
+  read `docs/design/shadcn-reference/` before each component); validated screens keep their design (§21); base = the
+  layout of artboard 03 plus «la composicion de las cards, se usaron iconos solo cuando son necesarios, el orden de las
+  cosas»; one primary action per surface, badges only for categories (§15, §16); skeleton, content and empty states
+  (§11, §22); important actions through `ConfirmActionDialog` with their fields inside, no chained dialogs (§18);
+  results by Sileo `notifyActionResult` (§12); permissions only from `viewer.can.*`; Mexican Spanish with «tú»,
+  plural helper; browser review and shadcn audit before delivery (§25). Prototype in the app with real components
+  and contract-shaped fixtures, development only; first the team page + reassign, reviewed by the user before the
+  rest.
 
 ## Tasks
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
 | T1 | S1–S9 | Contract review with the backend session (done, L4) | — |
-| T2 | S1–S8 | Design directions (gentle-design) for team panel, reassign dialog, offboard flow, placement exit, own history; user picks | — |
+| T2 | S1–S8 | Design directions (gentle-design): 01–07 rejected (L7); 03 layout kept as base | — |
+| T2b | S1–S4, S10 | In-app prototype: team page (configuración › Equipo) + reassign responsible, fixtures, user review | — |
 | T3 | S2, S5, S6 | Breaking changes: `team` in draft list/read, `placement_exit_reason` in move/discard, commitment 409 on delivery PUT | — |
 | T4 | S1–S5 | Team panel in the vacancy workspace: read, add, remove, leave, deadline, mode, reassign responsible, history | — |
 | T5 | S6 | Placement credit in participation detail + owner void/restore | — |
@@ -84,3 +94,14 @@ the responsible manages collaborators, and placement credit follows the team mod
   choice; 04–07 complement any direction. No production implementation. Canvas `list`/`open` and rendered visual
   verification remain pending because this worker does not expose `gentle_design`; the parent must open slug
   `vacancy-team` and report the returned URL.
+- **L7** (user, 2026-11-02, on 01–07): «ninguna opcion me gusta, la ui no es nada buena, no es ni parecida a los
+  compnentes de shadcn que tenemos, las acciones son como drops basicos y muy malos ... como opcion de configuracion y
+  posicionamiento de las cosas/opciones y donde se ubica cada cosa, el tercero me gusta mas, pero de nuevo, no es nada
+  parecido al estilo que tenemos ahora en todo el sistema..» Kept: «en la mayoria de veces respeto la composicion de
+  las cards, se usaron iconos solo cuando son necesarios, el orden de las cosas o el "layout" de las cosas es bueno ...
+  tiene una buena base, pero el diseno en si, el resultado, es malo.» None chosen; 03's structure is the base. Cause:
+  native controls and token-only styling instead of the real shadcn components.
+- **L8** Backend committed the contract with the user's authorization on `docs/vacancy-team-contract`: `56d7dacb`
+  docs(contracts) vacancy team v1, `2956603d` docs(roadmap). Not merged or pushed.
+- **L9** (user, 2026-11-02): path 2 approved («si hermano, adelante con tu recomendacion»), and the UI priorities in S10
+  («Completamente, a darle.»). T2b starts: in-app prototype of the team page + reassign, delegated (context backstop).
