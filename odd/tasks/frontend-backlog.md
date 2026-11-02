@@ -10,9 +10,21 @@ between `/vacantes` search variants. Retired in `fix/legacy-application-retired`
 application wizard (prototype candidate «Ximena Barrera», no submission) and with it the legacy application phone
 item — legacy catalog rows now say they take no online applications. Shipped in `chore/backlog-small-fixes`
 (2026-10-28): root spec allowlist for the token-free `/api/auth/session` read, sidebar inside one «Navegación
-principal» landmark (axe `region`), the three full-suite flaky tests made lighter (no raised timeouts).
+principal» landmark (axe `region`), the three full-suite flaky tests made lighter (no raised timeouts). Shipped and
+pushed 2026-11-02 (`saved-vacancies.md`, `vacancy-detail-explore.md`): saved vacancies with the visitor return, the
+`?postulacion=` deep link, and the region below the vacancy detail with the careers-site link (`site_slug`).
 
 ## Product gaps
+
+- **«Ver todas sus vacantes» without a careers site** (`vacancy-detail-explore.md` L7): when a company has no published
+  careers site, the «Sobre {Empresa}» block shows up to 3 other vacancies and no «see all» link, because `/vacantes` has
+  no company filter. Adding `company` to the public search grammar is a separate decision.
+- **Save control in the mobile sticky bar** (detail): the bar shows «Postularme» + salary; saving on mobile stays in the
+  aside above. Consider a bookmark in the bar if users ask.
+- **«Deshacer» after removing a saved vacancy** re-saves with a new `saved_at`, so the row moves to the top of its group
+  (contract v1 behavior). Restoring the original order needs a backend change.
+- **Competitor AI opportunities** (`docs/research/competidores-ia-2026-10.md`): evidence-guided async interview,
+  recruiter copilot, stage automations, WhatsApp first contact, shift/branch volume — on the radar, nothing decided.
 
 - **Invite members by email** — no backend endpoint (AddMember takes an existing recruiter `user_id`). Deferred by the
   user (2026-10-23). Email decision recorded in `docs/decision-email-provider.md` (2026-10-24: Amazon SES, sending
@@ -52,9 +64,8 @@ principal» landmark (axe `region`), the three full-suite flaky tests made light
   re-check in the browser when their fix lands (backend tracks limiter work in `docs/ROADMAP.md` «Psicométricos —
   pendientes»).
 
-- **Vacancy → company careers site** — addressed on `feat/vacancy-detail-explore` («Sobre {Empresa}» → «Conoce la
-  empresa» from `site_slug` on `GET /companies/{id}`, backend `feat/company-site-slug` 6ed30a4d). Remove this item when
-  both branches merge. Company UUIDs are still not public-site addresses.
+- **Vacancy → company careers site** — SHIPPED 2026-11-02 («Sobre {Empresa}» → «Conoce la empresa» from `site_slug` on
+  `GET /companies/{id}`). Kept here as a record per the user's rule (never delete pending or deferred items).
 
 - **Legacy seed in production?** The six published legacy jobs and their companies (Acme SA, Globex Holdings,
   Initech LLC) come from `backend/db/migrations/00008_jobs_seed.sql`, described as dev-only but shipped as a goose
@@ -62,6 +73,12 @@ principal» landmark (axe `region`), the three full-suite flaky tests made light
   their call.
 
 ## Waiting on the user
+
+- **Local branches already merged** (2026-11-02): `feat/saved-jobs-backend`, `feat/company-site-slug`,
+  `feat/vacancy-detail-explore`, `feat/saved-vacancies` remain locally (and the backend's `qa/saved-jobs-and-site-slug`
+  plus worktree `.scratch/site-slug`). Delete them when the user decides.
+- **Migration 00053 on every environment**: additive `saved_jobs` table; its Down refuses while rows exist. Make sure the
+  deploy runs migrations before the frontend that calls `/v2/me/saved-jobs`.
 
 - **Company profile data seen on the published careers site** (`careers-builder-polish.md` L15, parked by the user
   2026-10-28): the company `logo_url` (img.magnific.com) is stored with literal backslashes (`\?semt\=…`) and returns
@@ -101,6 +118,9 @@ test, never as a reason to reopen the reviewed slice.
   (assessment flow); capture-session origin normalization; mounted workspace read retry/recovery; profile confirmation
   read-back after save (editor ~96-98); dropped board refresh and profile-read recovery in the sheet state (~32,
   ~56-57).
+- **Next route types only checked after `next dev`/`next build`** (2026-11-02 merge): `tsc` missed a page whose props
+  could be `undefined` until `.next/types` existed; `next build` caught it (fix 429380ae). Run `next build` before
+  calling a branch with route changes merge-ready.
 - **Full-suite flakes under load** — «sends +52 with ten national digits as E.164» and board «adds a manual card in place…»
   time out only under machine load (pass alone); vitest may exit 1 on `onTaskUpdate`/`snapshotSaved` worker RPC timeouts
   with zero failed tests. Lesson (2026-10-30 merge): run the FULL frontend suite before calling a branch merge-ready.
