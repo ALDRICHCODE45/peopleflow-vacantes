@@ -95,5 +95,10 @@ other vacancies, similar vacancies and related-search chips. No backend changes.
   skipped; the verifier (mvy9yp0g) classified both: company-careers.spec.ts:52 looks for combobox «Estado» but the UI
   says «Ubicación» — fails identically on clean HEAD (pre-existing test defect, logged in frontend-backlog); the
   malformed-UUID ERR_NETWORK_IO_SUSPENDED did not reproduce (2/2 pass). Exploration spec 6/6.
+- **L15** Delivery: 7 commits on `feat/vacancy-detail-explore` (~1,280 authored lines incl. design artboards and
+  docs). Review slices are the commits themselves: c8936470 design + doc, d386bb13 data layer, a610ab2a UI, c45b79fd
+  verification fixes, 7c2979e6 verification close, b2beb0b5 careers link. No merge to main (user L4). Merge order
+  note: `feat/saved-vacancies` also edits PublicJobDetailView.tsx (aside save control, ~6 lines) — expect one small
+  conflict next to this branch's slot (+4/−3).
 - **L6** Evidence: `listJobs.ts` forwards `buildJobsUrl`, whose `JobsQuery` drops `company_id` and `limit` (worker
   finding during design); the backend accepts both (S8).
