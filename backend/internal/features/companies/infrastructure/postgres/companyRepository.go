@@ -168,6 +168,21 @@ func (r *CompanyRepository) GetByID(ctx context.Context, id uuid.UUID) (*entitie
 	return toEntity(row)
 }
 
+var _ repositories.CompanyPublishedSiteReader = (*CompanyRepository)(nil)
+
+// GetPublishedSiteSlug reads the current publication only; draft/history slugs
+// are never exposed. No site row and an unpublished row both return nil.
+func (r *CompanyRepository) GetPublishedSiteSlug(ctx context.Context, companyID uuid.UUID) (*string, error) {
+	slug, err := db.New(r.pool).GetCompanyPublishedSiteSlug(ctx, companyID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return pgTextToTextPtr(slug), nil
+}
+
 // GetCompanyForUpdate is the write-path read seam (companies-write
 // slice, design D2). The visibility rule is byte-for-byte identical to
 // `GetCompanyByID`: `WHERE id = $1 AND deleted_at IS NULL` (no status

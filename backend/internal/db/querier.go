@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -133,6 +134,7 @@ type Querier interface {
 	GetApplicationByID(ctx context.Context, arg GetApplicationByIDParams) (GetApplicationByIDRow, error)
 	GetCandidateProfileByUserID(ctx context.Context, userID uuid.UUID) (CandidateProfile, error)
 	GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error)
+	GetCompanyPublishedSiteSlug(ctx context.Context, companyID uuid.UUID) (pgtype.Text, error)
 	// Public detail endpoint. Same visibility rule as SearchJobs (published,
 	// non-tombstoned job, active and non-soft-deleted company), plus the
 	// positional `$1` id. Explicit column list keeps `search_vector` out of

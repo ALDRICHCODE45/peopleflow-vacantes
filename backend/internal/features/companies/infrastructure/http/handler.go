@@ -126,6 +126,8 @@ type companyResponse struct {
 // profile (candidate-facing). It omits rfc (tax ID) and status (internal)
 // but exposes all the public-facing profile fields.
 type companyPublicResponse struct {
+	SiteSlug *string `json:"site_slug"`
+
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	IndustryID string `json:"industry_id"`
@@ -209,6 +211,10 @@ func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		location, err = h.service.ReadLocation(r.Context(), company.Location)
 	}
+	var siteSlug *string
+	if err == nil {
+		siteSlug, err = h.service.GetPublishedSiteSlug(r.Context(), id)
+	}
 	if err != nil {
 		def := classifyGetCompanyError(err)
 		if def.Code == httpjson.CodeInternalError {
@@ -218,7 +224,7 @@ func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusOK, toCompanyPublicResponse(company, location))
+	httpjson.WriteJSON(w, http.StatusOK, toCompanyPublicResponse(company, location, siteSlug))
 }
 
 // toCompanyResponse maps the domain entity into the create response shape.
@@ -246,8 +252,9 @@ func toCompanyResponse(c *entities.Company, location *geo.ReadLocation) companyR
 }
 
 // toCompanyPublicResponse maps the domain entity into the redacted public shape.
-func toCompanyPublicResponse(c *entities.Company, location *geo.ReadLocation) companyPublicResponse {
+func toCompanyPublicResponse(c *entities.Company, location *geo.ReadLocation, siteSlug *string) companyPublicResponse {
 	return companyPublicResponse{
+		SiteSlug:      siteSlug,
 		ID:            c.ID.String(),
 		Name:          c.Name.Value(),
 		IndustryID:    c.IndustryID,
