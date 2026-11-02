@@ -149,3 +149,9 @@ Backend half of frontend `odd/tasks/saved-vacancies.md` over the agreed contract
   lenses risk/resilience/reliability, APPROVED and acknowledged (authority burned). One non-blocking advisory:
   R4-rollback-retention-race (WARNING, informational) at `backend/db/migrations/00053_saved_jobs.sql:21-26`, i.e. the
   Down data check is not under a table lock; follow-up only, no correction opened.
+- L10 (user via frontend, verbatim): «dejame todo listo para que entre a revisar en el navegador el resultado». Prepared:
+  local branch qa/saved-jobs-and-site-slug 4daeae2a (saved-jobs + merge of feat/company-site-slug, not main);
+  migration 00053 applied to the usual dev DB (version 53; revert `go run ./cmd/migrate down` with .env loaded, which
+  refuses while saved_jobs rows exist); API from that branch on 127.0.0.1:8080 with the usual .env, PID in
+  .scratch/qa-api/api.pid, log .scratch/qa-api/api.log. Smoke: /v2/jobs 200, /readyz 200, saved ids without a token
+  401, /companies/{id} carries site_slug.
