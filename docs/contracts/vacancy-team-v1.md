@@ -92,6 +92,17 @@ CREATE TABLE vacancy_reassignments (               -- responsible handover
   state_snapshot     jsonb NOT NULL
 );
 
+CREATE TABLE vacancy_team_mode_changes (           -- history of PUT V/team/mode
+  id                  uuid PRIMARY KEY,
+  draft_id            uuid NOT NULL REFERENCES vacancy_teams(draft_id) ON DELETE CASCADE,
+  company_id          uuid NOT NULL,
+  from_mode           text NOT NULL CHECK (from_mode IN ('with_responsible','shared')),
+  to_mode             text NOT NULL CHECK (to_mode IN ('with_responsible','shared') AND to_mode <> from_mode),
+  responsible_user_id uuid NULL REFERENCES users(id),        -- set when to_mode = with_responsible
+  performed_by        uuid NOT NULL REFERENCES users(id),
+  performed_at        timestamptz NOT NULL
+);
+
 CREATE TABLE vacancy_commitment_changes (          -- renegotiation after publication
   id            uuid PRIMARY KEY,
   draft_id      uuid NOT NULL REFERENCES job_drafts(id) ON DELETE CASCADE,
@@ -291,9 +302,37 @@ members from `GET V/team` (match on `user.id`).
 
 ### `GET V/team/history?cursor=`
 
-All tramos (continuous stays, active and ended, with causes and `closing_deadline`), each with its `functions[]`
-(function periods in order: `{function, started_at, ended_at, start_cause, end_cause}`), plus reassignments (reason, note,
-performer, snapshot) and mode changes, newest first, cursor-paginated.
+One mixed timeline, newest first by `at`, ties by `kind` then `id`. 20 items per page; `next_cursor` is opaque (`null` on
+the last page); a malformed or foreign cursor → 400 `invalid_cursor`.
+
+```json
+{
+  "items": [
+    { "kind": "tramo", "at": "2026-11-02T18:00:00Z",
+      "tramo": { "assignment_id": "…", "user": { "id": "…", "name": "Ana López" },
+                 "started_at": "…", "started_by": { "id": "…", "name": "…" } | null, "start_cause": "added",
+                 "ended_at": null, "ended_by": null, "end_cause": null,
+                 "recruiter_deadline": null, "closing_deadline": null,
+                 "functions": [{ "function": "collaborator", "started_at": "…", "ended_at": null,
+                                 "start_cause": "added", "end_cause": null }] } },
+    { "kind": "reassignment", "at": "…",
+      "reassignment": { "id": "…", "from_user": { "id": "…", "name": "…" }, "to_user": { "id": "…", "name": "…" },
+                        "reason": "workload", "note": null, "previous_responsible": "remove",
+                        "performed_by": { "id": "…", "name": "…" }, "state_snapshot": { } } },
+    { "kind": "mode_change", "at": "…",
+      "mode_change": { "id": "…", "from_mode": "with_responsible", "to_mode": "shared",
+                       "responsible_user": null, "performed_by": { "id": "…", "name": "…" } } }
+  ],
+  "next_cursor": null
+}
+```
+
+`at` = for a tramo, its LATEST event: `coalesce(ended_at, latest functions[].started_at, started_at)`, so a recent
+removal, departure or function change surfaces at the top (the item still carries `started_at`, `ended_at` and
+`functions[]` for the whole stay); `reassignment.performed_at`; `mode_change.performed_at`. Because a tramo's `at` moves
+when it changes, a team change made while paging may shift an item across pages; the UI re-reads from the first page
+after its own writes. `functions[]` is in chronological
+order. `state_snapshot` is the stored object of §«Data model». `started_by` is `null` only for `backfill`.
 
 ### `POST V/team/members`
 
