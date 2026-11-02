@@ -107,5 +107,10 @@ Approved design: `design/saved-vacancies/03-pendientes-primero.html` (01 and 02 
   found. Cleanup confirmed (API, container, temp worktree, keys; ports free). NOT verified: browser flows (the Next
   session cannot carry a local token without code changes) — visual and interactive acceptance of S2–S6 and the S3
   sign-in return remain for the user.
+- **L15** Final full suite on the branch (Node 22, `--no-file-parallelism`, after 78859d21): 491 files passed, 1
+  skipped; 9140 tests passed, 2 skipped; exit 0. Delivery: commits 6df2098f contract/design, 2589d574 T2, f3d360e5 T3,
+  0a5c64a9 T4 + return-intent fix, db047de8 T6, 78859d21 T5 (each a review slice). Pair with backend
+  `feat/saved-jobs-backend` (migration 00053). No merge to main (user L6). Pending for the user: browser QA of S2–S6
+  and the S3 sign-in return.
 - **L5** Exploration: no saved storage or endpoint exists in the backend; current Save controls are inert prototype
   placeholders; the real listing card and detail have none; `/candidato/guardadas` renders prototype fixtures.
