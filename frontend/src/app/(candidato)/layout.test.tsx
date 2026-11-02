@@ -26,7 +26,7 @@ import PerfilPage, { metadata as perfilMetadata } from "./candidato/perfil/page"
 import CvsPage, { metadata as cvsMetadata } from "./candidato/cvs/page";
 import ConfiguracionPage, { metadata as configuracionMetadata } from "./candidato/configuracion/page";
 
-type Destination = { segment: string; title: string; Page: () => React.JSX.Element | Promise<React.JSX.Element>; metadata: { title?: unknown } };
+type Destination = { segment: string; title: string; Page: (props: Record<string, never>) => React.JSX.Element | Promise<React.JSX.Element>; metadata: { title?: unknown } };
 const DESTINATIONS: Destination[] = [
   { segment: "dashboard", title: "Dashboard", Page: DashboardPage, metadata: dashboardMetadata },
   { segment: "postulaciones", title: "Postulaciones", Page: PostulacionesPage, metadata: postulacionesMetadata },
@@ -98,7 +98,7 @@ describe("candidate destinations resolve as honest content-only routes", () => {
 
   it.each(DESTINATIONS)("$title declares truthful metadata and exactly one matching heading", async ({ title, Page, metadata }) => {
     expect(metadata.title).toBe(title);
-    render(<CandidateShell>{await Page()}</CandidateShell>);
+    render(<CandidateShell>{await Page({})}</CandidateShell>);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(title);
     expect(document.querySelectorAll("main")).toHaveLength(1);
@@ -111,7 +111,7 @@ describe("candidate destinations resolve as honest content-only routes", () => {
   });
 
   it("mounts the verified applications workspace instead of a destination preview", async () => {
-    render(<CandidateShell>{await PostulacionesPage()}</CandidateShell>);
+    render(<CandidateShell>{await PostulacionesPage({})}</CandidateShell>);
     expect(document.querySelector("[data-pf-applications-workspace]")).not.toBeNull();
     expect(document.querySelector('[data-pf-destination="Postulaciones"]')).toBeNull();
   });
@@ -142,7 +142,7 @@ describe("candidate destinations resolve as honest content-only routes", () => {
 
   it.each(DESTINATIONS)("$title activates only its own sidebar destination", async ({ segment, title, Page }) => {
     pathnameMock.mockReturnValue(`/candidato/${segment}`);
-    render(<CandidateShell>{await Page()}</CandidateShell>);
+    render(<CandidateShell>{await Page({})}</CandidateShell>);
     const nav = document.querySelector("[data-slot='sidebar-content']") as HTMLElement;
     const active = within(nav).getAllByRole("link").filter((link) => link.hasAttribute("data-active")).map((link) => link.textContent);
     expect(active).toEqual([title]);

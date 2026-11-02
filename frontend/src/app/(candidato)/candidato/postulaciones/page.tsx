@@ -8,9 +8,10 @@ export const metadata: Metadata = {
 }
 
 /** The candidate layout guards identity; the workspace loads the private list. */
+// Props are required (no default): Next's generated PageProps check rejects a page whose props may be undefined.
 export default async function Page({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
-} = {}) {
+}) {
   const params = await searchParams
   const initialApplicationId = typeof params?.postulacion === "string" ? params.postulacion : undefined
   return (

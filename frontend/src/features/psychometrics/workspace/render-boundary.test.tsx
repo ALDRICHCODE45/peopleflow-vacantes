@@ -14,7 +14,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 it.each([Dashboard, Applications])("defers private session resolution until mount and shows loading then error", async Page => {
   let resolve!: (value: Awaited<ReturnType<typeof getAccountAssessments>>) => void;
   vi.mocked(getAccountAssessments).mockResolvedValue({ ok: true, data: { items: [] } });
-  const element = await Page();
+  const element = await Page({});
   expect(getActionAccessToken).not.toHaveBeenCalled();
   vi.mocked(getAccountAssessments).mockReturnValue(new Promise(done => { resolve = done; }));
   render(element);

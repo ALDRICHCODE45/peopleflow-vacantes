@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 it("keeps metadata, one header and one live workspace inside the existing shell", async () => {
-  expect(metadata.title).toBe("Postulaciones"); render(<CandidateShell>{await PostulacionesPage()}</CandidateShell>);
+  expect(metadata.title).toBe("Postulaciones"); render(<CandidateShell>{await PostulacionesPage({})}</CandidateShell>);
   expect(loadWorkspaceAssessmentsAction).toHaveBeenCalledTimes(1);
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   expect(document.querySelectorAll("[data-pf-applications-workspace]")).toHaveLength(1);
