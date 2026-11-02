@@ -28,9 +28,20 @@ it("keeps metadata, one header and one live workspace inside the existing shell"
   const nav = document.querySelector("[data-slot='sidebar-content']")!;
   expect(Array.from(nav.querySelectorAll("a[data-active]")).map(link => link.textContent)).toEqual(["Postulaciones"]);
 });
+it("passes the participation query to the workspace without a router provider", async () => {
+  const linked = { ...page.items[0], id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", vacancy: { ...page.items[0].vacancy, title: "Diseño UX" } };
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [page.items[0], linked], next_cursor: null } });
+  render(<CandidateShell>{await PostulacionesPage({ searchParams: Promise.resolve({ postulacion: linked.id }) })}</CandidateShell>);
+  const title = await screen.findByRole("link", { name: "Diseño UX" });
+  expect(title).toHaveAttribute("aria-current", "true");
+});
+it.each([{ postulacion: ["first", "second"] }, { postulacion: undefined }])("ignores ambiguous or missing query values %j", async ({ postulacion }) => {
+  render(<CandidateShell>{await PostulacionesPage({ searchParams: Promise.resolve({ postulacion }) })}</CandidateShell>);
+  expect(await screen.findByRole("link", { name: "Backend Go" })).toHaveAttribute("aria-current", "true");
+});
 it("passes no prototype fixtures and leaves fetching and state in the workspace", () => {
   const source = readFileSync(join(process.cwd(), "src/app/(candidato)/candidato/postulaciones/page.tsx"), "utf8");
-  expect(source).toContain("<ApplicationsWorkspace />");
+  expect(source).toContain("<ApplicationsWorkspace initialApplicationId={initialApplicationId} />");
   expect(source).not.toContain("loadWorkspaceAssessments");
   expect(source).not.toMatch(/prototype-|CANDIDATE_APPLICATIONS|CandidateShell|use client|useEffect|fetch\(/);
 });

@@ -1,15 +1,70 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: async () => ({ ok: true, data: { items: [] } }) }));
-vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn() }));
+vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAction: vi.fn(), markMessageReadAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
-import { loadApplicationsAction } from "@/features/candidate-applications/actions";
+import { loadApplicationsAction, markMessageReadAction } from "@/features/candidate-applications/actions";
 import { page, id } from "@/features/candidate-applications/test-fixtures";
 import { ApplicationsWorkspace } from "./applications-workspace";
-beforeEach(() => { vi.resetAllMocks(); });
-afterEach(cleanup);
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(markMessageReadAction).mockResolvedValue({ ok: true, data: null }); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+const linkedId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const linked = { ...page.items[0], id: linkedId, status: "closed" as const, message: "Gracias por participar", message_read_at: null, updated_at: "2026-10-21T09:00:00Z", vacancy: { ...page.items[0].vacancy, title: "Diseño UX" } };
+it.each([false, true])("opens a linked application and acknowledges only its unread revision (mobile=%s)", async mobile => {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: mobile && query.includes("max-width"), addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [page.items[0], linked], next_cursor: null } });
+  render(<ApplicationsWorkspace initialApplicationId={linkedId} />);
+  const detail = await screen.findByRole(mobile ? "dialog" : "complementary");
+  expect(within(detail).getByRole("heading", { name: "Diseño UX" })).toBeVisible();
+  expect(within(detail).getByText("Gracias por participar")).toBeVisible();
+  await waitFor(() => expect(markMessageReadAction).toHaveBeenCalledExactlyOnceWith(linkedId, { updated_at: linked.updated_at }));
+  if (mobile) await userEvent.setup().click(within(detail).getByRole("button", { name: "Volver a mis postulaciones" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "Backend Go" }));
+  expect(within(screen.getByRole(mobile ? "dialog" : "complementary")).getByRole("heading", { name: "Backend Go" })).toBeVisible();
+  expect(markMessageReadAction).toHaveBeenCalledTimes(1);
+});
+it.each(["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "not-an-id", "", undefined])("keeps the default selection for an unmatched id %s", async initialApplicationId => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [page.items[0], linked], next_cursor: null } });
+  render(<ApplicationsWorkspace initialApplicationId={initialApplicationId} />);
+  const detail = await screen.findByRole("complementary");
+  expect(within(detail).getByRole("heading", { name: "Backend Go" })).toBeVisible();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(markMessageReadAction).not.toHaveBeenCalled();
+});
+it("acknowledges manual opening once, not when an unread row is merely listed", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [page.items[0], linked], next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const row = await screen.findByRole("link", { name: "Diseño UX" });
+  expect(markMessageReadAction).not.toHaveBeenCalled();
+  await userEvent.setup().click(row);
+  await waitFor(() => expect(markMessageReadAction).toHaveBeenCalledExactlyOnceWith(linkedId, { updated_at: linked.updated_at }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "Backend Go" }));
+  await userEvent.setup().click(row);
+  expect(markMessageReadAction).toHaveBeenCalledTimes(1);
+});
+it.each([
+  { message_read_at: "2026-10-21T10:00:00Z", updated_at: linked.updated_at },
+  { message_read_at: undefined, updated_at: linked.updated_at },
+  { message_read_at: null, updated_at: undefined },
+])("does not acknowledge an already read, unknown, or unversioned message %j", async state => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [{ ...linked, ...state }], next_cursor: null } });
+  render(<ApplicationsWorkspace initialApplicationId={linkedId} />);
+  expect(await screen.findByText("Gracias por participar")).toBeVisible();
+  expect(markMessageReadAction).not.toHaveBeenCalled();
+});
+it("leaves unread mobile rows untouched until their detail is opened", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("max-width"), addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [linked], next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const row = await screen.findByRole("link", { name: "Diseño UX" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(markMessageReadAction).not.toHaveBeenCalled();
+  await userEvent.setup().click(row);
+  await screen.findByRole("dialog");
+  await waitFor(() => expect(markMessageReadAction).toHaveBeenCalledExactlyOnceWith(linkedId, { updated_at: linked.updated_at }));
+});
 it("orders compact identity, status and dated detail without duplicating vacancy actions", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
   render(<ApplicationsWorkspace />);

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SavedJobControl } from "@/features/saved-vacancies/save-control";
 import { ArrowRightIcon, GiftIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -42,7 +43,9 @@ export function PublicVacancyCard({ job }: PublicVacancyCardProps) {
       <CardFooter className={PUBLIC_VACANCY_RAIL}>
         <PublicSalary job={job} />
         <div className={PUBLIC_VACANCY_CTA}>
-          <Link href={`/vacantes/${job.id}`} className={cn(buttonVariants(), "min-h-11 px-5")}>Ver vacante<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link>
+          <SavedJobControl jobId={job.id} title={job.title}>
+            <Link href={`/vacantes/${job.id}`} className={cn(buttonVariants(), "min-h-11 px-5")}>Ver vacante<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link>
+          </SavedJobControl>
           <PublicScreeningInfo count={job.screening_questions} />
         </div>
       </CardFooter>

@@ -11,16 +11,17 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
-import { loadApplicationsAction } from "@/features/candidate-applications/actions";
+import { loadApplicationsAction, markMessageReadAction } from "@/features/candidate-applications/actions";
 import type { ApplicationsPage, Failure } from "@/features/candidate-applications/model";
 import type { AccountAssessment } from "@/features/psychometrics/model";
 import { AssessmentsLoading, useWorkspaceAssessments } from "@/features/psychometrics/workspace/mounted";
 import { actionableAssessment, StandaloneAssessments } from "@/features/psychometrics/workspace/assessments";
 import { ApplicationDetail, ApplicationRow, ApplicationsSkeleton } from "@/features/candidate-applications/inbox";
+import { isUnread } from "@/features/candidate/dashboard/insights";
 type Filter = "all" | "attention" | "process" | "closed";
 /** Case- and accent-insensitive comparison key (same rule as the former prototype search). */
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
-export function ApplicationsWorkspace() {
+export function ApplicationsWorkspace({ initialApplicationId }: { initialApplicationId?: string } = {}) {
   const assessments = useWorkspaceAssessments();
   const [data, setData] = useState<ApplicationsPage>();
   const [failure, setFailure] = useState<Failure>();
@@ -29,7 +30,10 @@ export function ApplicationsWorkspace() {
   const locked = useRef(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [selectedId, setSelectedId] = useState<string>();
+  // The URL is an entry hint only; keep subsequent selections local (no router dependency).
+  const [selectedId, setSelectedId] = useState<string | undefined>(initialApplicationId);
+  const initialSelectionHandled = useRef(false);
+  const attemptedReads = useRef(new Set<string>());
   const [mobileOpen, setMobileOpen] = useState(false);
   const returnFocus = useRef<HTMLElement | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -48,7 +52,25 @@ export function ApplicationsWorkspace() {
     media?.addEventListener("change", closeOnDesktop);
     return () => { window.clearInterval(timer); media?.removeEventListener("change", closeOnDesktop); };
   }, []);
+  useEffect(() => {
+    if (initialSelectionHandled.current || !data) return;
+    const linked = data.items.find(item => item.id === initialApplicationId);
+    if (!linked) return;
+    initialSelectionHandled.current = true;
+    // Use the same row activation as a tap, including mobile detail and return focus.
+    const target = document.querySelector<HTMLElement>(`[data-pf-application-row][data-selected="true"] a`);
+    if (target) select(linked, target);
+  }, [data, initialApplicationId]);
+  useEffect(() => {
+    if (!selected || (!mobileOpen && window.matchMedia?.("(max-width: 1023px)").matches)) return;
+    const token = `${selected.id}:${selected.updated_at}`;
+    if (!isUnread(selected) || !selected.updated_at || attemptedReads.current.has(token)) return;
+    attemptedReads.current.add(token);
+    // Acknowledgment uses the exact displayed revision and must never interrupt reading.
+    void markMessageReadAction(selected.id, { updated_at: selected.updated_at }).catch(() => {});
+  }, [selected, mobileOpen]);
   function select(item: ApplicationsPage["items"][number], target: HTMLElement) {
+    initialSelectionHandled.current = true;
     setSelectedId(item.id); returnFocus.current = target;
     if (window.matchMedia?.("(max-width: 1023px)").matches) setMobileOpen(true);
   }

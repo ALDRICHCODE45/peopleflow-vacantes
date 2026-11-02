@@ -1,4 +1,5 @@
 import { Fragment, type ComponentProps, type ReactNode } from "react";
+import { SavedJobControl } from "@/features/saved-vacancies/save-control";
 import { BanknoteIcon, Building2Icon, CalendarDaysIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -104,7 +105,10 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
             {companyLoading ? <div className="flex flex-col gap-3"><Skeleton aria-hidden="true" className="h-5 w-48 max-w-full" /><Skeleton aria-hidden="true" className="h-10 w-full" /></div> : company && job.source !== "legacy" && <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {company.name}.</p></div>}
             <div className="flex flex-col gap-2">
               {/* Legacy catalog rows have no apply endpoint: an honest note, never a dead-end CTA. */}
-              {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : job.source === "legacy" ? <p className="text-sm text-muted-foreground">Esta vacante no recibe postulaciones en línea.</p> : <PublicApplyLink jobId={job.id} />}
+              {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : job.source === "legacy" ? <>
+                <p className="text-sm text-muted-foreground">Esta vacante no recibe postulaciones en línea.</p>
+                <SavedJobControl jobId={job.id} title={job.title} placement="detail" />
+              </> : <SavedJobControl jobId={job.id} title={job.title} placement="detail"><PublicApplyLink jobId={job.id} /></SavedJobControl>}
               {!preview && <PublicShareButton />}
               <PublicApplicants applicants={job.applicants} />
               <PublicScreeningInfo count={job.screening_questions} />
