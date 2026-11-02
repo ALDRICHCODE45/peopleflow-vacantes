@@ -101,6 +101,9 @@ func Resolve(code Code) Definition {
 	case CodeInternalError:
 		return Definition{code, http.StatusInternalServerError, "an internal error occurred"}
 	default:
+		if def, ok := resolveSavedJobError(code); ok {
+			return def
+		}
 		if def, ok := resolveRateLimitError(code); ok {
 			return def
 		}
