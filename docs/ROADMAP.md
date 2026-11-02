@@ -153,6 +153,45 @@ Detalle en `odd/tasks/applications-message-read.md` y `backend/docs/vacancy-appl
   «End-to-end browser QA of the CV library + candidate dashboard redesign».
 - 🔲 **El estado leído no se probó bajo concurrencia real** (el lock `FOR UPDATE` se inspeccionó, no se estresó).
 
+### Vacantes guardadas + `site_slug` de la empresa (mergeado 2026-11-02, pusheado) — pendientes
+
+`/v2/me/saved-jobs*` (migración 00053, límite 200 por candidato) y `site_slug` en `GET /companies/{id}`. Detalle en
+`odd/tasks/saved-jobs-backend.md` (L1–L10), `backend/docs/saved-jobs.md` y el contrato
+`docs/contracts/saved-vacancies-v1.md` (frontend). Pendientes del frontend en `odd/tasks/frontend-backlog.md`.
+Regla del usuario: «hay que guardar las cosas que dejamos para despues o las cosas pendientes, no hay que borralas,
+siempre hay que tenerlas en el radar por favor.» — al entregarse se marcan ✅ SHIPPED con fecha, nunca se borran.
+
+**Antes de producción**
+- 🔲 **Migraciones antes del deploy del frontend**: la 00053 tiene que estar aplicada antes de publicar el frontend de
+  vacantes guardadas (sin la tabla, `/v2/me/saved-jobs*` responde 500). `site_slug` no necesita migración. Ya está aplicada en
+  la base de desarrollo local.
+
+**Robustez / deuda técnica**
+- 🔲 **Down de la 00053 sin lock** (advertencia no bloqueante de la revisión nativa, R4-rollback-retention-race,
+  `backend/db/migrations/00053_saved_jobs.sql:21-26`): el chequeo «no hay filas» no toma un lock de tabla, así que un
+  guardado concurrente podría perderse en el rollback. Opción: `LOCK TABLE saved_jobs IN ACCESS EXCLUSIVE MODE` antes del
+  chequeo, como hace la 00034.
+- 🔲 **`feat/company-site-slug` sin verificación independiente ni revisión nativa** (solo tests unitarios + integración del
+  worker y lectura del parent). `GetPublishedSiteSlug` responde 500 si el repositorio no implementa el puerto (aserción de
+  tipo); en producción sí lo implementa.
+- 🔲 **`GET /v2/jobs` no tiene parámetro para excluir una vacante**: «más vacantes de esta empresa» pide `limit=N+1` y
+  descarta la actual en el cliente. Agregar `exclude_id` si hace falta paginar ese bloque.
+
+**Herramientas / proceso**
+- 🔲 **No hay guía local de sesión de candidato sin Cognito**: el modo `IDENTITY_JWT_MODE=pem` existe (no en producción),
+  pero `docs/local-identity-bootstrap.md` solo cubre empleadores. Documentar llave local + tokens firmados + fila `users`
+  candidata, y considerar un seed de QA (hoy no hay seed de vacantes guardadas).
+- 🔲 **Limpieza local**: rama `qa/saved-jobs-and-site-slug` (no mergeada, a propósito), worktree `.scratch/site-slug`
+  (rama `feat/company-site-slug`), ramas locales ya mergeadas `feat/saved-jobs-backend`, `feat/company-site-slug` y la de
+  este registro `docs/backend-pending` una vez mergeada. Las del frontend (`feat/vacancy-detail-explore`,
+  `feat/saved-vacancies`, `qa/saved-and-detail`) están en su backlog.
+- 🔲 **Fallas preexistentes en `main`**: `scripts/closure/gate` línea 44 (error de sintaxis, ver «Integración silenciosa»
+  arriba) y `archguard` por `docker/minio/Dockerfile`.
+
+**Fuera de alcance v1 (decidido, para más adelante)**
+- 🔲 Notas en una vacante guardada, carpetas, recordatorios o alertas, compartir la lista, conteos visibles para el
+  empleador y guardado desde cuentas de empresa.
+
 ## Stack decidido (no re-discutir)
 
 - Router: **chi** | Datos: **sqlc + pgx/v5** | DI: **manual** | Migraciones: **goose**
