@@ -23,7 +23,7 @@ func TestDiscardRecoveryOwnerPrincipalAndNonprincipal(t *testing.T) {
 			sql  string
 			args []any
 		}{
-			{`UPDATE job_drafts SET principal_recruiter_id=$2 WHERE id=$1`, []any{m.vacancy, m.recruiter}},
+			{replaceFixtureResponsible, []any{m.vacancy, m.recruiter}},
 			{`DELETE FROM company_members WHERE user_id=$1`, []any{other}},
 			{`DELETE FROM users WHERE id=$1`, []any{other}},
 		} {
@@ -55,7 +55,7 @@ func TestDiscardRecoveryOwnerPrincipalAndNonprincipal(t *testing.T) {
 				if _, err := m.pool.Exec(ctx, `UPDATE company_members SET role='owner' WHERE user_id=$1`, m.recruiter); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := m.pool.Exec(ctx, `UPDATE job_drafts SET principal_recruiter_id=$2 WHERE id=$1`, m.vacancy, other); err != nil {
+				if _, err := m.pool.Exec(ctx, replaceFixtureResponsible, m.vacancy, other); err != nil {
 					t.Fatal(err)
 				}
 			}

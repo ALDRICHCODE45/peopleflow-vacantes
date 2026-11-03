@@ -382,7 +382,7 @@ func TestCreate_PersistsDraftIdempotencyAndAudit(t *testing.T) {
 	var companyID, createdBy, principalID uuid.UUID
 	var status string
 	if err := pool.QueryRow(context.Background(),
-		`SELECT company_id, created_by, principal_recruiter_id, status FROM job_drafts WHERE id = $1`, id,
+		`SELECT d.company_id,d.created_by,a.user_id,d.status FROM job_drafts d JOIN vacancy_assignments a ON a.draft_id=d.id JOIN vacancy_assignment_functions f ON f.assignment_id=a.id AND f.ended_at IS NULL AND f.function='responsible' WHERE d.id=$1`, id,
 	).Scan(&companyID, &createdBy, &principalID, &status); err != nil {
 		t.Fatalf("read identity columns: %v", err)
 	}
@@ -751,7 +751,7 @@ func TestSave_ChangeIncrementsVersionAndAudits(t *testing.T) {
 	// Identity columns are immutable across a save.
 	var companyID, createdBy, principalID uuid.UUID
 	if err := pool.QueryRow(context.Background(),
-		`SELECT company_id, created_by, principal_recruiter_id FROM job_drafts WHERE id = $1`, id,
+		`SELECT d.company_id,d.created_by,a.user_id FROM job_drafts d JOIN vacancy_assignments a ON a.draft_id=d.id JOIN vacancy_assignment_functions f ON f.assignment_id=a.id AND f.ended_at IS NULL AND f.function='responsible' WHERE d.id=$1`, id,
 	).Scan(&companyID, &createdBy, &principalID); err != nil {
 		t.Fatalf("read identity columns: %v", err)
 	}
@@ -1067,7 +1067,7 @@ func TestCreate_IdempotencyKeyCanonicalizesUUIDSpellings(t *testing.T) {
 }
 
 // TestCreate_ReplayReauthorizesAddressedDraft proves a replay re-checks
-// owner/principal on the addressed draft (derived from the stored ETag) after
+// owner-or-active-tramo on the addressed draft (derived from the stored ETag) after
 // the general gates and before any conflict/replay return.
 func TestCreate_ReplayReauthorizesAddressedDraft(t *testing.T) {
 	pool := requireDraftPool(t)
@@ -1089,7 +1089,7 @@ func TestCreate_ReplayReauthorizesAddressedDraft(t *testing.T) {
 		t.Fatalf("demote creator: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(),
-		`UPDATE job_drafts SET principal_recruiter_id = $1 WHERE id = $2`,
+		`UPDATE vacancy_assignments SET user_id=$1 WHERE draft_id=$2 AND ended_at IS NULL`,
 		successor, id); err != nil {
 		t.Fatalf("reassign principal: %v", err)
 	}
@@ -1158,7 +1158,8 @@ func TestSave_ConcurrentSameTagOneWins(t *testing.T) {
 func TestCreate_InFlightMembershipRevokeBlocks(t *testing.T) {
 	pool := requireDraftPool(t)
 	p := newPrincipal(t, pool)
-	blocking := &blockingAudit{reached: make(chan struct{}, 1), release: make(chan struct{}, 1)}
+	blocking := &blockingAudit{reached: make(chan struct{}, 1), release: make(chan struct{})}
+	defer blocking.unblock()
 	store := NewStore(pool, blocking)
 
 	ctx := context.Background()
@@ -1204,7 +1205,7 @@ func TestCreate_InFlightMembershipRevokeBlocks(t *testing.T) {
 		t.Errorf("membership must survive the blocked revoke, got %d rows", got)
 	}
 
-	blocking.release <- struct{}{}
+	blocking.unblock()
 	if err := <-done; err != nil {
 		t.Fatalf("blocked create: %v", err)
 	}
@@ -1344,10 +1345,20 @@ func addAuditRejectRule(t *testing.T, pool *pgxpool.Pool, eventType string, enti
 type blockingAudit struct {
 	reached chan struct{}
 	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingAudit) unblock() {
+	b.once.Do(func() { close(b.release) })
 }
 
 func (b *blockingAudit) Append(context.Context, pgx.Tx, entities.AuditEvent) error {
-	b.reached <- struct{}{}
+	select {
+	case b.reached <- struct{}{}:
+	default:
+	}
+	// A create transaction may append several events. Once the lock assertion
+	// releases it, every subsequent append must be able to finish too.
 	<-b.release
 	return nil
 }
@@ -1378,11 +1389,26 @@ func canonicalCreateFingerprint(t *testing.T, body []byte) []byte {
 func seedDraftRow(t *testing.T, pool *pgxpool.Pool, companyID, actorID, draftID uuid.UUID, fields []byte) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO job_drafts (id, company_id, created_by, principal_recruiter_id, status, version, fields)
-		 VALUES ($1, $2, $3, $3, 'draft', 1, $4)`,
+		`INSERT INTO job_drafts (id, company_id, created_by, status, version, fields)
+		 VALUES ($1, $2, $3, 'draft', 1, $4)`,
 		draftID, companyID, actorID, fields,
 	); err != nil {
 		t.Fatalf("seed draft row: %v", err)
+	}
+	tx, err := pool.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	record, _, err := readDraft(context.Background(), tx, companyID, draftID, false, actorID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := newStore(t, pool).createTeam(context.Background(), tx, record, actorID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 

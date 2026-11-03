@@ -9,7 +9,7 @@ replay stays byte-original after a valid save.
 
 ## Store order
 
-General gates, then the scoped row `FOR UPDATE`, then owner-or-principal
+General gates, then the scoped row `FOR UPDATE`, then owner-or-active-tramo
 authorization, then full persisted v2 validation, then
 `ParseIfMatchV2`/`mapPreconditionError`/`Compare`, then
 `DecodePatchV2`/`mapInputError`. Resource and schema errors always precede

@@ -47,7 +47,7 @@ import (
 const createOperation = "create"
 
 // roleOwner is the membership role that may read and save any draft in its
-// company (alongside the draft principal).
+// company (alongside active members of each vacancy's team).
 const roleOwner = "owner"
 
 // timestampLayout renders server timestamps as UTC RFC3339 with microseconds.
@@ -72,15 +72,16 @@ var _ drafts.Store = (*Store)(nil)
 
 // draftRecord is one job_drafts row projected into Go values.
 type draftRecord struct {
-	id          uuid.UUID
-	companyID   uuid.UUID
-	createdBy   uuid.UUID
-	principalID uuid.UUID
-	status      string
-	version     int64
-	fields      []byte
-	createdAt   time.Time
-	updatedAt   time.Time
+	id               uuid.UUID
+	companyID        uuid.UUID
+	createdBy        uuid.UUID
+	principalID      uuid.UUID // Compatibility projection from the open responsible function, never an access grant.
+	activeTeamMember bool
+	status           string
+	version          int64
+	fields           []byte
+	createdAt        time.Time
+	updatedAt        time.Time
 }
 
 // authContext carries the live membership role read under the transaction locks.
@@ -177,12 +178,15 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 		fields:      fingerprint,
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO job_drafts (id, company_id, created_by, principal_recruiter_id, status, version, fields)
-		 VALUES ($1, $2, $3, $4, 'draft', 1, $5)
+		`INSERT INTO job_drafts (id, company_id, created_by, status, version, fields)
+		 VALUES ($1, $2, $3, 'draft', 1, $4)
 		 RETURNING created_at, updated_at`,
-		draftID, companyID, actorID, actorID, fingerprint,
+		draftID, companyID, actorID, fingerprint,
 	).Scan(&record.createdAt, &record.updatedAt); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert draft: %w", err)
+	}
+	if err := s.createTeam(ctx, tx, record, actorID); err != nil {
+		return drafts.Result{}, err
 	}
 
 	responseBody, err := renderGeoEnvelope(ctx, tx, record, name)
@@ -215,7 +219,7 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 }
 
 // Get implements drafts.Store.Get. It re-evaluates the general gates, reads the
-// addressed draft scoped to the session company, enforces owner-or-principal
+// addressed draft scoped to the session company, enforces owner-or-active-tramo
 // and renders the current read envelope.
 func (s *Store) Get(ctx context.Context, companyID, actorID, id uuid.UUID) (drafts.Result, error) {
 	tx, err := s.pool.Begin(ctx)
@@ -229,12 +233,12 @@ func (s *Store) Get(ctx context.Context, companyID, actorID, id uuid.UUID) (draf
 		return drafts.Result{}, err
 	}
 
-	record, found, err := readDraft(ctx, tx, companyID, id, false)
+	record, found, err := readDraft(ctx, tx, companyID, id, false, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.Result{}, drafts.ErrNotFound
+		return drafts.Result{}, draftAccessError(ctx, tx, actorID, record, found)
 	}
 
 	if err := requireV1ReadSchema(record.fields); err != nil {
@@ -273,12 +277,12 @@ func (s *Store) Save(ctx context.Context, companyID, actorID, id uuid.UUID, ifMa
 		return drafts.Result{}, err
 	}
 
-	record, found, err := readDraft(ctx, tx, companyID, id, true)
+	record, found, err := readDraft(ctx, tx, companyID, id, true, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.Result{}, drafts.ErrNotFound
+		return drafts.Result{}, draftAccessError(ctx, tx, actorID, record, found)
 	}
 
 	// The stored schema version is checked after resource authorization and
@@ -420,13 +424,13 @@ func (s *Store) lockGates(ctx context.Context, tx pgx.Tx, companyID, actorID uui
 }
 
 // authorized reports whether auth may read or save record: the company owner or
-// the draft principal. The creator (createdBy) alone is intentionally NOT
-// sufficient; principal reassignment is a future concern.
-func authorized(auth authContext, actorID uuid.UUID, record draftRecord) bool {
-	return auth.role == roleOwner || actorID == record.principalID
+// an active tramo on the vacancy's team. The creator (createdBy) alone is
+// intentionally NOT sufficient.
+func authorized(auth authContext, _ uuid.UUID, record draftRecord) bool {
+	return auth.role == roleOwner || record.activeTeamMember
 }
 
-// authorizeAddressedDraft re-checks owner/principal on the draft addressed by an
+// authorizeAddressedDraft re-checks owner-or-active-tramo on the draft addressed by an
 // idempotency record's stored ETag, then gates that same current row on its
 // stored schema version before the caller evaluates the persisted fingerprint.
 // The draft id comes from the server-issued ETag, never from client input, and
@@ -445,12 +449,12 @@ func authorizeAddressedDraft(ctx context.Context, tx pgx.Tx, auth authContext, a
 	if err != nil {
 		return fmt.Errorf("parse stored idempotency draft id: %w", err)
 	}
-	record, found, err := readDraft(ctx, tx, companyID, draftID, false)
+	record, found, err := readDraft(ctx, tx, companyID, draftID, false, actorID)
 	if err != nil {
 		return err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.ErrNotFound
+		return draftAccessError(ctx, tx, actorID, record, found)
 	}
 	// The current row's schema is gated after resource authorization and before
 	// the persisted fingerprint is evaluated, so a known foreign schema is
@@ -464,17 +468,25 @@ func authorizeAddressedDraft(ctx context.Context, tx pgx.Tx, auth authContext, a
 
 // readDraft loads one draft scoped to the session company. When lock is true the
 // row is taken FOR UPDATE for the save path.
-func readDraft(ctx context.Context, tx pgx.Tx, companyID, id uuid.UUID, lock bool) (draftRecord, bool, error) {
-	query := `SELECT id, company_id, created_by, principal_recruiter_id, status, version, fields, created_at, updated_at
-	            FROM job_drafts WHERE id = $1 AND company_id = $2`
+func readDraft(ctx context.Context, tx pgx.Tx, companyID, id uuid.UUID, lock bool, actors ...uuid.UUID) (draftRecord, bool, error) {
+	actor := uuid.Nil
+	if len(actors) > 0 {
+		actor = actors[0]
+	}
+	query := `SELECT d.id, d.company_id, d.created_by,
+ COALESCE((SELECT a.user_id FROM vacancy_assignments a JOIN vacancy_assignment_functions f ON f.assignment_id=a.id
+ WHERE a.draft_id=d.id AND a.ended_at IS NULL AND f.ended_at IS NULL AND f.function='responsible'), '00000000-0000-0000-0000-000000000000'::uuid),
+ d.status, d.version, d.fields, d.created_at, d.updated_at,
+ EXISTS(SELECT 1 FROM vacancy_assignments a WHERE a.draft_id=d.id AND a.user_id=$3 AND a.ended_at IS NULL)
+ FROM job_drafts d WHERE d.id=$1 AND d.company_id=$2`
 	if lock {
 		query += " FOR UPDATE"
 	}
 
 	var record draftRecord
-	err := tx.QueryRow(ctx, query, id, companyID).Scan(
+	err := tx.QueryRow(ctx, query, id, companyID, actor).Scan(
 		&record.id, &record.companyID, &record.createdBy, &record.principalID,
-		&record.status, &record.version, &record.fields, &record.createdAt, &record.updatedAt,
+		&record.status, &record.version, &record.fields, &record.createdAt, &record.updatedAt, &record.activeTeamMember,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return draftRecord{}, false, nil

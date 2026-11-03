@@ -333,7 +333,7 @@ func TestFulfillmentStatusPreviewAuthorizationAndValidationNoWrites(t *testing.T
 	}
 	// Use a separate unpublished draft to retain this fixture's real participation.
 	id := uuid.New()
-	if _, err := m.pool.Exec(ctx, `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, id, m.vacancy); err != nil {
+	if _, err := m.pool.Exec(ctx, cloneDraftWithTeam, id, m.vacancy); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.drafts.GetDeliveryStatus(ctx, m.company, m.recruiter, id); !errors.Is(err, fulfillment.ErrNotPublished) {

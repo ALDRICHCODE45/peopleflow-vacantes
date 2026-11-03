@@ -19,6 +19,7 @@ import (
 
 var (
 	ErrNotFound             = errors.New("participation not found")
+	ErrTeamAccessEnded      = errors.New("team access ended")
 	ErrInvalidRequest       = errors.New("invalid movement request")
 	ErrValidation           = errors.New("invalid stage movement")
 	ErrPreconditionRequired = errors.New("participation precondition required")

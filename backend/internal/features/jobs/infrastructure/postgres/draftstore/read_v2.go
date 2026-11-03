@@ -28,12 +28,12 @@ func (s *Store) GetV2(ctx context.Context, companyID, actorID, id uuid.UUID) (dr
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	record, found, err := readDraft(ctx, tx, companyID, id, false)
+	record, found, err := readDraft(ctx, tx, companyID, id, false, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.Result{}, drafts.ErrNotFound
+		return drafts.Result{}, draftAccessError(ctx, tx, actorID, record, found)
 	}
 	if err := requireV2ReadDocument(record.fields); err != nil {
 		return drafts.Result{}, err

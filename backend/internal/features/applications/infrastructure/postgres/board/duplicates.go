@@ -41,7 +41,7 @@ func (s *Store) DuplicatesCheck(ctx context.Context, company, actor, id uuid.UUI
 		return out, err
 	}
 	defer tx.Rollback(ctx)
-	// Same live company/member and owner-or-principal authorization as board.
+	// Same live company/member and owner-or-active-tramo authorization as board.
 	// Unlike a write, duplicate lookup also works before publication or after finish.
 	if _, err = s.vacancy.Load(ctx, tx, company, actor, id); err != nil {
 		return out, err

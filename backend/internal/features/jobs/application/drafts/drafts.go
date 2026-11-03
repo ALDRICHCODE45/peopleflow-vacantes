@@ -111,6 +111,8 @@ var (
 	// company, or the caller is neither its owner nor its principal. All four
 	// shapes are indistinguishable. HTTP projection: 404 not_found.
 	ErrNotFound = errors.New("drafts: draft not found")
+	// ErrTeamAccessEnded is a not-found response for a caller with only ended tramos.
+	ErrTeamAccessEnded = errors.New("drafts: team access ended")
 	// ErrPayloadTooLarge means the raw request body exceeded the draft body
 	// budget. HTTP projection: 413 payload_too_large. A field-limit violation
 	// is ErrValidation (400), never this error.

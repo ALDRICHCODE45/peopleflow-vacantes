@@ -123,8 +123,8 @@ func (h *DraftHandler) createDraft(w http.ResponseWriter, r *http.Request) {
 // getDraft implements GET /me/company/job-drafts/{id}.
 //
 // Flow: CompanyContext -> lexical path UUID -> store.Get. Authorization and
-// the owner-or-principal rule live in the store, which collapses missing,
-// cross-company and non-principal drafts to NotFound.
+// the owner-or-active-tramo rule live in the store, which collapses missing,
+// cross-company and unauthorized drafts to NotFound.
 func (h *DraftHandler) getDraft(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -295,6 +295,8 @@ func classifyDraftError(err error) httpjson.Definition {
 		return httpjson.Resolve(httpjson.CodeCompanyInactive)
 	case errors.Is(err, drafts.ErrCompanyNotActive):
 		return httpjson.Resolve(httpjson.CodeCompanyNotActive)
+	case errors.Is(err, drafts.ErrTeamAccessEnded):
+		return httpjson.Resolve(httpjson.CodeTeamAccessEnded)
 	case errors.Is(err, drafts.ErrNotFound):
 		return httpjson.Resolve(httpjson.CodeNotFound)
 	case errors.Is(err, drafts.ErrPayloadTooLarge):

@@ -172,7 +172,7 @@ func TestDiscardRecoveryAuthorizationAndRejectionsOverHTTP(t *testing.T) {
 	}
 	// A real authorized draft cannot accept either operation, before item/tag checks.
 	draft := uuid.New()
-	if _, err := a.pool.Exec(context.Background(), `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, draft, a.vacancy); err != nil {
+	if _, err := a.pool.Exec(context.Background(), cloneDraftWithTeam, draft, a.vacancy); err != nil {
 		t.Fatal(err)
 	}
 	for _, op := range []string{"discard", "recover"} {

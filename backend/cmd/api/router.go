@@ -50,6 +50,7 @@ type routerDeps struct {
 	jobHandler           *jobshttp.JobHandler
 	draftHandler         *jobshttp.DraftHandler
 	draftV2Handler       *jobshttp.DraftV2Handler
+	teamHandler          *jobshttp.TeamHandler
 	dashboardHandler     *jobshttp.DashboardHandler
 	draftListHandler     *jobshttp.DraftListHandler
 	pipelineHandler      *jobshttp.PipelineHandler
@@ -241,8 +242,8 @@ func newRouter(d routerDeps) chi.Router {
 	// subtree) so the no-store middleware runs BEFORE the auth gates: a 401/403
 	// produced by requireAuth/requireRecruiter must be as uncacheable as a
 	// handler 404/412/428. The same requireAuth + requireRecruiter gates apply;
-	// the finer owner-or-principal rule lives in the store, which collapses a
-	// non-principal or foreign draft to 404 after the general gates.
+	// the finer owner-or-active-tramo rule lives in the store, which collapses
+	// unauthorized or foreign drafts to 404 after the general gates.
 	draftHandlers := d.draftHandler.DraftHandlers()
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
@@ -263,10 +264,12 @@ func newRouter(d routerDeps) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
-		// The list applies the same owner-or-principal rule in the store.
+		// The list applies the same owner-or-active-tramo rule in the store.
 		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
 		r.Get("/v2/me/company/dashboard", d.dashboardHandler.Get)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
+		r.Get("/v2/me/company/job-drafts/{id}/team", d.teamHandler.Get)
+		r.Get("/v2/me/company/job-drafts/{id}/team/history", d.teamHandler.History)
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
 		r.Get("/v2/me/company/job-drafts/{id}/board", d.movementHandler.Board)
 		r.Post("/v2/me/company/job-drafts/{id}/pipeline/candidates/manual/duplicates-check", d.movementHandler.DuplicatesCheck)

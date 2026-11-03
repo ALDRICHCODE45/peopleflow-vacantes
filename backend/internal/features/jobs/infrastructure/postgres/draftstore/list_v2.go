@@ -13,9 +13,9 @@ import (
 
 var _ draftlist.Lister = (*Store)(nil)
 
-// visibleV2Drafts is the shared list/dashboard owner-or-principal scope.
+// visibleV2Drafts is the shared list/dashboard owner-or-active-tramo scope.
 // The draft alias and the first three parameters are deliberately identical.
-const visibleV2Drafts = `d.company_id = $1 AND ($2::boolean OR d.principal_recruiter_id = $3)
+const visibleV2Drafts = `d.company_id = $1 AND ($2::boolean OR EXISTS (SELECT 1 FROM vacancy_assignments a WHERE a.draft_id=d.id AND a.user_id=$3 AND a.ended_at IS NULL))
  AND convert_from(d.fields,'UTF8')::jsonb->>'schema_version' = '2'`
 
 // ListV2 lists only visible schema-2 drafts, using the session scope even when
@@ -35,11 +35,13 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 
 	// Materialize the existing visible keyset page first. All participation
 	// aggregation is restricted to those IDs, in this same SQL statement/snapshot.
-	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields, d.principal_recruiter_id, u.full_name,
+	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields, COALESCE(responsible.user_id,'00000000-0000-0000-0000-000000000000'::uuid), u.full_name,
  d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at, p.paused_at, p.closed_at, p.process_finished_at,
  c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note
  FROM job_drafts d
- LEFT JOIN users u ON u.id = d.principal_recruiter_id AND u.deleted_at IS NULL
+ LEFT JOIN LATERAL (SELECT a.user_id FROM vacancy_assignments a JOIN vacancy_assignment_functions f ON f.assignment_id=a.id
+ WHERE a.draft_id=d.id AND a.ended_at IS NULL AND f.ended_at IS NULL AND f.function='responsible') responsible ON true
+ LEFT JOIN users u ON u.id = responsible.user_id AND u.deleted_at IS NULL
  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
  LEFT JOIN job_draft_pipeline_configs c ON c.draft_id = d.id
  LEFT JOIN LATERAL (
@@ -49,7 +51,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
  ) last_close ON true
  WHERE ` + visibleV2Drafts
 	// Same rule as authorized(): the owner sees every draft, others only
-	// their principal drafts.
+	// drafts on whose team they hold an active tramo.
 	args := []any{companyID, auth.role == roleOwner, actorID}
 	if req.After != nil {
 		query += ` AND (d.updated_at, d.id) < ($4::timestamptz, $5::uuid)`

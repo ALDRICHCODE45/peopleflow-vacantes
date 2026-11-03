@@ -22,6 +22,7 @@ func TestMovementContextGateErrorTranslation(t *testing.T) {
 		{"inactive company", drafts.ErrCompanyInactive, app.ErrCompanyInactive, 403, "company_inactive"},
 		{"nonactive company", drafts.ErrCompanyNotActive, app.ErrCompanyNotActive, 409, "company_not_active"},
 		{"hidden draft", drafts.ErrNotFound, app.ErrNotFound, 404, "not_found"},
+		{"ended team access", drafts.ErrTeamAccessEnded, app.ErrTeamAccessEnded, 404, "team_access_ended"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			translated := movementContextError(fmt.Errorf("live gate: %w", tc.from))

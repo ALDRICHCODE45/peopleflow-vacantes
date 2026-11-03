@@ -73,11 +73,14 @@ func (s *Store) CreateV2(ctx context.Context, companyID, actorID uuid.UUID, key 
 	draftID := uuid.Must(uuid.NewV7())
 	record := draftRecord{id: draftID, companyID: companyID, createdBy: actorID, principalID: actorID, status: "draft", version: 1, fields: fingerprint}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO job_drafts (id, company_id, created_by, principal_recruiter_id, status, version, fields)
-   VALUES ($1, $2, $3, $4, 'draft', 1, $5) RETURNING created_at, updated_at`,
-		draftID, companyID, actorID, actorID, fingerprint,
+		`INSERT INTO job_drafts (id, company_id, created_by, status, version, fields)
+   VALUES ($1, $2, $3, 'draft', 1, $4) RETURNING created_at, updated_at`,
+		draftID, companyID, actorID, fingerprint,
 	).Scan(&record.createdAt, &record.updatedAt); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert v2 draft: %w", err)
+	}
+	if err := s.createTeam(ctx, tx, record, actorID); err != nil {
+		return drafts.Result{}, err
 	}
 	responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name)
 	if err != nil {
@@ -117,12 +120,12 @@ func authorizeAddressedDraftV2(ctx context.Context, tx pgx.Tx, auth authContext,
 	if err != nil {
 		return fmt.Errorf("parse stored v2 idempotency draft id: %w", err)
 	}
-	record, found, err := readDraft(ctx, tx, companyID, draftID, false)
+	record, found, err := readDraft(ctx, tx, companyID, draftID, false, actorID)
 	if err != nil {
 		return err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.ErrNotFound
+		return draftAccessError(ctx, tx, actorID, record, found)
 	}
 	return requireV2ReadDocument(record.fields)
 }

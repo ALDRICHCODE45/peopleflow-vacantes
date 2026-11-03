@@ -178,7 +178,7 @@ func TestMovementAuthorizationDraftAndCVIsolation(t *testing.T) {
 			}
 		})
 	}
-	if _, err := m.pool.Exec(ctx, `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, draft, m.vacancy); err != nil {
+	if _, err := m.pool.Exec(ctx, cloneDraftWithTeam, draft, m.vacancy); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.board.Board(ctx, m.company, m.recruiter, draft); !errors.Is(err, board.ErrNotPublished) {
@@ -281,7 +281,7 @@ func TestMovementEmptyPipelineStructureRemainsEditable(t *testing.T) {
 	d := audit.NewAuditEventRepository()
 	s := movementContext{draftstore.NewStore(f.pool, d)}
 	var actor uuid.UUID
-	if err := f.pool.QueryRow(ctx, `SELECT principal_recruiter_id FROM job_drafts WHERE id=$1`, f.vacancy).Scan(&actor); err != nil {
+	if err := f.pool.QueryRow(ctx, fixtureResponsibleQuery, f.vacancy).Scan(&actor); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(ctx, `INSERT INTO company_members(id,company_id,user_id,role) VALUES($1,$2,$3,'owner')`, uuid.New(), f.company, actor); err != nil {

@@ -120,7 +120,7 @@ func TestManualDuplicatesExactMatchesMasksOrderingAndScope(t *testing.T) {
 func TestManualDuplicatesLatestCompanyParticipationAndAbsentContacts(t *testing.T) {
 	m := manualReadFixture(t, false)
 	other := uuid.New()
-	duplicateExec(t, m, `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, other, m.vacancy)
+	duplicateExec(t, m, cloneDraftWithTeam, other, m.vacancy)
 	duplicateExec(t, m, `INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) SELECT $1,company_id,status,published_at,published_by FROM vacancy_processes WHERE id=$2`, other, m.vacancy)
 	duplicateExec(t, m, `INSERT INTO vacancy_public_projections(id,title,company_id,description,description_plain,work_mode,work_schedule,contract_type,professional_area,seniority,required_requirements,preferred_requirements,benefits,compensation,published_at,source_draft_version,skills,screening_questions,country_code,state_code,municipality_code,postal_code,remote_scope_kind,remote_countries,requirements_profile) SELECT $1,'Latest role',company_id,description,description_plain,work_mode,work_schedule,contract_type,professional_area,seniority,required_requirements,preferred_requirements,benefits,compensation,published_at,source_draft_version,skills,screening_questions,country_code,state_code,municipality_code,postal_code,remote_scope_kind,remote_countries,requirements_profile FROM vacancy_public_projections WHERE id=$2`, other, m.vacancy)
 	// Move the sole participation to the other company process: the identity is
@@ -209,9 +209,9 @@ func TestManualDuplicatesAuthorizationAndErrorBodies(t *testing.T) {
 			}
 		})
 	}
-	// Live membership and owner-or-principal checks still run on this read.
+	// Live membership and owner-or-active-tramo checks still run on this read.
 	duplicateExec(t, m, `UPDATE company_members SET role='recruiter' WHERE company_id=$1 AND user_id=$2`, m.company, m.recruiter)
-	duplicateExec(t, m, `UPDATE job_drafts SET principal_recruiter_id=$2 WHERE id=$1`, m.vacancy, m.actor)
+	duplicateExec(t, m, replaceFixtureResponsible, m.vacancy, m.actor)
 	w := duplicateRequest(t, m, m.vacancy, `{"email":"a@example.test","phone":null}`)
 	if w.Code != 404 {
 		t.Fatal(w.Code, w.Body.String())

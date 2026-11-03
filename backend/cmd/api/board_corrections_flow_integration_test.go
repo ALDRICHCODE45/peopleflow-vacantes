@@ -78,7 +78,7 @@ func TestBoardCorrectionsFlow(t *testing.T) {
 			// Like E3, original downloads work even before a correction.
 			boardCorrectionFile(t, f, path+"/cv", "%PDF-original", "original.pdf.pdf", "application/pdf")
 			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf.pdf", "application/pdf")
-			// The ordinary recruiter can edit the pool, but board reads stay owner/principal scoped.
+			// The ordinary recruiter can edit the pool, but board reads stay owner-or-active-tramo scoped.
 			for _, suffix := range []string{"", "/cv", "/cv/original"} {
 				for _, actor := range []draftFlowActor{f.recruiter, f.foreign} {
 					r := f.h.do(t, "GET", path+suffix, "", actor.token, nil)

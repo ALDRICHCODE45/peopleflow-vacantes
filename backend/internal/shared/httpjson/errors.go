@@ -82,6 +82,8 @@ func Resolve(code Code) Definition {
 		return Definition{code, http.StatusForbidden, "company is inactive"}
 	case CodeNotFound:
 		return Definition{code, http.StatusNotFound, "not found"}
+	case CodeTeamAccessEnded:
+		return Definition{code, http.StatusNotFound, "team access ended"}
 	case CodeConflict:
 		return Definition{code, http.StatusConflict, "resource conflict"}
 	case CodeCompanyNotActive:

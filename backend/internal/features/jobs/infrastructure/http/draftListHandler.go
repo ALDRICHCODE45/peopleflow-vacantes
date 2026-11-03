@@ -15,7 +15,7 @@ const draftListTimestampLayout = "2006-01-02T15:04:05.000000Z"
 
 // DraftListHandler serves GET /v2/me/company/job-drafts. Identity comes only
 // from the session company context; the store re-checks it transactionally
-// and applies the owner-or-principal visibility rule.
+// and applies the owner-or-active-tramo visibility rule.
 type DraftListHandler struct {
 	lister draftlist.Lister
 }

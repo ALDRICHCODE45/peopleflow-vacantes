@@ -96,7 +96,7 @@ func (f *fixture) legacy() uuid.UUID {
 func (f *fixture) vacancy() uuid.UUID {
 	f.t.Helper()
 	id := uuid.New()
-	f.exec(`INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) VALUES($1,$2,$3,$3,'{}')`, id, f.company, f.actor)
+	f.exec(`INSERT INTO job_drafts(id,company_id,created_by,fields) VALUES($1,$2,$3,'{}')`, id, f.company, f.actor)
 	f.exec(`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',now(),$3)`, id, f.company, f.actor)
 	f.exec(`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions,requirements_profile) VALUES($1,$2,'Engineer','Role','remote','full_time','indefinite','technology_systems','{}',now(),1,ARRAY[]::text[],0,'{"languages":[],"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false}')`, id, f.company)
 	return id
@@ -142,7 +142,7 @@ func TestSaveEvaluationOrderAndRejections(t *testing.T) {
 		reject(v, app.ErrUnavailable)
 	}
 	draft := uuid.New()
-	f.exec(`INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) VALUES($1,$2,$3,$3,'{}')`, draft, f.company, f.actor)
+	f.exec(`INSERT INTO job_drafts(id,company_id,created_by,fields) VALUES($1,$2,$3,'{}')`, draft, f.company, f.actor)
 	reject(draft, app.ErrNotFound)
 	f.exec(`UPDATE vacancy_processes SET status='published' WHERE id=$1`, v)
 	for _, q := range []string{`UPDATE companies SET status='suspended' WHERE id=$1`, `UPDATE companies SET status='active',deleted_at=now() WHERE id=$1`} {

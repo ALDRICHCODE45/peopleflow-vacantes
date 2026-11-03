@@ -333,7 +333,7 @@ func TestMovementReorderedBuiltinsUseCurrentOrder(t *testing.T) {
 	// A second, still-unpublished vacancy has no participations. Keep the original
 	// fixture intact so cleanup and retained-CV assertions remain independent.
 	id := uuid.New()
-	if _, err := m.pool.Exec(ctx, `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, id, m.vacancy); err != nil {
+	if _, err := m.pool.Exec(ctx, cloneDraftWithTeam, id, m.vacancy); err != nil {
 		t.Fatal(err)
 	}
 	original := m.vacancy

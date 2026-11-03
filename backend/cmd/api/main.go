@@ -288,7 +288,7 @@ func run() error {
 	// Private vacancy drafts wiring: the pool-owning draft store opens one
 	// transaction per operation so authorization, the draft write, its audit
 	// event and (for create) the idempotency record commit atomically. The
-	// store owns the owner-or-principal rule and every precondition; the HTTP
+	// store owns the owner-or-active-tramo rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
 	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode).WithStageEntryHook(newPsychometricStageEntryHook(draftStore))).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(movementStorage))).WithManualCVPorts(manualCVInspector{}, manualStorage)
@@ -369,6 +369,7 @@ func run() error {
 		companyHandler:       companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
+		teamHandler:        jobshttp.NewTeamHandler(draftStore),
 		dashboardHandler:   jobshttp.NewDashboardHandler(dashboardapp.NewService(draftstore.NewDashboardStore(draftStore, dashboardPoolAdded), time.Now)),
 		pipelineHandler:    pipelineHandler,
 		substatesHandler:   substatesHandler,

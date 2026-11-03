@@ -278,7 +278,7 @@ func TestSubstateRejectsWithoutAnyEffects(t *testing.T) {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
 	draft := uuid.New()
-	if _, err = m.pool.Exec(context.Background(), `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, draft, m.vacancy); err != nil {
+	if _, err = m.pool.Exec(context.Background(), cloneDraftWithTeam, draft, m.vacancy); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = m.pool.Exec(context.Background(), `DELETE FROM job_drafts WHERE id=$1`, draft) })

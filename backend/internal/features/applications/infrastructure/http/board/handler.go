@@ -35,6 +35,8 @@ func writeError(w http.ResponseWriter, err error) {
 	case errors.As(err, &finished):
 		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeProcessFinished), finished)
 		return
+	case errors.Is(err, app.ErrTeamAccessEnded):
+		code = httpjson.CodeTeamAccessEnded
 	case errors.Is(err, app.ErrNotFound):
 		code = httpjson.CodeNotFound
 	case errors.Is(err, app.ErrUnauthenticated):

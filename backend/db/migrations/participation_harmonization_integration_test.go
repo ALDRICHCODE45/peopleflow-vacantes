@@ -173,7 +173,8 @@ func TestMigration00043SnapshotRewriteChecksAndGuardedDown(t *testing.T) {
 func TestMigration00043DownLocksBeforeGuard(t *testing.T) {
 	db, pool, cleanup := isolatedMigrationDB(t)
 	defer cleanup()
-	gooseUpAll(t, db)
+	// This historical rollback race targets exactly schema 43.
+	gooseDownTo(t, db, 43)
 	ctx := context.Background()
 	_, company, actor := seedPrereqs(ctx, t, pool)
 	process, id, user, cv := uuid.New(), uuid.New(), uuid.New(), uuid.New()

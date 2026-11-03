@@ -171,7 +171,7 @@ func TestCreateV2_ReplayAuthorizationAndSchema(t *testing.T) {
 					t.Fatal(err)
 				}
 				member := addMember(t, pool, p.companyID, "recruiter")
-				if _, err := pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$1 WHERE id=$2`, member, id); err != nil {
+				if _, err := pool.Exec(context.Background(), `UPDATE vacancy_assignments SET user_id=$1 WHERE draft_id=$2 AND ended_at IS NULL`, member, id); err != nil {
 					t.Fatal(err)
 				}
 			} else {

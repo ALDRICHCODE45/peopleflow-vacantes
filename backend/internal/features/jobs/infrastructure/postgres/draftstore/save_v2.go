@@ -20,7 +20,7 @@ import (
 var _ drafts.V2Saver = (*Store)(nil)
 
 // SaveV2 implements drafts.V2Saver.SaveV2. The store order is fixed: general
-// gates, scoped row FOR UPDATE, owner/principal authorization, full persisted
+// gates, scoped row FOR UPDATE, owner-or-active-tramo authorization, full persisted
 // v2 validation, r2 precondition, patch decode, schema-2 merge, then the CAS
 // write with its co-written audit event. Resource and schema errors precede
 // precondition and body errors, and every error returns a zero Result.
@@ -35,12 +35,12 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	record, found, err := readDraft(ctx, tx, companyID, id, true)
+	record, found, err := readDraft(ctx, tx, companyID, id, true, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.Result{}, drafts.ErrNotFound
+		return drafts.Result{}, draftAccessError(ctx, tx, actorID, record, found)
 	}
 	// Schema gate after authorization and before precondition/body: a known
 	// v1 row is hidden, while a corrupt or unknown marker and an invalid

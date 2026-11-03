@@ -288,6 +288,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 		siteHandler:          newCompanySiteHandler(pool, auditRepo, nil),
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,
+		teamHandler:          jobshttp.NewTeamHandler(store),
 		draftListHandler:     jobshttp.NewDraftListHandler(store),
 		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(files))).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		pipelineHandler:      jobshttp.NewPipelineHandler(store),
@@ -1728,7 +1729,7 @@ func TestDraftFlow_ReplayAuthorizationPrecedesCurrentRowGate(t *testing.T) {
 	if _, err := h.pool.Exec(context.Background(), `UPDATE company_members SET role = 'recruiter' WHERE user_id = $1 AND company_id = $2`, ownerID, company.companyID); err != nil {
 		t.Fatalf("demote owner to non-owner role: %v", err)
 	}
-	if _, err := h.pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$1 WHERE id=$2`, peerID, id); err != nil {
+	if _, err := h.pool.Exec(context.Background(), `UPDATE vacancy_assignments SET user_id=$1 WHERE draft_id=$2 AND ended_at IS NULL`, peerID, id); err != nil {
 		t.Fatalf("transfer draft principal: %v", err)
 	}
 	// A corrupt current-row marker would be a 500 once the schema gate runs; the

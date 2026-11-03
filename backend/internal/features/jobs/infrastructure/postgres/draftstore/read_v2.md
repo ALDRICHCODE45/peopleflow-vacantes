@@ -8,7 +8,7 @@ existing Store interface and v1 methods are unchanged. The production GET
 
 The method fixes the expected schema to 2; no client parameter, configuration
 switch or stored-row dispatch selects the expected version. Live user/company/
-membership gates and tenant-scoped owner-or-principal authorization run before
+membership gates and tenant-scoped owner-or-active-tramo authorization run before
 schema inspection. A known v1 document returns `drafts.ErrNotFound`; unknown or
 corrupt schema markers and invalid persisted v2 values are server invariant
 errors, not client validation failures. Errors always return a zero Result.

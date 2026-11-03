@@ -8,7 +8,7 @@ import (
 )
 
 // poolStageNames bridges jobs' current pipeline projection, without the board's
-// owner-or-principal authorization. The list's SQL already scopes every row.
+// owner-or-active-tramo authorization. The list's SQL already scopes every row.
 func poolStageNames(id uuid.UUID, raw json.RawMessage) (map[string]string, error) {
 	config := pipelineconfig.Defaults(id)
 	if len(raw) > 0 && string(raw) != "null" {

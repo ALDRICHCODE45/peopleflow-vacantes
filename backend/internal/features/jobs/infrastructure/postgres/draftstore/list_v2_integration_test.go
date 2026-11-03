@@ -21,7 +21,8 @@ import (
 // Explicit timestamps and IDs make keyset boundaries independent of the clock.
 func seedListV2(t *testing.T, pool *pgxpool.Pool, p principal, actor, id uuid.UUID, at time.Time, body []byte) {
 	t.Helper()
-	if _, err := pool.Exec(context.Background(), `INSERT INTO job_drafts (id,company_id,created_by,principal_recruiter_id,fields,updated_at) VALUES ($1,$2,$3,$4,$5,$6)`, id, p.companyID, p.ownerID, actor, body, at); err != nil {
+	seedDraftRow(t, pool, p.companyID, actor, id, body)
+	if _, err := pool.Exec(context.Background(), `UPDATE job_drafts SET created_by=$2,updated_at=$3 WHERE id=$1`, id, p.ownerID, at); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -137,7 +138,7 @@ func TestListV2_ProjectionMatchesGetV2(t *testing.T) {
 			principalID := p.ownerID
 			if shape == "deleted_principal" {
 				principalID = addMember(t, pool, p.companyID, "recruiter")
-				if _, err := pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$1 WHERE id=$2`, principalID, draftIDOf(t, created)); err != nil {
+				if _, err := pool.Exec(context.Background(), `UPDATE vacancy_assignments SET user_id=$1 WHERE draft_id=$2 AND ended_at IS NULL`, principalID, draftIDOf(t, created)); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := pool.Exec(context.Background(), `UPDATE users SET deleted_at=now() WHERE id=$1`, principalID); err != nil {

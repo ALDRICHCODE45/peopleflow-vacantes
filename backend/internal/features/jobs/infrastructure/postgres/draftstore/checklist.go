@@ -26,12 +26,12 @@ func (s *Store) authorizeChecklist(ctx context.Context, tx pgx.Tx, companyID, ac
 	if err != nil {
 		return draftRecord{}, err
 	}
-	record, found, err := readDraft(ctx, tx, companyID, id, true)
+	record, found, err := readDraft(ctx, tx, companyID, id, true, actorID)
 	if err != nil {
 		return draftRecord{}, err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return draftRecord{}, drafts.ErrNotFound
+		return draftRecord{}, draftAccessError(ctx, tx, actorID, record, found)
 	}
 	if err := requireV2ReadDocument(record.fields); err != nil {
 		return draftRecord{}, err

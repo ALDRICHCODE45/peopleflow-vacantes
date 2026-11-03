@@ -137,14 +137,14 @@ func TestSubstateOwnerPrincipalNonprincipalDBMatrix(t *testing.T) {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() {
-					if _, err := m.pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$2 WHERE id=$1`, m.vacancy, m.recruiter); err != nil {
+					if _, err := m.pool.Exec(context.Background(), replaceFixtureResponsible, m.vacancy, m.recruiter); err != nil {
 						t.Error(err)
 					}
 					if _, err := m.pool.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, other); err != nil {
 						t.Error(err)
 					}
 				})
-				if _, err := m.pool.Exec(ctx, `UPDATE job_drafts SET principal_recruiter_id=$2 WHERE id=$1`, m.vacancy, other); err != nil {
+				if _, err := m.pool.Exec(ctx, replaceFixtureResponsible, m.vacancy, other); err != nil {
 					t.Fatal(err)
 				}
 			}

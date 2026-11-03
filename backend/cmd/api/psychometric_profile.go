@@ -46,6 +46,7 @@ func writeProfileContextError(w http.ResponseWriter, err error) {
 	}{
 		{drafts.ErrUnauthenticated, httpjson.CodeUnauthenticated}, {drafts.ErrForbidden, httpjson.CodeForbidden},
 		{drafts.ErrCompanyInactive, httpjson.CodeCompanyInactive}, {drafts.ErrCompanyNotActive, httpjson.CodeCompanyNotActive},
+		{drafts.ErrTeamAccessEnded, httpjson.CodeTeamAccessEnded},
 		{drafts.ErrNotFound, httpjson.CodeNotFound}, {drafts.ErrPreconditionRequired, httpjson.CodePreconditionRequired},
 		{drafts.ErrVersionConflict, httpjson.CodeVersionConflict}, {drafts.ErrInvalidRequest, httpjson.CodeInvalidRequest},
 	} {
