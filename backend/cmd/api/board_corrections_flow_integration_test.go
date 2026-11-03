@@ -43,7 +43,7 @@ func boardCorrectionWire(t *testing.T, item map[string]any, detail bool) {
 	t.Helper()
 	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "profile", "screening_answers", "corrected_fields"}
 	if detail {
-		keys = append(keys, "screening", "comment", "candidate_message", "contact", "original", "original_cv")
+		keys = append(keys, "screening", "comment", "candidate_message", "contact", "original", "original_cv", "placement_credit", "can")
 	}
 	orgCandidateKeys(t, item, keys...)
 	orgCandidateKeys(t, item["candidate"], "id", "full_name", "kind")

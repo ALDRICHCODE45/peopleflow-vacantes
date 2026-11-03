@@ -91,7 +91,7 @@ func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 			mutation = true
 		}
 		if key == "contact" {
-			keys = append(keys, "original", "original_cv")
+			keys = append(keys, "original", "original_cv", "placement_credit", "can")
 		}
 	}
 	if !mutation {

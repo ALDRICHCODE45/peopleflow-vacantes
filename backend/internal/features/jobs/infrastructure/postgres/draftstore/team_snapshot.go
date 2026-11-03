@@ -63,7 +63,7 @@ func (s *Store) teamSnapshot(ctx context.Context, tx pgx.Tx, id uuid.UUID, a act
 		result = &frozen.Result
 	}
 	var credited int64
-	if err := tx.QueryRow(ctx, `SELECT count(*) FROM placement_credits c JOIN placement_credit_recipients r ON r.credit_id=c.id WHERE c.process_id=$1 AND r.assignment_id=$2 AND c.status<>'voided'`, id, a.ID).Scan(&credited); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM placement_credits WHERE process_id=$1 AND status IN ('active','did_not_hold')`, id).Scan(&credited); err != nil {
 		return nil, err
 	}
 	zone, err := time.LoadLocation(deliveryconfig.TimeZone)

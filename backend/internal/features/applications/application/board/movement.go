@@ -183,12 +183,14 @@ type Screening struct {
 }
 type Detail struct {
 	Item
-	Screening        []Screening     `json:"screening"`
-	Comment          *string         `json:"comment"`
-	CandidateMessage *string         `json:"candidate_message"`
-	Contact          Contact         `json:"contact"`
-	Original         json.RawMessage `json:"original"`
-	OriginalCV       *CVMetadata     `json:"original_cv"`
+	PlacementCredit  *PlacementCredit   `json:"placement_credit"`
+	Can              CreditCapabilities `json:"can"`
+	Screening        []Screening        `json:"screening"`
+	Comment          *string            `json:"comment"`
+	CandidateMessage *string            `json:"candidate_message"`
+	Contact          Contact            `json:"contact"`
+	Original         json.RawMessage    `json:"original"`
+	OriginalCV       *CVMetadata        `json:"original_cv"`
 }
 
 // Contact is every available way to reach the candidate, shown only on the
@@ -277,7 +279,7 @@ func ValidateMove(stages []Stage, from string, m Move) (hire, departure bool, er
 }
 
 // ValidatePlacementExit is shared by moves and discard. The decoded reason
-// reaches the store request for T4 credit handling, but is not persisted in T3.
+// reaches the store request for transactional credit exit handling.
 func ValidatePlacementExit(leaving bool, reason string) error {
 	if leaving && reason == "" {
 		return ErrPlacementExit

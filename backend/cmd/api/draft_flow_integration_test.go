@@ -357,10 +357,20 @@ func draftFlowNewCompany(t *testing.T, pool *pgxpool.Pool, status string) *draft
 
 func (c *draftFlowCompany) cleanup() {
 	ctx := context.Background()
+	// Check every HTTP fixture's credits before teardown removes them, including
+	// tests whose moves/recoveries create credits as a secondary effect.
+	var duplicateActive bool
+	if err := c.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM placement_credits WHERE company_id=$1 AND status='active' GROUP BY participation_id HAVING count(*)>1)`, c.companyID).Scan(&duplicateActive); err != nil {
+		c.t.Errorf("credit invariant check failed: %v", err)
+	} else if duplicateActive {
+		c.t.Error("credit invariant: more than one active credit per participation")
+	}
 	for step, query := range []string{
 		`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 		`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
 		`DELETE FROM job_draft_idempotency WHERE company_id = $1`,
+		`DELETE FROM placement_credits WHERE company_id = $1`,
+		`DELETE FROM audit_events WHERE metadata->>'company_id' = $1::text`,
 		`DELETE FROM job_drafts WHERE company_id = $1`,
 		`DELETE FROM job_draft_requesters WHERE company_id = $1`,
 		`DELETE FROM company_members WHERE company_id = $1`,

@@ -218,6 +218,12 @@ func setup(t *testing.T) fixture {
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
+		var duplicateActive bool
+		if err := pool.QueryRow(cleanupCtx, `SELECT EXISTS(SELECT 1 FROM placement_credits WHERE company_id=$1 AND status='active' GROUP BY participation_id HAVING count(*)>1)`, f.company).Scan(&duplicateActive); err != nil {
+			t.Errorf("credit invariant check failed: %v", err)
+		} else if duplicateActive {
+			t.Error("credit invariant: more than one active credit per participation")
+		}
 		tx, err := pool.Begin(cleanupCtx)
 		if err != nil {
 			t.Errorf("fixture cleanup could not begin: %v", err)
@@ -240,6 +246,7 @@ func setup(t *testing.T) fixture {
 			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM vacancy_public_projections WHERE company_id=$1`,
 			`DELETE FROM vacancy_processes WHERE company_id=$1`,
+			`DELETE FROM placement_credits WHERE company_id=$1`,
 			`DELETE FROM job_drafts WHERE company_id=$1`,
 			`DELETE FROM companies WHERE id=$1`,
 		} {

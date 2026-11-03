@@ -15,7 +15,7 @@ func resolveTeamError(code Code) (Definition, bool) {
 		status = 422
 	case "team_member_not_found":
 		status = 404
-	case "team_member_already_active", "team_last_member", "responsible_cannot_leave", "use_reassign_responsible", "reassign_target_is_responsible", "team_mode_mismatch", "team_mode_unchanged":
+	case "credit_status_unchanged", "team_member_already_active", "team_last_member", "responsible_cannot_leave", "use_reassign_responsible", "reassign_target_is_responsible", "team_mode_mismatch", "team_mode_unchanged":
 	default:
 		return Definition{}, false
 	}

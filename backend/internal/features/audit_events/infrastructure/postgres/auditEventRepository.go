@@ -35,7 +35,11 @@ var _ auditrepositories.AuditEventRepository = (*AuditEventRepository)(nil)
 // co-write caller can abort the transaction fail-closed (no write without its
 // audit trail).
 func (r *AuditEventRepository) Append(ctx context.Context, tx pgx.Tx, event auditentities.AuditEvent) error {
-	meta, err := json.Marshal(event.Metadata)
+	var metadata any = event.Metadata
+	if event.StructuredMetadata != nil {
+		metadata = event.StructuredMetadata
+	}
+	meta, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("marshal audit metadata: %w", err)
 	}

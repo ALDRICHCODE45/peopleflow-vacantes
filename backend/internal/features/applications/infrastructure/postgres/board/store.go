@@ -323,7 +323,11 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 	if _, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,substate_id=NULL,version=version+1 WHERE process_id=$1 AND id=$2`, id, pid, request.ToStageID); err != nil {
 		return app.Moved{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter','move')`, uuid.New(), pid, request.ToStageID, actor, at, item.StageID, hire, departure); err != nil {
+	historyID := uuid.New()
+	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter','move')`, historyID, pid, request.ToStageID, actor, at, item.StageID, hire, departure); err != nil {
+		return app.Moved{}, err
+	}
+	if err = s.recordPlacementCredit(ctx, tx, company, actor, id, pid, historyID, at, hire, departure, request.PlacementExitReason); err != nil {
 		return app.Moved{}, err
 	}
 	if err = s.stageEntered(ctx, tx, id, pid, request.ToStageID, "move"); err != nil {
@@ -436,6 +440,10 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 		return app.Detail{}, err
 	}
 	out := app.Detail{Item: item, Screening: []app.Screening{}, Contact: contact}
+	out.PlacementCredit, out.Can, err = creditDetail(ctx, tx, company, actor, id, pid)
+	if err != nil {
+		return out, err
+	}
 	if originalCV != nil {
 		if err = json.Unmarshal(originalCV, &out.OriginalCV); err != nil {
 			return out, err

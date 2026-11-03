@@ -60,7 +60,7 @@ func TestTeamReassignmentSnapshotAndFrozenDeadline(t *testing.T) {
 	if first == nil || len(first) != 6 {
 		t.Fatal(first)
 	}
-	if !reflect.DeepEqual(first["lifecycle"], map[string]any{"publication": "published", "process": "active"}) || !reflect.DeepEqual(first["placements"], map[string]any{"current": float64(1), "credited": float64(0)}) {
+	if !reflect.DeepEqual(first["lifecycle"], map[string]any{"publication": "published", "process": "active"}) || !reflect.DeepEqual(first["placements"], map[string]any{"current": float64(1), "credited": float64(1)}) {
 		t.Fatal(first)
 	}
 	stages := first["stage_counts"].([]any)
@@ -117,7 +117,7 @@ func TestTeamReassignmentSnapshotAndFrozenDeadline(t *testing.T) {
 		if item["kind"] == "reassignment" {
 			reassigned++
 			s := item["reassignment"].(map[string]any)["state_snapshot"].(map[string]any)
-			if reflect.DeepEqual(s["placements"], map[string]any{"current": float64(0), "credited": float64(0)}) {
+			if reflect.DeepEqual(s["placements"], map[string]any{"current": float64(0), "credited": float64(1)}) {
 				latest = true
 				last := s["stage_counts"].([]any)[4].(map[string]any)
 				if last["discarded"] != float64(1) || last["active"] != float64(0) {

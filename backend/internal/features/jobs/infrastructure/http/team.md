@@ -51,4 +51,29 @@ Reassignments capture stage kinds/counts, lifecycle, Mexico City business days, 
 Without an effective deadline, total business days is null, not zero.
 
 The mutation, version, history, audit event and frozen POST response commit together. Audit metadata contains only
-contract-defined IDs, codes and dates, never notes. Placement credit creation and offboarding remain separate slices.
+contract-defined IDs, codes and dates, never notes. Offboarding remains a separate slice.
+
+## Placement credits
+
+A move or recovery into placement creates a credit and freezes the current team mode and active tramo recipients.
+Moves and discards out of placement require `placement_exit_reason` and close the latest credit's open episode
+by recording its exit history and reason, regardless of credit status. An active credit becomes `voided` for
+`moved_by_mistake` or `did_not_hold` for `candidate_left`; an already voided credit stays voided, without another
+status-change audit event. Older placements without credits may still exit.
+
+- `GET V/participations/{pid}` includes the latest `placement_credit` (or null), plus
+  `can: {void_credit, restore_credit}`. Only the owner has correction capabilities.
+- `GET V/participations/{pid}/placement-credits` returns `{items: [...]}`, newest first. Each item has
+  `id`, `status`, `team_mode`, `hired_at`, `hired_by: {id, name}`, `exit_reason`, and
+  `recipients: [{user_id, name, kind}]`.
+- `POST V/participations/{pid}/placement-credits/{credit_id}/void` and `/restore` accept strictly `{}`.
+  They require a UUID `Idempotency-Key`, **not If-Match**, and return the credit item without an ETag.
+  Replay returns the frozen item, even after later transitions. Void accepts `active` or `did_not_hold`;
+  restore accepts `voided`, returning `active` only when that credit's own episode has no exit recorded,
+  otherwise `did_not_hold`. A later re-hire never reopens an older credit's episode.
+  Invalid transitions return 409 `credit_status_unchanged`; visible non-owners receive
+  403 `team_action_forbidden`; wrong participation/vacancy/credit IDs receive 404.
+
+Credits, recipients, history and audit events commit atomically with the move/recovery/exit/correction.
+Corrections share the draft row lock with board writes. Reassignment snapshots count the vacancy's non-voided
+credit rows in `placements.credited`; `placements.current` still counts candidates currently in placement.

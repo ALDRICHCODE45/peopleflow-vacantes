@@ -363,7 +363,11 @@ func TestSubstateConcurrentSetMoveDiscardOneWinner(t *testing.T) {
 			t.Fatal(last)
 		}
 		var auditsAfter int
-		if err = m.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1`, item.ID).Scan(&auditsAfter); err != nil || auditsAfter != auditsBefore+1 {
+		wantAudits := auditsBefore + 1
+		if last.Hire {
+			wantAudits++
+		} // The hire co-writes its frozen placement credit.
+		if err = m.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1`, item.ID).Scan(&auditsAfter); err != nil || auditsAfter != wantAudits {
 			t.Fatal(auditsAfter, auditsBefore, err)
 		}
 	}

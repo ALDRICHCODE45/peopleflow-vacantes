@@ -140,7 +140,7 @@ func TestDiscardMoveRecoveryPlacementForcedOneWinner(t *testing.T) {
 				t.Fatal(last)
 			}
 			var audits, milestones int
-			if err = m.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_events WHERE entity_id=$1),(SELECT count(*) FROM process_coverage_milestones WHERE process_id=$2 AND covered=1 AND required=1)`, m.item.ID, m.vacancy).Scan(&audits, &milestones); err != nil || audits != auditsBefore+1 || milestones != wantMilestones {
+			if err = m.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_events WHERE entity_id=$1),(SELECT count(*) FROM process_coverage_milestones WHERE process_id=$2 AND covered=1 AND required=1)`, m.item.ID, m.vacancy).Scan(&audits, &milestones); err != nil || audits != auditsBefore+2 || milestones != wantMilestones {
 				t.Fatal(audits, milestones, err)
 			}
 		})
