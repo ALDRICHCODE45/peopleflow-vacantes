@@ -40,7 +40,7 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   Commit: 45135cd8.
 - [x] T4 — S6, S9: placement credits (write on hire/exit, reads, void/restore). Route: worker. Commit: 744b9b7f. Verify: PASS + episode fix (L15–L16).
 - [x] T5 — S7, S9: offboard-preview, offboard, DELETE member 409. Route: worker. Commit: 92ec3835. Verify: PASS (L21).
-- [ ] T6 — S8: own tramo history. Route: worker. Commit: —
+- [x] T6 — S8: own tramo history. Route: worker. Commit: d72fc5f7.
 - [ ] T7 — S10: QA environment (API + PEM) and final ping. Route: inline. Commit: —
 
 ## Log
@@ -139,3 +139,6 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - L21 — T5 independent verify (mw0eimk5-m-kttl): PASS against df6a42f7 (security 403/422 with unchanged state,
   company→sorted vacancy locks without deadlock, audit-failure rollback). Added its regression
   TestOffboardResponsibleUsesReassignmentOnly. Committed 92ec3835. Verifier scratch (1.0G) removed.
+- L22 — T6 done (d72fc5f7): full integration 53 ok, 0 FAIL (the 4 L19 pre-existing failures did not reproduce on that DB
+  state). Parent spot check: company and user come from the session context, query filtered by both, route behind the
+  company role gate, no candidate data. Read-only endpoint, no independent verifier (no high-risk item).
