@@ -1028,6 +1028,27 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   La cobertura no cambia. Si una escritura oculta su tarjeta, sus errores siguen visibles en la barra
   y el foco puede volver al filtro.
 
+### 13.13 Opciones de menú en un solo renglón
+
+Origen (usuario, 2026-11-02): «no se ve para nada bien un dropdownmenu cuyas opciones ocupen mas de una linea».
+
+- Cada `DropdownMenuItem` cabe en **un renglón**: verbo corto, sin el contexto («Quitar», no «Quitar de la
+  vacante»). El contexto lo da el disparador («Acciones de Ana López») y el diálogo de confirmación que abre.
+- Si una opción no cabe en un renglón, se acorta el texto; nunca se deja partir ni se ensancha el menú a mano.
+
+### 13.14 Datos de apoyo en un Sheet, no amontonados
+
+Origen (usuario, 2026-11-02): «todo parece un tramite, en ciertos lugares parece mucha informacion, el usuario se
+satura, no sabe a que prestar atencion ... me gustaria que algunas cosas en lugar de desplegables fueran sheets».
+
+- Una card o una fila muestra solo lo que ayuda a decidir de un vistazo (§16 «Diseñar según la decisión»). El
+  detalle que se consulta a veces (una foto del estado, un historial completo, datos de auditoría) se abre en un
+  `Sheet` (§13.3, §17) desde una acción `ghost` o `link`, nunca desplegado dentro de la card ni en un acordeón.
+- Un historial dentro de una card muestra los últimos movimientos (5 como máximo) y «Ver todos …» abre un `Sheet`
+  con la lista paginada y una sola zona con scroll. La card nunca crece con la cantidad de datos.
+- Los números de un estado se muestran visualizados (§10.6): `Progress` para avances («3 de 5 entregados»),
+  barras con los tonos de etapa para conteos por etapa y `Badge` para estados; no como pares etiqueta–valor en gris.
+
 ## 14. Tipografía y pulido de producto (decisiones de la pasada de UI)
 
 ### 14.1 Tipografía de la aplicación
