@@ -143,7 +143,10 @@ CREATE TABLE placement_credit_recipients (
 
 Migration steps: create the tables; backfill one `vacancy_teams` row per draft (`mode = 'with_responsible'`) and one
 tramo (with an open `responsible` function period) for its `principal_recruiter_id` (`started_at` = draft `created_at`, `start_cause = 'backfill'`);
-drop `job_drafts.principal_recruiter_id`. Down is not supported (disposable data): it fails with a clear message.
+drop `job_drafts.principal_recruiter_id`. Down is supported with guards (pattern of 00053/00034): under an exclusive lock on `job_drafts` it
+refuses with a clear message while any draft has no open responsible (a `shared` team) or any credit, reassignment,
+commitment change or mode change exists; otherwise it restores `principal_recruiter_id` from the open responsible and
+drops the new tables.
 
 `state_snapshot` (counts and dates only, never candidate data):
 

@@ -53,3 +53,30 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   offboard + own history. Tell me your branch name and ping me when each slice is on it (commit SHA), and whether the
   local PEM auth mode from saved vacancies still applies for QA. If the contract changes while you implement, send me
   the diff before you commit it.»
+- L2 — T1 worker stopped: «The contract specifies "All tramos … plus reassignments … and mode changes, newest first,
+  cursor-paginated" but defines no response envelope, mixed-item shape, or mode-change fields.» Parent amended the
+  contract (uncommitted): table `vacancy_team_mode_changes` + the history timeline shape; diff sent to the frontend for OK
+  before commit; worker resumed on the full T1 scope (task mvzsjxj6-3-hlqk).
+- L3 — T1 worker asked to edit the shared migration harness (`migrations_test.go`) because 00054's Down was unsupported.
+  Parent declined and chose a guarded, reversible Down instead (pattern 00053/00034); contract sentence amended
+  (backend-internal), frontend informed. Approved `backend/internal/shared/httpjson/**` for the error catalog
+  (`team_access_ended`). Worker task mvzsu4iz-5-n50c.
+- L4 — Frontend asked for a QA API for the fixture-backed «Configuración › Equipo» prototype. Started from MAIN cf688633
+  (detached worktree `.scratch/api-main`, binary `.scratch/qa-api-bin`) on 127.0.0.1:8080 with the usual .env (Cognito
+  mode); dev DB stays at version 53. PID `.scratch/qa-api/api.pid` (61360), log `.scratch/qa-api/api.log`. To clean up
+  when the user is done: kill the PID, `git worktree remove .scratch/api-main`, delete the binary.
+- L5 — Docker Desktop hung (CLI unresponsive), which stalled the T1 worker twice; the user restarted it. Disposable test DB:
+  container `pf-draft-test` (127.0.0.1:55432, password in `.scratch/draft_test.pw`). T1 checks (17 min): gofmt/vet/build
+  clean; unit green except the pre-existing `scripts/closure/gate` line 44 failure (ROADMAP). Integration: 00031 test
+  runs current store code against schema 30 (real T1 defect), draftstore 10-min timeout, two cmd/api tests order-dependent
+  (pass alone). A main-vs-branch comparison on the same DB was invalid (shared draft_test already at 54). Fix delegated
+  (task mw01vavk-7-7f25).
+- L6 — Integration fixed (00031 fixture writes before downgrade; blockingAudit released only one of the two creation
+  audit events). Full integration green; unit green except pre-existing scripts/closure. Independent verify
+  (mw02hhjs-9-naf2): PARTIAL, no product defect; S3 PASS; S1/S2/S9 coverage gaps (Down refusal branches, write surfaces,
+  replay cardinality, audit-failure rollback, stale comments/models.go). Gap closure delegated (worker) before commit.
+- L7 — Gaps closed (worker mw039pm9-a-52xl): access on write surfaces, 00054 Down refusal branches, creation replay
+  cardinality and audit-failure rollback; models.go regenerated with sqlc; no product defect. Only full-run failure:
+  `TestPublicGeoSearchIndexCapability` state/municipality (planner picks `vacancy_public_company_idx`). Isolation proof:
+  fails on the branch against the accumulated shared draft_test DB, PASSES on a fresh schema on BOTH main and the branch
+  → pre-existing data-dependent planner assertion, not T1. Recorded in docs/ROADMAP.md.

@@ -208,6 +208,10 @@ Fuente de producto: `docs/product/next-three-features.md` (worktree del frontend
 - 🔲 **Notificaciones de equipo** (Q12): ninguna en v1. En el radar: primero in-app, después correo cuando exista SES
   (`docs/decision-email-provider.md`).
 - 🔲 **Cuotas individuales por reclutador**: para después, opcionales.
+- 🔲 **`TestPublicGeoSearchIndexCapability` depende de los datos de la base** (visto 2026-11-02 en T1): sobre una
+  `draft_test` compartida con datos acumulados, el planificador elige `vacancy_public_company_idx` y fallan los casos
+  `state`/`municipality`; con el esquema vacío pasa en `main` y en la rama. Aislar la prueba (base propia o `ANALYZE` +
+  datos controlados) o afirmar la capacidad del índice sin depender del plan elegido.
 - 🔲 **2 — Auditoría** y **3 — Stakeholder + métricas**: según el documento de producto; `company_id` en `audit_events` y
   las métricas de «placements que no se sostuvieron» (garantías de reposición) salen de la 1.
 
