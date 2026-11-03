@@ -33,7 +33,7 @@ export const VACANCY_CONFIG_MODULES = [
 /** Owns the vacancy header and gates sub-modules on an authorized draft read. */
 export function VacancyConfigShell({ draftId, children, teamPrototypeEnabled = false }: { draftId: string; children: ReactNode; teamPrototypeEnabled?: boolean }) {
   const pathname = usePathname();
-  const modules = teamPrototypeEnabled ? [...VACANCY_CONFIG_MODULES, { slug: "equipo", title: "Equipo", description: "Personas, funciones e historia de la vacante.", icon: Users }] : VACANCY_CONFIG_MODULES;
+  const modules = teamPrototypeEnabled ? [...VACANCY_CONFIG_MODULES, { slug: "equipo", title: "Equipo", description: "Personas, funciones y movimientos de la vacante.", icon: Users }] : VACANCY_CONFIG_MODULES;
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication: DraftPublication | null } | null>(null);
   const result = loaded?.id === draftId ? loaded.result : null;

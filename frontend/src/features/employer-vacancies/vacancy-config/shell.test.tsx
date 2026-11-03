@@ -141,6 +141,7 @@ it("registers Equipo only with explicit server opt-in without changing existing 
   const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
   expect(within(nav).getAllByRole("link")).toHaveLength(6);
   const team = within(nav).getByRole("link", { name: /Equipo/ });
+  expect(team).toHaveTextContent("Personas, funciones y movimientos de la vacante.");
   expect(team).toHaveAttribute("aria-current", "page");
   expect(team).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/equipo`);
   expect(team).toHaveClass("bg-card", "ring-1", "min-h-10");

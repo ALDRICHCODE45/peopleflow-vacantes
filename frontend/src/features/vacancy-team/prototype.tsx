@@ -11,6 +11,6 @@ export function TeamPrototype({ fixture, state }: { fixture: FixtureName; state?
   const [client] = useState(() => createFixtureClient(fixture));
   const [showError, setShowError] = useState(state === "error");
   if (state === "loading") return <TeamSkeleton />;
-  if (showError) return <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar el equipo" description="Tus datos no cambiaron. Reintenta para consultar el equipo y su historia." primaryAction={{ label: "Reintentar", onClick: () => setShowError(false) }} />;
+  if (showError) return <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar el equipo" description="Tus datos no cambiaron. Reintenta para consultar el equipo y sus movimientos." primaryAction={{ label: "Reintentar", onClick: () => setShowError(false) }} />;
   return <TeamView client={client} />;
 }

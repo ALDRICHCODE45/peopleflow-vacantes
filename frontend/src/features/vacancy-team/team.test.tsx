@@ -33,8 +33,11 @@ it("shows owner capabilities and preserves mode → team → history order", asy
   expect(screen.getByRole("button", { name: "Agregar al equipo" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Salir de la vacante" })).not.toBeInTheDocument();
   expect(container.querySelectorAll('[data-slot="avatar-fallback"]')).toHaveLength(2);
-  expect(screen.getAllByRole("heading", { level: 3 }).slice(0, 3).map(element => element.textContent)).toEqual(["Modo del equipo", "Equipo actual", "Historia del equipo"]);
+  expect(screen.getAllByRole("heading", { level: 3 }).slice(0, 3).map(element => element.textContent)).toEqual(["Modo del equipo", "Equipo actual", "Movimientos del equipo"]);
   expect(screen.getByRole("button", { name: "Acciones de Ana López" })).toHaveAttribute("aria-haspopup", "menu");
+  expect(screen.getByText("Plazo 20 nov 2026 · propio")).toBeVisible();
+  expect(screen.getByText("Plazo 30 nov 2026 · fecha compromiso")).toBeVisible();
+  expect(screen.queryByText(/^Desde /)).not.toBeInTheDocument();
 });
 it("collaborator only sees fixture can actions; changing is_owner never grants permissions", async () => {
   const client = createFixtureClient("collaborator");
@@ -54,19 +57,22 @@ it("skeleton preserves the owner card composition slots", async () => {
   skeleton.unmount();
   const view = render(<TeamView client={createFixtureClient("owner")} />);
   await screen.findByRole("heading", { name: "Equipo actual" });
-  expect(slots(view.container)).toEqual(expected);
+  // The approved loading state stays unchanged; the mode and current-team cards retain their anatomy.
+  expect(slots(view.container).slice(0, 14)).toEqual(expected.slice(0, 14));
 });
 it("refreshes paginated history from page one after its own write and reports an in-memory result", async () => {
   const client = createFixtureClient("long-history");
   const getHistory = vi.spyOn(client, "getHistory");
   render(<TeamView client={client} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Ver todos los movimientos" }));
   fireEvent.click(await screen.findByRole("button", { name: "Ver más" }));
   await waitFor(() => expect(getHistory).toHaveBeenLastCalledWith("page:20"));
-  fireEvent.click(screen.getByRole("button", { name: "Cambiar modo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cerrar movimientos" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Cambiar modo" }));
   const dialog = await screen.findByRole("alertdialog");
   fireEvent.click(within(dialog).getByRole("button", { name: "Cambiar modo" }));
   await waitFor(() => expect(getHistory).toHaveBeenLastCalledWith());
-  expect(await screen.findByRole("button", { name: "Ver más" })).toBeVisible();
+  expect(await screen.findByRole("button", { name: "Ver todos los movimientos" })).toBeVisible();
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "info", title: "Modo del equipo cambiado" }));
 });
 it("reassign composition, safe focus, default departure, Otro note and cancel without writes", async () => {
@@ -93,6 +99,9 @@ it("reassign offers an optional recruiter deadline that falls back to the commit
   const client = createFixtureClient("owner");
   render(<ReassignDialog team={await client.getTeam()} company={await client.getCompanyMembers()} calendar={client.calendar} snapshot={client.snapshot} onConfirm={vi.fn()} onClose={vi.fn()} />);
   const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).getByText("Hoy: 3 de 5 candidatos entregados · 7 de 12 días hábiles usados. Esto queda guardado con la reasignación.")).toBeVisible();
+  expect(within(dialog).queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(within(dialog).queryByText("Estado guardado al reasignar")).not.toBeInTheDocument();
   const trigger = within(dialog).getByRole("button", { name: "Plazo del reclutador" });
   expect(trigger).toHaveAttribute("id", "reassign-deadline");
   expect(trigger).toHaveTextContent("Elige una fecha");

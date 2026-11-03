@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 /** Same card parts, two identities, action areas and two-column layout as the owner fixture. */
 export function TeamSkeleton() {
-  return <div aria-busy="true" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando equipo e historia</span>
+  return <div aria-busy="true" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando equipo y movimientos</span>
     <div aria-hidden="true" className="grid items-start gap-5 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
       <div className="flex min-w-0 flex-col gap-5">
         <Card><CardHeader><CardTitle><Skeleton className="h-5 w-32" /></CardTitle><CardDescription><Skeleton className="h-4 w-44" /></CardDescription><CardAction><Skeleton className="h-5 w-24" /></CardAction></CardHeader><CardContent><Skeleton className="h-12 w-full" /></CardContent><CardFooter><Skeleton className="h-10 w-32" /></CardFooter></Card>

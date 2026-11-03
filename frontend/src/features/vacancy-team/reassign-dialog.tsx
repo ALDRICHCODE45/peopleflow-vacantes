@@ -7,8 +7,9 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BusinessDateField } from "@/features/employer-vacancies/delivery-config/date-field";
+import { plural } from "@/features/employer-vacancies/plural";
 import type { Delivery } from "@/features/jobs/drafts/pipeline/delivery-model";
-import { ChoiceField, PersonField, SnapshotDetails } from "./controls";
+import { ChoiceField, PersonField } from "./controls";
 import { formatLongDate, reassignSchema, reasons, type CompanyMembers, type Reassign, type Snapshot, type Team } from "./model";
 
 export function ReassignDialog({ team, company, calendar, snapshot, onConfirm, onClose, pending = false }: { team: Team; company: CompanyMembers; calendar: Delivery["calendar"]; snapshot: Snapshot; onConfirm: (body: Reassign) => void; onClose: () => void; pending?: boolean }) {
@@ -48,6 +49,6 @@ export function ReassignDialog({ team, company, calendar, snapshot, onConfirm, o
         <FieldDescription>{previous === "remove" ? "Se cierra su tramo y pierde acceso a esta vacante." : "Su tramo continúa, sin reiniciar sus fechas."}</FieldDescription>
       </Field>
     </FieldGroup>
-    <SnapshotDetails snapshot={snapshot} />
+    <p className="text-sm text-muted-foreground">Hoy: {snapshot.delivery.target === null ? `${plural(snapshot.delivery.delivered, "candidato entregado", "candidatos entregados")} · Sin objetivo definido` : `${snapshot.delivery.delivered} de ${plural(snapshot.delivery.target, "candidato entregado", "candidatos entregados")}`} · {snapshot.tramo.business_days_elapsed === null || snapshot.tramo.business_days_total === null ? "Tiempo usado sin dato" : `${snapshot.tramo.business_days_elapsed} de ${plural(snapshot.tramo.business_days_total, "día hábil usado", "días hábiles usados")}`}. Esto queda guardado con la reasignación.</p>
   </ConfirmActionDialog>;
 }

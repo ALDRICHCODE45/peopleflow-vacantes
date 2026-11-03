@@ -1,0 +1,88 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { TeamHistory } from "./history";
+import { SnapshotSheet } from "./snapshot-sheet";
+import { memberActionLabel, memberActions } from "./model";
+import { createFixtureClient } from "./prototype-client";
+afterEach(cleanup);
+
+it("provides short capability-only member menu options", async () => {
+  const can = (await createFixtureClient("owner").getTeam()).viewer.can;
+  expect(memberActions(can).map(action => memberActionLabel[action])).toEqual(["Editar plazo", "Quitar"]);
+  expect(memberActions({ ...can, remove_member: false }).map(action => memberActionLabel[action])).toEqual(["Editar plazo"]);
+  expect(memberActions({ ...can, edit_deadline: false }).map(action => memberActionLabel[action])).toEqual(["Quitar"]);
+  expect(memberActions({ ...can, edit_deadline: false, remove_member: false })).toEqual([]);
+});
+it("caps the page at five movements and puts full pagination inside a floating Sheet", async () => {
+  const client = createFixtureClient("long-history");
+  const onMore = vi.fn();
+  render(<TeamHistory history={await client.getHistory()} pending={false} onMore={onMore} />);
+  const section = screen.getByRole("region", { name: "Movimientos del equipo" });
+  expect(within(section).getAllByRole("listitem")).toHaveLength(5);
+  expect(section.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "Ver más" })).not.toBeInTheDocument();
+  const all = within(section).getByRole("button", { name: "Ver todos los movimientos" });
+  expect(all.closest('[data-slot="card-footer"]')).not.toBeNull();
+  fireEvent.click(all);
+  const sheet = await screen.findByRole("dialog", { name: "Movimientos del equipo" });
+  expect(sheet).toHaveAttribute("data-presentation", "floating");
+  expect(within(sheet).getAllByRole("listitem")).toHaveLength(20);
+  expect(sheet.querySelector('[data-slot="sheet-header"] svg')).not.toBeNull();
+  expect(sheet.querySelector('[data-slot="sheet-footer"] [data-pf-action-bar]')).not.toBeNull();
+  const more = within(sheet).getByRole("button", { name: "Ver más" });
+  expect(more.closest('[data-slot="movements-body"]')).not.toBeNull();
+  fireEvent.click(more); expect(onMore).toHaveBeenCalledOnce();
+});
+it("keeps a short timeline compact and opens its snapshot action", async () => {
+  const client = createFixtureClient("owner");
+  render(<TeamHistory history={await client.getHistory()} pending={false} onMore={vi.fn()} />);
+  expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  expect(screen.queryByRole("button", { name: "Ver todos los movimientos" })).not.toBeInTheDocument();
+  expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "Sofía Ramírez reasignó la vacante a Ana López")).toBeVisible();
+  expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "Diego Hernández se unió como colaborador")).toBeVisible();
+  expect(screen.getByText((_, element) => element?.getAttribute("data-slot") === "item-description" && element.textContent === "6 nov 2026 · Carga de trabajo")).toBeVisible();
+  expect(screen.queryByText("Estado guardado")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Ver cómo estaba la vacante" }));
+  expect(await screen.findByRole("dialog", { name: "Cómo estaba la vacante" })).toBeVisible();
+});
+it.each([
+  ["mode", "Sofía Ramírez cambió el modo a Equipo sin responsable"],
+  ["function", "Ana López cambió su función a colaborador"],
+  ["removed", "Sofía Ramírez quitó a Diego Hernández del equipo"],
+  ["left", "Diego Hernández salió del equipo"],
+  ["membership_ended", "Terminó la membresía de Diego Hernández"],
+  ["reassigned", "Diego Hernández salió del equipo por reasignación"],
+] as const)("writes a plain sentence for %s", async (kind, sentence) => {
+  const client = createFixtureClient(kind === "left" ? "collaborator" : "owner");
+  if (kind === "mode" || kind === "function") await client.changeMode({ mode: "shared" });
+  else if (kind === "left") await client.leave();
+  else await client.removeMember("user-diego");
+  const history = await client.getHistory();
+  if (kind === "function") {
+    history.items = history.items.filter(item => item.kind === "tramo" && item.tramo.user.id === "user-ana");
+    if (history.items[0].kind === "tramo") history.items[0].tramo.functions.at(-1)!.function = "collaborator";
+  }
+  if (kind === "membership_ended" || kind === "reassigned") {
+    const entry = history.items.find(item => item.kind === "tramo" && item.tramo.user.id === "user-diego");
+    if (entry?.kind === "tramo") entry.tramo.end_cause = kind;
+  }
+  render(<TeamHistory history={history} pending={false} onMore={vi.fn()} />);
+  expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === sentence)).toBeVisible();
+  expect(screen.getAllByRole("listitem")[0].querySelector('[data-slot="item-media"] svg')).not.toBeNull();
+});
+it("visualizes the saved snapshot in a directly opened Sheet", async () => {
+  const client = createFixtureClient("owner");
+  render(<SnapshotSheet snapshot={client.snapshot} from="Diego Hernández" to="Ana López" open onOpenChange={vi.fn()} />);
+  const sheet = await screen.findByRole("dialog", { name: "Cómo estaba la vacante" });
+  expect(within(sheet).getByText("Así estaba la vacante cuando Diego Hernández se la pasó a Ana López. Sirve para saber con qué avance la recibió.")).toBeVisible();
+  expect(within(sheet).getByRole("progressbar", { name: "Entrega: 3 de 5 candidatos" })).toHaveAttribute("aria-valuenow", "60");
+  expect(within(sheet).getByRole("progressbar", { name: "Plazo usado: 7 de 12 días hábiles" })).toHaveAttribute("aria-valuenow", String(7 / 12 * 100));
+  expect(within(sheet).getByText("Plazo: 20 nov 2026 · propio")).toBeVisible();
+  expect(within(sheet).getByRole("progressbar", { name: "Nuevos: 6 candidatos" })).toBeVisible();
+  expect(within(sheet).getByText("Publicada")).toHaveAttribute("data-slot", "badge");
+  expect(within(sheet).getByText("Proceso activo")).toHaveAttribute("data-slot", "badge");
+  expect(within(sheet).getByText("2 descartados")).toHaveClass("text-muted-foreground");
+  expect(sheet.querySelectorAll('[data-slot="card"], [data-slot="accordion"]')).toHaveLength(0);
+  expect(sheet.querySelector('[data-slot="sheet-footer"] [data-pf-action-bar]')).not.toBeNull();
+});

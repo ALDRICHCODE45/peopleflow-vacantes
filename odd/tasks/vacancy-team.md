@@ -148,3 +148,21 @@ the responsible manages collaborators, and placement credit follows the team mod
   opens `DeadlineDialog` directly because DropdownMenu loops in jsdom; the menu path is browser QA. Browser review is
   the user's: employer sign-in is Cognito with the user's account. QA: API from main on :8080 (backend session), Next on
   :3000 with `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=1`.
+- **L14** (user, 2026-11-02, prototype review): «todo parece un tramite, en ciertos lugares parece mucha informacion, el
+  usuario se satura, no sabe a que prestar atencion ... me gustaria que algunas cosas en lugar de desplegables fueran
+  sheets, como el estado guardado, o cosas que son mucha data»; «no se ve para nada bien un dropdownmenu cuyas opciones
+  ocupen mas de una linea» (system design rule); «el apartado de historia de equipo ... propon algo sencillo, pero no me
+  gusta historia, las cards de la "historia" son muy planas, secas, no parecen de peopleflow»; «lo que aparece dentro
+  del "Estado guardado" ... parece un documento administrativo, en gris, negro, sin chiste»; «el historial largo se
+  vuelve un scroll infinito»; «el empty state me gusta, el estado de error y de carga tambien»; «cuando termines,
+  asegurate de revisar todo tu mismo por favor» (Playwright, design only). Decisions: lighter member rows; menu items
+  on one line («Quitar»); section renamed «Movimientos del equipo»; the card shows the latest 5 as a tinted timeline
+  and «Ver todos los movimientos» opens a Sheet with the paginated list; the snapshot lives in a Sheet «Cómo estaba la
+  vacante» with visual progress (delivery, deadline used, candidates per stage); the reassign dialog shows a one-line
+  summary instead of the full snapshot.
+- **L15** (T2b review follow-up, 2026-11-02; S1–S4, S10): lighter member rows and one-line menu labels;
+  «Movimientos del equipo» now uses one tinted timeline card capped at 5, with full cursor pagination in a floating
+  Sheet. Reassignment snapshots moved from the accordion/dialog into «Cómo estaba la vacante», with progress bars,
+  pipeline stage tints and lifecycle badges; the confirmation keeps only today's compact summary. Approved empty,
+  error and loading compositions preserved (related copy renamed). Focused tests, TypeScript and touched-file ESLint
+  passed; browser review remains parent-owned and pending. No real team endpoint or production behavior added.

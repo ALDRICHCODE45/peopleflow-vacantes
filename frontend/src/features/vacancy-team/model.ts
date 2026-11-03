@@ -53,6 +53,7 @@ export type ModeChange = { mode: Team["mode"]; responsible_user_id?: string };
 export const availableMembers = (team: Team, company: CompanyMembers) => company.members.filter(member => !team.members.some(active => active.user.id === member.user.id));
 /** UI capabilities are never reconstructed from role or function. */
 export const memberActions = (can: Team["viewer"]["can"]) => [can.edit_deadline && "deadline", can.remove_member && "remove"].filter(Boolean) as ("deadline" | "remove")[];
+export const memberActionLabel = { deadline: "Editar plazo", remove: "Quitar" } as const;
 export const functionLabel = { responsible: "Responsable", collaborator: "Colaborador", member: "Miembro" };
 export const modeLabel = { with_responsible: "Con responsable", shared: "Equipo sin responsable" };
 export const sourceLabel = { recruiter: "Propio", commitment: "Fecha compromiso", none: "Sin plazo" };
