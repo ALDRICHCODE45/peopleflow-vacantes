@@ -514,7 +514,9 @@ Additional per-item fields (all always present, values may be `null`; no candida
   - `late`: fulfilled while the tramo was active but after the deadline; or not fulfilled and the deadline passed while
     the tramo was still active.
   - `pending`: active tramo, not fulfilled yet, deadline today or later.
-  - `unfinished`: the tramo ended before its deadline without the delivery being fulfilled.
+  - `unfinished`: the tramo ended before its deadline without the delivery being fulfilled. A deadline passes only when
+    its date is over (meeting it on that date is on time), so a tramo that ends ON its deadline date unfulfilled is
+    `unfinished` with delta `0`.
   - `not_applicable`: the delivery had already been fulfilled before the tramo started.
   - `none`: no effective deadline, or delivery not configured.
   `deadline_delta_business_days` uses the fulfillment's sign convention (positive = business days before the deadline,
