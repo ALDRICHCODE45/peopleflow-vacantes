@@ -8,15 +8,15 @@ import { BusinessDateField } from "@/features/employer-vacancies/delivery-config
 import type { Delivery } from "@/features/jobs/drafts/pipeline/delivery-model";
 import { formatLongDate, type Member } from "./model";
 
-export function DeadlineDialog({ member, calendar, commitmentDate, pending, onConfirm, onClose }: {
-  member: Member; calendar: Delivery["calendar"]; commitmentDate: string | null; pending: boolean; onConfirm: (deadline: string | null) => void; onClose: () => void;
+export function DeadlineDialog({ member, calendar, commitmentDate, pending, onConfirm, onClose, frozen = false }: {
+  member: Member; calendar: Delivery["calendar"]; commitmentDate: string | null; pending: boolean; frozen?: boolean; onConfirm: (deadline: string | null) => void; onClose: () => void;
 }) {
   const [deadline, setDeadline] = useState<string | null>(member.recruiter_deadline);
   return <ConfirmActionDialog open onOpenChange={open => { if (!open) onClose(); }} onConfirm={() => onConfirm(deadline)} icon={CalendarDays} title={`Plazo de ${member.user.name}`}
     description="Cambia solo el plazo de este tramo. La fecha compromiso con el cliente y los demás plazos no cambian." confirmLabel="Guardar plazo" pendingLabel="Guardando…" pending={pending}>
-    <FieldGroup>
+    <FieldGroup inert={pending || frozen}>
       <BusinessDateField id="member-deadline" label="Plazo del reclutador" value={deadline} calendar={calendar} disabled={pending} onChange={setDeadline} clearLabel="Usar la fecha compromiso"
-        description={commitmentDate ? `Si no lo defines, aplica la fecha compromiso: ${formatLongDate(commitmentDate)}.` : "Si no lo defines, aplica la fecha compromiso cuando exista."} />
+        description={commitmentDate ? `Si no lo defines, aplica la fecha compromiso: ${formatLongDate(commitmentDate)}.` : "Sin plazo propio. Esta vacante todavía no tiene fecha compromiso."} />
     </FieldGroup>
   </ConfirmActionDialog>;
 }

@@ -1,11 +1,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
-vi.mock("./api-client", () => ({ getTeam: vi.fn(), getHistory: vi.fn(), getCompanyMembers: vi.fn(), getCalendar: vi.fn() }));
+vi.mock("./api-client", () => ({ getTeam: vi.fn(), getHistory: vi.fn(), getCompanyMembers: vi.fn(), getCalendar: vi.fn(), writeTeam: vi.fn() }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { getTeam, getHistory, getCompanyMembers, getCalendar } from "./api-client";
-import { loadTeamAction, loadTeamHistoryAction, loadTeamMembersAction, loadTeamCalendarAction } from "./actions";
+import { getTeam, getHistory, getCompanyMembers, getCalendar, writeTeam } from "./api-client";
+import { loadTeamAction, loadTeamHistoryAction, loadTeamMembersAction, loadTeamCalendarAction, writeTeamAction } from "./actions";
 beforeEach(() => vi.resetAllMocks());
 const cases = [
+  { action: () => writeTeamAction({ vacancyId: "id", ifMatch: '\"one\"', idempotencyKey: "uuid", write: { kind: "leave" } }), client: writeTeam, input: { vacancyId: "id", ifMatch: '\"one\"', idempotencyKey: "uuid", write: { kind: "leave" } } },
   { action: () => loadTeamAction("id"), client: getTeam, input: { vacancyId: "id" } },
   { action: () => loadTeamHistoryAction("id", "opaque"), client: getHistory, input: { vacancyId: "id", cursor: "opaque" } },
   { action: () => loadTeamMembersAction("id"), client: getCompanyMembers, input: { vacancyId: "id" } },

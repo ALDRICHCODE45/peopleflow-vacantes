@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/api/server", async () => await import("@/lib/api/requestJson"));
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8081", apiTimeoutMs: 1000 } }));
-import { getTeam, getHistory, getCompanyMembers } from "./api-client";
+import { getTeam, getHistory, getCompanyMembers, getCalendar } from "./api-client";
 import { createFixtureClient } from "./prototype-client";
 const input = { token: " token ", vacancyId: "10000000-0000-4000-8000-000000000001" };
 const fixture = createFixtureClient("long-history");
@@ -11,6 +11,13 @@ function reply(body: unknown, status = 200, etag = '"team-1"') {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status, headers: { etag } }));
   vi.stubGlobal("fetch", fetch); return fetch;
 }
+it.each(["2026-11-30", null])("reads calendar and commitment date together from delivery (%s)", async commitmentDate => {
+  const calendar = createFixtureClient("owner").calendar;
+  const fetch = reply({ version: "1", fulfilled: false, cutoffStageId: null, targetQuantity: null, commitmentDate, limits: { maxTargetQuantity: 100 }, calendar });
+  expect(await getCalendar(input)).toEqual({ ok: true, data: { calendar, commitmentDate } });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0][0]).toBe(`http://localhost:8081/v2/me/company/job-drafts/${input.vacancyId}/pipeline/delivery`);
+});
 it("reads the team with its opaque strong ETag and unchanged viewer capabilities", async () => {
   const team = await fixture.getTeam(); const fetch = reply(team);
   expect(await getTeam(input)).toEqual({ ok: true, data: team, etag: '"team-1"' });

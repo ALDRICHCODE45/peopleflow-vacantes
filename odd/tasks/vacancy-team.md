@@ -238,3 +238,23 @@ the responsible manages collaborators, and placement credit follows the team mod
   Ana Pérez Gómez to Placement in the disposable branch DB to open both dialogs (no exit confirmed; she stays there
   for credit QA in slice 4). Fixed the pressed option being invisible in dark mode (also in «Reasignar responsable»);
   rule added to §24.
+- **L27** Backend slice 2 done (`0d0f6f55`, docs `40bfe1b7`, contract `82a1cdac`), live on :8081: team writes (add,
+  remove, leave, PATCH deadline, reassign-responsible, PUT mode) with If-Match = team ETag and UUID Idempotency-Key on
+  POSTs; 200 = full team body + new ETag; 403 `team_action_forbidden`; 422 `recruiter_deadline_not_applicable`
+  (reassign to someone already on the team with a deadline) and `responsible_not_applicable` (switch to shared with a
+  responsible); a leave replay returns the frozen 200; history carries reassignments with snapshots (stage kind,
+  business-day counts; total null without a deadline). T4 writes start.
+- **L28** T4 writes implemented (worker, 144 tests) and exercised in the browser on :8081 with three QA recruiters the
+  backend seeded only in the branch DB (Ana López, Diego Hernández, Mariana Ruiz; they cannot sign in): add Ana →
+  saved, «se unió como colaborador» in movements; reassign to Ana (workload, previous stays as collaborator) → saved,
+  deadline field hidden for a current member, real snapshot (1 de 5, 14 de 32 días hábiles, stage tints by kind).
+  Findings sent to a fix worker: status line overlapping three footer buttons, «X pasó la vacante de X a Y» wording,
+  one reassignment producing three movements, add dialog «Sin fecha» in api mode, unsorted pickers, zero stages in the
+  snapshot.
+- **L29** T4 done: real team writes plus the browser findings fixed (status on its own footer row, «X le pasó la
+  vacante a Y» when the performer is the previous responsible, function changes collapsed into their reassignment or
+  mode change, real commitment date in api mode, pickers sorted es-MX via `sortPeople` (popup order is browser QA,
+  §13.7), zero stages hidden in the snapshot, mode names quoted «Con responsable»). Browser on :8081: add Diego,
+  remove Diego, mode → «Equipo sin responsable» → «Con responsable» with Ana as responsible; every movement recorded
+  once. 159 tests (vacancy-team + requestPath), tsc, ESLint clean. Edit-deadline calendar path not clicked in the
+  browser (dialog covered by tests; calendar inside AlertDialog verified in T6).

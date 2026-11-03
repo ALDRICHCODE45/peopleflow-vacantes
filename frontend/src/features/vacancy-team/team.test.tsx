@@ -175,17 +175,14 @@ it("reassign composition, safe focus, default departure, Otro note and cancel wi
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
   expect(onClose).toHaveBeenCalled(); expect(onConfirm).not.toHaveBeenCalled();
 });
-it("reassign offers an optional recruiter deadline that falls back to the commitment date", async () => {
+it("reassign waits for the chosen target before offering a recruiter deadline", async () => {
   const client = createFixtureClient("owner");
   render(<ReassignDialog team={await client.getTeam()} company={await client.getCompanyMembers()} calendar={client.calendar} snapshot={client.snapshot} onConfirm={vi.fn()} onClose={vi.fn()} />);
   const dialog = await screen.findByRole("alertdialog");
   expect(within(dialog).getByText("Hoy: 3 de 5 candidatos entregados · 7 de 12 días hábiles usados. Esto queda guardado con la reasignación.")).toBeVisible();
   expect(within(dialog).queryByRole("progressbar")).not.toBeInTheDocument();
   expect(within(dialog).queryByText("Estado guardado al reasignar")).not.toBeInTheDocument();
-  const trigger = within(dialog).getByRole("button", { name: "Plazo del reclutador" });
-  expect(trigger).toHaveAttribute("id", "reassign-deadline");
-  expect(trigger).toHaveTextContent("Elige una fecha");
-  expect(document.getElementById("reassign-deadline-description")).toHaveTextContent("Si no lo defines, aplica la fecha compromiso: 30 de noviembre de 2026.");
+  expect(within(dialog).queryByRole("button", { name: "Plazo del reclutador" })).not.toBeInTheDocument();
 });
 // Opens DeadlineDialog directly: DropdownMenu interaction loops in jsdom (same boundary as Select above); the menu path needs browser QA.
 it("deadline editing opens the recruiter deadline field with the clear option", async () => {

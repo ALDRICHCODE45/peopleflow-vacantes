@@ -14,11 +14,13 @@ import { formatDate, functionLabel, modeLabel, reasons, type History, type Histo
 const person = (name: string) => <span className="font-medium">{name}</span>;
 function movement(item: HistoryItem): { sentence: ReactNode; tone: string; icon: typeof HistoryIcon } {
   if (item.kind === "reassignment") return {
-    sentence: <>{person(item.reassignment.performed_by.name)} pasó la vacante de {person(item.reassignment.from_user.name)} a {person(item.reassignment.to_user.name)}</>,
+    sentence: item.reassignment.performed_by.id === item.reassignment.from_user.id
+      ? <>{person(item.reassignment.performed_by.name)} le pasó la vacante a {person(item.reassignment.to_user.name)}</>
+      : <>{person(item.reassignment.performed_by.name)} pasó la vacante de {person(item.reassignment.from_user.name)} a {person(item.reassignment.to_user.name)}</>,
     // §13.1: primary-tinted medallions use foreground for dark-mode contrast.
     tone: "bg-primary/12 text-foreground ring-1 ring-primary/40", icon: UserRoundCog,
   };
-  if (item.kind === "mode_change") return { sentence: <>{person(item.mode_change.performed_by.name)} cambió el modo a {modeLabel[item.mode_change.to_mode]}</>, tone: "bg-status-info/10 text-status-info", icon: ArrowLeftRight };
+  if (item.kind === "mode_change") return { sentence: <>{person(item.mode_change.performed_by.name)} cambió el modo a «{modeLabel[item.mode_change.to_mode]}»</>, tone: "bg-status-info/10 text-status-info", icon: ArrowLeftRight };
   const tramo = item.tramo;
   const name = person(tramo.user.name);
   if (tramo.ended_at) {
@@ -31,6 +33,18 @@ function movement(item: HistoryItem): { sentence: ReactNode; tone: string; icon:
   const latest = tramo.functions.at(-1);
   if (tramo.functions.length > 1 && latest) return { sentence: <>{name} cambió su función a {functionLabel[latest.function].toLocaleLowerCase("es-MX")}</>, tone: "bg-status-info/10 text-status-info", icon: ArrowLeftRight };
   return { sentence: <>{name} se unió como {latest ? functionLabel[latest.function].toLocaleLowerCase("es-MX") : "miembro"}</>, tone: "bg-status-success/10 text-status-success", icon: UserRoundPlus };
+}
+// Compare instants rather than timestamp strings: API offsets and subsecond precision vary.
+const second = (at: string) => Math.floor(Date.parse(at) / 1000);
+function visibleMovements(items: HistoryItem[]) {
+  return items.filter(item => {
+    if (item.kind !== "tramo" || item.tramo.ended_at || item.tramo.functions.length <= 1) return true;
+    return !items.some(event => second(event.at) === second(item.at) && (
+      // A mode change applies to every member of this vacancy's team.
+      event.kind === "mode_change" || event.kind === "reassignment" &&
+      [event.reassignment.from_user.id, event.reassignment.to_user.id].includes(item.tramo.user.id)
+    ));
+  });
 }
 function movementKey(item: HistoryItem) {
   return item.kind === "tramo" ? `tramo-${item.tramo.assignment_id}` : item.kind === "reassignment" ? `reassignment-${item.reassignment.id}` : `mode-${item.mode_change.id}`;
@@ -57,13 +71,14 @@ function Timeline({ items, onSnapshot }: { items: HistoryItem[]; onSnapshot: (it
 export function TeamHistory({ history, onMore, pending }: { history: History; onMore: () => void; pending: boolean }) {
   const [snapshot, setSnapshot] = useState<Extract<HistoryItem, { kind: "reassignment" }> | null>(null);
   const [open, setOpen] = useState(false);
-  const hasMore = history.items.length > 5 || !!history.next_cursor;
+  const items = visibleMovements(history.items);
+  const hasMore = items.length > 5 || !!history.next_cursor;
   return <>
     <section aria-labelledby="team-history-heading" className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-1"><h3 id="team-history-heading" className="text-base font-semibold">Movimientos del equipo</h3><p className="text-sm text-muted-foreground">Las incorporaciones, salidas y cambios más recientes.</p></div>
       {/* Timeline-only Card: the section heading already names it; no redundant CardHeader. */}
-      {!history.items.length ? <Card><CardContent><SectionEmpty icon={HistoryIcon} tone="empty" title="Aún no hay cambios en el equipo" description="Aquí verás los movimientos del equipo cuando ocurran. Mientras tanto, revisa el equipo actual." primaryAction={{ label: "Ver equipo", href: "#current-team" }} /></CardContent></Card> : <Card>
-        <CardContent><Timeline items={history.items.slice(0, 5)} onSnapshot={setSnapshot} /></CardContent>
+      {!items.length ? <Card><CardContent><SectionEmpty icon={HistoryIcon} tone="empty" title="Aún no hay cambios en el equipo" description="Aquí verás los movimientos del equipo cuando ocurran. Mientras tanto, revisa el equipo actual." primaryAction={{ label: "Ver equipo", href: "#current-team" }} /></CardContent></Card> : <Card>
+        <CardContent><Timeline items={items.slice(0, 5)} onSnapshot={setSnapshot} /></CardContent>
         {hasMore && <CardFooter className="border-t"><Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger render={<Button type="button" variant="outline" className="min-h-10" />}>Ver todos los movimientos</SheetTrigger>
           <SheetContent showCloseButton={false} className={snapshotSheetClass}>
@@ -72,7 +87,7 @@ export function TeamHistory({ history, onMore, pending }: { history: History; on
               <SheetTitle>Movimientos del equipo</SheetTitle><SheetDescription>Consulta quién se sumó, quién salió y qué cambió en la vacante.</SheetDescription>
             </SheetHeader>
             <div data-slot="movements-body" className="min-h-0 flex-1 overflow-y-auto p-6" aria-busy={pending}>
-              <Timeline items={history.items} onSnapshot={setSnapshot} />
+              <Timeline items={items} onSnapshot={setSnapshot} />
               {history.next_cursor && <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={onMore}>{pending ? "Cargando…" : "Ver más"}</Button>}
             </div>
             <SheetFooter className="border-t"><ActionBar status={null}><SheetClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar</SheetClose></ActionBar></SheetFooter>

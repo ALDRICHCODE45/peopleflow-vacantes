@@ -7,6 +7,52 @@ import { memberActionLabel, memberActions } from "./model";
 import { createFixtureClient } from "./prototype-client";
 afterEach(cleanup);
 
+it.each([true, false])("names a reassignment without repeating its actor when self=%s", async self => {
+  const history = await createFixtureClient("owner").getHistory();
+  const item = history.items.find(item => item.kind === "reassignment")!;
+  if (item.kind !== "reassignment") throw new Error("fixture");
+  if (self) item.reassignment.performed_by = item.reassignment.from_user;
+  render(<TeamHistory history={{ items: [item], next_cursor: null }} pending={false} onMore={vi.fn()} />);
+  expect(screen.getByRole("listitem").querySelector("p")).toHaveTextContent(self ? "Diego Hernández le pasó la vacante a Ana López" : "Sofía Ramírez pasó la vacante de Diego Hernández a Ana López");
+});
+
+it.each(["reassignment", "mode_change"] as const)("collapses only same-second function changes for %s, preserving joins and leaves", async kind => {
+  const client = createFixtureClient("owner");
+  if (kind === "reassignment") await client.reassign({ to_user_id: "user-diego", reason: "workload", previous_responsible: "keep_as_collaborator", recruiter_deadline: null });
+  else await client.changeMode({ mode: "shared" });
+  const history = await client.getHistory();
+  const event = history.items.find(item => item.kind === kind)!;
+  const changed = history.items.find(item => item.kind === "tramo" && item.tramo.functions.length > 1)!;
+  if (changed.kind !== "tramo") throw new Error("fixture");
+  changed.at = "2026-11-12T16:04:00.999999+00:00";
+  const unrelated = structuredClone(changed); unrelated.tramo.assignment_id = "unrelated"; unrelated.tramo.user = { id: "other", name: "Otra persona" };
+  const earlier = structuredClone(changed); earlier.tramo.assignment_id = "earlier"; earlier.at = "2026-11-12T16:03:59Z";
+  const join = structuredClone(changed); join.tramo.assignment_id = "join"; join.tramo.functions = [join.tramo.functions[0]];
+  const leave = structuredClone(changed); leave.tramo.assignment_id = "leave"; leave.tramo.ended_at = event.at; leave.tramo.end_cause = "left";
+  const items = [event, changed, earlier, join, leave, ...(kind === "reassignment" ? [unrelated] : [])];
+  render(<TeamHistory history={{ items, next_cursor: "next" }} pending={false} onMore={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Ver todos los movimientos" }));
+  const sheet = await screen.findByRole("dialog", { name: "Movimientos del equipo" });
+  expect(within(sheet).getAllByRole("listitem")).toHaveLength(kind === "reassignment" ? 5 : 4);
+  expect(within(sheet).getByText(/se unió como/)).toBeVisible();
+  expect(within(sheet).getByText(/salió del equipo/)).toBeVisible();
+  expect(within(sheet).getAllByText(/cambió su función/)).toHaveLength(kind === "reassignment" ? 2 : 1);
+});
+
+it.each([false, true])("hides zero stages and shows the empty candidate copy when allZero=%s", allZero => {
+  const snapshot = createFixtureClient("owner").snapshot;
+  snapshot.stage_counts = [
+    { stage_id: "empty", stage_name: "Vacía", active: 0, discarded: 0 },
+    { stage_id: "discarded", stage_name: "Con descartados", active: 0, discarded: allZero ? 0 : 1 },
+    { stage_id: "active", stage_name: "Con activos", active: allZero ? 0 : 2, discarded: 0 },
+  ];
+  render(<SnapshotSheet snapshot={snapshot} from="Diego" to="Ana" open onOpenChange={vi.fn()} />);
+  const section = screen.getByRole("region", { name: "Candidatos por etapa" });
+  expect(within(section).queryByText(/Vacía/)).not.toBeInTheDocument();
+  expect(within(section).queryAllByRole("progressbar")).toHaveLength(allZero ? 0 : 2);
+  if (allZero) expect(within(section).getByText("Aún no había candidatos")).toBeVisible();
+});
+
 it.each([[1, "1 placement"], [2, "2 placements"]] as const)("uses plain plural placements copy for %s", async (count, copy) => {
   const snapshot = createFixtureClient("owner").snapshot;
   snapshot.placements = { current: count, credited: 0 };
@@ -16,6 +62,19 @@ it.each([[1, "1 placement"], [2, "2 placements"]] as const)("uses plain plural p
   expect(within(sheet).getByText(copy, { exact: true })).toBeVisible();
   expect(within(sheet).queryByText(/acreditados/)).not.toBeInTheDocument();
   expect(within(sheet).getByRole("progressbar", { name: "Personalizada: 1 candidato" })).toHaveClass("stage-neutral");
+});
+
+it("shows elapsed days without a progress bar when no deadline exists and trusts stage kind", async () => {
+  const snapshot = createFixtureClient("owner").snapshot;
+  snapshot.tramo.business_days_total = null;
+  snapshot.tramo.effective_deadline = null;
+  snapshot.tramo.deadline_source = "none";
+  snapshot.stage_counts = [{ stage_id: "opaque", stage_name: "Entrevista", kind: "in_process", active: 3, discarded: 0 }];
+  render(<SnapshotSheet snapshot={snapshot} from="Diego" to="Ana" open onOpenChange={vi.fn()} />);
+  const section = screen.getByRole("region", { name: "Tiempo utilizado" });
+  expect(within(section).getByText("7 días hábiles usados · sin plazo definido")).toBeVisible();
+  expect(within(section).queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(screen.getByRole("progressbar", { name: "Entrevista: 3 candidatos" })).toHaveClass("stage-process");
 });
 
 it("provides short capability-only member menu options", async () => {
@@ -61,7 +120,7 @@ it("keeps a short timeline compact and opens its snapshot action", async () => {
   expect(await screen.findByRole("dialog", { name: "Cómo estaba la vacante" })).toBeVisible();
 });
 it.each([
-  ["mode", "Sofía Ramírez cambió el modo a Equipo sin responsable"],
+  ["mode", "Sofía Ramírez cambió el modo a «Equipo sin responsable»"],
   ["function", "Ana López cambió su función a colaborador"],
   ["removed", "Sofía Ramírez quitó a Diego Hernández del equipo"],
   ["left", "Diego Hernández salió del equipo"],

@@ -4,6 +4,10 @@ import type { CompanyMembers, History, ModeChange, Reassign, Snapshot, Team } fr
 /** All writes return the full resource. A real adapter must carry ETag/If-Match and
  * UUID Idempotency-Key for POSTs; this prototype does not issue HTTP requests. */
 export interface TeamClient {
+  /** Real adapters persist writes; fixtures only change memory. */
+  readonly persisted?: boolean;
+  /** New dialog confirmation: discard the previous attempt, never reuse its UUID. */
+  beginAttempt?(): void;
   getTeam(): Promise<Team>;
   getCompanyMembers(): Promise<CompanyMembers>;
   getHistory(cursor?: string): Promise<History>;
@@ -15,9 +19,11 @@ export interface TeamClient {
   changeMode(body: ModeChange): Promise<Team>;
   /** Business-day window for deadlines; the real adapter reads it from GET V/pipeline/delivery. */
   calendar: Delivery["calendar"];
+  /** Current delivery commitment, independent of captured reassignment snapshots. */
+  readonly commitmentDate?: string | null;
   /** Fixture-only preview, not a new backend endpoint. The persisted snapshot is authoritative. */
   snapshot?: Snapshot;
-  /** Opaque team ETag, retained for the future write adapter. */
+  /** Opaque team ETag, replaced after each successful read or write. */
   readonly etag?: string;
 }
 export class TeamError extends Error {

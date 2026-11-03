@@ -19,6 +19,7 @@ const ratio = (value: number | null, total: number | null) => value !== null && 
 /** Controlled without Trigger: opened by a movement action, never around the page. */
 export function SnapshotSheet({ snapshot, from, to, open, onOpenChange }: { snapshot: Snapshot; from: string; to: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { delivery, tramo } = snapshot;
+  const stages = snapshot.stage_counts.filter(stage => stage.active > 0 || stage.discarded > 0);
   const maxStage = Math.max(1, ...snapshot.stage_counts.map(stage => stage.active));
   const discarded = snapshot.stage_counts.reduce((sum, stage) => sum + stage.discarded, 0);
   return <Sheet open={open} onOpenChange={onOpenChange}>
@@ -38,20 +39,19 @@ export function SnapshotSheet({ snapshot, from, to, open, onOpenChange }: { snap
         <Separator />
         <section aria-label="Tiempo utilizado" className="flex flex-col gap-3">
           <h3 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><Clock3 aria-hidden="true" className="size-4" />Tiempo utilizado</h3>
-          <Progress value={ratio(tramo.business_days_elapsed, tramo.business_days_total)}><ProgressLabel className="text-lg tabular-nums"> {tramo.business_days_elapsed ?? "Sin dato"}{tramo.business_days_total === null ? " · Sin plazo definido" : ` de ${plural(tramo.business_days_total, "día hábil", "días hábiles")}`}</ProgressLabel></Progress>
+          {tramo.business_days_total === null ? <p className="text-lg font-medium tabular-nums">{tramo.business_days_elapsed === null ? "Sin dato" : plural(tramo.business_days_elapsed, "día hábil usado", "días hábiles usados")} · sin plazo definido</p> : <Progress value={ratio(tramo.business_days_elapsed, tramo.business_days_total)}><ProgressLabel className="text-lg tabular-nums">{tramo.business_days_elapsed ?? "Sin dato"} de {plural(tramo.business_days_total, "día hábil", "días hábiles")}</ProgressLabel></Progress>}
           <p className="text-xs text-muted-foreground">Plazo: {formatDate(tramo.effective_deadline)} · {sourceLabel[tramo.deadline_source].toLocaleLowerCase("es-MX")}</p>
         </section>
         <Separator />
         <section aria-label="Candidatos por etapa" className="flex flex-col gap-4">
           <h3 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><Users aria-hidden="true" className="size-4" />Candidatos por etapa</h3>
-          {snapshot.stage_counts.map(stage => {
-            // The contract snapshot has no kind. Known built-in IDs retain their pipeline tint;
-            // opaque/custom IDs use the pipeline's neutral fallback, never guessed from a name.
-            // TODO(contract): snapshot stage_counts lacks stage kind
-            const kind = ["new", "screening", "screening_ok", "in_process", "placement"].find(kind => kind === stage.stage_id) as "new" | "screening" | "screening_ok" | "in_process" | "placement" | undefined;
-            return <Progress key={stage.stage_id} value={stage.active / maxStage * 100} className={`${stageClass(kind ?? "custom")} [&_[data-slot=progress-indicator]]:bg-(--stage)`}><ProgressLabel>{stage.stage_name}: {plural(stage.active, "candidato", "candidatos")}</ProgressLabel></Progress>;
+          {!stages.length && <p className="text-sm text-muted-foreground">Aún no había candidatos</p>}
+          {stages.map(stage => {
+            // Older fixtures may omit kind; real snapshots always carry the captured pipeline kind.
+            const kind = stage.kind ?? (["new", "screening", "screening_ok", "in_process", "placement"].find(kind => kind === stage.stage_id) as "new" | "screening" | "screening_ok" | "in_process" | "placement" | undefined);
+            return <Progress key={stage.stage_id} value={stage.active / maxStage * 100} className={`${stageClass(kind ?? "custom")} [&_[data-slot=progress-indicator]]:bg-(--stage)`}><ProgressLabel>{stage.stage_name}: {stage.active > 0 ? plural(stage.active, "candidato", "candidatos") : plural(stage.discarded, "descartado", "descartados")}</ProgressLabel></Progress>;
           })}
-          <p className="text-sm text-muted-foreground">{plural(discarded, "descartado", "descartados")}</p>
+          {discarded > 0 && <p className="text-sm text-muted-foreground">{plural(discarded, "descartado", "descartados")}</p>}
         </section>
         <Separator />
         <div className="flex flex-wrap items-center gap-2"><Badge variant={publicationTone[snapshot.lifecycle.publication]}>{publication[snapshot.lifecycle.publication]}</Badge><Badge variant="neutral">{snapshot.lifecycle.process === "finished" ? "Proceso terminado" : snapshot.lifecycle.process === "active" ? "Proceso activo" : "Sin proceso"}</Badge></div>

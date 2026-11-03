@@ -69,6 +69,7 @@ export function createFixtureClient(fixture: FixtureName): TeamClient & { snapsh
   }
   const client: TeamClient & { snapshot: import("./model").Snapshot } = {
     calendar: { timeZone: "America/Mexico_City", today: "2026-11-02", minDate: "2026-11-02", maxDate: "2027-11-02", nonBusinessDates: ["2026-11-16", "2026-12-25", "2027-01-01", "2027-02-01", "2027-03-15"] },
+    get commitmentDate() { return snapshot.delivery.commitment_date; },
     get snapshot() {
       const current = clone(snapshot);
       const responsible = team.members.find(member => member.function === "responsible");

@@ -128,6 +128,20 @@ describe("single application-facing request path", () => {
     expect(client).not.toMatch(/\bfetch\(/);
   });
 
+  it("keeps all six team writes behind the authenticated server action and guarded transport", () => {
+    const client = source(join(SRC, "features/vacancy-team/api-client.ts"));
+    for (const path of ['"/members"', '`/members/${write.userId}/remove`', '`/members/${write.userId}`', '"/reassign-responsible"']) expect(client).toContain(path);
+    for (const header of ['"if-match"', '"idempotency-key"']) expect(client).toContain(header);
+    expect(client).toContain('write.kind === "mode" ? "PUT" : write.kind === "deadline" ? "PATCH" : "POST"');
+    const actions = source(join(SRC, "features/vacancy-team/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions.match(/export async function (\w+)/g)).toEqual([
+      "export async function writeTeamAction", "export async function loadTeamAction", "export async function loadTeamHistoryAction", "export async function loadTeamMembersAction", "export async function loadTeamCalendarAction",
+    ]);
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+  });
+
   it("keeps corrected CV uploads on the bounded same-origin route and server actions behind the file client", () => {
     const upload = source(join(SRC, "features/org-candidates/cv/upload.ts"));
     expect(upload).toContain("fetch(candidateCvHref(candidate, participationId)");
