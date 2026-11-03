@@ -112,7 +112,12 @@ func setupMovement(t *testing.T) movementFixture {
 }
 func (m movementFixture) move(t *testing.T, item board.Item, target string, confirm bool) (board.Moved, error) {
 	t.Helper()
-	raw, _ := json.Marshal(map[string]any{"to_stage_id": target, "confirm_placement_exit": confirm})
+	payload := map[string]any{"to_stage_id": target}
+	stages := pipelineconfig.Defaults(m.vacancy).Stages
+	if confirm && item.StageID == stages[len(stages)-1].ID {
+		payload["placement_exit_reason"] = "candidate_left"
+	}
+	raw, _ := json.Marshal(payload)
 	return m.board.Move(context.Background(), m.company, m.recruiter, m.vacancy, item.ID, item.ETag, true, raw)
 }
 func (m movementFixture) snapshot(t *testing.T) string {

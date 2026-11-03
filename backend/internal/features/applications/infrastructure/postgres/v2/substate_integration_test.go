@@ -267,7 +267,7 @@ func TestSubstateRejectsWithoutAnyEffects(t *testing.T) {
 			}
 		})
 	}
-	out, err := m.board.Discard(context.Background(), m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"reason":{"group":"candidate","key":"unresponsive"},"confirm_placement_exit":true}`))
+	out, err := m.board.Discard(context.Background(), m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"reason":{"group":"candidate","key":"unresponsive"},"placement_exit_reason":"candidate_left"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

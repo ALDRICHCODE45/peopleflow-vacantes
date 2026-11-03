@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func TestDiscardMoveRecoveryPlacementForcedOneWinner(t *testing.T) {
 				t.Fatal(full, err)
 			}
 			if winner == "recover" {
-				out, err := m.discard(t, m.item, discardBody)
+				out, err := m.discard(t, m.item, strings.TrimSuffix(discardBody, "}")+`,"placement_exit_reason":"candidate_left"}`)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -82,9 +83,9 @@ func TestDiscardMoveRecoveryPlacementForcedOneWinner(t *testing.T) {
 					var err error
 					switch op {
 					case "discard":
-						out, err = store.Discard(ctx, m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(discardBody))
+						out, err = store.Discard(ctx, m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(strings.TrimSuffix(discardBody, "}")+`,"placement_exit_reason":"candidate_left"}`))
 					case "move":
-						out, err = store.Move(ctx, m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"to_stage_id":"`+stages[0].ID+`","confirm_placement_exit":true}`))
+						out, err = store.Move(ctx, m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"to_stage_id":"`+stages[0].ID+`","placement_exit_reason":"candidate_left"}`))
 					case "recover":
 						out, err = store.Recover(ctx, m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"confirm_placement_reentry":true}`))
 					}

@@ -193,15 +193,15 @@ func TestListV2_ProjectionMatchesGetV2(t *testing.T) {
 			if !reflect.DeepEqual(requester, getFields["requester"]) {
 				t.Fatalf("list requester=%v GET=%v", requester, getFields["requester"])
 			}
-			if item.Principal.ID != principalID {
+			if item.Team.Responsible.ID != principalID.String() {
 				t.Fatal("wrong principal")
 			}
 			if shape == "deleted_principal" {
-				if item.Principal.Name != nil {
+				if item.Team.Responsible.Name != nil {
 					t.Fatal("deleted principal name must be nil")
 				}
-			} else if item.Principal.Name == nil || *item.Principal.Name != "Draft Test" {
-				t.Fatalf("principal=%+v", item.Principal)
+			} else if item.Team.Responsible.Name == nil || *item.Team.Responsible.Name != "Draft Test" {
+				t.Fatalf("responsible=%+v", item.Team.Responsible)
 			}
 		})
 	}

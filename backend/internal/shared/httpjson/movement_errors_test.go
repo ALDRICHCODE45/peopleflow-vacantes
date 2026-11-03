@@ -7,7 +7,7 @@ func TestMovementErrorExtension(t *testing.T) {
 		code   Code
 		status int
 	}{
-		{"stage_skip_not_allowed", 409}, {"placement_exit_confirmation_required", 409}, {"vacancy_not_published", 409}, {"board_too_large", 422}, {"stage_change_requires_empty_pipeline", 409},
+		{"stage_skip_not_allowed", 409}, {"placement_exit_reason_required", 409}, {"vacancy_not_published", 409}, {"board_too_large", 422}, {"stage_change_requires_empty_pipeline", 409},
 	} {
 		t.Run(string(tc.code), func(t *testing.T) {
 			got := Resolve(tc.code)

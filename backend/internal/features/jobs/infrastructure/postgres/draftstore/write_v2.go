@@ -82,7 +82,7 @@ func (s *Store) CreateV2(ctx context.Context, companyID, actorID uuid.UUID, key 
 	if err := s.createTeam(ctx, tx, record, actorID); err != nil {
 		return drafts.Result{}, err
 	}
-	responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name)
+	responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}

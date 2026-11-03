@@ -96,17 +96,24 @@ func TestGetV2_CompleteEnvelopeAndNoMutation(t *testing.T) {
 			}
 			before := readV2Snapshot(t, pool, p)
 			want := envelopeOf(t, created.Body)
-			want["schema_version"], want["principal_recruiter_id"] = int64(2), member.String()
+			want["schema_version"] = int64(2)
+			delete(want, "principal_recruiter_id")
+			want["team"] = map[string]any{"mode": "with_responsible", "responsible": map[string]any{"id": member.String(), "name": "Draft Test"}, "members_count": int64(1), "viewer_function": nil}
 			fields["description_plain"] = plain
 			if requester, ok := fields["requester"].(map[string]any); ok {
 				requester["name"] = name
 			}
 			want["fields"] = fields
 			want["lifecycle"] = map[string]any{"publication": nil, "process": nil, "version": "0", "published_at": nil, "paused_at": nil, "closed_at": nil, "process_finished_at": nil, "allowed_actions": []any{"publish"}, "close_reason": nil, "close_reason_note": nil}
-			wantBody := mustCanonical(t, want)
 			wantTag := `"jd-r2-` + id.String() + `-v1"`
 			var reader drafts.V2Reader = store
 			for _, actor := range []uuid.UUID{p.ownerID, member} {
+				var function any
+				if actor == member {
+					function = "responsible"
+				}
+				want["team"].(map[string]any)["viewer_function"] = function
+				wantBody := mustCanonical(t, want)
 				got, err := reader.GetV2(context.Background(), p.companyID, actor, id)
 				if err != nil {
 					t.Fatalf("GetV2: %v", err)

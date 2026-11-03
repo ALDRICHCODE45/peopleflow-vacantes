@@ -303,6 +303,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.PutSubstates)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.GetDelivery)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.PutDelivery)
+		r.Post("/v2/me/company/job-drafts/{id}/commitment", deliveryHandlers.Commitment)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery/status", deliveryHandlers.Status)
 		r.Post("/v2/me/company/job-drafts/{id}/pipeline/delivery/preview", deliveryHandlers.Preview)
 		r.Get("/v2/me/company/job-drafts/{id}/management", managementHandlers.GetManagement)

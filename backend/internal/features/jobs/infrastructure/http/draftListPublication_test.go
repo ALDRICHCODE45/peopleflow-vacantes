@@ -12,7 +12,7 @@ import (
 
 func TestListDraftsPublicationKeysAndUTCTimestamp(t *testing.T) {
 	at := time.Date(2026, 10, 16, 12, 34, 56, 123456000, time.FixedZone("Mexico", -6*60*60))
-	store := &fakeDraftLister{page: draftlist.Page{Items: []draftlist.Item{{ID: listDraftID, Status: "published", Process: strPtr("active"), PublishedAt: &at, Version: 1, Principal: draftlist.Principal{ID: listPrincipalID}}, {ID: reqEntryID, Status: "draft", Version: 1, Principal: draftlist.Principal{ID: listPrincipalID}}}}}
+	store := &fakeDraftLister{page: draftlist.Page{Items: []draftlist.Item{{ID: listDraftID, Status: "published", Process: strPtr("active"), PublishedAt: &at, Version: 1, Team: listTestTeam(nil)}, {ID: reqEntryID, Status: "draft", Version: 1, Team: listTestTeam(nil)}}}}
 	r := doDraft(t, draftListRouter(store, true), http.MethodGet, draftListPath, nil, nil)
 	assertNoStore(t, r)
 	var page struct {
@@ -28,7 +28,7 @@ func TestListDraftsPublicationKeysAndUTCTimestamp(t *testing.T) {
 	for k := range page.Items[0] {
 		keys[k] = true
 	}
-	if !reflect.DeepEqual(keys, map[string]bool{"id": true, "title": true, "work_mode": true, "work_schedule": true, "requester": true, "principal_recruiter": true, "version": true, "status": true, "process": true, "published_at": true, "paused_at": true, "closed_at": true, "close_reason": true, "close_reason_note": true, "process_finished_at": true, "candidates": true, "created_at": true, "updated_at": true}) {
+	if !reflect.DeepEqual(keys, map[string]bool{"id": true, "title": true, "work_mode": true, "work_schedule": true, "requester": true, "team": true, "version": true, "status": true, "process": true, "published_at": true, "paused_at": true, "closed_at": true, "close_reason": true, "close_reason_note": true, "process_finished_at": true, "candidates": true, "created_at": true, "updated_at": true}) {
 		t.Fatal(keys)
 	}
 }

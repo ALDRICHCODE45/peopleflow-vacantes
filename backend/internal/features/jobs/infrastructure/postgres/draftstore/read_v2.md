@@ -15,12 +15,24 @@ errors, not client validation failures. Errors always return a zero Result.
 
 Only complete documents accepted by `draftinput.ValidatePersistedDraftV2` are
 rendered. Reads do not repair or rewrite stored values. The employer envelope
-contains root schema_version 2, id, status, principal_recruiter_id, positive
+contains root schema_version 2, id, status, `team`, positive
 string version, UTC microsecond timestamps and all 17 fields, plus derived
 `description_plain` and `requester.name`. A null requester stays null. Evaluated
 screening retains `correct_option_id`; this must never be used as a candidate
 response. The ETag uses `jd-r2`; Replayed is false. The stored canonical document
 remains distinct from this metadata-bearing read envelope.
+
+Fresh GET, create and save responses share `team: {mode, responsible: {id,name}|null,
+members_count, viewer_function}`. Counts include active tramos only; the viewer function
+is the caller's open function, or null (including an owner outside the team). List
+items expose the same projection instead of `principal_recruiter`, in the existing
+single page query. Names are live projections, not historical snapshots.
+
+Team metadata never enters stored writable fields, canonical write fingerprints, or
+the draft ID/version ETag. Existing frozen create responses replay byte-for-byte,
+including their old `principal_recruiter_id`. V1 envelopes keep that key, derived
+from the open responsible; with no responsible the compatibility projection is the
+zero UUID.
 
 ## Verification
 

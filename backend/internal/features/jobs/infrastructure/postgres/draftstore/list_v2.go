@@ -35,13 +35,10 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 
 	// Materialize the existing visible keyset page first. All participation
 	// aggregation is restricted to those IDs, in this same SQL statement/snapshot.
-	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields, COALESCE(responsible.user_id,'00000000-0000-0000-0000-000000000000'::uuid), u.full_name,
+	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields,
  d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at, p.paused_at, p.closed_at, p.process_finished_at,
- c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note
+ c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note, ` + teamSummarySQL + ` AS team
  FROM job_drafts d
- LEFT JOIN LATERAL (SELECT a.user_id FROM vacancy_assignments a JOIN vacancy_assignment_functions f ON f.assignment_id=a.id
- WHERE a.draft_id=d.id AND a.ended_at IS NULL AND f.ended_at IS NULL AND f.function='responsible') responsible ON true
- LEFT JOIN users u ON u.id = responsible.user_id AND u.deleted_at IS NULL
  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
  LEFT JOIN job_draft_pipeline_configs c ON c.draft_id = d.id
  LEFT JOIN LATERAL (
@@ -82,15 +79,15 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	}
 	items := make([]draftlist.Item, 0, req.Limit+1)
 	type projection struct {
-		document, pipeline, counts []byte
-		pipelineVersion            *int64
-		requesterName              *string
+		document, pipeline, counts, team []byte
+		pipelineVersion                  *int64
+		requesterName                    *string
 	}
 	projections := make([]projection, 0, req.Limit+1)
 	for rows.Next() {
 		var item draftlist.Item
 		var p projection
-		if err := rows.Scan(&item.ID, &p.document, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.counts, &p.requesterName); err != nil {
+		if err := rows.Scan(&item.ID, &p.document, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.team, &p.counts, &p.requesterName); err != nil {
 			rows.Close()
 			return draftlist.Page{}, fmt.Errorf("scan list v2 draft: %w", err)
 		}
@@ -115,6 +112,12 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	}
 	// Hydrate only returned rows; the lookahead only establishes another page.
 	for i := range page.Items {
+		if len(projections[i].team) == 0 {
+			return draftlist.Page{}, errors.New("draftstore: missing team summary")
+		}
+		if err := json.Unmarshal(projections[i].team, &page.Items[i].Team); err != nil {
+			return draftlist.Page{}, fmt.Errorf("decode list team: %w", err)
+		}
 		p := projections[i]
 		document := p.document
 		if page.Items[i].Process != nil {

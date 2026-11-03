@@ -79,7 +79,7 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		if err != nil {
 			return drafts.Result{}, err
 		}
-		responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name)
+		responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name, actorID)
 		if err != nil {
 			return drafts.Result{}, err
 		}
@@ -127,7 +127,7 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		return drafts.Result{}, err
 	}
 
-	responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name)
+	responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}

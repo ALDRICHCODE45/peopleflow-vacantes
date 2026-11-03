@@ -11,21 +11,19 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancyteam"
 	"github.com/google/uuid"
 )
 
 type draftListFlowPage struct {
 	Items []struct {
-		ID                 string          `json:"id"`
-		Title              *string         `json:"title"`
-		Requester          json.RawMessage `json:"requester"`
-		PrincipalRecruiter struct {
-			ID   string  `json:"id"`
-			Name *string `json:"name"`
-		} `json:"principal_recruiter"`
-		Version   string `json:"version"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
+		ID        string              `json:"id"`
+		Title     *string             `json:"title"`
+		Requester json.RawMessage     `json:"requester"`
+		Team      vacancyteam.Summary `json:"team"`
+		Version   string              `json:"version"`
+		CreatedAt string              `json:"created_at"`
+		UpdatedAt string              `json:"updated_at"`
 	} `json:"items"`
 	NextCursor *string `json:"next_cursor"`
 }
@@ -78,7 +76,7 @@ func TestDraftListFlow_VisibilityPagingAndParity(t *testing.T) {
 	}
 	item := second.Items[0]
 	if item.Title == nil || *item.Title != "Backend Go" || string(item.Requester) != `{"kind":"client","id":null,"name":null}` ||
-		item.PrincipalRecruiter.ID != recruiterID.String() || item.PrincipalRecruiter.Name == nil {
+		item.Team.Responsible.ID != recruiterID.String() || item.Team.Responsible.Name == nil {
 		t.Fatalf("recruiter draft row = %+v requester=%s", item, item.Requester)
 	}
 
@@ -88,7 +86,7 @@ func TestDraftListFlow_VisibilityPagingAndParity(t *testing.T) {
 		t.Fatalf("get: %d %s", read.status, read.body)
 	}
 	env := draftFlowObject(t, read.body)
-	if env["version"] != item.Version || env["created_at"] != item.CreatedAt || env["updated_at"] != item.UpdatedAt || env["principal_recruiter_id"] != item.PrincipalRecruiter.ID {
+	if env["version"] != item.Version || env["created_at"] != item.CreatedAt || env["updated_at"] != item.UpdatedAt || env["team"].(map[string]any)["responsible"].(map[string]any)["id"] != item.Team.Responsible.ID {
 		t.Fatalf("row %+v differs from GET envelope %s", item, read.body)
 	}
 

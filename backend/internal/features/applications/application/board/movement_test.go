@@ -34,7 +34,11 @@ func TestMovementRules(t *testing.T) {
 		{"discarded", "a", "discarded", false, false, false, app.ErrValidation},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h, d, err := app.ValidateMove(stages, tc.from, app.Move{ToStageID: tc.to, ConfirmPlacementExit: tc.confirm})
+			reason := ""
+			if tc.confirm {
+				reason = "candidate_left"
+			}
+			h, d, err := app.ValidateMove(stages, tc.from, app.Move{ToStageID: tc.to, PlacementExitReason: reason})
 			if !errors.Is(err, tc.want) || h != tc.hire || d != tc.departure {
 				t.Fatalf("got %v %v %v", h, d, err)
 			}
@@ -48,7 +52,7 @@ func TestMoveStrictDecode(t *testing.T) {
 		valid      bool
 	}{
 		{"minimal", `{"to_stage_id":"` + id + `"}`, true},
-		{"confirmed", `{"to_stage_id":"` + id + `","confirm_placement_exit":true}`, true},
+		{"reason", `{"to_stage_id":"` + id + `","placement_exit_reason":"candidate_left"}`, true},
 		{"unknown", `{"to_stage_id":"` + id + `","actor":"x"}`, false},
 		{"duplicate", `{"to_stage_id":"` + id + `","to_stage_id":"` + id + `"}`, false},
 		{"null flag", `{"to_stage_id":"` + id + `","confirm_placement_exit":null}`, false},

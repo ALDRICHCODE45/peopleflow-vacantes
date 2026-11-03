@@ -88,6 +88,11 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	if stageKind == "" {
 		return app.Moved{}, errors.New("unknown stored progression stage")
 	}
+	if !recovering {
+		if err := app.ValidatePlacementExit(stageKind == "placement", req.PlacementExitReason); err != nil {
+			return app.Moved{}, err
+		}
+	}
 	hire, departure := false, false
 	if stageKind == "placement" {
 		if recovering {
@@ -96,9 +101,6 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 			}
 			hire = true
 		} else {
-			if !req.ConfirmPlacementExit {
-				return app.Moved{}, app.ErrPlacementExit
-			}
 			departure = true
 		}
 	}

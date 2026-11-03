@@ -335,6 +335,10 @@ func TestLifecycleDBHistoryActorSnapshotAndPreservedAuthoring(t *testing.T) {
 	if *view.Publication != "published" || *view.Process != "active" || view.PausedAt == nil || view.ClosedAt == nil || view.ProcessFinishedAt == nil {
 		t.Fatal(view)
 	}
+	// Team names are live read projections, unlike lifecycle's actor snapshot.
+	expected := envelopeOf(t, authoring.Body)
+	expected["team"].(map[string]any)["responsible"].(map[string]any)["name"] = "Changed actor"
+	authoring.Body = mustCanonical(t, expected)
 	after, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
 	if err != nil || !bytes.Equal(withoutLifecycle(t, after.Body), withoutLifecycle(t, authoring.Body)) || after.ETag != authoring.ETag {
 		t.Fatal("lifecycle changed authoring", err)
