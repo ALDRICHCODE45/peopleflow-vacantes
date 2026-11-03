@@ -33,8 +33,8 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 
 ## Tasks
 
-- [ ] T1 — S1, S2, S3, S9 (team created): migration 00054 + store + access predicate + `team_access_ended` + GET team
-  and history. Route: worker. Commit: —
+- [x] T1 — S1, S2, S3, S9 (team created): migration 00054 + store + access predicate + `team_access_ended` + GET team
+  and history. Route: worker. Commit: efa6c361 (docs 55d4fc9a). Verify: PARTIAL→gaps closed (L6–L7).
 - [ ] T2 — S4, S9: team writes, reassign, mode. Route: worker. Commit: —
 - [ ] T3 — S5, S9: draft list/read `team`, `placement_exit_reason`, commitment 409 + `POST commitment`. Route: worker.
   Commit: —
