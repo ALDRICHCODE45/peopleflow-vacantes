@@ -457,8 +457,11 @@ Every vacancy listed by the preview must resolve to a target (per-vacancy entry 
 `offboard_reassignment_not_applicable`. Atomic, vacancy rows locked in draft-id order: for `hand_over = responsible`, the
 same handover as `POST V/team/reassign-responsible` (reason `recruiter_departure`, `previous_responsible = remove`,
 snapshot, `VacancyResponsibleReassigned`); for `hand_over = last_member`, the target joins as `member` (start_cause
-`added`, `VacancyTeamMemberAdded`) before the leaving tramo ends; then every tramo of the member ends with
-`membership_ended`, and the membership is removed. Uses `Idempotency-Key`; no team ETag (it spans vacancies).
+`added`, `VacancyTeamMemberAdded`) before the leaving tramo ends; then every OTHER active tramo of the member ends with
+`membership_ended` (`VacancyAssignmentEndedByMembership` each), and the membership is removed. The responsible tramos
+handed over end with `reassigned` (their `vacancy_reassignments` row carries reason `recruiter_departure`), are reported
+in `handed_over` through `reassignment_id`, and are NOT listed in `ended_assignment_ids`, which lists only the
+`membership_ended` tramos (including the `last_member` ones). Uses `Idempotency-Key`; no team ETag (it spans vacancies).
 
 Response 200:
 

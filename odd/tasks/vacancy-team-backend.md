@@ -133,3 +133,6 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   issues — the same failures alone on a clean schema on the T4 commit 1c8eaf66 AND on main cf688633 (country catalog
   missing → `country invalid` in two cmd/api tests; FK in TestDashboardEntriesCoverageAndBoundary; the known geo planner
   test). They passed before only on accumulated DB state. Recorded in docs/ROADMAP.md. T5 → independent verify.
+- L20 — T5 verifier flagged a wording conflict: handed-over responsible tramos end `reassigned` (implementation) vs
+  «every tramo ends membership_ended». Contract clarified in favor of `reassigned` (reassignment row with
+  recruiter_departure; excluded from `ended_assignment_ids`); diff sent to the frontend.
