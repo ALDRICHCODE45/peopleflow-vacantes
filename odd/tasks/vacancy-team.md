@@ -172,3 +172,24 @@ the responsible manages collaborators, and placement credit follows the team mod
   progress bars without duplicate labels, fixture stages use built-in tints (unknown IDs stay neutral), placements
   use plain zero/plural copy, and the capture note reads «Guardado el …». RED observed; 41 team + 16 shell tests,
   TypeScript and touched-file ESLint passed. Empty/error/loading states preserved; browser re-review is parent-owned.
+- **L17** (user, 2026-11-02, after the second browser pass, `fc24f4ae`): «me cierra completamente hermano.» T2b approved:
+  the Equipo section is the visual reference for the rest of the feature.
+- **L18** (T7, S3/S7/S10): extended only the existing company-member removal action with contract-shaped in-memory
+  preview/offboard fixtures, one confirmation with shared PersonField pickers, team-based suggestion, per-vacancy
+  overrides and atomic unresolved-map validation (422); membership IDs stay separate from user IDs. Locally run
+  `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=1 pnpm dev` from `frontend/`, sign in as an owner and open
+  `/empresa/equipo?offboard=responsible` (default: two vacancies), `?offboard=none`, or `?offboard=collaborator`, then
+  choose the existing member action «Quitar del equipo». Fixtures adapt to the selected real member and current company
+  list; removing changes memory only, refresh resets it. Production/flag-off keep today's confirmation and DELETE,
+  pinned by tests. 105 employer-team/vacancy-team tests, TypeScript and touched-file ESLint passed; browser review and
+  real endpoint integration remain parent-owned/pending.
+- **L18** Backend slice 1 done on `feat/vacancy-team-backend` (`efa6c361`; docs `55d4fc9a`, `efe64f75`): migration
+  00054, access guard owner OR active tramo with 404 `team_access_ended`, creator becomes responsible, GET V/team (+ETag)
+  and GET V/team/history. Draft list/read keep `principal_recruiter`/`principal` until slice 3. Backend order: slice 3
+  (breaking changes) → slice 2 (team writes) → credits/offboard/own history. Contract addition agreed: snapshot
+  `stage_counts[].kind` (new | screening | screening_ok | in_process | placement | custom). Requested a branch API on a
+  separate port with its own DB at 54 for the real team-read client; :8080 stays on main.
+- **L19** Branch QA API from the backend: http://127.0.0.1:8081 (`feat/vacancy-team-backend` @ `285395c8` = slice 1 +
+  stage kind), DB `peopleflow_vacancies_team` (dev copy at 54, 12 drafts backfilled), same Cognito. Stop: PID file
+  `peopleflow-vacantes/.scratch/qa-api-team/api.pid`. Frontend switches with `PEOPLEFLOW_API_BASE_URL`. :8080 stays on
+  main.

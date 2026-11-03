@@ -39,6 +39,7 @@ import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import { IdentityContext, type IdentityState } from "@/features/identity/identity-session";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { members, selfId, draft } from "./test-fixtures";
+import * as offboarding from "./offboard-client";
 const identity: IdentityState = { status: "ready", result: { ok: true, data: { role: "recruiter", user: { id: selfId, full_name: "Ana Real", email: "ana@example.test" } } }, email: "ana@example.test", retry() {}, update() {} };
 const membership = { kind: "exists", role: "owner", company: { id: members[0].company_id } } as ReturnType<typeof useCompanyMembership>;
 function mount(value = identity) { return render(<IdentityContext.Provider value={value}><TeamPage /></IdentityContext.Provider>); }
@@ -52,7 +53,55 @@ beforeEach(() => {
   vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: true });
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+it.each([["development", "0"], ["production", "1"]])("preserves today's removal with NODE_ENV=%s and flag=%s", async (environment, flag) => {
+  vi.stubEnv("NODE_ENV", environment); vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", flag);
+  const preview = vi.spyOn(offboarding, "createOffboardFixtureClient");
+  const user = userEvent.setup(); mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  expect(screen.getByRole("heading", { name: "¿Quitar a José Real del equipo?" })).toBeVisible();
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Quitar del equipo" }));
+  expect(removeTeamMemberAction).toHaveBeenCalledExactlyOnceWith(members[1].id);
+  expect(preview).not.toHaveBeenCalled();
+});
+it.each(["none", "collaborator", "responsible"] as const)("previews %s before confirming and only removes in memory", async scenario => {
+  vi.stubEnv("NODE_ENV", "development"); vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", "1");
+  const client = offboarding.createOffboardFixtureClient(members, scenario);
+  const preview = vi.spyOn(client, "preview");
+  vi.spyOn(offboarding, "createOffboardFixtureClient").mockReturnValue(client);
+  const user = userEvent.setup(); mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await screen.findByRole("alertdialog");
+  expect(preview).toHaveBeenCalledExactlyOnceWith(members[1].id);
+  expect(await client.list()).toEqual(members);
+  expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: scenario === "responsible" ? "Quitar y reasignar" : "Quitar del equipo" }));
+  await waitFor(() => expect(screen.queryByText("José Real")).not.toBeInTheDocument());
+  expect(await client.list()).toEqual([members[0]]);
+  expect(removeTeamMemberAction).not.toHaveBeenCalled();
+  expect(listTeamMembersAction).toHaveBeenCalledTimes(1);
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "info" }));
+});
+it("retains the dialog, selections and member after an offboard 422", async () => {
+  vi.stubEnv("NODE_ENV", "development"); vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", "1");
+  const client = offboarding.createOffboardFixtureClient(members, "responsible");
+  const preview = await client.preview(members[1].id);
+  vi.spyOn(client, "offboard").mockRejectedValue(new offboarding.OffboardError(422, "offboard_unresolved_vacancies", preview.vacancies));
+  vi.spyOn(offboarding, "createOffboardFixtureClient").mockReturnValue(client);
+  const user = userEvent.setup(); mount(); await screen.findByText("José Real");
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(await screen.findByRole("button", { name: "Quitar y reasignar" }));
+  expect(await screen.findByText(/Elige responsable para:/)).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Pasar todas a" })).toHaveValue("Ana Real");
+  expect(await client.list()).toEqual(members);
+  expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
+  expect(removeTeamMemberAction).not.toHaveBeenCalled();
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", reference: expect.objectContaining({ status: 422, code: "offboard_unresolved_vacancies" }) }));
+});
 it("renders only real members, role labels, dates and three factual summaries", async () => {
   mount();
   expect(await screen.findByText("José Real")).toBeInTheDocument();
