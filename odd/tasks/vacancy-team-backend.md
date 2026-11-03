@@ -125,3 +125,11 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   a sole member of a shared team is handed over like a responsible (Q5: never orphaned): preview items gain
   `hand_over: responsible | last_member`; offboard response shape defined; new 422 `offboard_reassignment_not_applicable`.
   Contract diff sent to the frontend; worker resumed.
+- L18 — T5 implemented (worker mw0cqrgt-l-t8kw): 9 TestOffboard functions green plus team/lifecycle/last-owner suites.
+  Its «partial» came from running `./...` integration with DATABASE_URL pointed at draft_test, which let legacy suites
+  drop shared tables (cascade failures, not T5). Parent reset draft_test and reran the standard integration set (plus
+  companies) itself.
+- L19 — Parent full integration on a clean draft_test (incl. companies): 51 ok; 4 failures, all PRE-EXISTING test-isolation
+  issues — the same failures alone on a clean schema on the T4 commit 1c8eaf66 AND on main cf688633 (country catalog
+  missing → `country invalid` in two cmd/api tests; FK in TestDashboardEntriesCoverageAndBoundary; the known geo planner
+  test). They passed before only on accumulated DB state. Recorded in docs/ROADMAP.md. T5 → independent verify.

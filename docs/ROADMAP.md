@@ -212,6 +212,11 @@ Fuente de producto: `docs/product/next-three-features.md` (worktree del frontend
   `draft_test` compartida con datos acumulados, el planificador elige `vacancy_public_company_idx` y fallan los casos
   `state`/`municipality`; con el esquema vacío pasa en `main` y en la rama. Aislar la prueba (base propia o `ANALYZE` +
   datos controlados) o afirmar la capacidad del índice sin depender del plan elegido.
+- 🔲 **Pruebas de integración que dependen de datos de corridas anteriores** (visto 2026-11-03, igual en `main` cf688633):
+  sobre un esquema `draft_test` recién vaciado fallan solas `TestChecklistFlowVacancyRulesAndExactValidationFields` y
+  `TestPsychometricAutoManualIntake` (país «invalid»: falta el catálogo geográfico) y `TestDashboardEntriesCoverageAndBoundary`
+  (FK `company_candidate_cvs_company_candidate_id_fkey`). Pasan cuando la base trae datos que dejaron otras suites. Cada
+  prueba tiene que sembrar lo que necesita.
 - 🔲 **2 — Auditoría** y **3 — Stakeholder + métricas**: según el documento de producto; `company_id` en `audit_events` y
   las métricas de «placements que no se sostuvieron» (garantías de reposición) salen de la 1.
 
