@@ -68,6 +68,12 @@ func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository) 
 	return &Store{pool: pool, audit: audit, clock: time.Now}
 }
 
+// WithClock supplies the clock used by date-sensitive reads and writes.
+func (s *Store) WithClock(clock func() time.Time) *Store {
+	s.clock = clock
+	return s
+}
+
 // WithMemberMutationGuard composes the existing company mutation guard without
 // coupling vacancy persistence to a sibling feature's infrastructure.
 func (s *Store) WithMemberMutationGuard(guard func(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, bool) error) *Store {

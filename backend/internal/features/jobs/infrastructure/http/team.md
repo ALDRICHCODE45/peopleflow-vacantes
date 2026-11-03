@@ -72,6 +72,33 @@ by the caller during `[started_at, ended_at or now)`, including manual intake be
 without a cutoff the count is zero. Placement counts use frozen recipients for that stay and include
 active and did-not-hold credits, never voided ones. Function changes do not split a stay.
 
+Every item also always includes these table fields (nullable values are explicit JSON null):
+
+- `draft_id`: vacancy UUID only for an active stay; null after it ends.
+- `requester`: current company catalog `{kind: internal_area | client, name}`, or null when unset.
+- `vacancy_status`: current `{publication: draft | published | paused | closed, process: active | finished | null}`;
+  an unpublished draft has publication `draft` and process null.
+- `business_days_in_tramo`: Mexico City business days from the start date to the end date or today,
+  using exactly the reassignment snapshot's elapsed-day calendar and counting rule.
+- `delivery_target`: fulfillment-frozen target when fulfilled, otherwise the current configured target, or null.
+- `deadline_result` and `deadline_delta_business_days`: shared vacancy delivery measured against this stay's
+  effective deadline, not the caller's individual contribution. Fulfillment belongs to the stay only within
+  `[started_at, ended_at or now)`. Whole Mexico City dates apply; meeting the deadline ON its date is on time.
+
+| Result | Rule | Delta measured from |
+| --- | --- | --- |
+| `on_time` | Fulfilled within the stay on or before its deadline | Fulfillment date |
+| `late` | Fulfilled within the stay after its deadline, or deadline passed while still active without fulfillment | Fulfillment date, otherwise end date or today |
+| `pending` | Active, unfulfilled, deadline today or later | Today |
+| `unfinished` | Ended unfulfilled before or ON the deadline date | End date (zero on deadline date) |
+| `not_applicable` | Already fulfilled before the stay started | null |
+| `none` | No effective deadline, or delivery not configured | null |
+
+Delta uses fulfillment's sign convention: positive before the deadline, negative after, zero on the date.
+A weekend can be late with a zero business-day delta. Missing deadline/configuration yields `none` before
+considering fulfillment. History never returns fulfillment candidates. The store clock is injectable through
+`WithClock`; production uses the existing real-time clock.
+
 ## Placement credits
 
 A move or recovery into placement creates a credit and freezes the current team mode and active tramo recipients.

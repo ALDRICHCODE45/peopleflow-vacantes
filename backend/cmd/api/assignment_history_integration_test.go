@@ -26,7 +26,11 @@ func ownHistory(t *testing.T, h *draftFlowHarness, actor draftFlowActor, suffix 
 	orgCandidateKeys(t, obj, "items", "next_cursor")
 	for _, raw := range obj["items"].([]any) {
 		item := raw.(map[string]any)
-		orgCandidateKeys(t, item, "vacancy_title", "functions", "started_at", "ended_at", "end_cause", "effective_deadline", "delivered_in_tramo", "placements")
+		orgCandidateKeys(t, item, "vacancy_title", "draft_id", "requester", "vacancy_status", "business_days_in_tramo", "delivery_target", "deadline_result", "deadline_delta_business_days", "functions", "started_at", "ended_at", "end_cause", "effective_deadline", "delivered_in_tramo", "placements")
+		orgCandidateKeys(t, item["vacancy_status"].(map[string]any), "publication", "process")
+		if item["requester"] != nil {
+			orgCandidateKeys(t, item["requester"].(map[string]any), "kind", "name")
+		}
 		orgCandidateKeys(t, item["placements"].(map[string]any), "direct", "participant", "shared")
 		for _, f := range item["functions"].([]any) {
 			orgCandidateKeys(t, f.(map[string]any), "function", "started_at", "ended_at")
@@ -98,7 +102,7 @@ func TestOwnAssignmentHistoryContinuousStayAndAccess(t *testing.T) {
 		t.Fatal(ended)
 	}
 	closed := ended[0].(map[string]any)
-	if closed["end_cause"] != "removed" || closed["ended_at"] == nil || closed["started_at"] != item["started_at"] || closed["effective_deadline"] != "2027-02-01" {
+	if closed["draft_id"] != nil || closed["end_cause"] != "removed" || closed["ended_at"] == nil || closed["started_at"] != item["started_at"] || closed["effective_deadline"] != "2027-02-01" {
 		t.Fatal(closed)
 	}
 	// Changing the current commitment cannot rewrite the frozen closing deadline.

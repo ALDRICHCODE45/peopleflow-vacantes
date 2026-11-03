@@ -244,6 +244,7 @@ func (s *draftFlowSigner) expiredToken(t *testing.T, sub string) string {
 // --- harness ---------------------------------------------------------------
 
 type draftFlowHarness struct {
+	store  *draftstore.Store
 	pool   *pgxpool.Pool
 	server *httptest.Server
 	client *http.Client
@@ -325,7 +326,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	return &draftFlowHarness{pool: pool, server: server, client: server.Client(), signer: signer}
+	return &draftFlowHarness{store: store, pool: pool, server: server, client: server.Client(), signer: signer}
 }
 
 // --- fixtures --------------------------------------------------------------
