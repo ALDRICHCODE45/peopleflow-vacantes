@@ -53,6 +53,25 @@ Without an effective deadline, total business days is null, not zero.
 The mutation, version, history, audit event and frozen POST response commit together. Audit metadata contains only
 contract-defined IDs, codes and dates, never notes. Offboarding remains a separate slice.
 
+## Own assignment history
+
+`GET /v2/me/vacancy-assignments/history?cursor=` is available to authenticated company members
+(owners and recruiters), including those who no longer have access to a vacancy. It lists only the
+caller's continuous stays in their current company, not other members' stays. Removed company
+members receive the existing company-gate 403.
+
+The response is `{items: [...], next_cursor: string | null}` with 20 stays per page, newest first by
+`coalesce(ended_at, latest function started_at, started_at)`, ties by ascending assignment ID.
+Pass the opaque cursor unchanged; malformed or foreign cursors return 400 `invalid_cursor`.
+Each item contains `vacancy_title` (current title or null), chronological `functions[]`
+(`function`, `started_at`, `ended_at`), `started_at`, `ended_at`, `end_cause`, `effective_deadline`,
+`delivered_in_tramo`, and `placements: {direct, participant, shared}`. No candidate data is exposed.
+Active deadlines use the recruiter deadline, falling back to the commitment; ended stays use their
+frozen closing deadline. Delivery counts distinct participations with a qualifying cutoff entry
+by the caller during `[started_at, ended_at or now)`, including manual intake beyond the cutoff;
+without a cutoff the count is zero. Placement counts use frozen recipients for that stay and include
+active and did-not-hold credits, never voided ones. Function changes do not split a stay.
+
 ## Placement credits
 
 A move or recovery into placement creates a credit and freezes the current team mode and active tramo recipients.

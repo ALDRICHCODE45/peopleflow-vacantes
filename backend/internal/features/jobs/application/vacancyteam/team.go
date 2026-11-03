@@ -20,6 +20,11 @@ type Store interface {
 	GetTeamHistory(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string) (drafts.Result, error)
 }
 
+// AssignmentHistoryStore reads the caller's continuous stays across their current company.
+type AssignmentHistoryStore interface {
+	GetAssignmentHistory(context.Context, uuid.UUID, uuid.UUID, string) (drafts.Result, error)
+}
+
 type Permissions struct {
 	AddMember             bool `json:"add_member"`
 	RemoveMember          bool `json:"remove_member"`

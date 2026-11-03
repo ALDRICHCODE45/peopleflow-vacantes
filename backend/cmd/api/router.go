@@ -274,6 +274,7 @@ func newRouter(d routerDeps) chi.Router {
 		// The list applies the same owner-or-active-tramo rule in the store.
 		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
 		r.Get("/v2/me/company/dashboard", d.dashboardHandler.Get)
+		r.Get("/v2/me/vacancy-assignments/history", d.teamHandler.AssignmentHistory)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
 		r.Get("/v2/me/company/job-drafts/{id}/team", d.teamHandler.Get)
 		r.Get("/v2/me/company/job-drafts/{id}/team/history", d.teamHandler.History)

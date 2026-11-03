@@ -80,6 +80,29 @@ func (h *TeamHandler) Write(action string) http.HandlerFunc {
 	}
 }
 
+// AssignmentHistory is company-scoped, not guarded by current vacancy access.
+func (h *TeamHandler) AssignmentHistory(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+	store, ok := h.store.(vacancyteam.AssignmentHistoryStore)
+	if !ok {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
+		return
+	}
+	result, err := store.GetAssignmentHistory(r.Context(), cc.CompanyID, cc.UserID, r.URL.Query().Get("cursor"))
+	if errors.Is(err, vacancyteam.ErrInvalidCursor) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidCursor))
+		return
+	}
+	if err != nil {
+		writeDraftError(w, err)
+		return
+	}
+	writeDraftResult(w, http.StatusOK, result, nil)
+}
+
 func (h *TeamHandler) History(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
