@@ -39,7 +39,7 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - [x] T3 — S5, S9: draft list/read `team`, `placement_exit_reason`, commitment 409 + `POST commitment`. Route: worker.
   Commit: 45135cd8.
 - [x] T4 — S6, S9: placement credits (write on hire/exit, reads, void/restore). Route: worker. Commit: 744b9b7f. Verify: PASS + episode fix (L15–L16).
-- [ ] T5 — S7, S9: offboard-preview, offboard, DELETE member 409. Route: worker. Commit: —
+- [x] T5 — S7, S9: offboard-preview, offboard, DELETE member 409. Route: worker. Commit: 92ec3835. Verify: PASS (L21).
 - [ ] T6 — S8: own tramo history. Route: worker. Commit: —
 - [ ] T7 — S10: QA environment (API + PEM) and final ping. Route: inline. Commit: —
 
@@ -136,3 +136,6 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - L20 — T5 verifier flagged a wording conflict: handed-over responsible tramos end `reassigned` (implementation) vs
   «every tramo ends membership_ended». Contract clarified in favor of `reassigned` (reassignment row with
   recruiter_departure; excluded from `ended_assignment_ids`); diff sent to the frontend.
+- L21 — T5 independent verify (mw0eimk5-m-kttl): PASS against df6a42f7 (security 403/422 with unchanged state,
+  company→sorted vacancy locks without deadlock, audit-failure rollback). Added its regression
+  TestOffboardResponsibleUsesReassignmentOnly. Committed 92ec3835. Verifier scratch (1.0G) removed.
