@@ -308,3 +308,21 @@ the responsible manages collaborators, and placement credit follows the team mod
   (`vacancy-config/lifecycle.test.tsx` still expected the editable «Fecha compromiso» after publication) → fixed
   (`9da2b1fe`). `next build` passes. Production ships nothing new until `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE` handling is
   removed (user decision pending).
+- **L38** (user, 2026-11-03, on «Mi historial de vacantes»): «esta sccion, al ser practicamente una tabla, poner las
+  demas columnas dentro de un sheet que sale cuando presionas el botn de "Ver mas", no tiene mucho sentido ... podemos
+  hacaerla una tabla normal y agregar mas columnas ... sobre el estilo, me cuadra mas el estilo que tiene actualmente
+  la tabla de colaboradores en "Equipo"». Decisions: «1. si, esta bien tu propuesta» → table in the Equipo style (§26)
+  with Vacante (+ client/area), Tu función, Periodo (+ business days), Estado (own + vacancy), Plazo (+ on time / late
+  / pending), Entregas (N of target + bar), Placements, «Abrir vacante» for current ones; backend asked for draft_id,
+  requester, vacancy_status, business_days_in_tramo, deadline_result + delta, delivery_target. «2. me gustaria que el
+  reclutador tambien pueda ver metricas de su propio rendimiento ... poder platicar para poder implementar/incorporar
+  mas data/metricas» → own-performance metrics are discussed with feature 3's catalog (one set of definitions for the
+  stakeholder and the recruiter). New task T10.
+- **L39** (user, 2026-11-03): «1. Si hermano, lo apruebo.» → the «a tiempo» definition (on_time, late, pending,
+  unfinished, not_applicable, none; team target; same-day counts as on time; Mexico City business days) and the other
+  history fields; backend implements. «2. tu recomendacion esta bien, 2.1 como tu lo recomiendes. 2.2 como tu lo
+  recomiendes.» → «Mi rendimiento» tab inside «Mi historial de vacantes», Cumplimiento + Resultados first, anonymous
+  team average, same definitions as the stakeholder (feature 3). «estamos agregando demasiadas cosas hermano, por favor
+  no pierdas las decisiones de negocio ... voy a necesitar un documento bien detallado de lo que decidimos, como
+  funciona, que significa» → partner-facing `docs/product/asignacion-de-vacantes.md`, kept current with every new
+  business decision.
