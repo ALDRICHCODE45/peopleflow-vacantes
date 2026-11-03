@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Brain, CalendarCheck, ClipboardList, Columns3, ListChecks } from "lucide-react";
+import { Brain, CalendarCheck, ClipboardList, Columns3, ListChecks, Users } from "lucide-react";
 import { cn } from "cn";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -20,6 +20,7 @@ import { ConfigLifecycleProvider } from "./lifecycle";
 import { ProfileSkeleton } from "@/features/psychometrics/profile/loading";
 import { ChecklistSkeleton } from "@/features/vacancy-checklist/editor/loading";
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
+import { TeamSkeleton } from "@/features/vacancy-team/loading";
 
 export const VACANCY_CONFIG_MODULES = [
   { slug: "columnas", title: "Columnas del pipeline", description: "Nombres, orden y columnas propias.", icon: Columns3 },
@@ -30,8 +31,9 @@ export const VACANCY_CONFIG_MODULES = [
 ] as const;
 
 /** Owns the vacancy header and gates sub-modules on an authorized draft read. */
-export function VacancyConfigShell({ draftId, children }: { draftId: string; children: ReactNode }) {
+export function VacancyConfigShell({ draftId, children, teamPrototypeEnabled = false }: { draftId: string; children: ReactNode; teamPrototypeEnabled?: boolean }) {
   const pathname = usePathname();
+  const modules = teamPrototypeEnabled ? [...VACANCY_CONFIG_MODULES, { slug: "equipo", title: "Equipo", description: "Personas, funciones e historia de la vacante.", icon: Users }] : VACANCY_CONFIG_MODULES;
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication: DraftPublication | null } | null>(null);
   const result = loaded?.id === draftId ? loaded.result : null;
@@ -63,14 +65,14 @@ export function VacancyConfigShell({ draftId, children }: { draftId: string; chi
               {result === null ? (
                 <section aria-label="Configuración de la vacante" className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
                   <span role="status" className="sr-only">Cargando configuración</span>
-                  <div aria-hidden="true" className="min-w-0 lg:self-start"><ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">{VACANCY_CONFIG_MODULES.map(module => <li key={module.slug} className="flex min-h-10 min-w-0 items-start gap-2 rounded-2xl px-3 py-3"><Skeleton className="mt-0.5 size-4 shrink-0" /><span className="flex min-w-0 flex-1 flex-col gap-1"><Skeleton className="h-5 w-32 max-w-full" /><Skeleton className="h-8 w-full" /></span></li>)}</ul></div>
-                  <div aria-hidden="true" className="flex min-w-0 flex-col gap-5">{pathname?.endsWith("/psicometria") ? <ProfileSkeleton /> : pathname?.endsWith("/checklist") ? <ChecklistSkeleton /> : pathname?.endsWith("/entrega") ? <DeliverySkeleton /> : pathname?.endsWith("/solicitud") ? <ManagementSkeleton /> : <PipelineEditorSkeleton />}</div>
+                  <div aria-hidden="true" className="min-w-0 lg:self-start"><ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">{modules.map(module => <li key={module.slug} className="flex min-h-10 min-w-0 items-start gap-2 rounded-2xl px-3 py-3"><Skeleton className="mt-0.5 size-4 shrink-0" /><span className="flex min-w-0 flex-1 flex-col gap-1"><Skeleton className="h-5 w-32 max-w-full" /><Skeleton className="h-8 w-full" /></span></li>)}</ul></div>
+                  <div aria-hidden="true" className="flex min-w-0 flex-col gap-5">{teamPrototypeEnabled && pathname?.endsWith("/equipo") ? <TeamSkeleton /> : pathname?.endsWith("/psicometria") ? <ProfileSkeleton /> : pathname?.endsWith("/checklist") ? <ChecklistSkeleton /> : pathname?.endsWith("/entrega") ? <DeliverySkeleton /> : pathname?.endsWith("/solicitud") ? <ManagementSkeleton /> : <PipelineEditorSkeleton />}</div>
                 </section>
               ) : (
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
                   <nav aria-label="Apartados de configuración de la vacante" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
                     <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">
-                      {VACANCY_CONFIG_MODULES.map(({ slug, title, description, icon: Icon }) => {
+                      {modules.map(({ slug, title, description, icon: Icon }) => {
                         const href = `/empresa/vacantes/${draftId}/configuracion/${slug}`;
                         const active = pathname === href;
                         return <li key={slug} className="min-w-0">

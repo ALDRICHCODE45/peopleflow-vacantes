@@ -105,3 +105,46 @@ the responsible manages collaborators, and placement credit follows the team mod
   docs(contracts) vacancy team v1, `2956603d` docs(roadmap). Not merged or pushed.
 - **L9** (user, 2026-11-02): path 2 approved («si hermano, adelante con tu recomendacion»), and the UI priorities in S10
   («Completamente, a darle.»). T2b starts: in-app prototype of the team page + reassign, delegated (context backstop).
+- **L10** (user, 2026-11-02): «el backend no esta haciendo nada, coordinate con el para comenzar a implementar los dos
+  en cuanto sea posible.» Sent to the backend session: implement vacancy team v1 in parallel on its own feat branch,
+  slices in order: (1) team reads + members list, (2) team writes/reassign/mode, (3) breaking changes, (4) credits,
+  offboard, own history; ping with SHA per slice; contract diffs before committing.
+- **L11** (backend, 2026-11-02): started on `feat/vacancy-team-backend` (tracking `odd/tasks/vacancy-team-backend.md`,
+  c77f5d66). Slices: T1 migration 00054 + access guard + team_access_ended + GET V/team + GET V/team/history; T2
+  writes/reassign/mode; T3 breaking changes; T4 credits; T5 offboard; T6 own history. Members list = existing
+  `GET /v2/me/company/members` (recruiter-readable). Until T3, draft `principal_recruiter` and v2 `principal` keep their
+  shape (derived from the responsible). QA auth: local PEM mode (IDENTITY_JWT_MODE=pem). T2b prerequisites resolved by
+  the parent: added `docs/design/shadcn-reference/calendar.md` + `examples/calendar-example.tsx.txt` (official,
+  fetched 2026-11-02); typecheck runs as `pnpm exec tsc --noEmit --incremental false`.
+- **L11** Contract amendment agreed with the backend (`25942f8d` on `feat/vacancy-team-backend`): table
+  `vacancy_team_mode_changes`; `GET V/team/history` is one mixed timeline (`tramo` | `reassignment` | `mode_change`),
+  20 per page, opaque cursor, 400 `invalid_cursor`; a tramo's `at` is its latest event (frontend request); after its
+  own writes the UI re-reads from the first page. Prototype worker: business dates reuse
+  `delivery-config/date-field.tsx`; typecheck with `--incremental false`.
+- **L12** (T2b prototype, 2026-11-02): added the development-only configuration route
+  `/empresa/vacantes/{jobId}/configuracion/equipo`; the existing configuration navigation gains Equipo only when
+  `NODE_ENV=development` and `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=1`. From `frontend/`, run
+  `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=1 pnpm dev`, then open
+  `http://localhost:3000/empresa/vacantes/{an-authorized-existing-draft-UUID}/configuracion/equipo?fixture=owner`.
+  Fixtures: `owner`, `collaborator`, `shared`, `long-history`, `empty-history`; `state=loading` and `state=error`
+  expose explicit review states. Writes update memory only; refresh resets them, and results use informational
+  `notifyActionResult`, not a server-save success. No real team client or production entry point exists.
+  S1–S4/S10: typed Zod boundaries, company picker subtracting active user IDs, capability-only actions, mode/team/history
+  layout, avatar/function/deadline display, confirmation dialogs, reassignment reason/note/previous-responsible choice
+  and snapshots, 20-item mixed history with first-page reload after writes. Important remaining gap: the mandated
+  `DeliveryDateField` hardcodes the visible label «Fecha compromiso» and IDs; its API cannot label a recruiter deadline.
+  No new Calendar or shared UI edit was made. Selecting a new recruiter deadline (including the optional date inside
+  reassignment) remains pending; the deadline action currently only removes the override to use the commitment date.
+  The real company layout and authorized draft gate remain intact: start the existing backend/auth environment and
+  sign in as an employer with access to the draft. The prototype's team data itself needs no backend endpoint.
+  Browser review remains pending for all fixtures/dialogs, desktop/mobile and light/dark: bundled Playwright Chromium
+  was unavailable; system Chrome launched, but localhost:3000 refused the connection. No server was started by the
+  worker. Focused tests, TypeScript and touched-file ESLint were exercised; final observed results are in the handoff.
+- **L13** Recruiter deadline gap closed inline (worker mvztaaxd timed out without changes): `BusinessDateField` extracted
+  from `DeliveryDateField` (delivery screen unchanged, pinned by `date-field.test.tsx`, which passed before the change);
+  «Plazo del reclutador» in «Editar plazo» (`deadline-dialog.tsx`, with «Usar la fecha compromiso») and in «Reasignar
+  responsable». Calendar comes from the client (`calendar`, real adapter: GET V/pipeline/delivery). RED observed for both
+  new uses; GREEN: 11/11 in team + date-field, plus 92 in the wider focused run; tsc and ESLint clean. The deadline test
+  opens `DeadlineDialog` directly because DropdownMenu loops in jsdom; the menu path is browser QA. Browser review is
+  the user's: employer sign-in is Cognito with the user's account. QA: API from main on :8080 (backend session), Next on
+  :3000 with `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=1`.

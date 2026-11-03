@@ -135,6 +135,16 @@ it("ignores the previous vacancy's late draft result", async () => {
   expect(screen.queryByText("Contenido del apartado")).not.toBeInTheDocument();
   expect(screen.queryByText("Borrador")).not.toBeInTheDocument();
 });
+it("registers Equipo only with explicit server opt-in without changing existing navigation", async () => {
+  vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/equipo`);
+  render(<VacancyConfigShell draftId={read.id} teamPrototypeEnabled><p>Equipo</p></VacancyConfigShell>);
+  const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
+  expect(within(nav).getAllByRole("link")).toHaveLength(6);
+  const team = within(nav).getByRole("link", { name: /Equipo/ });
+  expect(team).toHaveAttribute("aria-current", "page");
+  expect(team).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/equipo`);
+  expect(team).toHaveClass("bg-card", "ring-1", "min-h-10");
+});
 it("handles rejected draft reads safely", async () => {
   vi.mocked(loadDraftForEditAction).mockRejectedValueOnce(new Error("network"));
   render(shell());
