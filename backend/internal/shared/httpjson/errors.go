@@ -82,6 +82,16 @@ func Resolve(code Code) Definition {
 		return Definition{code, http.StatusForbidden, "company is inactive"}
 	case CodeNotFound:
 		return Definition{code, http.StatusNotFound, "not found"}
+	case CodeCommitmentChangeRequiresRenegotiation:
+		return Definition{code, 409, "commitment change requires renegotiation"}
+	case CodeCommitmentUnchanged:
+		return Definition{code, 409, "commitment unchanged"}
+	case CodeCommitmentNoteRequired:
+		return Definition{code, 422, "commitment note required"}
+	case CodeDeliveryNotConfigured:
+		return Definition{code, 409, "delivery not configured"}
+	case CodeTeamAccessEnded:
+		return Definition{code, http.StatusNotFound, "team access ended"}
 	case CodeConflict:
 		return Definition{code, http.StatusConflict, "resource conflict"}
 	case CodeCompanyNotActive:
@@ -101,6 +111,9 @@ func Resolve(code Code) Definition {
 	case CodeInternalError:
 		return Definition{code, http.StatusInternalServerError, "an internal error occurred"}
 	default:
+		if def, ok := resolveTeamError(code); ok {
+			return def
+		}
 		if def, ok := resolveSavedJobError(code); ok {
 			return def
 		}

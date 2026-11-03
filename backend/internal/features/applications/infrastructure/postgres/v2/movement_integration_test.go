@@ -37,7 +37,7 @@ func (m movementContext) Screening(fields []byte) (app.Screening, error) {
 
 func (m movementContext) Load(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID) (board.Pipeline, error) {
 	c, required, err := m.s.MovementContext(ctx, tx, company, actor, id)
-	for _, pair := range [][2]error{{drafts.ErrNotFound, board.ErrNotFound}, {drafts.ErrUnauthenticated, board.ErrUnauthenticated}, {drafts.ErrForbidden, board.ErrForbidden}, {drafts.ErrCompanyInactive, board.ErrCompanyInactive}, {drafts.ErrCompanyNotActive, board.ErrCompanyNotActive}} {
+	for _, pair := range [][2]error{{drafts.ErrTeamAccessEnded, board.ErrTeamAccessEnded}, {drafts.ErrNotFound, board.ErrNotFound}, {drafts.ErrUnauthenticated, board.ErrUnauthenticated}, {drafts.ErrForbidden, board.ErrForbidden}, {drafts.ErrCompanyInactive, board.ErrCompanyInactive}, {drafts.ErrCompanyNotActive, board.ErrCompanyNotActive}} {
 		if errors.Is(err, pair[0]) {
 			err = pair[1]
 			break
@@ -76,7 +76,7 @@ func setupMovement(t *testing.T) movementFixture {
 	a := audit.NewAuditEventRepository()
 	d := draftstore.NewStore(f.pool, a)
 	m := movementFixture{fixture: f, drafts: d}
-	if err := f.pool.QueryRow(ctx, `SELECT principal_recruiter_id FROM job_drafts WHERE id=$1`, f.vacancy).Scan(&m.recruiter); err != nil {
+	if err := f.pool.QueryRow(ctx, fixtureResponsibleQuery, f.vacancy).Scan(&m.recruiter); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(ctx, `INSERT INTO company_members(id,company_id,user_id,role) VALUES(gen_random_uuid(),$1,$2,'owner')`, f.company, m.recruiter); err != nil {
@@ -112,7 +112,12 @@ func setupMovement(t *testing.T) movementFixture {
 }
 func (m movementFixture) move(t *testing.T, item board.Item, target string, confirm bool) (board.Moved, error) {
 	t.Helper()
-	raw, _ := json.Marshal(map[string]any{"to_stage_id": target, "confirm_placement_exit": confirm})
+	payload := map[string]any{"to_stage_id": target}
+	stages := pipelineconfig.Defaults(m.vacancy).Stages
+	if confirm && item.StageID == stages[len(stages)-1].ID {
+		payload["placement_exit_reason"] = "candidate_left"
+	}
+	raw, _ := json.Marshal(payload)
 	return m.board.Move(context.Background(), m.company, m.recruiter, m.vacancy, item.ID, item.ETag, true, raw)
 }
 func (m movementFixture) snapshot(t *testing.T) string {

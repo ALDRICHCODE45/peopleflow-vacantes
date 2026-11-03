@@ -70,7 +70,7 @@ func TestColumnsPreviewInheritedLiveGateDBMatrix(t *testing.T) {
 		_, err := m.drafts.PreviewPipeline(ctx, m.company, m.recruiter, m.vacancy, raw)
 		return err
 	}, func(t *testing.T, m movementFixture) []byte { return movementPipelineBody(t, pc.Defaults(m.vacancy)) })
-	// Preview must also enforce owner/principal resource hiding rather than
+	// Preview must also enforce owner-or-active-tramo resource hiding rather than
 	// allowing a non-principal member to inspect impact or malformed input.
 	m := setupMovement(t)
 	ctx := context.Background()

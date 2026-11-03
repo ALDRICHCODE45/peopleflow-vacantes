@@ -19,6 +19,7 @@ import (
 
 var (
 	ErrNotFound             = errors.New("participation not found")
+	ErrTeamAccessEnded      = errors.New("team access ended")
 	ErrInvalidRequest       = errors.New("invalid movement request")
 	ErrValidation           = errors.New("invalid stage movement")
 	ErrPreconditionRequired = errors.New("participation precondition required")
@@ -29,7 +30,7 @@ var (
 	ErrCompanyInactive      = errors.New("company inactive")
 	ErrCompanyNotActive     = errors.New("company not active")
 	ErrStageSkip            = errors.New("stage skip not allowed")
-	ErrPlacementExit        = errors.New("placement exit confirmation required")
+	ErrPlacementExit        = errors.New("placement exit reason required")
 	ErrNotPublished         = errors.New("vacancy not published")
 	ErrTooLarge             = errors.New("board too large")
 	ErrStorageUnavailable   = errors.New("CV storage unavailable")
@@ -138,8 +139,8 @@ type Board struct {
 	Participations   []Item            `json:"participations"`
 }
 type Move struct {
-	ToStageID            string
-	ConfirmPlacementExit bool
+	ToStageID           string
+	PlacementExitReason string
 }
 type Moved struct {
 	Delivery Delivery `json:"delivery"`
@@ -182,12 +183,14 @@ type Screening struct {
 }
 type Detail struct {
 	Item
-	Screening        []Screening     `json:"screening"`
-	Comment          *string         `json:"comment"`
-	CandidateMessage *string         `json:"candidate_message"`
-	Contact          Contact         `json:"contact"`
-	Original         json.RawMessage `json:"original"`
-	OriginalCV       *CVMetadata     `json:"original_cv"`
+	PlacementCredit  *PlacementCredit   `json:"placement_credit"`
+	Can              CreditCapabilities `json:"can"`
+	Screening        []Screening        `json:"screening"`
+	Comment          *string            `json:"comment"`
+	CandidateMessage *string            `json:"candidate_message"`
+	Contact          Contact            `json:"contact"`
+	Original         json.RawMessage    `json:"original"`
+	OriginalCV       *CVMetadata        `json:"original_cv"`
 }
 
 // Contact is every available way to reach the candidate, shown only on the
@@ -231,7 +234,7 @@ func DecodeMove(body []byte, decode JSONDecoder) (Move, error) {
 		return Move{}, ErrInvalidRequest
 	}
 	for k := range root {
-		if k != "to_stage_id" && k != "confirm_placement_exit" {
+		if k != "to_stage_id" && k != "placement_exit_reason" {
 			return Move{}, ErrInvalidRequest
 		}
 	}
@@ -244,11 +247,9 @@ func DecodeMove(body []byte, decode JSONDecoder) (Move, error) {
 		return Move{}, ErrInvalidRequest
 	}
 	m := Move{ToStageID: id.String()}
-	if flag, present := root["confirm_placement_exit"]; present {
-		m.ConfirmPlacementExit, ok = flag.(bool)
-		if !ok {
-			return Move{}, ErrInvalidRequest
-		}
+	m.PlacementExitReason, err = decodePlacementExitReason(root)
+	if err != nil {
+		return Move{}, err
 	}
 	return m, nil
 }
@@ -262,16 +263,45 @@ func ValidateMove(stages []Stage, from string, m Move) (hire, departure bool, er
 			target = i
 		}
 	}
+	if current >= 0 && (stages[current].Kind != "placement" || current == target) && m.PlacementExitReason != "" {
+		return false, false, ErrInvalidRequest
+	}
 	if current < 0 || target < 0 || current == target {
 		return false, false, ErrValidation
 	}
 	if target > current+1 {
 		return false, false, ErrStageSkip
 	}
-	if stages[current].Kind == "placement" && !m.ConfirmPlacementExit {
-		return false, false, ErrPlacementExit
+	if err := ValidatePlacementExit(stages[current].Kind == "placement", m.PlacementExitReason); err != nil {
+		return false, false, err
 	}
 	return stages[target].Kind == "placement", stages[current].Kind == "placement", nil
+}
+
+// ValidatePlacementExit is shared by moves and discard. The decoded reason
+// reaches the store request for transactional credit exit handling.
+func ValidatePlacementExit(leaving bool, reason string) error {
+	if leaving && reason == "" {
+		return ErrPlacementExit
+	}
+	if !leaving && reason != "" {
+		return ErrInvalidRequest
+	}
+	if reason != "" && reason != "moved_by_mistake" && reason != "candidate_left" {
+		return ErrInvalidRequest
+	}
+	return nil
+}
+func decodePlacementExitReason(root map[string]any) (string, error) {
+	raw, present := root["placement_exit_reason"]
+	if !present {
+		return "", nil
+	}
+	reason, ok := raw.(string)
+	if !ok || reason != "moved_by_mistake" && reason != "candidate_left" {
+		return "", ErrInvalidRequest
+	}
+	return reason, nil
 }
 func ETag(id uuid.UUID, version int64) string {
 	digest := sha256.Sum256([]byte("process-participation:r1:" + id.String() + ":" + strconv.FormatInt(version, 10)))

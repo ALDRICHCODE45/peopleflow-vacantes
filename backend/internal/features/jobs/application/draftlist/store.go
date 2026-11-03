@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancyteam"
 	"github.com/google/uuid"
 )
 
@@ -18,13 +19,6 @@ type Request struct {
 type Requester struct {
 	Kind string
 	ID   *string
-	Name *string
-}
-
-// Principal is the draft principal recruiter. Name is nil when the user row
-// is soft-deleted.
-type Principal struct {
-	ID   uuid.UUID
 	Name *string
 }
 
@@ -53,7 +47,7 @@ type Item struct {
 	WorkMode          *string
 	Schedule          *string
 	Requester         *Requester
-	Principal         Principal
+	Team              vacancyteam.Summary
 	Version           int64
 	Process           *string
 	Status            string
@@ -75,7 +69,7 @@ type Page struct {
 }
 
 // Lister lists the schema-2 drafts the actor may read in the session company:
-// every draft for the owner, only the actor's principal drafts otherwise.
+// every draft for the owner, only active team assignments otherwise.
 // Gate failures return the shared drafts sentinels.
 type Lister interface {
 	ListV2(ctx context.Context, companyID, actorID uuid.UUID, req Request) (Page, error)

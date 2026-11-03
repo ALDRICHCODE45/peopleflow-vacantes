@@ -74,7 +74,7 @@ func TestScreeningAndApplyHideLegacyUnpublishedAndInactive(t *testing.T) {
 			t.Error("legacy fixture cleanup failed")
 		}
 	})
-	if _, err = f.pool.Exec(ctx, `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, unpublished, f.vacancy); err != nil {
+	if _, err = f.pool.Exec(ctx, cloneDraftWithTeam, unpublished, f.vacancy); err != nil {
 		t.Fatal(err)
 	}
 	before := f.effects(t)
@@ -218,6 +218,12 @@ func setup(t *testing.T) fixture {
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
+		var duplicateActive bool
+		if err := pool.QueryRow(cleanupCtx, `SELECT EXISTS(SELECT 1 FROM placement_credits WHERE company_id=$1 AND status='active' GROUP BY participation_id HAVING count(*)>1)`, f.company).Scan(&duplicateActive); err != nil {
+			t.Errorf("credit invariant check failed: %v", err)
+		} else if duplicateActive {
+			t.Error("credit invariant: more than one active credit per participation")
+		}
 		tx, err := pool.Begin(cleanupCtx)
 		if err != nil {
 			t.Errorf("fixture cleanup could not begin: %v", err)
@@ -240,6 +246,7 @@ func setup(t *testing.T) fixture {
 			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM vacancy_public_projections WHERE company_id=$1`,
 			`DELETE FROM vacancy_processes WHERE company_id=$1`,
+			`DELETE FROM placement_credits WHERE company_id=$1`,
 			`DELETE FROM job_drafts WHERE company_id=$1`,
 			`DELETE FROM companies WHERE id=$1`,
 		} {
@@ -278,7 +285,7 @@ func setup(t *testing.T) fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec(`INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) VALUES($1,$2,$3,$3,$4)`, f.vacancy, f.company, recruiter, d.Fingerprint())
+	exec(insertFixtureDraft, f.vacancy, f.company, recruiter, d.Fingerprint())
 	exec(`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',now(),$3)`, f.vacancy, f.company, recruiter)
 	exec(`INSERT INTO job_draft_delivery_configs(draft_id,version,cutoff_stage_id,target_quantity,commitment_date) VALUES($1,1,$2,999,'2020-01-02')`, f.vacancy, pipelineconfig.Defaults(f.vacancy).Stages[4].ID)
 	exec(`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions,requirements_profile) VALUES($1,$2,'Engineer','Role','remote','full_time','indefinite','technology_systems','{}',now(),1,ARRAY[]::text[],$3,'{"languages":[],"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false}')`, f.vacancy, f.company, len(f.form.Questions))
@@ -468,7 +475,7 @@ func TestCandidateListPagingAndVacancyScopedKeys(t *testing.T) {
 	ctx := context.Background()
 	second := uuid.New()
 	for _, sql := range []string{
-		`INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`,
+		cloneDraftWithTeam,
 		`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) SELECT $1,company_id,status,published_at,published_by FROM vacancy_processes WHERE id=$2`,
 		`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions,requirements_profile) SELECT $1,company_id,'Second',description_plain,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions,requirements_profile FROM vacancy_public_projections WHERE id=$2`,
 	} {

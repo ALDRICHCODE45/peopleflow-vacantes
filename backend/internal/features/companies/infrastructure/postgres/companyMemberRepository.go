@@ -156,6 +156,26 @@ func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyI
 	defer func() { _ = tx.Rollback(context.Background()) }()
 	q := db.New(tx)
 
+	if err := LockMemberMutation(ctx, tx, id, companyID, retainsOwner); err != nil {
+		return err
+	}
+	rows, err := write(q)
+	if err != nil {
+		return fmt.Errorf("mutate member: %w", err)
+	}
+	if rows == 0 {
+		return entities.ErrMemberNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit member mutation: %w", err)
+	}
+	return nil
+}
+
+// LockMemberMutation is the shared same-company and last-owner guard for role
+// writes, ordinary removals and vacancy-aware offboarding. The caller owns tx.
+func LockMemberMutation(ctx context.Context, tx pgx.Tx, id, companyID uuid.UUID, retainsOwner bool) error {
+	q := db.New(tx)
 	// All role changes and removals lock the SAME stable company row first.
 	// Under READ COMMITTED, the following separate statements get fresh
 	// snapshots after a waiting writer commits. Locking/counting in one CTE
@@ -181,16 +201,6 @@ func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyI
 		if owners <= 1 {
 			return entities.ErrLastOwner
 		}
-	}
-	rows, err := write(q)
-	if err != nil {
-		return fmt.Errorf("mutate member: %w", err)
-	}
-	if rows == 0 {
-		return entities.ErrMemberNotFound
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit member mutation: %w", err)
 	}
 	return nil
 }

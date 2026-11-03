@@ -2,8 +2,10 @@ package draftstore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
@@ -59,8 +61,30 @@ func validateGeography(ctx context.Context, tx pgx.Tx, stored []byte) error {
 
 // renderGeoEnvelopeV2 expands only the read copy. Stored canonical bytes and
 // fingerprints remain code-only, including the submitted remote country order.
-func renderGeoEnvelopeV2(ctx context.Context, tx pgx.Tx, record draftRecord, name *string) ([]byte, error) {
+func renderGeoEnvelopeV2(ctx context.Context, tx pgx.Tx, record draftRecord, name *string, actor uuid.UUID) ([]byte, error) {
 	body, err := renderEnvelopeV2(record, name)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := readTeamSummary(ctx, tx, record.id, actor)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := json.Marshal(summary)
+	if err != nil {
+		return nil, err
+	}
+	value, err := draftjson.Decode(body)
+	if err != nil {
+		return nil, err
+	}
+	team, err := draftjson.Decode(raw)
+	if err != nil {
+		return nil, err
+	}
+	root := value.(map[string]any)
+	root["team"] = team
+	body, err = draftjson.EncodeValidatedValue(root)
 	if err != nil {
 		return nil, err
 	}

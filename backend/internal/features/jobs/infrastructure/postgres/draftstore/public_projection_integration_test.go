@@ -61,7 +61,7 @@ func TestPublicProjectionPublicationSaveGuardAndRollback(t *testing.T) {
 		{"schedule", `{"fields":{"work_schedule":null}}`, s.SaveV2, s.GetV2, []string{"work_schedule_missing"}},
 		{"contract", `{"fields":{"contract_type":null}}`, s.SaveV2, s.GetV2, []string{"contract_type_missing"}},
 		{"area", `{"fields":{"professional_area":null}}`, s.SaveV2, s.GetV2, []string{"professional_area_missing"}},
-		{"delivery", nullDelivery, s.PutDelivery, s.GetDelivery, []string{"delivery_cutoff_missing", "delivery_target_missing", "commitment_date_missing"}},
+		{"delivery", `{"cutoffStageId":null,"targetQuantity":null,"commitmentDate":"2026-10-16"}`, s.PutDelivery, s.GetDelivery, []string{"delivery_cutoff_missing", "delivery_target_missing"}},
 		{"management", `{"requestDate":null,"hiringHeadcount":null}`, s.PutManagement, s.GetManagement, []string{"request_date_missing", "hiring_headcount_missing"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

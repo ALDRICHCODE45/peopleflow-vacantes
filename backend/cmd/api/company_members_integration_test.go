@@ -21,6 +21,8 @@ import (
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
+	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,6 +42,7 @@ func newMemberGuardHarness(t *testing.T) *draftFlowHarness {
 		requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, companiesvo.RecruiterRole),
 		requireOwner:     identityhttp.RequireCompanyRole(users, members, companies, companiesvo.OwnerRole),
 		memberHandler:    companieshttp.NewMemberHandler(service), queries: q, pool: pool,
+		offboardHandler: jobshttp.NewOffboardHandler(draftstore.NewStore(pool, auditpostgres.NewAuditEventRepository()).WithMemberMutationGuard(companiespostgres.LockMemberMutation)),
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)

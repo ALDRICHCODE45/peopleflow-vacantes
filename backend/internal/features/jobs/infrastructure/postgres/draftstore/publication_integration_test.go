@@ -304,8 +304,7 @@ func TestPublicationDeliveryRaceRevalidatesFrozenSnapshot(t *testing.T) {
 				}()
 				close(start)
 				wg.Wait()
-				var guarded *publication.Incomplete
-				if deliveryErr != nil && !(mode == "missing" && publishErr == nil && errors.As(deliveryErr, &guarded)) {
+				if deliveryErr != nil && !(publishErr == nil && errors.Is(deliveryErr, deliveryconfig.ErrCommitmentChangeRequiresRenegotiation)) {
 					t.Fatal(deliveryErr)
 				}
 				var count int

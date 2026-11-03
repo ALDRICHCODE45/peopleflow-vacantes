@@ -20,11 +20,15 @@ var _ drafts.Store = (*Store)(nil)
 
 ## Schema (migrations `00012_create_private_job_drafts.sql`, `00013_version_draft_idempotency_fingerprint.sql`)
 
-- `job_drafts` — one row per draft. `company_id`, `created_by` and
-  `principal_recruiter_id` are immutable: the adapter's only `UPDATE` touches
+- `job_drafts` — one row per draft. `company_id` and `created_by`
+  are immutable: the adapter's only `UPDATE` touches
   `fields`, `version` and `updated_at`. `fields BYTEA` stores the canonical
   writable envelope `{"schema_version":1,"fields":{...}}` so exact strings and
   mark order survive; `version BIGINT` is positive and CAS/ETag authoritative.
+- Migration `00054` replaces `principal_recruiter_id` with `vacancy_teams`,
+  `vacancy_assignments` (tramos) and `vacancy_assignment_functions`. Both create
+  ports initialize the creator as responsible and append `VacancyTeamCreated`
+  in the draft transaction; an idempotent replay creates no extra team or event.
 - `job_draft_idempotency` — one row per `(company, actor, operation, key)` with
   the normalized fingerprint and the frozen original `response_body` /
   `response_etag`. No TTL. `fingerprint_algorithm` is the persisted
@@ -51,7 +55,7 @@ var _ drafts.Store = (*Store)(nil)
    bounded `company:actor:operation:canonicalUUID` string) before reading the
    idempotency row; the UNIQUE constraint stays the database authority. Raw
    client spellings (unhyphenated, uppercase, urn/braced) share one identity, so
-   they cannot create duplicate drafts. A replay re-checks owner/principal on
+   they cannot create duplicate drafts. A replay re-checks owner-or-active-tramo on
    the addressed draft — its id derived from the stored ETag, never from client
    input — after the general gates and before any conflict or replay return.
    The replay/conflict decision is dispatched by the persisted
@@ -70,7 +74,7 @@ var _ drafts.Store = (*Store)(nil)
 ## GET schema isolation (U1a)
 
 The existing v1 `GET` checks the stored `schema_version` after general and
-owner/principal authorization, before requester lookup or read rendering:
+owner-or-active-tramo authorization, before requester lookup or read rendering:
 
 - Schema `1` retains its exact response and ETag behavior.
 - Known schema `2` returns `404 not_found`, with no ETag or editor data.
@@ -92,7 +96,7 @@ DRAFT_TEST_DATABASE_URL='postgres://draft_test:…@localhost:32768/draft_test?ss
 ## PATCH schema isolation (U1b1)
 
 The existing v1 `Save` checks the stored `schema_version` after general and
-owner/principal authorization, and before `If-Match` is parsed or the patch body
+owner-or-active-tramo authorization, and before `If-Match` is parsed or the patch body
 is decoded:
 
 - Schema `1` retains its exact save/no-op/CAS/body behavior.
@@ -119,7 +123,7 @@ DRAFT_TEST_DATABASE_URL='postgres://draft_test:…@localhost:32768/draft_test?ss
 
 `Create` gates the addressed draft's stored `schema_version` on every
 idempotency replay. The gate runs after the general locks, after the
-owner/principal re-authorization of the addressed draft (its id derived from
+owner-or-active-tramo re-authorization of the addressed draft (its id derived from
 the stored ETag, never from client input), and before the persisted fingerprint
 is evaluated, so it cannot leak or replay a row whose current representation the
 server cannot read:

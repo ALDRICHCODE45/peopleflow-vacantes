@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// PsychometricProfileContext retains the checklist's owner-or-principal gates
+// PsychometricProfileContext retains the checklist's owner-or-active-tramo gates
 // and parent lock in the caller's transaction. No sibling feature is imported.
 func (s *Store) PsychometricProfileContext(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID, write bool) ([]string, error) {
 	if _, err := s.authorizeChecklist(ctx, tx, company, actor, id); err != nil {

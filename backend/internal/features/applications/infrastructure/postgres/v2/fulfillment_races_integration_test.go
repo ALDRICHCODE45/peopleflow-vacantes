@@ -116,7 +116,7 @@ func TestFulfillmentConcurrentApplicationsExactlyOnce(t *testing.T) {
 	defer cancel()
 	a := audit.NewAuditEventRepository()
 	m := movementFixture{fixture: f, drafts: draftstore.NewStore(f.pool, a)}
-	if err := f.pool.QueryRow(ctx, `SELECT principal_recruiter_id FROM job_drafts WHERE id=$1`, f.vacancy).Scan(&m.recruiter); err != nil {
+	if err := f.pool.QueryRow(ctx, fixtureResponsibleQuery, f.vacancy).Scan(&m.recruiter); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(ctx, `INSERT INTO company_members(id,company_id,user_id,role) VALUES(gen_random_uuid(),$1,$2,'owner')`, f.company, m.recruiter); err != nil {

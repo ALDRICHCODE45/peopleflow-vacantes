@@ -155,18 +155,16 @@ func TestMigration00031RealV1V2CreateAndSaveDocuments(t *testing.T) {
 	sqlDB := stdlib.OpenDBFromPool(pool)
 	defer sqlDB.Close()
 	goose.SetBaseFS(migrations.MigrationsFS)
-	if err := goose.DownToContext(ctx, sqlDB, ".", 30); err != nil {
-		t.Fatal(err)
-	}
 	defer func() {
 		if err := goose.UpContext(ctx, sqlDB, "."); err != nil {
 			t.Error(err)
 		}
 	}()
 	type stored struct {
-		name   string
-		id     uuid.UUID
-		source []byte
+		name    string
+		id      uuid.UUID
+		source  []byte
+		version int64
 	}
 	var rows []stored
 	for _, writer := range []struct {
@@ -182,16 +180,23 @@ func TestMigration00031RealV1V2CreateAndSaveDocuments(t *testing.T) {
 		if _, err := writer.save(ctx, p.companyID, p.ownerID, id, created.ETag, true, []byte(`{"fields":{"title":"Real save\u0000 <>&"}}`)); err != nil {
 			t.Fatal(writer.name, err)
 		}
-		var source []byte
-		if err := pool.QueryRow(ctx, `SELECT fields FROM job_drafts WHERE id=$1`, id).Scan(&source); err != nil {
+		rows = append(rows, stored{name: writer.name, id: id})
+	}
+	// Current writers need the current schema (including vacancy teams). Only
+	// downgrade after their real create/save transactions have committed.
+	if err := goose.DownToContext(ctx, sqlDB, ".", 30); err != nil {
+		t.Fatal(err)
+	}
+	for i := range rows {
+		row := &rows[i]
+		if err := pool.QueryRow(ctx, `SELECT fields,version FROM job_drafts WHERE id=$1`, row.id).Scan(&row.source, &row.version); err != nil {
 			t.Fatal(err)
 		}
-		rows = append(rows, stored{writer.name, id, source})
 	}
 	if err := goose.UpToContext(ctx, sqlDB, ".", 31); err != nil {
 		t.Fatal(err)
 	}
-	assertStored := func(up bool, version int64) {
+	assertStored := func(up bool, versionDelta int64) {
 		t.Helper()
 		for _, row := range rows {
 			root := envelopeOf(t, row.source)
@@ -204,16 +209,17 @@ func TestMigration00031RealV1V2CreateAndSaveDocuments(t *testing.T) {
 			}
 			var got []byte
 			var gotVersion int64
+			version := row.version + versionDelta
 			if err := pool.QueryRow(ctx, `SELECT fields,version FROM job_drafts WHERE id=$1`, row.id).Scan(&got, &gotVersion); err != nil || gotVersion != version || !bytes.Equal(got, mustCanonical(t, root)) {
 				t.Fatalf("%s up=%t version=%d got=%s want=%s err=%v", row.name, up, gotVersion, got, mustCanonical(t, root), err)
 			}
 		}
 	}
-	assertStored(true, 3)
+	assertStored(true, 1)
 	if err := goose.DownToContext(ctx, sqlDB, ".", 30); err != nil {
 		t.Fatal(err)
 	}
-	assertStored(false, 4)
+	assertStored(false, 2)
 }
 
 const geographyDefaultRequirementsPatch = `{"fields":{"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false}}`

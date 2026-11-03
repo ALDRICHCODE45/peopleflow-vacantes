@@ -1504,7 +1504,14 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 			if !ok {
 				return true
 			}
-			if wc, isCall := sel.X.(*ast.CallExpr); isCall && (sel.Sel.Name == "Get" || sel.Sel.Name == "Mount") &&
+			memberOffboard := (sel.Sel.Name == "Get" && strings.Trim(path, `"`) == "/company/members/{id}/offboard-preview") || (sel.Sel.Name == "Post" && strings.Trim(path, `"`) == "/company/members/{id}/offboard")
+			if memberOffboard {
+				wc, ok := sel.X.(*ast.CallExpr)
+				if !ok || !isWithCall(wc) || len(wc.Args) != 1 || !isSelectorOnReceiver(wc.Args[0], "d", "requireOwner") {
+					t.Fatal("member offboard routes must be owner-gated")
+				}
+			}
+			if wc, isCall := sel.X.(*ast.CallExpr); isCall && (sel.Sel.Name == "Get" || sel.Sel.Name == "Mount") && !memberOffboard &&
 				!(sel.Sel.Name == "Get" && referencesIdentifier(wc, "requireRecruiter") && (strings.Trim(path, `"`) == "/company/members" || (referencesIdentifier(wc, "requireAuth") && (referencesIdentifier(call, "ListJobApplications") || referencesIdentifier(call, "GetApplication"))))) {
 				t.Fatalf("Get/Mount receiver must be the bare router identifier; direct With-wrapping of %s %s evades the pinned gating topology (sole exemption: Get /company/members on a requireRecruiter-wrapped receiver)", sel.Sel.Name, strings.Trim(path, `"`))
 			}
@@ -1518,6 +1525,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 	sort.Strings(got)
 
 	want := []string{
+		"Get /company/members/{id}/offboard-preview",
+		"Post /company/members/{id}/offboard",
 		"Get /v2/company-sites/media/{id}",
 		"Get /v2/company-sites/{slug}",
 		"Post /v2/me/company/site/media",
@@ -1539,6 +1548,9 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /v2/me/company/job-drafts/{id}/board",
 		"Get /v2/me/company/job-drafts/{id}/participations/{pid}",
 		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/history",
+		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/placement-credits",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/placement-credits/{credit_id}/void",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/placement-credits/{credit_id}/restore",
 		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/cv",
 		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/cv/original",
 		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/moves",
@@ -1589,8 +1601,17 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /v2/jobs/{id}",
 		"Get /v2/me",
 		"Get /v2/me/company/dashboard",
+		"Get /v2/me/vacancy-assignments/history",
 		"Get /v2/me/company/job-drafts",
 		"Get /v2/me/company/job-drafts/{id}",
+		"Get /v2/me/company/job-drafts/{id}/team",
+		"Get /v2/me/company/job-drafts/{id}/team/history",
+		"Post /v2/me/company/job-drafts/{id}/team/members",
+		"Post /v2/me/company/job-drafts/{id}/team/members/{user_id}/remove",
+		"Post /v2/me/company/job-drafts/{id}/team/leave",
+		"Patch /v2/me/company/job-drafts/{id}/team/members/{user_id}",
+		"Post /v2/me/company/job-drafts/{id}/team/reassign-responsible",
+		"Put /v2/me/company/job-drafts/{id}/team/mode",
 		"Get /v2/me/company/job-drafts/{id}/management",
 		"Get /v2/me/company/job-drafts/{id}/publication",
 		"Get /v2/me/company/job-drafts/{id}/lifecycle",
@@ -1619,6 +1640,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /v2/me/company/job-drafts/{id}/pipeline/delivery",
 		"Get /v2/me/company/job-drafts/{id}/pipeline/delivery/status",
 		"Post /v2/me/company/job-drafts/{id}/pipeline/delivery/preview",
+		"Post /v2/me/company/job-drafts/{id}/commitment",
 		"Post /v2/me/company/job-drafts/{id}/pipeline/preview",
 		"Post /v2/me/company/job-drafts/{id}/pipeline/candidates/manual/duplicates-check",
 		"Post /v2/me/company/job-drafts/{id}/pipeline/candidates/manual",

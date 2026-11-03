@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftlist"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancyteam"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 )
 
@@ -15,7 +16,7 @@ const draftListTimestampLayout = "2006-01-02T15:04:05.000000Z"
 
 // DraftListHandler serves GET /v2/me/company/job-drafts. Identity comes only
 // from the session company context; the store re-checks it transactionally
-// and applies the owner-or-principal visibility rule.
+// and applies the owner-or-active-tramo visibility rule.
 type DraftListHandler struct {
 	lister draftlist.Lister
 }
@@ -28,11 +29,6 @@ func NewDraftListHandler(lister draftlist.Lister) *DraftListHandler {
 type draftListRequester struct {
 	Kind string  `json:"kind"`
 	ID   *string `json:"id"`
-	Name *string `json:"name"`
-}
-
-type draftListPrincipal struct {
-	ID   string  `json:"id"`
 	Name *string `json:"name"`
 }
 
@@ -51,24 +47,24 @@ type draftListCandidates struct {
 }
 
 type draftListItem struct {
-	ID                 string               `json:"id"`
-	Title              *string              `json:"title"`
-	WorkMode           *string              `json:"work_mode"`
-	WorkSchedule       *string              `json:"work_schedule"`
-	Requester          *draftListRequester  `json:"requester"`
-	PrincipalRecruiter draftListPrincipal   `json:"principal_recruiter"`
-	Version            string               `json:"version"`
-	Process            *string              `json:"process"`
-	Status             string               `json:"status"`
-	CloseReason        *string              `json:"close_reason"`
-	CloseReasonNote    *string              `json:"close_reason_note"`
-	PublishedAt        *string              `json:"published_at"`
-	PausedAt           *string              `json:"paused_at"`
-	ClosedAt           *string              `json:"closed_at"`
-	ProcessFinishedAt  *string              `json:"process_finished_at"`
-	Candidates         *draftListCandidates `json:"candidates"`
-	CreatedAt          string               `json:"created_at"`
-	UpdatedAt          string               `json:"updated_at"`
+	ID                string               `json:"id"`
+	Title             *string              `json:"title"`
+	WorkMode          *string              `json:"work_mode"`
+	WorkSchedule      *string              `json:"work_schedule"`
+	Requester         *draftListRequester  `json:"requester"`
+	Team              vacancyteam.Summary  `json:"team"`
+	Version           string               `json:"version"`
+	Process           *string              `json:"process"`
+	Status            string               `json:"status"`
+	CloseReason       *string              `json:"close_reason"`
+	CloseReasonNote   *string              `json:"close_reason_note"`
+	PublishedAt       *string              `json:"published_at"`
+	PausedAt          *string              `json:"paused_at"`
+	ClosedAt          *string              `json:"closed_at"`
+	ProcessFinishedAt *string              `json:"process_finished_at"`
+	Candidates        *draftListCandidates `json:"candidates"`
+	CreatedAt         string               `json:"created_at"`
+	UpdatedAt         string               `json:"updated_at"`
 }
 
 type draftListPage struct {
@@ -114,22 +110,22 @@ func (h *DraftListHandler) ListDrafts(w http.ResponseWriter, r *http.Request) {
 
 func toDraftListItem(item draftlist.Item) draftListItem {
 	out := draftListItem{
-		ID:                 item.ID.String(),
-		Title:              item.Title,
-		WorkMode:           item.WorkMode,
-		WorkSchedule:       item.Schedule,
-		PrincipalRecruiter: draftListPrincipal{ID: item.Principal.ID.String(), Name: item.Principal.Name},
-		Version:            strconv.FormatInt(item.Version, 10),
-		Process:            item.Process,
-		Status:             item.Status,
-		CloseReason:        item.CloseReason,
-		CloseReasonNote:    item.CloseReasonNote,
-		PublishedAt:        draftListTimestamp(item.PublishedAt),
-		PausedAt:           draftListTimestamp(item.PausedAt),
-		ClosedAt:           draftListTimestamp(item.ClosedAt),
-		ProcessFinishedAt:  draftListTimestamp(item.ProcessFinishedAt),
-		CreatedAt:          item.CreatedAt.UTC().Format(draftListTimestampLayout),
-		UpdatedAt:          item.UpdatedAt.UTC().Format(draftListTimestampLayout),
+		ID:                item.ID.String(),
+		Title:             item.Title,
+		WorkMode:          item.WorkMode,
+		WorkSchedule:      item.Schedule,
+		Team:              item.Team,
+		Version:           strconv.FormatInt(item.Version, 10),
+		Process:           item.Process,
+		Status:            item.Status,
+		CloseReason:       item.CloseReason,
+		CloseReasonNote:   item.CloseReasonNote,
+		PublishedAt:       draftListTimestamp(item.PublishedAt),
+		PausedAt:          draftListTimestamp(item.PausedAt),
+		ClosedAt:          draftListTimestamp(item.ClosedAt),
+		ProcessFinishedAt: draftListTimestamp(item.ProcessFinishedAt),
+		CreatedAt:         item.CreatedAt.UTC().Format(draftListTimestampLayout),
+		UpdatedAt:         item.UpdatedAt.UTC().Format(draftListTimestampLayout),
 	}
 	if item.Candidates != nil {
 		c := item.Candidates

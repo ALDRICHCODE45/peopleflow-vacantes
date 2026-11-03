@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/fulfillment"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -69,12 +70,26 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	if frozen != nil {
-		return drafts.Result{}, fulfillment.ErrFulfilled
-	}
 	previous, version, err := readDelivery(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err
+	}
+	if frozen != nil {
+		// Preserve the fulfilled guard's existing precedence for unchanged/invalid
+		// input, while the new published-date rule also applies after fulfillment.
+		pipeline, _, err := readPipeline(ctx, tx, id)
+		if err != nil {
+			return drafts.Result{}, err
+		}
+		calendar, err := s.deliveryCalendar()
+		if err != nil {
+			return drafts.Result{}, err
+		}
+		_, decodeErr := deliveryconfig.Replace(previous, pipeline, body, calendar)
+		if published && changedCommitment(previous, body, decodeErr) {
+			return drafts.Result{}, deliveryconfig.ErrCommitmentChangeRequiresRenegotiation
+		}
+		return drafts.Result{}, fulfillment.ErrFulfilled
 	}
 	if err := pipelineconfig.CheckIfMatch(deliveryconfig.ETag(id, version), ifMatch, present); err != nil {
 		return drafts.Result{}, err
@@ -88,6 +103,12 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 		return drafts.Result{}, err
 	}
 	next, err := deliveryconfig.Replace(previous, pipeline, body, calendar)
+	// Structural decoding errors retain their existing precedence. A syntactically
+	// valid changed date on a published vacancy must use renegotiation, even if
+	// the date would fail the draft-only calendar validation.
+	if published && changedCommitment(previous, body, err) {
+		return drafts.Result{}, deliveryconfig.ErrCommitmentChangeRequiresRenegotiation
+	}
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -162,6 +183,27 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 		return drafts.Result{}, fmt.Errorf("commit delivery: %w", err)
 	}
 	return result, nil
+}
+
+// Replace supplies structural validation; semantic draft-calendar errors must
+// not mask the published commitment guard.
+func changedCommitment(previous deliveryconfig.Configuration, body []byte, validationErr error) bool {
+	if errors.Is(validationErr, drafts.ErrInvalidRequest) || errors.Is(validationErr, drafts.ErrPayloadTooLarge) {
+		return false
+	}
+	value, err := draftjson.Decode(body)
+	if err != nil {
+		return false
+	}
+	root, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	raw := root["commitmentDate"]
+	if date, ok := raw.(string); ok {
+		return previous.CommitmentDate == nil || *previous.CommitmentDate != date
+	}
+	return raw == nil && previous.CommitmentDate != nil
 }
 
 func readDelivery(ctx context.Context, tx pgx.Tx, id uuid.UUID) (deliveryconfig.Configuration, int64, error) {

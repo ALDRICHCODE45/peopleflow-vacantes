@@ -42,6 +42,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancyteam"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -123,8 +124,8 @@ func (h *DraftHandler) createDraft(w http.ResponseWriter, r *http.Request) {
 // getDraft implements GET /me/company/job-drafts/{id}.
 //
 // Flow: CompanyContext -> lexical path UUID -> store.Get. Authorization and
-// the owner-or-principal rule live in the store, which collapses missing,
-// cross-company and non-principal drafts to NotFound.
+// the owner-or-active-tramo rule live in the store, which collapses missing,
+// cross-company and unauthorized drafts to NotFound.
 func (h *DraftHandler) getDraft(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -287,6 +288,8 @@ func writeDraftError(w http.ResponseWriter, err error) {
 // response never carries a domain error string, a DTO or editor data.
 func classifyDraftError(err error) httpjson.Definition {
 	switch {
+	case errors.Is(err, vacancyteam.ErrResponsibleRequired):
+		return httpjson.Resolve("responsible_required")
 	case errors.Is(err, drafts.ErrUnauthenticated):
 		return httpjson.Resolve(httpjson.CodeUnauthenticated)
 	case errors.Is(err, drafts.ErrForbidden):
@@ -295,6 +298,8 @@ func classifyDraftError(err error) httpjson.Definition {
 		return httpjson.Resolve(httpjson.CodeCompanyInactive)
 	case errors.Is(err, drafts.ErrCompanyNotActive):
 		return httpjson.Resolve(httpjson.CodeCompanyNotActive)
+	case errors.Is(err, drafts.ErrTeamAccessEnded):
+		return httpjson.Resolve(httpjson.CodeTeamAccessEnded)
 	case errors.Is(err, drafts.ErrNotFound):
 		return httpjson.Resolve(httpjson.CodeNotFound)
 	case errors.Is(err, drafts.ErrPayloadTooLarge):

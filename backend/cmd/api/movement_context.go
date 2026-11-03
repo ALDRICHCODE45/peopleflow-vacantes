@@ -33,6 +33,7 @@ func (m movementContext) DeliverySummary(ctx context.Context, tx pgx.Tx, id uuid
 
 func movementContextError(err error) error {
 	for _, pair := range [][2]error{
+		{drafts.ErrTeamAccessEnded, app.ErrTeamAccessEnded},
 		{drafts.ErrNotFound, app.ErrNotFound}, {drafts.ErrUnauthenticated, app.ErrUnauthenticated},
 		{drafts.ErrForbidden, app.ErrForbidden}, {drafts.ErrCompanyInactive, app.ErrCompanyInactive},
 		{drafts.ErrCompanyNotActive, app.ErrCompanyNotActive},

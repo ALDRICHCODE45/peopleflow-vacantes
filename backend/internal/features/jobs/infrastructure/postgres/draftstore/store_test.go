@@ -262,29 +262,28 @@ func TestRequesterRef_ReadsKindAndID(t *testing.T) {
 
 func stringPtr(value string) *string { return &value }
 
-// TestAuthorized_OnlyOwnerOrPrincipal pins the resource policy: a caller may
-// read or save an addressed draft only as the company owner or as the draft
-// principal. The creator (created_by) is deliberately NOT sufficient on its
-// own — principal reassignment is a future concern and the extra OR was an
-// unnecessary authorization widening.
-func TestAuthorized_OnlyOwnerOrPrincipal(t *testing.T) {
+// Owners retain access; only active tramos grant recruiter access.
+func TestAuthorized_OnlyOwnerOrActiveTeamMember(t *testing.T) {
 	principal := uuid.MustParse("018f0000-0000-7000-8000-0000000000f1")
 	creator := uuid.MustParse("018f0000-0000-7000-8000-0000000000f2")
 	record := draftRecord{createdBy: creator, principalID: principal}
 
 	tests := []struct {
-		name  string
-		role  string
-		actor uuid.UUID
-		want  bool
+		name   string
+		role   string
+		actor  uuid.UUID
+		active bool
+		want   bool
 	}{
-		{"owner is allowed even when not principal", roleOwner, uuid.MustParse("018f0000-0000-7000-8000-0000000000f3"), true},
-		{"principal is allowed as a recruiter", "recruiter", principal, true},
-		{"creator who is neither owner nor principal is denied", "recruiter", creator, false},
-		{"unrelated member is denied", "recruiter", uuid.MustParse("018f0000-0000-7000-8000-0000000000f4"), false},
+		{"owner outside team", roleOwner, uuid.New(), false, true},
+		{"active collaborator", "recruiter", uuid.New(), true, true},
+		{"principal without active tramo", "recruiter", principal, false, false},
+		{"creator without active tramo", "recruiter", creator, false, false},
+		{"unrelated member", "recruiter", uuid.New(), false, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			record.activeTeamMember = tc.active
 			if got := authorized(authContext{role: tc.role}, tc.actor, record); got != tc.want {
 				t.Errorf("authorized(role=%q, actor=%s) = %v, want %v", tc.role, tc.actor, got, tc.want)
 			}

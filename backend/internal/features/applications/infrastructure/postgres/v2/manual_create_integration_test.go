@@ -261,7 +261,7 @@ func TestManualCreateDuplicatesAndConfirmedDistinct(t *testing.T) {
 func intakeOtherDraft(t *testing.T, f intakeFixture, published bool) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
-	duplicateExec(t, f.movementFixture, `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, id, f.vacancy)
+	duplicateExec(t, f.movementFixture, cloneDraftWithTeam, id, f.vacancy)
 	if published {
 		duplicateExec(t, f.movementFixture, `INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) SELECT $1,company_id,status,published_at,published_by FROM vacancy_processes WHERE id=$2`, id, f.vacancy)
 		duplicateExec(t, f.movementFixture, `INSERT INTO job_draft_delivery_configs(draft_id,version,cutoff_stage_id,target_quantity,commitment_date) VALUES($1,1,$2,999,'2020-01-02')`, id, pipelineconfig.Defaults(id).Stages[4].ID)

@@ -44,6 +44,7 @@ import (
 	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	auditport "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	companiesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
@@ -243,6 +244,7 @@ func (s *draftFlowSigner) expiredToken(t *testing.T, sub string) string {
 // --- harness ---------------------------------------------------------------
 
 type draftFlowHarness struct {
+	store  *draftstore.Store
 	pool   *pgxpool.Pool
 	server *httptest.Server
 	client *http.Client
@@ -254,16 +256,20 @@ type draftFlowHarness struct {
 // real legacy job handler, then serves it over a real loopback listener.
 func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHarness {
 	t.Helper()
+	return newDraftFlowHarnessWithAudit(t, auditpostgres.NewAuditEventRepository(), cvFiles...)
+}
+
+func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRepository, cvFiles ...*cvstorage.Local) *draftFlowHarness {
+	t.Helper()
 	pool := requireDraftFlowPool(t)
 	signer := newDraftFlowSigner(t)
 
 	queries := db.New(pool)
-	auditRepo := auditpostgres.NewAuditEventRepository()
 	identityUserRepo := identitypostgres.NewUserRepository(queries)
 	memberRepo := companiespostgres.NewCompanyMemberRepository(pool)
 	companyRepo := companiespostgres.NewCompanyRepository(pool, auditRepo)
 
-	store := draftstore.NewStore(pool, auditRepo)
+	store := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(companiespostgres.LockMemberMutation)
 	draftHandler := jobshttp.NewDraftHandler(store)
 	draftV2Handler := jobshttp.NewDraftV2Handler(store, store, store)
 	jobHandler := jobshttp.NewJobHandler(jobsusecases.NewJobService(jobspostgres.NewJobRepository(queries)))
@@ -285,9 +291,12 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 		requireOwner:         requireOwner,
 		jobHandler:           jobHandler,
 		companyHandler:       companieshttp.NewCompanyHandler(companiesusecases.NewCompanyService(companyRepo, geopostgres.NewReader(queries))),
-		siteHandler:          newCompanySiteHandler(pool, auditRepo, nil),
+		memberHandler:        companieshttp.NewMemberHandler(companiesusecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geopostgres.NewReader(queries))),
+		siteHandler:          newCompanySiteHandler(pool, auditpostgres.NewAuditEventRepository(), nil),
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,
+		teamHandler:          jobshttp.NewTeamHandler(store),
+		offboardHandler:      jobshttp.NewOffboardHandler(store),
 		draftListHandler:     jobshttp.NewDraftListHandler(store),
 		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(files))).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		pipelineHandler:      jobshttp.NewPipelineHandler(store),
@@ -317,7 +326,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	return &draftFlowHarness{pool: pool, server: server, client: server.Client(), signer: signer}
+	return &draftFlowHarness{store: store, pool: pool, server: server, client: server.Client(), signer: signer}
 }
 
 // --- fixtures --------------------------------------------------------------
@@ -351,10 +360,20 @@ func draftFlowNewCompany(t *testing.T, pool *pgxpool.Pool, status string) *draft
 
 func (c *draftFlowCompany) cleanup() {
 	ctx := context.Background()
+	// Check every HTTP fixture's credits before teardown removes them, including
+	// tests whose moves/recoveries create credits as a secondary effect.
+	var duplicateActive bool
+	if err := c.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM placement_credits WHERE company_id=$1 AND status='active' GROUP BY participation_id HAVING count(*)>1)`, c.companyID).Scan(&duplicateActive); err != nil {
+		c.t.Errorf("credit invariant check failed: %v", err)
+	} else if duplicateActive {
+		c.t.Error("credit invariant: more than one active credit per participation")
+	}
 	for step, query := range []string{
 		`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 		`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
 		`DELETE FROM job_draft_idempotency WHERE company_id = $1`,
+		`DELETE FROM placement_credits WHERE company_id = $1`,
+		`DELETE FROM audit_events WHERE metadata->>'company_id' = $1::text`,
 		`DELETE FROM job_drafts WHERE company_id = $1`,
 		`DELETE FROM job_draft_requesters WHERE company_id = $1`,
 		`DELETE FROM company_members WHERE company_id = $1`,
@@ -1728,7 +1747,7 @@ func TestDraftFlow_ReplayAuthorizationPrecedesCurrentRowGate(t *testing.T) {
 	if _, err := h.pool.Exec(context.Background(), `UPDATE company_members SET role = 'recruiter' WHERE user_id = $1 AND company_id = $2`, ownerID, company.companyID); err != nil {
 		t.Fatalf("demote owner to non-owner role: %v", err)
 	}
-	if _, err := h.pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$1 WHERE id=$2`, peerID, id); err != nil {
+	if _, err := h.pool.Exec(context.Background(), `UPDATE vacancy_assignments SET user_id=$1 WHERE draft_id=$2 AND ended_at IS NULL`, peerID, id); err != nil {
 		t.Fatalf("transfer draft principal: %v", err)
 	}
 	// A corrupt current-row marker would be a 500 once the schema gate runs; the

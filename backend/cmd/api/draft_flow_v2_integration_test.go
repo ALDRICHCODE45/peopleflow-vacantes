@@ -209,7 +209,7 @@ func TestDraftFlowV2_ReplayReauthorization(t *testing.T) {
 	if _, err := h.pool.Exec(context.Background(), `UPDATE company_members SET role='recruiter' WHERE company_id=$1 AND user_id=$2`, company.companyID, user); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$1 WHERE id=$2`, peer, id); err != nil {
+	if _, err := h.pool.Exec(context.Background(), `UPDATE vacancy_assignments SET user_id=$1 WHERE draft_id=$2 AND ended_at IS NULL`, peer, id); err != nil {
 		t.Fatal(err)
 	}
 	draftFlowSeedDraftFields(t, h, id, `{"schema_version":3,"fields":{}}`)

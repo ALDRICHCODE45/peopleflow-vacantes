@@ -28,10 +28,10 @@ type Discard struct {
 	RecoveryStageID string    `json:"recovery_stage_id"`
 }
 type DiscardRequest struct {
-	Reason               Reason
-	Comment              *string
-	CandidateMessage     *string
-	ConfirmPlacementExit bool
+	Reason              Reason
+	Comment             *string
+	CandidateMessage    *string
+	PlacementExitReason string
 }
 type RecoverRequest struct {
 	ConfirmPlacementReentry bool
@@ -181,7 +181,7 @@ func DecodeDiscard(body []byte, decode JSONDecoder) (DiscardRequest, error) {
 	}
 	for k := range root {
 		switch k {
-		case "reason", "comment", "candidate_message", "confirm_placement_exit":
+		case "reason", "comment", "candidate_message", "placement_exit_reason":
 		default:
 			return DiscardRequest{}, ErrInvalidRequest
 		}
@@ -199,11 +199,9 @@ func DecodeDiscard(body []byte, decode JSONDecoder) (DiscardRequest, error) {
 		return DiscardRequest{}, ErrInvalidRequest
 	}
 	req := DiscardRequest{Reason: Reason{Group: g, Key: key}}
-	if flag, present := root["confirm_placement_exit"]; present {
-		req.ConfirmPlacementExit, ok = flag.(bool)
-		if !ok {
-			return DiscardRequest{}, ErrInvalidRequest
-		}
+	req.PlacementExitReason, err = decodePlacementExitReason(root)
+	if err != nil {
+		return DiscardRequest{}, err
 	}
 	if req.Comment, err = optionalText(root, "comment", 1000); err != nil {
 		return DiscardRequest{}, err

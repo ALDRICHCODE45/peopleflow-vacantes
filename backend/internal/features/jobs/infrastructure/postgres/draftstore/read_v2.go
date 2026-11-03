@@ -28,12 +28,12 @@ func (s *Store) GetV2(ctx context.Context, companyID, actorID, id uuid.UUID) (dr
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	record, found, err := readDraft(ctx, tx, companyID, id, false)
+	record, found, err := readDraft(ctx, tx, companyID, id, false, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.Result{}, drafts.ErrNotFound
+		return drafts.Result{}, draftAccessError(ctx, tx, actorID, record, found)
 	}
 	if err := requireV2ReadDocument(record.fields); err != nil {
 		return drafts.Result{}, err
@@ -42,7 +42,7 @@ func (s *Store) GetV2(ctx context.Context, companyID, actorID, id uuid.UUID) (dr
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	body, err := renderGeoEnvelopeV2(ctx, tx, record, name)
+	body, err := renderGeoEnvelopeV2(ctx, tx, record, name, actorID)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -104,14 +104,13 @@ func renderEnvelopeV2(record draftRecord, requesterName *string) ([]byte, error)
 		requester["name"] = name
 	}
 	body, err := draftjson.EncodeValidatedValue(map[string]any{
-		"schema_version":         int64(2),
-		"id":                     record.id.String(),
-		"status":                 record.status,
-		"principal_recruiter_id": record.principalID.String(),
-		"version":                strconv.FormatInt(record.version, 10),
-		"created_at":             record.createdAt.UTC().Format(timestampLayout),
-		"updated_at":             record.updatedAt.UTC().Format(timestampLayout),
-		"fields":                 fields,
+		"schema_version": int64(2),
+		"id":             record.id.String(),
+		"status":         record.status,
+		"version":        strconv.FormatInt(record.version, 10),
+		"created_at":     record.createdAt.UTC().Format(timestampLayout),
+		"updated_at":     record.updatedAt.UTC().Format(timestampLayout),
+		"fields":         fields,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("encode v2 read envelope: %w", err)

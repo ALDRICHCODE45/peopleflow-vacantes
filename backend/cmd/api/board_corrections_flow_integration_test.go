@@ -43,7 +43,7 @@ func boardCorrectionWire(t *testing.T, item map[string]any, detail bool) {
 	t.Helper()
 	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "profile", "screening_answers", "corrected_fields"}
 	if detail {
-		keys = append(keys, "screening", "comment", "candidate_message", "contact", "original", "original_cv")
+		keys = append(keys, "screening", "comment", "candidate_message", "contact", "original", "original_cv", "placement_credit", "can")
 	}
 	orgCandidateKeys(t, item, keys...)
 	orgCandidateKeys(t, item["candidate"], "id", "full_name", "kind")
@@ -78,7 +78,7 @@ func TestBoardCorrectionsFlow(t *testing.T) {
 			// Like E3, original downloads work even before a correction.
 			boardCorrectionFile(t, f, path+"/cv", "%PDF-original", "original.pdf.pdf", "application/pdf")
 			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf.pdf", "application/pdf")
-			// The ordinary recruiter can edit the pool, but board reads stay owner/principal scoped.
+			// The ordinary recruiter can edit the pool, but board reads stay owner-or-active-tramo scoped.
 			for _, suffix := range []string{"", "/cv", "/cv/original"} {
 				for _, actor := range []draftFlowActor{f.recruiter, f.foreign} {
 					r := f.h.do(t, "GET", path+suffix, "", actor.token, nil)

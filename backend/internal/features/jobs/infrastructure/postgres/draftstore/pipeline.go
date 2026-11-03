@@ -141,12 +141,12 @@ func (s *Store) authorizePipeline(ctx context.Context, tx pgx.Tx, companyID, act
 	if err != nil {
 		return err
 	}
-	record, found, err := readDraft(ctx, tx, companyID, id, lock)
+	record, found, err := readDraft(ctx, tx, companyID, id, lock, actorID)
 	if err != nil {
 		return err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return drafts.ErrNotFound
+		return draftAccessError(ctx, tx, actorID, record, found)
 	}
 	return requireV2ReadDocument(record.fields)
 }

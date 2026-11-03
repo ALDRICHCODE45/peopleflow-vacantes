@@ -135,7 +135,7 @@ func TestMovementRoutesGatesErrorsAndSuccess(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"skip", app.ErrStageSkip, 409, "stage_skip_not_allowed"}, {"exit", app.ErrPlacementExit, 409, "placement_exit_confirmation_required"}, {"draft", app.ErrNotPublished, 409, "vacancy_not_published"}, {"limit", app.ErrTooLarge, 422, "board_too_large"}, {"stale", app.ErrVersionConflict, 412, "version_conflict"}, {"missing", app.ErrPreconditionRequired, 428, "precondition_required"}, {"invalid", app.ErrInvalidRequest, 400, "invalid_request"}, {"validation", app.ErrValidation, 400, "validation_error"}, {"storage", app.ErrStorageUnavailable, 503, "cv_storage_unavailable"}, {"internal", errors.New("private data"), 500, "internal_error"},
+		{"skip", app.ErrStageSkip, 409, "stage_skip_not_allowed"}, {"exit", app.ErrPlacementExit, 409, "placement_exit_reason_required"}, {"draft", app.ErrNotPublished, 409, "vacancy_not_published"}, {"limit", app.ErrTooLarge, 422, "board_too_large"}, {"stale", app.ErrVersionConflict, 412, "version_conflict"}, {"missing", app.ErrPreconditionRequired, 428, "precondition_required"}, {"invalid", app.ErrInvalidRequest, 400, "invalid_request"}, {"validation", app.ErrValidation, 400, "validation_error"}, {"storage", app.ErrStorageUnavailable, 503, "cv_storage_unavailable"}, {"internal", errors.New("private data"), 500, "internal_error"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &movementRouteStore{err: tc.err}

@@ -19,7 +19,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const discardBody = `{"reason":{"group":"recruiter","key":"other"},"comment":"  Internal explanation 😀  ","candidate_message":"  Thank you\nfor applying.  ","confirm_placement_exit":true}`
+const discardBody = `{"reason":{"group":"recruiter","key":"other"},"comment":"  Internal explanation 😀  ","candidate_message":"  Thank you\nfor applying.  "}`
 
 func (m movementFixture) discard(t *testing.T, item board.Item, body string) (board.Moved, error) {
 	t.Helper()
@@ -62,12 +62,16 @@ func TestDiscardRecoveryEachStageAndCoverage(t *testing.T) {
 			}
 			if kind == "placement" {
 				before := m.snapshot(t)
-				_, err = m.discard(t, item, strings.ReplaceAll(discardBody, `"confirm_placement_exit":true`, `"confirm_placement_exit":false`))
+				_, err = m.discard(t, item, discardBody)
 				if !errors.Is(err, board.ErrPlacementExit) || before != m.snapshot(t) {
 					t.Fatal("unconfirmed departure wrote effects", err)
 				}
 			}
-			discarded, err := m.discard(t, item, discardBody)
+			body := discardBody
+			if kind == "placement" {
+				body = strings.TrimSuffix(body, "}") + `,"placement_exit_reason":"candidate_left"}`
+			}
+			discarded, err := m.discard(t, item, body)
 			if err != nil || discarded.StageID != config.Exit.ID || discarded.Discard == nil || discarded.Discard.PreviousStageID != item.StageID || !discarded.MovedAt.Equal(discarded.Discard.DiscardedAt) || discarded.Version != incrementVersion(t, item.Version) || discarded.ETag != board.ETag(item.ID, mustVersion(t, discarded.Version)) || discarded.Coverage.Covered != 0 || !reflect.DeepEqual(discarded.Coverage.FullCoverageReachedAt, beforeBoard.Coverage.FullCoverageReachedAt) {
 				t.Fatal(discarded, err)
 			}
@@ -180,7 +184,11 @@ func TestDiscardRecoveryEachStageAndCoverage(t *testing.T) {
 				t.Fatal(err)
 			}
 			// A second cycle replaces current discard details, never prior history.
-			second, err := m.discard(t, recovered.Item, `{"reason":{"group":"candidate","key":"unresponsive"},"confirm_placement_exit":true}`)
+			secondBody := `{"reason":{"group":"candidate","key":"unresponsive"}}`
+			if kind == "placement" {
+				secondBody = strings.TrimSuffix(secondBody, "}") + `,"placement_exit_reason":"candidate_left"}`
+			}
+			second, err := m.discard(t, recovered.Item, secondBody)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -265,12 +273,13 @@ func TestDiscardRecoveryRejectedRequestsAndAuditFailureAreAtomic(t *testing.T) {
 	if _, err = m.pool.Exec(ctx, `INSERT INTO job_draft_management_configs(draft_id,version,hiring_headcount) VALUES($1,1,1)`, m.vacancy); err != nil {
 		t.Fatal(err)
 	}
+	departureBody := strings.TrimSuffix(discardBody, "}") + `,"placement_exit_reason":"candidate_left"}`
 	before = m.snapshot(t)
-	_, err = failing.Discard(ctx, m.company, m.recruiter, m.vacancy, item.ID, item.ETag, true, []byte(discardBody))
+	_, err = failing.Discard(ctx, m.company, m.recruiter, m.vacancy, item.ID, item.ETag, true, []byte(departureBody))
 	if err == nil || before != m.snapshot(t) {
 		t.Fatal("failed departure changed coverage", err)
 	}
-	discarded, err := m.discard(t, item, discardBody)
+	discarded, err := m.discard(t, item, departureBody)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -88,6 +88,11 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	if stageKind == "" {
 		return app.Moved{}, errors.New("unknown stored progression stage")
 	}
+	if !recovering {
+		if err := app.ValidatePlacementExit(stageKind == "placement", req.PlacementExitReason); err != nil {
+			return app.Moved{}, err
+		}
+	}
 	hire, departure := false, false
 	if stageKind == "placement" {
 		if recovering {
@@ -96,9 +101,6 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 			}
 			hire = true
 		} else {
-			if !req.ConfirmPlacementExit {
-				return app.Moved{}, app.ErrPlacementExit
-			}
 			departure = true
 		}
 	}
@@ -123,7 +125,11 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	if err != nil {
 		return app.Moved{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind,reason_group,reason_code,comment,candidate_message) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter',$9,$10,$11,$12,$13)`, uuid.New(), pid, target, actor, at, item.StageID, hire, departure, kind, group, code, req.Comment, req.CandidateMessage); err != nil {
+	historyID := uuid.New()
+	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind,reason_group,reason_code,comment,candidate_message) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter',$9,$10,$11,$12,$13)`, historyID, pid, target, actor, at, item.StageID, hire, departure, kind, group, code, req.Comment, req.CandidateMessage); err != nil {
+		return app.Moved{}, err
+	}
+	if err = s.recordPlacementCredit(ctx, tx, company, actor, id, pid, historyID, at, hire, departure, req.PlacementExitReason); err != nil {
 		return app.Moved{}, err
 	}
 	if recovering {

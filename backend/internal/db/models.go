@@ -322,15 +322,14 @@ type Job struct {
 }
 
 type JobDraft struct {
-	ID                   uuid.UUID          `json:"id"`
-	CompanyID            uuid.UUID          `json:"company_id"`
-	CreatedBy            uuid.UUID          `json:"created_by"`
-	PrincipalRecruiterID uuid.UUID          `json:"principal_recruiter_id"`
-	Status               string             `json:"status"`
-	Version              int64              `json:"version"`
-	Fields               []byte             `json:"fields"`
-	CreatedAt            pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	ID        uuid.UUID          `json:"id"`
+	CompanyID uuid.UUID          `json:"company_id"`
+	CreatedBy uuid.UUID          `json:"created_by"`
+	Status    string             `json:"status"`
+	Version   int64              `json:"version"`
+	Fields    []byte             `json:"fields"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type JobDraftChecklist struct {
@@ -439,6 +438,29 @@ type ParticipationStageHistory struct {
 	ToSubstateName   pgtype.Text        `json:"to_substate_name"`
 }
 
+type PlacementCredit struct {
+	ID              uuid.UUID          `json:"id"`
+	CompanyID       uuid.UUID          `json:"company_id"`
+	ProcessID       uuid.UUID          `json:"process_id"`
+	ParticipationID uuid.UUID          `json:"participation_id"`
+	HireHistoryID   uuid.UUID          `json:"hire_history_id"`
+	HiredAt         pgtype.Timestamptz `json:"hired_at"`
+	HiredBy         uuid.UUID          `json:"hired_by"`
+	TeamMode        string             `json:"team_mode"`
+	Status          string             `json:"status"`
+	ExitHistoryID   pgtype.UUID        `json:"exit_history_id"`
+	ExitReason      pgtype.Text        `json:"exit_reason"`
+	StatusChangedAt pgtype.Timestamptz `json:"status_changed_at"`
+	StatusChangedBy pgtype.UUID        `json:"status_changed_by"`
+}
+
+type PlacementCreditRecipient struct {
+	CreditID     uuid.UUID `json:"credit_id"`
+	UserID       uuid.UUID `json:"user_id"`
+	AssignmentID uuid.UUID `json:"assignment_id"`
+	Kind         string    `json:"kind"`
+}
+
 type ProcessCoverageMilestone struct {
 	ID        uuid.UUID          `json:"id"`
 	ProcessID uuid.UUID          `json:"process_id"`
@@ -461,33 +483,110 @@ type ProcessDeliveryFulfillment struct {
 }
 
 type ProcessParticipation struct {
-	ID                   uuid.UUID          `json:"id"`
-	ProcessID            uuid.UUID          `json:"process_id"`
-	CandidateID          pgtype.UUID        `json:"candidate_id"`
-	StageID              uuid.UUID          `json:"stage_id"`
-	CvVersionID          pgtype.UUID        `json:"cv_version_id"`
-	QuestionsSnapshot    []byte             `json:"questions_snapshot"`
-	AnswersSnapshot      []byte             `json:"answers_snapshot"`
-	Source               string             `json:"source"`
-	CreatedAt            pgtype.Timestamptz `json:"created_at"`
-	Version              int64              `json:"version"`
-	PreviousStageID      pgtype.UUID        `json:"previous_stage_id"`
-	ReasonGroup          pgtype.Text        `json:"reason_group"`
-	ReasonCode           pgtype.Text        `json:"reason_code"`
-	Comment              pgtype.Text        `json:"comment"`
-	CandidateMessage     pgtype.Text        `json:"candidate_message"`
-	DiscardedAt          pgtype.Timestamptz `json:"discarded_at"`
-	SubstateID           pgtype.UUID        `json:"substate_id"`
-	ProfileSnapshot      []byte             `json:"profile_snapshot"`
-	CompanyCandidateID   pgtype.UUID        `json:"company_candidate_id"`
-	CompanyCandidateCvID pgtype.UUID        `json:"company_candidate_cv_id"`
-	AddedBy              pgtype.UUID        `json:"added_by"`
-	CorrectedCompanyCvID pgtype.UUID        `json:"corrected_company_cv_id"`
+	ID                     uuid.UUID          `json:"id"`
+	ProcessID              uuid.UUID          `json:"process_id"`
+	CandidateID            pgtype.UUID        `json:"candidate_id"`
+	StageID                uuid.UUID          `json:"stage_id"`
+	CvVersionID            pgtype.UUID        `json:"cv_version_id"`
+	QuestionsSnapshot      []byte             `json:"questions_snapshot"`
+	AnswersSnapshot        []byte             `json:"answers_snapshot"`
+	Source                 string             `json:"source"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	Version                int64              `json:"version"`
+	PreviousStageID        pgtype.UUID        `json:"previous_stage_id"`
+	ReasonGroup            pgtype.Text        `json:"reason_group"`
+	ReasonCode             pgtype.Text        `json:"reason_code"`
+	Comment                pgtype.Text        `json:"comment"`
+	CandidateMessage       pgtype.Text        `json:"candidate_message"`
+	DiscardedAt            pgtype.Timestamptz `json:"discarded_at"`
+	SubstateID             pgtype.UUID        `json:"substate_id"`
+	ProfileSnapshot        []byte             `json:"profile_snapshot"`
+	CompanyCandidateID     pgtype.UUID        `json:"company_candidate_id"`
+	CompanyCandidateCvID   pgtype.UUID        `json:"company_candidate_cv_id"`
+	AddedBy                pgtype.UUID        `json:"added_by"`
+	CorrectedCompanyCvID   pgtype.UUID        `json:"corrected_company_cv_id"`
+	CandidateMessageReadAt pgtype.Timestamptz `json:"candidate_message_read_at"`
 }
 
 type ProfileLanguageName struct {
 	Code pgtype.Text `json:"code"`
 	Name pgtype.Text `json:"name"`
+}
+
+type PsychometricAnswer struct {
+	InvitationID    uuid.UUID          `json:"invitation_id"`
+	Position        int32              `json:"position"`
+	Value           pgtype.Int4        `json:"value"`
+	ClientElapsedMs pgtype.Int8        `json:"client_elapsed_ms"`
+	ReceivedAt      pgtype.Timestamptz `json:"received_at"`
+}
+
+type PsychometricAnswerEvent struct {
+	InvitationID    uuid.UUID          `json:"invitation_id"`
+	EventID         uuid.UUID          `json:"event_id"`
+	Position        int32              `json:"position"`
+	Kind            string             `json:"kind"`
+	Value           pgtype.Int4        `json:"value"`
+	ClientElapsedMs pgtype.Int8        `json:"client_elapsed_ms"`
+	ReceivedAt      pgtype.Timestamptz `json:"received_at"`
+	ServerSequence  int64              `json:"server_sequence"`
+}
+
+type PsychometricComparison struct {
+	ID              uuid.UUID          `json:"id"`
+	InvitationID    uuid.UUID          `json:"invitation_id"`
+	ProfileVersion  pgtype.Text        `json:"profile_version"`
+	ProfileSnapshot []byte             `json:"profile_snapshot"`
+	ContentVersion  string             `json:"content_version"`
+	ScoringVersion  string             `json:"scoring_version"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	Snapshot        []byte             `json:"snapshot"`
+}
+
+type PsychometricConsent struct {
+	InvitationID  uuid.UUID          `json:"invitation_id"`
+	NoticeVersion string             `json:"notice_version"`
+	TextSha256    string             `json:"text_sha256"`
+	ConsentedAt   pgtype.Timestamptz `json:"consented_at"`
+}
+
+type PsychometricInvitation struct {
+	ID              uuid.UUID          `json:"id"`
+	ParticipationID uuid.UUID          `json:"participation_id"`
+	Test            string             `json:"test"`
+	ContentVersion  string             `json:"content_version"`
+	ScoringVersion  string             `json:"scoring_version"`
+	TotalCount      int32              `json:"total_count"`
+	AnsweredCount   int32              `json:"answered_count"`
+	Origin          string             `json:"origin"`
+	CreatedBy       pgtype.UUID        `json:"created_by"`
+	TriggerStageID  pgtype.UUID        `json:"trigger_stage_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	ConsentedAt     pgtype.Timestamptz `json:"consented_at"`
+	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	LastRemindedAt  pgtype.Timestamptz `json:"last_reminded_at"`
+	ReminderCount   int32              `json:"reminder_count"`
+	PurgeAfter      pgtype.Timestamptz `json:"purge_after"`
+	TokenHash       []byte             `json:"token_hash"`
+	SupersededAt    pgtype.Timestamptz `json:"superseded_at"`
+}
+
+type PsychometricResult struct {
+	InvitationID   uuid.UUID          `json:"invitation_id"`
+	ContentVersion string             `json:"content_version"`
+	ScoringVersion string             `json:"scoring_version"`
+	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+	Snapshot       []byte             `json:"snapshot"`
+}
+
+type SavedJob struct {
+	CandidateID uuid.UUID          `json:"candidate_id"`
+	ProcessID   pgtype.UUID        `json:"process_id"`
+	LegacyJobID pgtype.UUID        `json:"legacy_job_id"`
+	JobID       uuid.UUID          `json:"job_id"`
+	SavedAt     pgtype.Timestamptz `json:"saved_at"`
 }
 
 type User struct {
@@ -499,6 +598,45 @@ type User struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type VacancyAssignment struct {
+	ID                uuid.UUID          `json:"id"`
+	DraftID           uuid.UUID          `json:"draft_id"`
+	CompanyID         uuid.UUID          `json:"company_id"`
+	UserID            uuid.UUID          `json:"user_id"`
+	StartedAt         pgtype.Timestamptz `json:"started_at"`
+	StartedBy         pgtype.UUID        `json:"started_by"`
+	StartCause        string             `json:"start_cause"`
+	RecruiterDeadline pgtype.Date        `json:"recruiter_deadline"`
+	EndedAt           pgtype.Timestamptz `json:"ended_at"`
+	EndedBy           pgtype.UUID        `json:"ended_by"`
+	EndCause          pgtype.Text        `json:"end_cause"`
+	ClosingDeadline   pgtype.Date        `json:"closing_deadline"`
+	ReassignmentID    pgtype.UUID        `json:"reassignment_id"`
+}
+
+type VacancyAssignmentFunction struct {
+	ID           uuid.UUID          `json:"id"`
+	AssignmentID uuid.UUID          `json:"assignment_id"`
+	DraftID      uuid.UUID          `json:"draft_id"`
+	Function     string             `json:"function"`
+	StartedAt    pgtype.Timestamptz `json:"started_at"`
+	StartCause   string             `json:"start_cause"`
+	EndedAt      pgtype.Timestamptz `json:"ended_at"`
+	EndCause     pgtype.Text        `json:"end_cause"`
+}
+
+type VacancyCommitmentChange struct {
+	ID           uuid.UUID          `json:"id"`
+	DraftID      uuid.UUID          `json:"draft_id"`
+	CompanyID    uuid.UUID          `json:"company_id"`
+	PreviousDate pgtype.Date        `json:"previous_date"`
+	NewDate      pgtype.Date        `json:"new_date"`
+	Reason       string             `json:"reason"`
+	Note         pgtype.Text        `json:"note"`
+	PerformedBy  uuid.UUID          `json:"performed_by"`
+	PerformedAt  pgtype.Timestamptz `json:"performed_at"`
 }
 
 type VacancyDraft0041Backup struct {
@@ -570,4 +708,37 @@ type VacancyPublicProjection struct {
 	RemoteScopeKind       pgtype.Text        `json:"remote_scope_kind"`
 	RemoteCountries       []string           `json:"remote_countries"`
 	RequirementsProfile   []byte             `json:"requirements_profile"`
+}
+
+type VacancyReassignment struct {
+	ID                  uuid.UUID          `json:"id"`
+	DraftID             uuid.UUID          `json:"draft_id"`
+	CompanyID           uuid.UUID          `json:"company_id"`
+	FromAssignmentID    uuid.UUID          `json:"from_assignment_id"`
+	ToAssignmentID      uuid.UUID          `json:"to_assignment_id"`
+	Reason              string             `json:"reason"`
+	Note                pgtype.Text        `json:"note"`
+	PreviousResponsible string             `json:"previous_responsible"`
+	PerformedBy         uuid.UUID          `json:"performed_by"`
+	PerformedAt         pgtype.Timestamptz `json:"performed_at"`
+	StateSnapshot       []byte             `json:"state_snapshot"`
+}
+
+type VacancyTeam struct {
+	DraftID   uuid.UUID          `json:"draft_id"`
+	CompanyID uuid.UUID          `json:"company_id"`
+	Mode      string             `json:"mode"`
+	Version   int64              `json:"version"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type VacancyTeamModeChange struct {
+	ID                uuid.UUID          `json:"id"`
+	DraftID           uuid.UUID          `json:"draft_id"`
+	CompanyID         uuid.UUID          `json:"company_id"`
+	FromMode          string             `json:"from_mode"`
+	ToMode            string             `json:"to_mode"`
+	ResponsibleUserID pgtype.UUID        `json:"responsible_user_id"`
+	PerformedBy       uuid.UUID          `json:"performed_by"`
+	PerformedAt       pgtype.Timestamptz `json:"performed_at"`
 }

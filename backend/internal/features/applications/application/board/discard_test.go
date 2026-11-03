@@ -131,7 +131,7 @@ func TestDiscardRecoverStrictBodies(t *testing.T) {
 			}
 		})
 	}
-	for _, body := range []string{`{` + reason + `}`, `{` + reason + `,"confirm_placement_exit":true}`} {
+	for _, body := range []string{`{` + reason + `}`, `{` + reason + `,"placement_exit_reason":"candidate_left"}`} {
 		if _, err := app.DecodeDiscard([]byte(body), draftjson.Decode); err != nil {
 			t.Fatal(err)
 		}

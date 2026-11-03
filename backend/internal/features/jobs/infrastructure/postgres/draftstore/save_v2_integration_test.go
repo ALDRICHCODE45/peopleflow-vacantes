@@ -269,12 +269,12 @@ func TestSaveV2_InvariantPrecedesPreconditionAndBody(t *testing.T) {
 			// An unauthorized caller keeps the hidden 404 on the same corrupt
 			// row, never the invariant or any client classification. The fixture
 			// demotes the creator and reassigns the principal, since
-			// owner-or-principal must both fail.
+			// owner-or-active-tramo must both fail.
 			if _, err := pool.Exec(context.Background(), `UPDATE company_members SET role='recruiter' WHERE company_id=$1 AND user_id=$2`, p.companyID, p.ownerID); err != nil {
 				t.Fatal(err)
 			}
 			member := principal{companyID: p.companyID, ownerID: addMember(t, pool, p.companyID, "recruiter")}
-			if _, err := pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$1 WHERE id=$2`, member.ownerID, id); err != nil {
+			if _, err := pool.Exec(context.Background(), `UPDATE vacancy_assignments SET user_id=$1 WHERE draft_id=$2 AND ended_at IS NULL`, member.ownerID, id); err != nil {
 				t.Fatal(err)
 			}
 			assertSaveV2Reject(t, pool, s, p, id, ifMatchV2For(t, id, 1), true, []byte(`{"fields":{"title":"X"}}`), drafts.ErrNotFound)

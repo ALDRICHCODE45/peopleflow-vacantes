@@ -335,6 +335,10 @@ func TestLifecycleDBHistoryActorSnapshotAndPreservedAuthoring(t *testing.T) {
 	if *view.Publication != "published" || *view.Process != "active" || view.PausedAt == nil || view.ClosedAt == nil || view.ProcessFinishedAt == nil {
 		t.Fatal(view)
 	}
+	// Team names are live read projections, unlike lifecycle's actor snapshot.
+	expected := envelopeOf(t, authoring.Body)
+	expected["team"].(map[string]any)["responsible"].(map[string]any)["name"] = "Changed actor"
+	authoring.Body = mustCanonical(t, expected)
 	after, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
 	if err != nil || !bytes.Equal(withoutLifecycle(t, after.Body), withoutLifecycle(t, authoring.Body)) || after.ETag != authoring.ETag {
 		t.Fatal("lifecycle changed authoring", err)
@@ -351,11 +355,11 @@ func TestLifecycleDBAuthorizationAndLiveGates(t *testing.T) {
 			switch role {
 			case "principal":
 				actor = addMember(t, pool, p.companyID, "recruiter")
-				if _, err := pool.Exec(ctx, `UPDATE job_drafts SET principal_recruiter_id=$2 WHERE id=$1`, id, actor); err != nil {
+				if _, err := pool.Exec(ctx, `UPDATE vacancy_assignments SET user_id=$2 WHERE draft_id=$1 AND ended_at IS NULL`, id, actor); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() {
-					_, _ = pool.Exec(ctx, `UPDATE job_drafts SET principal_recruiter_id=$2 WHERE id=$1`, id, p.ownerID)
+					_, _ = pool.Exec(ctx, `UPDATE vacancy_assignments SET user_id=$2 WHERE draft_id=$1 AND ended_at IS NULL`, id, p.ownerID)
 					_, _ = pool.Exec(ctx, `DELETE FROM vacancy_lifecycle_events WHERE process_id=$1`, id)
 					_, _ = pool.Exec(ctx, `DELETE FROM job_draft_idempotency WHERE actor_id=$1`, actor)
 					_, _ = pool.Exec(ctx, `DELETE FROM audit_events WHERE actor_id=$1`, actor)

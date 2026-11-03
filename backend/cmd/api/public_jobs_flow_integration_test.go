@@ -242,13 +242,22 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 		missing              []string
 	}{
 		{"", "PATCH", `{"fields":{"title":null,"remote_scope":null}}`, []string{"title_missing", "remote_scope_missing"}},
-		{"/pipeline/delivery", "PUT", deliveryFlowNull, []string{"delivery_cutoff_missing", "delivery_target_missing", "commitment_date_missing"}},
+		{"/pipeline/delivery", "PUT", deliveryFlowNull, []string{"delivery_cutoff_missing", "delivery_target_missing"}},
 		{"/management", "PUT", `{"requestDate":null,"hiringHeadcount":null}`, []string{"request_date_missing", "hiring_headcount_missing"}},
 	} {
 		current := h.do(t, "GET", base+tc.suffix, "", owner.token, nil)
 		snapshot := publicationFlowSnapshot(t, h, id)
 		projection := publicFlowProjectionSnapshot(t, h, id)
-		result := h.do(t, tc.method, base+tc.suffix, tc.body, owner.token, map[string]string{"If-Match": current.header.Get("ETag")})
+		body := tc.body
+		if tc.suffix == "/pipeline/delivery" {
+			date := draftFlowObject(t, current.body)["commitmentDate"]
+			raw, err := json.Marshal(map[string]any{"cutoffStageId": nil, "targetQuantity": nil, "commitmentDate": date})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body = string(raw)
+		}
+		result := h.do(t, tc.method, base+tc.suffix, body, owner.token, map[string]string{"If-Match": current.header.Get("ETag")})
 		publicationFlowAssertError(t, result, 422, "publication_incomplete", tc.missing)
 		if snapshot != publicationFlowSnapshot(t, h, id) || projection != publicFlowProjectionSnapshot(t, h, id) {
 			t.Fatal("rejection changed state")

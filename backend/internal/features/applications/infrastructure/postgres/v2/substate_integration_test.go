@@ -267,7 +267,7 @@ func TestSubstateRejectsWithoutAnyEffects(t *testing.T) {
 			}
 		})
 	}
-	out, err := m.board.Discard(context.Background(), m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"reason":{"group":"candidate","key":"unresponsive"},"confirm_placement_exit":true}`))
+	out, err := m.board.Discard(context.Background(), m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"reason":{"group":"candidate","key":"unresponsive"},"placement_exit_reason":"candidate_left"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestSubstateRejectsWithoutAnyEffects(t *testing.T) {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
 	draft := uuid.New()
-	if _, err = m.pool.Exec(context.Background(), `INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`, draft, m.vacancy); err != nil {
+	if _, err = m.pool.Exec(context.Background(), cloneDraftWithTeam, draft, m.vacancy); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = m.pool.Exec(context.Background(), `DELETE FROM job_drafts WHERE id=$1`, draft) })
@@ -363,7 +363,11 @@ func TestSubstateConcurrentSetMoveDiscardOneWinner(t *testing.T) {
 			t.Fatal(last)
 		}
 		var auditsAfter int
-		if err = m.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1`, item.ID).Scan(&auditsAfter); err != nil || auditsAfter != auditsBefore+1 {
+		wantAudits := auditsBefore + 1
+		if last.Hire {
+			wantAudits++
+		} // The hire co-writes its frozen placement credit.
+		if err = m.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1`, item.ID).Scan(&auditsAfter); err != nil || auditsAfter != wantAudits {
 			t.Fatal(auditsAfter, auditsBefore, err)
 		}
 	}

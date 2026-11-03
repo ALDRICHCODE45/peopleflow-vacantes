@@ -21,7 +21,7 @@ func TestDiscardRecoveryRoutesDispatchErrorsPreconditionsAndBudget(t *testing.T)
 				status int
 				code   string
 			}{
-				{"success", nil, 200, ""}, {"already", app.ErrAlreadyDiscarded, 409, "already_discarded"}, {"not discarded", app.ErrNotDiscarded, 409, "not_discarded"}, {"exit", app.ErrPlacementExit, 409, "placement_exit_confirmation_required"}, {"reentry", app.ErrPlacementReentry, 409, "placement_reentry_confirmation_required"}, {"draft", app.ErrNotPublished, 409, "vacancy_not_published"}, {"malformed", app.ErrInvalidRequest, 400, "invalid_request"}, {"validation", app.ErrValidation, 400, "validation_error"}, {"stale", app.ErrVersionConflict, 412, "version_conflict"}, {"missing", app.ErrPreconditionRequired, 428, "precondition_required"},
+				{"success", nil, 200, ""}, {"already", app.ErrAlreadyDiscarded, 409, "already_discarded"}, {"not discarded", app.ErrNotDiscarded, 409, "not_discarded"}, {"exit", app.ErrPlacementExit, 409, "placement_exit_reason_required"}, {"reentry", app.ErrPlacementReentry, 409, "placement_reentry_confirmation_required"}, {"draft", app.ErrNotPublished, 409, "vacancy_not_published"}, {"malformed", app.ErrInvalidRequest, 400, "invalid_request"}, {"validation", app.ErrValidation, 400, "validation_error"}, {"stale", app.ErrVersionConflict, 412, "version_conflict"}, {"missing", app.ErrPreconditionRequired, 428, "precondition_required"},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					s := &movementRouteStore{err: tc.err}

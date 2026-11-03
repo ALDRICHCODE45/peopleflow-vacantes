@@ -50,6 +50,8 @@ type routerDeps struct {
 	jobHandler           *jobshttp.JobHandler
 	draftHandler         *jobshttp.DraftHandler
 	draftV2Handler       *jobshttp.DraftV2Handler
+	teamHandler          *jobshttp.TeamHandler
+	offboardHandler      *jobshttp.OffboardHandler
 	dashboardHandler     *jobshttp.DashboardHandler
 	draftListHandler     *jobshttp.DraftListHandler
 	pipelineHandler      *jobshttp.PipelineHandler
@@ -230,7 +232,13 @@ func newRouter(d routerDeps) chi.Router {
 		r.With(d.requireRecruiter).Get("/company/members", handlers.ListMembers)
 		r.With(d.requireOwner).Post("/company/members", handlers.AddMember)
 		r.With(d.requireOwner).Patch("/company/members/{id}", handlers.UpdateMemberRole)
-		r.With(d.requireOwner).Delete("/company/members/{id}", handlers.RemoveMember)
+		removeMember := handlers.RemoveMember
+		if d.offboardHandler != nil {
+			removeMember = d.offboardHandler.Serve("remove")
+		}
+		r.With(d.requireOwner).Delete("/company/members/{id}", removeMember)
+		r.With(d.requireOwner).Get("/company/members/{id}/offboard-preview", d.offboardHandler.Serve("preview"))
+		r.With(d.requireOwner).Post("/company/members/{id}/offboard", d.offboardHandler.Serve("offboard"))
 
 		// Companies-write (WU6): owner-only, no shadowing mount.
 		r.With(d.requireOwner).Patch("/company", companyHandlers.UpdateCompany)
@@ -241,8 +249,8 @@ func newRouter(d routerDeps) chi.Router {
 	// subtree) so the no-store middleware runs BEFORE the auth gates: a 401/403
 	// produced by requireAuth/requireRecruiter must be as uncacheable as a
 	// handler 404/412/428. The same requireAuth + requireRecruiter gates apply;
-	// the finer owner-or-principal rule lives in the store, which collapses a
-	// non-principal or foreign draft to 404 after the general gates.
+	// the finer owner-or-active-tramo rule lives in the store, which collapses
+	// unauthorized or foreign drafts to 404 after the general gates.
 	draftHandlers := d.draftHandler.DraftHandlers()
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
@@ -263,10 +271,19 @@ func newRouter(d routerDeps) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
-		// The list applies the same owner-or-principal rule in the store.
+		// The list applies the same owner-or-active-tramo rule in the store.
 		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
 		r.Get("/v2/me/company/dashboard", d.dashboardHandler.Get)
+		r.Get("/v2/me/vacancy-assignments/history", d.teamHandler.AssignmentHistory)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
+		r.Get("/v2/me/company/job-drafts/{id}/team", d.teamHandler.Get)
+		r.Get("/v2/me/company/job-drafts/{id}/team/history", d.teamHandler.History)
+		r.Post("/v2/me/company/job-drafts/{id}/team/members", d.teamHandler.Write("add"))
+		r.Post("/v2/me/company/job-drafts/{id}/team/members/{user_id}/remove", d.teamHandler.Write("remove"))
+		r.Post("/v2/me/company/job-drafts/{id}/team/leave", d.teamHandler.Write("leave"))
+		r.Patch("/v2/me/company/job-drafts/{id}/team/members/{user_id}", d.teamHandler.Write("deadline"))
+		r.Post("/v2/me/company/job-drafts/{id}/team/reassign-responsible", d.teamHandler.Write("reassign"))
+		r.Put("/v2/me/company/job-drafts/{id}/team/mode", d.teamHandler.Write("mode"))
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
 		r.Get("/v2/me/company/job-drafts/{id}/board", d.movementHandler.Board)
 		r.Post("/v2/me/company/job-drafts/{id}/pipeline/candidates/manual/duplicates-check", d.movementHandler.DuplicatesCheck)
@@ -277,6 +294,9 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/substate", d.movementHandler.SetSubstate)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}", d.movementHandler.Detail)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/history", d.movementHandler.History)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/placement-credits", d.movementHandler.PlacementCredits)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/placement-credits/{credit_id}/void", d.teamHandler.CorrectPlacementCredit(false))
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/placement-credits/{credit_id}/restore", d.teamHandler.CorrectPlacementCredit(true))
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/cv", d.movementHandler.File)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/cv/original", d.movementHandler.OriginalFile)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.GetPipeline)
@@ -300,6 +320,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.PutSubstates)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.GetDelivery)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.PutDelivery)
+		r.Post("/v2/me/company/job-drafts/{id}/commitment", deliveryHandlers.Commitment)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery/status", deliveryHandlers.Status)
 		r.Post("/v2/me/company/job-drafts/{id}/pipeline/delivery/preview", deliveryHandlers.Preview)
 		r.Get("/v2/me/company/job-drafts/{id}/management", managementHandlers.GetManagement)

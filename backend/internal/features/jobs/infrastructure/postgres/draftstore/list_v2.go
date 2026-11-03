@@ -13,9 +13,9 @@ import (
 
 var _ draftlist.Lister = (*Store)(nil)
 
-// visibleV2Drafts is the shared list/dashboard owner-or-principal scope.
+// visibleV2Drafts is the shared list/dashboard owner-or-active-tramo scope.
 // The draft alias and the first three parameters are deliberately identical.
-const visibleV2Drafts = `d.company_id = $1 AND ($2::boolean OR d.principal_recruiter_id = $3)
+const visibleV2Drafts = `d.company_id = $1 AND ($2::boolean OR EXISTS (SELECT 1 FROM vacancy_assignments a WHERE a.draft_id=d.id AND a.user_id=$3 AND a.ended_at IS NULL))
  AND convert_from(d.fields,'UTF8')::jsonb->>'schema_version' = '2'`
 
 // ListV2 lists only visible schema-2 drafts, using the session scope even when
@@ -35,11 +35,10 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 
 	// Materialize the existing visible keyset page first. All participation
 	// aggregation is restricted to those IDs, in this same SQL statement/snapshot.
-	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields, d.principal_recruiter_id, u.full_name,
+	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields,
  d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at, p.paused_at, p.closed_at, p.process_finished_at,
- c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note
+ c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note, ` + teamSummarySQL + ` AS team
  FROM job_drafts d
- LEFT JOIN users u ON u.id = d.principal_recruiter_id AND u.deleted_at IS NULL
  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
  LEFT JOIN job_draft_pipeline_configs c ON c.draft_id = d.id
  LEFT JOIN LATERAL (
@@ -49,7 +48,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
  ) last_close ON true
  WHERE ` + visibleV2Drafts
 	// Same rule as authorized(): the owner sees every draft, others only
-	// their principal drafts.
+	// drafts on whose team they hold an active tramo.
 	args := []any{companyID, auth.role == roleOwner, actorID}
 	if req.After != nil {
 		query += ` AND (d.updated_at, d.id) < ($4::timestamptz, $5::uuid)`
@@ -80,15 +79,15 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	}
 	items := make([]draftlist.Item, 0, req.Limit+1)
 	type projection struct {
-		document, pipeline, counts []byte
-		pipelineVersion            *int64
-		requesterName              *string
+		document, pipeline, counts, team []byte
+		pipelineVersion                  *int64
+		requesterName                    *string
 	}
 	projections := make([]projection, 0, req.Limit+1)
 	for rows.Next() {
 		var item draftlist.Item
 		var p projection
-		if err := rows.Scan(&item.ID, &p.document, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.counts, &p.requesterName); err != nil {
+		if err := rows.Scan(&item.ID, &p.document, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.team, &p.counts, &p.requesterName); err != nil {
 			rows.Close()
 			return draftlist.Page{}, fmt.Errorf("scan list v2 draft: %w", err)
 		}
@@ -113,6 +112,12 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	}
 	// Hydrate only returned rows; the lookahead only establishes another page.
 	for i := range page.Items {
+		if len(projections[i].team) == 0 {
+			return draftlist.Page{}, errors.New("draftstore: missing team summary")
+		}
+		if err := json.Unmarshal(projections[i].team, &page.Items[i].Team); err != nil {
+			return draftlist.Page{}, fmt.Errorf("decode list team: %w", err)
+		}
 		p := projections[i]
 		document := p.document
 		if page.Items[i].Process != nil {

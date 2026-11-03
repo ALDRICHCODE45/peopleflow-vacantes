@@ -115,4 +115,7 @@ type AuditEvent struct {
 	EntityType string
 	EntityID   uuid.UUID
 	Metadata   map[string]string // PII-free; exact keys pinned by D7 tests
+	// StructuredMetadata supports ID/code arrays (placement recipients). When
+	// present it replaces Metadata; legacy emitters retain string-only values.
+	StructuredMetadata map[string]any
 }
