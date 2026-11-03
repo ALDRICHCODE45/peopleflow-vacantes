@@ -256,8 +256,13 @@ Recipients take the function each active tramo holds at the hire instant (its op
   candidate message. `placement_exit_reason` says only what happens to the credit. They cannot be derived from each other:
   a candidate withdrawal can follow a real placement (`candidate_left`) or a placement recorded by mistake
   (`moved_by_mistake`). The UI asks for both.
-- The owner may correct afterwards: void an `active`/`did_not_hold` credit, or restore a `voided` one to its previous
-  outcome. Audited.
+- **Each credit belongs to its own placement episode**: from its hire row until the first departure that follows it.
+  When a participation leaves placement, the departure is recorded on the credit of the episode that is ending
+  (`exit_history_id`, `exit_reason`) whatever its status; only an `active` credit changes status (to `voided` or
+  `did_not_hold`), a credit already `voided` by the owner keeps `voided`. A re-hire opens a new episode and a new credit,
+  so at most one credit per participation can be `active`, and only while its own episode is open.
+- The owner may correct afterwards: void an `active`/`did_not_hold` credit, or restore a `voided` one: back to `active`
+  if its own episode is still open (no exit recorded), else to `did_not_hold`. Audited.
 - Recruiter card counts: `direct` and `shared` count 1 each; `participant` is reported separately. Company totals count
   `placement_credits` rows. The `did_not_hold` share feeds the replacement-guarantee metrics in feature 3.
 
@@ -418,8 +423,9 @@ Updates `job_draft_delivery_configs.commitment_date` and writes `vacancy_commitm
 
 ### `POST V/participations/{pid}/placement-credits/{credit_id}/void` and `/restore` (owner)
 
-`{}`. Void: `active|did_not_hold → voided`. Restore: `voided →` the outcome its exit reason implies (`active` while the
-participation is still in placement, else `did_not_hold`). Errors: 409 `credit_status_unchanged`.
+`{}`. Void: `active|did_not_hold → voided`. Restore: `voided → active` when the credit's own placement episode
+is still open (no exit recorded on it), else `voided → did_not_hold` — never from the participation's current stage, so
+restoring an older credit after a re-hire gives `did_not_hold`. Errors: 409 `credit_status_unchanged`.
 
 ### `GET /me/company/members/{id}/offboard-preview` (owner, read-only)
 
