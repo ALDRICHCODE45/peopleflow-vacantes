@@ -262,12 +262,13 @@ actor, not by any entry during the tramo.
 
 ### Company member removal (Q5)
 
+- The member routes live under `/me/company/members` (no `/v2` prefix), as today; the new offboard routes join them.
 - `{id}` in the member routes is the **membership** id (`company_members.id`), as today, not the user id.
-- The UI reads `GET …/members/{id}/offboard-preview` first (below). `DELETE /v2/me/company/members/{id}` stays as the safety
+- The UI reads `GET …/members/{id}/offboard-preview` first (below). `DELETE /me/company/members/{id}` stays as the safety
   net: on a member who is the active responsible of any non-finished vacancy → 409 `member_is_responsible` with the same
   `data.vacancies` as the preview. Otherwise it ends all of that user's active tramos with `end_cause =
   membership_ended` in the same transaction.
-- `POST /v2/me/company/members/{id}/offboard` (owner) does it in one atomic operation (below). On finished vacancies the
+- `POST /me/company/members/{id}/offboard` (owner) does it in one atomic operation (below). On finished vacancies the
   responsible's tramo just ends; reopening a vacancy whose team has no active responsible requires assigning one first
   (409 `responsible_required`).
 
@@ -282,7 +283,7 @@ opaque ETag from `vacancy_teams.version`, returned in the `ETag` header of `GET 
 team write requires `If-Match` with it (missing 428, stale 412 `team_version_conflict`, malformed 400). Every POST
 requires a UUID `Idempotency-Key` with frozen-response replay. Every team write returns 200 with the full team resource.
 
-**Member picker** (adding someone): no new endpoint. `GET /v2/me/company/members` is already readable by recruiters
+**Member picker** (adding someone): no new endpoint. `GET /me/company/members` is already readable by recruiters
 (`requireRecruiter`) and returns `members[].{id, role, user: {id, full_name, email}}`. The UI subtracts the active
 members from `GET V/team` (match on `user.id`).
 
@@ -409,7 +410,7 @@ Updates `job_draft_delivery_configs.commitment_date` and writes `vacancy_commitm
 `{}`. Void: `active|did_not_hold → voided`. Restore: `voided →` the outcome its exit reason implies (`active` while the
 participation is still in placement, else `did_not_hold`). Errors: 409 `credit_status_unchanged`.
 
-### `GET /v2/me/company/members/{id}/offboard-preview` (owner, read-only)
+### `GET /me/company/members/{id}/offboard-preview` (owner, read-only)
 
 ```json
 { "user": { "id": "…", "full_name": "Luis Pérez" },
@@ -422,7 +423,7 @@ participation is still in placement, else `did_not_hold`). Errors: 409 `credit_s
 current team (the member excluded) so the UI can suggest a target. `other_tramos` counts the collaborator/member tramos
 and finished-vacancy tramos that will simply end. Empty `vacancies` → a plain `DELETE` is enough.
 
-### `POST /v2/me/company/members/{id}/offboard` (owner)
+### `POST /me/company/members/{id}/offboard` (owner)
 
 ```json
 { "default_to_user_id": "…", "reassignments": [{ "draft_id": "…", "to_user_id": "…" }] }
