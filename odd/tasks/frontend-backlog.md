@@ -44,6 +44,14 @@ pushed 2026-11-02 (`saved-vacancies.md`, `vacancy-detail-explore.md`): saved vac
 
 ## Known issues
 
+- **Full-suite timeout in `components/ui/combobox.test.tsx`** («mounts the portal popup …», 2026-11-03): times out
+  under full-suite load with two vitest-worker RPC timeouts; passes 29/29 alone. Not caused by vacancy team (the file
+  is untouched). Make it lighter like the 2026-10-28 flaky fixes (no raised timeouts).
+- **Run frontend checks with Node 22** (2026-11-03): the shell defaults to Node 25, whose global `localStorage` breaks
+  jsdom suites. Use `.nvmrc` (22) before vitest/build.
+- **Vacancy team ships behind `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE`** (`odd/tasks/vacancy-team.md` L37): production
+  shows nothing new until the flag handling is removed and the backend branch is deployed together.
+
 - **Next 16 upgrade** — blocked by hosting: Amplify Hosting supports Next 12–15 only (design D1). Next 16 also fixes
   the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known
   migration work: `middleware.ts` → `proxy.ts` (on 16 the old name answers a plain 500), flat `eslint-config-next`

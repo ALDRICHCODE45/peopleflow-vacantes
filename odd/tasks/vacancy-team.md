@@ -300,3 +300,11 @@ the responsible manages collaborators, and placement credit follows the team mod
   untitled drafts come with `vacancy_title: null` → «Sin título» like the portfolio (contract documented by the
   backend). Browser on :8081: 12 current vacancies, 2 delivered, 0 placements (Test User only participated). 64 tests
   (vacancy-assignments + requestPath), tsc, ESLint clean.
+- **L37** T9 integration (Node 22, the project's version; the shell defaults to Node 25, whose global localStorage
+  breaks jsdom suites with «localStorage.clear is not a function»): tsc clean; ESLint 0 errors (12 pre-existing
+  warnings); full vitest 9571 passed, 1 failed, 2 skipped. The failure is `components/ui/combobox.test.tsx` timing
+  out under full-suite load (29/29 in isolation; `components/ui` is untouched on this branch), plus 2 vitest-worker RPC
+  timeouts. The full suite also caught one stale test outside every worker's focused runs
+  (`vacancy-config/lifecycle.test.tsx` still expected the editable «Fecha compromiso» after publication) → fixed
+  (`9da2b1fe`). `next build` passes. Production ships nothing new until `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE` handling is
+  removed (user decision pending).
