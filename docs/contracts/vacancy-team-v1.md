@@ -277,7 +277,8 @@ actor, not by any entry during the tramo.
 - The member routes live under `/me/company/members` (no `/v2` prefix), as today; the new offboard routes join them.
 - `{id}` in the member routes is the **membership** id (`company_members.id`), as today, not the user id.
 - The UI reads `GET …/members/{id}/offboard-preview` first (below). `DELETE /me/company/members/{id}` stays as the safety
-  net: on a member who is the active responsible of any non-finished vacancy → 409 `member_is_responsible` with the same
+  net: on a member whose preview `vacancies` is not empty → 409 `member_is_responsible` (kept name; it also covers
+  `last_member`) with the same
   `data.vacancies` as the preview. Otherwise it ends all of that user's active tramos with `end_cause =
   membership_ended` in the same transaction.
 - `POST /me/company/members/{id}/offboard` (owner) does it in one atomic operation (below). On finished vacancies the
@@ -432,13 +433,17 @@ restoring an older credit after a re-hire gives `did_not_hold`. Errors: 409 `cre
 ```json
 { "user": { "id": "…", "full_name": "Luis Pérez" },
   "vacancies": [{ "draft_id": "…", "title": "Analista contable", "lifecycle": "published",
+                  "hand_over": "responsible",
                   "team": [{ "user_id": "…", "name": "Ana López", "function": "collaborator" }] }],
   "other_tramos": 3 }
 ```
 
-`vacancies` lists ONLY non-finished vacancies where the member holds the open `responsible` function, each with its
-current team (the member excluded) so the UI can suggest a target. `other_tramos` counts the collaborator/member tramos
-and finished-vacancy tramos that will simply end. Empty `vacancies` → a plain `DELETE` is enough.
+`vacancies` lists ONLY the non-finished vacancies that the member's departure would leave without anyone in charge,
+each with its current team (the member excluded) so the UI can suggest a target, and `hand_over` saying why:
+`responsible` (they hold the open `responsible` function of a `with_responsible` team) or `last_member` (they are the
+only active member of a `shared` team; same rule as Q5: a vacancy is never orphaned). `other_tramos` counts the tramos
+that will simply end (collaborator/member tramos with other members left, and tramos on finished vacancies). Empty
+`vacancies` → a plain `DELETE` is enough.
 
 ### `POST /me/company/members/{id}/offboard` (owner)
 
@@ -446,10 +451,26 @@ and finished-vacancy tramos that will simply end. Empty `vacancies` → a plain 
 { "default_to_user_id": "…", "reassignments": [{ "draft_id": "…", "to_user_id": "…" }] }
 ```
 
-Every non-finished vacancy where the member is responsible must resolve to a target (per-vacancy entry or the default),
-otherwise 422 `offboard_unresolved_vacancies` with the list. Atomic: one reassignment per vacancy (reason
-`recruiter_departure`, `previous_responsible = remove`), every other tramo ended with `membership_ended`, the membership
-removed. Uses `Idempotency-Key`; no team ETag (it spans vacancies; each vacancy row is locked).
+Every vacancy listed by the preview must resolve to a target (per-vacancy entry or the default), otherwise 422
+`offboard_unresolved_vacancies` with the list. A target must be a current company member other than the one leaving
+(422 `not_company_member`); a `reassignments` entry for a vacancy that is not in the preview list → 422
+`offboard_reassignment_not_applicable`. Atomic, vacancy rows locked in draft-id order: for `hand_over = responsible`, the
+same handover as `POST V/team/reassign-responsible` (reason `recruiter_departure`, `previous_responsible = remove`,
+snapshot, `VacancyResponsibleReassigned`); for `hand_over = last_member`, the target joins as `member` (start_cause
+`added`, `VacancyTeamMemberAdded`) before the leaving tramo ends; then every tramo of the member ends with
+`membership_ended`, and the membership is removed. Uses `Idempotency-Key`; no team ETag (it spans vacancies).
+
+Response 200:
+
+```json
+{ "user_id": "…",
+  "handed_over": [{ "draft_id": "…", "hand_over": "responsible", "to_user_id": "…", "reassignment_id": "…" },
+                  { "draft_id": "…", "hand_over": "last_member", "to_user_id": "…", "reassignment_id": null }],
+  "ended_assignment_ids": ["…"] }
+```
+
+After removal the person is no longer a company member, so every company route answers them as today (403 from the
+company role gate); `team_access_ended` is only for company members whose tramo ended.
 
 ### `GET /v2/me/vacancy-assignments/history?cursor=` (any company member, own tramos only)
 

@@ -120,3 +120,8 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - L16 — T4 episode fix done (744b9b7f): departures attach to the ending episode's credit whatever its status; restore
   follows the credit's own exit; regression TestPlacementCreditHistoricalRestoreThenExit and an at-most-one-active
   invariant check in teardowns. Full integration 48 ok (log `.scratch/t4-integration.log`).
+- L17 — T5 worker stopped on two conflicts. Access: A (company gates untouched; a removed member gets the existing 403;
+  team_access_ended only for company members whose tramo ended — the parent's earlier instruction was wrong). Shared:
+  a sole member of a shared team is handed over like a responsible (Q5: never orphaned): preview items gain
+  `hand_over: responsible | last_member`; offboard response shape defined; new 422 `offboard_reassignment_not_applicable`.
+  Contract diff sent to the frontend; worker resumed.
