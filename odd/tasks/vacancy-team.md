@@ -166,3 +166,9 @@ the responsible manages collaborators, and placement credit follows the team mod
   pipeline stage tints and lifecycle badges; the confirmation keeps only today's compact summary. Approved empty,
   error and loading compositions preserved (related copy renamed). Focused tests, TypeScript and touched-file ESLint
   passed; browser review remains parent-owned and pending. No real team endpoint or production behavior added.
+- **L16** (T2b browser findings, 2026-11-02; S1–S4, S10): widened the team column at lg, grouped capability-only
+  actions in Equipo actual's footer (omitted when none), and reduced mode copy to one sentence. Movements now name
+  both responsible people and align the snapshot link; both Sheets close with «Cerrar». Snapshot values lead their
+  progress bars without duplicate labels, fixture stages use built-in tints (unknown IDs stay neutral), placements
+  use plain zero/plural copy, and the capture note reads «Guardado el …». RED observed; 41 team + 16 shell tests,
+  TypeScript and touched-file ESLint passed. Empty/error/loading states preserved; browser re-review is parent-owned.

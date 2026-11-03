@@ -14,7 +14,7 @@ import { formatDate, functionLabel, modeLabel, reasons, type History, type Histo
 const person = (name: string) => <span className="font-medium">{name}</span>;
 function movement(item: HistoryItem): { sentence: ReactNode; tone: string; icon: typeof HistoryIcon } {
   if (item.kind === "reassignment") return {
-    sentence: <>{person(item.reassignment.performed_by.name)} reasignó la vacante a {person(item.reassignment.to_user.name)}</>,
+    sentence: <>{person(item.reassignment.performed_by.name)} pasó la vacante de {person(item.reassignment.from_user.name)} a {person(item.reassignment.to_user.name)}</>,
     // §13.1: primary-tinted medallions use foreground for dark-mode contrast.
     tone: "bg-primary/12 text-foreground ring-1 ring-primary/40", icon: UserRoundCog,
   };
@@ -48,7 +48,7 @@ function Timeline({ items, onSnapshot }: { items: HistoryItem[]; onSnapshot: (it
         <p className="break-words text-sm leading-relaxed">{sentence}</p>
         <ItemDescription className="text-xs"><time dateTime={item.at}>{formatDate(item.at)}</time>{event && ` · ${reasons.find(reason => reason.value === event.reason)?.label}`}</ItemDescription>
         {event?.note && <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{event.note}</p>}
-        {item.kind === "reassignment" && <Button type="button" variant="link" className="min-h-10 self-start" onClick={() => onSnapshot(item)}>Ver cómo estaba la vacante</Button>}
+        {item.kind === "reassignment" && <Button type="button" variant="link" className="-ml-3 min-h-10 self-start" onClick={() => onSnapshot(item)}>Ver cómo estaba la vacante</Button>}
       </ItemContent>
     </Item>;
   })}</ItemGroup>;
@@ -75,7 +75,7 @@ export function TeamHistory({ history, onMore, pending }: { history: History; on
               <Timeline items={history.items} onSnapshot={setSnapshot} />
               {history.next_cursor && <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={onMore}>{pending ? "Cargando…" : "Ver más"}</Button>}
             </div>
-            <SheetFooter className="border-t"><ActionBar status={null}><SheetClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar movimientos</SheetClose></ActionBar></SheetFooter>
+            <SheetFooter className="border-t"><ActionBar status={null}><SheetClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar</SheetClose></ActionBar></SheetFooter>
             {/* Nested in this Sheet only when opened here, so keyboard focus returns to its action. */}
             {open && snapshot && <SnapshotSheet snapshot={snapshot.reassignment.state_snapshot} from={snapshot.reassignment.from_user.name} to={snapshot.reassignment.to_user.name} open onOpenChange={value => { if (!value) setSnapshot(null); }} />}
           </SheetContent>

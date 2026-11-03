@@ -46,6 +46,38 @@ it("collaborator only sees fixture can actions; changing is_owner never grants p
   expect(await screen.findByRole("button", { name: "Salir de la vacante" })).toBeVisible();
   for (const name of ["Agregar al equipo", "Cambiar modo", "Reasignar responsable", "Acciones de Ana López"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
 });
+it.each([
+  [true, false, false], [false, true, false], [false, false, true],
+  [true, true, true], [false, false, false],
+])("groups only granted team actions in the footer (%s, %s, %s)", async (add, reassign, leave) => {
+  const client = createFixtureClient("owner");
+  const team = await client.getTeam();
+  team.viewer.can = { ...team.viewer.can, add_member: add, reassign_responsible: reassign, leave };
+  const { container } = render(<TeamView client={{ ...client, getTeam: async () => team }} />);
+  await screen.findByRole("heading", { name: "Equipo actual" });
+  const card = container.querySelector("#current-team")!;
+  const footer = card.querySelector('[data-slot="card-footer"]');
+  expect(!!footer).toBe(add || reassign || leave);
+  for (const [label, allowed, style] of [["Agregar al equipo", add, "bg-primary"], ["Reasignar responsable", reassign, "border-border"], ["Salir de la vacante", leave, "hover:bg-muted"]] as const) {
+    const button = screen.queryByRole("button", { name: label });
+    expect(!!button).toBe(allowed);
+    if (button) {
+      expect(button.closest('[data-slot="card-footer"]')).toBe(footer);
+      expect(button).toHaveClass(style);
+    }
+  }
+  if (footer) expect(footer.querySelectorAll('[data-pf-action-bar-actions]')).toHaveLength(1);
+});
+it.each([
+  ["owner", "El responsable recibe el crédito directo; los colaboradores participan."],
+  ["shared", "El crédito de cada placement es de todo el equipo."],
+] as const)("shows one mode explanation for %s and gives the team more desktop width", async (fixture, sentence) => {
+  const { container } = render(<TeamView client={createFixtureClient(fixture)} />);
+  await screen.findByRole("heading", { name: "Equipo actual" });
+  expect(screen.getByText(sentence)).toBeVisible();
+  expect(screen.queryByText("Cómo se atribuyen los próximos placements.")).not.toBeInTheDocument();
+  expect(container.querySelector("#current-team")!.parentElement!.parentElement).toHaveClass("lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]");
+});
 it("renders an actionable empty history", async () => {
   render(<TeamView client={createFixtureClient("empty-history")} />);
   expect(await screen.findByRole("heading", { name: "Aún no hay cambios en el equipo" })).toBeVisible();
@@ -57,8 +89,8 @@ it("skeleton preserves the owner card composition slots", async () => {
   skeleton.unmount();
   const view = render(<TeamView client={createFixtureClient("owner")} />);
   await screen.findByRole("heading", { name: "Equipo actual" });
-  // The approved loading state stays unchanged; the mode and current-team cards retain their anatomy.
-  expect(slots(view.container).slice(0, 14)).toEqual(expected.slice(0, 14));
+  // Keep the approved loading state; the compact mode card no longer needs a content slot.
+  expect(slots(view.container.querySelector("#current-team")!)).toEqual(expected.slice(8, 14));
 });
 it("refreshes paginated history from page one after its own write and reports an in-memory result", async () => {
   const client = createFixtureClient("long-history");
@@ -67,7 +99,7 @@ it("refreshes paginated history from page one after its own write and reports an
   fireEvent.click(await screen.findByRole("button", { name: "Ver todos los movimientos" }));
   fireEvent.click(await screen.findByRole("button", { name: "Ver más" }));
   await waitFor(() => expect(getHistory).toHaveBeenLastCalledWith("page:20"));
-  fireEvent.click(screen.getByRole("button", { name: "Cerrar movimientos" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
   fireEvent.click(await screen.findByRole("button", { name: "Cambiar modo" }));
   const dialog = await screen.findByRole("alertdialog");
   fireEvent.click(within(dialog).getByRole("button", { name: "Cambiar modo" }));

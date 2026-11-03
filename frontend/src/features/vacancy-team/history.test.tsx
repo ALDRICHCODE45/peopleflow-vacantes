@@ -7,6 +7,17 @@ import { memberActionLabel, memberActions } from "./model";
 import { createFixtureClient } from "./prototype-client";
 afterEach(cleanup);
 
+it.each([[1, "1 placement"], [2, "2 placements"]] as const)("uses plain plural placements copy for %s", async (count, copy) => {
+  const snapshot = createFixtureClient("owner").snapshot;
+  snapshot.placements = { current: count, credited: 0 };
+  snapshot.stage_counts.push({ stage_id: "opaque-stage", stage_name: "Personalizada", active: 1, discarded: 0 });
+  render(<SnapshotSheet snapshot={snapshot} from="Diego" to="Ana" open onOpenChange={vi.fn()} />);
+  const sheet = await screen.findByRole("dialog", { name: "Cómo estaba la vacante" });
+  expect(within(sheet).getByText(copy, { exact: true })).toBeVisible();
+  expect(within(sheet).queryByText(/acreditados/)).not.toBeInTheDocument();
+  expect(within(sheet).getByRole("progressbar", { name: "Personalizada: 1 candidato" })).toHaveClass("stage-neutral");
+});
+
 it("provides short capability-only member menu options", async () => {
   const can = (await createFixtureClient("owner").getTeam()).viewer.can;
   expect(memberActions(can).map(action => memberActionLabel[action])).toEqual(["Editar plazo", "Quitar"]);
@@ -30,6 +41,7 @@ it("caps the page at five movements and puts full pagination inside a floating S
   expect(within(sheet).getAllByRole("listitem")).toHaveLength(20);
   expect(sheet.querySelector('[data-slot="sheet-header"] svg')).not.toBeNull();
   expect(sheet.querySelector('[data-slot="sheet-footer"] [data-pf-action-bar]')).not.toBeNull();
+  expect(within(sheet).getByRole("button", { name: "Cerrar" }).closest('[data-slot="sheet-footer"]')).not.toBeNull();
   const more = within(sheet).getByRole("button", { name: "Ver más" });
   expect(more.closest('[data-slot="movements-body"]')).not.toBeNull();
   fireEvent.click(more); expect(onMore).toHaveBeenCalledOnce();
@@ -39,11 +51,13 @@ it("keeps a short timeline compact and opens its snapshot action", async () => {
   render(<TeamHistory history={await client.getHistory()} pending={false} onMore={vi.fn()} />);
   expect(screen.getAllByRole("listitem")).toHaveLength(3);
   expect(screen.queryByRole("button", { name: "Ver todos los movimientos" })).not.toBeInTheDocument();
-  expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "Sofía Ramírez reasignó la vacante a Ana López")).toBeVisible();
+  expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "Sofía Ramírez pasó la vacante de Diego Hernández a Ana López")).toBeVisible();
   expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "Diego Hernández se unió como colaborador")).toBeVisible();
   expect(screen.getByText((_, element) => element?.getAttribute("data-slot") === "item-description" && element.textContent === "6 nov 2026 · Carga de trabajo")).toBeVisible();
   expect(screen.queryByText("Estado guardado")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Ver cómo estaba la vacante" }));
+  const snapshotAction = screen.getByRole("button", { name: "Ver cómo estaba la vacante" });
+  expect(snapshotAction).toHaveClass("-ml-3");
+  fireEvent.click(snapshotAction);
   expect(await screen.findByRole("dialog", { name: "Cómo estaba la vacante" })).toBeVisible();
 });
 it.each([
@@ -76,9 +90,17 @@ it("visualizes the saved snapshot in a directly opened Sheet", async () => {
   render(<SnapshotSheet snapshot={client.snapshot} from="Diego Hernández" to="Ana López" open onOpenChange={vi.fn()} />);
   const sheet = await screen.findByRole("dialog", { name: "Cómo estaba la vacante" });
   expect(within(sheet).getByText("Así estaba la vacante cuando Diego Hernández se la pasó a Ana López. Sirve para saber con qué avance la recibió.")).toBeVisible();
-  expect(within(sheet).getByRole("progressbar", { name: "Entrega: 3 de 5 candidatos" })).toHaveAttribute("aria-valuenow", "60");
-  expect(within(sheet).getByRole("progressbar", { name: "Plazo usado: 7 de 12 días hábiles" })).toHaveAttribute("aria-valuenow", String(7 / 12 * 100));
+  expect(within(sheet).getByRole("progressbar", { name: "3 de 5 candidatos" })).toHaveAttribute("aria-valuenow", "60");
+  expect(within(sheet).getByRole("progressbar", { name: "7 de 12 días hábiles" })).toHaveAttribute("aria-valuenow", String(7 / 12 * 100));
   expect(within(sheet).getByText("Plazo: 20 nov 2026 · propio")).toBeVisible();
+  expect(within(sheet).getByText("Fecha compromiso: 30 nov 2026")).toBeVisible();
+  for (const label of ["Entrega", "Tiempo utilizado"]) expect(within(sheet).getAllByText(label, { exact: true })).toHaveLength(1);
+  expect(within(sheet).getByText("3 de 5 candidatos")).toHaveClass("text-lg");
+  expect(within(sheet).getByText("7 de 12 días hábiles")).toHaveClass("text-lg");
+  expect(within(sheet).getByRole("progressbar", { name: "En proceso: 3 candidatos" })).toHaveClass("stage-process");
+  expect(within(sheet).getByText("Aún no había placements")).toBeVisible();
+  expect(within(sheet).getByText("Guardado el 12 nov 2026")).toBeVisible();
+  expect(within(sheet).getByRole("button", { name: "Cerrar" })).toBeVisible();
   expect(within(sheet).getByRole("progressbar", { name: "Nuevos: 6 candidatos" })).toBeVisible();
   expect(within(sheet).getByText("Publicada")).toHaveAttribute("data-slot", "badge");
   expect(within(sheet).getByText("Proceso activo")).toHaveAttribute("data-slot", "badge");

@@ -10,7 +10,7 @@ const company = companyMembersSchema.parse({ members: [
   { id: "membership-luis", role: "recruiter", user: { id: "user-luis", full_name: "Luis Pérez", email: "luis@example.test" } },
 ] });
 const snapshot = snapshotSchema.parse({ captured_at: at, lifecycle: { publication: "published", process: "active" }, stage_counts: [
-  { stage_id: "new", stage_name: "Nuevos", active: 6, discarded: 1 }, { stage_id: "interview", stage_name: "Entrevista", active: 3, discarded: 1 },
+  { stage_id: "new", stage_name: "Nuevos", active: 6, discarded: 1 }, { stage_id: "in_process", stage_name: "En proceso", active: 3, discarded: 1 },
 ], tramo: { started_at: "2026-11-02T18:00:00Z", effective_deadline: "2026-11-20", deadline_source: "recruiter", business_days_elapsed: 7, business_days_total: 12 }, delivery: { target: 5, delivered: 3, fulfilled_at: null, result: null, commitment_date: "2026-11-30" }, placements: { current: 0, credited: 0 } });
 const clone = <T,>(value: T): T => structuredClone(value);
 

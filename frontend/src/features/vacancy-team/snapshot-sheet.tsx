@@ -31,13 +31,14 @@ export function SnapshotSheet({ snapshot, from, to, open, onOpenChange }: { snap
       <div data-slot="snapshot-body" className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
         <section aria-label="Avance de entrega" className="flex flex-col gap-3">
           <h3 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><ChartNoAxesCombined aria-hidden="true" className="size-4" />Entrega</h3>
-          <Progress value={ratio(delivery.delivered, delivery.target)}><ProgressLabel>Entrega: {delivery.delivered}{delivery.target === null ? " candidatos · Sin objetivo" : ` de ${plural(delivery.target, "candidato", "candidatos")}`}</ProgressLabel></Progress>
+          <Progress value={ratio(delivery.delivered, delivery.target)}><ProgressLabel className="text-lg tabular-nums">{delivery.target === null ? `${plural(delivery.delivered, "candidato", "candidatos")} · Sin objetivo` : `${delivery.delivered} de ${plural(delivery.target, "candidato", "candidatos")}`}</ProgressLabel></Progress>
+          <p className="text-xs text-muted-foreground">Fecha compromiso: {formatDate(delivery.commitment_date)}</p>
           {delivery.fulfilled_at && <p className="text-xs text-muted-foreground">Entrega cumplida el {formatDate(delivery.fulfilled_at)}</p>}
         </section>
         <Separator />
         <section aria-label="Tiempo utilizado" className="flex flex-col gap-3">
           <h3 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><Clock3 aria-hidden="true" className="size-4" />Tiempo utilizado</h3>
-          <Progress value={ratio(tramo.business_days_elapsed, tramo.business_days_total)}><ProgressLabel>Plazo usado: {tramo.business_days_elapsed ?? "Sin dato"}{tramo.business_days_total === null ? " · Sin plazo definido" : ` de ${plural(tramo.business_days_total, "día hábil", "días hábiles")}`}</ProgressLabel></Progress>
+          <Progress value={ratio(tramo.business_days_elapsed, tramo.business_days_total)}><ProgressLabel className="text-lg tabular-nums"> {tramo.business_days_elapsed ?? "Sin dato"}{tramo.business_days_total === null ? " · Sin plazo definido" : ` de ${plural(tramo.business_days_total, "día hábil", "días hábiles")}`}</ProgressLabel></Progress>
           <p className="text-xs text-muted-foreground">Plazo: {formatDate(tramo.effective_deadline)} · {sourceLabel[tramo.deadline_source].toLocaleLowerCase("es-MX")}</p>
         </section>
         <Separator />
@@ -46,6 +47,7 @@ export function SnapshotSheet({ snapshot, from, to, open, onOpenChange }: { snap
           {snapshot.stage_counts.map(stage => {
             // The contract snapshot has no kind. Known built-in IDs retain their pipeline tint;
             // opaque/custom IDs use the pipeline's neutral fallback, never guessed from a name.
+            // TODO(contract): snapshot stage_counts lacks stage kind
             const kind = ["new", "screening", "screening_ok", "in_process", "placement"].find(kind => kind === stage.stage_id) as "new" | "screening" | "screening_ok" | "in_process" | "placement" | undefined;
             return <Progress key={stage.stage_id} value={stage.active / maxStage * 100} className={`${stageClass(kind ?? "custom")} [&_[data-slot=progress-indicator]]:bg-(--stage)`}><ProgressLabel>{stage.stage_name}: {plural(stage.active, "candidato", "candidatos")}</ProgressLabel></Progress>;
           })}
@@ -53,10 +55,10 @@ export function SnapshotSheet({ snapshot, from, to, open, onOpenChange }: { snap
         </section>
         <Separator />
         <div className="flex flex-wrap items-center gap-2"><Badge variant={publicationTone[snapshot.lifecycle.publication]}>{publication[snapshot.lifecycle.publication]}</Badge><Badge variant="neutral">{snapshot.lifecycle.process === "finished" ? "Proceso terminado" : snapshot.lifecycle.process === "active" ? "Proceso activo" : "Sin proceso"}</Badge></div>
-        <p className="text-sm"><span className="font-medium tabular-nums">{snapshot.placements.current}</span> placements · <span className="text-muted-foreground">{plural(snapshot.placements.credited, "acreditado", "acreditados")}</span></p>
-        <p className="text-xs text-muted-foreground">{formatDate(snapshot.captured_at)} · Solo conteos y fechas; sin datos de candidatos.</p>
+        <p className="text-sm">{snapshot.placements.current === 0 ? "Aún no había placements" : plural(snapshot.placements.current, "placement", "placements")}</p>
+        <p className="text-xs text-muted-foreground">Guardado el {formatDate(snapshot.captured_at)}</p>
       </div>
-      <SheetFooter className="border-t"><ActionBar status={null}><SheetClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar estado</SheetClose></ActionBar></SheetFooter>
+      <SheetFooter className="border-t"><ActionBar status={null}><SheetClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar</SheetClose></ActionBar></SheetFooter>
     </SheetContent>
   </Sheet>;
 }
