@@ -142,6 +142,25 @@ describe("single application-facing request path", () => {
     expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
   });
 
+  it("keeps placement credit reads and corrections on the authenticated participation boundary", () => {
+    const client = source(join(SRC, "features/pipeline-movement/client.ts"));
+    expect(client).toContain('import "server-only"');
+    expect(client).toContain('from "@/lib/api/server"');
+    expect(client).toContain('`participations/${input.participationId}/placement-credits`');
+    expect(client).toContain('/participations/${input.participationId}/placement-credits/${input.creditId}/${input.action}');
+    expect(client).toContain('"idempotency-key": input.idempotencyKey');
+    expect(client).not.toMatch(/\bfetch\(/);
+    const actions = source(join(SRC, "features/pipeline-movement/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions.match(/export async function (\w+)/g)).toEqual([
+      "export async function loadBoardAction", "export async function loadParticipationAction", "export async function loadHistoryAction",
+      "export async function loadPlacementCreditsAction", "export async function correctPlacementCreditAction", "export async function moveParticipationAction",
+      "export async function setParticipationSubstateAction", "export async function discardParticipationAction", "export async function recoverParticipationAction",
+    ]);
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+  });
+
   it("keeps corrected CV uploads on the bounded same-origin route and server actions behind the file client", () => {
     const upload = source(join(SRC, "features/org-candidates/cv/upload.ts"));
     expect(upload).toContain("fetch(candidateCvHref(candidate, participationId)");

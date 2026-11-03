@@ -2,6 +2,8 @@ import "server-only";
 import type { ClientFailure } from "./client";
 import { processFinishedSchema, type Failure, type FailureReason } from "./model";
 const codes: Record<string, { status: number; reason: FailureReason }> = {
+  credit_status_unchanged: { status: 409, reason: "credit_status_unchanged" },
+  team_access_ended: { status: 404, reason: "team_access_ended" },
   board_too_large: { status: 422, reason: "board_too_large" }, vacancy_not_published: { status: 409, reason: "vacancy_not_published" },
   stage_skip_not_allowed: { status: 409, reason: "stage_skip_not_allowed" }, placement_exit_reason_required: { status: 409, reason: "placement_exit_reason_required" },
   already_discarded: { status: 409, reason: "already_discarded" }, not_discarded: { status: 409, reason: "not_discarded" },

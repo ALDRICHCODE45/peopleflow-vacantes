@@ -73,7 +73,19 @@ const originalSchema = z.object({
   full_name: z.string(), contact: contactSchema, professional_title: z.string().nullable(), current_company: z.string().nullable(),
   profile: profileSchema, education: z.null(), linkedin_url: z.string().nullable(), portfolio_url: z.string().nullable(),
 }).strict();
+export const placementCreditSchema = z.object({
+  id: uuidSchema, status: z.enum(["active", "did_not_hold", "voided"]),
+  team_mode: z.enum(["with_responsible", "shared"]), hired_at: timestamp,
+  hired_by: z.object({ id: uuidSchema, name: text }).strict(),
+  exit_reason: placementExitReasonSchema.nullable(),
+  recipients: z.array(z.object({ user_id: uuidSchema, name: text, kind: z.enum(["direct", "participant", "shared"]) }).strict()),
+}).strict();
+export const placementCreditsSchema = z.object({ items: z.array(placementCreditSchema) }).strict();
+export type PlacementCredit = z.infer<typeof placementCreditSchema>;
+export type PlacementCredits = z.infer<typeof placementCreditsSchema>;
 export const detailSchema = participationSchema.extend({
+  placement_credit: placementCreditSchema.nullable(),
+  can: z.object({ void_credit: z.boolean(), restore_credit: z.boolean() }).strict(),
   contact: contactSchema, original: originalSchema.nullable(),
   original_cv: z.object({ file_name: text, uploaded_at: timestamp }).strict().nullable(),
   screening: z.array(screeningAnswer), comment: discardTextSchema(1000).nullable(), candidate_message: discardTextSchema(500).nullable(),
@@ -103,7 +115,7 @@ export type Move = z.infer<typeof moveSchema>;
 export type ParticipationDetail = z.infer<typeof detailSchema>;
 export type History = z.infer<typeof historySchema>;
 export type Result<T> = { ok: true; data: T } | Failure;
-export type FailureReason = "process_finished" | "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "board_too_large" |
+export type FailureReason = "credit_status_unchanged" | "team_access_ended" | "process_finished" | "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "board_too_large" |
   "vacancy_not_published" | "not_found" | "stage_skip_not_allowed" | "placement_exit_reason_required" | "validation_error" |
   "recovery_stage_required" | "substate_requires_in_process" | "already_discarded" | "not_discarded" | "placement_reentry_confirmation_required" | "invalid_request" | "version_conflict" | "precondition_required" | "cv_storage_unavailable" | "no_response" | "uncertain" | "unrecognized_response" | "server_error";
 export type Failure = { ok: false; reason: FailureReason; lifecycle?: Lifecycle; reference: { status?: number; code?: string } };

@@ -258,3 +258,16 @@ the responsible manages collaborators, and placement credit follows the team mod
   remove Diego, mode → «Equipo sin responsable» → «Con responsable» with Ana as responsible; every movement recorded
   once. 159 tests (vacancy-team + requestPath), tsc, ESLint clean. Edit-deadline calendar path not clicked in the
   browser (dialog covered by tests; calendar inside AlertDialog verified in T6).
+- **L30** Backend slice 4 done (`744b9b7f`, docs `1c8eaf66`, episode rule `145f16f0` agreed): every hire (move or
+  recovery into placement) creates a credit with recipients frozen from the active tramos; exits follow
+  `placement_exit_reason` and the episode rule (a credit's fate is decided by its own episode; restore → active only
+  if its episode is still open, else did_not_hold; at most one active credit per participation); owner void/restore
+  POSTs with Idempotency-Key; participation detail carries `placement_credit` (latest) + `can.void_credit/
+  restore_credit`; `GET …/placement-credits` lists every credit newest first. QA DB has 0 credits: Ana Pérez Gómez was
+  hired before this build, so QA moves her out and back in to create the first credit. T5 starts.
+- **L31** T5 done: «Crédito del placement» block in the candidate sheet (status badge, who placed and in which mode,
+  recipients direct → shared → participant), owner «Anular crédito» / «Restaurar crédito» through ConfirmActionDialog
+  with retry-stable Idempotency-Key, «Colocaciones anteriores» (max 3). Browser on :8081: Ana Pérez Gómez moved out
+  («El candidato se fue») and back into Placement → first credit (Ana López direct, Test User participant); void →
+  «Anulado»; restore → «Activo» (episode still open). Fixed after review: blank gap in both dialogs (empty status slot)
+  and recipient order. 502 tests (pipeline-movement + requestPath), tsc, ESLint clean.

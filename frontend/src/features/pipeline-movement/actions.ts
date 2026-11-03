@@ -1,8 +1,8 @@
 "use server";
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { getBoard, getHistory, getParticipation, moveParticipation, discardParticipation, recoverParticipation, setParticipationSubstate, type ClientResult, type MoveInput } from "./client";
+import { getPlacementCredits, correctPlacementCredit, type CreditInput, getBoard, getHistory, getParticipation, moveParticipation, discardParticipation, recoverParticipation, setParticipationSubstate, type ClientResult, type MoveInput } from "./client";
 import { movementFailure } from "./failure";
-import type { Board, History, Move, ParticipationDetail, Result } from "./model";
+import type { PlacementCredit, PlacementCredits, Board, History, Move, ParticipationDetail, Result } from "./model";
 async function authenticated<T>(call: (token: string) => Promise<ClientResult<T>>, write = false): Promise<Result<T>> {
   try {
     const token = await getActionAccessToken();
@@ -19,6 +19,12 @@ export async function loadParticipationAction(vacancyId: string, participationId
 }
 export async function loadHistoryAction(vacancyId: string, participationId: string): Promise<Result<History>> {
   return authenticated(token => getHistory({ token, vacancyId, participationId }));
+}
+export async function loadPlacementCreditsAction(vacancyId: string, participationId: string): Promise<Result<PlacementCredits>> {
+  return authenticated(token => getPlacementCredits({ token, vacancyId, participationId }));
+}
+export async function correctPlacementCreditAction(input: Omit<CreditInput, "token">): Promise<Result<PlacementCredit>> {
+  return authenticated(token => correctPlacementCredit({ ...input, token }), true);
 }
 /** Caller reconciles uncertain/unrecognized/412/404 outcomes with a board GET, never a replay. */
 export async function moveParticipationAction(input: Omit<MoveInput, "token">): Promise<Result<Move>> {
