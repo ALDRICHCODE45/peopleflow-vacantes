@@ -232,7 +232,10 @@ A caller who can see the vacancy but may not perform the action gets **403 `team
 - `commitment_date` belongs to the vacancy. **Before publication** it is edited freely through `PUT …/pipeline/delivery`
   (unchanged). **After publication** (`vacancy_processes` row exists) that PUT rejects a changed `commitment_date` with
   409 `commitment_change_requires_renegotiation` (other delivery fields are unaffected), and the date changes only through
-  `POST …/commitment` with a reason.
+  `POST …/commitment` with a reason. The delivery PUT body keeps its existing shape: all three camelCase keys
+  `cutoffStageId`, `targetQuantity` and `commitmentDate` are required (a missing key → 400 `invalid_request`). After
+  publication, send the CURRENT `commitmentDate` unchanged to save the other fields; an unchanged date never triggers
+  the 409, while a different date or `null` (clearing an existing date) does.
 
 ### Placement credit (Q4, Q6)
 
