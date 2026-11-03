@@ -9,6 +9,11 @@ export const conflictNotice: PipelineNotice = { ...columnsConflict, description:
 export const invalidNotice: PipelineNotice = { ...columnsInvalid, description: "Revisa los datos de entrega antes de guardar. Tus cambios siguen aquí." };
 /** Reuse the cut-1 cause mapping, replacing only resource-specific copy. */
 export function deliveryFailureNotice(failure: DeliveryActionFailure): PipelineNotice {
+  if (failure.reason === "commitment_change_requires_renegotiation") return { tone: "error", title: "La fecha requiere renegociación", description: "La vacante ya se publicó. Usa «Renegociar fecha» para cambiar la fecha compromiso. Tus cambios siguen aquí.", text: "No se guardó · usa «Renegociar fecha»" };
+  if (failure.reason === "commitment_unchanged") return { tone: "error", title: "La fecha no cambió", description: "Elige una fecha distinta a la actual.", text: "No se renegoció · elige otra fecha" };
+  if (failure.reason === "commitment_note_required") return { tone: "error", title: "Revisa la nota", description: "Para Otro, escribe una nota de 1 a 500 caracteres.", text: "No se renegoció · revisa la nota" };
+  if (failure.reason === "delivery_not_configured") return { tone: "error", title: "Falta configurar la entrega", description: "Guarda la configuración de entrega antes de renegociar la fecha.", text: "No se renegoció · configura la entrega" };
+  if (failure.reason === "idempotency_conflict") return { tone: "error", title: "Esto cambió en otro lugar", description: "Carga la versión actual antes de intentar otro cambio.", text: "No se renegoció · carga la versión actual", recovery: "reload" };
   if (failure.reason === "publication_incomplete") return {
     tone: "error", title: "La vacante está publicada", description: formatPublishedSaveMissing(failure.missing),
     text: "No se guardó · faltan datos para una vacante publicada",

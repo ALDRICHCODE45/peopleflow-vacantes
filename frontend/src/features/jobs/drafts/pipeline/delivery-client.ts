@@ -5,7 +5,7 @@ import { isValidJobId } from "@/features/jobs/jobId";
 import { requestJson } from "@/lib/api/server";
 import type { PublicationFailure } from "./publication-client";
 import { publicationErrorEnvelopeSchema } from "./failure";
-import { isCivilDate } from "./delivery-model";
+import { isCivilDate, commitmentBodySchema } from "./delivery-model";
 import { deliveryStatusSchema, deliveryPreviewSchema, type DeliveryStatus, type DeliveryPreview } from "./fulfillment-model";
 
 const uuid = z.string().length(36).refine(isValidJobId);
@@ -25,6 +25,7 @@ export type DraftDelivery = z.infer<typeof deliverySchema>;
 export type DraftDeliveryResult = { ok: true; data: DraftDelivery; etag: string } | PublicationFailure;
 type ReadInput = { token: string; draftId: string };
 export type SaveDraftDeliveryInput = ReadInput & { ifMatch: string; body: unknown };
+export type RenegotiateDraftCommitmentInput = SaveDraftDeliveryInput & { idempotencyKey: string };
 function invalid(kind: "missing_token" | "invalid_request" | "invalid_response"): PublicationFailure {
   return { ok: false, error: { kind, retryable: false } };
 }
@@ -32,16 +33,18 @@ function guard(input: ReadInput): PublicationFailure | undefined {
   if (typeof input?.token !== "string" || !input.token.trim()) return invalid("missing_token");
   if (typeof input.draftId !== "string" || input.draftId.length !== 36 || !isValidJobId(input.draftId)) return invalid("invalid_request");
 }
-async function requestDelivery(input: ReadInput, write?: { ifMatch: string; body: z.infer<typeof putBodySchema> }): Promise<DraftDeliveryResult> {
+async function requestDelivery(input: ReadInput, write?: { ifMatch: string; body: z.infer<typeof putBodySchema> } | { ifMatch: string; body: z.infer<typeof commitmentBodySchema>; idempotencyKey: string }): Promise<DraftDeliveryResult> {
+  const commitment = write && "idempotencyKey" in write ? write : undefined;
   const { serverEnv } = await import("@/lib/env/server");
-  const result = await requestJson(new URL(`/v2/me/company/job-drafts/${input.draftId}/pipeline/delivery`, serverEnv.apiBaseUrl).toString(), {
-    method: write ? "PUT" : "GET",
-    headers: { authorization: `Bearer ${input.token.trim()}`, ...(write ? { "if-match": write.ifMatch } : {}) },
+  const result = await requestJson(new URL(`/v2/me/company/job-drafts/${input.draftId}/${commitment ? "commitment" : "pipeline/delivery"}`, serverEnv.apiBaseUrl).toString(), {
+    method: commitment ? "POST" : write ? "PUT" : "GET",
+    headers: { authorization: `Bearer ${input.token.trim()}`, ...(write ? { "if-match": write.ifMatch } : {}), ...(commitment ? { "idempotency-key": commitment.idempotencyKey } : {}) },
     ...(write ? { body: write.body } : {}),
     redirect: "error", expectedStatus: 200, captureResponseHeaders: ["etag"], timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
     decoder: value => deliverySchema.parse(value), errorDecoder: value => publicationErrorEnvelopeSchema.parse(value),
   });
-  // An uncertain write is reconciled with GET, never replayed automatically.
+  // Never replay automatically. PUT uncertainty is reconciled by GET; commitment
+  // retries explicitly replay the same frozen UUID/ETag/body owned by the dialog.
   if (!result.ok) return { ...result, error: { ...result.error, retryable: false } };
   const etag = result.headers?.etag;
   if (etag === undefined || !etag.trim()) return invalid("invalid_response");
@@ -66,6 +69,14 @@ export async function previewDraftDelivery(input: ReadInput & { body: unknown })
   if (failure) return failure;
   const body = putBodySchema.safeParse(input.body);
   return body.success ? readProjection(input, "preview", value => deliveryPreviewSchema.parse(value), body.data) : invalid("invalid_request");
+}
+export async function renegotiateDraftCommitment(input: RenegotiateDraftCommitmentInput): Promise<DraftDeliveryResult> {
+  const failure = guard(input);
+  if (failure) return failure;
+  if (typeof input.ifMatch !== "string" || !input.ifMatch.trim() || !uuid.safeParse(input.idempotencyKey).success) return invalid("invalid_request");
+  const body = commitmentBodySchema.safeParse(input.body);
+  if (!body.success) return invalid("invalid_request");
+  return requestDelivery(input, { ifMatch: input.ifMatch, idempotencyKey: input.idempotencyKey, body: body.data });
 }
 export async function getDraftDelivery(input: ReadInput): Promise<DraftDeliveryResult> { return guard(input) ?? requestDelivery(input); }
 export async function saveDraftDelivery(input: SaveDraftDeliveryInput): Promise<DraftDeliveryResult> {

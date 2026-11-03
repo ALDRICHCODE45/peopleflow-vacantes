@@ -55,6 +55,20 @@ export function BusinessDateField({ id, label, description, value, calendar, err
   </Field>;
 }
 
+export function formatCommitmentDate(value: string | null): string {
+  return value ? localDate(value).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) : "Sin definir";
+}
+
+export function PublishedCommitmentField({ value, action }: { value: string | null; action: ReactNode }) {
+  return <Field>
+    <FieldLabel id="delivery-commitment-label"><CalendarDays aria-hidden="true" className="size-3.5" />Fecha compromiso</FieldLabel>
+    <div className="flex flex-wrap items-center gap-3">
+      <p aria-labelledby="delivery-commitment-label">{value ? <time dateTime={value}>{formatCommitmentDate(value)}</time> : "Sin definir"}</p>
+      {action}
+    </div>
+  </Field>;
+}
+
 export function DeliveryDateField({ state, error, disabled, onChange }: {
   state: DeliveryState; error?: DeliveryErrors["commitmentDate"]; disabled: boolean; onChange: (value: string | null) => void;
 }) {

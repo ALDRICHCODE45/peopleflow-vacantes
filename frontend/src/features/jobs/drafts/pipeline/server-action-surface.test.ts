@@ -18,8 +18,8 @@ describe("pipeline server action surface", () => {
   it("exposes only publication readiness and publish actions", async () => {
     expect(Object.keys(await import("./publication-actions")).sort()).toEqual(["loadDraftPublicationAction", "publishDraftAction"]);
   });
-  it("exposes only explicit delivery reads, preview and save actions", async () => {
-    expect(Object.keys(await import("./delivery-actions")).sort()).toEqual(["loadDeliveryStatusAction", "loadDraftDeliveryAction", "previewDraftDeliveryAction", "saveDraftDeliveryAction"]);
+  it("exposes only explicit delivery reads, preview, save and commitment renegotiation actions", async () => {
+    expect(Object.keys(await import("./delivery-actions")).sort()).toEqual(["loadDeliveryStatusAction", "loadDraftDeliveryAction", "previewDraftDeliveryAction", "renegotiateDraftCommitmentAction", "saveDraftDeliveryAction"]);
     expect(Object.keys(await import("./management-actions")).sort()).toEqual(["loadDraftManagementAction", "saveDraftManagementAction"]);
   });
   it("exposes only the pipeline load and save actions", async () => {

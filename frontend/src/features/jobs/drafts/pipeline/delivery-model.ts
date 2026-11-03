@@ -1,4 +1,24 @@
+import { z } from "zod";
+
 export type DeliveryPutBody = { cutoffStageId: string | null; targetQuantity: number | null; commitmentDate: string | null; confirm_fulfillment?: boolean };
+export const commitmentReasons = [
+  { value: "client_request", label: "Pedido del cliente" },
+  { value: "scope_change", label: "Cambio de alcance" },
+  { value: "internal_delay", label: "Retraso interno" },
+  { value: "other", label: "Otro" },
+] as const;
+export const commitmentNoteMessage = "Escribe una nota de 1 a 500 caracteres.";
+export const normalizeCommitmentNote = (value: string) => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
+export const commitmentNoteLength = (value: string) => Array.from(normalizeCommitmentNote(value)).length;
+export const commitmentBodySchema = z.object({
+  commitment_date: z.string().refine(isCivilDate),
+  reason: z.enum(["client_request", "scope_change", "internal_delay", "other"]),
+  note: z.string().transform(normalizeCommitmentNote).optional(),
+}).strict().superRefine((body, context) => {
+  const count = commitmentNoteLength(body.note ?? "");
+  if (count > 500 || (body.reason === "other" && count === 0)) context.addIssue({ code: z.ZodIssueCode.custom, path: ["note"], message: commitmentNoteMessage });
+}).transform(({ note, ...body }) => ({ ...body, ...(note ? { note } : {}) }));
+export type CommitmentBody = z.infer<typeof commitmentBodySchema>;
 export type Delivery = DeliveryPutBody & {
   version: string;
   fulfilled: boolean;
@@ -58,6 +78,13 @@ export function isDirty(state: DeliveryState): boolean {
   return state.cutoffStageId !== state.baseline.cutoffStageId || state.commitmentDate !== state.baseline.commitmentDate || state.targetText !== (state.baseline.targetQuantity === null ? "" : String(state.baseline.targetQuantity));
 }
 export function adoptSaved(_state: DeliveryState, saved: Delivery): DeliveryState { return fromDelivery(saved); }
+/** A commitment write does not submit (or discard) edits to the other delivery fields. */
+export function adoptCommitment(state: DeliveryState, saved: Delivery): DeliveryState {
+  const next = fromDelivery(saved);
+  if (state.cutoffStageId !== state.baseline.cutoffStageId) next.cutoffStageId = state.cutoffStageId;
+  if (state.targetText !== (state.baseline.targetQuantity === null ? "" : String(state.baseline.targetQuantity))) next.targetText = state.targetText;
+  return next;
+}
 export function reconcileUncertainSave(state: DeliveryState, fetched: Delivery): "saved" | "not_saved" | "conflict" {
   const body = toPutBody(state);
   if (body.cutoffStageId === fetched.cutoffStageId && body.targetQuantity === fetched.targetQuantity && body.commitmentDate === fetched.commitmentDate) return "saved";

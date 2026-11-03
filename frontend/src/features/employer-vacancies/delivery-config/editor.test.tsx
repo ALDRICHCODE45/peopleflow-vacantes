@@ -3,13 +3,23 @@ import * as React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { loadDraftDeliveryAction, saveDraftDeliveryAction, previewDraftDeliveryAction, loadDeliveryStatusAction, type DraftDeliveryActionResult } from "@/features/jobs/drafts/pipeline/delivery-actions";
+import { loadDraftDeliveryAction, saveDraftDeliveryAction, previewDraftDeliveryAction, loadDeliveryStatusAction, renegotiateDraftCommitmentAction, type DraftDeliveryActionResult } from "@/features/jobs/drafts/pipeline/delivery-actions";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { DeliveryEditor } from "./editor";
 import { deliveryFixture } from "./test-fixture";
 import { pipelineFixture } from "../stage-config/test-fixture";
-vi.mock("@/features/jobs/drafts/pipeline/delivery-actions", () => ({ loadDraftDeliveryAction: vi.fn(), saveDraftDeliveryAction: vi.fn(), previewDraftDeliveryAction: vi.fn(), loadDeliveryStatusAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/pipeline/delivery-actions", () => ({ loadDraftDeliveryAction: vi.fn(), saveDraftDeliveryAction: vi.fn(), previewDraftDeliveryAction: vi.fn(), loadDeliveryStatusAction: vi.fn(), renegotiateDraftCommitmentAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+// Calendar focus management inside AlertDialog also loops in jsdom. The draft
+// tests below retain the real Calendar; the new dialog uses a controlled day probe.
+vi.mock("@/components/ui/calendar", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/components/ui/calendar")>();
+  return { ...actual, Calendar: (props: React.ComponentProps<typeof actual.Calendar>) => {
+    if (!document.querySelector('[role="alertdialog"]')) return <actual.Calendar {...props} />;
+    const day = new Date(2026, 9, 19);
+    return <div data-slot="calendar"><button data-day="19/10/2026" onClick={() => { if (props.mode === "single") props.onSelect?.(day, day, {}, {} as React.MouseEvent); }}>19</button></div>;
+  } };
+});
 // Base UI portal focus restoration loops in jsdom (same boundary as the installed
 // DatePickerField tests). Keep the real Calendar, replace only popup boundaries.
 vi.mock("@/components/ui/popover", () => {
@@ -31,6 +41,103 @@ vi.mock("@/components/ui/select", () => {
     SelectGroup: ({ children }: { children: React.ReactNode }) => <div role="group">{children}</div>,
     SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => { const context = React.useContext(Context); return <button role="option" aria-selected={context.value === value} onClick={() => context.change(value)}>{children}</button>; },
   };
+});
+const published = { publication: "published" as const, process: "active" as const, version: "1", published_at: "2026-10-16T12:00:00Z", paused_at: null, closed_at: null, close_reason: null, close_reason_note: null, process_finished_at: null, allowed_actions: [] };
+function publishedMount() { return render(<DeliveryEditor draftId={draftId} delivery={{ ...deliveryFixture(), commitmentDate: "2026-11-30" }} etag='"delivery-0"' stages={pipelineFixture().stages} lifecycle={published} />); }
+async function openRenegotiation() {
+  fireEvent.click(screen.getByRole("button", { name: "Renegociar fecha" }));
+  return screen.findByRole("alertdialog", { name: "Renegociar la fecha compromiso" });
+}
+async function chooseNewDate() {
+  fireEvent.click(screen.getByRole("button", { name: "Nueva fecha compromiso" }));
+  fireEvent.click(document.querySelector('[data-slot="calendar"] button[data-day="19/10/2026"]')!);
+}
+it("published commitment is read-only next to an outline renegotiation, PUT preserves the current date", async () => {
+  publishedMount();
+  expect(screen.queryByRole("button", { name: "Fecha compromiso" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Renegociar fecha" })).toHaveClass("border-border");
+  expect(screen.queryByRole("button", { name: "Quitar fecha" })).not.toBeInTheDocument();
+  expect(screen.getByText("30 de noviembre de 2026")).toBeVisible();
+  edit(); fireEvent.click(save());
+  await waitFor(() => expect(saveDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"delivery-0"', body: { cutoffStageId: null, targetQuantity: 5, commitmentDate: "2026-11-30" } }));
+  expect(previewDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith({ draftId, body: { cutoffStageId: null, targetQuantity: 5, commitmentDate: "2026-11-30" } });
+});
+it("draft keeps direct date editing and has no renegotiation action", () => {
+  mount(); expect(screen.getByRole("button", { name: "Fecha compromiso" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: "Renegociar fecha" })).not.toBeInTheDocument();
+});
+it("opens one commitment confirmation with the approved anatomy", async () => {
+  publishedMount(); const dialog = await openRenegotiation();
+  expect(dialog).toHaveTextContent("Fecha actual: 30 de noviembre de 2026");
+  expect(dialog.querySelector('[data-slot="alert-dialog-header"] [data-slot="alert-dialog-media"]')).not.toBeNull();
+  expect(dialog.querySelector('[data-slot="confirm-action-details"]')).not.toBeNull();
+  expect(within(dialog).getByRole("button", { name: "Renegociar" })).toBeDisabled();
+});
+it("one approved dialog validates date, reason and Otro note before POST; cancel does not write", async () => {
+  publishedMount(); const dialog = await openRenegotiation();
+  expect(dialog).toHaveTextContent("Fecha actual: 30 de noviembre de 2026");
+  expect(dialog).toHaveTextContent("El cambio queda en los movimientos de la vacante.");
+  expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
+  const confirm = within(dialog).getByRole("button", { name: "Renegociar" }); expect(confirm).toBeDisabled();
+  await chooseNewDate(); expect(confirm).toBeDisabled(); fireEvent.click(screen.getByRole("option", { name: "Otro" })); expect(confirm).toBeEnabled();
+  fireEvent.click(confirm);
+  const note = screen.getByRole("textbox", { name: "Nota" }); expect(note).toBeRequired(); expect(note).toHaveAttribute("aria-invalid", "true"); expect(note).toHaveFocus();
+  expect(renegotiateDraftCommitmentAction).not.toHaveBeenCalled();
+  fireEvent.change(note, { target: { value: "x".repeat(501) } }); fireEvent.click(confirm); expect(renegotiateDraftCommitmentAction).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" })); expect(renegotiateDraftCommitmentAction).not.toHaveBeenCalled();
+});
+it("renegotiation adopts new date and ETag while preserving unsaved delivery edits", async () => {
+  vi.mocked(renegotiateDraftCommitmentAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), commitmentDate: "2026-10-19", version: "1" }, etag: '"renegotiated"' });
+  publishedMount(); edit("7"); await openRenegotiation(); await chooseNewDate(); fireEvent.click(screen.getByRole("option", { name: "Pedido del cliente" })); fireEvent.click(screen.getByRole("button", { name: "Renegociar" }));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  expect(screen.getByText("19 de octubre de 2026")).toBeVisible(); expect(target()).toHaveValue("7");
+  const input = vi.mocked(renegotiateDraftCommitmentAction).mock.calls[0][0];
+  expect(input).toMatchObject({ draftId, ifMatch: '"delivery-0"', body: { commitment_date: "2026-10-19", reason: "client_request" } }); expect(input.idempotencyKey).toMatch(/^[\da-f-]{36}$/i);
+  fireEvent.click(save()); await waitFor(() => expect(saveDraftDeliveryAction).toHaveBeenCalledWith(expect.objectContaining({ ifMatch: '"renegotiated"', body: { cutoffStageId: null, targetQuantity: 7, commitmentDate: "2026-10-19" } })));
+});
+it.each(["commitment_unchanged", "commitment_note_required", "version_conflict"] as const)("keeps dialog data on %s with Spanish feedback", async reason => {
+  vi.mocked(renegotiateDraftCommitmentAction).mockResolvedValue({ ok: false, reason, reference: { status: reason === "commitment_note_required" ? 422 : reason === "version_conflict" ? 412 : 409 } } as DraftDeliveryActionResult);
+  publishedMount(); await openRenegotiation(); await chooseNewDate(); fireEvent.click(screen.getByRole("option", { name: "Otro" })); fireEvent.change(screen.getByRole("textbox", { name: "Nota" }), { target: { value: "Cambio acordado" } }); fireEvent.click(screen.getByRole("button", { name: "Renegociar" }));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalled());
+  expect(screen.getByRole("alertdialog")).toBeVisible(); expect(screen.getByRole("textbox", { name: "Nota" })).toHaveValue("Cambio acordado");
+  if (reason === "commitment_unchanged") expect(screen.getByText("Elige una fecha distinta a la actual.")).toHaveAttribute("data-slot", "field-error");
+  if (reason === "commitment_note_required") { expect(screen.getByRole("textbox", { name: "Nota" })).toHaveAttribute("aria-invalid", "true"); expect(screen.getByRole("textbox", { name: "Nota" })).toHaveFocus(); }
+  if (reason === "version_conflict") expect(screen.getByRole("button", { name: "Cargar versión actual" })).toBeEnabled();
+  expect(loadDraftDeliveryAction).not.toHaveBeenCalled(); expect(renegotiateDraftCommitmentAction).toHaveBeenCalledTimes(1);
+});
+it("retries the exact uncertain attempt with the same UUID and freezes its fields", async () => {
+  vi.mocked(renegotiateDraftCommitmentAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), commitmentDate: "2026-10-19", version: "1" }, etag: '"next"' });
+  publishedMount(); await openRenegotiation(); await chooseNewDate(); fireEvent.click(screen.getByRole("option", { name: "Cambio de alcance" })); fireEvent.click(screen.getByRole("button", { name: "Renegociar" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
+  await waitFor(() => expect(renegotiateDraftCommitmentAction).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(renegotiateDraftCommitmentAction).mock.calls[1][0]).toEqual(vi.mocked(renegotiateDraftCommitmentAction).mock.calls[0][0]);
+});
+it("a PUT publication race tells the user to renegotiate and removes direct date editing", async () => {
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "commitment_change_requires_renegotiation", reference: { status: 409, code: "commitment_change_requires_renegotiation" } });
+  mount({ ...deliveryFixture(), commitmentDate: "2026-10-16" }); edit("8"); fireEvent.click(save());
+  expect(await screen.findByRole("button", { name: "Renegociar fecha" })).toBeEnabled();
+  expect(screen.getByRole("status")).toHaveTextContent("No se guardó · usa «Renegociar fecha»");
+  expect(screen.queryByRole("button", { name: "Fecha compromiso" })).not.toBeInTheDocument(); expect(target()).toHaveValue("8");
+  expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1); expect(loadDraftDeliveryAction).not.toHaveBeenCalled();
+});
+it("412 reloads only on demand and a new confirmation uses a fresh UUID and delivery ETag", async () => {
+  vi.mocked(renegotiateDraftCommitmentAction).mockResolvedValueOnce({ ok: false, reason: "version_conflict", reference: { status: 412, code: "version_conflict" } }).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), commitmentDate: "2026-10-19", version: "3" }, etag: '"final"' });
+  vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), commitmentDate: "2026-10-20", version: "2" }, etag: '"reloaded"' });
+  publishedMount(); await openRenegotiation(); await chooseNewDate(); fireEvent.click(screen.getByRole("option", { name: "Retraso interno" })); fireEvent.click(screen.getByRole("button", { name: "Renegociar" }));
+  const reload = await screen.findByRole("button", { name: "Cargar versión actual" }); expect(loadDraftDeliveryAction).not.toHaveBeenCalled(); expect(screen.getByRole("button", { name: "Renegociar" })).toBeDisabled();
+  fireEvent.click(reload); await waitFor(() => expect(screen.getByRole("button", { name: "Renegociar" })).toBeEnabled());
+  expect(screen.getByText("Fecha actual: 20 de octubre de 2026")).toBeVisible(); fireEvent.click(screen.getByRole("button", { name: "Renegociar" }));
+  await waitFor(() => expect(renegotiateDraftCommitmentAction).toHaveBeenCalledTimes(2));
+  const [first, second] = vi.mocked(renegotiateDraftCommitmentAction).mock.calls.map(call => call[0]);
+  expect(second.ifMatch).toBe('"reloaded"'); expect(second.idempotencyKey).not.toBe(first.idempotencyKey); expect(second.body).toEqual(first.body);
+});
+it("pending commitment blocks duplicate POSTs and cancellation", async () => {
+  let resolve!: (value: DraftDeliveryActionResult) => void; vi.mocked(renegotiateDraftCommitmentAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
+  publishedMount(); await openRenegotiation(); await chooseNewDate(); fireEvent.click(screen.getByRole("option", { name: "Otro" })); fireEvent.change(screen.getByRole("textbox", { name: "Nota" }), { target: { value: "  Cambio acordado  " } });
+  fireEvent.click(screen.getByRole("button", { name: "Renegociar" })); const pending = screen.getByRole("button", { name: "Renegociando…" }); fireEvent.click(pending);
+  expect(pending).toBeDisabled(); expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled(); expect(screen.getByRole("textbox", { name: "Nota" })).toBeDisabled();
+  expect(renegotiateDraftCommitmentAction).toHaveBeenCalledTimes(1); expect(vi.mocked(renegotiateDraftCommitmentAction).mock.calls[0][0].body).toEqual({ commitment_date: "2026-10-19", reason: "other", note: "Cambio acordado" });
+  await act(async () => resolve({ ok: true, delivery: { ...deliveryFixture(), commitmentDate: "2026-10-19", version: "1" }, etag: '"next"' }));
 });
 const fulfillment = { fulfilled_at: "2026-10-16T12:00:00Z", result: "on_time" as const, business_days_delta: 2, target: 1, cutoff_stage_id: "screen", cutoff_stage_name: "Corte congelado", commitment_date: "2026-10-20", candidates: [{ participation_id: "person", candidate: { id: "candidate", full_name: "Ana Pérez" }, reached_at: "2026-10-15T12:00:00Z" }] };
 const fulfillmentStatus = { state: "fulfilled" as const, delivered: 1, target: 1, cutoff_stage_id: "screen", commitment_date: "2026-10-20", business_days_remaining: null, fulfillment };

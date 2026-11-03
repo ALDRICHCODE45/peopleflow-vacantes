@@ -1,14 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
-vi.mock("./delivery-client", () => ({ getDraftDelivery: vi.fn(), saveDraftDelivery: vi.fn() }));
+vi.mock("./delivery-client", () => ({ getDraftDelivery: vi.fn(), saveDraftDelivery: vi.fn(), renegotiateDraftCommitment: vi.fn() }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { getDraftDelivery, saveDraftDelivery } from "./delivery-client";
-import { loadDraftDeliveryAction, saveDraftDeliveryAction } from "./delivery-actions";
+import { getDraftDelivery, saveDraftDelivery, renegotiateDraftCommitment } from "./delivery-client";
+import { loadDraftDeliveryAction, saveDraftDeliveryAction, renegotiateDraftCommitmentAction } from "./delivery-actions";
 const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"delivery-opaque"';
 const body = { cutoffStageId: null, targetQuantity: null, commitmentDate: null };
 const delivery = { fulfilled: false, ...body, version: "0", limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: [] } };
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(getActionAccessToken).mockResolvedValue("secret"); });
+it.each([[409, "commitment_unchanged"], [409, "vacancy_not_published"], [409, "delivery_not_configured"], [422, "commitment_note_required"], [409, "commitment_change_requires_renegotiation"]] as const)("maps commitment %s %s without leaking backend text", async (status, code) => {
+  vi.mocked(renegotiateDraftCommitment).mockResolvedValue({ ok: false, error: { kind: "status", status, retryable: false }, envelope: { error: "unsafe", code } });
+  expect(await renegotiateDraftCommitmentAction({ draftId, ifMatch: etag, idempotencyKey: draftId, body: {} })).toEqual({ ok: false, reason: code, reference: { status, code } });
+});
+it("forwards commitment credentials and returns new body/ETag", async () => {
+  vi.mocked(renegotiateDraftCommitment).mockResolvedValue({ ok: true, data: delivery, etag: '"next"' });
+  const input = { draftId, ifMatch: etag, idempotencyKey: draftId, body: { commitment_date: "2026-11-30", reason: "client_request" } };
+  expect(await renegotiateDraftCommitmentAction(input)).toEqual({ ok: true, delivery, etag: '"next"' });
+  expect(renegotiateDraftCommitment).toHaveBeenCalledExactlyOnceWith({ ...input, token: "secret" });
+});
 for (const operation of ["load", "save"] as const) describe(operation, () => {
   const client = operation === "load" ? getDraftDelivery : saveDraftDelivery;
   const call = () => operation === "load" ? loadDraftDeliveryAction(draftId) : saveDraftDeliveryAction({ draftId, ifMatch: etag, body });
