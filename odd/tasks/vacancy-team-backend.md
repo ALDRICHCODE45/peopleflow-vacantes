@@ -80,3 +80,6 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   `TestPublicGeoSearchIndexCapability` state/municipality (planner picks `vacancy_public_company_idx`). Isolation proof:
   fails on the branch against the accumulated shared draft_test DB, PASSES on a fresh schema on BOTH main and the branch
   → pre-existing data-dependent planner assertion, not T1. Recorded in docs/ROADMAP.md.
+- L8 — Frontend (2026-11-03): user approved the «Configuración › Equipo» prototype (frontend fc24f4ae). Frontend T3/T5/T6
+  wait on slices 1 and 3 → backend does T3 next, then T2, T4, T5, T6. Frontend asked for `kind` in snapshot
+  `stage_counts`; contract diff proposed (uncommitted until their OK).

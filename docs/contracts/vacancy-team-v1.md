@@ -148,13 +148,15 @@ refuses with a clear message while any draft has no open responsible (a `shared`
 commitment change or mode change exists; otherwise it restores `principal_recruiter_id` from the open responsible and
 drops the new tables.
 
-`state_snapshot` (counts and dates only, never candidate data):
+`state_snapshot` (counts and dates only, never candidate data). `stage_counts[].kind` is the stage's pipeline kind as
+stored in the vacancy's pipeline config at capture time (`new`, `screening`, `screening_ok`, `in_process`, `placement`,
+`custom`); the exit stage is not listed (its candidates are the `discarded` counts):
 
 ```json
 {
   "captured_at": "2026-11-12T16:04:00Z",
   "lifecycle": { "publication": "draft|published|paused|closed", "process": "active|finished|null" },
-  "stage_counts": [{ "stage_id": "…", "stage_name": "Entrevista", "active": 3, "discarded": 1 }],
+  "stage_counts": [{ "stage_id": "…", "stage_name": "Entrevista", "kind": "custom", "active": 3, "discarded": 1 }],
   "tramo": { "started_at": "…", "effective_deadline": "2026-11-20", "deadline_source": "recruiter|commitment|none",
              "business_days_elapsed": 7, "business_days_total": 12 },
   "delivery": { "target": 5, "delivered": 3, "fulfilled_at": null, "result": null, "commitment_date": "2026-11-30" },
