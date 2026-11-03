@@ -172,7 +172,8 @@ en ella**. Lo que entregó cada uno se ve aparte, en «Entregas».
 | **No aplica** | Entró cuando la meta ya estaba cumplida. |
 | **Sin plazo** | No había plazo ni fecha compromiso. |
 
-- Cumplir **el mismo día** del plazo cuenta como a tiempo.
+- Cumplir **el mismo día** del plazo cuenta como a tiempo. Un plazo vence recién cuando termina su día: si la persona
+  sale ese mismo día sin que se haya cumplido, queda como «Sin terminar», no como «Tarde».
 - Los plazos se cuentan en **días hábiles de la Ciudad de México**.
 - Se muestran los días de diferencia, por ejemplo «2 días antes» o «3 días tarde».
 - Se descartó medir si cada persona llega sola a la meta: con dos o más reclutadores, todos saldrían «tarde» casi
