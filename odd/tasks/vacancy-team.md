@@ -326,3 +326,14 @@ the responsible manages collaborators, and placement credit follows the team mod
   no pierdas las decisiones de negocio ... voy a necesitar un documento bien detallado de lo que decidimos, como
   funciona, que significa» → partner-facing `docs/product/asignacion-de-vacantes.md`, kept current with every new
   business decision.
+- **L40** Backend own-history fields done (`1b6fff9e`, docs `afc6c932`, contract `d5167aed` + boundary `543eb8ba`):
+  every item carries draft_id (active only), requester, vacancy_status, business_days_in_tramo, delivery_target,
+  deadline_result, deadline_delta_business_days; a deadline passes only when its day is over (ending ON it unfulfilled
+  → unfinished, 0). T10 starts.
+- **L41** T10 done: «Mi historial de vacantes» is a §26 table in the Equipo style (Ahora / Antes tabs, 8 columns that
+  fit 1440px, no cut text, «Sin plazo» alone when there is no deadline, «Abrir vacante ↗» only for current tramos,
+  ⓘ help on Plazo with the partner-doc wording, «Cargar más» instead of a Sheet; phones get two-column cards). Browser
+  on :8081 found and fixed: an infinite render loop («Maximum update depth exceeded») from measured truncation in
+  table cells (removed; the Equipo and Talento tables were clean), columns overflowing the card, wrapped text spilling
+  into the next column, jargon in the empty state, and one-screen-tall phone cards. Console clean; 48 tests, tsc,
+  ESLint clean.

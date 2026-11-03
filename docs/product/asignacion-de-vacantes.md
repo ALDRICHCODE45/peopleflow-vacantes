@@ -210,7 +210,7 @@ Cada reclutador va a poder ver **su propio rendimiento** en cualquier momento.
 | Motivo al salir de placement y crédito de colocaciones | Construido y probado |
 | Renegociar la fecha compromiso | Construido y probado |
 | Quitar miembros pasando sus vacantes | Construido y probado |
-| Mi historial de vacantes | Construido; en rediseño a tabla con más columnas |
+| Mi historial de vacantes | Construido como tabla y probado contra el sistema real |
 | Mi rendimiento | Decidido, por construir con las métricas del stakeholder |
 | Publicación | Pendiente de la decisión de publicar: backend y frontend tienen que salir juntos |
 
