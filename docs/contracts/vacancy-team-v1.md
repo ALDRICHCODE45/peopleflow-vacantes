@@ -450,8 +450,12 @@ handover. No candidate data. Ex-members keep this view while they belong to the 
 
 ### Breaking changes to existing responses
 
-- Draft list item `principal_recruiter` and v2 draft read `principal` become
-  `team: { mode, responsible: { id, name } | null, members_count, viewer_function }`.
+- Draft list item `principal_recruiter` and the v2 draft body's `principal_recruiter_id` become
+  `team: { mode, responsible: { id, name } | null, members_count, viewer_function }`. The v2 draft body is shared by
+  `GET`, create (`POST`) and save (`PATCH`), so all three return `team` (`viewer_function` = the caller's open function or
+  `null`). Idempotent replays return the response exactly as it was frozen, so a replay of a request made before this
+  change still carries `principal_recruiter_id`. Draft ETags and canonical write fingerprints do not change. v1 draft
+  responses keep their shape.
 - `POST /v2/me/company/job-drafts` keeps its body; the creator becomes the responsible.
 - `PUT …/pipeline/delivery`: commitment rule above.
 - Move and discard bodies: `placement_exit_reason` above.
