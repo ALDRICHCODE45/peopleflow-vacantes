@@ -128,6 +128,21 @@ describe("single application-facing request path", () => {
     expect(client).not.toMatch(/\bfetch\(/);
   });
 
+  it("keeps member preview and offboard under the authenticated membership boundary", () => {
+    const client = source(join(SRC, "features/employer-team/client.ts"));
+    expect(client).toContain('`/me/company/members/${id}/${write ? "offboard" : "offboard-preview"}`');
+    expect(client).toContain('"idempotency-key": write.key');
+    expect(client).toContain("offboardResultSchema.parse(value)");
+    const actions = source(join(SRC, "features/employer-team/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions).toContain("export async function previewOffboardAction");
+    expect(actions).toContain("export async function offboardMemberAction");
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+    const browser = source(join(SRC, "features/employer-team/offboard-action-client.ts"));
+    expect(browser).not.toMatch(/\bfetch\(|lib\/api\/|lib\/auth\//);
+  });
+
   it("keeps all six team writes behind the authenticated server action and guarded transport", () => {
     const client = source(join(SRC, "features/vacancy-team/api-client.ts"));
     for (const path of ['"/members"', '`/members/${write.userId}/remove`', '`/members/${write.userId}`', '"/reassign-responsible"']) expect(client).toContain(path);

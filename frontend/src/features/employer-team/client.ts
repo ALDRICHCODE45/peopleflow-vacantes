@@ -2,9 +2,10 @@ import "server-only";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import { memberIdSchema, membersSchema, type CompanyMember } from "./members-model";
 import type { TeamMemberRole } from "./model";
+import { offboardPreviewSchema, offboardResultSchema, offboardBodySchema, offboardEnvelopeSchema, type OffboardPreview } from "./offboard-client";
 
-/** `code` is read only from a 409 body, where the backend names its last-owner guard. */
-export type TeamClientFailure = { ok: false; error: RequestJsonError; code?: string };
+/** Only allowlisted contract codes and decoded vacancy rows cross the action boundary. */
+export type TeamClientFailure = { ok: false; error: RequestJsonError; code?: string; vacancies?: OffboardPreview["vacancies"] };
 export type TeamClientResult<T> = { ok: true; data: T } | TeamClientFailure;
 export async function listTeamMembers(token: string): Promise<TeamClientResult<CompanyMember[]>> {
   const { serverEnv } = await import("@/lib/env/server");
@@ -13,6 +14,21 @@ export async function listTeamMembers(token: string): Promise<TeamClientResult<C
     timeoutMs: serverEnv.apiTimeoutMs, decoder: value => membersSchema.parse(value).members,
   });
   return result;
+}
+
+/** Member offboarding uses membership IDs, no team ETag, and never automatically retries. */
+export async function requestOffboard(token: string, id: string, write?: { body: unknown; key: string }) {
+  const invalid = { ok: false as const, error: { kind: "status" as const, status: 400, retryable: false } };
+  if (!memberIdSchema.safeParse(id).success || (write && (!memberIdSchema.safeParse(write.key).success || !offboardBodySchema.safeParse(write.body).success))) return invalid;
+  const { serverEnv } = await import("@/lib/env/server");
+  const result = await requestJson(new URL(`/me/company/members/${id}/${write ? "offboard" : "offboard-preview"}`, serverEnv.apiBaseUrl).toString(), {
+    method: write ? "POST" : "GET", headers: { authorization: `Bearer ${token.trim()}`, ...(write ? { "idempotency-key": write.key } : {}) },
+    ...(write ? { body: offboardBodySchema.parse(write.body) } : {}),
+    redirect: "error", expectedStatus: 200, timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 65536,
+    decoder: value => write ? offboardResultSchema.parse(value) : offboardPreviewSchema.parse(value), errorDecoder: value => offboardEnvelopeSchema.parse(value),
+  });
+  if (result.ok) return result;
+  return { ...result, code: result.envelope?.code, ...(result.envelope?.data ? { vacancies: result.envelope.data.vacancies } : {}) };
 }
 
 /** These writes return no UI data: only the subsequent strict GET replaces the list.
@@ -38,8 +54,10 @@ export async function mutateTeamMember(token: string, id: string, role?: TeamMem
     });
     if (response.status === 409) {
       const body: unknown = await response.json().catch(() => null);
+      // Preserve the existing last-owner/role decoder; only DELETE consumes offboard rows.
       const code = body && typeof body === "object" && typeof (body as { code?: unknown }).code === "string" ? (body as { code: string }).code : undefined;
-      return { ok: false, error: { kind: "status", status: 409, retryable: false }, ...(code ? { code } : {}) };
+      const parsed = role === undefined && code === "member_is_responsible" ? offboardEnvelopeSchema.safeParse(body) : null;
+      return { ok: false, error: { kind: "status", status: 409, retryable: false }, ...(code ? { code } : {}), ...(parsed?.success && parsed.data.data ? { vacancies: parsed.data.data.vacancies } : {}) };
     }
     void response.body?.cancel().catch(() => {});
     if (response.status === (role === undefined ? 204 : 200)) return { ok: true, data: null };

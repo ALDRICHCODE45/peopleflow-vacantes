@@ -69,6 +69,16 @@ it("disables unresolved confirmation and keeps 422 feedback inside the same dial
   await user.selectOptions(screen.getByRole("combobox", { name: "Pasar todas a" }), members[0].user.id);
   expect(within(dialog).getByRole("button", { name: "Quitar y reasignar" })).toBeEnabled();
 });
+it("labels responsible and last-member handovers without changing the dialog composition", async () => {
+  const preview = await createOffboardFixtureClient(members, "responsible").preview(members[1].id);
+  preview.vacancies[0].hand_over = "responsible";
+  preview.vacancies[1].hand_over = "last_member";
+  render(<OffboardDialog preview={preview} members={members} onClose={() => {}} onConfirm={vi.fn()} />);
+  expect(screen.getByText("Es responsable")).toBeVisible();
+  expect(screen.getByText("Es la única persona del equipo")).toBeVisible();
+  expect(screen.getByText(/como responsable/)).toBeVisible();
+  expect(screen.getByText(/como miembro/)).toBeVisible();
+});
 it("prototype recruiters belong to the viewer's company and never repeat an id", () => {
   const fixtures = prototypeMembers("11111111-1111-4111-8111-111111111111");
   expect(fixtures.map(member => member.user?.full_name)).toEqual(["Ana López", "Diego Hernández", "Mariana Ruiz"]);

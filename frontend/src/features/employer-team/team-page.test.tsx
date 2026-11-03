@@ -4,11 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { members, selfId } from "./test-fixtures";
 import type { TeamListResult, TeamMutationResult } from "./actions";
 
-const mocks = vi.hoisted(() => ({ companyId: "", list: vi.fn(), remove: vi.fn(), notify: vi.fn() }));
+const mocks = vi.hoisted(() => ({ companyId: "", list: vi.fn(), remove: vi.fn(), preview: vi.fn(), offboard: vi.fn(), notify: vi.fn() }));
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: { user: { id: selfId } } } }) }));
 vi.mock("@/features/employer-company/use-company-membership", () => ({ useCompanyMembership: () => ({ role: "owner", company: { id: mocks.companyId } }) }));
 vi.mock("@/features/employer-vacancies/use-portfolio-drafts", () => ({ usePortfolioDrafts: () => ({ items: [], pending: false, failure: null, capped: false }) }));
-vi.mock("./actions", () => ({ listTeamMembersAction: mocks.list, removeTeamMemberAction: mocks.remove, changeTeamRoleAction: vi.fn() }));
+vi.mock("./actions", () => ({ listTeamMembersAction: mocks.list, removeTeamMemberAction: mocks.remove, changeTeamRoleAction: vi.fn(), previewOffboardAction: mocks.preview, offboardMemberAction: mocks.offboard }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notify }));
 vi.mock("./team-workspace", () => ({ TeamWorkspace: ({ members: rows, loading, disabled, onAction, feedback }: { members: typeof members; loading?: boolean; disabled?: boolean; onAction?: (member: typeof members[number], action: { kind: "remove" }) => void; feedback?: React.ReactNode }) => <div>{loading && "Loading"}{rows.map(row => <button key={row.id} disabled={disabled} onClick={() => onAction?.(row, { kind: "remove" })}>{row.user.full_name}</button>)}{feedback}</div> }));
 vi.mock("@/components/feedback/confirm-action-dialog", () => ({ ConfirmActionDialog: ({ open, title, pending, onConfirm }: { open: boolean; title: string; pending: boolean; onConfirm: () => void }) => open ? <div role="dialog">{title}<button onClick={onConfirm}>{pending ? "Pending" : "Confirm"}</button></div> : null }));
@@ -16,7 +16,23 @@ import { TeamPage } from "./team-page";
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 const bMembers = members.map(member => ({ ...member, company_id: "company-b", user: { ...member.user, full_name: `B ${member.user.full_name}` } }));
 beforeEach(() => { vi.resetAllMocks(); mocks.companyId = members[0].company_id; });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllEnvs(); });
+it.each(["1", "api", ""])("selects the %s data source without shipping the feature", async flag => {
+  vi.stubEnv("NODE_ENV", "development"); vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", flag);
+  mocks.list.mockResolvedValue({ ok: true, members });
+  mocks.preview.mockResolvedValue({ ok: true, data: { user: { id: members[1].user.id, full_name: "José Real" }, vacancies: [], other_tramos: 3 } });
+  render(<TeamPage />);
+  await screen.findByText("José Real");
+  expect(screen.queryByText("Ana López") !== null).toBe(flag === "1");
+  fireEvent.click(screen.getByText("José Real"));
+  await screen.findByRole("dialog");
+  expect(mocks.preview).toHaveBeenCalledTimes(flag === "api" ? 1 : 0);
+  if (flag !== "1") {
+    mocks.remove.mockResolvedValue({ ok: true });
+    fireEvent.click(screen.getByText("Confirm"));
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith(members[1].id));
+  }
+});
 it("starts a fresh company B read and ignores company A's late read", async () => {
   const a = deferred<TeamListResult>();
   mocks.list.mockReturnValueOnce(a.promise).mockResolvedValueOnce({ ok: true, members: bMembers });

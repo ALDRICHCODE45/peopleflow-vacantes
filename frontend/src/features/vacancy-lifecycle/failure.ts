@@ -5,6 +5,7 @@ import { closeCoverageErrorSchema, conflictSchema, type LifecycleFailure } from 
 import { closeCoverageMessage, type CloseCoverage, type Lifecycle } from "./model";
 
 const messages = {
+  responsible_required: "Antes de reabrir, asigna un responsable en Configuración › Equipo.",
   close_reason_not_covered: "La cobertura no alcanza el objetivo de posiciones.",
   unauthenticated: "Inicia sesión para continuar.",
   forbidden: "No tienes permiso para cambiar el estado de esta vacante.",
@@ -49,6 +50,7 @@ export function mapLifecycleFailure(input: LifecycleFailure): LifecycleActionFai
   else if (status === 404) reason = "not_found";
   else if (status === 412) reason = "version_conflict";
   else if (status === 428) reason = "precondition_required";
+  else if (status === 409 && envelope?.code === "responsible_required") reason = "responsible_required";
   else if (status === 409 && conflict.success) reason = conflict.data.code;
   else if (status !== undefined && status >= 500) reason = "server_error";
   return {

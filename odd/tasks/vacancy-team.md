@@ -271,3 +271,17 @@ the responsible manages collaborators, and placement credit follows the team mod
   («El candidato se fue») and back into Placement → first credit (Ana López direct, Test User participant); void →
   «Anulado»; restore → «Activo» (episode still open). Fixed after review: blank gap in both dialogs (empty status slot)
   and recipient order. 502 tests (pipeline-movement + requestPath), tsc, ESLint clean.
+- **L32** Backend slice 5 done (`92ec3835`, docs `9ad895f2`, contract `7bf19f87` + `df6a42f7`): offboard-preview,
+  DELETE (409 `member_is_responsible` with data.vacancies), POST offboard with Idempotency-Key → {user_id,
+  handed_over[], ended_assignment_ids[]}, all under `/me/company/members/{membershipId}`; preview items carry
+  `hand_over` (responsible | last_member); handed-over responsible tramos end `reassigned` (reason
+  recruiter_departure), every other tramo `membership_ended`; lifecycle reopen without an active responsible → 409
+  `responsible_required`. T7 real client starts.
+- **L33** T7 real client done: preview-first «Quitar» in api mode, offboard dialog labels by `hand_over`, POST
+  offboard with retry-stable key, result line «{nombre} salió de la empresa. Pasó N vacante(s) a otras personas.»;
+  DELETE race 409 opens the dialog; production keeps today's confirmation + DELETE; lifecycle reopen maps 409
+  `responsible_required`. 216 tests (employer-team + vacancy-lifecycle + requestPath), tsc clean. Browser on :8081:
+  Mariana Ruiz (made responsible of Software Developer) offboarded → vacancy handed to Test User, reason «Baja del
+  reclutador». Movements defects found (sent to a fix): a tramo shows as one event, so Mariana's join disappeared and
+  «salió del equipo por reasignación» duplicates the reassignment; «X pasó la vacante de Y a X» when the performer is
+  the receiver.
