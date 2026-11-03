@@ -22,6 +22,7 @@ import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-
 import { BoardColumns } from "./board-columns";
 import { BoardCoverage, BoardError, BoardSkeleton, MovementDate } from "./board-states";
 import { CandidateSheet } from "./candidate-sheet";
+import { PlacementExitField } from "./placement-exit-field";
 import { DispositionDialog } from "./disposition-dialog";
 import { useMovementBoard } from "./use-movement-board";
 import { BoardFilters } from "./board-filters";
@@ -100,7 +101,9 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
     finalFocus={() => document.getElementById(`${selectedItem ? "candidate-sheet-move" : "candidate-move"}-${confirmation.item.id}`)}
     title={`¿Mover a ${confirmation.item.candidate.full_name} a ${to}?`}
     description={`Pasa de ${from} a ${to}. El cambio queda en su historial.${confirmation.placementExit ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación." : ""}`}
-    confirmLabel="Mover" pendingLabel="Moviendo…" pending={confirming} confirmDisabled={state.reading || stale} onConfirm={state.confirmMove}>
+    confirmLabel="Mover" pendingLabel="Moviendo…" pending={confirming} confirmDisabled={state.reading || stale || (confirmation.placementExit && !confirmation.exitReason)} onConfirm={state.confirmMove}>
+    {confirmation.placementExit && <PlacementExitField value={confirmation.exitReason} onChange={state.chooseExitReason} disabled={confirming} />}
+    {!stale && state.notices[confirmation.item.id]?.tone === "error" && <ActionStatus id="placement-exit-status" tone="error" text={state.notices[confirmation.item.id].text} />}
     {/* Sending a candidate back never reminds: the checklist only nudges forward moves. */}
     {board && !isBackwardMove(board, confirmation.item, confirmation.target) && <ChecklistReminder item={confirmation.item} target={confirmation.target} onReview={() => { const id = confirmation.item.id; state.closeConfirmation(); setSheetTab({ id, tab: "checklist" }); setSelected(id); }} />}
     {stale && <ActionStatus id="placement-check-status" tone="info" text={state.reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} />}

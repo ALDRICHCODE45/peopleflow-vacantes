@@ -1,8 +1,8 @@
 import { substateName } from "./substates";
 import { discardReasonLabel } from "./discard-text";
-import type { Board, DiscardBody, Move, Participation } from "./model";
+import type { Board, DiscardBody, Move, Participation, PlacementExitReason } from "./model";
 
-export type BoardWrite = { kind: "substate"; substateId: string | null } | { kind: "move"; target: string; confirmed: boolean } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean; target?: string };
+export type BoardWrite = { kind: "substate"; substateId: string | null } | { kind: "move"; target: string; placementExitReason?: PlacementExitReason } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean; target?: string };
 
 function coveredCopy({ covered, required }: Move["coverage"]) {
   return `${covered}${required === null ? "" : ` de ${required}`} cubiertas`;

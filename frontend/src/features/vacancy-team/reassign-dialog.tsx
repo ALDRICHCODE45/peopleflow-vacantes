@@ -44,7 +44,7 @@ export function ReassignDialog({ team, company, calendar, snapshot, onConfirm, o
       <Field><FieldLabel id="previous-label">¿Qué pasa con el responsable anterior?</FieldLabel>
         {/* Native Base UI single selection uses an array, as CardCustomSpacing does. Long labels stack. */}
         <ToggleGroup aria-labelledby="previous-label" variant="outline" value={[previous]} onValueChange={values => { if (values[0]) setPrevious(values[0] as Reassign["previous_responsible"]); }} className="flex-wrap">
-          <ToggleGroupItem value="remove" className="min-h-10">Sale de la vacante</ToggleGroupItem><ToggleGroupItem value="keep_as_collaborator" className="min-h-10">Sigue como colaborador</ToggleGroupItem>
+          <ToggleGroupItem value="remove" className="min-h-10 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground">Sale de la vacante</ToggleGroupItem><ToggleGroupItem value="keep_as_collaborator" className="min-h-10 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground">Sigue como colaborador</ToggleGroupItem>
         </ToggleGroup>
         <FieldDescription>{previous === "remove" ? "Se cierra su tramo y pierde acceso a esta vacante." : "Su tramo continúa, sin reiniciar sus fechas."}</FieldDescription>
       </Field>

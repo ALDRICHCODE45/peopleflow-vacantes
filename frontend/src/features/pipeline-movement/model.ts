@@ -8,8 +8,10 @@ export const discardReasonSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("recruiter"), key: z.enum(["requirements_not_met", "profile_mismatch", "salary_expectation", "other_candidate_selected", "other"]) }).strict(),
   z.object({ group: z.literal("candidate"), key: z.enum(["accepted_other_offer", "no_longer_interested", "unresponsive", "other"]) }).strict(),
 ]);
+export const placementExitReasonSchema = z.enum(["moved_by_mistake", "candidate_left"]);
+export type PlacementExitReason = z.infer<typeof placementExitReasonSchema>;
 const discardTextSchema = (limit: number) => z.string().transform(value => validateDiscardText(value, limit, true)).refine(result => !result.error).transform(result => result.value);
-export const discardBodySchema = z.object({ reason: discardReasonSchema, comment: discardTextSchema(1000).optional(), candidate_message: discardTextSchema(500).optional(), confirm_placement_exit: z.boolean().optional() }).strict().refine(body => body.reason.key !== "other" || !!body.comment);
+export const discardBodySchema = z.object({ reason: discardReasonSchema, comment: discardTextSchema(1000).optional(), candidate_message: discardTextSchema(500).optional(), placement_exit_reason: placementExitReasonSchema.optional() }).strict().refine(body => body.reason.key !== "other" || !!body.comment);
 export const recoverBodySchema = z.object({ confirm_placement_reentry: z.boolean().optional(), to_stage_id: z.string().uuid().optional() }).strict();
 export type DiscardReason = z.infer<typeof discardReasonSchema>;
 export type DiscardBody = z.infer<typeof discardBodySchema>;
@@ -59,7 +61,7 @@ export const boardSchema = z.object({
   .refine(board => board.participations.every(item => item.substate_id === null ||
     (board.stages.some(stage => stage.id === item.stage_id && stage.kind === "in_process") && board.substates.some(substate => substate.id === item.substate_id))));
 export const substateBodySchema = z.object({ substate_id: uuidSchema.nullable() }).strict();
-export const moveBodySchema = z.object({ to_stage_id: uuidSchema, confirm_placement_exit: z.boolean().optional() }).strict();
+export const moveBodySchema = z.object({ to_stage_id: uuidSchema, placement_exit_reason: placementExitReasonSchema.optional() }).strict();
 export const moveSchema = mutationParticipationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
 const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),
@@ -102,6 +104,6 @@ export type ParticipationDetail = z.infer<typeof detailSchema>;
 export type History = z.infer<typeof historySchema>;
 export type Result<T> = { ok: true; data: T } | Failure;
 export type FailureReason = "process_finished" | "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "board_too_large" |
-  "vacancy_not_published" | "not_found" | "stage_skip_not_allowed" | "placement_exit_confirmation_required" | "validation_error" |
+  "vacancy_not_published" | "not_found" | "stage_skip_not_allowed" | "placement_exit_reason_required" | "validation_error" |
   "recovery_stage_required" | "substate_requires_in_process" | "already_discarded" | "not_discarded" | "placement_reentry_confirmation_required" | "invalid_request" | "version_conflict" | "precondition_required" | "cv_storage_unavailable" | "no_response" | "uncertain" | "unrecognized_response" | "server_error";
 export type Failure = { ok: false; reason: FailureReason; lifecycle?: Lifecycle; reference: { status?: number; code?: string } };

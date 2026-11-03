@@ -1521,7 +1521,9 @@ largo que se construye en varias sesiones.
   interna». Al cerrar, el foco vuelve al punto de entrada usado.
 - **Elecciones cortas:** dos o tres opciones excluyentes con textos cortos van **una al lado de la
   otra** (`ToggleGroup` en grilla, apiladas solo en celular); en columna solo si son largas o más
-  de tres.
+  de tres. Con `variant="outline"`, la opción elegida lleva
+  `aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground`: el `bg-muted` nativo casi no
+  se ve en modo oscuro (revisión en el navegador, 2026-11-02).
 - **Salir con cambios sin guardar:** diálogo de la sección 18 para enlaces internos y el botón
   «Atrás» del navegador; cerrar o recargar la pestaña muestra el aviso nativo.
 

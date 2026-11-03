@@ -23,11 +23,11 @@ it.each([
 });
 it("moves exactly once using the item's opaque ETag unchanged, never the display version", async () => {
   const fetch = respond(moved, 200, { etag: moved.etag, "set-cookie": "private" });
-  expect(await moveParticipation({ ...input, participationId: item.id, etag: item.etag, body: { to_stage_id: id(2), confirm_placement_exit: true } })).toEqual({ ok: true, data: moved });
+  expect(await moveParticipation({ ...input, participationId: item.id, etag: item.etag, body: { to_stage_id: id(2), placement_exit_reason: "candidate_left" } })).toEqual({ ok: true, data: moved });
   expect(fetch).toHaveBeenCalledTimes(1); const [url, init] = fetch.mock.calls[0];
   expect(url).toBe(`http://localhost:8080/v2/me/company/job-drafts/${input.vacancyId}/participations/${item.id}/moves`);
   expect(init.method).toBe("POST"); expect(new Headers(init.headers).get("if-match")).toBe(item.etag);
-  expect(init.body).toBe(JSON.stringify({ to_stage_id: id(2), confirm_placement_exit: true }));
+  expect(init.body).toBe(JSON.stringify({ to_stage_id: id(2), placement_exit_reason: "candidate_left" }));
 });
 it("omits the optional confirmation and accepts the new item ETag without a header", async () => {
   const fetch = respond(moved); expect(await moveParticipation({ ...input, participationId: item.id, etag: item.etag, body: { to_stage_id: id(2) } })).toEqual({ ok: true, data: moved });

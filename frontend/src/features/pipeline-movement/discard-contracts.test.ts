@@ -49,7 +49,7 @@ it("counts code points after Unicode White_Space trim, preserves interior, rejec
 it.each(["discard", "recover"] as const)("%s action sends the unchanged ETag and exact body, without retries", async operation => {
   const response = operation === "discard" ? discarded : { ...mutationItem, discard: null, coverage: board.coverage, delivery: board.delivery };
   const fetch = vi.fn().mockResolvedValue(Response.json(response)); vi.stubGlobal("fetch", fetch);
-  const body = operation === "discard" ? { reason, comment: "Motivo", confirm_placement_exit: true } : { confirm_placement_reentry: true };
+  const body = operation === "discard" ? { reason, comment: "Motivo", placement_exit_reason: "moved_by_mistake" } : { confirm_placement_reentry: true };
   const call = operation === "discard" ? discardParticipationAction : recoverParticipationAction;
   expect(await call({ ...input, body })).toEqual({ ok: true, data: response });
   expect(fetch).toHaveBeenCalledTimes(1);

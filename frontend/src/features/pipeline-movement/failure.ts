@@ -3,7 +3,7 @@ import type { ClientFailure } from "./client";
 import { processFinishedSchema, type Failure, type FailureReason } from "./model";
 const codes: Record<string, { status: number; reason: FailureReason }> = {
   board_too_large: { status: 422, reason: "board_too_large" }, vacancy_not_published: { status: 409, reason: "vacancy_not_published" },
-  stage_skip_not_allowed: { status: 409, reason: "stage_skip_not_allowed" }, placement_exit_confirmation_required: { status: 409, reason: "placement_exit_confirmation_required" },
+  stage_skip_not_allowed: { status: 409, reason: "stage_skip_not_allowed" }, placement_exit_reason_required: { status: 409, reason: "placement_exit_reason_required" },
   already_discarded: { status: 409, reason: "already_discarded" }, not_discarded: { status: 409, reason: "not_discarded" },
   placement_reentry_confirmation_required: { status: 409, reason: "placement_reentry_confirmation_required" },
   recovery_stage_required: { status: 409, reason: "recovery_stage_required" },

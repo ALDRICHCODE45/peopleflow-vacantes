@@ -215,3 +215,26 @@ the responsible manages collaborators, and placement credit follows the team mod
   rows with medallions and only non-zero figures, 5 rows + «Ver todo» Sheet; fixed mobile cut titles (figures move
   under the text), Sheet opening scrolled past AHORA (initial focus on the title), and cut end reasons (text wraps up to
   two lines). 37 tests, tsc, ESLint clean.
+- **L24** Backend slice 3 done (`45135cd8`, docs `c4bc9414`), live on :8081: draft list items and v2 draft bodies
+  return `team: {mode, responsible: {id,name}|null, members_count, viewer_function}` (no `principal_recruiter` /
+  `principal_recruiter_id`); moves/discard replace `confirm_placement_exit` with `placement_exit_reason`
+  (`moved_by_mistake` | `candidate_left`; missing → `placement_exit_reason_required`; on any other move → invalid
+  request; discard out of placement needs both its reason and this one); delivery PUT after publication with a changed
+  date → 409 `commitment_change_requires_renegotiation`; `POST V/commitment {commitment_date, reason, note?}` with
+  If-Match = delivery ETag + UUID Idempotency-Key → 200 delivery body + new ETag (409 `vacancy_not_published`,
+  `delivery_not_configured`, `commitment_unchanged`; 422 `commitment_note_required`). Frontend T3/T6 start as three
+  parallel writers: T3a team in draft list/read + consumers, T3b placement exit reason, T6 renegotiation.
+- **L25** T3a done (`e487bfd5`): draft list and v2 bodies require `team`; portfolio shows the responsible (or «Equipo
+  · N personas») in the same slot; Equipo workload counts by `team.responsible.id` (shared teams not counted: the list
+  item does not say who is in them). 411 tests; browser OK on :8081. T6 done (`cbbedb6f`): after publication the
+  commitment date is read-only with «Renegociar fecha» → one ConfirmActionDialog (new date, reason, note for «Otro»);
+  POST V/commitment with delivery ETag + retry-stable UUID; the published delivery PUT sends the CURRENT
+  `commitmentDate` unchanged (backend: omitting it → 400; changing or clearing it → 409). 365 tests; browser OK
+  (calendar inside the dialog disables weekends and holidays; no write confirmed).
+- **L26** T3b done: `placement_exit_reason` replaces `confirm_placement_exit`; leaving placement asks «¿Qué pasó con este
+  placement?» («Lo moví por error» / «El candidato se fue», with helpers) inside the existing move and discard
+  confirmations (discard keeps its own reason), «Mover» disabled until chosen; every entry point covered. 517 tests
+  (pipeline-movement + vacancy-team), tsc clean, ESLint 0 errors (2 pre-existing warnings). Browser on :8081: QA moved
+  Ana Pérez Gómez to Placement in the disposable branch DB to open both dialogs (no exit confirmed; she stays there
+  for credit QA in slice 4). Fixed the pressed option being invisible in dark mode (also in «Reasignar responsable»);
+  rule added to §24.
