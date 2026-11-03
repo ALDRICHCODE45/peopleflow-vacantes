@@ -109,5 +109,8 @@ it("delivery also stops before PUT on a process-finished preview", async () => {
   await screen.findByText(message);
   expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
   expect(screen.getByRole("combobox", { name: "Columna de corte" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Fecha compromiso" })).toBeDisabled();
+  // Published vacancy (vacancy team T6): the date is read-only and changes only by renegotiation, which a
+  // finished process also locks.
+  expect(screen.queryByRole("button", { name: "Fecha compromiso" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Renegociar fecha" })).toBeDisabled();
 });

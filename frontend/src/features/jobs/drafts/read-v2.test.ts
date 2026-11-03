@@ -90,7 +90,7 @@ const response = (questions: unknown = v2Questions()) => ({
   lifecycle: activeLifecycle,
   id: UUID,
   status: "draft",
-  principal_recruiter_id: UUID,
+  team: { mode: "with_responsible", responsible: { id: UUID, name: "Ana" }, members_count: 1, viewer_function: "responsible" },
   version: "1",
   created_at: timestamp,
   updated_at: timestamp,
@@ -172,6 +172,37 @@ describe("complete v2 private draft read envelope", () => {
     { fields: null },
     { fields: [] },
   ])("rejects invalid metadata %#", (patch) => rejects({ ...response(), ...patch }));
+});
+
+describe("v2 team summary", () => {
+  it("rejects legacy principal metadata with or without team", () => {
+    const legacy: Record<string, unknown> = { ...response() };
+    delete legacy.team;
+    rejects({ ...legacy, principal_recruiter_id: UUID });
+    rejects({ ...response(), principal_recruiter_id: UUID });
+  });
+
+  it.each([null, "responsible", "collaborator", "member"])("preserves viewer function %s", viewer_function => {
+    const input = { ...response(), team: { ...response().team, viewer_function } };
+    expect(draftReadEnvelopeV2Schema.parse(input)).toStrictEqual(input);
+  });
+
+  it("preserves a shared team without a responsible", () => {
+    const input = { ...response(), team: { mode: "shared", responsible: null, members_count: 3, viewer_function: null } };
+    expect(draftReadEnvelopeV2Schema.parse(input)).toStrictEqual(input);
+  });
+
+  it.each([
+    undefined, null, {},
+    ...Object.keys(response().team).map(key => ({ ...response().team, [key]: undefined })),
+    { ...response().team, mode: "principal" },
+    { ...response().team, responsible: { id: "bad", name: "Ana" } },
+    { ...response().team, responsible: { id: UUID } },
+    { ...response().team, responsible: { id: UUID, name: "Ana", extra: true } },
+    ...[-1, 1.5, "2"].map(members_count => ({ ...response().team, members_count })),
+    { ...response().team, viewer_function: "owner" },
+    { ...response().team, extra: true },
+  ])("rejects malformed team %#", team => rejects({ ...response(), team }));
 });
 
 describe("v2 screening questions inside the read envelope", () => {

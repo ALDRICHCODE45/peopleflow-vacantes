@@ -8,16 +8,17 @@ import { draftLanguagesSchema, draftRequesterSchema } from "./nested";
 import { draftRichDescriptionSchema } from "./rich/description";
 import { draftScalarFieldSchemas } from "./scalars";
 import { screeningQuestionsV2Schema } from "./screening-v2/model";
+import { draftTeamSummarySchema } from "./team-summary";
 
 /**
  * Complete decoded v2 read response for the private draft contract
  * (`docs/contracts/private-vacancy-drafts-v2-screening.md` §1, §3, §4.4, §5, §6).
  *
  * It composes the unchanged existing validators plus the approved v2 screening
- * question model: every v1 field is preserved and only two things change —
- * `schema_version` is exactly `2` and `fields.screening_questions` uses the
- * three-variant v2 question shape. The nested `description.schema_version`
- * stays `1`, all metadata is required, no omitted field is defaulted and
+ * question model: writable v1 fields are preserved, `schema_version` is exactly
+ * `2` and `fields.screening_questions` uses the three-variant v2 question shape.
+ * Vacancy-team v1 replaces principal metadata with a required `team` summary.
+ * The nested `description.schema_version` stays `1`, all metadata is required, no omitted field is defaulted and
  * server-derived text (`requester.name`, `description_plain`) is preserved, not
  * recalculated. The `ETag` remains a separate opaque transport header: it is
  * never part of this envelope and is never synthesized from these values.
@@ -84,7 +85,7 @@ export const draftReadEnvelopeV2Schema = z.object({
   lifecycle: lifecycleSchema,
   id: z.string().uuid(),
   status: z.literal("draft"),
-  principal_recruiter_id: z.string().uuid(),
+  team: draftTeamSummarySchema,
   version: versionSchema,
   created_at: timestampSchema,
   updated_at: timestampSchema,

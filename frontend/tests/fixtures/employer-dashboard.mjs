@@ -18,7 +18,7 @@ export function dashboardResponse(empty = false) {
   };
 }
 export function dashboardVacancies(empty = false) {
-  const row = { id: vacancyId, title: "Plataforma Dashboard", status: "published", process: "active", candidates: { total: 99, in_process: 5, discarded: 2, by_stage: [] }, work_mode: "remote", work_schedule: "full_time", requester: null, principal_recruiter: { id: actorId, name: "María Equipo" }, version: "1", created_at: "2026-10-20T12:00:00Z", updated_at: "2026-10-23T12:00:00Z", published_at: "2026-10-20T12:00:00Z", paused_at: null, closed_at: null, close_reason: null, close_reason_note: null, process_finished_at: null };
+  const row = { id: vacancyId, title: "Plataforma Dashboard", status: "published", process: "active", candidates: { total: 99, in_process: 5, discarded: 2, by_stage: [] }, work_mode: "remote", work_schedule: "full_time", requester: null, team: { mode: "with_responsible", responsible: { id: actorId, name: "María Equipo" }, members_count: 1, viewer_function: "responsible" }, version: "1", created_at: "2026-10-20T12:00:00Z", updated_at: "2026-10-23T12:00:00Z", published_at: "2026-10-20T12:00:00Z", paused_at: null, closed_at: null, close_reason: null, close_reason_note: null, process_finished_at: null };
   return { items: empty ? [] : [row, { ...row, id: actorId, title: "Vacante pausada", status: "paused", paused_at: "2026-10-23T12:00:00Z" }], next_cursor: null };
 }
 

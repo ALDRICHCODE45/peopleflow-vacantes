@@ -17,8 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { loadDraftDeliveryAction, saveDraftDeliveryAction, previewDraftDeliveryAction, type DraftDeliveryActionResult } from "@/features/jobs/drafts/pipeline/delivery-actions";
-import { adoptSaved, fromDelivery, isDirty, reconcileUncertainSave, setCommitmentDate, setCutoffStageId, setTargetText, toPutBody, validate, type Delivery, type DeliveryState } from "@/features/jobs/drafts/pipeline/delivery-model";
-import { DeliveryDateField } from "./date-field";
+import { adoptSaved, adoptCommitment, fromDelivery, isDirty, reconcileUncertainSave, setCommitmentDate, setCutoffStageId, setTargetText, toPutBody, validate, type Delivery, type DeliveryState } from "@/features/jobs/drafts/pipeline/delivery-model";
+import { DeliveryDateField, PublishedCommitmentField } from "./date-field";
+import { CommitmentDialog } from "./commitment-dialog";
 import { conflictNotice, deliveryFailureNotice, invalidNotice, recoveryLabels, savedNotice, type PipelineNotice } from "./feedback";
 
 type Session = { editor: DeliveryState; etag: string };
@@ -26,12 +27,16 @@ const noResponse = (): DraftDeliveryActionResult => ({ ok: false, reason: "no_re
 export function DeliveryEditor({ draftId, delivery, etag, stages, lifecycle }: {
   draftId: string; delivery: Delivery; etag: string; stages: { id: string; name: string }[]; lifecycle?: Lifecycle;
 }) {
-  const { readOnly, updateLifecycle } = useConfigLifecycle(lifecycle);
+  const { readOnly, updateLifecycle, lifecycle: currentLifecycle } = useConfigLifecycle(lifecycle);
+  const [publicationRace, setPublicationRace] = useState(false);
+  const published = publicationRace || currentLifecycle?.publication != null;
+  const [renegotiation, setRenegotiation] = useState(false);
+  const renegotiateButton = useRef<HTMLButtonElement>(null);
   const [frozen, setFrozen] = useState(false);
   const [confirmation, setConfirmation] = useState<{ snapshot: Session; preview: DeliveryPreview } | null>(null);
   const [session, setSession] = useState<Session>(() => ({ editor: fromDelivery(delivery), etag }));
   const current = useRef(session);
-  const [operation, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const [operation, setPending] = useState<"save" | "reload" | "check" | "commitment" | null>(null);
   const pending = readOnly ? "readonly" : operation;
   const busy = useRef(false);
   const mounted = useRef(true);
@@ -52,7 +57,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages, lifecycle }: {
   function replace(editor: DeliveryState, nextEtag = current.current.etag) {
     const next = { editor, etag: nextEtag }; current.current = next; setSession(next);
   }
-  function edit(editor: DeliveryState) { if (!readOnly && !busy.current && !confirmation) replace(editor); }
+  function edit(editor: DeliveryState) { if (!readOnly && !busy.current && !confirmation && !renegotiation) replace(editor); }
   function resetErrors() { setAttempted(false); setTargetTouched(false); setDateRejected(false); }
   function report(next: PipelineNotice, reference?: { status?: number; code?: string }) {
     setNotice(next);
@@ -79,7 +84,9 @@ export function DeliveryEditor({ draftId, delivery, etag, stages, lifecycle }: {
       return;
     }
     busy.current = true; setPending("save"); setNotice(null);
-    const body = toPutBody(snapshot.editor);
+    // PUT/preview require all three keys. After publication only the POST may change
+    // commitmentDate; other edits carry the currently stored date unchanged.
+    const body = toPutBody(published ? setCommitmentDate(snapshot.editor, snapshot.editor.baseline.commitmentDate) : snapshot.editor);
     if (!confirmed) {
       const preview = await previewDraftDeliveryAction({ draftId, body }).catch(noResponse);
       if (!mounted.current) return;
@@ -117,6 +124,10 @@ export function DeliveryEditor({ draftId, delivery, etag, stages, lifecycle }: {
     } else {
       setConfirmation(null);
       if (result.reason === "non_business_date") setDateRejected(true);
+      if (result.reason === "commitment_change_requires_renegotiation") {
+        setPublicationRace(true);
+        replace(setCommitmentDate(current.current.editor, current.current.editor.baseline.commitmentDate));
+      }
       report(deliveryFailureNotice(result), result.reference);
     }
     busy.current = false; setPending(null);
@@ -180,8 +191,9 @@ export function DeliveryEditor({ draftId, delivery, etag, stages, lifecycle }: {
           <FieldDescription id="delivery-target-description">Cuántos candidatos distintos tienes que entregar (1 a {state.limits.maxTargetQuantity}).</FieldDescription>
           {targetMessage && <FieldError id="delivery-target-error">{targetMessage}</FieldError>}
         </Field>
-        <DeliveryDateField state={state} disabled={pending !== null} error={dateRejected ? "non_business_day" : errors.commitmentDate}
-          onChange={value => { if (!busy.current) { edit(setCommitmentDate(current.current.editor, value)); setDateRejected(false); } }} />
+        {published ? <PublishedCommitmentField value={state.baseline.commitmentDate} action={<Button ref={renegotiateButton} type="button" variant="outline" className="min-h-10" disabled={pending !== null || !!confirmation} onClick={() => setRenegotiation(true)}>Renegociar fecha</Button>} />
+          : <DeliveryDateField state={state} disabled={pending !== null} error={dateRejected ? "non_business_day" : errors.commitmentDate}
+            onChange={value => { if (!busy.current) { edit(setCommitmentDate(current.current.editor, value)); setDateRejected(false); } }} />}
       </FieldGroup>
     </CardContent>
     <CardFooter className="border-t">
@@ -193,6 +205,13 @@ export function DeliveryEditor({ draftId, delivery, etag, stages, lifecycle }: {
       </ActionBar>
     </CardFooter>
   </Card>
+  {!readOnly && renegotiation && <CommitmentDialog draftId={draftId} state={state} etag={session.etag} finalFocus={renegotiateButton} onClose={() => setRenegotiation(false)}
+    onPendingChange={value => { busy.current = value; setPending(value ? "commitment" : null); }} onFinished={updateLifecycle}
+    onReloaded={result => { replace(adoptCommitment(current.current.editor, result.delivery), result.etag); resetErrors(); }}
+    onSaved={result => {
+      replace(adoptCommitment(current.current.editor, result.delivery), result.etag); resetErrors();
+      report({ tone: "success", title: "Fecha compromiso renegociada", description: "La nueva fecha quedó guardada en los movimientos de la vacante.", text: "Fecha compromiso renegociada" });
+    }} />}
   <ConfirmActionDialog open={!readOnly && !!confirmation} finalFocus={saveButton} onOpenChange={open => { if (!open && !busy.current) setConfirmation(null); }}
     icon={CircleCheckBig} title="¿Guardar y cumplir la entrega?" description="Con este cambio la entrega queda cumplida y su configuración se congela."
     confirmLabel="Guardar y cumplir" pendingLabel="Guardando…" pending={pending !== null} onConfirm={() => void persist(true)}>

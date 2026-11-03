@@ -121,11 +121,70 @@ describe("single application-facing request path", () => {
     expect(source(join(SRC, "app/api/company/manual-candidates/[vacancyId]/route.ts"))).not.toMatch(/\bfetch\(/);
   });
 
-  it.each(["features/employer-dashboard/client.ts", "features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts"])("keeps %s server-only through the shared transport", file => {
+  it.each(["features/employer-dashboard/client.ts", "features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts", "features/vacancy-team/api-client.ts", "features/vacancy-assignments/api-client.ts"])("keeps %s server-only through the shared transport", file => {
     const client = source(join(SRC, file));
     expect(client).toContain('import "server-only"');
     expect(client).toContain('from "@/lib/api/server"');
     expect(client).not.toMatch(/\bfetch\(/);
+  });
+
+  it("keeps own assignment history behind the authenticated read boundary", () => {
+    const client = source(join(SRC, "features/vacancy-assignments/api-client.ts"));
+    expect(client).toContain("/v2/me/vacancy-assignments/history");
+    expect(client).toContain("historySchema.parse(value)");
+    const actions = source(join(SRC, "features/vacancy-assignments/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+    expect(source(join(SRC, "features/vacancy-assignments/action-client.ts"))).not.toMatch(/\bfetch\(|lib\/api\/|lib\/auth\//);
+  });
+
+  it("keeps member preview and offboard under the authenticated membership boundary", () => {
+    const client = source(join(SRC, "features/employer-team/client.ts"));
+    expect(client).toContain('`/me/company/members/${id}/${write ? "offboard" : "offboard-preview"}`');
+    expect(client).toContain('"idempotency-key": write.key');
+    expect(client).toContain("offboardResultSchema.parse(value)");
+    const actions = source(join(SRC, "features/employer-team/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions).toContain("export async function previewOffboardAction");
+    expect(actions).toContain("export async function offboardMemberAction");
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+    const browser = source(join(SRC, "features/employer-team/offboard-action-client.ts"));
+    expect(browser).not.toMatch(/\bfetch\(|lib\/api\/|lib\/auth\//);
+  });
+
+  it("keeps all six team writes behind the authenticated server action and guarded transport", () => {
+    const client = source(join(SRC, "features/vacancy-team/api-client.ts"));
+    for (const path of ['"/members"', '`/members/${write.userId}/remove`', '`/members/${write.userId}`', '"/reassign-responsible"']) expect(client).toContain(path);
+    for (const header of ['"if-match"', '"idempotency-key"']) expect(client).toContain(header);
+    expect(client).toContain('write.kind === "mode" ? "PUT" : write.kind === "deadline" ? "PATCH" : "POST"');
+    const actions = source(join(SRC, "features/vacancy-team/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions.match(/export async function (\w+)/g)).toEqual([
+      "export async function writeTeamAction", "export async function loadTeamAction", "export async function loadTeamHistoryAction", "export async function loadTeamMembersAction", "export async function loadTeamCalendarAction",
+    ]);
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+  });
+
+  it("keeps placement credit reads and corrections on the authenticated participation boundary", () => {
+    const client = source(join(SRC, "features/pipeline-movement/client.ts"));
+    expect(client).toContain('import "server-only"');
+    expect(client).toContain('from "@/lib/api/server"');
+    expect(client).toContain('`participations/${input.participationId}/placement-credits`');
+    expect(client).toContain('/participations/${input.participationId}/placement-credits/${input.creditId}/${input.action}');
+    expect(client).toContain('"idempotency-key": input.idempotencyKey');
+    expect(client).not.toMatch(/\bfetch\(/);
+    const actions = source(join(SRC, "features/pipeline-movement/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions.match(/export async function (\w+)/g)).toEqual([
+      "export async function loadBoardAction", "export async function loadParticipationAction", "export async function loadHistoryAction",
+      "export async function loadPlacementCreditsAction", "export async function correctPlacementCreditAction", "export async function moveParticipationAction",
+      "export async function setParticipationSubstateAction", "export async function discardParticipationAction", "export async function recoverParticipationAction",
+    ]);
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
   });
 
   it("keeps corrected CV uploads on the bounded same-origin route and server actions behind the file client", () => {
@@ -204,8 +263,10 @@ describe("single application-facing request path", () => {
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
+      "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
+      "features/vacancy-team/api-client.ts",
       "lib/auth/backend-check.ts",
     ]);
     // The transport module is imported only by guarded API functions and the guarded façade.
@@ -248,8 +309,10 @@ describe("single application-facing request path", () => {
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
+      "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
+      "features/vacancy-team/api-client.ts",
       "lib/api/server.ts",
       "lib/auth/backend-check.ts",
     ]);

@@ -1,4 +1,4 @@
-import type { DiscardBody, DiscardReason } from "./model";
+import type { DiscardBody, DiscardReason, PlacementExitReason } from "./model";
 
 export const discardCatalog = [
   { group: "recruiter", label: "Decisión de la empresa", reasons: [
@@ -28,9 +28,9 @@ export function validateDiscardText(raw: string, limit: number, required = false
   const error = /[^\P{Cc}\n\t]/u.test(value) ? "control_character" : count > limit ? "too_long" : required && !count ? "required" : null;
   return { value, count, error };
 }
-export function buildDiscardBody(reason: DiscardReason, comment: string, message: string, placementExit = false): DiscardBody {
+export function buildDiscardBody(reason: DiscardReason, comment: string, message: string, placementExit?: PlacementExitReason): DiscardBody {
   const internal = validateDiscardText(comment, 1000, reason.key === "other");
   const candidate = validateDiscardText(message, 500);
   if (internal.error || candidate.error) throw new Error("Invalid discard text");
-  return { reason, ...(internal.value ? { comment: internal.value } : {}), ...(candidate.value ? { candidate_message: candidate.value } : {}), ...(placementExit ? { confirm_placement_exit: true } : {}) };
+  return { reason, ...(internal.value ? { comment: internal.value } : {}), ...(candidate.value ? { candidate_message: candidate.value } : {}), ...(placementExit ? { placement_exit_reason: placementExit } : {}) };
 }

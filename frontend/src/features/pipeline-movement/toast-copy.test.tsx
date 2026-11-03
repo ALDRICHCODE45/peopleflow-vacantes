@@ -66,6 +66,7 @@ it.each([
   const { result, board } = await mount(from);
   vi.mocked(moveParticipationAction).mockResolvedValue({ ok: true, data: response(board, to, required, covered) });
   await act(async () => result.current.requestMove("person", to));
+  if (from === "hire") act(() => result.current.chooseExitReason("candidate_left"));
   await act(async () => result.current.confirmMove());
   toast(title, description);
 });
@@ -78,7 +79,7 @@ it.each([
   const { result, board } = await mount(from);
   vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...response(board, "exit", 2, 0), discard: { reason, previous_stage_id: from, recovery_stage_id: from, discarded_at: "2026-10-18T12:00:00Z" } } });
   act(() => result.current.requestDisposition("person", "discard"));
-  const body: DiscardBody = { reason, ...(message ? { candidate_message: "Gracias por participar" } : {}) };
+  const body: DiscardBody = { reason, ...(from === "hire" ? { placement_exit_reason: "candidate_left" } : {}), ...(message ? { candidate_message: "Gracias por participar" } : {}) };
   await act(async () => result.current.confirmDisposition(body));
   toast("Descartaste a Ana Pérez", description);
 });

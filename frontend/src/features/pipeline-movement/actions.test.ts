@@ -16,7 +16,7 @@ it.each([[board, () => loadBoardAction(vacancyId)], [detail, () => loadParticipa
 });
 it.each([
   [422, "board_too_large"], [409, "vacancy_not_published"], [404, "not_found"], [409, "stage_skip_not_allowed"],
-  [409, "placement_exit_confirmation_required"], [400, "validation_error"], [400, "invalid_request"], [412, "version_conflict"],
+  [409, "placement_exit_reason_required"], [400, "validation_error"], [400, "invalid_request"], [412, "version_conflict"],
   [428, "precondition_required"], [503, "cv_storage_unavailable"], [401, "unauthenticated"], [403, "forbidden"],
 ] as const)("maps %s %s without forwarding error messages or retrying", async (status, reason) => {
   const fetch = vi.fn().mockResolvedValue(Response.json({ error: "private-token cookies", code: reason }, { status })); vi.stubGlobal("fetch", fetch);

@@ -1,0 +1,22 @@
+import { afterEach, expect, it, vi } from "vitest";
+vi.mock("./actions", () => ({ previewOffboardAction: vi.fn(), offboardMemberAction: vi.fn(), removeTeamMemberAction: vi.fn() }));
+import { offboardMemberAction } from "./actions";
+import { createOffboardApiClient } from "./offboard-action-client";
+import { members } from "./test-fixtures";
+afterEach(() => vi.resetAllMocks());
+it("freezes the UUID and body after an uncertain response, resets after a definitive rejection", async () => {
+  const client = createOffboardApiClient();
+  const body = { default_to_user_id: null, reassignments: [{ draft_id: members[0].id, to_user_id: members[0].user.id }] };
+  vi.mocked(offboardMemberAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValueOnce({ ok: false, reason: "invalid_request", reference: { status: 422, code: "not_company_member" } }).mockResolvedValueOnce({ ok: true, data: { user_id: members[1].user.id, handed_over: [], ended_assignment_ids: [] } });
+  await expect(client.offboard(members[1].id, body)).rejects.toMatchObject({ status: 0 });
+  const first = structuredClone(vi.mocked(offboardMemberAction).mock.calls[0]);
+  body.reassignments[0].to_user_id = members[1].user.id;
+  await expect(client.offboard(members[1].id, body)).rejects.toMatchObject({ code: "not_company_member" });
+  expect(vi.mocked(offboardMemberAction).mock.calls[1]).toEqual(first);
+  expect(first[1]).toEqual({ default_to_user_id: undefined, reassignments: [{ draft_id: members[0].id, to_user_id: members[0].user.id }] });
+  expect(first[2]).toMatch(/^[0-9a-f-]{36}$/);
+  await client.offboard(members[1].id, body);
+  const third = vi.mocked(offboardMemberAction).mock.calls[2];
+  expect(third[2]).not.toBe(first[2]);
+  expect(third[1]).toMatchObject({ reassignments: body.reassignments });
+});

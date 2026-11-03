@@ -14,7 +14,7 @@ it.each([
   expect(membersSchema.safeParse({ members: [member] }).success).toBe(false);
 });
 it("matches workload by user id, only published/paused and unfinished", () => {
-  const rows = [draft("a"), draft("b", { status: "paused" }), draft("c", { status: "draft", candidates: null }), draft("d", { status: "closed" }), draft("e", { process: "finished" }), draft("f", { principal_recruiter: { id: members[1].id, name: "José Real" } })];
+  const rows = [draft("a"), draft("b", { status: "paused" }), draft("c", { status: "draft", candidates: null }), draft("d", { status: "closed" }), draft("e", { process: "finished" }), draft("f", { team: { mode: "with_responsible", responsible: { id: members[1].id, name: "José Real" }, members_count: 1, viewer_function: null } }), draft("g", { team: { mode: "shared", responsible: null, members_count: 2, viewer_function: "member" } })];
   expect(memberWorkload(members[1], rows)).toEqual({ ownedVacancies: 2, inProcessCandidates: 6 });
   expect(memberWorkload(members[0], rows)).toEqual({ ownedVacancies: 0, inProcessCandidates: 0 });
   expect(memberWorkload({ ...members[1], user: null }, rows)).toBeNull();
@@ -24,7 +24,7 @@ it("protects own row, recruiter access, unknown identity and the only owner", ()
   expect(memberRowActions(members[0], members, "owner", members[1].user.id)).toEqual([]);
   expect(memberRowActions(members[1], members, "recruiter", selfId)).toEqual([]);
   expect(memberRowActions(members[1], members, "owner", null)).toEqual([]);
-  expect(memberRowActions(members[1], members, "owner", selfId)).toEqual([{ kind: "role", role: "owner", label: "Cambiar a Dueño" }, { kind: "remove", label: "Quitar del equipo" }]);
+  expect(memberRowActions(members[1], members, "owner", selfId)).toEqual([{ kind: "role", role: "owner", label: "Hacer dueño" }, { kind: "remove", label: "Quitar" }]);
   const owners = members.map(member => ({ ...member, role: "owner" as const }));
-  expect(memberRowActions(owners[1], owners, "owner", selfId)[0]).toEqual({ kind: "role", role: "recruiter", label: "Cambiar a Reclutador" });
+  expect(memberRowActions(owners[1], owners, "owner", selfId)[0]).toEqual({ kind: "role", role: "recruiter", label: "Hacer reclutador" });
 });

@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { NavUser } from "./nav-user";
+import { NavUser, assignmentHistoryMenuItem } from "./nav-user";
 import { SidebarProvider } from "./ui/sidebar";
 
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
@@ -62,6 +62,7 @@ function renderNavUser() {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("company dashboard account summary identity", () => {
@@ -197,6 +198,29 @@ describe("company dashboard account menu labels", () => {
     // Two grouped blocks split by the two separators: same menu geometry.
     expect(source.match(/<DropdownMenuGroup>/g)).toHaveLength(2);
     expect(source.match(/<DropdownMenuSeparator \/>/g)).toHaveLength(2);
+  });
+});
+
+describe("own assignment history account entry", () => {
+  it.each([undefined, "0", "other"])("has no item with flag %s", flag => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", flag);
+    expect(assignmentHistoryMenuItem("recruiter")).toBeNull();
+  });
+  it.each(["1", "api"])("adds one employer-only destination with flag %s", flag => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", flag);
+    expect(assignmentHistoryMenuItem("recruiter")).toMatchObject({ title: "Mi historial de vacantes", href: "/empresa/mi-historial" });
+    expect(assignmentHistoryMenuItem("candidate")).toBeNull();
+    expect(assignmentHistoryMenuItem(null)).toBeNull();
+    expect(source).toContain("{historyItem &&");
+    expect(source).toContain("whitespace-nowrap");
+    expect(source).toContain("<History aria-hidden");
+  });
+  it.each(["1", "api"])("never appears in production for %s", flag => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", flag);
+    expect(assignmentHistoryMenuItem("recruiter")).toBeNull();
   });
 });
 

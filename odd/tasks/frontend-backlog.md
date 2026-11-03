@@ -23,6 +23,10 @@ pushed 2026-11-02 (`saved-vacancies.md`, `vacancy-detail-explore.md`): saved vac
   aside above. Consider a bookmark in the bar if users ask.
 - **«Deshacer» after removing a saved vacancy** re-saves with a new `saved_at`, so the row moves to the top of its group
   (contract v1 behavior). Restoring the original order needs a backend change.
+- **«Mi historial de vacantes»: total al pie** (2026-11-03, option A, not requested yet): show «Mostrando 20 de 34
+  vacantes» next to «Cargar más», like the Base de talento table. Needs the backend to return a total.
+- **Vacancy team notifications** (`docs/product/next-three-features.md`, Q12, 2026-11-02): no notice when a vacancy is
+  reassigned or a member is added in v1. On the radar: in-app notices first, then email once SES exists.
 - **Competitor AI opportunities** (`docs/research/competidores-ia-2026-10.md`): evidence-guided async interview,
   recruiter copilot, stage automations, WhatsApp first contact, shift/branch volume — on the radar, nothing decided.
 
@@ -41,6 +45,14 @@ pushed 2026-11-02 (`saved-vacancies.md`, `vacancy-detail-explore.md`): saved vac
   grammar. Deferred by the user (2026-10-23).
 
 ## Known issues
+
+- **Full-suite timeout in `components/ui/combobox.test.tsx`** («mounts the portal popup …», 2026-11-03): times out
+  under full-suite load with two vitest-worker RPC timeouts; passes 29/29 alone. Not caused by vacancy team (the file
+  is untouched). Make it lighter like the 2026-10-28 flaky fixes (no raised timeouts).
+- **Run frontend checks with Node 22** (2026-11-03): the shell defaults to Node 25, whose global `localStorage` breaks
+  jsdom suites. Use `.nvmrc` (22) before vitest/build.
+- **Vacancy team ships behind `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE`** (`odd/tasks/vacancy-team.md` L37): production
+  shows nothing new until the flag handling is removed and the backend branch is deployed together.
 
 - **Next 16 upgrade** — blocked by hosting: Amplify Hosting supports Next 12–15 only (design D1). Next 16 also fixes
   the lost `/vacantes` navigations at the router level (`next-16-upgrade.md`); revisit when Amplify supports it. Known

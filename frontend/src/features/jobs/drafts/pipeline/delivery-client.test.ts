@@ -3,11 +3,53 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/api/server", async () => await import("@/lib/api/requestJson"));
 const env = vi.hoisted(() => ({ reads: 0 }));
 vi.mock("@/lib/env/server", () => ({ get serverEnv() { env.reads++; return { apiBaseUrl: "http://localhost:8080/api/v1/", apiTimeoutMs: 8000 }; } }));
-import { getDraftDelivery, saveDraftDelivery } from "./delivery-client";
+import { getDraftDelivery, saveDraftDelivery, renegotiateDraftCommitment } from "./delivery-client";
 const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"opaque-delivery+/="';
 const delivery = { fulfilled: false, version: "0", cutoffStageId: null, targetQuantity: null, commitmentDate: null, limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: ["2026-10-17", "2026-10-18"] } };
 const body = { cutoffStageId: draftId, targetQuantity: 5, commitmentDate: "2026-10-19" };
+const commitment = { commitment_date: "2026-11-30", reason: "other", note: "Nuevo alcance" };
+const key = "0198f5a2-7c1b-4ddd-9c2e-3f4a5b6c7d8e";
+it("POSTs commitment with delivery ETag, UUID key, exact body and decodes the new delivery", async () => {
+  const data = { ...delivery, commitmentDate: commitment.commitment_date, version: "1" };
+  const fetch = response(data, 200, '"next"');
+  expect(await renegotiateDraftCommitment({ token: " secret ", draftId, ifMatch: etag, idempotencyKey: key, body: commitment })).toEqual({ ok: true, data, etag: '"next"' });
+  const [url, init] = fetch.mock.calls[0];
+  expect(url).toBe(`http://localhost:8080/v2/me/company/job-drafts/${draftId}/commitment`);
+  expect(init).toMatchObject({ method: "POST", redirect: "error", cache: "no-store", body: JSON.stringify(commitment) });
+  expect(Object.fromEntries(new Headers(init.headers))).toEqual({ accept: "application/json", "content-type": "application/json", authorization: "Bearer secret", "if-match": etag, "idempotency-key": key });
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+it.each([{ ...commitment, reason: "unknown" }, { ...commitment, note: " " }, { ...commitment, note: "x".repeat(501) }, { ...commitment, commitment_date: "2026-02-30" }])("rejects invalid commitment before fetch %#", async body => {
+  const fetch = response(delivery);
+  expect(await renegotiateDraftCommitment({ token: "x", draftId, ifMatch: etag, idempotencyKey: key, body })).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
+  expect(fetch).not.toHaveBeenCalled(); expect(env.reads).toBe(0);
+});
+it("rejects a delivery PUT missing commitmentDate, which must be carried unchanged after publication", async () => {
+  const fetch = response(delivery); const body = { cutoffStageId: null, targetQuantity: 5 };
+  expect(await saveDraftDelivery({ token: "x", draftId, ifMatch: etag, body })).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
+  expect(fetch).not.toHaveBeenCalled(); expect(env.reads).toBe(0);
+});
+it.each(["client_request", "scope_change", "internal_delay", "other"])("accepts commitment reason %s and a 500-character note", async reason => {
+  const fetch = response(delivery); const body = { commitment_date: "2026-11-30", reason, note: "x".repeat(500) };
+  expect(await renegotiateDraftCommitment({ token: "x", draftId, ifMatch: etag, idempotencyKey: key, body })).toMatchObject({ ok: true });
+  expect(fetch.mock.calls[0][1].body).toBe(JSON.stringify(body));
+});
+it.each([{ idempotencyKey: "bad" }, { ifMatch: " " }, { token: " " }, { draftId: "bad" }])("guards commitment headers/identity before transport %#", async patch => {
+  const fetch = response(delivery);
+  expect(await renegotiateDraftCommitment({ token: "x", draftId, ifMatch: etag, idempotencyKey: key, body: commitment, ...patch })).toMatchObject({ ok: false });
+  expect(fetch).not.toHaveBeenCalled(); expect(env.reads).toBe(0);
+});
+it.each([[409, "vacancy_not_published"], [409, "delivery_not_configured"], [409, "commitment_unchanged"], [422, "commitment_note_required"], [412, "version_conflict"]] as const)("preserves POST %s %s without retry", async (status, code) => {
+  const envelope = { error: "unsafe", code }; const fetch = response(envelope, status);
+  expect(await renegotiateDraftCommitment({ token: "x", draftId, ifMatch: etag, idempotencyKey: key, body: commitment })).toMatchObject({ ok: false, error: { status, retryable: false }, envelope });
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+it("POST requires the new delivery ETag and never retries an unrecognized response", async () => {
+  const fetch = response(delivery, 200, null);
+  expect(await renegotiateDraftCommitment({ token: "x", draftId, ifMatch: etag, idempotencyKey: key, body: commitment })).toMatchObject({ ok: false, error: { kind: "invalid_response", retryable: false } });
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
 function response(data: unknown, status = 200, tag: string | null = etag) {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(data), { status, headers: tag === null ? {} : { etag: tag } }));
   vi.stubGlobal("fetch", fetch); return fetch;
@@ -72,7 +114,7 @@ for (const method of ["GET", "PUT"] as const) describe(method, () => {
     expect(result).toEqual({ ok: false, error: { kind, retryable: false } }); expect(fetch).not.toHaveBeenCalled(); expect(env.reads).toBe(0);
   });
 });
-it.each([null, {}, { ...body, extra: true }, { cutoffStageId: null, targetQuantity: null }, { ...body, targetQuantity: "5" }, { ...body, targetQuantity: 1.5 }, { ...body, cutoffStageId: "bad" }, { ...body, commitmentDate: "2026-02-30" }])("guards invalid PUT %# before env", async invalidBody => {
+it.each([null, {}, { ...body, extra: true }, { ...body, targetQuantity: "5" }, { ...body, targetQuantity: 1.5 }, { ...body, cutoffStageId: "bad" }, { ...body, commitmentDate: "2026-02-30" }])("guards invalid PUT %# before env", async invalidBody => {
   const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); expect(await saveDraftDelivery({ token: "x", draftId, ifMatch: etag, body: invalidBody })).toEqual({ ok: false, error: { kind: "invalid_request", retryable: false } }); expect(fetch).not.toHaveBeenCalled(); expect(env.reads).toBe(0);
 });
 it.each(["", "   "])("guards blank If-Match %j", async ifMatch => { const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); expect(await saveDraftDelivery({ token: "x", draftId, ifMatch, body })).toMatchObject({ ok: false, error: { kind: "invalid_request" } }); expect(env.reads).toBe(0); expect(fetch).not.toHaveBeenCalled(); });

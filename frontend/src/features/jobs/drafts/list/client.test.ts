@@ -5,7 +5,7 @@ const env = vi.hoisted(() => ({ reads: 0 }));
 vi.mock("@/lib/env/server", () => ({ get serverEnv() { env.reads++; return { apiBaseUrl: "http://localhost:8080/api/v1/", apiTimeoutMs: 8000 }; } }));
 const id = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const candidates = { total: 4, in_process: 2, discarded: 1, by_stage: [{ id, kind: "new", name: "Nuevos", count: 1 }, { id, kind: "custom", name: "Prueba", count: 2 }] };
-const row = { close_reason: null, close_reason_note: null, candidates: null, paused_at: null, closed_at: null, process_finished_at: null, id, status: "draft", process: null, published_at: null, title: "Analista", work_mode: null, work_schedule: null, requester: { kind: "client", id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
+const row = { close_reason: null, close_reason_note: null, candidates: null, paused_at: null, closed_at: null, process_finished_at: null, id, status: "draft", process: null, published_at: null, title: "Analista", work_mode: null, work_schedule: null, requester: { kind: "client", id, name: "Acme" }, team: { mode: "with_responsible", responsible: { id, name: "Ana" }, members_count: 1, viewer_function: "responsible" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
 function response(body: unknown, status = 200) { const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status })); vi.stubGlobal("fetch", fetch); return fetch; }
 afterEach(() => { vi.unstubAllGlobals(); env.reads = 0; });
 it.each([null, "filled", "cancelled", "other"])("accepts close reason %s in company list", async reason => {
@@ -22,7 +22,9 @@ it.each([
  row, { ...row, candidates, status: "published", process: "active", paused_at: "2026-10-16T12:00:00.123456Z", closed_at: "2026-10-17T12:00:00Z", process_finished_at: "2026-10-18T12:00:00Z" }, { ...row, candidates: { total: 0, in_process: 0, discarded: 0, by_stage: ["new", "screening", "screening_ok", "custom", "in_process", "placement"].map(kind => ({ id, kind, name: kind, count: 0 })) }, status: "published", process: "active" }, { ...row, candidates, status: "paused", process: "active" }, { ...row, candidates, status: "closed", process: "active" }, { ...row, candidates, status: "closed", process: "finished" }, { ...row, candidates, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z" }, ...["onsite", "remote", "hybrid"].map(work_mode => ({ ...row, work_mode })),
  ...["full_time", "part_time"].map(work_schedule => ({ ...row, work_schedule })), { ...row, title: null }, { ...row, requester: null },
  { ...row, requester: { kind: "internal_area", id: null, name: null } },
- { ...row, principal_recruiter: { id, name: null } },
+ { ...row, team: { ...row.team, responsible: { id, name: null } } },
+ { ...row, team: { mode: "shared", responsible: null, members_count: 3, viewer_function: "member" } },
+ ...[null, "responsible", "collaborator", "member"].map(viewer_function => ({ ...row, team: { ...row.team, viewer_function } })),
 ])("accepts S2 row %# without rewriting", async item => {
  const { listDrafts } = await import("./client");
  response({ items: [item], next_cursor: null });
@@ -45,9 +47,20 @@ it.each([
  { ...row, work_mode: undefined }, { ...row, work_schedule: undefined },
  { ...row, work_mode: "elsewhere" }, { ...row, work_schedule: "contract" },
  { ...row, extra: true }, { ...row, id: "bad" },
- { ...row, principal_recruiter: { id: "bad", name: null } },
+ { ...row, team: undefined },
+ { ...row, team: undefined, principal_recruiter: { id, name: "Ana" } },
+ { ...row, principal_recruiter: { id, name: "Ana" } },
+ ...[null, {},
+   ...Object.keys(row.team).map(key => ({ ...row.team, [key]: undefined })),
+   { ...row.team, mode: "principal" },
+   { ...row.team, responsible: { id: "bad", name: null } },
+   { ...row.team, responsible: { id } },
+   ...[-1, 1.5, "2"].map(members_count => ({ ...row.team, members_count })),
+   { ...row.team, viewer_function: "owner" },
+   { ...row.team, extra: true },
+ ].map(team => ({ ...row, team })),
  { ...row, requester: { kind: "client", id, name: "Acme", extra: true } },
- { ...row, principal_recruiter: { id, name: "Ana", extra: true } },
+ { ...row, team: { ...row.team, responsible: { id, name: "Ana", extra: true } } },
  { ...row, version: "0" }, { ...row, version: "01" }, { ...row, version: 1 },
  { ...row, created_at: "2026-10-15" }, { ...row, updated_at: "not a date" },
  { ...row, id: `${id}\n` }, { ...row, version: "7\n" },

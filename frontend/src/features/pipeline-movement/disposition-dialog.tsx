@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { buildDiscardBody, discardCatalog, validateDiscardText } from "./discard-text";
 import type { Notice } from "./board-feedback";
-import type { Board, DiscardBody, DiscardReason, RecoverBody } from "./model";
+import type { Board, DiscardBody, DiscardReason, RecoverBody, PlacementExitReason } from "./model";
+import { PlacementExitField } from "./placement-exit-field";
 import { recoverySelection } from "./recovery";
 import type { Disposition } from "./use-movement-board";
 
@@ -22,6 +23,7 @@ function textError(error: ReturnType<typeof validateDiscardText>["error"], limit
 }
 export function DispositionDialog({ disposition, board, pending, stale, reading, notice, onClose, onConfirm, finalFocus }: Props) {
   const [choice, setChoice] = useState<string | null>(null);
+  const [exitReason, setExitReason] = useState<PlacementExitReason>();
   const [returnChoice, setReturnChoice] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [message, setMessage] = useState("");
@@ -56,7 +58,8 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
     if (!reason) { reasonControl.current?.focus(); return; }
     if (internal.error) { commentControl.current?.focus(); return; }
     if (candidate.error) { messageControl.current?.focus(); return; }
-    onConfirm(buildDiscardBody(reason, comment, message));
+    if (disposition.placementConfirmation && !exitReason) return;
+    onConfirm(buildDiscardBody(reason, comment, message, disposition.placementConfirmation ? exitReason : undefined));
   }
   const consequence = discarding
     ? "Su postulación pasa a Finalizada. El motivo y el comentario interno no se comparten con el candidato."
@@ -70,8 +73,9 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
   return <ConfirmActionDialog icon={discarding ? UserX : disposition.placementConfirmation ? BadgeCheck : Undo2} open onOpenChange={open => { if (!open) onClose(); }} finalFocus={finalFocus}
     title={`¿${discarding ? "Descartar" : "Recuperar"} a ${disposition.item.candidate.full_name}?`} description={consequence + coverage}
     confirmLabel={discarding ? "Descartar candidato" : "Recuperar"} pendingLabel={discarding ? "Descartando…" : "Recuperando…"}
-    tone={discarding ? "destructive" : "default"} pending={pending} confirmDisabled={stale || reading || (!discarding && recovery.required && !recovery.stages.some(stage => stage.id === returnStage))} onConfirm={confirm}>
+    tone={discarding ? "destructive" : "default"} pending={pending} confirmDisabled={stale || reading || (discarding && disposition.placementConfirmation && !exitReason) || (!discarding && recovery.required && !recovery.stages.some(stage => stage.id === returnStage))} onConfirm={confirm}>
       {discarding ? <><FieldGroup>
+        {disposition.placementConfirmation && <PlacementExitField value={exitReason} onChange={setExitReason} disabled={pending} />}
         <Field data-invalid={attempted && !reason} data-disabled={pending}>
           <FieldLabel htmlFor="discard-reason"><ListChecks aria-hidden="true" className="size-3.5" />Motivo</FieldLabel>
           <Select items={options} value={choice} onValueChange={setChoice} disabled={pending}>

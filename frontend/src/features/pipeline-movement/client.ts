@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
-import { boardSchema, detailSchema, historySchema, moveBodySchema, moveSchema, substateBodySchema, discardBodySchema, recoverBodySchema, errorEnvelopeSchema, uuidSchema, etagSchema, type Board, type History, type Move, type ParticipationDetail } from "./model";
+import { placementCreditSchema, placementCreditsSchema, type PlacementCredit, type PlacementCredits, boardSchema, detailSchema, historySchema, moveBodySchema, moveSchema, substateBodySchema, discardBodySchema, recoverBodySchema, errorEnvelopeSchema, uuidSchema, etagSchema, type Board, type History, type Move, type ParticipationDetail } from "./model";
 import { validateDiscardText } from "./discard-text";
 export type ReadInput = { token: string; vacancyId: string };
 export type ParticipationInput = ReadInput & { participationId: string };
@@ -29,6 +29,22 @@ export async function getBoard(input: ReadInput): Promise<ClientResult<Board>> {
 }
 export async function getParticipation(input: ParticipationInput): Promise<ClientResult<ParticipationDetail>> {
   return guard(input) ?? request(input, `participations/${input.participationId}`, detailSchema);
+}
+export async function getPlacementCredits(input: ParticipationInput): Promise<ClientResult<PlacementCredits>> {
+  return guard(input) ?? request(input, `participations/${input.participationId}/placement-credits`, placementCreditsSchema);
+}
+export type CreditInput = ParticipationInput & { creditId: string; action: "void" | "restore"; idempotencyKey: string };
+/** Credit corrections use a UUID replay key, not the participation ETag. Never retry implicitly. */
+export async function correctPlacementCredit(input: CreditInput): Promise<ClientResult<PlacementCredit>> {
+  const failure = guard(input); if (failure) return failure;
+  if (!uuidSchema.safeParse(input.creditId).success || !uuidSchema.safeParse(input.idempotencyKey).success || !["void", "restore"].includes(input.action)) return invalid("invalid_request");
+  const { serverEnv } = await import("@/lib/env/server");
+  const result = await requestJson(new URL(`/v2/me/company/job-drafts/${input.vacancyId}/participations/${input.participationId}/placement-credits/${input.creditId}/${input.action}`, serverEnv.apiBaseUrl).toString(), {
+    method: "POST", headers: { authorization: `Bearer ${input.token.trim()}`, "idempotency-key": input.idempotencyKey }, body: {},
+    redirect: "error", expectedStatus: 200, timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
+    decoder: value => placementCreditSchema.parse(value), errorDecoder: value => errorEnvelopeSchema.parse(value),
+  });
+  return result.ok ? { ok: true, data: result.data } : { ...result, error: { ...result.error, retryable: false } };
 }
 export async function getHistory(input: ParticipationInput): Promise<ClientResult<History>> {
   return guard(input) ?? request(input, `participations/${input.participationId}/history`, historySchema);

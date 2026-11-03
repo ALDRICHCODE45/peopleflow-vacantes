@@ -17,6 +17,11 @@ beforeEach(() => { vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); vi.
 function respond(data: unknown = view, status = 200, headers = { etag, "idempotency-replayed": "false" }) { fetchMock.mockImplementation(async () => new Response(JSON.stringify(data), { status, headers })); }
 
 describe("lifecycle contract", () => {
+  it("explains responsible_required when reopening without an active responsible", async () => {
+    respond({ error: "private", code: "responsible_required" }, 409);
+    expect(await transitionLifecycleAction({ ...input, action: "reopen", body: {} })).toEqual({ ok: false, reason: "responsible_required", message: "Antes de reabrir, asigna un responsable en Configuración › Equipo.", reference: { status: 409, code: "responsible_required" } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it.each([2, null])("maps close coverage rejection with target %s", async required => {
     respond({ error: "private", code: "close_reason_not_covered", data: { covered: 1, required } }, 422);
     expect(await transitionLifecycleAction({ ...input, action: "close", body: { process: "continue", reason: "filled", reason_note: null } })).toMatchObject({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required }, message: required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Hay 1 de 2 posiciones cubiertas." });

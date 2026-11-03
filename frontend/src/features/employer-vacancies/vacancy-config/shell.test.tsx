@@ -6,6 +6,8 @@ import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/dr
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
 import { VACANCY_CONFIG_MODULES, VacancyConfigShell } from "./shell";
+import { loadTeamAction } from "@/features/vacancy-team/actions";
+vi.mock("@/features/vacancy-team/actions", () => ({ loadTeamAction: vi.fn() }));
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
@@ -134,6 +136,31 @@ it("ignores the previous vacancy's late draft result", async () => {
   await act(async () => resolve(success));
   expect(screen.queryByText("Contenido del apartado")).not.toBeInTheDocument();
   expect(screen.queryByText("Borrador")).not.toBeInTheDocument();
+});
+it("registers Equipo only with explicit server opt-in without changing existing navigation", async () => {
+  vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/equipo`);
+  render(<VacancyConfigShell draftId={read.id} teamPrototypeEnabled><p>Equipo</p></VacancyConfigShell>);
+  const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
+  expect(within(nav).getAllByRole("link")).toHaveLength(6);
+  const team = within(nav).getByRole("link", { name: /Equipo/ });
+  expect(team).toHaveTextContent("Personas, funciones y movimientos de la vacante.");
+  expect(team).toHaveAttribute("aria-current", "page");
+  expect(team).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/equipo`);
+  expect(team).toHaveClass("bg-card", "ring-1", "min-h-10");
+});
+it("recognizes ended access at the draft gate only in api mode", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: false, reason: "not_found" });
+  vi.mocked(loadTeamAction).mockResolvedValue({ ok: false, code: "team_access_ended", status: 404 });
+  render(<VacancyConfigShell draftId={read.id} teamPrototypeEnabled teamApiEnabled><p>Private team</p></VacancyConfigShell>);
+  expect(await screen.findByRole("heading", { name: "Ya no formas parte del equipo de esta vacante" })).toBeVisible();
+  expect(screen.queryByText("Private team")).not.toBeInTheDocument();
+  expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+});
+it("preserves generic configuration not-found in api mode", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: false, reason: "not_found" });
+  vi.mocked(loadTeamAction).mockResolvedValue({ ok: false, code: "not_found", status: 404 });
+  render(<VacancyConfigShell draftId={read.id} teamApiEnabled><p>Private team</p></VacancyConfigShell>);
+  expect(await screen.findByRole("heading", { name: "No encontramos este borrador" })).toBeVisible();
 });
 it("handles rejected draft reads safely", async () => {
   vi.mocked(loadDraftForEditAction).mockRejectedValueOnce(new Error("network"));

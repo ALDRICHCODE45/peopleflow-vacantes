@@ -10,5 +10,5 @@ export const dashboard: Dashboard = {
 };
 export const publishedVacancy: DraftListRow = {
   id: vacancyId, title: "Plataforma real", status: "published", process: "active", candidates: { total: 99, in_process: 5, discarded: 2, by_stage: [] },
-  work_mode: "remote", work_schedule: "full_time", principal_recruiter: { id: personId, name: "María Equipo" }, requester: null, version: "1", created_at: "2026-10-20T12:00:00Z", updated_at: "2026-10-23T12:00:00Z", published_at: "2026-10-20T12:00:00Z", paused_at: null, closed_at: null, close_reason: null, close_reason_note: null, process_finished_at: null,
+  work_mode: "remote", work_schedule: "full_time", team: { mode: "with_responsible", responsible: { id: personId, name: "María Equipo" }, members_count: 1, viewer_function: "responsible" }, requester: null, version: "1", created_at: "2026-10-20T12:00:00Z", updated_at: "2026-10-23T12:00:00Z", published_at: "2026-10-20T12:00:00Z", paused_at: null, closed_at: null, close_reason: null, close_reason_note: null, process_finished_at: null,
 };
