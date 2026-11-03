@@ -51,6 +51,7 @@ type routerDeps struct {
 	draftHandler         *jobshttp.DraftHandler
 	draftV2Handler       *jobshttp.DraftV2Handler
 	teamHandler          *jobshttp.TeamHandler
+	offboardHandler      *jobshttp.OffboardHandler
 	dashboardHandler     *jobshttp.DashboardHandler
 	draftListHandler     *jobshttp.DraftListHandler
 	pipelineHandler      *jobshttp.PipelineHandler
@@ -231,7 +232,13 @@ func newRouter(d routerDeps) chi.Router {
 		r.With(d.requireRecruiter).Get("/company/members", handlers.ListMembers)
 		r.With(d.requireOwner).Post("/company/members", handlers.AddMember)
 		r.With(d.requireOwner).Patch("/company/members/{id}", handlers.UpdateMemberRole)
-		r.With(d.requireOwner).Delete("/company/members/{id}", handlers.RemoveMember)
+		removeMember := handlers.RemoveMember
+		if d.offboardHandler != nil {
+			removeMember = d.offboardHandler.Serve("remove")
+		}
+		r.With(d.requireOwner).Delete("/company/members/{id}", removeMember)
+		r.With(d.requireOwner).Get("/company/members/{id}/offboard-preview", d.offboardHandler.Serve("preview"))
+		r.With(d.requireOwner).Post("/company/members/{id}/offboard", d.offboardHandler.Serve("offboard"))
 
 		// Companies-write (WU6): owner-only, no shadowing mount.
 		r.With(d.requireOwner).Patch("/company", companyHandlers.UpdateCompany)

@@ -359,54 +359,11 @@ func (s *Store) WriteTeam(ctx context.Context, company, actor, id uuid.UUID, w v
 				}
 			}
 		}
-		snapshot, err := s.teamSnapshot(ctx, tx, id, *responsible, now)
+		meta, err = s.reassignResponsible(ctx, tx, id, company, actor, *responsible, members, input, now)
 		if err != nil {
 			return drafts.Result{}, err
 		}
-		reassignment := uuid.Must(uuid.NewV7())
-		if input.Previous == "remove" {
-			if err := endTeamAssignment(ctx, tx, *responsible, actor, "reassigned", &reassignment, now); err != nil {
-				return drafts.Result{}, err
-			}
-		} else {
-			if err := closeTeamFunction(ctx, tx, responsible.ID, "reassignment", now); err != nil {
-				return drafts.Result{}, err
-			}
-			if err := openTeamFunction(ctx, tx, id, responsible.ID, "collaborator", "reassignment", now); err != nil {
-				return drafts.Result{}, err
-			}
-		}
-		var to *activeAssignment
-		for i := range members {
-			if members[i].User == input.UserID {
-				to = &members[i]
-			}
-		}
-		toID := uuid.Must(uuid.NewV7())
-		if to != nil {
-			toID = to.ID
-			if err := closeTeamFunction(ctx, tx, toID, "reassignment", now); err != nil {
-				return drafts.Result{}, err
-			}
-			if err := openTeamFunction(ctx, tx, id, toID, "responsible", "reassignment", now); err != nil {
-				return drafts.Result{}, err
-			}
-		} else {
-			if err := openTeamAssignment(ctx, tx, id, company, input.UserID, actor, toID, "responsible", "reassignment", input.Deadline, now); err != nil {
-				return drafts.Result{}, err
-			}
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO vacancy_reassignments(id,draft_id,company_id,from_assignment_id,to_assignment_id,reason,note,previous_responsible,performed_by,performed_at,state_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, reassignment, id, company, responsible.ID, toID, input.Reason, input.Note, input.Previous, actor, now, snapshot); err != nil {
-			return drafts.Result{}, err
-		}
 		event = "VacancyResponsibleReassigned"
-		meta["reassignment_id"] = reassignment.String()
-		meta["from_user_id"] = responsible.User.String()
-		meta["to_user_id"] = input.UserID.String()
-		meta["from_assignment_id"] = responsible.ID.String()
-		meta["to_assignment_id"] = toID.String()
-		meta["reason"] = input.Reason
-		meta["previous_responsible"] = input.Previous
 	}
 	if _, err := tx.Exec(ctx, `UPDATE vacancy_teams SET mode=$2,version=version+1,updated_at=$3 WHERE draft_id=$1`, id, mode, now); err != nil {
 		return drafts.Result{}, err

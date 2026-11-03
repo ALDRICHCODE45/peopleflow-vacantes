@@ -1504,7 +1504,14 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 			if !ok {
 				return true
 			}
-			if wc, isCall := sel.X.(*ast.CallExpr); isCall && (sel.Sel.Name == "Get" || sel.Sel.Name == "Mount") &&
+			memberOffboard := (sel.Sel.Name == "Get" && strings.Trim(path, `"`) == "/company/members/{id}/offboard-preview") || (sel.Sel.Name == "Post" && strings.Trim(path, `"`) == "/company/members/{id}/offboard")
+			if memberOffboard {
+				wc, ok := sel.X.(*ast.CallExpr)
+				if !ok || !isWithCall(wc) || len(wc.Args) != 1 || !isSelectorOnReceiver(wc.Args[0], "d", "requireOwner") {
+					t.Fatal("member offboard routes must be owner-gated")
+				}
+			}
+			if wc, isCall := sel.X.(*ast.CallExpr); isCall && (sel.Sel.Name == "Get" || sel.Sel.Name == "Mount") && !memberOffboard &&
 				!(sel.Sel.Name == "Get" && referencesIdentifier(wc, "requireRecruiter") && (strings.Trim(path, `"`) == "/company/members" || (referencesIdentifier(wc, "requireAuth") && (referencesIdentifier(call, "ListJobApplications") || referencesIdentifier(call, "GetApplication"))))) {
 				t.Fatalf("Get/Mount receiver must be the bare router identifier; direct With-wrapping of %s %s evades the pinned gating topology (sole exemption: Get /company/members on a requireRecruiter-wrapped receiver)", sel.Sel.Name, strings.Trim(path, `"`))
 			}
@@ -1518,6 +1525,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 	sort.Strings(got)
 
 	want := []string{
+		"Get /company/members/{id}/offboard-preview",
+		"Post /company/members/{id}/offboard",
 		"Get /v2/company-sites/media/{id}",
 		"Get /v2/company-sites/{slug}",
 		"Post /v2/me/company/site/media",

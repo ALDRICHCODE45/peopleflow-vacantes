@@ -42,6 +42,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancyteam"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -287,6 +288,8 @@ func writeDraftError(w http.ResponseWriter, err error) {
 // response never carries a domain error string, a DTO or editor data.
 func classifyDraftError(err error) httpjson.Definition {
 	switch {
+	case errors.Is(err, vacancyteam.ErrResponsibleRequired):
+		return httpjson.Resolve("responsible_required")
 	case errors.Is(err, drafts.ErrUnauthenticated):
 		return httpjson.Resolve(httpjson.CodeUnauthenticated)
 	case errors.Is(err, drafts.ErrForbidden):

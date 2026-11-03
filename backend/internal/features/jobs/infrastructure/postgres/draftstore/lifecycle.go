@@ -17,6 +17,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancyteam"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -179,6 +180,15 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 			}
 		}
 		next.CloseReason, next.CloseReasonNote = reason, reasonNote
+	}
+	if action == "reopen" {
+		var missing bool
+		if err := tx.QueryRow(ctx, `SELECT t.mode='with_responsible' AND NOT EXISTS(SELECT 1 FROM vacancy_assignments a JOIN vacancy_assignment_functions f ON f.assignment_id=a.id AND f.ended_at IS NULL AND f.function='responsible' WHERE a.draft_id=t.draft_id AND a.ended_at IS NULL) FROM vacancy_teams t WHERE t.draft_id=$1`, id).Scan(&missing); err != nil {
+			return drafts.Result{}, err
+		}
+		if missing {
+			return drafts.Result{}, vacancyteam.ErrResponsibleRequired
+		}
 	}
 	if action == "resume" || action == "reopen" {
 		// The shared guard exempts clock passage only. Reopening never resets

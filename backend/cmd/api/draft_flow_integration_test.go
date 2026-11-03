@@ -268,7 +268,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 	memberRepo := companiespostgres.NewCompanyMemberRepository(pool)
 	companyRepo := companiespostgres.NewCompanyRepository(pool, auditRepo)
 
-	store := draftstore.NewStore(pool, auditRepo)
+	store := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(companiespostgres.LockMemberMutation)
 	draftHandler := jobshttp.NewDraftHandler(store)
 	draftV2Handler := jobshttp.NewDraftV2Handler(store, store, store)
 	jobHandler := jobshttp.NewJobHandler(jobsusecases.NewJobService(jobspostgres.NewJobRepository(queries)))
@@ -290,10 +290,12 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		requireOwner:         requireOwner,
 		jobHandler:           jobHandler,
 		companyHandler:       companieshttp.NewCompanyHandler(companiesusecases.NewCompanyService(companyRepo, geopostgres.NewReader(queries))),
+		memberHandler:        companieshttp.NewMemberHandler(companiesusecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geopostgres.NewReader(queries))),
 		siteHandler:          newCompanySiteHandler(pool, auditpostgres.NewAuditEventRepository(), nil),
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,
 		teamHandler:          jobshttp.NewTeamHandler(store),
+		offboardHandler:      jobshttp.NewOffboardHandler(store),
 		draftListHandler:     jobshttp.NewDraftListHandler(store),
 		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(files))).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		pipelineHandler:      jobshttp.NewPipelineHandler(store),

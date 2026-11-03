@@ -55,9 +55,10 @@ const timestampLayout = "2006-01-02T15:04:05.000000Z"
 
 // Store is the PostgreSQL adapter for drafts.Store.
 type Store struct {
-	pool  *pgxpool.Pool
-	audit auditrepositories.AuditEventRepository
-	clock func() time.Time
+	pool                *pgxpool.Pool
+	audit               auditrepositories.AuditEventRepository
+	clock               func() time.Time
+	memberMutationGuard func(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, bool) error
 }
 
 // NewStore wraps the connection pool and the stateless, tx-scoped audit port.
@@ -65,6 +66,13 @@ type Store struct {
 // audit adapter appends inside that transaction.
 func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository) *Store {
 	return &Store{pool: pool, audit: audit, clock: time.Now}
+}
+
+// WithMemberMutationGuard composes the existing company mutation guard without
+// coupling vacancy persistence to a sibling feature's infrastructure.
+func (s *Store) WithMemberMutationGuard(guard func(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, bool) error) *Store {
+	s.memberMutationGuard = guard
+	return s
 }
 
 // Compile-time assertion that the adapter satisfies the port.

@@ -270,7 +270,7 @@ func run() error {
 	}
 	// Explicit allowlist; never log the SDK config, endpoint or credentials.
 	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
-	draftStore := draftstore.NewStore(pool, auditRepo)
+	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore).WithStageEntryHook(newPsychometricStageEntryHook(draftStore)), draftjson.Decode)
 
 	// Jobs wiring: jobs repo (sqlc data layer over the same pool)
@@ -370,6 +370,7 @@ func run() error {
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
 		teamHandler:        jobshttp.NewTeamHandler(draftStore),
+		offboardHandler:    jobshttp.NewOffboardHandler(draftStore),
 		dashboardHandler:   jobshttp.NewDashboardHandler(dashboardapp.NewService(draftstore.NewDashboardStore(draftStore, dashboardPoolAdded), time.Now)),
 		pipelineHandler:    pipelineHandler,
 		substatesHandler:   substatesHandler,
