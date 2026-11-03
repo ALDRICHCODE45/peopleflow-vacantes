@@ -23,6 +23,8 @@ pushed 2026-11-02 (`saved-vacancies.md`, `vacancy-detail-explore.md`): saved vac
   aside above. Consider a bookmark in the bar if users ask.
 - **«Deshacer» after removing a saved vacancy** re-saves with a new `saved_at`, so the row moves to the top of its group
   (contract v1 behavior). Restoring the original order needs a backend change.
+- **«Mi historial de vacantes»: total al pie** (2026-11-03, option A, not requested yet): show «Mostrando 20 de 34
+  vacantes» next to «Cargar más», like the Base de talento table. Needs the backend to return a total.
 - **Vacancy team notifications** (`docs/product/next-three-features.md`, Q12, 2026-11-02): no notice when a vacancy is
   reassigned or a member is added in v1. On the radar: in-app notices first, then email once SES exists.
 - **Competitor AI opportunities** (`docs/research/competidores-ia-2026-10.md`): evidence-guided async interview,

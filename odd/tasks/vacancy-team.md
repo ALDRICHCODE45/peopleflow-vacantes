@@ -337,3 +337,7 @@ the responsible manages collaborators, and placement credit follows the team mod
   table cells (removed; the Equipo and Talento tables were clean), columns overflowing the card, wrapped text spilling
   into the next column, jargon in the empty state, and one-screen-tall phone cards. Console clean; 48 tests, tsc,
   ESLint clean.
+- **L42** (user, 2026-11-03): «me gusta mucho el resultado, no hay nada que tendria que agregar, si no hace falta nada
+  sobre esto, commit, merge y yo hago push.» Pagination stays «Cargar más» (same pattern as the Base de talento);
+  the «Mostrando X de Y» total (option A) goes to the backlog. Merge order: backend `feat/vacancy-team-backend` then
+  frontend `feat/vacancy-team`, both --no-ff into local main; the user pushes.
