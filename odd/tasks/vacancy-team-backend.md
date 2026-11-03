@@ -38,7 +38,7 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - [x] T2 — S4, S9: team writes, reassign, mode. Route: worker. Commit: 0d0f6f55. Verify: FAIL (3) → fixed (L12–L13).
 - [x] T3 — S5, S9: draft list/read `team`, `placement_exit_reason`, commitment 409 + `POST commitment`. Route: worker.
   Commit: 45135cd8.
-- [ ] T4 — S6, S9: placement credits (write on hire/exit, reads, void/restore). Route: worker. Commit: —
+- [x] T4 — S6, S9: placement credits (write on hire/exit, reads, void/restore). Route: worker. Commit: 744b9b7f. Verify: PASS + episode fix (L15–L16).
 - [ ] T5 — S7, S9: offboard-preview, offboard, DELETE member 409. Route: worker. Commit: —
 - [ ] T6 — S8: own tramo history. Route: worker. Commit: —
 - [ ] T7 — S10: QA environment (API + PEM) and final ping. Route: inline. Commit: —
@@ -109,3 +109,14 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   82a1cdac (frontend OK). Final full integration: 48 packages ok, 0 FAIL (log `.scratch/t2-integration.log`). Advisory:
   one intermediate full run failed draftstore with its test name lost to `tail`; it did not reproduce alone or in the
   final full run — watch for an order-dependent draftstore flake.
+- L14 — Frontend QA: seeded 3 recruiter members into «Trust People Company» in `peopleflow_vacancies_team` only (Ana
+  López, Diego Hernández, Mariana Ruiz; emails `*.qa@peopleflow.test`, cognito_sub `qa-seed-…`, cannot sign in). The dev
+  DB of :8080 is untouched.
+- L15 — T4 independent verify (mw0brsck-i-vtd3): S6 PASS on the literal contract, S9 PASS; concurrency void-vs-move
+  consistent; legacy audit metadata byte-identical. Advisory reproduced via HTTP: restoring an older credit after a
+  re-hire made it active (restore read the current stage) and the next exit closed only the latest active credit →
+  active credit outside placement. Contract fixed with per-credit placement episodes (145f16f0, frontend OK); fix
+  delegated to the T4 worker. Verifier scratch (7.5G) removed by the parent.
+- L16 — T4 episode fix done (744b9b7f): departures attach to the ending episode's credit whatever its status; restore
+  follows the credit's own exit; regression TestPlacementCreditHistoricalRestoreThenExit and an at-most-one-active
+  invariant check in teardowns. Full integration 48 ok (log `.scratch/t4-integration.log`).
