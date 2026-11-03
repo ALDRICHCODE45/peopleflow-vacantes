@@ -488,7 +488,7 @@ company role gate); `team_access_ended` is only for company members whose tramo 
 ```
 
 One item per tramo (continuous stay), so «tu tramo del 1 al 12, entregaste 8» is never split by a mode change or a
-handover. No candidate data. Ex-members keep this view while they belong to the company.
+handover. `vacancy_title` is `string | null`: the draft's current title, `null` while the draft has none. No candidate data. Ex-members keep this view while they belong to the company.
 
 ### Breaking changes to existing responses
 
