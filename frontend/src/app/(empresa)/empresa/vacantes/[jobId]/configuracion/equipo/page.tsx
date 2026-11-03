@@ -1,8 +1,14 @@
 import { notFound } from "next/navigation";
-import { fixtureNames, prototypeEnabled } from "@/features/vacancy-team/model";
+import { fixtureNames, teamDataSource } from "@/features/vacancy-team/model";
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ fixture?: string; state?: string }> }) {
-  if (!prototypeEnabled(process.env.NODE_ENV, process.env.NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE)) notFound();
+export default async function Page({ params, searchParams }: { params?: Promise<{ jobId: string }>; searchParams: Promise<{ fixture?: string; state?: string }> }) {
+  const source = teamDataSource(process.env.NODE_ENV, process.env.NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE);
+  if (!source) notFound();
+  if (source === "api") {
+    if (!params) notFound();
+    const { TeamApi } = await import("@/features/vacancy-team/api");
+    return <TeamApi vacancyId={(await params).jobId} />;
+  }
   const { fixture, state } = await searchParams;
   const selected = fixtureNames.find(name => name === fixture) ?? "owner";
   // The fixture adapter cannot execute until the server's development + opt-in gate passes.

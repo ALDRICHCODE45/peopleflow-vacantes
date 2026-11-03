@@ -12,7 +12,7 @@ import type { Delivery } from "@/features/jobs/drafts/pipeline/delivery-model";
 import { ChoiceField, PersonField } from "./controls";
 import { formatLongDate, reassignSchema, reasons, type CompanyMembers, type Reassign, type Snapshot, type Team } from "./model";
 
-export function ReassignDialog({ team, company, calendar, snapshot, onConfirm, onClose, pending = false }: { team: Team; company: CompanyMembers; calendar: Delivery["calendar"]; snapshot: Snapshot; onConfirm: (body: Reassign) => void; onClose: () => void; pending?: boolean }) {
+export function ReassignDialog({ team, company, calendar, snapshot, onConfirm, onClose, pending = false }: { team: Team; company: CompanyMembers; calendar: Delivery["calendar"]; snapshot?: Snapshot; onConfirm: (body: Reassign) => void; onClose: () => void; pending?: boolean }) {
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
@@ -40,7 +40,7 @@ export function ReassignDialog({ team, company, calendar, snapshot, onConfirm, o
       <ChoiceField id="reassign-reason" label="Motivo" items={reasons} value={reason} onChange={setReason} error={errors.reason} />
       <Field data-invalid={!!errors.note}><FieldLabel htmlFor="reassign-note">Nota</FieldLabel><Textarea id="reassign-note" value={note} onChange={event => setNote(event.target.value)} aria-invalid={!!errors.note} aria-describedby={`reassign-note-help${errors.note ? " reassign-note-error" : ""}`} /><FieldDescription id="reassign-note-help">{reason === "other" ? "Obligatoria para Otro. " : "Opcional. "}Hasta 500 caracteres; el equipo podrá verla.</FieldDescription>{errors.note && <FieldError id="reassign-note-error">{errors.note}</FieldError>}</Field>
       <BusinessDateField id="reassign-deadline" label="Plazo del reclutador" value={deadline} calendar={calendar} disabled={pending} onChange={setDeadline}
-        description={snapshot.delivery.commitment_date ? `Si no lo defines, aplica la fecha compromiso: ${formatLongDate(snapshot.delivery.commitment_date)}.` : "Opcional. Si no lo defines, aplica la fecha compromiso cuando exista."} />
+        description={snapshot?.delivery.commitment_date ? `Si no lo defines, aplica la fecha compromiso: ${formatLongDate(snapshot.delivery.commitment_date)}.` : "Opcional. Si no lo defines, aplica la fecha compromiso cuando exista."} />
       <Field><FieldLabel id="previous-label">¿Qué pasa con el responsable anterior?</FieldLabel>
         {/* Native Base UI single selection uses an array, as CardCustomSpacing does. Long labels stack. */}
         <ToggleGroup aria-labelledby="previous-label" variant="outline" value={[previous]} onValueChange={values => { if (values[0]) setPrevious(values[0] as Reassign["previous_responsible"]); }} className="flex-wrap">
@@ -49,6 +49,6 @@ export function ReassignDialog({ team, company, calendar, snapshot, onConfirm, o
         <FieldDescription>{previous === "remove" ? "Se cierra su tramo y pierde acceso a esta vacante." : "Su tramo continúa, sin reiniciar sus fechas."}</FieldDescription>
       </Field>
     </FieldGroup>
-    <p className="text-sm text-muted-foreground">Hoy: {snapshot.delivery.target === null ? `${plural(snapshot.delivery.delivered, "candidato entregado", "candidatos entregados")} · Sin objetivo definido` : `${snapshot.delivery.delivered} de ${plural(snapshot.delivery.target, "candidato entregado", "candidatos entregados")}`} · {snapshot.tramo.business_days_elapsed === null || snapshot.tramo.business_days_total === null ? "Tiempo usado sin dato" : `${snapshot.tramo.business_days_elapsed} de ${plural(snapshot.tramo.business_days_total, "día hábil usado", "días hábiles usados")}`}. Esto queda guardado con la reasignación.</p>
+    {snapshot && <p className="text-sm text-muted-foreground">Hoy: {snapshot.delivery.target === null ? `${plural(snapshot.delivery.delivered, "candidato entregado", "candidatos entregados")} · Sin objetivo definido` : `${snapshot.delivery.delivered} de ${plural(snapshot.delivery.target, "candidato entregado", "candidatos entregados")}`} · {snapshot.tramo.business_days_elapsed === null || snapshot.tramo.business_days_total === null ? "Tiempo usado sin dato" : `${snapshot.tramo.business_days_elapsed} de ${plural(snapshot.tramo.business_days_total, "día hábil usado", "días hábiles usados")}`}. Esto queda guardado con la reasignación.</p>}
   </ConfirmActionDialog>;
 }

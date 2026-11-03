@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import "@testing-library/jest-dom/vitest";
 import type { ComponentProps, ReactNode } from "react";
 import { TeamView } from "./team-view";
+import { TeamError } from "./client";
 import { ReassignDialog } from "./reassign-dialog";
 import { DeadlineDialog } from "./deadline-dialog";
 import { createFixtureClient } from "./prototype-client";
@@ -25,6 +26,53 @@ vi.mock("@/components/ui/select", async () => {
   };
 });
 afterEach(cleanup);
+
+it("hides every write entry point with the single reads-only switch without changing capabilities", async () => {
+  const client = createFixtureClient("owner"); const before = await client.getTeam();
+  render(<TeamView client={client} writesAvailable={false} />);
+  await screen.findByRole("heading", { name: "Equipo actual" });
+  for (const name of ["Cambiar modo", "Agregar al equipo", "Reasignar responsable", "Salir de la vacante", /Acciones de/]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+  expect(await client.getTeam()).toEqual(before);
+});
+it("shows ended access without exposing vacancy data", async () => {
+  const client = createFixtureClient("owner");
+  render(<TeamView client={{ ...client, getTeam: async () => { throw new TeamError("team_access_ended", 404); } }} writesAvailable={false} />);
+  expect(await screen.findByRole("heading", { name: "Ya no formas parte del equipo de esta vacante" })).toBeVisible();
+  expect(screen.getByText("Tu trabajo en esta vacante sigue a tu nombre. Si necesitas volver, pídeselo al responsable o al dueño de la empresa.")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Volver a vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+  expect(screen.queryByText("Ana López")).not.toBeInTheDocument();
+});
+it("recovers invalid_cursor from the first page without writes", async () => {
+  const client = createFixtureClient("long-history");
+  const getHistory = vi.fn(async (cursor?: string) => { if (cursor) throw new TeamError("invalid_cursor", 400); return client.getHistory(); });
+  render(<TeamView client={{ ...client, getHistory }} writesAvailable={false} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Ver todos los movimientos" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Ver más" }));
+  expect(await screen.findByRole("heading", { name: "No pudimos cargar los movimientos" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar movimientos" }));
+  await waitFor(() => expect(getHistory).toHaveBeenLastCalledWith(undefined));
+  expect(await screen.findByRole("heading", { name: "Equipo actual" })).toBeVisible();
+});
+it("replaces the team when access ends during history pagination", async () => {
+  const client = createFixtureClient("long-history");
+  const getHistory = async (cursor?: string) => { if (cursor) throw new TeamError("team_access_ended", 404); return client.getHistory(); };
+  render(<TeamView client={{ ...client, getHistory }} writesAvailable={false} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Ver todos los movimientos" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Ver más" }));
+  expect(await screen.findByRole("heading", { name: "Ya no formas parte del equipo de esta vacante" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Equipo actual" })).not.toBeInTheDocument();
+});
+it.each([[401, "Tu sesión expiró"], [404, "No encontramos este borrador"]] as const)("uses existing configuration handling for %s", async (status, heading) => {
+  const client = createFixtureClient("owner");
+  render(<TeamView client={{ ...client, getTeam: async () => { throw new TeamError("failure", status); } }} writesAvailable={false} />);
+  expect(await screen.findByRole("heading", { name: heading })).toBeVisible();
+});
+it("omits the reassign summary without a fixture snapshot", async () => {
+  const client = createFixtureClient("owner");
+  render(<ReassignDialog team={await client.getTeam()} company={await client.getCompanyMembers()} calendar={client.calendar} onConfirm={vi.fn()} onClose={vi.fn()} />);
+  expect(await screen.findByRole("alertdialog")).toBeVisible();
+  expect(screen.queryByText(/^Hoy:/)).not.toBeInTheDocument();
+});
 
 it("shows owner capabilities and preserves mode → team → history order", async () => {
   const { container } = render(<TeamView client={createFixtureClient("owner")} />);

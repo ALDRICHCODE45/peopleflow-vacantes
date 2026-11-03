@@ -1,13 +1,15 @@
 import { z } from "zod";
 
-export const prototypeEnabled = (environment: string | undefined, flag: string | undefined) => environment === "development" && flag === "1";
+export const teamDataSource = (environment: string | undefined, flag: string | undefined) => environment !== "development" ? null : flag === "1" ? "fixture" : flag === "api" ? "api" : null;
+export const prototypeEnabled = (environment: string | undefined, flag: string | undefined) => teamDataSource(environment, flag) !== null;
 export const fixtureNames = ["owner", "collaborator", "shared", "long-history", "empty-history"] as const;
 export type FixtureName = typeof fixtureNames[number];
 export const teamFunctionSchema = z.enum(["responsible", "collaborator", "member"]);
 export const modeSchema = z.enum(["with_responsible", "shared"]);
 const userSchema = z.object({ id: z.string().min(1), name: z.string().min(1) });
 const dateSchema = z.string().date();
-const instantSchema = z.string().datetime();
+// The backend sends RFC 3339 with an explicit offset and microseconds (…16+00:00), like pipeline-movement.
+const instantSchema = z.string().datetime({ offset: true });
 export const canSchema = z.object({ add_member: z.boolean(), remove_member: z.boolean(), leave: z.boolean(), reassign_responsible: z.boolean(), change_mode: z.boolean(), edit_deadline: z.boolean(), renegotiate_commitment: z.boolean() });
 export const memberSchema = z.object({ assignment_id: z.string(), user: userSchema, function: teamFunctionSchema, started_at: instantSchema, recruiter_deadline: dateSchema.nullable(), effective_deadline: dateSchema.nullable(), deadline_source: z.enum(["recruiter", "commitment", "none"]) });
 export const teamSchema = z.object({ mode: modeSchema, members: z.array(memberSchema).min(1), viewer: z.object({ function: teamFunctionSchema.nullable(), is_owner: z.boolean(), can: canSchema }) });
@@ -27,7 +29,7 @@ export const reassignSchema = z.object({
 export const snapshotSchema = z.object({
   captured_at: instantSchema,
   lifecycle: z.object({ publication: z.enum(["draft", "published", "paused", "closed"]), process: z.enum(["active", "finished"]).nullable() }),
-  stage_counts: z.array(z.object({ stage_id: z.string(), stage_name: z.string(), active: z.number().int().nonnegative(), discarded: z.number().int().nonnegative() })),
+  stage_counts: z.array(z.object({ stage_id: z.string(), stage_name: z.string(), kind: z.enum(["new", "screening", "screening_ok", "in_process", "placement", "custom"]).optional(), active: z.number().int().nonnegative(), discarded: z.number().int().nonnegative() })),
   tramo: z.object({ started_at: instantSchema, effective_deadline: dateSchema.nullable(), deadline_source: z.enum(["recruiter", "commitment", "none"]), business_days_elapsed: z.number().nullable(), business_days_total: z.number().nullable() }),
   delivery: z.object({ target: z.number().nullable(), delivered: z.number(), fulfilled_at: instantSchema.nullable(), result: z.string().nullable(), commitment_date: dateSchema.nullable() }),
   placements: z.object({ current: z.number(), credited: z.number() }),

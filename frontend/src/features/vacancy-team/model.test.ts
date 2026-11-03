@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyMembersSchema, reassignSchema, teamSchema, availableMembers, memberActions, prototypeEnabled } from "./model";
+import { companyMembersSchema, historySchema, reassignSchema, teamSchema, availableMembers, memberActions, prototypeEnabled } from "./model";
 import { createFixtureClient } from "./prototype-client";
 
 describe("contract boundaries", () => {
@@ -74,4 +74,11 @@ describe("fixture public interface", () => {
     expect((await client.leave()).members).toHaveLength(1);
     expect((await client.getHistory()).items.some(item => item.kind === "tramo" && item.tramo.end_cause === "left")).toBe(true);
   });
+});
+it("accepts the backend's offset timestamps with microseconds (real :8081 payload)", () => {
+  const at = "2026-10-15T00:07:43.276165+00:00";
+  const parsed = historySchema.safeParse({ items: [{ kind: "tramo", at, tramo: { assignment_id: "b31f5b77-ddc7-40dd-9c88-6020862d7b73", user: { id: "01a1378d-e6e5-7e87-bed6-4f918608b12c", name: "Test User" },
+    started_at: at, started_by: null, start_cause: "backfill", ended_at: null, ended_by: null, end_cause: null, recruiter_deadline: null, closing_deadline: null,
+    functions: [{ function: "responsible", started_at: at, ended_at: null, start_cause: "backfill", end_cause: null }] } }], next_cursor: null });
+  expect(parsed.success).toBe(true);
 });

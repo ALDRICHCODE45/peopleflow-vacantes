@@ -16,7 +16,9 @@ export interface TeamClient {
   /** Business-day window for deadlines; the real adapter reads it from GET V/pipeline/delivery. */
   calendar: Delivery["calendar"];
   /** Fixture-only preview, not a new backend endpoint. The persisted snapshot is authoritative. */
-  snapshot: Snapshot;
+  snapshot?: Snapshot;
+  /** Opaque team ETag, retained for the future write adapter. */
+  readonly etag?: string;
 }
 export class TeamError extends Error {
   constructor(public code: string, public status = 409) { super(code); }

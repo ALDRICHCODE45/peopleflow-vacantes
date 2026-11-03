@@ -193,3 +193,19 @@ the responsible manages collaborators, and placement credit follows the team mod
   stage kind), DB `peopleflow_vacancies_team` (dev copy at 54, 12 drafts backfilled), same Cognito. Stop: PID file
   `peopleflow-vacantes/.scratch/qa-api-team/api.pid`. Frontend switches with `PEOPLEFLOW_API_BASE_URL`. :8080 stays on
   main.
+- **L20** (user, 2026-11-02): «1.si, 2. seguimos con tu recomendacion, 3. tu recomendacion.» Existing Equipo menu
+  options become «Hacer dueño» / «Hacer reclutador» / «Quitar» (§13.13; confirmation buttons unchanged). «Mis tramos» is
+  its own page «Mi historial de vacantes», reached from the account menu; on-screen copy never says «tramo».
+- **L21** (T4 real reads, S1/S8/S10): development opt-in `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=1` keeps fixtures;
+  `=api` reads the real team (retaining its strong ETag), mixed cursor history, v2 company members and the existing
+  delivery calendar through authenticated server actions. Unset/other values and production keep Equipo hidden.
+  For branch QA use `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:8081`. API writes reject `not_available_yet` and are hidden
+  by the single `writesAvailable=false` switch; no fixture snapshot/counts are invented. Ended access has its own
+  StateCard, including at the configuration draft gate; generic 404/session handling stays unchanged. Approved
+  composition preserved; browser/backend integration verification remains parent-owned.
+- **L22** T4 real reads verified in the browser against :8081 (`NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=api`,
+  `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:8081`): team, history and delivery calendar from the backend; writes hidden.
+  Two integration defects fixed test-first: timestamps arrive with offset + microseconds (`…276165+00:00`), so
+  `instantSchema` uses `datetime({ offset: true })` like pipeline-movement; members live at `/me/company/members`, not
+  `/v2/…` (contract fixed by the backend, `9bc2a080`; offboard routes also under `/me`), read with the employer-team
+  strict decoder, skipping memberships without a user. 96 tests (vacancy-team + requestPath), tsc and ESLint clean.

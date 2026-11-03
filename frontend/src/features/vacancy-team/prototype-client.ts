@@ -15,7 +15,7 @@ const snapshot = snapshotSchema.parse({ captured_at: at, lifecycle: { publicatio
 const clone = <T,>(value: T): T => structuredClone(value);
 
 /** Isolated per mount; only imported by the development opt-in route. No storage, timers or network. */
-export function createFixtureClient(fixture: FixtureName): TeamClient {
+export function createFixtureClient(fixture: FixtureName): TeamClient & { snapshot: import("./model").Snapshot } {
   let sequence = 0;
   const owner = fixture !== "collaborator";
   const viewerId = owner ? actor.id : "user-diego";
@@ -67,7 +67,7 @@ export function createFixtureClient(fixture: FixtureName): TeamClient {
     team.viewer.can.leave = !!team.viewer.function && team.viewer.function !== "responsible" && team.members.length > 1;
     return clone(teamSchema.parse(team));
   }
-  const client: TeamClient = {
+  const client: TeamClient & { snapshot: import("./model").Snapshot } = {
     calendar: { timeZone: "America/Mexico_City", today: "2026-11-02", minDate: "2026-11-02", maxDate: "2027-11-02", nonBusinessDates: ["2026-11-16", "2026-12-25", "2027-01-01", "2027-02-01", "2027-03-15"] },
     get snapshot() {
       const current = clone(snapshot);
