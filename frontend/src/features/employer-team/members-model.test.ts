@@ -24,7 +24,7 @@ it("protects own row, recruiter access, unknown identity and the only owner", ()
   expect(memberRowActions(members[0], members, "owner", members[1].user.id)).toEqual([]);
   expect(memberRowActions(members[1], members, "recruiter", selfId)).toEqual([]);
   expect(memberRowActions(members[1], members, "owner", null)).toEqual([]);
-  expect(memberRowActions(members[1], members, "owner", selfId)).toEqual([{ kind: "role", role: "owner", label: "Cambiar a Dueño" }, { kind: "remove", label: "Quitar del equipo" }]);
+  expect(memberRowActions(members[1], members, "owner", selfId)).toEqual([{ kind: "role", role: "owner", label: "Hacer dueño" }, { kind: "remove", label: "Quitar" }]);
   const owners = members.map(member => ({ ...member, role: "owner" as const }));
-  expect(memberRowActions(owners[1], owners, "owner", selfId)[0]).toEqual({ kind: "role", role: "recruiter", label: "Cambiar a Reclutador" });
+  expect(memberRowActions(owners[1], owners, "owner", selfId)[0]).toEqual({ kind: "role", role: "recruiter", label: "Hacer reclutador" });
 });

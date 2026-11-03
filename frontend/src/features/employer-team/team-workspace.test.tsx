@@ -59,7 +59,7 @@ it.each([["development", "0"], ["production", "1"]])("preserves today's removal 
   const preview = vi.spyOn(offboarding, "createOffboardFixtureClient");
   const user = userEvent.setup(); mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar" }));
   expect(screen.getByRole("heading", { name: "¿Quitar a José Real del equipo?" })).toBeVisible();
   expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Quitar del equipo" }));
@@ -73,7 +73,7 @@ it.each(["none", "collaborator", "responsible"] as const)("previews %s before co
   vi.spyOn(offboarding, "createOffboardFixtureClient").mockReturnValue(client);
   const user = userEvent.setup(); mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar" }));
   await screen.findByRole("alertdialog");
   expect(preview).toHaveBeenCalledExactlyOnceWith(members[1].id);
   expect(await client.list()).toEqual(members);
@@ -93,7 +93,7 @@ it("retains the dialog, selections and member after an offboard 422", async () =
   vi.spyOn(offboarding, "createOffboardFixtureClient").mockReturnValue(client);
   const user = userEvent.setup(); mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar" }));
   await user.click(await screen.findByRole("button", { name: "Quitar y reasignar" }));
   expect(await screen.findByText(/Elige responsable para:/)).toBeVisible();
   expect(screen.getByRole("combobox", { name: "Pasar todas a" })).toHaveValue("Ana Real");
@@ -178,7 +178,7 @@ it("confirms role change, writes member id, disables pending controls and refres
   vi.mocked(listTeamMembersAction).mockResolvedValueOnce({ ok: true, members }).mockResolvedValueOnce({ ok: true, members: members.map(member => ({ ...member, role: "owner" })) });
   mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(await screen.findByRole("menuitem", { name: "Cambiar a Dueño" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Hacer dueño" }));
   const dialog = screen.getByRole("alertdialog");
   expect(within(dialog).getByText(/José Real/)).toBeInTheDocument();
   expect(changeTeamRoleAction).not.toHaveBeenCalled();
@@ -195,7 +195,7 @@ it("confirms removal naming the person and refreshes after DELETE", async () => 
   vi.mocked(listTeamMembersAction).mockResolvedValueOnce({ ok: true, members }).mockResolvedValueOnce({ ok: true, members: [members[0]] });
   const user = userEvent.setup(); mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(await screen.findByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Quitar" }));
   const dialog = screen.getByRole("alertdialog");
   expect(within(dialog).getByRole("heading")).toHaveTextContent("José Real");
   expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).toBeInTheDocument();
@@ -208,7 +208,7 @@ it("confirms removal naming the person and refreshes after DELETE", async () => 
 });
 it("cancel never writes; failed writes keep persistent feedback and do not claim success", async () => {
   const user = userEvent.setup(); mount(); await screen.findByText("José Real");
-  async function open() { await user.click(screen.getByRole("button", { name: "Acciones de José Real" })); await user.click(await screen.findByRole("menuitem", { name: "Quitar del equipo" })); }
+  async function open() { await user.click(screen.getByRole("button", { name: "Acciones de José Real" })); await user.click(await screen.findByRole("menuitem", { name: "Quitar" })); }
   await open(); await user.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(removeTeamMemberAction).not.toHaveBeenCalled();
   vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: false, reason: "forbidden", reference: { status: 403 } });
@@ -248,7 +248,7 @@ it("a disappeared member is not misreported as lost company membership", async (
   vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: false, reason: "not_member", reference: { status: 404 } });
   mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar" }));
   await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Quitar del equipo" }));
   expect(await screen.findByText("El miembro ya no está disponible")).toBeInTheDocument();
   await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));
@@ -258,7 +258,7 @@ it("reconciles an uncertain mutation once without replaying it", async () => {
   vi.mocked(removeTeamMemberAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
   mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(screen.getByRole("menuitem", { name: "Quitar del equipo" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar" }));
   await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Quitar del equipo" }));
   expect(await screen.findByText("No pudimos confirmar el cambio")).toBeInTheDocument();
   expect(listTeamMembersAction).toHaveBeenCalledTimes(2);
@@ -289,7 +289,7 @@ it("explains the backend's last-owner guard and refreshes the list", async () =>
   vi.mocked(changeTeamRoleAction).mockResolvedValue({ ok: false, reason: "last_owner", reference: { status: 409, code: "last_owner" } });
   mount(); await screen.findByText("José Real");
   await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
-  await user.click(await screen.findByRole("menuitem", { name: "Cambiar a Dueño" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Hacer dueño" }));
   await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cambiar rol" }));
   expect(await screen.findByText("La empresa debe conservar al menos un dueño")).toBeInTheDocument();
   await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));

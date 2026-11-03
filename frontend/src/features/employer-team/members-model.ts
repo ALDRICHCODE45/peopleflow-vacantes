@@ -29,5 +29,5 @@ export type MemberRowAction = { kind: "role"; role: TeamMemberRole; label: strin
 export function memberRowActions(member: CompanyMember, members: readonly CompanyMember[], role: TeamMemberRole | null, userId: string | null): MemberRowAction[] {
   if (role !== "owner" || !userId || member.user?.id === userId ||
     (member.role === "owner" && members.filter(item => item.role === "owner").length <= 1)) return [];
-  return [{ kind: "role", role: member.role === "owner" ? "recruiter" : "owner", label: member.role === "owner" ? "Cambiar a Reclutador" : "Cambiar a Dueño" }, { kind: "remove", label: "Quitar del equipo" }];
+  return [{ kind: "role", role: member.role === "owner" ? "recruiter" : "owner", label: member.role === "owner" ? "Hacer reclutador" : "Hacer dueño" }, { kind: "remove", label: "Quitar" }];
 }
