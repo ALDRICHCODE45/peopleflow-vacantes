@@ -11,48 +11,70 @@ import { SectionEmpty } from "@/components/feedback/state-card";
 import { SnapshotSheet, snapshotSheetClass } from "./snapshot-sheet";
 import { formatDate, functionLabel, modeLabel, reasons, type History, type HistoryItem } from "./model";
 
+type TramoItem = Extract<HistoryItem, { kind: "tramo" }>;
+type Movement = Exclude<HistoryItem, TramoItem> | (TramoItem & {
+  phase: "join" | "function" | "end";
+  period?: TramoItem["tramo"]["functions"][number];
+  key: string;
+});
 const person = (name: string) => <span className="font-medium">{name}</span>;
-function movement(item: HistoryItem): { sentence: ReactNode; tone: string; icon: typeof HistoryIcon } {
+function movement(item: Movement): { sentence: ReactNode; tone: string; icon: typeof HistoryIcon } {
   if (item.kind === "reassignment") return {
     sentence: item.reassignment.performed_by.id === item.reassignment.from_user.id
       ? <>{person(item.reassignment.performed_by.name)} le pasó la vacante a {person(item.reassignment.to_user.name)}</>
-      : <>{person(item.reassignment.performed_by.name)} pasó la vacante de {person(item.reassignment.from_user.name)} a {person(item.reassignment.to_user.name)}</>,
+      : item.reassignment.performed_by.id === item.reassignment.to_user.id
+        ? <>{person(item.reassignment.performed_by.name)} tomó la vacante de {person(item.reassignment.from_user.name)}</>
+        : <>{person(item.reassignment.performed_by.name)} pasó la vacante de {person(item.reassignment.from_user.name)} a {person(item.reassignment.to_user.name)}</>,
     // §13.1: primary-tinted medallions use foreground for dark-mode contrast.
     tone: "bg-primary/12 text-foreground ring-1 ring-primary/40", icon: UserRoundCog,
   };
   if (item.kind === "mode_change") return { sentence: <>{person(item.mode_change.performed_by.name)} cambió el modo a «{modeLabel[item.mode_change.to_mode]}»</>, tone: "bg-status-info/10 text-status-info", icon: ArrowLeftRight };
   const tramo = item.tramo;
   const name = person(tramo.user.name);
-  if (tramo.ended_at) {
+  if (item.phase === "end") {
     const sentence = tramo.end_cause === "removed" ? <>{tramo.ended_by ? person(tramo.ended_by.name) : "Alguien"} quitó a {name} del equipo</>
       : tramo.end_cause === "membership_ended" ? <>Terminó la membresía de {name}</>
       : tramo.end_cause === "reassigned" ? <>{name} salió del equipo por reasignación</>
       : <>{name} salió del equipo</>;
     return { sentence, tone: "bg-muted text-muted-foreground", icon: LogOut };
   }
-  const latest = tramo.functions.at(-1);
-  if (tramo.functions.length > 1 && latest) return { sentence: <>{name} cambió su función a {functionLabel[latest.function].toLocaleLowerCase("es-MX")}</>, tone: "bg-status-info/10 text-status-info", icon: ArrowLeftRight };
-  return { sentence: <>{name} se unió como {latest ? functionLabel[latest.function].toLocaleLowerCase("es-MX") : "miembro"}</>, tone: "bg-status-success/10 text-status-success", icon: UserRoundPlus };
+  const period = item.period;
+  if (item.phase === "function" && period) return { sentence: <>{name} cambió su función a {functionLabel[period.function].toLocaleLowerCase("es-MX")}</>, tone: "bg-status-info/10 text-status-info", icon: ArrowLeftRight };
+  return { sentence: <>{name} se unió como {period ? functionLabel[period.function].toLocaleLowerCase("es-MX") : "miembro"}</>, tone: "bg-status-success/10 text-status-success", icon: UserRoundPlus };
 }
 // Compare instants rather than timestamp strings: API offsets and subsecond precision vary.
 const second = (at: string) => Math.floor(Date.parse(at) / 1000);
-function visibleMovements(items: HistoryItem[]) {
-  return items.filter(item => {
-    if (item.kind !== "tramo" || item.tramo.ended_at || item.tramo.functions.length <= 1) return true;
+function visibleMovements(items: HistoryItem[]): Movement[] {
+  const expanded = items.flatMap((item): Movement[] => {
+    if (item.kind !== "tramo") return [item];
+    const key = `tramo-${item.tramo.assignment_id}`;
+    return [
+      { ...item, at: item.tramo.started_at, phase: "join", period: item.tramo.functions[0], key: `${key}-join` },
+      ...item.tramo.functions.slice(1).map((period, index): Movement => ({
+        ...item, at: period.started_at, phase: "function", period, key: `${key}-function-${index + 1}`,
+      })),
+      ...(item.tramo.ended_at ? [{ ...item, at: item.tramo.ended_at, phase: "end" as const, key: `${key}-end` }] : []),
+    ];
+  });
+  return expanded.filter(item => {
+    if (item.kind !== "tramo" || item.phase === "join") return true;
+    if (item.phase === "end" && item.tramo.end_cause !== "reassigned") return true;
     return !items.some(event => second(event.at) === second(item.at) && (
-      // A mode change applies to every member of this vacancy's team.
-      event.kind === "mode_change" || event.kind === "reassignment" &&
+      // A mode change applies to every member; reassignments only to their two participants.
+      event.kind === "mode_change" && (item.phase === "end" || item.period?.start_cause === "mode_change") ||
+      event.kind === "reassignment" && (item.phase === "end" || item.period?.start_cause === "reassignment") &&
       [event.reassignment.from_user.id, event.reassignment.to_user.id].includes(item.tramo.user.id)
     ));
-  });
+  // Stable sort preserves backend item order when event timestamps tie.
+  }).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 }
-function movementKey(item: HistoryItem) {
-  return item.kind === "tramo" ? `tramo-${item.tramo.assignment_id}` : item.kind === "reassignment" ? `reassignment-${item.reassignment.id}` : `mode-${item.mode_change.id}`;
+function movementKey(item: Movement) {
+  return item.kind === "tramo" ? item.key : item.kind === "reassignment" ? `reassignment-${item.reassignment.id}` : `mode-${item.mode_change.id}`;
 }
 // Same connector layout as org-candidates/history/change-history; native Item spacing stays intact.
 const timelineEntry = "relative items-start before:absolute before:left-[2.125rem] before:top-12 before:-bottom-4 before:w-px before:bg-border last:before:hidden";
 // Movement sentences are body copy, not titles: only people's names carry medium emphasis.
-function Timeline({ items, onSnapshot }: { items: HistoryItem[]; onSnapshot: (item: Extract<HistoryItem, { kind: "reassignment" }>) => void }) {
+function Timeline({ items, onSnapshot }: { items: Movement[]; onSnapshot: (item: Extract<HistoryItem, { kind: "reassignment" }>) => void }) {
   return <ItemGroup className="gap-0">{items.map(item => {
     const { sentence, tone, icon: Icon } = movement(item);
     const event = item.kind === "reassignment" ? item.reassignment : null;

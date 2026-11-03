@@ -285,3 +285,13 @@ the responsible manages collaborators, and placement credit follows the team mod
   reclutador». Movements defects found (sent to a fix): a tramo shows as one event, so Mariana's join disappeared and
   «salió del equipo por reasignación» duplicates the reassignment; «X pasó la vacante de Y a X» when the performer is
   the receiver.
+- **L34** Backend slice 6 done (`d72fc5f7`, docs `9b53fec1`) — the whole vacancy team v1 backend is finished
+  (`feat/vacancy-team-backend`, 27 commits, contract final; not merged or pushed): `GET /v2/me/vacancy-assignments/
+  history?cursor=` (own tramos, newest event first, 20 per page, 400 invalid_cursor, no candidate data; ended tramos
+  stay listed); `delivered_in_tramo` = cutoff entries made by the member within the tramo; placements exclude voided
+  credits. :8081 runs the final build. T8 real client starts.
+- **L35** Movements timeline: each tramo expands into its events (join, function changes, end), merged with
+  reassignments and mode changes newest first; only function changes and `reassigned` ends told by a reassignment or
+  mode change at the same second are dropped; joins always stay; «X tomó la vacante de Y» when the performer receives
+  it; the 5-event cap and the Sheet pagination apply to the expanded list. 141 vacancy-team tests, tsc, ESLint clean;
+  browser on :8081 shows Mariana's join, no duplicate handover line, and the new wording.

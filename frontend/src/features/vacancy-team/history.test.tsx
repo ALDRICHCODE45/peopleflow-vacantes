@@ -26,15 +26,15 @@ it.each(["reassignment", "mode_change"] as const)("collapses only same-second fu
   if (changed.kind !== "tramo") throw new Error("fixture");
   changed.at = "2026-11-12T16:04:00.999999+00:00";
   const unrelated = structuredClone(changed); unrelated.tramo.assignment_id = "unrelated"; unrelated.tramo.user = { id: "other", name: "Otra persona" };
-  const earlier = structuredClone(changed); earlier.tramo.assignment_id = "earlier"; earlier.at = "2026-11-12T16:03:59Z";
+  const earlier = structuredClone(changed); earlier.tramo.assignment_id = "earlier"; earlier.at = "2026-11-12T16:03:59Z"; earlier.tramo.functions.at(-1)!.started_at = earlier.at;
   const join = structuredClone(changed); join.tramo.assignment_id = "join"; join.tramo.functions = [join.tramo.functions[0]];
   const leave = structuredClone(changed); leave.tramo.assignment_id = "leave"; leave.tramo.ended_at = event.at; leave.tramo.end_cause = "left";
   const items = [event, changed, earlier, join, leave, ...(kind === "reassignment" ? [unrelated] : [])];
   render(<TeamHistory history={{ items, next_cursor: "next" }} pending={false} onMore={vi.fn()} />);
   fireEvent.click(screen.getByRole("button", { name: "Ver todos los movimientos" }));
   const sheet = await screen.findByRole("dialog", { name: "Movimientos del equipo" });
-  expect(within(sheet).getAllByRole("listitem")).toHaveLength(kind === "reassignment" ? 5 : 4);
-  expect(within(sheet).getByText(/se unió como/)).toBeVisible();
+  expect(within(sheet).getAllByRole("listitem")).toHaveLength(kind === "reassignment" ? 9 : 7);
+  expect(within(sheet).getAllByText(/se unió como/)).toHaveLength(kind === "reassignment" ? 5 : 4);
   expect(within(sheet).getByText(/salió del equipo/)).toBeVisible();
   expect(within(sheet).getAllByText(/cambió su función/)).toHaveLength(kind === "reassignment" ? 2 : 1);
 });
