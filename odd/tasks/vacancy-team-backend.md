@@ -158,4 +158,7 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   written definitions and delta sign convention, plus draft_id, requester, vacancy_status, business_days_in_tramo,
   delivery_target as proposed. Feature 3 note (nothing to build now): recruiters get a «Mi rendimiento» tab with
   Cumplimiento + Resultados first, and an ANONYMOUS team average next to their own figures (never person-vs-person).
-- [ ] T8 — S8 (amended): own-history table fields per the contract. Route: worker. Commit: —
+- [x] T8 — S8 (amended): own-history table fields per the contract. Route: worker. Commit: 1b6fff9e.
+- L26 — T8 done (1b6fff9e): boundary clarified (543eb8ba: ending unfulfilled ON the deadline date → unfinished, delta 0);
+  one HTTP test per deadline_result case incl. date boundaries and holidays; injectable store clock (default time.Now).
+  Full integration 53 ok, 0 FAIL.
