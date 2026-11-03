@@ -150,7 +150,11 @@ drops the new tables.
 
 `state_snapshot` (counts and dates only, never candidate data). `stage_counts[].kind` is the stage's pipeline kind as
 stored in the vacancy's pipeline config at capture time (`new`, `screening`, `screening_ok`, `in_process`, `placement`,
-`custom`); the exit stage is not listed (its candidates are the `discarded` counts):
+`custom`); the exit stage is not listed (its candidates are the `discarded` counts). `tramo.business_days_elapsed`
+counts Mexico City business days from the tramo's start date to the capture date, and `tramo.business_days_total` from
+the start date to `effective_deadline` (0 when the deadline is on or before the start date), both with the same
+business-day calendar the delivery fulfillment uses. With no effective deadline (`deadline_source = "none"`),
+`effective_deadline` and `business_days_total` are `null`; `business_days_elapsed` is still a number:
 
 ```json
 {
