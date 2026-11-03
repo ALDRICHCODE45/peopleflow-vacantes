@@ -147,3 +147,15 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   merge/push are the user's call. Teardown when the user decides: kill both API PIDs, `git worktree remove
   .scratch/api-main` and `.scratch/api-team`, `DROP DATABASE peopleflow_vacancies_team`, `docker rm -f pf-draft-test`,
   delete `.scratch/qa-*-bin`. Auth note: employer QA uses the usual Cognito .env, not PEM.
+- L24 — Frontend (user request, 2026-11-03): own history becomes a table; extra fields draft_id, requester,
+  vacancy_status, business_days_in_tramo, deadline_result + deadline_delta_business_days, delivery_target. Backend
+  proposed an additive contract diff (uncommitted) with a written metric definition for deadline_result (vacancy delivery
+  fulfilled within the tramo by its effective deadline; values on_time | late | pending | unfinished | not_applicable |
+  none; fulfillment sign convention) and delivery_target = fulfillment-frozen target else current. Awaiting the user's
+  OK via the frontend. Note from the user: recruiters will see their own performance metrics in feature 3 (same
+  definitions, scoped to self).
+- L25 — User via frontend (verbatim): «1. Si hermano, lo apruebo.» — approves the six deadline_result values with the
+  written definitions and delta sign convention, plus draft_id, requester, vacancy_status, business_days_in_tramo,
+  delivery_target as proposed. Feature 3 note (nothing to build now): recruiters get a «Mi rendimiento» tab with
+  Cumplimiento + Resultados first, and an ANONYMOUS team average next to their own figures (never person-vs-person).
+- [ ] T8 — S8 (amended): own-history table fields per the contract. Route: worker. Commit: —

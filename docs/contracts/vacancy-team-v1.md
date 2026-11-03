@@ -478,7 +478,11 @@ company role gate); `team_access_ended` is only for company members whose tramo 
 ### `GET /v2/me/vacancy-assignments/history?cursor=` (any company member, own tramos only)
 
 ```json
-{ "items": [{ "vacancy_title": "Analista contable",
+{ "items": [{ "vacancy_title": "Analista contable", "draft_id": null,
+              "requester": { "kind": "client", "name": "Grupo Norte" },
+              "vacancy_status": { "publication": "published", "process": "active" },
+              "business_days_in_tramo": 9, "delivery_target": 5,
+              "deadline_result": "on_time", "deadline_delta_business_days": 2,
               "functions": [{ "function": "responsible", "started_at": "…", "ended_at": "…" },
                             { "function": "collaborator", "started_at": "…", "ended_at": "…" }],
               "started_at": "…", "ended_at": "…", "end_cause": "removed",
@@ -488,7 +492,35 @@ company role gate); `team_access_ended` is only for company members whose tramo 
 ```
 
 One item per tramo (continuous stay), so «tu tramo del 1 al 12, entregaste 8» is never split by a mode change or a
-handover. `vacancy_title` is `string | null`: the draft's current title, `null` while the draft has none. No candidate data. Ex-members keep this view while they belong to the company.
+handover. `vacancy_title` is `string | null`: the draft's current title, `null` while the draft has none.
+
+Additional per-item fields (all always present, values may be `null`; no candidate data):
+
+- `draft_id`: `string | null` — the vacancy id, only while the tramo is active (the caller can open it); `null` for ended
+  tramos.
+- `requester`: `{ kind: "internal_area" | "client", name } | null` — the vacancy's current requester from the company
+  catalog, `null` when not set.
+- `vacancy_status`: `{ publication: "draft" | "published" | "paused" | "closed", process: "active" | "finished" | null }`
+  — current state (`process` is `null` for an unpublished draft).
+- `business_days_in_tramo`: number — Mexico City business days from the tramo's start date to its `ended_at` date (or
+  today while active), counted like the snapshot's `business_days_elapsed`.
+- `delivery_target`: `number | null` — the target frozen in the vacancy's delivery fulfillment when the delivery was
+  fulfilled, else the current `target_quantity`; `null` when delivery is not configured.
+- `deadline_result` and `deadline_delta_business_days` — whether the vacancy's delivery target was met within this tramo
+  by its effective deadline (`effective_deadline` above: frozen `closing_deadline` for ended tramos). The target is shared
+  by the team, so this measures the tramo's deadline; the member's own contribution is `delivered_in_tramo`. Using the
+  delivery fulfillment rule (whole Mexico City dates; meeting it ON the deadline date is on time):
+  - `on_time`: the delivery was fulfilled while this tramo was active, on or before the effective deadline.
+  - `late`: fulfilled while the tramo was active but after the deadline; or not fulfilled and the deadline passed while
+    the tramo was still active.
+  - `pending`: active tramo, not fulfilled yet, deadline today or later.
+  - `unfinished`: the tramo ended before its deadline without the delivery being fulfilled.
+  - `not_applicable`: the delivery had already been fulfilled before the tramo started.
+  - `none`: no effective deadline, or delivery not configured.
+  `deadline_delta_business_days` uses the fulfillment's sign convention (positive = business days before the deadline,
+  negative = after it): for `on_time`/`late` with fulfillment, from the fulfillment date; for `late` without
+  fulfillment, from the tramo's end date or today; for `pending`, from today (days left); for `unfinished`, from the
+  tramo's end date; `null` for `not_applicable` and `none`. No candidate data. Ex-members keep this view while they belong to the company.
 
 ### Breaking changes to existing responses
 
