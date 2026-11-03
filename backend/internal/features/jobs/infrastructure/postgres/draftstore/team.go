@@ -37,11 +37,8 @@ func (s *Store) createTeam(ctx context.Context, tx pgx.Tx, record draftRecord, a
 	if _, err := tx.Exec(ctx, `INSERT INTO vacancy_teams(draft_id,company_id,mode,updated_at) VALUES($1,$2,'with_responsible',$3)`, record.id, record.companyID, record.createdAt); err != nil {
 		return fmt.Errorf("create vacancy team: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO vacancy_assignments(id,draft_id,company_id,user_id,started_at,started_by,start_cause) VALUES($1,$2,$3,$4,$5,$4,'creation')`, assignment, record.id, record.companyID, actor, record.createdAt); err != nil {
+	if err := openTeamAssignment(ctx, tx, record.id, record.companyID, actor, actor, assignment, "responsible", "creation", nil, record.createdAt); err != nil {
 		return fmt.Errorf("create responsible assignment: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO vacancy_assignment_functions(id,assignment_id,draft_id,function,started_at,start_cause) VALUES($1,$2,$3,'responsible',$4,'creation')`, uuid.Must(uuid.NewV7()), assignment, record.id, record.createdAt); err != nil {
-		return fmt.Errorf("create responsible function: %w", err)
 	}
 	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyTeamCreated", EntityType: "vacancy", EntityID: record.id, Metadata: map[string]string{"company_id": record.companyID.String(), "mode": "with_responsible", "responsible_user_id": actor.String(), "assignment_id": assignment.String()}}
 	if err := s.audit.Append(ctx, tx, event); err != nil {
@@ -70,6 +67,12 @@ func (s *Store) GetTeam(ctx context.Context, company, actor, id uuid.UUID) (draf
 	if err := requireV2ReadDocument(record.fields); err != nil {
 		return drafts.Result{}, err
 	}
+	return renderTeam(ctx, tx, id, actor, auth)
+}
+
+// renderTeam also renders the successful leave response after access has ended.
+// Authorization is performed once, before mutations, under the parent lock.
+func renderTeam(ctx context.Context, tx pgx.Tx, id, actor uuid.UUID, auth authContext) (drafts.Result, error) {
 	var mode string
 	var version int64
 	if err := tx.QueryRow(ctx, `SELECT mode,version FROM vacancy_teams WHERE draft_id=$1`, id).Scan(&mode, &version); err != nil {

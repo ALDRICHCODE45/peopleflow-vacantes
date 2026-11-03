@@ -44,6 +44,7 @@ import (
 	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	auditport "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	companiesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
@@ -254,11 +255,15 @@ type draftFlowHarness struct {
 // real legacy job handler, then serves it over a real loopback listener.
 func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHarness {
 	t.Helper()
+	return newDraftFlowHarnessWithAudit(t, auditpostgres.NewAuditEventRepository(), cvFiles...)
+}
+
+func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRepository, cvFiles ...*cvstorage.Local) *draftFlowHarness {
+	t.Helper()
 	pool := requireDraftFlowPool(t)
 	signer := newDraftFlowSigner(t)
 
 	queries := db.New(pool)
-	auditRepo := auditpostgres.NewAuditEventRepository()
 	identityUserRepo := identitypostgres.NewUserRepository(queries)
 	memberRepo := companiespostgres.NewCompanyMemberRepository(pool)
 	companyRepo := companiespostgres.NewCompanyRepository(pool, auditRepo)
@@ -285,7 +290,7 @@ func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHa
 		requireOwner:         requireOwner,
 		jobHandler:           jobHandler,
 		companyHandler:       companieshttp.NewCompanyHandler(companiesusecases.NewCompanyService(companyRepo, geopostgres.NewReader(queries))),
-		siteHandler:          newCompanySiteHandler(pool, auditRepo, nil),
+		siteHandler:          newCompanySiteHandler(pool, auditpostgres.NewAuditEventRepository(), nil),
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,
 		teamHandler:          jobshttp.NewTeamHandler(store),

@@ -480,7 +480,17 @@ func readDraft(ctx context.Context, tx pgx.Tx, companyID, id uuid.UUID, lock boo
  EXISTS(SELECT 1 FROM vacancy_assignments a WHERE a.draft_id=d.id AND a.user_id=$3 AND a.ended_at IS NULL)
  FROM job_drafts d WHERE d.id=$1 AND d.company_id=$2`
 	if lock {
-		query += " FOR UPDATE"
+		// Acquire the parent lock in a separate statement. If this waits for a
+		// team removal, the membership subqueries must use a NEW READ COMMITTED
+		// snapshot, not the snapshot taken before waiting for the row lock.
+		var locked uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM job_drafts WHERE id=$1 AND company_id=$2 FOR UPDATE`, id, companyID).Scan(&locked)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return draftRecord{}, false, nil
+		}
+		if err != nil {
+			return draftRecord{}, false, fmt.Errorf("lock draft: %w", err)
+		}
 	}
 
 	var record draftRecord

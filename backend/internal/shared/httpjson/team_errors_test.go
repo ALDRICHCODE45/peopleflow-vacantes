@@ -2,8 +2,22 @@ package httpjson
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+func TestTeamExplicitInputErrorsCatalog(t *testing.T) {
+	for _, code := range []Code{"recruiter_deadline_not_applicable", "responsible_not_applicable"} {
+		t.Run(string(code), func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			WriteCatalogError(rec, Resolve(code))
+			want := `{"error":"` + strings.ReplaceAll(string(code), "_", " ") + `","code":"` + string(code) + `"}` + "\n"
+			if rec.Code != 422 || rec.Body.String() != want {
+				t.Fatalf("%d %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
 
 func TestTeamAccessEndedCatalog(t *testing.T) {
 	rec := httptest.NewRecorder()
