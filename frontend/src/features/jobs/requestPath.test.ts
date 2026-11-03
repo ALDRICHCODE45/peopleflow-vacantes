@@ -121,11 +121,22 @@ describe("single application-facing request path", () => {
     expect(source(join(SRC, "app/api/company/manual-candidates/[vacancyId]/route.ts"))).not.toMatch(/\bfetch\(/);
   });
 
-  it.each(["features/employer-dashboard/client.ts", "features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts", "features/vacancy-team/api-client.ts"])("keeps %s server-only through the shared transport", file => {
+  it.each(["features/employer-dashboard/client.ts", "features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts", "features/vacancy-team/api-client.ts", "features/vacancy-assignments/api-client.ts"])("keeps %s server-only through the shared transport", file => {
     const client = source(join(SRC, file));
     expect(client).toContain('import "server-only"');
     expect(client).toContain('from "@/lib/api/server"');
     expect(client).not.toMatch(/\bfetch\(/);
+  });
+
+  it("keeps own assignment history behind the authenticated read boundary", () => {
+    const client = source(join(SRC, "features/vacancy-assignments/api-client.ts"));
+    expect(client).toContain("/v2/me/vacancy-assignments/history");
+    expect(client).toContain("historySchema.parse(value)");
+    const actions = source(join(SRC, "features/vacancy-assignments/actions.ts"));
+    expect(actions).toContain('"use server"');
+    expect(actions).toContain("getActionAccessToken()");
+    expect(actions).not.toMatch(/\bfetch\(|lib\/api\//);
+    expect(source(join(SRC, "features/vacancy-assignments/action-client.ts"))).not.toMatch(/\bfetch\(|lib\/api\/|lib\/auth\//);
   });
 
   it("keeps member preview and offboard under the authenticated membership boundary", () => {
@@ -252,6 +263,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
+      "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "features/vacancy-team/api-client.ts",
@@ -297,6 +309,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
+      "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "features/vacancy-team/api-client.ts",

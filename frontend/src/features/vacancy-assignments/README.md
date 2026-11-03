@@ -2,11 +2,14 @@
 
 Development-only route: `http://localhost:3000/empresa/mi-historial`.
 Start the existing frontend with `NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE=1` (or `api`).
-Both values use contract-shaped fixtures until the own-history endpoint exists.
+`1` uses contract-shaped fixtures; `api` reads the real own-history endpoint through
+an authenticated server action and the server-only guarded transport. For branch QA,
+configure `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:8081`.
 Unset/other values and production return notFound and omit the account-menu entry.
 Only an authenticated employer sees the menu item; the existing employer layout guards the route.
 
-Review states: `?fixture=empty`, `?state=loading`, `?state=error`. The default has 14
+Fixture-only review states: `?fixture=empty`, `?state=loading`, `?state=error`.
+API mode ignores these query parameters. The default has 14
 assignments, all three functions, function changes and all four end reasons.
 No candidate records or vacancy access links are exposed.
 
@@ -21,8 +24,18 @@ footer. The preview does not grow after loading more in the Sheet.
 
 “Candidatos entregados” counts only the person's own delivery-stage moves/manual
 intake during each stay (`delivered_in_tramo`). Placement totals count direct + shared;
-participant credits are separate “participaste en N” figures. The summary reads every history page,
-not just the preview, so it remains complete and does not change while paging.
+participant credits are separate “participaste en N” figures. There is no aggregate
+endpoint: the summary preloads up to 10 history pages (20 items per API page), not
+just the preview. If more pages exist, every card says “al menos”. Paging the Sheet
+past those preloaded pages adds each new page once to the summary; reaching the end
+removes “al menos”. This bounds initial work without presenting partial totals as complete.
+The Sheet still paginates independently; preloaded pages never inflate its visible list.
+
+The strict decoder uses only the contract's own-history fields (no candidate data)
+and accepts offset timestamps with microseconds. A 401 uses the existing session-expired
+state. An invalid cursor restarts from the first page once; a failed restart shows the
+existing error StateCard. Other read failures offer “Reintentar”, including inside the
+Sheet, where already loaded rows remain available. All retries are read-only.
 
 ## Component audit
 
@@ -38,4 +51,5 @@ not just the preview, so it remains complete and does not change while paging.
 | Account entry | DropdownMenu, dropdown-menu.md | Existing group; one Link item, History icon, one-line label |
 
 Browser review (desktop/mobile, light/dark) is parent-owned. No new primitives,
-notifications, mutations, dependencies or backend calls are introduced.
+notifications, mutations or dependencies are introduced. The only new backend call is
+`GET /v2/me/vacancy-assignments/history?cursor=`; the bearer stays in the server session.

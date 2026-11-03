@@ -12,7 +12,8 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHe
 import { Skeleton } from "@/components/ui/skeleton";
 import { plural } from "@/features/employer-vacancies/plural";
 import { formatDate, functionLabel } from "@/features/vacancy-team/model";
-import { currentFirst, historySchema, placementsCount, readOverview, type Assignment, type AssignmentClient, type AssignmentHistoryPage, type Summary } from "./client";
+import { DraftEditErrorState } from "@/features/jobs/drafts/reopen/error-state";
+import { AssignmentError, currentFirst, historySchema, placementsCount, readOverview, summarize, type Assignment, type AssignmentClient, type AssignmentHistoryPage, type Summary } from "./client";
 
 const endReason = { reassigned: "Te reasignaron", left: "Saliste de la vacante", removed: "Te quitaron del equipo", membership_ended: "Dejaste la empresa" };
 function period(item: Assignment) {
@@ -30,7 +31,7 @@ function SummaryRow({ summary }: { summary: Summary | null }) {
   ];
   return <section aria-label="Resumen de tu trabajo" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
     {cards.map(card => <Card key={card.label} size="sm"><CardHeader>
-      <CardTitle>{summary ? <h3 className="text-[22px] font-bold tabular-nums">{card.value}</h3> : <Skeleton aria-hidden="true" className="h-7 w-10" />}</CardTitle>
+      <CardTitle>{summary ? <h3 className="text-[22px] font-bold tabular-nums">{summary.incomplete ? "al menos " : ""}{card.value}</h3> : <Skeleton aria-hidden="true" className="h-7 w-10" />}</CardTitle>
       <CardDescription>{summary ? card.label : <Skeleton aria-hidden="true" className="h-5 w-24" />}</CardDescription>
     </CardHeader></Card>)}
   </section>;
@@ -49,7 +50,7 @@ function AssignmentRow({ item }: { item: Assignment | null }) {
       {item ? <BriefcaseBusiness aria-hidden="true" className="size-4" /> : <Skeleton className="size-9 rounded-full" />}
     </ItemMedia>
     <ItemContent className="min-w-0">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><ItemTitle className="min-w-0">{item ? <span className="break-words">{item.vacancy_title}</span> : <Skeleton className="h-5 w-40" />}</ItemTitle>{latest ? <Badge variant={latest === "responsible" ? "accent" : "secondary"}>{functionLabel[latest]}</Badge> : <Skeleton className="h-5 w-24" />}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><ItemTitle className="min-w-0">{item ? <span className="break-words">{item.vacancy_title ?? "Sin título"}</span> : <Skeleton className="h-5 w-40" />}</ItemTitle>{latest ? <Badge variant={latest === "responsible" ? "accent" : "secondary"}>{functionLabel[latest]}</Badge> : <Skeleton className="h-5 w-24" />}</div>
       {/* ItemDescription renders p; its loading slot uses a div so Skeleton's div stays valid HTML. */}
       {item ? <ItemDescription>{metadata}</ItemDescription> : <div data-slot="item-description"><Skeleton className="h-5 w-56" /></div>}
     </ItemContent>
@@ -76,6 +77,8 @@ function Rows({ items, loading = false }: { items: Assignment[]; loading?: boole
 export function AssignmentHistory({ client }: { client: AssignmentClient }) {
   const [loaded, setLoaded] = useState<{ first: AssignmentHistoryPage; summary: Summary } | null>(null);
   const [failure, setFailure] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const summarized = useRef(new Set<string>());
   const [attempt, setAttempt] = useState(0);
   const [pages, setPages] = useState<AssignmentHistoryPage | null>(null);
   const [moreFailure, setMoreFailure] = useState(false);
@@ -85,7 +88,14 @@ export function AssignmentHistory({ client }: { client: AssignmentClient }) {
   const sheetTitle = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const generation = ++lifetime.current;
-    readOverview(client).then(result => { if (generation === lifetime.current) { setLoaded(result); setPages(result.first); setFailure(false); } }).catch(() => { if (generation === lifetime.current) setFailure(true); });
+    async function load() {
+      try { return await readOverview(client); }
+      catch (error) {
+        if (error instanceof AssignmentError && error.code === "invalid_cursor") return readOverview(client);
+        throw error;
+      }
+    }
+    load().then(result => { if (generation === lifetime.current) { summarized.current = new Set(result.cursors); setLoaded(result); setPages(result.first); setFailure(false); setMoreFailure(false); } }).catch(error => { if (generation === lifetime.current) { if (error instanceof AssignmentError && error.status === 401) setExpired(true); else setFailure(true); } });
     return () => { lifetime.current = generation + 1; };
   }, [client, attempt]);
   async function more() {
@@ -94,10 +104,23 @@ export function AssignmentHistory({ client }: { client: AssignmentClient }) {
     const generation = lifetime.current;
     try {
       const next = historySchema.parse(await client.getHistory(pages.next_cursor));
-      if (generation === lifetime.current) { setPages(previous => previous ? { items: [...previous.items, ...next.items], next_cursor: next.next_cursor } : next); setMoreFailure(false); }
-    } catch { if (generation === lifetime.current) setMoreFailure(true); }
+      if (generation === lifetime.current) {
+        if (!summarized.current.has(pages.next_cursor)) {
+          summarized.current.add(pages.next_cursor);
+          setLoaded(previous => previous ? { ...previous, summary: summarize(next.items, !!next.next_cursor, previous.summary) } : previous);
+        }
+        setPages(previous => previous ? { items: [...previous.items, ...next.items], next_cursor: next.next_cursor } : next); setMoreFailure(false);
+      }
+    } catch (error) {
+      if (generation === lifetime.current) {
+        if (error instanceof AssignmentError && error.status === 401) setExpired(true);
+        else if (error instanceof AssignmentError && error.code === "invalid_cursor") { setLoaded(null); setPages(null); setAttempt(value => value + 1); }
+        else setMoreFailure(true);
+      }
+    }
     finally { busy.current = false; if (generation === lifetime.current) setPending(false); }
   }
+  if (expired) return <DraftEditErrorState reason="unauthenticated" />;
   if (failure) return <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar tu historial" description="Tu trabajo sigue a tu nombre. Puedes reintentar esta consulta sin cambiar datos." primaryAction={{ label: "Reintentar", onClick: () => { setFailure(false); setAttempt(value => value + 1); } }} />;
   const loading = !loaded;
   const hasMore = loaded && (loaded.first.items.length > 5 || !!loaded.first.next_cursor);

@@ -295,3 +295,8 @@ the responsible manages collaborators, and placement credit follows the team mod
   mode change at the same second are dropped; joins always stay; «X tomó la vacante de Y» when the performer receives
   it; the 5-event cap and the Sheet pagination apply to the expanded list. 141 vacancy-team tests, tsc, ESLint clean;
   browser on :8081 shows Mariana's join, no duplicate handover line, and the new wording.
+- **L36** T8 real client done: «Mi historial de vacantes» reads `GET /v2/me/vacancy-assignments/history` in api mode
+  (summary over up to 10 pages, «al menos» beyond; invalid_cursor re-reads once). Integration defect fixed test-first:
+  untitled drafts come with `vacancy_title: null` → «Sin título» like the portfolio (contract documented by the
+  backend). Browser on :8081: 12 current vacancies, 2 delivered, 0 placements (Test User only participated). 64 tests
+  (vacancy-assignments + requestPath), tsc, ESLint clean.

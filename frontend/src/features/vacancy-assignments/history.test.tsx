@@ -2,11 +2,67 @@ import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { AssignmentHistory } from "./history";
-import { createFixtureClient, type Assignment, type AssignmentClient } from "./client";
+import { AssignmentError, createFixtureClient, type Assignment, type AssignmentClient } from "./client";
 
 afterEach(cleanup);
+it("restarts an invalid overview cursor only once", async () => {
+  const getHistory = vi.fn().mockResolvedValueOnce({ items: [], next_cursor: "stale" }).mockRejectedValueOnce(new AssignmentError("invalid_cursor", 400)).mockResolvedValue({ items: [], next_cursor: null });
+  render(<AssignmentHistory client={{ getHistory }} />);
+  await screen.findByText("Todavía no has trabajado en vacantes");
+  expect(getHistory.mock.calls).toEqual([[], ["stale"], []]);
+});
+it("uses existing session-expired handling for 401", async () => {
+  render(<AssignmentHistory client={{ getHistory: async () => { throw new AssignmentError("unauthenticated", 401); } }} />);
+  expect(await screen.findByText("Tu sesión expiró")).toBeInTheDocument();
+});
+it("labels capped summaries as at least", async () => {
+  const getHistory = vi.fn(async (cursor?: string) => ({ items: [item()], next_cursor: String(Number(cursor ?? 0) + 1) }));
+  render(<AssignmentHistory client={{ getHistory }} />);
+  await screen.findByText("Analista contable");
+  expect(within(screen.getByRole("region", { name: "Resumen de tu trabajo" })).getAllByText(/al menos/i)).toHaveLength(3);
+});
 const item = (overrides: Partial<Assignment> = {}): Assignment => ({ vacancy_title: "Analista contable", functions: [{ function: "responsible", started_at: "2026-11-02T18:00:00Z", ended_at: null }], started_at: "2026-11-02T18:00:00Z", ended_at: null, end_cause: null, effective_deadline: "2026-11-20", delivered_in_tramo: 8, placements: { direct: 1, participant: 0, shared: 0 }, ...overrides });
 const clientFor = (items: Assignment[]): AssignmentClient => ({ getHistory: vi.fn().mockResolvedValue({ items, next_cursor: null }) });
+it("stops automatic invalid-cursor recovery after one restart", async () => {
+  const getHistory = vi.fn().mockResolvedValueOnce({ items: [], next_cursor: "stale" }).mockRejectedValueOnce(new AssignmentError("invalid_cursor", 400)).mockRejectedValue(new AssignmentError("invalid_cursor", 400));
+  render(<AssignmentHistory client={{ getHistory }} />);
+  await screen.findByRole("button", { name: "Reintentar" });
+  expect(getHistory).toHaveBeenCalledTimes(3);
+});
+it.each(["invalid_cursor", "read_failed", "unauthenticated"])("handles %s during Sheet pagination", async code => {
+  const getHistory = vi.fn().mockResolvedValue({ items: [item()], next_cursor: "next" });
+  // The overview must reach its end before the Sheet's next-page request fails.
+  getHistory.mockResolvedValueOnce({ items: [item()], next_cursor: "next" }).mockResolvedValueOnce({ items: [], next_cursor: null });
+  render(<AssignmentHistory client={{ getHistory }} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Ver todo" }));
+  getHistory.mockRejectedValueOnce(new AssignmentError(code, code === "unauthenticated" ? 401 : 400)).mockResolvedValue({ items: [], next_cursor: null });
+  fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Ver más" }));
+  if (code === "unauthenticated") await screen.findByText("Tu sesión expiró");
+  else if (code === "invalid_cursor") {
+    await screen.findByText("Todavía no has trabajado en vacantes");
+    expect(getHistory.mock.calls.at(-1)).toEqual([]);
+  } else {
+    const sheet = screen.getByRole("dialog");
+    expect(await within(sheet).findByText("No pudimos cargar más vacantes")).toBeInTheDocument();
+    expect(within(sheet).getAllByRole("listitem")).toHaveLength(1);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(within(sheet).queryByText("No pudimos cargar más vacantes")).not.toBeInTheDocument());
+  }
+});
+it("updates lower bounds only for newly loaded pages, completing them beyond the cap", async () => {
+  const getHistory = vi.fn(async (cursor?: string) => ({ items: [item({ vacancy_title: `Vacante ${cursor ?? 0}` })], next_cursor: Number(cursor ?? 0) < 10 ? String(Number(cursor ?? 0) + 1) : null }));
+  render(<AssignmentHistory client={{ getHistory }} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Ver todo" }));
+  const sheet = await screen.findByRole("dialog");
+  for (let count = 2; count <= 11; count++) {
+    fireEvent.click(within(sheet).getByRole("button", { name: "Ver más" }));
+    await waitFor(() => expect(within(sheet).getAllByRole("listitem")).toHaveLength(count));
+  }
+  fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
+  const summary = screen.getByRole("region", { name: "Resumen de tu trabajo" });
+  expect(summary).not.toHaveTextContent("al menos");
+  expect(within(summary).getByText("Candidatos entregados").parentElement).toHaveTextContent("88");
+});
 it("shows current assignments first, all function badges and plain periods/end reasons without candidate data", async () => {
   const ended = "2026-11-12T18:00:00Z";
   const causes = ["reassigned", "left", "removed", "membership_ended"] as const;
@@ -117,4 +173,11 @@ it("loading preserves the summary and list primitive shape", async () => {
   await act(async () => { resolve({ items: [item(), item({ vacancy_title: "Segunda" }), item({ vacancy_title: "Tercera" })], next_cursor: null }); });
   await screen.findByText("Analista contable");
   expect(slots()).toEqual(before);
+});
+it("labels an untitled draft «Sin título», like the vacancy portfolio", async () => {
+  const at = "2026-10-23T23:03:00.777369+00:00";
+  const untitled = { vacancy_title: null, functions: [{ function: "responsible" as const, started_at: at, ended_at: null }], started_at: at, ended_at: null, end_cause: null,
+    effective_deadline: null, delivered_in_tramo: 0, placements: { direct: 0, participant: 0, shared: 0 } };
+  render(<AssignmentHistory client={{ getHistory: async () => ({ items: [untitled], next_cursor: null }) } as never} />);
+  expect(await screen.findByText("Sin título")).toBeVisible();
 });

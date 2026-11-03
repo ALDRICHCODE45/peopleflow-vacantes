@@ -2,36 +2,45 @@ import { z } from "zod";
 import { functionPeriodSchema } from "@/features/vacancy-team/model";
 
 export const assignmentSchema = z.object({
-  vacancy_title: z.string(),
-  functions: z.array(functionPeriodSchema.pick({ function: true, started_at: true, ended_at: true })).min(1),
-  started_at: z.string().datetime(), ended_at: z.string().datetime().nullable(),
+  // null while the draft has no title yet (contract: string | null).
+  vacancy_title: z.string().nullable(),
+  functions: z.array(functionPeriodSchema.pick({ function: true, started_at: true, ended_at: true }).strict()).min(1),
+  started_at: z.string().datetime({ offset: true }), ended_at: z.string().datetime({ offset: true }).nullable(),
   end_cause: z.enum(["reassigned", "left", "removed", "membership_ended"]).nullable(),
   effective_deadline: z.string().date().nullable(), delivered_in_tramo: z.number().int().nonnegative(),
-  placements: z.object({ direct: z.number().int().nonnegative(), participant: z.number().int().nonnegative(), shared: z.number().int().nonnegative() }),
-});
-export const historySchema = z.object({ items: z.array(assignmentSchema), next_cursor: z.string().nullable() });
+  placements: z.object({ direct: z.number().int().nonnegative(), participant: z.number().int().nonnegative(), shared: z.number().int().nonnegative() }).strict(),
+}).strict();
+export const historySchema = z.object({ items: z.array(assignmentSchema), next_cursor: z.string().nullable() }).strict();
 export type Assignment = z.infer<typeof assignmentSchema>;
 export type AssignmentHistoryPage = z.infer<typeof historySchema>;
 export type AssignmentClient = { getHistory: (cursor?: string) => Promise<AssignmentHistoryPage> };
-export type Summary = { current: number; delivered: number; placements: number; participant: number };
+export type Summary = { current: number; delivered: number; placements: number; participant: number; incomplete: boolean };
+export type ReadResult = { ok: true; data: AssignmentHistoryPage } | { ok: false; code: "unauthenticated" | "invalid_cursor" | "read_failed"; status?: number };
+export class AssignmentError extends Error {
+  constructor(public code: string, public status = 0) { super(code); }
+}
 export const placementsCount = (item: Assignment) => item.placements.direct + item.placements.shared;
 export const currentFirst = (items: Assignment[]) => [...items].sort((a, b) => Number(!!a.ended_at) - Number(!!b.ended_at) || b.started_at.localeCompare(a.started_at));
 
-/** The contract has no aggregate endpoint: derive an honest summary from every page,
- * never from just the five preview rows. The visible list remains cursor-paginated. */
+export function summarize(items: Assignment[], incomplete: boolean, previous?: Summary): Summary {
+  return items.reduce<Summary>((sum, item) => ({ current: sum.current + Number(!item.ended_at), delivered: sum.delivered + item.delivered_in_tramo, placements: sum.placements + placementsCount(item), participant: sum.participant + item.placements.participant, incomplete }), { current: 0, delivered: 0, placements: 0, participant: 0, ...previous, incomplete });
+}
+
+/** No aggregate endpoint: read up to ten pages, then label totals as lower bounds.
+ * The visible list remains cursor-paginated independently of summary preloading. */
 export async function readOverview(client: AssignmentClient) {
   const first = historySchema.parse(await client.getHistory());
   const items = [...first.items];
   let cursor = first.next_cursor;
   const seen = new Set<string>();
-  while (cursor) {
+  let pageCount = 1;
+  while (cursor && pageCount < 10) {
     if (seen.has(cursor)) throw new Error("Repeated history cursor");
     seen.add(cursor);
     const page = historySchema.parse(await client.getHistory(cursor));
-    items.push(...page.items); cursor = page.next_cursor;
+    items.push(...page.items); cursor = page.next_cursor; pageCount += 1;
   }
-  const summary = items.reduce<Summary>((sum, item) => ({ current: sum.current + Number(!item.ended_at), delivered: sum.delivered + item.delivered_in_tramo, placements: sum.placements + placementsCount(item), participant: sum.participant + item.placements.participant }), { current: 0, delivered: 0, placements: 0, participant: 0 });
-  return { first, summary };
+  return { first, summary: summarize(items, !!cursor), cursors: [...seen] };
 }
 
 export function createFixtureClient(scenario: "default" | "empty" | "error" | "loading" = "default"): AssignmentClient {
