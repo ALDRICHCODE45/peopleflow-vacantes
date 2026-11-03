@@ -8,7 +8,7 @@ export function filledDraftRead() {
   const option = "223e4567-e89b-42d3-a456-426614174000";
   const other = "323e4567-e89b-42d3-a456-426614174000";
   return draftReadEnvelopeV2Schema.parse({
-    schema_version: 2, lifecycle: activeLifecycle, id, status: "draft", principal_recruiter_id: id,
+    schema_version: 2, lifecycle: activeLifecycle, id, status: "draft", team: { mode: "with_responsible", responsible: { id, name: "Ana" }, members_count: 1, viewer_function: "responsible" },
     version: "7", created_at: "2026-10-06T03:00:00.123456Z", updated_at: "2026-10-06T03:00:00.123456Z",
     fields: {
       title: "Desarrollador backend", location: mexicoLocationRead, remote_scope: null, work_mode: "hybrid",

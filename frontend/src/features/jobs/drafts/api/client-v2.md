@@ -49,6 +49,11 @@ objects are never mutated.
   (UUID case-insensitive).
 - A missing/malformed required header, a wrong success status, a mismatched identity or an
   undecodable body is `invalid_response` and never a success.
+- List items and every v2 GET/POST/PATCH success body require `team: { mode,
+  responsible: { id, name } | null, members_count, viewer_function }` (vacancy-team
+  v1 contract). Legacy `principal_recruiter` / `principal_recruiter_id` metadata is
+  rejected, including pre-change idempotent replays; there is no compatibility
+  fallback. v1 responses are unchanged.
 - Private screening data is preserved verbatim: `correct_option_id`, UUID hex case and
   question/option order survive decoding unchanged.
 

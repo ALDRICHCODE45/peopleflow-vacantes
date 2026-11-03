@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 import { closeReasonSchema } from "@/features/vacancy-lifecycle/model";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
+import { draftTeamSummarySchema } from "../team-summary";
 
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 const timestamp = z.string().datetime({ offset: true });
@@ -37,7 +38,7 @@ const rowSchema = z.object({
   work_mode: z.enum(["onsite", "remote", "hybrid"]).nullable(),
   work_schedule: z.enum(["full_time", "part_time"]).nullable(),
   requester: requesterSchema.nullable(),
-  principal_recruiter: z.object({ id: uuid, name: z.string().nullable() }).strict(),
+  team: draftTeamSummarySchema,
   version: z.string().regex(/^[1-9][0-9]*$/),
   created_at: timestamp,
   updated_at: timestamp,

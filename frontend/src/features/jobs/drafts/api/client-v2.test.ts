@@ -69,7 +69,7 @@ function readEnvelopeV2(overrides: Record<string, unknown> = {}) {
     lifecycle: activeLifecycle,
     id: ID,
     status: "draft",
-    principal_recruiter_id: OTHER_ID,
+    team: { mode: "with_responsible", responsible: { id: OTHER_ID, name: "Ana" }, members_count: 2, viewer_function: "collaborator" },
     version: "1",
     created_at: TIMESTAMP,
     updated_at: TIMESTAMP,
@@ -84,7 +84,8 @@ function readEnvelopeV2(overrides: Record<string, unknown> = {}) {
 
 /** Create/save responses keep the write shape: only GETs embed `lifecycle`. */
 function writeEnvelopeV2(overrides: Record<string, unknown> = {}) {
-  const { lifecycle: _lifecycle, ...envelope } = readEnvelopeV2(overrides);
+  const envelope: Record<string, unknown> = { ...readEnvelopeV2(overrides) };
+  delete envelope.lifecycle;
   return envelope;
 }
 
@@ -182,6 +183,23 @@ describe("runtime missing inputs", () => {
     expect(envState.accesses).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
+
+it.each(["get", "create", "save"] as const)("requires team and rejects legacy principal in %s responses, including replays", async method => {
+  const good = method === "get" ? readEnvelopeV2() : writeEnvelopeV2();
+  const withoutTeam = { ...good };
+  delete withoutTeam.team;
+  for (const body of [withoutTeam, { ...withoutTeam, principal_recruiter_id: OTHER_ID }, { ...good, principal_recruiter_id: OTHER_ID }]) {
+    const before = structuredClone(body);
+    const fetch = vi.fn().mockResolvedValue(response(method === "create" ? 201 : 200, body, { ETag: ETAG, "Idempotency-Replayed": "true" }));
+    vi.stubGlobal("fetch", fetch);
+    const result = method === "get" ? await getDraftV2({ token: TOKEN, id: ID })
+      : method === "create" ? await createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body: { fields: {} } })
+      : await saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: "x" } } });
+    expect(result).toEqual({ ok: false, error: { kind: "invalid_response", retryable: false } });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(body).toStrictEqual(before);
+  }
 });
 
 describe("createDraftV2", () => {

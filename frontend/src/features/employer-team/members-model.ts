@@ -17,10 +17,11 @@ export const membersSchema = z.object({ members: z.array(companyMemberSchema) })
 export type CompanyMember = z.infer<typeof companyMemberSchema>;
 export const memberName = (member: CompanyMember) => member.user?.full_name || "Usuario dado de baja";
 
-/** Membership ids belong to company_members; draft principals belong to users. */
+/** Membership ids belong to company_members; team responsible ids belong to users. */
 export function memberWorkload(member: CompanyMember, drafts: readonly DraftListRow[]): TeamMemberWorkload | null {
   if (!member.user) return null;
-  const active = drafts.filter(draft => draft.principal_recruiter.id === member.user!.id &&
+  // Shared-team summaries do not identify their members, so they cannot count toward a member's workload.
+  const active = drafts.filter(draft => draft.team.responsible?.id === member.user!.id &&
     (draft.status === "published" || draft.status === "paused") && draft.process !== "finished");
   return { ownedVacancies: active.length, inProcessCandidates: active.reduce((sum, draft) => sum + (draft.candidates?.in_process ?? 0), 0) };
 }

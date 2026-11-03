@@ -129,7 +129,7 @@ function envelope(fields: Record<string, unknown>): DraftReadEnvelopeV2 {
     lifecycle: activeLifecycle,
     id: ID,
     status: "draft",
-    principal_recruiter_id: ID,
+    team: { mode: "with_responsible", responsible: { id: ID, name: "Ana" }, members_count: 1, viewer_function: "responsible" },
     version: "7",
     created_at: at,
     updated_at: at,

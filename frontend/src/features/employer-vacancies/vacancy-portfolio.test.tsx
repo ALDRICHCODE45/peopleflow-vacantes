@@ -20,7 +20,7 @@ const candidates = { total: 7, in_process: 5, discarded: 1, by_stage: [
 const base: DraftListRow = {
   id: "backend-real", title: "Ingeniero backend", status: "published", process: "active", candidates,
   work_mode: "remote", work_schedule: "full_time", requester: null,
-  principal_recruiter: { id: "recruiter-real", name: "Ana" }, version: "1",
+  team: { mode: "with_responsible", responsible: { id: "recruiter-real", name: "Ana" }, members_count: 2, viewer_function: "collaborator" }, version: "1",
   published_at: "2026-03-09T15:00:00Z", paused_at: null, closed_at: null, process_finished_at: null,
   close_reason: null, close_reason_note: null, created_at: "2026-03-08T15:00:00Z", updated_at: "2026-03-09T15:00:00Z",
 };
@@ -129,6 +129,18 @@ describe("VacancyPortfolio vacancy rows", () => {
     ]) expect(backend).toHaveTextContent(value);
     expect(backend.querySelector("time")).toHaveAttribute("datetime", "2026-03-09T15:00:00Z");
   });
+});
+
+it.each([[1, "Equipo · 1 persona"], [3, "Equipo · 3 personas"]] as const)("shows shared team count %s in the unchanged recruiter slot", (members_count, label) => {
+  vi.mocked(usePortfolioDrafts).mockReturnValue(snapshot([{ ...base, team: { mode: "shared", responsible: null, members_count, viewer_function: "member" } }]));
+  const { container } = renderPortfolio();
+  const identity = container.querySelector('[data-pf-vacancy-zone="identity"]')!;
+  const text = within(identity as HTMLElement).getByText(label);
+  expect(text.tagName).toBe("P");
+  expect(text).toHaveClass("text-[12.5px]", "text-muted-foreground", "mt-0.5");
+  expect(identity.children[1].children[1]).toBe(text);
+  expect(screen.queryByText("Ana")).toBeNull();
+  expect(screen.queryByText("Usuario dado de baja")).toBeNull();
 });
 
 describe("VacancyPortfolio publication-state Badges", () => {
