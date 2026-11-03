@@ -35,7 +35,7 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 
 - [x] T1 — S1, S2, S3, S9 (team created): migration 00054 + store + access predicate + `team_access_ended` + GET team
   and history. Route: worker. Commit: efa6c361 (docs 55d4fc9a). Verify: PARTIAL→gaps closed (L6–L7).
-- [ ] T2 — S4, S9: team writes, reassign, mode. Route: worker. Commit: —
+- [x] T2 — S4, S9: team writes, reassign, mode. Route: worker. Commit: 0d0f6f55. Verify: FAIL (3) → fixed (L12–L13).
 - [x] T3 — S5, S9: draft list/read `team`, `placement_exit_reason`, commitment 409 + `POST commitment`. Route: worker.
   Commit: 45135cd8.
 - [ ] T4 — S6, S9: placement credits (write on hire/exit, reads, void/restore). Route: worker. Commit: —
@@ -93,3 +93,19 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
   unit green except the pre-existing scripts/closure. Placement exit reason validated and threaded to the store, persisted
   in T4. Advisory: v1 draft responses still expose `principal_recruiter_id` from the open responsible and emit the zero
   UUID when there is none (possible only after T2 adds shared mode).
+- L11 — T2 worker found a T1 defect (lock-wait access race): `readDraft` evaluated the active-tramo EXISTS in the same
+  SELECT that waited on `FOR UPDATE`; under READ COMMITTED the re-check after the wait covers only the locked row, so a
+  just-removed collaborator got 403 instead of 404 `team_access_ended`. Fix: take the draft row lock in a separate
+  statement, then read membership. Pinned by an HTTP access-race test. Shared helper (every vacancy surface) → focus of
+  T2's independent verification.
+- L12 — T2 independent verify (mw092o2c-f-1kvb): S9 PASS; S4 FAIL on 3 HTTP-reproduced points: leave replay → 404
+  (guard before replay lookup); explicit `recruiter_deadline` on an existing target silently ignored; explicit
+  `responsible_user_id` when switching to shared silently ignored. Decisions: leave replay looked up before the team
+  guard (same caller/key/draft, still a company member); the other two → 422 `recruiter_deadline_not_applicable` /
+  `responsible_not_applicable`. Contract diff sent to the frontend; fix delegated. Verifier scratch (940M) removed by the
+  parent.
+- L13 — T2 fixes done (0d0f6f55): leave replay before the team guard (same caller/key/draft, behind the company gates),
+  422 `recruiter_deadline_not_applicable` / `responsible_not_applicable`, concurrent mode vs add/remove test; contract
+  82a1cdac (frontend OK). Final full integration: 48 packages ok, 0 FAIL (log `.scratch/t2-integration.log`). Advisory:
+  one intermediate full run failed draftstore with its test name lost to `tail`; it did not reproduce alone or in the
+  final full run — watch for an order-dependent draftstore flake.
