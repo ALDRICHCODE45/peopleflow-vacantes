@@ -359,7 +359,9 @@ order. `state_snapshot` is the stored object of §«Data model». `started_by` i
 
 ### `POST V/team/leave`
 
-`{}`. Ends the caller's tramo with `left`. Errors: 409 `responsible_cannot_leave`, 409 `team_last_member`.
+`{}`. Ends the caller's tramo with `left`. An idempotent replay by the same caller with the same key returns the
+frozen 200 response even though the caller no longer has access (only while they are still a company member); it is
+the only team write whose replay is looked up before the team access check. Errors: 409 `responsible_cannot_leave`, 409 `team_last_member`.
 
 ### `PATCH V/team/members/{user_id}`
 
@@ -377,13 +379,15 @@ order. `state_snapshot` is the stored object of §«Data model». `started_by` i
 `keep_as_collaborator` their tramo continues and its function period changes to `collaborator`. If the target is already
 on the team, their tramo continues and its function changes to `responsible`; otherwise a new tramo opens with
 `start_cause = reassignment` (`recruiter_deadline` applies only to a new tramo). Writes the reassignment row with the
-snapshot. Errors: 409 `reassign_target_is_responsible`;
+snapshot. Sending `recruiter_deadline` (non-null) when the target is already on the team → 422
+`recruiter_deadline_not_applicable`, nothing changes (use `PATCH V/team/members/{user_id}`). Errors: 409 `reassign_target_is_responsible`;
 422 `reassignment_note_required`; 422 `not_company_member`; 409 `team_mode_mismatch`.
 
 ### `PUT V/team/mode` (owner)
 
 `{ "mode": "with_responsible" | "shared", "responsible_user_id": "…" }`. `responsible_user_id` is required when switching
 to `with_responsible` and must be an active member (422 `responsible_not_on_team`). Same mode → 409 `team_mode_unchanged`.
+Sending `responsible_user_id` when switching to `shared` → 422 `responsible_not_applicable`, nothing changes.
 
 ### Delivery config ETag
 
