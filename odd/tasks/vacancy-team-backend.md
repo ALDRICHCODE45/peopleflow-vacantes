@@ -36,8 +36,8 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - [x] T1 — S1, S2, S3, S9 (team created): migration 00054 + store + access predicate + `team_access_ended` + GET team
   and history. Route: worker. Commit: efa6c361 (docs 55d4fc9a). Verify: PARTIAL→gaps closed (L6–L7).
 - [ ] T2 — S4, S9: team writes, reassign, mode. Route: worker. Commit: —
-- [ ] T3 — S5, S9: draft list/read `team`, `placement_exit_reason`, commitment 409 + `POST commitment`. Route: worker.
-  Commit: —
+- [x] T3 — S5, S9: draft list/read `team`, `placement_exit_reason`, commitment 409 + `POST commitment`. Route: worker.
+  Commit: 45135cd8.
 - [ ] T4 — S6, S9: placement credits (write on hire/exit, reads, void/restore). Route: worker. Commit: —
 - [ ] T5 — S7, S9: offboard-preview, offboard, DELETE member 409. Route: worker. Commit: —
 - [ ] T6 — S8: own tramo history. Route: worker. Commit: —
@@ -83,3 +83,13 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - L8 — Frontend (2026-11-03): user approved the «Configuración › Equipo» prototype (frontend fc24f4ae). Frontend T3/T5/T6
   wait on slices 1 and 3 → backend does T3 next, then T2, T4, T5, T6. Frontend asked for `kind` in snapshot
   `stage_counts`; contract diff proposed (uncommitted until their OK).
+- L9 — Frontend OK to `kind` in stage_counts (committed 285395c8) and to the order T3 → T2 → T4/T5/T6. Branch QA API for
+  frontend integration: :8081 from detached worktree `.scratch/api-team` @ 285395c8 (binaries `.scratch/qa-api-team-bin`,
+  `.scratch/qa-migrate-team-bin`), DB `peopleflow_vacancies_team` (copy of the dev DB via in-container pg_dump, migrated to
+  54; 12 drafts → 12 teams), PID `.scratch/qa-api-team/api.pid`, log `.scratch/qa-api-team/api.log`. :8080 stays on main.
+  Cleanup later: kill PID, `git worktree remove .scratch/api-team`, `DROP DATABASE peopleflow_vacancies_team`.
+- L10 — T3 done (45135cd8): contract corrections e665c068 (real v2 key `principal_recruiter_id`, option A: team on
+  GET/create/save, frozen replays unchanged) and 9bc2a080 (members routes under `/me`, no `/v2`). Full integration green,
+  unit green except the pre-existing scripts/closure. Placement exit reason validated and threaded to the store, persisted
+  in T4. Advisory: v1 draft responses still expose `principal_recruiter_id` from the open responsible and emit the zero
+  UUID when there is none (possible only after T2 adds shared mode).
