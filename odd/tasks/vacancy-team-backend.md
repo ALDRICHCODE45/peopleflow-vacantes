@@ -41,7 +41,7 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - [x] T4 — S6, S9: placement credits (write on hire/exit, reads, void/restore). Route: worker. Commit: 744b9b7f. Verify: PASS + episode fix (L15–L16).
 - [x] T5 — S7, S9: offboard-preview, offboard, DELETE member 409. Route: worker. Commit: 92ec3835. Verify: PASS (L21).
 - [x] T6 — S8: own tramo history. Route: worker. Commit: d72fc5f7.
-- [ ] T7 — S10: QA environment (API + PEM) and final ping. Route: inline. Commit: —
+- [x] T7 — S10: QA environment (API + PEM) and final ping. Route: inline. Commit: — (environment only; L23).
 
 ## Log
 
@@ -142,3 +142,8 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - L22 — T6 done (d72fc5f7): full integration 53 ok, 0 FAIL (the 4 L19 pre-existing failures did not reproduce on that DB
   state). Parent spot check: company and user come from the session context, query filtered by both, route behind the
   company role gate, no candidate data. Read-only endpoint, no independent verifier (no high-risk item).
+- L23 — T7: :8081 on the final build 9b53fec1 (PID file `.scratch/qa-api-team/api.pid`), DB `peopleflow_vacancies_team`
+  at 54 with 4 members; :8080 still on main. Final ping sent to the frontend. Branch 27 commits ahead of origin/main;
+  merge/push are the user's call. Teardown when the user decides: kill both API PIDs, `git worktree remove
+  .scratch/api-main` and `.scratch/api-team`, `DROP DATABASE peopleflow_vacancies_team`, `docker rm -f pf-draft-test`,
+  delete `.scratch/qa-*-bin`. Auth note: employer QA uses the usual Cognito .env, not PEM.
