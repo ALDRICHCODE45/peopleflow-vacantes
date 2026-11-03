@@ -320,6 +320,14 @@
       "sessions": 1,
       "memories": 2,
       "prompts": 0
+    },
+    {
+      "id": "b50da37d",
+      "created_by": "aldrich_code45",
+      "created_at": "2026-11-03T22:18:00.17656Z",
+      "sessions": 38,
+      "memories": 25,
+      "prompts": 0
     }
   ]
 }
