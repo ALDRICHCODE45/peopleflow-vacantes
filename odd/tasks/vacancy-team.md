@@ -209,3 +209,9 @@ the responsible manages collaborators, and placement credit follows the team mod
   `instantSchema` uses `datetime({ offset: true })` like pipeline-movement; members live at `/me/company/members`, not
   `/v2/…` (contract fixed by the backend, `9bc2a080`; offboard routes also under `/me`), read with the employer-team
   strict decoder, skipping memberships without a user. 96 tests (vacancy-team + requestPath), tsc and ESLint clean.
+- **L23** T8 first part: «Mi historial de vacantes» at /empresa/mi-historial, account-menu item, fixtures behind the
+  flag (endpoint `GET /v2/me/vacancy-assignments/history` lands in backend slice 4). Browser review by the parent:
+  first version repeated the «trámite» rows (3–4 grey lines, zero figures), redone as AHORA/ANTES sections, two-line
+  rows with medallions and only non-zero figures, 5 rows + «Ver todo» Sheet; fixed mobile cut titles (figures move
+  under the text), Sheet opening scrolled past AHORA (initial focus on the title), and cut end reasons (text wraps up to
+  two lines). 37 tests, tsc, ESLint clean.

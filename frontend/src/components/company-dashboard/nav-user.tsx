@@ -1,6 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import { History } from "lucide-react"
+import { useIdentity } from "@/features/identity/identity-session"
+import { prototypeEnabled } from "@/features/vacancy-team/model"
 import { Spinner } from "@/components/ui/spinner"
 
 import {
@@ -30,6 +33,13 @@ export type NavUserMenuItem = Readonly<{
   href: string
   icon?: React.ReactNode
 }>
+
+/** Same opt-in gate as the route; use the authenticated account role, not its display label. */
+export function assignmentHistoryMenuItem(role: string | null): NavUserMenuItem | null {
+  return role === "recruiter" && prototypeEnabled(process.env.NODE_ENV, process.env.NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE)
+    ? { title: "Mi historial de vacantes", href: "/empresa/mi-historial", icon: <History aria-hidden="true" /> }
+    : null
+}
 
 type NavUserIdentity = {
   name: string
@@ -93,6 +103,8 @@ export function NavUser({
   logoutStatusId?: string
 }) {
   const { isMobile } = useSidebar()
+  const { result } = useIdentity()
+  const historyItem = assignmentHistoryMenuItem(result?.ok ? result.data.role : null)
   const initials = accountInitials(user.name)
   return (
     <SidebarMenu>
@@ -159,6 +171,7 @@ export function NavUser({
                     </DropdownMenuItem>
                   ))
                 : DEFAULT_MENU_ITEMS}
+              {historyItem && <DropdownMenuItem className="min-h-10 whitespace-nowrap" render={<Link href={historyItem.href} />}>{historyItem.icon}{historyItem.title}</DropdownMenuItem>}
               {menuItems && !onLogout ? null : (
                 <>
                   <DropdownMenuSeparator />
