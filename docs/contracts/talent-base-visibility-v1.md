@@ -101,6 +101,8 @@ vacancy route that reads the pool company-wide (by exact email or phone). Decisi
 for everyone, because it prevents duplicate candidates, but for a user without access return `last_vacancy: null` and
 `last_added_at: null` in each match. `kind`, `id`, `full_name`, masked contacts and `in_this_process` stay, so the
 recruiter can still choose «es la misma persona» (`existing`) or `confirmed_distinct`.
+The same redaction applies to the `409 possible_duplicates` matches that `POST .../pipeline/candidates/manual` returns
+(same lookup, same match shape).
 
 ### Role changes and member removal
 
