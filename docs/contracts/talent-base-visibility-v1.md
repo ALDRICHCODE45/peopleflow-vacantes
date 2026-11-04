@@ -1,7 +1,8 @@
 # Talent base visibility v1 (internal, employer-only)
 
 Status: **agreed (2026-11-04)**, not implemented; D1–D3 approved by the user via the frontend session. Product source:
-`docs/product/next-three-features.md` §1, «Decisiones del 2026-11-02», Q1 (unit 1b). The backend session wrote this contract. Style follows `vacancy-team-v1.md`.
+`docs/product/next-three-features.md` §1, «Decisiones del 2026-11-02», Q1 (unit 1b). The backend session wrote this
+contract. Style follows `vacancy-team-v1.md`.
 
 ## Purpose
 
@@ -34,8 +35,8 @@ CREATE TABLE company_talent_base_settings (
   company_id uuid PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
   mode       text NOT NULL CHECK (mode IN ('all_recruiters','selected_users')),
   version    bigint NOT NULL DEFAULT 1 CHECK (version >= 1),
-  updated_at timestamptz NOT NULL,
-  updated_by uuid NULL REFERENCES users(id)          -- NULL only for the backfill and company creation
+  updated_at timestamptz NULL,                       -- NULL until the owner first saves the setting
+  updated_by uuid NULL REFERENCES users(id)
 );
 
 -- Only meaningful while mode = 'selected_users'; always empty in 'all_recruiters'.
@@ -48,8 +49,9 @@ CREATE TABLE company_talent_base_viewers (
 );
 ```
 
-- The migration inserts one `all_recruiters` row (version 1) per existing company; company creation inserts it in the
-  same transaction. A company never lacks the row.
+- A company without a row behaves exactly as `all_recruiters`, version 1, never edited. The row is created on demand
+  (`INSERT … ON CONFLICT DO NOTHING`, then locked) by the first PUT or the first talent-base write that re-checks
+  access, so no backfill and no change to company creation are needed.
 - The `ON DELETE CASCADE` on `user_id` is a safety net; the offboard transaction deletes the viewer row explicitly so it
   can audit it (see «Member removal»).
 - Down drops both tables (no data to preserve).
@@ -99,13 +101,16 @@ vacancy route that reads the pool company-wide (by exact email or phone). Decisi
 for everyone, because it prevents duplicate candidates, but for a user without access return `last_vacancy: null` and
 `last_added_at: null` in each match. `kind`, `id`, `full_name`, masked contacts and `in_this_process` stay, so the
 recruiter can still choose «es la misma persona» (`existing`) or `confirmed_distinct`.
+The same redaction applies to the `409 possible_duplicates` matches that `POST .../pipeline/candidates/manual` returns
+(same lookup, same match shape).
 
 ### Role changes and member removal
 
 - Promoting a viewer to `owner` deletes their viewer row in the same transaction (the owner always sees; demoting them
   later does not silently restore the old selection).
 - Removing a member from the company (`DELETE /me/company/members/{id}` or `POST .../offboard`) deletes their viewer row
-  in the offboard transaction. `CompanyMemberOffboarded` metadata gains `talent_base_viewer_removed: true|false`.
+  in the same transaction. `POST .../offboard` adds `talent_base_viewer_removed: true|false` to
+  `CompanyMemberOffboarded`; plain `DELETE` emits no member event today and stays so.
 - The mode never changes by itself: if the last viewer leaves, the company stays in `selected_users` with an empty list.
 
 ### Empty selection (decision **D1**)
@@ -131,8 +136,8 @@ Readable by recruiters too, so the settings screen can show a recruiter why they
 }
 ```
 
-- `viewers` is `[]` in `all_recruiters`, ordered by `full_name`, then `user_id`. `updated_by` is `null` when the row was
-  never edited.
+- `viewers` is `[]` in `all_recruiters`, ordered by `full_name`, then `user_id`. `updated_at` and `updated_by` are
+  `null` while the setting was never saved.
 
 ### `PUT /v2/me/company/talent-base-visibility` (owner, `If-Match` required)
 
@@ -148,9 +153,9 @@ The body **replaces** the setting. Unknown keys → 400 `invalid_request`.
 | Missing `If-Match` | 428 | `precondition_required` | — |
 | Malformed `If-Match` | 400 | `invalid_request` | — |
 | Stale `If-Match` | 412 | `talent_base_visibility_version_conflict` | body = current GET document, `ETag` = current |
-| `mode` missing or not one of the two values | 422 | `validation_error` | `mode` |
-| `user_ids` missing or not an array of UUIDs | 422 | `validation_error` | `user_ids` |
-| Duplicate id in `user_ids` | 422 | `validation_error` | `user_ids[i]` |
+| `mode` missing or not one of the two values | 400 | `validation_error` | `mode` |
+| `user_ids` missing or not an array of UUIDs | 400 | `validation_error` | `user_ids` |
+| Duplicate id in `user_ids` | 400 | `validation_error` | `user_ids[i]` |
 | `user_ids` not empty with `all_recruiters` | 422 | `talent_base_users_not_applicable` | `user_ids` |
 | An id is not a member of this company | 422 | `talent_base_viewer_not_member` | `user_ids[i]` |
 | An id is an owner | 422 | `talent_base_viewer_is_owner` | `user_ids[i]` |
@@ -158,6 +163,8 @@ The body **replaces** the setting. Unknown keys → 400 `invalid_request`.
 - Success: 200 with the new GET document and `ETag`. The version increments on every accepted PUT, including one that
   changes nothing (it is still audited, with empty `added_user_ids` and `removed_user_ids`).
 - `selected_users` with `user_ids: []` is accepted (D1).
+- `validation_error` keeps the shared catalog status 400 (`{error, code, fields}`); the three `talent_base_*` 422 codes
+  use the same envelope with `fields`.
 
 ### Capability flag on `GET /me/company` (breaking-additive)
 

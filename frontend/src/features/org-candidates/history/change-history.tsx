@@ -13,6 +13,7 @@ import type { DetailFailure, OrgCandidateIdentity } from "../detail/detail-model
 import { loadOrgCandidateHistoryAction } from "./history-actions";
 import type { HistoryEntry, HistoryResult, OrgCandidateHistory } from "./history-model";
 import { historyChangeText, historyDate } from "./history-presentation";
+import { isTalentBaseRestricted, TALENT_BASE_RESTRICTED } from "../restricted";
 
 type Props = { candidate: OrgCandidateIdentity; refreshKey: number; onViewSummary?: () => void };
 /** Cursor-backed timeline. A candidate switch owns a fresh read session. */
@@ -56,7 +57,8 @@ function HistorySession({ candidate: { kind, id }, refreshKey, onViewSummary }: 
     {!page && pending && <HistorySkeleton />}
     {page && page.items.length > 0 && <ItemGroup className="gap-0">{page.items.map(entry => <HistoryItem key={entry.id} entry={entry} languages={catalog.data?.items ?? []} />)}</ItemGroup>}
     {page && page.items.length === 0 && !failure && <SectionEmpty icon={History} tone="empty" title="Todavía no hay cambios" description="Aquí aparecerán las correcciones de datos y CV que haga tu equipo. Si necesitas revisar la información actual, vuelve a Resumen." primaryAction={onViewSummary ? { label: "Ver resumen", onClick: onViewSummary } : undefined} />}
-    {failure && <StateCard icon={Info} tone="error" role="status" title="No pudimos cargar el historial"
+    {failure && isTalentBaseRestricted(failure.result.reference) && <StateCard icon={Info} tone="forbidden" role="status" title={TALENT_BASE_RESTRICTED.title} description={TALENT_BASE_RESTRICTED.description} />}
+    {failure && !isTalentBaseRestricted(failure.result.reference) && <StateCard icon={Info} tone="error" role="status" title="No pudimos cargar el historial"
       description={failure.result.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo para consultar el historial."
         : failure.result.reason === "forbidden" ? "Tu cuenta no tiene permiso para consultar este historial."
         : failure.result.reason === "not_found" ? "Este candidato ya no está disponible en tu organización."

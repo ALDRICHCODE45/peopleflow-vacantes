@@ -56,3 +56,8 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
   manual-intake sheet, draft editor shell, local draft form) pass alone (170/170): timeouts under suite load. Commits
   `746e13f7` (docs), `cb3cf014` (T3), `c61c41de` (T2); slices are separate units (T2 ~620 lines with its tests).
   Browser review and the real backend remain in T4.
+- **L8** Native review (risk + reliability) of `746e13f7..32fb8ca1`: approved and acknowledged
+  (`review-924ca82bcb63dbcf`). Advisory findings closed in the follow-up commit: the history tab now shows «Base de
+  talento restringida» without a retry; a duplicate with `last_vacancy`/`last_added_at` null is pinned in the intake
+  sheet; the contract copy refreshed to the backend's `984cc378` (validation_error 400, setting created on demand, 409
+  possible_duplicates redacted the same way — already decoded by the shared match schema). 583 tests, tsc clean.

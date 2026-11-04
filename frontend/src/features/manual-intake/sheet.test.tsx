@@ -387,3 +387,13 @@ it("opens with one study ready because at least one is required", () => {
  expect(screen.getByRole("group", { name: "Estudio 1" })).toBeVisible();
  expect(screen.getByText("Estudio 1", { selector: "span" })).toBeVisible();
 });
+it("shows a hidden-history duplicate without its last vacancy and still allows choosing it", async () => {
+ vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [{ kind: "manual", id: vacancyId, full_name: "Ana anterior", email_masked: "a***@example.com", phone_masked: null, last_vacancy: null, last_added_at: null, in_this_process: false }] } });
+ mount(); const email = screen.getByLabelText("Correo electrónico");
+ fireEvent.change(email, { target: { value: "ana@example.com" } }); fireEvent.blur(email);
+ expect(await screen.findByText("Ana anterior")).toBeVisible();
+ expect(screen.getByText("a***@example.com")).toBeVisible();
+ expect(screen.queryByText(/Última vacante/)).toBeNull();
+ fireEvent.click(screen.getByRole("button", { name: "Usar el existente" }));
+ expect(screen.queryByLabelText("Nombre completo")).not.toBeInTheDocument();
+});
