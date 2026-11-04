@@ -596,3 +596,58 @@ describe("company dashboard sidebar talent base visibility", () => {
     expect(screen.getByRole("link", { name: "Base de talento" })).toHaveAttribute("href", "/empresa/talento");
   });
 });
+
+describe("company dashboard sidebar audit entry (owner only)", () => {
+  beforeEach(stubBrowserApis);
+
+  it("shows «Auditoría» to the owner, last in Organización, linking to the audit page", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner" });
+    await act(async () => { renderSidebar(); });
+    const link = screen.getByRole("link", { name: "Auditoría" });
+    expect(link).toHaveAttribute("href", "/empresa/auditoria");
+    expect(link.querySelector("svg.tabler-icon")).not.toBeNull();
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS, "Auditoría"]);
+    expect(existsSync(join(process.cwd(), "src/app/(empresa)/empresa/auditoria/page.tsx"))).toBe(true);
+  });
+
+  it("activates only «Auditoría» on its own route and nested routes", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner" });
+    await act(async () => { renderSidebar("/empresa/auditoria"); });
+    expect(screen.getByRole("link", { name: "Auditoría" })).toHaveAttribute("data-active");
+    expect(activeLabels()).toEqual([]);
+  });
+
+  it("hides it from a recruiter and leaves every other entry as it was", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "recruiter", canViewTalentBase: true });
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Auditoría" })).toBeNull();
+    expect(groupDestinations("Principal")).toEqual([...PRINCIPAL_ITEMS]);
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
+  });
+
+  it.each([
+    ["while the membership is loading", () => companyMock.mockReturnValue(new Promise(() => {}))],
+    ["when the membership is not found", () => companyMock.mockResolvedValue({ kind: "none", industries: [] })],
+    ["when the membership read fails", () => companyMock.mockResolvedValue({ kind: "server_error", reference: {} })],
+    ["when the membership read rejects", () => companyMock.mockRejectedValue(new Error("boom"))],
+  ])("never shows it %s", async (_name, arrange) => {
+    arrange();
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Auditoría" })).toBeNull();
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
+  });
+
+  it("never shows it to a candidate", async () => {
+    identityMock.mockReturnValue({ ...realIdentity, result: { ok: true, data: { ...realIdentity.result.data, role: "candidate" } } });
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner" });
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Auditoría" })).toBeNull();
+  });
+
+  it("keeps «Base de talento» restriction and the owner's entry independent", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner", canViewTalentBase: true });
+    await act(async () => { renderSidebar(); });
+    expect(screen.getByRole("link", { name: "Base de talento" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Auditoría" })).toBeInTheDocument();
+  });
+});

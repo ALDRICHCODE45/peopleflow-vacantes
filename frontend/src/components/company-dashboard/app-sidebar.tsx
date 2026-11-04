@@ -25,6 +25,7 @@ import {
   IconCirclePlusFilled,
   IconLayoutDashboard,
   IconSettings,
+  IconShieldCheck,
   IconUsers,
   IconUsersGroup,
   IconWorld,
@@ -72,6 +73,13 @@ const data = {
       icon: <IconSettings />,
     },
   ],
+}
+
+/** Owner-only destination: shown only once the membership says `owner` (the API enforces it too). */
+const AUDIT_ITEM: NavItem = {
+  title: "Auditoría",
+  url: "/empresa/auditoria",
+  icon: <IconShieldCheck />,
 }
 
 /**
@@ -200,7 +208,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
         <NavGroup
           label="Organización"
-          items={data.navOrganization}
+          items={membership?.role === "owner" ? [...data.navOrganization, AUDIT_ITEM] : data.navOrganization}
           pathname={pathname}
         />
         </>}
