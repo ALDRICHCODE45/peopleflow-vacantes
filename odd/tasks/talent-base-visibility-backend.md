@@ -88,3 +88,7 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
   (Recomendado)». Parent, QA DB only, one transaction: `users.user_type` candidate → recruiter (UPDATE 1) and a
   `company_members` recruiter row in Trust People Company (INSERT 1). Shows as «Alberto Santa cruz». Cognito and the dev DB
   untouched. Teardown adds: delete that Cognito user if the user wants (the QA DB is dropped anyway).
+- L12 — User (verbatim, via frontend): «Sí, mergeá y bajá los procesos». Frontend merges both branches into local main
+  (--no-ff, backend first); the user pushes. Parent stopped :8081, removed `.scratch/api-tb` and both QA binaries. Kept:
+  DB `peopleflow_vacancies_team` (QA recruiter account inside), containers `peopleflow-vacancies` (dev DB still at 53
+  → run `go run ./cmd/migrate up`) and `pf-draft-test`, the verifier's temp scratch outside the repo.
