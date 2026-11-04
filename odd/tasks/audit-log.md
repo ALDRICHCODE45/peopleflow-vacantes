@@ -30,7 +30,7 @@ source `docs/product/next-three-features.md` §2.
 | T1 | S1–S10 | Contract proposal from the backend session, frontend review, open decisions to the user (done, L3–L4) | — |
 | T2 | S5 | 2a, inline: server-only helper sending X-PF-Proxy-Secret / X-PF-Client-IP / X-PF-Client-User-Agent on every server call to the API, plus a test that fails when a call site skips it (Risk: item 2, a shared secret) (done, L5–L7) | `40a4a825` |
 | T3 | S3 | 2a, inline: session start in the NextAuth jwt callback on sign-in only; «end session» server action called before every signOut(); short timeout, failures never block (done, L5–L7) | `1b39c7a4` |
-| T4 | S2–S9 | 2a integration against the backend 2a on :8081 (rows with ip_source=bff, session rows, sensitive reads) | |
+| T4 | S2–S9 | 2a integration against the backend 2a on :8081 (rows with ip_source=bff, session rows, sensitive reads) (done, L16–L18) | `51a7e5d6` |
 | T5 | S6, S8–S10 | 2b, worker (background), built against the agreed contract before the backend 2b exists (L10): owner-only audit screen (filters person, action, date, vacancy; labels; «IP no verificada»; entity labels) and CSV export through a streaming route handler (done, L10–L12) | `46baad77`, `f54637d9`, `6122d776`, `5bab0cce` |
 | T6 | all | 2b integration, verification, partner doc update | |
 
@@ -126,3 +126,22 @@ source `docs/product/next-three-features.md` §2.
 - **L17** Employer sign-out fixed in `51a7e5d6` (worker mw2oq4ue-1-hhuz, RED 4 failed then 65/65; parent re-ran 185/185
   focused tests, tsc 0). The real Base UI menu item is not driven in jsdom (hangs); covered by the manual re-test.
   Next: user rebuilds, signs in from scratch (SessionStarted) and signs out from the menu (SessionEnded).
+- **L18** T4 done: SessionEnded 16:39:30 (new menu item) and SessionStarted 16:39:57 (fresh login), both `ip_source=bff`.
+  User on the audit screen (verbatim): «no me gusta nada ... en primera, no cargan los datos, en segunda, compara el
+  diseno de la tabla de base de talento con esta tabla hermano, realmente no son completamente comparables, desde el
+  diseno, el titulo, los colores, parece que se te olvido un poco seguir tu system design, los inputs de fecha no son
+  los de shadcn, no se.. parece una seccion que no pertenece a peopleflow.» Data: expected, the backend 2b read
+  endpoints do not exist yet (404). Design: valid; T5 reopened for a presentation-only restyle mirroring the Talent Base
+  list and `design/system.md` (worker, background).
+- **L19** User chose (relayed by the backend session) «Mergear la 2a y arrancar la 2b (Recomendado)»; after the
+  frontend warning, only the backend is merged: main `4e9a40bf` = --no-ff merge of `feat/audit-log-backend` @ `39e2ff35`
+  (14 commits, tree identical to the tip; made with commit-tree/update-ref because main is checked out nowhere and this
+  worktree had a worker editing). No push. Frontend `feat/audit-log` waits for the restyle and the 2b wiring. Backend
+  2b in progress on `feat/audit-log-backend-2b`; QA :8081 is down until then.
+- **L20** T5 restyle committed in `6c7bf11a` (worker mw2pf10i-2-moju): DashboardPageContent heading, Filtros panel with Select
+  and the shared DatePickerField, RichDataTable columns, semantic badges, skeleton, shared empty/error states, export in
+  the toolbar. Parent re-ran 18 files / 298 tests, tsc 0. Not seen in a browser yet: the authenticated screen needs the
+  QA API, which is down until the backend 2b; the side-by-side visual check with the Talent Base moves to T6. Known
+  gaps: no min/max between «Desde» and «Hasta» (the shared DatePickerField has none; the API and the export validation
+  still reject inverted ranges) and dates are cleared only from their chip or «Limpiar filtros». No RED for the restyle
+  (presentation change; filter tests failed on the markup change and were adapted without weakening assertions).
