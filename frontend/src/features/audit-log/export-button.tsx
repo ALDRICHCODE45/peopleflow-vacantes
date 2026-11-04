@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { CircleAlert, Download } from "lucide-react";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -45,12 +45,12 @@ export function ExportAuditButton({ filters }: { filters: AuditFilters }) {
     finally { setPending(false); }
   }
 
-  return <div className="flex flex-col items-start gap-2 sm:items-end">
+  return <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
     <Button type="button" variant="outline" className="min-h-10" disabled={pending} aria-busy={pending} onClick={() => void run()}>
       {pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Download data-icon="inline-start" aria-hidden="true" />}
       {pending ? "Exportando…" : "Exportar CSV"}
     </Button>
-    {message?.tone === "error" && <p role="alert" className="max-w-md text-sm text-destructive sm:text-right">{message.text}</p>}
+    {message?.tone === "error" && <p role="alert" className="flex max-w-md items-center gap-2 text-sm text-status-danger sm:text-right"><CircleAlert aria-hidden="true" className="size-4 shrink-0" />{message.text}</p>}
     {message?.tone === "success" && <ActionStatus id="audit-export-status" tone="success" text={message.text} />}
   </div>;
 }

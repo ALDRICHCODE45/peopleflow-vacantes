@@ -1,47 +1,24 @@
-import { Badge } from "@/components/ui/badge";
+"use client";
+import { RichDataTable, type RichDataTableProps } from "@/components/data-table/rich-data-table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { describeActor, describeBrowser, eventLabel, formatOccurredAt, isKnownEventType, type AuditEvent } from "./model";
+import { auditColumns } from "./audit-columns";
+import type { AuditEvent } from "./model";
 
-const muted = "text-xs text-muted-foreground";
+const defaultPinning = { start: ["actor"], end: [] };
 
-function Who({ actor }: { actor: AuditEvent["actor"] }) {
-  const who = describeActor(actor);
-  return <div className="flex min-w-0 flex-col gap-0.5">
-    <span className="flex flex-wrap items-center gap-1.5 font-medium">{who.name}{who.former && <Badge variant="neutral">Ex miembro</Badge>}</span>
-    {who.email && <span className={muted}>{who.email}</span>}
-  </div>;
+/** One row per recorded event, in the talent base's rich table; every nullable of the contract has an honest, neutral reading. */
+export function AuditTable({ items, toolbar }: { items: AuditEvent[]; toolbar?: RichDataTableProps<AuditEvent>["toolbar"] }) {
+  return <RichDataTable id="audit-log" columns={auditColumns} data={items} getRowId={event => event.id} defaultPinning={defaultPinning} emptyState={null} toolbar={toolbar} compactControls />;
 }
 
-function Origin({ event }: { event: AuditEvent }) {
-  return <div className="flex min-w-0 flex-col gap-0.5">
-    <span className="flex flex-wrap items-center gap-1.5">
-      {event.ip ? <span className="font-mono text-xs">{event.ip}</span> : event.ip_source === "peer" ? null : <span className={muted}>—</span>}
-      {event.ip_source === "peer" && <Badge variant="review" title="La IP la vio el servidor, no el navegador de la persona: puede ser la de un intermediario.">IP no verificada</Badge>}
-    </span>
-    <span className={muted} title={event.user_agent ?? undefined}>{describeBrowser(event.user_agent)}</span>
-  </div>;
-}
-
-/** One row per recorded event; every nullable of the contract has an honest, neutral reading. */
-export function AuditTable({ items }: { items: AuditEvent[] }) {
-  return <Table>
-    <TableHeader>
-      <TableRow>
-        <TableHead>Cuándo</TableHead><TableHead>Quién</TableHead><TableHead>Acción</TableHead>
-        <TableHead>Sobre</TableHead><TableHead>Vacante</TableHead><TableHead>IP y navegador</TableHead>
-      </TableRow>
-    </TableHeader>
-    <TableBody>
-      {items.map(event => <TableRow key={event.id}>
-        <TableCell className="whitespace-nowrap align-top"><time dateTime={event.occurred_at} title="Hora de la Ciudad de México">{formatOccurredAt(event.occurred_at)}</time></TableCell>
-        <TableCell className="align-top"><Who actor={event.actor} /></TableCell>
-        <TableCell className="align-top whitespace-normal">
-          <span className="flex flex-col gap-0.5">{eventLabel(event.event_type)}{!isKnownEventType(event.event_type) && <span className={`${muted} font-mono`}>{event.event_type}</span>}</span>
-        </TableCell>
-        <TableCell className="align-top whitespace-normal">{event.entity.label ?? <span className={muted}>Sin etiqueta</span>}</TableCell>
-        <TableCell className="align-top whitespace-normal">{event.vacancy ? event.vacancy.title ?? <span className={muted}>Vacante eliminada</span> : <span className={muted}>—</span>}</TableCell>
-        <TableCell className="align-top"><Origin event={event} /></TableCell>
-      </TableRow>)}
-    </TableBody>
-  </Table>;
+/** Same blocks as the table: the real headers over skeleton rows, so loading does not shift the layout. */
+export function AuditTableSkeleton() {
+  const width = auditColumns.reduce((sum, column) => sum + column.size, 0);
+  return <div data-audit-skeleton="table" aria-hidden="true"><Table className="table-fixed" style={{ width: "100%", minWidth: width }}>
+    <TableHeader><TableRow>{auditColumns.map(column => <TableHead key={column.id} style={column.meta.grow ? undefined : { width: column.size }}>{column.meta.label}</TableHead>)}</TableRow></TableHeader>
+    <TableBody>{Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{auditColumns.map(column => <TableCell key={column.id}>
+      <div className="flex min-w-0 items-center gap-2">{column.id === "actor" && <Skeleton className="size-10 shrink-0 rounded-full" />}<Skeleton className="h-10 w-28 max-w-full" /></div>
+    </TableCell>)}</TableRow>)}</TableBody>
+  </Table></div>;
 }

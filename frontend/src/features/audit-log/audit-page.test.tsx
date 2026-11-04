@@ -25,7 +25,19 @@ it("shows the owner the audit workspace", async () => {
   load.mockResolvedValue(asRole("owner"));
   render(<AuditPage />);
   expect(await screen.findByRole("table")).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Registro de actividad" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 2, name: "Registro de actividad" })).toBeInTheDocument();
+});
+
+it("keeps every state inside the shared dashboard page content", async () => {
+  load.mockResolvedValue(asRole("owner"));
+  const owner = render(<AuditPage />);
+  await screen.findByRole("table");
+  expect(owner.container.querySelectorAll("[data-pf-page-content]")).toHaveLength(1);
+  owner.unmount();
+  load.mockResolvedValue(asRole("recruiter"));
+  const recruiter = render(<AuditPage />);
+  await screen.findByText("Auditoría restringida");
+  expect(recruiter.container.querySelectorAll("[data-pf-page-content]")).toHaveLength(1);
 });
 
 it("resolves the membership first: nothing is read while it is loading", () => {
