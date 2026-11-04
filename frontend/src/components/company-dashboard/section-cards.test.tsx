@@ -46,4 +46,10 @@ describe("company dashboard KPI cards — approved composition, real metrics", (
     expect(screen.getByText("0/0")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
   });
+  it("hides «Nuevos en la base» when the talent base is restricted, keeping the other three metrics", () => {
+    render(<SectionCards data={{ ...data, pool_added_last_7_days: null }} />);
+    expect(screen.queryByText("Nuevos en la base")).toBeNull();
+    expect(screen.queryByText("Base de talento de tu empresa")).toBeNull();
+    for (const label of ["Vacantes publicadas", "Candidatos en proceso", "Posiciones cubiertas"]) expect(screen.getByText(label)).toBeInTheDocument();
+  });
 });

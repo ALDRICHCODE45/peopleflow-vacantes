@@ -20,14 +20,15 @@ export function SectionCards({ data }: { data: Metrics }) {
   const kpiCards = [
     { label: "Vacantes publicadas", value: data.published_vacancies, icon: BriefcaseBusiness, highlight: "Con publicación activa", context: "Visibles para tu cuenta" },
     { label: "Candidatos en proceso", value: data.in_process, icon: Users, highlight: "En etapas de progreso", context: "En tus vacantes publicadas" },
-    { label: "Nuevos en la base", value: data.pool_added_last_7_days, icon: UserPlus, highlight: "Últimos 7 días", context: "Base de talento de tu empresa" },
+    // Hidden, not zero, when the owner restricted the talent base for this recruiter.
+    ...(data.pool_added_last_7_days === null ? [] : [{ label: "Nuevos en la base", value: data.pool_added_last_7_days, icon: UserPlus, highlight: "Últimos 7 días", context: "Base de talento de tu empresa" }]),
     { label: "Posiciones cubiertas", value: `${data.positions.covered}/${data.positions.required}`, icon: CircleCheck, highlight: "Cubiertas sobre requeridas", context: "En tus vacantes publicadas" },
   ]
   const coverage = data.positions.required > 0 ? Math.min(100, data.positions.covered / data.positions.required * 100) : 0
   return (
     <div
       data-pf-kpi-cards=""
-      className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4"
+      className={cn("grid grid-cols-1 gap-4 @xl/main:grid-cols-2", kpiCards.length === 4 ? "@5xl/main:grid-cols-4" : "@5xl/main:grid-cols-3")}
     >
       {kpiCards.map((kpi, index) => (
         <Card key={kpi.label} className="@container/card">

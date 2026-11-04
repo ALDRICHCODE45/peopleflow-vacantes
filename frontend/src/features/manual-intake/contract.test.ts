@@ -19,3 +19,11 @@ describe("duplicates-check contract", () => {
     expect(duplicatesSchema.safeParse({ matches: [{ ...first, last_vacancy: { ...first.last_vacancy, extra: 1 } }] }).success).toBe(false);
   });
 });
+
+describe("duplicates-check without talent base access (talent-base-visibility D2)", () => {
+  it("decodes a match whose last vacancy and last added date are hidden", () => {
+    const [first] = backendExample.matches;
+    const hidden = { ...first, last_vacancy: null, last_added_at: null };
+    expect(duplicatesSchema.parse({ matches: [hidden] })).toEqual({ matches: [hidden] });
+  });
+});

@@ -48,3 +48,7 @@ it("rejects malformed CV metadata and invalid paths", async () => {
   expect(await downloadOrgCandidateCv("token", { kind: "manual", id: "../other" }, id(2))).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+it("keeps the talent_base_restricted code on a 403", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: "private", code: "talent_base_restricted" }, { status: 403 })));
+  expect(await loadOrgCandidateDetailAction({ kind: "manual", id: id(1) })).toEqual({ ok: false, reason: "forbidden", reference: { status: 403, code: "talent_base_restricted" } });
+});

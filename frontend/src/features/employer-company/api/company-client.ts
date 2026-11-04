@@ -14,7 +14,8 @@ const companySchema = z.object({
   location: locationReadSchema, updated_at: companyTimestampSchema,
 });
 const industriesSchema = z.array(z.object({ id: z.string(), label_es: z.string(), label_en: z.string(), sort_order: z.number().int() }));
-const membershipSchema = z.object({ company_id: z.string(), role: z.enum(["owner", "recruiter"]), company: companySchema });
+// `can` is always present from talent-base-visibility v1; an older backend omits it and keeps today's open base.
+const membershipSchema = z.object({ company_id: z.string(), role: z.enum(["owner", "recruiter"]), company: companySchema, can: z.object({ view_talent_base: z.boolean() }).optional() });
 const errorSchema = z.object({ error: z.string(), code: z.string(), details: z.unknown().optional(), data: editorSchema.optional() });
 export type Company = z.infer<typeof companySchema>;
 export type Industry = z.infer<typeof industriesSchema>[number];

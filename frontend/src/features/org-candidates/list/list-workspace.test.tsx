@@ -230,3 +230,12 @@ it("debounces search and resets pagination", async () => {
  await act(async () => { await vi.advanceTimersByTimeAsync(350); }); vi.useRealTimers();
  await waitFor(() => expect(window.location.search).toContain("q=Ana")); expect(listCandidatesAction).toHaveBeenLastCalledWith({ filters: { q: "Ana" } });
 });
+it("explains the owner's restriction without a retry when the talent base is restricted", async () => {
+ vi.mocked(listCandidatesAction).mockResolvedValue({ ok: false, reason: "forbidden", reference: { status: 403, code: "talent_base_restricted" } });
+ render(<OrgCandidatesWorkspace />);
+ expect(await screen.findByRole("heading", { name: "Base de talento restringida" })).toBeVisible();
+ expect(screen.getByText("El owner limitó el acceso a la Base de talento. Sigues viendo a los candidatos de tus vacantes desde su tablero.")).toBeVisible();
+ expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+ expect(screen.queryByText("No pudimos cargar los candidatos")).toBeNull();
+ expect(listCandidatesAction).toHaveBeenCalledTimes(1);
+});

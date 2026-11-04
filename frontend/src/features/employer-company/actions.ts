@@ -17,7 +17,7 @@ type Reference = { status?: number; code?: string };
 export type CompanyUnavailable = { kind: "server_error" | "no_response" | "unrecognized_response"; reference: Reference };
 export type CompanyState =
   | { kind: "unauthenticated"; reference: Reference }
-  | { kind: "exists"; company: Company; role: Membership["role"]; industryLabel: string }
+  | { kind: "exists"; company: Company; role: Membership["role"]; industryLabel: string; canViewTalentBase: boolean }
   | { kind: "none"; industries: Industry[] }
   | CompanyUnavailable;
 export type CreateCompanyState =
@@ -56,7 +56,7 @@ export async function loadCompanyStateAction(): Promise<CompanyState> {
       const industries = await listIndustries();
       if (industries.ok) industryLabel = industries.data.find(item => item.id === mine.data.company.industry_id)?.label_es ?? industryLabel;
     } catch { /* Keep the authenticated company summary. */ }
-    return { kind: "exists", company: mine.data.company, role: mine.data.role, industryLabel };
+    return { kind: "exists", company: mine.data.company, role: mine.data.role, industryLabel, canViewTalentBase: mine.data.can?.view_talent_base ?? true };
   } catch {
     return unavailable();
   }

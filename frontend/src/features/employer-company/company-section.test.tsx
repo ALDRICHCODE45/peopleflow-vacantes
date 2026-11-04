@@ -167,7 +167,7 @@ it("retries unavailable load explicitly and handles rejected actions", async () 
   expect(loadCompanyStateAction).toHaveBeenCalledTimes(2);
 });
 it.each([["active", "Activa", "success"], ["pending_verification", "En verificación", "review"], ["suspended", "Suspendida", "danger"]] as const)("uses semantic status %s", async (status, label, variant) => {
-  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, status }, role: "recruiter", industryLabel: "Tecnología" });
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, status }, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: true });
   render(<CompanySection />); const badge = await screen.findByText(label); expect(badge).toHaveAttribute("data-variant", variant);
   expect(screen.getByText("Reclutador")).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Crear empresa" })).not.toBeInTheDocument();
 });
@@ -181,7 +181,7 @@ it("shows optional location after industry and does not silently select Mexico",
 });
 it("allows only owners to edit, adopts a conflict, and clears with the new token on explicit save", async () => {
   const location = { country: { id: "MX", name: "México" }, state: null, municipality: null, postal_code: null, label: "México" };
-  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, location }, role: "owner", industryLabel: "Tecnología" });
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, location }, role: "owner", industryLabel: "Tecnología", canViewTalentBase: true });
   const current = { id: company.id, name: company.name, location, updated_at: "2026-10-20T13:00:00.987654321Z" };
   vi.mocked(updateCompanyLocationAction).mockResolvedValueOnce({ kind: "conflict", company: current, reference: { status: 409, code: "conflict" } }).mockResolvedValueOnce({ kind: "updated", company: { ...current, location: null } });
   render(<CompanySection />);
@@ -206,13 +206,13 @@ it("allows only owners to edit, adopts a conflict, and clears with the new token
   expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Ubicación actualizada." }));
 });
 it("shows a recruiter the location without an edit button", async () => {
-  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología" });
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: true });
   render(<CompanySection />);
   expect(await screen.findByText("Sin ubicación")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Editar ubicación" })).not.toBeInTheDocument();
 });
 it("keeps edits and shows shared per-level error copy after 422", async () => {
-  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "owner", industryLabel: "Tecnología" });
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "owner", industryLabel: "Tecnología", canViewTalentBase: true });
   vi.mocked(updateCompanyLocationAction).mockResolvedValue({ kind: "invalid", fields: { location: [{ field: "postal_code", reason: "mismatch" }] }, reference: { status: 422, code: "invalid_location" } });
   render(<CompanySection />);
   await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
@@ -231,7 +231,7 @@ it("keeps edits and shows shared per-level error copy after 422", async () => {
 });
 it("clears the rejected municipality on selection and submits its code", async () => {
   const location = { country: { id: "MX", name: "México" }, state: { id: "09", name: "Ciudad de México" }, municipality: null, postal_code: null, label: "Ciudad de México" };
-  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, location }, role: "owner", industryLabel: "Tecnología" });
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, location }, role: "owner", industryLabel: "Tecnología", canViewTalentBase: true });
   vi.mocked(updateCompanyLocationAction).mockResolvedValue({ kind: "invalid", fields: { location: [{ field: "municipality", reason: "required" }] }, reference: { status: 422 } });
   render(<CompanySection />);
   await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
@@ -245,7 +245,7 @@ it("clears the rejected municipality on selection and submits its code", async (
   expect(updateCompanyLocationAction).toHaveBeenLastCalledWith({ location: { country: "MX", state: "09", municipality: "09014" }, updatedAt: company.updated_at });
 });
 it("blocks duplicate saves and reads without repeating an uncertain write", async () => {
-  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "owner", industryLabel: "Tecnología" });
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "owner", industryLabel: "Tecnología", canViewTalentBase: true });
   const pending = deferred<Awaited<ReturnType<typeof updateCompanyLocationAction>>>();
   vi.mocked(updateCompanyLocationAction).mockReturnValue(pending.promise);
   render(<CompanySection />);

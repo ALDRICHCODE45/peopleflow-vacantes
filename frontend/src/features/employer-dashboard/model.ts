@@ -6,7 +6,8 @@ const person = z.object({ id: uuid, name: z.string() }).strict();
 export const dashboardSchema = z.object({
   published_vacancies: count,
   in_process: count,
-  pool_added_last_7_days: count,
+  /** null for a recruiter the owner left out of the talent base (talent-base-visibility). */
+  pool_added_last_7_days: count.nullable(),
   positions: z.object({ covered: count, required: count }).strict(),
   origin_by_day: z.array(z.object({ date: z.string().date(), organic: count, manual: count }).strict()).length(90)
     .refine(days => days.every((day, i) => i === 0 || Date.parse(day.date) - Date.parse(days[i - 1].date) === 86_400_000), "Expected consecutive days, oldest first"),

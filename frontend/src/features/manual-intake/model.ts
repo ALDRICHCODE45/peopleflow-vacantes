@@ -12,7 +12,7 @@ export { phoneSchema } from "@/lib/phone";
 export const contactSchema = z.object({ email: z.string().trim().email().nullable(), phone: phoneSchema.nullable() }).strict().refine(value => value.email !== null || value.phone !== null);
 export const matchSchema = z.object({
   kind: z.enum(["manual", "organic"]), id: uuidSchema, full_name: z.string(), email_masked: z.string().nullable(), phone_masked: z.string().nullable(),
-  last_vacancy: z.object({ id: uuidSchema, title: z.string() }).strict().nullable(), last_added_at: z.string().datetime({ offset: true }), in_this_process: z.boolean(),
+  last_vacancy: z.object({ id: uuidSchema, title: z.string() }).strict().nullable(), last_added_at: z.string().datetime({ offset: true }).nullable(), in_this_process: z.boolean(),
 }).strict();
 export const duplicatesSchema = z.object({ matches: z.array(matchSchema) }).strict();
 export type DuplicateMatch = z.infer<typeof matchSchema>;

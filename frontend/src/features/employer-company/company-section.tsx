@@ -131,7 +131,7 @@ export function CompanySection() {
     setPending(false);
     if (next.kind === "created") {
       const industryLabel = state.kind === "none" ? state.industries.find(item => item.id === next.company.industry_id)?.label_es ?? "No disponible" : "No disponible";
-      setState({ kind: "exists", company: next.company, role: "owner", industryLabel });
+      setState({ kind: "exists", company: next.company, role: "owner", industryLabel, canViewTalentBase: true });
       notifyActionResult({ key: "company", type: "success", title: "Empresa creada", description: "Tu empresa quedó registrada. Ya puedes consultar sus datos aquí." });
       setResult(next);
     } else {

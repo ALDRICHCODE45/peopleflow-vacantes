@@ -4,7 +4,7 @@ import { getActionAccessToken } from "@/lib/auth/action-session";
 import { fetchOrgCandidateDetail } from "./detail-client";
 import { orgCandidateIdentitySchema, type DetailResult, type DetailFailure, type OrgCandidateIdentity } from "./detail-model";
 
-const safeCodes = new Set(["not_found", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "internal_error"]);
+const safeCodes = new Set(["talent_base_restricted", "not_found", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "internal_error"]);
 /** Only validated detail and safe classifications cross the server boundary. */
 export async function loadOrgCandidateDetailAction(candidate: OrgCandidateIdentity): Promise<DetailResult> {
   try {

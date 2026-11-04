@@ -1,3 +1,4 @@
+import { TALENT_BASE_RESTRICTED } from "../restricted";
 import { z } from "zod";
 import { contactSchema, etagSchema, profileSchema, uuidSchema } from "@/features/pipeline-movement/model";
 import { educationSchema } from "@/features/candidate/model";
@@ -38,7 +39,7 @@ export const candidateEditBodySchema = z.object({ set: candidateEditValuesSchema
  .refine(body => !body.reset || (new Set(body.reset).size === body.reset.length && body.reset.every(field => !(field in body.set))));
 export type CandidateEditBody = { set: Partial<CandidateEditValues>; reset?: CandidateEditField[] };
 export const editErrorEnvelopeSchema = z.object({ error: z.string(), code: z.string(), fields: z.array(fieldIssueSchema).optional() }).strict();
-export type CandidateEditFailureReason = "precondition_failed" | "precondition_required" | "validation_error" | "invalid_request" | "not_found" | "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "server_error" | "no_response" | "unrecognized_response";
+export type CandidateEditFailureReason = "talent_base_restricted" | "precondition_failed" | "precondition_required" | "validation_error" | "invalid_request" | "not_found" | "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "server_error" | "no_response" | "unrecognized_response";
 export type CandidateEditFailure = { ok: false; reason: CandidateEditFailureReason; fields?: FieldIssue[]; reference: { status?: number; code?: string } };
 export type CandidateEditResult = { ok: true; data: EditableOrgCandidate } | CandidateEditFailure;
 export const CANDIDATE_EDIT_CONFLICT_NOTICE = "Alguien más guardó cambios en este candidato. Conservamos lo que escribiste; revisa los datos marcados y vuelve a guardar.";
@@ -67,7 +68,7 @@ export function classifyCandidateEditFailure(status: number | undefined, code: s
  if (status === 428) return "precondition_required";
  if (status === 404) return "not_found";
  if (status === 401) return "unauthenticated";
- if (status === 403) return code === "company_inactive" || code === "company_not_active" ? code : "forbidden";
+ if (status === 403) return code === "company_inactive" || code === "company_not_active" || code === "talent_base_restricted" ? code : "forbidden";
  if (status === 400 && (code === "validation_error" || code === "invalid_request")) return code;
  if (status && status >= 500) return "server_error";
  return kind === "network" || kind === "timeout" ? "no_response" : "unrecognized_response";
@@ -79,6 +80,7 @@ export function candidateEditFailureMessage(reason: CandidateEditFailureReason):
   case "validation_error": return "Revisa los datos marcados.";
   case "unauthenticated": return "Tu sesión expiró. Inicia sesión para guardar; conservamos lo que escribiste.";
   case "forbidden": return "No tienes permiso para editar este candidato.";
+  case "talent_base_restricted": return TALENT_BASE_RESTRICTED.description;
   case "company_inactive": case "company_not_active": return "Tu empresa debe estar activa para guardar cambios.";
   case "not_found": return "Este candidato ya no está disponible.";
   case "invalid_request": return "Revisa los datos antes de guardar.";

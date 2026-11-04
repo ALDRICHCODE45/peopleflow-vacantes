@@ -26,7 +26,7 @@ it("fails closed without session for read and create", async () => {
 });
 it("loads existing company with its Spanish industry and role", async () => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company } });
-  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología" });
+  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: true });
   expect(getMyCompany).toHaveBeenCalledWith({ token: "secret" });
 });
 it("only 404 not_found opens creation with backend industry order", async () => {
@@ -124,4 +124,14 @@ it("sanitizes exceptions and load failures", async () => {
   vi.mocked(getMyCompany).mockResolvedValue(fail(401, "unauthenticated")); expect(await loadCompanyStateAction()).toEqual({ kind: "unauthenticated", reference: {status:401,code:"unauthenticated"} });
   vi.mocked(getMyCompany).mockResolvedValue(fail(503, "internal_error")); expect(await loadCompanyStateAction()).toEqual({ kind: "server_error", reference: {status:503,code:"internal_error"} });
   vi.mocked(getMyCompany).mockResolvedValue(fail(404, "not_found")); vi.mocked(listIndustries).mockResolvedValue(fail(503, "internal_error")); expect(await loadCompanyStateAction()).toEqual({ kind: "server_error", reference: {status:503,code:"internal_error"} });
+});
+it("carries the talent base capability from GET /me/company", async () => {
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company, can: { view_talent_base: false } } });
+  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: false });
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company, can: { view_talent_base: true } } });
+  expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", canViewTalentBase: true });
+});
+it("keeps today's open talent base when an older backend omits the capability", async () => {
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company } });
+  expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", canViewTalentBase: true });
 });

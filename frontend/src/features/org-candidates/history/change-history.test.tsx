@@ -129,3 +129,10 @@ it("handles an action rejection as a safe read failure", async () => {
   vi.mocked(loadOrgCandidateHistoryAction).mockRejectedValueOnce(new Error("private")); open();
   expect(await screen.findByText("No pudimos cargar el historial")).toBeVisible(); expect(document.body.innerHTML).not.toContain("private");
 });
+it("explains the owner's restriction without a retry when the history is restricted", async () => {
+  vi.mocked(loadOrgCandidateHistoryAction).mockResolvedValue({ ok: false, reason: "forbidden", reference: { status: 403, code: "talent_base_restricted" } });
+  open();
+  expect(await screen.findByText("Base de talento restringida")).toBeVisible();
+  expect(screen.getByText("El owner limitó el acceso a la Base de talento. Sigues viendo a los candidatos de tus vacantes desde su tablero.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+});

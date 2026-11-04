@@ -6,7 +6,7 @@ import { orgCandidateIdentitySchema, type DetailFailure, type OrgCandidateIdenti
 import { fetchOrgCandidateHistory } from "./history-client";
 import type { HistoryResult } from "./history-model";
 
-const safeCodes = new Set(["not_found", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "internal_error"]);
+const safeCodes = new Set(["talent_base_restricted", "not_found", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "internal_error"]);
 const cursorSchema = z.string().min(1).optional();
 /** Only validated events and safe failure classifications cross the server boundary. */
 export async function loadOrgCandidateHistoryAction(candidate: OrgCandidateIdentity, cursor?: string): Promise<HistoryResult> {

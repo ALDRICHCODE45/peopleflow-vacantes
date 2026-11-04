@@ -576,3 +576,23 @@ describe("company dashboard sidebar account identity", () => {
     expect(brand.textContent).not.toMatch(/Nexo|Tomás|Talent/);
   });
 });
+
+describe("company dashboard sidebar talent base visibility", () => {
+  beforeEach(stubBrowserApis);
+
+  it("hides «Base de talento» when the owner restricted it, keeping every other destination", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "recruiter", canViewTalentBase: false });
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Base de talento" })).toBeNull();
+    for (const label of ALL_ITEMS.filter(item => item !== "Base de talento")) expect(navControl(label)).toBeInTheDocument();
+  });
+
+  it("keeps «Base de talento» while the membership is loading and when access is granted", async () => {
+    renderSidebar();
+    expect(screen.getByRole("link", { name: "Base de talento" })).toHaveAttribute("href", "/empresa/talento");
+    cleanup();
+    companyMock.mockResolvedValue({ ...realCompany, role: "recruiter", canViewTalentBase: true });
+    await act(async () => { renderSidebar(); });
+    expect(screen.getByRole("link", { name: "Base de talento" })).toHaveAttribute("href", "/empresa/talento");
+  });
+});
