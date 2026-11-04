@@ -76,3 +76,6 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
   green. Advisory for the user: `GET /v2/me/company/dashboard` still returns the aggregate `pool_added_last_7_days`
   (same count as the now-gated summary) to restricted users. Verifier scratch left at a system temp dir (outside the
   repo). QA API :8081 restarted on 32d831e2.
+- L9 — Full integration on 32d831e2 (log `.scratch/tb-fix-integration.log`): 99 ok, 1 FAIL = `localbootstrap
+  TestDisposablePostgresBootstrap` (needs a loopback DATABASE_URL; the verifier saw it fail identically on main). Pending:
+  the user's decision on the dashboard aggregate (L8).
