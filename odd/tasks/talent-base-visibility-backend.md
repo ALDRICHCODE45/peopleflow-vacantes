@@ -83,3 +83,8 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
   access; owner and members with access keep the number. Parent implemented inline (small path): RED compile/test
   `TestTalentBaseVisibility_DashboardHidesPoolCountWithoutAccess`, `talentbase.CanViewIn` (same rule inside the dashboard
   transaction), field `*int64`; contract row + backend/docs/dashboard.md updated.
+- L11 — QA account: the user's new Cognito sign-up was created as a candidate through :8081 (row only in
+  `peopleflow_vacancies_team`; none in the dev DB). User authorized (verbatim, via frontend): «Sí, convertila
+  (Recomendado)». Parent, QA DB only, one transaction: `users.user_type` candidate → recruiter (UPDATE 1) and a
+  `company_members` recruiter row in Trust People Company (INSERT 1). Shows as «Alberto Santa cruz». Cognito and the dev DB
+  untouched. Teardown adds: delete that Cognito user if the user wants (the QA DB is dropped anyway).
