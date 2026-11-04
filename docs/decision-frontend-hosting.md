@@ -139,3 +139,28 @@ necesita prefijo `NEXT_PUBLIC_`). Se define en el entorno de la app en Amplify H
 validación se evalúa al cargar `lib/env/server`, el cambio solo surte efecto con un **nuevo
 build/redeploy** del frontend. La bandera no se toca desde archivos de secretos ni `.env` del
 repositorio.
+
+## 7. Variables de runtime del servidor: auditoría (frontend)
+
+El servidor de Next le prueba al API que es el BFF y le reenvía la IP y el navegador reales del usuario para la
+auditoría (`docs/contracts/audit-log-v1.md` §4). Lo hace `src/instrumentation.ts`: envuelve el `fetch` del servidor y,
+**solo** en las llamadas al origen de `PEOPLEFLOW_API_BASE_URL` que llevan `authorization`, agrega
+`X-PF-Proxy-Secret`, `X-PF-Client-IP` y `X-PF-Client-User-Agent`. Las llamadas públicas y las de otros orígenes (Cognito)
+salen sin tocar.
+
+| Variable | Valores | Default |
+| --- | --- | --- |
+| `AUDIT_PROXY_SECRET` | El mismo secreto que el API, al menos 32 bytes | Sin definir: no se reenvía nada |
+| `AUDIT_TRUSTED_PROXY_HOPS` | Entero de `0` a `5` | `0` |
+
+- Sin `AUDIT_PROXY_SECRET`, el API registra su propio peer (`ip_source = peer`) y la pantalla muestra «IP no
+  verificada». Es el modo de desarrollo local sin secreto; **en producción tiene que estar definido**.
+- Un secreto de menos de 32 bytes o un `AUDIT_TRUSTED_PROXY_HOPS` inválido rompen el arranque, con un mensaje que
+  nombra la variable y nunca muestra el valor.
+- La IP es la entrada de `X-Forwarded-For` que agregó el proxy de confianza más externo: contando desde la derecha, se
+  saltean `AUDIT_TRUSTED_PROXY_HOPS` entradas. Las entradas más a la izquierda las escribe quien manda la petición y se
+  pueden falsificar. En local, Next agrega el peer del socket y `0` es correcto (verificado 2026-11-04).
+- **Pendiente para el deploy en Amplify Hosting**: medir en el primer deploy cuántos saltos agregan CloudFront y
+  Amplify delante de Next y fijar `AUDIT_TRUSTED_PROXY_HOPS`. No se asume.
+- El secreto vive solo en el entorno del servidor (nunca `NEXT_PUBLIC_`), nunca en el repositorio, y se rota en los
+  dos lados a la vez.
