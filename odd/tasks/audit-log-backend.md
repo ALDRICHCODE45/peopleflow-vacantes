@@ -161,3 +161,10 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
   the full file (local, unpushed). 2b escalated as high risk (item 2, security: company-wide names/emails/IP in list and
   export); verifier mw2qlupr running. Frontend adapted the untitled-draft `""` (its 16f0e967). QA :8081 restarted on a
   bd73233f build (background job job-2, same DB at 56); unauthenticated audit routes → 401.
+- L20 — Verify 2b (mw2qlupr) on bd73233f: T8, T9, §6–§8 met; no BLOCKER/MAJOR. Probes passed: no cross-company
+  labels (candidate/company/vacancy), Mexico City day boundaries, export connection hygiene (45k rows, aborts,
+  concurrency), inclusive limit and exact 422 envelope, parser/cursor binding, purge cutoff = trigger. MINOR-1:
+  `company_member` label resolves any user id without a company check. Advisory A: purge stops on a short batch
+  (SKIP LOCKED). Advisory B: short ASCII unknown param names echoed (names only; accepted). Full `./...` integration: 111
+  ok, FAIL scripts/closure, cmd/migrate + localbootstrap (no DATABASE_URL set), TestPublicGeoSearchIndexCapability
+  (fails at baseline 39e2ff35 too — pre-existing). Fix worker launched for MINOR-1 + Advisory A + probes.
