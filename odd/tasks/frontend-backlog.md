@@ -156,3 +156,8 @@ test, never as a reason to reopen the reviewed slice.
   ~18 s inside the full suite and exceeds the 5 s default (29/29 in isolation). Find what makes the portal mount slow
   under jsdom or give it an explicit timeout with a reason. Also: never wrap `pnpm vitest` in `timeout` — it orphans
   `node (vitest)` workers that keep the machine loaded.
+- **Flaky under full-suite load** (2026-11-04, `talent-base-visibility.md` L7, L13): `delivery-config/editor.test.tsx`
+  («keeps dialog data on commitment_note_required»), `combobox.test.tsx`, `manual-intake/sheet.test.tsx`,
+  `draft-editor-shell.test.tsx` and `local-draft-form.test.tsx` time out only in the full run; each passes alone.
+- **Configuración reads `/me/company` twice** (`talent-base-visibility.md` L5): `CompanySection` and the talent base
+  card each call `loadCompanyStateAction`; fold into one read.

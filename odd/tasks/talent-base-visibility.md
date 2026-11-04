@@ -86,3 +86,6 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
   talento», the three-card dashboard, «Base de talento restringida» on /empresa/talento and the board candidates:
   «lsito hermano, todo funciona como deberia, adelante con los siguientes pasos recomendados.» The QA setting was put
   back to «Todos los reclutadores»; Alberto stays on that QA team. T4 done.
+- **L13** Final full suite on Node 22: 9645 passed, 1 failed (`employer-vacancies/delivery-config/editor.test.tsx`,
+  «keeps dialog data on commitment_note_required…»); the branch does not touch `employer-vacancies`, and the file passes
+  alone 3 of 3 (51/51): flaky under suite load, noted for the backlog.
