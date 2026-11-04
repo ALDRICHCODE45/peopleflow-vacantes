@@ -58,7 +58,13 @@ describe("labels (contract Annex)", () => {
     expect(eventLabel("CompanyCandidateCVDownloaded")).toBe("Inició la descarga de un CV");
     expect(eventLabel("AuditLogExported")).toBe("Exportó la auditoría");
     expect(eventLabel("TalentBaseVisibilityChanged")).toBe("Cambió quién ve la Base de talento");
-    expect(KNOWN_EVENT_TYPES).toHaveLength(13);
+    // The Annex lists the whole 2a catalog (63 types at backend 00ddbe97), not only the new events.
+    expect(eventLabel("JobDraftCreated")).toBe("Creó una vacante");
+    expect(eventLabel("CompanyCandidateEdited")).toBe("Editó los datos de un candidato");
+    expect(eventLabel("VacancyTeamCreated")).toBe("Creó el equipo de una vacante");
+    expect(KNOWN_EVENT_TYPES).toHaveLength(63);
+    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(63);
+    expect(KNOWN_EVENT_TYPES.filter(type => eventLabel(type.event_type) === UNKNOWN_EVENT_LABEL)).toEqual([]);
   });
 
   it("gives an unknown type a generic label instead of crashing, including prototype keys", () => {
