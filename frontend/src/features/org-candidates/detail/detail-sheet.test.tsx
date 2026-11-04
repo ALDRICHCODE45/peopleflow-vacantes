@@ -132,3 +132,10 @@ it("offers previous participations when none is active and returns from empty hi
 it("underlines the process vacancy link only on hover (QA L8)", async () => {
   open(); const section = await processes(); const link = within(section).getByRole("link", { name: "Frontend" }); expect(link).not.toHaveClass("underline"); expect(link).toHaveClass("hover:underline");
 });
+it("explains the owner's restriction when the detail is restricted mid-session", async () => {
+  vi.mocked(loadOrgCandidateDetailAction).mockResolvedValue({ ok: false, reason: "forbidden", reference: { status: 403, code: "talent_base_restricted" } });
+  open();
+  expect(await screen.findByText("Base de talento restringida")).toBeVisible();
+  expect(screen.getByText("El owner limitó el acceso a la Base de talento. Sigues viendo a los candidatos de tus vacantes desde su tablero.")).toBeVisible();
+  expect(screen.queryByText("No pudimos cargar el detalle")).toBeNull();
+});

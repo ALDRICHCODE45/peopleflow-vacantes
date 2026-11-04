@@ -3,7 +3,7 @@ import { getActionAccessToken } from "@/lib/auth/action-session";
 import { listCandidates, type ListCandidatesFailure } from "./client";
 import type { CandidateFailure, CandidateResult } from "./model";
 import type { CandidateQuery } from "./url-state";
-const safeCodes = new Set(["invalid_filter", "invalid_cursor", "unauthenticated", "forbidden", "not_a_member", "company_inactive", "company_not_active", "internal_error"]);
+const safeCodes = new Set(["talent_base_restricted", "invalid_filter", "invalid_cursor", "unauthenticated", "forbidden", "not_a_member", "company_inactive", "company_not_active", "internal_error"]);
 function failure({ error, envelope }: ListCandidatesFailure): CandidateFailure {
   const status = error.status;
   const code = envelope && safeCodes.has(envelope.code) ? envelope.code : undefined;

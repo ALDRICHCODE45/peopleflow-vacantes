@@ -23,3 +23,9 @@ it.each([[400, "invalid_cursor", "invalid_cursor"], [400, "invalid_filter", "inv
 it("handles thrown transport failures safely", async () => {
  vi.mocked(listCandidates).mockRejectedValue(new Error("secret")); expect(await listCandidatesAction()).toEqual({ ok: false, reason: "no_response", reference: {} });
 });
+it("keeps the talent_base_restricted code so the page can explain the owner's restriction", async () => {
+ vi.mocked(listCandidates).mockResolvedValue({ ok: false, error: { kind: "status", status: 403, retryable: false }, envelope: { error: "secret", code: "talent_base_restricted" } });
+ const result = await listCandidatesAction();
+ expect(result).toEqual({ ok: false, reason: "forbidden", reference: { status: 403, code: "talent_base_restricted" } });
+ expect(JSON.stringify(result)).not.toContain("secret");
+});

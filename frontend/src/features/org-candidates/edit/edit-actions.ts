@@ -18,7 +18,7 @@ export async function saveOrgCandidateEditAction(candidate: OrgCandidateIdentity
   const status = "status" in result.error ? result.error.status : undefined;
   const envelope = "envelope" in result ? result.envelope : undefined;
   const reason = classifyCandidateEditFailure(status, envelope?.code, result.error.kind);
-  const safeCodes = new Set(["precondition_failed", "precondition_required", "validation_error", "invalid_request", "not_found", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "internal_error"]);
+  const safeCodes = new Set(["talent_base_restricted", "precondition_failed", "precondition_required", "validation_error", "invalid_request", "not_found", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "internal_error"]);
   const code = envelope?.code && safeCodes.has(envelope.code) ? envelope.code : undefined;
   return { ok: false, reason, reference: { ...(status === undefined ? {} : { status }), ...(code ? { code } : {}) }, ...(reason === "validation_error" && envelope?.fields ? { fields: envelope.fields } : {}) };
  } catch { return { ok: false, reason: "no_response", reference: {} }; }

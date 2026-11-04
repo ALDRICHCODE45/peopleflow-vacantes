@@ -162,7 +162,7 @@ it("loads the real company once on opening, with skeletons then real-name initia
   expect(dialog.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
   expect(dialog.querySelector('[data-slot="avatar-fallback"]')).toBeNull();
   expect(dialog).not.toHaveTextContent("Empresa no disponible");
-  await act(async () => resolve({ kind: "exists", company: { id: "company", name: "Acme Talento", rfc: "RFC", industry_id: "tech", status: "active", location: null, updated_at: "2026-10-20T00:00:00Z" }, role: "owner", industryLabel: "Tecnología" }));
+  await act(async () => resolve({ kind: "exists", company: { id: "company", name: "Acme Talento", rfc: "RFC", industry_id: "tech", status: "active", location: null, updated_at: "2026-10-20T00:00:00Z" }, role: "owner", industryLabel: "Tecnología", canViewTalentBase: true }));
   expect(within(dialog).getAllByText(/Acme Talento/)).toHaveLength(3);
   expect(dialog.querySelector('[data-slot="avatar-fallback"]')).toHaveTextContent("AT");
   expect(dialog.querySelector('[data-slot="skeleton"]')).toBeNull();

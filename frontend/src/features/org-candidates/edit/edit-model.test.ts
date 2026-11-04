@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { buildCandidateEditBody, candidateEditBodySchema, candidateEditDetailFieldsSchema, candidateEditErrors, classifyCandidateEditFailure } from "./edit-model";
+import { buildCandidateEditBody, candidateEditBodySchema, candidateEditDetailFieldsSchema, candidateEditErrors, candidateEditFailureMessage, classifyCandidateEditFailure } from "./edit-model";
 import { editFixture, valuesFixture } from "./test-fixtures";
 
 it("accepts the additive detail contract and rejects a missing or invalid etag", () => {
@@ -37,4 +37,9 @@ it("maps unprefixed indexed paths and contact errors to editor fields", () => {
 });
 it.each([[412, "precondition_failed"], [428, "precondition_required"], [404, "not_found"], [401, "unauthenticated"], [403, "forbidden"], [400, "validation_error"]] as const)("classifies %s", (status, code) => {
  expect(classifyCandidateEditFailure(status, code, "status")).toBe(code);
+});
+it("explains the owner's restriction when an edit hits talent_base_restricted", () => {
+ expect(classifyCandidateEditFailure(403, "talent_base_restricted", "status")).toBe("talent_base_restricted");
+ expect(candidateEditFailureMessage("talent_base_restricted")).toBe("El owner limitó el acceso a la Base de talento. Sigues viendo a los candidatos de tus vacantes desde su tablero.");
+ expect(classifyCandidateEditFailure(403, "forbidden", "status")).toBe("forbidden");
 });

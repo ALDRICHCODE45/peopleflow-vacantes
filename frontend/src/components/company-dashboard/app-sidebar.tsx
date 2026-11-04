@@ -192,7 +192,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuItem>
             </SidebarMenu>
             <SidebarMenu>
-              {data.navPrincipal.map((item) => (
+              {data.navPrincipal.filter((item) => item.url !== "/empresa/talento" || membership?.canViewTalentBase !== false).map((item) => (
                 <NavLink key={item.title} item={item} pathname={pathname} />
               ))}
             </SidebarMenu>

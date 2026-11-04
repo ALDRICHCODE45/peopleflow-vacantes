@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LayoutGrid, List, Search, SearchX, Users } from "lucide-react";
+import { LayoutGrid, List, Lock, Search, SearchX, Users } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { ActionStatus } from "@/components/feedback/action-status";
@@ -23,6 +23,7 @@ import type { OrgCandidateDetail } from "../detail/detail-model";
 import { OriginTabs } from "../summary/origin-tabs";
 import { SummaryBand } from "../summary/summary-band";
 import { useCandidatesSummary } from "../summary/use-candidates-summary";
+import { isTalentBaseRestricted, TALENT_BASE_RESTRICTED } from "../restricted";
 
 function UpdatedAt({ value }: { value: string }) {
  const [, tick] = useState(0);
@@ -74,6 +75,10 @@ export function OrgCandidatesWorkspace({ onOpenCandidate, updatedCandidate }: { 
   {failure ? <StateCard icon={Users} tone={failure.reason === "forbidden" ? "forbidden" : "error"} title={filterError ? "No pudimos aplicar los filtros" : "No pudimos cargar los candidatos"} description={errorDescription} primaryAction={{ label: filterError ? "Limpiar filtros" : "Reintentar", onClick: filterError ? clear : retry }} />
    : page ? filtered ? <SectionEmpty icon={SearchX} tone="empty" title="Sin resultados" description={state.filters.q?.trim() ? `No hay candidatos que coincidan con «${state.filters.q.trim()}». Limpia los filtros para volver a ver tu base de talento.` : "No hay candidatos que coincidan con estos filtros. Limpia los filtros para volver a ver tu base de talento."} primaryAction={{ label: "Limpiar filtros", onClick: clear }} /> : <StateCard icon={Users} tone="empty" title="Todavía no hay candidatos" description="Tu base reúne a los candidatos de tu organización. Para agregar al primero, abre el tablero de una vacante." primaryAction={{ label: "Ir a mis vacantes", href: "/empresa/vacantes" }} /> : null}
  </div> : undefined;
+ // The owner restricted the base: nothing here can succeed, so the whole page explains it once, without a retry.
+ if (failure && isTalentBaseRestricted(failure.reference)) return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
+  <StateCard icon={Lock} tone="forbidden" title={TALENT_BASE_RESTRICTED.title} description={TALENT_BASE_RESTRICTED.description} primaryAction={{ label: "Ir a mis vacantes", href: "/empresa/vacantes" }} />
+ </DashboardPageContent>;
  return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
   <SummaryBand data={summary.data} pending={summary.pending} failure={summary.failure} onRetry={() => void refreshSummary()} />
   <Card role="region" aria-label="Resultados de candidatos" aria-busy={pending} className="min-w-0 pt-0">

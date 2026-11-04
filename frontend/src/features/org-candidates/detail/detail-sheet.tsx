@@ -25,6 +25,7 @@ import { ChangeHistory } from "@/features/org-candidates/history/change-history"
 import { loadOrgCandidateDetailAction } from "./detail-actions";
 import type { DetailResult, OrgCandidateDetail, OrgCandidateIdentity, OrgCandidateParticipation } from "./detail-model";
 import { CvConfirmationDialog, ParticipationCv, type CvConfirmation } from "../cv/participation-cv";
+import { isTalentBaseRestricted, TALENT_BASE_RESTRICTED } from "../restricted";
 
 type Props = { candidate: OrgCandidateIdentity | null; onOpenChange: (open: boolean) => void; onCandidateUpdated?: (detail: OrgCandidateDetail) => void };
 type DetailSessionHandle = { requestClose: () => boolean };
@@ -142,7 +143,8 @@ const DetailSession = forwardRef<DetailSessionHandle, { candidate: OrgCandidateI
         <ChangeHistory candidate={{ kind, id }} refreshKey={historyRefreshKey} onViewSummary={() => setTab("summary")} />
       </TabsContent>
     </Tabs> : <div className="min-h-0 flex-1 overflow-y-auto border-t p-6" aria-busy={result === null}>
-      {!result ? <DetailSkeleton /> : !result.ok ? <StateCard icon={Info} tone={result.reason === "not_found" ? "empty" : "error"}
+      {!result ? <DetailSkeleton /> : !result.ok && isTalentBaseRestricted(result.reference) ? <StateCard icon={Info} tone="forbidden" title={TALENT_BASE_RESTRICTED.title} description={TALENT_BASE_RESTRICTED.description} />
+        : !result.ok ? <StateCard icon={Info} tone={result.reason === "not_found" ? "empty" : "error"}
         title={result.reason === "not_found" ? "Este candidato ya no está disponible" : "No pudimos cargar el detalle"}
         description={result.reason === "not_found" ? "El registro no está disponible en tu organización. Puedes cerrar la ficha y volver al listado." : result.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo para consultar la ficha." : "No se modificó ningún dato. Puedes volver a cargar la ficha."}
         {...(result.reason !== "not_found" ? { primaryAction: { label: "Reintentar", onClick: () => { setResult(null); setAttempt(value => value + 1); } } } : {})} />

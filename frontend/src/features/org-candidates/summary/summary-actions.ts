@@ -4,7 +4,7 @@ import { getActionAccessToken } from "@/lib/auth/action-session";
 import { getCandidatesSummary, type SummaryClientFailure } from "./summary-client";
 import type { CandidatesSummaryFailure, CandidatesSummaryResult } from "./summary-model";
 
-const safeCodes = new Set(["unauthenticated", "forbidden", "not_a_member", "not_found", "company_inactive", "company_not_active", "internal_error"]);
+const safeCodes = new Set(["talent_base_restricted", "unauthenticated", "forbidden", "not_a_member", "not_found", "company_inactive", "company_not_active", "internal_error"]);
 function failure({ error, envelope }: SummaryClientFailure): CandidatesSummaryFailure {
   const status = error.status;
   const code = envelope && safeCodes.has(envelope.code) ? envelope.code : undefined;
