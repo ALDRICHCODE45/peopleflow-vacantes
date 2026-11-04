@@ -112,3 +112,8 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   `cmd/api/verify_probe_audit_integration_test.go` (both pass). Scratch to drop: DBs `verify2a_legacy`,
   `verify2a_probe`, `verify2a_mig`, `draft_test_legacy` in pf-draft-test; the shared `draft_test` DB still carries the
   pre-fix trigger body (migrated before the edit) — recreate it or re-run 00056 down/up before relying on the purge there.
+- L11 — Cleanup: dropped `verify2a_*` and `draft_test_legacy`; `draft_test` function body replaced with the fixed one
+  (CREATE OR REPLACE). QA: API :8081 from the main worktree's backend/ (binary `.scratch/qa-api-al-bin` built at
+  94b54553, log `.scratch/qa-api-al/api.log`, background job job-2), `backend/.env` + DATABASE_URL =
+  `peopleflow_vacancies_team` (migrated 55 → 56 with `.scratch/qa-migrate-al-bin`). Dev DB still at 55. Teardown: stop
+  job-2, delete both binaries.
