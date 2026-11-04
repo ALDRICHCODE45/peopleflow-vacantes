@@ -22,7 +22,7 @@ type memberMutationDB struct {
 	owners                                           int64
 	exists, locked, committed, rolledBack            bool
 	beginErr, lockErr, countErr, writeErr, commitErr error
-	writes                                           int
+	writes, viewerDeletes                            int
 	beforeRole                                       string
 	beforeExists                                     bool
 	isolation                                        pgx.TxIsoLevel
@@ -86,6 +86,10 @@ func (s *memberMutationDB) Exec(_ context.Context, sql string, args ...any) (pgc
 	if s.writeErr != nil {
 		return pgconn.CommandTag{}, s.writeErr
 	}
+	if strings.Contains(sql, "company_talent_base_viewers") {
+		s.viewerDeletes++
+		return pgconn.NewCommandTag("DELETE 1"), nil
+	}
 	if !s.exists || args[0] != s.targetID || args[1] != s.companyID {
 		return pgconn.NewCommandTag("UPDATE 0"), nil
 	}
@@ -136,10 +140,14 @@ func TestMemberMutationGuard(t *testing.T) {
 				t.Fatalf("error = %v, want %v", err, tc.want)
 			}
 			if tc.want != nil {
-				if state.writes != 0 || state.role != tc.role || state.exists != !tc.missing || state.committed {
+				if state.writes != 0 || state.viewerDeletes != 0 || state.role != tc.role || state.exists != !tc.missing || state.committed {
 					t.Fatal("rejected mutation changed stored state")
 				}
 				return
+			}
+			// Only a promotion to owner clears the talent base viewer row, in the same transaction.
+			if wantDeletes := map[bool]int{true: 1}[!tc.remove && tc.next == valueobjects.OwnerRole]; state.viewerDeletes != wantDeletes {
+				t.Fatalf("viewer deletes = %d, want %d", state.viewerDeletes, wantDeletes)
 			}
 			if state.isolation != pgx.ReadCommitted {
 				t.Fatal("mutation must explicitly use READ COMMITTED")

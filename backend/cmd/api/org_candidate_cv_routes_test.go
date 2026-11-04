@@ -100,7 +100,7 @@ func TestOrgCandidateCVHTTP(t *testing.T) {
 	for _, kind := range []string{"manual", "organic"} {
 		t.Run(kind, func(t *testing.T) {
 			reader := &orgCVReader{}
-			router := newRouter(routerDeps{candidatePoolHandler: poolhttp.NewHandler(pool.NewService(reader)).WithManualCVPorts(manualCVInspector{}, manualCVStorage{}), requireAuth: routeRequireAuth, requireOwner: routeRoleGate(companies.OwnerRole, routeTestOwnerHeader), requireRecruiter: routeRoleGate(companies.RecruiterRole, routeTestRecruiterHeader)})
+			router := newRouter(routerDeps{candidatePoolHandler: poolhttp.NewHandler(pool.NewService(reader)).WithManualCVPorts(manualCVInspector{}, manualCVStorage{}), requireAuth: routeRequireAuth, requireTalentBase: routeAllowTalentBase, requireOwner: routeRoleGate(companies.OwnerRole, routeTestOwnerHeader), requireRecruiter: routeRoleGate(companies.RecruiterRole, routeTestRecruiterHeader)})
 			path := orgCandidatesPath + "/" + kind + "/" + routeTestDraftID.String() + "/participations/" + routeTestDraftID.String() + "/cv"
 			for _, tc := range []struct {
 				name, file, data, extra, tag string

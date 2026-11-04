@@ -373,6 +373,7 @@ func run() error {
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		candidatePoolHandler: candidatePoolHandler,
 		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),
+		requireTalentBase:    talentbasehttp.Gate(talentBase),
 		companyHandler:       companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,

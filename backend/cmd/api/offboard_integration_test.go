@@ -150,7 +150,7 @@ func TestOffboardPreviewDeleteAndHandoverHTTP(t *testing.T) {
 		offboardAssertAudit(t, h, ownerID, "VacancyAssignmentEndedByMembership", "vacancy", id, map[string]any{"company_id": company.companyID.String(), "assignment_id": tr["assignment_id"], "user_id": leaverID.String()})
 	}
 	editJSONEqual(t, out["ended_assignment_ids"], ended)
-	offboardAssertAudit(t, h, ownerID, "CompanyMemberOffboarded", "company_member", membership, map[string]any{"company_id": company.companyID.String(), "user_id": leaverID.String(), "reassignment_ids": []any{reassignment}, "ended_assignment_ids": ended})
+	offboardAssertAudit(t, h, ownerID, "CompanyMemberOffboarded", "company_member", membership, map[string]any{"company_id": company.companyID.String(), "user_id": leaverID.String(), "reassignment_ids": []any{reassignment}, "ended_assignment_ids": ended, "talent_base_viewer_removed": false})
 	target := offboardTramo(t, h, owner, responsible, targetID)
 	offboardAssertAudit(t, h, ownerID, "VacancyResponsibleReassigned", "vacancy", responsible, map[string]any{"company_id": company.companyID.String(), "reassignment_id": reassignment, "from_user_id": leaverID.String(), "to_user_id": targetID.String(), "from_assignment_id": tr["assignment_id"], "to_assignment_id": target["assignment_id"], "reason": "recruiter_departure", "previous_responsible": "remove"})
 	added := offboardTramo(t, h, owner, shared, ownerID)

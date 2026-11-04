@@ -60,7 +60,7 @@ func TestCVDownloadAttachmentNames(t *testing.T) {
 									var path string
 									if surface == "pool" {
 										reader := &namedPoolCVReader{name: name, typ: format.typ}
-										handler = newRouter(routerDeps{candidatePoolHandler: poolhttp.NewHandler(pool.NewService(reader)), requireAuth: routeRequireAuth, requireRecruiter: routeRoleGate(companies.RecruiterRole, routeTestRecruiterHeader), requireOwner: routeRoleGate(companies.OwnerRole, routeTestOwnerHeader)})
+										handler = newRouter(routerDeps{candidatePoolHandler: poolhttp.NewHandler(pool.NewService(reader)), requireAuth: routeRequireAuth, requireTalentBase: routeAllowTalentBase, requireRecruiter: routeRoleGate(companies.RecruiterRole, routeTestRecruiterHeader), requireOwner: routeRoleGate(companies.OwnerRole, routeTestOwnerHeader)})
 										path = orgCandidatesPath + "/organic/" + routeTestDraftID.String() + "/participations/" + routeTestDraftID.String() + "/cv"
 									} else {
 										store := &namedBoardCVStore{name: name, typ: format.typ, corrected: download == "corrected"}

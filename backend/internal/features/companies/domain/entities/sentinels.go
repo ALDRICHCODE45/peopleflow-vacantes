@@ -44,4 +44,10 @@ var (
 
 	// ErrIndustryUnavailable collapses inactive and unknown industries.
 	ErrIndustryUnavailable = errors.New("industry unavailable")
+
+	// ErrTalentBaseRestricted means the company owner restricted the talent
+	// base and the caller is neither an owner nor on the viewer list. Writes
+	// return it from inside their transaction; HTTP maps it to 403
+	// talent_base_restricted.
+	ErrTalentBaseRestricted = errors.New("talent base restricted")
 )

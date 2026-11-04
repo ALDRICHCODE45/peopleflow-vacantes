@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
+	companies "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
@@ -17,6 +18,8 @@ import (
 func detailError(w http.ResponseWriter, err error) {
 	code := httpjson.CodeInternalError
 	switch {
+	case errors.Is(err, companies.ErrTalentBaseRestricted):
+		code = httpjson.CodeTalentBaseRestricted
 	case errors.Is(err, board.ErrNotFound):
 		code = httpjson.CodeNotFound
 	case errors.Is(err, board.ErrStorageUnavailable):

@@ -68,9 +68,11 @@ type routerDeps struct {
 	movementHandler      *movementhttp.Handler
 	candidatePoolHandler *poolhttp.Handler
 	talentBaseHandler    *talentbasehttp.Handler
-	queries              *db.Queries
-	pool                 health.Pinger
-	readinessTimeout     time.Duration
+	// requireTalentBase gates the company-wide candidate routes after the role gate.
+	requireTalentBase func(http.Handler) http.Handler
+	queries           *db.Queries
+	pool              health.Pinger
+	readinessTimeout  time.Duration
 	// httpMetrics = the no-op HTTP metrics default composed by the
 	// composition root (main.go); RequestObservability also defaults the
 	// completion logger to slog.Default() when nil. No exporter/endpoint.
@@ -98,6 +100,10 @@ func newRouter(d routerDeps) chi.Router {
 	// A missing composition dependency fails closed, never grants candidate access.
 	if d.requireCandidate == nil {
 		d.requireCandidate = identityhttp.RequireCandidateRole(nil)
+	}
+	// The talent base is never served ungated: a missing gate refuses everyone.
+	if d.requireTalentBase == nil {
+		d.requireTalentBase = refuseTalentBase
 	}
 	// The public assessment prefix is never served unlimited.
 	if d.publicAssessmentLimit == nil {
@@ -349,7 +355,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/reopen", lifecycleHandlers.Reopen)
 	})
 	r.Group(func(r chi.Router) {
-		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)
 		r.Get("/v2/me/company/candidates", d.candidatePoolHandler.List)
 		r.Get("/v2/me/company/candidates/summary", d.candidatePoolHandler.Summary)
 		r.Post("/v2/me/company/candidates/contacts", d.candidatePoolHandler.Contacts(draftjson.Decode))
@@ -369,6 +375,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/me/company/requesters", requesterHandlers.CreateRequester)
 	})
 	return r
+}
+
+// refuseTalentBase is the fail-closed default for a router built without a
+// talent base gate.
+func refuseTalentBase(http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeTalentBaseRestricted))
+	})
 }
 
 // publicAssessmentNotFound answers unmatched public token paths and methods

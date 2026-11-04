@@ -124,8 +124,15 @@ func (r *CompanyMemberRepository) ListByCompanyID(ctx context.Context, companyID
 // information-leak fix — a foreign target is intentionally indistinguishable
 // from "does not exist").
 func (r *CompanyMemberRepository) UpdateRole(ctx context.Context, id, companyID uuid.UUID, role valueobjects.MemberRole) error {
-	return r.mutateMember(ctx, id, companyID, role == valueobjects.OwnerRole, func(q *db.Queries) (int64, error) {
-		return q.UpdateMemberRole(ctx, db.UpdateMemberRoleParams{ID: id, CompanyID: companyID, Role: role.String()})
+	return r.mutateMember(ctx, id, companyID, role == valueobjects.OwnerRole, func(tx pgx.Tx, q *db.Queries) (int64, error) {
+		rows, err := q.UpdateMemberRole(ctx, db.UpdateMemberRoleParams{ID: id, CompanyID: companyID, Role: role.String()})
+		if err != nil || rows == 0 || role != valueobjects.OwnerRole {
+			return rows, err
+		}
+		// Owners always see the talent base, so a promoted viewer leaves the list;
+		// demoting them later must not silently bring the old selection back.
+		_, err = tx.Exec(ctx, `DELETE FROM company_talent_base_viewers WHERE company_id=$2 AND user_id=(SELECT user_id FROM company_members WHERE id=$1 AND company_id=$2)`, id, companyID)
+		return rows, err
 	})
 }
 
@@ -133,12 +140,12 @@ func (r *CompanyMemberRepository) UpdateRole(ctx context.Context, id, companyID 
 // (id, companyID) pair. Same contract as UpdateRole for the 0-rows
 // case: ErrMemberNotFound. HARD DELETE frees `user_id` for re-assignment.
 func (r *CompanyMemberRepository) Remove(ctx context.Context, id, companyID uuid.UUID) error {
-	return r.mutateMember(ctx, id, companyID, false, func(q *db.Queries) (int64, error) {
+	return r.mutateMember(ctx, id, companyID, false, func(_ pgx.Tx, q *db.Queries) (int64, error) {
 		return q.RemoveCompanyMember(ctx, db.RemoveCompanyMemberParams{ID: id, CompanyID: companyID})
 	})
 }
 
-func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyID uuid.UUID, retainsOwner bool, write func(*db.Queries) (int64, error)) error {
+func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyID uuid.UUID, retainsOwner bool, write func(pgx.Tx, *db.Queries) (int64, error)) error {
 	// Pools support explicit isolation; rollback fixtures use pgx savepoints,
 	// which inherit their outer transaction's READ COMMITTED isolation.
 	var tx pgx.Tx
@@ -159,7 +166,7 @@ func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyI
 	if err := LockMemberMutation(ctx, tx, id, companyID, retainsOwner); err != nil {
 		return err
 	}
-	rows, err := write(q)
+	rows, err := write(tx, q)
 	if err != nil {
 		return fmt.Errorf("mutate member: %w", err)
 	}
