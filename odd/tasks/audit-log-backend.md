@@ -139,3 +139,6 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
   also carries the unfinished 2b screen (being redesigned), so only `feat/audit-log-backend` merges now; the frontend
   session merges it into local main (main is checked out in its worktree), no push. QA :8081 stopped, binaries
   deleted.
+- L16 — Merged: main 4e9a40bf (parents 7be2becc and 39e2ff35, tree identical to 39e2ff35; done by the frontend session
+  with commit-tree/update-ref), 14 commits ahead of origin/main, not pushed. Frontend `feat/audit-log` not merged.
+  2b launched in parallel: T8 worker mw2pjuun (read API + export), T9 worker mw2pjuut (purge command).
