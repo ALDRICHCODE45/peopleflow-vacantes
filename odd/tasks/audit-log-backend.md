@@ -58,8 +58,9 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
 - [ ] T8 — S2 (pantalla, exportar), S3, S4.8, D5, D7: owner-only `GET /v2/me/company/audit-events` (filters, cursor,
   `entity.label`, `actor`, `vacancy`), `/types`, `/actors`, `/vacancies`, `POST …/export` (CSV, count before the first
   byte, `AuditLogExported`). Route: worker. Commit: —.
-- [ ] T9 — S2 (política de retención), D2: `cmd/audit-purge` (dry run by default, `-execute` deletes rows older than 24
-  months in batches with the txid-bound flag). Route: worker, parallel to T8 (disjoint surfaces). Commit: —.
+- [x] T9 — S2 (política de retención), D2: `cmd/audit-purge` (dry run by default, `-execute` deletes rows older than 24
+  months in batches with the txid-bound flag). Route: worker mw2pjuut, parallel to T8 (disjoint surfaces). Commit: next
+  feat commit.
 - [ ] T10 — verify 2b + QA :8081 with the frontend screen. Commit: —.
 
 ## Log
@@ -142,3 +143,10 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
 - L16 — Merged: main 4e9a40bf (parents 7be2becc and 39e2ff35, tree identical to 39e2ff35; done by the frontend session
   with commit-tree/update-ref), 14 commits ahead of origin/main, not pushed. Frontend `feat/audit-log` not merged.
   2b launched in parallel: T8 worker mw2pjuun (read API + export), T9 worker mw2pjuut (purge command).
+- L17 — T9 (worker mw2pjuut): `retention` store (CountExpired/DeleteExpired, batches of 1000 injectable, each batch
+  binds the flag to its txid, `ORDER BY occurred_at, id LIMIT n FOR UPDATE SKIP LOCKED`, same 24-month cutoff as the
+  trigger) + `cmd/audit-purge [-execute]` (stdout `audit_events_would_delete=N` / `audit_events_deleted=N`; failure →
+  exit 1, stderr `audit purge failed`). RED 13 assertion failures → GREEN; mutations (no ORDER BY, no flag) caught.
+  Checks: gofmt/build/vet clean; unit 109 ok, 1 FAIL scripts/closure; T9 integration ok. No registry needed
+  (psychometric-purge is registered only in docs). Follow-ups: an `(occurred_at, id)` index if the table grows; the
+  24-month cutoff lives in the trigger and the store (doc warns).
