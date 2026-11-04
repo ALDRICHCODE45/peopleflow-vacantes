@@ -157,3 +157,7 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
   non-catalog rows hidden, null metadata → `{}`, untitled draft `""` in /vacancies, export body 400/413, CSV guard also
   tab/CR on every column. Checks: gofmt/build/vet clean; unit 111 ok, 1 FAIL scripts/closure; integration cmd/api +
   audit_events ok; archguard same 2 pre-existing.
+- L19 — The T8 commit first landed with an empty tracking file (git add raced the edit tool); amended to bd73233f with
+  the full file (local, unpushed). 2b escalated as high risk (item 2, security: company-wide names/emails/IP in list and
+  export); verifier mw2qlupr running. Frontend adapted the untitled-draft `""` (its 16f0e967). QA :8081 restarted on a
+  bd73233f build (background job job-2, same DB at 56); unauthenticated audit routes → 401.
