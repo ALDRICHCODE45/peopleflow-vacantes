@@ -145,3 +145,14 @@ source `docs/product/next-three-features.md` §2.
   gaps: no min/max between «Desde» and «Hasta» (the shared DatePickerField has none; the API and the export validation
   still reject inverted ranges) and dates are cleared only from their chip or «Limpiar filtros». No RED for the restyle
   (presentation change; filter tests failed on the markup change and were adapted without weakening assertions).
+- **L21** Native review of the 2b slice with the restyle and the sign-out fix, base `0fe9bc91`, lenses readability/
+  reliability, tier medium: **approved**, lineage `review-578387442beff317`, acknowledged. 10 advisories, all T6
+  follow-ups: the two already known (blob URL revoked before the download starts, `download.ts:17-19`; local range
+  error on a different field than the backend's `range` on `to`, `model.ts:235`), plus `client.ts:86-90` (export
+  stream handling), a misleading `retryable` flag (`client.ts:39`), an unused `formatOccurredAt` (`model.ts:141-146`),
+  the duplicated export body type and failure mapping, and the sidebar test probe (`app-sidebar.test.tsx:25-47`).
+- **L22** Backend 2b implemented on `feat/audit-log-backend-2b` (`bd73233f`, purge `9f951c4b`); verify running, then
+  :8081. Contract precisions in §8: rows outside the catalog are not listed (every item has a category); metadata null
+  is served as {}; `/vacancies` title "" = untitled draft, null = deleted; export 400 invalid_request for an empty or
+  non-object body, 413 above 16 KiB, 422 per field; CSV guard also covers tab and CR. Frontend impact: the untitled
+  draft showed a blank filter option and «Vacante eliminada» in the table; fixed in `16f0e967` (RED first, 124/124, tsc 0).
