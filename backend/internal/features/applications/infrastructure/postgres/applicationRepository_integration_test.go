@@ -81,6 +81,7 @@ import (
 	applicationsvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -317,7 +318,7 @@ func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture
 			// audit_events rows reference the application via entity_id (no FK,
 			// by design) — delete them first so the count-based assertions in
 			// sibling/re-run tests see only their own rows.
-			if _, err := pool.Exec(cleanupCtx, `DELETE FROM audit_events WHERE entity_id = $1`, id); err != nil {
+			if err := audittest.Delete(cleanupCtx, pool, `DELETE FROM audit_events WHERE entity_id = $1`, id); err != nil {
 				t.Errorf("cleanup audit_events for %s: %v", id, err)
 			}
 			if _, err := pool.Exec(cleanupCtx, `DELETE FROM applications WHERE id = $1`, id); err != nil {
@@ -328,7 +329,7 @@ func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture
 			// Bulk candidates may own untracked application rows (the Cap100
 			// tests insert them inline) — remove those (and their audit rows)
 			// before the user, satisfying applications_candidate_id_fkey.
-			if _, err := pool.Exec(cleanupCtx,
+			if err := audittest.Delete(cleanupCtx, pool,
 				`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM applications WHERE candidate_id = $1)`, id); err != nil {
 				t.Errorf("cleanup audit_events for candidate %s: %v", id, err)
 			}
@@ -343,7 +344,7 @@ func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture
 			// Bulk jobs may own untracked application rows (the Cap100 tests
 			// insert them inline) — remove those (and their audit rows) before
 			// the job, satisfying applications_job_id_fkey.
-			if _, err := pool.Exec(cleanupCtx,
+			if err := audittest.Delete(cleanupCtx, pool,
 				`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM applications WHERE job_id = $1)`, id); err != nil {
 				t.Errorf("cleanup audit_events for job %s: %v", id, err)
 			}
@@ -553,7 +554,7 @@ CREATE TABLE audit_events (
 
 CREATE INDEX audit_events_entity_idx
     ON audit_events (entity_type, entity_id, occurred_at DESC);
-`
+` + audittest.RestoreAppendOnlyDDL
 
 // --- Co-write (design D5 / D6 / D10) ----------------------------------------
 

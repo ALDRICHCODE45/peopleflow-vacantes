@@ -18,6 +18,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 )
@@ -240,8 +241,10 @@ func TestPsychometricAutoApply(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {
+				if err := audittest.Delete(context.Background(), f.h.pool, `DELETE FROM audit_events WHERE metadata->>'vacancy_id'=$1 AND entity_type='process_participation' AND entity_id IN (SELECT id FROM process_participations WHERE process_id=$1::uuid AND candidate_id=$2)`, f.id, candidate); err != nil {
+					t.Error(err)
+				}
 				for _, q := range []string{
-					`DELETE FROM audit_events WHERE metadata->>'vacancy_id'=$1 AND entity_type='process_participation' AND entity_id IN (SELECT id FROM process_participations WHERE process_id=$1::uuid AND candidate_id=$2)`,
 					`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT id FROM process_participations WHERE process_id=$1 AND candidate_id=$2)`,
 					`DELETE FROM participation_idempotency WHERE process_id=$1 AND candidate_id=$2`,
 					`DELETE FROM process_participations WHERE process_id=$1 AND candidate_id=$2`,
@@ -305,8 +308,10 @@ func TestPsychometricAutoManualIntake(t *testing.T) {
 			publicFlowPublish(t, h, id, actor)
 			f := invitationFixture{h: h, actor: actor, id: id, base: draftFlowV2Path + "/" + id}
 			t.Cleanup(func() {
+				if err := audittest.Delete(context.Background(), h.pool, `DELETE FROM audit_events WHERE metadata->>'vacancy_id'=$1 AND entity_type IN ('psychometric_invitation','process_participation')`, id); err != nil {
+					t.Error(err)
+				}
 				for _, q := range []string{
-					`DELETE FROM audit_events WHERE metadata->>'vacancy_id'=$1 AND entity_type IN ('psychometric_invitation','process_participation')`,
 					`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT id FROM process_participations WHERE process_id=$1)`,
 					`DELETE FROM process_participations WHERE process_id=$1`,
 				} {

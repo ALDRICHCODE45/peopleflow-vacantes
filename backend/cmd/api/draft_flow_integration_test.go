@@ -46,6 +46,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditport "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	talentbaseapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/talentbase"
 	companiesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
@@ -374,12 +375,18 @@ func (c *draftFlowCompany) cleanup() {
 	} else if duplicateActive {
 		c.t.Error("credit invariant: more than one active credit per participation")
 	}
+	for _, query := range []string{
+		`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
+		`DELETE FROM audit_events WHERE metadata->>'company_id' = $1::text`,
+	} {
+		if err := audittest.Delete(ctx, c.pool, query, c.companyID); err != nil {
+			c.t.Errorf("HTTP company fixture audit cleanup failed: %v", err)
+		}
+	}
 	for step, query := range []string{
 		`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
-		`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
 		`DELETE FROM job_draft_idempotency WHERE company_id = $1`,
 		`DELETE FROM placement_credits WHERE company_id = $1`,
-		`DELETE FROM audit_events WHERE metadata->>'company_id' = $1::text`,
 		`DELETE FROM job_drafts WHERE company_id = $1`,
 		`DELETE FROM job_draft_requesters WHERE company_id = $1`,
 		`DELETE FROM company_members WHERE company_id = $1`,

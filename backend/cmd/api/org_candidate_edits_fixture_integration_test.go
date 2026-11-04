@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/google/uuid"
 )
@@ -34,9 +35,11 @@ func newCandidateEditFixture(t *testing.T, files ...*cvstorage.Local) *candidate
 	// Clean only this fixture's private rows before company/actor cleanup.
 	t.Cleanup(func() {
 		f.cleanupParticipations(t)
+		if err := audittest.Delete(ctx, h.pool, `DELETE FROM audit_events WHERE entity_id=$1`, f.id); err != nil {
+			t.Error(err)
+		}
 		for _, query := range []string{
 			`DELETE FROM company_candidate_history WHERE candidate_id=$1`,
-			`DELETE FROM audit_events WHERE entity_id=$1`,
 			`DELETE FROM company_candidate_cvs WHERE company_candidate_id=$1`,
 			`DELETE FROM company_candidate_languages WHERE company_candidate_id=$1`,
 			`DELETE FROM company_candidate_educations WHERE company_candidate_id=$1`,
@@ -77,9 +80,11 @@ func newCandidateEditFixture(t *testing.T, files ...*cvstorage.Local) *candidate
 // participation, then let callers remove CV objects/versions and the identity.
 func (f *candidateEditFixture) cleanupParticipations(t *testing.T) {
 	t.Helper()
+	if err := audittest.Delete(context.Background(), f.h.pool, `DELETE FROM audit_events WHERE entity_id=$1 OR entity_id IN (SELECT id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`, f.id); err != nil {
+		t.Errorf("candidate fixture audit cleanup: %v", err)
+	}
 	for _, query := range []string{
 		`DELETE FROM company_candidate_history WHERE candidate_id=$1 OR participation_id IN (SELECT id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
-		`DELETE FROM audit_events WHERE entity_id=$1 OR entity_id IN (SELECT id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
 		`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,
 		`DELETE FROM participation_idempotency WHERE candidate_id=$1`,
 		`DELETE FROM process_delivery_fulfillments WHERE process_id IN (SELECT process_id FROM process_participations WHERE candidate_id=$1 OR company_candidate_id=$1)`,

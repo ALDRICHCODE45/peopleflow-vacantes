@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +24,7 @@ func requesterFlowCompany(t *testing.T, h *draftFlowHarness) (*draftFlowCompany,
 	t.Helper()
 	c, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
 	t.Cleanup(func() {
-		_, _ = h.pool.Exec(context.Background(),
+		_ = audittest.Delete(context.Background(), h.pool,
 			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_draft_requesters WHERE company_id = $1)`, c.companyID)
 	})
 	return c, h.actor(t, ownerID, sub)

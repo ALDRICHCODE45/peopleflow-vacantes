@@ -17,6 +17,7 @@ import (
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	boardhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
@@ -339,7 +340,7 @@ func TestMovementReorderedBuiltinsUseCurrentOrder(t *testing.T) {
 	original := m.vacancy
 	m.vacancy = id
 	t.Cleanup(func() {
-		if _, err := m.pool.Exec(context.Background(), `DELETE FROM audit_events WHERE entity_id=$1`, id); err != nil {
+		if err := audittest.Delete(context.Background(), m.pool, `DELETE FROM audit_events WHERE entity_id=$1`, id); err != nil {
 			t.Error(err)
 		}
 		if _, err := m.pool.Exec(context.Background(), `DELETE FROM job_draft_idempotency WHERE company_id=$1`, m.company); err != nil {

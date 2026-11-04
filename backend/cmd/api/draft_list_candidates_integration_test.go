@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 )
@@ -25,7 +26,9 @@ func draftListCandidateSeed(t *testing.T, h *draftFlowHarness, id, stage string)
 		}
 	}
 	t.Cleanup(func() {
-		exec(`DELETE FROM audit_events WHERE entity_id=$1`, pid)
+		if err := audittest.Delete(ctx, h.pool, `DELETE FROM audit_events WHERE entity_id=$1`, pid); err != nil {
+			t.Fatal(err)
+		}
 		exec(`DELETE FROM participation_stage_history WHERE participation_id=$1`, pid)
 		exec(`DELETE FROM process_participations WHERE id=$1`, pid)
 		exec(`DELETE FROM candidate_cv_library WHERE candidate_id=$1`, candidate)

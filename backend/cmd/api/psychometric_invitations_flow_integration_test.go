@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 )
@@ -32,7 +33,7 @@ func invitationSetup(t *testing.T) invitationFixture {
 	base := draftFlowV2Path + "/" + id
 	// Invitation audit entities are independent of the parent draft's cleanup.
 	t.Cleanup(func() {
-		_, err := h.pool.Exec(context.Background(), `DELETE FROM audit_events WHERE entity_type='psychometric_invitation' AND metadata->>'vacancy_id'=$1`, id)
+		err := audittest.Delete(context.Background(), h.pool, `DELETE FROM audit_events WHERE entity_type='psychometric_invitation' AND metadata->>'vacancy_id'=$1`, id)
 		if err != nil {
 			t.Error(err)
 		}

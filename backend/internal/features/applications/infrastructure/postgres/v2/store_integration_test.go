@@ -18,6 +18,7 @@ import (
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	cvapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/cvs"
 	cvstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres/cvs"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
@@ -224,6 +225,19 @@ func setup(t *testing.T) fixture {
 		} else if duplicateActive {
 			t.Error("credit invariant: more than one active credit per participation")
 		}
+		// audit_events is append-only: delete its rows first, outside the
+		// transaction (replica mode would also skip the FK triggers of the
+		// other statements).
+		for _, sql := range []string{
+			`DELETE FROM audit_events WHERE entity_type='process_participation' AND entity_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes v ON v.id=p.process_id WHERE v.company_id=$1)`,
+			`DELETE FROM audit_events WHERE event_type='VacancyDeliveryFulfilled' AND entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+		} {
+			if err := audittest.Delete(cleanupCtx, pool, sql, f.company); err != nil {
+				t.Errorf("fixture audit cleanup failed: %v", err)
+				return
+			}
+		}
 		tx, err := pool.Begin(cleanupCtx)
 		if err != nil {
 			t.Errorf("fixture cleanup could not begin: %v", err)
@@ -231,7 +245,6 @@ func setup(t *testing.T) fixture {
 		}
 		defer tx.Rollback(cleanupCtx)
 		for step, sql := range []string{
-			`DELETE FROM audit_events WHERE entity_type='process_participation' AND entity_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes v ON v.id=p.process_id WHERE v.company_id=$1)`,
 			`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes v ON v.id=p.process_id WHERE v.company_id=$1)`,
 			`DELETE FROM participation_idempotency WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM process_participations WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
@@ -240,10 +253,8 @@ func setup(t *testing.T) fixture {
 			`DELETE FROM company_candidate_educations WHERE company_candidate_id IN (SELECT id FROM company_candidates WHERE company_id=$1)`,
 			`DELETE FROM company_candidates WHERE company_id=$1`,
 			`DELETE FROM process_delivery_fulfillments WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
-			`DELETE FROM audit_events WHERE event_type='VacancyDeliveryFulfilled' AND entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM job_draft_idempotency WHERE company_id=$1`,
-			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM vacancy_public_projections WHERE company_id=$1`,
 			`DELETE FROM vacancy_processes WHERE company_id=$1`,
 			`DELETE FROM placement_credits WHERE company_id=$1`,

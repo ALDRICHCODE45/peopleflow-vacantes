@@ -39,8 +39,9 @@ Backend half of the frontend `odd/tasks/audit-log.md` (worktree `peopleflow-vaca
 
 Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, shared secret, every emitter): own commits.
 
-- [ ] T2 — S2, S4.5–S4.7: migration 00056 (columns `company_id`, `vacancy_id`, `ip`, `user_agent`, `ip_source`,
-  indexes, backfill, append-only trigger with the purge exception), test helper for audit cleanup. Commit: —.
+- [x] T2 — S2, S4.5–S4.7: migration 00056 (columns `company_id`, `vacancy_id`, `ip`, `user_agent`, `ip_source`,
+  indexes, backfill, append-only trigger with the purge exception), test helper for audit cleanup. Route: parent
+  (migration + RED/GREEN) + worker mw1pf97d (28 test cleanups). Commit: next feat commit.
 - [ ] T3 — S2, S4.4: request-context middleware + `AUDIT_PROXY_SECRET`, shared IP helper (out of the rate limiter),
   adapter writes `ip`/`user_agent`/`ip_source`. Commit: —.
 - [ ] T4 — S2, S4.5, S4.7: `CompanyID`/`VacancyID` on every emitter (incl. raw SQL ones), event catalog constants +
@@ -68,3 +69,11 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   (Recomendado)»; D1, D3, D4, D6 y D7: «Sí, todas como recomiendan (Recomendado)». Contract → agreed. Frontend
   starts its 2a on `feat/audit-log`. `AUDIT_PROXY_SECRET` (random 32 bytes hex) appended to `backend/.env`
   (gitignored); the frontend reads the value from that file.
+- L5 — T2: RED `TestMigration00056AuditLog` (column company_id missing) → GREEN. Test cleanups use
+  `audittest.Delete` (SET LOCAL session_replication_role = replica, superuser test roles only); two legacy tests that
+  recreate audit_events with the 00011 DDL now append `audittest.RestoreAppendOnlyDDL` (hand copy of 00056 — keep in
+  sync). Worker checks: gofmt/build/vet (+integration tag) clean; unit 105 ok, 1 FAIL scripts/closure (known);
+  integration (DATABASE_URL = disposable `draft_test_legacy` in pf-draft-test) 105 ok, 3 FAIL: scripts/closure,
+  identity/postgres `TestUsersMigrationDownDropsTable` and the cascading jobs/postgres failures — both reproduced on the
+  base commit by the worker (pre-existing, not audit). Recreate `draft_test_legacy` before reuse. Frontend 2a done
+  (40a4a825, 1b39c7a4), secret in frontend/.env.local.
