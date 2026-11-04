@@ -69,3 +69,10 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
   .env (Cognito). :8080 not running. Only the owner (Test User) can sign in; Ana López (1 active tramo) and Diego
   Hernández are QA seeds without login → a recruiter-side 403 check needs a second real Cognito account (user's call).
   Teardown: kill the PID, `git worktree remove .scratch/api-tb`, delete the two binaries.
+- L8 — Independent verify (mw1hren0-3-8f8a): S1, S2, S3, S4.1–S4.6 met except one BLOCKER in S4.3 concurrency — the
+  PUT locks companies → setting while pool writes locked setting (FOR SHARE) → later FK key-share on companies:
+  deadlock, PUT 500. Parent reproduced RED with the verifier's test, fixed by key-share locking the company row first in
+  `requireTalentBase` (32d831e2, test `TestTalentBaseVisibility_PutAndPoolWriteDoNotDeadlock`); focused integration
+  green. Advisory for the user: `GET /v2/me/company/dashboard` still returns the aggregate `pool_added_last_7_days`
+  (same count as the now-gated summary) to restricted users. Verifier scratch left at a system temp dir (outside the
+  repo). QA API :8081 restarted on 32d831e2.
