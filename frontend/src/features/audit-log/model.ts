@@ -157,6 +157,12 @@ const BROWSERS: readonly (readonly [RegExp, string])[] = [
 const SYSTEMS: readonly (readonly [RegExp, string])[] = [
   [/Android/, "Android"], [/iPhone|iPad/, "iOS"], [/Windows/, "Windows"], [/Mac OS X|Macintosh/, "macOS"], [/Linux|X11/, "Linux"],
 ];
+/** A vacancy's display title: an untitled draft ("") and a deleted vacancy (null) are told apart (contract §8.4). */
+export function vacancyTitleLabel(title: string | null): { label: string; missing: boolean } {
+  if (title === null) return { label: "Vacante eliminada", missing: true };
+  return title.trim() ? { label: title, missing: false } : { label: "Vacante sin título", missing: true };
+}
+
 /** «Safari · macOS» from a User-Agent; unknown agents show their (truncated) raw value, never a guess. */
 export function describeBrowser(userAgent: string | null): string {
   if (!userAgent) return "—";

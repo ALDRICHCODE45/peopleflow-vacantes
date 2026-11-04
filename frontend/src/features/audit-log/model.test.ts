@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  actorsSchema, auditEventPageSchema, auditTypesSchema, auditVacanciesSchema, describeActor, describeBrowser, errorEnvelopeSchema,
+  actorsSchema, auditEventPageSchema, auditTypesSchema, auditVacanciesSchema, describeActor, describeBrowser, errorEnvelopeSchema, vacancyTitleLabel,
   eventLabel, exportErrorMessage, parseExportBody, exportRangeError, formatOccurredAt, KNOWN_EVENT_TYPES, listFailureMessage, UNKNOWN_EVENT_LABEL,
 } from "./model";
 import { auditActors, auditEvent, auditPage, auditTypes, auditVacancies } from "./test-fixtures";
@@ -75,6 +75,13 @@ describe("labels (contract Annex)", () => {
 });
 
 describe("presentation helpers", () => {
+  it("labels a vacancy by title, an untitled draft and a deleted vacancy distinctly (contract §8.4)", () => {
+    expect(vacancyTitleLabel("Ejecutivo de ventas")).toEqual({ label: "Ejecutivo de ventas", missing: false });
+    expect(vacancyTitleLabel("")).toEqual({ label: "Vacante sin título", missing: true });
+    expect(vacancyTitleLabel("   ")).toEqual({ label: "Vacante sin título", missing: true });
+    expect(vacancyTitleLabel(null)).toEqual({ label: "Vacante eliminada", missing: true });
+  });
+
   it("formats the moment in America/Mexico_City", () => {
     expect(formatOccurredAt("2026-11-04T17:03:12.441Z")).toMatch(/11:03:12/);
     expect(formatOccurredAt("2026-11-04T02:30:00Z")).toMatch(/3 nov/i);

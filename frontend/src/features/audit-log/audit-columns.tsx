@@ -5,7 +5,7 @@ import type { RichColumnDef } from "@/components/data-table/rich-data-table";
 import { TruncatedText, TwoLineCell } from "@/components/data-table/truncated-text";
 import { accentAvatar } from "@/lib/accent";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
-import { describeActor, describeBrowser, eventLabel, isKnownEventType, MX_TIME_ZONE, type AuditEvent } from "./model";
+import { describeActor, describeBrowser, eventLabel, isKnownEventType, MX_TIME_ZONE, vacancyTitleLabel, type AuditEvent } from "./model";
 
 const dayFormat = new Intl.DateTimeFormat("es-MX", { timeZone: MX_TIME_ZONE, dateStyle: "medium" });
 const timeFormat = new Intl.DateTimeFormat("es-MX", { timeZone: MX_TIME_ZONE, timeStyle: "medium" });
@@ -52,7 +52,12 @@ export const auditColumns: RichColumnDef<AuditEvent>[] = [
     ? <TruncatedText text={row.original.entity.label} className="text-sm font-medium text-foreground" />
     : <TwoLineCell primary="Sin etiqueta" missing /> },
   { id: "vacancy", size: 180, meta: { label: "Vacante", grow: true }, cell: ({ row }) => row.original.vacancy
-    ? row.original.vacancy.title ? <TruncatedText text={row.original.vacancy.title} className="text-sm font-medium text-foreground" /> : <TwoLineCell primary="Vacante eliminada" missing />
+    ? <VacancyTitle title={row.original.vacancy.title} />
     : <TwoLineCell primary="—" missing /> },
   { id: "origin", size: 200, meta: { label: "IP y navegador" }, cell: ({ row }) => <Origin event={row.original} /> },
 ];
+
+function VacancyTitle({ title }: { title: string | null }) {
+  const { label, missing } = vacancyTitleLabel(title);
+  return missing ? <TwoLineCell primary={label} missing /> : <TruncatedText text={label} className="text-sm font-medium text-foreground" />;
+}

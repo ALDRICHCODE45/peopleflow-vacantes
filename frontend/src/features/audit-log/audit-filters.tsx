@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { categoryLabel, eventLabel, isKnownEventType, KNOWN_EVENT_TYPES, type AuditOptions, type AuditType } from "./model";
+import { categoryLabel, eventLabel, isKnownEventType, KNOWN_EVENT_TYPES, vacancyTitleLabel, type AuditOptions, type AuditType } from "./model";
 import type { AuditFilters } from "./url-state";
 
 type Option = { value: string; label: string };
@@ -61,7 +61,7 @@ export function AuditFiltersBar({ filters, options, optionsFailed, onRetryOption
     ...actors.map(actor => ({ value: actor.user_id, label: actorName(actor) }))];
   const vacancyChoices: Option[] = [{ value: ANY, label: "Todas las vacantes" },
     ...(filters.vacancy_id && !vacancies.some(vacancy => vacancy.vacancy_id === filters.vacancy_id) ? [{ value: filters.vacancy_id, label: "Vacante seleccionada" }] : []),
-    ...vacancies.map(vacancy => ({ value: vacancy.vacancy_id, label: vacancy.title ?? "Vacante eliminada" }))];
+    ...vacancies.map(vacancy => ({ value: vacancy.vacancy_id, label: vacancyTitleLabel(vacancy.title).label }))];
   const groups = actionGroups(options?.types ?? KNOWN_EVENT_TYPES, selectedTypes);
   const actionChoices: Option[] = [{ value: ANY, label: "Todas las acciones" },
     ...(selectedTypes.length > 1 ? [{ value: MANY, label: `Varias acciones (${selectedTypes.length})` }] : []),
