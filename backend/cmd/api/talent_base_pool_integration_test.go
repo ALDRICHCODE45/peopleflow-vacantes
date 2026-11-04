@@ -439,3 +439,45 @@ func TestTalentBaseVisibility_RoleChangeWithoutSettingStillWorks(t *testing.T) {
 		t.Fatalf("a role change must not create the settings row, got %d", n)
 	}
 }
+
+// The PUT locks the company row, then the setting; a pool write must take the
+// company row first too, or its later FK checks on companies deadlock with it.
+func TestTalentBaseVisibility_PutAndPoolWriteDoNotDeadlock(t *testing.T) {
+	f := newTbPoolFixture(t)
+	ctx := context.Background()
+	store := poolpostgres.NewStore(f.h.pool, poolStageNames)
+	tbSet(t, f.h, f.owner, "selected_users", f.listed.userID) // version 2
+	etag := f.h.do(t, "GET", f.path, "", f.owner.token, nil).header.Get("ETag")
+	hold, err := f.h.pool.Begin(ctx) // a concurrent writer of the same candidate
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Rollback(ctx)
+	if _, err = hold.Exec(ctx, `SELECT 1 FROM company_candidates WHERE id=$1 FOR UPDATE`, f.id); err != nil {
+		t.Fatal(err)
+	}
+	editDone := make(chan error, 1)
+	go func() {
+		_, err := store.Edit(ctx, f.company.companyID, f.listed.userID, f.id, etag, []byte(`{"set":{"current_company":"Race Co"}}`))
+		editDone <- err
+	}()
+	time.Sleep(300 * time.Millisecond)
+	putDone := make(chan draftFlowResponse, 1)
+	go func() { putDone <- tbPut(t, f.h, f.owner, `"2"`, tbBody("selected_users")) }()
+	time.Sleep(300 * time.Millisecond)
+	_ = hold.Rollback(ctx)
+	var editErr error
+	var put draftFlowResponse
+	timeout := time.After(15 * time.Second)
+	for got := 0; got < 2; got++ {
+		select {
+		case editErr = <-editDone:
+		case put = <-putDone:
+		case <-timeout:
+			t.Fatal("hang")
+		}
+	}
+	if editErr != nil || put.status != 200 {
+		t.Fatalf("edit=%v put=%d %s", editErr, put.status, put.body)
+	}
+}
