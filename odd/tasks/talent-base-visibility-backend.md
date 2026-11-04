@@ -63,3 +63,9 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
   L19 geo; TestDisposablePostgresBootstrap needs a loopback DATABASE_URL). Deviations recorded in the contract (412
   body keys + error/code, field codes, check order, sorted audit ids, cleanups do not bump the version). Slice is
   ~2.2k lines over 2 feature commits (T2/T3 separate; T3 is the high-risk security unit).
+- L7 — Frontend fixed its strict 412 schema (its 352eeac2) and asked for QA. API :8081 from detached worktree
+  `.scratch/api-tb` @ 7c788d72 (binaries `.scratch/qa-api-tb-bin`, `.scratch/qa-migrate-tb-bin`; PID
+  `.scratch/qa-api-tb/api.pid`, log `.scratch/qa-api-tb/api.log`), DB `peopleflow_vacancies_team` migrated 54 → 55, usual
+  .env (Cognito). :8080 not running. Only the owner (Test User) can sign in; Ana López (1 active tramo) and Diego
+  Hernández are QA seeds without login → a recruiter-side 403 check needs a second real Cognito account (user's call).
+  Teardown: kill the PID, `git worktree remove .scratch/api-tb`, delete the two binaries.
