@@ -89,3 +89,7 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
 - **L13** Final full suite on Node 22: 9645 passed, 1 failed (`employer-vacancies/delivery-config/editor.test.tsx`,
   «keeps dialog data on commitment_note_required…»); the branch does not touch `employer-vacancies`, and the file passes
   alone 3 of 3 (51/51): flaky under suite load, noted for the backlog.
+- **L14** (user, 2026-11-04): «Sí, mergeá y bajá los procesos». Merged into local main with --no-ff: backend
+  `feat/talent-base-visibility-backend` at `98abb9a0` (merge `259c6e30`), then frontend `feat/talent-base-visibility`
+  (merge `0cf41931`). Next :3000 and QA API :8081 stopped. The user pushes. The development DB is still at migration
+  53: run `go run ./cmd/migrate up` to reach 55. Next: feature 2 (Auditoría).
