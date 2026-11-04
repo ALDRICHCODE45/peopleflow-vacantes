@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { signOutWithAudit } from "@/lib/audit/sign-out";
 import { CircleAlert, ShieldLock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,7 +49,7 @@ export function LogoutButton({ area }: { area: "candidate" | "employer" }) {
   async function logout() {
     if (pending) return;
     setPending(true); setFailed(false);
-    try { await signOut({ callbackUrl: area === "candidate" ? "/api/auth/cognito/logout?to=candidato" : "/api/auth/cognito/logout" }); }
+    try { await signOutWithAudit(area === "candidate" ? "/api/auth/cognito/logout?to=candidato" : "/api/auth/cognito/logout"); }
     catch {
       setFailed(true);
       notifyActionResult({ key: "identity-logout", type: "error", title: "No pudimos cerrar la sesión", description: "Tu sesión puede seguir activa. Vuelve a intentarlo.", reference: { at: new Date().toISOString() } });

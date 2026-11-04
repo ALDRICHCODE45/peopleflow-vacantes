@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { signOut } from "next-auth/react";
+import { signOutWithAudit } from "@/lib/audit/sign-out";
 import { IconFileCv, IconSettings, IconUserCircle } from "@tabler/icons-react";
 import { NavUser } from "@/components/company-dashboard/nav-user";
 import { ActionStatus } from "@/components/feedback/action-status";
@@ -25,7 +25,7 @@ export function CandidateNavUser() {
   async function logout() {
     if (lock.current) return;
     lock.current = true; setPending(true); setFailed(false);
-    try { await signOut({ callbackUrl: "/api/auth/cognito/logout?to=candidato" }); }
+    try { await signOutWithAudit("/api/auth/cognito/logout?to=candidato"); }
     catch {
       setFailed(true);
       notifyActionResult({ key: "candidate-logout", type: "error", title: "No pudimos cerrar la sesión", description: "Tu sesión puede seguir activa. Vuelve a intentarlo desde el menú.", reference: { at: new Date().toISOString() } });

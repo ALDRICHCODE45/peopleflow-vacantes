@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { SessionProvider, getCsrfToken, signIn, signOut, useSession } from "next-auth/react";
+import { SessionProvider, getCsrfToken, signIn, useSession } from "next-auth/react";
+import { signOutWithAudit } from "@/lib/audit/sign-out";
 import { candidateAuthHref } from "@/features/identity/return-to";
 import { toCognitoSignupUrl } from "@/lib/auth/signup-url";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ function ManagedCandidateLogin() {
     if (lock.current || status === "loading") return;
     lock.current = true; setPending(true); setActionError(null);
     try {
-      if (logout) await signOut({ callbackUrl: "/api/auth/cognito/logout?to=candidato" });
+      if (logout) await signOutWithAudit("/api/auth/cognito/logout?to=candidato");
       else if (signup) {
         // NextAuth v4 ignores redirect:false for OAuth. Use its standard CSRF
         // POST so NextAuth still creates the state/PKCE cookies and parameters.
