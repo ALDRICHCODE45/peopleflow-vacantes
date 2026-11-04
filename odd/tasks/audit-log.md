@@ -98,3 +98,11 @@ source `docs/product/next-three-features.md` §2.
   `5bab0cce` owner page and sidebar. Parent re-ran the checks: 20 files, 313 tests, tsc 0 errors, eslint clean.
   Slice boundary: the 2b screen slice is these four commits (~1989 lines, split by layer; the workspace commit is ~730
   because its 356-line test travels with it). T6 wires it to the real backend 2b.
+- **L13** Native review (RDD) of the 2b screen slice, base `0fe9bc91` (offered by inspect), lenses risk/readability/
+  reliability, tier medium: **approved**, lineage `review-e99aa1aebe889d88`, acknowledged (authority burned). 12
+  non-blocking advisories, follow-ups for T6:
+  - Fix in T6: `download.ts:17-19` revokes the blob URL before the download may start (R3-revoke-before-download);
+    `model.ts:185` local range errors use a field other than the backend's `range` on `to` (R3-range-field-drift).
+  - Check in T6: `client.ts:60-74` export header/stream timeouts are untested and one risk warning sits there (R1-001);
+    the stale «Cargar más» guard after a filter change (`use-audit-events.ts:51-54`).
+  - Readability suggestions in `client.ts`, `actions.ts`, `url-state.ts`, `use-audit-events.ts` and the export route.
