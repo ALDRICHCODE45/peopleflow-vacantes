@@ -77,4 +77,4 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
   the user creates a second Cognito recruiter account (QA seeds cannot sign in).
 - **L11** (user, 2026-11-04) on the dashboard count `pool_added_last_7_days` for a recruiter without access: «Ocultarla
   (Recomendado)». Backend sends null for them; the dashboard drops «Nuevos en la base» and uses three columns.
-  Frontend done test-first (216 tests, tsc and ESLint clean); backend SHA pending. Partner doc updated.
+  Frontend done test-first (216 tests, tsc and ESLint clean); backend `ab7b2afc` (contract row «Dashboard pool count»). Partner doc updated.
