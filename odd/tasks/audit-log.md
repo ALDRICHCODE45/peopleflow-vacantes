@@ -72,3 +72,13 @@ source `docs/product/next-three-features.md` §2.
 - **L7** Commits: T2 `40a4a825` (alone, high-risk item 2), T3 `1b39c7a4`. The 4 load-timeout tests pass alone (120/120),
   `tsc` 0 errors. Slice boundary: the frontend 2a slice is these two commits (519 authored lines, each under ~400);
   the 2b screen starts a new slice. Next: T4 when the backend 2a is ready.
+- **L8** Native review (RDD) of the 2a slice, base `7be2becc`, lenses risk/resilience/reliability, tier high (auth hot
+  path): **approved**, lineage `review-819a9620e7e50336`, acknowledged (authority burned). 12 non-blocking advisories,
+  kept as follow-ups (separate later work, never a re-review of this candidate):
+  - Config: an empty `AUDIT_TRUSTED_PROXY_HOPS=""` fails startup (treat empty as the default); hops=0 records the
+    nearest proxy's IP behind CloudFront/Amplify until it is measured on the first deploy (already in hosting §7).
+  - Observability: session start/end and forwarding failures are swallowed silently; add a credential-free server log.
+  - Redirects: decorated calls now force `redirect: "error"`; any future API redirect surfaces as a network error.
+  - Sign-in latency: the start call is awaited in the jwt callback (bounded to 2 s).
+  - `install.ts` uses `serverEnv.apiBaseUrl` as the origin (validated bare origin today); `options.ts` now loads the
+    server env in the NextAuth route; the structural sign-out test does not catch an aliased import.
