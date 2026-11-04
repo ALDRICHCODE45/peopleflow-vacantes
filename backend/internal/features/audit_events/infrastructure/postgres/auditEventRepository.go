@@ -13,6 +13,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -43,7 +44,8 @@ func (r *AuditEventRepository) Append(ctx context.Context, tx pgx.Tx, event audi
 	if err != nil {
 		return fmt.Errorf("marshal audit metadata: %w", err)
 	}
-	if err := db.New(tx).InsertAuditEvent(ctx, buildInsertAuditEventParams(event, meta)); err != nil {
+	params := applyRequestMeta(ctx, buildInsertAuditEventParams(event, meta))
+	if err := db.New(tx).InsertAuditEvent(ctx, params); err != nil {
 		return fmt.Errorf("insert audit event: %w", err)
 	}
 	return nil
@@ -65,6 +67,30 @@ func buildInsertAuditEventParams(event auditentities.AuditEvent, metadata []byte
 	}
 	if event.ActorID != nil {
 		params.ActorID = pgtype.UUID{Bytes: *event.ActorID, Valid: true}
+	}
+	if event.CompanyID != nil {
+		params.CompanyID = pgtype.UUID{Bytes: *event.CompanyID, Valid: true}
+	}
+	if event.VacancyID != nil {
+		params.VacancyID = pgtype.UUID{Bytes: *event.VacancyID, Valid: true}
+	}
+	return params
+}
+
+// applyRequestMeta adds ip, user_agent and ip_source from the request context
+// set by the requestmeta middleware (audit-log-v1 §4). Emitters never pass
+// them. A context without metadata (system jobs, tests) leaves all three NULL.
+func applyRequestMeta(ctx context.Context, params db.InsertAuditEventParams) db.InsertAuditEventParams {
+	meta, ok := requestmeta.FromContext(ctx)
+	if !ok {
+		return params
+	}
+	params.Ip = meta.IP
+	if meta.UserAgent != nil {
+		params.UserAgent = pgtype.Text{String: *meta.UserAgent, Valid: true}
+	}
+	if meta.IPSource != "" {
+		params.IpSource = pgtype.Text{String: meta.IPSource, Valid: true}
 	}
 	return params
 }

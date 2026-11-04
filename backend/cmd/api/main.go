@@ -62,6 +62,7 @@ import (
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -172,6 +173,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Unset means no forwarded client header is ever trusted (peer only).
+	auditProxySecret := runtimeconfig.LoadAuditProxySecret(os.Getenv)
 
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
 	pool, err := pgxpool.New(ctx, dsn)
@@ -401,6 +404,7 @@ func run() error {
 		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, draftStore),
 		psychometricAssessmentHandler:  newPsychometricAssessmentHandler(pool, draftStore),
 		publicAssessmentLimit:          ratelimit.NewAssessment(ratelimit.DefaultLimits(), trustedProxies, nil).Middleware,
+		requestMeta:                    requestmeta.Middleware(requestmeta.Config{ProxySecret: auditProxySecret, TrustedProxies: trustedProxies}),
 		checklistHandler:               checklistHandler,
 		checklistMarksHandler:          checklistMarksHandler,
 	})

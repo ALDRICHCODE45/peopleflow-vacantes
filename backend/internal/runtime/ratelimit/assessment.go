@@ -5,13 +5,12 @@ package ratelimit
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"net"
 	"net/http"
 	"net/netip"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/clientip"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 )
@@ -253,47 +252,11 @@ func (w *catalogRecorder) RecordCatalogCode(code string) {
 	}
 }
 
-func (a *Assessment) isTrusted(addr netip.Addr) bool {
-	for _, prefix := range a.trusted {
-		if prefix.Contains(addr) {
-			return true
-		}
-	}
-	return false
-}
-
 func (a *Assessment) clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	peer, err := netip.ParseAddr(host)
-	if err != nil {
+	client := clientip.Resolve(r, a.trusted)
+	if !client.IsValid() {
 		// All malformed peers share one budget; never use attacker-controlled text.
 		return "invalid"
-	}
-	peer = peer.Unmap()
-	client := peer
-	if a.isTrusted(peer) {
-		parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
-		hops := make([]netip.Addr, len(parts))
-		valid := true
-		for i, part := range parts {
-			hop, err := netip.ParseAddr(strings.TrimSpace(part))
-			if err != nil {
-				valid = false
-				break
-			}
-			hops[i] = hop.Unmap()
-		}
-		if valid {
-			for i := len(hops) - 1; i >= 0; i-- {
-				if !a.isTrusted(hops[i]) {
-					client = hops[i]
-					break
-				}
-			}
-		}
 	}
 	if client.Is6() {
 		return netip.PrefixFrom(client, 64).Masked().String()

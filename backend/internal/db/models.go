@@ -5,6 +5,8 @@
 package db
 
 import (
+	"net/netip"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -31,6 +33,11 @@ type AuditEvent struct {
 	EntityType string             `json:"entity_type"`
 	EntityID   uuid.UUID          `json:"entity_id"`
 	Metadata   []byte             `json:"metadata"`
+	CompanyID  pgtype.UUID        `json:"company_id"`
+	VacancyID  pgtype.UUID        `json:"vacancy_id"`
+	Ip         *netip.Addr        `json:"ip"`
+	UserAgent  pgtype.Text        `json:"user_agent"`
+	IpSource   pgtype.Text        `json:"ip_source"`
 }
 
 type CandidateCvLibrary struct {

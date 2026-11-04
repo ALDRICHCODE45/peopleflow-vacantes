@@ -115,6 +115,11 @@ type AuditEvent struct {
 	EntityType string
 	EntityID   uuid.UUID
 	Metadata   map[string]string // PII-free; exact keys pinned by D7 tests
+	// CompanyID and VacancyID are the company and vacancy the event belongs to
+	// (audit-log-v1 §1). nil stores NULL. ip, user_agent and ip_source are not
+	// fields: the adapter reads them from the request context.
+	CompanyID *uuid.UUID
+	VacancyID *uuid.UUID
 	// StructuredMetadata supports ID/code arrays (placement recipients). When
 	// present it replaces Metadata; legacy emitters retain string-only values.
 	StructuredMetadata map[string]any

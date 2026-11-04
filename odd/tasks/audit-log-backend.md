@@ -42,8 +42,8 @@ Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, 
 - [x] T2 — S2, S4.5–S4.7: migration 00056 (columns `company_id`, `vacancy_id`, `ip`, `user_agent`, `ip_source`,
   indexes, backfill, append-only trigger with the purge exception), test helper for audit cleanup. Route: parent
   (migration + RED/GREEN) + worker mw1pf97d (28 test cleanups). Commit: next feat commit.
-- [ ] T3 — S2, S4.4: request-context middleware + `AUDIT_PROXY_SECRET`, shared IP helper (out of the rate limiter),
-  adapter writes `ip`/`user_agent`/`ip_source`. Commit: —.
+- [x] T3 — S2, S4.4: request-context middleware + `AUDIT_PROXY_SECRET`, shared IP helper (out of the rate limiter),
+  adapter writes `ip`/`user_agent`/`ip_source`. Route: worker mw1r96q7 (context backstop). Commit: next feat commit.
 - [ ] T4 — S2, S4.5, S4.7: `CompanyID`/`VacancyID` on every emitter (incl. raw SQL ones), event catalog constants +
   categories, test: no employer-side type with null `company_id`, allowed metadata keys per type. Commit: —.
 - [ ] T5 — S1, S2, S4.1–S4.3: sensitive reads (§2), `POST /v2/me/session/start|end` (§3), member events (§5), route
@@ -77,3 +77,12 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   identity/postgres `TestUsersMigrationDownDropsTable` and the cascading jobs/postgres failures — both reproduced on the
   base commit by the worker (pre-existing, not audit). Recreate `draft_test_legacy` before reuse. Frontend 2a done
   (40a4a825, 1b39c7a4), secret in frontend/.env.local.
+- L6 — Slice boundary: 2a is delivered as one commit per task on this branch (T2 schema/trigger, T3 request context,
+  T4 emitters, T5 new events), each reviewable alone; the branch merges after T6. Frontend 2b screen built on fixtures;
+  export validation pinned in the contract (b9a0d07b).
+- L7 — T3 (worker mw1r96q7): `internal/runtime/clientip` (shared, full addr; limiter keeps /64 + "invalid" bucket,
+  PRESERVE test added), `internal/runtime/requestmeta` (sha256 + subtle compare, unset secret = never trusted, UA →
+  valid UTF-8 ≤512 bytes, IPv4-mapped → IPv4, zone dropped), mounted 2nd in the root `r.Use` (AST pin now 4 args +
+  `TestProductionComposition_RequestMetaWired`); adapter writes the five columns; sqlc output hand-edited (no binary).
+  Checks: gofmt/build/vet clean; unit 107 ok, 1 FAIL scripts/closure (known); integration audit_events, runtime,
+  cmd/api ok. Gotcha: goose CLI auto-loads backend/.env (dev DB) — pass `-env=none` with an explicit DSN.

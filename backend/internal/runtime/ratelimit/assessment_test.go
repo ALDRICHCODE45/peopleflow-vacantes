@@ -189,6 +189,20 @@ func TestIPv6ClientsShareTheirSlash64(t *testing.T) {
 	assertLimited(t, do(h, "e", "[::ffff:192.0.2.77]:1", ""), "60")
 }
 
+func TestMalformedPeersShareOneInvalidBudget(t *testing.T) {
+	trusted := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}
+	h, _, _ := harness(ratelimit.Limits{PerToken: 100, PerIP: 1, UnknownPerIP: 100, Window: time.Minute, MaxKeys: 100}, trusted)
+	// Attacker-controlled text never becomes a key: every malformed peer shares one bucket.
+	if rec := do(h, "a", "not-an-ip:1", "198.51.100.1"); rec.Code != 200 {
+		t.Fatal(rec.Code)
+	}
+	assertLimited(t, do(h, "b", "garbage", "198.51.100.2"), "60")
+	// A real client is not affected by the invalid bucket.
+	if rec := do(h, "c", "192.0.2.9:1", ""); rec.Code != 200 {
+		t.Fatal(rec.Code)
+	}
+}
+
 func TestMaxKeysFailsClosedAndExpiredKeysAreReclaimed(t *testing.T) {
 	// Each request creates a token key and an IP key.
 	h, c, _ := harness(ratelimit.Limits{PerToken: 100, PerIP: 100, UnknownPerIP: 100, Window: time.Minute, MaxKeys: 4}, nil)
