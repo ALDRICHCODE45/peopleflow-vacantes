@@ -125,3 +125,6 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   ParticipationCVDownloaded, null on pool detail/contacts (as §1/§2). Pending: SessionStarted (the session was
   already alive, no sign-in callback) and SessionEnded (frontend bug: the employer sidebar hid «Cerrar sesión», being
   fixed) — to be repeated with a real login/logout.
+- L14 — Frontend fixed the sidebar sign-out; parent confirmed in the DB: SessionEnded 16:39:30 and SessionStarted
+  16:39:57 (Mexico City), entity `user`, `bff`, `::1`, company_id set, metadata `{}`. Slice 2a verified end to end.
+  Next: the user's merge decision for 2a; then slice 2b (list, types, actors, vacancies, export, purge).
