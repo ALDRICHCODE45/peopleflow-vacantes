@@ -49,7 +49,9 @@ Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, 
   mw1rxaxp. Commit: next feat commit.
 - [x] T5 — S1, S2, S4.1–S4.3: sensitive reads (§2), `POST /v2/me/session/start|end` (§3), member events (§5), route
   inventory. Route: worker mw1tpt8l. Commit: next feat commit.
-- [ ] T6 — verify 2a (independent, security) + full integration. Commit: —.
+- [x] T6 — verify 2a (independent, security) + full integration. Route: gentle-ai-verify mw1vk451; MINOR 1 fixed
+  inline (RED/GREEN), probes committed. Commit: next fix commit.
+- [ ] T7 — QA :8081 with the frontend end-to-end (its T4), then the user's merge decision.
 
 Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
 
@@ -102,3 +104,11 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   `TestTalentBaseVisibility_RemovingAMemberDropsTheViewerAndAuditsIt`, three `*AtomicRollback`, `TestManualCreateHTTPFlow`
   snapshot. Checks: gofmt/build/vet clean; unit 108 ok, 1 FAIL scripts/closure; full integration 108 ok, 3 FAIL = the
   known three; archguard same 2 pre-existing.
+- L10 — Verify (mw1vk451) on 00ddbe97: §1–§7 and §9 met, S1/S2/S4.1–S4.7 met for 2a, no BLOCKER/MAJOR; checks equal to
+  L9 (108 ok, 3 known FAIL). MINOR 1 — the purge flag also opened on a session-level SET. Parent: RED (session-level
+  'on' deleted the row) → flag bound to `txid_current()` (00056 edited in place, unmerged) → GREEN; contract §6 updated.
+  MINOR 2 (audittest importable by production code; none does) and MINOR 3 (requestmeta before Recoverer, cosmetic)
+  left as follow-ups. Verifier probes committed: `requestmeta/verify_probe_test.go`,
+  `cmd/api/verify_probe_audit_integration_test.go` (both pass). Scratch to drop: DBs `verify2a_legacy`,
+  `verify2a_probe`, `verify2a_mig`, `draft_test_legacy` in pf-draft-test; the shared `draft_test` DB still carries the
+  pre-fix trigger body (migrated before the edit) — recreate it or re-run 00056 down/up before relying on the purge there.

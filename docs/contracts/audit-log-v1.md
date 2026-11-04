@@ -158,14 +158,16 @@ the frontend server** with a shared secret:
 - Migration `00056` adds a trigger `audit_events_append_only` (`BEFORE UPDATE OR DELETE`, plus a statement-level
   `BEFORE TRUNCATE`) that raises `audit_events is append-only`.
 - **One exception, for retention (§7):** `DELETE` is allowed only for rows with `occurred_at < now() - retention`
-  **and** only inside a transaction where the purge job set `SET LOCAL peopleflow.audit_purge = 'on'`. `UPDATE` has no
-  exception.
+  **and** only inside a transaction where the purge job bound the flag to its own transaction id:
+  `SELECT set_config('peopleflow.audit_purge', txid_current()::text, true)`. A session-level `SET`, a database/role
+  default or any other value (`'on'`, a stale txid) never opens it. `UPDATE` has no exception.
 - Honest limit: the API connects as the database owner, who can `ALTER TABLE … DISABLE TRIGGER`. The trigger stops
   every application path and every mistake, not a malicious DBA. The real fix is a **least-privilege app role**
   (`INSERT`/`SELECT` only on `audit_events`, migrations run by a separate owner role); proposed for the AWS deployment
   work, outside v1 (D4).
-- Test cost: integration tests that `DELETE FROM audit_events` switch to a test helper that sets the purge flag and
-  drops the trigger guard only in the disposable test schema (or recreates the schema).
+- Test cost: integration tests clean their fixtures with `audittest.Delete`, which runs the statement with
+  `SET LOCAL session_replication_role = replica` — a setting only a superuser may change, so it works against the
+  disposable test databases and never for the API's own role once D4 lands. No non-test code imports it.
 - **Hash chain: deferred** (D3). A chain serialises every insert per company (a hot lock on the busiest table) and only
   proves something when the chain head is anchored outside the database; without the least-privilege role first it
   adds cost and little proof.

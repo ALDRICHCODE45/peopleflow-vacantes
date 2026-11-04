@@ -28,14 +28,15 @@ CREATE INDEX audit_events_company_vacancy_idx ON audit_events (company_id, vacan
 CREATE INDEX audit_events_company_type_idx ON audit_events (company_id, event_type, occurred_at DESC);
 
 -- audit-log-v1 §6: append-only for every application path. The one DELETE is
--- the retention purge (D2, 24 months), which sets the flag in its own
--- transaction. The database owner can still disable the trigger; the
--- least-privilege role (D4) is what closes that.
+-- the retention purge (D2, 24 months): its transaction sets the flag to its
+-- own txid (set_config('peopleflow.audit_purge', txid_current()::text, true)),
+-- so a session-level SET or a stale value never opens it. The database owner
+-- can still disable the trigger; the least-privilege role (D4) closes that.
 CREATE FUNCTION audit_events_append_only() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'DELETE'
-       AND current_setting('peopleflow.audit_purge', true) = 'on'
+       AND current_setting('peopleflow.audit_purge', true) = txid_current()::text
        AND OLD.occurred_at < now() - interval '24 months' THEN
         RETURN OLD;
     END IF;

@@ -71,7 +71,7 @@ func TestMigration00056AuditLog(t *testing.T) {
 	purge := func(id uuid.UUID, flag bool) error {
 		return pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 			if flag {
-				if _, err := tx.Exec(ctx, `SET LOCAL peopleflow.audit_purge = 'on'`); err != nil {
+				if _, err := tx.Exec(ctx, `SELECT set_config('peopleflow.audit_purge', txid_current()::text, true)`); err != nil {
 					return err
 				}
 			}
@@ -81,6 +81,27 @@ func TestMigration00056AuditLog(t *testing.T) {
 	}
 	wantAppendOnly("old row without purge flag", purge(old, false))
 	wantAppendOnly("recent row with purge flag", purge(withMeta, true))
+	// A flag that is not bound to the current transaction never opens the purge:
+	// neither the legacy 'on' value nor a session-level SET of a stale txid.
+	sessionFlag := func(value string) error {
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			return err
+		}
+		defer conn.Release()
+		defer func() { _, _ = conn.Exec(context.Background(), `RESET peopleflow.audit_purge`) }()
+		if _, err := conn.Exec(ctx, `SELECT set_config('peopleflow.audit_purge', $1, false)`, value); err != nil {
+			return err
+		}
+		_, err = conn.Exec(ctx, `DELETE FROM audit_events WHERE id=$1`, old)
+		return err
+	}
+	wantAppendOnly("session-level 'on'", sessionFlag("on"))
+	var stale string
+	if err := pool.QueryRow(ctx, `SELECT txid_current()::text`).Scan(&stale); err != nil {
+		t.Fatal(err)
+	}
+	wantAppendOnly("session-level stale txid", sessionFlag(stale))
 	if err := purge(old, true); err != nil {
 		t.Fatalf("flagged purge of an expired row: %v", err)
 	}
