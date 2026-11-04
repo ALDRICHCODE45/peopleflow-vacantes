@@ -120,6 +120,9 @@ func Resolve(code Code) Definition {
 		if def, ok := resolveTalentBaseError(code); ok {
 			return def
 		}
+		if def, ok := resolveAuditError(code); ok {
+			return def
+		}
 		if def, ok := resolveRateLimitError(code); ok {
 			return def
 		}

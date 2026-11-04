@@ -55,9 +55,9 @@ Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, 
 
 Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-backend-2b` from 39e2ff35.
 
-- [ ] T8 — S2 (pantalla, exportar), S3, S4.8, D5, D7: owner-only `GET /v2/me/company/audit-events` (filters, cursor,
+- [x] T8 — S2 (pantalla, exportar), S3, S4.8, D5, D7: owner-only `GET /v2/me/company/audit-events` (filters, cursor,
   `entity.label`, `actor`, `vacancy`), `/types`, `/actors`, `/vacancies`, `POST …/export` (CSV, count before the first
-  byte, `AuditLogExported`). Route: worker. Commit: —.
+  byte, `AuditLogExported`). Route: worker mw2pjuun. Commit: next feat commit.
 - [x] T9 — S2 (política de retención), D2: `cmd/audit-purge` (dry run by default, `-execute` deletes rows older than 24
   months in batches with the txid-bound flag). Route: worker mw2pjuut, parallel to T8 (disjoint surfaces). Commit: next
   feat commit.
@@ -150,3 +150,10 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
   Checks: gofmt/build/vet clean; unit 109 ok, 1 FAIL scripts/closure; T9 integration ok. No registry needed
   (psychometric-purge is registered only in docs). Follow-ups: an `(occurred_at, id)` index if the table grows; the
   24-month cutoff lives in the trigger and the store (doc warns).
+- L18 — T8 (worker mw2pjuun): 5 owner-only routes in one group (NoStore → requireAuth → requireOwner), 17 HTTP
+  integration tests (RED 501 skeleton → GREEN), mutation `>` → `>=` on the export limit caught. Export: REPEATABLE READ
+  count → `DECLARE … CURSOR WITH HOLD` on the same snapshot → append `AuditLogExported` + COMMIT → FETCH 500. Audit 422
+  writer separate; shared `invalid_filter` stays 400 (PRESERVE test). Contract updated (no response field changes):
+  non-catalog rows hidden, null metadata → `{}`, untitled draft `""` in /vacancies, export body 400/413, CSV guard also
+  tab/CR on every column. Checks: gofmt/build/vet clean; unit 111 ok, 1 FAIL scripts/closure; integration cmd/api +
+  audit_events ok; archguard same 2 pre-existing.
