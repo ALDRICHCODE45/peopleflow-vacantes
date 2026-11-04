@@ -69,7 +69,7 @@ type stubMemberRepository struct {
 	removeCalls         int
 }
 
-func (s *stubMemberRepository) Create(_ context.Context, m *entities.CompanyMember) error {
+func (s *stubMemberRepository) Create(_ context.Context, _ uuid.UUID, m *entities.CompanyMember) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createCalls++
@@ -111,7 +111,7 @@ func (s *stubMemberRepository) ListByCompanyID(_ context.Context, companyID uuid
 	return out, nil
 }
 
-func (s *stubMemberRepository) UpdateRole(_ context.Context, id, companyID uuid.UUID, role valueobjects.MemberRole) error {
+func (s *stubMemberRepository) UpdateRole(_ context.Context, _, id, companyID uuid.UUID, role valueobjects.MemberRole) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
@@ -121,7 +121,7 @@ func (s *stubMemberRepository) UpdateRole(_ context.Context, id, companyID uuid.
 	return s.updateErr
 }
 
-func (s *stubMemberRepository) Remove(_ context.Context, id, companyID uuid.UUID) error {
+func (s *stubMemberRepository) Remove(_ context.Context, _, id, companyID uuid.UUID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.removeCalls++
@@ -376,7 +376,7 @@ func TestAddMember_UsesCallersCompanyIgnoresBodyCompanyID(t *testing.T) {
 		CompanyID: &foreignCompanyID, // body carries Y; service MUST ignore it.
 	}
 
-	got, err := svc.AddMember(context.Background(), callerCompanyID, dto)
+	got, err := svc.AddMember(context.Background(), callerCompanyID, uuid.New(), dto)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -411,7 +411,7 @@ func TestAddMember_InvalidRoleDoesNotTouchRepository(t *testing.T) {
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	_, err := svc.AddMember(context.Background(), companyID, dtos.AddMemberDto{
+	_, err := svc.AddMember(context.Background(), companyID, uuid.New(), dtos.AddMemberDto{
 		UserID: uuid.New(),
 		Role:   "admin",
 	})
@@ -559,7 +559,7 @@ func TestUpdateRole_CrossCompanyTargetPropagatesNotFound(t *testing.T) {
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	err := svc.UpdateRole(context.Background(), callerCompanyID, uuid.New(), dtos.UpdateMemberRoleDto{Role: "owner"})
+	err := svc.UpdateRole(context.Background(), callerCompanyID, uuid.New(), uuid.New(), dtos.UpdateMemberRoleDto{Role: "owner"})
 	if !errors.Is(err, entities.ErrMemberNotFound) {
 		t.Errorf("expected ErrMemberNotFound, got: %v", err)
 	}
@@ -588,7 +588,7 @@ func TestUpdateRole_ForwardsCallersCompanyID(t *testing.T) {
 	svc := newSvc(mRepo, uRepo, cRepo)
 
 	targetID := uuid.New()
-	if err := svc.UpdateRole(context.Background(), callerCompanyID, targetID, dtos.UpdateMemberRoleDto{Role: "recruiter"}); err != nil {
+	if err := svc.UpdateRole(context.Background(), callerCompanyID, uuid.New(), targetID, dtos.UpdateMemberRoleDto{Role: "recruiter"}); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	if mRepo.lastUpdateID != targetID {
@@ -615,7 +615,7 @@ func TestUpdateRole_InvalidRoleDoesNotTouchRepository(t *testing.T) {
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	err := svc.UpdateRole(context.Background(), companyID, uuid.New(), dtos.UpdateMemberRoleDto{Role: "admin"})
+	err := svc.UpdateRole(context.Background(), companyID, uuid.New(), uuid.New(), dtos.UpdateMemberRoleDto{Role: "admin"})
 	if !errors.Is(err, valueobjects.ErrInvalidMemberRole) {
 		t.Errorf("expected ErrInvalidMemberRole, got: %v", err)
 	}
@@ -636,7 +636,7 @@ func TestRemoveMember_CrossCompanyTargetPropagatesNotFound(t *testing.T) {
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	err := svc.RemoveMember(context.Background(), callerCompanyID, uuid.New())
+	err := svc.RemoveMember(context.Background(), callerCompanyID, uuid.New(), uuid.New())
 	if !errors.Is(err, entities.ErrMemberNotFound) {
 		t.Errorf("expected ErrMemberNotFound, got: %v", err)
 	}
@@ -662,7 +662,7 @@ func TestRemoveMember_ForwardsCallersCompanyID(t *testing.T) {
 	svc := newSvc(mRepo, uRepo, cRepo)
 
 	targetID := uuid.New()
-	if err := svc.RemoveMember(context.Background(), callerCompanyID, targetID); err != nil {
+	if err := svc.RemoveMember(context.Background(), callerCompanyID, uuid.New(), targetID); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	if mRepo.lastRemoveID != targetID {

@@ -128,7 +128,7 @@ func TestDashboardEntriesCoverageAndBoundary(t *testing.T) {
 	if got.OriginByDay[88].Organic != 11 || got.OriginByDay[88].Manual != 0 || got.OriginByDay[89].Manual != 1 || got.OriginByDay[89].Organic != 0 {
 		t.Fatal(got.OriginByDay[88:])
 	}
-	summary, err := poolpostgres.NewStore(pool, nil).Summary(ctx, p.companyID)
+	summary, err := poolpostgres.NewStore(pool, nil, nil).Summary(ctx, p.companyID)
 	if err != nil {
 		t.Fatal(err)
 	}

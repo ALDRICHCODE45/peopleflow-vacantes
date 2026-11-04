@@ -67,15 +67,17 @@ type Original struct {
 	Education         []Study       `json:"education"`
 }
 
-func (s *Service) Detail(ctx context.Context, company uuid.UUID, kind string, id uuid.UUID) (Detail, error) {
-	return s.reader.Detail(ctx, company, kind, id)
+func (s *Service) Detail(ctx context.Context, company, actor uuid.UUID, kind string, id uuid.UUID) (Detail, error) {
+	return s.reader.Detail(ctx, company, actor, kind, id)
 }
-func (s *Service) File(ctx context.Context, company uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
-	return s.reader.File(ctx, company, kind, id, pid)
+func (s *Service) File(ctx context.Context, company, actor uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
+	return s.reader.File(ctx, company, actor, kind, id, pid)
 }
 
-// DetailReader deliberately has no actor/vacancy authorization port.
+// DetailReader deliberately has no vacancy authorization port. The actor is the
+// reader the audit row is attributed to (audit-log-v1 §2): every successful
+// read records itself in the read's own transaction.
 type DetailReader interface {
-	Detail(context.Context, uuid.UUID, string, uuid.UUID) (Detail, error)
-	File(context.Context, uuid.UUID, string, uuid.UUID, uuid.UUID) (board.File, error)
+	Detail(ctx context.Context, company, actor uuid.UUID, kind string, id uuid.UUID) (Detail, error)
+	File(ctx context.Context, company, actor uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error)
 }

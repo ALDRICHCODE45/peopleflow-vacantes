@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"reflect"
@@ -57,6 +58,10 @@ func checklistMarksAudit(t *testing.T, h *draftFlowHarness, pid string, count in
 	if err := h.pool.QueryRow(context.Background(), `SELECT metadata FROM audit_events WHERE entity_id=$1 AND event_type='ParticipationChecklistMarked' ORDER BY occurred_at DESC,id DESC LIMIT 1`, pid).Scan(&raw); err != nil {
 		t.Fatal(err)
 	}
+	// The note is free text about a person: the audit keeps only has_note.
+	if bytes.Contains(raw, []byte("Checked")) {
+		t.Fatalf("audit metadata carries note text: %s", raw)
+	}
 	var metadata map[string]string
 	if err := json.Unmarshal(raw, &metadata); err != nil {
 		t.Fatal(err)
@@ -99,7 +104,7 @@ func TestChecklistMarksFlowWriteReadNoopRetentionAndLifecycle(t *testing.T) {
 	if m["verdict"] != "met" || m["note"] != "Checked" {
 		t.Fatal(m)
 	}
-	checklistMarksAudit(t, h, pid, 1, "null", `{"verdict":"met","note":"Checked"}`)
+	checklistMarksAudit(t, h, pid, 1, "null", `{"verdict":"met","has_note":true}`)
 	before := checklistFlowSnapshot(t, h, id)
 	noop := h.do(t, "PUT", markPath, `{"verdict":"met","note":"Checked"}`, principal.token, nil)
 	checklistMarkAssert(t, noop, pid, cid, uid.String())
@@ -111,7 +116,7 @@ func TestChecklistMarksFlowWriteReadNoopRetentionAndLifecycle(t *testing.T) {
 	if m["verdict"] != "not_met" || m["note"] != nil {
 		t.Fatal(m)
 	}
-	checklistMarksAudit(t, h, pid, 2, `{"verdict":"met","note":"Checked"}`, `{"verdict":"not_met","note":null}`)
+	checklistMarksAudit(t, h, pid, 2, `{"verdict":"met","has_note":true}`, `{"verdict":"not_met","has_note":false}`)
 	items := checklistMarksItems(t, h.do(t, "GET", path+"/marks", "", owner.token, nil))
 	if len(items) != 1 || !reflect.DeepEqual(items[0], m) {
 		t.Fatal(items, m)
@@ -147,7 +152,7 @@ func TestChecklistMarksFlowWriteReadNoopRetentionAndLifecycle(t *testing.T) {
 	if cleared.status != 204 || len(cleared.body) != 0 {
 		t.Fatal(cleared.status, string(cleared.body))
 	}
-	checklistMarksAudit(t, h, pid, 3, `{"verdict":"not_met","note":null}`, "null")
+	checklistMarksAudit(t, h, pid, 3, `{"verdict":"not_met","has_note":false}`, "null")
 	before = checklistFlowSnapshot(t, h, id)
 	again := h.do(t, "DELETE", markPath, "", owner.token, nil)
 	if again.status != 204 || before != checklistFlowSnapshot(t, h, id) {

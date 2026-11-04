@@ -45,13 +45,13 @@ func (s *orgCVReader) CorrectCV(ctx context.Context, c, a uuid.UUID, kind string
 		return pool.Detail{}, err
 	}
 	s.input = in
-	d, err := s.Detail(ctx, c, kind, id)
+	d, err := s.Detail(ctx, c, uuid.Nil, kind, id)
 	d.ETag = pool.ETag(kind, id, 2)
 	d.Participations = []pool.DetailParticipation{{ID: pid, CV: &pool.CurrentCV{CV: pool.CV{FileName: in.FileName, UploadedAt: time.Unix(1, 0).UTC()}, Source: "company"}, OriginalCV: &pool.CV{FileName: "original.pdf", UploadedAt: time.Unix(0, 0).UTC()}}}
 	return d, err
 }
-func (s *orgCVReader) OriginalFile(ctx context.Context, c uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
-	return s.File(ctx, c, kind, id, pid)
+func (s *orgCVReader) OriginalFile(ctx context.Context, c, _ uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
+	return s.File(ctx, c, uuid.Nil, kind, id, pid)
 }
 func orgCVDocx(t *testing.T) []byte {
 	t.Helper()

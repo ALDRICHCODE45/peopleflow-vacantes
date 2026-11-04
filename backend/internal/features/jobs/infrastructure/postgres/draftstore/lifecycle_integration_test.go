@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publication"
@@ -362,7 +363,7 @@ func TestLifecycleDBAuthorizationAndLiveGates(t *testing.T) {
 					_, _ = pool.Exec(ctx, `UPDATE vacancy_assignments SET user_id=$2 WHERE draft_id=$1 AND ended_at IS NULL`, id, p.ownerID)
 					_, _ = pool.Exec(ctx, `DELETE FROM vacancy_lifecycle_events WHERE process_id=$1`, id)
 					_, _ = pool.Exec(ctx, `DELETE FROM job_draft_idempotency WHERE actor_id=$1`, actor)
-					_, _ = pool.Exec(ctx, `DELETE FROM audit_events WHERE actor_id=$1`, actor)
+					_ = audittest.Delete(ctx, pool, `DELETE FROM audit_events WHERE actor_id=$1`, actor)
 				})
 			case "other recruiter":
 				actor = addMember(t, pool, p.companyID, "recruiter")

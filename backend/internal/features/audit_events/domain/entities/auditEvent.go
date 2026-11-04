@@ -30,39 +30,6 @@ const (
 
 func (a ActorType) String() string { return string(a) }
 
-// Event-type constants — the CLOSED SET for this cycle. event_type has no
-// DB CHECK (§1.3 exception), so adding a future event type is a code
-// change, not a migration.
-//
-// companies-audit (design D7): the set expands to four. The two new
-// company event literals are owned by the companies slice's
-// `eventIntent.go` builders — every emit call MUST go through those
-// builders so the closed-key metadata invariant is structurally
-// enforced.
-const (
-	EventApplicationSubmitted    = "ApplicationSubmitted"
-	EventApplicationTransitioned = "ApplicationTransitioned"
-	EventCompanyUpdated          = "CompanyUpdated"
-	EventCompanyDeleted          = "CompanyDeleted"
-	// EventJobDraftCreated / EventJobDraftSaved are the private vacancy draft
-	// persistence events (T3). They are emitted only by the draftstore adapter
-	// inside the draft write transaction; event_type carries no DB CHECK, so
-	// adding them is a code change, never a migration.
-	EventJobDraftCreated = "JobDraftCreated"
-	EventJobDraftSaved   = "JobDraftSaved"
-	// EventJobDraftRequesterCreated records one immutable requester catalog
-	// entry, emitted inside the catalog insert transaction.
-	EventJobDraftRequesterCreated = "JobDraftRequesterCreated"
-	// Vacancy lifecycle events are co-written with state and vacancy-level history.
-	EventVacancyPaused          = "VacancyPaused"
-	EventVacancyResumed         = "VacancyResumed"
-	EventVacancyClosed          = "VacancyClosed"
-	EventVacancyProcessFinished = "VacancyProcessFinished"
-	EventVacancyReopened        = "VacancyReopened"
-	EventCompanySitePublished   = "CompanySitePublished"
-	EventCompanySiteUnpublished = "CompanySiteUnpublished"
-)
-
 // Entity-type constants — companion to the closed event set.
 //
 // companies-audit: `EntityCompany = "company"` (singular) sits alongside
@@ -105,6 +72,21 @@ func CompanyDeletedMetadata(closedCount int) map[string]string {
 	return map[string]string{"jobs_closed": strconv.Itoa(closedCount)}
 }
 
+// CompanyMemberOffboardedMetadata assembles the metadata of CompanyMemberOffboarded,
+// the one shape both removal paths (DELETE and offboard) emit (audit-log-v1 §5).
+// user_id is the legacy spelling of member_user_id and is kept so rows keep one
+// shape. IDs and a flag only: no names or emails.
+func CompanyMemberOffboardedMetadata(company, user uuid.UUID, reassignmentIDs, endedAssignmentIDs []string, talentBaseViewerRemoved bool) map[string]any {
+	return map[string]any{
+		"company_id":                 company.String(),
+		"user_id":                    user.String(),
+		"member_user_id":             user.String(),
+		"reassignment_ids":           reassignmentIDs,
+		"ended_assignment_ids":       endedAssignmentIDs,
+		"talent_base_viewer_removed": talentBaseViewerRemoved,
+	}
+}
+
 // AuditEvent is the append-only audit event the emitting write path builds.
 // OccurredAt is NOT a field: the DB now() DEFAULT supplies server time.
 type AuditEvent struct {
@@ -115,6 +97,11 @@ type AuditEvent struct {
 	EntityType string
 	EntityID   uuid.UUID
 	Metadata   map[string]string // PII-free; exact keys pinned by D7 tests
+	// CompanyID and VacancyID are the company and vacancy the event belongs to
+	// (audit-log-v1 §1). nil stores NULL. ip, user_agent and ip_source are not
+	// fields: the adapter reads them from the request context.
+	CompanyID *uuid.UUID
+	VacancyID *uuid.UUID
 	// StructuredMetadata supports ID/code arrays (placement recipients). When
 	// present it replaces Metadata; legacy emitters retain string-only values.
 	StructuredMetadata map[string]any

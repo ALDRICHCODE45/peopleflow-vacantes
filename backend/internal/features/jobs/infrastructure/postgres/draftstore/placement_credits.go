@@ -97,7 +97,7 @@ func (s *Store) CorrectPlacementCredit(ctx context.Context, company, actor, id, 
 	if _, err = tx.Exec(ctx, `UPDATE placement_credits SET status=$2,status_changed_at=$3,status_changed_by=$4 WHERE id=$1`, cid, next, at, actor); err != nil {
 		return drafts.Result{}, err
 	}
-	if err = s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyPlacementCreditChanged", EntityType: "process_participation", EntityID: pid, Metadata: map[string]string{"company_id": company.String(), "vacancy_id": id.String(), "credit_id": cid.String(), "from_status": status, "to_status": next, "cause": cause}}); err != nil {
+	if err = s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyPlacementCreditChanged, EntityType: "process_participation", EntityID: pid, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"company_id": company.String(), "vacancy_id": id.String(), "credit_id": cid.String(), "from_status": status, "to_status": next, "cause": cause}}); err != nil {
 		return drafts.Result{}, err
 	}
 	raw, err := db.ReadPlacementCredits(ctx, tx, id, pid)

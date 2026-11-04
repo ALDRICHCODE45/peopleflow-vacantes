@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
@@ -25,9 +26,11 @@ func newOrganicEditFixture(t *testing.T, files ...*cvstorage.Local) *candidateEd
 	// Cleanup is registered last: private correction rows go before account/company.
 	t.Cleanup(func() {
 		f.cleanupParticipations(t)
+		if err := audittest.Delete(context.Background(), f.h.pool, `DELETE FROM audit_events WHERE entity_id=$1`, f.id); err != nil {
+			t.Error(err)
+		}
 		for _, q := range []string{
 			`DELETE FROM company_candidate_history WHERE candidate_id=$1`,
-			`DELETE FROM audit_events WHERE entity_id=$1`,
 			`DELETE FROM company_candidate_corrections WHERE user_id=$1`,
 			`DELETE FROM candidate_cv_library WHERE candidate_id=$1`,
 			`DELETE FROM candidate_cv_versions WHERE candidate_id=$1`,

@@ -30,19 +30,35 @@ import (
 
 func newMemberGuardHarness(t *testing.T) *draftFlowHarness {
 	t.Helper()
+	return newMemberHarness(t, true)
+}
+
+// newMemberGuardHarnessWithoutOffboard composes no offboard handler, which makes
+// the router register the plain removeMember handler on DELETE.
+func newMemberGuardHarnessWithoutOffboard(t *testing.T) *draftFlowHarness {
+	t.Helper()
+	return newMemberHarness(t, false)
+}
+
+func newMemberHarness(t *testing.T, withOffboard bool) *draftFlowHarness {
+	t.Helper()
 	pool := requireDraftFlowPool(t) // Explicit loopback draft_test only; never reads .env.
 	signer := newDraftFlowSigner(t)
 	q := db.New(pool)
 	users := identitypostgres.NewUserRepository(q)
-	members := companiespostgres.NewCompanyMemberRepository(pool)
+	members := companiespostgres.NewCompanyMemberRepository(pool, auditpostgres.NewAuditEventRepository())
 	companies := companiespostgres.NewCompanyRepository(pool, auditpostgres.NewAuditEventRepository())
 	service := companiesusecases.NewCompanyMemberService(members, users, companies, geopostgres.NewReader(q))
+	var offboard *jobshttp.OffboardHandler
+	if withOffboard {
+		offboard = jobshttp.NewOffboardHandler(draftstore.NewStore(pool, auditpostgres.NewAuditEventRepository()).WithMemberMutationGuard(companiespostgres.LockMemberMutation))
+	}
 	router := newRouter(routerDeps{
 		requireAuth:      identityhttp.RequireAuth(signer.verifier),
 		requireRecruiter: identityhttp.RequireCompanyRole(users, members, companies, companiesvo.RecruiterRole),
 		requireOwner:     identityhttp.RequireCompanyRole(users, members, companies, companiesvo.OwnerRole),
 		memberHandler:    companieshttp.NewMemberHandler(service), queries: q, pool: pool,
-		offboardHandler: jobshttp.NewOffboardHandler(draftstore.NewStore(pool, auditpostgres.NewAuditEventRepository()).WithMemberMutationGuard(companiespostgres.LockMemberMutation)),
+		offboardHandler: offboard,
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
@@ -186,11 +202,11 @@ func TestCompanyMembersLastOwnerConcurrent(t *testing.T) {
 				go func(i int, target uuid.UUID) {
 					ready <- struct{}{}
 					<-start
-					repo := companiespostgres.NewCompanyMemberRepository(workers)
+					repo := companiespostgres.NewCompanyMemberRepository(workers, auditpostgres.NewAuditEventRepository())
 					if mode == "remove" || (mode == "mixed" && i == 0) {
-						results <- repo.Remove(ctx, target, c.companyID)
+						results <- repo.Remove(ctx, first, target, c.companyID)
 					} else {
-						results <- repo.UpdateRole(ctx, target, c.companyID, companiesvo.RecruiterRole)
+						results <- repo.UpdateRole(ctx, first, target, c.companyID, companiesvo.RecruiterRole)
 					}
 				}(i, target)
 			}

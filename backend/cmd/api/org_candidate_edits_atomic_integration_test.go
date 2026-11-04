@@ -31,13 +31,15 @@ func TestOrgCandidateEditsAtomicRollback(t *testing.T) {
 			t.Cleanup(cleanup)
 			r := f.patch(t, `{"set":{"full_name":"Must Roll Back","skills":["rust"],"education":[{"level":"master","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}],"languages":[{"code":"es","level":"native"}]}}`, tag)
 			draftFlowAssertError(t, r, 500, "internal_error")
+			// The verification read below is itself an audited read of this entity: lift the
+			// block first, so it checks the rollback instead of tripping the same constraint.
+			cleanup()
 			if got := f.detail(t); string(got.body) != string(initial.body) {
 				t.Fatal("partial edit escaped rollback", string(got.body))
 			}
 			if h, a := f.counts(t); h != 0 || a != 0 {
 				t.Fatal("partial history/audit", h, a)
 			}
-			cleanup()
 		})
 	}
 }

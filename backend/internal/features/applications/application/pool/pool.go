@@ -70,7 +70,7 @@ type Reader interface {
 	DetailReader
 	Search(context.Context, uuid.UUID, Query) (Page, error)
 	Summary(context.Context, uuid.UUID) (Summary, error)
-	Contacts(context.Context, uuid.UUID, []Identity) ([]ContactItem, error)
+	Contacts(ctx context.Context, company, actor uuid.UUID, candidates []Identity) ([]ContactItem, error)
 }
 type Service struct{ reader Reader }
 

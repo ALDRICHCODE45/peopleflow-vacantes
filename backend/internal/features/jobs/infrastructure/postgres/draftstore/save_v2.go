@@ -136,7 +136,7 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		return drafts.Result{}, fmt.Errorf("format save v2 etag: %w", err)
 	}
 
-	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, entities.EventJobDraftSaved, id, record.version)); err != nil {
+	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, record.companyID, entities.EventJobDraftSaved, id, record.version)); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write draft v2 save audit: %w", err)
 	}
 

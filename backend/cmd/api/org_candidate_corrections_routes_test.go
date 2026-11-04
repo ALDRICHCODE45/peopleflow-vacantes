@@ -17,7 +17,7 @@ type organicDispatchReader struct {
 
 func (s *organicDispatchReader) EditOrganic(ctx context.Context, c, a, id uuid.UUID, tag string, body []byte) (pool.Detail, error) {
 	s.called = true
-	return s.Detail(ctx, c, "organic", id)
+	return s.Detail(ctx, c, uuid.Nil, "organic", id)
 }
 func TestOrgCandidateCorrectionsGatesHTTP(t *testing.T) {
 	for _, method := range []string{"PATCH", "GET"} {

@@ -71,7 +71,7 @@ func (s *Store) Edit(ctx context.Context, company, actor, id uuid.UUID, etag str
 				return out, err
 			}
 		}
-		if err = recordEdit(ctx, tx, company, actor, id, "manual", changes); err != nil {
+		if err = s.recordEdit(ctx, tx, company, actor, id, "manual", changes); err != nil {
 			return out, err
 		}
 	}

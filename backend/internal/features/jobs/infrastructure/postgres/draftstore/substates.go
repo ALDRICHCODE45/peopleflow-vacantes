@@ -8,14 +8,13 @@ import (
 	"math"
 	"strconv"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/substatecatalog"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
-
-const substatesConfiguredEvent = "JobDraftSubstatesConfigured"
 
 var _ substatecatalog.Store = (*Store)(nil)
 
@@ -93,7 +92,7 @@ func (s *Store) PutSubstates(ctx context.Context, companyID, actorID, id uuid.UU
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode previous substates: %w", err)
 	}
-	event := newDraftEvent(actorID, substatesConfiguredEvent, id, version+1)
+	event := newDraftEvent(actorID, companyID, audit.EventJobDraftSubstatesConfigured, id, version+1)
 	event.Metadata["previous"] = string(previousJSON)
 	event.Metadata["new"] = string(encoded)
 	if err := s.audit.Append(ctx, tx, event); err != nil {

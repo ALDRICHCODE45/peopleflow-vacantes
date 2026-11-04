@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -163,7 +164,7 @@ CREATE TABLE audit_events (
 
 CREATE INDEX audit_events_entity_idx
     ON audit_events (entity_type, entity_id, occurred_at DESC);
-`
+` + audittest.RestoreAppendOnlyDDL
 
 // TestAuditEvents_RequiredFieldsRejectNull — spec scenario: actor_type,
 // event_type, entity_type and entity_id are NOT NULL; a NULL in any of them
@@ -246,7 +247,7 @@ func TestAuditEvents_MetadataDefaultsEmptyObject(t *testing.T) {
 		t.Fatalf("insert row without metadata: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), `DELETE FROM audit_events WHERE id = $1`, id)
+		_ = audittest.Delete(context.Background(), pool, `DELETE FROM audit_events WHERE id = $1`, id)
 	})
 
 	var isNotNull bool
@@ -286,7 +287,7 @@ func TestAuditEvents_EventTypeNotCheckConstrained(t *testing.T) {
 		t.Fatalf("insert row with unconstrained event_type: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), `DELETE FROM audit_events WHERE id = $1`, id)
+		_ = audittest.Delete(context.Background(), pool, `DELETE FROM audit_events WHERE id = $1`, id)
 	})
 
 	var eventType string
@@ -424,7 +425,7 @@ func TestAuditEvents_StructurallyAppendOnly(t *testing.T) {
 // and these tests only prove constraints/defaults.
 func clearAuditEvents(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	if _, err := pool.Exec(ctx, `DELETE FROM audit_events`); err != nil {
+	if err := audittest.Delete(ctx, pool, `DELETE FROM audit_events`); err != nil {
 		t.Fatalf("clear audit_events: %v", err)
 	}
 }

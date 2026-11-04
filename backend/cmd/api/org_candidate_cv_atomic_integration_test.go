@@ -43,6 +43,9 @@ func TestOrgCandidateCVAtomicRollback(t *testing.T) {
 					t.Cleanup(cleanup)
 					r := f.upload(t, "must-rollback.pdf", "%PDF-rollback", tag)
 					draftFlowAssertError(t, r, 500, "internal_error")
+					// The verification read below is itself an audited read of this entity:
+					// lift the block first, so it checks the rollback instead of tripping it.
+					cleanup()
 					if got := f.detail(t); string(got.body) != string(initial.body) || f.owned(t) != owned {
 						t.Fatal("non-atomic CV write", string(got.body))
 					}
@@ -63,7 +66,6 @@ func TestOrgCandidateCVAtomicRollback(t *testing.T) {
 					if kind == "organic" && draftFlowCount(t, f.h.pool, `SELECT count(*) FROM company_candidate_corrections WHERE company_id=$1 AND user_id=$2`, f.company.companyID, f.id) != 0 {
 						t.Fatal("first correction row escaped rollback")
 					}
-					cleanup()
 				})
 			}
 		})

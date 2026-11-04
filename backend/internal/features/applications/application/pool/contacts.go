@@ -93,8 +93,8 @@ func DecodeContacts(body []byte, decode board.JSONDecoder) ([]Identity, error) {
 	return out, nil
 }
 
-func (s *Service) Contacts(ctx context.Context, company uuid.UUID, candidates []Identity) (ContactsPage, error) {
-	items, err := s.reader.Contacts(ctx, company, candidates)
+func (s *Service) Contacts(ctx context.Context, company, actor uuid.UUID, candidates []Identity) (ContactsPage, error) {
+	items, err := s.reader.Contacts(ctx, company, actor, candidates)
 	if err != nil {
 		return ContactsPage{}, err
 	}

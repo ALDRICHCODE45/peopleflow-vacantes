@@ -190,7 +190,11 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 			return app.Result{}, err
 		}
 	}
-	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &candidate, EventType: "VacancyApplicationSubmitted", EntityType: "process_participation", EntityID: id, Metadata: map[string]string{"vacancy_id": vacancy.String(), "stage_id": stage.String(), "source": "organic"}}
+	var company uuid.UUID
+	if err = tx.QueryRow(ctx, `SELECT company_id FROM vacancy_processes WHERE id=$1`, vacancy).Scan(&company); err != nil {
+		return app.Result{}, err
+	}
+	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &candidate, EventType: audit.EventVacancyApplicationSubmitted, EntityType: "process_participation", EntityID: id, CompanyID: &company, VacancyID: &vacancy, Metadata: map[string]string{"vacancy_id": vacancy.String(), "stage_id": stage.String(), "source": "organic"}}
 	if err = s.audit.Append(ctx, tx, event); err != nil {
 		return app.Result{}, err
 	}

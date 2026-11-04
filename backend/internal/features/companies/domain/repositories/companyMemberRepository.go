@@ -23,8 +23,10 @@ type CompanyMemberRepository interface {
 	// Create persists a new member row. The adapter MUST map
 	// SQLSTATE 23505 → entities.ErrMemberExists and 23503 on user_id →
 	// entities.ErrUserNotFound so the HTTP layer can produce 409 / 404
-	// instead of leaking 500s.
-	Create(ctx context.Context, m *entities.CompanyMember) error
+	// instead of leaking 500s. actor is the user adding the member; the
+	// CompanyMemberAdded audit event commits in the same transaction
+	// (audit-log-v1 §5), so an audit failure leaves no member behind.
+	Create(ctx context.Context, actor uuid.UUID, m *entities.CompanyMember) error
 
 	// GetMembershipByUserID returns the user's single membership row, or
 	// entities.ErrNotAMember when no row exists. The DB enforces
@@ -43,13 +45,17 @@ type CompanyMemberRepository interface {
 	// affect 0 rows and surface as entities.ErrMemberNotFound. The
 	// adapter MUST touch `updated_at` so callers never have to remember.
 	// Atomically rejects demoting the final owner with entities.ErrLastOwner;
-	// same-company/not-found validation takes precedence.
-	UpdateRole(ctx context.Context, id, companyID uuid.UUID, role valueobjects.MemberRole) error
+	// same-company/not-found validation takes precedence. actor is the user
+	// changing the role; a CompanyMemberRoleChanged event commits in the same
+	// transaction when the role actually changes (none when it stays the same).
+	UpdateRole(ctx context.Context, actor, id, companyID uuid.UUID, role valueobjects.MemberRole) error
 
 	// Remove hard-deletes the row (design D2: no soft-delete). The
 	// (id, companyID) pair is the same-company guard: cross-company
 	// targets affect 0 rows and surface as entities.ErrMemberNotFound.
 	// HARD DELETE frees `user_id` for re-assignment. Atomically rejects
 	// removing the final owner with entities.ErrLastOwner, after the scope check.
-	Remove(ctx context.Context, id, companyID uuid.UUID) error
+	// actor is the user removing the member; CompanyMemberOffboarded commits in
+	// the same transaction.
+	Remove(ctx context.Context, actor, id, companyID uuid.UUID) error
 }

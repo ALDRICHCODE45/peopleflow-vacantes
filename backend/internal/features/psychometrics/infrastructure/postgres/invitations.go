@@ -9,6 +9,7 @@ import (
 	"errors"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/invitations"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/profile"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/content"
@@ -170,7 +171,7 @@ func (s *InvitationsStore) CreateInvitation(ctx context.Context, company, actor,
 	if !created {
 		return invitationResult(i, 200)
 	}
-	return s.commitInvitation(ctx, tx, actor, id, i, "PsychometricInvitationCreated", 201)
+	return s.commitInvitation(ctx, tx, actor, id, i, audit.EventPsychometricInvitationCreated, 201)
 }
 
 // createForParticipation is the single slot/pinning/retention protocol for manual
@@ -269,9 +270,9 @@ func (s *InvitationsStore) mutateInvitation(ctx context.Context, company, actor,
 		if _, err = tx.Exec(ctx, `UPDATE psychometric_invitations SET token_hash=$2 WHERE id=$1`, iid, hash[:]); err != nil {
 			return invitations.Result{}, err
 		}
-		return s.commitInvitationValue(ctx, tx, actor, id, i, "PsychometricLinkIssued", 200, invitations.Link{Token: token, ExpiresAt: i.ExpiresAt})
+		return s.commitInvitationValue(ctx, tx, actor, id, i, audit.EventPsychometricLinkIssued, 200, invitations.Link{Token: token, ExpiresAt: i.ExpiresAt})
 	}
-	event := "PsychometricReminderRecorded"
+	event := audit.EventPsychometricReminderRecorded
 	if action == "revoke" {
 		if i.Status == "revoked" {
 			return invitationResult(i, 200)
@@ -280,7 +281,7 @@ func (s *InvitationsStore) mutateInvitation(ctx context.Context, company, actor,
 			return invitations.Result{}, err
 		}
 		i.Status = "revoked"
-		event = "PsychometricInvitationRevoked"
+		event = audit.EventPsychometricInvitationRevoked
 	} else {
 		if !i.Active() {
 			return invitations.Result{}, invitations.ErrInvitationClosed

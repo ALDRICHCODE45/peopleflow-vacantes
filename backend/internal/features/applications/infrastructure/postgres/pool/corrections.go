@@ -9,6 +9,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -74,7 +75,7 @@ func (s *Store) EditOrganic(ctx context.Context, company, actor, id uuid.UUID, e
 	if _, err = tx.Exec(ctx, `UPDATE company_candidate_corrections SET corrections=$3::jsonb,version=version+1,updated_at=clock_timestamp(),updated_by=$4 WHERE company_id=$1 AND user_id=$2`, company, id, raw, actor); err != nil {
 		return out, err
 	}
-	if err = recordEdit(ctx, tx, company, actor, id, "organic", changes); err != nil {
+	if err = s.recordEdit(ctx, tx, company, actor, id, "organic", changes); err != nil {
 		return out, err
 	}
 	out, err = s.detail(ctx, tx, company, "organic", id)
@@ -143,7 +144,7 @@ func organicDetail(ctx context.Context, tx pgx.Tx, company, id uuid.UUID, out *a
 
 // Shared co-write boundary: private values go only to history. Shared audit
 // metadata is strictly field names, including for organic resets.
-func recordEdit(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID, kind string, changes []app.Change) error {
+func (s *Store) recordEdit(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID, kind string, changes []app.Change) error {
 	if len(changes) == 0 {
 		return errors.New("empty candidate edit")
 	}
@@ -158,12 +159,9 @@ func recordEdit(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID, ki
 	for _, c := range changes {
 		names = append(names, c.Field)
 	}
-	metadata, err := json.Marshal(map[string]any{"fields": names})
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO audit_events(id,actor_id,actor_type,event_type,entity_type,entity_id,metadata) VALUES($1,$2,'user','CompanyCandidateEdited','company_candidate',$3,$4::jsonb)`, uuid.New(), actor, id, metadata)
-	return err
+	// Through the audit port so the row is validated against the catalog and
+	// carries company, ip and browser like every other event.
+	return s.audit.Append(ctx, tx, auditentities.AuditEvent{ID: uuid.New(), ActorType: auditentities.ActorTypeUser, ActorID: &actor, EventType: auditentities.EventCompanyCandidateEdited, EntityType: "company_candidate", EntityID: id, CompanyID: &company, StructuredMetadata: map[string]any{"fields": names}})
 }
 
 func cloneString(value *string) *string {

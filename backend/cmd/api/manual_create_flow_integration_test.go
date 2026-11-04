@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
@@ -40,8 +41,10 @@ func TestManualCreateHTTPFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
+		if err := audittest.Delete(ctx, h.pool, `DELETE FROM audit_events WHERE entity_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1)`, company.companyID); err != nil {
+			t.Error(err)
+		}
 		for _, q := range []string{
-			`DELETE FROM audit_events WHERE entity_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1)`,
 			`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1)`,
 			`DELETE FROM process_participations WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM company_candidate_cvs WHERE company_id=$1`,
@@ -170,6 +173,9 @@ func TestManualCreateHTTPFlow(t *testing.T) {
 	if download.status != 200 || download.header.Get("Content-Type") != "application/pdf" || !bytes.Equal(download.body, cv) {
 		t.Fatal(download.status, string(download.body))
 	}
+	// The download is an audited read (one new audit row): the duplicate warning below
+	// must change nothing beyond it.
+	before = snapshot()
 	warning := post(data, cv, uuid.NewString())
 	if warning.status != 409 || draftFlowCatalogCode(t, warning.body) != "possible_duplicates" {
 		t.Fatal(warning.status, string(warning.body))

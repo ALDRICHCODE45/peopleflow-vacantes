@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftversion"
@@ -20,8 +21,7 @@ import (
 )
 
 const (
-	publishOperation      = "publish:v2"
-	vacancyPublishedEvent = "VacancyPublished"
+	publishOperation = "publish:v2"
 )
 
 var _ publication.Store = (*Store)(nil)
@@ -167,7 +167,7 @@ func (s *Store) Publish(ctx context.Context, companyID, actorID, id uuid.UUID, k
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode publication snapshot: %w", err)
 	}
-	event := newDraftEvent(actorID, vacancyPublishedEvent, id, record.version)
+	event := newDraftEvent(actorID, companyID, audit.EventVacancyPublished, id, record.version)
 	event.Metadata["publishedAt"] = publishedAt
 	event.Metadata["snapshot"] = string(snapshotJSON)
 	if err := s.audit.Append(ctx, tx, event); err != nil {

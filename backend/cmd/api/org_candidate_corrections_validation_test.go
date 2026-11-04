@@ -20,8 +20,8 @@ type organicEditMemory struct {
 func newOrganicEditMemory() *organicEditMemory {
 	return &organicEditMemory{newEditMemory(), map[string]json.RawMessage{}}
 }
-func (s *organicEditMemory) Detail(ctx context.Context, c uuid.UUID, k string, id uuid.UUID) (pool.Detail, error) {
-	d, err := s.editMemory.Detail(ctx, c, k, id)
+func (s *organicEditMemory) Detail(ctx context.Context, c, _ uuid.UUID, k string, id uuid.UUID) (pool.Detail, error) {
+	d, err := s.editMemory.Detail(ctx, c, uuid.Nil, k, id)
 	if err != nil {
 		return d, err
 	}
@@ -35,7 +35,7 @@ func (s *organicEditMemory) Detail(ctx context.Context, c uuid.UUID, k string, i
 	return d, nil
 }
 func (s *organicEditMemory) EditOrganic(ctx context.Context, c, a, id uuid.UUID, tag string, body []byte) (pool.Detail, error) {
-	if _, err := s.Detail(ctx, c, "organic", id); err != nil {
+	if _, err := s.Detail(ctx, c, uuid.Nil, "organic", id); err != nil {
 		return pool.Detail{}, err
 	}
 	if tag != pool.ETag("organic", id, s.version) {
@@ -54,10 +54,10 @@ func (s *organicEditMemory) EditOrganic(ctx context.Context, c, a, id uuid.UUID,
 		s.version++
 		s.entries = append([]pool.HistoryEntry{{ID: uuid.New(), At: time.Now().UTC(), Actor: pool.Creator{ID: a}, Kind: "edit", Changes: changes}}, s.entries...)
 	}
-	return s.Detail(ctx, c, "organic", id)
+	return s.Detail(ctx, c, uuid.Nil, "organic", id)
 }
 func (s *organicEditMemory) History(ctx context.Context, c uuid.UUID, k string, id uuid.UUID, q pool.HistoryQuery) (pool.HistoryPage, error) {
-	if _, err := s.Detail(ctx, c, k, id); err != nil {
+	if _, err := s.Detail(ctx, c, uuid.Nil, k, id); err != nil {
 		return pool.HistoryPage{}, err
 	}
 	return pool.HistoryPage{Items: s.entries}, nil

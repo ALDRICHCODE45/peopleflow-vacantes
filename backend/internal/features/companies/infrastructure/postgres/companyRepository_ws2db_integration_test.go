@@ -26,6 +26,7 @@ import (
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
@@ -89,7 +90,7 @@ func cleanupRaceCompany(t *testing.T, pool *pgxpool.Pool, entityID uuid.UUID) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := pool.Exec(ctx, `DELETE FROM audit_events WHERE entity_id = $1`, entityID); err != nil {
+	if err := audittest.Delete(ctx, pool, `DELETE FROM audit_events WHERE entity_id = $1`, entityID); err != nil {
 		t.Fatalf("cleanup audit: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM companies WHERE id = $1`, entityID); err != nil {

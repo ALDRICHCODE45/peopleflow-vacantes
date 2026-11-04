@@ -46,7 +46,7 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	}
 	var req app.DiscardRequest
 	var reentry, override bool
-	kind, eventType, target := "discard", "ParticipationDiscarded", p.Exit.ID
+	kind, eventType, target := "discard", audit.EventParticipationDiscarded, p.Exit.ID
 	if recovering {
 		request, err := app.DecodeRecover(body, s.decode)
 		if err != nil {
@@ -59,7 +59,7 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 			return app.Moved{}, errors.New("missing stored discard")
 		}
 		reentry = request.ConfirmPlacementReentry
-		kind, eventType = "recovery", "ParticipationRecovered"
+		kind, eventType = "recovery", audit.EventParticipationRecovered
 		target, override, err = app.RecoveryTarget(p, item.Discard.PreviousStageID, request)
 		if err != nil {
 			return app.Moved{}, err
@@ -112,7 +112,7 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 		return app.Moved{}, err
 	}
 	at := nextEventAt(item.MovedAt)
-	if err = s.clearSubstate(ctx, tx, actor, id, &item, at, version+1); err != nil {
+	if err = s.clearSubstate(ctx, tx, company, actor, id, &item, at, version+1); err != nil {
 		return app.Moved{}, err
 	}
 	var group, code *string
@@ -150,7 +150,7 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 		}
 	}
 	// Private free text stays in the participation/history, never audit metadata.
-	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "process_participation", EntityID: pid, Metadata: map[string]string{"vacancy_id": id.String(), "from_stage_id": item.StageID, "to_stage_id": target, "version": strconv.FormatInt(version+1, 10), "hire": strconv.FormatBool(hire), "departure": strconv.FormatBool(departure)}}
+	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "process_participation", EntityID: pid, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"vacancy_id": id.String(), "from_stage_id": item.StageID, "to_stage_id": target, "version": strconv.FormatInt(version+1, 10), "hire": strconv.FormatBool(hire), "departure": strconv.FormatBool(departure)}}
 	if recovering {
 		event.Metadata["recovery_override"] = strconv.FormatBool(override)
 		event.Metadata["previous_stage_id"] = item.Discard.PreviousStageID

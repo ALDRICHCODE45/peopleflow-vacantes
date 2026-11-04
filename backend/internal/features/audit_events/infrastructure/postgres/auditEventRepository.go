@@ -13,6 +13,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -30,11 +31,17 @@ func NewAuditEventRepository() *AuditEventRepository { return &AuditEventReposit
 // port change here surfaces as a build error, never a runtime surprise.
 var _ auditrepositories.AuditEventRepository = (*AuditEventRepository)(nil)
 
-// Append marshals the PII-free metadata map to JSON bytes and inserts the
+// Append first validates the event against the catalog (known type, company
+// present for company-scoped types, metadata keys inside the closed set) and
+// refuses before any SQL runs, so the caller's transaction fails closed. It
+// then marshals the PII-free metadata map to JSON bytes and inserts the
 // event inside the caller-owned transaction. Each failure is wrapped so the
 // co-write caller can abort the transaction fail-closed (no write without its
 // audit trail).
 func (r *AuditEventRepository) Append(ctx context.Context, tx pgx.Tx, event auditentities.AuditEvent) error {
+	if err := event.Validate(); err != nil {
+		return fmt.Errorf("refuse audit event: %w", err)
+	}
 	var metadata any = event.Metadata
 	if event.StructuredMetadata != nil {
 		metadata = event.StructuredMetadata
@@ -43,7 +50,8 @@ func (r *AuditEventRepository) Append(ctx context.Context, tx pgx.Tx, event audi
 	if err != nil {
 		return fmt.Errorf("marshal audit metadata: %w", err)
 	}
-	if err := db.New(tx).InsertAuditEvent(ctx, buildInsertAuditEventParams(event, meta)); err != nil {
+	params := applyRequestMeta(ctx, buildInsertAuditEventParams(event, meta))
+	if err := db.New(tx).InsertAuditEvent(ctx, params); err != nil {
 		return fmt.Errorf("insert audit event: %w", err)
 	}
 	return nil
@@ -65,6 +73,30 @@ func buildInsertAuditEventParams(event auditentities.AuditEvent, metadata []byte
 	}
 	if event.ActorID != nil {
 		params.ActorID = pgtype.UUID{Bytes: *event.ActorID, Valid: true}
+	}
+	if event.CompanyID != nil {
+		params.CompanyID = pgtype.UUID{Bytes: *event.CompanyID, Valid: true}
+	}
+	if event.VacancyID != nil {
+		params.VacancyID = pgtype.UUID{Bytes: *event.VacancyID, Valid: true}
+	}
+	return params
+}
+
+// applyRequestMeta adds ip, user_agent and ip_source from the request context
+// set by the requestmeta middleware (audit-log-v1 §4). Emitters never pass
+// them. A context without metadata (system jobs, tests) leaves all three NULL.
+func applyRequestMeta(ctx context.Context, params db.InsertAuditEventParams) db.InsertAuditEventParams {
+	meta, ok := requestmeta.FromContext(ctx)
+	if !ok {
+		return params
+	}
+	params.Ip = meta.IP
+	if meta.UserAgent != nil {
+		params.UserAgent = pgtype.Text{String: *meta.UserAgent, Valid: true}
+	}
+	if meta.IPSource != "" {
+		params.IpSource = pgtype.Text{String: meta.IPSource, Valid: true}
 	}
 	return params
 }

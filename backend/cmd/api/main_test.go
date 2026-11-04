@@ -35,6 +35,8 @@ import (
 	"go/types"
 	"io/fs"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -46,6 +48,7 @@ import (
 	"time"
 
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 )
 
 // findFuncDecl returns the top-level function declaration named `name` in f (nil when absent).
@@ -166,15 +169,21 @@ func TestProductionComposition_RequestObservabilityWired(t *testing.T) {
 	}
 	use := rootUses[0]
 
-	if len(use.Args) != 3 {
-		t.Fatalf("root r.Use must carry exactly the three production middleware arguments (extra arguments could hide aliased legacy logging); got %d", len(use.Args))
+	if len(use.Args) != 4 {
+		t.Fatalf("root r.Use must carry exactly the four production middleware arguments (extra arguments could hide aliased legacy logging); got %d", len(use.Args))
 	}
 	if !isPkgSelector(use.Args[0], "middleware", "RequestID") {
 		t.Fatalf("root r.Use argument 1 must be exactly middleware.RequestID (the request_id must exist before the completion record is emitted); got %s", types.ExprString(use.Args[0]))
 	}
-	obsCall, ok := use.Args[1].(*ast.CallExpr)
+	// audit-log-v1 §4: the request metadata middleware sits right after
+	// RequestID, before every gate, so no route can append an audit row
+	// without it.
+	if !isSelectorOnReceiver(use.Args[1], "d", "requestMeta") {
+		t.Fatalf("root r.Use argument 2 must be exactly the deps-field selector d.requestMeta (audit request metadata on ALL routes, right after RequestID); got %s", types.ExprString(use.Args[1]))
+	}
+	obsCall, ok := use.Args[2].(*ast.CallExpr)
 	if !ok || !isPkgSelector(obsCall.Fun, "runtimemw", "RequestObservability") {
-		t.Fatalf("root r.Use argument 2 must be exactly runtimemw.RequestObservability(...); got %s", types.ExprString(use.Args[1]))
+		t.Fatalf("root r.Use argument 3 must be exactly runtimemw.RequestObservability(...); got %s", types.ExprString(use.Args[2]))
 	}
 	// Exact metrics-owner binding: the argument must be exactly the
 	// selector d.httpMetrics — a compile-safe subtree that merely
@@ -184,8 +193,8 @@ func TestProductionComposition_RequestObservabilityWired(t *testing.T) {
 	if len(obsCall.Args) != 2 || !isNilIdent(obsCall.Args[0]) || !isSelectorOnReceiver(obsCall.Args[1], "d", "httpMetrics") {
 		t.Fatalf("runtimemw.RequestObservability must be called as (nil, d.httpMetrics) — the metrics argument must be EXACTLY the deps-field selector d.httpMetrics (a subtree containing a .httpMetrics selector does not count); the nil logger resolves to slog.Default() inside the middleware and the composed metrics must flow through; got %s", types.ExprString(obsCall.Args[1]))
 	}
-	if !isPkgSelector(use.Args[2], "middleware", "Recoverer") {
-		t.Fatalf("root r.Use argument 3 must be exactly middleware.Recoverer (observability wraps recovery so the completion record sees the recovered status); got %s", types.ExprString(use.Args[2]))
+	if !isPkgSelector(use.Args[3], "middleware", "Recoverer") {
+		t.Fatalf("root r.Use argument 4 must be exactly middleware.Recoverer (observability wraps recovery so the completion record sees the recovered status); got %s", types.ExprString(use.Args[3]))
 	}
 
 	// Guard 2: no chi legacy Logger, detected via the real import alias.
@@ -248,7 +257,7 @@ func TestProductionComposition_RequestObservabilityWired(t *testing.T) {
 		t.Fatalf("the routerDeps composite passed to newRouter inside run must set the keyed field httpMetrics exactly once; got %d", metricsFields)
 	}
 
-	t.Logf("parsed %s/%s: single root r.Use(middleware.RequestID, runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer), no chi legacy Logger (alias %q resolved), run composes newRouter(routerDeps{httpMetrics: runtimemetrics.Default})", routerFile, compositionFile, chiMW)
+	t.Logf("parsed %s/%s: single root r.Use(middleware.RequestID, d.requestMeta, runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer), no chi legacy Logger (alias %q resolved), run composes newRouter(routerDeps{httpMetrics: runtimemetrics.Default})", routerFile, compositionFile, chiMW)
 }
 
 // TestProductionComposition_DBPoolMetricsWired pins the ws6c-5a production
@@ -1661,6 +1670,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /me/company/job-drafts",
 		"Post /me/company/requesters",
 		"Post /v2/me/candidate-account",
+		"Post /v2/me/session/end",
+		"Post /v2/me/session/start",
 		"Post /v2/me/company/job-drafts",
 		"Post /v2/me/company/job-drafts/{id}/publication",
 		"Put /v2/me/company/job-drafts/{id}/management",
@@ -2028,4 +2039,159 @@ func TestStartupWiring_SingleStartupRecord(t *testing.T) {
 		t.Fatalf("the replaced addr-only slog.Info(\"listening\", ...) startup record must be gone from %s; got %d literal(s) (replaced, never duplicated)", compositionFile, listening)
 	}
 	t.Logf("parsed %s: exactly one logStartupConfig call at line %d, ordered server.New(%d) < logStartupConfig < server.Run(%d); no \"listening\" literal remains", compositionFile, logLine, newLine, runLine)
+}
+
+// requestMetaProbe records the audit request metadata a gate sees and answers
+// 204, so the test needs no handler behind it.
+func requestMetaProbe(seen *requestmeta.Meta, found *bool) func(http.Handler) http.Handler {
+	return func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			*seen, *found = requestmeta.FromContext(r.Context())
+			w.WriteHeader(http.StatusNoContent)
+		})
+	}
+}
+
+// TestRouter_RequestMetaReachesGatesAndPublicRoutes: the metadata exists before
+// auth (an authenticated gate) and on a public route; the BFF secret selects the
+// forwarded client data and a wrong secret never does (audit-log-v1 §4).
+func TestRouter_RequestMetaReachesGatesAndPublicRoutes(t *testing.T) {
+	const secret = "router-test-secret-0123456789abcdef"
+	for name, tc := range map[string]struct {
+		path    string
+		headers map[string]string
+		source  string
+		ip      string
+	}{
+		"bff on an authenticated route":       {"/companies", map[string]string{"X-PF-Proxy-Secret": secret, "X-PF-Client-IP": "201.141.12.7"}, requestmeta.SourceBFF, "201.141.12.7"},
+		"forged ip on an authenticated route": {"/companies", map[string]string{"X-PF-Proxy-Secret": "wrong", "X-PF-Client-IP": "6.6.6.6"}, requestmeta.SourcePeer, "192.0.2.10"},
+		"bff on a public route":               {"/v2/assessments/tok", map[string]string{"X-PF-Proxy-Secret": secret, "X-PF-Client-IP": "201.141.12.7"}, requestmeta.SourceBFF, "201.141.12.7"},
+		"peer on a public route":              {"/v2/assessments/tok", nil, requestmeta.SourcePeer, "192.0.2.10"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var seen requestmeta.Meta
+			var found bool
+			probe := requestMetaProbe(&seen, &found)
+			method := http.MethodGet
+			if tc.path == "/companies" {
+				method = http.MethodPost
+			}
+			r := newRouter(routerDeps{
+				requestMeta: requestmeta.Middleware(requestmeta.Config{ProxySecret: secret}),
+				requireAuth: probe, requireRecruiter: probe, requireOwner: probe, publicAssessmentLimit: probe,
+			})
+			req := httptest.NewRequest(method, tc.path, nil)
+			req.RemoteAddr = "192.0.2.10:1234"
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNoContent || !found {
+				t.Fatalf("status %d, metadata found %v", rec.Code, found)
+			}
+			if seen.IPSource != tc.source || seen.IP == nil || seen.IP.String() != tc.ip {
+				t.Fatalf("got source %q ip %v, want %q %s", seen.IPSource, seen.IP, tc.source, tc.ip)
+			}
+		})
+	}
+}
+
+// A router built without the dependency still captures metadata, peer only: the
+// audit adapter never sees a context without it, and no header is trusted.
+func TestRouter_RequestMetaDefaultsToPeerOnly(t *testing.T) {
+	var seen requestmeta.Meta
+	var found bool
+	probe := requestMetaProbe(&seen, &found)
+	r := newRouter(routerDeps{requireAuth: probe, requireRecruiter: probe, requireOwner: probe})
+	req := httptest.NewRequest(http.MethodPost, "/companies", nil)
+	req.RemoteAddr = "192.0.2.10:1234"
+	req.Header.Set("X-PF-Proxy-Secret", "")
+	req.Header.Set("X-PF-Client-IP", "6.6.6.6")
+	r.ServeHTTP(httptest.NewRecorder(), req)
+	if !found || seen.IPSource != requestmeta.SourcePeer || seen.IP == nil || seen.IP.String() != "192.0.2.10" {
+		t.Fatalf("got %+v found %v", seen, found)
+	}
+}
+
+// TestProductionComposition_RequestMetaWired: the router defaults a missing
+// requestMeta to peer only, so a dropped wiring would silently stop trusting the
+// BFF headers. run must set the keyed field exactly once, from
+// requestmeta.Middleware(...) with the loaded secret and trusted proxies.
+func TestProductionComposition_RequestMetaWired(t *testing.T) {
+	cf := mustParse(t, compositionFile)
+	runFn := findFuncDecl(cf, "run")
+	if runFn == nil {
+		t.Fatal("composition root has no func run")
+	}
+	var values []ast.Expr
+	ast.Inspect(runFn.Body, func(n ast.Node) bool {
+		if lit, ok := n.(*ast.CompositeLit); ok {
+			if id, ok := lit.Type.(*ast.Ident); ok && id.Name == "routerDeps" {
+				for _, elt := range lit.Elts {
+					if kv, ok := elt.(*ast.KeyValueExpr); ok {
+						if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "requestMeta" {
+							values = append(values, kv.Value)
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+	if len(values) != 1 {
+		t.Fatalf("run must set routerDeps.requestMeta exactly once; got %d", len(values))
+	}
+	call, ok := values[0].(*ast.CallExpr)
+	if !ok || !isPkgSelector(call.Fun, "requestmeta", "Middleware") || len(call.Args) != 1 {
+		t.Fatalf("routerDeps.requestMeta must be requestmeta.Middleware(requestmeta.Config{...}); got %s", types.ExprString(values[0]))
+	}
+	cfg, ok := call.Args[0].(*ast.CompositeLit)
+	if !ok {
+		t.Fatalf("requestmeta.Middleware must take a requestmeta.Config literal; got %s", types.ExprString(call.Args[0]))
+	}
+	fields := map[string]string{}
+	for _, elt := range cfg.Elts {
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			if key, ok := kv.Key.(*ast.Ident); ok {
+				fields[key.Name] = types.ExprString(kv.Value)
+			}
+		}
+	}
+	if fields["ProxySecret"] != "auditProxySecret" || fields["TrustedProxies"] != "trustedProxies" || len(fields) != 2 {
+		t.Fatalf("requestmeta.Config must carry exactly ProxySecret: auditProxySecret and TrustedProxies: trustedProxies; got %v", fields)
+	}
+}
+
+// TestProductionComposition_SessionHandlerWired pins that the composition root
+// composes the session audit endpoints (audit-log-v1 §3): a router built without
+// them would answer 500 on every sign-in and sign-out report.
+func TestProductionComposition_SessionHandlerWired(t *testing.T) {
+	cf := mustParse(t, compositionFile)
+	runFn := findFuncDecl(cf, "run")
+	if runFn == nil {
+		t.Fatal("composition root has no func run")
+	}
+	var values []ast.Expr
+	ast.Inspect(runFn.Body, func(n ast.Node) bool {
+		if lit, ok := n.(*ast.CompositeLit); ok {
+			if id, ok := lit.Type.(*ast.Ident); ok && id.Name == "routerDeps" {
+				for _, elt := range lit.Elts {
+					if kv, ok := elt.(*ast.KeyValueExpr); ok {
+						if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "sessionHandler" {
+							values = append(values, kv.Value)
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+	if len(values) != 1 {
+		t.Fatalf("run must set routerDeps.sessionHandler exactly once; got %d", len(values))
+	}
+	call, ok := values[0].(*ast.CallExpr)
+	if !ok || types.ExprString(call.Fun) != "newSessionHandler" || len(call.Args) != 2 || types.ExprString(call.Args[0]) != "pool" || types.ExprString(call.Args[1]) != "auditRepo" {
+		t.Fatalf("routerDeps.sessionHandler must be newSessionHandler(pool, auditRepo); got %s", types.ExprString(values[0]))
+	}
 }

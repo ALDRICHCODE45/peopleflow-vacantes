@@ -146,6 +146,10 @@ reports the first. Headcount edits alone do not synthesize hire milestones.
 
 ## History, detail and CV
 
+Detail and both CV downloads are audited sensitive reads (`ParticipationViewed`,
+`ParticipationCVDownloaded`; one row per read, CV rows committed before the first
+byte, fail-closed): see [audit-capture.md](audit-capture.md).
+
 | Route | 200 response |
 | --- | --- |
 | `GET …/participations/{participationId}/history` | `{items:[entry]}`, oldest first, then history ID |

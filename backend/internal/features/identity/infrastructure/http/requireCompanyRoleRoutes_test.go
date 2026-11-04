@@ -120,17 +120,19 @@ func (s *rtStubMemberRepo) GetMembershipByUserID(_ context.Context, _ uuid.UUID)
 	return &copy, nil
 }
 
-func (s *rtStubMemberRepo) Create(_ context.Context, _ *entities.CompanyMember) error { return nil }
+func (s *rtStubMemberRepo) Create(_ context.Context, _ uuid.UUID, _ *entities.CompanyMember) error {
+	return nil
+}
 
 func (s *rtStubMemberRepo) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]entities.MemberListRow, error) {
 	return nil, nil
 }
 
-func (s *rtStubMemberRepo) UpdateRole(_ context.Context, _, _ uuid.UUID, _ valueobjects.MemberRole) error {
+func (s *rtStubMemberRepo) UpdateRole(_ context.Context, _, _, _ uuid.UUID, _ valueobjects.MemberRole) error {
 	return nil
 }
 
-func (s *rtStubMemberRepo) Remove(_ context.Context, _, _ uuid.UUID) error { return nil }
+func (s *rtStubMemberRepo) Remove(_ context.Context, _, _, _ uuid.UUID) error { return nil }
 
 type rtStubCompanyRepo struct{}
 

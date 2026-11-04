@@ -70,7 +70,7 @@ type stubMemberRepositoryForHandler struct {
 	lastRemoveCompanyID uuid.UUID
 }
 
-func (s *stubMemberRepositoryForHandler) Create(_ context.Context, m *entities.CompanyMember) error {
+func (s *stubMemberRepositoryForHandler) Create(_ context.Context, _ uuid.UUID, m *entities.CompanyMember) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createCalls++
@@ -112,7 +112,7 @@ func (s *stubMemberRepositoryForHandler) ListByCompanyID(_ context.Context, comp
 	return out, nil
 }
 
-func (s *stubMemberRepositoryForHandler) UpdateRole(_ context.Context, _, companyID uuid.UUID, _ valueobjects.MemberRole) error {
+func (s *stubMemberRepositoryForHandler) UpdateRole(_ context.Context, _, _, companyID uuid.UUID, _ valueobjects.MemberRole) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
@@ -120,7 +120,7 @@ func (s *stubMemberRepositoryForHandler) UpdateRole(_ context.Context, _, compan
 	return s.updateErr
 }
 
-func (s *stubMemberRepositoryForHandler) Remove(_ context.Context, _, companyID uuid.UUID) error {
+func (s *stubMemberRepositoryForHandler) Remove(_ context.Context, _, _, companyID uuid.UUID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.removeCalls++

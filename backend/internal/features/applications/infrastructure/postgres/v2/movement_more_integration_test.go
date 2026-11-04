@@ -15,6 +15,7 @@ import (
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	boardstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
@@ -288,7 +289,10 @@ func TestMovementEmptyPipelineStructureRemainsEditable(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		for _, query := range []string{`DELETE FROM audit_events WHERE entity_id=$1`, `DELETE FROM company_members WHERE company_id=(SELECT company_id FROM job_drafts WHERE id=$1)`} {
+		if err := audittest.Delete(context.Background(), f.pool, `DELETE FROM audit_events WHERE entity_id=$1`, f.vacancy); err != nil {
+			t.Error(err)
+		}
+		for _, query := range []string{`DELETE FROM company_members WHERE company_id=(SELECT company_id FROM job_drafts WHERE id=$1)`} {
 			if _, err := f.pool.Exec(context.Background(), query, f.vacancy); err != nil {
 				t.Error(err)
 			}

@@ -8,13 +8,12 @@ import (
 	"math"
 	"strconv"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
-
-const pipelineConfiguredEvent = "JobDraftPipelineConfigured"
 
 var _ pipelineconfig.Store = (*Store)(nil)
 
@@ -115,7 +114,7 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	}
 	// The existing audit port uses string-valued metadata. Configuration
 	// snapshots are complete JSON documents, not lossy human-readable summaries.
-	event := newDraftEvent(actorID, pipelineConfiguredEvent, id, version+1)
+	event := newDraftEvent(actorID, companyID, audit.EventJobDraftPipelineConfigured, id, version+1)
 	event.Metadata["previous"] = string(previousJSON)
 	event.Metadata["new"] = string(encoded)
 	impactJSON, err := json.Marshal(impact)

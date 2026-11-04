@@ -27,6 +27,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
@@ -208,9 +209,11 @@ func registerCompanyCleanup(t *testing.T, pool *pgxpool.Pool, companyID uuid.UUI
 		ctx := context.Background()
 		// Lifecycle events reference actors independently of membership. Remove
 		// owned history before the draft/process and any fixture users.
+		if err := audittest.Delete(ctx, pool, `DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`, companyID); err != nil {
+			t.Errorf("company fixture audit cleanup failed: %v", err)
+		}
 		for step, query := range []string{
 			`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
-			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
 			`DELETE FROM job_draft_idempotency WHERE company_id = $1`,
 			`DELETE FROM job_drafts WHERE company_id = $1`,
 			`DELETE FROM job_draft_requesters WHERE company_id = $1`,

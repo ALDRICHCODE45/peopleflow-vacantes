@@ -104,7 +104,7 @@ func (s *Store) PutChecklistMark(ctx context.Context, companyID, actorID, id, pi
  DO UPDATE SET verdict=EXCLUDED.verdict,note=EXCLUDED.note,marked_by=EXCLUDED.marked_by,marked_at=EXCLUDED.marked_at`, pid, cid, input.Verdict, input.Note, actorID); err != nil {
 		return checklist.Mark{}, fmt.Errorf("write checklist mark: %w", err)
 	}
-	if err := s.auditChecklistMark(ctx, tx, actorID, id, pid, cid, previous, found, &input); err != nil {
+	if err := s.auditChecklistMark(ctx, tx, companyID, actorID, id, pid, cid, previous, found, &input); err != nil {
 		return checklist.Mark{}, err
 	}
 	result, _, err := readChecklistMark(ctx, tx, pid, cid)
@@ -133,7 +133,7 @@ func (s *Store) DeleteChecklistMark(ctx context.Context, companyID, actorID, id,
 	if _, err := tx.Exec(ctx, `DELETE FROM participation_checklist_marks WHERE participation_id=$1 AND criterion_id=$2`, pid, cid); err != nil {
 		return fmt.Errorf("delete checklist mark: %w", err)
 	}
-	if err := s.auditChecklistMark(ctx, tx, actorID, id, pid, cid, previous, true, nil); err != nil {
+	if err := s.auditChecklistMark(ctx, tx, companyID, actorID, id, pid, cid, previous, true, nil); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -155,17 +155,19 @@ func equalChecklistNote(a, b *string) bool {
 	return a == nil && b == nil || a != nil && b != nil && *a == *b
 }
 
-func (s *Store) auditChecklistMark(ctx context.Context, tx pgx.Tx, actorID, id, pid, cid uuid.UUID, previous checklist.Mark, found bool, next *checklist.MarkInput) error {
+func (s *Store) auditChecklistMark(ctx context.Context, tx pgx.Tx, companyID, actorID, id, pid, cid uuid.UUID, previous checklist.Mark, found bool, next *checklist.MarkInput) error {
+	// The note is free text about a person: the audit keeps whether one is
+	// set, never its text (audit-log-v1 §7).
 	type snapshot struct {
-		Verdict string  `json:"verdict"`
-		Note    *string `json:"note"`
+		Verdict string `json:"verdict"`
+		HasNote bool   `json:"has_note"`
 	}
 	var old, newValue *snapshot
 	if found {
-		old = &snapshot{previous.Verdict, previous.Note}
+		old = &snapshot{previous.Verdict, previous.Note != nil}
 	}
 	if next != nil {
-		newValue = &snapshot{next.Verdict, next.Note}
+		newValue = &snapshot{next.Verdict, next.Note != nil}
 	}
 	oldJSON, err := json.Marshal(old)
 	if err != nil {
@@ -175,7 +177,7 @@ func (s *Store) auditChecklistMark(ctx context.Context, tx pgx.Tx, actorID, id, 
 	if err != nil {
 		return err
 	}
-	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actorID, EventType: "ParticipationChecklistMarked", EntityType: "process_participation", EntityID: pid, Metadata: map[string]string{"vacancy_id": id.String(), "criterion_id": cid.String(), "previous": string(oldJSON), "new": string(newJSON)}}
+	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actorID, EventType: audit.EventParticipationChecklistMarked, EntityType: "process_participation", EntityID: pid, CompanyID: &companyID, VacancyID: &id, Metadata: map[string]string{"vacancy_id": id.String(), "criterion_id": cid.String(), "previous": string(oldJSON), "new": string(newJSON)}}
 	if err := s.audit.Append(ctx, tx, event); err != nil {
 		return fmt.Errorf("co-write checklist mark audit: %w", err)
 	}

@@ -62,6 +62,7 @@ import (
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -77,6 +78,11 @@ func companySiteValidator() *sitesapp.Validator {
 		}
 		return &sitesapp.RichDocument{Canonical: doc.Canonical, Plain: doc.Plain}, nil
 	})
+}
+
+// newSessionHandler composes the session audit endpoints (audit-log-v1 §3).
+func newSessionHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *identityhttp.SessionHandler {
+	return identityhttp.NewSessionHandler(identityusecases.NewSessions(identitypostgres.NewSessionStore(pool, events)))
 }
 func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
 	validator := companySiteValidator()
@@ -172,6 +178,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Unset means no forwarded client header is ever trusted (peer only).
+	auditProxySecret := runtimeconfig.LoadAuditProxySecret(os.Getenv)
 
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
 	pool, err := pgxpool.New(ctx, dsn)
@@ -239,7 +247,7 @@ func run() error {
 	// (design D6 — IDOR-resistant boundary). The companies repo is the
 	// existing one above; the member handler's GetMyMembership fetches
 	// the company record through it.
-	memberRepo := postgres.NewCompanyMemberRepository(pool)
+	memberRepo := postgres.NewCompanyMemberRepository(pool, auditRepo)
 	memberService := usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geography)
 	// One store answers the setting endpoints and the capability flag, so both
 	// use the same access rule.
@@ -297,7 +305,7 @@ func run() error {
 	// store owns the owner-or-active-tramo rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
 	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode).WithStageEntryHook(newPsychometricStageEntryHook(draftStore))).WithManualCVPorts(manualCVInspector{}, manualStorage)
-	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(movementStorage))).WithManualCVPorts(manualCVInspector{}, manualStorage)
+	candidatePoolHandler := poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, auditRepo, poolStageNames).WithStorage(movementStorage))).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 	draftListHandler := jobshttp.NewDraftListHandler(draftStore)
@@ -369,7 +377,7 @@ func run() error {
 	r := newRouter(routerDeps{
 		siteHandler: newCompanySiteHandler(pool, auditRepo, siteStorage),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
-		requireCandidate: requireCandidate, identityHandler: identityHandler,
+		requireCandidate: requireCandidate, identityHandler: identityHandler, sessionHandler: newSessionHandler(pool, auditRepo),
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		candidatePoolHandler: candidatePoolHandler,
 		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),
@@ -401,6 +409,7 @@ func run() error {
 		psychometricInvitationsHandler: newPsychometricInvitationsHandler(pool, draftStore),
 		psychometricAssessmentHandler:  newPsychometricAssessmentHandler(pool, draftStore),
 		publicAssessmentLimit:          ratelimit.NewAssessment(ratelimit.DefaultLimits(), trustedProxies, nil).Middleware,
+		requestMeta:                    requestmeta.Middleware(requestmeta.Config{ProxySecret: auditProxySecret, TrustedProxies: trustedProxies}),
 		checklistHandler:               checklistHandler,
 		checklistMarksHandler:          checklistMarksHandler,
 	})

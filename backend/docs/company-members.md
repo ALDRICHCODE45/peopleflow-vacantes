@@ -11,6 +11,10 @@ resolved by `RequireCompanyRole`, never a company ID from the request body.
 | `PATCH /me/company/members/{id}` | Owner; live company; valid role; same-company target; retain an owner | 200 |
 | `DELETE /me/company/members/{id}` | Owner; live company; same-company target; retain an owner | 204 |
 
+Every successful add, role change and removal is audited in the same transaction
+(`CompanyMemberAdded`, `CompanyMemberRoleChanged`, `CompanyMemberOffboarded`; no
+row when the role does not change): see [audit-capture.md](audit-capture.md).
+
 Missing/invalid authentication returns 401; insufficient role, no membership, or
 an unavailable company returns 403 on gated routes. Invalid UUIDs/roles return
 400. Unknown and foreign member IDs both return 404, without revealing whether
@@ -73,6 +77,8 @@ member routes, not arbitrary direct SQL or company deletion.
   workers waiting. Exactly one succeeds, one gets `ErrLastOwner`, and one owner
   remains. Persistence is called directly in the concurrency cases so a late
   authorization recheck cannot mask the result with a 403.
+- `cmd/api/audit_members_integration_test.go` (`integration`): member audit rows,
+  the no-op role change, both removal paths and rollback on an audit failure.
 - Existing `companyMemberRepository_integration_test.go`: same-company and
   foreign-target SQL behavior; its allowed owner mutations retain another owner.
 

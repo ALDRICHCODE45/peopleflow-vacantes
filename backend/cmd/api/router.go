@@ -29,6 +29,7 @@ import (
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	runtimemw "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/ratelimit"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -90,8 +91,12 @@ type routerDeps struct {
 	psychometricInvitationsHandler *profilehttp.InvitationsHandler
 	// publicAssessmentLimit guards only the public token prefix (B8).
 	publicAssessmentLimit func(http.Handler) http.Handler
+	// requestMeta stores the audit request metadata (client IP, browser, IP
+	// source) in the context of every request (audit-log-v1 §4).
+	requestMeta           func(http.Handler) http.Handler
 	checklistHandler      *jobshttp.ChecklistHandler
 	checklistMarksHandler *jobshttp.ChecklistMarksHandler
+	sessionHandler        *identityhttp.SessionHandler // BFF sign-in/sign-out reports (audit-log-v1 §3)
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -109,6 +114,10 @@ func newRouter(d routerDeps) chi.Router {
 	if d.publicAssessmentLimit == nil {
 		d.publicAssessmentLimit = ratelimit.NewAssessment(ratelimit.DefaultLimits(), nil, nil).Middleware
 	}
+	// Audit metadata always exists; without a composed secret it is peer only.
+	if d.requestMeta == nil {
+		d.requestMeta = requestmeta.Middleware(requestmeta.Config{})
+	}
 	r := chi.NewRouter()
 	// Task 6.3 production wiring (design §8.3): RequestID runs FIRST (the
 	// completion record's request_id is read from the request context, never
@@ -116,7 +125,8 @@ func newRouter(d routerDeps) chi.Router {
 	// so each request emits exactly one structured completion record and one
 	// bounded metrics observation. chi's legacy middleware.Logger is removed:
 	// it duplicated per-request logging now owned by RequestObservability.
-	r.Use(middleware.RequestID, runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer)
+	// requestMeta runs right after RequestID and before every auth gate.
+	r.Use(middleware.RequestID, d.requestMeta, runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer)
 
 	// Health (§8.1): static liveness; readiness pings once under the timeout.
 	r.Get("/healthz", health.Healthz(d.pool))
@@ -218,6 +228,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Use(identityhttp.NoStore, d.requireAuth)
 		r.Get("/v2/me", d.identityHandler.Me)
 		r.Post("/v2/me/candidate-account", d.identityHandler.CreateCandidateAccount)
+		r.Post("/v2/me/session/start", d.sessionHandler.Start)
+		r.Post("/v2/me/session/end", d.sessionHandler.End)
 	})
 
 	// Applications — candidate apply (RequireAuth + live candidate) + recruiter pipeline

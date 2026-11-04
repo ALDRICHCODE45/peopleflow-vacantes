@@ -55,6 +55,7 @@ En `backend/.env` tienen que estar definidas:
 | `IDENTITY_JWT_CLIENT_ID` | El mismo client id que `COGNITO_CLIENT_ID` del frontend |
 | `IDENTITY_JWT_TOKEN_USE` | `access` |
 | `PORT` | Opcional; por defecto `8080` |
+| `AUDIT_PROXY_SECRET` | Opcional; el mismo valor que `AUDIT_PROXY_SECRET` del frontend. Sin él, la auditoría guarda la IP del servidor de Next (`ip_source = peer`) |
 
 **No** definas `IDENTITY_JWT_AUDIENCE` ni `IDENTITY_JWT_PUBLIC_KEY_PEM`: con
 `AUDIENCE` definida, el access token de Cognito es rechazado. Las variables

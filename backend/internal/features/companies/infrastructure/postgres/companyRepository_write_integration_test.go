@@ -58,6 +58,7 @@ import (
 
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
@@ -343,7 +344,7 @@ func cleanupCompanies(t *testing.T, pool *pgxpool.Pool) {
 	// emission uses the singular `entity_type='company'`. The
 	// predicate widens to BOTH literals so cleanup is defensive against
 	// both the legacy seed and the new production emission.
-	if _, err := pool.Exec(cleanupCtx,
+	if err := audittest.Delete(cleanupCtx, pool,
 		`DELETE FROM audit_events WHERE entity_type IN ('companies', 'company') AND entity_id = ANY($1::uuid[])`,
 		[]uuid.UUID{writeCoA, writeCoT, writeCoB}); err != nil {
 		t.Logf("cleanup audit_events: %v", err)
@@ -1429,7 +1430,7 @@ func TestGetMyMembership_HidesTombstonedCompany(t *testing.T) {
 	})
 
 	companyRepo := newTestCompanyRepository(pool)
-	memberRepo := NewCompanyMemberRepository(pool)
+	memberRepo := NewCompanyMemberRepository(pool, auditpostgres.NewAuditEventRepository())
 	svc := usecases.NewCompanyMemberService(memberRepo, stubIdentityUserRepo{sub: sub, userID: userID}, companyRepo)
 
 	if _, _, err := svc.GetMyMembership(ctx, sub); !errors.Is(err, entities.ErrCompanyNotFound) {

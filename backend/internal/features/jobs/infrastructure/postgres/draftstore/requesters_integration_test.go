@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/requesters"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
@@ -25,7 +26,7 @@ func newRequesterPrincipal(t *testing.T, pool *pgxpool.Pool) principal {
 	t.Helper()
 	p := newPrincipal(t, pool)
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(),
+		_ = audittest.Delete(context.Background(), pool,
 			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_draft_requesters WHERE company_id = $1)`, p.companyID)
 	})
 	return p

@@ -109,7 +109,7 @@ func (s *stubMemberRepo) GetMembershipByUserID(_ context.Context, _ uuid.UUID) (
 	return &copy, nil
 }
 
-func (s *stubMemberRepo) Create(_ context.Context, _ *entities.CompanyMember) error {
+func (s *stubMemberRepo) Create(_ context.Context, _ uuid.UUID, _ *entities.CompanyMember) error {
 	return errors.New("stubMemberRepo.Create: not used by middleware tests")
 }
 
@@ -117,11 +117,11 @@ func (s *stubMemberRepo) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]enti
 	return nil, errors.New("stubMemberRepo.ListByCompanyID: not used by middleware tests")
 }
 
-func (s *stubMemberRepo) UpdateRole(_ context.Context, _, _ uuid.UUID, _ valueobjects.MemberRole) error {
+func (s *stubMemberRepo) UpdateRole(_ context.Context, _, _, _ uuid.UUID, _ valueobjects.MemberRole) error {
 	return errors.New("stubMemberRepo.UpdateRole: not used by middleware tests")
 }
 
-func (s *stubMemberRepo) Remove(_ context.Context, _, _ uuid.UUID) error {
+func (s *stubMemberRepo) Remove(_ context.Context, _, _, _ uuid.UUID) error {
 	return errors.New("stubMemberRepo.Remove: not used by middleware tests")
 }
 

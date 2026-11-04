@@ -46,7 +46,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	out, err := h.service.Detail(r.Context(), cc.CompanyID, kind, id)
+	out, err := h.service.Detail(r.Context(), cc.CompanyID, cc.UserID, kind, id)
 	if err != nil {
 		detailError(w, err)
 		return
@@ -68,9 +68,9 @@ func (h *Handler) file(w http.ResponseWriter, r *http.Request, original bool) {
 	}
 	var out board.File
 	if original {
-		out, err = h.service.OriginalFile(r.Context(), cc.CompanyID, kind, id, pid)
+		out, err = h.service.OriginalFile(r.Context(), cc.CompanyID, cc.UserID, kind, id, pid)
 	} else {
-		out, err = h.service.File(r.Context(), cc.CompanyID, kind, id, pid)
+		out, err = h.service.File(r.Context(), cc.CompanyID, cc.UserID, kind, id, pid)
 	}
 	if err != nil {
 		detailError(w, err)

@@ -337,7 +337,10 @@ clients share their /64. The limiter is in-process and per instance
 (distributed limiting is later infrastructure). It holds at most 100000 keys:
 expired keys are swept, and when the cap is still reached new keys fail closed
 with `429`. The router installs the default limiter even when the composition
-root omits it.
+root omits it. The peer / `X-Forwarded-For` rule lives in
+`internal/runtime/clientip` and is shared with the audit request metadata (see
+`audit-request-metadata.md`); the /64 grouping and the single `invalid` budget
+stay in the limiter.
 
 ## Employer results and comparisons (B9)
 

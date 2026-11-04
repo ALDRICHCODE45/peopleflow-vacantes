@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
+	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -18,6 +19,7 @@ import (
 
 type Store struct {
 	pool       *pgxpool.Pool
+	audit      auditrepositories.AuditEventRepository
 	stageNames app.StageNames
 	storage    Storage
 }
@@ -28,8 +30,10 @@ type Storage interface {
 
 func (s *Store) WithStorage(storage Storage) *Store { s.storage = storage; return s }
 
-func NewStore(pool *pgxpool.Pool, stageNames app.StageNames) *Store {
-	return &Store{pool: pool, stageNames: stageNames}
+// NewStore takes the audit port: candidate edits and CV corrections append
+// their audit row through it, on the write's own transaction.
+func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository, stageNames app.StageNames) *Store {
+	return &Store{pool: pool, audit: audit, stageNames: stageNames}
 }
 
 var _ app.Reader = (*Store)(nil)

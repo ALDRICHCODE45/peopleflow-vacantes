@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/invitations"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -57,5 +58,5 @@ func (h *StageEntryHook) OnStageEntered(ctx context.Context, tx pgx.Tx, process,
 	if err != nil || !created {
 		return err
 	}
-	return h.jobs.AuditPsychometricInvitation(ctx, tx, uuid.Nil, process, participation, i.ID, "PsychometricInvitationCreated")
+	return h.jobs.AuditPsychometricInvitation(ctx, tx, uuid.Nil, process, participation, i.ID, audit.EventPsychometricInvitationCreated)
 }

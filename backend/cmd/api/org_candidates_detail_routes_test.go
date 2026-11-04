@@ -20,7 +20,7 @@ type orgDetailReader struct {
 	calls int
 }
 
-func (s *orgDetailReader) Detail(_ context.Context, c uuid.UUID, kind string, id uuid.UUID) (pool.Detail, error) {
+func (s *orgDetailReader) Detail(_ context.Context, c, _ uuid.UUID, kind string, id uuid.UUID) (pool.Detail, error) {
 	s.calls++
 	if c != routeTestCompanyID {
 		return pool.Detail{}, errors.New("wrong company")
@@ -42,7 +42,7 @@ func (s *orgDetailReader) Detail(_ context.Context, c uuid.UUID, kind string, id
 	}
 	return d, err
 }
-func (s *orgDetailReader) File(_ context.Context, c uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
+func (s *orgDetailReader) File(_ context.Context, c, _ uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
 	s.calls++
 	if c != routeTestCompanyID {
 		return board.File{}, errors.New("wrong company")
@@ -71,7 +71,7 @@ func TestOrgCandidatesDetailHTTP(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 				t.Fatal(err)
 			}
-			expected, _ := reader.Detail(context.Background(), routeTestCompanyID, kind, routeTestDraftID)
+			expected, _ := reader.Detail(context.Background(), routeTestCompanyID, uuid.Nil, kind, routeTestDraftID)
 			if !reflect.DeepEqual(got, expected) || !got.CreatedAt.Equal(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) {
 				t.Fatal(got)
 			}

@@ -3,6 +3,7 @@ package draftstore
 import (
 	"context"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -29,7 +30,11 @@ func (s *Store) PsychometricProfileCheckIfMatch(issued, value string, present bo
 // AuditPsychometricProfile uses the existing PII-free event builder and audit
 // port; the profile store owns the transaction's commit or rollback.
 func (s *Store) AuditPsychometricProfile(ctx context.Context, tx pgx.Tx, actor, id uuid.UUID, version int64, previous, next []byte) error {
-	event := newDraftEvent(actor, "JobDraftPsychometricProfileConfigured", id, version)
+	company, err := vacancyCompany(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	event := newDraftEvent(actor, company, audit.EventJobDraftPsychometricProfileConfigured, id, version)
 	event.Metadata["previous"] = string(previous)
 	event.Metadata["new"] = string(next)
 	return s.audit.Append(ctx, tx, event)

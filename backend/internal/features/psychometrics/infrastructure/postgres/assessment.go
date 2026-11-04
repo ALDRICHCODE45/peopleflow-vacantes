@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/assessment"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/invitations"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/content"
@@ -174,7 +175,7 @@ func (s *AssessmentStore) Execute(ctx context.Context, a assessment.Access, acti
 			if err != nil {
 				return assessment.Result{}, err
 			}
-			if err = s.invitations.jobs.AuditPsychometricInvitation(ctx, tx, actor, v.process, v.participation, v.i.ID, "PsychometricConsentGiven"); err != nil {
+			if err = s.invitations.jobs.AuditPsychometricInvitation(ctx, tx, actor, v.process, v.participation, v.i.ID, audit.EventPsychometricConsentGiven); err != nil {
 				return assessment.Result{}, err
 			}
 		}

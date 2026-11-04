@@ -20,6 +20,10 @@ Role is `candidate`, `recruiter`, or `null`. No live row for the authenticated
 subject (including a soft-deleted row) returns exactly
 `{"role":null,"user":null}`. No identity-provider request or write occurs.
 
+The BFF also calls `POST /v2/me/session/start` and `/end` for every signed-in user
+(candidates included): they answer `204` and record nothing for a candidate; see
+[audit-capture.md](audit-capture.md).
+
 `POST /v2/me/candidate-account` accepts exactly `{"full_name":"Ana Pérez"}`.
 Names use the existing normalization (trim surrounding whitespace, preserve
 internal whitespace and case), then require 2–120 Unicode code points. The

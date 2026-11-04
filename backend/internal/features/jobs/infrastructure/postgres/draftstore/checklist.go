@@ -8,6 +8,7 @@ import (
 	"math"
 	"strconv"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/checklist"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -105,7 +106,7 @@ func (s *Store) PutChecklist(ctx context.Context, companyID, actorID, id uuid.UU
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	event := newDraftEvent(actorID, "JobDraftChecklistConfigured", id, version+1)
+	event := newDraftEvent(actorID, companyID, audit.EventJobDraftChecklistConfigured, id, version+1)
 	event.Metadata["previous"] = string(old)
 	event.Metadata["new"] = string(encoded)
 	if err := s.audit.Append(ctx, tx, event); err != nil {

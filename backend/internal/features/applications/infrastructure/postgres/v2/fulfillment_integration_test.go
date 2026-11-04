@@ -96,12 +96,37 @@ func assertOneFulfillment(t *testing.T, m movementFixture) {
 	if err := m.pool.QueryRow(context.Background(), `SELECT metadata->>'snapshot' FROM audit_events WHERE entity_id=$1 AND event_type='VacancyDeliveryFulfilled'`, m.vacancy).Scan(&raw); err != nil {
 		t.Fatal(err)
 	}
-	var snapshot fulfillment.Snapshot
+	// The audit view of the frozen snapshot keeps participation and candidate
+	// IDs only: no candidate names (audit-log-v1 §7).
+	if strings.Contains(raw, "full_name") {
+		t.Fatalf("audit snapshot carries candidate names: %s", raw)
+	}
+	type delivered struct {
+		ParticipationID uuid.UUID `json:"participation_id"`
+		CandidateID     uuid.UUID `json:"candidate_id"`
+		ReachedAt       time.Time `json:"reached_at"`
+	}
+	type view struct {
+		FulfilledAt       time.Time   `json:"fulfilled_at"`
+		Result            string      `json:"result"`
+		BusinessDaysDelta int         `json:"business_days_delta"`
+		Target            int64       `json:"target"`
+		CutoffStageID     string      `json:"cutoff_stage_id"`
+		CutoffStageName   string      `json:"cutoff_stage_name"`
+		CommitmentDate    string      `json:"commitment_date"`
+		Candidates        []delivered `json:"candidates"`
+	}
+	var snapshot view
 	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(snapshot, *fulfillmentStatus(t, m).Fulfillment) {
-		t.Fatal("audit snapshot differs from frozen resource")
+	frozen := *fulfillmentStatus(t, m).Fulfillment
+	want := view{frozen.FulfilledAt, frozen.Result, frozen.BusinessDaysDelta, frozen.Target, frozen.CutoffStageID, frozen.CutoffStageName, frozen.CommitmentDate, []delivered{}}
+	for _, c := range frozen.Candidates {
+		want.Candidates = append(want.Candidates, delivered{c.ParticipationID, c.Candidate.ID, c.ReachedAt})
+	}
+	if !reflect.DeepEqual(snapshot, want) {
+		t.Fatalf("audit snapshot differs from frozen resource: %+v vs %+v", snapshot, want)
 	}
 }
 func TestFulfillmentHistoricalReachedUniqueAndDiscardRetention(t *testing.T) {

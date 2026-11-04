@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	"github.com/google/uuid"
@@ -128,7 +129,7 @@ func setupMembershipFixture(t *testing.T) (context.Context, *CompanyMemberReposi
 		}
 	}
 
-	return ctx, NewCompanyMemberRepository(tx),
+	return ctx, NewCompanyMemberRepository(tx, auditpostgres.NewAuditEventRepository()),
 		callerUserID, callerCompanyID, foreignCompanyID, callerRowID, foreignRowID
 }
 
@@ -171,7 +172,7 @@ func TestUpdateRole_CrossCompanyAffectsZeroRowsReturnsNotFound(t *testing.T) {
 	// FOREIGN row's id. The `WHERE id=$1 AND company_id=$2` predicate
 	// matches 0 rows because the row's actual company_id is Y. 0 rows
 	// affected → ErrMemberNotFound.
-	err := repo.UpdateRole(ctx, foreignRowID, callerCompanyID, valueobjects.RecruiterRole)
+	err := repo.UpdateRole(ctx, uuid.New(), foreignRowID, callerCompanyID, valueobjects.RecruiterRole)
 	if !errors.Is(err, entities.ErrMemberNotFound) {
 		t.Errorf("expected ErrMemberNotFound for cross-company target, got: %v", err)
 	}
@@ -192,7 +193,7 @@ func TestUpdateRole_CrossCompanyAffectsZeroRowsReturnsNotFound(t *testing.T) {
 func TestUpdateRole_SameCompanyUpdatesRow(t *testing.T) {
 	ctx, repo, callerUserID, callerCompanyID, _, callerRowID, _ := setupMembershipFixture(t)
 
-	if err := repo.UpdateRole(ctx, callerRowID, callerCompanyID, valueobjects.RecruiterRole); err != nil {
+	if err := repo.UpdateRole(ctx, callerUserID, callerRowID, callerCompanyID, valueobjects.RecruiterRole); err != nil {
 		t.Fatalf("UpdateRole(same company): unexpected error: %v", err)
 	}
 
@@ -222,7 +223,7 @@ func TestRemove_CrossCompanyAffectsZeroRowsReturnsNotFound(t *testing.T) {
 	// Cross-company attempt: pass the caller's company_id (X) with the
 	// foreign row's id (which lives on Y). The SQL guard evaluates to
 	// 0 rows → ErrMemberNotFound.
-	err := repo.Remove(ctx, foreignRowID, callerCompanyID)
+	err := repo.Remove(ctx, uuid.New(), foreignRowID, callerCompanyID)
 	if !errors.Is(err, entities.ErrMemberNotFound) {
 		t.Errorf("expected ErrMemberNotFound for cross-company target, got: %v", err)
 	}
@@ -235,9 +236,9 @@ func TestRemove_CrossCompanyAffectsZeroRowsReturnsNotFound(t *testing.T) {
 
 // TestRemove_SameCompanyDeletesRow is the GREEN companion for Remove.
 func TestRemove_SameCompanyDeletesRow(t *testing.T) {
-	ctx, repo, _, callerCompanyID, _, callerRowID, _ := setupMembershipFixture(t)
+	ctx, repo, callerUserID, callerCompanyID, _, callerRowID, _ := setupMembershipFixture(t)
 
-	if err := repo.Remove(ctx, callerRowID, callerCompanyID); err != nil {
+	if err := repo.Remove(ctx, callerUserID, callerRowID, callerCompanyID); err != nil {
 		t.Fatalf("Remove(same company): unexpected error: %v", err)
 	}
 

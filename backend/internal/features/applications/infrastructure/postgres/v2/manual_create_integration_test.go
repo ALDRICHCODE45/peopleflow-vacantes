@@ -12,6 +12,7 @@ import (
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	boardstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -67,8 +68,10 @@ func setupManualIntake(t *testing.T) intakeFixture {
 	// Only rows owned by this fixture's company are removed; the shared harness
 	// subsequently removes its original organic participation and identities.
 	t.Cleanup(func() {
+		if err := audittest.Delete(ctx, m.pool, `DELETE FROM audit_events WHERE entity_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1 AND p.source='manual')`, m.company); err != nil {
+			t.Error(err)
+		}
 		for _, q := range []string{
-			`DELETE FROM audit_events WHERE entity_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1 AND p.source='manual')`,
 			`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1 AND p.source='manual')`,
 			`DELETE FROM process_participations WHERE source='manual' AND process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM company_candidate_cvs WHERE company_id=$1`,

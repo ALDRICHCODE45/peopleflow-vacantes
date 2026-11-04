@@ -185,6 +185,10 @@ list/detail assertions and intentionally changes only its private fixture rows.
 
 `POST /v2/me/company/candidates/contacts`
 
+Audited: revealing contacts records `CompanyCandidateContactsRevealed` (count and
+the revealed `(kind,id)` pairs, never the values) in the read's transaction; see
+[audit-capture.md](audit-capture.md).
+
 Request (1–100 unique `(kind,id)` pairs, non-zero UUIDs parsed as in detail):
 
 ```json
@@ -232,6 +236,10 @@ Response:
 ## Detail
 
 `GET /v2/me/company/candidates/{kind}/{id}`
+
+Audited: every successful detail read records `CompanyCandidateViewed`, and every
+CV download below records `CompanyCandidateCVDownloaded` (committed before the
+first byte), one row each with no deduplication; see [audit-capture.md](audit-capture.md).
 
 ```json
 {"kind":"manual","id":"…","full_name":"Lucía Ramírez Torres",

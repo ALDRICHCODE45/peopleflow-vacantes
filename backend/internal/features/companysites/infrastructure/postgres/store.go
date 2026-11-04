@@ -122,7 +122,7 @@ func (s *Store) Unpublish(ctx context.Context, company, user uuid.UUID) (app.Cur
 }
 
 func (s *Store) appendEvent(ctx context.Context, tx pgx.Tx, company, user uuid.UUID, kind string, version int64) error {
-	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &user, EventType: kind, EntityType: audit.EntityCompanySite, EntityID: company, Metadata: map[string]string{"version": strconv.FormatInt(version, 10)}})
+	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &user, EventType: kind, EntityType: audit.EntityCompanySite, EntityID: company, CompanyID: &company, Metadata: map[string]string{"version": strconv.FormatInt(version, 10)}})
 }
 
 func ensure(ctx context.Context, tx pgx.Tx, company, user uuid.UUID) error {

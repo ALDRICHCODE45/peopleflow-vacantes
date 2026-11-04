@@ -48,7 +48,7 @@ func (s *Store) AuditPsychometricInvitation(ctx context.Context, tx pgx.Tx, acto
 // AuditPsychometricComparison uses the same append/validation boundary as every
 // other invitation audit, with only the immutable comparison authority added.
 func (s *Store) AuditPsychometricComparison(ctx context.Context, tx pgx.Tx, actor, vacancy, participation, invitation, comparison uuid.UUID, version string) error {
-	return s.auditPsychometricInvitation(ctx, tx, actor, vacancy, participation, invitation, "PsychometricComparisonCreated", map[string]string{"comparison_id": comparison.String(), "profile_version": version})
+	return s.auditPsychometricInvitation(ctx, tx, actor, vacancy, participation, invitation, audit.EventPsychometricComparisonCreated, map[string]string{"comparison_id": comparison.String(), "profile_version": version})
 }
 
 func (s *Store) auditPsychometricInvitation(ctx context.Context, tx pgx.Tx, actor, vacancy, participation, invitation uuid.UUID, eventType string, extra map[string]string) error {
@@ -56,7 +56,11 @@ func (s *Store) auditPsychometricInvitation(ctx context.Context, tx pgx.Tx, acto
 	for key, value := range extra {
 		metadata[key] = value
 	}
-	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "psychometric_invitation", EntityID: invitation, Metadata: metadata}
+	company, err := vacancyCompany(ctx, tx, vacancy)
+	if err != nil {
+		return err
+	}
+	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "psychometric_invitation", EntityID: invitation, CompanyID: &company, VacancyID: &vacancy, Metadata: metadata}
 	if actor == uuid.Nil {
 		event.ActorType = audit.ActorTypeSystem
 		event.ActorID = nil

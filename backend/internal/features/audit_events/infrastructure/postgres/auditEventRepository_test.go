@@ -2,11 +2,15 @@ package postgres
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"net/netip"
 	"reflect"
 	"testing"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -87,5 +91,71 @@ func TestBuildInsertAuditEventParams(t *testing.T) {
 	nilParams := buildInsertAuditEventParams(nilEvent, meta)
 	if nilParams.ActorID != (pgtype.UUID{}) {
 		t.Errorf("nil ActorID: want pgtype.UUID{}, got %+v", nilParams.ActorID)
+	}
+}
+
+// TestBuildInsertAuditEventParamsCompanyAndVacancy: CompanyID/VacancyID map to
+// valid pgtype.UUIDs, nil to SQL NULL (audit-log-v1 §1).
+func TestBuildInsertAuditEventParamsCompanyAndVacancy(t *testing.T) {
+	company := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	vacancy := uuid.MustParse("55555555-5555-5555-5555-555555555555")
+	with := buildInsertAuditEventParams(entities.AuditEvent{ActorType: entities.ActorTypeSystem, CompanyID: &company, VacancyID: &vacancy}, []byte(`{}`))
+	if with.CompanyID != (pgtype.UUID{Bytes: company, Valid: true}) || with.VacancyID != (pgtype.UUID{Bytes: vacancy, Valid: true}) {
+		t.Fatalf("got %+v %+v", with.CompanyID, with.VacancyID)
+	}
+	without := buildInsertAuditEventParams(entities.AuditEvent{ActorType: entities.ActorTypeSystem}, []byte(`{}`))
+	if without.CompanyID.Valid || without.VacancyID.Valid {
+		t.Fatalf("nil ids must be NULL: %+v %+v", without.CompanyID, without.VacancyID)
+	}
+}
+
+// TestApplyRequestMeta: ip, user_agent and ip_source come from the request
+// context; a bare context (system jobs) leaves all three NULL, and a partial
+// context keeps unknown parts NULL.
+func TestApplyRequestMeta(t *testing.T) {
+	ip := netip.MustParseAddr("201.141.12.7")
+	ua := "Mozilla/5.0"
+	base := buildInsertAuditEventParams(entities.AuditEvent{ActorType: entities.ActorTypeSystem}, []byte(`{}`))
+
+	bare := applyRequestMeta(context.Background(), base)
+	if bare.Ip != nil || bare.UserAgent.Valid || bare.IpSource.Valid {
+		t.Fatalf("bare context must be all NULL: %+v", bare)
+	}
+
+	full := applyRequestMeta(requestmeta.NewContext(context.Background(), requestmeta.Meta{IP: &ip, UserAgent: &ua, IPSource: requestmeta.SourceBFF}), base)
+	if full.Ip == nil || *full.Ip != ip || full.UserAgent != (pgtype.Text{String: ua, Valid: true}) || full.IpSource != (pgtype.Text{String: "bff", Valid: true}) {
+		t.Fatalf("got %+v", full)
+	}
+
+	partial := applyRequestMeta(requestmeta.NewContext(context.Background(), requestmeta.Meta{IPSource: requestmeta.SourcePeer}), base)
+	if partial.Ip != nil || partial.UserAgent.Valid || partial.IpSource != (pgtype.Text{String: "peer", Valid: true}) {
+		t.Fatalf("got %+v", partial)
+	}
+}
+
+// TestAppendRefusesBeforeTouchingTheTransaction pins the catalog gate
+// (audit-log-v1 §1): an unknown type, a company-scoped type without a company
+// and a metadata key outside the type's closed set are refused before any SQL
+// runs, so the caller's transaction fails closed. The nil tx proves no query
+// was attempted.
+func TestAppendRefusesBeforeTouchingTheTransaction(t *testing.T) {
+	company := uuid.New()
+	cases := []struct {
+		name  string
+		event entities.AuditEvent
+		want  error
+	}{
+		{"unknown type", entities.AuditEvent{EventType: "NoSuchEvent", CompanyID: &company}, entities.ErrUnknownEventType},
+		{"missing company", entities.AuditEvent{EventType: entities.EventCompanyUpdated}, entities.ErrCompanyRequired},
+		{"metadata key outside the set", entities.AuditEvent{EventType: entities.EventCompanyUpdated, CompanyID: &company, Metadata: map[string]string{"name": "ACME"}}, entities.ErrMetadataKeyNotAllowed},
+	}
+	repo := NewAuditEventRepository()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := repo.Append(context.Background(), nil, tc.event)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("want %v, got %v", tc.want, err)
+			}
+		})
 	}
 }

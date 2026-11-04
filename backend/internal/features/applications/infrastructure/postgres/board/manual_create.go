@@ -138,7 +138,7 @@ func (s *Store) CreateManual(ctx context.Context, company, actor, id uuid.UUID, 
 		if err := s.vacancy.RecordDelivery(ctx, tx, id, actor, validated.StageID, at); err != nil {
 			return app.ManualCreated{}, err
 		}
-		event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyCandidateAddedManually", EntityType: "process_participation", EntityID: pid, Metadata: map[string]string{"vacancy_id": id.String(), "stage_id": validated.StageID.String(), "candidate_id": identity.String(), "cv_id": cv.String()}}
+		event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyCandidateAddedManually, EntityType: "process_participation", EntityID: pid, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"vacancy_id": id.String(), "stage_id": validated.StageID.String(), "candidate_id": identity.String(), "cv_id": cv.String()}}
 		if err := s.audit.Append(ctx, tx, event); err != nil {
 			return app.ManualCreated{}, err
 		}
