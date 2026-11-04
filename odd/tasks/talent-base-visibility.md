@@ -75,3 +75,6 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
   saves; the owner keeps «Base de talento» in the sidebar; console clean. Mobile 390px dark readable. The setting was
   left on «Todos los reclutadores». The one «No pudimos cargar…» seen was the QA API restarting. Recruiter side pending:
   the user creates a second Cognito recruiter account (QA seeds cannot sign in).
+- **L11** (user, 2026-11-04) on the dashboard count `pool_added_last_7_days` for a recruiter without access: «Ocultarla
+  (Recomendado)». Backend sends null for them; the dashboard drops «Nuevos en la base» and uses three columns.
+  Frontend done test-first (216 tests, tsc and ESLint clean); backend SHA pending. Partner doc updated.

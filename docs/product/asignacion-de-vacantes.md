@@ -152,6 +152,7 @@ Reglas:
   vacante. Pierde la búsqueda en toda la base, la ficha de un candidato fuera de una vacante, los CV de la base y
   exportar contactos. Si entra a la Base de talento ve un mensaje claro: «El owner limitó el acceso a la Base de
   talento»; la opción del menú desaparece.
+- En el **dashboard** no ve la tarjeta «Nuevos en la base».
 - Al **cargar un candidato a mano**, el sistema le sigue avisando si la persona ya existe en la empresa (para no
   duplicarla), pero sin decirle en qué vacante estuvo ni cuándo.
 - Si alguien sale de la empresa o pasa a ser dueño, **sale de la lista solo**. La opción elegida no cambia sola.
