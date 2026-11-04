@@ -18,9 +18,9 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
 
 | ID | Specs | Route | Commit |
 | --- | --- | --- | --- |
-| T1 | S1–S3 | Contract proposal from the backend session, frontend review (done, L2–L3) | — |
-| T2 | S1, S2 | Worker (background): owner setting in Configuración: mode + member picker, save, audit noted | — |
-| T3 | S3 | Worker (background): restricted recruiter: Base de talento entry hidden/denied state, board detail stays, no CV/export outside a vacancy, duplicates-check without last vacancy | — |
+| T1 | S1–S3 | Contract proposal from the backend session, frontend review (done, L2–L3) | `746e13f7` |
+| T2 | S1, S2 | Worker (background): owner setting in Configuración: mode + member picker, save, audit noted (done, L5) | `c61c41de` |
+| T3 | S3 | Worker (background): restricted recruiter: Base de talento entry hidden/denied state, board detail stays, no CV/export outside a vacancy, duplicates-check without last vacancy (done inline, L6) | `cb3cf014` |
 | T4 | all | Integration against the real backend, verification, partner doc update | — |
 
 ## Log
@@ -51,3 +51,8 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
   history, edit and CV failures; the talento page and the detail sheet show «Base de talento restringida» with no
   retry; edit and CV uploads explain the same; manual intake decodes `last_added_at: null`. Tests run on Node 22
   (`engines`); Node 25 breaks jsdom `localStorage`.
+- **L7** Full suite on Node 22: 9633 passed, 7 failed. One real failure: the transport allowlist in
+  `jobs/requestPath.test.ts` did not list `talent-base-visibility/client.ts` (registered; 30/30). The other 6 (combobox,
+  manual-intake sheet, draft editor shell, local draft form) pass alone (170/170): timeouts under suite load. Commits
+  `746e13f7` (docs), `cb3cf014` (T3), `c61c41de` (T2); slices are separate units (T2 ~620 lines with its tests).
+  Browser review and the real backend remain in T4.
