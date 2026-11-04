@@ -120,3 +120,8 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
 - L12 — 2026-11-04: the QA process died with the session restart (log ends with no error). Restarted the same binary on
   :8081 (background job job-1 of the new session, log appended); readyz 200, DB at 56. :8080 holds another `api`
   process not started by this session, left untouched. The user runs the frontend's T4 against the production build.
+- L13 — Frontend T4 on :8081 (prod build): 8 rows, parent confirmed in the DB — all `ip_source=bff`, ip `::1`
+  (local loopback, expected), real browser UA, company_id set; vacancy_id on pool CV, ParticipationViewed and both
+  ParticipationCVDownloaded, null on pool detail/contacts (as §1/§2). Pending: SessionStarted (the session was
+  already alive, no sign-in callback) and SessionEnded (frontend bug: the employer sidebar hid «Cerrar sesión», being
+  fixed) — to be repeated with a real login/logout.
