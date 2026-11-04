@@ -263,8 +263,15 @@ the «Vacante» filter.
   `vacancy_id`,
   `vacancy_title`, `ip`, `user_agent`, `metadata` (JSON). Values starting with `= + - @` are prefixed with `'` (CSV
   injection).
-- Limit **50,000 rows**. Above it → 422 `audit_export_too_large` with `{row_count, limit}` and nothing is exported (no
-  truncated files). The count runs **before the first byte**, in the same `REPEATABLE READ` transaction as the rows, so
+- Validation: `from`/`to` missing → 422 `invalid_filter` with `fields: [{field: "from", code: "required"}]` (and/or
+  `to`); malformed date → `invalid`; `from > to` or a span over 366 days → `range` on `to`. The span counts **both
+  ends inclusive**: at most 366 calendar days from `from` to `to` (1 Jan–31 Dec of a leap year passes). `required` is
+  also a valid field code for the list parser's catalog, used only by the export.
+- Limit **50,000 rows**. Above it → 422 `audit_export_too_large` with `row_count` and `limit` **at the top level of the
+  envelope** — `{"error": "…", "code": "audit_export_too_large", "row_count": 61234, "limit": 50000}` — and nothing
+  is exported (no truncated files).
+- Response shapes are closed: the frontend decoders are strict, so any new field in the list, catalogs or export
+  responses is a contract change announced to the frontend first. The count runs **before the first byte**, in the same `REPEATABLE READ` transaction as the rows, so
   every error (422, 403, validation) is a normal JSON error response and the streamed file matches the count. Once
   streaming starts the status is 200; a later failure aborts the connection (the frontend route handler shows a
   generic error).
