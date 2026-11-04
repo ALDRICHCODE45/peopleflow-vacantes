@@ -117,3 +117,6 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   94b54553, log `.scratch/qa-api-al/api.log`, background job job-2), `backend/.env` + DATABASE_URL =
   `peopleflow_vacancies_team` (migrated 55 → 56 with `.scratch/qa-migrate-al-bin`). Dev DB still at 55. Teardown: stop
   job-2, delete both binaries.
+- L12 — 2026-11-04: the QA process died with the session restart (log ends with no error). Restarted the same binary on
+  :8081 (background job job-1 of the new session, log appended); readyz 200, DB at 56. :8080 holds another `api`
+  process not started by this session, left untouched. The user runs the frontend's T4 against the production build.
