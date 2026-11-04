@@ -1,7 +1,7 @@
 # Audit log v1 (internal, employer-only)
 
-Status: **draft (2026-11-04)**, not implemented; frontend review F1–F6 applied; open decisions D1–D7 at the end wait
-for the user. Product source:
+Status: **agreed (2026-11-04)**, not implemented; frontend review F1–F6 applied; D1–D7 approved by the user via the
+frontend session (all as recommended). Product source:
 `docs/product/next-three-features.md` §2 «Auditoría». The backend session wrote this contract; frontend tracking is
 `odd/tasks/audit-log.md`, backend tracking `odd/tasks/audit-log-backend.md`. Style follows `vacancy-team-v1.md` and
 `talent-base-visibility-v1.md`.
@@ -303,9 +303,12 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 The remaining existing types (vacancy lifecycle, pipeline, team, candidate edits, psychometrics) get their row in the
 annex during 2a, when they become constants.
 
-## Open decisions for the user
+## Decisions (approved 2026-11-04)
 
-| # | Decision | Recommendation |
+User, verbatim via the frontend: D2 «24 meses (Recomendado)»; D5 «Solo el owner (Recomendado)»; D1, D3, D4, D6 and D7
+«Sí, todas como recomiendan (Recomendado)».
+
+| # | Decision | Approved |
 | --- | --- | --- |
 | D1 | Sensitive reads: one row per read, or deduplicate (e.g. one per person + candidate per 15 min)? | **One per read.** Simple, exact («cuándo»), same as the psychometric result. The screen can group repeats visually. |
 | D2 | Retention of audit events (and their IP/browser). | **24 months**, then automatic deletion; validate with counsel. Alternatives: 12 or 36 months. |

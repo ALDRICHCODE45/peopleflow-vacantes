@@ -34,10 +34,22 @@ Backend half of the frontend `odd/tasks/audit-log.md` (worktree `peopleflow-vaca
 
 ## Tasks
 
-- [ ] T1 — S1–S4: contract draft `docs/contracts/audit-log-v1.md`, frontend review, user decisions. Route: inline
-  (after one explore map). Commit: —.
+- [x] T1 — S1–S4: contract draft `docs/contracts/audit-log-v1.md`, frontend review, user decisions. Route: inline
+  (after one explore map). Commit: b85ff82e, b592a04a, agreed in the next docs commit.
 
-Later tasks are cut from the agreed contract.
+Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, shared secret, every emitter): own commits.
+
+- [ ] T2 — S2, S4.5–S4.7: migration 00056 (columns `company_id`, `vacancy_id`, `ip`, `user_agent`, `ip_source`,
+  indexes, backfill, append-only trigger with the purge exception), test helper for audit cleanup. Commit: —.
+- [ ] T3 — S2, S4.4: request-context middleware + `AUDIT_PROXY_SECRET`, shared IP helper (out of the rate limiter),
+  adapter writes `ip`/`user_agent`/`ip_source`. Commit: —.
+- [ ] T4 — S2, S4.5, S4.7: `CompanyID`/`VacancyID` on every emitter (incl. raw SQL ones), event catalog constants +
+  categories, test: no employer-side type with null `company_id`, allowed metadata keys per type. Commit: —.
+- [ ] T5 — S1, S2, S4.1–S4.3: sensitive reads (§2), `POST /v2/me/session/start|end` (§3), member events (§5), route
+  inventory. Commit: —.
+- [ ] T6 — verify 2a (independent, security) + full integration. Commit: —.
+
+Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
 
 ## Log
 
@@ -52,3 +64,7 @@ Later tasks are cut from the agreed contract.
   verificada»; no React Query on detail (no change); `entity.label` resolved at read (+ CSV `entity_label`); new
   `GET …/audit-events/vacancies`; export count before the first byte in one REPEATABLE READ tx. Frontend carries D1–D7
   to the user.
+- L4 — User decisions via the frontend (2026-11-04, verbatim): D2 «24 meses (Recomendado)»; D5 «Solo el owner
+  (Recomendado)»; D1, D3, D4, D6 y D7: «Sí, todas como recomiendan (Recomendado)». Contract → agreed. Frontend
+  starts its 2a on `feat/audit-log`. `AUDIT_PROXY_SECRET` (random 32 bytes hex) appended to `backend/.env`
+  (gitignored); the frontend reads the value from that file.
