@@ -3,11 +3,14 @@ import { requestJson } from "@/lib/api/server";
 import { talentBaseErrorEnvelopeSchema, talentBaseVisibilityBodySchema, talentBaseVisibilitySchema, type TalentBaseVisibility, type TalentBaseVisibilityBody } from "./model";
 
 const PATH = "/v2/me/company/talent-base-visibility";
-/** A 412 answers with the current document; every other failure answers with the standard envelope. */
-type ErrorBody = { kind: "document"; document: TalentBaseVisibility } | { kind: "envelope"; code: string; fields?: { field: string; code: string }[] };
+/** A 412 answers with the GET keys plus `error` and `code`; every other failure answers with the standard envelope. */
+type ErrorBody = { kind: "document"; document: TalentBaseVisibility; code?: string } | { kind: "envelope"; code: string; fields?: { field: string; code: string }[] };
 function decodeErrorBody(value: unknown): ErrorBody {
-  const document = talentBaseVisibilitySchema.safeParse(value);
-  if (document.success) return { kind: "document", document: document.data };
+  const rest: Record<string, unknown> = value !== null && typeof value === "object" ? { ...value } : {};
+  const code = rest.code;
+  delete rest.error; delete rest.code;
+  const document = talentBaseVisibilitySchema.safeParse(rest);
+  if (document.success) return { kind: "document", document: document.data, ...(typeof code === "string" ? { code } : {}) };
   const envelope = talentBaseErrorEnvelopeSchema.parse(value);
   return { kind: "envelope", code: envelope.code, ...(envelope.fields ? { fields: envelope.fields } : {}) };
 }

@@ -67,6 +67,12 @@ it("returns the current document on a version conflict (412) and nothing else fr
   expect(result).toEqual({ ok: false, reason: "version_conflict", document: selectedByAna, reference: { status: 412 } });
 });
 
+it("returns the current document from the backend's 412 body, which adds error and code to the GET keys", async () => {
+  fetchMock.mockResolvedValue(Response.json({ ...selectedByAna, error: "talent base visibility changed", code: "talent_base_visibility_version_conflict" }, { status: 412, headers: { etag: '"3"' } }));
+  const result = await save({ mode: "all_recruiters", userIds: [], version: 2 });
+  expect(result).toEqual({ ok: false, reason: "version_conflict", document: selectedByAna, reference: { status: 412, code: "talent_base_visibility_version_conflict" } });
+});
+
 it("reports a version conflict without a document when the body is an envelope", async () => {
   fetchMock.mockResolvedValue(envelope(412, "talent_base_visibility_version_conflict"));
   const result = await save({ mode: "all_recruiters", userIds: [], version: 2 });

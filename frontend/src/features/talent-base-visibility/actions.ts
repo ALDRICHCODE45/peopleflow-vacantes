@@ -28,7 +28,7 @@ type Failed = Awaited<ReturnType<typeof putTalentBaseVisibility>> & { ok: false 
 function failure(result: Failed, submitted: readonly string[] = []): TalentBaseFailure {
   const status = "status" in result.error ? result.error.status : undefined;
   const body = result.envelope;
-  const code = body?.kind === "envelope" ? body.code : undefined;
+  const code = body?.code;
   const reference = { ...(status === undefined ? {} : { status }), ...(code && REFERENCE_CODES.has(code) ? { code } : {}) };
   const fail = (reason: TalentBaseFailure["reason"], extra: Partial<TalentBaseFailure> = {}): TalentBaseFailure => ({ ok: false, reason, reference, ...extra });
   const fields = body?.kind === "envelope" ? body.fields ?? [] : [];
