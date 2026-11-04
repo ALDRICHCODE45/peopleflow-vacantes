@@ -31,7 +31,7 @@ source `docs/product/next-three-features.md` §2.
 | T2 | S5 | 2a, inline: server-only helper sending X-PF-Proxy-Secret / X-PF-Client-IP / X-PF-Client-User-Agent on every server call to the API, plus a test that fails when a call site skips it (Risk: item 2, a shared secret) (done, L5–L7) | `40a4a825` |
 | T3 | S3 | 2a, inline: session start in the NextAuth jwt callback on sign-in only; «end session» server action called before every signOut(); short timeout, failures never block (done, L5–L7) | `1b39c7a4` |
 | T4 | S2–S9 | 2a integration against the backend 2a on :8081 (rows with ip_source=bff, session rows, sensitive reads) | |
-| T5 | S6, S8–S10 | 2b: owner-only audit screen (filters person, action, date, vacancy; labels; «IP no verificada»; entity labels) and CSV export through a streaming route handler | |
+| T5 | S6, S8–S10 | 2b, worker (background), built against the agreed contract before the backend 2b exists (L10): owner-only audit screen (filters person, action, date, vacancy; labels; «IP no verificada»; entity labels) and CSV export through a streaming route handler (done, L10–L12) | `46baad77`, `f54637d9`, `6122d776`, `5bab0cce` |
 | T6 | all | 2b integration, verification, partner doc update | |
 
 ## Log
@@ -82,3 +82,19 @@ source `docs/product/next-three-features.md` §2.
   - Sign-in latency: the start call is awaited in the jwt callback (bounded to 2 s).
   - `install.ts` uses `serverEnv.apiBaseUrl` as the origin (validated bare origin today); `options.ts` now loads the
     server env in the NextAuth route; the structural sign-out test does not catch an aliased import.
+- **L9** (user, 2026-11-04): «Si, adelante. ok» — authorized reading `AUDIT_PROXY_SECRET` from
+  `../peopleflow-vacantes/backend/.env`. Copied to `frontend/.env.local` (gitignored) without printing it (64 chars).
+  Backend notified; T4 waits for the backend 2a on :8081.
+- **L10** Backend 2a in progress (migration 00056 + trigger GREEN). While T4 waits, T5 starts against the agreed
+  contract (§8.1–§8.5 at `9aeea3bd` plus F4 `entity.label`, F5 `/audit-events/vacancies`), with client and UI tests
+  on fixtures; wiring to the real API is checked in T6.
+- **L11** T5 worker done (27 files, ~1989 lines, uncommitted): model/url-state, client/actions/export route, workspace
+  UI, owner-gated page and sidebar entry; 288 focused tests, tsc and eslint clean (worker report). Contract gaps
+  confirmed by the backend at `b9a0d07b` (§8.5): 422 `audit_export_too_large` is `{error, code, row_count, limit}`;
+  missing from/to → 422 `invalid_filter` `{field, code: "required"}`, malformed → `invalid`, from>to or >366 days →
+  `range` on `to`; 366 days inclusive; responses are closed (new fields are announced first). Commits split in four
+  layer units.
+- **L12** T5 commits: `46baad77` model/url-state, `f54637d9` client/actions/export route, `6122d776` workspace UI,
+  `5bab0cce` owner page and sidebar. Parent re-ran the checks: 20 files, 313 tests, tsc 0 errors, eslint clean.
+  Slice boundary: the 2b screen slice is these four commits (~1989 lines, split by layer; the workspace commit is ~730
+  because its 356-line test travels with it). T6 wires it to the real backend 2b.
