@@ -3,7 +3,7 @@
 Documento de negocio para socios. Explica, sin tecnicismos, las decisiones tomadas sobre **quién trabaja cada
 vacante, cómo se reparte el mérito y cómo se mide el cumplimiento**. Se actualiza conforme avanzamos.
 
-Última actualización: 3 de noviembre de 2026. Estado: **construido y probado**, todavía no publicado (ver
+Última actualización: 4 de noviembre de 2026. Estado: **construido y probado**, todavía no publicado (ver
 [Estado actual](#estado-actual)).
 
 ## En una página
@@ -16,6 +16,7 @@ vacante, cómo se reparte el mérito y cómo se mide el cumplimiento**. Se actua
 - Se distingue el **compromiso con el cliente** (la fecha de la vacante) del **plazo de cada reclutador**.
 - **Solo el dueño** hace lo más delicado. El resto lo hace el equipo, y todo queda registrado.
 - Cada reclutador ve **su propio historial** y, más adelante, **su rendimiento**.
+- El dueño decide **quién ve la Base de talento**: todos los reclutadores o solo los que elija.
 
 ## Por qué
 
@@ -135,6 +136,27 @@ El sistema pregunta **«¿Qué pasó con este placement?»**:
 - El dueño puede **anular** un crédito o **restaurarlo**. Al restaurar, el crédito vuelve como «Activo» si esa
   colocación sigue en pie, y como «No se sostuvo» si ya terminó.
 
+## Quién ve la Base de talento
+
+La Base de talento reúne a todos los candidatos de la empresa. El dueño decide quién la usa, en
+**Configuración › Base de talento visible para**:
+
+- **Todos los reclutadores** (así viene, como hasta ahora).
+- **Usuarios seleccionados**: solo los reclutadores que el dueño elija. Se puede guardar sin elegir a nadie; entonces
+  solo la ve el dueño, y la pantalla lo advierte antes de guardar.
+
+Reglas:
+
+- **El dueño siempre la ve**. El stakeholder también la verá cuando exista.
+- Quien **no está en la lista** sigue viendo, desde el tablero de cada vacante donde trabaja, a los candidatos de esa
+  vacante. Pierde la búsqueda en toda la base, la ficha de un candidato fuera de una vacante, los CV de la base y
+  exportar contactos. Si entra a la Base de talento ve un mensaje claro: «El owner limitó el acceso a la Base de
+  talento»; la opción del menú desaparece.
+- Al **cargar un candidato a mano**, el sistema le sigue avisando si la persona ya existe en la empresa (para no
+  duplicarla), pero sin decirle en qué vacante estuvo ni cuándo.
+- Si alguien sale de la empresa o pasa a ser dueño, **sale de la lista solo**. La opción elegida no cambia sola.
+- **Cada cambio queda registrado**: quién lo hizo, cuándo, la opción anterior y la nueva, y a quién se sumó o quitó.
+
 ## Lo que queda registrado
 
 En **Configuración › Equipo** de cada vacante se ven los **movimientos del equipo**: quién se sumó, quién salió y
@@ -197,7 +219,6 @@ Cada reclutador va a poder ver **su propio rendimiento** en cualquier momento.
 
 | Tema | Decisión |
 | --- | --- |
-| **Quién ve la Base de talento** | El dueño lo configura: «todos los reclutadores» (como hoy) o «usuarios seleccionados». El dueño y el stakeholder siempre la ven. Quien no está en la lista sigue viendo, desde el tablero, a los candidatos de sus vacantes. Es la próxima unidad, chica. |
 | **Avisos** | Por ahora no se avisa a nadie de reasignaciones o altas. Primero avisos dentro de la app y, cuando tengamos proveedor de correo, por correo. |
 | **Cuotas individuales** | Por ahora la meta es del equipo. Las cuotas por persona («A entrega 3, B entrega 2») quedan como opción futura. |
 | **Tamaño del equipo** | Sin límite. |
@@ -211,6 +232,7 @@ Cada reclutador va a poder ver **su propio rendimiento** en cualquier momento.
 | Renegociar la fecha compromiso | Construido y probado |
 | Quitar miembros pasando sus vacantes | Construido y probado |
 | Mi historial de vacantes | Construido como tabla y probado contra el sistema real |
+| Quién ve la Base de talento | Construido; prueba contra el sistema real en curso |
 | Mi rendimiento | Decidido, por construir con las métricas del stakeholder |
 | Publicación | Pendiente de la decisión de publicar: backend y frontend tienen que salir juntos |
 
