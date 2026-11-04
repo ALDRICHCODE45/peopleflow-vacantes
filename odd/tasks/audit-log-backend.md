@@ -51,9 +51,16 @@ Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, 
   inventory. Route: worker mw1tpt8l. Commit: next feat commit.
 - [x] T6 — verify 2a (independent, security) + full integration. Route: gentle-ai-verify mw1vk451; MINOR 1 fixed
   inline (RED/GREEN), probes committed. Commit: next fix commit.
-- [ ] T7 — QA :8081 with the frontend end-to-end (its T4), then the user's merge decision.
+- [x] T7 — QA :8081 with the frontend end-to-end (its T4), then the user's merge decision. Evidence: L13, L14, L15.
 
-Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
+Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-backend-2b` from 39e2ff35.
+
+- [ ] T8 — S2 (pantalla, exportar), S3, S4.8, D5, D7: owner-only `GET /v2/me/company/audit-events` (filters, cursor,
+  `entity.label`, `actor`, `vacancy`), `/types`, `/actors`, `/vacancies`, `POST …/export` (CSV, count before the first
+  byte, `AuditLogExported`). Route: worker. Commit: —.
+- [ ] T9 — S2 (política de retención), D2: `cmd/audit-purge` (dry run by default, `-execute` deletes rows older than 24
+  months in batches with the txid-bound flag). Route: worker, parallel to T8 (disjoint surfaces). Commit: —.
+- [ ] T10 — verify 2b + QA :8081 with the frontend screen. Commit: —.
 
 ## Log
 
@@ -128,3 +135,7 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
 - L14 — Frontend fixed the sidebar sign-out; parent confirmed in the DB: SessionEnded 16:39:30 and SessionStarted
   16:39:57 (Mexico City), entity `user`, `bff`, `::1`, company_id set, metadata `{}`. Slice 2a verified end to end.
   Next: the user's merge decision for 2a; then slice 2b (list, types, actors, vacancies, export, purge).
+- L15 — User (verbatim choice): «Mergear la 2a y arrancar la 2b (Recomendado)». Frontend warned its `feat/audit-log`
+  also carries the unfinished 2b screen (being redesigned), so only `feat/audit-log-backend` merges now; the frontend
+  session merges it into local main (main is checked out in its worktree), no push. QA :8081 stopped, binaries
+  deleted.
