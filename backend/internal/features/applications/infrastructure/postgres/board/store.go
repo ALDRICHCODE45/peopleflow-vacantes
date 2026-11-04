@@ -507,6 +507,14 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 		}
 		out.Screening = append(out.Screening, view)
 	}
+	// The read records itself in its own transaction (audit-log-v1 §2): a failed
+	// audit insert fails the read and nothing is served.
+	if err = s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventParticipationViewed, EntityType: "process_participation", EntityID: pid, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{}}); err != nil {
+		return app.Detail{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return app.Detail{}, err
+	}
 	return out, nil
 }
 func (s *Store) File(ctx context.Context, company, actor, id, pid uuid.UUID) (app.File, error) {
@@ -515,6 +523,11 @@ func (s *Store) File(ctx context.Context, company, actor, id, pid uuid.UUID) (ap
 func (s *Store) OriginalFile(ctx context.Context, company, actor, id, pid uuid.UUID) (app.File, error) {
 	return s.file(ctx, company, actor, id, pid, true)
 }
+
+// file records the download (audit-log-v1 §2) and commits BEFORE it returns the
+// stream, so the row exists before the first byte leaves and a download
+// interrupted mid-stream stays recorded. Nothing is recorded when the CV is not
+// found or storage is unavailable; a failed audit closes the stream and serves nothing.
 func (s *Store) file(ctx context.Context, company, actor, id, pid uuid.UUID, original bool) (app.File, error) {
 	tx, _, err := s.begin(ctx, company, actor, id)
 	if err != nil {
@@ -538,6 +551,21 @@ func (s *Store) file(ctx context.Context, company, actor, id, pid uuid.UUID, ori
 		return file, app.ErrStorageUnavailable
 	}
 	file.Name, file.ContentType, file.Size = *name, *contentType, *size
-	file.Reader, err = s.storage.Open(ctx, *key)
-	return file, err
+	reader, err := s.storage.Open(ctx, *key)
+	if err != nil {
+		return app.File{}, err
+	}
+	variant := "current"
+	if original {
+		variant = "original"
+	}
+	if err = s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventParticipationCVDownloaded, EntityType: "process_participation", EntityID: pid, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"variant": variant}}); err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		_ = reader.Close()
+		return app.File{}, err
+	}
+	file.Reader = reader
+	return file, nil
 }

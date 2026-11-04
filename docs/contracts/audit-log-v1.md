@@ -72,8 +72,8 @@ Migration `00056_audit_log.sql` adds to `audit_events`:
 
 **Rule: one row per successful read, no deduplication window** (D1). Same pattern as `PsychometricResultViewed`:
 the audit row is written in the read's transaction and the read fails with 500 `internal_error` if the audit insert
-fails (fail-closed). A `304 Not Modified` on the pool detail (ETag revalidation) is also recorded — the person saw the
-data. Non-2xx/304 responses (403, 404, 422) are not recorded as reads.
+fails (fail-closed). The backend has no `304` path (it ignores `If-None-Match`), so every successful read is a `200`
+and one row, revalidation included. Rejected requests (400, 401, 403, 404) write nothing.
 
 | Route | Event type | Entity | Metadata (IDs only) |
 | --- | --- | --- | --- |
@@ -88,13 +88,17 @@ data. Non-2xx/304 responses (403, 404, 422) are not recorded as reads.
 - The CV row is committed **before** the first byte is streamed. A download interrupted mid-stream stays recorded as
   «descargó» (honest wording on the screen: «inició la descarga»).
 - Contacts: the record is that the user **revealed** the email/phone of these candidates; the values themselves are
-  never stored.
+  never stored. The row lists only the candidates actually returned; unknown ids reveal nothing, and a request that
+  reveals nobody writes no row. Validation errors stay as today (400 `validation_error`).
+- Pool CV rows also set the `vacancy_id` column to the participation's vacancy (as `CompanyCandidateCVCorrected`).
 - Frontend impact: detail queries should not refetch on window focus (each refetch is one row). Recommended
   `staleTime` ≥ 5 min and `refetchOnWindowFocus: false` on these queries.
 
 ## 3. Sessions
 
-Two new endpoints the BFF calls; both `requireAuth`, `NoStore`, empty body, answer `204 No Content`.
+Two new endpoints the BFF calls; both `requireAuth`, `NoStore`, answer `204 No Content`. The body is not read (send
+none; any body is ignored), the same convention as psychometric revoke and site unpublish. An audit failure answers
+500; the frontend logs it and continues.
 
 | Endpoint | When the BFF calls it | Event |
 | --- | --- | --- |
@@ -143,7 +147,7 @@ the frontend server** with a shared secret:
 | --- | --- | --- | --- |
 | `POST /me/company/members` | `CompanyMemberAdded` | `company_member` / membership id | `{member_user_id, role}` |
 | `PATCH /me/company/members/{id}` | `CompanyMemberRoleChanged` | `company_member` / `{id}` | `{member_user_id, from_role, to_role}`; no row when the role does not change |
-| `DELETE /me/company/members/{id}` / `POST …/offboard` | `CompanyMemberOffboarded` (exists) | `company_member` / `{id}` | existing metadata + `member_user_id` |
+| `DELETE /me/company/members/{id}` / `POST …/offboard` | `CompanyMemberOffboarded` (exists; before 2a only the offboard path emitted it, `DELETE` wrote nothing) | `company_member` / `{id}` | existing metadata + `member_user_id` |
 
 - Written in the same transaction as the change (the member repository gains the audit port). Owner transfer, when it
   exists, is a role change pair.

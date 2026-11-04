@@ -96,6 +96,7 @@ type routerDeps struct {
 	requestMeta           func(http.Handler) http.Handler
 	checklistHandler      *jobshttp.ChecklistHandler
 	checklistMarksHandler *jobshttp.ChecklistMarksHandler
+	sessionHandler        *identityhttp.SessionHandler // BFF sign-in/sign-out reports (audit-log-v1 §3)
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -227,6 +228,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Use(identityhttp.NoStore, d.requireAuth)
 		r.Get("/v2/me", d.identityHandler.Me)
 		r.Post("/v2/me/candidate-account", d.identityHandler.CreateCandidateAccount)
+		r.Post("/v2/me/session/start", d.sessionHandler.Start)
+		r.Post("/v2/me/session/end", d.sessionHandler.End)
 	})
 
 	// Applications — candidate apply (RequireAuth + live candidate) + recruiter pipeline

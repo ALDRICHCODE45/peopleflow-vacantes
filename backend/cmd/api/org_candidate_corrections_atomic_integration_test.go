@@ -29,6 +29,9 @@ func TestOrgCandidateCorrectionsAtomicRollback(t *testing.T) {
 			t.Cleanup(cleanup)
 			r := f.patch(t, `{"set":{"full_name":"Must Roll Back","skills":["rust"],"education":[`+editStudy+`],"languages":[{"code":"es","level":"native"}]}}`, tag)
 			draftFlowAssertError(t, r, 500, "internal_error")
+			// The verification read below is itself an audited read of this entity: lift the
+			// block first, so it checks the rollback instead of tripping the same constraint.
+			cleanup()
 			if got := f.detail(t); string(got.body) != string(initial.body) {
 				t.Fatal("partial edit escaped rollback", string(got.body))
 			}
@@ -41,7 +44,6 @@ func TestOrgCandidateCorrectionsAtomicRollback(t *testing.T) {
 			if organicOwnedBytes(t, f) != owned {
 				t.Fatal("candidate-owned rows changed")
 			}
-			cleanup()
 		})
 	}
 }

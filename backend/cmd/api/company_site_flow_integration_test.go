@@ -30,7 +30,7 @@ func newCompanySiteFlowStorageHarness(t *testing.T, siteFiles ...sitesapp.Storag
 	h := newDraftFlowHarness(t)
 	q := db.New(h.pool)
 	users := identitypostgres.NewUserRepository(q)
-	members := companiespostgres.NewCompanyMemberRepository(h.pool)
+	members := companiespostgres.NewCompanyMemberRepository(h.pool, auditpostgres.NewAuditEventRepository())
 	companies := companiespostgres.NewCompanyRepository(h.pool, auditpostgres.NewAuditEventRepository())
 	files, err := cvstorage.NewLocal(t.TempDir())
 	if err != nil {

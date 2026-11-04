@@ -98,8 +98,8 @@ func (editLookup) MunicipalityState(_ context.Context, c, m string) (string, err
 func (editLookup) PostalMatches(context.Context, string, string) ([]geo.PostalMatch, error) {
 	return nil, nil
 }
-func (s *editMemory) Detail(ctx context.Context, c uuid.UUID, k string, id uuid.UUID) (pool.Detail, error) {
-	d, err := s.orgDetailReader.Detail(ctx, c, k, id)
+func (s *editMemory) Detail(ctx context.Context, c, _ uuid.UUID, k string, id uuid.UUID) (pool.Detail, error) {
+	d, err := s.orgDetailReader.Detail(ctx, c, uuid.Nil, k, id)
 	if err != nil {
 		return d, err
 	}
@@ -111,7 +111,7 @@ func (s *editMemory) Detail(ctx context.Context, c uuid.UUID, k string, id uuid.
 	return d, nil
 }
 func (s *editMemory) Edit(ctx context.Context, c, a, id uuid.UUID, tag string, body []byte) (pool.Detail, error) {
-	if _, err := s.Detail(ctx, c, "manual", id); err != nil {
+	if _, err := s.Detail(ctx, c, uuid.Nil, "manual", id); err != nil {
 		return pool.Detail{}, err
 	}
 	if tag != pool.ETag("manual", id, s.version) {
@@ -130,10 +130,10 @@ func (s *editMemory) Edit(ctx context.Context, c, a, id uuid.UUID, tag string, b
 		s.version++
 		s.entries = append([]pool.HistoryEntry{{ID: uuid.New(), At: time.Date(2026, 1, 1, 0, 0, 0, int(s.version)*1000, time.UTC), Actor: pool.Creator{ID: a}, Kind: "edit", Changes: changes}}, s.entries...)
 	}
-	return s.Detail(ctx, c, "manual", id)
+	return s.Detail(ctx, c, uuid.Nil, "manual", id)
 }
 func (s *editMemory) History(ctx context.Context, c uuid.UUID, k string, id uuid.UUID, q pool.HistoryQuery) (pool.HistoryPage, error) {
-	if _, err := s.Detail(ctx, c, k, id); err != nil {
+	if _, err := s.Detail(ctx, c, uuid.Nil, k, id); err != nil {
 		return pool.HistoryPage{}, err
 	}
 	out := pool.HistoryPage{Items: []pool.HistoryEntry{}}

@@ -319,7 +319,7 @@ func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := h.service.AddMember(r.Context(), cc.CompanyID, dtos.AddMemberDto{
+	created, err := h.service.AddMember(r.Context(), cc.CompanyID, cc.UserID, dtos.AddMemberDto{
 		UserID: userID,
 		Role:   req.Role,
 	})
@@ -362,7 +362,7 @@ func (h *MemberHandler) updateMemberRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.service.UpdateRole(r.Context(), cc.CompanyID, memberID, dtos.UpdateMemberRoleDto{
+	if err := h.service.UpdateRole(r.Context(), cc.CompanyID, cc.UserID, memberID, dtos.UpdateMemberRoleDto{
 		Role: req.Role,
 	}); err != nil {
 		def := classifyMemberError(err)
@@ -393,7 +393,7 @@ func (h *MemberHandler) removeMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.RemoveMember(r.Context(), cc.CompanyID, memberID); err != nil {
+	if err := h.service.RemoveMember(r.Context(), cc.CompanyID, cc.UserID, memberID); err != nil {
 		def := classifyMemberError(err)
 		if def.Code == httpjson.CodeInternalError {
 			logCompanyInternalError(r, "remove member failed")

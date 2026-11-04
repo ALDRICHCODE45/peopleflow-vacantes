@@ -1670,6 +1670,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /me/company/job-drafts",
 		"Post /me/company/requesters",
 		"Post /v2/me/candidate-account",
+		"Post /v2/me/session/end",
+		"Post /v2/me/session/start",
 		"Post /v2/me/company/job-drafts",
 		"Post /v2/me/company/job-drafts/{id}/publication",
 		"Put /v2/me/company/job-drafts/{id}/management",
@@ -2158,5 +2160,38 @@ func TestProductionComposition_RequestMetaWired(t *testing.T) {
 	}
 	if fields["ProxySecret"] != "auditProxySecret" || fields["TrustedProxies"] != "trustedProxies" || len(fields) != 2 {
 		t.Fatalf("requestmeta.Config must carry exactly ProxySecret: auditProxySecret and TrustedProxies: trustedProxies; got %v", fields)
+	}
+}
+
+// TestProductionComposition_SessionHandlerWired pins that the composition root
+// composes the session audit endpoints (audit-log-v1 §3): a router built without
+// them would answer 500 on every sign-in and sign-out report.
+func TestProductionComposition_SessionHandlerWired(t *testing.T) {
+	cf := mustParse(t, compositionFile)
+	runFn := findFuncDecl(cf, "run")
+	if runFn == nil {
+		t.Fatal("composition root has no func run")
+	}
+	var values []ast.Expr
+	ast.Inspect(runFn.Body, func(n ast.Node) bool {
+		if lit, ok := n.(*ast.CompositeLit); ok {
+			if id, ok := lit.Type.(*ast.Ident); ok && id.Name == "routerDeps" {
+				for _, elt := range lit.Elts {
+					if kv, ok := elt.(*ast.KeyValueExpr); ok {
+						if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "sessionHandler" {
+							values = append(values, kv.Value)
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+	if len(values) != 1 {
+		t.Fatalf("run must set routerDeps.sessionHandler exactly once; got %d", len(values))
+	}
+	call, ok := values[0].(*ast.CallExpr)
+	if !ok || types.ExprString(call.Fun) != "newSessionHandler" || len(call.Args) != 2 || types.ExprString(call.Args[0]) != "pool" || types.ExprString(call.Args[1]) != "auditRepo" {
+		t.Fatalf("routerDeps.sessionHandler must be newSessionHandler(pool, auditRepo); got %s", types.ExprString(values[0]))
 	}
 }

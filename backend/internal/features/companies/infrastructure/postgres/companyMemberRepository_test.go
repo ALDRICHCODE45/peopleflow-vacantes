@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	"github.com/google/uuid"
@@ -17,7 +18,7 @@ import (
 // The integration suite separately exercises the real statements and races.
 type memberMutationDB struct {
 	pgx.Tx
-	companyID, targetID                              uuid.UUID
+	companyID, targetID, userID                      uuid.UUID
 	role                                             string
 	owners                                           int64
 	exists, locked, committed, rolledBack            bool
@@ -49,14 +50,35 @@ func (s *memberMutationDB) Rollback(context.Context) error {
 	return nil
 }
 
+// memberAuditSpy records the audit events the repository appends.
+type memberAuditSpy struct{ events []auditentities.AuditEvent }
+
+func (a *memberAuditSpy) Append(_ context.Context, _ pgx.Tx, event auditentities.AuditEvent) error {
+	a.events = append(a.events, event)
+	return nil
+}
+
 type memberMutationRow struct {
-	value any
-	err   error
+	value  any
+	values []any
+	err    error
 }
 
 func (r memberMutationRow) Scan(dest ...any) error {
 	if r.err != nil {
 		return r.err
+	}
+	if r.values != nil {
+		// A caller may scan fewer columns than the fake knows (Remove reads the user only).
+		for i, target := range dest {
+			switch d := target.(type) {
+			case *uuid.UUID:
+				*d = r.values[i].(uuid.UUID)
+			case *string:
+				*d = r.values[i].(string)
+			}
+		}
+		return nil
 	}
 	switch d := dest[0].(type) {
 	case *uuid.UUID:
@@ -72,9 +94,15 @@ func (s *memberMutationDB) QueryRow(_ context.Context, sql string, args ...any) 
 	switch {
 	case strings.Contains(sql, "FOR UPDATE"):
 		s.locked = true
-		return memberMutationRow{s.companyID, s.lockErr}
+		return memberMutationRow{value: s.companyID, err: s.lockErr}
 	case strings.Contains(sql, "count(*)"):
-		return memberMutationRow{s.owners, s.countErr}
+		return memberMutationRow{value: s.owners, err: s.countErr}
+	case strings.Contains(sql, "SELECT user_id"):
+		// The member's user and current role, read to build the audit event.
+		if !s.exists || args[0] != s.targetID || args[1] != s.companyID {
+			return memberMutationRow{err: pgx.ErrNoRows}
+		}
+		return memberMutationRow{values: []any{s.userID, s.role}}
 	default:
 		if !s.exists || args[0] != s.targetID || args[1] != s.companyID {
 			return memberMutationRow{err: pgx.ErrNoRows}
@@ -124,26 +152,44 @@ func TestMemberMutationGuard(t *testing.T) {
 		{name: "unknown remove", role: "owner", owners: 1, missing: true, remove: true, want: entities.ErrMemberNotFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			state := &memberMutationDB{companyID: uuid.New(), targetID: uuid.New(), role: tc.role, owners: tc.owners, exists: !tc.missing}
-			repo := NewCompanyMemberRepository(state)
+			state := &memberMutationDB{companyID: uuid.New(), targetID: uuid.New(), userID: uuid.New(), role: tc.role, owners: tc.owners, exists: !tc.missing}
+			spy := &memberAuditSpy{}
+			repo := NewCompanyMemberRepository(state, spy)
 			companyID := state.companyID
 			if tc.foreign {
 				companyID = uuid.New()
 			}
+			actor := uuid.New()
 			var err error
 			if tc.remove {
-				err = repo.Remove(context.Background(), state.targetID, companyID)
+				err = repo.Remove(context.Background(), actor, state.targetID, companyID)
 			} else {
-				err = repo.UpdateRole(context.Background(), state.targetID, companyID, tc.next)
+				err = repo.UpdateRole(context.Background(), actor, state.targetID, companyID, tc.next)
 			}
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("error = %v, want %v", err, tc.want)
 			}
 			if tc.want != nil {
-				if state.writes != 0 || state.viewerDeletes != 0 || state.role != tc.role || state.exists != !tc.missing || state.committed {
-					t.Fatal("rejected mutation changed stored state")
+				if state.writes != 0 || state.viewerDeletes != 0 || state.role != tc.role || state.exists != !tc.missing || state.committed || len(spy.events) != 0 {
+					t.Fatal("rejected mutation changed stored state or recorded an event")
 				}
 				return
+			}
+			// One event for a removal or a real role change, none when the role stays.
+			wantEvent := ""
+			switch {
+			case tc.remove:
+				wantEvent = auditentities.EventCompanyMemberOffboarded
+			case tc.next.String() != tc.role:
+				wantEvent = auditentities.EventCompanyMemberRoleChanged
+			}
+			if wantEvent == "" && len(spy.events) != 0 {
+				t.Fatalf("a no-op role change recorded %d events", len(spy.events))
+			}
+			if wantEvent != "" {
+				if len(spy.events) != 1 || spy.events[0].EventType != wantEvent || spy.events[0].EntityID != state.targetID || *spy.events[0].ActorID != actor || *spy.events[0].CompanyID != companyID {
+					t.Fatalf("events = %+v, want one %s for the target", spy.events, wantEvent)
+				}
 			}
 			// Only a promotion to owner clears the talent base viewer row, in the same transaction.
 			if wantDeletes := map[bool]int{true: 1}[!tc.remove && tc.next == valueobjects.OwnerRole]; state.viewerDeletes != wantDeletes {
@@ -186,14 +232,14 @@ func TestMemberMutationFailuresRollback(t *testing.T) {
 				name = tc.name + "/remove"
 			}
 			t.Run(name, func(t *testing.T) {
-				state := &memberMutationDB{companyID: uuid.New(), targetID: uuid.New(), role: "owner", owners: 2, exists: true}
+				state := &memberMutationDB{companyID: uuid.New(), targetID: uuid.New(), userID: uuid.New(), role: "owner", owners: 2, exists: true}
 				tc.inject(state)
-				repo := NewCompanyMemberRepository(state)
+				repo := NewCompanyMemberRepository(state, &memberAuditSpy{})
 				var err error
 				if remove {
-					err = repo.Remove(context.Background(), state.targetID, state.companyID)
+					err = repo.Remove(context.Background(), uuid.New(), state.targetID, state.companyID)
 				} else {
-					err = repo.UpdateRole(context.Background(), state.targetID, state.companyID, valueobjects.RecruiterRole)
+					err = repo.UpdateRole(context.Background(), uuid.New(), state.targetID, state.companyID, valueobjects.RecruiterRole)
 				}
 				if !errors.Is(err, tc.want) {
 					t.Fatalf("error = %v, want %v", err, tc.want)

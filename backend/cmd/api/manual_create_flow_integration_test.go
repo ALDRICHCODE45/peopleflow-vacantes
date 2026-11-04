@@ -173,6 +173,9 @@ func TestManualCreateHTTPFlow(t *testing.T) {
 	if download.status != 200 || download.header.Get("Content-Type") != "application/pdf" || !bytes.Equal(download.body, cv) {
 		t.Fatal(download.status, string(download.body))
 	}
+	// The download is an audited read (one new audit row): the duplicate warning below
+	// must change nothing beyond it.
+	before = snapshot()
 	warning := post(data, cv, uuid.NewString())
 	if warning.status != 409 || draftFlowCatalogCode(t, warning.body) != "possible_duplicates" {
 		t.Fatal(warning.status, string(warning.body))

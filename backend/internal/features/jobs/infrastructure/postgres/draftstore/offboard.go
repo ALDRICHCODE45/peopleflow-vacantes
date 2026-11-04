@@ -354,10 +354,11 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 		return drafts.Result{}, err
 	}
 	result := drafts.Result{}
+	// Both removal paths (DELETE and offboard) record the departure in this transaction.
+	if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventCompanyMemberOffboarded, EntityType: "company_member", EntityID: membership, CompanyID: &company, StructuredMetadata: audit.CompanyMemberOffboardedMetadata(company, preview.User.ID, reassignmentIDs, response.Ended, viewerRemoved.RowsAffected() > 0)}); err != nil {
+		return drafts.Result{}, err
+	}
 	if offboard {
-		if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventCompanyMemberOffboarded, EntityType: "company_member", EntityID: membership, CompanyID: &company, StructuredMetadata: map[string]any{"company_id": company.String(), "user_id": preview.User.ID.String(), "reassignment_ids": reassignmentIDs, "ended_assignment_ids": response.Ended, "talent_base_viewer_removed": viewerRemoved.RowsAffected() > 0}}); err != nil {
-			return drafts.Result{}, err
-		}
 		result.Body, err = json.Marshal(response)
 		if err != nil {
 			return drafts.Result{}, err

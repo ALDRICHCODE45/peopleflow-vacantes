@@ -267,20 +267,11 @@ func eventConstantValues(t *testing.T) map[string]bool {
 	return values
 }
 
-// pendingEmitters are catalog types registered ahead of their emitters (T5
-// sensitive reads, sessions, member events, T2b export). Remove an entry when
-// its emitter lands: from then on the type must be referenced by production code.
+// pendingEmitters are catalog types registered ahead of their emitters (the
+// 2b audit export). Remove an entry when its emitter lands: from then on the
+// type must be referenced by production code.
 var pendingEmitters = map[string]bool{
-	EventSessionStarted:                   true,
-	EventSessionEnded:                     true,
-	EventCompanyCandidateViewed:           true,
-	EventCompanyCandidateCVDownloaded:     true,
-	EventCompanyCandidateContactsRevealed: true,
-	EventParticipationViewed:              true,
-	EventParticipationCVDownloaded:        true,
-	EventCompanyMemberAdded:               true,
-	EventCompanyMemberRoleChanged:         true,
-	EventAuditLogExported:                 true,
+	EventAuditLogExported: true,
 }
 
 // TestEveryCatalogTypeHasAnEmitter: a catalog type nobody references is either

@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
@@ -42,15 +44,19 @@ type memberDatabase interface {
 	Begin(context.Context) (pgx.Tx, error)
 }
 
-// CompanyMemberRepository owns membership mutation transactions.
+// CompanyMemberRepository owns membership mutation transactions. Every mutation
+// appends its audit event (audit-log-v1 §5) in the same transaction, so a change
+// and its record commit or roll back together.
 type CompanyMemberRepository struct {
 	database memberDatabase
 	queries  *db.Queries
+	audit    auditrepositories.AuditEventRepository
 }
 
-// NewCompanyMemberRepository wraps a transaction-capable PostgreSQL handle.
-func NewCompanyMemberRepository(database memberDatabase) *CompanyMemberRepository {
-	return &CompanyMemberRepository{database: database, queries: db.New(database)}
+// NewCompanyMemberRepository wraps a transaction-capable PostgreSQL handle and
+// the audit port the membership events go through.
+func NewCompanyMemberRepository(database memberDatabase, audit auditrepositories.AuditEventRepository) *CompanyMemberRepository {
+	return &CompanyMemberRepository{database: database, queries: db.New(database), audit: audit}
 }
 
 // Compile-time assertion that the adapter satisfies the domain port.
@@ -75,9 +81,22 @@ var _ repositories.CompanyMemberRepository = (*CompanyMemberRepository)(nil)
 // pass through unchanged (it is NOT a `mapCreateError` concern: the CHECK
 // violation means the use case let a bad entity through, which is a
 // real bug, not a client error).
-func (r *CompanyMemberRepository) Create(ctx context.Context, m *entities.CompanyMember) error {
-	_, err := r.queries.CreateCompanyMember(ctx, buildCreateMemberParams(m))
-	return mapCreateError(err)
+func (r *CompanyMemberRepository) Create(ctx context.Context, actor uuid.UUID, m *entities.CompanyMember) error {
+	tx, err := r.begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin member creation: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	if _, err := db.New(tx).CreateCompanyMember(ctx, buildCreateMemberParams(m)); err != nil {
+		return mapCreateError(err)
+	}
+	if err := r.appendEvent(ctx, tx, actor, m.CompanyID, auditentities.EventCompanyMemberAdded, m.ID, map[string]string{"member_user_id": m.UserID.String(), "role": m.Role.String()}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit member creation: %w", err)
+	}
+	return nil
 }
 
 // GetMembershipByUserID returns the user's single membership row, or
@@ -123,40 +142,81 @@ func (r *CompanyMemberRepository) ListByCompanyID(ctx context.Context, companyID
 // layer can return 404 without distinguishing the two cases (an
 // information-leak fix — a foreign target is intentionally indistinguishable
 // from "does not exist").
-func (r *CompanyMemberRepository) UpdateRole(ctx context.Context, id, companyID uuid.UUID, role valueobjects.MemberRole) error {
+func (r *CompanyMemberRepository) UpdateRole(ctx context.Context, actor, id, companyID uuid.UUID, role valueobjects.MemberRole) error {
 	return r.mutateMember(ctx, id, companyID, role == valueobjects.OwnerRole, func(tx pgx.Tx, q *db.Queries) (int64, error) {
+		// The company row is locked, so this read cannot race another member change.
+		var user uuid.UUID
+		var from string
+		if err := tx.QueryRow(ctx, `SELECT user_id, role FROM company_members WHERE id=$1 AND company_id=$2`, id, companyID).Scan(&user, &from); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return 0, nil
+			}
+			return 0, err
+		}
 		rows, err := q.UpdateMemberRole(ctx, db.UpdateMemberRoleParams{ID: id, CompanyID: companyID, Role: role.String()})
-		if err != nil || rows == 0 || role != valueobjects.OwnerRole {
+		if err != nil || rows == 0 {
 			return rows, err
 		}
-		// Owners always see the talent base, so a promoted viewer leaves the list;
-		// demoting them later must not silently bring the old selection back.
-		_, err = tx.Exec(ctx, `DELETE FROM company_talent_base_viewers WHERE company_id=$2 AND user_id=(SELECT user_id FROM company_members WHERE id=$1 AND company_id=$2)`, id, companyID)
-		return rows, err
+		if role == valueobjects.OwnerRole {
+			// Owners always see the talent base, so a promoted viewer leaves the list;
+			// demoting them later must not silently bring the old selection back.
+			if _, err = tx.Exec(ctx, `DELETE FROM company_talent_base_viewers WHERE company_id=$1 AND user_id=$2`, companyID, user); err != nil {
+				return rows, err
+			}
+		}
+		// Writing the same role again succeeds as before and records nothing.
+		if from == role.String() {
+			return rows, nil
+		}
+		return rows, r.appendEvent(ctx, tx, actor, companyID, auditentities.EventCompanyMemberRoleChanged, id, map[string]string{"member_user_id": user.String(), "from_role": from, "to_role": role.String()})
 	})
 }
 
 // Remove hard-deletes the row (design D2: no soft-delete) gated by the
 // (id, companyID) pair. Same contract as UpdateRole for the 0-rows
 // case: ErrMemberNotFound. HARD DELETE frees `user_id` for re-assignment.
-func (r *CompanyMemberRepository) Remove(ctx context.Context, id, companyID uuid.UUID) error {
-	return r.mutateMember(ctx, id, companyID, false, func(_ pgx.Tx, q *db.Queries) (int64, error) {
-		return q.RemoveCompanyMember(ctx, db.RemoveCompanyMemberParams{ID: id, CompanyID: companyID})
+//
+// This is the plain removal; the vacancy-aware path (DELETE and offboard in
+// production composition) is the draft store's, which emits the same event with
+// the same metadata shape. Here no vacancy assignment or talent base viewer row
+// is touched, so those parts of the metadata are empty/false.
+func (r *CompanyMemberRepository) Remove(ctx context.Context, actor, id, companyID uuid.UUID) error {
+	return r.mutateMember(ctx, id, companyID, false, func(tx pgx.Tx, q *db.Queries) (int64, error) {
+		var user uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT user_id FROM company_members WHERE id=$1 AND company_id=$2`, id, companyID).Scan(&user); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return 0, nil
+			}
+			return 0, err
+		}
+		rows, err := q.RemoveCompanyMember(ctx, db.RemoveCompanyMemberParams{ID: id, CompanyID: companyID})
+		if err != nil || rows == 0 {
+			return rows, err
+		}
+		metadata := auditentities.CompanyMemberOffboardedMetadata(companyID, user, []string{}, []string{}, false)
+		return rows, r.audit.Append(ctx, tx, auditentities.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: auditentities.ActorTypeUser, ActorID: &actor, EventType: auditentities.EventCompanyMemberOffboarded, EntityType: "company_member", EntityID: id, CompanyID: &companyID, StructuredMetadata: metadata})
 	})
 }
 
-func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyID uuid.UUID, retainsOwner bool, write func(pgx.Tx, *db.Queries) (int64, error)) error {
-	// Pools support explicit isolation; rollback fixtures use pgx savepoints,
-	// which inherit their outer transaction's READ COMMITTED isolation.
-	var tx pgx.Tx
-	var err error
+// begin opens the transaction of a member mutation. Pools support explicit
+// isolation; rollback fixtures use pgx savepoints, which inherit their outer
+// transaction's READ COMMITTED isolation.
+func (r *CompanyMemberRepository) begin(ctx context.Context) (pgx.Tx, error) {
 	if pool, ok := r.database.(interface {
 		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
 	}); ok {
-		tx, err = pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
-	} else {
-		tx, err = r.database.Begin(ctx)
+		return pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	}
+	return r.database.Begin(ctx)
+}
+
+// appendEvent appends a membership event on the mutation's own transaction.
+func (r *CompanyMemberRepository) appendEvent(ctx context.Context, tx pgx.Tx, actor, companyID uuid.UUID, eventType string, membership uuid.UUID, metadata map[string]string) error {
+	return r.audit.Append(ctx, tx, auditentities.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: auditentities.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "company_member", EntityID: membership, CompanyID: &companyID, Metadata: metadata})
+}
+
+func (r *CompanyMemberRepository) mutateMember(ctx context.Context, id, companyID uuid.UUID, retainsOwner bool, write func(pgx.Tx, *db.Queries) (int64, error)) error {
+	tx, err := r.begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin member mutation: %w", err)
 	}

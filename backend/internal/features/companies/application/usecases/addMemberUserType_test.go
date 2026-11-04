@@ -23,7 +23,7 @@ func TestAddMember_RecruiterIsAccepted(t *testing.T) {
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	_, err := svc.AddMember(context.Background(), uuid.New(), dtos.AddMemberDto{
+	_, err := svc.AddMember(context.Background(), uuid.New(), uuid.New(), dtos.AddMemberDto{
 		UserID: targetID,
 		Role:   "recruiter",
 	})
@@ -47,7 +47,7 @@ func TestAddMember_CandidateIsRejected(t *testing.T) {
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	_, err := svc.AddMember(context.Background(), uuid.New(), dtos.AddMemberDto{
+	_, err := svc.AddMember(context.Background(), uuid.New(), uuid.New(), dtos.AddMemberDto{
 		UserID: targetID,
 		Role:   "recruiter",
 	})
@@ -71,7 +71,7 @@ func TestAddMember_UnknownUserTypeIsRejected(t *testing.T) {
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	_, err := svc.AddMember(context.Background(), uuid.New(), dtos.AddMemberDto{
+	_, err := svc.AddMember(context.Background(), uuid.New(), uuid.New(), dtos.AddMemberDto{
 		UserID: targetID,
 		Role:   "recruiter",
 	})

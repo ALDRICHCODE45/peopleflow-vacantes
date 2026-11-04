@@ -352,7 +352,7 @@ func TestTalentBaseVisibility_OffboardRemovesViewerAndAuditsIt(t *testing.T) {
 		return r
 	}
 	metadata := func(user uuid.UUID, removed bool) map[string]any {
-		return map[string]any{"company_id": company.companyID.String(), "user_id": user.String(), "reassignment_ids": []any{}, "ended_assignment_ids": []any{}, "talent_base_viewer_removed": removed}
+		return map[string]any{"company_id": company.companyID.String(), "user_id": user.String(), "member_user_id": user.String(), "reassignment_ids": []any{}, "ended_assignment_ids": []any{}, "talent_base_viewer_removed": removed}
 	}
 	membership := func(user uuid.UUID) string { return memberGuardID(t, h.pool, user).String() }
 
@@ -379,7 +379,7 @@ func TestTalentBaseVisibility_OffboardRemovesViewerAndAuditsIt(t *testing.T) {
 	}
 }
 
-func TestTalentBaseVisibility_RemovingAMemberDropsTheViewerWithoutAnEvent(t *testing.T) {
+func TestTalentBaseVisibility_RemovingAMemberDropsTheViewerAndAuditsIt(t *testing.T) {
 	h := newDraftFlowHarness(t)
 	company, ownerID, ownerSub := draftFlowNewPrincipal(t, h.pool, "active")
 	owner := h.actor(t, ownerID, ownerSub)
@@ -392,9 +392,8 @@ func TestTalentBaseVisibility_RemovingAMemberDropsTheViewerWithoutAnEvent(t *tes
 		t.Fatalf("remove %d %s", r.status, r.body)
 	}
 	editJSONEqual(t, tbViewerIDs(t, tbGet(t, h, owner).body), []string{})
-	if n := draftFlowAuditCount(t, h.pool, uuid.MustParse(membership), "CompanyMemberOffboarded"); n != 0 {
-		t.Fatalf("plain removal emits no member event, got %d", n)
-	}
+	// DELETE records the departure like the offboard route does (audit-log-v1 §5).
+	offboardAssertAudit(t, h, ownerID, "CompanyMemberOffboarded", "company_member", membership, map[string]any{"company_id": company.companyID.String(), "user_id": leaverID.String(), "member_user_id": leaverID.String(), "reassignment_ids": []any{}, "ended_assignment_ids": []any{}, "talent_base_viewer_removed": true})
 }
 
 func TestTalentBaseVisibility_PromotionToOwnerDropsTheViewerRow(t *testing.T) {

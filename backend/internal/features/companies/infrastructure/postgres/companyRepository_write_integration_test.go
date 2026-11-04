@@ -1430,7 +1430,7 @@ func TestGetMyMembership_HidesTombstonedCompany(t *testing.T) {
 	})
 
 	companyRepo := newTestCompanyRepository(pool)
-	memberRepo := NewCompanyMemberRepository(pool)
+	memberRepo := NewCompanyMemberRepository(pool, auditpostgres.NewAuditEventRepository())
 	svc := usecases.NewCompanyMemberService(memberRepo, stubIdentityUserRepo{sub: sub, userID: userID}, companyRepo)
 
 	if _, _, err := svc.GetMyMembership(ctx, sub); !errors.Is(err, entities.ErrCompanyNotFound) {

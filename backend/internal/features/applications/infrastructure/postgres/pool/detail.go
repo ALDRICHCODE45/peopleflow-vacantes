@@ -8,15 +8,18 @@ import (
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/candidateview"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 // All detail reads share a snapshot, including the latest frozen profile and
 // current contact. Reuse the list projection, not its separate transaction.
-func (s *Store) Detail(ctx context.Context, company uuid.UUID, kind string, id uuid.UUID) (app.Detail, error) {
+// The read records itself (audit-log-v1 §2) in that same transaction, so the
+// transaction is read-write and a failed audit insert fails the read.
+func (s *Store) Detail(ctx context.Context, company, actor uuid.UUID, kind string, id uuid.UUID) (app.Detail, error) {
 	var out app.Detail
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return out, err
 	}
@@ -24,6 +27,9 @@ func (s *Store) Detail(ctx context.Context, company uuid.UUID, kind string, id u
 	out, err = s.detail(ctx, tx, company, kind, id)
 	if err != nil {
 		return out, err
+	}
+	if err = s.audit.Append(ctx, tx, auditentities.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: auditentities.ActorTypeUser, ActorID: &actor, EventType: auditentities.EventCompanyCandidateViewed, EntityType: "company_candidate", EntityID: id, CompanyID: &company, Metadata: map[string]string{"kind": kind}}); err != nil {
+		return app.Detail{}, err
 	}
 	return out, tx.Commit(ctx)
 }
@@ -167,25 +173,36 @@ const detailParticipationsSQL = `SELECT jsonb_build_object(
 
 // Scope the exact participation before opening private storage. No board Load:
 // every recruiter in the company can download these referenced versions.
-func (s *Store) File(ctx context.Context, company uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
-	return s.file(ctx, company, kind, id, pid, false)
+func (s *Store) File(ctx context.Context, company, actor uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
+	return s.file(ctx, company, actor, kind, id, pid, false)
 }
-func (s *Store) OriginalFile(ctx context.Context, company uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
-	return s.file(ctx, company, kind, id, pid, true)
+func (s *Store) OriginalFile(ctx context.Context, company, actor uuid.UUID, kind string, id, pid uuid.UUID) (board.File, error) {
+	return s.file(ctx, company, actor, kind, id, pid, true)
 }
-func (s *Store) file(ctx context.Context, company uuid.UUID, kind string, id, pid uuid.UUID, original bool) (board.File, error) {
-	var out board.File
+
+// file opens the CV and records the download (audit-log-v1 §2) BEFORE it returns
+// the stream, so the row is committed before the first byte leaves: a download
+// interrupted mid-stream stays recorded. Nothing is recorded when the CV is not
+// found or storage is unavailable, and a failed audit insert closes the stream
+// and serves nothing.
+func (s *Store) file(ctx context.Context, company, actor uuid.UUID, kind string, id, pid uuid.UUID, original bool) (out board.File, err error) {
 	var key *string
 	var name, contentType *string
 	var size *int64
-	err := s.pool.QueryRow(ctx, `SELECT `+candidateview.CVFileSQL+`
+	var vacancy uuid.UUID
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return out, err
+	}
+	defer tx.Rollback(ctx)
+	err = tx.QueryRow(ctx, `SELECT p.process_id,`+candidateview.CVFileSQL+`
  FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id AND vp.company_id=$1
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=$1
  LEFT JOIN company_candidate_cvs corrected ON corrected.id=p.corrected_company_cv_id AND corrected.company_id=$1 AND NOT $5::boolean
  LEFT JOIN company_candidate_cvs mc ON mc.id=p.company_candidate_cv_id AND mc.company_id=$1
  LEFT JOIN candidate_cv_versions v ON v.id=p.cv_version_id
  LEFT JOIN candidate_cv_library l ON l.version_id=v.id
- WHERE p.id=$4 AND (($2='manual' AND cc.id=$3) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3))`, company, kind, id, pid, original).Scan(&name, &contentType, &size, &key, &out.CompanyCorrected)
+ WHERE p.id=$4 AND (($2='manual' AND cc.id=$3) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3))`, company, kind, id, pid, original).Scan(&vacancy, &name, &contentType, &size, &key, &out.CompanyCorrected)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, board.ErrNotFound
 	}
@@ -199,6 +216,21 @@ func (s *Store) file(ctx context.Context, company uuid.UUID, kind string, id, pi
 		return out, board.ErrStorageUnavailable
 	}
 	out.Name, out.ContentType, out.Size = *name, *contentType, *size
-	out.Reader, err = s.storage.Open(ctx, *key)
-	return out, err
+	reader, err := s.storage.Open(ctx, *key)
+	if err != nil {
+		return board.File{}, err
+	}
+	variant := "current"
+	if original {
+		variant = "original"
+	}
+	if err = s.audit.Append(ctx, tx, auditentities.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: auditentities.ActorTypeUser, ActorID: &actor, EventType: auditentities.EventCompanyCandidateCVDownloaded, EntityType: "company_candidate", EntityID: id, CompanyID: &company, VacancyID: &vacancy, Metadata: map[string]string{"kind": kind, "participation_id": pid.String(), "variant": variant}}); err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		_ = reader.Close()
+		return board.File{}, err
+	}
+	out.Reader = reader
+	return out, nil
 }

@@ -79,6 +79,11 @@ func companySiteValidator() *sitesapp.Validator {
 		return &sitesapp.RichDocument{Canonical: doc.Canonical, Plain: doc.Plain}, nil
 	})
 }
+
+// newSessionHandler composes the session audit endpoints (audit-log-v1 §3).
+func newSessionHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *identityhttp.SessionHandler {
+	return identityhttp.NewSessionHandler(identityusecases.NewSessions(identitypostgres.NewSessionStore(pool, events)))
+}
 func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
 	validator := companySiteValidator()
 	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)), events)
@@ -242,7 +247,7 @@ func run() error {
 	// (design D6 — IDOR-resistant boundary). The companies repo is the
 	// existing one above; the member handler's GetMyMembership fetches
 	// the company record through it.
-	memberRepo := postgres.NewCompanyMemberRepository(pool)
+	memberRepo := postgres.NewCompanyMemberRepository(pool, auditRepo)
 	memberService := usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geography)
 	// One store answers the setting endpoints and the capability flag, so both
 	// use the same access rule.
@@ -372,7 +377,7 @@ func run() error {
 	r := newRouter(routerDeps{
 		siteHandler: newCompanySiteHandler(pool, auditRepo, siteStorage),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
-		requireCandidate: requireCandidate, identityHandler: identityHandler,
+		requireCandidate: requireCandidate, identityHandler: identityHandler, sessionHandler: newSessionHandler(pool, auditRepo),
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		candidatePoolHandler: candidatePoolHandler,
 		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),

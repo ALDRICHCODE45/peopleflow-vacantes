@@ -175,7 +175,7 @@ func (s *CompanyMemberService) ListMembers(ctx context.Context, companyID uuid.U
 // Validation failures (invalid role) short-circuit BEFORE the
 // repository is invoked; the repository's role is to persist a
 // well-formed entity, not to police domain invariants.
-func (s *CompanyMemberService) AddMember(ctx context.Context, companyID uuid.UUID, params dtos.AddMemberDto) (*entities.CompanyMember, error) {
+func (s *CompanyMemberService) AddMember(ctx context.Context, companyID, actorID uuid.UUID, params dtos.AddMemberDto) (*entities.CompanyMember, error) {
 	role, err := valueobjects.ParseMemberRole(params.Role)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (s *CompanyMemberService) AddMember(ctx context.Context, companyID uuid.UUI
 		return nil, err
 	}
 
-	if err := s.memberRepo.Create(ctx, member); err != nil {
+	if err := s.memberRepo.Create(ctx, actorID, member); err != nil {
 		return nil, err
 	}
 	return member, nil
@@ -210,20 +210,22 @@ func (s *CompanyMemberService) AddMember(ctx context.Context, companyID uuid.UUI
 // injected (design D6 — "resolves once"). The repository's same-company
 // guard (design D7) makes cross-company targets surface as
 // entities.ErrMemberNotFound, which the service propagates unchanged so
-// the HTTP layer can map to 404.
-func (s *CompanyMemberService) UpdateRole(ctx context.Context, companyID uuid.UUID, memberID uuid.UUID, params dtos.UpdateMemberRoleDto) error {
+// the HTTP layer can map to 404. actorID is the acting user, recorded in the
+// CompanyMemberRoleChanged event when the role changes.
+func (s *CompanyMemberService) UpdateRole(ctx context.Context, companyID, actorID, memberID uuid.UUID, params dtos.UpdateMemberRoleDto) error {
 	role, err := valueobjects.ParseMemberRole(params.Role)
 	if err != nil {
 		return err
 	}
 
-	return s.memberRepo.UpdateRole(ctx, memberID, companyID, role)
+	return s.memberRepo.UpdateRole(ctx, actorID, memberID, companyID, role)
 }
 
 // RemoveMember hard-deletes the target row. The same-company guard
 // contract is identical to UpdateRole: target id from the path,
 // company_id from the CompanyContext the middleware injected, and a
-// cross-company target surfaces as entities.ErrMemberNotFound → 404.
-func (s *CompanyMemberService) RemoveMember(ctx context.Context, companyID uuid.UUID, memberID uuid.UUID) error {
-	return s.memberRepo.Remove(ctx, memberID, companyID)
+// cross-company target surfaces as entities.ErrMemberNotFound → 404. actorID is
+// the acting user, recorded in the CompanyMemberOffboarded event.
+func (s *CompanyMemberService) RemoveMember(ctx context.Context, companyID, actorID, memberID uuid.UUID) error {
+	return s.memberRepo.Remove(ctx, actorID, memberID, companyID)
 }

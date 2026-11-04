@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +27,7 @@ func TestListByCompanyID_EnrichesUserAndNullsDeleted(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
 
-	repo := NewCompanyMemberRepository(tx)
+	repo := NewCompanyMemberRepository(tx, auditpostgres.NewAuditEventRepository())
 
 	suffix := uuid.NewString()[:6]
 	industryID := "list-join-industry"

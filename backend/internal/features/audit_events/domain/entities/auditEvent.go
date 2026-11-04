@@ -72,6 +72,21 @@ func CompanyDeletedMetadata(closedCount int) map[string]string {
 	return map[string]string{"jobs_closed": strconv.Itoa(closedCount)}
 }
 
+// CompanyMemberOffboardedMetadata assembles the metadata of CompanyMemberOffboarded,
+// the one shape both removal paths (DELETE and offboard) emit (audit-log-v1 §5).
+// user_id is the legacy spelling of member_user_id and is kept so rows keep one
+// shape. IDs and a flag only: no names or emails.
+func CompanyMemberOffboardedMetadata(company, user uuid.UUID, reassignmentIDs, endedAssignmentIDs []string, talentBaseViewerRemoved bool) map[string]any {
+	return map[string]any{
+		"company_id":                 company.String(),
+		"user_id":                    user.String(),
+		"member_user_id":             user.String(),
+		"reassignment_ids":           reassignmentIDs,
+		"ended_assignment_ids":       endedAssignmentIDs,
+		"talent_base_viewer_removed": talentBaseViewerRemoved,
+	}
+}
+
 // AuditEvent is the append-only audit event the emitting write path builds.
 // OccurredAt is NOT a field: the DB now() DEFAULT supplies server time.
 type AuditEvent struct {

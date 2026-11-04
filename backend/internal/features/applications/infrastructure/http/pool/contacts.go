@@ -32,7 +32,7 @@ func (h *Handler) Contacts(decode board.JSONDecoder) http.HandlerFunc {
 			editError(w, err)
 			return
 		}
-		out, err := h.service.Contacts(r.Context(), cc.CompanyID, candidates)
+		out, err := h.service.Contacts(r.Context(), cc.CompanyID, cc.UserID, candidates)
 		if err != nil {
 			detailError(w, err)
 			return

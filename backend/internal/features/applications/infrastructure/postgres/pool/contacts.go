@@ -3,23 +3,33 @@ package pool
 import (
 	"context"
 	"encoding/json"
+	"sort"
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
 )
 
 // The requested identities are joined to the same company pool as the list,
 // before reading contact. A correction alone never establishes membership.
 // One statement snapshot covers membership, live contact and corrections.
-func (s *Store) Contacts(ctx context.Context, company uuid.UUID, candidates []app.Identity) ([]app.ContactItem, error) {
+// Revealing contacts records itself (audit-log-v1 §2) in the same transaction:
+// the row lists the candidates whose contact was actually returned, as IDs only,
+// and nothing is recorded when none was.
+func (s *Store) Contacts(ctx context.Context, company, actor uuid.UUID, candidates []app.Identity) ([]app.ContactItem, error) {
 	kinds := make([]string, len(candidates))
 	ids := make([]uuid.UUID, len(candidates))
 	for i, c := range candidates {
 		kinds[i] = c.Kind
 		ids[i] = c.ID
 	}
-	rows, err := s.pool.Query(ctx, `WITH requested AS (
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `WITH requested AS (
  SELECT kind,id,ordinal FROM unnest($2::text[],$3::uuid[]) WITH ORDINALITY r(kind,id,ordinal)
  ), contacts AS (
  SELECT r.kind,r.id,r.ordinal,cc.email,cc.phone,'{}'::jsonb AS corrections
@@ -58,5 +68,34 @@ func (s *Store) Contacts(ctx context.Context, company uuid.UUID, candidates []ap
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	rows.Close()
+	if len(out) > 0 {
+		if err := s.audit.Append(ctx, tx, auditentities.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: auditentities.ActorTypeUser, ActorID: &actor, EventType: auditentities.EventCompanyCandidateContactsRevealed, EntityType: auditentities.EntityCompany, EntityID: company, CompanyID: &company, StructuredMetadata: revealedMetadata(out)}); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// revealedMetadata is the audit metadata of a contacts reveal: the count and the
+// revealed candidates as {kind, id} sorted by kind then id. Never the contact values.
+func revealedMetadata(items []app.ContactItem) map[string]any {
+	revealed := make([]app.Identity, len(items))
+	for i, item := range items {
+		revealed[i] = item.Identity
+	}
+	sort.Slice(revealed, func(i, j int) bool {
+		if revealed[i].Kind != revealed[j].Kind {
+			return revealed[i].Kind < revealed[j].Kind
+		}
+		return revealed[i].ID.String() < revealed[j].ID.String()
+	})
+	candidates := make([]map[string]string, len(revealed))
+	for i, c := range revealed {
+		candidates[i] = map[string]string{"kind": c.Kind, "id": c.ID.String()}
+	}
+	return map[string]any{"count": len(revealed), "candidates": candidates}
 }

@@ -84,7 +84,7 @@ func (s *orgCandidatesReader) Summary(_ context.Context, company uuid.UUID) (poo
 	return poolapp.Summary{Total: 5, WithActiveProcess: 2, AddedLast7Days: 3, ByKind: poolapp.KindCounts{Manual: 2, Organic: 3}}, nil
 }
 
-func (s *orgCandidatesReader) Contacts(_ context.Context, company uuid.UUID, candidates []poolapp.Identity) ([]poolapp.ContactItem, error) {
+func (s *orgCandidatesReader) Contacts(_ context.Context, company, _ uuid.UUID, candidates []poolapp.Identity) ([]poolapp.ContactItem, error) {
 	s.contactCalls++
 	s.contactSelections = append([]poolapp.Identity{}, candidates...)
 	if company != routeTestCompanyID {
@@ -101,10 +101,10 @@ func (s *orgCandidatesReader) Contacts(_ context.Context, company uuid.UUID, can
 	return items, nil
 }
 
-func (s *orgCandidatesReader) Detail(context.Context, uuid.UUID, string, uuid.UUID) (poolapp.Detail, error) {
+func (s *orgCandidatesReader) Detail(context.Context, uuid.UUID, uuid.UUID, string, uuid.UUID) (poolapp.Detail, error) {
 	return poolapp.Detail{}, boardapp.ErrNotFound
 }
-func (s *orgCandidatesReader) File(context.Context, uuid.UUID, string, uuid.UUID, uuid.UUID) (boardapp.File, error) {
+func (s *orgCandidatesReader) File(context.Context, uuid.UUID, uuid.UUID, string, uuid.UUID, uuid.UUID) (boardapp.File, error) {
 	return boardapp.File{}, boardapp.ErrNotFound
 }
 

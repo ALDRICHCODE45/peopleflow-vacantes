@@ -47,8 +47,8 @@ Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, 
 - [x] T4 — S2, S4.5, S4.7: `CompanyID`/`VacancyID` on every emitter (incl. raw SQL ones), event catalog constants +
   categories, test: no employer-side type with null `company_id`, allowed metadata keys per type. Route: worker
   mw1rxaxp. Commit: next feat commit.
-- [ ] T5 — S1, S2, S4.1–S4.3: sensitive reads (§2), `POST /v2/me/session/start|end` (§3), member events (§5), route
-  inventory. Commit: —.
+- [x] T5 — S1, S2, S4.1–S4.3: sensitive reads (§2), `POST /v2/me/session/start|end` (§3), member events (§5), route
+  inventory. Route: worker mw1tpt8l. Commit: next feat commit.
 - [ ] T6 — verify 2a (independent, security) + full integration. Commit: —.
 
 Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
@@ -95,3 +95,10 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   clean; unit 107 ok, 1 FAIL scripts/closure; full integration 107 ok, 3 FAIL = the known scripts/closure,
   identity/postgres down-test and its jobs/postgres cascade. archguard: 2 violations in files unchanged vs main
   (pre-existing). One flaky `TestPublicGeoSearchIndexCapability` on the first run, green on rerun.
+- L9 — T5 (worker mw1tpt8l): RED 0 rows/404 → GREEN through HTTP for §2, §3, §5. Findings folded into the contract:
+  no 304 path exists (every read is 200 + row); session body not read; contacts writes only revealed candidates and no
+  row when none; pool CV rows carry vacancy_id; `DELETE /me/company/members/{id}` wrote no audit before (now
+  `CompanyMemberOffboarded`); plain `removeMember` unreachable in production but audits too. Changed tests on purpose:
+  `TestTalentBaseVisibility_RemovingAMemberDropsTheViewerAndAuditsIt`, three `*AtomicRollback`, `TestManualCreateHTTPFlow`
+  snapshot. Checks: gofmt/build/vet clean; unit 108 ok, 1 FAIL scripts/closure; full integration 108 ok, 3 FAIL = the
+  known three; archguard same 2 pre-existing.

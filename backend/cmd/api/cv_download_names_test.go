@@ -21,10 +21,10 @@ type namedPoolCVReader struct {
 	name, typ string
 }
 
-func (s *namedPoolCVReader) File(context.Context, uuid.UUID, string, uuid.UUID, uuid.UUID) (board.File, error) {
+func (s *namedPoolCVReader) File(context.Context, uuid.UUID, uuid.UUID, string, uuid.UUID, uuid.UUID) (board.File, error) {
 	return namedCVFile(s.name, s.typ), nil
 }
-func (s *namedPoolCVReader) OriginalFile(context.Context, uuid.UUID, string, uuid.UUID, uuid.UUID) (board.File, error) {
+func (s *namedPoolCVReader) OriginalFile(context.Context, uuid.UUID, uuid.UUID, string, uuid.UUID, uuid.UUID) (board.File, error) {
 	return namedCVFile(s.name, s.typ), nil
 }
 

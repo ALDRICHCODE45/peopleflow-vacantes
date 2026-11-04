@@ -270,7 +270,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 
 	queries := db.New(pool)
 	identityUserRepo := identitypostgres.NewUserRepository(queries)
-	memberRepo := companiespostgres.NewCompanyMemberRepository(pool)
+	memberRepo := companiespostgres.NewCompanyMemberRepository(pool, auditpostgres.NewAuditEventRepository())
 	companyRepo := companiespostgres.NewCompanyRepository(pool, auditRepo)
 
 	talentBase := talentbasepostgres.NewStore(pool, auditRepo)
@@ -300,6 +300,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),
 		requireTalentBase:    talentbasehttp.Gate(talentBase),
 		siteHandler:          newCompanySiteHandler(pool, auditpostgres.NewAuditEventRepository(), nil),
+		sessionHandler:       newSessionHandler(pool, auditpostgres.NewAuditEventRepository()),
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,
 		teamHandler:          jobshttp.NewTeamHandler(store),
@@ -378,6 +379,7 @@ func (c *draftFlowCompany) cleanup() {
 	for _, query := range []string{
 		`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
 		`DELETE FROM audit_events WHERE metadata->>'company_id' = $1::text`,
+		`DELETE FROM audit_events WHERE company_id = $1`,
 	} {
 		if err := audittest.Delete(ctx, c.pool, query, c.companyID); err != nil {
 			c.t.Errorf("HTTP company fixture audit cleanup failed: %v", err)

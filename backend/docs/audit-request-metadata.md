@@ -30,3 +30,6 @@ before authentication, and stores `requestmeta.Meta` in the request context.
 - `Append` writes `ip`, `user_agent` and `ip_source` from the request context;
   a context without metadata (system jobs) writes `NULL` for all three.
   Emitters do not pass them. `company_id` and `vacancy_id` come from the event.
+
+Which events carry this metadata (sensitive reads, sessions, member changes) is
+in [audit-capture.md](audit-capture.md).
