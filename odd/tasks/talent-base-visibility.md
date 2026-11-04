@@ -67,3 +67,11 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
   all_recruiters with ids, then version, then members; offboard/promotion clean-up does not bump the version. Integration
   defect fixed test-first in `352eeac2`: the strict document schema rejected the 412 body, losing the current setting.
   T4 QA requested: branch API on :8081 with its own DB; :8080 stays on main.
+- **L10** T4 owner side verified in the browser (Playwright, user signed in as Test User, owner of «Trust People
+  Company»; Next :3000 with `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:8081`, backend `7c788d72`, then `32d831e2` after
+  the backend's verifier fixed a PUT/edit deadlock): real GET loads «Todos los reclutadores»; the picker lists the real
+  recruiters (Diego Hernández, Ana López) without the owner; «Usuarios seleccionados» + Ana saves and survives a reload;
+  the empty list shows the warning, saves and survives a reload; back to «Todos los reclutadores» hides the picker and
+  saves; the owner keeps «Base de talento» in the sidebar; console clean. Mobile 390px dark readable. The setting was
+  left on «Todos los reclutadores». The one «No pudimos cargar…» seen was the QA API restarting. Recruiter side pending:
+  the user creates a second Cognito recruiter account (QA seeds cannot sign in).
