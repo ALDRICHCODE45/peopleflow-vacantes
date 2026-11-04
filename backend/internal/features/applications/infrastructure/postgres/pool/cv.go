@@ -20,6 +20,9 @@ func (s *Store) CorrectCV(ctx context.Context, company, actor uuid.UUID, kind st
 		return out, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireTalentBase(ctx, tx, company, actor); err != nil {
+		return out, err
+	}
 	// Membership is checked before creating an organic lock row or storing a file.
 	var visible bool
 	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id AND vp.company_id=$1 WHERE p.id=$4 AND (($2='manual' AND p.company_candidate_id=$3 AND EXISTS(SELECT 1 FROM company_candidates cc WHERE cc.id=$3 AND cc.company_id=$1)) OR ($2='organic' AND p.company_candidate_id IS NULL AND p.candidate_id=$3)))`, company, kind, id, pid).Scan(&visible)

@@ -31,6 +31,7 @@ func orgCandidatesRouter(readers ...poolapp.Reader) http.Handler {
 	return newRouter(routerDeps{
 		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(reader)),
 		requireAuth:          routeRequireAuth,
+		requireTalentBase:    routeAllowTalentBase,
 		requireOwner:         routeRoleGate(companies.OwnerRole, routeTestOwnerHeader),
 		requireRecruiter:     routeRoleGate(companies.RecruiterRole, routeTestRecruiterHeader),
 	})

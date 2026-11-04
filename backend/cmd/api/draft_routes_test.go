@@ -101,6 +101,10 @@ func routeRequireAuth(next http.Handler) http.Handler {
 	})
 }
 
+// routeAllowTalentBase stands in for the talent base gate on route tests whose
+// fakes never reach a database; the real gate is covered by the HTTP integration tests.
+func routeAllowTalentBase(next http.Handler) http.Handler { return next }
+
 func routeRoleGate(role companiesvalueobjects.MemberRole, header string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

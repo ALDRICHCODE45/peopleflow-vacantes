@@ -95,7 +95,7 @@ func (s *Store) CreateManual(ctx context.Context, company, actor, id uuid.UUID, 
 	if field := app.ValidateManualStage(validated.StageID.String(), p); field != nil {
 		return out, &app.ManualValidationError{Fields: []app.ManualFieldError{*field}}
 	}
-	identity, profile, err := manualIdentity(ctx, tx, company, id, validated)
+	identity, profile, err := manualIdentity(ctx, tx, company, actor, id, validated)
 	if err != nil {
 		return out, err
 	}

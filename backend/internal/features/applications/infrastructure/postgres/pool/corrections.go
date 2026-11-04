@@ -25,6 +25,9 @@ func (s *Store) EditOrganic(ctx context.Context, company, actor, id uuid.UUID, e
 		return out, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireTalentBase(ctx, tx, company, actor); err != nil {
+		return out, err
+	}
 	var visible bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id WHERE vp.company_id=$1 AND p.company_candidate_id IS NULL AND p.candidate_id=$2)`, company, id).Scan(&visible); err != nil {
 		return out, err

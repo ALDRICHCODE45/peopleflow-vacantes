@@ -345,12 +345,17 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 			return drafts.Result{}, err
 		}
 	}
+	// The talent base viewer row goes with the membership, so it can be audited.
+	viewerRemoved, err := tx.Exec(ctx, `DELETE FROM company_talent_base_viewers WHERE company_id=$1 AND user_id=$2`, company, preview.User.ID)
+	if err != nil {
+		return drafts.Result{}, err
+	}
 	if _, err := db.New(tx).RemoveCompanyMember(ctx, db.RemoveCompanyMemberParams{ID: membership, CompanyID: company}); err != nil {
 		return drafts.Result{}, err
 	}
 	result := drafts.Result{}
 	if offboard {
-		if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "CompanyMemberOffboarded", EntityType: "company_member", EntityID: membership, StructuredMetadata: map[string]any{"company_id": company.String(), "user_id": preview.User.ID.String(), "reassignment_ids": reassignmentIDs, "ended_assignment_ids": response.Ended}}); err != nil {
+		if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "CompanyMemberOffboarded", EntityType: "company_member", EntityID: membership, StructuredMetadata: map[string]any{"company_id": company.String(), "user_id": preview.User.ID.String(), "reassignment_ids": reassignmentIDs, "ended_assignment_ids": response.Ended, "talent_base_viewer_removed": viewerRemoved.RowsAffected() > 0}}); err != nil {
 			return drafts.Result{}, err
 		}
 		result.Body, err = json.Marshal(response)

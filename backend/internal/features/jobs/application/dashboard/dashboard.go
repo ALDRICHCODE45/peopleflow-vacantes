@@ -48,7 +48,7 @@ type Recent struct {
 type Dashboard struct {
 	PublishedVacancies int64     `json:"published_vacancies"`
 	InProcess          int64     `json:"in_process"`
-	PoolAddedLast7Days int64     `json:"pool_added_last_7_days"`
+	PoolAddedLast7Days *int64    `json:"pool_added_last_7_days"` // nil without talent base access
 	Positions          Positions `json:"positions"`
 	OriginByDay        []Day     `json:"origin_by_day"`
 	Recent             []Recent  `json:"recent"`

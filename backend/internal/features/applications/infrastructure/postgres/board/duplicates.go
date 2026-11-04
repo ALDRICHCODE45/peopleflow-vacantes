@@ -53,7 +53,35 @@ func (s *Store) DuplicatesCheck(ctx context.Context, company, actor, id uuid.UUI
 	if fields := request.Validate(); len(fields) > 0 {
 		return out, &app.ManualValidationError{Fields: fields}
 	}
-	return readManualDuplicates(ctx, tx, company, id, request.Email, request.Phone)
+	canViewTalentBase, err := talentBaseAccess(ctx, tx, company, actor)
+	if err != nil {
+		return out, err
+	}
+	out, err = readManualDuplicates(ctx, tx, company, id, request.Email, request.Phone)
+	if err != nil || canViewTalentBase {
+		return out, err
+	}
+	return hideLastSeen(out), nil
+}
+
+// talentBaseAccess answers whether the actor may use the company talent base:
+// owners, all_recruiters (also when the setting was never saved) and listed viewers.
+func talentBaseAccess(ctx context.Context, tx pgx.Tx, company, actor uuid.UUID) (bool, error) {
+	var allowed bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_id=$1 AND user_id=$2 AND role='owner')
+ OR COALESCE((SELECT mode='all_recruiters' FROM company_talent_base_settings WHERE company_id=$1),true)
+ OR EXISTS(SELECT 1 FROM company_talent_base_viewers WHERE company_id=$1 AND user_id=$2)`, company, actor).Scan(&allowed)
+	return allowed, err
+}
+
+// hideLastSeen drops where the match was last added: that is talent base
+// history. The recruiter still sees who it is and whether it is already here.
+func hideLastSeen(matches app.DuplicateMatches) app.DuplicateMatches {
+	for i := range matches.Matches {
+		matches.Matches[i].LastVacancy = nil
+		matches.Matches[i].LastAddedAt = nil
+	}
+	return matches
 }
 
 func readManualDuplicates(ctx context.Context, tx pgx.Tx, company, id uuid.UUID, email, phone *string) (app.DuplicateMatches, error) {

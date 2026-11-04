@@ -23,6 +23,9 @@ func (s *Store) Edit(ctx context.Context, company, actor, id uuid.UUID, etag str
 		return out, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireTalentBase(ctx, tx, company, actor); err != nil {
+		return out, err
+	}
 	var version int64
 	err = tx.QueryRow(ctx, `SELECT version FROM company_candidates WHERE company_id=$1 AND id=$2 FOR UPDATE`, company, id).Scan(&version)
 	if errors.Is(err, pgx.ErrNoRows) {

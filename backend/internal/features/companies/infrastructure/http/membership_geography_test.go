@@ -44,7 +44,7 @@ func TestMembershipCompanyLocationAndTokenAllMembers(t *testing.T) {
 					t.Fatalf("GET: %d %s", rec.Code, rec.Body.String())
 				}
 				root := companyObject(t, rec.Body.Bytes())
-				assertCompanyKeys(t, root, "company_id", "role", "company")
+				assertCompanyKeys(t, root, "company_id", "role", "company", "can")
 				obj := companyObject(t, root["company"])
 				assertCompanyKeys(t, obj, "id", "name", "rfc", "industry_id", "status", "location", "updated_at")
 				if string(obj["updated_at"]) != `"`+company.UpdatedAt.UTC().Format(time.RFC3339Nano)+`"` {

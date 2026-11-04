@@ -17,13 +17,21 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func manualIdentity(ctx context.Context, tx pgx.Tx, company, process uuid.UUID, r app.ValidatedManualRequest) (uuid.UUID, []byte, error) {
+func manualIdentity(ctx context.Context, tx pgx.Tx, company, actor, process uuid.UUID, r app.ValidatedManualRequest) (uuid.UUID, []byte, error) {
 	if r.Existing == nil {
 		matches, err := readManualDuplicates(ctx, tx, company, process, r.Candidate.EmailNormalized, r.Candidate.Phone)
 		if err != nil {
 			return uuid.Nil, nil, err
 		}
 		if len(matches.Matches) > 0 && !r.ConfirmedDistinct {
+			// Same warning as duplicates-check: without talent base access it omits the last vacancy.
+			canViewTalentBase, err := talentBaseAccess(ctx, tx, company, actor)
+			if err != nil {
+				return uuid.Nil, nil, err
+			}
+			if !canViewTalentBase {
+				matches = hideLastSeen(matches)
+			}
 			return uuid.Nil, nil, &app.PossibleDuplicates{Matches: matches.Matches}
 		}
 		c := r.Candidate

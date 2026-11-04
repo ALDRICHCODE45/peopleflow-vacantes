@@ -162,3 +162,8 @@ Backend half of the frontend `feat/vacancy-team` over the agreed contract `docs/
 - L26 — T8 done (1b6fff9e): boundary clarified (543eb8ba: ending unfulfilled ON the deadline date → unfinished, delta 0);
   one HTTP test per deadline_result case incl. date boundaries and holidays; injectable store clock (default time.Now).
   Full integration 53 ok, 0 FAIL.
+- L27 — Merged into local main by the frontend session (e8ba66ed backend, d58fd03a frontend; not pushed). User
+  (verbatim, via frontend): «baja los procesos por favor, todos.» Stopped :8081 and :8080, removed `.scratch/api-team`
+  and `.scratch/api-main` and the QA binaries. Kept (processes only): DB `peopleflow_vacancies_team`, Docker
+  `peopleflow-vacancies` (dev, still at 53) and `pf-draft-test`. Pending for the user: `go run ./cmd/migrate up` on the dev
+  DB, push, removing pf-draft-test / the QA DB / merged branches.
