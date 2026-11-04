@@ -110,3 +110,19 @@ source `docs/product/next-three-features.md` §2.
   start/end ignore the body and answer 500 on audit failure (frontend already sends none and ignores failures); no 304
   path; contacts row lists only returned candidates; member DELETE also emits `CompanyMemberOffboarded`; Annex now has
   the 63 labels. Frontend adopted the 63 labels (RED first, 111/111 audit tests, tsc 0) in `d71401e9`.
+- **L15** Native review of the 2b slice plus the label catalog (`d71401e9`), base `0fe9bc91`, lenses readability/
+  reliability, tier medium: **approved**, lineage `review-2375af85e4120b97`, acknowledged (authority burned). 9
+  advisories, all already listed in L13 or new readability suggestions (unused `changeFilters` export, unnamed client
+  limits, duplicated export failure mapping in the route); they join the T6 follow-ups.
+- **L16** T4 manual run (user, production build `pnpm build/start` against QA :8081, owner nocheblanca92@gmail.com).
+  8 new rows, all `ip_source=bff`, real browser user agent, `company_id` set: CompanyCandidateViewed ×3,
+  CompanyCandidateCVDownloaded (current, with vacancy_id), CompanyCandidateContactsRevealed {count 3, IDs only},
+  ParticipationViewed, ParticipationCVDownloaded original + current. ip `::1` is local loopback. Gaps: no
+  SessionStarted (the user still had a live NextAuth session, so no sign-in callback ran; the API log only shows the
+  backend's own 401 probes) and no SessionEnded: the employer sidebar never offered «Cerrar sesión» (`app-sidebar.tsx`
+  passes `menuItems` without `onLogout`, and `nav-user.tsx:175` hides the item) — user: «no puedo cerrar sesion, no hay
+  opcion en ningun lado». Pre-existing gap, now in S3 scope; fix delegated to a worker (task mw2oq4ue-1-hhuz). Login and
+  logout get re-tested after the fix.
+- **L17** Employer sign-out fixed in `51a7e5d6` (worker mw2oq4ue-1-hhuz, RED 4 failed then 65/65; parent re-ran 185/185
+  focused tests, tsc 0). The real Base UI menu item is not driven in jsdom (hangs); covered by the manual re-test.
+  Next: user rebuilds, signs in from scratch (SessionStarted) and signs out from the menu (SessionEnded).
