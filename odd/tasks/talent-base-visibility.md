@@ -61,3 +61,9 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
   talento restringida» without a retry; a duplicate with `last_vacancy`/`last_added_at` null is pinned in the intake
   sheet; the contract copy refreshed to the backend's `984cc378` (validation_error 400, setting created on demand, 409
   possible_duplicates redacted the same way — already decoded by the shared match schema). 583 tests, tsc clean.
+- **L9** Backend implemented (`feat/talent-base-visibility-backend` tip `7c788d72`; T2 `013096fa`, T3 `18d830bc`).
+  Final contract: the 412 body is the GET keys plus `error` and `code` at the top level, with the current ETag; field
+  codes required | invalid | duplicate (400) and not_applicable | not_member | is_owner (422); PUT checks shape, then
+  all_recruiters with ids, then version, then members; offboard/promotion clean-up does not bump the version. Integration
+  defect fixed test-first in `352eeac2`: the strict document schema rejected the 412 body, losing the current setting.
+  T4 QA requested: branch API on :8081 with its own DB; :8080 stays on main.
