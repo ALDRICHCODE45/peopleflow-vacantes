@@ -80,6 +80,7 @@ The stakeholder role of feature 3 will be added as rule 1b («always sees»); no
 | History | `GET /v2/me/company/candidates/{kind}/{id}/history` | 403 `talent_base_restricted` |
 | Base CV (current, original) | `GET .../{kind}/{id}/participations/{pid}/cv`, `.../cv/original` | 403 `talent_base_restricted` |
 | Replace a CV from the base | `POST .../{kind}/{id}/participations/{pid}/cv` | 403 `talent_base_restricted` |
+| Dashboard pool count | `GET /v2/me/company/dashboard` → `pool_added_last_7_days` | `null` (the rest of the dashboard unchanged) |
 
 - The check runs **before** any candidate lookup, so the 403 never reveals whether a candidate exists. A missing
   candidate for a user **with** access stays 404 `not_found`.

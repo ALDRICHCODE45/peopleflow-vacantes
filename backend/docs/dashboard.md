@@ -71,7 +71,7 @@ Clients can take the last 7, 30 or 90 entries without another request.
 | --- | --- |
 | `published_vacancies` | Visible vacancies whose publication status is `published`. Draft, paused and closed vacancies do not contribute. |
 | `in_process` | Sum of the draft list's `candidates.in_process` over visible published vacancies: active (not discarded) participations in current progression stages other than semantic `new`, including placement. |
-| `pool_added_last_7_days` | Exactly the company candidates summary's `added_last_7_days`. This is company-wide, not restricted to principal vacancies; it counts pool identities, not participations. It uses the existing PostgreSQL seven-day window. |
+| `pool_added_last_7_days` | Exactly the company candidates summary's `added_last_7_days`. This is company-wide, not restricted to principal vacancies; it counts pool identities, not participations. It uses the existing PostgreSQL seven-day window. `null` for a user without talent base access (`docs/contracts/talent-base-visibility-v1.md`). |
 | `positions.covered` | Sum of board placement coverage over visible published vacancies: participations currently in the semantic placement stage, not historical milestones or delivery counts. |
 | `positions.required` | Sum of board required hiring headcounts over visible published vacancies; an unset headcount contributes zero. |
 | `origin_by_day` | Participation entries in **all** visible vacancies, regardless of current publication status or discard state. `organic`/`manual` count participation `source`, independently of candidate identity kind. Dates use entry time (`created_at`, exposed by the board as `applied_at`), not stage movement time. Missing days contain integer zeroes. |

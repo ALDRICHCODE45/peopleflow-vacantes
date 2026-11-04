@@ -17,6 +17,7 @@ import (
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	companiesentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
+	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/google/uuid"
 )
 
@@ -479,5 +480,35 @@ func TestTalentBaseVisibility_PutAndPoolWriteDoNotDeadlock(t *testing.T) {
 	}
 	if editErr != nil || put.status != 200 {
 		t.Fatalf("edit=%v put=%d %s", editErr, put.status, put.body)
+	}
+}
+
+// The dashboard's pool count is the same aggregate as the gated summary: null for
+// a user without access, the number for the owner and members with access.
+func TestTalentBaseVisibility_DashboardHidesPoolCountWithoutAccess(t *testing.T) {
+	f := newTbPoolFixture(t)
+	ctx := context.Background()
+	store := draftstore.NewDashboardStore(f.h.store, dashboardPoolAdded)
+	count := func(actor draftFlowActor) *int64 {
+		t.Helper()
+		got, err := store.Dashboard(ctx, f.company.companyID, actor.userID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.PoolAddedLast7Days
+	}
+	for _, actor := range []draftFlowActor{f.owner, f.recruiter, f.listed} {
+		if got := count(actor); got == nil || *got < 1 {
+			t.Fatalf("default access %v", got)
+		}
+	}
+	tbSet(t, f.h, f.owner, "selected_users", f.listed.userID)
+	if got := count(f.recruiter); got != nil {
+		t.Fatalf("restricted got %d", *got)
+	}
+	for _, actor := range []draftFlowActor{f.owner, f.listed} {
+		if got := count(actor); got == nil || *got < 1 {
+			t.Fatalf("with access %v", got)
+		}
 	}
 }

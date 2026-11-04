@@ -17,9 +17,9 @@ import (
 )
 
 func newDashboardTestStore(t *testing.T, pool *pgxpool.Pool) *DashboardStore {
-	return NewDashboardStore(newStore(t, pool), func(ctx context.Context, tx pgx.Tx, company uuid.UUID) (int64, error) {
+	return NewDashboardStore(newStore(t, pool), func(ctx context.Context, tx pgx.Tx, company, _ uuid.UUID) (*int64, error) {
 		summary, err := poolpostgres.ReadSummary(ctx, tx, company)
-		return summary.AddedLast7Days, err
+		return &summary.AddedLast7Days, err
 	})
 }
 
@@ -132,7 +132,7 @@ func TestDashboardEntriesCoverageAndBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.PoolAddedLast7Days != summary.AddedLast7Days {
+	if got.PoolAddedLast7Days == nil || *got.PoolAddedLast7Days != summary.AddedLast7Days {
 		t.Fatal("pool summary differs")
 	}
 	for _, tc := range []struct {
@@ -179,7 +179,7 @@ func TestDashboardEmptyVisibilityAndPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.PublishedVacancies != 0 || got.InProcess != 0 || got.Positions.Covered != 0 || got.PoolAddedLast7Days != 0 || len(got.Recent) != 0 {
+	if got.PublishedVacancies != 0 || got.InProcess != 0 || got.Positions.Covered != 0 || got.PoolAddedLast7Days == nil || *got.PoolAddedLast7Days != 0 || len(got.Recent) != 0 {
 		t.Fatal(got)
 	}
 	for _, status := range []string{"draft", "published", "paused", "closed"} {

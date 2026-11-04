@@ -16,10 +16,11 @@ import (
 // supplied by the composition root, without coupling feature adapters.
 type DashboardStore struct {
 	*Store
-	poolAdded func(context.Context, pgx.Tx, uuid.UUID) (int64, error)
+	poolAdded func(context.Context, pgx.Tx, uuid.UUID, uuid.UUID) (*int64, error)
 }
 
-func NewDashboardStore(store *Store, poolAdded func(context.Context, pgx.Tx, uuid.UUID) (int64, error)) *DashboardStore {
+// poolAdded receives the actor and returns nil when they may not see the talent base.
+func NewDashboardStore(store *Store, poolAdded func(context.Context, pgx.Tx, uuid.UUID, uuid.UUID) (*int64, error)) *DashboardStore {
 	return &DashboardStore{Store: store, poolAdded: poolAdded}
 }
 
@@ -128,7 +129,7 @@ func (s *DashboardStore) Dashboard(ctx context.Context, company, actor uuid.UUID
 	if err != nil {
 		return out, err
 	}
-	added, err := s.poolAdded(ctx, tx, company)
+	added, err := s.poolAdded(ctx, tx, company, actor)
 	if err != nil {
 		return out, err
 	}

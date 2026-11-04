@@ -79,3 +79,7 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
 - L9 — Full integration on 32d831e2 (log `.scratch/tb-fix-integration.log`): 99 ok, 1 FAIL = `localbootstrap
   TestDisposablePostgresBootstrap` (needs a loopback DATABASE_URL; the verifier saw it fail identically on main). Pending:
   the user's decision on the dashboard aggregate (L8).
+- L10 — User via frontend (verbatim): «Ocultarla (Recomendado)» — `pool_added_last_7_days` is null for a user without
+  access; owner and members with access keep the number. Parent implemented inline (small path): RED compile/test
+  `TestTalentBaseVisibility_DashboardHidesPoolCountWithoutAccess`, `talentbase.CanViewIn` (same rule inside the dashboard
+  transaction), field `*int64`; contract row + backend/docs/dashboard.md updated.

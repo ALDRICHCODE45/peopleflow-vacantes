@@ -41,6 +41,16 @@ func (s *Store) CanView(ctx context.Context, company, user uuid.UUID, role strin
 	return allowed, err
 }
 
+// CanViewIn applies the same rule inside a caller's transaction, reading the
+// role from the membership instead of the request context.
+func CanViewIn(ctx context.Context, q pgx.Tx, company, user uuid.UUID) (bool, error) {
+	var allowed bool
+	err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_id=$1 AND user_id=$2 AND role='owner')
+ OR COALESCE((SELECT mode='all_recruiters' FROM company_talent_base_settings WHERE company_id=$1),true)
+ OR EXISTS(SELECT 1 FROM company_talent_base_viewers WHERE company_id=$1 AND user_id=$2)`, company, user).Scan(&allowed)
+	return allowed, err
+}
+
 func (s *Store) Get(ctx context.Context, company uuid.UUID) (app.Document, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
