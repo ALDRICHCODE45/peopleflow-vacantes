@@ -25,10 +25,10 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
 
 - [x] T1 — S1–S4: contract draft, frontend/user OK on D1–D3, commit. Route: inline. Commit: 8ea05adc (amend: next
   docs commit).
-- [ ] T2 — S1, S2, S4.1, S4.2, S4.6: migration 00055 + GET/PUT + `can.view_talent_base` + audit. Route: worker
-  (context backstop). Commit: —
-- [ ] T3 — S3, S4.3–S4.5: pool gate (9 routes), write re-check, duplicate-check redaction, role change + offboard
-  cleanup. Route: same worker after T2 (depends on its tables). Commit: —
+- [x] T2 — S1, S2, S4.1, S4.2, S4.6: migration 00055 + GET/PUT + `can.view_talent_base` + audit. Route: worker
+  (context backstop). Commit: 013096fa.
+- [x] T3 — S3, S4.3–S4.5: pool gate (9 routes), write re-check, duplicate-check redaction (incl. manual 409), role
+  change + offboard cleanup. Route: same worker after T2. Commit: 18d830bc. Verify: pending (security).
 
 ## Log
 
@@ -55,3 +55,11 @@ Backend half of the frontend `feat/talent-base-visibility`. Contract: `docs/cont
   `team_errors.go`; audit `audit_events/domain/entities/auditEvent.go` (`EntityCompany`); route inventory test
   `cmd/api/main_test.go` (~1645); integration harness `cmd/api/draft_flow_integration_test.go:257` (also wire there);
   manual intake fixture `cmd/api/manual_create_flow_integration_test.go`. No `sqlc` binary: raw SQL on the tx.
+- L5 — Worker found the manual-intake 409 `possible_duplicates` leaks the same matches; parent widened its surface
+  (D2 applies) and amended the contract (984cc378); frontend tolerates nulls (its b95c68e4).
+- L6 — Worker mw1flnah-2-rk8w done (tree left uncommitted by rule; parent split and committed T2 013096fa — compiled,
+  vetted and unit-tested alone in a scratch worktree — and T3 18d830bc). Worker checks: gofmt/build/vet clean; unit 105
+  ok, 1 FAIL (known scripts/closure); integration 98 ok, 2 FAIL (TestPublicGeoSearchIndexCapability, passes alone =
+  L19 geo; TestDisposablePostgresBootstrap needs a loopback DATABASE_URL). Deviations recorded in the contract (412
+  body keys + error/code, field codes, check order, sorted audit ids, cleanups do not bump the version). Slice is
+  ~2.2k lines over 2 feature commits (T2/T3 separate; T3 is the high-risk security unit).

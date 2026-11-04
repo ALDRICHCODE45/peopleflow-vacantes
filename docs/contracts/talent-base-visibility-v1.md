@@ -111,6 +111,7 @@ The same redaction applies to the `409 possible_duplicates` matches that `POST .
 - Removing a member from the company (`DELETE /me/company/members/{id}` or `POST .../offboard`) deletes their viewer row
   in the same transaction. `POST .../offboard` adds `talent_base_viewer_removed: true|false` to
   `CompanyMemberOffboarded`; plain `DELETE` emits no member event today and stays so.
+- These cleanups do not bump the setting version and are not audited as `TalentBaseVisibilityChanged`.
 - The mode never changes by itself: if the last viewer leaves, the company stays in `selected_users` with an empty list.
 
 ### Empty selection (decision **D1**)
@@ -152,7 +153,7 @@ The body **replaces** the setting. Unknown keys → 400 `invalid_request`.
 | Recruiter calls it | 403 | `forbidden` | — |
 | Missing `If-Match` | 428 | `precondition_required` | — |
 | Malformed `If-Match` | 400 | `invalid_request` | — |
-| Stale `If-Match` | 412 | `talent_base_visibility_version_conflict` | body = current GET document, `ETag` = current |
+| Stale `If-Match` | 412 | `talent_base_visibility_version_conflict` | body = the current GET document's keys plus `error` and `code`, `ETag` = current |
 | `mode` missing or not one of the two values | 400 | `validation_error` | `mode` |
 | `user_ids` missing or not an array of UUIDs | 400 | `validation_error` | `user_ids` |
 | Duplicate id in `user_ids` | 400 | `validation_error` | `user_ids[i]` |
@@ -163,6 +164,12 @@ The body **replaces** the setting. Unknown keys → 400 `invalid_request`.
 - Success: 200 with the new GET document and `ETag`. The version increments on every accepted PUT, including one that
   changes nothing (it is still audited, with empty `added_user_ids` and `removed_user_ids`).
 - `selected_users` with `user_ids: []` is accepted (D1).
+- Field codes: `validation_error` uses `required`, `invalid` (also a non-UUID id or a non-array, reported on
+  `user_ids`) and `duplicate` (on each later occurrence `user_ids[i]`); the 422 codes use `not_applicable`,
+  `not_member` and `is_owner`.
+- Check order: body shape (400), `all_recruiters` with ids (422), version (412), then membership rules (422). A stale
+  tag with a malformed body answers 400.
+- `added_user_ids` and `removed_user_ids` in the audit are sorted ascending.
 - `validation_error` keeps the shared catalog status 400 (`{error, code, fields}`); the three `talent_base_*` 422 codes
   use the same envelope with `fields`.
 
