@@ -1,6 +1,7 @@
 # Audit log v1 (internal, employer-only)
 
-Status: **draft (2026-11-04)**, not implemented; open decisions D1–D7 at the end wait for the user. Product source:
+Status: **draft (2026-11-04)**, not implemented; frontend review F1–F6 applied; open decisions D1–D7 at the end wait
+for the user. Product source:
 `docs/product/next-three-features.md` §2 «Auditoría». The backend session wrote this contract; frontend tracking is
 `odd/tasks/audit-log.md`, backend tracking `odd/tasks/audit-log-backend.md`. Style follows `vacancy-team-v1.md` and
 `talent-base-visibility-v1.md`.
@@ -97,8 +98,8 @@ Two new endpoints the BFF calls; both `requireAuth`, `NoStore`, empty body, answ
 
 | Endpoint | When the BFF calls it | Event |
 | --- | --- | --- |
-| `POST /v2/me/session/start` | Once, right after the Cognito sign-in callback stores the tokens (server side, with the fresh access token). Not on token refresh. | `SessionStarted` |
-| `POST /v2/me/session/end` | When the user clicks «Cerrar sesión», **before** the BFF clears its cookies, with the still-valid token. | `SessionEnded` |
+| `POST /v2/me/session/start` | Once per sign-in, server side, in the NextAuth `jwt` callback when it carries `account` (sign-in only, never on refresh), with the fresh access token and a short timeout. | `SessionStarted` |
+| `POST /v2/me/session/end` | When the user clicks any «Cerrar sesión» button: a server-side frontend action calls it **before the frontend calls NextAuth `signOut()`** (which drops the token), with a short timeout; errors are ignored. | `SessionEnded` |
 
 - Entity `user` / the caller's user id; `company_id` = their membership company. **Only users with a company
   membership are recorded**; for a candidate (no membership) both endpoints answer 204 and write nothing (data
@@ -106,15 +107,18 @@ Two new endpoints the BFF calls; both `requireAuth`, `NoStore`, empty body, answ
 - Metadata `{}`; the IP and browser come from §4.
 - Honest limits, stated as such on the screen: a session that ends by **token expiry or closing the tab** has no
   `SessionEnded`; «Cerró sesión» means «hizo clic en cerrar sesión». A failed call to `/session/end` must not block the
-  sign-out (the BFF logs it and continues); a failed `/session/start` does not block the sign-in either.
+  sign-out (the frontend logs it and continues); a failed `/session/start` does not block the sign-in either. The
+  candidate area calls both too; the API answers 204 and records nothing for them (D6).
 - A caller with a valid token can always call `/session/start`; the row truthfully says «this user's token was used
   to start a session from this IP».
 - Unknown user (no `users` row yet) → 204, nothing recorded.
 
 ## 4. IP and browser (trusted only from the BFF)
 
-The browser never talks to the API directly for employer screens; the BFF does. The BFF forwards the real client data
-and **proves it is the BFF** with a shared secret:
+The browser never talks to the API directly for employer screens; the Next server does. There is no single BFF
+module: about 52 server-side call sites build their own Bearer request, so the frontend adds one server-only helper for
+these headers and a test that every API call uses it. The Next server forwards the real client data and **proves it is
+the frontend server** with a shared secret:
 
 | Header (BFF → API) | Value |
 | --- | --- |
@@ -130,6 +134,8 @@ and **proves it is the BFF** with a shared secret:
 - The secret never appears in logs, errors or audit rows. When `AUDIT_PROXY_SECRET` is unset the API runs with
   `peer` only (local dev).
 - The IP-resolution helper moves out of the rate limiter into a shared package so both use one rule.
+- A call that escapes the helper arrives as `ip_source = peer` with the Next server's IP, not the user's. The screen
+  shows `ip_source = peer` rows as «IP no verificada»; that is the intended meaning of `peer`.
 
 ## 5. Members and roles
 
@@ -203,7 +209,7 @@ or foreign cursor → 400 `invalid_cursor`. Only rows with `company_id` = the ca
       "event_type": "CompanyCandidateCVDownloaded",
       "category": "sensitive_read",
       "actor": { "type": "user", "user_id": "…", "name": "Ana López", "email": "ana@…", "is_current_member": true },
-      "entity": { "type": "company_candidate", "id": "…" },
+      "entity": { "type": "company_candidate", "id": "…", "label": "María Pérez" },
       "vacancy": { "id": "…", "title": "Ejecutivo de ventas" },
       "metadata": { "kind": "organic", "participation_id": "…", "variant": "original" },
       "ip": "201.141.12.7",
@@ -219,6 +225,11 @@ or foreign cursor → 400 `invalid_cursor`. Only rows with `company_id` = the ca
 - `actor` is `{ "type": "system" }` for system events. `name`/`email` come from `users` at read time; a deleted user
   shows `name: null, email: null` (frontend: «Usuario eliminado»).
 - `vacancy` is null when the event has none; `title` is read live (a deleted vacancy → `title: null`).
+- `entity.label` is resolved at read time, never stored (§7): the candidate's visible name for `company_candidate` and
+  `process_participation` (the participation's candidate), the member's name via `member_user_id` for
+  `company_member`, the vacancy title for `job_draft`/`vacancy`/`vacancy_process`, the company name for `company`;
+  `null` when the entity no longer exists or the type has no label. One shape for every type, no separate `candidate`
+  object.
 - `total` is the exact count for the filters (bounded by the indexes; revisit if it gets slow).
 - Viewing the list is **not** audited (it would audit itself on every page); exporting is.
 
@@ -236,17 +247,27 @@ Distinct users that appear as actors in this company's events, **including forme
 `{ "items": [{ "user_id", "name", "email", "is_current_member" }] }`, ordered by name. Feeds the «Persona» filter
 (the members list only has current members).
 
-### 8.4 Export — `POST /v2/me/company/audit-events/export`
+### 8.4 Vacancies — `GET /v2/me/company/audit-events/vacancies`
+
+Distinct vacancies that appear in this company's events (`vacancy_id` column), **including closed and deleted
+ones**: `{ "items": [{ "vacancy_id", "title" }] }`, `title: null` when deleted, ordered by title (nulls last). Feeds
+the «Vacante» filter.
+
+### 8.5 Export — `POST /v2/me/company/audit-events/export`
 
 - Owner only. Body: the same filters as the list as JSON (`{actor_id, event_types, category, vacancy_id, from, to}`);
   `from` and `to` are **required** and span at most 366 days.
 - Response `200 text/csv; charset=utf-8` with a UTF-8 BOM (Excel es-MX), `Content-Disposition: attachment;
   filename="auditoria-YYYY-MM-DD.csv"`, `no-store`. Columns: `occurred_at` (ISO, UTC), `occurred_at_mx` (local),
-  `event_type`, `category`, `actor_user_id`, `actor_name`, `actor_email`, `entity_type`, `entity_id`, `vacancy_id`,
+  `event_type`, `category`, `actor_user_id`, `actor_name`, `actor_email`, `entity_type`, `entity_id`, `entity_label`,
+  `vacancy_id`,
   `vacancy_title`, `ip`, `user_agent`, `metadata` (JSON). Values starting with `= + - @` are prefixed with `'` (CSV
   injection).
 - Limit **50,000 rows**. Above it → 422 `audit_export_too_large` with `{row_count, limit}` and nothing is exported (no
-  truncated files).
+  truncated files). The count runs **before the first byte**, in the same `REPEATABLE READ` transaction as the rows, so
+  every error (422, 403, validation) is a normal JSON error response and the streamed file matches the count. Once
+  streaming starts the status is 200; a later failure aborts the connection (the frontend route handler shows a
+  generic error).
 - Audited: `AuditLogExported`, entity `company`, metadata `{filters, row_count}` (filters are IDs/enums/dates only),
   committed **before** streaming starts.
 
@@ -255,7 +276,7 @@ Distinct users that appear as actors in this company's events, **including forme
 | Slice | Content | Frontend |
 | --- | --- | --- |
 | **2a — capture** | Migration 00056 (columns, indexes, backfill, append-only trigger), request-context middleware + proxy secret, `company_id`/`vacancy_id` on every emitter + catalog constants + metadata key test, sensitive reads (§2), session endpoints (§3), member events (§5). | BFF headers (§4) and the two session calls (§3). |
-| **2b — screen** | List, catalog, actors, export (§8), retention purge job (§7). | Audit screen + export. |
+| **2b — screen** | List, catalog, actors, vacancies, export (§8), retention purge job (§7). | Audit screen + export. |
 
 2a is the high-risk slice (append-only trigger, a shared secret, every emitter); it goes in its own commits (schema +
 trigger; request context; emitters; new events) so each can be reviewed alone. 2a is useful alone: history starts

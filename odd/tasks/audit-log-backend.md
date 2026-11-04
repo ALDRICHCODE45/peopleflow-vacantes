@@ -47,3 +47,8 @@ Later tasks are cut from the agreed contract.
   guard (API connects as DB owner `admin`), no login/logout endpoint, no IP/User-Agent handling outside the assessment
   rate limiter (`TRUSTED_PROXY_CIDRS`), no BFF↔API secret, members add/role/plain-remove unaudited (only offboard),
   contacts is JSON ≤100 (no CSV anywhere), next migration 00056. Draft written with D1–D7 open for the user.
+- L3 — Draft b85ff82e. Frontend review F1–F6 applied: session calls bound to the NextAuth `jwt` callback (sign-in) and a
+  server action before `signOut()`; no central BFF (~52 call sites → frontend helper + test), `peer` shown as «IP no
+  verificada»; no React Query on detail (no change); `entity.label` resolved at read (+ CSV `entity_label`); new
+  `GET …/audit-events/vacancies`; export count before the first byte in one REPEATABLE READ tx. Frontend carries D1–D7
+  to the user.
