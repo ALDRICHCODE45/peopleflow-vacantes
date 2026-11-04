@@ -106,3 +106,7 @@ source `docs/product/next-three-features.md` §2.
   - Check in T6: `client.ts:60-74` export header/stream timeouts are untested and one risk warning sits there (R1-001);
     the stale «Cargar más» guard after a filter change (`use-audit-events.ts:51-54`).
   - Readability suggestions in `client.ts`, `actions.ts`, `url-state.ts`, `use-audit-events.ts` and the export route.
+- **L14** Backend 2a implemented (tip `00ddbe97`), independent verify running, then :8081. Contract deltas: session
+  start/end ignore the body and answer 500 on audit failure (frontend already sends none and ignores failures); no 304
+  path; contacts row lists only returned candidates; member DELETE also emits `CompanyMemberOffboarded`; Annex now has
+  the 63 labels. Frontend adopted the 63 labels (RED first, 111/111 audit tests, tsc 0) in `d71401e9`.
