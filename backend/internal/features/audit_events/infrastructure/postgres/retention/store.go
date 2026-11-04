@@ -47,15 +47,23 @@ func (s *Store) CountExpired(ctx context.Context) (int64, error) {
 // batches. Each batch is its own transaction that first binds the purge flag to
 // that transaction's id. It returns the rows deleted; on error it returns the
 // rows deleted by the batches that already committed.
+//
+// It stops at the first batch that deletes nothing, not at the first short one:
+// with SKIP LOCKED (or a concurrent writer) a batch can delete fewer rows than
+// the batch size while expired rows remain. Rows another connection keeps
+// locked are left for the next run. A cancelled context ends the loop.
 func (s *Store) DeleteExpired(ctx context.Context) (int64, error) {
 	var total int64
 	for {
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
 		n, err := s.deleteBatch(ctx)
 		total += n
 		if err != nil {
 			return total, err
 		}
-		if n < int64(s.batchSize) {
+		if n == 0 {
 			return total, nil
 		}
 	}

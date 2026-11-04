@@ -61,7 +61,8 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
 - [x] T9 — S2 (política de retención), D2: `cmd/audit-purge` (dry run by default, `-execute` deletes rows older than 24
   months in batches with the txid-bound flag). Route: worker mw2pjuut, parallel to T8 (disjoint surfaces). Commit: next
   feat commit.
-- [ ] T10 — verify 2b + QA :8081 with the frontend screen. Commit: —.
+- [ ] T10 — verify 2b + QA :8081 with the frontend screen. Verify done (L20), fixes next fix commit; QA pending the
+  frontend screen.
 
 ## Log
 
@@ -168,3 +169,11 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
   (SKIP LOCKED). Advisory B: short ASCII unknown param names echoed (names only; accepted). Full `./...` integration: 111
   ok, FAIL scripts/closure, cmd/migrate + localbootstrap (no DATABASE_URL set), TestPublicGeoSearchIndexCapability
   (fails at baseline 39e2ff35 too — pre-existing). Fix worker launched for MINOR-1 + Advisory A + probes.
+- L21 — Fixes (worker mw2rf2wt): MINOR-1 RED (`Beatriz Ajena` from another company in list and CSV) → GREEN; rule:
+  current member, or actor in the company's events, or `member_user_id` of ANOTHER member event of the company (the
+  parent's "a member event" wording was circular — the forged row would qualify itself); cost accepted: a former
+  member whose only trace is one pre-2a member event shows `label: null`. Contract §8.1 updated. Advisory A: the lock
+  scenario was not RED (SKIP LOCKED still fills the batch); real RED via a BEFORE DELETE veto trigger (`deleted 1, rows
+  left 4`) → loop now runs until a batch deletes 0, ctx checked each turn; lock test kept as regression. Verifier probes
+  committed (3 unit + 4 integration), all pass. Checks: gofmt/build/vet clean; unit 111 ok, 1 FAIL scripts/closure;
+  integration cmd/api, cmd/audit-purge, audit_events 8 packages ok, 0 FAIL.

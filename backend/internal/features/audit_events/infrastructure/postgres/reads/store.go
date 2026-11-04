@@ -87,7 +87,11 @@ func vacancyTitle(id string) string {
 const visibleName = `CASE WHEN o.corrections ? 'full_name' THEN o.corrections->>'full_name' ELSE %s END`
 
 // entityLabel resolves the label at read time, never stored (audit-log-v1
-// §8.1). NULL when the entity no longer exists or the type has no label.
+// §8.1). NULL when the entity no longer exists or the type has no label. A
+// company_member label names a person, so it resolves only for a user who is a
+// member of the row's company, acted in it, or is named by another member event
+// of it (a former member keeps the name, §5); a user id from anywhere else
+// shows nothing (§7).
 var entityLabel = `NULLIF(CASE p.entity_type
  WHEN 'company_candidate' THEN COALESCE(
   (SELECT cc.full_name FROM company_candidates cc WHERE cc.id = p.entity_id AND cc.company_id = p.company_id),
@@ -106,7 +110,11 @@ var entityLabel = `NULLIF(CASE p.entity_type
  WHEN 'company_member' THEN (
   SELECT u4.full_name FROM users u4
   WHERE u4.deleted_at IS NULL AND u4.id = CASE WHEN p.metadata->>'member_user_id' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-   THEN (p.metadata->>'member_user_id')::uuid END)
+   THEN (p.metadata->>'member_user_id')::uuid END
+  AND (EXISTS (SELECT 1 FROM company_members m WHERE m.user_id = u4.id AND m.company_id = p.company_id)
+   OR EXISTS (SELECT 1 FROM audit_events x WHERE x.company_id = p.company_id AND x.actor_id = u4.id)
+   OR EXISTS (SELECT 1 FROM audit_events x WHERE x.company_id = p.company_id AND x.id <> p.id AND x.entity_type = 'company_member'
+    AND x.metadata->>'member_user_id' = u4.id::text)))
  WHEN 'job_draft' THEN ` + vacancyTitle("p.entity_id") + `
  WHEN 'vacancy' THEN ` + vacancyTitle("p.entity_id") + `
  WHEN 'vacancy_process' THEN ` + vacancyTitle("p.entity_id") + `

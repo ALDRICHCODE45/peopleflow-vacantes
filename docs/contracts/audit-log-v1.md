@@ -241,7 +241,9 @@ or foreign cursor → 400 `invalid_cursor`. Only rows with `company_id` = the ca
   `process_participation` (the participation's candidate), the member's name via `member_user_id` for
   `company_member`, the vacancy title for `job_draft`/`vacancy`/`vacancy_process`, the company name for `company`;
   `null` when the entity no longer exists or the type has no label. One shape for every type, no separate `candidate`
-  object.
+  object. Every label is scoped to the caller's company; for `company_member` the name resolves only when the person
+  is a current member, appears as an actor in this company's events, or is the `member_user_id` of another member
+  event of this company (former members keep their name). Otherwise `label: null`.
 - `total` is the exact count for the filters (bounded by the indexes; revisit if it gets slow).
 - Viewing the list is **not** audited (it would audit itself on every page); exporting is.
 - Rows whose `event_type` is not in the catalog (pre-2a dev rows) are never listed, counted or offered in `/actors` and

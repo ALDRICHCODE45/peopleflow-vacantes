@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/db/migrations"
 	"github.com/google/uuid"
@@ -190,5 +191,99 @@ func TestErrorsAreReturnedWhenTheTableIsMissing(t *testing.T) {
 	}
 	if _, err := s.DeleteExpired(context.Background()); err == nil {
 		t.Fatal("DeleteExpired succeeded without a table")
+	}
+}
+
+// A row another connection holds locked is skipped (SKIP LOCKED), never waited
+// for; the purge still terminates and deletes every other expired row.
+func TestDeleteExpiredSkipsALockedRowAndDeletesTheRest(t *testing.T) {
+	p := retentionFixture(t)
+	seedAge(t, p, "25 months", 5)
+	ctx := context.Background()
+	holder, err := p.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			_ = holder.Rollback(ctx)
+		}
+	}
+	t.Cleanup(release)
+	// The row in the middle of the oldest-first order is locked.
+	var locked uuid.UUID
+	if err := holder.QueryRow(ctx, `SELECT id FROM (SELECT id FROM audit_events ORDER BY occurred_at, id OFFSET 2 LIMIT 1) m`).Scan(&locked); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := holder.Exec(ctx, `SELECT 1 FROM audit_events WHERE id = $1 FOR UPDATE`, locked); err != nil {
+		t.Fatal(err)
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	n, err := NewStore(p, 2).DeleteExpired(runCtx)
+	if err != nil || n != 4 {
+		t.Fatalf("DeleteExpired = %d, %v; want 4 and the locked row left", n, err)
+	}
+	if got := count(t, p, `SELECT count(*) FROM audit_events`); got != 1 {
+		t.Fatalf("rows left = %d, want only the locked one", got)
+	}
+	if got := count(t, p, `SELECT count(*) FROM audit_events WHERE id = '`+locked.String()+`'`); got != 1 {
+		t.Fatal("the locked row was deleted")
+	}
+
+	// Once the lock is gone the next run takes the rest.
+	release()
+	if n, err := NewStore(p, 2).DeleteExpired(ctx); err != nil || n != 1 {
+		t.Fatalf("DeleteExpired after release = %d, %v; want 1", n, err)
+	}
+}
+
+// A batch can come back short for reasons other than the end of the data (a
+// concurrent writer taking a row between the select and the delete). Here the
+// first delete is vetoed by a trigger, so batch 1 deletes 1 of 2: the purge
+// must keep going until a batch deletes nothing.
+func TestDeleteExpiredKeepsGoingAfterAShortBatch(t *testing.T) {
+	p := retentionFixture(t)
+	seedAge(t, p, "25 months", 5)
+	ctx := context.Background()
+	// "zy_" runs before zz_record_purge: returning NULL skips the delete of one row, once.
+	if _, err := p.Exec(ctx, `CREATE TABLE veto_once(done boolean);
+INSERT INTO veto_once VALUES (false);
+CREATE FUNCTION veto_first() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (SELECT NOT done FROM veto_once) THEN UPDATE veto_once SET done = true; RETURN NULL; END IF;
+  RETURN OLD;
+END $$;
+CREATE TRIGGER zy_veto_first BEFORE DELETE ON audit_events FOR EACH ROW EXECUTE FUNCTION veto_first();`); err != nil {
+		t.Fatal(err)
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	n, err := NewStore(p, 2).DeleteExpired(runCtx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One row was vetoed in batch 1; the later batches take it with the rest.
+	if got := count(t, p, `SELECT count(*) FROM audit_events`); got != 0 || n != 5 {
+		t.Fatalf("deleted %d, rows left %d; want 5 and 0", n, got)
+	}
+}
+
+// Cancelling the context ends the purge with the context's error and the rows
+// deleted so far.
+func TestDeleteExpiredStopsOnContextCancellation(t *testing.T) {
+	p := retentionFixture(t)
+	seedAge(t, p, "25 months", 3)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	n, err := NewStore(p, 1).DeleteExpired(ctx)
+	if err == nil || n != 0 {
+		t.Fatalf("DeleteExpired on a cancelled context = %d, %v; want 0 and an error", n, err)
+	}
+	if got := count(t, p, `SELECT count(*) FROM audit_events`); got != 3 {
+		t.Fatalf("rows = %d, want 3", got)
 	}
 }
