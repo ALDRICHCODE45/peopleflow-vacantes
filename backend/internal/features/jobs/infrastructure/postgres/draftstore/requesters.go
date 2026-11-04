@@ -65,6 +65,7 @@ func (s *Store) CreateRequester(ctx context.Context, companyID, actorID uuid.UUI
 		EventType:  entities.EventJobDraftRequesterCreated,
 		EntityType: entities.EntityJobDraftRequester,
 		EntityID:   id,
+		CompanyID:  &companyID,
 		Metadata:   map[string]string{"kind": kind},
 	}); err != nil {
 		return requesters.Entry{}, fmt.Errorf("co-write requester audit: %w", err)

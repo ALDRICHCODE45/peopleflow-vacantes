@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/assessment"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/content"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/scoring"
@@ -85,7 +86,7 @@ func (s *AssessmentStore) finishAssessment(ctx context.Context, tx pgx.Tx, a ass
 	if err != nil {
 		return assessment.Result{}, err
 	}
-	if err = s.invitations.jobs.AuditPsychometricInvitation(ctx, tx, actor, v.process, v.participation, v.i.ID, "PsychometricAssessmentFinished"); err != nil {
+	if err = s.invitations.jobs.AuditPsychometricInvitation(ctx, tx, actor, v.process, v.participation, v.i.ID, audit.EventPsychometricAssessmentFinished); err != nil {
 		return assessment.Result{}, err
 	}
 	response, err := assessmentResult(struct {

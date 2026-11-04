@@ -169,8 +169,14 @@ the frontend server** with a shared secret:
 ## 7. Personal data (LFPDPPP) and retention
 
 - `metadata` holds **IDs, enums and counts only**: no names, emails, phones, CV file names, free text, salaries or
-  notes. Existing emitters are reviewed against this rule in 2a; a test asserts the allowed metadata keys per event
-  type.
+  notes. Existing emitters are reviewed against this rule in 2a; the event catalog pins the allowed metadata keys per
+  event type and `Append` refuses any other key (the transaction fails closed).
+- **Exception: company configuration.** The `previous`/`new` snapshots of configuration documents (pipeline stages,
+  substates, checklist, psychometric profile) keep their recruiter-authored labels: they describe the company's
+  process, not a person, and they answer «what changed». Anything about a person stays out.
+- 2a review result: `VacancyDeliveryFulfilled` no longer embeds candidates' `full_name` (its `snapshot.candidates` is
+  `[{participation_id, candidate_id, reached_at}]`); `ParticipationChecklistMarked` stores `{verdict, has_note}`
+  instead of the note text. Rows written before 2a are dev data and are not rewritten.
 - `ip` and `user_agent` are personal data, kept for the security purpose the product asked for, under the same
   retention.
 - Names and emails are **resolved at read time** from `users` (§8.3), never copied into the row; deleting or
@@ -301,14 +307,63 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `ParticipationViewed` | sensitive_read | Vio un candidato de la vacante |
 | `ParticipationCVDownloaded` | sensitive_read | Inició la descarga de un CV de la vacante |
 | `PsychometricResultViewed` | sensitive_read | Vio un resultado psicométrico |
+| `CandidateAccountCreated` | candidate | Creó su cuenta de candidato |
+| `CompanyCandidateEdited` | candidate | Editó los datos de un candidato |
+| `CompanyCandidateCVCorrected` | candidate | Corrigió el CV de un candidato |
+| `VacancyCandidateAddedManually` | candidate | Agregó un candidato a una vacante |
+| `VacancyApplicationSubmitted` | candidate | Se postuló a una vacante |
+| `ApplicationSubmitted` | candidate | Envió una postulación |
+| `ApplicationTransitioned` | candidate | Cambió el estado de una postulación |
+| `PsychometricInvitationCreated` | candidate | Creó una invitación psicométrica |
+| `PsychometricInvitationRevoked` | candidate | Revocó una invitación psicométrica |
+| `PsychometricReminderRecorded` | candidate | Registró un recordatorio psicométrico |
+| `PsychometricLinkIssued` | candidate | Generó un enlace psicométrico |
+| `PsychometricConsentGiven` | candidate | Aceptó el consentimiento psicométrico |
+| `PsychometricAssessmentFinished` | candidate | Terminó una evaluación psicométrica |
+| `PsychometricComparisonCreated` | candidate | Generó una comparación psicométrica |
+| `JobDraftCreated` | vacancy | Creó una vacante |
+| `JobDraftSaved` | vacancy | Guardó cambios en una vacante |
+| `JobDraftRequesterCreated` | vacancy | Agregó un solicitante al catálogo |
+| `JobDraftManagementConfigured` | vacancy | Configuró la gestión de una vacante |
+| `JobDraftDeliveryConfigured` | vacancy | Configuró la entrega de una vacante |
+| `JobDraftChecklistConfigured` | vacancy | Configuró los criterios de revisión de una vacante |
+| `JobDraftPsychometricProfileConfigured` | vacancy | Configuró el perfil psicométrico de una vacante |
+| `VacancyPublished` | vacancy | Publicó una vacante |
+| `VacancyPaused` | vacancy | Pausó una vacante |
+| `VacancyResumed` | vacancy | Reanudó una vacante |
+| `VacancyClosed` | vacancy | Cerró una vacante |
+| `VacancyProcessFinished` | vacancy | Terminó el proceso de una vacante |
+| `VacancyReopened` | vacancy | Reabrió una vacante |
+| `VacancyCommitmentRenegotiated` | vacancy | Renegoció la fecha de compromiso de una vacante |
+| `VacancyDeliveryFulfilled` | vacancy | Cumplió la entrega de una vacante |
+| `VacancyPlacementCredited` | vacancy | Acreditó una colocación |
+| `VacancyPlacementCreditChanged` | vacancy | Cambió el estado de un crédito de colocación |
+| `JobDraftPipelineConfigured` | pipeline | Configuró las etapas de una vacante |
+| `JobDraftSubstatesConfigured` | pipeline | Configuró los subestados de una vacante |
+| `ParticipationMoved` | pipeline | Movió a un candidato de etapa |
+| `ParticipationDiscarded` | pipeline | Descartó a un candidato |
+| `ParticipationRecovered` | pipeline | Recuperó a un candidato descartado |
+| `ParticipationSubstateChanged` | pipeline | Cambió el subestado de un candidato |
+| `ParticipationChecklistMarked` | pipeline | Marcó un criterio de revisión |
+| `VacancyTeamCreated` | team | Creó el equipo de una vacante |
+| `VacancyTeamModeChanged` | team | Cambió el modo del equipo de una vacante |
+| `VacancyTeamMemberAdded` | team | Agregó a una persona al equipo de una vacante |
+| `VacancyTeamMemberRemoved` | team | Quitó a una persona del equipo de una vacante |
+| `VacancyTeamMemberLeft` | team | Salió del equipo de una vacante |
+| `VacancyResponsibleReassigned` | team | Reasignó al responsable de una vacante |
+| `VacancyAssignmentDeadlineChanged` | team | Cambió la fecha límite de una persona del equipo |
+| `VacancyAssignmentEndedByMembership` | team | Terminó una asignación por la baja de un miembro |
+| `CompanyUpdated` | company | Actualizó los datos de la empresa |
+| `CompanyDeleted` | company | Eliminó la empresa |
+| `CompanySitePublished` | company | Publicó el sitio de la empresa |
+| `CompanySiteUnpublished` | company | Despublicó el sitio de la empresa |
+| `TalentBaseVisibilityChanged` | company | Cambió quién ve la Base de talento |
 | `CompanyMemberAdded` | members | Agregó a un miembro |
 | `CompanyMemberRoleChanged` | members | Cambió el rol de un miembro |
 | `CompanyMemberOffboarded` | members | Dio de baja a un miembro |
-| `TalentBaseVisibilityChanged` | company | Cambió quién ve la Base de talento |
 | `AuditLogExported` | audit | Exportó la auditoría |
 
-The remaining existing types (vacancy lifecycle, pipeline, team, candidate edits, psychometrics) get their row in the
-annex during 2a, when they become constants.
+The annex lists every catalog type (63) in catalog order; a test fails when a catalog type has no row.
 
 ## Decisions (approved 2026-11-04)
 

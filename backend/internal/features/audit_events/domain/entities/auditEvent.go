@@ -30,39 +30,6 @@ const (
 
 func (a ActorType) String() string { return string(a) }
 
-// Event-type constants — the CLOSED SET for this cycle. event_type has no
-// DB CHECK (§1.3 exception), so adding a future event type is a code
-// change, not a migration.
-//
-// companies-audit (design D7): the set expands to four. The two new
-// company event literals are owned by the companies slice's
-// `eventIntent.go` builders — every emit call MUST go through those
-// builders so the closed-key metadata invariant is structurally
-// enforced.
-const (
-	EventApplicationSubmitted    = "ApplicationSubmitted"
-	EventApplicationTransitioned = "ApplicationTransitioned"
-	EventCompanyUpdated          = "CompanyUpdated"
-	EventCompanyDeleted          = "CompanyDeleted"
-	// EventJobDraftCreated / EventJobDraftSaved are the private vacancy draft
-	// persistence events (T3). They are emitted only by the draftstore adapter
-	// inside the draft write transaction; event_type carries no DB CHECK, so
-	// adding them is a code change, never a migration.
-	EventJobDraftCreated = "JobDraftCreated"
-	EventJobDraftSaved   = "JobDraftSaved"
-	// EventJobDraftRequesterCreated records one immutable requester catalog
-	// entry, emitted inside the catalog insert transaction.
-	EventJobDraftRequesterCreated = "JobDraftRequesterCreated"
-	// Vacancy lifecycle events are co-written with state and vacancy-level history.
-	EventVacancyPaused          = "VacancyPaused"
-	EventVacancyResumed         = "VacancyResumed"
-	EventVacancyClosed          = "VacancyClosed"
-	EventVacancyProcessFinished = "VacancyProcessFinished"
-	EventVacancyReopened        = "VacancyReopened"
-	EventCompanySitePublished   = "CompanySitePublished"
-	EventCompanySiteUnpublished = "CompanySiteUnpublished"
-)
-
 // Entity-type constants — companion to the closed event set.
 //
 // companies-audit: `EntityCompany = "company"` (singular) sits alongside

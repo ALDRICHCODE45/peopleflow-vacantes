@@ -47,7 +47,7 @@ func (s *Store) recordPlacementCredit(ctx context.Context, tx pgx.Tx, company, a
 		}
 		// SQL RETURNING has no order guarantee; stable event order aids consumers.
 		sort.Slice(recipients, func(i, j int) bool { return recipients[i]["user_id"] < recipients[j]["user_id"] })
-		return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyPlacementCredited", EntityType: "process_participation", EntityID: participation, StructuredMetadata: map[string]any{"company_id": company.String(), "vacancy_id": process.String(), "credit_id": credit.String(), "team_mode": mode, "hired_by": actor.String(), "recipients": recipients}})
+		return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyPlacementCredited, EntityType: "process_participation", EntityID: participation, CompanyID: &company, VacancyID: &process, StructuredMetadata: map[string]any{"company_id": company.String(), "vacancy_id": process.String(), "credit_id": credit.String(), "team_mode": mode, "hired_by": actor.String(), "recipients": recipients}})
 	}
 	if !departure {
 		return nil
@@ -76,7 +76,7 @@ func (s *Store) recordPlacementCredit(ctx context.Context, tx pgx.Tx, company, a
 	if status == fromStatus {
 		return nil
 	}
-	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyPlacementCreditChanged", EntityType: "process_participation", EntityID: participation, Metadata: map[string]string{"company_id": company.String(), "vacancy_id": process.String(), "credit_id": credit.String(), "from_status": "active", "to_status": status, "cause": "exit:" + reason}})
+	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyPlacementCreditChanged, EntityType: "process_participation", EntityID: participation, CompanyID: &company, VacancyID: &process, Metadata: map[string]string{"company_id": company.String(), "vacancy_id": process.String(), "credit_id": credit.String(), "from_status": "active", "to_status": status, "cause": "exit:" + reason}})
 }
 
 func (s *Store) PlacementCredits(ctx context.Context, company, actor, id, pid uuid.UUID) (app.CreditList, error) {

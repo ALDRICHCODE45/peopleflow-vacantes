@@ -6,6 +6,7 @@ import (
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/pool"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
 )
 
@@ -96,7 +97,11 @@ func (s *Store) CorrectCV(ctx context.Context, company, actor uuid.UUID, kind st
 		return out, err
 	}
 	// Filenames are private history only; shared audit metadata contains IDs only.
-	if _, err = tx.Exec(ctx, `INSERT INTO audit_events(id,actor_id,actor_type,event_type,entity_type,entity_id,metadata) VALUES($1,$2,'user','CompanyCandidateCVCorrected','company_candidate',$3,jsonb_build_object('participation_id',$4::text))`, uuid.New(), actor, id, pid.String()); err != nil {
+	var vacancy uuid.UUID
+	if err = tx.QueryRow(ctx, `SELECT process_id FROM process_participations WHERE id=$1`, pid).Scan(&vacancy); err != nil {
+		return out, err
+	}
+	if err = s.audit.Append(ctx, tx, auditentities.AuditEvent{ID: uuid.New(), ActorType: auditentities.ActorTypeUser, ActorID: &actor, EventType: auditentities.EventCompanyCandidateCVCorrected, EntityType: "company_candidate", EntityID: id, CompanyID: &company, VacancyID: &vacancy, Metadata: map[string]string{"participation_id": pid.String()}}); err != nil {
 		return out, err
 	}
 	out, err = s.detail(ctx, tx, company, kind, id)

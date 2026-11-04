@@ -23,13 +23,14 @@ func TestRequestMetaReachesTheAuditRow(t *testing.T) {
 	pool := requireDraftFlowPool(t)
 	const secret = "integration-secret-0123456789abcdef0123456789"
 	audit := auditpostgres.NewAuditEventRepository()
+	company := uuid.Must(uuid.NewV7())
 	appendOnRequest := func(eventID uuid.UUID) func(http.Handler) http.Handler {
 		return func(http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				err := pgx.BeginFunc(r.Context(), pool, func(tx pgx.Tx) error {
 					return audit.Append(r.Context(), tx, auditentities.AuditEvent{
-						ID: eventID, ActorType: auditentities.ActorTypeSystem, EventType: "RequestMetaTest",
-						EntityType: auditentities.EntityCompany, EntityID: uuid.Must(uuid.NewV7()),
+						ID: eventID, ActorType: auditentities.ActorTypeSystem, EventType: auditentities.EventCompanyUpdated,
+						EntityType: auditentities.EntityCompany, EntityID: company, CompanyID: &company,
 						Metadata: map[string]string{},
 					})
 				})

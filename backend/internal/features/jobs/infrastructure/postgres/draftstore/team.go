@@ -40,7 +40,7 @@ func (s *Store) createTeam(ctx context.Context, tx pgx.Tx, record draftRecord, a
 	if err := openTeamAssignment(ctx, tx, record.id, record.companyID, actor, actor, assignment, "responsible", "creation", nil, record.createdAt); err != nil {
 		return fmt.Errorf("create responsible assignment: %w", err)
 	}
-	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyTeamCreated", EntityType: "vacancy", EntityID: record.id, Metadata: map[string]string{"company_id": record.companyID.String(), "mode": "with_responsible", "responsible_user_id": actor.String(), "assignment_id": assignment.String()}}
+	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyTeamCreated, EntityType: "vacancy", EntityID: record.id, CompanyID: &record.companyID, VacancyID: &record.id, Metadata: map[string]string{"company_id": record.companyID.String(), "mode": "with_responsible", "responsible_user_id": actor.String(), "assignment_id": assignment.String()}}
 	if err := s.audit.Append(ctx, tx, event); err != nil {
 		return fmt.Errorf("co-write vacancy team create audit: %w", err)
 	}

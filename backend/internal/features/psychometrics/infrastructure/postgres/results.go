@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/application/invitations"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/content"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/scoring"
@@ -153,7 +154,7 @@ func (s *InvitationsStore) employerResult(ctx context.Context, company, actor, i
 			return invitations.Result{}, errors.New("finished psychometric result missing initial comparison")
 		}
 		value = resultProjection(iid, at, stored, latest, history)
-		if err = s.jobs.AuditPsychometricInvitation(ctx, tx, actor, id, pid, iid, "PsychometricResultViewed"); err != nil {
+		if err = s.jobs.AuditPsychometricInvitation(ctx, tx, actor, id, pid, iid, audit.EventPsychometricResultViewed); err != nil {
 			return invitations.Result{}, err
 		}
 	}

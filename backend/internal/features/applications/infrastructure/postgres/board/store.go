@@ -317,7 +317,7 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 		return app.Moved{}, err
 	}
 	at := nextEventAt(item.MovedAt)
-	if err = s.clearSubstate(ctx, tx, actor, id, &item, at, version+1); err != nil {
+	if err = s.clearSubstate(ctx, tx, company, actor, id, &item, at, version+1); err != nil {
 		return app.Moved{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,substate_id=NULL,version=version+1 WHERE process_id=$1 AND id=$2`, id, pid, request.ToStageID); err != nil {
@@ -346,7 +346,7 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 			next.FullCoverageReachedAt = &at
 		}
 	}
-	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "ParticipationMoved", EntityType: "process_participation", EntityID: pid, Metadata: map[string]string{"vacancy_id": id.String(), "from_stage_id": item.StageID, "to_stage_id": request.ToStageID, "version": strconv.FormatInt(version+1, 10), "hire": strconv.FormatBool(hire), "departure": strconv.FormatBool(departure)}}
+	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventParticipationMoved, EntityType: "process_participation", EntityID: pid, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"vacancy_id": id.String(), "from_stage_id": item.StageID, "to_stage_id": request.ToStageID, "version": strconv.FormatInt(version+1, 10), "hire": strconv.FormatBool(hire), "departure": strconv.FormatBool(departure)}}
 	if err = s.audit.Append(ctx, tx, event); err != nil {
 		return app.Moved{}, err
 	}

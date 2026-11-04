@@ -15,6 +15,7 @@ import (
 
 	boardapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
+	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	companiesentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
@@ -244,7 +245,7 @@ func TestTalentBaseVisibility_ManualIntakeWarningRedactsLastVacancy(t *testing.T
 
 func TestTalentBaseVisibility_WritesRecheckInsideTheirTransaction(t *testing.T) {
 	f := newTbPoolFixture(t)
-	store := poolpostgres.NewStore(f.h.pool, poolStageNames)
+	store := poolpostgres.NewStore(f.h.pool, auditpostgres.NewAuditEventRepository(), poolStageNames)
 	company := f.company.companyID
 	ctx := context.Background()
 	etag := f.h.do(t, "GET", f.path, "", f.owner.token, nil).header.Get("ETag")
@@ -276,7 +277,7 @@ func TestTalentBaseVisibility_WritesRecheckInsideTheirTransaction(t *testing.T) 
 
 func TestTalentBaseVisibility_OrganicEditRechecksInsideTransaction(t *testing.T) {
 	f := newOrganicEditFixture(t)
-	store := poolpostgres.NewStore(f.h.pool, poolStageNames)
+	store := poolpostgres.NewStore(f.h.pool, auditpostgres.NewAuditEventRepository(), poolStageNames)
 	etag := f.detail(t).header.Get("ETag")
 	tbSet(t, f.h, f.owner, "selected_users")
 	_, err := store.EditOrganic(context.Background(), f.company.companyID, f.recruiter.userID, f.id, etag, []byte(`{"set":{"current_company":"Leaked Co"}}`))
@@ -290,7 +291,7 @@ func TestTalentBaseVisibility_OrganicEditRechecksInsideTransaction(t *testing.T)
 
 func TestTalentBaseVisibility_RevocationCommittedMidWriteWins(t *testing.T) {
 	f := newTbPoolFixture(t)
-	store := poolpostgres.NewStore(f.h.pool, poolStageNames)
+	store := poolpostgres.NewStore(f.h.pool, auditpostgres.NewAuditEventRepository(), poolStageNames)
 	etag := f.h.do(t, "GET", f.path, "", f.owner.token, nil).header.Get("ETag")
 	tbSet(t, f.h, f.owner, "all_recruiters") // creates the settings row
 
@@ -446,7 +447,7 @@ func TestTalentBaseVisibility_RoleChangeWithoutSettingStillWorks(t *testing.T) {
 func TestTalentBaseVisibility_PutAndPoolWriteDoNotDeadlock(t *testing.T) {
 	f := newTbPoolFixture(t)
 	ctx := context.Background()
-	store := poolpostgres.NewStore(f.h.pool, poolStageNames)
+	store := poolpostgres.NewStore(f.h.pool, auditpostgres.NewAuditEventRepository(), poolStageNames)
 	tbSet(t, f.h, f.owner, "selected_users", f.listed.userID) // version 2
 	etag := f.h.do(t, "GET", f.path, "", f.owner.token, nil).header.Get("ETag")
 	hold, err := f.h.pool.Begin(ctx) // a concurrent writer of the same candidate

@@ -271,6 +271,8 @@ func (r *CompanyRepository) UpdateCompanyReturning(ctx context.Context, companyI
 	if err != nil {
 		return nil, err
 	}
+	// The audit row belongs to the company this write changed (audit-log-v1 §1).
+	event.CompanyID = &companyID
 	// Fail closed on audit/read/hydration/commit errors: never return a success
 	// row for a transaction that did not commit both the company and its audit.
 	if err = r.audit.Append(ctx, tx, event); err != nil {
@@ -373,6 +375,8 @@ func (r *CompanyRepository) SoftDeleteCompany(ctx context.Context, companyID uui
 	// `db.New(tx).CloseCompanyJobs`; the builder takes a Go `int`.
 	event.Metadata = auditentities.CompanyDeletedMetadata(int(closedCount))
 
+	// The audit row belongs to the company this write deleted (audit-log-v1 §1).
+	event.CompanyID = &companyID
 	// Fail-closed: an audit INSERT failure aborts the whole
 	// transaction. The deferred Rollback restores pre-state; no
 	// soft-delete, no job close, no audit row is visible.

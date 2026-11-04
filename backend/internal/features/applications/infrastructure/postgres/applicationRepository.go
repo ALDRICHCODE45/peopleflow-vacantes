@@ -113,6 +113,14 @@ func (r *ApplicationRepository) Create(
 		return nil, err // rollback via defer
 	}
 
+	// The event belongs to the job's company (audit-log-v1 §1); the use case
+	// does not carry it, so the adapter reads it inside the same transaction.
+	var company uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT company_id FROM jobs WHERE id=$1`, p.JobID).Scan(&company); err != nil {
+		return nil, fmt.Errorf("read job company: %w", err)
+	}
+	event.CompanyID = &company
+
 	// Fail-closed: an audit INSERT failure aborts the whole transaction.
 	if err := r.audit.Append(ctx, tx, event); err != nil {
 		return nil, fmt.Errorf("co-write audit: %w", err) // → 500, no row, no event
@@ -236,6 +244,8 @@ func (r *ApplicationRepository) Transition(
 	if err != nil {
 		return nil, err // rollback via defer
 	}
+
+	event.CompanyID = &companyID
 
 	// Fail-closed: an audit INSERT failure aborts the whole transaction.
 	if err := r.audit.Append(ctx, tx, event); err != nil {

@@ -62,12 +62,19 @@ func appendAndRead(t *testing.T, pool *pgxpool.Pool, ctx context.Context, event 
 	return row
 }
 
+// newAuditEvent builds a catalog event: a company-scoped one when a company is
+// given, the company-less candidate account event otherwise (the catalog
+// refuses a company-scoped type without a company).
 func newAuditEvent(company, vacancy *uuid.UUID) entities.AuditEvent {
-	return entities.AuditEvent{
+	event := entities.AuditEvent{
 		ID: uuid.Must(uuid.NewV7()), ActorType: entities.ActorTypeSystem,
-		EventType: "AuditAdapterTest", EntityType: entities.EntityCompany, EntityID: uuid.Must(uuid.NewV7()),
-		Metadata: map[string]string{"k": "v"}, CompanyID: company, VacancyID: vacancy,
+		EventType: entities.EventCompanyDeleted, EntityType: entities.EntityCompany, EntityID: uuid.Must(uuid.NewV7()),
+		Metadata: map[string]string{"jobs_closed": "1"}, CompanyID: company, VacancyID: vacancy,
 	}
+	if company == nil {
+		event.EventType, event.Metadata = entities.EventCandidateAccountCreated, map[string]string{}
+	}
+	return event
 }
 
 func TestAppendPersistsCompanyVacancyAndRequestMetadata(t *testing.T) {
@@ -88,7 +95,7 @@ func TestAppendPersistsCompanyVacancyAndRequestMetadata(t *testing.T) {
 			if row.ip == nil || *row.ip != tc.want || row.userAgent == nil || *row.userAgent != ua || row.ipSource == nil || *row.ipSource != "bff" {
 				t.Fatalf("request metadata: ip=%v ua=%v source=%v", deref(row.ip), deref(row.userAgent), deref(row.ipSource))
 			}
-			if row.metadata != `{"k": "v"}` {
+			if row.metadata != `{"jobs_closed": "1"}` {
 				t.Fatalf("metadata changed: %s", row.metadata)
 			}
 		})

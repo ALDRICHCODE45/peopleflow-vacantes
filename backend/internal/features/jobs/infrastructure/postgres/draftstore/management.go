@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancymanagement"
@@ -16,8 +17,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-const managementConfiguredEvent = "JobDraftManagementConfigured"
 
 var _ vacancymanagement.Store = (*Store)(nil)
 
@@ -100,7 +99,7 @@ func (s *Store) PutManagement(ctx context.Context, companyID, actorID, id uuid.U
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode management: %w", err)
 	}
-	event := newDraftEvent(actorID, managementConfiguredEvent, id, version+1)
+	event := newDraftEvent(actorID, companyID, audit.EventJobDraftManagementConfigured, id, version+1)
 	event.Metadata["previous"] = string(previousJSON)
 	event.Metadata["new"] = string(nextJSON)
 	if err := s.audit.Append(ctx, tx, event); err != nil {

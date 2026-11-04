@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
@@ -18,8 +19,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-const deliveryConfiguredEvent = "JobDraftDeliveryConfigured"
 
 var _ deliveryconfig.Store = (*Store)(nil)
 
@@ -162,7 +161,7 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode delivery: %w", err)
 	}
-	event := newDraftEvent(actorID, deliveryConfiguredEvent, id, version+1)
+	event := newDraftEvent(actorID, companyID, audit.EventJobDraftDeliveryConfigured, id, version+1)
 	event.Metadata["previous"] = string(previousJSON)
 	event.Metadata["new"] = string(nextJSON)
 	if err := s.audit.Append(ctx, tx, event); err != nil {

@@ -99,7 +99,7 @@ func (s *Store) CreateV2(ctx context.Context, companyID, actorID uuid.UUID, key 
 	); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert v2 idempotency record: %w", err)
 	}
-	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, entities.EventJobDraftCreated, draftID, record.version)); err != nil {
+	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, record.companyID, entities.EventJobDraftCreated, draftID, record.version)); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write draft v2 create audit: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {

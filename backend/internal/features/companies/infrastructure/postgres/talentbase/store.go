@@ -110,7 +110,7 @@ func (s *Store) Replace(ctx context.Context, company, actor uuid.UUID, version i
 	}
 	if err = s.audit.Append(ctx, tx, audit.AuditEvent{
 		ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor,
-		EventType: app.EventVisibilityChanged, EntityType: audit.EntityCompany, EntityID: company,
+		EventType: app.EventVisibilityChanged, EntityType: audit.EntityCompany, EntityID: company, CompanyID: &company,
 		StructuredMetadata: map[string]any{
 			"company_id": company.String(), "version": next,
 			"previous_mode": string(previousMode), "new_mode": string(r.Mode),

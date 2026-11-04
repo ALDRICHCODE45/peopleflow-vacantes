@@ -305,7 +305,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		teamHandler:          jobshttp.NewTeamHandler(store),
 		offboardHandler:      jobshttp.NewOffboardHandler(store),
 		draftListHandler:     jobshttp.NewDraftListHandler(store),
-		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, poolStageNames).WithStorage(files))).WithManualCVPorts(manualCVInspector{}, manualFiles),
+		candidatePoolHandler: poolhttp.NewHandler(poolapp.NewService(poolpostgres.NewStore(pool, auditRepo, poolStageNames).WithStorage(files))).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		pipelineHandler:      jobshttp.NewPipelineHandler(store),
 		substatesHandler:     jobshttp.NewSubstatesHandler(store),
 		deliveryHandler:      jobshttp.NewDeliveryHandler(store),

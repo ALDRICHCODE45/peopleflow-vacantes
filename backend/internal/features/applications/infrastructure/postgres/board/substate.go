@@ -103,7 +103,7 @@ func (s *Store) SetSubstate(ctx context.Context, company, actor, id, pid uuid.UU
 		return app.Moved{}, app.ErrVersionOverflow
 	}
 	at := nextEventAt(item.MovedAt)
-	if err = s.substateHistory(ctx, tx, actor, id, item, target, c, at, version+1); err != nil {
+	if err = s.substateHistory(ctx, tx, company, actor, id, item, target, c, at, version+1); err != nil {
 		return app.Moved{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE process_participations SET substate_id=$3,version=version+1 WHERE process_id=$1 AND id=$2`, id, pid, target); err != nil {
@@ -123,7 +123,7 @@ func (s *Store) SetSubstate(ctx context.Context, company, actor, id, pid uuid.UU
 	return app.Moved{Item: item, Coverage: cov, Delivery: delivery}, nil
 }
 
-func (s *Store) substateHistory(ctx context.Context, tx pgx.Tx, actor, id uuid.UUID, item app.Item, target *string, c []app.Substate, at time.Time, version int64) error {
+func (s *Store) substateHistory(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID, item app.Item, target *string, c []app.Substate, at time.Time, version int64) error {
 	fromName, err := substateName(c, item.SubstateID)
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (s *Store) substateHistory(ctx context.Context, tx pgx.Tx, actor, id uuid.U
 	if target != nil {
 		to = *target
 	}
-	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "ParticipationSubstateChanged", EntityType: "process_participation", EntityID: item.ID, Metadata: map[string]string{"vacancy_id": id.String(), "from_substate_id": from, "to_substate_id": to, "version": strconv.FormatInt(version, 10)}})
+	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventParticipationSubstateChanged, EntityType: "process_participation", EntityID: item.ID, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"vacancy_id": id.String(), "from_substate_id": from, "to_substate_id": to, "version": strconv.FormatInt(version, 10)}})
 }
 
 // Reserve two database-precision instants after the previous event even if the
@@ -159,7 +159,7 @@ func nextEventAt(previous time.Time) time.Time {
 // Clearing shares the caller's single version bump. Give the clear event a
 // distinct preceding timestamp: history's existing (created_at,id) order cannot
 // otherwise order two UUIDv4 rows written at the same instant deterministically.
-func (s *Store) clearSubstate(ctx context.Context, tx pgx.Tx, actor, id uuid.UUID, item *app.Item, at time.Time, version int64) error {
+func (s *Store) clearSubstate(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID, item *app.Item, at time.Time, version int64) error {
 	if item.SubstateID == nil {
 		return nil
 	}
@@ -167,7 +167,7 @@ func (s *Store) clearSubstate(ctx context.Context, tx pgx.Tx, actor, id uuid.UUI
 	if err != nil {
 		return err
 	}
-	if err = s.substateHistory(ctx, tx, actor, id, *item, nil, c, at.Add(-time.Microsecond), version); err != nil {
+	if err = s.substateHistory(ctx, tx, company, actor, id, *item, nil, c, at.Add(-time.Microsecond), version); err != nil {
 		return err
 	}
 	item.SubstateID = nil

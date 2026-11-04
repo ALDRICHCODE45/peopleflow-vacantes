@@ -16,7 +16,7 @@ import (
 
 // Identity owns these additive audit literals; no migration is needed because
 // event_type/entity_type have no DB CHECK. Metadata contains no identity PII.
-const CandidateAccountCreated = "CandidateAccountCreated"
+const CandidateAccountCreated = auditentities.EventCandidateAccountCreated
 const candidateAccountEntity = "user"
 
 type CandidateAccountStore struct {

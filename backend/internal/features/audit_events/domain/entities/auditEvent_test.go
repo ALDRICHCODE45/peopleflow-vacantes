@@ -62,38 +62,19 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 		t.Error("the two event-type constants must be distinct")
 	}
 
-	// The untyped string-constant surface of this package is exactly the four
-	// event types plus two entity types. A new event constant would fail
-	// here — the closed set for this cycle is a deliberate code change.
-	//
-	// companies-audit WU1 (design D7 / D11): the closed set expands from
-	// two events to four (`ApplicationSubmitted`, `ApplicationTransitioned`,
-	// `CompanyUpdated`, `CompanyDeleted`); the entity types expand from one
-	// (`application`) to two (`application`, `company`). The future-only
-	// constants (`EventCompanyCreated`, `CompanyRestored`,
-	// `CompanySoftDeleted`) stay deferred — adding one would violate the
-	// closed-vocabulary invariant.
+	// The untyped string-constant surface of this package is exactly the
+	// catalog's event types plus the entity types: a constant outside the
+	// catalog, or a catalog entry without a constant, fails here. Adding an
+	// event type is a deliberate catalog change (catalog.go).
 	want := map[string]bool{
-		EventApplicationSubmitted:    true,
-		EventApplicationTransitioned: true,
-		EventCompanyUpdated:          true,
-		EventCompanyDeleted:          true,
-		EventCompanySitePublished:    true,
-		EventCompanySiteUnpublished:  true,
-		EntityCompanySite:            true,
-		EventJobDraftCreated:         true,
-		EventJobDraftSaved:           true,
-		EventVacancyPaused:           true,
-		EventVacancyResumed:          true,
-		EventVacancyClosed:           true,
-		EventVacancyProcessFinished:  true,
-		EventVacancyReopened:         true,
-		// requester-catalog: one immutable catalog insert event and its entity.
-		EventJobDraftRequesterCreated: true,
-		EntityApplication:             true,
-		EntityCompany:                 true,
-		EntityJobDraft:                true,
-		EntityJobDraftRequester:       true,
+		EntityApplication:       true,
+		EntityCompany:           true,
+		EntityCompanySite:       true,
+		EntityJobDraft:          true,
+		EntityJobDraftRequester: true,
+	}
+	for _, spec := range Catalog() {
+		want[spec.Type] = true
 	}
 	got := stringConstantValues(t)
 	if len(got) != len(want) {

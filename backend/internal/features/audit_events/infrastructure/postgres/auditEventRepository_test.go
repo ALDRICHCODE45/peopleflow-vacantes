@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/netip"
 	"reflect"
 	"testing"
@@ -129,5 +130,32 @@ func TestApplyRequestMeta(t *testing.T) {
 	partial := applyRequestMeta(requestmeta.NewContext(context.Background(), requestmeta.Meta{IPSource: requestmeta.SourcePeer}), base)
 	if partial.Ip != nil || partial.UserAgent.Valid || partial.IpSource != (pgtype.Text{String: "peer", Valid: true}) {
 		t.Fatalf("got %+v", partial)
+	}
+}
+
+// TestAppendRefusesBeforeTouchingTheTransaction pins the catalog gate
+// (audit-log-v1 §1): an unknown type, a company-scoped type without a company
+// and a metadata key outside the type's closed set are refused before any SQL
+// runs, so the caller's transaction fails closed. The nil tx proves no query
+// was attempted.
+func TestAppendRefusesBeforeTouchingTheTransaction(t *testing.T) {
+	company := uuid.New()
+	cases := []struct {
+		name  string
+		event entities.AuditEvent
+		want  error
+	}{
+		{"unknown type", entities.AuditEvent{EventType: "NoSuchEvent", CompanyID: &company}, entities.ErrUnknownEventType},
+		{"missing company", entities.AuditEvent{EventType: entities.EventCompanyUpdated}, entities.ErrCompanyRequired},
+		{"metadata key outside the set", entities.AuditEvent{EventType: entities.EventCompanyUpdated, CompanyID: &company, Metadata: map[string]string{"name": "ACME"}}, entities.ErrMetadataKeyNotAllowed},
+	}
+	repo := NewAuditEventRepository()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := repo.Append(context.Background(), nil, tc.event)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("want %v, got %v", tc.want, err)
+			}
+		})
 	}
 }

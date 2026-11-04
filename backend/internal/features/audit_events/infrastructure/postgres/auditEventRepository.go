@@ -31,11 +31,17 @@ func NewAuditEventRepository() *AuditEventRepository { return &AuditEventReposit
 // port change here surfaces as a build error, never a runtime surprise.
 var _ auditrepositories.AuditEventRepository = (*AuditEventRepository)(nil)
 
-// Append marshals the PII-free metadata map to JSON bytes and inserts the
+// Append first validates the event against the catalog (known type, company
+// present for company-scoped types, metadata keys inside the closed set) and
+// refuses before any SQL runs, so the caller's transaction fails closed. It
+// then marshals the PII-free metadata map to JSON bytes and inserts the
 // event inside the caller-owned transaction. Each failure is wrapped so the
 // co-write caller can abort the transaction fail-closed (no write without its
 // audit trail).
 func (r *AuditEventRepository) Append(ctx context.Context, tx pgx.Tx, event auditentities.AuditEvent) error {
+	if err := event.Validate(); err != nil {
+		return fmt.Errorf("refuse audit event: %w", err)
+	}
 	var metadata any = event.Metadata
 	if event.StructuredMetadata != nil {
 		metadata = event.StructuredMetadata

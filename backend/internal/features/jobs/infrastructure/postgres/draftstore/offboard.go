@@ -315,7 +315,7 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 			if err != nil {
 				return drafts.Result{}, err
 			}
-			if err := s.appendOffboardVacancyAudit(ctx, tx, actor, id, "VacancyResponsibleReassigned", meta); err != nil {
+			if err := s.appendOffboardVacancyAudit(ctx, tx, company, actor, id, audit.EventVacancyResponsibleReassigned, meta); err != nil {
 				return drafts.Result{}, err
 			}
 			rid := meta["reassignment_id"]
@@ -328,7 +328,7 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 				if err := openTeamAssignment(ctx, tx, id, company, target, actor, assignment, "member", "added", nil, now); err != nil {
 					return drafts.Result{}, err
 				}
-				if err := s.appendOffboardVacancyAudit(ctx, tx, actor, id, "VacancyTeamMemberAdded", map[string]string{"company_id": company.String(), "assignment_id": assignment.String(), "user_id": target.String(), "function": "member", "recruiter_deadline": ""}); err != nil {
+				if err := s.appendOffboardVacancyAudit(ctx, tx, company, actor, id, audit.EventVacancyTeamMemberAdded, map[string]string{"company_id": company.String(), "assignment_id": assignment.String(), "user_id": target.String(), "function": "member", "recruiter_deadline": ""}); err != nil {
 					return drafts.Result{}, err
 				}
 				response.HandedOver = append(response.HandedOver, handover{id, v.HandOver, target, nil})
@@ -337,7 +337,7 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 				return drafts.Result{}, err
 			}
 			response.Ended = append(response.Ended, leaving.ID.String())
-			if err := s.appendOffboardVacancyAudit(ctx, tx, actor, id, "VacancyAssignmentEndedByMembership", map[string]string{"company_id": company.String(), "assignment_id": leaving.ID.String(), "user_id": leaving.User.String()}); err != nil {
+			if err := s.appendOffboardVacancyAudit(ctx, tx, company, actor, id, audit.EventVacancyAssignmentEndedByMembership, map[string]string{"company_id": company.String(), "assignment_id": leaving.ID.String(), "user_id": leaving.User.String()}); err != nil {
 				return drafts.Result{}, err
 			}
 		}
@@ -355,7 +355,7 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 	}
 	result := drafts.Result{}
 	if offboard {
-		if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "CompanyMemberOffboarded", EntityType: "company_member", EntityID: membership, StructuredMetadata: map[string]any{"company_id": company.String(), "user_id": preview.User.ID.String(), "reassignment_ids": reassignmentIDs, "ended_assignment_ids": response.Ended, "talent_base_viewer_removed": viewerRemoved.RowsAffected() > 0}}); err != nil {
+		if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventCompanyMemberOffboarded, EntityType: "company_member", EntityID: membership, CompanyID: &company, StructuredMetadata: map[string]any{"company_id": company.String(), "user_id": preview.User.ID.String(), "reassignment_ids": reassignmentIDs, "ended_assignment_ids": response.Ended, "talent_base_viewer_removed": viewerRemoved.RowsAffected() > 0}}); err != nil {
 			return drafts.Result{}, err
 		}
 		result.Body, err = json.Marshal(response)
@@ -371,6 +371,6 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 	}
 	return result, nil
 }
-func (s *Store) appendOffboardVacancyAudit(ctx context.Context, tx pgx.Tx, actor, id uuid.UUID, event string, metadata map[string]string) error {
-	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: event, EntityType: "vacancy", EntityID: id, Metadata: metadata})
+func (s *Store) appendOffboardVacancyAudit(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID, event string, metadata map[string]string) error {
+	return s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: event, EntityType: "vacancy", EntityID: id, CompanyID: &company, VacancyID: &id, Metadata: metadata})
 }

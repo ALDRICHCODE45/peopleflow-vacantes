@@ -222,7 +222,7 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 		return drafts.Result{}, fmt.Errorf("insert idempotency record: %w", err)
 	}
 
-	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, entities.EventJobDraftCreated, draftID, record.version)); err != nil {
+	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, record.companyID, entities.EventJobDraftCreated, draftID, record.version)); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write draft create audit: %w", err)
 	}
 
@@ -383,7 +383,7 @@ func (s *Store) Save(ctx context.Context, companyID, actorID, id uuid.UUID, ifMa
 		return drafts.Result{}, fmt.Errorf("format save etag: %w", err)
 	}
 
-	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, entities.EventJobDraftSaved, id, record.version)); err != nil {
+	if err := s.audit.Append(ctx, tx, newDraftEvent(actorID, record.companyID, entities.EventJobDraftSaved, id, record.version)); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write draft save audit: %w", err)
 	}
 
@@ -563,10 +563,11 @@ func findIdempotency(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUI
 	return record, true, nil
 }
 
-// newDraftEvent builds a PII-free draft audit event. The metadata carries only
+// newDraftEvent builds a PII-free draft audit event for the company that owns
+// the draft; the draft id is also the vacancy id. The metadata carries only
 // the version string.
-func newDraftEvent(actorID uuid.UUID, eventType string, draftID uuid.UUID, version int64) entities.AuditEvent {
-	actor := actorID
+func newDraftEvent(actorID, companyID uuid.UUID, eventType string, draftID uuid.UUID, version int64) entities.AuditEvent {
+	actor, company, vacancy := actorID, companyID, draftID
 	return entities.AuditEvent{
 		ID:         uuid.Must(uuid.NewV7()),
 		ActorType:  entities.ActorTypeUser,
@@ -574,6 +575,8 @@ func newDraftEvent(actorID uuid.UUID, eventType string, draftID uuid.UUID, versi
 		EventType:  eventType,
 		EntityType: entities.EntityJobDraft,
 		EntityID:   draftID,
+		CompanyID:  &company,
+		VacancyID:  &vacancy,
 		Metadata:   map[string]string{"version": strconv.FormatInt(version, 10)},
 	}
 }

@@ -12,13 +12,13 @@ import (
 	"io"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
 )
 
 // EventVisibilityChanged is the audit event co-written with every accepted PUT.
-// Like CompanyMemberOffboarded it lives with its emitter: the audit_events
-// entities package keeps a closed, test-pinned vocabulary of its own.
-const EventVisibilityChanged = "TalentBaseVisibilityChanged"
+// The type itself lives in the audit_events catalog.
+const EventVisibilityChanged = audit.EventTalentBaseVisibilityChanged
 
 type Mode string
 

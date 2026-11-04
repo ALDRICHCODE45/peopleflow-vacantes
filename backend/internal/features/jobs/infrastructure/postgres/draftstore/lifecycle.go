@@ -218,7 +218,7 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 	if _, err = tx.Exec(ctx, `INSERT INTO job_draft_idempotency(id,company_id,actor_id,operation,idem_key,fingerprint,fingerprint_algorithm,response_body,response_etag) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, uuid.Must(uuid.NewV7()), companyID, actorID, lifecycleOperation, key, fingerprintDigest(fingerprint), FingerprintAlgorithmSHA256, result.Body, result.ETag); err != nil {
 		return drafts.Result{}, fmt.Errorf("write lifecycle idempotency: %w", err)
 	}
-	event := newDraftEvent(actorID, lifecycleAuditType(action), id, version+1)
+	event := newDraftEvent(actorID, companyID, lifecycleAuditType(action), id, version+1)
 	event.EntityType = "vacancy_process"
 	event.Metadata["publication"] = *next.Publication
 	event.Metadata["process"] = *next.Process

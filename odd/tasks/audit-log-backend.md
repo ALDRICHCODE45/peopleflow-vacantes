@@ -44,8 +44,9 @@ Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, 
   (migration + RED/GREEN) + worker mw1pf97d (28 test cleanups). Commit: next feat commit.
 - [x] T3 — S2, S4.4: request-context middleware + `AUDIT_PROXY_SECRET`, shared IP helper (out of the rate limiter),
   adapter writes `ip`/`user_agent`/`ip_source`. Route: worker mw1r96q7 (context backstop). Commit: next feat commit.
-- [ ] T4 — S2, S4.5, S4.7: `CompanyID`/`VacancyID` on every emitter (incl. raw SQL ones), event catalog constants +
-  categories, test: no employer-side type with null `company_id`, allowed metadata keys per type. Commit: —.
+- [x] T4 — S2, S4.5, S4.7: `CompanyID`/`VacancyID` on every emitter (incl. raw SQL ones), event catalog constants +
+  categories, test: no employer-side type with null `company_id`, allowed metadata keys per type. Route: worker
+  mw1rxaxp. Commit: next feat commit.
 - [ ] T5 — S1, S2, S4.1–S4.3: sensitive reads (§2), `POST /v2/me/session/start|end` (§3), member events (§5), route
   inventory. Commit: —.
 - [ ] T6 — verify 2a (independent, security) + full integration. Commit: —.
@@ -86,3 +87,11 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
   `TestProductionComposition_RequestMetaWired`); adapter writes the five columns; sqlc output hand-edited (no binary).
   Checks: gofmt/build/vet clean; unit 107 ok, 1 FAIL scripts/closure (known); integration audit_events, runtime,
   cmd/api ok. Gotcha: goose CLI auto-loads backend/.env (dev DB) — pass `-env=none` with an explicit DSN.
+- L8 — T4 (worker mw1rxaxp): catalog of 63 types (53 emitted + 10 pre-registered for T5/2b), `Append` validates
+  (unknown type, company-scoped without company, metadata key outside the set) before any SQL. Raw-SQL pool emitters now
+  use the port (`pool.NewStore(pool, audit, stageNames)`). §7 findings: VacancyDeliveryFulfilled embedded candidates'
+  full_name, ParticipationChecklistMarked the note text — both reduced to IDs/enums. Parent decision: keep the config
+  snapshots (company configuration, not personal data); contract §7 amended with that exception. Checks: gofmt/build/vet
+  clean; unit 107 ok, 1 FAIL scripts/closure; full integration 107 ok, 3 FAIL = the known scripts/closure,
+  identity/postgres down-test and its jobs/postgres cascade. archguard: 2 violations in files unchanged vs main
+  (pre-existing). One flaky `TestPublicGeoSearchIndexCapability` on the first run, green on rerun.

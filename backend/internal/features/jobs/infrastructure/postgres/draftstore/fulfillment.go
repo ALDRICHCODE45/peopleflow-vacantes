@@ -183,11 +183,15 @@ func (s *Store) recordFulfillment(ctx context.Context, tx pgx.Tx, id, actor uuid
 	if command.RowsAffected() == 0 {
 		return true, nil
 	}
-	raw, err := json.Marshal(f)
+	raw, err := json.Marshal(auditFulfillment(f))
 	if err != nil {
 		return false, err
 	}
-	err = s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyDeliveryFulfilled", EntityType: "vacancy_process", EntityID: id, Metadata: map[string]string{"vacancy_id": id.String(), "snapshot": string(raw)}})
+	company, err := vacancyCompany(ctx, tx, id)
+	if err != nil {
+		return false, err
+	}
+	err = s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyDeliveryFulfilled, EntityType: "vacancy_process", EntityID: id, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"vacancy_id": id.String(), "snapshot": string(raw)}})
 	return true, err
 }
 func (s *Store) deliveryStatus(ctx context.Context, tx pgx.Tx, id uuid.UUID) (fulfillment.Status, error) {
@@ -304,4 +308,29 @@ func incompleteDeliveryProposal(c deliveryconfig.Configuration) []string {
 		missing = append(missing, "commitment_date_missing")
 	}
 	return missing
+}
+
+// auditFulfillment is the audit view of a fulfillment snapshot: the stored
+// snapshot keeps the delivered candidates' names for the vacancy screen, the
+// audit row keeps only participation and candidate IDs (audit-log-v1 §7).
+func auditFulfillment(f fulfillment.Snapshot) any {
+	type delivered struct {
+		ParticipationID uuid.UUID `json:"participation_id"`
+		CandidateID     uuid.UUID `json:"candidate_id"`
+		ReachedAt       time.Time `json:"reached_at"`
+	}
+	candidates := make([]delivered, 0, len(f.Candidates))
+	for _, c := range f.Candidates {
+		candidates = append(candidates, delivered{c.ParticipationID, c.Candidate.ID, c.ReachedAt})
+	}
+	return struct {
+		FulfilledAt       time.Time   `json:"fulfilled_at"`
+		Result            string      `json:"result"`
+		BusinessDaysDelta int         `json:"business_days_delta"`
+		Target            int64       `json:"target"`
+		CutoffStageID     string      `json:"cutoff_stage_id"`
+		CutoffStageName   string      `json:"cutoff_stage_name"`
+		CommitmentDate    string      `json:"commitment_date"`
+		Candidates        []delivered `json:"candidates"`
+	}{f.FulfilledAt, f.Result, f.BusinessDaysDelta, f.Target, f.CutoffStageID, f.CutoffStageName, f.CommitmentDate, candidates}
 }

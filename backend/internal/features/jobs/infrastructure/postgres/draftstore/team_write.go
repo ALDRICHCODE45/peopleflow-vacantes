@@ -251,18 +251,18 @@ func (s *Store) WriteTeam(ctx context.Context, company, actor, id uuid.UUID, w v
 		if err := openTeamAssignment(ctx, tx, id, company, input.UserID, actor, assignment, fn, "added", input.Deadline, now); err != nil {
 			return drafts.Result{}, err
 		}
-		event = "VacancyTeamMemberAdded"
+		event = audit.EventVacancyTeamMemberAdded
 		meta["assignment_id"] = assignment.String()
 		meta["user_id"] = input.UserID.String()
 		meta["function"] = fn
 		meta["recruiter_deadline"] = dateValue(input.Deadline)
 	case vacancyteam.Remove, vacancyteam.Leave:
 		cause := "removed"
-		event = "VacancyTeamMemberRemoved"
+		event = audit.EventVacancyTeamMemberRemoved
 		if w.Action == vacancyteam.Leave {
 			target = self
 			cause = "left"
-			event = "VacancyTeamMemberLeft"
+			event = audit.EventVacancyTeamMemberLeft
 		}
 		if target == nil {
 			return drafts.Result{}, vacancyteam.ErrMemberNotFound
@@ -289,7 +289,7 @@ func (s *Store) WriteTeam(ctx context.Context, company, actor, id uuid.UUID, w v
 		if _, err := tx.Exec(ctx, `UPDATE vacancy_assignments SET recruiter_deadline=$2::date WHERE id=$1`, target.ID, input.Deadline); err != nil {
 			return drafts.Result{}, err
 		}
-		event = "VacancyAssignmentDeadlineChanged"
+		event = audit.EventVacancyAssignmentDeadlineChanged
 		meta["assignment_id"] = target.ID.String()
 		meta["user_id"] = target.User.String()
 		meta["previous"] = dateValue(target.Deadline)
@@ -331,7 +331,7 @@ func (s *Store) WriteTeam(ctx context.Context, company, actor, id uuid.UUID, w v
 		if _, err := tx.Exec(ctx, `INSERT INTO vacancy_team_mode_changes(id,draft_id,company_id,from_mode,to_mode,responsible_user_id,performed_by,performed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, uuid.Must(uuid.NewV7()), id, company, mode, input.Mode, user, actor, now); err != nil {
 			return drafts.Result{}, err
 		}
-		event = "VacancyTeamModeChanged"
+		event = audit.EventVacancyTeamModeChanged
 		meta["from_mode"] = mode
 		meta["to_mode"] = input.Mode
 		meta["responsible_user_id"] = ""
@@ -363,12 +363,12 @@ func (s *Store) WriteTeam(ctx context.Context, company, actor, id uuid.UUID, w v
 		if err != nil {
 			return drafts.Result{}, err
 		}
-		event = "VacancyResponsibleReassigned"
+		event = audit.EventVacancyResponsibleReassigned
 	}
 	if _, err := tx.Exec(ctx, `UPDATE vacancy_teams SET mode=$2,version=version+1,updated_at=$3 WHERE draft_id=$1`, id, mode, now); err != nil {
 		return drafts.Result{}, err
 	}
-	if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: event, EntityType: "vacancy", EntityID: id, Metadata: meta}); err != nil {
+	if err := s.audit.Append(ctx, tx, audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: event, EntityType: "vacancy", EntityID: id, CompanyID: &company, VacancyID: &id, Metadata: meta}); err != nil {
 		return drafts.Result{}, err
 	}
 	result, err := renderTeam(ctx, tx, id, actor, auth)

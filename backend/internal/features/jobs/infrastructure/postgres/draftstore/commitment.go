@@ -124,7 +124,7 @@ func (s *Store) RenegotiateCommitment(ctx context.Context, company, actor, id uu
 	if current.CommitmentDate != nil {
 		previous = *current.CommitmentDate
 	}
-	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: "VacancyCommitmentRenegotiated", EntityType: "vacancy", EntityID: id, Metadata: map[string]string{"company_id": company.String(), "change_id": change.String(), "previous_date": previous, "new_date": input.Date, "reason": input.Reason}}
+	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyCommitmentRenegotiated, EntityType: "vacancy", EntityID: id, CompanyID: &company, VacancyID: &id, Metadata: map[string]string{"company_id": company.String(), "change_id": change.String(), "previous_date": previous, "new_date": input.Date, "reason": input.Reason}}
 	if err = s.audit.Append(ctx, tx, event); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write commitment audit: %w", err)
 	}
