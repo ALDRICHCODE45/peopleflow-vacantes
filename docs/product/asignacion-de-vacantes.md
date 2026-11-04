@@ -233,7 +233,7 @@ Cada reclutador va a poder ver **su propio rendimiento** en cualquier momento.
 | Renegociar la fecha compromiso | Construido y probado |
 | Quitar miembros pasando sus vacantes | Construido y probado |
 | Mi historial de vacantes | Construido como tabla y probado contra el sistema real |
-| Quién ve la Base de talento | Construido; prueba contra el sistema real en curso |
+| Quién ve la Base de talento | Construido y probado contra el sistema real (dueño y reclutador) |
 | Mi rendimiento | Decidido, por construir con las métricas del stakeholder |
 | Publicación | Pendiente de la decisión de publicar: backend y frontend tienen que salir juntos |
 

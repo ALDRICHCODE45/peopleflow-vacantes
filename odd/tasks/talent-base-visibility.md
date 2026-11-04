@@ -21,7 +21,7 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
 | T1 | S1–S3 | Contract proposal from the backend session, frontend review (done, L2–L3) | `746e13f7` |
 | T2 | S1, S2 | Worker (background): owner setting in Configuración: mode + member picker, save, audit noted (done, L5) | `c61c41de` |
 | T3 | S3 | Worker (background): restricted recruiter: Base de talento entry hidden/denied state, board detail stays, no CV/export outside a vacancy, duplicates-check without last vacancy (done inline, L6) | `cb3cf014` |
-| T4 | all | Integration against the real backend, verification, partner doc update | — |
+| T4 | all | Integration against the real backend, verification, partner doc update (done, L9–L12) | `352eeac2`, `266f7bd1` |
 
 ## Log
 
@@ -78,3 +78,11 @@ backend session proposes (worktree `peopleflow-vacantes`); product source `docs/
 - **L11** (user, 2026-11-04) on the dashboard count `pool_added_last_7_days` for a recruiter without access: «Ocultarla
   (Recomendado)». Backend sends null for them; the dashboard drops «Nuevos en la base» and uses three columns.
   Frontend done test-first (216 tests, tsc and ESLint clean); backend `ab7b2afc` (contract row «Dashboard pool count»). Partner doc updated.
+- **L12** Recruiter side verified against :8081 (`ab7b2afc`). The user's second Cognito account
+  (juarezroberto207@gmail.com, created by mistake as a candidate) was converted only in the QA DB to a recruiter of
+  «Trust People Company» (user: «Sí, convertila (Recomendado)»; no Cognito or normal-DB change), shown as «Alberto
+  Santa cruz»; the owner added it as collaborator of «Software Developer» (medio tiempo) through Equipo (audited), and
+  the setting became «Usuarios seleccionados» with Ana López only. The user checked the sidebar without «Base de
+  talento», the three-card dashboard, «Base de talento restringida» on /empresa/talento and the board candidates:
+  «lsito hermano, todo funciona como deberia, adelante con los siguientes pasos recomendados.» The QA setting was put
+  back to «Todos los reclutadores»; Alberto stays on that QA team. T4 done.
