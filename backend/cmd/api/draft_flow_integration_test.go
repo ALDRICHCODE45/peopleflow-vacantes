@@ -47,10 +47,13 @@ import (
 	auditport "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
+	talentbaseapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/talentbase"
 	companiesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	talentbasehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http/talentbase"
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	talentbasepostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres/talentbase"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
@@ -269,6 +272,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 	memberRepo := companiespostgres.NewCompanyMemberRepository(pool)
 	companyRepo := companiespostgres.NewCompanyRepository(pool, auditRepo)
 
+	talentBase := talentbasepostgres.NewStore(pool, auditRepo)
 	store := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(companiespostgres.LockMemberMutation)
 	draftHandler := jobshttp.NewDraftHandler(store)
 	draftV2Handler := jobshttp.NewDraftV2Handler(store, store, store)
@@ -291,7 +295,8 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		requireOwner:         requireOwner,
 		jobHandler:           jobHandler,
 		companyHandler:       companieshttp.NewCompanyHandler(companiesusecases.NewCompanyService(companyRepo, geopostgres.NewReader(queries))),
-		memberHandler:        companieshttp.NewMemberHandler(companiesusecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geopostgres.NewReader(queries))),
+		memberHandler:        companieshttp.NewMemberHandler(companiesusecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geopostgres.NewReader(queries))).WithTalentBaseAccess(talentBase),
+		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),
 		siteHandler:          newCompanySiteHandler(pool, auditpostgres.NewAuditEventRepository(), nil),
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,

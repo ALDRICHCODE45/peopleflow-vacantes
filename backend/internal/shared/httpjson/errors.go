@@ -117,6 +117,9 @@ func Resolve(code Code) Definition {
 		if def, ok := resolveSavedJobError(code); ok {
 			return def
 		}
+		if def, ok := resolveTalentBaseError(code); ok {
+			return def
+		}
 		if def, ok := resolveRateLimitError(code); ok {
 			return def
 		}

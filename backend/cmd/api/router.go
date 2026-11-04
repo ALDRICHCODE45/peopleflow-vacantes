@@ -16,6 +16,7 @@ import (
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
 	catalogshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/catalogs/infrastructure/http"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	talentbasehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http/talentbase"
 	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
 	geohttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/http"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
@@ -66,6 +67,7 @@ type routerDeps struct {
 	participationHandler *applicationsv2http.Handler
 	movementHandler      *movementhttp.Handler
 	candidatePoolHandler *poolhttp.Handler
+	talentBaseHandler    *talentbasehttp.Handler
 	queries              *db.Queries
 	pool                 health.Pinger
 	readinessTimeout     time.Duration
@@ -180,6 +182,17 @@ func newRouter(d routerDeps) chi.Router {
 		r.Put("/v2/me/company/site/draft", d.siteHandler.Put)
 		r.Post("/v2/me/company/site/media", d.siteHandler.UploadMedia)
 		r.Get("/v2/me/company/site/slug-availability", d.siteHandler.SlugAvailability)
+	})
+
+	// Talent base visibility (contract talent-base-visibility-v1): any member
+	// reads it, only the owner replaces it.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Get("/v2/me/company/talent-base-visibility", d.talentBaseHandler.Get)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireOwner)
+		r.Put("/v2/me/company/talent-base-visibility", d.talentBaseHandler.Put)
 	})
 
 	r.Group(func(r chi.Router) {

@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
+	talentbase "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/talentbase"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
@@ -50,6 +51,15 @@ import (
 // and identity ports are owned by the service.
 type MemberHandler struct {
 	service *usecases.CompanyMemberService
+	// talentBase feeds can.view_talent_base. Without it only owners are told
+	// they can view the talent base (fail closed).
+	talentBase talentbase.Access
+}
+
+// WithTalentBaseAccess adds the talent base capability source.
+func (h *MemberHandler) WithTalentBaseAccess(access talentbase.Access) *MemberHandler {
+	h.talentBase = access
+	return h
 }
 
 // NewMemberHandler wires the handler around the membership service.
@@ -178,6 +188,13 @@ type myMembershipResponse struct {
 	CompanyID string                 `json:"company_id"`
 	Role      string                 `json:"role"`
 	Company   companySummaryResponse `json:"company"`
+	Can       capabilitiesResponse   `json:"can"`
+}
+
+// capabilitiesResponse tells the client what the caller may use, so it can hide
+// an entry without provoking a 403 first. v1 has one key.
+type capabilitiesResponse struct {
+	ViewTalentBase bool `json:"view_talent_base"`
 }
 
 // listMembersResponse is the wire shape for GET /me/company/members.
@@ -222,8 +239,12 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 
 	member, company, err := h.service.GetMyMembership(r.Context(), sub)
 	var location *geo.ReadLocation
+	var can capabilitiesResponse
 	if err == nil {
 		location, err = h.service.ReadLocation(r.Context(), company.Location)
+	}
+	if err == nil {
+		can.ViewTalentBase, err = h.canViewTalentBase(r, member)
 	}
 	if err != nil {
 		def := classifyMemberError(err)
@@ -234,7 +255,16 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusOK, toMyMembershipResponse(member, company, location))
+	resp := toMyMembershipResponse(member, company, location)
+	resp.Can = can
+	httpjson.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *MemberHandler) canViewTalentBase(r *http.Request, m *entities.CompanyMember) (bool, error) {
+	if h.talentBase == nil {
+		return m.Role == valueobjects.OwnerRole, nil
+	}
+	return h.talentBase.CanView(r.Context(), m.CompanyID, m.UserID, m.Role.String())
 }
 
 // listMembers implements GET /me/company/members. The production

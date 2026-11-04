@@ -31,11 +31,14 @@ import (
 	candidatespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres"
 	cvspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres/cvs"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
+	talentbaseapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/talentbase"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	companyentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	talentbasehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http/talentbase"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	talentbasepostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres/talentbase"
 	sitesapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/application"
 	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
 	sitespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/postgres"
@@ -238,7 +241,10 @@ func run() error {
 	// the company record through it.
 	memberRepo := postgres.NewCompanyMemberRepository(pool)
 	memberService := usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geography)
-	memberHandler := companieshttp.NewMemberHandler(memberService)
+	// One store answers the setting endpoints and the capability flag, so both
+	// use the same access rule.
+	talentBase := talentbasepostgres.NewStore(pool, auditRepo)
+	memberHandler := companieshttp.NewMemberHandler(memberService).WithTalentBaseAccess(talentBase)
 
 	// Candidates wiring: candidates repo (pgxpool for the atomic
 	// language-replace tx) -> service (uses identity user repo) ->
@@ -366,6 +372,7 @@ func run() error {
 		requireCandidate: requireCandidate, identityHandler: identityHandler,
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		candidatePoolHandler: candidatePoolHandler,
+		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),
 		companyHandler:       companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
