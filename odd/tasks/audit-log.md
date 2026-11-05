@@ -156,3 +156,12 @@ source `docs/product/next-three-features.md` §2.
   is served as {}; `/vacancies` title "" = untitled draft, null = deleted; export 400 invalid_request for an empty or
   non-object body, 413 above 16 KiB, 422 per field; CSV guard also covers tab and CR. Frontend impact: the untitled
   draft showed a blank filter option and «Vacante eliminada» in the table; fixed in `16f0e967` (RED first, 124/124, tsc 0).
+- **L23** (user, 2026-11-04, on the restyled screen): «este es el nuevo diseno y es muchoo mejor, solamente haria dos
+  cambios, el primero es que el contenido de la tabla esta muy pegado a los extremos de la tabla y el segundo es que no
+  hay "paginacio normal" me gustaria que haya paginacion normal y que se pueda elgir el limite de registros por pagina,
+  en un select». Decision: «Anterior/siguiente con cursor (Recomendado)» — rows-per-page select, «Página X de Y»,
+  first/previous/next, no jump to the last page; frontend only, the contract does not change. T5 reopened (worker).
+- **L24** L23 changes committed in `57c6d962` (worker mw2vmz0i-3-8o6v, RED 11 failed then 38/38; parent re-ran 129/129,
+  tsc 0). Padding: the Talent Base has no inset setting (its outer columns are the centered checkbox and actions), so
+  the outer audit cells use the card's `--card-spacing`. Default 50 rows per page. To check in the browser: the pinned
+  «Quién» column with the extra left padding, and the paging footer on mobile.
