@@ -11,35 +11,43 @@ function subscribe(listener: () => void) {
 }
 const noResponse: AuditFailure = { ok: false, reason: "no_response", reference: {} };
 
-type Loaded = { items: AuditEvent[]; total: number; nextCursor: string | null };
+/** Same choices as the dashboard table; 50 stays the default the list always read. */
+export const PAGE_SIZES = [10, 20, 30, 40, 50] as const;
+export const DEFAULT_PAGE_SIZE = 50;
 
-/** Filters live in the URL; the cursor is page state, so a reload always starts from the newest events. */
+/** `cursors` holds the cursor of every visited page after the first, so «previous» pops and «first» empties it. */
+type Loaded = { items: AuditEvent[]; total: number; nextCursor: string | null; cursors: string[] };
+
+/** Filters live in the URL; the cursor stack and the page size are page state, so a reload starts from the newest events. */
 export function useAuditEvents() {
   const search = useSyncExternalStore(subscribe, () => window.location.search, () => "");
   const filters = useMemo(() => parseUrlState(new URLSearchParams(search)).filters, [search]);
   const key = serializeFilters(filters).toString();
   const filtersRef = useRef(filters); filtersRef.current = filters;
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const loadedRef = useRef(loaded); loadedRef.current = loaded;
   const [failure, setFailure] = useState<AuditFailure | null>(null);
-  const [moreFailure, setMoreFailure] = useState<AuditFailure | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageFailure, setPageFailure] = useState<{ failure: AuditFailure; cursors: string[] } | null>(null);
+  const [paging, setPaging] = useState(false);
+  const pagingRef = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const generation = useRef(0);
 
+  // A new filter set, page size or retry always starts again from page 1.
   useEffect(() => {
     const mine = ++generation.current;
-    setLoaded(null); setFailure(null); setMoreFailure(null); setLoadingMore(false);
+    pagingRef.current = false;
+    setLoaded(null); setFailure(null); setPageFailure(null); setPaging(false);
     void (async () => {
       let result: AuditListResult;
-      try { result = await listAuditEventsAction({ filters: filtersRef.current }); } catch { result = noResponse; }
+      try { result = await listAuditEventsAction({ filters: filtersRef.current, limit: pageSize }); } catch { result = noResponse; }
       if (mine !== generation.current) return;
-      if (result.ok) setLoaded({ items: result.data.items, total: result.data.total, nextCursor: result.data.next_cursor });
+      if (result.ok) setLoaded({ items: result.data.items, total: result.data.total, nextCursor: result.data.next_cursor, cursors: [] });
       else setFailure(result);
     })();
     return () => { generation.current += 1; };
-  }, [key, attempt]);
+  }, [key, pageSize, attempt]);
 
   const update = useCallback((next: AuditFilters) => {
     const query = serializeUrlState({ filters: next }).toString();
@@ -48,25 +56,39 @@ export function useAuditEvents() {
     setNotice(null);
   }, []);
 
-  const loadMore = useCallback(async () => {
-    const current = loadedRef.current;
-    if (!current?.nextCursor || loadingMore) return;
+  /** Reads the page at the top of `cursors`; the current page stays visible until it answers. */
+  const goTo = useCallback(async (cursors: string[]) => {
+    if (pagingRef.current) return;
     const mine = generation.current;
-    setLoadingMore(true); setMoreFailure(null);
+    pagingRef.current = true;
+    setPaging(true); setPageFailure(null); setNotice(null);
+    const cursor = cursors.at(-1);
     let result: AuditListResult;
-    try { result = await listAuditEventsAction({ filters: filtersRef.current, cursor: current.nextCursor }); } catch { result = noResponse; }
+    try { result = await listAuditEventsAction({ filters: filtersRef.current, limit: pageSize, ...(cursor === undefined ? {} : { cursor }) }); } catch { result = noResponse; }
     if (mine !== generation.current) return;
-    setLoadingMore(false);
-    if (result.ok) {
-      const seen = new Set(current.items.map(item => item.id));
-      setLoaded({ items: [...current.items, ...result.data.items.filter(item => !seen.has(item.id))], total: result.data.total, nextCursor: result.data.next_cursor });
-    } else if (result.reason === "invalid_cursor") {
+    pagingRef.current = false;
+    setPaging(false);
+    if (result.ok) setLoaded({ items: result.data.items, total: result.data.total, nextCursor: result.data.next_cursor, cursors });
+    else if (result.reason === "invalid_cursor") {
       setNotice("La lista se actualizó. Volvimos a la primera página.");
       setAttempt(value => value + 1);
-    } else setMoreFailure(result);
-  }, [loadingMore]);
+    } else setPageFailure({ failure: result, cursors });
+  }, [pageSize]);
 
-  return { filters, loaded, failure, moreFailure, loadingMore, notice, update, loadMore, retry: () => setAttempt(value => value + 1) };
+  const cursors = loaded?.cursors ?? [];
+  const nextCursor = loaded?.nextCursor ?? null;
+  return {
+    filters, loaded, failure, notice, update, paging, pageSize,
+    page: cursors.length + 1,
+    pageCount: Math.max(1, Math.ceil((loaded?.total ?? 0) / pageSize)),
+    pageFailure: pageFailure?.failure ?? null,
+    first: () => void goTo([]),
+    previous: () => void goTo(cursors.slice(0, -1)),
+    next: () => { if (nextCursor) void goTo([...cursors, nextCursor]); },
+    retryPage: () => { if (pageFailure) void goTo(pageFailure.cursors); },
+    changePageSize: (size: number) => { setNotice(null); setPageSize(size); },
+    retry: () => setAttempt(value => value + 1),
+  };
 }
 
 /** Catalogs for the filters: types, actors (former members included) and vacancies (deleted ones included). */

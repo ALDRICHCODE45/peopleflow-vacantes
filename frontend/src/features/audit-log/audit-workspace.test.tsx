@@ -106,7 +106,7 @@ describe("states", () => {
     render(<AuditWorkspace />);
     expect(screen.getByRole("status", { name: /Cargando/ })).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(list).toHaveBeenCalledWith({ filters: {} });
+    expect(list).toHaveBeenCalledWith({ filters: {}, limit: 50 });
     await act(async () => { pending.resolve({ ok: true, data: auditPage() }); });
     expect(await screen.findByRole("table")).toBeInTheDocument();
   });
@@ -228,40 +228,147 @@ describe("rows", () => {
   });
 });
 
-describe("pagination", () => {
-  it("shows the total and loads the next page by cursor, appending without duplicates", async () => {
-    const first = auditEvent({ id: "50000000-0000-4000-8000-000000000021" });
-    const second = auditEvent({ id: "50000000-0000-4000-8000-000000000022", event_type: "SessionStarted", category: "session" });
-    list.mockResolvedValueOnce({ ok: true, data: auditPage([first], { total: 2, next_cursor: "c1" }) });
-    list.mockResolvedValueOnce({ ok: true, data: auditPage([first, second], { total: 2, next_cursor: null }) });
+describe("pagination (cursor, previous/next)", () => {
+  const nav = () => screen.getByRole("navigation", { name: "Paginación" });
+  const button = (name: string) => within(nav()).getByRole("button", { name });
+  const page = (next: string | null, id: string) => ({ ok: true as const, data: auditPage([auditEvent({ id })], { total: 120, next_cursor: next }) });
+  /** Three pages of 50 for 120 events: no cursor → c1 → c2 → end. */
+  const threePages = () => list.mockImplementation(async input => input?.cursor === "c2" ? page(null, "50000000-0000-4000-8000-000000000033")
+    : input?.cursor === "c1" ? page("c2", "50000000-0000-4000-8000-000000000032") : page("c1", "50000000-0000-4000-8000-000000000031"));
+
+  it("reads 50 rows per page by default and shows the range, «Página 1 de N» and the shared controls without a last-page jump", async () => {
+    threePages();
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    expect(screen.getByText("Mostrando 1 de 2 eventos")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Cargar más" }));
-    await waitFor(() => expect(rowsOf()).toHaveLength(2));
-    expect(list).toHaveBeenLastCalledWith({ filters: {}, cursor: "c1" });
-    expect(screen.getByText("Mostrando 2 de 2 eventos")).toBeInTheDocument();
+    expect(list).toHaveBeenCalledWith({ filters: {}, limit: 50 });
+    expect(screen.getByText("Mostrando 1–1 de 120 eventos")).toBeInTheDocument();
+    expect(within(nav()).getByText("Página 1 de 3")).toBeInTheDocument();
+    expect(within(nav()).getByRole("combobox", { name: "Filas por página" })).toHaveTextContent("50");
+    expect(within(nav()).getAllByRole("option").map(option => option.textContent)).toEqual(["10", "20", "30", "40", "50"]);
+    expect(button("Ir a la primera página")).toBeDisabled();
+    expect(button("Ir a la página anterior")).toBeDisabled();
+    expect(button("Ir a la página siguiente")).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /última página/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cargar más" })).not.toBeInTheDocument();
   });
 
-  it("returns to the first page with a notice when the cursor is no longer valid", async () => {
-    list.mockResolvedValueOnce({ ok: true, data: auditPage([auditEvent()], { total: 2, next_cursor: "stale" }) });
-    list.mockResolvedValueOnce(failure("invalid_cursor"));
+  it("goes forward with next_cursor, back to the previous cursor and to the first page, disabling the controls at the edges", async () => {
+    threePages();
+    const user = userEvent.setup();
     render(<AuditWorkspace />);
-    await userEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
-    expect(await screen.findByText("La lista se actualizó. Volvimos a la primera página.")).toBeInTheDocument();
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
-    expect(list).toHaveBeenLastCalledWith({ filters: {} });
+    await screen.findByRole("table");
+    await user.click(button("Ir a la página siguiente"));
+    await waitFor(() => expect(within(nav()).getByText("Página 2 de 3")).toBeInTheDocument());
+    expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50, cursor: "c1" });
+    expect(screen.getByText("Mostrando 51–51 de 120 eventos")).toBeInTheDocument();
+    expect(rowsOf()).toHaveLength(1);
+    expect(button("Ir a la primera página")).toBeEnabled();
+    expect(button("Ir a la página anterior")).toBeEnabled();
+    await user.click(button("Ir a la página siguiente"));
+    await waitFor(() => expect(within(nav()).getByText("Página 3 de 3")).toBeInTheDocument());
+    expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50, cursor: "c2" });
+    expect(button("Ir a la página siguiente")).toBeDisabled();
+    await user.click(button("Ir a la página anterior"));
+    await waitFor(() => expect(within(nav()).getByText("Página 2 de 3")).toBeInTheDocument());
+    expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50, cursor: "c1" });
+    await user.click(button("Ir a la primera página"));
+    await waitFor(() => expect(within(nav()).getByText("Página 1 de 3")).toBeInTheDocument());
+    expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50 });
+    expect(button("Ir a la primera página")).toBeDisabled();
+    expect(button("Ir a la página anterior")).toBeDisabled();
+    expect(list).toHaveBeenCalledTimes(5);
   });
 
-  it("keeps the loaded rows and offers a retry when loading more fails", async () => {
-    list.mockResolvedValueOnce({ ok: true, data: auditPage([auditEvent()], { total: 2, next_cursor: "c1" }) });
-    list.mockResolvedValueOnce(failure("no_response"));
+  it("changes the request limit from the rows-per-page select and starts again from page 1", async () => {
+    threePages();
+    const user = userEvent.setup();
     render(<AuditWorkspace />);
-    await userEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
+    await screen.findByRole("table");
+    await user.click(button("Ir a la página siguiente"));
+    await waitFor(() => expect(within(nav()).getByText("Página 2 de 3")).toBeInTheDocument());
+    await user.click(within(nav()).getByRole("option", { name: "20" }));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 20 }));
+    await waitFor(() => expect(within(nav()).getByText("Página 1 de 6")).toBeInTheDocument());
+    expect(within(nav()).getByRole("combobox", { name: "Filas por página" })).toHaveTextContent("20");
+    expect(button("Ir a la página anterior")).toBeDisabled();
+    await user.click(button("Ir a la página siguiente"));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 20, cursor: "c1" }));
+  });
+
+  it("starts again from page 1 when a filter changes", async () => {
+    at("?from=2026-11-01");
+    threePages();
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    await user.click(button("Ir a la página siguiente"));
+    await waitFor(() => expect(within(nav()).getByText("Página 2 de 3")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Quitar filtro Desde: 1 de noviembre de 2026" }));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50 }));
+    await waitFor(() => expect(within(nav()).getByText("Página 1 de 3")).toBeInTheDocument());
+    expect(button("Ir a la página anterior")).toBeDisabled();
+  });
+
+  it("disables the controls and shows the skeleton while a page loads", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof listAuditEventsAction>>>();
+    list.mockResolvedValueOnce(page("c1", "50000000-0000-4000-8000-000000000031"));
+    list.mockReturnValueOnce(pending.promise);
+    const user = userEvent.setup();
+    const { container } = render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    await user.click(button("Ir a la página siguiente"));
+    expect(container.querySelector("[data-audit-skeleton=table]")).not.toBeNull();
+    for (const name of ["Ir a la primera página", "Ir a la página anterior", "Ir a la página siguiente"]) expect(button(name)).toBeDisabled();
+    expect(within(nav()).getByRole("combobox", { name: "Filas por página" })).toBeDisabled();
+    expect(screen.getByRole("region", { name: "Registro de actividad" })).toHaveAttribute("aria-busy", "true");
+    await act(async () => { pending.resolve(page(null, "50000000-0000-4000-8000-000000000032")); });
+    await waitFor(() => expect(within(nav()).getByText("Página 2 de 3")).toBeInTheDocument());
+    expect(container.querySelector("[data-audit-skeleton]")).toBeNull();
+    expect(button("Ir a la página siguiente")).toBeDisabled();
+  });
+
+  it("keeps the previous page with the error copy and a retry when a page fails", async () => {
+    list.mockResolvedValueOnce(page("c1", "50000000-0000-4000-8000-000000000031"));
+    list.mockResolvedValueOnce(failure("no_response"));
+    list.mockResolvedValueOnce(page(null, "50000000-0000-4000-8000-000000000032"));
+    const user = userEvent.setup();
+    render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    await user.click(button("Ir a la página siguiente"));
     expect(await screen.findByText("No pudimos consultar la auditoría. Puedes volver a intentarlo.")).toBeInTheDocument();
     expect(rowsOf()).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Cargar más" })).toBeEnabled();
+    expect(within(nav()).getByText("Página 1 de 3")).toBeInTheDocument();
+    expect(button("Ir a la página siguiente")).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(within(nav()).getByText("Página 2 de 3")).toBeInTheDocument());
+    expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50, cursor: "c1" });
+    expect(screen.queryByText("No pudimos consultar la auditoría. Puedes volver a intentarlo.")).not.toBeInTheDocument();
+  });
+
+  it("returns to the first page with a notice when the cursor is no longer valid", async () => {
+    list.mockResolvedValueOnce(page("stale", "50000000-0000-4000-8000-000000000031"));
+    list.mockResolvedValueOnce(failure("invalid_cursor"));
+    list.mockResolvedValueOnce(page("c1", "50000000-0000-4000-8000-000000000034"));
+    render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    await userEvent.click(button("Ir a la página siguiente"));
+    expect(await screen.findByText("La lista se actualizó. Volvimos a la primera página.")).toBeInTheDocument();
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
+    expect(list).toHaveBeenLastCalledWith({ filters: {}, limit: 50 });
+    await waitFor(() => expect(within(nav()).getByText("Página 1 de 3")).toBeInTheDocument());
+  });
+});
+
+describe("edge inset", () => {
+  it("insets the first and last header and body cells by the card spacing, in the table and in its skeleton", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof listAuditEventsAction>>>();
+    list.mockReturnValue(pending.promise);
+    const { container } = render(<AuditWorkspace />);
+    const inset = ["[&_tr>*:first-child]:pl-(--card-spacing)", "[&_tr>*:last-child]:pr-(--card-spacing)"];
+    expect(container.querySelector("[data-audit-skeleton=table]")).toHaveClass(...inset);
+    await act(async () => { pending.resolve({ ok: true, data: auditPage() }); });
+    const table = await screen.findByRole("table");
+    expect(table.closest("[data-audit-table]")).toHaveClass(...inset);
   });
 });
 
@@ -288,7 +395,7 @@ describe("filters (in the URL)", () => {
     await pick(user, "Vacante", "Ejecutivo de ventas");
     const day = await pickFirstOfMonth(user, "Desde");
     await pickFirstOfMonth(user, "Hasta");
-    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: { actor_id: anaId, event_type: ["SessionEnded"], vacancy_id: vacancyId, from: day, to: day } }));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ filters: { actor_id: anaId, event_type: ["SessionEnded"], vacancy_id: vacancyId, from: day, to: day }, limit: 50 }));
     const params = new URLSearchParams(window.location.search);
     expect(params.get("actor_id")).toBe(anaId);
     expect(params.getAll("event_type")).toEqual(["SessionEnded"]);
@@ -314,7 +421,7 @@ describe("filters (in the URL)", () => {
     at(`?actor_id=${luisId}&event_type=SessionStarted&event_type=SessionEnded&from=2026-11-01`);
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    expect(list).toHaveBeenCalledWith({ filters: { actor_id: luisId, event_type: ["SessionStarted", "SessionEnded"], from: "2026-11-01" } });
+    expect(list).toHaveBeenCalledWith({ filters: { actor_id: luisId, event_type: ["SessionStarted", "SessionEnded"], from: "2026-11-01" }, limit: 50 });
     expect(await screen.findByRole("combobox", { name: "Persona" })).toHaveTextContent("Luis Soto (ex miembro)");
     expect(screen.getByRole("combobox", { name: "Acción" })).toHaveTextContent("Varias acciones (2)");
     expect(screen.getByLabelText("Desde")).toHaveTextContent("1 de noviembre de 2026");

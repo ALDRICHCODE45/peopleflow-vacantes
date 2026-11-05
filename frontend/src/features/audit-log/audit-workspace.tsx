@@ -1,20 +1,21 @@
 "use client";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Info, ScrollText, SearchX, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, Info, ScrollText, SearchX, ShieldCheck, TriangleAlert } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { SectionEmpty, StateCard } from "@/components/feedback/state-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { AuditFiltersBar } from "./audit-filters";
 import { AuditRestricted } from "./audit-restricted";
 import { AuditTable, AuditTableSkeleton } from "./audit-table";
 import { ExportAuditButton } from "./export-button";
 import { listFailureMessage, type AuditFailure } from "./model";
-import { useAuditEvents, useAuditOptions } from "./use-audit-events";
+import { PAGE_SIZES, useAuditEvents, useAuditOptions } from "./use-audit-events";
 
 const SESSION_NOTE = "«Cerró sesión» significa que la persona hizo clic en cerrar sesión. Las sesiones que terminan por expiración o al cerrar la pestaña no se registran.";
 const number = new Intl.NumberFormat("es-MX");
@@ -39,27 +40,48 @@ function FailureCard({ failure, onRetry, onClear }: { failure: AuditFailure; onR
   return <StateCard icon={TriangleAlert} tone="error" title="No pudimos cargar la auditoría" description={description} primaryAction={{ label: "Reintentar", onClick: onRetry }} />;
 }
 
+/** Same controls and copy as the dashboard table, without «última página»: a cursor only knows the next page. */
+function AuditPagination({ audit }: { audit: ReturnType<typeof useAuditEvents> }) {
+  const { page, pageCount, pageSize, paging, loaded } = audit;
+  return <nav aria-label="Paginación" className="flex w-full items-center gap-6 sm:w-fit sm:gap-8">
+    <div className="flex items-center gap-2">
+      <Label htmlFor="audit-rows-per-page" className="text-sm font-medium">Filas por página</Label>
+      <Select value={`${pageSize}`} disabled={paging} onValueChange={(value: string | null) => { if (value !== null) audit.changePageSize(Number(value)); }} items={PAGE_SIZES.map(size => ({ label: `${size}`, value: `${size}` }))}>
+        <SelectTrigger size="sm" className="w-20" id="audit-rows-per-page"><SelectValue placeholder={pageSize} /></SelectTrigger>
+        <SelectContent side="top"><SelectGroup>{PAGE_SIZES.map(size => <SelectItem key={size} value={`${size}`}>{size}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>
+    </div>
+    <div className="flex w-fit items-center justify-center text-sm font-medium">{`Página ${page} de ${pageCount}`}</div>
+    <div className="ml-auto flex items-center gap-2 sm:ml-0">
+      <Button type="button" variant="outline" className="size-8" size="icon" onClick={audit.first} disabled={paging || page === 1}><span className="sr-only">Ir a la primera página</span><ChevronsLeft aria-hidden="true" /></Button>
+      <Button type="button" variant="outline" className="size-8" size="icon" onClick={audit.previous} disabled={paging || page === 1}><span className="sr-only">Ir a la página anterior</span><ChevronLeft aria-hidden="true" /></Button>
+      <Button type="button" variant="outline" className="size-8" size="icon" onClick={audit.next} disabled={paging || !loaded?.nextCursor}><span className="sr-only">Ir a la página siguiente</span><ChevronRight aria-hidden="true" /></Button>
+    </div>
+  </nav>;
+}
+
 /** Owner-only audit screen (contract §8): filters in the URL, newest first, cursor pagination and export. */
 export function AuditWorkspace() {
   const audit = useAuditEvents();
   const options = useAuditOptions();
-  const { filters, loaded, failure, moreFailure, loadingMore, notice } = audit;
+  const { filters, loaded, failure, pageFailure, paging, notice, page, pageSize } = audit;
   const [tableToolbar, setTableToolbar] = useState<HTMLDivElement | null>(null);
   const clear = () => audit.update({});
   const filtered = Object.keys(filters).length > 0;
   const initial = !loaded && !failure;
   const noun = loaded?.total === 1 ? "evento" : "eventos";
+  const firstRow = (page - 1) * pageSize + 1;
 
   const content = failure ? <div className="px-(--card-spacing)"><FailureCard failure={failure} onRetry={audit.retry} onClear={clear} /></div>
     : !loaded ? <AuditTableSkeleton />
     : loaded.items.length === 0 ? <div className="px-(--card-spacing)">{filtered
       ? <SectionEmpty icon={SearchX} tone="empty" title="Sin resultados" description="No hay actividad registrada con estos filtros. Prueba con otro rango de fechas o limpia los filtros." primaryAction={{ label: "Limpiar filtros", onClick: clear }} />
       : <SectionEmpty icon={ScrollText} tone="empty" title="Todavía no hay actividad registrada" description="Aquí aparecerá quién hizo qué en tu empresa: sesiones, consultas de candidatos, descargas de CV y cambios del equipo." />}</div>
-    : <AuditTable items={loaded.items} toolbar={controls => tableToolbar ? createPortal(controls, tableToolbar) : null} />;
+    : <AuditTable items={loaded.items} loading={paging} toolbar={controls => tableToolbar ? createPortal(controls, tableToolbar) : null} />;
 
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
     <AuditHeading />
-    <Card role="region" aria-label="Registro de actividad" aria-busy={initial} className="min-w-0 pt-0">
+    <Card role="region" aria-label="Registro de actividad" aria-busy={initial || paging} className="min-w-0 pt-0">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
         <p className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="size-3.5" aria-hidden="true" />
@@ -76,7 +98,7 @@ export function AuditWorkspace() {
         <div className="flex min-w-0 flex-col gap-4">
           {notice && <div className="px-(--card-spacing)"><ActionStatus id="audit-notice" tone="info" text={notice} /></div>}
           {content}
-          {moreFailure && <div className="px-(--card-spacing)"><ActionStatus id="audit-more-failure" tone="error" text={listFailureMessage(moreFailure)} /></div>}
+          {pageFailure && <div className="px-(--card-spacing)"><ActionStatus id="audit-page-failure" tone="error" text={listFailureMessage(pageFailure)} action={<Button type="button" variant="link" className="min-h-10" onClick={audit.retryPage}>Reintentar</Button>} /></div>}
           <div className="px-(--card-spacing) pb-(--card-spacing)">
             <div data-testid="audit-session-note" className="flex items-start gap-3 rounded-xl bg-muted p-4 text-sm text-muted-foreground">
               <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
@@ -86,10 +108,8 @@ export function AuditWorkspace() {
         </div>
       </CardContent>
       {loaded && loaded.items.length > 0 && <CardFooter className="flex flex-wrap justify-between gap-3 border-t">
-        <span className="text-xs text-muted-foreground" role="status">{`Mostrando ${loaded.items.length} de ${loaded.total} ${noun}`}</span>
-        {loaded.nextCursor && <Button type="button" variant="outline" className="min-h-10" disabled={loadingMore} onClick={() => void audit.loadMore()}>
-          {loadingMore && <Spinner aria-hidden="true" data-icon="inline-start" />}Cargar más
-        </Button>}
+        <span className="text-xs text-muted-foreground" role="status">{`Mostrando ${firstRow}–${firstRow + loaded.items.length - 1} de ${loaded.total} ${noun}`}</span>
+        <AuditPagination audit={audit} />
       </CardFooter>}
     </Card>
   </DashboardPageContent>;
