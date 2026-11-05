@@ -177,3 +177,9 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
   left 4`) → loop now runs until a batch deletes 0, ctx checked each turn; lock test kept as regression. Verifier probes
   committed (3 unit + 4 integration), all pass. Checks: gofmt/build/vet clean; unit 111 ok, 1 FAIL scripts/closure;
   integration cmd/api, cmd/audit-purge, audit_events 8 packages ok, 0 FAIL.
+- L22 — Verify of the fix (mw2ru3mf) on d6e240e2: all 3 checks met, no BLOCKER/MAJOR; probes fail at c86ca2d9 and pass
+  on the fix. Correction to L21: on this DB `cmd/api` fails only `TestPublicGeoSearchIndexCapability` (planner
+  assertion, same failure at baseline c86ca2d9 — pre-existing, not audit). MINOR accepted by design: two rows forged
+  directly in the DB naming the same foreign user validate each other; no server path writes them (member events read
+  `user_id` from `company_members` of the same company). Verifier's extra probe left in its scratch (outside the repo,
+  not imported; the committed probe covers the single-foreign-row case). Remaining for T10: the frontend screen QA.
