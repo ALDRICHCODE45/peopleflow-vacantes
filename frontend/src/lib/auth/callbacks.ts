@@ -32,8 +32,11 @@ export function allowlistedRedirect(url: string, baseUrl: string): string {
 // Keeping this factory free of ambient environment reads lets regression tests
 // exercise the exact production callbacks with synthetic credentials. The
 // optional observer is an inert development-only reporting seam; omitting it
-// preserves the original behavior exactly.
-export function buildAuthOptions(authEnv: AuthEnv, observer?: RefreshObserver): NextAuthOptions {
+// preserves the original behavior exactly. `onSignIn` runs once per sign-in
+// with the fresh access token (audit «Inició sesión»); its failure never blocks.
+export type AuthHooks = { onSignIn?: (accessToken: string) => Promise<void> };
+
+export function buildAuthOptions(authEnv: AuthEnv, observer?: RefreshObserver, hooks: AuthHooks = {}): NextAuthOptions {
   return {
     secret: authEnv.secret,
     session: { strategy: "jwt" },
@@ -48,7 +51,9 @@ export function buildAuthOptions(authEnv: AuthEnv, observer?: RefreshObserver): 
             refreshToken: account.refresh_token,
             expiresAt: typeof account.expires_at === "number" ? account.expires_at * 1000 : undefined,
           };
-          return hasUsableCredentials(initial, Date.now()) ? initial : expireSession(initial);
+          if (!hasUsableCredentials(initial, Date.now())) return expireSession(initial);
+          if (hooks.onSignIn && initial.accessToken) await hooks.onSignIn(initial.accessToken).catch(() => {});
+          return initial;
         }
         return refreshSessionToken({
           token: token as TokenLike,

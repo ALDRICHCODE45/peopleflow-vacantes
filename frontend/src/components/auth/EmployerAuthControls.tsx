@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
+import { SessionProvider, signIn, useSession } from "next-auth/react";
+import { signOutWithAudit } from "@/lib/audit/sign-out";
 
 import { Button } from "../ui/button";
 
@@ -51,7 +52,7 @@ function ManagedLoginControls() {
     try {
       // NextAuth posts its CSRF-protected sign-out before navigating to our
       // same-origin endpoint, which then exits Cognito's managed-login cookie.
-      await signOut({ callbackUrl: "/api/auth/cognito/logout" });
+      await signOutWithAudit("/api/auth/cognito/logout");
     } catch {
       setActionError("No pudimos cerrar la sesión. Inténtalo de nuevo.");
     } finally {

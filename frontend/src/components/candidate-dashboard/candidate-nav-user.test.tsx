@@ -2,9 +2,10 @@ import * as React from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-const mocks = vi.hoisted(() => ({ notify: vi.fn(), logout: vi.fn(), identity: { result: { ok: true, data: { role: "candidate", user: { full_name: "Ana Pérez", email: "ana@example.com" } } } } as { result?: unknown } }));
+const mocks = vi.hoisted(() => ({ notify: vi.fn(), logout: vi.fn(), endSession: vi.fn(async () => {}), identity: { result: { ok: true, data: { role: "candidate", user: { full_name: "Ana Pérez", email: "ana@example.com" } } } } as { result?: unknown } }));
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => mocks.identity }));
 vi.mock("next-auth/react", () => ({ signOut: mocks.logout }));
+vi.mock("@/lib/audit/session-actions", () => ({ endSessionAction: mocks.endSession }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notify }));
 // Render the menu slot inline: Base UI portals are tested independently.
 vi.mock("@/components/company-dashboard/nav-user", () => ({ NavUser: ({ user, menuItems, secondaryText, onLogout, logoutStatusId }: { user: { name: string; email: string }; menuItems: readonly { title: string; href: string }[]; secondaryText?: string; onLogout?: () => void; logoutStatusId?: string }) => <><p>{user.name}</p><p>{user.email}</p><small aria-label="Tipo de cuenta">{secondaryText !== user.email ? secondaryText : "Candidato"}</small>{menuItems.map(item => <a key={item.href} href={item.href}>{item.title}</a>)}<button onClick={onLogout} aria-describedby={logoutStatusId}>Cerrar sesión</button></> }));
@@ -15,6 +16,8 @@ it("renders the loaded name and email, never prototype identity, and federated c
   expect(screen.getByText("Ana Pérez")).toBeInTheDocument(); expect(screen.getByText("ana@example.com")).toBeInTheDocument(); expect(screen.queryByText(/Ximena/)).toBeNull();
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" })); });
   expect(mocks.logout).toHaveBeenCalledWith({ callbackUrl: "/api/auth/cognito/logout?to=candidato" });
+  // «Cerró sesión» is recorded while the session still exists.
+  expect(mocks.endSession.mock.invocationCallOrder[0]).toBeLessThan(mocks.logout.mock.invocationCallOrder[0]);
 });
 it("reports a logout failure without disclosing the exception", async () => {
   mocks.logout.mockRejectedValueOnce(new Error("private-token"));

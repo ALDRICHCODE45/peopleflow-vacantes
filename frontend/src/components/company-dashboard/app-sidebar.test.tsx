@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -8,14 +8,46 @@ import { join } from "node:path";
 // Route awareness comes from the App Router pathname hook; the suite drives it
 // directly instead of mounting the router. The create action still navigates
 // through a native GET form, so no imperative navigation is exercised here.
-const { pathnameMock, identityMock, companyMock } = vi.hoisted(() => ({
+const { pathnameMock, identityMock, companyMock, signOutMock, endSessionMock, notifyMock } = vi.hoisted(() => ({
   pathnameMock: vi.fn<() => string | null>(() => "/empresa/dashboard"),
   identityMock: vi.fn(),
   companyMock: vi.fn(),
+  signOutMock: vi.fn<(options: { callbackUrl: string }) => Promise<void>>(async () => {}),
+  endSessionMock: vi.fn(async () => {}),
+  notifyMock: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: identityMock }));
 vi.mock("@/features/employer-company/actions", () => ({ loadCompanyStateAction: companyMock }));
+// The Base UI menu popup cannot be driven in jsdom without hanging (see nav-user.test),
+// so the real NavUser renders as usual and a probe exposes the logout props the
+// sidebar hands it; nav-user.tsx owns the menu item that consumes them.
+vi.mock("./nav-user", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./nav-user")>();
+  return {
+    ...original,
+    NavUser: (props: React.ComponentProps<typeof original.NavUser>) => (
+      <>
+        <original.NavUser {...props} />
+        {props.onLogout && (
+          <button
+            type="button"
+            data-testid="account-logout"
+            disabled={props.logoutPending}
+            aria-busy={props.logoutPending || undefined}
+            aria-describedby={props.logoutStatusId}
+            onClick={props.onLogout}
+          >
+            Cerrar sesión
+          </button>
+        )}
+      </>
+    ),
+  };
+});
+vi.mock("next-auth/react", () => ({ signOut: signOutMock }));
+vi.mock("@/lib/audit/session-actions", () => ({ endSessionAction: endSessionMock }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: notifyMock }));
 
 import { AppSidebar } from "./app-sidebar";
 import { SidebarProvider } from "./ui/sidebar";
@@ -134,6 +166,9 @@ const realCompany = {
   company: { id: "company-1", name: "Empresa Real", rfc: "ABC123456789", industry_id: "i", status: "active", location: null, updated_at: "2026-10-20T12:00:00Z" },
 };
 beforeEach(() => {
+  signOutMock.mockReset().mockResolvedValue(undefined);
+  endSessionMock.mockReset().mockResolvedValue(undefined);
+  notifyMock.mockReset();
   identityMock.mockReturnValue(realIdentity);
   companyMock.mockReset().mockReturnValue(new Promise(() => {}));
 });
@@ -594,5 +629,111 @@ describe("company dashboard sidebar talent base visibility", () => {
     companyMock.mockResolvedValue({ ...realCompany, role: "recruiter", canViewTalentBase: true });
     await act(async () => { renderSidebar(); });
     expect(screen.getByRole("link", { name: "Base de talento" })).toHaveAttribute("href", "/empresa/talento");
+  });
+});
+
+describe("company dashboard sidebar audit entry (owner only)", () => {
+  beforeEach(stubBrowserApis);
+
+  it("shows «Auditoría» to the owner, last in Organización, linking to the audit page", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner" });
+    await act(async () => { renderSidebar(); });
+    const link = screen.getByRole("link", { name: "Auditoría" });
+    expect(link).toHaveAttribute("href", "/empresa/auditoria");
+    expect(link.querySelector("svg.tabler-icon")).not.toBeNull();
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS, "Auditoría"]);
+    expect(existsSync(join(process.cwd(), "src/app/(empresa)/empresa/auditoria/page.tsx"))).toBe(true);
+  });
+
+  it("activates only «Auditoría» on its own route and nested routes", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner" });
+    await act(async () => { renderSidebar("/empresa/auditoria"); });
+    expect(screen.getByRole("link", { name: "Auditoría" })).toHaveAttribute("data-active");
+    expect(activeLabels()).toEqual([]);
+  });
+
+  it("hides it from a recruiter and leaves every other entry as it was", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "recruiter", canViewTalentBase: true });
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Auditoría" })).toBeNull();
+    expect(groupDestinations("Principal")).toEqual([...PRINCIPAL_ITEMS]);
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
+  });
+
+  it.each([
+    ["while the membership is loading", () => companyMock.mockReturnValue(new Promise(() => {}))],
+    ["when the membership is not found", () => companyMock.mockResolvedValue({ kind: "none", industries: [] })],
+    ["when the membership read fails", () => companyMock.mockResolvedValue({ kind: "server_error", reference: {} })],
+    ["when the membership read rejects", () => companyMock.mockRejectedValue(new Error("boom"))],
+  ])("never shows it %s", async (_name, arrange) => {
+    arrange();
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Auditoría" })).toBeNull();
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
+  });
+
+  it("never shows it to a candidate", async () => {
+    identityMock.mockReturnValue({ ...realIdentity, result: { ok: true, data: { ...realIdentity.result.data, role: "candidate" } } });
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner" });
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Auditoría" })).toBeNull();
+  });
+
+  it("keeps «Base de talento» restriction and the owner's entry independent", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner", canViewTalentBase: true });
+    await act(async () => { renderSidebar(); });
+    expect(screen.getByRole("link", { name: "Base de talento" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Auditoría" })).toBeInTheDocument();
+  });
+});
+
+describe("company dashboard sidebar sign-out (S3)", () => {
+  beforeEach(stubBrowserApis);
+
+  const logoutControl = () => screen.queryByTestId("account-logout");
+
+  it("hands the account menu a «Cerrar sesión» action for an employer", () => {
+    renderSidebar();
+    expect(logoutControl()).toBeInTheDocument();
+  });
+
+  it("records the end of the session before NextAuth signs out through the Cognito logout", async () => {
+    renderSidebar();
+    await act(async () => { fireEvent.click(logoutControl()!); });
+
+    expect(endSessionMock).toHaveBeenCalledTimes(1);
+    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/api/auth/cognito/logout" });
+    expect(endSessionMock.mock.invocationCallOrder[0]).toBeLessThan(signOutMock.mock.invocationCallOrder[0]);
+    expect(notifyMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(logoutControl()).not.toBeDisabled();
+  });
+
+  it("reports a sign-out failure without disclosing the exception", async () => {
+    signOutMock.mockRejectedValueOnce(new Error("private-token"));
+    renderSidebar();
+    await act(async () => { fireEvent.click(logoutControl()!); });
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("No se cerró la sesión. Intenta nuevamente desde el menú.");
+    expect(logoutControl()).toHaveAttribute("aria-describedby", status.id);
+    expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
+    expect(document.body).not.toHaveTextContent(/private-token/);
+    expect(JSON.stringify(notifyMock.mock.calls)).not.toContain("private-token");
+    expect(logoutControl()).not.toBeDisabled();
+  });
+
+  it("shows the pending state and ignores a second click while the first sign-out is running", async () => {
+    let finish!: () => void;
+    signOutMock.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
+    renderSidebar();
+    await act(async () => { fireEvent.click(logoutControl()!); });
+    expect(logoutControl()).toBeDisabled();
+    expect(logoutControl()).toHaveAttribute("aria-busy", "true");
+
+    await act(async () => { fireEvent.click(logoutControl()!); });
+    expect(endSessionMock).toHaveBeenCalledTimes(1);
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); });
   });
 });

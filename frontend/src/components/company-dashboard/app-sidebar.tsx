@@ -2,8 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import * as React from "react"
 
 import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
+import { ActionStatus } from "@/components/feedback/action-status"
+import { notifyActionResult } from "@/components/feedback/notify"
+import { signOutWithAudit } from "@/lib/audit/sign-out"
 import { useIdentity } from "@/features/identity/identity-session"
 import { useCompanyMembership } from "@/features/employer-company/use-company-membership"
 import { NavUser } from "./nav-user"
@@ -25,6 +29,7 @@ import {
   IconCirclePlusFilled,
   IconLayoutDashboard,
   IconSettings,
+  IconShieldCheck,
   IconUsers,
   IconUsersGroup,
   IconWorld,
@@ -72,6 +77,13 @@ const data = {
       icon: <IconSettings />,
     },
   ],
+}
+
+/** Owner-only destination: shown only once the membership says `owner` (the API enforces it too). */
+const AUDIT_ITEM: NavItem = {
+  title: "Auditoría",
+  url: "/empresa/auditoria",
+  icon: <IconShieldCheck />,
 }
 
 /**
@@ -147,6 +159,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     company: membership?.company.name ?? "",
   }
   const { state, isMobile } = useSidebar()
+  const [logoutPending, setLogoutPending] = React.useState(false)
+  const [logoutFailed, setLogoutFailed] = React.useState(false)
+  const logoutLock = React.useRef(false)
+  const logoutStatusId = React.useId()
+
+  // Records the session end, then NextAuth signOut, then the Cognito logout. A second click
+  // is ignored while one is running; a failure is announced without exposing the exception.
+  function logout() {
+    if (logoutLock.current) return
+    logoutLock.current = true
+    setLogoutPending(true)
+    setLogoutFailed(false)
+    signOutWithAudit("/api/auth/cognito/logout")
+      .catch(() => {
+        setLogoutFailed(true)
+        notifyActionResult({ key: "employer-logout", type: "error", title: "No pudimos cerrar la sesión", description: "Tu sesión puede seguir activa. Vuelve a intentarlo desde el menú.", reference: { at: new Date().toISOString() } })
+      })
+      .finally(() => {
+        logoutLock.current = false
+        setLogoutPending(false)
+      })
+  }
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -200,13 +234,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
         <NavGroup
           label="Organización"
-          items={data.navOrganization}
+          items={membership?.role === "owner" ? [...data.navOrganization, AUDIT_ITEM] : data.navOrganization}
           pathname={pathname}
         />
         </>}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={account} secondaryText={account.email} showCompany menuItems={ACCOUNT_MENU} />
+        <NavUser
+          user={account}
+          secondaryText={account.email}
+          showCompany
+          menuItems={ACCOUNT_MENU}
+          onLogout={logout}
+          logoutPending={logoutPending}
+          logoutStatusId={logoutFailed ? logoutStatusId : undefined}
+        />
+        {logoutFailed && <ActionStatus id={logoutStatusId} tone="error" text="No se cerró la sesión. Intenta nuevamente desde el menú." />}
       </SidebarFooter>
     </Sidebar>
   )

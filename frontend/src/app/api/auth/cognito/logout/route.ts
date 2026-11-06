@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Federated logout for the employer Cognito session. The UI calls
- * `signOut({ callbackUrl: "/api/auth/cognito/logout" })`, which clears the
- * local NextAuth session before this handler runs. This endpoint clears the
+ * `signOutWithAudit("/api/auth/cognito/logout")`, which records the session
+ * end and then has NextAuth clear the local session before this handler runs. This endpoint clears the
  * cookies again defensively and then hands off to Cognito managed logout.
  * The destination comes from validated configuration only, so request input
  * cannot turn this into an open redirect.
