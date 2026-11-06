@@ -241,9 +241,15 @@ or foreign cursor → 400 `invalid_cursor`. Only rows with `company_id` = the ca
   `process_participation` (the participation's candidate), the member's name via `member_user_id` for
   `company_member`, the vacancy title for `job_draft`/`vacancy`/`vacancy_process`, the company name for `company`;
   `null` when the entity no longer exists or the type has no label. One shape for every type, no separate `candidate`
-  object.
+  object. Every label is scoped to the caller's company; for `company_member` the name resolves only when the person
+  is a current member, appears as an actor in this company's events, or is the `member_user_id` of another member
+  event of this company (former members keep their name). Otherwise `label: null`.
 - `total` is the exact count for the filters (bounded by the indexes; revisit if it gets slow).
 - Viewing the list is **not** audited (it would audit itself on every page); exporting is.
+- Rows whose `event_type` is not in the catalog (pre-2a dev rows) are never listed, counted or offered in `/actors` and
+  `/vacancies`; every item has a `category`. `metadata` stored as JSON `null` is served as `{}`.
+- 422 here is specific to the audit routes: the shared `invalid_filter` stays 400 on the pool list and public jobs.
+  `from > to` is `range` on `to`, as in the export.
 
 ### 8.2 Catalog — `GET /v2/me/company/audit-events/types`
 
@@ -262,7 +268,8 @@ Distinct users that appear as actors in this company's events, **including forme
 ### 8.4 Vacancies — `GET /v2/me/company/audit-events/vacancies`
 
 Distinct vacancies that appear in this company's events (`vacancy_id` column), **including closed and deleted
-ones**: `{ "items": [{ "vacancy_id", "title" }] }`, `title: null` when deleted, ordered by title (nulls last). Feeds
+ones**: `{ "items": [{ "vacancy_id", "title" }] }`, `title: null` when deleted, `""` for a draft that has no title
+yet, ordered by title (nulls last). Feeds
 the «Vacante» filter.
 
 ### 8.5 Export — `POST /v2/me/company/audit-events/export`
@@ -273,8 +280,11 @@ the «Vacante» filter.
   filename="auditoria-YYYY-MM-DD.csv"`, `no-store`. Columns: `occurred_at` (ISO, UTC), `occurred_at_mx` (local),
   `event_type`, `category`, `actor_user_id`, `actor_name`, `actor_email`, `entity_type`, `entity_id`, `entity_label`,
   `vacancy_id`,
-  `vacancy_title`, `ip`, `user_agent`, `metadata` (JSON). Values starting with `= + - @` are prefixed with `'` (CSV
+  `vacancy_title`, `ip`, `user_agent`, `metadata` (compact JSON). Values (any column) starting with `= + - @`, tab or
+  carriage return are prefixed with `'` (CSV
   injection).
+- Body: one JSON object, at most 16 KiB. An empty body or one that is not a JSON object → 400 `invalid_request`; over
+  16 KiB → 413. Field-level problems are 422 as below.
 - Validation: `from`/`to` missing → 422 `invalid_filter` with `fields: [{field: "from", code: "required"}]` (and/or
   `to`); malformed date → `invalid`; `from > to` or a span over 366 days → `range` on `to`. The span counts **both
   ends inclusive**: at most 366 calendar days from `from` to `to` (1 Jan–31 Dec of a leap year passes). `required` is

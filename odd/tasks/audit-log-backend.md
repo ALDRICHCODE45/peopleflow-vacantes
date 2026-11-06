@@ -51,9 +51,32 @@ Slice 2a — capture (contract §1–§7, §9). High risk (append-only trigger, 
   inventory. Route: worker mw1tpt8l. Commit: next feat commit.
 - [x] T6 — verify 2a (independent, security) + full integration. Route: gentle-ai-verify mw1vk451; MINOR 1 fixed
   inline (RED/GREEN), probes committed. Commit: next fix commit.
-- [ ] T7 — QA :8081 with the frontend end-to-end (its T4), then the user's merge decision.
+- [x] T7 — QA :8081 with the frontend end-to-end (its T4), then the user's merge decision. Evidence: L13, L14, L15.
 
-Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
+Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-backend-2b` from 39e2ff35.
+
+- [x] T8 — S2 (pantalla, exportar), S3, S4.8, D5, D7: owner-only `GET /v2/me/company/audit-events` (filters, cursor,
+  `entity.label`, `actor`, `vacancy`), `/types`, `/actors`, `/vacancies`, `POST …/export` (CSV, count before the first
+  byte, `AuditLogExported`). Route: worker mw2pjuun. Commit: next feat commit.
+- [x] T9 — S2 (política de retención), D2: `cmd/audit-purge` (dry run by default, `-execute` deletes rows older than 24
+  months in batches with the txid-bound flag). Route: worker mw2pjuut, parallel to T8 (disjoint surfaces). Commit: next
+  feat commit.
+- [x] T10 — verify 2b + QA :8081 with the frontend screen. Verify L20, fix d6e240e2, fix verify L22, screen QA L23.
+
+## Pending after 2b (not in this branch)
+
+- P1 — Schedule `audit-purge -execute` daily in the AWS deployment (dry run first); see `backend/docs/audit-retention.md`.
+- P2 — D4: least-privilege DB role for the API (INSERT/SELECT on `audit_events`, migrations by a separate owner role);
+  until then the DB owner can disable the trigger.
+- P3 — D3: hash chain, after P2.
+- P4 — Index `audit_events (occurred_at, id)` if the purge's sequential scan gets slow; the 24-month cutoff lives in the
+  trigger (00056) and `retention/store.go` — change both together.
+- P5 — MINOR 2 (2a verify): an archguard rule forbidding non-test imports of `audittest`.
+- P6 — MINOR 3 (2a verify): mount `requestmeta` after `Recoverer` (cosmetic).
+- P7 — `internal/db/audit_events.sql.go` was hand-edited (no sqlc binary): regenerate with `sqlc generate` when available.
+- P8 — Pre-existing, not audit: `TestPublicGeoSearchIndexCapability` fails on the shared test DB (also at baseline);
+  identity/postgres `TestUsersMigrationDownDropsTable` + jobs/postgres cascade; scripts/closure on macOS bash.
+- P9 — Frontend: audit screen UI adjustments (frontend session's backlog).
 
 ## Log
 
@@ -128,3 +151,54 @@ Slice 2b (§8 read API, export, retention purge) is cut after 2a merges.
 - L14 — Frontend fixed the sidebar sign-out; parent confirmed in the DB: SessionEnded 16:39:30 and SessionStarted
   16:39:57 (Mexico City), entity `user`, `bff`, `::1`, company_id set, metadata `{}`. Slice 2a verified end to end.
   Next: the user's merge decision for 2a; then slice 2b (list, types, actors, vacancies, export, purge).
+- L15 — User (verbatim choice): «Mergear la 2a y arrancar la 2b (Recomendado)». Frontend warned its `feat/audit-log`
+  also carries the unfinished 2b screen (being redesigned), so only `feat/audit-log-backend` merges now; the frontend
+  session merges it into local main (main is checked out in its worktree), no push. QA :8081 stopped, binaries
+  deleted.
+- L16 — Merged: main 4e9a40bf (parents 7be2becc and 39e2ff35, tree identical to 39e2ff35; done by the frontend session
+  with commit-tree/update-ref), 14 commits ahead of origin/main, not pushed. Frontend `feat/audit-log` not merged.
+  2b launched in parallel: T8 worker mw2pjuun (read API + export), T9 worker mw2pjuut (purge command).
+- L17 — T9 (worker mw2pjuut): `retention` store (CountExpired/DeleteExpired, batches of 1000 injectable, each batch
+  binds the flag to its txid, `ORDER BY occurred_at, id LIMIT n FOR UPDATE SKIP LOCKED`, same 24-month cutoff as the
+  trigger) + `cmd/audit-purge [-execute]` (stdout `audit_events_would_delete=N` / `audit_events_deleted=N`; failure →
+  exit 1, stderr `audit purge failed`). RED 13 assertion failures → GREEN; mutations (no ORDER BY, no flag) caught.
+  Checks: gofmt/build/vet clean; unit 109 ok, 1 FAIL scripts/closure; T9 integration ok. No registry needed
+  (psychometric-purge is registered only in docs). Follow-ups: an `(occurred_at, id)` index if the table grows; the
+  24-month cutoff lives in the trigger and the store (doc warns).
+- L18 — T8 (worker mw2pjuun): 5 owner-only routes in one group (NoStore → requireAuth → requireOwner), 17 HTTP
+  integration tests (RED 501 skeleton → GREEN), mutation `>` → `>=` on the export limit caught. Export: REPEATABLE READ
+  count → `DECLARE … CURSOR WITH HOLD` on the same snapshot → append `AuditLogExported` + COMMIT → FETCH 500. Audit 422
+  writer separate; shared `invalid_filter` stays 400 (PRESERVE test). Contract updated (no response field changes):
+  non-catalog rows hidden, null metadata → `{}`, untitled draft `""` in /vacancies, export body 400/413, CSV guard also
+  tab/CR on every column. Checks: gofmt/build/vet clean; unit 111 ok, 1 FAIL scripts/closure; integration cmd/api +
+  audit_events ok; archguard same 2 pre-existing.
+- L19 — The T8 commit first landed with an empty tracking file (git add raced the edit tool); amended to bd73233f with
+  the full file (local, unpushed). 2b escalated as high risk (item 2, security: company-wide names/emails/IP in list and
+  export); verifier mw2qlupr running. Frontend adapted the untitled-draft `""` (its 16f0e967). QA :8081 restarted on a
+  bd73233f build (background job job-2, same DB at 56); unauthenticated audit routes → 401.
+- L20 — Verify 2b (mw2qlupr) on bd73233f: T8, T9, §6–§8 met; no BLOCKER/MAJOR. Probes passed: no cross-company
+  labels (candidate/company/vacancy), Mexico City day boundaries, export connection hygiene (45k rows, aborts,
+  concurrency), inclusive limit and exact 422 envelope, parser/cursor binding, purge cutoff = trigger. MINOR-1:
+  `company_member` label resolves any user id without a company check. Advisory A: purge stops on a short batch
+  (SKIP LOCKED). Advisory B: short ASCII unknown param names echoed (names only; accepted). Full `./...` integration: 111
+  ok, FAIL scripts/closure, cmd/migrate + localbootstrap (no DATABASE_URL set), TestPublicGeoSearchIndexCapability
+  (fails at baseline 39e2ff35 too — pre-existing). Fix worker launched for MINOR-1 + Advisory A + probes.
+- L21 — Fixes (worker mw2rf2wt): MINOR-1 RED (`Beatriz Ajena` from another company in list and CSV) → GREEN; rule:
+  current member, or actor in the company's events, or `member_user_id` of ANOTHER member event of the company (the
+  parent's "a member event" wording was circular — the forged row would qualify itself); cost accepted: a former
+  member whose only trace is one pre-2a member event shows `label: null`. Contract §8.1 updated. Advisory A: the lock
+  scenario was not RED (SKIP LOCKED still fills the batch); real RED via a BEFORE DELETE veto trigger (`deleted 1, rows
+  left 4`) → loop now runs until a batch deletes 0, ctx checked each turn; lock test kept as regression. Verifier probes
+  committed (3 unit + 4 integration), all pass. Checks: gofmt/build/vet clean; unit 111 ok, 1 FAIL scripts/closure;
+  integration cmd/api, cmd/audit-purge, audit_events 8 packages ok, 0 FAIL.
+- L22 — Verify of the fix (mw2ru3mf) on d6e240e2: all 3 checks met, no BLOCKER/MAJOR; probes fail at c86ca2d9 and pass
+  on the fix. Correction to L21: on this DB `cmd/api` fails only `TestPublicGeoSearchIndexCapability` (planner
+  assertion, same failure at baseline c86ca2d9 — pre-existing, not audit). MINOR accepted by design: two rows forged
+  directly in the DB naming the same foreign user validate each other; no server path writes them (member events read
+  `user_id` from `company_members` of the same company). Verifier's extra probe left in its scratch (outside the repo,
+  not imported; the committed probe covers the single-foreign-row case). Remaining for T10: the frontend screen QA.
+- L23 — 2026-11-06, frontend (relaying the user, who moves laptop → PC and asked to commit and merge everything; the
+  user pushes): the screen works against 2b — list, filters and pagination OK; UI adjustments later (P9). Parent: QA
+  :8081 stopped; dev DB `peopleflow_vacancies` already at 56; `feat/audit-log-backend-2b` merges cleanly into main
+  4e9a40bf (merge-base 39e2ff35, main tree == 39e2ff35). The frontend session merges (1) this branch, (2) its
+  `feat/audit-log`, into local main, no push.

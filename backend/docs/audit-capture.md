@@ -4,7 +4,8 @@ Contract: `docs/contracts/audit-log-v1.md` §2, §3 and §5. The event catalog
 (`internal/features/audit_events/domain/entities/catalog.go`) pins every type and
 its allowed metadata keys; `Append` refuses anything else. IP, browser and
 `ip_source` come from the request context ([audit-request-metadata.md](audit-request-metadata.md)).
-Metadata holds IDs, enums and counts only.
+Metadata holds IDs, enums and counts only. How the owner reads these rows (list,
+filters, export) is in [audit-read-api.md](audit-read-api.md).
 
 ## Sensitive reads
 
@@ -102,4 +103,4 @@ drop the record.
   both removal paths, the plain fallback, rejections and rollbacks.
 - Unit: `session_test.go` (identity http), `contacts_audit_test.go` (pool store),
   `companyMemberRepository_test.go` (events, none on rejection or no-op),
-  `TestEveryCatalogTypeHasAnEmitter` (only `AuditLogExported` is pending, for 2b).
+  `TestEveryCatalogTypeHasAnEmitter` (no type is pending: `AuditLogExported` is emitted by the export, see [audit-read-api.md](audit-read-api.md)).

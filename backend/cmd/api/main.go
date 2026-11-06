@@ -24,7 +24,10 @@ import (
 	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	applicationsv2postgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/v2"
+	auditapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/application/auditlog"
+	audithttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/http"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	auditreads "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/reads"
 	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
@@ -84,6 +87,13 @@ func companySiteValidator() *sitesapp.Validator {
 func newSessionHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *identityhttp.SessionHandler {
 	return identityhttp.NewSessionHandler(identityusecases.NewSessions(identitypostgres.NewSessionStore(pool, events)))
 }
+
+// newAuditHandler composes the owner's audit screen API (audit-log-v1 §8): the
+// read store over the pool and the audit port for the export's own record.
+func newAuditHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository) *audithttp.Handler {
+	return audithttp.NewHandler(auditapp.NewService(auditreads.NewStore(pool, events)))
+}
+
 func newCompanySiteHandler(pool *pgxpool.Pool, events *auditpostgres.AuditEventRepository, storage sitesapp.Storage) *siteshttp.Handler {
 	validator := companySiteValidator()
 	store := sitespostgres.New(pool, draftjson.Decode, validator, geopostgres.NewReader(db.New(pool)), events)
@@ -412,6 +422,7 @@ func run() error {
 		requestMeta:                    requestmeta.Middleware(requestmeta.Config{ProxySecret: auditProxySecret, TrustedProxies: trustedProxies}),
 		checklistHandler:               checklistHandler,
 		checklistMarksHandler:          checklistMarksHandler,
+		auditHandler:                   newAuditHandler(pool, auditRepo),
 	})
 	// Hardened server + lifecycle from the runtime packages (WS6B-1a):
 	// Run serves until ctx is cancelled, drains with the configured

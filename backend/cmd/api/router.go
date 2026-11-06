@@ -12,6 +12,7 @@ import (
 	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
 	poolhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/pool"
 	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
+	audithttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/http"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
 	catalogshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/catalogs/infrastructure/http"
@@ -97,6 +98,7 @@ type routerDeps struct {
 	checklistHandler      *jobshttp.ChecklistHandler
 	checklistMarksHandler *jobshttp.ChecklistMarksHandler
 	sessionHandler        *identityhttp.SessionHandler // BFF sign-in/sign-out reports (audit-log-v1 §3)
+	auditHandler          *audithttp.Handler           // owner-only audit screen API (audit-log-v1 §8)
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -209,6 +211,17 @@ func newRouter(d routerDeps) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireOwner)
 		r.Put("/v2/me/company/talent-base-visibility", d.talentBaseHandler.Put)
+	})
+
+	// Audit screen (audit-log-v1 §8): owner only, every response uncacheable,
+	// the export streams a CSV and is itself audited.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireOwner)
+		r.Get("/v2/me/company/audit-events", d.auditHandler.List)
+		r.Get("/v2/me/company/audit-events/types", d.auditHandler.Types)
+		r.Get("/v2/me/company/audit-events/actors", d.auditHandler.Actors)
+		r.Get("/v2/me/company/audit-events/vacancies", d.auditHandler.Vacancies)
+		r.Post("/v2/me/company/audit-events/export", d.auditHandler.Export)
 	})
 
 	r.Group(func(r chi.Router) {

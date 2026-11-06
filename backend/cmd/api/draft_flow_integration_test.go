@@ -45,6 +45,7 @@ import (
 	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditport "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
+	audithttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/http"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres/audittest"
 	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
@@ -248,6 +249,7 @@ func (s *draftFlowSigner) expiredToken(t *testing.T, sub string) string {
 // --- harness ---------------------------------------------------------------
 
 type draftFlowHarness struct {
+	audit  *audithttp.Handler
 	store  *draftstore.Store
 	pool   *pgxpool.Pool
 	server *httptest.Server
@@ -289,6 +291,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		files = cvFiles[0]
 		manualFiles = manualCVStorage{local: cvFiles[0]}
 	}
+	auditHandler := newAuditHandler(pool, auditpostgres.NewAuditEventRepository())
 	router := newRouter(routerDeps{
 		requireAuth:          requireAuth,
 		requireCandidate:     identityhttp.RequireCandidateRole(identityUserRepo),
@@ -301,6 +304,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		requireTalentBase:    talentbasehttp.Gate(talentBase),
 		siteHandler:          newCompanySiteHandler(pool, auditpostgres.NewAuditEventRepository(), nil),
 		sessionHandler:       newSessionHandler(pool, auditpostgres.NewAuditEventRepository()),
+		auditHandler:         auditHandler,
 		draftHandler:         draftHandler,
 		draftV2Handler:       draftV2Handler,
 		teamHandler:          jobshttp.NewTeamHandler(store),
@@ -334,7 +338,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	return &draftFlowHarness{store: store, pool: pool, server: server, client: server.Client(), signer: signer}
+	return &draftFlowHarness{audit: auditHandler, store: store, pool: pool, server: server, client: server.Client(), signer: signer}
 }
 
 // --- fixtures --------------------------------------------------------------
