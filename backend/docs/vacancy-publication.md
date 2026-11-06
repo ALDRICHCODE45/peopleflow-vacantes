@@ -175,9 +175,9 @@ passes alone do not establish transaction/race/migration correctness.
 Run from `backend`:
 
 ```sh
-go test ./internal/features/jobs/application/vacancymanagement ./internal/features/jobs/application/publication ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./db/migrations ./cmd/api -count=1
-go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api ./db/migrations -run 'TestManagement|TestPublication|TestListPublication|TestMigration0001[89]' -count=1 -v
-go test ./... -count=1
+make test PKG='./internal/features/jobs/application/vacancymanagement ./internal/features/jobs/application/publication ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./db/migrations ./cmd/api'
+make test-integration PKG='./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api ./db/migrations' RUN='TestManagement|TestPublication|TestListPublication|TestMigration0001[89]'
+make test
 go vet ./...
 ```
 

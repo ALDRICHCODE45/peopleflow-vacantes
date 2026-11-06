@@ -449,7 +449,7 @@ fixtures, and run the public command `run` function through independent database
 connections, including concurrent invocations:
 
 ```sh
-go test -tags=integration ./cmd/psychometric-purge -count=1 -v
+make test-integration PKG=./cmd/psychometric-purge
 ```
 
 ## Verification
@@ -457,10 +457,10 @@ go test -tags=integration ./cmd/psychometric-purge -count=1 -v
 From `backend/`:
 
 ```sh
-go test -count=1 -timeout 300s ./internal/...
-go test -count=1 -timeout 300s ./cmd/api
-go test -tags integration -count=1 -timeout 600s ./cmd/api -run '^(TestPsychometric|TestBoard|TestChecklistFlow|TestCandidate|TestApply)'
-go test -tags integration -count=1 -timeout 300s ./db/migrations -run '^TestPsychometric'
+make test PKG=./internal/... TIMEOUT=300s
+make test PKG=./cmd/api TIMEOUT=300s
+make test-integration PKG=./cmd/api RUN='^(TestPsychometric|TestBoard|TestChecklistFlow|TestCandidate|TestApply)' TIMEOUT=600s
+make test-integration PKG=./db/migrations RUN='^TestPsychometric' TIMEOUT=300s
 go vet ./...
 go run ./cmd/archguard
 ```

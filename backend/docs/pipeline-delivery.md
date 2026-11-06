@@ -214,12 +214,12 @@ From `backend/`:
 
 ```sh
 go tool sqlc generate
-go test ./internal/features/jobs/application/businesscalendar ./internal/features/jobs/application/deliveryconfig ./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./cmd/api ./db/migrations -count=1
-go test ./... -count=1
+make test PKG='./internal/features/jobs/application/businesscalendar ./internal/features/jobs/application/deliveryconfig ./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./cmd/api ./db/migrations'
+make test
 go vet ./...
-go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run '^Test(Delivery|Pipeline|Substates)' -count=1 -v
+make test-integration PKG='./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api' RUN='^Test(Delivery|Pipeline|Substates)'
 # Separate invocation: down tests must not race with store/API packages.
-go test -tags=integration ./db/migrations -run '^TestMigration0001[567]' -count=1 -v
+make test-integration PKG=./db/migrations RUN='^TestMigration0001[567]'
 ```
 
 Integration tests guard for a loopback database named `draft_test`, use only

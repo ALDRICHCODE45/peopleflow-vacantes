@@ -87,7 +87,7 @@ isolated loopback database named **`draft_test`** (existing harness applies
 migrations and cleans its own fixtures):
 
 ```sh
-go test -tags=integration ./cmd/api -run '^TestCompanyMembersLastOwner(HTTP|Concurrent)$' -count=1 -v
+make test-integration PKG=./cmd/api RUN='^TestCompanyMembersLastOwner(HTTP|Concurrent)$'
 ```
 
 The new tests never read `.env` or ambient `DATABASE_URL`. They skip when the

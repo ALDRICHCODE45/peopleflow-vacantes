@@ -360,13 +360,13 @@ From `backend/`:
 
 ```sh
 go tool sqlc generate
-go test ./internal/features/jobs/application/publicjobs ./internal/features/jobs/application/publication ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/postgres/publicjobs ./internal/features/jobs/infrastructure/http ./cmd/api ./db/migrations -count=1
-go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run 'TestPublicProjection|TestPublicJobsFlow|TestPublication' -count=1 -v
-go test -tags=integration ./cmd/api -run 'TestPublicRequirementsProfile|TestPublicListingEnrichment' -count=1 -v
-go test -tags=integration ./db/migrations -run TestMigration00042 -count=1 -v
-go test -tags=integration ./cmd/api -run 'TestPublicSalarySearchFilters|TestPublicProfileSearchFilters' -count=1 -v
-go test -tags=integration ./db/migrations -run 'TestMigration00020|TestMigration00025' -count=1 -v
-go test ./... -count=1
+make test PKG='./internal/features/jobs/application/publicjobs ./internal/features/jobs/application/publication ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/postgres/publicjobs ./internal/features/jobs/infrastructure/http ./cmd/api ./db/migrations'
+make test-integration PKG='./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api' RUN='TestPublicProjection|TestPublicJobsFlow|TestPublication'
+make test-integration PKG=./cmd/api RUN='TestPublicRequirementsProfile|TestPublicListingEnrichment'
+make test-integration PKG=./db/migrations RUN='TestMigration00042'
+make test-integration PKG=./cmd/api RUN='TestPublicSalarySearchFilters|TestPublicProfileSearchFilters'
+make test-integration PKG=./db/migrations RUN='TestMigration00020|TestMigration00025'
+make test
 go vet ./...
 go vet -tags=integration ./...
 ```

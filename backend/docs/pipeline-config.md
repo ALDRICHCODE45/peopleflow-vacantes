@@ -207,12 +207,12 @@ is in [pipeline-column-editing.md](pipeline-column-editing.md).
 From `backend/`:
 
 ```sh
-go test ./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/http ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -count=1
-go test ./...
+make test PKG='./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/http ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api'
+make test
 go vet ./...
 # Only the disposable loopback draft_test database, never ambient DATABASE_URL:
-go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run '^TestPipeline' -count=1 -v
-go test -tags=integration ./db/migrations -run '^TestMigration00015' -count=1 -v
+make test-integration PKG='./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api' RUN='^TestPipeline'
+make test-integration PKG=./db/migrations RUN='^TestMigration00015'
 ```
 
 Integration tests use `DRAFT_TEST_DATABASE_URL`, reject non-loopback/non-`draft_test`

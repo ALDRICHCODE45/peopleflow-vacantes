@@ -162,7 +162,7 @@ DB rows below are executable specifications, **not a claim of DB execution**.
 ## Validation boundary
 
 From `backend/`: `go tool sqlc generate`, gofmt on changed Go files, focused tests,
-`go test ./... -count=1` (including closure/architecture gates), `go vet ./...`, and
+`make test` (including closure/architecture gates), `go vet ./...`, and
 `go vet -tags=integration ./...`.
 
 The implementation run deliberately removes `DRAFT_TEST_DATABASE_URL` from focused

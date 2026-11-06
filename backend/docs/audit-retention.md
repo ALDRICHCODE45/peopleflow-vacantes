@@ -58,9 +58,9 @@ means the data is kept a little longer than the policy says, and the next run ca
 ## Tests
 
 ```sh
-go test ./cmd/audit-purge -count=1
+make test PKG=./cmd/audit-purge
 DRAFT_TEST_DATABASE_URL='postgres://draft_test:draft_test@127.0.0.1:55432/draft_test?sslmode=disable' \
-  go test -tags=integration -p 1 -count=1 ./cmd/audit-purge/... ./internal/features/audit_events/...
+  make test-integration PKG='./cmd/audit-purge/... ./internal/features/audit_events/...'
 ```
 
 The integration tests build a real `audit_events` table (migrations `00011` + `00056`, trigger included) in a throwaway

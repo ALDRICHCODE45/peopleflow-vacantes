@@ -175,7 +175,7 @@ From `backend/`, with the guarded loopback `DRAFT_TEST_DATABASE_URL` injected by
 the parent (never print the DSN):
 
 ```sh
-go test -tags=integration ./cmd/api -run '^TestOrgCandidatesFlow$' -count=1 -v
+make test-integration PKG=./cmd/api RUN='^TestOrgCandidatesFlow$'
 ```
 
 Unit tests/vet do not establish DB acceptance. The summary subtest runs after
@@ -306,8 +306,8 @@ existing draft-list errors retain their existing `invalid_request` code.
 | `cmd/api/public_jobs_routes_test.go` — `TestPublicJobsInvalidFilterBytesUnchanged` | Actual GET /v2/jobs invalid_filter bytes and public cache headers unchanged. |
 | `cmd/api/main_test.go`, `task63_logging_security_a1h_test.go` | Updated exact route topology and bounded logging census. |
 
-Validation from `backend/`: `go test ./cmd/api -run '^TestOrgCandidates' -count=1`,
-`go test ./... -count=1`, `go vet ./...`, `go vet -tags=integration ./...`,
+Validation from `backend/`: `make test PKG=./cmd/api RUN='^TestOrgCandidates'`,
+`make test`, `go vet ./...`, `go vet -tags=integration ./...`,
 `go run ./cmd/archguard`, and scoped gofmt passed. RED evidence: 34 absent-route
 HTTP subtests; later one missing cursor catalog test and two cursor-normalization
 subtests failed as intended before their respective fixes.
@@ -317,8 +317,8 @@ skips. With the guarded loopback `DRAFT_TEST_DATABASE_URL` harness already injec
 run (no DSN should be printed):
 
 ```sh
-go test -tags=integration ./cmd/api -run '^TestOrgCandidatesFlow$' -count=1 -v
-go test -tags=integration ./cmd/api -run '^Test(DraftFlow_|DraftListFlow_|ManualCreateHTTPFlow$)' -count=1 -v
+make test-integration PKG=./cmd/api RUN='^TestOrgCandidatesFlow$'
+make test-integration PKG=./cmd/api RUN='^Test(DraftFlow_|DraftListFlow_|ManualCreateHTTPFlow$)'
 ```
 
 The second command exercises existing flows sharing the modified router harness.

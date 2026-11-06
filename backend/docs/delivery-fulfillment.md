@@ -192,13 +192,13 @@ DB tests below are specifications, **not claims of DB execution**.
 ## Validation boundary
 
 From `backend/`: `go tool sqlc generate`, gofmt on changed Go files, focused tests,
-`go test ./... -count=1`, `go vet ./...`, `go vet -tags=integration ./...`.
+`make test`, `go vet ./...`, `go vet -tags=integration ./...`.
 
 Focused database commands (run migration rollback tests separately):
 
 ```sh
-go test -tags=integration ./internal/features/applications/infrastructure/postgres/v2 ./cmd/api -run '^TestFulfillment' -count=1 -v
-go test -tags=integration ./db/migrations -run '^TestMigration00027' -count=1 -v
+make test-integration PKG='./internal/features/applications/infrastructure/postgres/v2 ./cmd/api' RUN='^TestFulfillment'
+make test-integration PKG=./db/migrations RUN='^TestMigration00027'
 ```
 
 They require an **existing isolated loopback database named `draft_test`** through

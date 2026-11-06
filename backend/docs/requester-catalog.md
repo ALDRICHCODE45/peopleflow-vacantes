@@ -116,7 +116,7 @@ never merged or selected automatically:
 ## Tests
 
 ```sh
-go test ./internal/features/jobs/application/requesters ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./cmd/api -count=1
+make test PKG='./internal/features/jobs/application/requesters ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./cmd/api'
 # Isolated loopback `draft_test` database only, never DATABASE_URL:
-DRAFT_TEST_DATABASE_URL=<isolated DSN> go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run 'Requester' -count=1
+DRAFT_TEST_DATABASE_URL=<isolated DSN> make test-integration PKG='./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api' RUN='Requester'
 ```

@@ -275,8 +275,8 @@ From `backend/`:
 
 ```sh
 go tool sqlc generate
-go test ./internal/features/applications/... ./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./db/migrations ./cmd/api -count=1
-go test ./... -count=1
+make test PKG='./internal/features/applications/... ./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/http ./internal/shared/httpjson ./db/migrations ./cmd/api'
+make test
 go vet ./...
 go vet -tags=integration ./...
 ```

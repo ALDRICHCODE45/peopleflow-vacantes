@@ -101,6 +101,6 @@ alternate numeric syntax. This is also the intended H5 filter normalizer.
 | Real router bypasses rejecting authentication gates; 200 and 304 remain public-cacheable | `cmd/api/languages_routes_test.go`: `TestLanguagesRouteAnonymous` |
 | Pinned route topology | `cmd/api/main_test.go`: `TestRouteTopology_ExactRegistrations` |
 
-Validation from `backend`: `go run ./cmd/archguard`, `go test ./... -count=1`
+Validation from `backend`: `go run ./cmd/archguard`, `make test`
 (including `scripts/closure`), `go vet ./...`, and `go vet -tags=integration ./...`.
 Integration vet is compile/static analysis, not a database-backed integration run.

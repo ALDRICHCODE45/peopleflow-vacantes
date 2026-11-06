@@ -208,9 +208,9 @@ Parent runs sequentially from `backend/`, injecting guarded
 print `.env`. Existing board/movement/filter-data suites are included:
 
 ```sh
-go test -tags=integration ./cmd/api -run '^TestBoardCorrections(Flow|CVOnly)$' -count=1 -v
-go test -tags=integration ./internal/features/applications/infrastructure/postgres/v2 -run '^Test(Movement|Manual|FilterData|GeoSnapshot|DetailContact|Discard|Substate|LifecycleBoard)' -count=1 -v
-go test -tags=integration ./cmd/api -run '^Test(OrgCandidate(Edits|Corrections|CV)(Flow|Rejections|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+make test-integration PKG=./cmd/api RUN='^TestBoardCorrections(Flow|CVOnly)$'
+make test-integration PKG=./internal/features/applications/infrastructure/postgres/v2 RUN='^Test(Movement|Manual|FilterData|GeoSnapshot|DetailContact|Discard|Substate|LifecycleBoard)'
+make test-integration PKG=./cmd/api RUN='^Test(OrgCandidate(Edits|Corrections|CV)(Flow|Rejections|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)'
 ```
 
 Do not run shared-DB packages concurrently with each other or migration rollback
@@ -278,7 +278,7 @@ Migration **00044** must be applied before using these reads/writes.
 
 Observed RED: five absent-route/no-store HTTP subtests, one missing migration
 check, one language-order no-op and one noncanonical base64 cursor rejection.
-Focused tests, full `go test ./... -count=1`, both vet modes and archguard pass.
+Focused tests, full `make test`, both vet modes and archguard pass.
 The initial full-suite SQLc drift failure was resolved by `make sqlc` (the new
 schema changes generated models even without changes to query files).
 No new log calls or dependencies. **DB tests have not been executed by the
@@ -288,9 +288,9 @@ Parent runs from `backend/`, with guarded `DRAFT_TEST_DATABASE_URL` injected
 externally (do not source or print `.env`):
 
 ```sh
-go test -tags=integration ./cmd/api -run '^TestOrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$' -count=1 -v
-go test -tags=integration ./db/migrations -run '^TestOrgCandidateEditsBackfillAndGuardedDown$' -count=1 -v
-go test -tags=integration ./cmd/api -run '^Test(OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+make test-integration PKG=./cmd/api RUN='^TestOrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$'
+make test-integration PKG=./db/migrations RUN='^TestOrgCandidateEditsBackfillAndGuardedDown$'
+make test-integration PKG=./cmd/api RUN='^Test(OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)'
 ```
 
 Migration tests create their own loopback `draft_test_mig_*` database and require
@@ -364,11 +364,11 @@ Parent runs from `backend/`, injecting guarded `DRAFT_TEST_DATABASE_URL` for
 isolated `draft_test` externally; never source or print `.env`:
 
 ```sh
-go test -tags=integration ./cmd/api -run '^TestOrgCandidateCV(Flow|Rejections|AtomicRollback|ConcurrentIfMatch)$' -count=1 -v
-go test -tags=integration ./cmd/api -run '^TestOrgCandidateCVConcurrentIfMatch$' -count=4 -v
-go test -tags=integration ./db/migrations -run '^TestOrgCandidateCVGuardedDown$' -count=1 -v
-go test -tags=integration ./db/migrations -run '^TestOrgCandidate(EditsBackfillAndGuardedDown|CorrectionsGuardedDown)$' -count=1 -v
-go test -tags=integration ./cmd/api -run '^Test(OrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidateCorrections(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+make test-integration PKG=./cmd/api RUN='^TestOrgCandidateCV(Flow|Rejections|AtomicRollback|ConcurrentIfMatch)$'
+make test-integration PKG=./cmd/api RUN='^TestOrgCandidateCVConcurrentIfMatch$' COUNT=4
+make test-integration PKG=./db/migrations RUN='^TestOrgCandidateCVGuardedDown$'
+make test-integration PKG=./db/migrations RUN='^TestOrgCandidate(EditsBackfillAndGuardedDown|CorrectionsGuardedDown)$'
+make test-integration PKG=./cmd/api RUN='^Test(OrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidateCorrections(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)'
 ```
 
 Migration tests require CREATEDB and create isolated loopback `draft_test_mig_*`
@@ -425,9 +425,9 @@ Parent runs from `backend/` on isolated `draft_test`, injecting the guarded
 `DRAFT_TEST_DATABASE_URL` externally (never source or print `.env`):
 
 ```sh
-go test -tags=integration ./cmd/api -run '^TestOrgCandidateCorrections(Flow|AtomicRollback|ConcurrentIfMatch)$' -count=1 -v
-go test -tags=integration ./db/migrations -run '^TestOrgCandidateCorrectionsGuardedDown$' -count=1 -v
-go test -tags=integration ./cmd/api -run '^Test(OrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)' -count=1 -v
+make test-integration PKG=./cmd/api RUN='^TestOrgCandidateCorrections(Flow|AtomicRollback|ConcurrentIfMatch)$'
+make test-integration PKG=./db/migrations RUN='^TestOrgCandidateCorrectionsGuardedDown$'
+make test-integration PKG=./cmd/api RUN='^Test(OrgCandidateEdits(Flow|AtomicRollback|ConcurrentIfMatch)$|OrgCandidatesFlow$|ManualCreateHTTPFlow$|DraftFlow_|DraftListFlow_)'
 ```
 
 Migration acceptance needs CREATEDB. Compilation/vet and unit fakes are not SQL,
