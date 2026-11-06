@@ -61,8 +61,22 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
 - [x] T9 — S2 (política de retención), D2: `cmd/audit-purge` (dry run by default, `-execute` deletes rows older than 24
   months in batches with the txid-bound flag). Route: worker mw2pjuut, parallel to T8 (disjoint surfaces). Commit: next
   feat commit.
-- [ ] T10 — verify 2b + QA :8081 with the frontend screen. Verify done (L20), fixes next fix commit; QA pending the
-  frontend screen.
+- [x] T10 — verify 2b + QA :8081 with the frontend screen. Verify L20, fix d6e240e2, fix verify L22, screen QA L23.
+
+## Pending after 2b (not in this branch)
+
+- P1 — Schedule `audit-purge -execute` daily in the AWS deployment (dry run first); see `backend/docs/audit-retention.md`.
+- P2 — D4: least-privilege DB role for the API (INSERT/SELECT on `audit_events`, migrations by a separate owner role);
+  until then the DB owner can disable the trigger.
+- P3 — D3: hash chain, after P2.
+- P4 — Index `audit_events (occurred_at, id)` if the purge's sequential scan gets slow; the 24-month cutoff lives in the
+  trigger (00056) and `retention/store.go` — change both together.
+- P5 — MINOR 2 (2a verify): an archguard rule forbidding non-test imports of `audittest`.
+- P6 — MINOR 3 (2a verify): mount `requestmeta` after `Recoverer` (cosmetic).
+- P7 — `internal/db/audit_events.sql.go` was hand-edited (no sqlc binary): regenerate with `sqlc generate` when available.
+- P8 — Pre-existing, not audit: `TestPublicGeoSearchIndexCapability` fails on the shared test DB (also at baseline);
+  identity/postgres `TestUsersMigrationDownDropsTable` + jobs/postgres cascade; scripts/closure on macOS bash.
+- P9 — Frontend: audit screen UI adjustments (frontend session's backlog).
 
 ## Log
 
@@ -183,3 +197,8 @@ Slice 2b — screen API (contract §7 retention, §8). Branch `feat/audit-log-ba
   directly in the DB naming the same foreign user validate each other; no server path writes them (member events read
   `user_id` from `company_members` of the same company). Verifier's extra probe left in its scratch (outside the repo,
   not imported; the committed probe covers the single-foreign-row case). Remaining for T10: the frontend screen QA.
+- L23 — 2026-11-06, frontend (relaying the user, who moves laptop → PC and asked to commit and merge everything; the
+  user pushes): the screen works against 2b — list, filters and pagination OK; UI adjustments later (P9). Parent: QA
+  :8081 stopped; dev DB `peopleflow_vacancies` already at 56; `feat/audit-log-backend-2b` merges cleanly into main
+  4e9a40bf (merge-base 39e2ff35, main tree == 39e2ff35). The frontend session merges (1) this branch, (2) its
+  `feat/audit-log`, into local main, no push.
