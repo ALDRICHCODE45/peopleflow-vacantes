@@ -68,7 +68,7 @@ Desde `frontend/`, con app y fixture ya levantadas:
 PLAYWRIGHT_APP_ORIGIN=http://localhost:3100 \
 PLAYWRIGHT_FIXTURE_ORIGIN=http://127.0.0.1:4010 \
 PLAYWRIGHT_EMPLOYER_STORAGE_STATE=.playwright-auth/employer.json \
-pnpm exec playwright test tests/e2e/company-careers.spec.ts
+pnpm test:e2e tests/e2e/company-careers.spec.ts
 ```
 
 Ejemplo de arranque de la fixture con fotos opcionales:
@@ -126,7 +126,7 @@ export PEOPLEFLOW_LOCAL_PREVIEW=true \
 node tests/fixtures/jobs-server.mjs &   # API mock
 pnpm build
 pnpm start --hostname 127.0.0.1 --port 3100 &
-pnpm exec playwright test tests/e2e/vacantes.spec.ts tests/e2e/vacantes-a11y.spec.ts \
+pnpm test:e2e tests/e2e/vacantes.spec.ts tests/e2e/vacantes-a11y.spec.ts \
   tests/e2e/vacante-detalle.spec.ts tests/e2e/vacante-postular.spec.ts
 ```
 

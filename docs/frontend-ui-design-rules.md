@@ -692,7 +692,7 @@ Desde `frontend/`, en dos terminales:
 
 ```bash
 corepack pnpm exec vite --config tests/fixtures/ui-feedback/vite.config.ts
-PLAYWRIGHT_FEEDBACK_ORIGIN=http://127.0.0.1:3187 corepack pnpm exec playwright test tests/e2e/ui-feedback.spec.ts --retries=0
+PLAYWRIGHT_FEEDBACK_ORIGIN=http://127.0.0.1:3187 corepack pnpm test:e2e tests/e2e/ui-feedback.spec.ts --retries=0
 ```
 
 Sin `PLAYWRIGHT_FEEDBACK_ORIGIN`, estos tests se omiten explícitamente en la suite E2E

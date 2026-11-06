@@ -268,7 +268,7 @@ does not claim that already-issued access JWTs are revoked.
 
 ## Tests
 
-`cd frontend && pnpm exec vitest run src/lib/auth --no-file-parallelism` covers
+`cd frontend && pnpm test src/lib/auth` covers
 configuration validation, provider PKCE/state wiring, session redaction,
 refresh success/error/missing-token/expiry, the logout destination, and the
 development refresh signal. `options.test.ts` invokes the exact production
