@@ -165,3 +165,28 @@ source `docs/product/next-three-features.md` §2.
   tsc 0). Padding: the Talent Base has no inset setting (its outer columns are the centered checkbox and actions), so
   the outer audit cells use the card's `--card-spacing`. Default 50 rows per page. To check in the browser: the pinned
   «Quién» column with the extra left padding, and the paging footer on mobile.
+- **L25** (user, 2026-11-06, after checking paging and padding): «Bien hermano, me parece correcto, hay algunas
+  modificaciones que podriamos hacer, sin embargo, no las haremos ahora, las haremos despues, deja en memoria que hay
+  cosas pendientes sobre esto, pero por ahora no, en primera porque ya no vamos a seguir trabajando aqui en la laptop,
+  vamos a ir a la pc, por eso es muy importante que te commitees todo, mergees todo y yo hago push y te vo en la pc
+  principal ... es importante que todos los pendientes que existan sobre el plan que tenemos, sigan intactos». T5 done
+  (`57c6d962`). Merge plan: backend `feat/audit-log-backend-2b` then frontend `feat/audit-log` into main, no push.
+
+## Pending (resume here on the PC)
+
+- **User's later UI changes** to the audit screen: the user has more modifications in mind («hay algunas
+  modificaciones que podriamos hacer ... las haremos despues»); ask for them first, they are not written down yet.
+- **T6** (open): browser checks of the pinned «Quién» column with the inset and of the paging footer on mobile; CSV
+  export end to end (file downloads, `AuditLogExported` row appears); recruiter (Alberto) gets the restricted state on
+  /empresa/auditoria and no sidebar entry; partner doc update.
+- **Review follow-ups for T6** (L8, L13, L15, L21): blob URL revoked before the download starts (`download.ts`); local
+  range error on a field other than the backend's `range` on `to` (`model.ts`); export header/stream timeouts untested
+  and stream handling (`client.ts`); misleading `retryable` flag; route mapping of upstream 400/413; duplicated export
+  body type and failure mapping; unused `formatOccurredAt` and `changeFilters`; sidebar test probe; 2a advisories (empty
+  `AUDIT_TRUSTED_PROXY_HOPS` fails startup, silent session/forwarding failures need a credential-free server log, sign-in
+  latency bounded at 2 s, aliased `signOut` import not caught by the structural test).
+- **Before deploy**: measure the proxy hops on Amplify and set `AUDIT_TRUSTED_PROXY_HOPS`
+  (`docs/decision-frontend-hosting.md` §7); `AUDIT_PROXY_SECRET` must be set on both sides.
+- **New machine setup**: `AUDIT_PROXY_SECRET` lives only in the gitignored `frontend/.env.local` and `backend/.env`;
+  copy the same value to both on the PC. Run vitest with Node 22.
+- **After feature 2**: feature 3 (Stakeholder + métricas), `docs/product/next-three-features.md` §3.
