@@ -72,21 +72,20 @@ func (s *Store) PutManagement(ctx context.Context, companyID, actorID, id uuid.U
 	if version == math.MaxInt64 {
 		return drafts.Result{}, drafts.ErrVersionOverflow
 	}
-	var date pgtype.Date
 	var headcount pgtype.Int4
-	if next.RequestDate != nil {
-		parsed, err := time.Parse(time.DateOnly, *next.RequestDate)
-		if err != nil {
-			return drafts.Result{}, fmt.Errorf("encode request date: %w", err)
-		}
-		date = pgtype.Date{Time: parsed, Valid: true}
-	}
 	if next.HiringHeadcount != nil {
 		headcount = pgtype.Int4{Int32: int32(*next.HiringHeadcount), Valid: true}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO job_draft_management_configs (draft_id,version,request_date,hiring_headcount) VALUES ($1,$2,$3,$4)
- ON CONFLICT (draft_id) DO UPDATE SET version=EXCLUDED.version,request_date=EXCLUDED.request_date,hiring_headcount=EXCLUDED.hiring_headcount`, id, version+1, date, headcount); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO job_draft_management_configs (draft_id,version,request_date,hiring_headcount,target_close_date) VALUES ($1,$2,$3::date,$4,$5::date)
+ ON CONFLICT (draft_id) DO UPDATE SET version=EXCLUDED.version,request_date=EXCLUDED.request_date,hiring_headcount=EXCLUDED.hiring_headcount,target_close_date=EXCLUDED.target_close_date`, id, version+1, next.RequestDate, headcount, next.TargetCloseDate); err != nil {
 		return drafts.Result{}, fmt.Errorf("write management: %w", err)
+	}
+	// stakeholder-metrics-v1 §2.2: every closing-target change is history,
+	// so metrics can judge a close against the date in effect at that moment.
+	if !equalDate(previous.TargetCloseDate, next.TargetCloseDate) {
+		if _, err := tx.Exec(ctx, `INSERT INTO vacancy_close_target_changes(id,draft_id,company_id,previous_date,new_date,performed_by,performed_at) VALUES($1,$2,$3,$4::date,$5::date,$6,$7)`, uuid.New(), id, companyID, previous.TargetCloseDate, next.TargetCloseDate, actorID, s.clock().UTC()); err != nil {
+			return drafts.Result{}, fmt.Errorf("record close target change: %w", err)
+		}
 	}
 	if err := s.guardPublishedConfiguration(ctx, tx, companyID, id); err != nil {
 		return drafts.Result{}, err
@@ -117,17 +116,21 @@ func (s *Store) PutManagement(ctx context.Context, companyID, actorID, id uuid.U
 func readManagement(ctx context.Context, tx pgx.Tx, id uuid.UUID) (vacancymanagement.Configuration, int64, error) {
 	var c vacancymanagement.Configuration
 	var version int64
-	var date pgtype.Date
+	var date, target pgtype.Date
 	var headcount pgtype.Int4
-	err := tx.QueryRow(ctx, `SELECT request_date,hiring_headcount,version FROM job_draft_management_configs WHERE draft_id=$1`, id).Scan(&date, &headcount, &version)
+	err := tx.QueryRow(ctx, `SELECT request_date,hiring_headcount,target_close_date,version FROM job_draft_management_configs WHERE draft_id=$1`, id).Scan(&date, &headcount, &target, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, 0, nil
 	}
 	if err != nil {
 		return c, 0, fmt.Errorf("read management: %w", err)
 	}
-	if version <= 0 || headcount.Valid && (headcount.Int32 < 1 || headcount.Int32 > vacancymanagement.MaxHiringHeadcount) || date.Valid && (date.InfinityModifier != pgtype.Finite || date.Time.Year() < 0 || date.Time.Year() > 9999) {
+	if version <= 0 || headcount.Valid && (headcount.Int32 < 1 || headcount.Int32 > vacancymanagement.MaxHiringHeadcount) || !finiteDate(date) || !finiteDate(target) {
 		return c, 0, errors.New("draftstore: invalid stored management")
+	}
+	if target.Valid {
+		v := target.Time.Format(time.DateOnly)
+		c.TargetCloseDate = &v
 	}
 	if date.Valid {
 		v := date.Time.Format(time.DateOnly)
@@ -162,3 +165,9 @@ func renderManagement(id uuid.UUID, c vacancymanagement.Configuration, version i
 	}
 	return drafts.Result{Body: body, ETag: vacancymanagement.ETag(id, version)}, nil
 }
+
+func finiteDate(d pgtype.Date) bool {
+	return !d.Valid || d.InfinityModifier == pgtype.Finite && d.Time.Year() >= 0 && d.Time.Year() <= 9999
+}
+
+func equalDate(a, b *string) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }

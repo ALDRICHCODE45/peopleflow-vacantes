@@ -9,6 +9,14 @@ A draft references a requester as `{"kind": "internal_area" | "client", "id": "<
 A non-null `id` must be an entry of this catalog for the same company and kind,
 otherwise the draft write is `400 validation_error`.
 
+Every draft write that stores fields (v1/v2 create and save) copies the current
+requester into `job_drafts.requester_kind` / `requester_id` in the same statement
+(migration 00058, `docs/contracts/stakeholder-metrics-v1.md` §2.7): no requester →
+both null; a kind with `id: null` → kind only. Indexed by
+`(company_id, requester_kind, requester_id)` for metrics; the JSON stays the
+source of truth and the columns carry no history. The migration backfilled them
+from the stored JSON.
+
 ## Routes
 
 | Method | Route | Success |

@@ -68,6 +68,10 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 		}
 		return app.Result{}, err
 	}
+	// Decode always names the channel; direct callers default like a missing one.
+	if req.Channel == "" {
+		req.Channel = app.ChannelPortal
+	}
 	fingerprint, err := app.Fingerprint(req)
 	if err != nil {
 		return app.Result{}, err
@@ -178,7 +182,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	id := uuid.New()
 	stage := s.rules.InitialStage(vacancy)
 	at := time.Now().UTC().Truncate(time.Microsecond)
-	_, err = tx.Exec(ctx, `INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,created_at,profile_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,'organic',$8,$9)`, id, vacancy, candidate, stage, version, questions, answers, at, profile)
+	_, err = tx.Exec(ctx, `INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,created_at,profile_snapshot,origin_channel) VALUES($1,$2,$3,$4,$5,$6,$7,'organic',$8,$9,$10)`, id, vacancy, candidate, stage, version, questions, answers, at, profile, req.Channel)
 	if err != nil {
 		return app.Result{}, err
 	}

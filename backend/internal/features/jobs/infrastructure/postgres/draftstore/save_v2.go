@@ -105,14 +105,18 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	requesterKind, requesterID, err := requesterColumns(merged)
+	if err != nil {
+		return drafts.Result{}, err
+	}
 
 	var updatedAt time.Time
 	if err := tx.QueryRow(ctx,
 		`UPDATE job_drafts
-		    SET fields = $1, version = $2, updated_at = now()
+		    SET fields = $1, version = $2, updated_at = now(), requester_kind = $6, requester_id = $7
 		  WHERE id = $3 AND company_id = $4 AND version = $5
 		  RETURNING updated_at`,
-		merged, newVersion, id, companyID, record.version,
+		merged, newVersion, id, companyID, record.version, requesterKind, requesterID,
 	).Scan(&updatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Defense-in-depth: the row is locked FOR UPDATE, so a lost CAS is

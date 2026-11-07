@@ -181,6 +181,10 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 		return drafts.Result{}, err
 	}
 
+	requesterKind, requesterID, err := requesterColumns(fingerprint)
+	if err != nil {
+		return drafts.Result{}, err
+	}
 	draftID := uuid.Must(uuid.NewV7())
 	record := draftRecord{
 		id:          draftID,
@@ -192,10 +196,10 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 		fields:      fingerprint,
 	}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO job_drafts (id, company_id, created_by, status, version, fields)
-		 VALUES ($1, $2, $3, 'draft', 1, $4)
+		`INSERT INTO job_drafts (id, company_id, created_by, status, version, fields, requester_kind, requester_id)
+		 VALUES ($1, $2, $3, 'draft', 1, $4, $5, $6)
 		 RETURNING created_at, updated_at`,
-		draftID, companyID, actorID, fingerprint,
+		draftID, companyID, actorID, fingerprint, requesterKind, requesterID,
 	).Scan(&record.createdAt, &record.updatedAt); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert draft: %w", err)
 	}
@@ -353,14 +357,18 @@ func (s *Store) Save(ctx context.Context, companyID, actorID, id uuid.UUID, ifMa
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	requesterKind, requesterID, err := requesterColumns(merged)
+	if err != nil {
+		return drafts.Result{}, err
+	}
 
 	var updatedAt time.Time
 	if err := tx.QueryRow(ctx,
 		`UPDATE job_drafts
-		    SET fields = $1, version = $2, updated_at = now()
+		    SET fields = $1, version = $2, updated_at = now(), requester_kind = $6, requester_id = $7
 		  WHERE id = $3 AND company_id = $4 AND version = $5
 		  RETURNING updated_at`,
-		merged, newVersion, id, companyID, record.version,
+		merged, newVersion, id, companyID, record.version, requesterKind, requesterID,
 	).Scan(&updatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Defense-in-depth: the row is locked FOR UPDATE, so a lost CAS is
@@ -745,6 +753,23 @@ func requesterRef(canonical []byte) (kind string, id *string, present bool, err 
 		id = &copied
 	}
 	return kind, id, true, nil
+}
+
+// requesterColumns mirrors fields.requester into job_drafts.requester_kind /
+// requester_id (stakeholder-metrics-v1 §2.7). A kind with a null id is kept.
+func requesterColumns(canonical []byte) (*string, *uuid.UUID, error) {
+	kind, id, present, err := requesterRef(canonical)
+	if err != nil || !present || kind == "" {
+		return nil, nil, err
+	}
+	if id == nil {
+		return &kind, nil, nil
+	}
+	parsed, err := uuid.Parse(*id)
+	if err != nil {
+		return nil, nil, errors.New("draftstore: requester id is not a UUID")
+	}
+	return &kind, &parsed, nil
 }
 
 // requesterNameForWrite resolves the immutable catalog name for a referenced
