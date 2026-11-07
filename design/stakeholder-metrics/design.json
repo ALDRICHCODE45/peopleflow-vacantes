@@ -1,0 +1,42 @@
+{
+  "title": "Stakeholder + métricas",
+  "brief": "T3 · Direcciones antes de implementar. Vista de métricas de la empresa para owner y stakeholder de solo lectura: periodo (máx. 366 días), filtros por reclutador y cliente/área, resumen de la empresa y fichas por reclutador sin puntaje ni posición (S4), cada métrica con su definición escrita (S5). Además, flujo de invitación del stakeholder y detalle de reclutador con consulta auditada de datos personales. Contrato stakeholder-metrics-v1 con F1–F8 y D1–D12. UI en español de México, datos ilustrativos, tokens de design/system.md. Ninguna dirección elegida todavía.",
+  "feature": "odd/tasks/stakeholder-metrics.md",
+  "artboards": [
+    {
+      "file": "01-tablero-y-tabla.html",
+      "title": "01 · Tablero de resumen y tabla comparativa · S4 S5 S6 S8",
+      "tradeoff": "Todo en un recorrido y las fichas alineadas en columnas para comparar rápido; es la más densa, deja las fichas debajo del pliegue y la tabla queda justa a 1440 px.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-riel-y-fichas.html",
+      "title": "02 · Riel de filtros, pestañas y fichas · S4 S5 S6 S8",
+      "tradeoff": "Una ficha completa por reclutador y filtros siempre a la vista; comparar cuesta más porque los datos están en tarjetas distintas y la vista de empresa queda detrás de una pestaña.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-informe-y-definiciones.html",
+      "title": "03 · Informe por preguntas con definiciones visibles · S4 S5 S6 S8",
+      "tradeoff": "Se lee como informe y la definición está siempre a la vista; es la más larga y la menos eficiente para comparar reclutadores, porque muestra una ficha a la vez.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "04-invitacion-stakeholder.html",
+      "title": "04 · Invitación del stakeholder y su navegación · S1 S2 S3 S8",
+      "tradeoff": "El enlace copiable funciona sin correo y en cualquier entorno; se muestra una sola vez y la lista no puede volver a mostrarlo, así que perderlo obliga a revocar y crear otro.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "05-detalle-reclutador.html",
+      "title": "05 · Detalle de reclutador y consulta auditada · S2 S4 S5 S8",
+      "tradeoff": "Un paso previo deja claro que ver nombres de candidatos queda en Auditoría, a cambio de un clic más por consulta; la serie mensual usa una escala por gráfica y una tabla para los valores exactos.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}

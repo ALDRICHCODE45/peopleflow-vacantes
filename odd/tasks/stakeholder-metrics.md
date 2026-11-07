@@ -66,3 +66,14 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   `CompanyMemberOffboarded` with empty assignment/reassignment lists (no new audit label). Recruiter offboard with a
   stakeholder `to_user_id` → 422 `not_company_member`; the frontend offboard target picker filters stakeholders out
   (T4, with the members-list role enum).
+- **L7** T3 design directions in `design/stakeholder-metrics/` (gentle-design, `design.json` → this feature), over
+  contract v1 with F1–F8 and D1–D12: `01-tablero-y-tabla.html` (summary dashboard + comparison table sortable by
+  column), `02-riel-y-fichas.html` (filter rail, Empresa/Fichas/Definiciones tabs, grid of cards),
+  `03-informe-y-definiciones.html` (report by questions, persistent definitions panel, recruiter list + card) — three
+  alternatives for the metrics screen and the per-recruiter card, none chosen yet; plus `04-invitacion-stakeholder.html`
+  (copyable single-use 7-day link, pending list with revoke, accept-page states, stakeholder sidebar) and
+  `05-detalle-reclutador.html` (recruiter card + monthly series, audited delivered-candidates detail with a notice step
+  and fail-closed state). No score or rank, alphabetical by default; every metric shows its definition; rates «N de M»;
+  null medians «Sin datos suficientes»; «Ex miembro». Open points sent to the backend before T5: frontend-derived
+  delivery share needs a catalog definition, how `not_configured` enters a period under D12, whether `did_not_hold`
+  adds to the credit kinds, the card's `by_month` delivery breakdown. User picks a direction.

@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>02 · Riel de filtros y fichas · Métricas</title>
+<style>
+
+:root{--background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);--muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;--destructive:oklch(0.577 0.245 27.325);--brand-decorative-strong:oklch(0.54 0.15 292.581);--status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);--status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);--radius:.625rem;--shadow-card:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent);--shadow-pop:0 4px 8px color-mix(in srgb,var(--foreground) 8%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 70%,transparent);--hatch:repeating-linear-gradient(45deg,var(--muted-foreground) 0 2px,var(--muted) 2px 5px)}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--background);color:var(--foreground);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}ul,ol{padding:0;list-style:none}h1{font-size:20px;font-weight:600;line-height:1.3}h2{font-size:16px;font-weight:600}h3{font-size:14px;font-weight:600}
+.num{font-variant-numeric:tabular-nums}.muted{color:var(--muted-foreground)}.sm{font-size:12.5px}.xs{font-size:12px}.eyebrow{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}svg.s14{width:14px;height:14px}svg.s20{width:20px;height:20px}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}button,input,select{font:inherit;color:inherit}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:calc(var(--radius)*.8);border:1px solid var(--border);background:var(--card);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;color:var(--foreground)}
+.btn:hover{background:var(--muted)}.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}.btn.ghost{background:transparent;border-color:transparent}.btn.ghost:hover{background:var(--muted)}.btn:disabled{color:var(--muted-foreground);cursor:not-allowed;background:var(--card)}.btn.icon{width:40px;padding:0}
+.input,.select{min-height:40px;border:1px solid var(--border);border-radius:calc(var(--radius)*.8);background:var(--card);padding:0 12px}
+.field{display:grid;gap:4px}.field>label,.field>.lbl{font-size:12.5px;font-weight:500}
+.badge{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground);white-space:nowrap}
+.badge.success{--t:var(--status-success)}.badge.info{--t:var(--status-info)}.badge.review{--t:var(--status-review)}.badge.danger{--t:var(--status-danger)}
+.badge.success,.badge.info,.badge.review,.badge.danger{color:var(--t);border-color:color-mix(in srgb,var(--t) 30%,transparent);background:color-mix(in srgb,var(--t) 10%,var(--card))}
+.badge.accent{background:color-mix(in srgb,var(--primary) 12%,var(--card));border-color:color-mix(in srgb,var(--primary) 25%,transparent);color:var(--foreground)}
+.card{background:var(--card);border-radius:calc(var(--radius)*1.4);box-shadow:var(--shadow-card);min-width:0}.card-h{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}.card-b{padding:16px 20px}.card-f{padding:12px 20px;border-top:1px solid var(--border)}
+.medal{width:36px;height:36px;border-radius:50%;background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--primary);display:grid;place-items:center;flex:none}
+.info{display:inline-grid;place-items:center;width:40px;height:40px;margin:-10px -12px -10px -8px;border:0;background:transparent;border-radius:calc(var(--radius)*.8);color:var(--muted-foreground);cursor:pointer;flex:none}.info:hover,.info[aria-expanded=true]{background:var(--muted);color:var(--foreground)}
+.pop{position:absolute;z-index:60;width:320px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-pop);padding:14px 16px;display:grid;gap:6px}.pop small{font-size:12px;color:var(--muted-foreground);border-top:1px solid var(--border);padding-top:8px}
+/* shell */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:900px}.side{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;padding:12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 8px;font-weight:600;font-size:16px}.mark{width:24px;height:24px;border-radius:50%;background:var(--foreground);color:var(--card);display:grid;place-items:center;font-size:13px;font-weight:700}
+.navlabel{padding:14px 10px 4px;font-size:12px;font-weight:500;color:var(--muted-foreground)}.nav a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:calc(var(--radius)*.8);text-decoration:none;color:var(--foreground)}.nav a:hover{background:var(--muted)}.nav a[aria-current=page]{background:var(--muted);font-weight:600}
+.side .new{width:100%;justify-content:flex-start}.who{margin-top:auto;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;padding:12px 8px 4px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font-size:12px;font-weight:500;flex:none}
+.top{height:56px;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--border);background:var(--background)}.crumb{font-size:13px;display:flex;gap:6px;align-items:center}
+.page{padding:24px 32px 48px;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0}[hidden]{display:none!important}
+/* charts */
+.seg{display:flex;gap:2px;height:10px;border-radius:999px;overflow:hidden;background:var(--muted)}.seg>span{background:var(--c)}
+.legend{display:grid;gap:6px}.legend li{display:flex;align-items:center;gap:8px;font-size:13px}.legend b{margin-left:auto;font-weight:500}.sw{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none}
+.big{font-size:28px;font-weight:600;line-height:1.1;letter-spacing:-.01em}.mid{font-size:20px;font-weight:600;line-height:1.2}
+.progress{height:8px;border-radius:999px;background:var(--muted);overflow:hidden}.progress>span{display:block;height:100%;background:var(--primary);border-radius:inherit}
+.kv{display:flex;align-items:center;gap:6px}.zero{color:var(--muted-foreground)}
+.sheetwrap{position:fixed;inset:0;z-index:70;background:color-mix(in srgb,var(--foreground) 40%,transparent);display:flex;justify-content:flex-end}.sheet{width:440px;max-width:100%;height:100%;background:var(--card);display:flex;flex-direction:column}.sheet header{padding:20px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}.sheet .body{flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:grid;gap:16px;align-content:start}.sheet dt{font-weight:600}.sheet dd{color:var(--muted-foreground);font-size:13px;margin-top:2px}
+.note{display:flex;gap:10px;padding:12px 14px;border-radius:var(--radius);background:var(--muted);font-size:13px}
+.states{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:32px 20px}.empty p{max-width:28rem;color:var(--muted-foreground)}.tile{width:40px;height:40px;border-radius:var(--radius);display:grid;place-items:center;background:var(--muted)}.tile.err{background:color-mix(in srgb,var(--destructive) 10%,var(--card));color:var(--destructive)}
+.sk{background:var(--muted);border-radius:6px;height:12px}
+.err-text{color:var(--destructive);font-size:12.5px;display:flex;gap:6px;align-items:center}.input.invalid{border-color:var(--destructive)}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;max-width:300px;padding:0 4px 0 10px;border:1px solid var(--border);border-radius:calc(var(--radius)*.8);background:var(--card);font-size:13px}.chip .x{all:unset;width:28px;height:28px;display:grid;place-items:center;border-radius:6px;cursor:pointer}.chip .x:hover{background:var(--muted)}.chip .x:focus-visible{outline:2px solid var(--primary)}
+.dirnote{border-top:1px solid var(--border);padding-top:20px;display:grid;grid-template-columns:1fr 390px;gap:28px;align-items:start}
+.phone{width:390px;border-radius:calc(var(--radius)*2.6);background:var(--background);box-shadow:var(--shadow-card);overflow:hidden;font-size:13px}.phone .bar{display:flex;align-items:center;gap:8px;height:52px;padding:0 12px;background:var(--card);border-bottom:1px solid var(--border)}.phone .in{padding:14px;display:grid;gap:12px}
+@media (max-width:900px){.app{grid-template-columns:1fr}.side{display:none}.grid3,.grid2,.grid2b,.states,.dirnote{grid-template-columns:1fr}.page{padding:16px}.toolbar{position:static}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* tables (shared) */
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}th{font-size:12.5px;font-weight:500;color:var(--muted-foreground);white-space:nowrap}tbody tr:last-child td{border-bottom:0}tbody tr:hover td{background:color-mix(in srgb,var(--muted) 60%,var(--card))}
+.l2{display:block;font-size:12px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* layout 02 */
+.split{display:grid;grid-template-columns:272px minmax(0,1fr);gap:20px;align-items:start}
+.rail{position:sticky;top:16px;display:flex;flex-direction:column}.rail .sec{padding:14px 16px;display:grid;gap:10px;border-bottom:1px solid var(--border)}.rail .sec:last-child{border-bottom:0}
+.radios{display:grid;gap:2px}.radios label{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:calc(var(--radius)*.8);cursor:pointer}.radios label:hover{background:var(--muted)}.radios input{accent-color:var(--primary);width:16px;height:16px;margin:0}.radios label:has(input:checked){background:color-mix(in srgb,var(--primary) 8%,var(--card));font-weight:500}.radios .when{margin-left:auto;font-size:12px;color:var(--muted-foreground);font-weight:400}
+.rail .select{width:100%;min-width:0}.dates{display:grid;grid-template-columns:1fr 1fr;gap:8px}.dates .input{width:100%;min-width:0;padding:0 8px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border)}.tabs [role=tab]{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;color:var(--muted-foreground);font-weight:500;box-shadow:inset 0 -2px transparent}.tabs [role=tab]:hover{color:var(--foreground)}.tabs [role=tab][aria-selected=true]{color:var(--foreground);box-shadow:inset 0 -2px var(--primary)}.tabs [role=tab]:focus-visible{outline:2px solid var(--primary);outline-offset:-2px;border-radius:6px}
+.count{font-size:12px;background:var(--muted);border-radius:999px;padding:0 7px;color:var(--muted-foreground)}
+.fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.ficha .card-h{align-items:flex-start}.ficha .q{display:grid;grid-template-columns:1fr 1fr}.ficha .q>section{padding:14px 18px;display:grid;gap:6px;align-content:start}.ficha .q>section:nth-child(odd){border-right:1px solid var(--border)}.ficha .q>section:nth-child(-n+2){border-bottom:1px solid var(--border)}
+.ficha .eyebrow{display:flex;align-items:center;gap:4px;min-height:20px}
+.avatar.lg{width:40px;height:40px;font-size:13px}
+.irow{display:grid;grid-template-columns:230px 150px minmax(0,1fr);gap:16px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--border)}.irow:last-child{border-bottom:0}.irow .lab{display:flex;align-items:center;gap:6px}.irow .val{font-size:18px;font-weight:600}.irow .val small{font-size:12.5px;font-weight:400;color:var(--muted-foreground)}
+.grouph{padding:10px 20px;background:color-mix(in srgb,var(--muted) 55%,var(--card));border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.mtable td,.mtable th{padding:8px 16px}.mtable .bar{display:flex;gap:2px;height:8px;width:160px;border-radius:999px;overflow:hidden;background:var(--muted)}.mtable .bar span{background:var(--c)}
+.defs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.defs article{padding:16px 18px;display:grid;gap:6px;align-content:start}.defs h3{font-size:14px}.defs p{font-size:13px;color:var(--muted-foreground)}
+.ro{display:inline-flex;align-items:center;gap:6px}
+@media (max-width:900px){.split,.fgrid,.defs{grid-template-columns:1fr}.rail{position:static}.irow{grid-template-columns:1fr;gap:6px}}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-brief" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 3.1a4 4 0 0 1 0 7.8M21 21v-2a4 4 0 0 0-3-3.9"/></symbol>
+<symbol id="i-team" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M6 21v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1M17 10a2 2 0 1 0 0-4M7 10a2 2 0 1 1 0-4"/></symbol>
+<symbol id="i-world" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 21h18"/><rect x="5" y="11" width="3" height="7" rx="1"/><rect x="10.5" y="6" width="3" height="12" rx="1"/><rect x="16" y="9" width="3" height="9" rx="1"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-chevr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+<symbol id="i-sort" viewBox="0 0 24 24"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-pkg" viewBox="0 0 24 24"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+<symbol id="i-ucheck" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M3 21a6 6 0 0 1 12 0M16 11l2 2 4-4"/></symbol>
+<symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H12"/></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 12V9a3 3 0 0 1 3-3h13M17 3l3 3-3 3M20 12v3a3 3 0 0 1-3 3H4M7 21l-3-3 3-3"/></symbol>
+<symbol id="i-bldg" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h13"/></symbol>
+<symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+<symbol id="i-filterx" viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/><path d="M17 16l4 4M21 16l-4 4"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+<symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2.3 5.7M4 4v7h7"/></symbol>
+</svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2M9 12h12M18 9l3 3-3 3"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol></svg>
+
+<div class="app">
+<aside class="side" aria-label="Navegación principal">
+  <div class="brand"><span class="mark" aria-hidden="true">p</span>PeopleFlow</div>
+  <nav class="nav" aria-label="Secciones">
+    <div class="navlabel">Talentia Consultores</div>
+    <a href="#" aria-current="page"><svg class="i"><use href="#i-chart"/></svg>Métricas</a>
+    <a href="#"><svg class="i"><use href="#i-user"/></svg>Mi cuenta</a>
+  </nav>
+  <div class="who" style="flex-direction:column;align-items:stretch;gap:8px">
+    <div style="display:flex;gap:10px;align-items:center"><span class="avatar" aria-hidden="true">JT</span><div style="min-width:0"><div style="font-weight:500">Jorge Treviño</div><div class="xs muted">Stakeholder · solo lectura</div></div></div>
+    <button class="btn ghost" style="justify-content:flex-start"><svg class="i"><use href="#i-logout"/></svg>Cerrar sesión</button>
+  </div>
+</aside>
+
+<div style="min-width:0">
+<header class="top"><button class="btn ghost icon" aria-label="Contraer menú"><svg class="i"><use href="#i-side"/></svg></button><nav class="crumb" aria-label="Ruta"><span>Métricas</span></nav><span class="badge accent ro" style="margin-left:auto"><svg class="i s14" aria-hidden="true"><use href="#i-eye"/></svg>Solo lectura</span></header>
+
+<main class="page">
+  <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:280px"><h1>Métricas de la empresa</h1><p class="muted" style="margin-top:4px">Talentia Consultores · 1 ago – 31 oct 2026. Las fichas no se ordenan por desempeño: tú decides qué comparar.</p></div>
+    <p class="xs muted" style="text-align:right">Definiciones v1<br>Calculado al abrir · 7 nov 2026, 10:42</p>
+  </div>
+
+  <div class="split">
+    <aside class="card rail" aria-labelledby="h-rail">
+      <div class="sec" style="grid-template-columns:auto 1fr;align-items:center"><span class="medal" aria-hidden="true"><svg class="i"><use href="#i-filter"/></svg></span><div><h2 id="h-rail" style="font-size:15px">Periodo y filtros</h2><p class="xs muted">Se aplican a todas las pestañas.</p></div></div>
+      <fieldset class="sec" style="margin:0;border-left:0;border-right:0;border-top:0">
+        <legend class="eyebrow" style="padding:0;float:left;width:100%;margin-bottom:6px">Periodo</legend>
+        <div class="radios">
+          <label><input type="radio" name="per">Últimos 30 días</label>
+          <label><input type="radio" name="per">Últimos 90 días</label>
+          <label><input type="radio" name="per" checked>Últimos 3 meses<span class="when">ago–oct</span></label>
+          <label><input type="radio" name="per">Este año</label>
+          <label><input type="radio" name="per">Personalizado</label>
+        </div>
+        <div class="dates"><div class="field"><label for="d1">Desde</label><input id="d1" class="input num" type="date" value="2026-08-01"></div><div class="field"><label for="d2">Hasta</label><input id="d2" class="input num" type="date" value="2026-10-31"></div></div>
+        <p class="xs muted">Ambos días incluidos · hasta 366 días.</p>
+      </fieldset>
+      <div class="sec">
+        <span class="eyebrow">Quién y para quién</span>
+        <div class="field"><label for="r1">Reclutador</label><select id="r1" class="select"><option>Todos los reclutadores</option><option>Andrea Villalobos</option><option>Carlos Mendoza Ruiz (Ex miembro)</option><option>Diego Hernández</option><option>Fernanda Ortiz</option><option>Mariana Torres</option><option>Rodrigo Salinas</option></select></div>
+        <div class="field"><label for="s1">Cliente o área</label><select id="s1" class="select"><option>Todos los clientes y áreas</option><optgroup label="Clientes"><option>Grupo Bimbo</option><option>Liverpool</option><option>FEMSA</option><option>Banorte</option><option>Cliente sin especificar</option></optgroup><optgroup label="Áreas internas"><option>Finanzas</option><option>Operaciones</option></optgroup><option>Sin solicitante</option></select></div>
+      </div>
+      <div class="sec" style="grid-template-columns:1fr auto;align-items:center"><p class="xs muted">Sin filtros: toda la empresa.</p><button class="btn ghost" disabled><svg class="i"><use href="#i-rotate"/></svg>Restablecer</button></div>
+    </aside>
+
+    <div style="display:grid;gap:16px;min-width:0">
+      <div class="tabs" role="tablist" aria-label="Vistas de métricas">
+        <button role="tab" id="t-emp" aria-controls="p-emp" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-bldg"/></svg>Empresa</button>
+        <button role="tab" id="t-rec" aria-controls="p-rec" aria-selected="true"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Fichas por reclutador <span class="count">6</span></button>
+        <button role="tab" id="t-def" aria-controls="p-def" aria-selected="false" tabindex="-1"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Definiciones</button>
+      </div>
+
+      <!-- Fichas -->
+      <section role="tabpanel" id="p-rec" aria-labelledby="t-rec" style="display:grid;gap:14px">
+        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+          <p class="sm muted" style="flex:1;min-width:240px">6 personas con tramos en el periodo. Sin puntaje ni posición: ordenar solo acomoda las fichas.</p>
+          <div class="field"><label for="ord">Ordenar por</label><select id="ord" class="select"><option value="name">Nombre</option><option value="asig">Vacantes asignadas</option><option value="ot">Entregas a tiempo</option><option value="med">Mediana a la meta</option><option value="ent">Entregados en su tramo</option><option value="conv">Conversión a placement</option><option value="rec">Reasignaciones recibidas</option><option value="lost">Reasignaciones perdidas</option></select></div>
+          <button class="btn" id="dir" aria-describedby="ord-st"><svg class="i"><use href="#i-up"/></svg><span>A–Z</span></button>
+          <span id="ord-st" class="sr" aria-live="polite">Fichas ordenadas por nombre, de la A a la Z</span>
+        </div>
+        <div class="fgrid" id="fgrid">
+
+          <article class="card ficha" data-name="Andrea Villalobos" data-asig="9" data-ot="5" data-med="9" data-ent="48" data-conv="0.833" data-rec="1" data-lost="0">
+            <header class="card-h"><span class="avatar lg" aria-hidden="true">AV</span><div style="flex:1;min-width:0"><h3>Andrea Villalobos</h3><p class="xs muted">168 días hábiles en tramos <button class="info" data-def="dias_tramo" aria-expanded="false" aria-haspopup="dialog" style="margin:-12px -10px"><svg class="i s14"><use href="#i-info"/></svg></button></p></div><a class="btn ghost" href="05-detalle-reclutador.html" aria-label="Ver ficha completa de Andrea Villalobos">Ver ficha<svg class="i"><use href="#i-chevr"/></svg></a></header>
+            <div class="q">
+              <section><span class="eyebrow">Volumen<button class="info" data-def="asignadas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">9 <span class="sm muted" style="font-weight:400">vacantes</span></div><p class="xs muted">Responsable en 7 · colabora en 2 · 4 nuevas</p><p class="xs">48 entregados en su tramo<button class="info" data-def="entregados_tramo" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></p></section>
+              <section><span class="eyebrow">Puntualidad<button class="info" data-def="entregas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="seg" role="img" aria-label="5 a tiempo, 1 tarde, 0 vencidas"><span style="flex:5;--c:var(--status-success)"></span><span style="flex:1;--c:var(--status-review)"></span></div><p class="xs num">5 a tiempo · 1 tarde · 0 vencidas</p><p class="xs">Mediana a la meta: <b class="num">9 días hábiles</b><button class="info" data-def="tiempo_entrega" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></p></section>
+              <section><span class="eyebrow">Conversión a placement<button class="info" data-def="conversion" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">83% <span class="sm muted" style="font-weight:400">5 de 6</span></div><div class="progress" aria-hidden="true"><span style="width:83%"></span></div><p class="xs muted">6 placements: 5 directos, 1 participación<button class="info" data-def="placements" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></p></section>
+              <section><span class="eyebrow">Reasignaciones<button class="info" data-def="reasignaciones" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><p class="num"><b>1</b> recibida</p><p class="num"><b>0</b> perdidas</p></section>
+            </div>
+          </article>
+
+          <article class="card ficha" data-name="Carlos Mendoza Ruiz" data-asig="6" data-ot="2" data-med="14" data-ent="22" data-conv="0.5" data-rec="0" data-lost="3">
+            <header class="card-h"><span class="avatar lg" aria-hidden="true">CM</span><div style="flex:1;min-width:0"><h3 style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">Carlos Mendoza Ruiz <span class="badge" title="Ya no pertenece a la empresa; su historial se conserva">Ex miembro</span></h3><p class="xs muted">41 días hábiles en tramos · salió el 12 sep 2026</p></div><a class="btn ghost" href="05-detalle-reclutador.html" aria-label="Ver ficha completa de Carlos Mendoza Ruiz">Ver ficha<svg class="i"><use href="#i-chevr"/></svg></a></header>
+            <div class="q">
+              <section><span class="eyebrow">Volumen<button class="info" data-def="asignadas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">6 <span class="sm muted" style="font-weight:400">vacantes</span></div><p class="xs muted">Responsable en 5 · colabora en 1 · 1 nueva</p><p class="xs">22 entregados en su tramo</p></section>
+              <section><span class="eyebrow">Puntualidad<button class="info" data-def="entregas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="seg" role="img" aria-label="2 a tiempo, 2 tarde, 1 vencida"><span style="flex:2;--c:var(--status-success)"></span><span style="flex:2;--c:var(--status-review)"></span><span style="flex:1;--c:var(--status-danger)"></span></div><p class="xs num">2 a tiempo · 2 tarde · 1 vencida</p><p class="xs">Mediana a la meta: <b class="num">14 días hábiles</b></p></section>
+              <section><span class="eyebrow">Conversión a placement<button class="info" data-def="conversion" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">50% <span class="sm muted" style="font-weight:400">2 de 4</span></div><div class="progress" aria-hidden="true"><span style="width:50%"></span></div><p class="xs muted">3 placements: 2 directos · <span class="badge review">1 no se sostuvo</span></p></section>
+              <section><span class="eyebrow">Reasignaciones<button class="info" data-def="reasignaciones" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><p class="num"><b>0</b> recibidas</p><p class="num"><b>3</b> perdidas <span class="xs muted">· salida de la empresa</span></p></section>
+            </div>
+          </article>
+
+          <article class="card ficha" data-name="Diego Hernández" data-asig="8" data-ot="4" data-med="12" data-ent="39" data-conv="0.8" data-rec="2" data-lost="1">
+            <header class="card-h"><span class="avatar lg" aria-hidden="true">DH</span><div style="flex:1;min-width:0"><h3>Diego Hernández</h3><p class="xs muted">139 días hábiles en tramos</p></div><a class="btn ghost" href="05-detalle-reclutador.html" aria-label="Ver ficha completa de Diego Hernández">Ver ficha<svg class="i"><use href="#i-chevr"/></svg></a></header>
+            <div class="q">
+              <section><span class="eyebrow">Volumen<button class="info" data-def="asignadas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">8 <span class="sm muted" style="font-weight:400">vacantes</span></div><p class="xs muted">Responsable en 4 · colabora en 3 · miembro en 2 · 3 nuevas</p><p class="xs">39 entregados en su tramo</p></section>
+              <section><span class="eyebrow">Puntualidad<button class="info" data-def="entregas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="seg" role="img" aria-label="4 a tiempo, 2 tarde, 1 vencida"><span style="flex:4;--c:var(--status-success)"></span><span style="flex:2;--c:var(--status-review)"></span><span style="flex:1;--c:var(--status-danger)"></span></div><p class="xs num">4 a tiempo · 2 tarde · 1 vencida</p><p class="xs">Mediana a la meta: <b class="num">12 días hábiles</b></p></section>
+              <section><span class="eyebrow">Conversión a placement<button class="info" data-def="conversion" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">80% <span class="sm muted" style="font-weight:400">4 de 5</span></div><div class="progress" aria-hidden="true"><span style="width:80%"></span></div><p class="xs muted">7 placements: 3 directos, 2 participación, 1 compartido · 1 no se sostuvo</p></section>
+              <section><span class="eyebrow">Reasignaciones<button class="info" data-def="reasignaciones" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><p class="num"><b>2</b> recibidas</p><p class="num"><b>1</b> perdida</p></section>
+            </div>
+          </article>
+
+          <article class="card ficha" data-name="Fernanda Ortiz" data-asig="2" data-ot="0" data-med="" data-ent="3" data-conv="" data-rec="1" data-lost="0">
+            <header class="card-h"><span class="avatar lg" aria-hidden="true">FO</span><div style="flex:1;min-width:0"><h3>Fernanda Ortiz</h3><p class="xs muted">18 días hábiles en tramos · se unió el 6 oct 2026</p></div><a class="btn ghost" href="05-detalle-reclutador.html" aria-label="Ver ficha completa de Fernanda Ortiz">Ver ficha<svg class="i"><use href="#i-chevr"/></svg></a></header>
+            <div class="q">
+              <section><span class="eyebrow">Volumen<button class="info" data-def="asignadas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">2 <span class="sm muted" style="font-weight:400">vacantes</span></div><p class="xs muted">Responsable en 1 · colabora en 1 · 2 nuevas</p><p class="xs">3 entregados en su tramo</p></section>
+              <section><span class="eyebrow">Puntualidad<button class="info" data-def="entregas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="seg" aria-hidden="true"></div><p class="xs muted">Ninguna entrega vencía en el periodo.</p><p class="xs">Mediana a la meta: <span class="muted">Sin datos suficientes</span></p></section>
+              <section><span class="eyebrow">Conversión a placement<button class="info" data-def="conversion" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="sm muted" style="font-weight:500">Sin datos suficientes</div><p class="xs muted">0 de 0: ninguna de sus vacantes cerró en el periodo.</p><p class="xs muted">0 placements</p></section>
+              <section><span class="eyebrow">Reasignaciones<button class="info" data-def="reasignaciones" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><p class="num"><b>1</b> recibida</p><p class="num"><b>0</b> perdidas</p></section>
+            </div>
+          </article>
+
+          <article class="card ficha" data-name="Mariana Torres" data-asig="11" data-ot="6" data-med="10" data-ent="61" data-conv="0.75" data-rec="2" data-lost="1">
+            <header class="card-h"><span class="avatar lg" aria-hidden="true">MT</span><div style="flex:1;min-width:0"><h3>Mariana Torres</h3><p class="xs muted">201 días hábiles en tramos</p></div><a class="btn ghost" href="05-detalle-reclutador.html" aria-label="Ver ficha completa de Mariana Torres">Ver ficha<svg class="i"><use href="#i-chevr"/></svg></a></header>
+            <div class="q">
+              <section><span class="eyebrow">Volumen<button class="info" data-def="asignadas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">11 <span class="sm muted" style="font-weight:400">vacantes</span></div><p class="xs muted">Responsable en 8 · colabora en 2 · miembro en 3 · 5 nuevas</p><p class="xs">61 entregados en su tramo</p></section>
+              <section><span class="eyebrow">Puntualidad<button class="info" data-def="entregas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="seg" role="img" aria-label="6 a tiempo, 1 tarde, 1 vencida"><span style="flex:6;--c:var(--status-success)"></span><span style="flex:1;--c:var(--status-review)"></span><span style="flex:1;--c:var(--status-danger)"></span></div><p class="xs num">6 a tiempo · 1 tarde · 1 vencida</p><p class="xs">Mediana a la meta: <b class="num">10 días hábiles</b></p></section>
+              <section><span class="eyebrow">Conversión a placement<button class="info" data-def="conversion" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">75% <span class="sm muted" style="font-weight:400">6 de 8</span></div><div class="progress" aria-hidden="true"><span style="width:75%"></span></div><p class="xs muted">9 placements: 6 directos, 1 participación, 2 compartidos</p></section>
+              <section><span class="eyebrow">Reasignaciones<button class="info" data-def="reasignaciones" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><p class="num"><b>2</b> recibidas</p><p class="num"><b>1</b> perdida</p></section>
+            </div>
+          </article>
+
+          <article class="card ficha" data-name="Rodrigo Salinas" data-asig="7" data-ot="3" data-med="11" data-ent="41" data-conv="0.4" data-rec="0" data-lost="1">
+            <header class="card-h"><span class="avatar lg" aria-hidden="true">RS</span><div style="flex:1;min-width:0"><h3>Rodrigo Salinas</h3><p class="xs muted">150 días hábiles en tramos</p></div><a class="btn ghost" href="05-detalle-reclutador.html" aria-label="Ver ficha completa de Rodrigo Salinas">Ver ficha<svg class="i"><use href="#i-chevr"/></svg></a></header>
+            <div class="q">
+              <section><span class="eyebrow">Volumen<button class="info" data-def="asignadas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">7 <span class="sm muted" style="font-weight:400">vacantes</span></div><p class="xs muted">Responsable en 6 · colabora en 1 · 2 nuevas</p><p class="xs">41 entregados en su tramo</p></section>
+              <section><span class="eyebrow">Puntualidad<button class="info" data-def="entregas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="seg" role="img" aria-label="3 a tiempo, 1 tarde, 0 vencidas"><span style="flex:3;--c:var(--status-success)"></span><span style="flex:1;--c:var(--status-review)"></span></div><p class="xs num">3 a tiempo · 1 tarde · 0 vencidas</p><p class="xs">Mediana a la meta: <b class="num">11 días hábiles</b></p></section>
+              <section><span class="eyebrow">Conversión a placement<button class="info" data-def="conversion" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><div class="mid num">40% <span class="sm muted" style="font-weight:400">2 de 5</span></div><div class="progress" aria-hidden="true"><span style="width:40%"></span></div><p class="xs muted">3 placements: 2 directos, 1 participación</p></section>
+              <section><span class="eyebrow">Reasignaciones<button class="info" data-def="reasignaciones" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><p class="num"><b>0</b> recibidas</p><p class="num"><b>1</b> perdida</p></section>
+            </div>
+          </article>
+        </div>
+        <p class="xs muted">Las fichas sin dato («Sin datos suficientes») quedan al final en cualquier orden. Un porcentaje siempre va con «N de M».</p>
+      </section>
+
+      <!-- Empresa -->
+      <section role="tabpanel" id="p-emp" aria-labelledby="t-emp" hidden style="display:grid;gap:16px">
+        <article class="card">
+          <div class="grouph"><svg class="i muted" aria-hidden="true"><use href="#i-brief"/></svg><h2 style="font-size:14px">Vacantes</h2></div>
+          <div class="irow"><span class="lab">Asignadas<button class="info" data-def="asignadas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">42</span><span class="xs muted">Publicadas al menos una vez, con tramo en el periodo.</span></div>
+          <div class="irow"><span class="lab">Cerradas<button class="info" data-def="cerradas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">23</span><div><div class="seg" role="img" aria-label="18 cubiertas, 4 canceladas, 1 otro motivo, 0 sin motivo"><span style="flex:18;--c:var(--status-success)"></span><span style="flex:4;--c:var(--muted-foreground)"></span><span style="flex:1;--c:var(--status-review)"></span></div><p class="xs" style="margin-top:4px">18 cubiertas · 4 canceladas · 1 otro motivo · <span class="muted">0 sin motivo</span></p></div></div>
+          <div class="irow"><span class="lab">Tiempo mediano a cierre<button class="info" data-def="tiempo_cierre" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">23 <small>días hábiles</small></span><span class="xs muted">Desde la primera publicación.</span></div>
+          <div class="irow"><span class="lab">Cierre en tiempo<button class="info" data-def="cierre_tiempo" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">80% <small>4 de 5</small></span><div><div class="progress" aria-hidden="true"><span style="width:80%"></span></div><p class="xs" style="margin-top:4px">1 tarde · <span class="muted">13 sin objetivo de cierre (no entran al porcentaje)</span></p></div></div>
+          <div class="grouph"><svg class="i muted" aria-hidden="true"><use href="#i-pkg"/></svg><h2 style="font-size:14px">Entregas de candidatos</h2></div>
+          <div class="irow"><span class="lab">Resultado<button class="info" data-def="entregas" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">20 <small>a tiempo de 30</small></span><div><div class="seg" role="img" aria-label="20 a tiempo, 7 tarde, 3 vencidas, 0 pendientes"><span style="flex:20;--c:var(--status-success)"></span><span style="flex:7;--c:var(--status-review)"></span><span style="flex:3;--c:var(--status-danger)"></span></div><p class="xs" style="margin-top:4px">7 tarde · 3 vencidas · <span class="muted">0 pendientes</span> · <span class="muted">3 sin configurar</span></p></div></div>
+          <div class="irow"><span class="lab">Mediana a la meta<button class="info" data-def="tiempo_entrega" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">11 <small>días hábiles</small></span><span></span></div>
+          <div class="irow"><span class="lab">Candidatos entregados<button class="info" data-def="entregados" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">214</span><span></span></div>
+          <div class="grouph"><svg class="i muted" aria-hidden="true"><use href="#i-ucheck"/></svg><h2 style="font-size:14px">Placements y cobertura</h2></div>
+          <div class="irow"><span class="lab">Placements<button class="info" data-def="placements" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">25</span><span><span class="badge review">2 no se sostuvieron</span></span></div>
+          <div class="irow"><span class="lab">Cobertura de posiciones<button class="info" data-def="cobertura" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">74% <small>23 de 31</small></span><div class="progress" aria-hidden="true"><span style="width:74%"></span></div></div>
+          <div class="grouph"><svg class="i muted" aria-hidden="true"><use href="#i-route"/></svg><h2 style="font-size:14px">Origen de las postulaciones</h2></div>
+          <div class="irow"><span class="lab">Postulaciones<button class="info" data-def="origen" aria-expanded="false" aria-haspopup="dialog"><svg class="i s14"><use href="#i-info"/></svg></button></span><span class="val num">515</span><div><div class="seg" role="img" aria-label="120 portal, 34 sitio de carreras, 61 manual, 300 sin distinguir"><span style="flex:120;--c:var(--primary)"></span><span style="flex:34;--c:var(--status-info)"></span><span style="flex:61;--c:var(--muted-foreground)"></span><span style="flex:300;--c:var(--hatch)"></span></div><p class="xs" style="margin-top:4px">Portal 120 · Sitio de carreras 34 · Manual 61 · Portal o sitio, sin distinguir 300</p></div></div>
+        </article>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <article class="card"><div class="card-h"><h2 style="font-size:14px;flex:1">Cerradas por mes</h2><button class="info" data-def="por_mes" aria-expanded="false" aria-haspopup="dialog" style="margin:-10px -12px"><svg class="i"><use href="#i-info"/></svg></button></div>
+            <table class="mtable"><thead><tr><th scope="col">Mes</th><th scope="col">Por motivo</th><th scope="col" style="text-align:right">Total</th></tr></thead><tbody class="num">
+              <tr><td>Ago 2026</td><td><div class="bar" role="img" aria-label="5 cubiertas, 1 cancelada"><span style="flex:5;--c:var(--status-success)"></span><span style="flex:1;--c:var(--muted-foreground)"></span><span style="flex:3;--c:var(--muted)"></span></div></td><td style="text-align:right">6</td></tr>
+              <tr><td>Sep 2026</td><td><div class="bar" role="img" aria-label="6 cubiertas, 2 canceladas, 1 otro motivo"><span style="flex:6;--c:var(--status-success)"></span><span style="flex:2;--c:var(--muted-foreground)"></span><span style="flex:1;--c:var(--status-review)"></span></div></td><td style="text-align:right">9</td></tr>
+              <tr><td>Oct 2026</td><td><div class="bar" role="img" aria-label="7 cubiertas, 1 cancelada"><span style="flex:7;--c:var(--status-success)"></span><span style="flex:1;--c:var(--muted-foreground)"></span><span style="flex:1;--c:var(--muted)"></span></div></td><td style="text-align:right">8</td></tr>
+            </tbody></table></article>
+          <article class="card"><div class="card-h"><h2 style="font-size:14px;flex:1">Reasignaciones · 6</h2><button class="info" data-def="reasignaciones" aria-expanded="false" aria-haspopup="dialog" style="margin:-10px -12px"><svg class="i"><use href="#i-info"/></svg></button></div>
+            <table class="mtable"><tbody class="num"><tr><td>Salida del reclutador</td><td style="text-align:right">3</td></tr><tr><td>Carga de trabajo</td><td style="text-align:right">2</td></tr><tr><td>Petición del cliente</td><td style="text-align:right">1</td></tr><tr class="zero"><td>Desempeño</td><td style="text-align:right">0</td></tr><tr class="zero"><td>Otro motivo</td><td style="text-align:right">0</td></tr></tbody></table></article>
+        </div>
+        <article class="card"><div class="card-h"><h2 style="font-size:14px;flex:1">Por solicitante</h2><button class="info" data-def="solicitante" aria-expanded="false" aria-haspopup="dialog" style="margin:-10px -12px"><svg class="i"><use href="#i-info"/></svg></button></div>
+          <table class="mtable"><thead><tr><th scope="col">Cliente o área</th><th scope="col">Tipo</th><th scope="col" style="text-align:right">Vacantes</th><th scope="col" style="text-align:right">Cubiertas</th></tr></thead><tbody class="num">
+            <tr><td>Grupo Bimbo</td><td class="muted">Cliente</td><td style="text-align:right">9</td><td style="text-align:right">4</td></tr><tr><td>Liverpool</td><td class="muted">Cliente</td><td style="text-align:right">7</td><td style="text-align:right">3</td></tr><tr><td>FEMSA</td><td class="muted">Cliente</td><td style="text-align:right">6</td><td style="text-align:right">3</td></tr><tr><td>Finanzas</td><td class="muted">Área interna</td><td style="text-align:right">6</td><td style="text-align:right">3</td></tr><tr><td>Banorte</td><td class="muted">Cliente</td><td style="text-align:right">5</td><td style="text-align:right">2</td></tr><tr><td>Operaciones</td><td class="muted">Área interna</td><td style="text-align:right">4</td><td style="text-align:right">2</td></tr><tr><td class="muted">Sin solicitante</td><td class="muted">No aplica</td><td style="text-align:right">3</td><td style="text-align:right">1</td></tr><tr><td class="muted">Cliente sin especificar</td><td class="muted">Cliente</td><td style="text-align:right">2</td><td style="text-align:right" class="zero">0</td></tr>
+          </tbody></table></article>
+      </section>
+
+      <!-- Definiciones -->
+      <section role="tabpanel" id="p-def" aria-labelledby="t-def" hidden style="display:grid;gap:12px">
+        <p class="sm muted">Catálogo v1 aprobado. Las mismas definiciones calculan «Mi rendimiento» de cada reclutador.</p>
+        <div class="defs" id="defs"></div>
+      </section>
+    </div>
+  </div>
+
+  <section aria-labelledby="h-states" style="display:grid;gap:12px">
+    <h2 id="h-states">Estados de esta vista</h2>
+    <div class="states">
+      <div class="card" aria-busy="true"><div class="card-h"><span class="eyebrow">Cargando fichas</span><span class="sr" role="status">Cargando las fichas por reclutador</span></div><div class="card-b" style="display:grid;grid-template-columns:1fr 1fr;gap:12px" aria-hidden="true">
+        <div style="display:grid;gap:8px;padding:12px;border-radius:var(--radius);background:var(--background)"><div style="display:flex;gap:10px;align-items:center"><div class="sk" style="width:40px;height:40px;border-radius:50%"></div><div class="sk" style="width:120px"></div></div><div class="sk" style="height:48px"></div><div class="sk" style="height:48px"></div></div>
+        <div style="display:grid;gap:8px;padding:12px;border-radius:var(--radius);background:var(--background)"><div style="display:flex;gap:10px;align-items:center"><div class="sk" style="width:40px;height:40px;border-radius:50%"></div><div class="sk" style="width:100px"></div></div><div class="sk" style="height:48px"></div><div class="sk" style="height:48px"></div></div>
+      </div></div>
+      <div class="card"><div class="empty"><span class="tile" aria-hidden="true"><svg class="i s20"><use href="#i-users"/></svg></span><h3 style="font-size:16px">Nadie tuvo vacantes asignadas en este periodo</h3><p>Las fichas aparecen cuando una persona tiene un tramo en una vacante publicada. Prueba con otro periodo.</p><button class="btn primary">Ver últimos 90 días</button></div></div>
+      <div class="card"><div class="empty"><span class="tile" aria-hidden="true"><svg class="i s20"><use href="#i-filterx"/></svg></span><h3 style="font-size:16px">Sin resultados</h3><p>Ningún reclutador trabajó vacantes de Cliente o área: Banorte entre el 1 y el 31 de agosto.</p><button class="btn">Limpiar filtros</button></div></div>
+      <div class="card"><div class="empty"><span class="tile err" aria-hidden="true"><svg class="i s20"><use href="#i-lock"/></svg></span><h3 style="font-size:16px">Esta sección no está disponible para tu rol</h3><p>Como stakeholder ves las métricas de la empresa en solo lectura. Si necesitas algo más, pídelo a la persona dueña de la cuenta.</p><a class="btn primary" href="#">Ir a Métricas</a></div></div>
+    </div>
+  </section>
+
+  <aside class="dirnote" aria-labelledby="h-dir">
+    <div style="display:grid;gap:10px">
+      <span class="eyebrow">Dirección 02 · S4 · S5 · S6 · S8</span>
+      <h2 id="h-dir">Riel de filtros, pestañas y fichas</h2>
+      <p><strong>Tradeoff:</strong> cada reclutador tiene su ficha completa (S4 al pie de la letra) y los filtros quedan siempre a la vista en el riel; la comparación cuesta más porque los mismos datos están en tarjetas distintas y la vista de empresa queda detrás de una pestaña. Es la más legible para un director que revisa persona por persona.</p>
+      <ul class="sm muted" style="display:grid;gap:4px;list-style:disc;padding-left:18px">
+        <li>Cada ficha ordena siempre igual: volumen → puntualidad → conversión → reasignaciones, para comparar sin releer.</li>
+        <li>Orden por nombre (A–Z) al entrar; «Ordenar por» acomoda las fichas por una métrica y el botón cambia la dirección. No hay posición, medalla ni color de «mejor».</li>
+        <li>Definiciones: ⓘ por sección de la ficha y por indicador, más una pestaña «Definiciones» con el catálogo completo.</li>
+        <li>Vista del stakeholder: sidebar reducido (Métricas, Mi cuenta, Cerrar sesión) y la marca «Solo lectura» en el encabezado.</li>
+      </ul>
+    </div>
+    <div class="phone" aria-label="Vista a 390 px de ancho">
+      <div class="bar"><span class="btn ghost icon" aria-hidden="true"><svg class="i"><use href="#i-side"/></svg></span><strong>Métricas</strong><span class="badge accent" style="margin-left:auto">Solo lectura</span></div>
+      <div class="in">
+        <span class="btn" style="justify-content:space-between" aria-hidden="true"><span class="kv"><svg class="i"><use href="#i-filter"/></svg>Periodo y filtros</span><span class="xs muted">Ago – oct 2026</span></span>
+        <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);overflow:hidden"><span class="xs muted" style="padding:8px 10px">Empresa</span><span class="xs" style="padding:8px 10px;box-shadow:inset 0 -2px var(--primary);font-weight:500">Fichas · 6</span><span class="xs muted" style="padding:8px 10px">Definiciones</span></div>
+        <div class="card" style="overflow:hidden"><div class="card-h" style="padding:10px 12px"><span class="avatar" aria-hidden="true">AV</span><strong style="flex:1">Andrea Villalobos</strong><svg class="i muted" aria-hidden="true"><use href="#i-chevr"/></svg></div><div style="padding:10px 12px;display:grid;gap:6px"><span class="xs"><b>9</b> vacantes · 48 entregados</span><div class="seg"><span style="flex:5;--c:var(--status-success)"></span><span style="flex:1;--c:var(--status-review)"></span></div><span class="xs">5 a tiempo · 1 tarde · 0 vencidas</span><span class="xs">Conversión 83% <span class="muted">· 5 de 6</span> · 1 recibida · 0 perdidas</span></div></div>
+        <p class="xs muted">El riel pasa a un Sheet inferior; las fichas van a una columna con las cuatro secciones apiladas.</p>
+      </div>
+    </div>
+  </aside>
+</main>
+</div>
+</div>
+
+<div id="pop" class="pop" role="dialog" aria-labelledby="pop-t" tabindex="-1" hidden><h3 id="pop-t"></h3><p class="sm"></p><small></small></div>
+<script>
+const DEF={
+asignadas:["Vacantes asignadas","Vacantes publicadas al menos una vez en las que hubo un tramo de asignación que se cruza con el periodo. Por reclutador, una vacante cuenta una vez aunque haya salido y vuelto; se separa por la función que tuvo (responsable, colaborador o miembro), así que la suma por función puede ser mayor que el total.","Fuente: tramos de asignación · Ventana: el tramo se cruza con el periodo"],
+cerradas:["Vacantes cerradas por motivo","Vacantes con un cierre registrado en el periodo, según su motivo: cubierta, cancelada u otro motivo. Los cierres de antes de que existiera el motivo aparecen como «Sin motivo». Finalizar el proceso no es un cierre.","Fuente: historial de la vacante · Ventana: fecha del cierre"],
+tiempo_cierre:["Tiempo mediano a cierre","Mediana de días hábiles entre la primera publicación y el cierre como cubierta, en las vacantes cubiertas en el periodo. Si una vacante se reabrió, se cuenta desde su primera publicación. Sin cierres no hay mediana: se muestra «Sin datos suficientes».","Días hábiles: lunes a viernes, sin festivos · Hora del centro de México"],
+cierre_tiempo:["Cierre en tiempo","Vacantes cubiertas cuyo cierre ocurrió en o antes de la fecha objetivo de cierre vigente. El porcentaje solo considera las vacantes con fecha objetivo; las demás se cuentan aparte como «Sin objetivo».","La fecha objetivo de cierre es opcional en la configuración de la vacante"],
+entregas:["Entregas de candidatos","Se juzga con el día en que el candidato que completó la meta llegó a la etapa de corte, nunca con el momento en que se guardó la configuración. A tiempo: ese día es igual o anterior a la fecha compromiso vigente. Tarde: después. Vencida: sin cumplir y la fecha ya pasó. Pendiente: sin cumplir y la fecha aún no llega. Sin configurar: la vacante no tiene entrega configurada.","Ventana: la vacante entra al periodo por su fecha compromiso"],
+tiempo_entrega:["Mediana a la meta de entrega","Mediana de días hábiles entre la primera publicación y el día en que el candidato que completó la meta llegó a la etapa de corte. Sin entregas cumplidas no hay mediana: «Sin datos suficientes».","Días hábiles: lunes a viernes, sin festivos"],
+entregados:["Candidatos entregados","Candidatos que llegaron a la etapa de corte o a una posterior, por ingreso, movimiento o recuperación. El conteo nunca baja.","Fuente: registro de entrega de cada proceso"],
+entregados_tramo:["Entregados en su tramo","Candidatos que la persona movió a la etapa de corte mientras estaba asignada. Las postulaciones que llegan directo a la etapa de corte cuentan para la vacante, no para un reclutador.","Fuente: movimientos del pipeline durante el tramo"],
+placements:["Placements","Contrataciones con fecha en el periodo, activas o que no se sostuvieron; las anuladas no cuentan. «No se sostuvo» se muestra aparte. Por reclutador se separan en crédito directo, participación y compartido.","Ventana: fecha de contratación · El crédito va a quien tenía tramo al contratar"],
+cobertura:["Cobertura de posiciones","Posiciones cubiertas con placements activos entre las posiciones a contratar, en las vacantes cerradas en el periodo. Deja ver coberturas parciales.","Fuente: créditos de placement y posiciones de la vacante"],
+conversion:["Conversión a placement","Vacantes con al menos un placement acreditado a la persona entre las vacantes que tuvo asignadas y que cerraron en el periodo. Si ninguna cerró, no hay porcentaje.","Siempre se muestra con «N de M»"],
+origen:["Origen de las postulaciones","Postulaciones creadas en el periodo según el canal: portal de vacantes, sitio de carreras de la empresa o registro manual. Las anteriores a este cambio no distinguen el portal del sitio y aparecen como «Portal o sitio, sin distinguir».","El canal lo informa la página desde la que se postuló la persona"],
+por_mes:["Vacantes cerradas por mes","Vacantes distintas con al menos un cierre en cada mes, por motivo. Una vacante cerrada dos veces en el mismo mes cuenta una vez; si se cerró en dos meses, cuenta en cada uno. Los meses sin cierres aparecen en cero.","Mes calendario en hora del centro de México"],
+reasignaciones:["Reasignaciones","Cambios de responsable registrados en el periodo, por motivo. Sumar o quitar colaboradores no es una reasignación. Por reclutador: recibidas (pasó a ser responsable) y perdidas (dejó de serlo), incluidas las bajas de la empresa.","Ventana: fecha de la reasignación"],
+solicitante:["Por solicitante","Cliente o área interna actual de cada vacante. Si una vacante cambió de solicitante, cuenta completa en el actual. «Sin especificar»: se eligió el tipo sin elegir cuál. «Sin solicitante»: la vacante no tiene uno.","El solicitante no guarda historial: es una aproximación"],
+dias_tramo:["Días hábiles en tramos","Días hábiles que la persona estuvo asignada a vacantes dentro del periodo.","Fuente: tramos de asignación"]};
+const pop=document.getElementById('pop');let trig=null;
+document.querySelectorAll('[data-def]').forEach(b=>b.setAttribute('aria-label','Ayuda: '+DEF[b.dataset.def][0]));
+function openPop(b){if(trig===b){closePop();return}if(trig)closePop(false);const d=DEF[b.dataset.def];pop.querySelector('h3').textContent=d[0];pop.querySelector('p').textContent=d[1];pop.querySelector('small').textContent=d[2];pop.hidden=false;const r=b.getBoundingClientRect();let x=r.left+scrollX;x=Math.max(8,Math.min(x,scrollX+document.documentElement.clientWidth-pop.offsetWidth-8));pop.style.left=x+'px';pop.style.top=(r.bottom+scrollY+4)+'px';b.setAttribute('aria-expanded','true');trig=b;pop.focus()}
+function closePop(ret=true){if(!trig)return;pop.hidden=true;trig.setAttribute('aria-expanded','false');if(ret)trig.focus();trig=null}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-def]');if(b){openPop(b);return}if(trig&&!pop.contains(e.target))closePop(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePop()});
+/* tabs */
+const tabs=[...document.querySelectorAll('[role=tab]')];
+function sel(t,f=true){tabs.forEach(o=>{const on=o===t;o.setAttribute('aria-selected',on);o.tabIndex=on?0:-1;document.getElementById(o.getAttribute('aria-controls')).hidden=!on});if(f)t.focus()}
+tabs.forEach((t,i)=>{t.addEventListener('click',()=>sel(t));t.addEventListener('keydown',e=>{if(e.key==='ArrowRight')sel(tabs[(i+1)%tabs.length]);if(e.key==='ArrowLeft')sel(tabs[(i+tabs.length-1)%tabs.length])})});
+if(location.hash==='#empresa')sel(document.getElementById('t-emp'),false);if(location.hash==='#definiciones')sel(document.getElementById('t-def'),false);
+/* definitions catalog */
+const defs=document.getElementById('defs');Object.values(DEF).forEach(d=>{const a=document.createElement('article');a.className='card';const h=document.createElement('h3');h.textContent=d[0];const p=document.createElement('p');p.textContent=d[1];const s=document.createElement('small');s.className='xs muted';s.textContent=d[2];a.append(h,p,s);defs.append(a)});
+/* sorting fichas */
+const grid=document.getElementById('fgrid'),ord=document.getElementById('ord'),dirB=document.getElementById('dir'),st=document.getElementById('ord-st');let asc=true;
+const lbl={name:'nombre',asig:'vacantes asignadas',ot:'entregas a tiempo',med:'mediana a la meta',ent:'entregados en su tramo',conv:'conversión a placement',rec:'reasignaciones recibidas',lost:'reasignaciones perdidas'};
+function apply(){const k=ord.value;const cards=[...grid.children];cards.sort((a,b)=>{const va=a.dataset[k],vb=b.dataset[k];if(va===''&&vb!=='')return 1;if(vb===''&&va!=='')return -1;const c=k==='name'?va.localeCompare(vb,'es'):(+va)-(+vb);if(c===0)return a.dataset.name.localeCompare(b.dataset.name,'es');return asc?c:-c});cards.forEach(c=>grid.appendChild(c));
+const txt=k==='name'?(asc?'A–Z':'Z–A'):(asc?'Menor a mayor':'Mayor a menor');dirB.querySelector('span').textContent=txt;dirB.querySelector('use').setAttribute('href',asc?'#i-up':'#i-down');st.textContent='Fichas ordenadas por '+lbl[k]+', '+txt.toLowerCase()}
+ord.addEventListener('change',()=>{asc=ord.value==='name';apply()});dirB.addEventListener('click',()=>{asc=!asc;apply()});
+</script>
+</body></html>
