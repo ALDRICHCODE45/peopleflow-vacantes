@@ -36,11 +36,14 @@ export type AcceptFailureReason = "invitation_invalid" | "candidate_account" | "
 export type AcceptInvitationResult = { ok: true; companyId: string; memberId: string } | { ok: false; reason: AcceptFailureReason; reference: Reference };
 
 /** Token-free outcomes the accept page redirects to (`/empresa/invitacion?estado=…`). */
-export const ACCEPT_OUTCOMES = ["unido", "invalida", "cuenta-candidato", "ya-miembro"] as const;
+export const ACCEPT_OUTCOMES = ["unido", "invalida", "cuenta-candidato", "ya-miembro", "cuenta-no-lista"] as const;
 export type AcceptOutcome = (typeof ACCEPT_OUTCOMES)[number];
 export const outcomeFor = (result: AcceptInvitationResult): AcceptOutcome | null => result.ok ? "unido"
   : result.reason === "invitation_invalid" ? "invalida" : result.reason === "candidate_account" ? "cuenta-candidato"
-    : result.reason === "already_company_member" ? "ya-miembro" : null;
+    : result.reason === "already_company_member" ? "ya-miembro"
+      // The API answered 401 to a signed-in session: its user does not exist yet, so signing in again would loop.
+      // Without a status the action found no session token, which the sign-in card handles.
+      : result.reason === "unauthenticated" && result.reference.status === 401 ? "cuenta-no-lista" : null;
 export const parseOutcome = (value: string | null | undefined): AcceptOutcome | null =>
   (ACCEPT_OUTCOMES as readonly string[]).includes(value ?? "") ? value as AcceptOutcome : null;
 

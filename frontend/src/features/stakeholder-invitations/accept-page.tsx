@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CircleAlert, CircleCheck, Hourglass, Link2, LogIn, ShieldLock } from "lucide-react";
+import { Building2, CircleAlert, CircleCheck, Hourglass, Link2, LogIn, ShieldLock, UserRoundX } from "lucide-react";
 import { StateCard } from "@/components/feedback/state-card";
 import { Spinner } from "@/components/ui/spinner";
 import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context";
@@ -67,7 +67,7 @@ export function AcceptInvitationPage({ token }: { token: string }) {
     return () => { active = false; };
   }, [signedIn, token, attempt]);
   const current = result?.attempt === attempt ? result.value : null;
-  if (identity.status === "unauthenticated" || (current && !current.ok && current.reason === "unauthenticated")) return <NoSession token={token} />;
+  if (identity.status === "unauthenticated" || (current && !current.ok && current.reason === "unauthenticated" && !outcomeFor(current))) return <NoSession token={token} />;
   if (!current || outcomeFor(current)) return <Confirming />;
   return <StateCard icon={CircleAlert} tone="error" title="No pudimos confirmar tu invitación"
     description="No se completó nada todavía. Puedes reintentar sin riesgo."
@@ -107,6 +107,10 @@ export function AcceptOutcomePage({ outcome }: { outcome: AcceptOutcome | null }
   if (outcome === "ya-miembro") return <StateCard icon={Building2} tone="info" title="Ya perteneces a una empresa"
     description="Tu cuenta ya es parte de otra empresa y solo puede pertenecer a una. Para ver estas métricas, usa otra cuenta de empresa."
     primaryAction={{ label: "Ir a mi empresa", href: "/empresa/dashboard" }}>
+    <LogoutButton area="employer" />
+  </StateCard>;
+  if (outcome === "cuenta-no-lista") return <StateCard icon={UserRoundX} tone="forbidden" title="Tu cuenta todavía no está lista para PeopleFlow"
+    description="Cierra sesión e inténtalo más tarde o contacta a soporte.">
     <LogoutButton area="employer" />
   </StateCard>;
   return <StateCard icon={Link2} tone="empty" title="Abre tu enlace de invitación"

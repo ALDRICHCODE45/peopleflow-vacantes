@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import {
-  MAX_PENDING_INVITATIONS, acceptedSchema, createdInvitationSchema, creatorName, daysUntil, invitationUrl, pendingListSchema,
+  MAX_PENDING_INVITATIONS, acceptedSchema, outcomeFor, parseOutcome, createdInvitationSchema, creatorName, daysUntil, invitationUrl, pendingListSchema,
 } from "./model";
 import { acceptBody, createdInvitation, ownerUserId, pendingInvitation, urlToken } from "./test-fixtures";
 
@@ -38,4 +38,11 @@ it("counts whole calendar days left in Mexico City", () => {
   expect(daysUntil("2026-11-14T16:42:00Z", now)).toBe(7);
   expect(daysUntil("2026-11-08T05:59:00Z", now)).toBe(0);
   expect(daysUntil("2026-11-08T06:01:00Z", now)).toBe(1);
+});
+
+it("sends a backend 401 with a session to its own outcome, and a missing session token back to sign-in", () => {
+  expect(outcomeFor({ ok: false, reason: "unauthenticated", reference: { status: 401, code: "unauthenticated" } })).toBe("cuenta-no-lista");
+  expect(outcomeFor({ ok: false, reason: "unauthenticated", reference: {} })).toBeNull();
+  expect(outcomeFor({ ok: false, reason: "no_response", reference: {} })).toBeNull();
+  expect(parseOutcome("cuenta-no-lista")).toBe("cuenta-no-lista");
 });

@@ -123,6 +123,21 @@ it("returns to the sign-in state when the session expired during the confirmatio
   expect(mocks.replace).not.toHaveBeenCalled();
 });
 
+it("does not loop back to sign-in when the session exists but the API does not know the account yet", async () => {
+  mocks.accept.mockResolvedValue({ ok: false, reason: "unauthenticated", reference: { status: 401, code: "unauthenticated" } });
+  mount(<AcceptInvitationPage token={urlToken} />);
+  await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/empresa/invitacion?estado=cuenta-no-lista"));
+  expect(screen.queryByRole("link", { name: "Iniciar sesión" })).toBeNull();
+});
+
+it("explains an account the API does not know yet, with sign-out as the way out", () => {
+  mount(<AcceptOutcomePage outcome="cuenta-no-lista" />);
+  expect(screen.getByRole("heading", { name: "Tu cuenta todavía no está lista para PeopleFlow" })).toBeInTheDocument();
+  expect(screen.getByText("Cierra sesión e inténtalo más tarde o contacta a soporte.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Iniciar sesión" })).toBeNull();
+});
+
 it("waits for the account check before confirming", () => {
   mount(<AcceptInvitationPage token={urlToken} />, { ...signedIn, status: "loading", result: undefined });
   expect(screen.getByRole("heading", { name: "Confirmando tu invitación…" })).toBeInTheDocument();
