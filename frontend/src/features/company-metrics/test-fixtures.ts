@@ -90,7 +90,8 @@ export const andrea = () => card({
   reassignments: { received: 1, lost: 0 }, business_days_in_tramos: 168,
 });
 
-export function recruiterPage(items: RecruiterCard[] = [card(), carlos(), fernanda(), andrea()], next_cursor: string | null = null): RecruiterPage {
+/** Backend order (§3.7.11): lowercase name, null names last. */
+export function recruiterPage(items: RecruiterCard[] = [andrea(), carlos(), fernanda(), card()], next_cursor: string | null = null): RecruiterPage {
   return { definitions_version: "v1", period, items, next_cursor };
 }
 
@@ -114,7 +115,7 @@ export function vacancyRow(overrides: Partial<VacancyRow> = {}): VacancyRow {
     responsible: { user_id: marianaId, name: "Mariana Torres", former_member: false },
     first_published_at: "2026-08-04T16:00:00Z",
     closes: [{ date: "2026-09-15", reason: "filled" }],
-    delivery: { result: "late", target: 6, delivered: 7, target_reached_at: "2026-08-28T23:35:00Z", commitment_date: "2026-08-26", original_commitment_date: "2026-08-19", renegotiations: 1 },
+    delivery: { result: "late", target: 6, delivered: 7, target_reached_at: "2026-08-28T23:35:00Z", commitment_date: "2026-08-26", original_commitment_date: "2026-08-19", renegotiations: 1, business_days_late: 2 },
     placements: { covered: 2, required: 2 },
     reassignments: 1,
     ...overrides,
@@ -142,9 +143,9 @@ export function reassignmentPage(next_cursor: string | null = null): Reassignmen
 export function deliveries(): DeliveriesDetail {
   return {
     items: [
-      { candidate: "Luis Ángel Ramírez Soto", reached_at: "2026-08-12T17:20:00Z", delivered_by: { user_id: marianaId, name: "Mariana Torres", former_member: false } },
-      { candidate: "José Manuel Cárdenas Ruiz", reached_at: "2026-08-19T15:42:00Z", delivered_by: { user_id: carlosId, name: "Carlos Mendoza Ruiz", former_member: true } },
-      { candidate: "Karla Ivonne Medina", reached_at: "2026-08-22T19:10:00Z", delivered_by: null },
+      { candidate: { id: "50000000-0000-4000-8000-000000000001", full_name: "Luis Ángel Ramírez Soto" }, reached_at: "2026-08-12T17:20:00Z", delivered_by: { user_id: marianaId, name: "Mariana Torres", former_member: false } },
+      { candidate: { id: "50000000-0000-4000-8000-000000000002", full_name: "José Manuel Cárdenas Ruiz" }, reached_at: "2026-08-19T15:42:00Z", delivered_by: { user_id: carlosId, name: "Carlos Mendoza Ruiz", former_member: true } },
+      { candidate: { id: "50000000-0000-4000-8000-000000000003", full_name: "Karla Ivonne Medina" }, reached_at: "2026-08-22T19:10:00Z", delivered_by: null },
     ],
   };
 }
@@ -152,8 +153,8 @@ export function deliveries(): DeliveriesDetail {
 export function placements(): PlacementsDetail {
   return {
     items: [
-      { candidate: "Brenda Sánchez Villegas", hired_at: "2026-09-10T17:00:00Z", status: "active", recipients: [{ person: { user_id: marianaId, name: "Mariana Torres", former_member: false }, kind: "direct" }] },
-      { candidate: "Óscar Gutiérrez Pineda", hired_at: "2026-09-12T17:00:00Z", status: "did_not_hold", recipients: [{ person: { user_id: carlosId, name: "Carlos Mendoza Ruiz", former_member: true }, kind: "participant" }] },
+      { candidate: { id: "50000000-0000-4000-8000-000000000004", full_name: "Brenda Sánchez Villegas" }, hired_at: "2026-09-10T17:00:00Z", status: "active", recipients: [{ person: { user_id: marianaId, name: "Mariana Torres", former_member: false }, kind: "direct" }] },
+      { candidate: { id: "50000000-0000-4000-8000-000000000005", full_name: "Óscar Gutiérrez Pineda" }, hired_at: "2026-09-12T17:00:00Z", status: "did_not_hold", recipients: [{ person: { user_id: carlosId, name: "Carlos Mendoza Ruiz", former_member: true }, kind: "participant" }] },
     ],
   };
 }

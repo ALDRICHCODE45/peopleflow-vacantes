@@ -71,6 +71,8 @@ export const vacancyRowSchema = z.object({
   delivery: z.object({
     result: deliveryResultSchema, target: count.nullable(), delivered: count, target_reached_at: timestamp.nullable(),
     commitment_date: day.nullable(), original_commitment_date: day.nullable(), renegotiations: count,
+    // Set only when the result is `late` (§3.7.8).
+    business_days_late: count.nullable(),
   }),
   placements: z.object({ covered: count, required: count }),
   reassignments: count,
@@ -83,11 +85,13 @@ export const reassignmentRowSchema = z.object({
   performed_by: personSchema.nullable(), outgoing_tramo_business_days: count.nullable(),
 });
 export const reassignmentPageSchema = z.object({ ...envelope, items: z.array(reassignmentRowSchema).max(100), next_cursor: z.string().nullable() });
-export const deliveriesSchema = z.object({ items: z.array(z.object({ candidate: z.string(), reached_at: timestamp, delivered_by: personSchema.nullable() })) });
+/** The candidate with the company's name correction applied (§3.7.9). */
+const candidateSchema = z.object({ id: text, full_name: z.string() });
+export const deliveriesSchema = z.object({ items: z.array(z.object({ candidate: candidateSchema, reached_at: timestamp, delivered_by: personSchema.nullable() })) });
 export const placementsSchema = z.object({
   items: z.array(z.object({
     // Voided credits never appear (M3).
-    candidate: z.string(), hired_at: timestamp, status: z.enum(["active", "did_not_hold"]),
+    candidate: candidateSchema, hired_at: timestamp, status: z.enum(["active", "did_not_hold"]),
     recipients: z.array(z.object({ person: personSchema, kind: z.enum(["direct", "participant", "shared"]) })),
   })),
 });

@@ -90,6 +90,32 @@ describe("summary", () => {
     expect(within(card$("Por cliente o área")).getByText("Sin solicitante")).toBeInTheDocument();
   });
 
+  it("§3.7.4: names close events and distinct vacancies per month apart, so their totals may differ", async () => {
+    render(<CompanyMetricsPage />);
+    const vacancies = await screen.findByRole("region", { name: "Vacantes" });
+    expect(within(vacancies).getByText("Cierres")).toBeInTheDocument();
+    await userEvent.click(within(vacancies).getByRole("button", { name: "Ayuda: Cierres por motivo" }));
+    expect(await screen.findByText(/Cuenta cierres, no vacantes: una vacante cerrada, reabierta y cerrada otra vez en el periodo suma dos/)).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("region", { name: "Vacantes cerradas por mes" })).getAllByRole("button", { name: "Ayuda: Vacantes cerradas por mes" })[0]);
+    expect(await screen.findByText(/Cuenta vacantes distintas, no cierres: por eso la suma de los meses puede ser menor que «Cierres» del resumen/)).toBeInTheDocument();
+  });
+
+  it("§3.7.11: keeps the backend order of by_requester in the table and the filter options", async () => {
+    const rows = [
+      { requester: { kind: "client" as const, id: "20000000-0000-4000-8000-000000000002", name: "Liverpool" }, vacancies: 2, filled: 1 },
+      { requester: { kind: "client" as const, id: "20000000-0000-4000-8000-000000000001", name: "banorte" }, vacancies: 1, filled: 0 },
+      { requester: { kind: "client" as const, id: null, name: null }, vacancies: 1, filled: 0 },
+      { requester: null, vacancies: 1, filled: 0 },
+    ];
+    overview.mockResolvedValue(ok({ summary: summary({ by_requester: rows }), recruiters: recruiterPage().items }));
+    render(<CompanyMetricsPage />);
+    const table = await screen.findByRole("region", { name: "Por cliente o área" });
+    expect(within(table).getAllByRole("row").slice(1).map(row => within(row).getAllByRole("cell")[0].textContent)).toEqual(["Liverpool", "banorte", "Cliente sin especificar", "Sin solicitante"]);
+    const field = screen.getByRole("combobox", { name: "Cliente o área" }).closest('[data-slot="field"]') as HTMLElement;
+    expect(within(field).getAllByRole("option").map(option => option.textContent)).toEqual(
+      ["Todos los clientes y áreas", "Todos los clientes", "Liverpool", "banorte", "Cliente sin especificar", "Todas las áreas internas", "Sin solicitante"]);
+  });
+
   it("explains every number in a definition popover", async () => {
     render(<CompanyMetricsPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Ayuda: Entregas a tiempo" }));
@@ -159,6 +185,8 @@ describe("filters", () => {
     await pick(user, "Reclutador", "Carlos Mendoza Ruiz (Ex miembro)");
     expect(new URLSearchParams(window.location.search).get("recruiter_id")).toBe(carlos().user_id);
     await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ recruiter_id: carlos().user_id }));
+    // §3.7.3: what a recruiter filter keeps, in the summary, the lists and the reassignments.
+    expect(screen.getByText("Vista filtrada · Reclutador: el resumen y las vacantes cuentan las vacantes en las que esa persona tuvo un tramo en el periodo; las reasignaciones, las que perdió o recibió.")).toBeInTheDocument();
     await pick(user, "Cliente o área", "Sin solicitante");
     await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ recruiter_id: carlos().user_id, requester_id: "none" }));
     await pick(user, "Atajo", "Últimos 30 días");
@@ -192,12 +220,23 @@ describe("filters", () => {
     expect(screen.getByLabelText("Hasta")).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("§3.7.10: shows a 422 field error at its own control", async () => {
+    overview.mockResolvedValueOnce(failure("invalid_filter", { fields: [{ field: "requester_kind", code: "required" }, { field: "to", code: "range" }] }));
+    render(<CompanyMetricsPage />);
+    expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
+    const requester = screen.getByRole("combobox", { name: "Cliente o área" });
+    expect(requester).toHaveAttribute("aria-invalid", "true");
+    expect(requester.closest('[data-slot="field"]')).toHaveTextContent("Elige si el solicitante es un cliente o un área interna.");
+    expect(screen.getByLabelText("Hasta").closest('[data-slot="field"]')).toHaveTextContent("El periodo puede abarcar hasta 366 días.");
+    expect(screen.getByText("Cliente o área: elige si el solicitante es un cliente o un área interna.")).toBeInTheDocument();
+  });
+
   it("names the rejected filters of a 422 and resets the view", async () => {
     overview.mockResolvedValueOnce(failure("invalid_filter", { fields: [{ field: "to", code: "range" }] }));
     at("?from=2026-08-01&to=2026-10-31");
     render(<CompanyMetricsPage />);
     expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
-    expect(screen.getByText("El periodo puede abarcar hasta 366 días.")).toBeInTheDocument();
+    expect(screen.getAllByText("El periodo puede abarcar hasta 366 días.").length).toBeGreaterThan(0);
     await userEvent.click(screen.getByRole("button", { name: "Restablecer vista" }));
     expect(window.location.search).toBe("");
   });

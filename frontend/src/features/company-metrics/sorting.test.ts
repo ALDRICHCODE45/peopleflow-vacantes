@@ -2,11 +2,14 @@ import { expect, it } from "vitest";
 import { nextSort, sortLabel, sortRecruiters, type RecruiterSort } from "./sorting";
 import { andrea, card, carlos, fernanda } from "./test-fixtures";
 
-const names = (sort: RecruiterSort) => sortRecruiters([card(), carlos(), fernanda(), andrea()], sort).map(item => item.name);
+// Input in the backend order (§3.7.11).
+const names = (sort: RecruiterSort) => sortRecruiters([andrea(), carlos(), fernanda(), card()], sort).map(item => item.name);
 
-it("orders alphabetically by default, with accents compared as Spanish", () => {
+it("keeps the backend's default order (lowercase name, null names last) instead of re-sorting it", () => {
+  const server = [card({ user_id: "a", name: "alberto" }), card({ user_id: "z", name: "Zoe" }), card({ user_id: "á", name: "Ángela" }), card({ user_id: "n", name: null })];
+  expect(sortRecruiters(server, { key: "name", direction: "ascending" }).map(item => item.name)).toEqual(["alberto", "Zoe", "Ángela", null]);
+  expect(sortRecruiters(server, { key: "name", direction: "descending" }).map(item => item.name)).toEqual(["Ángela", "Zoe", "alberto", null]);
   expect(names({ key: "name", direction: "ascending" })).toEqual(["Andrea Villalobos", "Carlos Mendoza Ruiz", "Fernanda Ortiz", "Mariana Torres"]);
-  expect(names({ key: "name", direction: "descending" })).toEqual(["Mariana Torres", "Fernanda Ortiz", "Carlos Mendoza Ruiz", "Andrea Villalobos"]);
 });
 
 it("keeps rows without a sample last in both directions", () => {

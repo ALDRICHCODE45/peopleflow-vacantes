@@ -40,9 +40,9 @@ function DeliveriesTable({ items, vacancy }: { items: Extract<AuditedDetail, { r
   const judged = result === "on_time" || result === "late";
   return <Table>
     <TableHeader><TableRow><TableHead scope="col">#</TableHead><TableHead scope="col">Candidato</TableHead><TableHead scope="col">Llegó a la etapa de corte</TableHead><TableHead scope="col">Entregado por</TableHead></TableRow></TableHeader>
-    <TableBody>{items.map((item, index) => <TableRow key={`${index}:${item.reached_at}`}>
+    <TableBody>{items.map((item, index) => <TableRow key={item.candidate.id || `${index}:${item.reached_at}`}>
       <TableCell className="tabular-nums">{index + 1}</TableCell>
-      <TableCell className="whitespace-normal"><span className="flex flex-col gap-1">{item.candidate}
+      <TableCell className="whitespace-normal"><span className="flex flex-col gap-1">{item.candidate.full_name}
         {judged && target !== null && index === target - 1 && <Badge variant={result === "on_time" ? "success" : "review"}>{`Completó la meta · ${DELIVERY_RESULT_LABEL[result].toLowerCase()}`}</Badge>}</span></TableCell>
       <TableCell>{momentLabel(item.reached_at)}</TableCell>
       <TableCell className="whitespace-normal"><Who person={item.delivered_by} fallback="Postulación directa" /></TableCell>
@@ -52,8 +52,8 @@ function DeliveriesTable({ items, vacancy }: { items: Extract<AuditedDetail, { r
 function PlacementsTable({ items }: { items: Extract<AuditedDetail, { report: "placements" }>["items"] }) {
   return <Table>
     <TableHeader><TableRow><TableHead scope="col">Candidato</TableHead><TableHead scope="col">Contratación</TableHead><TableHead scope="col">Crédito</TableHead><TableHead scope="col">Estado</TableHead></TableRow></TableHeader>
-    <TableBody>{items.map((item, index) => <TableRow key={`${index}:${item.hired_at}`}>
-      <TableCell className="whitespace-normal">{item.candidate}</TableCell>
+    <TableBody>{items.map((item, index) => <TableRow key={`${item.candidate.id}:${item.hired_at}:${index}`}>
+      <TableCell className="whitespace-normal">{item.candidate.full_name}</TableCell>
       <TableCell>{momentLabel(item.hired_at)}</TableCell>
       <TableCell className="whitespace-normal"><span className="flex flex-col gap-1">{item.recipients.length ? item.recipients.map(recipient => <span key={recipient.person.user_id}><Who person={recipient.person} fallback="" /><span className="text-xs text-muted-foreground">{RECIPIENT_KIND[recipient.kind]}</span></span>) : <span className="text-muted-foreground">Sin crédito</span>}</span></TableCell>
       <TableCell><Badge variant={item.status === "active" ? "success" : "review"}>{PLACEMENT_STATUS[item.status]}</Badge></TableCell>

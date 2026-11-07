@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HelpProvider } from "@/features/psychometrics/help/info-popover";
 import { loadOverviewAction, type Overview } from "./actions";
-import { failureMessage, filterIssueMessages } from "./failure";
+import { failureMessage, fieldErrors, filterIssueMessages } from "./failure";
 import { MetricsFiltersBar, type RecruiterOption, type RequesterOption } from "./metrics-filters";
 import { MetricsRestricted } from "./metrics-page";
 import { dayLabel, momentLabel, type MetricsFailure, type MetricsResult } from "./model";
@@ -48,6 +48,15 @@ export function MetricsSkeleton() {
   </div>;
 }
 
+/** What each filter keeps (§3.7.3): a recruiter narrows vacancies by their tramos and reassignments by lost or received. */
+export function filteredViewNote(filters: MetricsFilters): string {
+  const parts = [
+    filters.recruiter_id && "Reclutador: el resumen y las vacantes cuentan las vacantes en las que esa persona tuvo un tramo en el periodo; las reasignaciones, las que perdió o recibió.",
+    (filters.requester_kind || filters.requester_id) && "Cliente o área: se cuentan solo las vacantes con ese solicitante actual.",
+  ].filter(Boolean);
+  return `Vista filtrada · ${parts.join(" ")}`;
+}
+
 const isQuiet = ({ summary, recruiters }: Overview) => recruiters.length === 0 && summary.vacancies.assigned === 0 && summary.delivery.total === 0
   && summary.placements.credits === 0 && summary.reassignments.total === 0 && Object.values(summary.origin).every(value => value === 0)
   && summary.closed_by_month.every(month => month.filled + month.cancelled + month.other + month.no_reason === 0);
@@ -60,10 +69,8 @@ function useRememberedOptions(overview: Overview | null) {
     for (const card of overview.recruiters) recruiters.current.set(card.user_id, { user_id: card.user_id, name: card.name, former_member: card.former_member });
     for (const { requester } of overview.summary.by_requester) if (requester) requesters.current.set(`${requester.kind}:${requester.id ?? NO_REQUESTER}`, requester);
   }
-  const byName = (a: { name: string | null }, b: { name: string | null }) => (a.name ?? "").localeCompare(b.name ?? "", "es");
-  // «Sin especificar» goes after the named requesters of its kind.
-  const byRequester = (a: RequesterOption, b: RequesterOption) => Number(a.id === null) - Number(b.id === null) || byName(a, b);
-  return { recruiters: [...recruiters.current.values()].sort(byName), requesters: [...requesters.current.values()].sort(byRequester) };
+  // Both lists keep the backend order as first seen (§3.7.11); they are never re-sorted here.
+  return { recruiters: [...recruiters.current.values()], requesters: [...requesters.current.values()] };
 }
 
 /** `/empresa/metricas` (artboard 01, corrected by L8): period and filters, company summary and recruiter table. */
@@ -91,8 +98,9 @@ export function MetricsWorkspace({ details }: { details?: (filters: MetricsFilte
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
     <MetricsHeading title="Métricas de la empresa" version={overview?.summary.definitions_version} computedAt={overview ? state?.at : undefined}
       description="Rendimiento de tu empresa en el periodo elegido. Cada número tiene su definición escrita: abre el ícono de información para leerla." />
-    <MetricsFiltersBar filters={filters} today={today} recruiters={options.recruiters} requesters={options.requesters} onChange={update} />
-    {narrowed && <p role="status" className="text-sm text-muted-foreground"><span aria-hidden="true" className="text-primary">● </span>Vista filtrada · El resumen y las fichas consideran solo las vacantes que coinciden con los filtros.</p>}
+    <MetricsFiltersBar filters={filters} today={today} recruiters={options.recruiters} requesters={options.requesters} onChange={update}
+      serverErrors={state && !state.result.ok && state.result.reason === "invalid_filter" ? fieldErrors(state.result.fields) : undefined} />
+    {narrowed && <p role="status" className="text-sm text-muted-foreground"><span aria-hidden="true" className="text-primary">● </span>{filteredViewNote(filters)}</p>}
     {!state ? <MetricsSkeleton />
       : !state.result.ok ? <MetricsFailureCard failure={state.result} onRetry={() => setAttempt(value => value + 1)} onReset={() => update({})} />
       : isQuiet(state.result.data) ? narrowed
