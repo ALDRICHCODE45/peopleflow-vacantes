@@ -30,3 +30,24 @@ func TestTeamAccessEndedCatalog(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestWriteTeamOffboardVacancies(t *testing.T) {
+	vacancies := []map[string]string{{"id": "v1"}}
+	for _, code := range []Code{"member_is_responsible", "offboard_unresolved_vacancies"} {
+		t.Run(string(code), func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			WriteTeamOffboardVacancies(rec, code, vacancies)
+			def := Resolve(code)
+			want := `{"error":"` + def.Message + `","code":"` + string(code) + `","data":{"vacancies":[{"id":"v1"}]}}` + "\n"
+			if rec.Code != def.Status || rec.Body.String() != want {
+				t.Fatalf("%d %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+	// Other codes never carry offboard data through this seam.
+	rec := httptest.NewRecorder()
+	WriteTeamOffboardVacancies(rec, "team_last_member", vacancies)
+	if rec.Code != 409 || rec.Body.String() != `{"error":"team last member","code":"team_last_member"}`+"\n" {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}

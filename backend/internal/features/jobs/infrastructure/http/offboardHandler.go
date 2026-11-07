@@ -69,8 +69,7 @@ func (h *OffboardHandler) Serve(action string) http.HandlerFunc {
 func writeOffboardError(w http.ResponseWriter, err error) {
 	var vacancies *vacancyteam.OffboardVacanciesError
 	if errors.As(err, &vacancies) {
-		def := httpjson.Resolve(httpjson.Code(vacancies.Code))
-		httpjson.WriteJSON(w, def.Status, map[string]any{"error": def.Message, "code": def.Code, "data": map[string]any{"vacancies": vacancies.Vacancies}})
+		httpjson.WriteTeamOffboardVacancies(w, httpjson.Code(vacancies.Code), vacancies.Vacancies)
 		return
 	}
 	switch {
