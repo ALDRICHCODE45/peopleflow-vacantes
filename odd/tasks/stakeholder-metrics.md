@@ -158,3 +158,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   `26911b17` by letting the API judge the token (RED 3 failing, GREEN 63/63, typecheck clean); info: Next's dev
   request log prints the token path; the middleware matcher covers one segment only. Backend confirmed
   `delivery.business_days_late` is always present (null when not late), so the strict decoder stays.
+- **L23** Independent verification of `26911b17` (Risk item 2): passes; token only in the POST body to a fixed URL,
+  never logged nor returned, other mappings unchanged; the login `callbackUrl` carries the encoded token, as §1.3
+  allows. Dead `usableInvitationToken` removed in `293b2a3f` (62/62, typecheck and lint clean).
+  Unproven live: candidate + malformed token → 403 against the real backend.
