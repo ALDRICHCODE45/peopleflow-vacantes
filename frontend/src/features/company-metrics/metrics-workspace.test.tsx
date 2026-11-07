@@ -28,7 +28,7 @@ vi.mock("@/components/ui/select", async importOriginal => {
 import { listReassignmentsAction, listVacanciesAction, loadMetricsAccessAction, loadOverviewAction } from "./actions";
 import { CompanyMetricsPage } from "./company-metrics-page";
 import type { MetricsFailure } from "./model";
-import { carlos, emptySummary, marianaId, reassignmentPage, recruiterPage, summary, vacancyPage } from "./test-fixtures";
+import { carlos, clientId, emptySummary, marianaId, reassignmentPage, recruiterPage, summary, vacancyPage } from "./test-fixtures";
 
 const overview = vi.mocked(loadOverviewAction);
 const access = vi.mocked(loadMetricsAccessAction);
@@ -166,6 +166,22 @@ describe("filters", () => {
     expect(screen.getByText(/^30 días, ambos incluidos/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Restablecer" }));
     expect(window.location.search).toBe("");
+  });
+
+  it("M5/M6: offers «Cliente sin especificar» from by_requester and sends it as requester_kind with requester_id=none", async () => {
+    const user = userEvent.setup();
+    render(<CompanyMetricsPage />);
+    await screen.findByText("Fichas por reclutador");
+    const field = screen.getByRole("combobox", { name: "Cliente o área" }).closest('[data-slot="field"]') as HTMLElement;
+    expect(within(field).getAllByRole("option").map(option => option.textContent)).toEqual(
+      ["Todos los clientes y áreas", "Todos los clientes", "Grupo Bimbo", "Cliente sin especificar", "Todas las áreas internas", "Sin solicitante"]);
+    await pick(user, "Cliente o área", "Cliente sin especificar");
+    expect(window.location.search).toBe("?requester_kind=client&requester_id=none");
+    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ requester_kind: "client", requester_id: "none" }));
+    await pick(user, "Cliente o área", "Grupo Bimbo");
+    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ requester_kind: "client", requester_id: clientId }));
+    await pick(user, "Cliente o área", "Sin solicitante");
+    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ requester_id: "none" }));
   });
 
   it("keeps an invalid period as a field error while the metrics show the last valid period", async () => {

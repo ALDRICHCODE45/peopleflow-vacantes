@@ -13,7 +13,8 @@ import { effectivePeriod, NO_REQUESTER, type MetricsFilters } from "./url-state"
 type Option = { value: string; label: string };
 const ANY = "__any";
 const CUSTOM = "custom";
-export type RequesterOption = { kind: "client" | "internal_area"; id: string; name: string | null };
+/** `id` null is that kind «sin especificar», sent as `requester_id=none` with the kind (M6). */
+export type RequesterOption = { kind: "client" | "internal_area"; id: string | null; name: string | null };
 export type RecruiterOption = Pick<Person, "user_id" | "name" | "former_member">;
 
 function PickFilter({ id, label, items, value, onChange, children }: { id: string; label: string; items: Option[]; value: string; onChange: (value: string) => void; children: ReactNode }) {
@@ -55,13 +56,13 @@ export function MetricsFiltersBar({ filters, today, recruiters, requesters, show
     ...(filters.recruiter_id && !people.some(person => person.user_id === filters.recruiter_id) ? [{ value: filters.recruiter_id, label: "Reclutador seleccionado" }] : []),
     ...people.map(person => ({ value: person.user_id, label: recruiterLabel(person) }))];
   const catalog = requesters ?? [];
-  const requesterValue = filters.requester_id === NO_REQUESTER ? NO_REQUESTER
-    : filters.requester_kind && filters.requester_id ? `${filters.requester_kind}:${filters.requester_id}`
+  const requesterValue = filters.requester_kind && filters.requester_id ? `${filters.requester_kind}:${filters.requester_id}`
+    : filters.requester_id === NO_REQUESTER ? NO_REQUESTER
     : filters.requester_kind ? `${filters.requester_kind}:*` : ANY;
   const groups = (["client", "internal_area"] as const).map(kind => ({
     kind, label: kind === "client" ? "Clientes" : "Áreas internas",
     options: [{ value: `${kind}:*`, label: kind === "client" ? "Todos los clientes" : "Todas las áreas internas" },
-      ...catalog.filter(item => item.kind === kind).map(item => ({ value: `${kind}:${item.id}`, label: requesterLabel(item) }))],
+      ...catalog.filter(item => item.kind === kind).map(item => ({ value: `${kind}:${item.id ?? NO_REQUESTER}`, label: requesterLabel(item) }))],
   }));
   const requesterChoices: Option[] = [{ value: ANY, label: "Todos los clientes y áreas" }, ...groups.flatMap(group => group.options),
     ...(requesterValue !== ANY && requesterValue !== NO_REQUESTER && !groups.some(group => group.options.some(option => option.value === requesterValue)) ? [{ value: requesterValue, label: "Solicitante seleccionado" }] : []),

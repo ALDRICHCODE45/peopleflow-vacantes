@@ -13,8 +13,8 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const month = z.string().regex(/^\d{4}-\d{2}$/);
 const timestamp = z.string().datetime({ offset: true });
 
-/** A rate always travels with its numerator and denominator; a whole null rate is tolerated and read as no sample. */
-export const rateSchema = z.object({ value: z.number().min(0).max(1).nullable(), numerator: count, denominator: count }).strict().nullable();
+/** A rate always arrives as an object; only `value` is null, without a sample or with denominator 0. */
+export const rateSchema = z.object({ value: z.number().min(0).max(1).nullable(), numerator: count, denominator: count }).strict();
 export const personSchema = z.object({ user_id: text, name: z.string().nullable(), former_member: z.boolean() }).strict();
 const requesterKind = z.enum(["client", "internal_area"]);
 /** `id` and `name` null for «sin especificar»; the whole object null for «sin solicitante». */
@@ -39,8 +39,8 @@ export const summarySchema = z.object({
     total: count,
     by_reason: z.object({ workload: count, recruiter_departure: count, performance: count, client_request: count, other: count }).strict(),
   }).strict(),
-  // «Sin solicitante» flattens the null requester into null kind, id and name.
-  by_requester: z.array(z.object({ kind: requesterKind.nullable(), id: z.string().nullable(), name: z.string().nullable(), vacancies: count, filled: count }).strict()),
+  // «Sin solicitante» is `requester: null`; «sin especificar» is `{ kind, id: null, name: null }` (M5).
+  by_requester: z.array(z.object({ requester: requesterSchema, vacancies: count, filled: count }).strict()),
 }).strict();
 
 const cardShape = {
@@ -59,9 +59,9 @@ export const recruiterDetailSchema = z.object({
 }).strict();
 
 /**
- * §3.4 and §3.5 name their fields but not every key: these rows decode only what the screen reads and ignore the
- * rest, so an extra key never blanks the list. The chosen names (`responsible`, `delivered_by`, `recipients[].kind`)
- * are the frontend reading of the contract prose and are confirmed at integration (T6).
+ * §3.4 and §3.5 rows decode only what the screen reads and ignore other keys, so an extra key never blanks the list.
+ * Names confirmed by the backend (M1–M4): `responsible`, `closes[].reason` (null for legacy closes),
+ * `delivered_by` (null for an organic application landing in the cutoff stage), `recipients[{ person, kind }]`.
  */
 export const deliveryResultSchema = z.enum(["on_time", "late", "overdue", "pending", "not_configured"]);
 export const vacancyRowSchema = z.object({
@@ -86,8 +86,9 @@ export const reassignmentPageSchema = z.object({ ...envelope, items: z.array(rea
 export const deliveriesSchema = z.object({ items: z.array(z.object({ candidate: z.string(), reached_at: timestamp, delivered_by: personSchema.nullable() })) });
 export const placementsSchema = z.object({
   items: z.array(z.object({
-    candidate: z.string(), hired_at: timestamp, status: z.enum(["active", "did_not_hold", "voided"]),
-    recipients: z.array(personSchema.extend({ kind: z.enum(["direct", "participant", "shared"]) }).strip()),
+    // Voided credits never appear (M3).
+    candidate: z.string(), hired_at: timestamp, status: z.enum(["active", "did_not_hold"]),
+    recipients: z.array(z.object({ person: personSchema, kind: z.enum(["direct", "participant", "shared"]) })),
   })),
 });
 /** Narrow read of `GET /me/company`: only the role decides this screen. Follow-up: unify with employer-company once it parses `stakeholder` (T4). */
@@ -130,8 +131,7 @@ export const number = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 
 export const plural = (value: number, singular: string, pluralForm: string) => `${number.format(value)} ${value === 1 ? singular : pluralForm}`;
 
 /** «67%» next to «20 de 30»; a missing value is «Sin datos suficientes», never 0%. */
-export function formatRate(rate: Rate): { value: string; detail: string | null } {
-  if (!rate) return { value: NO_SAMPLE, detail: null };
+export function formatRate(rate: Rate): { value: string; detail: string } {
   return { value: rate.value === null ? NO_SAMPLE : percent.format(rate.value), detail: `${number.format(rate.numerator)} de ${number.format(rate.denominator)}` };
 }
 export const formatMedian = (value: number | null) => value === null ? NO_SAMPLE : plural(value, "día hábil", "días hábiles");

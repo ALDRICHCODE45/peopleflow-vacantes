@@ -16,7 +16,9 @@ describe("period", () => {
   });
 
   it("allows up to 366 days and reports a longer or inverted period as field errors", () => {
+    // M7: 366 days counting both ends, so to - from ≤ 365.
     expect(periodIssues({ from: "2025-11-01", to: "2026-11-01" })).toEqual([]);
+    expect(periodIssues({ from: "2025-11-01", to: "2026-11-02" })).toEqual([{ field: "to", message: "El periodo puede abarcar hasta 366 días. Elegiste 367." }]);
     expect(periodIssues({ from: "2025-09-01", to: "2026-10-31" })).toEqual([{ field: "to", message: "El periodo puede abarcar hasta 366 días. Elegiste 426." }]);
     expect(periodIssues({ from: "2026-10-31", to: "2026-10-01" })).toEqual([{ field: "to", message: "«Hasta» debe ser igual o posterior a «Desde»." }]);
     expect(periodIssues({ from: "", to: "2026-02-30" })).toEqual([
@@ -33,8 +35,10 @@ describe("filters in the URL", () => {
     expect(serializeFilters(filters).toString()).toBe(raw);
   });
 
-  it("keeps «sin solicitante» as requester_id=none and drops an id without its kind", () => {
-    expect(parseFilters(new URLSearchParams("requester_id=none&requester_kind=client"))).toEqual({ requester_id: "none" });
+  it("M6: none alone is «sin solicitante», none with a kind is that kind «sin especificar», a real id never travels without its kind", () => {
+    expect(parseFilters(new URLSearchParams("requester_id=none"))).toEqual({ requester_id: "none" });
+    expect(parseFilters(new URLSearchParams("requester_id=none&requester_kind=client"))).toEqual({ requester_kind: "client", requester_id: "none" });
+    expect(serializeFilters({ requester_kind: "internal_area", requester_id: "none" }).toString()).toBe("requester_kind=internal_area&requester_id=none");
     expect(parseFilters(new URLSearchParams(`requester_id=${clientId}`))).toEqual({});
     expect(parseFilters(new URLSearchParams("requester_kind=internal_area"))).toEqual({ requester_kind: "internal_area" });
   });

@@ -82,7 +82,8 @@ describe("audited detail", () => {
     expect(await screen.findByText("Luis Ángel Ramírez Soto")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "Candidatos entregados · 3" })).toBeInTheDocument();
     expect(screen.getByText("Completó la meta · tarde")).toBeInTheDocument();
-    expect(screen.getByText("Llegó directo, sin reclutador")).toBeInTheDocument();
+    // M3: an organic application that landed in the cutoff stage credits no recruiter.
+    expect(screen.getByText("Postulación directa")).toBeInTheDocument();
     expect(screen.getByText("Ex miembro")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/^Consulta registrada en Auditoría · /);
   });
@@ -110,6 +111,8 @@ describe("audited detail", () => {
     expect(await screen.findByText("Brenda Sánchez Villegas")).toBeInTheDocument();
     expect(screen.getByText("No se sostuvo")).toBeInTheDocument();
     expect(screen.getByText("participación")).toBeInTheDocument();
+    expect(screen.getByText("Carlos Mendoza Ruiz")).toBeInTheDocument();
+    expect(screen.getByText("Ex miembro")).toBeInTheDocument();
   });
 
   it("closes from «Cancelar» without reading anything", async () => {

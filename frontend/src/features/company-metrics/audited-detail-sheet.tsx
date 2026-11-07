@@ -18,7 +18,7 @@ const COPY = {
   placements: { title: "Placements", action: "Ver placements", scope: "Verás los nombres de los candidatos contratados, la fecha, quién recibió el crédito y si se sostuvo. No incluye CV ni datos de contacto." },
 } as const;
 const RECIPIENT_KIND = { direct: "directo", participant: "participación", shared: "compartido" } as const;
-const PLACEMENT_STATUS = { active: "Activo", did_not_hold: "No se sostuvo", voided: "Anulado" } as const;
+const PLACEMENT_STATUS = { active: "Activo", did_not_hold: "No se sostuvo" } as const;
 const noResponse: MetricsFailure = { ok: false, reason: "no_response", reference: {} };
 
 function SheetState({ icon: Icon, tone, title, description, action }: { icon: ComponentType<SVGProps<SVGSVGElement>>; tone: "error" | "empty"; title: string; description: string; action?: ReactNode }) {
@@ -45,7 +45,7 @@ function DeliveriesTable({ items, vacancy }: { items: Extract<AuditedDetail, { r
       <TableCell className="whitespace-normal"><span className="flex flex-col gap-1">{item.candidate}
         {judged && target !== null && index === target - 1 && <Badge variant={result === "on_time" ? "success" : "review"}>{`Completó la meta · ${DELIVERY_RESULT_LABEL[result].toLowerCase()}`}</Badge>}</span></TableCell>
       <TableCell>{momentLabel(item.reached_at)}</TableCell>
-      <TableCell className="whitespace-normal"><Who person={item.delivered_by} fallback="Llegó directo, sin reclutador" /></TableCell>
+      <TableCell className="whitespace-normal"><Who person={item.delivered_by} fallback="Postulación directa" /></TableCell>
     </TableRow>)}</TableBody>
   </Table>;
 }
@@ -55,8 +55,8 @@ function PlacementsTable({ items }: { items: Extract<AuditedDetail, { report: "p
     <TableBody>{items.map((item, index) => <TableRow key={`${index}:${item.hired_at}`}>
       <TableCell className="whitespace-normal">{item.candidate}</TableCell>
       <TableCell>{momentLabel(item.hired_at)}</TableCell>
-      <TableCell className="whitespace-normal"><span className="flex flex-col gap-1">{item.recipients.length ? item.recipients.map(recipient => <span key={recipient.user_id}><Who person={recipient} fallback="" /><span className="text-xs text-muted-foreground">{RECIPIENT_KIND[recipient.kind]}</span></span>) : <span className="text-muted-foreground">Sin crédito</span>}</span></TableCell>
-      <TableCell><Badge variant={item.status === "active" ? "success" : item.status === "did_not_hold" ? "review" : "neutral"}>{PLACEMENT_STATUS[item.status]}</Badge></TableCell>
+      <TableCell className="whitespace-normal"><span className="flex flex-col gap-1">{item.recipients.length ? item.recipients.map(recipient => <span key={recipient.person.user_id}><Who person={recipient.person} fallback="" /><span className="text-xs text-muted-foreground">{RECIPIENT_KIND[recipient.kind]}</span></span>) : <span className="text-muted-foreground">Sin crédito</span>}</span></TableCell>
+      <TableCell><Badge variant={item.status === "active" ? "success" : "review"}>{PLACEMENT_STATUS[item.status]}</Badge></TableCell>
     </TableRow>)}</TableBody>
   </Table>;
 }

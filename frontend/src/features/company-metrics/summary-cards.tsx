@@ -144,9 +144,9 @@ function RequesterCard({ rows }: { rows: MetricsSummary["by_requester"] }) {
   return <MetricCard title="Por cliente o área" icon={Building2} metric="by_requester">
     {rows.length === 0 ? <CardDescription>Ninguna vacante del periodo tiene solicitante.</CardDescription> : <Table>
       <TableHeader><TableRow><TableHead scope="col">Cliente o área</TableHead><TableHead scope="col">Tipo</TableHead><TableHead scope="col" className="text-right">Vacantes</TableHead><TableHead scope="col" className="text-right">Cubiertas</TableHead></TableRow></TableHeader>
-      <TableBody>{rows.map((row, index) => <TableRow key={`${row.kind}:${row.id}:${index}`}>
-        <TableCell className="max-w-48 truncate">{requesterLabel(row.kind ? { kind: row.kind, id: row.id, name: row.name } : null)}</TableCell>
-        <TableCell className="text-muted-foreground">{requesterKindLabel(row.kind)}</TableCell>
+      <TableBody>{rows.map((row, index) => <TableRow key={`${row.requester?.kind}:${row.requester?.id}:${index}`}>
+        <TableCell className="max-w-48 truncate">{requesterLabel(row.requester)}</TableCell>
+        <TableCell className="text-muted-foreground">{requesterKindLabel(row.requester?.kind ?? null)}</TableCell>
         <TableCell className="text-right tabular-nums">{row.vacancies}</TableCell>
         <TableCell className="text-right tabular-nums">{row.filled}</TableCell>
       </TableRow>)}</TableBody>

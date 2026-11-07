@@ -30,9 +30,9 @@ export function summary(overrides: Partial<MetricsSummary> = {}): MetricsSummary
     ],
     reassignments: { total: 6, by_reason: { workload: 2, recruiter_departure: 3, performance: 0, client_request: 1, other: 0 } },
     by_requester: [
-      { kind: "client", id: clientId, name: "Grupo Bimbo", vacancies: 9, filled: 4 },
-      { kind: "client", id: null, name: null, vacancies: 2, filled: 0 },
-      { kind: null, id: null, name: null, vacancies: 3, filled: 1 },
+      { requester: { kind: "client", id: clientId, name: "Grupo Bimbo" }, vacancies: 9, filled: 4 },
+      { requester: { kind: "client", id: null, name: null }, vacancies: 2, filled: 0 },
+      { requester: null, vacancies: 3, filled: 1 },
     ],
     ...overrides,
   };
@@ -152,8 +152,8 @@ export function deliveries(): DeliveriesDetail {
 export function placements(): PlacementsDetail {
   return {
     items: [
-      { candidate: "Brenda Sánchez Villegas", hired_at: "2026-09-10T17:00:00Z", status: "active", recipients: [{ user_id: marianaId, name: "Mariana Torres", former_member: false, kind: "direct" }] },
-      { candidate: "Óscar Gutiérrez Pineda", hired_at: "2026-09-12T17:00:00Z", status: "did_not_hold", recipients: [{ user_id: carlosId, name: "Carlos Mendoza Ruiz", former_member: true, kind: "participant" }] },
+      { candidate: "Brenda Sánchez Villegas", hired_at: "2026-09-10T17:00:00Z", status: "active", recipients: [{ person: { user_id: marianaId, name: "Mariana Torres", former_member: false }, kind: "direct" }] },
+      { candidate: "Óscar Gutiérrez Pineda", hired_at: "2026-09-12T17:00:00Z", status: "did_not_hold", recipients: [{ person: { user_id: carlosId, name: "Carlos Mendoza Ruiz", former_member: true }, kind: "participant" }] },
     ],
   };
 }

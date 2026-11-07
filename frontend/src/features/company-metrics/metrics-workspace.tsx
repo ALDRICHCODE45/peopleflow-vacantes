@@ -15,7 +15,7 @@ import { mexicoToday } from "./period";
 import { RecruiterTable } from "./recruiter-table";
 import { SummaryCards } from "./summary-cards";
 import { useMetricsUrl } from "./use-metrics-url";
-import { effectivePeriod, serializeFilters, type MetricsFilters } from "./url-state";
+import { effectivePeriod, NO_REQUESTER, serializeFilters, type MetricsFilters } from "./url-state";
 
 const noResponse: MetricsFailure = { ok: false, reason: "no_response", reference: {} };
 
@@ -58,10 +58,12 @@ function useRememberedOptions(overview: Overview | null) {
   const requesters = useRef(new Map<string, RequesterOption>());
   if (overview) {
     for (const card of overview.recruiters) recruiters.current.set(card.user_id, { user_id: card.user_id, name: card.name, former_member: card.former_member });
-    for (const row of overview.summary.by_requester) if (row.kind && row.id) requesters.current.set(`${row.kind}:${row.id}`, { kind: row.kind, id: row.id, name: row.name });
+    for (const { requester } of overview.summary.by_requester) if (requester) requesters.current.set(`${requester.kind}:${requester.id ?? NO_REQUESTER}`, requester);
   }
   const byName = (a: { name: string | null }, b: { name: string | null }) => (a.name ?? "").localeCompare(b.name ?? "", "es");
-  return { recruiters: [...recruiters.current.values()].sort(byName), requesters: [...requesters.current.values()].sort(byName) };
+  // «Sin especificar» goes after the named requesters of its kind.
+  const byRequester = (a: RequesterOption, b: RequesterOption) => Number(a.id === null) - Number(b.id === null) || byName(a, b);
+  return { recruiters: [...recruiters.current.values()].sort(byName), requesters: [...requesters.current.values()].sort(byRequester) };
 }
 
 /** `/empresa/metricas` (artboard 01, corrected by L8): period and filters, company summary and recruiter table. */
