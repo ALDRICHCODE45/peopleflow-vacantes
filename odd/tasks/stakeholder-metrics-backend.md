@@ -14,11 +14,18 @@ built until the user approves the metrics catalog. Product source: `docs/product
 ## Tasks
 
 - [x] T1 S1-S4 — explore current data (roles/authz/audit; metric sources), write `docs/contracts/stakeholder-metrics-v1.md`, send to the frontend session — inline + 2 explorers — commit: a2914cde
-- [ ] T2 — user approves the catalog and decisions (blocked on user)
-- [ ] T3+ — implementation slices, planned after approval
+- [x] T2 — user approved D1–D12 as recommended (L4) — commit: this docs slice
+- [ ] T3 S1 slice 3a: stakeholder role, gate (fail closed), invitations, `GET /me/company` role/can, members list, audit events (contract §1) — worker in worktree `../peopleflow-vacantes-3a`, branch `feat/stakeholder-metrics-backend-3a`, migration 00057 — Risk: item 2 (permissions/guards) → independent verify — commit: —
+- [ ] T4 S2 slice 3b: `origin_channel` + apply `channel`, requester columns, `target_close_date` + change log, «Mi rendimiento» deadline_result from the N-th `reached_at` (contract §2.10) — worker in worktree `../peopleflow-vacantes-3b`, branch `feat/stakeholder-metrics-backend-3b`, migration 00058 — commit: —
+- [ ] T5 S2-S3 slice 3c: metrics read API (contract §3) after 3a and 3b merge — commit: —
+
+Slice boundary: commits up to the approval (contract + tracking, ~450 doc lines) are slice 0 on
+`feat/stakeholder-metrics-backend`; 3a and 3b are separate branches from it, 3c follows their merge.
+Integration DB on this PC: disposable container `peopleflow-draft-test` at 127.0.0.1:55432 (`draft_test`).
 
 ## Log
 
 - L1 (2026-11-07, frontend session relaying the user's approval to start feature 3): T1 written proposal, no code yet — S1 stakeholder role and entry without email, S2 metrics catalog with written definitions, S3 read API, S4 open decisions with recommendations. Reply via intercom or doc path.
 - L2 (2026-11-07): T1 proposal written in docs/contracts/stakeholder-metrics-v1.md (a2914cde) and sent to the frontend session; D1–D12 await the user.
 - L3 (2026-11-07, frontend review): F1–F8 applied to the contract — members list role, accept replay, dense series, people/requester objects, null rates with numerator/denominator, D8 keeps «Mi rendimiento» shape, channel field, can.view_metrics.
+- L4 (2026-11-07, frontend session relaying the user): «si hermano, aprobado, adelante.» — D1–D12 approved as recommended; contract agreed with F1–F8; start slices 3a, 3b, 3c; notify the frontend when 3a runs on :8081; send any contract diff.

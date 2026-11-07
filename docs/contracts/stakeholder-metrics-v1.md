@@ -1,6 +1,7 @@
 # Stakeholder + metrics v1 (internal, employer-only)
 
-Status: **proposal (2026-11-07)**, frontend review F1–F8 applied, not agreed, not implemented. Product source: `docs/product/next-three-features.md`
+Status: **agreed (2026-11-07)**, not implemented; frontend review F1–F8 applied; D1–D12 approved by the user via the
+frontend session (all as recommended). Product source: `docs/product/next-three-features.md`
 §3 «Stakeholder + métricas». The backend session wrote this contract; frontend tracking is
 `odd/tasks/stakeholder-metrics.md`, backend tracking `odd/tasks/stakeholder-metrics-backend.md`. Nothing is built until
 the user approves the metric catalog (§2) and the decisions at the end. Style follows `audit-log-v1.md`.
@@ -395,7 +396,7 @@ never had a tramo in this company.
    «Mi rendimiento» moves to the N-th `reached_at` (D8).
 3. **3c Metrics read API:** §3 endpoints with integration tests per metric definition and edge case.
 
-## Decisions for the user
+## Decisions (approved 2026-11-07, all as recommended)
 
 1. **D1 Where the role lives.** Recommendation: a membership role `stakeholder` on a normal employer account, not a
    third `user_type`. A new user type would need a Cognito group, PostConfirmation and bootstrap changes, and a
