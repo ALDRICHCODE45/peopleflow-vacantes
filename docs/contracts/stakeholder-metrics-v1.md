@@ -1,6 +1,6 @@
 # Stakeholder + metrics v1 (internal, employer-only)
 
-Status: **agreed (2026-11-07)**, slices 3a/3b implemented; frontend review F1–F8, P1–P4 and M1–M7 applied; D1–D12 approved by the user via the
+Status: **agreed (2026-11-07)**, slices 3a/3b/3c implemented; frontend review F1–F8, P1–P4 and M1–M7 applied; D1–D12 approved by the user via the
 frontend session (all as recommended). Product source: `docs/product/next-three-features.md`
 §3 «Stakeholder + métricas». The backend session wrote this contract; frontend tracking is
 `odd/tasks/stakeholder-metrics.md`, backend tracking `odd/tasks/stakeholder-metrics-backend.md`. Nothing is built until
@@ -421,6 +421,31 @@ The same card fields **at the root** (no `card` wrapper, M1) plus a dense `by_mo
 - Indexes added with the slices: `(draft_id, started_at)` on tramos, `(action, created_at)` on lifecycle events,
   `(created_at)` + `origin_channel` on participations, requester columns.
 - Revisit with a materialized table refreshed nightly only if `summary` p95 > 500 ms on realistic data.
+
+### 3.7 Decisions taken while implementing (slice 3c)
+
+1. `delivered_in_tramo` counts the recruiter's moves into the cutoff during their tramo **and** inside the period,
+   across all their vacancies; summary `delivered` is the sum of live counts over vacancies in the delivery period.
+2. `overdue` is attributed to the responsible (or members, `shared`) active at the end of the commitment day.
+3. `recruiter_id`: summary and vacancies list keep vacancies where that user has a tramo in the period; the cards
+   list returns that card; reassignments keep rows where that user lost or received.
+4. `summary.vacancies.closed` counts close **events** (2.2); `closed_by_month` counts distinct vacancies (D10).
+5. Coverage (`positions_covered / positions_required`) sums active credits and headcount over vacancies closed in the
+   period; a missing headcount adds 0; covered is not capped.
+6. Conversion: denominator = vacancies the recruiter had a tramo on in the period that closed in the period;
+   numerator counts that recruiter's credits on them from any hire date.
+7. Vacancy list «in the period» = any activity in the period; `closes[]` and `reassignments` are limited to the
+   period, coverage is all-time, `outcome=open` = no close in the period.
+8. Vacancy rows also carry `delivery.business_days_late`, set only for `late`.
+9. Detail reads (§3.5) accept the common filters but are not narrowed by them (the period is echoed only).
+   `candidate` is `{ "id", "full_name" }` with the company's name correction applied.
+10. Errors: a real `requester_id` without kind → 422 `invalid_filter` field `requester_kind` code `required`; a span
+    over 365 days → field `to` code `range`; a bad cursor → 400 `invalid_cursor`.
+11. `by_requester` order: named requesters by name, then «sin especificar», then «sin solicitante»; recruiter cards by
+    lowercase name, null names last.
+12. Medians of an even sample average the middle pair (may be `x.5`).
+13. §2.9 «by who performed it» and «median outgoing tramo» are per row in the reassignments list
+    (`performed_by`, `outgoing_tramo_business_days`); §3.1 carries no aggregate for them.
 
 ## 4. Slices (after approval)
 
