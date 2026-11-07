@@ -145,3 +145,6 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   → field omitted; 400 `channel` invalid → generic apply failure). Focused related runs 319 + 1030 passed, typecheck
   0, lint 0 errors. Risks: old shared careers-site links count as portal; help copy and ±5-year calendar range are the
   worker's choices.
+- **L21** Full checks on the integrated branch (T4 + T5 + T7): typecheck 0, lint 0 errors (12 pre-existing warnings),
+  vitest 547 files / 10071 tests passed, 2 skipped. Next: independent verification of T4 (Risk item 2) with browser
+  checks against :8081.
