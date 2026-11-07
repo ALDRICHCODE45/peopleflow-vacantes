@@ -1,6 +1,9 @@
 package httpjson
 
-import "strings"
+import (
+	"net/http"
+	"strings"
+)
 
 const CodeTeamAccessEnded Code = "team_access_ended"
 
@@ -20,4 +23,16 @@ func resolveTeamError(code Code) (Definition, bool) {
 		return Definition{}, false
 	}
 	return Definition{code, status, strings.ReplaceAll(string(code), "_", " ")}, true
+}
+
+// WriteTeamOffboardVacancies is the sole envelope writer for offboard refusals
+// that list the member's blocking vacancies. Other codes get no data here.
+func WriteTeamOffboardVacancies(w http.ResponseWriter, code Code, vacancies any) {
+	def := normalizeDefinition(Resolve(code))
+	if def.Code != "member_is_responsible" && def.Code != "offboard_unresolved_vacancies" {
+		WriteCatalogError(w, def)
+		return
+	}
+	recordCatalogCode(w, def.Code)
+	WriteJSON(w, def.Status, ErrorEnvelope{Error: def.Message, Code: def.Code, Data: map[string]any{"vacancies": vacancies}})
 }
