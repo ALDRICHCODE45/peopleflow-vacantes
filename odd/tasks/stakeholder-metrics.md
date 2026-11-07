@@ -199,3 +199,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   `feat/stakeholder-metrics-backend`, plus the run-tests queue commits); live proof still missing for the candidate +
   malformed link case and the owner's stakeholder row actions/audit entries; dev env note: `.env.local` needs
   `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:8081` (or the dev server env) to reach the local backend.
+- **L29** Independent verification of the browser-run fixes (Risk item 2): all checks pass (token only in the POST
+  body, the token page and the login callbackUrl; `cuenta-no-lista` needs a real API 401 with a session and cannot
+  loop; audited names only after a 200; detail reads send exactly `from`/`to`); 421 focused tests, typecheck and
+  lint clean. Note: the bounded membership re-read posts a Server Action to the token URL once more (request logs).
