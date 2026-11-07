@@ -10,8 +10,8 @@ import { loadOverviewAction, type Overview } from "./actions";
 import { failureMessage, filterIssueMessages } from "./failure";
 import { MetricsFiltersBar, type RecruiterOption, type RequesterOption } from "./metrics-filters";
 import { MetricsRestricted } from "./metrics-page";
-import { momentLabel, type MetricsFailure, type MetricsResult } from "./model";
-import { mexicoToday, periodLabel } from "./period";
+import { dayLabel, momentLabel, type MetricsFailure, type MetricsResult } from "./model";
+import { mexicoToday } from "./period";
 import { RecruiterTable } from "./recruiter-table";
 import { SummaryCards } from "./summary-cards";
 import { useMetricsUrl } from "./use-metrics-url";
@@ -95,7 +95,7 @@ export function MetricsWorkspace({ details }: { details?: (filters: MetricsFilte
       : !state.result.ok ? <MetricsFailureCard failure={state.result} onRetry={() => setAttempt(value => value + 1)} onReset={() => update({})} />
       : isQuiet(state.result.data) ? narrowed
         ? <StateCard icon={SearchX} tone="empty" title="Sin resultados" description="Ninguna vacante coincide con el reclutador y el cliente o área elegidos en este periodo." primaryAction={{ label: "Limpiar filtros", onClick: () => update(period) }} />
-        : <StateCard icon={ChartNoAxesColumn} tone="empty" title="No hubo actividad en este periodo" description={`Del ${periodLabel(period)} no se asignó, cerró ni entregó ninguna vacante publicada. Prueba con un periodo más amplio.`} primaryAction={{ label: "Ver últimos 90 días", onClick: () => update({}) }} />
+        : <StateCard icon={ChartNoAxesColumn} tone="empty" title="No hubo actividad en este periodo" description={`Entre el ${dayLabel(period.from)} y el ${dayLabel(period.to)} no se asignó, cerró ni entregó ninguna vacante publicada. Prueba con un periodo más amplio.`} primaryAction={{ label: "Ver últimos 90 días", onClick: () => update({}) }} />
       : <HelpProvider>
         <SummaryCards summary={state.result.data.summary} />
         <RecruiterTable items={state.result.data.recruiters} href={card => recruiterHref(card.user_id)} />

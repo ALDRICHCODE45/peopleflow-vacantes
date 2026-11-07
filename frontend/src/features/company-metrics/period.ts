@@ -1,4 +1,4 @@
-import { MX_TIME_ZONE } from "./model";
+import { dayLabel, MX_TIME_ZONE } from "./model";
 
 /** Period rules of contract §2.0: inclusive civil dates in Mexico City, at most 366 days. */
 export type Period = { from: string; to: string };
@@ -44,6 +44,5 @@ export function periodIssues({ from, to }: Period): PeriodIssue[] {
   return [];
 }
 
-const rangeFormat = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 /** «1 ago 2026 – 31 oct 2026». */
-export const periodLabel = ({ from, to }: Period) => rangeFormat.formatRange(new Date(`${from}T12:00:00Z`), new Date(`${to}T12:00:00Z`));
+export const periodLabel = ({ from, to }: Period) => `${dayLabel(from)} – ${dayLabel(to)}`;
