@@ -62,3 +62,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   owner + stakeholder see company metrics, metrics only in v1, copyable single-use 7-day link, no role conversion,
   published-at-least-once universe, optional `target_close_date`, N-th `reached_at`, historical origin `unknown`,
   distinct vacancies per month, no score/rank, delivery period by `commitment_date`). T2 done; T3 starts.
+- **L6** Backend contract diff `a21afe0c`: `CompanyMemberRemoved` withdrawn; removing a stakeholder writes the existing
+  `CompanyMemberOffboarded` with empty assignment/reassignment lists (no new audit label). Recruiter offboard with a
+  stakeholder `to_user_id` → 422 `not_company_member`; the frontend offboard target picker filters stakeholders out
+  (T4, with the members-list role enum).
