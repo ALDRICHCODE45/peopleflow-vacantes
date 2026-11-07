@@ -25,6 +25,7 @@ import (
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
+	metricshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/http"
 	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
@@ -48,6 +49,8 @@ type routerDeps struct {
 	// requireMetricsViewer passes owners and stakeholders; it guards the
 	// company metrics routes (stakeholder-metrics-v1 §3, slice 3c).
 	requireMetricsViewer func(http.Handler) http.Handler
+	// metricsHandler serves the company metrics read API (§3).
+	metricsHandler *metricshttp.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -116,6 +119,10 @@ func newRouter(d routerDeps) chi.Router {
 	// The talent base is never served ungated: a missing gate refuses everyone.
 	if d.requireTalentBase == nil {
 		d.requireTalentBase = refuseTalentBase
+	}
+	// Metrics are never served ungated: a missing gate refuses everyone.
+	if d.requireMetricsViewer == nil {
+		d.requireMetricsViewer = refuseMetrics
 	}
 	// The public assessment prefix is never served unlimited.
 	if d.publicAssessmentLimit == nil {
@@ -249,6 +256,19 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/stakeholder-invitations", d.stakeholderInvitationHandler.Create)
 		r.Get("/v2/me/company/stakeholder-invitations", d.stakeholderInvitationHandler.List)
 		r.Delete("/v2/me/company/stakeholder-invitations/{id}", d.stakeholderInvitationHandler.Revoke)
+	})
+
+	// Company metrics (stakeholder-metrics-v1 §3): owners and stakeholders
+	// read; detail reads with candidate names audit themselves.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireMetricsViewer)
+		r.Get("/v2/me/company/metrics/summary", d.metricsHandler.Summary)
+		r.Get("/v2/me/company/metrics/recruiters", d.metricsHandler.Recruiters)
+		r.Get("/v2/me/company/metrics/recruiters/{userId}", d.metricsHandler.Recruiter)
+		r.Get("/v2/me/company/metrics/vacancies", d.metricsHandler.Vacancies)
+		r.Get("/v2/me/company/metrics/reassignments", d.metricsHandler.Reassignments)
+		r.Get("/v2/me/company/metrics/vacancies/{draftId}/deliveries", d.metricsHandler.Deliveries)
+		r.Get("/v2/me/company/metrics/vacancies/{draftId}/placements", d.metricsHandler.Placements)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -422,6 +442,14 @@ func newRouter(d routerDeps) chi.Router {
 func refuseTalentBase(http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeTalentBaseRestricted))
+	})
+}
+
+// refuseMetrics is the fail-closed default for a router built without the
+// metrics viewer gate.
+func refuseMetrics(http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeForbidden))
 	})
 }
 
