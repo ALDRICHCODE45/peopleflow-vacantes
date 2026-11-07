@@ -21,8 +21,8 @@ The system is not in production and all data is disposable: migrations may backf
   `user_id` UNIQUE, so a user belongs to one company at most. In Go, `MemberRole` is ordered
   (`Unknown=0, Recruiter=1, Owner=2`) and `RequireCompanyRole` passes when `role >= minRole`.
 - `POST /me/company/members` (owner) adds an **existing recruiter user** by `user_id`; there is no invitation and no
-  email (`docs/decision-email-provider.md`). Only `POST …/{id}/offboard` is audited among member removals; a plain
-  `DELETE /me/company/members/{id}` writes no audit row today.
+  email (`docs/decision-email-provider.md`). Both removal paths, plain `DELETE /me/company/members/{id}` and
+  `POST …/{id}/offboard`, already write `CompanyMemberOffboarded`.
 - The router never separates reads from writes: every recruiter group mixes GET and writes under one gate, and the
   stores add "owner or active team member" checks. Some SQL hard-codes `role='owner'` to mean "sees every vacancy".
 - Feature 1 tramos (`00054`): `vacancy_assignments` (one continuous stay; `started_at/ended_at`, causes,
@@ -129,6 +129,8 @@ local, dev and production, and needs no email provider (D4).
 - Removing: the owner uses the existing `DELETE /me/company/members/{id}` (a stakeholder has no tramos, so no
   offboard). `PATCH /me/company/members/{id}` refuses to turn a stakeholder into another role or anyone into a
   stakeholder (422 `stakeholder_role_change_not_supported`): remove and re-invite (D5).
+- Offboarding a recruiter cannot hand vacancies to a stakeholder: a stakeholder `to_user_id` answers 422
+  `not_company_member`, like a non-member.
 - Fallback for tests and local scripts: `POST /me/company/members` accepts `role: "stakeholder"` for an existing
   employer account without membership, same rules as the invitation accept.
 
@@ -142,7 +144,7 @@ New catalog events (category `members`, company-scoped):
 | `StakeholderInvitationRevoked` | owner | `invitation_id` |
 | `StakeholderInvitationAccepted` | the new stakeholder | `invitation_id`, `member_user_id` |
 | `CompanyMemberAdded` (existing) | owner or the new stakeholder | `member_user_id`, `role: "stakeholder"` |
-| `CompanyMemberRemoved` (new; also fixes the unaudited plain DELETE for every role) | owner | `member_user_id`, `role` |
+| `CompanyMemberOffboarded` (existing, unchanged) | owner | written by the plain DELETE that removes a stakeholder; its assignment and reassignment id lists are empty |
 | `MetricsDetailViewed` (sensitive read) | owner or stakeholder | `report` (`deliveries` \| `placements`), `vacancy_id` |
 
 - Sessions (`SessionStarted/Ended`) already cover the stakeholder as a member.

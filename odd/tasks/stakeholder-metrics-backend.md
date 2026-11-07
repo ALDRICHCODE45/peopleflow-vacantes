@@ -29,3 +29,4 @@ Integration DB on this PC: disposable container `peopleflow-draft-test` at 127.0
 - L2 (2026-11-07): T1 proposal written in docs/contracts/stakeholder-metrics-v1.md (a2914cde) and sent to the frontend session; D1–D12 await the user.
 - L3 (2026-11-07, frontend review): F1–F8 applied to the contract — members list role, accept replay, dense series, people/requester objects, null rates with numerator/denominator, D8 keeps «Mi rendimiento» shape, channel field, can.view_metrics.
 - L4 (2026-11-07, frontend session relaying the user): «si hermano, aprobado, adelante.» — D1–D12 approved as recommended; contract agreed with F1–F8; start slices 3a, 3b, 3c; notify the frontend when 3a runs on :8081; send any contract diff.
+- L5 (2026-11-07, 3a worker finding): plain DELETE already writes CompanyMemberOffboarded, so CompanyMemberRemoved is dropped; offboard reassignment to a stakeholder answers 422 not_company_member. Contract §1.3/§1.4 updated.
