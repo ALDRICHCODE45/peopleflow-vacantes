@@ -106,3 +106,9 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   only; `did_not_hold` shown inside the total. Shape assumptions M1–M7 (detail card at root, row field names,
   «sin solicitante» kind, `requester_id=none` without kind, 366-day reading, null rate objects) sent to the backend.
   Follow-up: unify the local role parser with employer-company after T4. Merge into the feature branch after T4.
+- **L13** Backend answers M1–M7: M1–M4 confirmed (`delivered_by` person or null for organic direct entries; placements
+  status `active | did_not_hold`, voided absent); M5 `by_requester` rows `{requester: {kind,id,name} | null, vacancies,
+  filled}` (corrects the flat §3.1 example); M6 `requester_id=none` alone = sin solicitante,
+  `requester_kind=X&requester_id=none` = X sin especificar, kind alone = all of that kind, real id without kind → 422;
+  M7 366 days counting both ends (`to - from ≤ 365`); rate objects always present, `value` null without sample.
+  Corrections sent to the T5 worker (continuation).
