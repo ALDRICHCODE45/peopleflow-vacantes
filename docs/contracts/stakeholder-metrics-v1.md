@@ -107,16 +107,18 @@ local, dev and production, and needs no email provider (D4).
   the database stores only its SHA-256. The frontend builds `https://<app>/empresa/invitacion/<url_token>`.
   Expiry 7 days; single use; at most 20 pending invitations per company (422 `invitation_limit_reached`).
 - `GET /v2/me/company/stakeholder-invitations` (owner) → pending invitations
-  `{ "items": [{ "id", "created_at", "created_by", "expires_at" }] }` (no token).
+  `{ "items": [{ "id", "created_at", "created_by", "expires_at" }] }` (no token; `created_by` is the owner's
+  user id string).
 - `DELETE /v2/me/company/stakeholder-invitations/{id}` (owner) → 204; revoking an already used, expired or revoked
-  invitation also answers 204 (idempotent).
+  invitation, or an unknown or other-company id, also answers 204 and writes nothing (idempotent, reveals nothing).
 - `POST /v2/me/stakeholder-invitations/accept` (any signed-in user) body `{ "token" }`:
   - 200 `{ "company_id", "member_id", "role": "stakeholder" }` and the membership exists.
   - **Replay (F2):** the same user accepting a token they already used, while that membership still exists, gets
     200 with the same body; nothing is written again and no audit row is added. A network retry is safe.
   - 404 `invitation_invalid` for unknown, expired or revoked tokens, and for a token used by **another** user or whose
     membership was removed since (one code: no oracle).
-  - 403 `candidate_account` when the caller is a candidate account.
+  - 403 `candidate_account` when the caller is a candidate account (checked before the token, so a candidate gets
+    403 even with a bad token).
   - 409 `already_company_member` when the caller already belongs to a company through anything other than this
     invitation (any company, any role).
   - The frontend accept page posts from the server, redirects to a token-free URL and sets
@@ -128,11 +130,13 @@ local, dev and production, and needs no email provider (D4).
   PostConfirmation change.
 - Removing: the owner uses the existing `DELETE /me/company/members/{id}` (a stakeholder has no tramos, so no
   offboard). `PATCH /me/company/members/{id}` refuses to turn a stakeholder into another role or anyone into a
-  stakeholder (422 `stakeholder_role_change_not_supported`): remove and re-invite (D5).
+  stakeholder (422 `stakeholder_role_change_not_supported`, checked before the member lookup, so it also answers for
+  stakeholder → stakeholder and unknown ids): remove and re-invite (D5).
 - Offboarding a recruiter cannot hand vacancies to a stakeholder: a stakeholder `to_user_id` answers 422
   `not_company_member`, like a non-member.
 - Fallback for tests and local scripts: `POST /me/company/members` accepts `role: "stakeholder"` for an existing
-  employer account without membership, same rules as the invitation accept.
+  employer account without membership. It keeps that endpoint's own codes (409 `already_exists`, 400 for a candidate),
+  not the accept codes.
 
 ### 1.4 Audit
 
