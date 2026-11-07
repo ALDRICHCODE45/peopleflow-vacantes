@@ -27,7 +27,6 @@ it("builds the copyable link from the app origin and never adds anything else", 
   expect(invitationUrl("http://localhost:3100/", urlToken)).toBe(`http://localhost:3100/empresa/invitacion/${urlToken}`);
 });
 
-
 it("resolves the creator from the members list, or says it is no longer a member", () => {
   const members = [{ user: { id: ownerUserId, full_name: "Sofía Ramírez" } }, { user: null }];
   expect(creatorName(ownerUserId, members)).toBe("Sofía Ramírez");
