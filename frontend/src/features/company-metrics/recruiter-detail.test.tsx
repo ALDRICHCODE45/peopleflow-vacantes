@@ -10,7 +10,12 @@ vi.mock("@/components/ui/select", async importOriginal => {
   const actual = await importOriginal<typeof import("@/components/ui/select")>();
   return { ...actual, SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div> };
 });
+vi.mock("./audited-detail-sheet", async importOriginal => {
+  const actual = await importOriginal<typeof import("./audited-detail-sheet")>();
+  return { ...actual, AuditedDetailSheet: vi.fn(actual.AuditedDetailSheet) };
+});
 import { listVacanciesAction, loadMetricsAccessAction, loadRecruiterAction } from "./actions";
+import { AuditedDetailSheet } from "./audited-detail-sheet";
 import type { MetricsFailure } from "./model";
 import { RecruiterDetailPage } from "./recruiter-detail";
 import { carlos, marianaId, recruiterDetail, vacancyPage } from "./test-fixtures";
@@ -83,6 +88,12 @@ it("lists the recruiter's vacancies for the same period", async () => {
   render(<RecruiterDetailPage userId={marianaId} />);
   expect(await screen.findByText("Supervisor de Producción")).toBeInTheDocument();
   expect(listVacanciesAction).toHaveBeenCalledWith({ filters: { from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId } });
+});
+
+it("hands the audited detail of a recruiter's vacancy the page's period", async () => {
+  render(<RecruiterDetailPage userId={marianaId} />);
+  expect(await screen.findByText("Supervisor de Producción")).toBeInTheDocument();
+  expect(vi.mocked(AuditedDetailSheet).mock.lastCall?.[0].period).toMatchObject({ from: "2026-08-01", to: "2026-10-31" });
 });
 
 it("changes the period through the URL", async () => {

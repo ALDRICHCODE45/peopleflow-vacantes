@@ -3,6 +3,10 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./actions", () => ({ listVacanciesAction: vi.fn(), listReassignmentsAction: vi.fn(), loadAuditedDetailAction: vi.fn() }));
+vi.mock("./audited-detail-sheet", async importOriginal => {
+  const actual = await importOriginal<typeof import("./audited-detail-sheet")>();
+  return { ...actual, AuditedDetailSheet: vi.fn(actual.AuditedDetailSheet) };
+});
 import { listReassignmentsAction, listVacanciesAction, loadAuditedDetailAction } from "./actions";
 import { AuditedDetailSheet } from "./audited-detail-sheet";
 import { DetailLists } from "./detail-lists";
@@ -58,6 +62,13 @@ describe("detail lists", () => {
     expect(vacancies).toHaveBeenCalledTimes(3);
   });
 
+  // Opening the row menu over the full table takes jsdom tens of seconds, so the thread is checked at the sheet's props.
+  it("hands the audited detail the list's applied period only", async () => {
+    render(<DetailLists filters={{ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId }} />);
+    await screen.findByText("Supervisor de Producción");
+    expect(vi.mocked(AuditedDetailSheet).mock.lastCall?.[0]).toMatchObject({ target: null, period: { from: "2026-08-01", to: "2026-10-31" } });
+  });
+
   it("reads reassignments only when their tab opens, and names former members", async () => {
     render(<DetailLists filters={{}} />);
     await screen.findByText("Supervisor de Producción");
@@ -71,16 +82,17 @@ describe("detail lists", () => {
 
 describe("audited detail", () => {
   const target = { report: "deliveries" as const, vacancy: vacancyRow({ delivery: { ...vacancyRow().delivery, target: 2 } }) };
+  const period = { from: "2026-08-01", to: "2026-10-31" };
 
   it("asks first, then shows the names in order with the audit footer", async () => {
     detail.mockResolvedValue({ ok: true, data: { report: "deliveries", items: deliveries().items } });
-    render(<AuditedDetailSheet target={target} onClose={() => {}} />);
+    render(<AuditedDetailSheet target={target} period={period} onClose={() => {}} />);
     const sheet = await screen.findByRole("dialog", { name: "Candidatos entregados" });
     expect(within(sheet).getByText("Esta consulta queda registrada en la auditoría de la empresa.")).toBeInTheDocument();
     expect(within(sheet).queryByText("Luis Ángel Ramírez Soto")).not.toBeInTheDocument();
     expect(detail).not.toHaveBeenCalled();
     await userEvent.click(within(sheet).getByRole("button", { name: "Ver candidatos entregados" }));
-    expect(detail).toHaveBeenCalledWith({ report: "deliveries", draftId });
+    expect(detail).toHaveBeenCalledWith({ report: "deliveries", draftId, period });
     expect(await screen.findByText("Luis Ángel Ramírez Soto")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "Candidatos entregados · 3" })).toBeInTheDocument();
     expect(screen.getByText("Completó la meta · tarde")).toBeInTheDocument();
@@ -93,7 +105,7 @@ describe("audited detail", () => {
   it("fails closed: an unrecorded read shows no names and offers a retry", async () => {
     const retry = deferred<Awaited<ReturnType<typeof loadAuditedDetailAction>>>();
     detail.mockResolvedValueOnce(failure("server_error")).mockReturnValueOnce(retry.promise);
-    render(<AuditedDetailSheet target={target} onClose={() => {}} />);
+    render(<AuditedDetailSheet target={target} period={period} onClose={() => {}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Ver candidatos entregados" }));
     expect(await screen.findByText("No pudimos registrar la consulta")).toBeInTheDocument();
     expect(screen.getByText("Por eso no mostramos los nombres: sin registro no hay datos. Nada cambió en la vacante. Vuelve a intentarlo.")).toBeInTheDocument();
@@ -106,9 +118,31 @@ describe("audited detail", () => {
     expect(screen.getByText("Nadie ha llegado a la etapa de corte. La consulta quedó registrada aunque no hubiera nombres.")).toBeInTheDocument();
   });
 
+  it.each([
+    ["a 422 invalid_filter", { ok: false, reason: "invalid_filter", reference: { status: 422, code: "invalid_filter" } }],
+    ["a 400", { ok: false, reason: "unrecognized_response", reference: { status: 400 } }],
+  ] as const)("tells a rejected period apart from an unrecorded read on %s, still without names", async (_, result) => {
+    detail.mockResolvedValue(result);
+    render(<AuditedDetailSheet target={target} period={period} onClose={() => {}} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Ver candidatos entregados" }));
+    expect(await screen.findByText("No pudimos abrir este detalle con el periodo elegido")).toBeInTheDocument();
+    expect(screen.getByText("Revisa el periodo e inténtalo de nuevo. No se mostró ningún dato.")).toBeInTheDocument();
+    expect(screen.queryByText("No pudimos registrar la consulta")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Consulta registrada en Auditoría/)).not.toBeInTheDocument();
+  });
+
+  it.each(["no_response", "unrecognized_response"] as const)("fails closed on %s", async reason => {
+    detail.mockResolvedValue(failure(reason));
+    render(<AuditedDetailSheet target={target} period={period} onClose={() => {}} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Ver candidatos entregados" }));
+    expect(await screen.findByText("No pudimos registrar la consulta")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
   it("shows placements with their credit and whether they held", async () => {
     detail.mockResolvedValue({ ok: true, data: { report: "placements", items: placements().items } });
-    render(<AuditedDetailSheet target={{ ...target, report: "placements" }} onClose={() => {}} />);
+    render(<AuditedDetailSheet target={{ ...target, report: "placements" }} period={period} onClose={() => {}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Ver placements" }));
     expect(await screen.findByText("Brenda Sánchez Villegas")).toBeInTheDocument();
     expect(screen.getByText("No se sostuvo")).toBeInTheDocument();
@@ -119,7 +153,7 @@ describe("audited detail", () => {
 
   it("closes from «Cancelar» without reading anything", async () => {
     const onClose = vi.fn();
-    render(<AuditedDetailSheet target={target} onClose={onClose} />);
+    render(<AuditedDetailSheet target={target} period={period} onClose={onClose} />);
     await userEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(detail).not.toHaveBeenCalled();

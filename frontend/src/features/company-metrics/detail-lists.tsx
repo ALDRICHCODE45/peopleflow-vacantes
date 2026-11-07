@@ -94,7 +94,7 @@ export function VacancyList({ filters, title = "Vacantes del periodo" }: { filte
     <ListBody list={list} empty={<SectionEmpty icon={BriefcaseBusiness} tone="empty" title="No hay vacantes en este periodo" description="Ninguna vacante publicada tuvo asignación, cierre o entrega en el periodo elegido." />}
       render={items => <RichDataTable id="company-metrics-vacancies" columns={vacancyColumns} data={items} getRowId={row => row.draft_id} defaultPinning={{ start: ["title"], end: ["actions"] }} emptyState={null} compactControls />} />
     <p className="text-xs text-muted-foreground">{`${title}: sin datos personales. Los nombres de candidatos se abren aparte y esa consulta queda registrada en Auditoría.`}</p>
-    <AuditedDetailSheet target={target} onClose={() => setTarget(null)} />
+    <AuditedDetailSheet target={target} period={filters} onClose={() => setTarget(null)} />
   </OpenContext.Provider>;
 }
 function ReassignmentList({ filters }: { filters: MetricsFilters }) {

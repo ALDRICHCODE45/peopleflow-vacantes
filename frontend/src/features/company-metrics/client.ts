@@ -5,6 +5,7 @@ import {
   companyAccessSchema, deliveriesSchema, errorEnvelopeSchema, placementsSchema, reassignmentPageSchema, recruiterDetailSchema,
   recruiterPageSchema, summarySchema, UUID_PATTERN, vacancyPageSchema, type MetricsErrorEnvelope,
 } from "./model";
+import type { Period } from "./period";
 
 const PATH = "/v2/me/company/metrics";
 export const LIST_LIMIT = 50;
@@ -53,12 +54,17 @@ export async function getRecruiter(token: string, userId: string, query: URLSear
   if (!UUID_PATTERN.test(userId)) return invalidRequest;
   return get(`${PATH}/recruiters/${userId}`, token, recruiterDetailSchema, query);
 }
-/** §3.5: each successful read writes one `MetricsDetailViewed` row in the read's transaction; a failure carries no names. */
-export async function getDeliveries(token: string, draftId: string) {
+/**
+ * §3.5: each successful read writes one `MetricsDetailViewed` row in the read's transaction; a failure carries no names.
+ * §3.7.9: the detail is not narrowed by the period, but like every metrics route it requires `from` and `to`; it is
+ * not paginated, so nothing else travels.
+ */
+const periodQuery = ({ from, to }: Period) => new URLSearchParams({ from, to });
+export async function getDeliveries(token: string, draftId: string, period: Period) {
   if (!UUID_PATTERN.test(draftId)) return invalidRequest;
-  return get(`${PATH}/vacancies/${draftId}/deliveries`, token, deliveriesSchema);
+  return get(`${PATH}/vacancies/${draftId}/deliveries`, token, deliveriesSchema, periodQuery(period));
 }
-export async function getPlacements(token: string, draftId: string) {
+export async function getPlacements(token: string, draftId: string, period: Period) {
   if (!UUID_PATTERN.test(draftId)) return invalidRequest;
-  return get(`${PATH}/vacancies/${draftId}/placements`, token, placementsSchema);
+  return get(`${PATH}/vacancies/${draftId}/placements`, token, placementsSchema, periodQuery(period));
 }

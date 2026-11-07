@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { loadAuditedDetailAction, type AuditedDetail, type AuditedReport } from "./actions";
+import type { MetricsFilters } from "./url-state";
 import { DELIVERY_RESULT_LABEL, momentLabel, personName, requesterLabel, type MetricsFailure, type MetricsResult, type Person, type VacancyRow } from "./model";
 
 export type AuditedTarget = { report: AuditedReport; vacancy: VacancyRow };
@@ -66,6 +67,8 @@ function Outcome({ step, target, onRetry }: { step: Extract<Step, { kind: "done"
   if (!result.ok) {
     if (result.reason === "forbidden") return <SheetState icon={Lock} tone="error" title="Consulta restringida" description="Solo el owner y los stakeholders de la empresa pueden ver este detalle." />;
     if (result.reason === "unauthenticated") return <SheetState icon={TriangleAlert} tone="error" title="Tu sesión terminó" description="Inicia sesión de nuevo para consultar este detalle." />;
+    // A rejected request (the period) is not an unrecorded read: nothing was written, and no names either.
+    if (result.reason === "invalid_filter" || result.reference.status === 400 || result.reference.status === 422) return <SheetState icon={TriangleAlert} tone="error" title="No pudimos abrir este detalle con el periodo elegido" description="Revisa el periodo e inténtalo de nuevo. No se mostró ningún dato." />;
     if (result.reason === "not_found") return <SheetState icon={TriangleAlert} tone="error" title="No encontramos esta vacante" description="La vacante ya no aparece en las métricas de tu empresa. No se mostró ningún dato." />;
     // Fail closed (§1.4): without the audit row there are no names, and the screen says why.
     return <SheetState icon={TriangleAlert} tone="error" title="No pudimos registrar la consulta" description="Por eso no mostramos los nombres: sin registro no hay datos. Nada cambió en la vacante. Vuelve a intentarlo."
@@ -81,7 +84,7 @@ function Outcome({ step, target, onRetry }: { step: Extract<Step, { kind: "done"
  * Personal-data detail (§3.5, artboard 05): a notice step first, the list only after the API recorded the read, and
  * «Consulta registrada en Auditoría» under it. Any failure shows no names.
  */
-export function AuditedDetailSheet({ target, onClose }: { target: AuditedTarget | null; onClose: () => void }) {
+export function AuditedDetailSheet({ target, period, onClose }: { target: AuditedTarget | null; period: Pick<MetricsFilters, "from" | "to">; onClose: () => void }) {
   const [step, setStep] = useState<Step>({ kind: "notice" });
   const generation = useRef(0);
   useEffect(() => { generation.current += 1; setStep({ kind: "notice" }); }, [target]);
@@ -89,7 +92,7 @@ export function AuditedDetailSheet({ target, onClose }: { target: AuditedTarget 
     if (!target) return;
     const mine = ++generation.current;
     setStep({ kind: "loading" });
-    const result = await loadAuditedDetailAction({ report: target.report, draftId: target.vacancy.draft_id }).catch(() => noResponse);
+    const result = await loadAuditedDetailAction({ report: target.report, draftId: target.vacancy.draft_id, period: { from: period.from, to: period.to } }).catch(() => noResponse);
     if (mine === generation.current) setStep({ kind: "done", result, at: new Date() });
   };
   const copy = target ? COPY[target.report] : COPY.deliveries;

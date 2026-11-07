@@ -105,12 +105,25 @@ it("reads one recruiter and treats an id that is not a user id as not found with
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+const period = { from: "2026-08-01", to: "2026-10-31" };
 it("reads the audited detail of one vacancy, and only a 200 carries names", async () => {
   fetchMock.mockResolvedValueOnce(Response.json(deliveries()));
-  expect(await loadAuditedDetailAction({ report: "deliveries", draftId })).toEqual({ ok: true, data: { report: "deliveries", items: deliveries().items } });
+  expect(await loadAuditedDetailAction({ report: "deliveries", draftId, period })).toEqual({ ok: true, data: { report: "deliveries", items: deliveries().items } });
   expect(call(0).url.pathname).toBe(`/v2/me/company/metrics/vacancies/${draftId}/deliveries`);
   fetchMock.mockResolvedValueOnce(Response.json(placements()));
-  expect(await loadAuditedDetailAction({ report: "placements", draftId })).toEqual({ ok: true, data: { report: "placements", items: placements().items } });
+  expect(await loadAuditedDetailAction({ report: "placements", draftId, period })).toEqual({ ok: true, data: { report: "placements", items: placements().items } });
   fetchMock.mockResolvedValueOnce(envelope(500, "internal_error"));
-  expect(await loadAuditedDetailAction({ report: "deliveries", draftId })).toEqual({ ok: false, reason: "server_error", reference: { status: 500, code: "internal_error" } });
+  expect(await loadAuditedDetailAction({ report: "deliveries", draftId, period })).toEqual({ ok: false, reason: "server_error", reference: { status: 500, code: "internal_error" } });
+  fetchMock.mockResolvedValueOnce(envelope(422, "invalid_filter", { fields: [{ field: "to", code: "required" }] }));
+  expect(await loadAuditedDetailAction({ report: "deliveries", draftId, period })).toMatchObject({ ok: false, reason: "invalid_filter", reference: { status: 422 } });
+});
+
+// §3.7.9: the detail is not narrowed by the period, but like every metrics route it requires it, and it is not paginated.
+it.each(["deliveries", "placements"] as const)("sends exactly the applied period to the audited %s read", async report => {
+  fetchMock.mockResolvedValue(Response.json(report === "deliveries" ? deliveries() : placements()));
+  await loadAuditedDetailAction({ report, draftId, period });
+  expect(call(0).url.pathname).toBe(`/v2/me/company/metrics/vacancies/${draftId}/${report}`);
+  expect(call(0).url.search).toBe("?from=2026-08-01&to=2026-10-31");
+  await loadAuditedDetailAction({ report, draftId, period: { from: "2026-13-01" } });
+  expect(call(1).url.search).toBe("?from=2026-08-10&to=2026-11-07");
 });

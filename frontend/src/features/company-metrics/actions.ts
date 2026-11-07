@@ -8,7 +8,7 @@ import {
   type PlacementsDetail, type ReassignmentPage, type RecruiterCard, type RecruiterDetail, type VacancyPage,
 } from "./model";
 import { mexicoToday } from "./period";
-import { apiQuery, type MetricsFilters } from "./url-state";
+import { apiQuery, effectivePeriod, type MetricsFilters } from "./url-state";
 
 const unauthenticated: MetricsFailure = { ok: false, reason: "unauthenticated", reference: {} };
 const noResponse: MetricsFailure = { ok: false, reason: "no_response", reference: {} };
@@ -80,14 +80,18 @@ export async function loadRecruiterAction({ userId, filters }: { userId: string;
 
 export type AuditedReport = "deliveries" | "placements";
 export type AuditedDetail = { report: "deliveries"; items: DeliveriesDetail["items"] } | { report: "placements"; items: PlacementsDetail["items"] };
-/** Candidate names only after the API recorded the read; any failure answers without names (fail closed). */
-export async function loadAuditedDetailAction({ report, draftId }: { report: AuditedReport; draftId: string }): Promise<MetricsResult<AuditedDetail>> {
+/**
+ * Candidate names only after the API recorded the read; any failure answers without names (fail closed). The period is
+ * the one the summary reads (the URL one when valid, else the default).
+ */
+export async function loadAuditedDetailAction({ report, draftId, period }: { report: AuditedReport; draftId: string; period: Pick<MetricsFilters, "from" | "to"> }): Promise<MetricsResult<AuditedDetail>> {
   return withToken(async token => {
+    const applied = effectivePeriod(period, mexicoToday());
     if (report === "deliveries") {
-      const result = await getDeliveries(token, draftId);
+      const result = await getDeliveries(token, draftId, applied);
       return result.ok ? { ok: true, data: { report, items: result.data.items } } : toMetricsFailure(result);
     }
-    const result = await getPlacements(token, draftId);
+    const result = await getPlacements(token, draftId, applied);
     return result.ok ? { ok: true, data: { report, items: result.data.items } } : toMetricsFailure(result);
   });
 }
