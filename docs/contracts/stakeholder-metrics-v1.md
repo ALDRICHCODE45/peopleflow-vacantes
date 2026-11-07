@@ -1,6 +1,6 @@
 # Stakeholder + metrics v1 (internal, employer-only)
 
-Status: **proposal (2026-11-07)**, not agreed, not implemented. Product source: `docs/product/next-three-features.md`
+Status: **proposal (2026-11-07)**, frontend review F1–F8 applied, not agreed, not implemented. Product source: `docs/product/next-three-features.md`
 §3 «Stakeholder + métricas». The backend session wrote this contract; frontend tracking is
 `odd/tasks/stakeholder-metrics.md`, backend tracking `odd/tasks/stakeholder-metrics-backend.md`. Nothing is built until
 the user approves the metric catalog (§2) and the decisions at the end. Style follows `audit-log-v1.md`.
@@ -66,7 +66,11 @@ The system is not in production and all data is disposable: migrations may backf
   (candidate names in deliveries and placements). It never writes anything, never appears in vacancy teams, never gets
   placement credit, and is never a talent-base viewer entry (it reaches no talent-base route in v1, D3).
 - One company per user, like every member. A stakeholder is not a recruiter: it cannot be added to a team, made
-  responsible, or chosen as a reassignment target (`not_company_member` keeps answering for it).
+  responsible, or chosen as a reassignment target — team writes naming a stakeholder answer 422
+  `not_company_member`, the code they already use for non-members.
+- `GET /me/company/members` (owners and recruiters) lists stakeholders with `role: "stakeholder"` (F1). There is no
+  backend "assignable members" endpoint: team and responsible pickers are built from that list, so the frontend
+  filters `role === "stakeholder"` out, and the team writes above reject it anyway.
 
 ### 1.2 Gate (fail closed)
 
@@ -78,7 +82,7 @@ The system is not in production and all data is disposable: migrations may backf
 
 | Route | Why |
 |---|---|
-| `GET /v2/me`, `GET /me/company` | identity and company shell; `GET /me/company` gains `role: "stakeholder"` and `can.view_metrics: true`, `can.view_talent_base: false` |
+| `GET /v2/me`, `GET /me/company` | identity and company shell; `GET /me/company` returns `role: "stakeholder"` and `can: { "view_talent_base": false, "view_metrics": true }` |
 | `POST /v2/me/session/start`, `POST /v2/me/session/end` | sessions are audited for every member |
 | `POST /v2/me/stakeholder-invitations/accept` | joining (§1.3) |
 | `GET /v2/me/company/metrics/*` | §3 |
@@ -87,6 +91,8 @@ The system is not in production and all data is disposable: migrations may backf
 - Everything else rejects it: the v2 draft/board/pipeline/team/lifecycle group (~60 routes), talent base
   (`/v2/me/company/candidates*`), company site, requesters, members list, legacy `/jobs*` and v1 drafts — all with
   403 `forbidden` from the gate, before any store lookup. Candidate routes keep rejecting it via `requireCandidate`.
+- `can` today holds only `view_talent_base`; v1 adds `view_metrics` (owner and stakeholder `true`, recruiter `false`).
+  The sidebar decides the stakeholder shell from `role === "stakeholder"` (Métricas, Mi cuenta, Cerrar sesión) (F8).
 - Owners see metrics too. Recruiters do not see the company view; their own numbers stay in «Mi rendimiento»,
   computed with the same definitions (D2).
 
@@ -105,9 +111,15 @@ local, dev and production, and needs no email provider (D4).
   invitation also answers 204 (idempotent).
 - `POST /v2/me/stakeholder-invitations/accept` (any signed-in user) body `{ "token" }`:
   - 200 `{ "company_id", "member_id", "role": "stakeholder" }` and the membership exists.
-  - 404 `invitation_invalid` for unknown, expired, revoked or used tokens (one code: no oracle).
+  - **Replay (F2):** the same user accepting a token they already used, while that membership still exists, gets
+    200 with the same body; nothing is written again and no audit row is added. A network retry is safe.
+  - 404 `invitation_invalid` for unknown, expired or revoked tokens, and for a token used by **another** user or whose
+    membership was removed since (one code: no oracle).
   - 403 `candidate_account` when the caller is a candidate account.
-  - 409 `already_company_member` when the caller already belongs to a company (any company, any role).
+  - 409 `already_company_member` when the caller already belongs to a company through anything other than this
+    invitation (any company, any role).
+  - The frontend accept page posts from the server, redirects to a token-free URL and sets
+    `Referrer-Policy: no-referrer`; the token may ride in the login `callbackUrl` when the invitee has no session.
   - The accept runs in one transaction with `FOR UPDATE` on the invitation, so two accepts of one token yield one
     member.
 - Signing in: the invitee signs in or signs up as an **employer** (Cognito `recruiters` group in dev/prod;
@@ -201,8 +213,8 @@ Per vacancy with a delivery configuration:
   - *volume* = candidates the recruiter moved into the cutoff stage during their tramo (`delivered_in_tramo`, actor =
     recruiter). Organic applies that land directly in the cutoff stage count for the vacancy but for no recruiter.
 - **Period:** a vacancy enters the period by its `commitment_date`.
-- **Same definition in «Mi rendimiento»:** its `deadline_result` moves from `fulfilled_at` to the target moment (D8,
-  a change to an existing read; frontend aware).
+- **Same definition in «Mi rendimiento»:** its `deadline_result` (and its delta) moves from `fulfilled_at` to the
+  target moment (D8). Field names, shapes and enum values do not change; only the computation does (F6).
 
 ### 2.4 Placement y sin placement — ✅
 
@@ -224,6 +236,7 @@ Per vacancy with a delivery configuration:
     the candidate applied from); missing → `portal`; any other value → 422 `validation_error`.
   - Manual intake writes `manual`.
   - It is analytics, not security: the channel is self-reported by the client.
+  - Field name `channel`, optional (F7): the careers site sends `careers_site`, `/vacantes` sends `portal`.
 - **Historical rows:** organic → `unknown` («portal o sitio, sin distinguir»), manual → `manual` (D9).
 - The dashboard's `origin_by_day` keeps organic/manual.
 
@@ -294,6 +307,20 @@ Prefix `GET /v2/me/company/metrics`, gate `requireMetricsViewer` (owner, stakeho
 Bad filters answer 422 `invalid_filter` with `fields[]`, the shape the talent-base and audit filters already use.
 Every response carries `"definitions_version": "v1"` and the echoed `period`.
 
+Shape rules (F3–F5):
+
+- **Counts** are integers, `0` when empty, never `null`.
+- **Medians and rates** are `null` when there is no sample or the denominator is 0, and every rate travels with its
+  numerator and denominator, for example
+  `"conversion": { "value": 0.4, "numerator": 2, "denominator": 5 }`. The numerator is vacancies with placement
+  for the recruiter, the denominator is `closed_assigned`.
+- **Monthly series** (`closed_by_month`, the card's `by_month`) are dense: one entry per month touched by the period,
+  zeros included, in ascending order.
+- **People** are `{ "user_id", "name", "former_member" }` wherever a person appears: reassignment from / to /
+  performed_by, the vacancy's current responsible, the delivering recruiter, credit recipients.
+- **Requester** is `{ "kind", "id", "name" }` (`id` and `name` null for «sin especificar»; the whole object null for
+  «sin solicitante»).
+
 ### 3.1 Company view — `GET /v2/me/company/metrics/summary`
 
 ```json
@@ -319,7 +346,8 @@ Every response carries `"definitions_version": "v1"` and the echoed `period`.
 `{ "items": [ { "user_id", "name", "former_member": false, "vacancies": { "assigned", "as_responsible",
 "as_collaborator", "as_member", "started_in_period" }, "delivery": { "on_time", "late", "overdue",
 "median_business_days_to_target", "delivered_in_tramo" }, "placements": { "direct", "participant", "shared",
-"did_not_hold", "conversion": 0.42 }, "reassignments": { "received", "lost" }, "business_days_in_tramos" } ],
+"did_not_hold", "closed_assigned", "conversion": { "value", "numerator", "denominator" } }, "reassignments":
+{ "received", "lost" }, "business_days_in_tramos" } ],
 "next_cursor": null }` — alphabetical, `limit` default 50, max 100, opaque `cursor`.
 
 ### 3.3 One recruiter — `GET /v2/me/company/metrics/recruiters/{userId}`

@@ -21,3 +21,4 @@ built until the user approves the metrics catalog. Product source: `docs/product
 
 - L1 (2026-11-07, frontend session relaying the user's approval to start feature 3): T1 written proposal, no code yet — S1 stakeholder role and entry without email, S2 metrics catalog with written definitions, S3 read API, S4 open decisions with recommendations. Reply via intercom or doc path.
 - L2 (2026-11-07): T1 proposal written in docs/contracts/stakeholder-metrics-v1.md (a2914cde) and sent to the frontend session; D1–D12 await the user.
+- L3 (2026-11-07, frontend review): F1–F8 applied to the contract — members list role, accept replay, dense series, people/requester objects, null rates with numerator/denominator, D8 keeps «Mi rendimiento» shape, channel field, can.view_metrics.
