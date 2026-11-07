@@ -136,7 +136,7 @@ local, dev and production, and needs no email provider (D4).
 
 ### 1.4 Audit
 
-New catalog events (category `members`, company-scoped):
+New catalog events, company-scoped (category `members`, except `MetricsDetailViewed`, which is `sensitive_read` like every other `*Viewed` read):
 
 | Event | Actor | Metadata |
 |---|---|---|
