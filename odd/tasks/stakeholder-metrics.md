@@ -93,3 +93,8 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   (not 422); `targetCloseDate` (YYYY-MM-DD, camelCase) in the management config, omitted on GET while unset, PUT
   missing keeps it, `null` clears it, bad format 400 `invalid_request`; «Mi rendimiento» `deadline_result` now uses the
   N-th `reached_at`, same fields and values. New task T7 for the frontend side of 3b.
+- **L11** Backend 3a implemented (`30dcced7`), under independent verification before :8081; contract diff `280d75bf`:
+  invitation list `created_by` is the owner's user id string; DELETE of an unknown/other-company invitation → 204,
+  nothing written; accept checks account type first (candidate → 403 `candidate_account` even with a bad token); any
+  PATCH involving the stakeholder role → 422 `stakeholder_role_change_not_supported`; POST members with role
+  stakeholder is a test/script path only (409 `already_exists`, 400 candidate). Forwarded to the T4 worker.
