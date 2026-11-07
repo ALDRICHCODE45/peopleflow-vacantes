@@ -183,3 +183,9 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   manual reload (`8de4372c`, re-verified live on the replay path); a Cognito-signed-in user unknown to the API looped
   back to the sign-in card (`03b2d13c`, new «Tu cuenta todavía no está lista» state). Minor: the blocked page header
   reads «Tu cuenta».
+- **L26** Recruiter run: dev account `nocheblanca92+recruiter@gmail.com` («Diego Ramírez», created with
+  `admin-create-user` + permanent password; backend inserted `users` + `company_members` recruiter of Trust People
+  Company directly, so no `CompanyMemberAdded` audit row). Sidebar without Métricas or Auditoría; /empresa/metricas
+  shows «Métricas restringidas» with «Ir al dashboard». Equipo lists Lucía Herrera with «Solo ve Métricas» (the
+  members list now parses the stakeholder role). Not run: candidate + malformed link (f), the owner's members row
+  actions for the stakeholder and the owner's audit screen entries (owner password not available to the agent).
