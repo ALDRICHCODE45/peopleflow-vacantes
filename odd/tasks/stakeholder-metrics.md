@@ -148,3 +148,13 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 - **L21** Full checks on the integrated branch (T4 + T5 + T7): typecheck 0, lint 0 errors (12 pre-existing warnings),
   vitest 547 files / 10071 tests passed, 2 skipped. Next: independent verification of T4 (Risk item 2) with browser
   checks against :8081.
+- **L22** Independent verification of T4/T5 (code review + unauthenticated curl against `pnpm dev` on :3100): S1–S3
+  pass in code, no blocker or high finding; signed-in browser scenarios (a)–(e) unproven because employer sign-in is
+  Cognito-only and the local bootstrap needs a human (needs the user's sessions). Invitation pages answer with
+  `Referrer-Policy: no-referrer` and no-store. Findings: (M1) the stakeholder route gate fails open when
+  `GET /me/company` or `/v2/me` fails (page mounts and calls the API, which answers 403: accepted, the API is the
+  authority); (M2) after accepting, the invitee lands on the «Te uniste» card with «Ver métricas», as in artboard 04;
+  (L1) a candidate opening a malformed link saw «enlace no válido» instead of «cuenta de candidato», fixed in
+  `26911b17` by letting the API judge the token (RED 3 failing, GREEN 63/63, typecheck clean); info: Next's dev
+  request log prints the token path; the middleware matcher covers one segment only. Backend confirmed
+  `delivery.business_days_late` is always present (null when not late), so the strict decoder stays.
