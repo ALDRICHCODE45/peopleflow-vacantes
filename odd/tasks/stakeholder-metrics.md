@@ -162,3 +162,13 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   never logged nor returned, other mappings unchanged; the login `callbackUrl` carries the encoded token, as §1.3
   allows. Dead `usableInvitationToken` removed in `293b2a3f` (62/62, typecheck and lint clean).
   Unproven live: candidate + malformed token → 403 against the real backend.
+- **L24** (user, 2026-11-07): «abre el navegador con el mcp de playwhrite por favor, dejalo en la seccion de login, me
+  loguego y despues haces las pruebas pertinentes de ui/funcionalidad». Browser run against :8081 (dev server needs
+  `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:8081`; `.env.local` does not set it). Owner (Test User · Trust People
+  Company): Métricas entry for owner, summary, recruiter table, recruiter detail with monthly series, real data OK.
+  Defect found: the audited detail sent no `from`/`to` → backend 422 `invalid_filter`, and the sheet showed the
+  audit fail-closed copy for a filter error; fixed in `77605a14` (period sent as exactly `from`/`to`; 400/422 get
+  their own non-audit message; 77/77). Re-run: «Candidatos entregados · 1» with name, reached time, delivered by, and
+  «Consulta registrada en Auditoría». Invitations: create (link shown once, «Copiado»), pending «1 de 20» → «2 de 20»,
+  revoke with confirm → «1 de 20». Mobile 390: layout stacks; «Por cliente o área» table clips its last column.
+  Recruiter table headers truncate at 1440 («Mediana a la met», «Entregado:», «Días er»).
