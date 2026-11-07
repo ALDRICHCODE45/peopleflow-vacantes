@@ -61,9 +61,9 @@ func TestMembershipCapabilityFlag(t *testing.T) {
 		access *stubTalentBaseAccess
 		want   string
 	}{
-		{"recruiter allowed", valueobjects.RecruiterRole, &stubTalentBaseAccess{allowed: true}, `{"view_talent_base":true}`},
-		{"recruiter restricted", valueobjects.RecruiterRole, &stubTalentBaseAccess{}, `{"view_talent_base":false}`},
-		{"owner allowed", valueobjects.OwnerRole, &stubTalentBaseAccess{allowed: true}, `{"view_talent_base":true}`},
+		{"recruiter allowed", valueobjects.RecruiterRole, &stubTalentBaseAccess{allowed: true}, `{"view_talent_base":true,"view_metrics":false}`},
+		{"recruiter restricted", valueobjects.RecruiterRole, &stubTalentBaseAccess{}, `{"view_talent_base":false,"view_metrics":false}`},
+		{"owner allowed", valueobjects.OwnerRole, &stubTalentBaseAccess{allowed: true}, `{"view_talent_base":true,"view_metrics":true}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			status, got := getMyMembership(t, tc.role, tc.access)
@@ -73,11 +73,20 @@ func TestMembershipCapabilityFlag(t *testing.T) {
 		})
 	}
 	t.Run("without a capability source only owners see it", func(t *testing.T) {
-		if _, got := getMyMembership(t, valueobjects.OwnerRole, nil); got["can"] != `{"view_talent_base":true}` {
+		if _, got := getMyMembership(t, valueobjects.OwnerRole, nil); got["can"] != `{"view_talent_base":true,"view_metrics":true}` {
 			t.Fatal(got)
 		}
-		if _, got := getMyMembership(t, valueobjects.RecruiterRole, nil); got["can"] != `{"view_talent_base":false}` {
+		if _, got := getMyMembership(t, valueobjects.RecruiterRole, nil); got["can"] != `{"view_talent_base":false,"view_metrics":false}` {
 			t.Fatal(got)
+		}
+	})
+	// A stakeholder never sees the talent base, even when the source would allow
+	// it, and the source is not asked (stakeholder-metrics-v1 §1.2, D3).
+	t.Run("stakeholder sees metrics, never the talent base", func(t *testing.T) {
+		access := &stubTalentBaseAccess{allowed: true}
+		status, got := getMyMembership(t, valueobjects.StakeholderRole, access)
+		if status != 200 || got["can"] != `{"view_talent_base":false,"view_metrics":true}` || access.role != "" {
+			t.Fatalf("status=%d can=%s role=%s", status, got["can"], access.role)
 		}
 	})
 	t.Run("access failure fails closed", func(t *testing.T) {

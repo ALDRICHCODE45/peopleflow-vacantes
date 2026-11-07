@@ -1676,6 +1676,10 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /me/company/requesters",
 		"Post /v2/me/candidate-account",
 		"Post /v2/me/session/end",
+		"Post /v2/me/stakeholder-invitations/accept",
+		"Post /v2/me/company/stakeholder-invitations",
+		"Get /v2/me/company/stakeholder-invitations",
+		"Delete /v2/me/company/stakeholder-invitations/{id}",
 		"Post /v2/me/session/start",
 		"Post /v2/me/company/job-drafts",
 		"Post /v2/me/company/job-drafts/{id}/publication",
@@ -1795,7 +1799,7 @@ func TestBodyLimitBinding_Guarded(t *testing.T) {
 	}
 	for _, p := range decodeJSONCensusFiles {
 		wantCalls := decodeJSONCallsPerFile
-		if p == "../../internal/features/identity/infrastructure/http/candidate_identity.go" || p == decodeJSONContactsFile {
+		if p == "../../internal/features/identity/infrastructure/http/candidate_identity.go" || p == decodeJSONContactsFile || p == decodeJSONInvitationFile {
 			wantCalls = 1
 		}
 		if lines := calls[p]; len(lines) != wantCalls {
@@ -1826,7 +1830,7 @@ func TestBodyLimitBinding_Guarded(t *testing.T) {
 }
 
 // decodeJSONCensusFiles are the ONLY production feature files allowed to carry
-// httpjson.DecodeJSON calls (two per legacy file, one each for identity/contacts).
+// httpjson.DecodeJSON calls (two per legacy file, one each for identity/contacts/invitations).
 const decodeJSONContactsFile = "../../internal/features/applications/infrastructure/http/pool/contacts.go"
 
 var decodeJSONCensusFiles = []string{
@@ -1836,8 +1840,13 @@ var decodeJSONCensusFiles = []string{
 	"../../internal/features/candidates/infrastructure/http/handler.go",
 	"../../internal/features/companies/infrastructure/http/handler.go",
 	"../../internal/features/companies/infrastructure/http/memberHandler.go",
+	decodeJSONInvitationFile,
 	"../../internal/features/jobs/infrastructure/http/jobHandler.go",
 }
+
+// decodeJSONInvitationFile decodes the stakeholder accept body with the
+// borrowed companies 1 MiB constant (stakeholder-metrics-v1 §1.3).
+const decodeJSONInvitationFile = "../../internal/features/companies/infrastructure/http/stakeholderInvitationHandler.go"
 
 // decodeJSONDeclaringFiles own a package-level maxJSONBodyBytes constant.
 var decodeJSONDeclaringFiles = []string{
@@ -1854,7 +1863,7 @@ const decodeJSONBorrowerFile = "../../internal/features/companies/infrastructure
 
 const (
 	decodeJSONCallsPerFile = 2
-	decodeJSONCallsTotal   = 12
+	decodeJSONCallsTotal   = 13
 )
 
 // httpjsonImportPath is the shared decode helper the census resolves per file.

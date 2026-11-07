@@ -223,9 +223,11 @@ func (s *Store) WriteTeam(ctx context.Context, company, actor, id uuid.UUID, w v
 	now := s.clock().UTC().Truncate(time.Microsecond)
 	meta := map[string]string{"company_id": company.String()}
 	event := ""
+	// A stakeholder never joins a team (stakeholder-metrics-v1 §1.1): same
+	// answer as a non-member.
 	isMember := func(user uuid.UUID) error {
 		var ok bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_id=$1 AND user_id=$2)`, company, user).Scan(&ok); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_id=$1 AND user_id=$2 AND role<>'stakeholder')`, company, user).Scan(&ok); err != nil {
 			return err
 		}
 		if !ok {

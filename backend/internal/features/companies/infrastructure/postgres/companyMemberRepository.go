@@ -153,6 +153,10 @@ func (r *CompanyMemberRepository) UpdateRole(ctx context.Context, actor, id, com
 			}
 			return 0, err
 		}
+		// A stakeholder is never converted into another role (D5): remove and re-invite.
+		if from == valueobjects.StakeholderRole.String() && role != valueobjects.StakeholderRole {
+			return 0, entities.ErrStakeholderRoleChange
+		}
 		rows, err := q.UpdateMemberRole(ctx, db.UpdateMemberRoleParams{ID: id, CompanyID: companyID, Role: role.String()})
 		if err != nil || rows == 0 {
 			return rows, err

@@ -361,6 +361,9 @@ func run() error {
 	requireCandidate := identityhttp.RequireCandidateRole(identityUserRepo)
 	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.RecruiterRole)
 	requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.OwnerRole)
+	// Owners and stakeholders only (stakeholder-metrics-v1 §1.2); the metrics
+	// routes it guards arrive with slice 3c.
+	requireMetricsViewer := identityhttp.RequireMetricsViewer(identityUserRepo, memberRepo, companyRepo)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -387,7 +390,9 @@ func run() error {
 	r := newRouter(routerDeps{
 		siteHandler: newCompanySiteHandler(pool, auditRepo, siteStorage),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
-		requireCandidate: requireCandidate, identityHandler: identityHandler, sessionHandler: newSessionHandler(pool, auditRepo),
+		requireMetricsViewer:         requireMetricsViewer,
+		stakeholderInvitationHandler: companieshttp.NewStakeholderInvitationHandler(usecases.NewStakeholderInvitationService(postgres.NewStakeholderInvitationRepository(pool, auditRepo), identityUserRepo)),
+		requireCandidate:             requireCandidate, identityHandler: identityHandler, sessionHandler: newSessionHandler(pool, auditRepo),
 		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		candidatePoolHandler: candidatePoolHandler,
 		talentBaseHandler:    talentbasehttp.NewHandler(talentbaseapp.NewService(talentBase)),

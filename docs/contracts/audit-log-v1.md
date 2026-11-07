@@ -323,6 +323,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `ParticipationViewed` | sensitive_read | Vio un candidato de la vacante |
 | `ParticipationCVDownloaded` | sensitive_read | Inició la descarga de un CV de la vacante |
 | `PsychometricResultViewed` | sensitive_read | Vio un resultado psicométrico |
+| `MetricsDetailViewed` | sensitive_read | Detalle de métricas consultado |
 | `CandidateAccountCreated` | candidate | Creó su cuenta de candidato |
 | `CompanyCandidateEdited` | candidate | Editó los datos de un candidato |
 | `CompanyCandidateCVCorrected` | candidate | Corrigió el CV de un candidato |
@@ -377,6 +378,9 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `CompanyMemberAdded` | members | Agregó a un miembro |
 | `CompanyMemberRoleChanged` | members | Cambió el rol de un miembro |
 | `CompanyMemberOffboarded` | members | Dio de baja a un miembro |
+| `StakeholderInvitationCreated` | members | Invitación de stakeholder creada |
+| `StakeholderInvitationRevoked` | members | Invitación de stakeholder revocada |
+| `StakeholderInvitationAccepted` | members | Invitación de stakeholder aceptada |
 | `AuditLogExported` | audit | Exportó la auditoría |
 
 The annex lists every catalog type (63) in catalog order; a test fails when a catalog type has no row.

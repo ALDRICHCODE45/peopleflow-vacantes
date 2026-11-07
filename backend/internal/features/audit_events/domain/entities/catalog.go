@@ -46,6 +46,9 @@ const (
 	EventParticipationViewed              = "ParticipationViewed"
 	EventParticipationCVDownloaded        = "ParticipationCVDownloaded"
 	EventPsychometricResultViewed         = "PsychometricResultViewed"
+	// EventMetricsDetailViewed: a metrics detail list with candidate names
+	// (stakeholder-metrics-v1 §3.5); its emitter lands with the metrics API.
+	EventMetricsDetailViewed = "MetricsDetailViewed"
 
 	// Candidate.
 	EventCandidateAccountCreated        = "CandidateAccountCreated"
@@ -117,6 +120,11 @@ const (
 	EventCompanyMemberRoleChanged = "CompanyMemberRoleChanged"
 	EventCompanyMemberOffboarded  = "CompanyMemberOffboarded"
 
+	// Stakeholder invitations (stakeholder-metrics-v1 §1.4).
+	EventStakeholderInvitationCreated  = "StakeholderInvitationCreated"
+	EventStakeholderInvitationRevoked  = "StakeholderInvitationRevoked"
+	EventStakeholderInvitationAccepted = "StakeholderInvitationAccepted"
+
 	// Audit (§8.5).
 	EventAuditLogExported = "AuditLogExported"
 )
@@ -159,6 +167,7 @@ var catalog = []EventSpec{
 	spec(EventParticipationViewed, CategorySensitiveRead),
 	spec(EventParticipationCVDownloaded, CategorySensitiveRead, "variant"),
 	spec(EventPsychometricResultViewed, CategorySensitiveRead, "vacancy_id", "participation_id"),
+	spec(EventMetricsDetailViewed, CategorySensitiveRead, "report", "vacancy_id"),
 
 	// candidate
 	{Type: EventCandidateAccountCreated, Category: CategoryCandidate, CompanyScoped: false},
@@ -225,6 +234,9 @@ var catalog = []EventSpec{
 	spec(EventCompanyMemberAdded, CategoryMembers, "member_user_id", "role"),
 	spec(EventCompanyMemberRoleChanged, CategoryMembers, "member_user_id", "from_role", "to_role"),
 	spec(EventCompanyMemberOffboarded, CategoryMembers, "company_id", "user_id", "member_user_id", "reassignment_ids", "ended_assignment_ids", "talent_base_viewer_removed"),
+	spec(EventStakeholderInvitationCreated, CategoryMembers, "invitation_id", "expires_at"),
+	spec(EventStakeholderInvitationRevoked, CategoryMembers, "invitation_id"),
+	spec(EventStakeholderInvitationAccepted, CategoryMembers, "invitation_id", "member_user_id"),
 
 	// audit
 	spec(EventAuditLogExported, CategoryAudit, "filters", "row_count"),
