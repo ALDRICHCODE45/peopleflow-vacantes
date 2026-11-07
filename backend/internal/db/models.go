@@ -611,6 +611,19 @@ type SavedJob struct {
 	SavedAt     pgtype.Timestamptz `json:"saved_at"`
 }
 
+type StakeholderInvitation struct {
+	ID          uuid.UUID          `json:"id"`
+	CompanyID   uuid.UUID          `json:"company_id"`
+	TokenSha256 []byte             `json:"token_sha256"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
+	UsedAt      pgtype.Timestamptz `json:"used_at"`
+	UsedBy      pgtype.UUID        `json:"used_by"`
+	MemberID    pgtype.UUID        `json:"member_id"`
+}
+
 type User struct {
 	ID         uuid.UUID          `json:"id"`
 	CognitoSub string             `json:"cognito_sub"`

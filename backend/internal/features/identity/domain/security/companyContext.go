@@ -39,7 +39,7 @@ type CompanyContext struct {
 	// fail-closed anyway.
 	UserID uuid.UUID
 	// Role is the caller's role on CompanyID. The middleware already
-	// verified `role >= minRole` before injecting, so the handler can
+	// verified the gate's role rule before injecting, so the handler can
 	// trust whatever Role it reads back.
 	Role valueobjects.MemberRole
 }
