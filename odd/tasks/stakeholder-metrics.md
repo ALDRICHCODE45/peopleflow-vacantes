@@ -33,7 +33,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 | T1 | S1–S7 | Contract + data model proposal and metric catalog draft from the backend session; frontend review; open decisions to the user | — |
 | T2 | S5, S6 | Metric catalog with written definitions approved by the user before any metric is built | — |
 | T3 | S4, S8 | Design directions (gentle-design) for the metrics screen and the recruiter card; user picks (done, L7, L9: `01-tablero-y-tabla.html` chosen) | `7d77c4f0` |
-| T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) | — |
+| T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) (built, L16; browser integration pending) | `1b2b41d0`, `a98982bb`, `634c0878`, `8a0576a2`, `ad211096` |
 | T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 (built, L12–L14; merge after T4) | `e357dc13`, `23713769`, `71912050`, `cf009b2c`, `47809220`, `d35b2079`, `166c51d3` (branch `feat/stakeholder-metrics-t5`) |
 | T7 | S6, S7 | Slice 3b frontend: apply sends `channel` (`careers_site` from the company careers site, `portal` from /vacantes; 400 `validation_error` on `channel`); optional «Fecha objetivo de cierre» (`targetCloseDate`, null clears) in the vacancy management configuration | — |
 | T6 | all | Integration against the real backend, verification, partner doc update | — |
@@ -118,3 +118,11 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   invitations CRUD, accept, `GET /me/company` role + `can.view_metrics`, members list with stakeholders, fail-closed
   gate, apply `channel`, `targetCloseDate`, «Mi rendimiento» on the N-th `reached_at`. Metrics routes arrive with 3c.
   M1–M7 in the contract (`b7476aa1`). T4 integration against :8081 can start when the T4 worker returns.
+- **L16** T4 worker done and committed in five units (`1b2b41d0` role + pickers, `a98982bb` stakeholder shell and
+  gate, `634c0878` invitation contract/client/actions, `8a0576a2` owner invitations card, `ad211096` accept page,
+  `Referrer-Policy: no-referrer` + `no-store` on /empresa/invitacion). T5 merged (`730877d0`). Full checks: typecheck
+  0, lint 0 errors; vitest 10006 passed, 3 failed in `features/jobs/requestPath.test.ts`, the request-path allowlist
+  guard, which already failed on main since the audit-log merge (audit clients never listed). Fixed in `bfbdd2ab`:
+  audit, invitation and metrics server-only clients and the audit export route listed, each with its guard
+  assertions (34/34). Open from T4: «Mi cuenta» is the footer account menu (no account page exists); invitations card
+  lists pending ones only (current stakeholders appear in the members list).
