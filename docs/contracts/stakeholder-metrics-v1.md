@@ -1,6 +1,6 @@
 # Stakeholder + metrics v1 (internal, employer-only)
 
-Status: **agreed (2026-11-07)**, not implemented; frontend review F1–F8 applied; D1–D12 approved by the user via the
+Status: **agreed (2026-11-07)**, not implemented; frontend review F1–F8 and P1–P4 applied; D1–D12 approved by the user via the
 frontend session (all as recommended). Product source: `docs/product/next-three-features.md`
 §3 «Stakeholder + métricas». The backend session wrote this contract; frontend tracking is
 `odd/tasks/stakeholder-metrics.md`, backend tracking `odd/tasks/stakeholder-metrics-backend.md`. Nothing is built until
@@ -215,7 +215,11 @@ Per vacancy with a delivery configuration:
     every member active then (`shared`);
   - *volume* = candidates the recruiter moved into the cutoff stage during their tramo (`delivered_in_tramo`, actor =
     recruiter). Organic applies that land directly in the cutoff stage count for the vacancy but for no recruiter.
-- **Period:** a vacancy enters the period by its `commitment_date`.
+- **Period:** a vacancy with a delivery configuration enters the period by its `commitment_date` (D12); a vacancy
+  without one (`not_configured`) enters when it is assigned in the period, as in 2.1 (P1).
+- **Rates (P2):** `configured` = `on_time + late + overdue + pending`; `total` = `configured + not_configured`;
+  `on_time_rate = { value, numerator: on_time, denominator: on_time + late + overdue }` (pending is not judged yet);
+  `configured_rate = { value, numerator: configured, denominator: total }`.
 - **Same definition in «Mi rendimiento»:** its `deadline_result` (and its delta) moves from `fulfilled_at` to the
   target moment (D8). Field names, shapes and enum values do not change; only the computation does (F6).
 
@@ -223,7 +227,8 @@ Per vacancy with a delivery configuration:
 
 - **Placements** = `placement_credits` with `hired_at` in the period and `status` `active` or `did_not_hold`
   (`voided` excluded, as in «Mi rendimiento»); `did_not_hold` shown apart («no se sostuvo»).
-- **Per recruiter:** by recipient kind `direct | participant | shared`.
+- **Per recruiter:** by recipient kind `direct | participant | shared`. Those three counts **include** both
+  `active` and `did_not_hold` credits; `did_not_hold` is a subset across the three, never added on top (P3).
 - **Vacancy outcome** for vacancies closed in the period: `filled`, `cancelled`, `other`, `no_reason` (legacy), and
   `covered / hiring_headcount` from active credits (partial coverage visible).
 - **Conversion to placement (per recruiter):** vacancies with ≥ 1 credit for the recruiter ÷ vacancies the recruiter
@@ -334,6 +339,9 @@ Shape rules (F3–F5):
                  "median_business_days_to_close": 23,
                  "closing_target": { "on_time": 0, "late": 0, "no_target": 18 } },
   "delivery": { "on_time": 20, "late": 7, "overdue": 3, "pending": 9, "not_configured": 3,
+                "configured": 39, "total": 42,
+                "on_time_rate": { "value": 0.6667, "numerator": 20, "denominator": 30 },
+                "configured_rate": { "value": 0.9286, "numerator": 39, "denominator": 42 },
                 "median_business_days_to_target": 11, "delivered": 214 },
   "placements": { "credits": 25, "did_not_hold": 2, "positions_covered": 23, "positions_required": 31 },
   "origin": { "portal": 120, "careers_site": 34, "manual": 61, "unknown": 300 },
@@ -355,8 +363,20 @@ Shape rules (F3–F5):
 
 ### 3.3 One recruiter — `GET /v2/me/company/metrics/recruiters/{userId}`
 
-The same card plus `by_month` series for vacancies assigned, deliveries and placements. 404 `not_found` when the user
-never had a tramo in this company.
+The same card plus a dense `by_month` series (P4):
+
+```json
+"by_month": [ { "month": "2026-08", "assigned": 4,
+                "delivery": { "on_time": 2, "late": 1, "overdue": 0 },
+                "placements": 1 } ]
+```
+
+- `assigned`: distinct vacancies with a tramo of this recruiter overlapping that month (a vacancy spanning months
+  counts in each, so the months do not add up to the period total).
+- `delivery`: the card's delivery results counted by the month of `commitment_date`.
+- `placements`: credits for this recruiter (`active` + `did_not_hold`) by the month of `hired_at`.
+
+404 `not_found` when the user never had a tramo in this company.
 
 ### 3.4 Detail lists (paginated)
 
