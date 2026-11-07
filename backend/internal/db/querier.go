@@ -41,6 +41,10 @@ type Querier interface {
 	// ("this company had no non-closed jobs at delete time").
 	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
 	CountCompanyOwners(ctx context.Context, companyID uuid.UUID) (int64, error)
+	// Stakeholder invitations (stakeholder-metrics-v1 §1.3). Every write runs in
+	// the adapter's transaction together with its audit event.
+	// Run after LockCompanyForMemberMutation so two creates cannot both pass the limit.
+	CountPendingStakeholderInvitations(ctx context.Context, arg CountPendingStakeholderInvitationsParams) (int64, error)
 	// Atomic apply + eligibility gate for POST /jobs/{jobId}/applications
 	// (design D1).
 	//
@@ -109,6 +113,7 @@ type Querier interface {
 	// tsvector to interface{} and a generated column rejects explicit
 	// writes (D3).
 	CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error)
+	CreateStakeholderInvitation(ctx context.Context, arg CreateStakeholderInvitationParams) error
 	// Idempotent upsert keyed on the partial unique index `users_cognito_sub_unique`.
 	// The `WHERE deleted_at IS NULL` predicate is required: a bare `ON CONFLICT (cognito_sub)`
 	// would not match the partial index and would raise SQLSTATE 42P10.
@@ -179,6 +184,9 @@ type Querier interface {
 	// ErrNotAMember.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
 	GetPublishedScreeningSource(ctx context.Context, id uuid.UUID) ([]byte, error)
+	// The accept holds this row lock until commit, so two accepts of one token
+	// yield one member.
+	GetStakeholderInvitationByTokenForUpdate(ctx context.Context, tokenSha256 []byte) (GetStakeholderInvitationByTokenForUpdateRow, error)
 	GetUnavailableVacancy(ctx context.Context, id uuid.UUID) (GetUnavailableVacancyRow, error)
 	GetUserByCognitoSub(ctx context.Context, cognitoSub string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
@@ -241,13 +249,20 @@ type Querier interface {
 	//
 	// Hard cap 100 (no pagination in this slice).
 	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
+	ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error)
 	// Serialize membership mutations on a stable parent row. The adapter MUST
 	// execute this in the same READ COMMITTED transaction as the target lookup,
 	// owner count, and mutation; subsequent statements see the previous commit.
 	LockCompanyForMemberMutation(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// A soft-deleted company accepts no new member.
+	LockLiveCompanyForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	MarkStakeholderInvitationUsed(ctx context.Context, arg MarkStakeholderInvitationUsedParams) error
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
 	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)
+	// Only a pending invitation of the caller's company changes; anything else
+	// affects no row and the DELETE still answers 204.
+	RevokeStakeholderInvitation(ctx context.Context, arg RevokeStakeholderInvitationParams) (int64, error)
 	// Public read listing for jobs (§spec/jobs). The visibility rule
 	// (§Read-Side Visibility Rule) is enforced here, not in Go: a row
 	// surfaces only when `jobs.status='published'`, `jobs.deleted_at IS NULL`,
@@ -362,6 +377,8 @@ type Querier interface {
 	// ALWAYS returns exactly one row, so pgx.ErrNoRows is unreachable via the
 	// designed flow (mapSoftDeleteError keeps it as defense-in-depth).
 	SoftDeleteJob(ctx context.Context, arg SoftDeleteJobParams) (SoftDeleteJobRow, error)
+	// The replay check: the membership the invitation created still exists.
+	StakeholderMembershipExists(ctx context.Context, arg StakeholderMembershipExistsParams) (bool, error)
 	// Recruiter transition with the same-company invariant + the lost-race
 	// status guard (no CAS — design D3). The WHERE narrows to (id, job_id,
 	// status = expected_from) and scopes the owning job to the caller's

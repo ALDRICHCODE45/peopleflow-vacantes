@@ -217,6 +217,11 @@ func (s *CompanyMemberService) UpdateRole(ctx context.Context, companyID, actorI
 	if err != nil {
 		return err
 	}
+	// Nobody becomes a stakeholder by PATCH (stakeholder-metrics-v1 D5); the
+	// repository refuses the opposite direction once it has read the target.
+	if role == valueobjects.StakeholderRole {
+		return entities.ErrStakeholderRoleChange
+	}
 
 	return s.memberRepo.UpdateRole(ctx, actorID, memberID, companyID, role)
 }

@@ -681,7 +681,7 @@ func TestAuditRead_Types(t *testing.T) {
 	body := draftFlowObject(t, r.body)
 	exactKeys(t, body, "items")
 	got := itemsOf(t, body)
-	if r.status != 200 || len(got) != len(want) || len(got) != 63 {
+	if r.status != 200 || len(got) != len(want) || len(got) != 67 {
 		t.Fatalf("%d items, status %d", len(got), r.status)
 	}
 	for i := range want {

@@ -192,9 +192,12 @@ type myMembershipResponse struct {
 }
 
 // capabilitiesResponse tells the client what the caller may use, so it can hide
-// an entry without provoking a 403 first. v1 has one key.
+// an entry without provoking a 403 first.
 type capabilitiesResponse struct {
 	ViewTalentBase bool `json:"view_talent_base"`
+	// ViewMetrics: owners and stakeholders see the company metrics
+	// (stakeholder-metrics-v1 §1.2, D2).
+	ViewMetrics bool `json:"view_metrics"`
 }
 
 // listMembersResponse is the wire shape for GET /me/company/members.
@@ -245,6 +248,7 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 	}
 	if err == nil {
 		can.ViewTalentBase, err = h.canViewTalentBase(r, member)
+		can.ViewMetrics = member.Role == valueobjects.OwnerRole || member.Role == valueobjects.StakeholderRole
 	}
 	if err != nil {
 		def := classifyMemberError(err)
@@ -261,6 +265,10 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *MemberHandler) canViewTalentBase(r *http.Request, m *entities.CompanyMember) (bool, error) {
+	// A stakeholder reaches no talent base route in v1 (D3), whatever the mode.
+	if m.Role == valueobjects.StakeholderRole {
+		return false, nil
+	}
 	if h.talentBase == nil {
 		return m.Role == valueobjects.OwnerRole, nil
 	}
@@ -528,6 +536,8 @@ func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecu
 //	ErrTargetNotRecruiter  → CodeInvalidRequest    (400) + "target user is not a recruiter"
 //	ErrInvalidMemberRole   → CodeInvalidRequest    (400) + "invalid member role"
 //	ErrCompanyNotFound     → CodeNotFound          (404) + "company not found"
+//	ErrStakeholderRoleChange, ErrInvitation*, ErrCandidateAccount,
+//	ErrAlreadyCompanyMember → their stakeholder catalog codes
 //
 // Anything else falls through to CodeInternalError (500) + canonical generic
 // message; the real error is logged separately and absent from the wire.
@@ -557,6 +567,16 @@ func classifyMemberError(err error) httpjson.Definition {
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid member role")
 	case errors.Is(err, entities.ErrCompanyNotFound):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "company not found")
+	case errors.Is(err, entities.ErrStakeholderRoleChange):
+		return httpjson.Resolve(httpjson.CodeStakeholderRoleChangeNotSupported)
+	case errors.Is(err, entities.ErrInvitationInvalid):
+		return httpjson.Resolve(httpjson.CodeInvitationInvalid)
+	case errors.Is(err, entities.ErrInvitationLimitReached):
+		return httpjson.Resolve(httpjson.CodeInvitationLimitReached)
+	case errors.Is(err, entities.ErrCandidateAccount):
+		return httpjson.Resolve(httpjson.CodeCandidateAccount)
+	case errors.Is(err, entities.ErrAlreadyCompanyMember):
+		return httpjson.Resolve(httpjson.CodeAlreadyCompanyMember)
 	default:
 		return httpjson.Resolve(httpjson.CodeInternalError)
 	}

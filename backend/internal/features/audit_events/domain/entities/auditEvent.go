@@ -46,6 +46,8 @@ const (
 	EntityJobDraft = "job_draft"
 	// EntityJobDraftRequester is the requester catalog entry entity type.
 	EntityJobDraftRequester = "job_draft_requester"
+	// EntityStakeholderInvitation is one copyable stakeholder invitation link.
+	EntityStakeholderInvitation = "stakeholder_invitation"
 )
 
 // CompanyDeletedMetadata assembles the PII-free CompanyDeleted metadata

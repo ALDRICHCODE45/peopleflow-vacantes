@@ -57,6 +57,7 @@ import (
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
 	talentbasepostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres/talentbase"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
+	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
@@ -297,6 +298,10 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		requireCandidate:     identityhttp.RequireCandidateRole(identityUserRepo),
 		requireRecruiter:     requireRecruiter,
 		requireOwner:         requireOwner,
+		requireMetricsViewer: identityhttp.RequireMetricsViewer(identityUserRepo, memberRepo, companyRepo),
+		identityHandler:      identityhttp.NewCandidateIdentityHandler(identityusecases.NewCandidateIdentity(identitypostgres.NewCandidateAccountStore(pool, auditRepo), nil)),
+		stakeholderInvitationHandler: companieshttp.NewStakeholderInvitationHandler(companiesusecases.NewStakeholderInvitationService(
+			companiespostgres.NewStakeholderInvitationRepository(pool, auditpostgres.NewAuditEventRepository()), identityUserRepo)),
 		jobHandler:           jobHandler,
 		companyHandler:       companieshttp.NewCompanyHandler(companiesusecases.NewCompanyService(companyRepo, geopostgres.NewReader(queries))),
 		memberHandler:        companieshttp.NewMemberHandler(companiesusecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geopostgres.NewReader(queries))).WithTalentBaseAccess(talentBase),

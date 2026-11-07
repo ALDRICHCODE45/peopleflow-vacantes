@@ -39,37 +39,42 @@ import (
 // routerDeps = the composition root's explicit dependencies (gates built in main.go,
 // handlers, health ports); no globals, no init().
 type routerDeps struct {
-	siteHandler          *siteshttp.Handler
-	requireAuth          func(http.Handler) http.Handler
-	requireCandidate     func(http.Handler) http.Handler
-	identityHandler      *identityhttp.CandidateIdentityHandler
-	requireRecruiter     func(http.Handler) http.Handler
-	requireOwner         func(http.Handler) http.Handler
-	companyHandler       *companieshttp.CompanyHandler
-	memberHandler        *companieshttp.MemberHandler
-	candidateHandler     *candidateshttp.CandidateHandler
-	publicJobsHandler    *jobshttp.PublicJobsHandler
-	savedJobsHandler     *jobshttp.SavedJobsHandler
-	jobHandler           *jobshttp.JobHandler
-	draftHandler         *jobshttp.DraftHandler
-	draftV2Handler       *jobshttp.DraftV2Handler
-	teamHandler          *jobshttp.TeamHandler
-	offboardHandler      *jobshttp.OffboardHandler
-	dashboardHandler     *jobshttp.DashboardHandler
-	draftListHandler     *jobshttp.DraftListHandler
-	pipelineHandler      *jobshttp.PipelineHandler
-	substatesHandler     *jobshttp.SubstatesHandler
-	deliveryHandler      *jobshttp.DeliveryHandler
-	managementHandler    *jobshttp.ManagementHandler
-	publicationHandler   *jobshttp.PublicationHandler
-	lifecycleHandler     *jobshttp.LifecycleHandler
-	requesterHandler     *jobshttp.RequesterHandler
-	applicationHandler   *applicationshttp.ApplicationHandler
-	cvHandler            *cvshttp.Handler
-	participationHandler *applicationsv2http.Handler
-	movementHandler      *movementhttp.Handler
-	candidatePoolHandler *poolhttp.Handler
-	talentBaseHandler    *talentbasehttp.Handler
+	siteHandler      *siteshttp.Handler
+	requireAuth      func(http.Handler) http.Handler
+	requireCandidate func(http.Handler) http.Handler
+	identityHandler  *identityhttp.CandidateIdentityHandler
+	requireRecruiter func(http.Handler) http.Handler
+	requireOwner     func(http.Handler) http.Handler
+	// requireMetricsViewer passes owners and stakeholders; it guards the
+	// company metrics routes (stakeholder-metrics-v1 §3, slice 3c).
+	requireMetricsViewer func(http.Handler) http.Handler
+	// stakeholderInvitationHandler serves the invitation routes (§1.3).
+	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
+	companyHandler               *companieshttp.CompanyHandler
+	memberHandler                *companieshttp.MemberHandler
+	candidateHandler             *candidateshttp.CandidateHandler
+	publicJobsHandler            *jobshttp.PublicJobsHandler
+	savedJobsHandler             *jobshttp.SavedJobsHandler
+	jobHandler                   *jobshttp.JobHandler
+	draftHandler                 *jobshttp.DraftHandler
+	draftV2Handler               *jobshttp.DraftV2Handler
+	teamHandler                  *jobshttp.TeamHandler
+	offboardHandler              *jobshttp.OffboardHandler
+	dashboardHandler             *jobshttp.DashboardHandler
+	draftListHandler             *jobshttp.DraftListHandler
+	pipelineHandler              *jobshttp.PipelineHandler
+	substatesHandler             *jobshttp.SubstatesHandler
+	deliveryHandler              *jobshttp.DeliveryHandler
+	managementHandler            *jobshttp.ManagementHandler
+	publicationHandler           *jobshttp.PublicationHandler
+	lifecycleHandler             *jobshttp.LifecycleHandler
+	requesterHandler             *jobshttp.RequesterHandler
+	applicationHandler           *applicationshttp.ApplicationHandler
+	cvHandler                    *cvshttp.Handler
+	participationHandler         *applicationsv2http.Handler
+	movementHandler              *movementhttp.Handler
+	candidatePoolHandler         *poolhttp.Handler
+	talentBaseHandler            *talentbasehttp.Handler
 	// requireTalentBase gates the company-wide candidate routes after the role gate.
 	requireTalentBase func(http.Handler) http.Handler
 	queries           *db.Queries
@@ -237,12 +242,22 @@ func newRouter(d routerDeps) chi.Router {
 	r.With(d.requireAuth, d.requireRecruiter).Post("/jobs", jobHandlers.CreateJob)
 	r.With(d.requireAuth, d.requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)
 
+	// Stakeholder invitations (stakeholder-metrics-v1 §1.3): the owner creates,
+	// lists and revokes; any signed-in user accepts.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireOwner)
+		r.Post("/v2/me/company/stakeholder-invitations", d.stakeholderInvitationHandler.Create)
+		r.Get("/v2/me/company/stakeholder-invitations", d.stakeholderInvitationHandler.List)
+		r.Delete("/v2/me/company/stakeholder-invitations/{id}", d.stakeholderInvitationHandler.Revoke)
+	})
+
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth)
 		r.Get("/v2/me", d.identityHandler.Me)
 		r.Post("/v2/me/candidate-account", d.identityHandler.CreateCandidateAccount)
 		r.Post("/v2/me/session/start", d.sessionHandler.Start)
 		r.Post("/v2/me/session/end", d.sessionHandler.End)
+		r.Post("/v2/me/stakeholder-invitations/accept", d.stakeholderInvitationHandler.Accept)
 	})
 
 	// Applications — candidate apply (RequireAuth + live candidate) + recruiter pipeline
