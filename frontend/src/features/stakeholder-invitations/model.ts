@@ -44,10 +44,6 @@ export const outcomeFor = (result: AcceptInvitationResult): AcceptOutcome | null
 export const parseOutcome = (value: string | null | undefined): AcceptOutcome | null =>
   (ACCEPT_OUTCOMES as readonly string[]).includes(value ?? "") ? value as AcceptOutcome : null;
 
-export function usableInvitationToken(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= MAX_TOKEN_LENGTH && TOKEN.test(value);
-}
-
 export function invitationUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/u, "")}${INVITATION_PATH}/${token}`;
 }
