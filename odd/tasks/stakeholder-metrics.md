@@ -126,3 +126,10 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   audit, invitation and metrics server-only clients and the audit export route listed, each with its guard
   assertions (34/34). Open from T4: «Mi cuenta» is the footer account menu (no account page exists); invitations card
   lists pending ones only (current stakeholders appear in the members list).
+- **L17** Backend 3c (7 metrics routes) committed on `feat/stakeholder-metrics-backend-3c`, under independent
+  verification; contract diff `c3907ef7` (§3.7): detail `candidate` is `{id, full_name}` (corrects M3); detail reads
+  ignore the common filters; vacancies rows add `delivery.business_days_late` (only for `late`); 422 `invalid_filter`
+  field `requester_kind` code `required` for a real id without kind, field `to` code `range` over 365; 400
+  `invalid_cursor`; `summary.vacancies.closed` counts close events while `closed_by_month` counts distinct vacancies;
+  `by_requester` order named A–Z, «sin especificar», «sin solicitante»; cards by lowercased name, null names last;
+  medians may be x.5; `recruiter_id` semantics per route. T5 correction delegated.
