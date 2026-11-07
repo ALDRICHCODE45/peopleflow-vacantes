@@ -1,14 +1,15 @@
 import { z } from "zod";
 import type { DraftListRow } from "@/features/jobs/drafts/list/client";
-import { TEAM_MEMBER_ROLES, type TeamMemberRole, type TeamMemberWorkload } from "./model";
+import { COMPANY_MEMBER_ROLES, TEAM_MEMBER_ROLES, type TeamMemberRole, type TeamMemberWorkload } from "./model";
 
 export const memberIdSchema = z.string().uuid();
+/** Writable roles only: PATCH never names `stakeholder` (422 stakeholder_role_change_not_supported). */
 export const memberRoleSchema = z.enum(TEAM_MEMBER_ROLES);
 const timestamp = z.string().datetime({ offset: true });
 export const companyMemberSchema = z.object({
   id: memberIdSchema,
   company_id: memberIdSchema,
-  role: memberRoleSchema,
+  role: z.enum(COMPANY_MEMBER_ROLES),
   created_at: timestamp,
   updated_at: timestamp,
   user: z.object({ id: memberIdSchema, full_name: z.string(), email: z.string().email() }).strict().nullable(),
@@ -30,5 +31,11 @@ export type MemberRowAction = { kind: "role"; role: TeamMemberRole; label: strin
 export function memberRowActions(member: CompanyMember, members: readonly CompanyMember[], role: TeamMemberRole | null, userId: string | null): MemberRowAction[] {
   if (role !== "owner" || !userId || member.user?.id === userId ||
     (member.role === "owner" && members.filter(item => item.role === "owner").length <= 1)) return [];
+  // A stakeholder is removed and re-invited, never converted (D5).
+  if (member.role === "stakeholder") return [{ kind: "remove", label: "Quitar" }];
   return [{ kind: "role", role: member.role === "owner" ? "recruiter" : "owner", label: member.role === "owner" ? "Hacer reclutador" : "Hacer dueño" }, { kind: "remove", label: "Quitar" }];
+}
+/** Stakeholders never join a vacancy team; team writes naming one answer 422 not_company_member (§1.1, L6). */
+export function assignableMembers<T extends { role: string }>(members: readonly T[]): T[] {
+  return members.filter(member => member.role !== "stakeholder");
 }

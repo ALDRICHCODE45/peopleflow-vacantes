@@ -13,7 +13,8 @@ const instantSchema = z.string().datetime({ offset: true });
 export const canSchema = z.object({ add_member: z.boolean(), remove_member: z.boolean(), leave: z.boolean(), reassign_responsible: z.boolean(), change_mode: z.boolean(), edit_deadline: z.boolean(), renegotiate_commitment: z.boolean() });
 export const memberSchema = z.object({ assignment_id: z.string(), user: userSchema, function: teamFunctionSchema, started_at: instantSchema, recruiter_deadline: dateSchema.nullable(), effective_deadline: dateSchema.nullable(), deadline_source: z.enum(["recruiter", "commitment", "none"]) });
 export const teamSchema = z.object({ mode: modeSchema, members: z.array(memberSchema).min(1), viewer: z.object({ function: teamFunctionSchema.nullable(), is_owner: z.boolean(), can: canSchema }) });
-export const companyMembersSchema = z.object({ members: z.array(z.object({ id: z.string(), role: z.enum(["owner", "recruiter"]), user: z.object({ id: z.string(), full_name: z.string(), email: z.string().email() }) })) });
+// `stakeholder` (stakeholder-metrics-v1 §1.1, F1) is parsed but never assignable: see `assignablePeople`.
+export const companyMembersSchema = z.object({ members: z.array(z.object({ id: z.string(), role: z.enum(["owner", "recruiter", "stakeholder"]), user: z.object({ id: z.string(), full_name: z.string(), email: z.string().email() }) })) });
 export const reasons = [
   { value: "workload", label: "Carga de trabajo" }, { value: "recruiter_departure", label: "Baja del reclutador" },
   { value: "performance", label: "Desempeño" }, { value: "client_request", label: "Pedido del cliente" }, { value: "other", label: "Otro" },
@@ -52,7 +53,9 @@ export type HistoryItem = z.infer<typeof historyItemSchema>;
 export type History = z.infer<typeof historySchema>;
 export type Tramo = z.infer<typeof tramoSchema>;
 export type ModeChange = { mode: Team["mode"]; responsible_user_id?: string };
-export const availableMembers = (team: Team, company: CompanyMembers) => company.members.filter(member => !team.members.some(active => active.user.id === member.user.id));
+/** Stakeholders never join a team, become responsible or receive a hand-over; the API answers 422 not_company_member. */
+export const assignablePeople = <T extends { role: string }>(members: readonly T[]): T[] => members.filter(member => member.role !== "stakeholder");
+export const availableMembers = (team: Team, company: CompanyMembers) => assignablePeople(company.members).filter(member => !team.members.some(active => active.user.id === member.user.id));
 /** UI capabilities are never reconstructed from role or function. */
 export const memberActions = (can: Team["viewer"]["can"]) => [can.edit_deadline && "deadline", can.remove_member && "remove"].filter(Boolean) as ("deadline" | "remove")[];
 export const memberActionLabel = { deadline: "Editar plazo", remove: "Quitar" } as const;

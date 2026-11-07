@@ -8,12 +8,13 @@ import { FieldError, FieldGroup } from "@/components/ui/field";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item";
 import { PersonField } from "@/features/vacancy-team/controls";
 import { plural } from "@/features/employer-vacancies/plural";
-import type { CompanyMember } from "./members-model";
+import { assignableMembers, type CompanyMember } from "./members-model";
 import type { OffboardBody, OffboardError, OffboardPreview } from "./offboard-client";
 
 type Props = { preview: OffboardPreview; members: readonly CompanyMember[]; pending?: boolean; failure?: OffboardError | null; onClose: () => void; onConfirm: (body: OffboardBody) => void };
 export function OffboardDialog({ preview, members, pending = false, failure, onClose, onConfirm }: Props) {
-  const candidates = members.flatMap(member => member.user && member.user.id !== preview.user.id ? [{ ...member, user: member.user }] : []);
+  // Stakeholders never receive vacancies: the API answers 422 not_company_member (L6).
+  const candidates = assignableMembers(members).flatMap(member => member.user && member.user.id !== preview.user.id ? [{ ...member, user: member.user }] : []);
   // Prefer the current teammate present on the most affected teams; company order breaks ties.
   const suggestion = [...candidates].sort((a, b) => preview.vacancies.filter(v => v.team.some(p => p.user_id === b.user.id)).length - preview.vacancies.filter(v => v.team.some(p => p.user_id === a.user.id)).length)[0];
   const [target, setTarget] = useState(() => suggestion && preview.vacancies.some(v => v.team.some(p => p.user_id === suggestion.user.id)) ? suggestion.user.id : "");

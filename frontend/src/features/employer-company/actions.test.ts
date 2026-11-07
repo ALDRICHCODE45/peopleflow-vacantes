@@ -26,7 +26,7 @@ it("fails closed without session for read and create", async () => {
 });
 it("loads existing company with its Spanish industry and role", async () => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company } });
-  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: true });
+  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: true, canViewMetrics: false });
   expect(getMyCompany).toHaveBeenCalledWith({ token: "secret" });
 });
 it("only 404 not_found opens creation with backend industry order", async () => {
@@ -127,11 +127,27 @@ it("sanitizes exceptions and load failures", async () => {
 });
 it("carries the talent base capability from GET /me/company", async () => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company, can: { view_talent_base: false } } });
-  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: false });
+  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología", canViewTalentBase: false, canViewMetrics: false });
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company, can: { view_talent_base: true } } });
   expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", canViewTalentBase: true });
 });
 it("keeps today's open talent base when an older backend omits the capability", async () => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company } });
   expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", canViewTalentBase: true });
+});
+it("loads a stakeholder membership with the metrics capability and no talent base", async () => {
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "stakeholder", company, can: { view_talent_base: false, view_metrics: true } } });
+  expect(await loadCompanyStateAction()).toEqual({ kind: "exists", company, role: "stakeholder", industryLabel: "Tecnología", canViewTalentBase: false, canViewMetrics: true });
+});
+it("carries view_metrics for the owner and keeps it off for a recruiter (D2)", async () => {
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "owner", company, can: { view_talent_base: true, view_metrics: true } } });
+  expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", role: "owner", canViewMetrics: true });
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company, can: { view_talent_base: true, view_metrics: false } } });
+  expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", role: "recruiter", canViewMetrics: false });
+});
+it("derives the metrics capability from the role when a pre-v1 backend omits it", async () => {
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "owner", company, can: { view_talent_base: true } } });
+  expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", canViewMetrics: true });
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "recruiter", company } });
+  expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", canViewMetrics: false });
 });

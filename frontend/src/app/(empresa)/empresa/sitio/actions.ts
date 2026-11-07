@@ -31,6 +31,8 @@ export async function loadCareersEditor(): Promise<CareersEditorResult> {
       return { ok: false, code: "unavailable" };
     }
     const { company, company_id, role } = membership.data;
+    // A read-only stakeholder (stakeholder-metrics-v1 §1.2) never edits the careers site; the API gates it too.
+    if (role === "stakeholder") return { ok: false, code: "forbidden" };
     // Only this server-resolved membership id can select the public identity.
     const profile = await getCompanyProfile(company_id).catch(() => ({ ok: false as const }));
     const preview = await loadPreviewData(profile.ok ? profile.company : {

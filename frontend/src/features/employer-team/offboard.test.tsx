@@ -86,3 +86,10 @@ it("prototype recruiters belong to the viewer's company and never repeat an id",
   expect(new Set(fixtures.map(member => member.id)).size).toBe(3);
   expect(fixtures.every(member => member.role === "recruiter")).toBe(true);
 });
+it("never offers a stakeholder as the hand-over target (422 not_company_member, L6)", async () => {
+  const stakeholder = { ...members[1], id: "20000000-0000-4000-8000-000000000005", role: "stakeholder" as const, user: { id: "10000000-0000-4000-8000-000000000005", full_name: "Jorge Treviño", email: "jorge@example.test" } };
+  const client = createOffboardFixtureClient(members, "responsible");
+  render(<OffboardDialog preview={await client.preview(members[1].id)} members={[...members, stakeholder]} onClose={() => {}} onConfirm={vi.fn()} />);
+  const options = within(screen.getByLabelText("Pasar todas a")).getAllByRole("option").map(option => option.textContent);
+  expect(options).toEqual(["Elige una persona", "Ana Real"]);
+});

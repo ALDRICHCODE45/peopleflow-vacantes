@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { PersonField, sortPeople } from "./controls";
+import { PersonField, pickerPeople, sortPeople } from "./controls";
 import { createFixtureClient } from "./prototype-client";
 afterEach(cleanup);
 // Opening the Combobox popup loops in jsdom (rules §13.7): the order is a pure function, the open list is browser QA.
@@ -17,4 +17,12 @@ it("renders the picker closed with its label and selected person", async () => {
   const selected = company.members[0];
   render(<PersonField id="person" label="Persona" members={company.members} value={selected.user.id} onChange={() => {}} />);
   expect(screen.getByLabelText("Persona")).toHaveValue(selected.user.full_name);
+});
+it("never offers or shows a stakeholder in a person picker; recruiters and owners stay (stakeholder-metrics-v1 §1.1)", async () => {
+  const company = await createFixtureClient("owner").getCompanyMembers();
+  const stakeholder = { ...company.members[0], id: "member-stakeholder", role: "stakeholder" as const, user: { ...company.members[0].user, id: "user-stakeholder", full_name: "Aaron Stakeholder" } };
+  const people = pickerPeople([...company.members, stakeholder]);
+  expect(people.map(member => member.id)).toEqual(sortPeople(company.members).map(member => member.id));
+  render(<PersonField id="person" label="Persona" members={[...company.members, stakeholder]} value={stakeholder.user.id} onChange={() => {}} />);
+  expect(screen.getByLabelText("Persona")).toHaveValue("");
 });

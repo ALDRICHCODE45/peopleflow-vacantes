@@ -112,3 +112,9 @@ it("handles an expired membership session", async () => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: false, error: { kind: "status", status: 401, retryable: false } });
   expect(await loadCareersEditor()).toEqual({ ok: false, code: "unauthenticated" });
 });
+it("refuses the careers editor to a stakeholder membership without loading the preview (stakeholder-metrics-v1 §1.2)", async () => {
+  vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: company.id, role: "stakeholder", company, can: { view_talent_base: false, view_metrics: true } } });
+  expect(await loadCareersEditor()).toEqual({ ok: false, code: "forbidden" });
+  expect(getCompanyProfile).not.toHaveBeenCalled();
+  expect(loadPreviewData).not.toHaveBeenCalled();
+});

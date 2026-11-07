@@ -82,3 +82,13 @@ it("accepts the backend's offset timestamps with microseconds (real :8081 payloa
     functions: [{ function: "responsible", started_at: at, ended_at: null, start_cause: "backfill", end_cause: null }] } }], next_cursor: null });
   expect(parsed.success).toBe(true);
 });
+describe("stakeholder members (stakeholder-metrics-v1 §1.1, F1)", () => {
+  it("parses a stakeholder in the company list but never offers it to join the team", async () => {
+    const client = createFixtureClient("owner");
+    const team = teamSchema.parse(await client.getTeam());
+    const base = await client.getCompanyMembers();
+    const company = companyMembersSchema.parse({ members: [...base.members, { id: "member-stakeholder", role: "stakeholder", user: { id: "user-stakeholder", full_name: "Jorge Treviño", email: "jorge@example.test" } }] });
+    expect(company.members.at(-1)?.role).toBe("stakeholder");
+    expect(availableMembers(team, company).map(member => member.user.full_name)).toEqual(["Sofía Ramírez", "Luis Pérez"]);
+  });
+});

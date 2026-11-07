@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StateCard } from "@/components/feedback/state-card";
 import type { DraftListRow } from "@/features/jobs/drafts/list/client";
 import { cn } from "@/lib/utils";
-import { TEAM_MEMBER_ROLE_LABELS, type TeamMemberRole } from "./model";
+import { COMPANY_MEMBER_ROLE_LABELS, type TeamMemberRole } from "./model";
 import { memberName, memberRowActions, memberWorkload, type CompanyMember, type MemberRowAction } from "./members-model";
 
 const META = "text-[12.5px] text-muted-foreground";
@@ -99,11 +99,11 @@ export function TeamWorkspace({ members, drafts = [], workloadPending = false, w
                 <Avatar data-pf-team-avatar={member.id} aria-hidden="true" size="lg"><AvatarFallback>{initials(name)}</AvatarFallback></Avatar>
                 <div className="min-w-0"><p className="break-words text-[14.5px] font-semibold text-foreground">{name}</p>{member.user && <p className={cn(META, "mt-0.5 break-all")}>{member.user.email}</p>}</div>
               </div>
-              <div className="min-w-0"><span className={NARROW_LABEL}>Rol</span><div className="mt-0.5 lg:mt-0"><Badge variant={member.role === "owner" ? "accent" : "secondary"}>{TEAM_MEMBER_ROLE_LABELS[member.role]}</Badge></div></div>
+              <div className="min-w-0"><span className={NARROW_LABEL}>Rol</span><div className="mt-0.5 lg:mt-0"><Badge variant={member.role === "owner" ? "accent" : member.role === "stakeholder" ? "outline" : "secondary"}>{COMPANY_MEMBER_ROLE_LABELS[member.role]}</Badge></div></div>
               <time dateTime={member.created_at} className={META}>Miembro desde {dateFormat.format(new Date(member.created_at))}</time>
               <div data-pf-team-workload aria-busy={workloadPending || undefined} className="min-w-0">
                 <span className={NARROW_LABEL}>Carga</span>
-                {workloadPending ? <><span className="sr-only">Cargando carga de trabajo</span><Skeleton aria-hidden="true" className="h-4 w-full" /></> : <p className={cn(META, "mt-0.5 lg:mt-0")}>{workload ? workloadCopy(workload) : "Carga no disponible"}</p>}
+                {member.role === "stakeholder" ? <p className={cn(META, "mt-0.5 lg:mt-0")}>Solo ve Métricas</p> : workloadPending ? <><span className="sr-only">Cargando carga de trabajo</span><Skeleton aria-hidden="true" className="h-4 w-full" /></> : <p className={cn(META, "mt-0.5 lg:mt-0")}>{workload ? workloadCopy(workload) : "Carga no disponible"}</p>}
               </div>
               <div className="flex justify-end">{actions.length > 0 && onAction && <DropdownMenu>
                 <DropdownMenuTrigger disabled={disabled} aria-label={`Acciones de ${name}`} aria-describedby={actionStatusId} render={<Button type="button" variant="ghost" size="icon" className="size-10" />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
