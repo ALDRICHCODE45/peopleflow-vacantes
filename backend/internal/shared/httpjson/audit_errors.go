@@ -16,7 +16,8 @@ func resolveAuditError(code Code) (Definition, bool) {
 }
 
 // WriteAuditInvalidFilter answers the audit screen's invalid_filter: 422 with
-// the {field, code} list (audit-log-v1 §8.1, §8.5). The shared invalid_filter
+// the {field, code} list (audit-log-v1 §8.1, §8.5; the company metrics filters,
+// stakeholder-metrics-v1 §3.0, answer with it too). The shared invalid_filter
 // catalog entry stays a 400 for the pool list and the public jobs search, so
 // this writer sets its own status and never changes Resolve(CodeInvalidFilter).
 func WriteAuditInvalidFilter(w http.ResponseWriter, fields []ValidationField) {

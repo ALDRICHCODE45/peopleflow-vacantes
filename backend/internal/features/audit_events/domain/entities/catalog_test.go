@@ -270,11 +270,8 @@ func eventConstantValues(t *testing.T) map[string]bool {
 // pendingEmitters are catalog types registered ahead of their emitters. Add an
 // entry for a type whose emitter lands in a later slice; remove it when the
 // emitter does, from then on the type must be referenced by production code.
-// Empty since AuditLogExported was emitted by the audit export (2b).
-var pendingEmitters = map[string]bool{
-	// stakeholder-metrics-v1 §3.5: emitted by the metrics read API (slice 3c).
-	EventMetricsDetailViewed: true,
-}
+// Empty since MetricsDetailViewed was emitted by the metrics read API (3c).
+var pendingEmitters = map[string]bool{}
 
 // TestEveryCatalogTypeHasAnEmitter: a catalog type nobody references is either
 // dead or an emitter still using a different spelling. Production code outside

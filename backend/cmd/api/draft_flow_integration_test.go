@@ -68,6 +68,7 @@ import (
 	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
 	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
+	metricsapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/application"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -250,12 +251,13 @@ func (s *draftFlowSigner) expiredToken(t *testing.T, sub string) string {
 // --- harness ---------------------------------------------------------------
 
 type draftFlowHarness struct {
-	audit  *audithttp.Handler
-	store  *draftstore.Store
-	pool   *pgxpool.Pool
-	server *httptest.Server
-	client *http.Client
-	signer *draftFlowSigner
+	audit   *audithttp.Handler
+	metrics *metricsapp.Service
+	store   *draftstore.Store
+	pool    *pgxpool.Pool
+	server  *httptest.Server
+	client  *http.Client
+	signer  *draftFlowSigner
 }
 
 // newDraftFlowHarness builds the real production router with the real auth and
@@ -293,7 +295,9 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 		manualFiles = manualCVStorage{local: cvFiles[0]}
 	}
 	auditHandler := newAuditHandler(pool, auditpostgres.NewAuditEventRepository())
+	metrics := newMetricsService(pool, auditRepo)
 	router := newRouter(routerDeps{
+		metricsHandler:       newMetricsHandler(metrics),
 		requireAuth:          requireAuth,
 		requireCandidate:     identityhttp.RequireCandidateRole(identityUserRepo),
 		requireRecruiter:     requireRecruiter,
@@ -343,7 +347,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	return &draftFlowHarness{audit: auditHandler, store: store, pool: pool, server: server, client: server.Client(), signer: signer}
+	return &draftFlowHarness{audit: auditHandler, metrics: metrics, store: store, pool: pool, server: server, client: server.Client(), signer: signer}
 }
 
 // --- fixtures --------------------------------------------------------------
