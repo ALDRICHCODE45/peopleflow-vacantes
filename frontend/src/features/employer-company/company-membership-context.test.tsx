@@ -50,3 +50,19 @@ it("keeps the standalone hook reading on its own outside the provider (previous 
   expect(await screen.findByText("owner")).toBeInTheDocument();
   expect(loadCompanyStateAction).toHaveBeenCalledTimes(1);
 });
+
+it("settles a reload only once the new read answered, so a caller can wait for it before navigating", async () => {
+  let answer!: (state: CompanyState) => void;
+  vi.mocked(loadCompanyStateAction).mockResolvedValueOnce({ kind: "none", industries: [] }).mockReturnValueOnce(new Promise(done => { answer = done; }));
+  let shared: ReturnType<typeof useCompanyMembershipState> = null;
+  function Capture() { shared = useCompanyMembershipState(); return <Probe />; }
+  render(<IdentityContext.Provider value={identity("recruiter")}><CompanyMembershipProvider><Capture /></CompanyMembershipProvider></IdentityContext.Provider>);
+  await screen.findByText("none:none");
+  let settled = false;
+  await act(async () => { void shared!.reload().then(() => { settled = true; }); });
+  expect(screen.getByText("loading:none")).toBeInTheDocument();
+  expect(settled).toBe(false);
+  await act(async () => answer(exists("stakeholder")));
+  await waitFor(() => expect(settled).toBe(true));
+  expect(screen.getByText("exists:stakeholder")).toBeInTheDocument();
+});

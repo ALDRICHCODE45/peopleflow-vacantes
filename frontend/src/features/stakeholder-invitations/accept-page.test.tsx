@@ -11,7 +11,7 @@ vi.mock("@/features/employer-company/actions", () => ({ loadCompanyStateAction: 
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 import { IdentityContext, type IdentityState } from "@/features/identity/identity-session";
 import { CompanyMembershipProvider } from "@/features/employer-company/company-membership-context";
-import { AcceptInvitationPage, AcceptOutcomePage } from "./accept-page";
+import { AcceptInvitationPage, AcceptOutcomePage, MEMBERSHIP_WAIT_MS } from "./accept-page";
 import { companyId, memberId, urlToken } from "./test-fixtures";
 
 const company = { id: companyId, name: "Talentia Consultores", rfc: "R", industry_id: "i", status: "active" as const, location: null, updated_at: "2026-10-20T12:00:00Z" };
@@ -32,6 +32,7 @@ it("asks a visitor to sign in as an employer, keeping the token only in the logi
 
 it("confirms on the server once, then leaves the token URL for the joined outcome and re-reads the membership", async () => {
   let resolve!: (value: unknown) => void;
+  mocks.loadCompany.mockResolvedValue({ kind: "none", industries: [] });
   mocks.accept.mockReturnValue(new Promise(done => { resolve = done; }));
   mount(<AcceptInvitationPage token={urlToken} />);
   expect(screen.getByRole("heading", { name: "Confirmando tu invitación…" })).toBeInTheDocument();
@@ -40,6 +41,55 @@ it("confirms on the server once, then leaves the token URL for the joined outcom
   await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/empresa/invitacion?estado=unido"));
   expect(mocks.accept).toHaveBeenCalledExactlyOnceWith(urlToken);
   expect(mocks.loadCompany).toHaveBeenCalledTimes(2);
+});
+
+it("re-reads the membership before leaving for the joined outcome, so the welcome needs no page reload", async () => {
+  let reread!: (value: unknown) => void;
+  mocks.loadCompany.mockResolvedValueOnce({ kind: "none", industries: [] }).mockReturnValueOnce(new Promise(done => { reread = done; }));
+  mocks.accept.mockResolvedValue({ ok: true, companyId, memberId });
+  let navigate!: (path: string) => void;
+  function Frame() {
+    const [path, setPath] = React.useState<string | null>(null);
+    navigate = setPath;
+    return path ? <AcceptOutcomePage outcome="unido" /> : <AcceptInvitationPage token={urlToken} />;
+  }
+  mocks.replace.mockImplementation((path: string) => navigate(path));
+  mount(<Frame />);
+  await waitFor(() => expect(mocks.loadCompany).toHaveBeenCalledTimes(2));
+  // Leaving while the read is in flight raced the router in the browser: the outcome waited for a read that never settled.
+  expect(mocks.replace).not.toHaveBeenCalled();
+  expect(screen.getByRole("heading", { name: "Confirmando tu invitación…" })).toBeInTheDocument();
+  await act(async () => reread({ kind: "exists", company, role: "stakeholder", industryLabel: "Tec", canViewTalentBase: false, canViewMetrics: true }));
+  expect(await screen.findByRole("heading", { name: "Te uniste a Talentia Consultores" })).toBeInTheDocument();
+  expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/empresa/invitacion?estado=unido");
+  expect(mocks.loadCompany).toHaveBeenCalledTimes(2);
+});
+
+it("leaves for the joined outcome even when the membership re-read never answers", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    mocks.accept.mockResolvedValue({ ok: true, companyId, memberId });
+    mount(<AcceptInvitationPage token={urlToken} />);
+    await waitFor(() => expect(mocks.loadCompany).toHaveBeenCalledTimes(2));
+    await act(async () => { vi.advanceTimersByTime(MEMBERSHIP_WAIT_MS); });
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/empresa/invitacion?estado=unido"));
+  } finally { vi.useRealTimers(); }
+});
+
+it("never spins forever on the joined outcome: a membership read that does not answer ends in a retry", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    mount(<AcceptOutcomePage outcome="unido" />);
+    expect(screen.getByRole("heading", { name: "Confirmando tu invitación…" })).toBeInTheDocument();
+    await act(async () => { vi.advanceTimersByTime(MEMBERSHIP_WAIT_MS); });
+    expect(screen.getByRole("heading", { name: "No pudimos confirmar tu acceso" })).toBeInTheDocument();
+    expect(screen.getByText("Si ya aceptaste la invitación, reintentar no repite nada.")).toBeInTheDocument();
+    expect(screen.queryByText(/Te uniste/)).toBeNull();
+    mocks.loadCompany.mockResolvedValue({ kind: "exists", company, role: "stakeholder", industryLabel: "Tec", canViewTalentBase: false, canViewMetrics: true });
+    await act(async () => screen.getByRole("button", { name: "Reintentar" }).click());
+    expect(await screen.findByRole("heading", { name: "Te uniste a Talentia Consultores" })).toBeInTheDocument();
+    expect(mocks.loadCompany).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); }
 });
 
 it.each([
@@ -54,6 +104,7 @@ it.each([
 });
 
 it("keeps the token for a safe retry when the confirmation gets no answer", async () => {
+  mocks.loadCompany.mockResolvedValue({ kind: "none", industries: [] });
   mocks.accept.mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValueOnce({ ok: true, companyId, memberId });
   const user = userEvent.setup();
   mount(<AcceptInvitationPage token={urlToken} />);

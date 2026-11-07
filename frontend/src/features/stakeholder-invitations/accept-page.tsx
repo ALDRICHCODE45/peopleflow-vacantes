@@ -20,6 +20,13 @@ function NoSession({ token }: { token: string }) {
     primaryAction={{ label: "Iniciar sesión", href: login }} />;
 }
 
+/** How long the joined outcome waits for the membership read before it offers a retry instead of a spinner. */
+export const MEMBERSHIP_WAIT_MS = 8000;
+const waitAtMost = (work: Promise<void> | undefined) => !work ? Promise.resolve() : new Promise<void>(done => {
+  const timer = setTimeout(done, MEMBERSHIP_WAIT_MS);
+  void work.finally(() => { clearTimeout(timer); done(); });
+});
+
 function Confirming() {
   return <StateCard icon={Hourglass} tone="info" title="Confirmando tu invitación…" description="Esto tarda unos segundos." role="status">
     <Spinner aria-hidden="true" />
@@ -47,13 +54,15 @@ export function AcceptInvitationPage({ token }: { token: string }) {
     let active = true;
     void acceptStakeholderInvitationAction(token)
       .catch((): AcceptInvitationResult => ({ ok: false, reason: "no_response", reference: {} }))
-      .then(value => {
+      .then(async value => {
         if (!active) return;
         setResult({ attempt, value });
         const outcome = outcomeFor(value);
         if (!outcome) return;
-        if (value.ok) latest.current.membership?.reload();
-        latest.current.router.replace(`${INVITATION_PATH}?estado=${outcome}`);
+        // The new membership is read before leaving: a Server Action still in flight when the router navigates was
+        // never answered in the browser, which left the joined outcome waiting forever (bounded here all the same).
+        if (value.ok) await waitAtMost(latest.current.membership?.reload());
+        if (active) latest.current.router.replace(`${INVITATION_PATH}?estado=${outcome}`);
       });
     return () => { active = false; };
   }, [signedIn, token, attempt]);
@@ -69,9 +78,21 @@ export function AcceptInvitationPage({ token }: { token: string }) {
 export function AcceptOutcomePage({ outcome }: { outcome: AcceptOutcome | null }) {
   const membership = useCompanyMembershipState();
   const state = membership?.state;
+  const pending = outcome === "unido" && !!membership && membership.userId !== null && state === null;
+  // A read that never answers ends in a retry, never in an endless spinner; each new read restarts the wait.
+  const [slow, setSlow] = React.useState(false);
+  React.useEffect(() => {
+    if (!pending) return;
+    setSlow(false);
+    const timer = setTimeout(() => setSlow(true), MEMBERSHIP_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [pending, membership?.reload]);
   if (outcome === "unido") {
     // The query string proves nothing: the welcome shows only when the membership really is a stakeholder.
-    if (membership && membership.userId !== null && state === null) return <Confirming />;
+    if (pending && slow) return <StateCard icon={CircleAlert} tone="error" title="No pudimos confirmar tu acceso"
+      description="Si ya aceptaste la invitación, reintentar no repite nada."
+      primaryAction={{ label: "Reintentar", onClick: () => { setSlow(false); void membership?.reload(); } }} />;
+    if (pending) return <Confirming />;
     if (state?.kind === "exists" && state.role === "stakeholder") return <StateCard icon={CircleCheck} tone="info" title={`Te uniste a ${state.company.name}`}
       description="Tienes acceso de solo lectura a las métricas de la empresa. Puedes ver nombres de candidatos en el detalle; cada consulta queda registrada."
       primaryAction={{ label: "Ver métricas", href: STAKEHOLDER_HOME }} />;
