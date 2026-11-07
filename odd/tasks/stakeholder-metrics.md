@@ -44,3 +44,10 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   armar el catálogo de métricas con sus definiciones, para que lo revises antes de construir nada.»)
 - **L2** Branch `feat/stakeholder-metrics` starts at `a9ac06ef` (run-tests queue, not yet merged to main). Backend asked
   for the T1 proposal.
+- **L3** Backend proposal `docs/contracts/stakeholder-metrics-v1.md` (backend branch `feat/stakeholder-metrics-backend`,
+  `a2914cde`): membership role `stakeholder`, fail-closed gate, copyable single-use invitation link, catalog 2.1–2.10
+  with formula/source/window/edge cases, `GET /v2/me/company/metrics/*` computed on request, slices 3a/3b/3c,
+  decisions D1–D12. Frontend review sent (F1–F8): members-list role enum widens in 3a (`vacancy-team/model.ts:16`),
+  token-in-URL handling and accept idempotency, dense monthly series, names and former-member labels, zero vs null
+  with denominators, «Mi rendimiento» shape unchanged under D8, apply `channel`, stakeholder `can.*` flags. D1–D12
+  go to the user.
