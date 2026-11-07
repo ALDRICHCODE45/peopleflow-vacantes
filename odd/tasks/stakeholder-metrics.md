@@ -32,9 +32,9 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 | --- | --- | --- | --- |
 | T1 | S1–S7 | Contract + data model proposal and metric catalog draft from the backend session; frontend review; open decisions to the user | — |
 | T2 | S5, S6 | Metric catalog with written definitions approved by the user before any metric is built | — |
-| T3 | S4, S8 | Design directions (gentle-design) for the metrics screen and the recruiter card; user picks | — |
-| T4 | S1–S3 | Stakeholder role: invitation flow (owner), stakeholder sign-in landing, read-only navigation | — |
-| T5 | S4, S6 | Metrics screen and per-recruiter card over the agreed contract | — |
+| T3 | S4, S8 | Design directions (gentle-design) for the metrics screen and the recruiter card; user picks (done, L7, L9: `01-tablero-y-tabla.html` chosen) | `7d77c4f0` |
+| T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) | — |
+| T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 | — |
 | T6 | all | Integration against the real backend, verification, partner doc update | — |
 
 ## Log
@@ -83,3 +83,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   shared, never added on top (artboards that add it must be corrected at implementation); dense `by_month
   {month, assigned, delivery {on_time, late, overdue}, placements}` (months do not sum to the period); no public
   invitation lookup.
+- **L9** (user, 2026-11-07): «Si hermano, la 01 es tambien mi eleccion.» → `01-tablero-y-tabla.html` is the chosen
+  artboard (handed off with gentle_design implement); 02 and 03 are alternatives; 04 and 05 accompany it. Slice
+  boundary: commits up to here are tracking and design prototypes (≈1.8k generated HTML lines); code goes in separate
+  slices per task (T4, T5), each about 400 authored lines.
