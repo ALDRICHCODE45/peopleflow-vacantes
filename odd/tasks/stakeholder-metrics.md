@@ -58,3 +58,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   without sample, rates `{value, numerator, denominator}`, card adds `closed_assigned`; «Mi rendimiento» shape
   unchanged; apply `channel` optional `portal | careers_site` (default `portal`, other → 422); `can.view_metrics`,
   sidebar keyed on `role === "stakeholder"`.
+- **L5** (user, 2026-11-07): «si hermano, aprobado, adelante.» → D1–D12 approved as recommended (membership role,
+  owner + stakeholder see company metrics, metrics only in v1, copyable single-use 7-day link, no role conversion,
+  published-at-least-once universe, optional `target_close_date`, N-th `reached_at`, historical origin `unknown`,
+  distinct vacancies per month, no score/rank, delivery period by `commitment_date`). T2 done; T3 starts.
