@@ -35,6 +35,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 | T3 | S4, S8 | Design directions (gentle-design) for the metrics screen and the recruiter card; user picks (done, L7, L9: `01-tablero-y-tabla.html` chosen) | `7d77c4f0` |
 | T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) | — |
 | T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 | — |
+| T7 | S6, S7 | Slice 3b frontend: apply sends `channel` (`careers_site` from the company careers site, `portal` from /vacantes; 400 `validation_error` on `channel`); optional «Fecha objetivo de cierre» (`targetCloseDate`, null clears) in the vacancy management configuration | — |
 | T6 | all | Integration against the real backend, verification, partner doc update | — |
 
 ## Log
@@ -87,3 +88,8 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   artboard (handed off with gentle_design implement); 02 and 03 are alternatives; 04 and 05 accompany it. Slice
   boundary: commits up to here are tracking and design prototypes (≈1.8k generated HTML lines); code goes in separate
   slices per task (T4, T5), each about 400 authored lines.
+- **L10** Backend 3b committed (`0e1c63ae`, branch `feat/stakeholder-metrics-backend-3b`, unmerged); contract diff
+  `f978d783`: invalid apply `channel` → 400 `validation_error` with `fields:[{field:"channel",code:"invalid"}]`
+  (not 422); `targetCloseDate` (YYYY-MM-DD, camelCase) in the management config, omitted on GET while unset, PUT
+  missing keeps it, `null` clears it, bad format 400 `invalid_request`; «Mi rendimiento» `deadline_result` now uses the
+  N-th `reached_at`, same fields and values. New task T7 for the frontend side of 3b.
