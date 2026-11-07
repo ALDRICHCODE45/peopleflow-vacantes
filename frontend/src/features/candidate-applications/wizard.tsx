@@ -27,7 +27,8 @@ import { loadScreeningAction, submitApplicationAction } from "./actions";
 import { CvPicker } from "./cv-picker";
 import { UnavailableVacancyCard } from "./unavailable-vacancy";
 import { failureCopy, uncertain } from "./feedback";
-import type { ApplicationBody, Failure, Result, Screening } from "./model";
+import type { ApplicationBody, ApplicationChannel, Failure, Result, Screening } from "./model";
+import { vacancyApplicationHref } from "@/features/jobs/application/application-draft";
 
 import { useCountryGate, type CountryScope } from "./country-gate";
 import { cn } from "@/lib/utils";
@@ -65,7 +66,8 @@ function ResultCard({ title, description, state, tone = "neutral", children }: {
     {children}
   </StateCard>;
 }
-export function CandidateApplicationWizard({ job }: { job: Job }) {
+/** `channel` is passed by the entry route; without it the body omits it and the backend assumes the portal. */
+export function CandidateApplicationWizard({ job, channel }: { job: Job; channel?: ApplicationChannel }) {
   const [identity, setIdentity] = useState<IdentityResult>();
   const [step, setStep] = useState<Step>("Datos");
   const [screening, setScreening] = useState<Screening>();
@@ -179,7 +181,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   async function submit() {
     if (locked.current || notAccepting || !screening || !selected || (!isUncertain && countryGate.blocked)) return;
     locked.current = true; setPending(true);
-    const body: ApplicationBody = isUncertain && snapshot.current ? snapshot.current : { cv_id: selected, questionnaire_revision: screening.questionnaire_revision, answers: screening.questions.map(question => question.type === "open" ? { question_id: question.id, text: (answers[question.id] ?? "").trim() } : { question_id: question.id, option_id: answers[question.id] ?? "" }) };
+    const body: ApplicationBody = isUncertain && snapshot.current ? snapshot.current : { cv_id: selected, questionnaire_revision: screening.questionnaire_revision, answers: screening.questions.map(question => question.type === "open" ? { question_id: question.id, text: (answers[question.id] ?? "").trim() } : { question_id: question.id, option_id: answers[question.id] ?? "" }), ...(channel ? { channel } : {}) };
     key.current ??= crypto.randomUUID(); snapshot.current = body; setFailure(undefined); setNotice(undefined);
     try {
       const result = await submitApplicationAction(job.id, key.current, body).catch(() => noResponse);
@@ -207,7 +209,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   if (failure?.reason === "already_applied") return <ResultCard title="Ya te postulaste a esta vacante" state="Ya enviada" tone="info" description="Consulta tu postulación en Mis postulaciones.">{applicationsLink}</ResultCard>;
   if (failure?.reason === "not_found") return <ResultCard title="Esta vacante ya no está disponible" state="No disponible" description="No puedes enviar una postulación a esta vacante. Puedes explorar otras oportunidades."><Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link></ResultCard>;
   if (!identity) return <Loading />;
-  if ((!identity.ok && identity.reason === "unauthenticated") || failure?.reason === "unauthenticated") return <ResultCard title="Datos" state="Sesión requerida" tone="review" description="Ingresa con tu cuenta de candidato para postularte."><Button className="min-h-10 w-full sm:w-auto" onClick={() => void signIn("cognito", { callbackUrl: `/vacantes/${job.id}/postular` })}>Ingresar como candidato</Button></ResultCard>;
+  if ((!identity.ok && identity.reason === "unauthenticated") || failure?.reason === "unauthenticated") return <ResultCard title="Datos" state="Sesión requerida" tone="review" description="Ingresa con tu cuenta de candidato para postularte."><Button className="min-h-10 w-full sm:w-auto" onClick={() => void signIn("cognito", { callbackUrl: vacancyApplicationHref(job.id, channel) })}>Ingresar como candidato</Button></ResultCard>;
   if ((identity.ok && identity.data.role === "recruiter") || failure?.reason === "wrong_role" || libraryError?.reason === "wrong_role") return <StateCard icon={Building2} tone="forbidden" title="Las postulaciones son para cuentas de candidato" description="Puedes explorar las vacantes o continuar en tu panel de empresa."><div className="flex flex-col items-center gap-2 sm:flex-row"><Link href="/empresa/dashboard" className={buttonVariants({ className: "min-h-10" })}>Ir a mi panel</Link><LogoutButton area="candidate" /></div></StateCard>;
   if (libraryError?.reason === "storage_unavailable") return <CvStorageUnavailable retry={() => void retryCvs()} pending={loading} status={<ActionStatus id="application-cvs-status" tone="error" text={cvFailureStatus(libraryError, cvFailureCopy(libraryError))} />} statusId="application-cvs-status" />;
   if (identity.ok && identity.data.role === null) return <ResultCard title="Datos" state="Cuenta pendiente" tone="review" description="Completa tu cuenta antes de postularte."><Link href="/candidato/ingresar" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Completar mi cuenta de candidato</Link></ResultCard>;

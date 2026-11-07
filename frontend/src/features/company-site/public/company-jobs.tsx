@@ -14,6 +14,7 @@ import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxCont
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { CONTRACT_TYPE_OPTIONS, PROFESSIONAL_AREA_OPTIONS, SENIORITY_OPTIONS, WORK_MODE_OPTIONS, WORK_SCHEDULE_OPTIONS } from "@/features/jobs/drafts/ui/draft-labels";
 import { publicJobConditions } from "@/features/jobs/components/public-job-facts";
+import { careersSiteVacancyHref } from "@/features/jobs/application/application-draft";
 import type { PublicJobItem } from "@/features/jobs/types";
 
 import { useSitePortalContainer } from "./site-portal";
@@ -62,7 +63,7 @@ function JobEntry({ job, cards }: { job: PublicJobItem; cards: boolean }) {
   const titleId = useId();
   const area = job.professional_area ? areaLabel(job.professional_area) : null;
   const arrow = <ArrowUpRight data-job-arrow aria-hidden="true" className="size-5 shrink-0" />;
-  return <Link href={`/vacantes/${job.id}`} aria-labelledby={titleId} className="group/job relative block h-full min-w-0 rounded-3xl outline-none hover:z-10 hover:ring-2 hover:ring-ring focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring">
+  return <Link href={careersSiteVacancyHref(job.id)} aria-labelledby={titleId} className="group/job relative block h-full min-w-0 rounded-3xl outline-none hover:z-10 hover:ring-2 hover:ring-ring focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring">
     {cards ? <Card className="h-full group-hover/job:bg-primary/5 group-focus-visible/job:bg-primary/5"><CardHeader>{area && <CardDescription>{area}</CardDescription>}<CardTitle><h3 id={titleId}>{job.title}</h3></CardTitle><CardAction>{arrow}</CardAction></CardHeader><CardContent><JobMeta job={job} /></CardContent><CardFooter className="mt-auto"><JobDate date={job.published_at} /></CardFooter></Card> : <Item variant="default" className="group-hover/job:bg-primary/5 group-focus-visible/job:bg-primary/5"><ItemContent className="min-w-0">{area && <p className="text-xs text-muted-foreground">{area}</p>}<ItemTitle className="line-clamp-none"><h4 id={titleId}>{job.title}</h4></ItemTitle><ItemDescription className="line-clamp-none"><JobMeta job={job} /></ItemDescription><JobDate date={job.published_at} /></ItemContent><ItemActions>{arrow}</ItemActions></Item>}
   </Link>;
 }
