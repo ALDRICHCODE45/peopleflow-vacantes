@@ -172,3 +172,14 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   «Consulta registrada en Auditoría». Invitations: create (link shown once, «Copiado»), pending «1 de 20» → «2 de 20»,
   revoke with confirm → «1 de 20». Mobile 390: layout stacks; «Por cliente o área» table clips its last column.
   Recruiter table headers truncate at 1440 («Mediana a la met», «Entregado:», «Días er»).
+- **L25** (user, 2026-11-07): «no lo puedes hacer tu?? es que estoy ocupado, igualmente no importa que conozcas la
+  contrasena, todo estoy es desarrollo y eventualmente se va a eliminar.» → the agent created the dev Cognito account
+  `nocheblanca92+stakeholder@gmail.com` («Lucía Herrera»), confirmed it with `admin-confirm-sign-up`; the dev pool
+  has no PostConfirmation trigger, so the backend session inserted its `users` row (employer, no company). Stakeholder
+  run: no-session card → sign-in → accept → «Te uniste a Trust People Company» → reduced sidebar (Métricas + account
+  «Stakeholder · Trust People Company»); /empresa/dashboard → /empresa/metricas; /empresa/vacantes → «Esta sección no
+  está disponible para tu rol»; metrics load; audited deliveries detail as stakeholder shows the name and «Consulta
+  registrada en Auditoría». Defects found and fixed: joined outcome stuck on «Confirmando tu invitación…» until a
+  manual reload (`8de4372c`, re-verified live on the replay path); a Cognito-signed-in user unknown to the API looped
+  back to the sign-in card (`03b2d13c`, new «Tu cuenta todavía no está lista» state). Minor: the blocked page header
+  reads «Tu cuenta».
