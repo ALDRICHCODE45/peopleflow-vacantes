@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("./actions", () => ({ loadMetricsAccessAction: vi.fn(), loadOverviewAction: vi.fn() }));
+vi.mock("./actions", () => ({ loadMetricsAccessAction: vi.fn(), loadOverviewAction: vi.fn(), listVacanciesAction: vi.fn(), listReassignmentsAction: vi.fn(), loadAuditedDetailAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // Same boundary as audit-workspace.test: the real Base UI popover close path refocus-loops under jsdom.
 vi.mock("@/components/ui/popover", async () => {
@@ -25,10 +25,10 @@ vi.mock("@/components/ui/select", async importOriginal => {
   const actual = await importOriginal<typeof import("@/components/ui/select")>();
   return { ...actual, SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div> };
 });
-import { loadMetricsAccessAction, loadOverviewAction } from "./actions";
+import { listReassignmentsAction, listVacanciesAction, loadMetricsAccessAction, loadOverviewAction } from "./actions";
 import { CompanyMetricsPage } from "./company-metrics-page";
 import type { MetricsFailure } from "./model";
-import { carlos, emptySummary, marianaId, recruiterPage, summary } from "./test-fixtures";
+import { carlos, emptySummary, marianaId, reassignmentPage, recruiterPage, summary, vacancyPage } from "./test-fixtures";
 
 const overview = vi.mocked(loadOverviewAction);
 const access = vi.mocked(loadMetricsAccessAction);
@@ -49,6 +49,8 @@ beforeEach(() => {
   at();
   access.mockResolvedValue({ kind: "allowed", role: "stakeholder" });
   overview.mockResolvedValue(ok());
+  vi.mocked(listVacanciesAction).mockResolvedValue({ ok: true, data: vacancyPage() });
+  vi.mocked(listReassignmentsAction).mockResolvedValue({ ok: true, data: reassignmentPage() });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
