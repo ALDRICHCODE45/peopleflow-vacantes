@@ -264,6 +264,21 @@ type CompanySiteSlugHistory struct {
 	RetiredAt pgtype.Timestamptz `json:"retired_at"`
 }
 
+type CompanyTalentBaseSetting struct {
+	CompanyID uuid.UUID          `json:"company_id"`
+	Mode      string             `json:"mode"`
+	Version   int64              `json:"version"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	UpdatedBy pgtype.UUID        `json:"updated_by"`
+}
+
+type CompanyTalentBaseViewer struct {
+	CompanyID uuid.UUID          `json:"company_id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	AddedAt   pgtype.Timestamptz `json:"added_at"`
+	AddedBy   uuid.UUID          `json:"added_by"`
+}
+
 type GeoCatalogImport struct {
 	ID         int64              `json:"id"`
 	Source     string             `json:"source"`
