@@ -10,10 +10,10 @@ import { isCivilDate } from "./delivery-model";
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$(?![\s\S])/).refine(isCivilDate);
 const fields = { requestDate: date.nullable(), hiringHeadcount: z.number().int().nullable() };
 const managementSchema = z.object({
-  version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), ...fields,
+  version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), ...fields, targetCloseDate: date.optional(),
   limits: z.object({ maxHiringHeadcount: z.number().int().positive() }).strict(), today: date,
 }).strict();
-const putBodySchema = z.object(fields).strict();
+const putBodySchema = z.object({ ...fields, targetCloseDate: date.nullable().optional() }).strict();
 
 export type DraftManagement = z.infer<typeof managementSchema>;
 export type DraftManagementResult = { ok: true; data: DraftManagement; etag: string } | PublicationFailure;

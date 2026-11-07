@@ -13,8 +13,8 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { loadDraftManagementAction, saveDraftManagementAction, type DraftManagementActionResult } from "@/features/jobs/drafts/pipeline/management-actions";
-import { adoptSaved, fromManagement, isDirty, reconcileUncertainSave, setHeadcountText, setRequestDate, toPutBody, validate, type Management, type ManagementState } from "@/features/jobs/drafts/pipeline/management-model";
-import { ManagementDateField } from "./date-field";
+import { adoptSaved, fromManagement, isDirty, reconcileUncertainSave, setHeadcountText, setRequestDate, setTargetCloseDate, toPutBody, validate, type Management, type ManagementState } from "@/features/jobs/drafts/pipeline/management-model";
+import { ManagementDateField, TargetCloseDateField } from "./date-field";
 import { conflictNotice, managementFailureNotice, invalidNotice, recoveryLabels, savedNotice, type PipelineNotice } from "./feedback";
 
 type Session = { editor: ManagementState; etag: string };
@@ -30,19 +30,25 @@ export function ManagementEditor({ draftId, management, etag, lifecycle }: { dra
   const [notice, setNotice] = useState<PipelineNotice | null>(null);
   const [attempted, setAttempted] = useState(false);
   const [headcountTouched, setHeadcountTouched] = useState(false);
+  // The target date the server rejected with invalid_request; the error clears once it changes.
+  const [rejectedTarget, setRejectedTarget] = useState<string | null>(null);
+  const focusTarget = useRef(false);
   const headcountInput = useRef<HTMLInputElement>(null);
   const statusLink = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // The field is disabled while saving; focus it once it is enabled again.
+  useEffect(() => { if (operation === null && focusTarget.current) { focusTarget.current = false; document.getElementById("management-target-close-date")?.focus(); } }, [operation]);
   const state = session.editor;
   const dirty = isDirty(state);
   const errors = validate(state).errors;
   const headcountError = attempted || headcountTouched ? errors.headcountText : undefined;
+  const targetError = errors.targetCloseDate ?? (rejectedTarget !== null && state.targetCloseDate === rejectedTarget ? "rejected" : undefined);
   const headcountMessage = headcountError === "not_integer" ? "Escribe un número entero." : headcountError === "out_of_range" ? `Usa un número entre 1 y ${state.limits.maxHiringHeadcount}.` : undefined;
   function replace(editor: ManagementState, nextEtag = current.current.etag) {
     const next = { editor, etag: nextEtag }; current.current = next; setSession(next);
   }
   function edit(editor: ManagementState) { if (!busy.current && !readOnly) replace(editor); }
-  function resetErrors() { setAttempted(false); setHeadcountTouched(false); }
+  function resetErrors() { setAttempted(false); setHeadcountTouched(false); setRejectedTarget(null); }
   function report(next: PipelineNotice, reference?: { status?: number; code?: string }) {
     setNotice(next);
     const action = next.recovery ? { title: recoveryLabels[next.recovery], onClick: () => { void recover(next.recovery!); } }
@@ -62,17 +68,23 @@ export function ManagementEditor({ draftId, management, etag, lifecycle }: { dra
       report(invalidNotice);
       // Date is first in visual order; never focus a fixed field on validation.
       if (validation.errors.requestDate) document.getElementById("management-date")?.focus();
-      else headcountInput.current?.focus();
+      else if (validation.errors.headcountText) headcountInput.current?.focus();
+      else document.getElementById("management-target-close-date")?.focus();
       return;
     }
     busy.current = true; setPending("save"); setNotice(null);
-    const result = await saveDraftManagementAction({ draftId, ifMatch: snapshot.etag, body: toPutBody(snapshot.editor) }).catch(noResponse);
+    const body = toPutBody(snapshot.editor);
+    const result = await saveDraftManagementAction({ draftId, ifMatch: snapshot.etag, body }).catch(noResponse);
     if (!mounted.current) return;
     if (result.ok) {
       adopt(result, snapshot.editor);
       report(result.management.version === snapshot.editor.baseline.version ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" } : savedNotice);
     } else if (result.reason === "process_finished") { updateLifecycle(result.lifecycle); setNotice(null); }
-    else report(managementFailureNotice(result), result.reference);
+    else {
+      report(managementFailureNotice(result), result.reference);
+      // Only a sent target date can be the bad format behind invalid_request.
+      if (result.reason === "invalid_request" && typeof body.targetCloseDate === "string") { setRejectedTarget(body.targetCloseDate); focusTarget.current = true; }
+    }
     busy.current = false; setPending(null);
   }
   async function recover(mode: "reload" | "check") {
@@ -114,6 +126,7 @@ export function ManagementEditor({ draftId, management, etag, lifecycle }: { dra
           <FieldDescription id="management-headcount-description">Cuántas personas hay que contratar (1 a {state.limits.maxHiringHeadcount}). Es independiente del objetivo de entrega.</FieldDescription>
           {headcountMessage && <FieldError id="management-headcount-error">{headcountMessage}</FieldError>}
         </Field>
+        <TargetCloseDateField state={state} disabled={pending !== null} error={targetError} onChange={value => edit(setTargetCloseDate(current.current.editor, value))} />
       </FieldGroup>
     </CardContent>
     <CardFooter className="border-t">
