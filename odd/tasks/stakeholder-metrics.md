@@ -189,3 +189,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   shows «Métricas restringidas» with «Ir al dashboard». Equipo lists Lucía Herrera with «Solo ve Métricas» (the
   members list now parses the stakeholder role). Not run: candidate + malformed link (f), the owner's members row
   actions for the stakeholder and the owner's audit screen entries (owner password not available to the agent).
+- **L27** UI polish from the browser runs: `906f564f` out-of-role screen titled «Sección no disponible» (verified
+  live as the stakeholder), `ebd88c1d` recruiter table headers wrap instead of cutting (verified live at 1440 px,
+  dark mode), `6ff1c3b7` «Por cliente o área» fits a 390 px card (verified live). Left as is: «Vacantes cerradas por
+  mes» table scrolls sideways at phone width. Final full checks running.
