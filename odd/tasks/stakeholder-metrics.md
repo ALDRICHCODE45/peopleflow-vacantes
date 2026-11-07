@@ -77,3 +77,9 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   null medians «Sin datos suficientes»; «Ex miembro». Open points sent to the backend before T5: frontend-derived
   delivery share needs a catalog definition, how `not_configured` enters a period under D12, whether `did_not_hold`
   adds to the credit kinds, the card's `by_month` delivery breakdown. User picks a direction.
+- **L8** Backend contract `39669aa5` answers P1–P5: `not_configured` vacancies enter a period by a tramo overlapping it
+  (configured ones by `commitment_date`, D12); delivery adds `configured`, `total`, `on_time_rate` (denominator
+  on_time+late+overdue, pending not judged) and `configured_rate`; `did_not_hold` is a subset of direct/participant/
+  shared, never added on top (artboards that add it must be corrected at implementation); dense `by_month
+  {month, assigned, delivery {on_time, late, overdue}, placements}` (months do not sum to the period); no public
+  invitation lookup.
