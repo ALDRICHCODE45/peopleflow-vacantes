@@ -35,7 +35,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 | T3 | S4, S8 | Design directions (gentle-design) for the metrics screen and the recruiter card; user picks (done, L7, L9: `01-tablero-y-tabla.html` chosen) | `7d77c4f0` |
 | T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) (built, L16; browser integration pending) | `1b2b41d0`, `a98982bb`, `634c0878`, `8a0576a2`, `ad211096` |
 | T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 (built, L12–L14; merge after T4) | `e357dc13`, `23713769`, `71912050`, `cf009b2c`, `47809220`, `d35b2079`, `166c51d3`, `5679b004` (branch `feat/stakeholder-metrics-t5`, merged `730877d0`, `5b6a6907`) |
-| T7 | S6, S7 | Slice 3b frontend: apply sends `channel` (`careers_site` from the company careers site, `portal` from /vacantes; 400 `validation_error` on `channel`); optional «Fecha objetivo de cierre» (`targetCloseDate`, null clears) in the vacancy management configuration | — |
+| T7 | S6, S7 | Slice 3b frontend: apply sends `channel` (`careers_site` from the company careers site, `portal` from /vacantes; 400 `validation_error` on `channel`); optional «Fecha objetivo de cierre» (`targetCloseDate`, null clears) in the vacancy management configuration (done, L20) | `c389927a`, `20ef9cbe` |
 | T6 | all | Integration against the real backend, verification, partner doc update | — |
 
 ## Log
@@ -139,3 +139,9 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 - **L19** Backend feature 3 complete on :8081 (`feat/stakeholder-metrics-backend` at `48ff225f`, dev DB at 59): 3a, 3b
   and the 7 metrics routes; backend independent verification of 3c passed (owner/stakeholder gate, recruiter 403,
   company isolation, audited fail-closed detail, F3–F5/P1–P4/M1–M7/§3.7 shapes). T6 can start after T7.
+- **L20** T7 done: `c389927a` optional «Fecha objetivo de cierre» (`targetCloseDate`, omitted when unchanged, `null`
+  clears, 400 → field error), `20ef9cbe` apply `channel` (careers-site job links `/vacantes/<id>?origen=sitio`, read
+  on the server in the detail and /postular pages, carried through sign-in, only «Postularme» carries it; no channel
+  → field omitted; 400 `channel` invalid → generic apply failure). Focused related runs 319 + 1030 passed, typecheck
+  0, lint 0 errors. Risks: old shared careers-site links count as portal; help copy and ±5-year calendar range are the
+  worker's choices.
