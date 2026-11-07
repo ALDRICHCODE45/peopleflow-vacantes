@@ -13,10 +13,11 @@ built until the user approves the metrics catalog. Product source: `docs/product
 
 ## Tasks
 
-- [ ] T1 S1-S4 — explore current data (roles/authz/audit; metric sources), write `docs/contracts/stakeholder-metrics-v1.md`, send to the frontend session — inline + 2 explorers — commit: —
+- [x] T1 S1-S4 — explore current data (roles/authz/audit; metric sources), write `docs/contracts/stakeholder-metrics-v1.md`, send to the frontend session — inline + 2 explorers — commit: a2914cde
 - [ ] T2 — user approves the catalog and decisions (blocked on user)
 - [ ] T3+ — implementation slices, planned after approval
 
 ## Log
 
 - L1 (2026-11-07, frontend session relaying the user's approval to start feature 3): T1 written proposal, no code yet — S1 stakeholder role and entry without email, S2 metrics catalog with written definitions, S3 read API, S4 open decisions with recommendations. Reply via intercom or doc path.
+- L2 (2026-11-07): T1 proposal written in docs/contracts/stakeholder-metrics-v1.md (a2914cde) and sent to the frontend session; D1–D12 await the user.
