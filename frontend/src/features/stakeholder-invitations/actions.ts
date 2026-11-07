@@ -4,7 +4,6 @@ import { z } from "zod";
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { acceptInvitation, createInvitation, listInvitations, revokeInvitation, type InvitationClientFailure } from "./client";
 import {
-  usableInvitationToken,
   type AcceptInvitationResult, type CreateInvitationResult, type InvitationFailure, type ListInvitationsResult, type RevokeInvitationResult,
 } from "./model";
 
@@ -61,13 +60,13 @@ export async function revokeStakeholderInvitationAction(id: string): Promise<Rev
 
 /**
  * Any signed-in user (§1.3). Runs on the server so the token goes to the API in a POST body; it is never logged and
- * never returned. A token outside the URL-safe alphabet cannot be one the API issued, so it is invalid without a call.
+ * never returned. Even a malformed token goes to the API, which checks the account type before the token (§1.3), so a
+ * candidate account always learns that it needs an employer account.
  */
 export async function acceptStakeholderInvitationAction(invitationToken: string): Promise<AcceptInvitationResult> {
   try {
     const token = await getActionAccessToken();
     if (!token?.trim()) return unauthenticated;
-    if (!usableInvitationToken(invitationToken)) return { ok: false, reason: "invitation_invalid", reference: {} };
     const result = await acceptInvitation(token, invitationToken);
     if (result.ok) return { ok: true, companyId: result.data.company_id, memberId: result.data.member_id };
     const status = "status" in result.error ? result.error.status : undefined;

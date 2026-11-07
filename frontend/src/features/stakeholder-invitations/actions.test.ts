@@ -122,10 +122,19 @@ it.each([
   expect(JSON.stringify(result)).not.toContain("private backend message");
 });
 
-it("rejects an accept body with another role and a token outside the URL-safe alphabet", async () => {
+it("rejects an accept body with another role", async () => {
   fetchMock.mockResolvedValue(Response.json({ ...acceptBody, role: "recruiter" }));
   expect(await acceptStakeholderInvitationAction(urlToken)).toMatchObject({ ok: false, reason: "unrecognized_response" });
-  fetchMock.mockClear();
-  expect(await acceptStakeholderInvitationAction("abc/def?x=1")).toEqual({ ok: false, reason: "invitation_invalid", reference: {} });
-  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it.each([
+  [403, "candidate_account", "candidate_account"],
+  [400, "invalid_request", "invitation_invalid"],
+  [404, "invitation_invalid", "invitation_invalid"],
+] as const)("lets the API judge a malformed token so the account type is checked first (%s %s → «%s»)", async (status, code, reason) => {
+  fetchMock.mockResolvedValue(envelope(status, code));
+  expect(await acceptStakeholderInvitationAction("abc/def?x=1")).toMatchObject({ ok: false, reason, reference: { status } });
+  const { url, init } = call();
+  expect(url).toBe("https://api.example.test/v2/me/stakeholder-invitations/accept");
+  expect(init).toMatchObject({ method: "POST", body: JSON.stringify({ token: "abc/def?x=1" }) });
 });
