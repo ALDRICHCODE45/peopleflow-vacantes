@@ -114,3 +114,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   Corrections sent to the T5 worker (continuation).
 - **L14** T5 corrections `166c51d3` (M3, M5, M6, strict rate objects; M1/M7 pinned): RED 12 failing of 64, GREEN 64/64,
   typecheck clean, lint 0 errors.
+- **L15** Backend 3a + 3b running on :8081 (`feat/stakeholder-metrics-backend` at `5f626571`, dev DB at migration 58):
+  invitations CRUD, accept, `GET /me/company` role + `can.view_metrics`, members list with stakeholders, fail-closed
+  gate, apply `channel`, `targetCloseDate`, «Mi rendimiento» on the N-th `reached_at`. Metrics routes arrive with 3c.
+  M1–M7 in the contract (`b7476aa1`). T4 integration against :8081 can start when the T4 worker returns.
