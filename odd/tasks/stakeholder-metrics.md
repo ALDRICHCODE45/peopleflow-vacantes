@@ -136,3 +136,6 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 - **L18** T5 §3.7 alignment `5679b004` (candidate `{id, full_name}`, «Tarde · N días hábiles», 422 field errors at the
   control, «Cierres» counts events vs distinct vacancies per month, backend order kept, x.5 medians, recruiter filter
   note): RED 14 of 69, GREEN 69/69, typecheck clean, lint 0 errors. Merged into the feature branch (`5b6a6907`).
+- **L19** Backend feature 3 complete on :8081 (`feat/stakeholder-metrics-backend` at `48ff225f`, dev DB at 59): 3a, 3b
+  and the 7 metrics routes; backend independent verification of 3c passed (owner/stakeholder gate, recruiter 403,
+  company isolation, audited fail-closed detail, F3–F5/P1–P4/M1–M7/§3.7 shapes). T6 can start after T7.
