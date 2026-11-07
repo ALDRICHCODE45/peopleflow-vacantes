@@ -51,3 +51,10 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   token-in-URL handling and accept idempotency, dense monthly series, names and former-member labels, zero vs null
   with denominators, «Mi rendimiento» shape unchanged under D8, apply `channel`, stakeholder `can.*` flags. D1–D12
   go to the user.
+- **L4** Backend applied F1–F8 on top of `a2914cde`: members list returns `role: "stakeholder"` and pickers filter on
+  the frontend (team writes naming a stakeholder → 422 `not_company_member`); accept idempotent for the same user
+  (200, no rewrite), 404 `invitation_invalid` otherwise, 409 `already_company_member`; dense ascending monthly series;
+  persons `{user_id, name, former_member}`, requester `{kind, id, name}` or null; counts never null, medians/rates null
+  without sample, rates `{value, numerator, denominator}`, card adds `closed_assigned`; «Mi rendimiento» shape
+  unchanged; apply `channel` optional `portal | careers_site` (default `portal`, other → 422); `can.view_metrics`,
+  sidebar keyed on `role === "stakeholder"`.
