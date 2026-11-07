@@ -186,8 +186,10 @@ New catalog events, company-scoped (category `members`, except `MetricsDetailVie
   are «sin placement» (§2.4), legacy NULL reasons are «sin motivo».
 - **Time to close** (✅): business days from first publication to that close. Reported as median and per vacancy.
 - **"In the configured time"** (❌): no vacancy stores a target closing date — `commitment_date` is the date for
-  **delivering candidates**, not for closing. Proposal: optional `target_close_date` in the management configuration
-  (`job_draft_management_configs`), with changes recorded like commitment renegotiations. Then
+  **delivering candidates**, not for closing. Optional `target_close_date` in the management configuration
+  (`job_draft_management_configs`), wire key `targetCloseDate` (`YYYY-MM-DD`) like the config's other keys: GET omits
+  it while unset; in PUT, absent keeps the stored date, `null` clears it, anything else but a date is 400
+  `invalid_request`. Every change writes a `vacancy_close_target_changes` row (previous, new, actor, time). Then
   `on_time = close local date ≤ target_close_date in effect at close`; vacancies without the date count as
   `no_target` (D7).
 - **Edge cases:** close → reopen → close: each filled close counts in its period, time to close uses the first
@@ -241,7 +243,8 @@ Per vacancy with a delivery configuration:
 - **Formula:** participations created in the period grouped by `origin_channel`.
 - **New column** `process_participations.origin_channel`: `portal | careers_site | manual | unknown`.
   - The organic apply endpoint accepts optional `channel: "portal" | "careers_site"` (the frontend knows which page
-    the candidate applied from); missing → `portal`; any other value → 422 `validation_error`.
+    the candidate applied from); missing → `portal`; any other value → 400 `validation_error` with
+    `fields: [{"field": "channel", "code": "invalid"}]` (the status that code has everywhere in the catalog).
   - Manual intake writes `manual`.
   - It is analytics, not security: the channel is self-reported by the client.
   - Field name `channel`, optional (F7): the careers site sends `careers_site`, `/vacantes` sends `portal`.

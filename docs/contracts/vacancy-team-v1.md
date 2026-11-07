@@ -507,6 +507,8 @@ Additional per-item fields (all always present, values may be `null`; no candida
 - `delivery_target`: `number | null` — the target frozen in the vacancy's delivery fulfillment when the delivery was
   fulfilled, else the current `target_quantity`; `null` when delivery is not configured.
 - `deadline_result` and `deadline_delta_business_days` — whether the vacancy's delivery target was met within this tramo
+  (since stakeholder-metrics-v1 D8 the target is met at the N-th delivered candidate's `reached_at`, never at the
+  fulfillment row's `fulfilled_at`, which can be a delivery-config save time; fields and values are unchanged)
   by its effective deadline (`effective_deadline` above: frozen `closing_deadline` for ended tramos). The target is shared
   by the team, so this measures the tramo's deadline; the member's own contribution is `delivered_in_tramo`. Using the
   delivery fulfillment rule (whole Mexico City dates; meeting it ON the deadline date is on time):
