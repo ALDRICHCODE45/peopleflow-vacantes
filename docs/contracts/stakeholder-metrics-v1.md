@@ -1,6 +1,6 @@
 # Stakeholder + metrics v1 (internal, employer-only)
 
-Status: **agreed (2026-11-07)**, not implemented; frontend review F1–F8 and P1–P4 applied; D1–D12 approved by the user via the
+Status: **agreed (2026-11-07)**, slices 3a/3b implemented; frontend review F1–F8, P1–P4 and M1–M7 applied; D1–D12 approved by the user via the
 frontend session (all as recommended). Product source: `docs/product/next-three-features.md`
 §3 «Stakeholder + métricas». The backend session wrote this contract; frontend tracking is
 `odd/tasks/stakeholder-metrics.md`, backend tracking `odd/tasks/stakeholder-metrics-backend.md`. Nothing is built until
@@ -314,10 +314,10 @@ Prefix `GET /v2/me/company/metrics`, gate `requireMetricsViewer` (owner, stakeho
 
 | Parameter | Meaning |
 |---|---|
-| `from`, `to` | required, `YYYY-MM-DD`, inclusive, `to - from ≤ 366 days` |
+| `from`, `to` | required, `YYYY-MM-DD`, both inclusive, at most 366 days: `to - from ≤ 365` (M7) |
 | `recruiter_id` | optional user id |
 | `requester_kind` | optional, `client` \| `internal_area` |
-| `requester_id` | optional; needs `requester_kind`; the literal `none` means «sin solicitante» |
+| `requester_id` | optional; a real id needs `requester_kind` (else 422 `invalid_filter`); the literal `none` alone means «sin solicitante», `requester_kind=X&requester_id=none` means «X sin especificar»; `requester_kind` alone means every vacancy of that kind (M6) |
 
 Bad filters answer 422 `invalid_filter` with `fields[]`, the shape the talent-base and audit filters already use.
 Every response carries `"definitions_version": "v1"` and the echoed `period`.
@@ -325,7 +325,8 @@ Every response carries `"definitions_version": "v1"` and the echoed `period`.
 Shape rules (F3–F5):
 
 - **Counts** are integers, `0` when empty, never `null`.
-- **Medians and rates** are `null` when there is no sample or the denominator is 0, and every rate travels with its
+- **Medians** are `null` when there is no sample. **Rates** always arrive as the object, never `null` as a whole; its
+  `value` is `null` when the denominator is 0. Every rate travels with its
   numerator and denominator, for example
   `"conversion": { "value": 0.4, "numerator": 2, "denominator": 5 }`. The numerator is vacancies with placement
   for the recruiter, the denominator is `closed_assigned`.
@@ -355,7 +356,8 @@ Shape rules (F3–F5):
   "closed_by_month": [ { "month": "2026-08", "filled": 5, "cancelled": 1, "other": 0, "no_reason": 0 } ],
   "reassignments": { "total": 6, "by_reason": { "workload": 2, "recruiter_departure": 3, "performance": 0,
                      "client_request": 1, "other": 0 } },
-  "by_requester": [ { "kind": "client", "id": "…", "name": "Acme", "vacancies": 9, "filled": 4 } ]
+  "by_requester": [ { "requester": { "kind": "client", "id": "…", "name": "Acme" }, "vacancies": 9, "filled": 4 },
+                    { "requester": null, "vacancies": 2, "filled": 0 } ]
 }
 ```
 
@@ -370,7 +372,7 @@ Shape rules (F3–F5):
 
 ### 3.3 One recruiter — `GET /v2/me/company/metrics/recruiters/{userId}`
 
-The same card plus a dense `by_month` series (P4):
+The same card fields **at the root** (no `card` wrapper, M1) plus a dense `by_month` series (P4):
 
 ```json
 "by_month": [ { "month": "2026-08", "assigned": 4,
@@ -388,21 +390,24 @@ The same card plus a dense `by_month` series (P4):
 ### 3.4 Detail lists (paginated)
 
 - `GET …/metrics/vacancies` — one row per vacancy in the period:
-  - fields: `draft_id`, `title`, `requester`, current responsible, `first_published_at`, `closes[]` (date, reason),
+  - fields: `draft_id`, `title`, `requester`, `responsible` (person or null), `first_published_at`,
+    `closes[]` as `{ "date", "reason" }` (`reason` null for legacy closes, counted as `no_reason` in aggregates, M2),
     `delivery` (result, target, delivered, `target_reached_at`, `commitment_date`, `original_commitment_date`,
     `renegotiations`), `placements` (covered / required), `reassignments`;
   - extra filters: `outcome` (`filled | cancelled | other | open`), `delivery_result`.
 - `GET …/metrics/reassignments` — `performed_at`, vacancy, from, to, reason, note (only `other`), performed_by,
-  outgoing tramo business days, snapshot summary.
+  `outgoing_tramo_business_days` (M4), snapshot summary.
 - Pagination: `limit` default 50, max 100; opaque `cursor` over `(sort key, id)`; `next_cursor` null at the end.
   Order: vacancies by `first_published_at` desc, reassignments by `performed_at` desc.
 - These lists carry no candidate personal data.
 
 ### 3.5 Personal-data detail (audited)
 
-- `GET …/metrics/vacancies/{draftId}/deliveries` — delivered candidates in order: `candidate` label,
-  `reached_at`, delivering recruiter.
-- `GET …/metrics/vacancies/{draftId}/placements` — credits with candidate label, `hired_at`, recipients, status.
+- `GET …/metrics/vacancies/{draftId}/deliveries` — delivered candidates in order:
+  `{ "candidate", "reached_at", "delivered_by" }`; `delivered_by` is a person, or null when an organic application
+  landed directly in the cutoff stage (M3).
+- `GET …/metrics/vacancies/{draftId}/placements` — `{ "candidate", "hired_at", "status", "recipients": [{ "person",
+  "kind" }] }`, `status` `active | did_not_hold` (voided credits are not listed, as in the counts, M3).
 - Each successful read writes one `MetricsDetailViewed` row (§1.4).
 
 ### 3.6 Computed on request, not precomputed
