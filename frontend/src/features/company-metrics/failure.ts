@@ -23,12 +23,28 @@ export function toMetricsFailure({ error, envelope }: ClientFailure): MetricsFai
   return fail("unrecognized_response");
 }
 
-const FIELD_LABEL: Record<string, string> = { from: "Desde", to: "Hasta", recruiter_id: "Reclutador", requester_kind: "Cliente o área", requester_id: "Cliente o área" };
-/** One line per rejected filter, named by its control, never by the API's field name. */
+/** The toolbar control each API field belongs to. */
+export type FilterControl = "from" | "to" | "recruiter" | "requester";
+const CONTROL: Record<string, FilterControl> = { from: "from", to: "to", recruiter_id: "recruiter", requester_kind: "requester", requester_id: "requester" };
+const CONTROL_LABEL: Record<FilterControl, string> = { from: "Desde", to: "Hasta", recruiter: "Reclutador", requester: "Cliente o área" };
+/** §3.7.10 codes get their own copy; any other code asks to pick a valid value of that control. */
+function issueCopy(control: FilterControl, code: string): string {
+  if ((control === "to" || control === "from") && code === "range") return "El periodo puede abarcar hasta 366 días.";
+  if (control === "requester" && code === "required") return "Elige si el solicitante es un cliente o un área interna.";
+  if (control === "recruiter") return "Elige un reclutador de la lista.";
+  if (control === "requester") return "Elige un cliente o área de la lista.";
+  return "Elige una fecha válida.";
+}
+/** One message per control, shown at that control; an unknown field has no control and is only listed in the card. */
+export function fieldErrors(fields: MetricsFailure["fields"] = []): Partial<Record<FilterControl, string>> {
+  const errors: Partial<Record<FilterControl, string>> = {};
+  for (const issue of fields) { const control = CONTROL[issue.field]; if (control && !errors[control]) errors[control] = issueCopy(control, issue.code); }
+  return errors;
+}
+/** The same messages for the failure card, each named by its control. */
 export function filterIssueMessages(fields: MetricsFailure["fields"] = []): string[] {
-  return [...new Set(fields.map(issue => issue.code === "range" && (issue.field === "to" || issue.field === "from")
-    ? "El periodo puede abarcar hasta 366 días."
-    : `Revisa el filtro «${FIELD_LABEL[issue.field] ?? "del periodo"}».`))];
+  return Object.entries(fieldErrors(fields)).map(([control, message]) => control === "to" || control === "from"
+    ? message! : `${CONTROL_LABEL[control as FilterControl]}: ${message!.charAt(0).toLowerCase()}${message!.slice(1)}`);
 }
 
 export function failureMessage(failure: MetricsFailure, subject = "las métricas"): string {

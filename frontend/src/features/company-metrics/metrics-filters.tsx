@@ -4,7 +4,8 @@ import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import type { FilterControl } from "./failure";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { personName, requesterLabel, type Person } from "./model";
 import { defaultPeriod, matchingShortcut, periodDays, periodIssues, shortcutPeriod, SHORTCUTS, type Period, type Shortcut } from "./period";
@@ -17,13 +18,14 @@ const CUSTOM = "custom";
 export type RequesterOption = { kind: "client" | "internal_area"; id: string | null; name: string | null };
 export type RecruiterOption = Pick<Person, "user_id" | "name" | "former_member">;
 
-function PickFilter({ id, label, items, value, onChange, children }: { id: string; label: string; items: Option[]; value: string; onChange: (value: string) => void; children: ReactNode }) {
-  return <Field>
+function PickFilter({ id, label, items, value, onChange, error, children }: { id: string; label: string; items: Option[]; value: string; onChange: (value: string) => void; error?: string; children: ReactNode }) {
+  return <Field data-invalid={error ? true : undefined}>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
     <Select items={items} value={value} onValueChange={next => { if (next) onChange(next); }}>
-      <SelectTrigger id={id} className="min-h-10 w-full"><SelectValue>{items.find(option => option.value === value)?.label ?? items[0].label}</SelectValue></SelectTrigger>
+      <SelectTrigger id={id} className="min-h-10 w-full" aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-error` : undefined}><SelectValue>{items.find(option => option.value === value)?.label ?? items[0].label}</SelectValue></SelectTrigger>
       <SelectContent>{children}</SelectContent>
     </Select>
+    {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
   </Field>;
 }
 const plainItems = (options: Option[]) => options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>);
@@ -33,8 +35,10 @@ const recruiterLabel = (person: RecruiterOption) => `${personName(person)}${pers
  * Period and filters of artboard 01's toolbar. The dates are a draft: a valid period goes to the URL at once, an
  * invalid one stays here with its field error and the metrics keep the last valid period.
  */
-export function MetricsFiltersBar({ filters, today, recruiters, requesters, showRecruiter = true, onChange }: {
+export function MetricsFiltersBar({ filters, today, recruiters, requesters, showRecruiter = true, serverErrors = {}, onChange }: {
   filters: MetricsFilters; today: string; recruiters?: RecruiterOption[]; requesters?: RequesterOption[]; showRecruiter?: boolean;
+  /** 422 `invalid_filter` fields, each shown at its own control (§3.7.10). */
+  serverErrors?: Partial<Record<FilterControl, string>>;
   onChange: (next: MetricsFilters) => void;
 }) {
   const urlPeriod = { from: filters.from ?? "", to: filters.to ?? "" };
@@ -43,7 +47,7 @@ export function MetricsFiltersBar({ filters, today, recruiters, requesters, show
   // Back, forward and «Restablecer» change the URL: the draft follows it.
   useEffect(() => { setDraft(filters.from || filters.to ? { from: filters.from ?? "", to: filters.to ?? "" } : defaultPeriod(today)); }, [urlKey, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const issues = periodIssues(draft);
-  const issue = (field: "from" | "to") => issues.find(item => item.field === field)?.message;
+  const issue = (field: "from" | "to") => issues.find(item => item.field === field)?.message ?? serverErrors[field];
   const changePeriod = (next: Period) => {
     setDraft(next);
     if (!periodIssues(next).length) onChange({ ...filters, ...next });
@@ -92,10 +96,10 @@ export function MetricsFiltersBar({ filters, today, recruiters, requesters, show
           <PickFilter id="metrics-shortcut" label="Atajo" items={shortcutChoices} value={shortcut} onChange={value => { if (value !== CUSTOM) changePeriod(shortcutPeriod(value as Shortcut, today)); }}>
             <SelectGroup>{plainItems(shortcutChoices)}</SelectGroup>
           </PickFilter>
-          {showRecruiter && <PickFilter id="metrics-recruiter" label="Reclutador" items={recruiterChoices} value={filters.recruiter_id ?? ANY} onChange={value => onChange({ ...filters, recruiter_id: value === ANY ? undefined : value })}>
+          {showRecruiter && <PickFilter id="metrics-recruiter" label="Reclutador" error={serverErrors.recruiter} items={recruiterChoices} value={filters.recruiter_id ?? ANY} onChange={value => onChange({ ...filters, recruiter_id: value === ANY ? undefined : value })}>
             <SelectGroup>{plainItems(recruiterChoices)}</SelectGroup>
           </PickFilter>}
-          {showRecruiter && <PickFilter id="metrics-requester" label="Cliente o área" items={requesterChoices} value={requesterValue} onChange={changeRequester}>
+          {showRecruiter && <PickFilter id="metrics-requester" label="Cliente o área" error={serverErrors.requester} items={requesterChoices} value={requesterValue} onChange={changeRequester}>
             <SelectGroup><SelectItem value={ANY}>Todos los clientes y áreas</SelectItem></SelectGroup>
             {groups.map(group => <SelectGroup key={group.kind}><SelectLabel>{group.label}</SelectLabel>{plainItems(group.options)}</SelectGroup>)}
             <SelectGroup>{plainItems(requesterChoices.filter(option => option.value === NO_REQUESTER || option.label === "Solicitante seleccionado"))}</SelectGroup>

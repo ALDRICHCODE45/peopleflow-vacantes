@@ -37,9 +37,9 @@ function VacanciesCard({ vacancies }: { vacancies: MetricsSummary["vacancies"] }
   return <MetricCard title="Vacantes" icon={BriefcaseBusiness}>
     <div className="grid grid-cols-2 gap-4">
       <Stat label="Asignadas" metric="assigned" value={number.format(vacancies.assigned)} />
-      <Stat label="Cerradas" metric="closed" value={number.format(closed)} />
+      <Stat label="Cierres" metric="closed" value={number.format(closed)} />
     </div>
-    <SegmentedBar segments={segments} label={segmentsLabel("Vacantes cerradas por motivo", segments)} />
+    <SegmentedBar segments={segments} label={segmentsLabel("Cierres por motivo", segments)} />
     <Legend segments={segments} />
     <div className="grid grid-cols-2 gap-4 border-t pt-4">
       <Stat label="Tiempo mediano a cierre" metric="time_to_close" value={formatMedian(vacancies.median_business_days_to_close)} />

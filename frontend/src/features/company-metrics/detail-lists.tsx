@@ -31,7 +31,8 @@ function DeliveryCell({ delivery }: { delivery: VacancyRow["delivery"] }) {
   const commitment = delivery.commitment_date ? `compromiso ${dayLabel(delivery.commitment_date)}` : null;
   const original = delivery.original_commitment_date && delivery.original_commitment_date !== delivery.commitment_date ? ` (antes ${dayLabel(delivery.original_commitment_date)})` : "";
   return <div className="flex min-w-0 flex-col items-start gap-1">
-    <Badge variant={RESULT_TONE[delivery.result]} dot>{DELIVERY_RESULT_LABEL[delivery.result]}</Badge>
+    <Badge variant={RESULT_TONE[delivery.result]} dot>{delivery.result === "late" && delivery.business_days_late !== null
+      ? `${DELIVERY_RESULT_LABEL.late} · ${plural(delivery.business_days_late, "día hábil", "días hábiles")}` : DELIVERY_RESULT_LABEL[delivery.result]}</Badge>
     <span className="w-full truncate text-[12.5px] text-muted-foreground">{[delivery.target !== null ? `${number.format(delivery.delivered)} de ${number.format(delivery.target)}` : null, commitment && `${commitment}${original}`].filter(Boolean).join(" · ")}</span>
   </div>;
 }

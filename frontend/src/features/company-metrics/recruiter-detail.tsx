@@ -12,6 +12,7 @@ import { accentAvatar } from "@/lib/accent";
 import { initials } from "@/features/pipeline-movement/pipeline-presentation";
 import { HelpProvider } from "@/features/psychometrics/help/info-popover";
 import { loadRecruiterAction } from "./actions";
+import { fieldErrors } from "./failure";
 import { VacancyList } from "./detail-lists";
 import { Legend, SegmentedBar, segmentsLabel, Stat, type Segment } from "./metric-parts";
 import { MetricsFiltersBar } from "./metrics-filters";
@@ -94,7 +95,7 @@ function RecruiterDetailWorkspace({ userId }: { userId: string }) {
       <Badge variant="outline">{`Definiciones ${result.data.definitions_version}`}</Badge>
     </header>}
     {!result?.ok && <MetricsHeading title="Ficha del reclutador" description="Volumen, puntualidad, conversión y reasignaciones de una persona en el periodo elegido." />}
-    <MetricsFiltersBar filters={periodFilters} today={today} showRecruiter={false} onChange={next => update({ ...(next.from ? { from: next.from } : {}), ...(next.to ? { to: next.to } : {}) })} />
+    <MetricsFiltersBar filters={periodFilters} today={today} showRecruiter={false} serverErrors={result && !result.ok && result.reason === "invalid_filter" ? fieldErrors(result.fields) : undefined} onChange={next => update({ ...(next.from ? { from: next.from } : {}), ...(next.to ? { to: next.to } : {}) })} />
     {!result ? <MetricsSkeleton />
       : !result.ok ? result.reason === "not_found"
         ? <StateCard icon={UserX} tone="empty" title="Esta persona no tiene historial en la empresa" description="No tuvo tramos en ninguna vacante de tu empresa, así que no hay ficha que mostrar." primaryAction={{ label: "Volver a Métricas", href: back }} />

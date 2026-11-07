@@ -27,6 +27,16 @@ describe("contract decoding", () => {
     expect(deliveriesSchema.parse(deliveries()).items[2].delivered_by).toBeNull();
   });
 
+  it("§3.7: decodes the candidate as {id, full_name} and business_days_late on vacancy rows", () => {
+    expect(deliveriesSchema.parse(deliveries()).items[0].candidate).toEqual({ id: "50000000-0000-4000-8000-000000000001", full_name: "Luis Ángel Ramírez Soto" });
+    expect(() => deliveriesSchema.parse({ items: [{ ...deliveries().items[0], candidate: "Luis" }] })).toThrow();
+    expect(() => placementsSchema.parse({ items: [{ ...placements().items[0], candidate: "Brenda" }] })).toThrow();
+    expect(vacancyPageSchema.parse(vacancyPage()).items[0].delivery.business_days_late).toBe(2);
+    const withoutLate: Partial<ReturnType<typeof vacancyRow>["delivery"]> = { ...vacancyRow().delivery };
+    delete withoutLate.business_days_late;
+    expect(() => vacancyPageSchema.parse(vacancyPage([{ ...vacancyRow(), delivery: withoutLate as never }]))).toThrow();
+  });
+
   it("M5: decodes by_requester rows around a nullable requester object, never the flat shape", () => {
     expect(summarySchema.parse(summary()).by_requester.map(row => row.requester)).toEqual([
       { kind: "client", id: clientId, name: "Grupo Bimbo" }, { kind: "client", id: null, name: null }, null,
@@ -69,6 +79,9 @@ describe("presentation rules", () => {
     expect(formatMedian(0)).toBe("0 días hábiles");
     expect(formatMedian(1)).toBe("1 día hábil");
     expect(formatMedian(10.5)).toBe("10.5 días hábiles");
+    // §3.7.12: an even sample averages the middle pair; integers carry no decimals.
+    expect(formatMedian(11.5)).toBe("11.5 días hábiles");
+    expect(formatMedian(11)).toBe("11 días hábiles");
     expect(formatMedian(null)).toBe("Sin datos suficientes");
   });
 

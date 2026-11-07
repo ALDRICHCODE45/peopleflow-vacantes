@@ -27,7 +27,7 @@ describe("detail lists", () => {
     expect(await screen.findByText("Supervisor de Producción")).toBeInTheDocument();
     expect(vacancies).toHaveBeenCalledWith({ filters: { recruiter_id: marianaId } });
     expect(screen.getByText("Grupo Bimbo · Cliente")).toBeInTheDocument();
-    expect(screen.getByText("Tarde")).toBeInTheDocument();
+    expect(screen.getByText("Tarde · 2 días hábiles")).toBeInTheDocument();
     expect(screen.getByText("7 de 6 · compromiso 26 ago 2026 (antes 19 ago 2026)")).toBeInTheDocument();
     expect(screen.getByText("Cubierta")).toBeInTheDocument();
     expect(screen.getByText("2 de 2")).toBeInTheDocument();
@@ -35,7 +35,8 @@ describe("detail lists", () => {
   });
 
   it("appends the next page with «Cargar más» and keeps the shown rows while it loads", async () => {
-    const second = vacancyRow({ draft_id: "30000000-0000-4000-8000-000000000002", title: "Contador General", closes: [], requester: null, responsible: null });
+    const second = vacancyRow({ draft_id: "30000000-0000-4000-8000-000000000002", title: "Contador General", closes: [], requester: null, responsible: null,
+      delivery: { ...vacancyRow().delivery, result: "on_time", business_days_late: null } });
     vacancies.mockResolvedValueOnce({ ok: true, data: vacancyPage([vacancyRow()], "c2" ) }).mockResolvedValueOnce({ ok: true, data: vacancyPage([second]) });
     render(<DetailLists filters={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
@@ -45,6 +46,7 @@ describe("detail lists", () => {
     expect(screen.getByText("Sin solicitante · No aplica")).toBeInTheDocument();
     expect(screen.getByText("Sin responsable")).toBeInTheDocument();
     expect(screen.getByText("Abierta")).toBeInTheDocument();
+    expect(screen.getByText("A tiempo")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cargar más" })).not.toBeInTheDocument();
   });
 

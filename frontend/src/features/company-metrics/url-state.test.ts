@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultPeriod, mexicoToday, periodIssues, shortcutPeriod } from "./period";
 import { apiQuery, parseFilters, serializeFilters } from "./url-state";
+import { fieldErrors, filterIssueMessages } from "./failure";
 import { clientId, marianaId } from "./test-fixtures";
 
 describe("period", () => {
@@ -52,5 +53,16 @@ describe("filters in the URL", () => {
     expect(Object.fromEntries(apiQuery({ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId }, today))).toEqual({ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId });
     expect(Object.fromEntries(apiQuery({ requester_id: "none" }, today))).toEqual({ from: "2026-08-10", to: "2026-11-07", requester_id: "none" });
     expect(Object.fromEntries(apiQuery({ from: "2024-01-01", to: "2026-10-31" }, today))).toEqual({ from: "2026-08-10", to: "2026-11-07" });
+  });
+});
+
+describe("422 field errors (§3.7.10)", () => {
+  it("maps each rejected field to its control with its own copy", () => {
+    expect(fieldErrors([{ field: "requester_kind", code: "required" }, { field: "to", code: "range" }])).toEqual({
+      requester: "Elige si el solicitante es un cliente o un área interna.",
+      to: "El periodo puede abarcar hasta 366 días.",
+    });
+    expect(fieldErrors([{ field: "recruiter_id", code: "invalid" }])).toEqual({ recruiter: "Elige un reclutador de la lista." });
+    expect(filterIssueMessages([{ field: "requester_kind", code: "required" }])).toEqual(["Cliente o área: elige si el solicitante es un cliente o un área interna."]);
   });
 });

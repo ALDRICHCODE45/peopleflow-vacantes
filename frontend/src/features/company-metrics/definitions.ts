@@ -11,8 +11,8 @@ export const DEFINITIONS = {
     footer: "Fuente: tramos de asignación · Ventana: el tramo se cruza con el periodo",
   },
   closed: {
-    title: "Vacantes cerradas por motivo",
-    description: "Vacantes con un cierre registrado en el periodo, según su motivo: cubierta, cancelada u otro motivo. Los cierres de antes de que existiera el motivo aparecen como «Sin motivo». Terminar el proceso no es un cierre.",
+    title: "Cierres por motivo",
+    description: "Cierres registrados en el periodo, según su motivo: cubierta, cancelada u otro motivo. Cuenta cierres, no vacantes: una vacante cerrada, reabierta y cerrada otra vez en el periodo suma dos. Los cierres de antes de que existiera el motivo aparecen como «Sin motivo». Terminar el proceso no es un cierre.",
     footer: "Fuente: historial de la vacante · Ventana: fecha del cierre",
   },
   time_to_close: {
@@ -77,7 +77,7 @@ export const DEFINITIONS = {
   },
   closed_by_month: {
     title: "Vacantes cerradas por mes",
-    description: "Vacantes distintas con al menos un cierre en cada mes, por motivo. Una vacante cerrada dos veces en el mismo mes cuenta una vez; si se cerró en dos meses, cuenta en cada uno. Los meses sin cierres aparecen en cero.",
+    description: "Vacantes distintas con al menos un cierre en cada mes, por motivo. Cuenta vacantes distintas, no cierres: por eso la suma de los meses puede ser menor que «Cierres» del resumen. Una vacante cerrada dos veces en el mismo mes cuenta una vez; si se cerró en dos meses, cuenta en cada uno. Los meses sin cierres aparecen en cero.",
     footer: "Mes calendario en hora del centro de México",
   },
   reassignments: {
