@@ -34,7 +34,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 | T2 | S5, S6 | Metric catalog with written definitions approved by the user before any metric is built | — |
 | T3 | S4, S8 | Design directions (gentle-design) for the metrics screen and the recruiter card; user picks (done, L7, L9: `01-tablero-y-tabla.html` chosen) | `7d77c4f0` |
 | T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) | — |
-| T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 | — |
+| T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 (built, L12–L14; merge after T4) | `e357dc13`, `23713769`, `71912050`, `cf009b2c`, `47809220`, `d35b2079`, `166c51d3` (branch `feat/stakeholder-metrics-t5`) |
 | T7 | S6, S7 | Slice 3b frontend: apply sends `channel` (`careers_site` from the company careers site, `portal` from /vacantes; 400 `validation_error` on `channel`); optional «Fecha objetivo de cierre» (`targetCloseDate`, null clears) in the vacancy management configuration | — |
 | T6 | all | Integration against the real backend, verification, partner doc update | — |
 
@@ -112,3 +112,5 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   `requester_kind=X&requester_id=none` = X sin especificar, kind alone = all of that kind, real id without kind → 422;
   M7 366 days counting both ends (`to - from ≤ 365`); rate objects always present, `value` null without sample.
   Corrections sent to the T5 worker (continuation).
+- **L14** T5 corrections `166c51d3` (M3, M5, M6, strict rate objects; M1/M7 pinned): RED 12 failing of 64, GREEN 64/64,
+  typecheck clean, lint 0 errors.
