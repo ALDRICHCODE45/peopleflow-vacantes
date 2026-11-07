@@ -12,10 +12,10 @@ import { CandidateHeader } from "@/components/candidate-dashboard/candidate-head
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 
-function IdentityFrame({ area, children }: { area: "candidate" | "employer"; children: React.ReactNode }) {
+function IdentityFrame({ area, title = "Tu cuenta", children }: { area: "candidate" | "employer"; title?: string; children: React.ReactNode }) {
   const Header = area === "candidate" ? CandidateHeader : SiteHeader;
   return <>
-    <Header title="Tu cuenta" />
+    <Header title={title} />
     <DashboardPageContent className="flex-1 items-center justify-center">
       <div className="w-full max-w-xl">{children}</div>
     </DashboardPageContent>
@@ -62,7 +62,7 @@ export function EmployerGuard({ children }: { children: React.ReactNode }) {
   if (invitation) return <>{children}</>;
   if (identity.status === "loading" || destination) return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
   if (membership === null) return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
-  if (stakeholder === "blocked") return <IdentityFrame area="employer"><StakeholderRouteBlocked /></IdentityFrame>;
+  if (stakeholder === "blocked") return <IdentityFrame area="employer" title="Sección no disponible"><StakeholderRouteBlocked /></IdentityFrame>;
   if (!result?.ok) {
     // Additive identity check only: a transient /v2/me outage must not lock an
     // existing recruiter out. Fail open ONLY for no_response/server_error;

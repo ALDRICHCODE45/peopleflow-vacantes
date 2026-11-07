@@ -34,6 +34,13 @@ it("shows the route-outside-role screen to a stakeholder instead of mounting the
   expect(mocks.replace).not.toHaveBeenCalled();
 });
 
+it("titles the route-outside-role screen as an unavailable section, not as the account", async () => {
+  mocks.loadCompany.mockResolvedValue(membership("stakeholder"));
+  mount();
+  expect(await screen.findByRole("heading", { level: 1, name: "Sección no disponible" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { level: 1, name: "Tu cuenta" })).toBeNull();
+});
+
 it("keeps the page unmounted while the membership is still loading", () => {
   mocks.loadCompany.mockReturnValue(new Promise(() => {}));
   mount();
