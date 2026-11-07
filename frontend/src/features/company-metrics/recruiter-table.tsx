@@ -17,11 +17,12 @@ import { DEFAULT_SORT, nextSort, sortLabel, sortRecruiters, type RecruiterSort, 
 
 const SortContext = createContext<{ sort: RecruiterSort; toggle: (key: SortKey) => void; href: (card: RecruiterCard) => string } | null>(null);
 
+/** Wraps to a second line instead of cutting the label; each column size fits its longest word, the sort icon and the column menu. */
 function SortHeader({ id, label }: { id: SortKey; label: string }) {
   const context = useContext(SortContext);
   const active = context?.sort.key === id;
   const Icon = !active ? ArrowUpDown : context.sort.direction === "ascending" ? ArrowUp : ArrowDown;
-  return <Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={() => context?.toggle(id)}>{label}<Icon aria-hidden="true" data-icon="inline-end" /></Button>;
+  return <Button type="button" variant="ghost" size="sm" className="-ml-2 h-auto min-h-7 max-w-full py-1 text-left leading-tight whitespace-normal" onClick={() => context?.toggle(id)}>{label}<Icon aria-hidden="true" data-icon="inline-end" /></Button>;
 }
 const sortable = (id: SortKey, label: string, size: number, cell: (card: RecruiterCard) => React.ReactNode, extra: Partial<RichColumnDef<RecruiterCard>> = {}): RichColumnDef<RecruiterCard> =>
   ({ id, size, meta: { label }, header: () => <SortHeader id={id} label={label} />, cell: ({ row }) => cell(row.original), ...extra });
@@ -45,15 +46,15 @@ function placementDetail(placements: RecruiterCard["placements"]) {
 
 export const recruiterColumns: RichColumnDef<RecruiterCard>[] = [
   sortable("name", "Reclutador", 240, card => <Who card={card} />, { enableHiding: false }),
-  sortable("assigned", "Asignadas", 120, card => <TwoLineCell primary={number.format(card.vacancies.assigned)} secondary={plural(card.vacancies.started_in_period, "nueva", "nuevas")} />),
+  sortable("assigned", "Asignadas", 150, card => <TwoLineCell primary={number.format(card.vacancies.assigned)} secondary={plural(card.vacancies.started_in_period, "nueva", "nuevas")} />),
   sortable("on_time", "Entregas", 200, card => <TwoLineCell primary={`${number.format(card.delivery.on_time)} a tiempo`}
     secondary={card.delivery.on_time + card.delivery.late + card.delivery.overdue ? `${plural(card.delivery.late, "tarde", "tarde")} · ${plural(card.delivery.overdue, "vencida", "vencidas")}` : "Ninguna vencía en el periodo"} />),
   sortable("median", "Mediana a la meta", 160, card => <TwoLineCell primary={formatMedian(card.delivery.median_business_days_to_target)} missing={card.delivery.median_business_days_to_target === null} />),
-  sortable("delivered", "Entregados", 120, card => <TwoLineCell primary={number.format(card.delivery.delivered_in_tramo)} />),
+  sortable("delivered", "Entregados", 160, card => <TwoLineCell primary={number.format(card.delivery.delivered_in_tramo)} />),
   sortable("placements", "Placements", 200, card => <TwoLineCell primary={number.format(placementTotal(card.placements))} secondary={placementDetail(card.placements)} />),
   sortable("conversion", "Conversión", 170, card => { const rate = formatRate(card.placements.conversion); return <TwoLineCell primary={rate.value} secondary={rate.detail} missing={rate.value === NO_SAMPLE} />; }),
-  sortable("reassignments", "Reasignaciones", 160, card => <TwoLineCell primary={plural(card.reassignments.received, "recibida", "recibidas")} secondary={plural(card.reassignments.lost, "perdida", "perdidas")} />),
-  sortable("business_days", "Días en tramos", 140, card => <TwoLineCell primary={number.format(card.business_days_in_tramos)} />),
+  sortable("reassignments", "Reasignaciones", 190, card => <TwoLineCell primary={plural(card.reassignments.received, "recibida", "recibidas")} secondary={plural(card.reassignments.lost, "perdida", "perdidas")} />),
+  sortable("business_days", "Días en tramos", 150, card => <TwoLineCell primary={number.format(card.business_days_in_tramos)} />),
   { id: "open", size: 56, header: () => <span className="sr-only">Ver ficha</span>, meta: { label: "Ver ficha", align: "center" }, enablePinning: false, enableHiding: false, enableReorder: false,
     cell: ({ row }) => <OpenCard card={row.original} /> },
 ];

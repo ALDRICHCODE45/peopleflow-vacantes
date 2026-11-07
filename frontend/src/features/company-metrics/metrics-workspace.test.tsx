@@ -152,6 +152,17 @@ describe("recruiter table", () => {
     expect(namesInTable()).toEqual(["Andrea Villalobos", "Mariana Torres", "Carlos Mendoza Ruiz", "Fernanda Ortiz"]);
   });
 
+  it("names every column in full and lets a long header wrap instead of cutting it", async () => {
+    render(<CompanyMetricsPage />);
+    const section = (await screen.findByRole("heading", { name: "Fichas por reclutador" })).closest("section") as HTMLElement;
+    for (const label of ["Reclutador", "Asignadas", "Entregas", "Mediana a la meta", "Entregados", "Placements", "Conversión", "Reasignaciones", "Días en tramos"]) {
+      const header = within(section).getByRole("columnheader", { name: label });
+      const button = within(header).getByRole("button", { name: label });
+      expect(button).toHaveTextContent(label);
+      expect(button).toHaveClass("whitespace-normal");
+    }
+  });
+
   it("shows rates with «N de M», former members, and did_not_hold inside the placement total", async () => {
     render(<CompanyMetricsPage />);
     await screen.findByText("Fichas por reclutador");
