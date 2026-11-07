@@ -98,3 +98,11 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   nothing written; accept checks account type first (candidate → 403 `candidate_account` even with a bad token); any
   PATCH involving the stakeholder role → 422 `stakeholder_role_change_not_supported`; POST members with role
   stakeholder is a test/script path only (409 `already_exists`, 400 candidate). Forwarded to the T4 worker.
+- **L12** T5 worker done on branch `feat/stakeholder-metrics-t5` (worktree `peopleflow-vacantes-frontend-metrics`):
+  `e357dc13`, `23713769`, `71912050`, `cf009b2c` (678 lines, over the slice target), `47809220`, `d35b2079`;
+  company-metrics 59/59, typecheck clean, lint 0 errors. `/empresa/metricas` (toolbar, summary, recruiter table,
+  vacancies/reassignments tabs) and `/empresa/metricas/reclutadores/[userId]` (card, monthly series, audited detail
+  sheet, fail-closed). Departures from the artboard by contract: no closing-target or per-recruiter on-time %, counts
+  only; `did_not_hold` shown inside the total. Shape assumptions M1–M7 (detail card at root, row field names,
+  «sin solicitante» kind, `requester_id=none` without kind, 366-day reading, null rate objects) sent to the backend.
+  Follow-up: unify the local role parser with employer-company after T4. Merge into the feature branch after T4.
