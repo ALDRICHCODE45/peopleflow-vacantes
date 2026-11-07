@@ -173,6 +173,23 @@ Base existente: `audit_events` con ~40 tipos de eventos de escritura. Falta:
 
 ## 3. Stakeholder + métricas
 
+**Estado (2026-11-07): implementado en ramas, sin integrar a `main`.** Contrato y catálogo de métricas con
+definiciones: `docs/contracts/stakeholder-metrics-v1.md` (decisiones D1–D12 aprobadas por el usuario). Frontend en
+`feat/stakeholder-metrics`, backend en `feat/stakeholder-metrics-backend`; seguimiento en
+`odd/tasks/stakeholder-metrics.md`. Qué hay:
+
+- **Rol stakeholder**: el owner crea un enlace de invitación de un solo uso (7 días) en Equipo → Stakeholders y lo
+  envía por cualquier canal; quien lo acepta ve solo **Métricas**, en solo lectura y con toda la empresa. Quitarlo se
+  hace desde la lista de miembros. Todo queda en la auditoría.
+- **Métricas** (`/empresa/metricas`, owner y stakeholder; el reclutador ve sus números en «Mi historial»): resumen de
+  la empresa por periodo (hasta 366 días) con filtros por reclutador y por cliente o área, ficha por reclutador sin
+  puntaje ni ranking, series por mes y el detalle con nombres de candidatos, que se registra en la auditoría. Cada
+  número abre su definición escrita.
+- **Datos nuevos**: canal de origen de la postulación (portal, sitio de empleo, registro manual; lo anterior queda
+  como «portal o sitio, sin distinguir») y «Fecha objetivo de cierre» opcional en la configuración de la vacante.
+
+Probado por el agente en el navegador contra el backend real con cuentas de owner, stakeholder y reclutador.
+
 > «ese rol que solamente va a meterse a ver metricas de la empresa ... este rol no va a poder hacer nada, porque lo
 > unico que va a tener son metricas de rendimiento»
 

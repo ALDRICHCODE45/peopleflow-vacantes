@@ -36,7 +36,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 | T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) (built, L16; browser integration pending) | `1b2b41d0`, `a98982bb`, `634c0878`, `8a0576a2`, `ad211096` |
 | T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 (built, L12–L14; merge after T4) | `e357dc13`, `23713769`, `71912050`, `cf009b2c`, `47809220`, `d35b2079`, `166c51d3`, `5679b004` (branch `feat/stakeholder-metrics-t5`, merged `730877d0`, `5b6a6907`) |
 | T7 | S6, S7 | Slice 3b frontend: apply sends `channel` (`careers_site` from the company careers site, `portal` from /vacantes; 400 `validation_error` on `channel`); optional «Fecha objetivo de cierre» (`targetCloseDate`, null clears) in the vacancy management configuration (done, L20) | `c389927a`, `20ef9cbe` |
-| T6 | all | Integration against the real backend, verification, partner doc update | — |
+| T6 | all | Integration against the real backend, verification, partner doc update (done, L21–L28) | `77605a14`, `8de4372c`, `03b2d13c`, `906f564f`, `ebd88c1d`, `6ff1c3b7` |
 
 ## Log
 
@@ -193,3 +193,9 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   live as the stakeholder), `ebd88c1d` recruiter table headers wrap instead of cutting (verified live at 1440 px,
   dark mode), `6ff1c3b7` «Por cliente o área» fits a 390 px card (verified live). Left as is: «Vacantes cerradas por
   mes» table scrolls sideways at phone width. Final full checks running.
+- **L28** Final full checks after the browser fixes: typecheck 0, lint 0 errors (12 pre-existing warnings), vitest
+  547 files / 10090 tests passed, 2 skipped. Partner doc `docs/product/next-three-features.md` §3 updated with the
+  state, branches and what exists. Open for the user: merge decision (frontend `feat/stakeholder-metrics` + backend
+  `feat/stakeholder-metrics-backend`, plus the run-tests queue commits); live proof still missing for the candidate +
+  malformed link case and the owner's stakeholder row actions/audit entries; dev env note: `.env.local` needs
+  `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:8081` (or the dev server env) to reach the local backend.
