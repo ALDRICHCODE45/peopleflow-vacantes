@@ -126,7 +126,7 @@ func (s *Store) CreateManual(ctx context.Context, company, actor, id uuid.UUID, 
 		if _, err := tx.Exec(ctx, `INSERT INTO company_candidate_cvs(id,company_id,company_candidate_id,storage_key,size,content_type,file_name,uploaded_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, cv, company, manual, key, len(input.CV), typ, input.FileName, at); err != nil {
 			return app.ManualCreated{}, err
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO process_participations(id,process_id,candidate_id,company_candidate_id,company_candidate_cv_id,stage_id,source,added_by,version,created_at,profile_snapshot,questions_snapshot,answers_snapshot) VALUES($1,$2,$3,$4,$5,$6,'manual',$7,1,$8,$9,'[]','[]')`, pid, id, organic, manual, cv, validated.StageID, actor, at, profile); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO process_participations(id,process_id,candidate_id,company_candidate_id,company_candidate_cv_id,stage_id,source,added_by,version,created_at,profile_snapshot,questions_snapshot,answers_snapshot,origin_channel) VALUES($1,$2,$3,$4,$5,$6,'manual',$7,1,$8,$9,'[]','[]','manual')`, pid, id, organic, manual, cv, validated.StageID, actor, at, profile); err != nil {
 			return app.ManualCreated{}, err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind) VALUES($1,$2,$3,$4,$5,NULL,false,false,'recruiter','intake')`, uuid.New(), pid, validated.StageID, actor, at); err != nil {

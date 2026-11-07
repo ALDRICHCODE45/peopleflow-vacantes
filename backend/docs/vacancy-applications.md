@@ -27,8 +27,17 @@ This route is anonymous like detail, without private no-store headers or ETag.
 `POST /v2/jobs/{id}/applications`, body exactly:
 
 ```json
-{"cv_id":"…","questionnaire_revision":"opaque","answers":[{"question_id":"…","text":"My answer"},{"question_id":"…","option_id":"…"}]}
+{"cv_id":"…","questionnaire_revision":"opaque","answers":[{"question_id":"…","text":"My answer"},{"question_id":"…","option_id":"…"}],"channel":"careers_site"}
 ```
+
+`channel` is the one optional key (`docs/contracts/stakeholder-metrics-v1.md` §2.5):
+`"portal"` (`/vacantes`) or `"careers_site"` (company careers site); missing means
+`portal`. Any other value, including `null` or a non-string, is
+`400 validation_error` with `fields:[{"field":"channel","code":"invalid"}]` after
+the shape checks, and writes nothing. It is self-reported analytics, not security.
+It is stored as `process_participations.origin_channel`, part of the idempotency
+fingerprint (missing and `"portal"` are the same request), and is not in the
+response or the audit metadata.
 
 Uses `NoStore → RequireAuth → RequireCandidateRole`. No account →
 `403 account_required`; recruiter → `403 wrong_role`; no session → 401.
@@ -95,7 +104,7 @@ active state stable; the vacancy process is locked for update. Under these locks
 6. Require the CV in this candidate's live library (`422 cv_unavailable`, including
    another candidate's ID), then reject an existing participation (`409 already_applied`).
 7. Insert participation referencing its immutable CV version, frozen safe questions
-   and answers, source `organic`, deterministic pipeline `new` stage ID, and private
+   and answers, source `organic`, `origin_channel` from the body, deterministic pipeline `new` stage ID, and private
    profile snapshot (location codes/null, skills, years, education; migration 00033).
 8. Insert intake history, append PII-free `VacancyApplicationSubmitted` audit and
    persist the original idempotent response; commit together.

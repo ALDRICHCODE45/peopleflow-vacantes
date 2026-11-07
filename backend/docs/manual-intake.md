@@ -154,7 +154,8 @@ No birth date, salary, or CV/LinkedIn/OCC extraction belongs in this cut (S8).
 8. Inspect CV with `cvs.Inspect`, returning the same codes as `/v2/me/cvs`, without fields.
 9. Write private CV storage.
 10. In one database transaction, create/reuse the identity, write the CV record,
-    participation, intake history, delivery, audit, and idempotency response.
+    participation (`origin_channel` `manual`, migration 00058), intake history,
+    delivery, audit, and idempotency response.
 
 Duplicate warning: 409 `possible_duplicates`, `data:{"matches":[…]}`. Only an
 explicit `confirmed_distinct:true` permits creating a separate matching record.

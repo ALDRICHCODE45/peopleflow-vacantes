@@ -70,12 +70,16 @@ func (s *Store) CreateV2(ctx context.Context, companyID, actorID uuid.UUID, key 
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	requesterKind, requesterID, err := requesterColumns(fingerprint)
+	if err != nil {
+		return drafts.Result{}, err
+	}
 	draftID := uuid.Must(uuid.NewV7())
 	record := draftRecord{id: draftID, companyID: companyID, createdBy: actorID, principalID: actorID, status: "draft", version: 1, fields: fingerprint}
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO job_drafts (id, company_id, created_by, status, version, fields)
-   VALUES ($1, $2, $3, 'draft', 1, $4) RETURNING created_at, updated_at`,
-		draftID, companyID, actorID, fingerprint,
+		`INSERT INTO job_drafts (id, company_id, created_by, status, version, fields, requester_kind, requester_id)
+   VALUES ($1, $2, $3, 'draft', 1, $4, $5, $6) RETURNING created_at, updated_at`,
+		draftID, companyID, actorID, fingerprint, requesterKind, requesterID,
 	).Scan(&record.createdAt, &record.updatedAt); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert v2 draft: %w", err)
 	}
