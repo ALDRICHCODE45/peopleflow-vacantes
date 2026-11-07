@@ -149,8 +149,8 @@ the §20.2 contract; they must not turn database failures into validation failur
 
 ## Verification
 
-- `go test ./internal/features/geo/... ./internal/shared/httpjson ./cmd/api ./internal/tools/archguard ./db/migrations -count=1`
-- `go test -tags=integration ./db/migrations -run '^TestGeoCatalog' -count=1 -v`
+- `make test PKG='./internal/features/geo/... ./internal/shared/httpjson ./cmd/api ./internal/tools/archguard ./db/migrations'`
+- `make test-integration PKG=./db/migrations RUN='^TestGeoCatalog'`
 
 The integration tests require the existing isolated `DRAFT_TEST_DATABASE_URL`
 contract (loopback host, database named `draft_test`). They do not create a

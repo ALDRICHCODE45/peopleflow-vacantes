@@ -113,10 +113,10 @@ the same draft error mapping. Unexpected errors return sanitized
 From `backend/`:
 
 ```sh
-go test ./internal/features/jobs/application/dashboard ./cmd/api -run 'TestService|TestDashboard'
-go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore -run '^TestDashboard' -v
+make test PKG='./internal/features/jobs/application/dashboard ./cmd/api' RUN='TestService|TestDashboard'
+make test-integration PKG=./internal/features/jobs/infrastructure/postgres/draftstore RUN='^TestDashboard'
 go vet ./...
-go test ./...
+make test
 ```
 
 PostgreSQL tests use the existing isolated draft fixture. They skip when

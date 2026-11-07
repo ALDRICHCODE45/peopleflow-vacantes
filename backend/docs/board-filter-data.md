@@ -131,7 +131,7 @@ Removed screening identities match no current option; missing answers use `none`
   shapes, SQL NULL, literal NUL escape preservation/actual NUL rejection, exact
   CHECK, guarded atomic Down, repeat Up/Down/Up.
 
-From `backend/`: focused tests, `go test ./... -count=1`, `go run ./cmd/archguard`,
+From `backend/`: focused tests, `make test`, `go run ./cmd/archguard`,
 `go vet ./...`, `go vet -tags=integration ./...`. Parent runs DB tests on the isolated
 `DRAFT_TEST_DATABASE_URL` harness and the separate migrated `DATABASE_URL` packages
 (including the unchanged legacy recruiter-list tests). Rollback tests create their own

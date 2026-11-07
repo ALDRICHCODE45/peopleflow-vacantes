@@ -52,7 +52,7 @@ From `backend/`, the parent runs these against the existing isolated loopback
 `draft_test` DB (do not create a database):
 
 ```sh
-go test -tags=integration ./cmd/api -run 'TestPublicGeoSearch|TestPublicJobsFlow|TestPublicListingEnrichment' -count=1 -v
+make test-integration PKG=./cmd/api RUN='TestPublicGeoSearch|TestPublicJobsFlow|TestPublicListingEnrichment'
 ```
 
 `TestPublicGeoSearchFilters` exercises real-router/SQL OR/AND semantics, standalone
@@ -63,7 +63,7 @@ marker instead of the removed substring filter. Exact public wire checks remain.
 Unit tests cover syntax, canonical cursors including version-1 invalidation,
 catalog membership/outages, wrapped error mapping, exact error wire and headers.
 
-Required non-DB gates: `go tool sqlc generate`, focused tests, `go test ./... -count=1`,
+Required non-DB gates: `go tool sqlc generate`, focused tests, `make test`,
 `go vet ./...`, `go vet -tags=integration ./...`, `git diff --check`, and gofmt on
 changed Go files. Compilation is not passing database evidence.
 

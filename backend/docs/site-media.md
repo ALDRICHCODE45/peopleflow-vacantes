@@ -106,8 +106,7 @@ export SITE_MEDIA_S3_TEST_ENDPOINT=http://127.0.0.1:9000
 cd backend
 # Tiny bucket-bootstrap helper: creates site-media if absent, no public policy/ACL.
 # Re-runnable; needs only MinIO, not Postgres. Local root credentials permit CreateBucket.
-go test -count=1 -tags=integration \
-  ./internal/features/companysites/infrastructure/storage/s3 -run '^TestMinIOBootstrap$'
+make test-integration PKG=./internal/features/companysites/infrastructure/storage/s3 RUN='^TestMinIOBootstrap$'
 ```
 
 For a live API on port 8090, retain your normal migrated `DATABASE_URL` and
@@ -141,11 +140,10 @@ prefixes, delete their objects, and leave the bucket/container running.
 
 ```sh
 # With the local AWS_* and SITE_MEDIA_S3_TEST_ENDPOINT exports above:
-go test -count=1 -tags=integration \
-  ./internal/features/companysites/infrastructure/storage/s3 -run TestMinIO
+make test-integration PKG=./internal/features/companysites/infrastructure/storage/s3 RUN='TestMinIO'
 # Supply an isolated migrated/test database; harness applies embedded migrations.
 DRAFT_TEST_DATABASE_URL='postgres://draft_test:draft_test@127.0.0.1:32776/draft_test?sslmode=disable' \
-  go test -count=1 -tags=integration ./cmd/api -run TestCompanySiteS3
+  make test-integration PKG=./cmd/api RUN='TestCompanySiteS3'
 ```
 
 Coverage: put/get/delete, random keys/prefix, S3 HEAD size, denied anonymous object

@@ -123,16 +123,16 @@ sibling infrastructure. The error-envelope JSON-key guard is unchanged.
 From `backend/`, focused unit checks:
 
 ```sh
-go test ./internal/features/jobs/... ./internal/shared/httpjson ./internal/tools/archguard ./db/migrations ./cmd/api -count=1
+make test PKG='./internal/features/jobs/... ./internal/shared/httpjson ./internal/tools/archguard ./db/migrations ./cmd/api'
 ```
 
 Parent-owned integration on the existing isolated `draft_test` DB (never create a
 DB for these commands):
 
 ```sh
-go test -tags=integration ./db/migrations -run '^TestMigration00031' -count=1 -v
-go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore -run 'TestGeography|TestMigration00031' -count=1 -v
-go test -tags=integration ./cmd/api -run 'TestPublicJobsFlow|TestPublicListingEnrichment|TestPublicationFlow' -count=1 -v
+make test-integration PKG=./db/migrations RUN='^TestMigration00031'
+make test-integration PKG=./internal/features/jobs/infrastructure/postgres/draftstore RUN='TestGeography|TestMigration00031'
+make test-integration PKG=./cmd/api RUN='TestPublicJobsFlow|TestPublicListingEnrichment|TestPublicationFlow'
 ```
 
 `TestMigration00031RewrittenDraftReadsNoopPatchesAndPublishes` covers NUL only in

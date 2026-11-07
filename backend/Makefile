@@ -12,7 +12,8 @@
 #   make db-new        # create a new migration file: make db-new NAME=add_foo
 #   make sqlc          # regenerate sqlc code from db/queries/*.sql
 #   make run           # run the API server (loads .env via godotenv)
-#   make test          # go test ./... -count=1
+#   make test          # unit tests: make test PKG=./internal/foo/... RUN='^TestBar$' [COUNT=4] [TIMEOUT=300s]
+#   make test-integration # integration tests (loads .env, -p 1), same PKG/RUN/TIMEOUT knobs
 #   make build         # go build ./...
 #   make vet           # go vet ./...
 #   make gate-build    # WS7A GREEN: real gate, JSON receipt under quality/receipts/
@@ -24,8 +25,24 @@ GOOSE ?= go tool goose
 SQLC  ?= go tool sqlc
 
 CLOSURE_STUB := bash scripts/closure/gate
-GATES := gate-build gate-vet gate-fmt gate-unit gate-race \
-	gate-integration gate-migrations gate-sqlc gate-arch closure-gate
+# Gates that run tests go through the test queue; the others only build or diff.
+QUEUED_GATES := gate-unit gate-race gate-integration gate-migrations gate-arch closure-gate
+PLAIN_GATES := gate-build gate-vet gate-fmt gate-sqlc
+GATES := $(PLAIN_GATES) $(QUEUED_GATES)
+
+# Test commands run through the machine-wide queue named by RUN_TESTS (set to
+# `run-tests` only on the developer PC; empty in CI, where commands run as is).
+# The queued command runs with RUN_TESTS unset so tests that call make
+# themselves (scripts/closure) never queue again behind their own slot.
+RUN_TESTS ?=
+TEST_QUEUE = $(if $(strip $(RUN_TESTS)),$(RUN_TESTS) env -u RUN_TESTS)
+
+# Focus knobs for the test targets. $(value ...) keeps `$` in -run regexes literal.
+PKG ?= ./...
+RUN ?=
+TIMEOUT ?=
+COUNT ?= 1
+TEST_FLAGS = $(if $(value RUN),-run '$(value RUN)') $(if $(TIMEOUT),-timeout $(TIMEOUT))
 
 .PHONY: db-up db-down db-migrate db-status db-new sqlc run test test-integration build vet closure-report $(GATES)
 
@@ -64,10 +81,11 @@ run:
 	go run ./cmd/api
 
 test:
-	go test ./... -count=1
+	$(TEST_QUEUE) go test -p 4 -count=$(COUNT) $(TEST_FLAGS) $(PKG)
 
+# Integration tests share one database, so they stay serial (-p 1).
 test-integration:
-	set -a && . ./.env && set +a && go test -tags=integration -p 1 ./... -count=1 -v
+	set -a && . ./.env && set +a && $(TEST_QUEUE) go test -tags=integration -p 1 -count=$(COUNT) -v $(TEST_FLAGS) $(PKG)
 
 build:
 	go build ./...
@@ -80,8 +98,11 @@ vet:
 # machine-readable JSON receipt (quality/receipts/<gate>.json) while mirroring
 # the check's exit status. The RED pass-through stub (gate-stub.sh) is kept as
 # historical RED evidence.
-$(GATES):
+$(PLAIN_GATES):
 	$(CLOSURE_STUB) $@
+
+$(QUEUED_GATES):
+	$(TEST_QUEUE) $(CLOSURE_STUB) $@
 
 # CE-04: the report driver is a first-class Make target, deliberately NOT part of
 # $(GATES) — closure-gate invokes it after the nine sub-gates, and it must never

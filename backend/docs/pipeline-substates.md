@@ -176,12 +176,12 @@ From `backend/`:
 
 ```sh
 go tool sqlc generate
-go test ./internal/features/jobs/application/substatecatalog ./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/http ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api ./db/migrations -count=1
-go test ./... -count=1
+make test PKG='./internal/features/jobs/application/substatecatalog ./internal/features/jobs/application/pipelineconfig ./internal/features/jobs/infrastructure/http ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api ./db/migrations'
+make test
 go vet ./...
-go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run '^Test(Substates|Pipeline)' -count=1 -v
+make test-integration PKG='./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api' RUN='^Test(Substates|Pipeline)'
 # Run migrations separately: down tests must not race with store/API packages.
-go test -tags=integration ./db/migrations -run '^TestMigration0001[56]' -count=1 -v
+make test-integration PKG=./db/migrations RUN='^TestMigration0001[56]'
 ```
 
 Integration tests use only `DRAFT_TEST_DATABASE_URL`, guard for loopback and database

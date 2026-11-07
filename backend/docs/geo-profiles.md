@@ -144,7 +144,7 @@ Migration 00029 itself remains unchanged.
   no exception added and no error-key rule weakened.
 
 From `backend/`: focused tests, `go tool sqlc generate`, gofmt on changed Go files,
-`go test ./... -count=1`, `go vet ./...`, `go vet -tags=integration ./...`;
+`make test`, `go vet ./...`, `go vet -tags=integration ./...`;
 from the worktree root: `git diff --check`.
 DB execution is parent-owned on an isolated database; integration-tagged vet only
 proves compilation. Run migration rollback tests separately from application tests.
