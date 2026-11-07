@@ -34,7 +34,7 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
 | T2 | S5, S6 | Metric catalog with written definitions approved by the user before any metric is built | — |
 | T3 | S4, S8 | Design directions (gentle-design) for the metrics screen and the recruiter card; user picks (done, L7, L9: `01-tablero-y-tabla.html` chosen) | `7d77c4f0` |
 | T4 | S1–S3 | Worker (background), slice 3a against contract v1 before the backend 3a runs: owner invitation screen (artboard 04), accept page, `role: "stakeholder"` and `can.view_metrics` parsing, members-list enum + picker/offboard filters, stakeholder sidebar and landing, Métricas nav entry (Risk: item 2, role gate and invitation token) (built, L16; browser integration pending) | `1b2b41d0`, `a98982bb`, `634c0878`, `8a0576a2`, `ad211096` |
-| T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 (built, L12–L14; merge after T4) | `e357dc13`, `23713769`, `71912050`, `cf009b2c`, `47809220`, `d35b2079`, `166c51d3` (branch `feat/stakeholder-metrics-t5`) |
+| T5 | S4–S6 | Worker (background), slice 3c against contract v1: `/empresa/metricas` from artboard 01 plus recruiter detail and audited detail from 05, corrected by L8 (built, L12–L14; merge after T4) | `e357dc13`, `23713769`, `71912050`, `cf009b2c`, `47809220`, `d35b2079`, `166c51d3`, `5679b004` (branch `feat/stakeholder-metrics-t5`, merged `730877d0`, `5b6a6907`) |
 | T7 | S6, S7 | Slice 3b frontend: apply sends `channel` (`careers_site` from the company careers site, `portal` from /vacantes; 400 `validation_error` on `channel`); optional «Fecha objetivo de cierre» (`targetCloseDate`, null clears) in the vacancy management configuration | — |
 | T6 | all | Integration against the real backend, verification, partner doc update | — |
 
@@ -133,3 +133,6 @@ Frontend over a contract the backend session proposes (worktree `peopleflow-vaca
   `invalid_cursor`; `summary.vacancies.closed` counts close events while `closed_by_month` counts distinct vacancies;
   `by_requester` order named A–Z, «sin especificar», «sin solicitante»; cards by lowercased name, null names last;
   medians may be x.5; `recruiter_id` semantics per route. T5 correction delegated.
+- **L18** T5 §3.7 alignment `5679b004` (candidate `{id, full_name}`, «Tarde · N días hábiles», 422 field errors at the
+  control, «Cierres» counts events vs distinct vacancies per month, backend order kept, x.5 medians, recruiter filter
+  note): RED 14 of 69, GREEN 69/69, typecheck clean, lint 0 errors. Merged into the feature branch (`5b6a6907`).
