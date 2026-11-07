@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
 import { IdentitySessionProvider } from "@/features/identity/identity-session";
 import { EmployerGuard } from "@/features/identity/area-guards";
+import { CompanyMembershipProvider } from "@/features/employer-company/company-membership-context";
 
 /**
  * The shadcn sidebar primitive persists its desktop state in this cookie; the
@@ -33,9 +34,11 @@ export default async function EmployerLayout({
 
   return (
     <IdentitySessionProvider>
-      <EmployerShell defaultOpen={defaultOpen}>
-        <EmployerGuard>{children}</EmployerGuard>
-      </EmployerShell>
+      <CompanyMembershipProvider>
+        <EmployerShell defaultOpen={defaultOpen}>
+          <EmployerGuard>{children}</EmployerGuard>
+        </EmployerShell>
+      </CompanyMembershipProvider>
     </IdentitySessionProvider>
   );
 }

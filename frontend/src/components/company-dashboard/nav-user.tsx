@@ -93,6 +93,7 @@ export function NavUser({
   secondaryText,
   showCompany = false,
   logoutStatusId,
+  showAssignmentHistory = true,
 }: {
   user: NavUserIdentity
   menuItems?: ReadonlyArray<NavUserMenuItem>
@@ -101,10 +102,12 @@ export function NavUser({
   secondaryText?: string
   showCompany?: boolean
   logoutStatusId?: string
+  /** Off for a read-only stakeholder, whose employer account has no vacancy history. */
+  showAssignmentHistory?: boolean
 }) {
   const { isMobile } = useSidebar()
   const { result } = useIdentity()
-  const historyItem = assignmentHistoryMenuItem(result?.ok ? result.data.role : null)
+  const historyItem = showAssignmentHistory ? assignmentHistoryMenuItem(result?.ok ? result.data.role : null) : null
   const initials = accountInitials(user.name)
   return (
     <SidebarMenu>

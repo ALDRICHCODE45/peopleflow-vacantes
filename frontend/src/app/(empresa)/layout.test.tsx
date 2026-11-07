@@ -52,6 +52,9 @@ describe("(empresa) route-group layout owns the single employer shell", () => {
     const source = readFileSync(join(process.cwd(), "src/app/(empresa)/layout.tsx"), "utf8");
     expect(source).toContain("<IdentitySessionProvider>");
     expect(source).toContain("<EmployerGuard>");
+    // One GET /me/company for the sidebar, the stakeholder gate and the pages, inside the session lifetime.
+    expect(source.indexOf("<IdentitySessionProvider>")).toBeLessThan(source.indexOf("<CompanyMembershipProvider>"));
+    expect(source.indexOf("<CompanyMembershipProvider>")).toBeLessThan(source.indexOf("<EmployerShell"));
     expect(source).not.toMatch(/getActionAccessToken|getServerSession/);
   });
 

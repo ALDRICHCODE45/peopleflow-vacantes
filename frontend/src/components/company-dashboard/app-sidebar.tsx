@@ -10,6 +10,8 @@ import { notifyActionResult } from "@/components/feedback/notify"
 import { signOutWithAudit } from "@/lib/audit/sign-out"
 import { useIdentity } from "@/features/identity/identity-session"
 import { useCompanyMembership } from "@/features/employer-company/use-company-membership"
+import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context"
+import { STAKEHOLDER_HOME, isInvitationRoute } from "@/features/identity/stakeholder-routes"
 import { NavUser } from "./nav-user"
 import {
   Sidebar,
@@ -26,6 +28,7 @@ import {
 } from "./ui/sidebar"
 import {
   IconBriefcase,
+  IconChartBar,
   IconCirclePlusFilled,
   IconLayoutDashboard,
   IconSettings,
@@ -84,6 +87,13 @@ const AUDIT_ITEM: NavItem = {
   title: "Auditoría",
   url: "/empresa/auditoria",
   icon: <IconShieldCheck />,
+}
+
+/** Company metrics (stakeholder-metrics-v1 §1.2): owner and stakeholder only, never recruiters (D2). */
+const METRICS_ITEM: NavItem = {
+  title: "Métricas",
+  url: STAKEHOLDER_HOME,
+  icon: <IconChartBar />,
 }
 
 /**
@@ -149,15 +159,22 @@ const ACCOUNT_MENU = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const { result } = useIdentity()
-  const showNavigation = !result?.ok || result.data.role === "recruiter"
   const user = result?.ok ? result.data.user : null
-  const membership = useCompanyMembership(result?.ok && result.data.role === "recruiter" ? user?.id ?? null : null)
+  const employer = result?.ok && result.data.role === "recruiter"
+  const membership = useCompanyMembership(employer ? user?.id ?? null : null)
+  const shared = useCompanyMembershipState()
+  const stakeholder = membership?.role === "stakeholder"
+  // Inside the employer frame the membership is known before the recruiting entries show, so a stakeholder never
+  // sees them flash; someone opening an invitation is not a member of that company yet and gets no employer navigation.
+  const membershipPending = shared !== null && employer && shared.userId !== null && shared.state === null
+  const showNavigation = (!result?.ok || employer) && !membershipPending && !(isInvitationRoute(pathname) && !stakeholder)
   const account = {
     name: user?.full_name ?? "Mi cuenta",
     email: user?.email ?? "",
-    role: membership ? (membership.role === "owner" ? "Propietario" : "Reclutador") : result?.ok && result.data.role === "candidate" ? "Candidato" : "Empresa",
+    role: membership ? (membership.role === "owner" ? "Propietario" : stakeholder ? "Stakeholder" : "Reclutador") : result?.ok && result.data.role === "candidate" ? "Candidato" : "Empresa",
     company: membership?.company.name ?? "",
   }
+  const organization = [...data.navOrganization, ...(membership?.role === "owner" && membership.canViewMetrics === true ? [METRICS_ITEM] : []), ...(membership?.role === "owner" ? [AUDIT_ITEM] : [])]
   const { state, isMobile } = useSidebar()
   const [logoutPending, setLogoutPending] = React.useState(false)
   const [logoutFailed, setLogoutFailed] = React.useState(false)
@@ -189,7 +206,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               className="data-[slot=sidebar-menu-button]:p-1.5! group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:p-0!"
-              render={<Link href="/empresa/dashboard" aria-label="PeopleFlow" />}
+              render={<Link href={stakeholder ? STAKEHOLDER_HOME : "/empresa/dashboard"} aria-label="PeopleFlow" />}
             >
               <PeopleFlowSidebarLogo collapsed={state === "collapsed" && !isMobile && props.collapsible === "icon"} />
             </SidebarMenuButton>
@@ -197,7 +214,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {showNavigation && <>
+        {showNavigation && stakeholder && <NavGroup label={account.company} items={[METRICS_ITEM]} pathname={pathname} />}
+        {showNavigation && !stakeholder && <>
         <SidebarGroup>
           <SidebarGroupLabel>Principal</SidebarGroupLabel>
           <SidebarGroupContent className="flex flex-col gap-2">
@@ -234,12 +252,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
         <NavGroup
           label="Organización"
-          items={membership?.role === "owner" ? [...data.navOrganization, AUDIT_ITEM] : data.navOrganization}
+          items={organization}
           pathname={pathname}
         />
         </>}
       </SidebarContent>
       <SidebarFooter>
+        {stakeholder ? (
+          // «Mi cuenta» for the stakeholder: its account menu holds only «Cerrar sesión» (F8).
+          <NavUser
+            user={account}
+            menuItems={[]}
+            showAssignmentHistory={false}
+            onLogout={logout}
+            logoutPending={logoutPending}
+            logoutStatusId={logoutFailed ? logoutStatusId : undefined}
+          />
+        ) : (
         <NavUser
           user={account}
           secondaryText={account.email}
@@ -249,6 +278,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           logoutPending={logoutPending}
           logoutStatusId={logoutFailed ? logoutStatusId : undefined}
         />
+        )}
         {logoutFailed && <ActionStatus id={logoutStatusId} tone="error" text="No se cerró la sesión. Intenta nuevamente desde el menú." />}
       </SidebarFooter>
     </Sidebar>

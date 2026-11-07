@@ -737,3 +737,41 @@ describe("company dashboard sidebar sign-out (S3)", () => {
     await act(async () => { finish(); });
   });
 });
+
+describe("company dashboard sidebar metrics (stakeholder-metrics-v1 §1.2, D2, F8)", () => {
+  beforeEach(stubBrowserApis);
+
+  it("gives the owner «Métricas» in Organización, before «Auditoría»", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "owner", canViewTalentBase: true, canViewMetrics: true });
+    await act(async () => { renderSidebar(); });
+    expect(screen.getByRole("link", { name: "Métricas" })).toHaveAttribute("href", "/empresa/metricas");
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS, "Métricas", "Auditoría"]);
+    expect(groupDestinations("Principal")).toEqual([...PRINCIPAL_ITEMS]);
+  });
+
+  it("never shows «Métricas» to a recruiter (D2), leaving the rest as it was", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "recruiter", canViewTalentBase: true, canViewMetrics: false });
+    await act(async () => { renderSidebar(); });
+    expect(screen.queryByRole("link", { name: "Métricas" })).toBeNull();
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
+  });
+
+  it("reduces the stakeholder shell to Métricas plus the account menu, with no recruiting entry or create action", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "stakeholder", canViewTalentBase: false, canViewMetrics: true });
+    await act(async () => { renderSidebar("/empresa/metricas"); });
+    expect(groupDestinations("Empresa Real")).toEqual(["Métricas"]);
+    expect(screen.getByRole("link", { name: "Métricas" })).toHaveAttribute("data-active");
+    for (const label of [...PRINCIPAL_ITEMS, ...ORGANIZATION_ITEMS, "Auditoría"]) expect(screen.queryByRole("link", { name: label })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nueva vacante" })).toBeNull();
+    expect(screen.getByRole("link", { name: "PeopleFlow" })).toHaveAttribute("href", "/empresa/metricas");
+    expect(screen.getByText("Stakeholder · Empresa Real")).toBeInTheDocument();
+    expect(screen.getByTestId("account-logout")).toBeInTheDocument();
+  });
+
+  it("shows no employer navigation on the invitation page to someone who is not a stakeholder yet", async () => {
+    companyMock.mockResolvedValue({ kind: "none", industries: [] });
+    await act(async () => { renderSidebar("/empresa/invitacion"); });
+    expect(screen.queryByRole("button", { name: "Nueva vacante" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Vacantes" })).toBeNull();
+  });
+});
