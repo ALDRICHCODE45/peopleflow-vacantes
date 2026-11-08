@@ -188,3 +188,21 @@ detail): compare with the user's references, research modern dashboard patterns,
   catalog «Detalle de métricas exportado». Drill-down links switched on (`DETAIL_PAGE_ENABLED = true`).
   Backend §4.4 adjustment for v2c: a top vacancy opens `candidates?vacancy_id=V&stage_kind=new,screening,screening_ok,
   in_process,custom,retired`; applications `total` = sum of applications in the chosen channels.
+- **L26** Backend v2 complete: v2c (`f6e61e59`) adds `pipeline` (§4.4), `candidates` (audited per page, facets
+  stage_kind/stalled), `applications` (total = sum of chosen channels, facets channel), both exports, migration 00060
+  (index). No strict route changed. Backend now builds the demo seed. T10c worker launched (pipeline section between
+  Cumplimiento and Retrasos, candidates/applications detail kinds).
+- **L27** Backend dashboard contract `docs/contracts/company-dashboard-v2.md` (backend branch): sections
+  `/v2/me/company/dashboard/{summary,attention,pipeline,vacancies,recent,origin}` on the metrics engine behind the
+  recruiter gate, `window=7|30|90`, lists with the metrics §5 grammar (not audited). Frontend review approved, no
+  additions. User accepted DD1–DD6 («Acepto las 6 recomendaciones»): DD1 recruiter sees own vacancies, owner the
+  company; DD2 one «en proceso» = active, not new, not placement (also changes metrics top_vacancies.in_process before
+  the single merge); DD3 positions covered = active placement credits; DD4 dashboard lists not audited; DD5 no
+  stakeholder dashboard; DD6 due this week = today to Sunday, Mexico City.
+- **L28** Backend confirmed the DD2 query: top_vacancies opens `candidates?vacancy_id=V&stage_kind=screening,screening_ok,
+  in_process,custom,retired` (replaces L25's). Backend order: seed → DD2 metrics adjustment → d2a → d2b; d2c after the
+  frontend stops calling the old dashboard endpoint.
+- **L29** T10c: pipeline section (between Cumplimiento and Retrasos, lazy; stages with candidates, median days, stalled;
+  top vacancies opening the DD2 query) and detail kinds candidates (never links) and applications (summary uses the
+  response total). Stage labels reuse the app's pipeline words (Nuevos, Screening, Screening OK, En proceso, Placement,
+  «Columnas propias», «Columnas retiradas»). 212 tests green in company-metrics + metricas routes.
