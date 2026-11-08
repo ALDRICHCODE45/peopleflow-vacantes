@@ -25,6 +25,7 @@ import (
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
+	metricshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/http"
 	profilehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/psychometrics/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
 	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
@@ -39,37 +40,44 @@ import (
 // routerDeps = the composition root's explicit dependencies (gates built in main.go,
 // handlers, health ports); no globals, no init().
 type routerDeps struct {
-	siteHandler          *siteshttp.Handler
-	requireAuth          func(http.Handler) http.Handler
-	requireCandidate     func(http.Handler) http.Handler
-	identityHandler      *identityhttp.CandidateIdentityHandler
-	requireRecruiter     func(http.Handler) http.Handler
-	requireOwner         func(http.Handler) http.Handler
-	companyHandler       *companieshttp.CompanyHandler
-	memberHandler        *companieshttp.MemberHandler
-	candidateHandler     *candidateshttp.CandidateHandler
-	publicJobsHandler    *jobshttp.PublicJobsHandler
-	savedJobsHandler     *jobshttp.SavedJobsHandler
-	jobHandler           *jobshttp.JobHandler
-	draftHandler         *jobshttp.DraftHandler
-	draftV2Handler       *jobshttp.DraftV2Handler
-	teamHandler          *jobshttp.TeamHandler
-	offboardHandler      *jobshttp.OffboardHandler
-	dashboardHandler     *jobshttp.DashboardHandler
-	draftListHandler     *jobshttp.DraftListHandler
-	pipelineHandler      *jobshttp.PipelineHandler
-	substatesHandler     *jobshttp.SubstatesHandler
-	deliveryHandler      *jobshttp.DeliveryHandler
-	managementHandler    *jobshttp.ManagementHandler
-	publicationHandler   *jobshttp.PublicationHandler
-	lifecycleHandler     *jobshttp.LifecycleHandler
-	requesterHandler     *jobshttp.RequesterHandler
-	applicationHandler   *applicationshttp.ApplicationHandler
-	cvHandler            *cvshttp.Handler
-	participationHandler *applicationsv2http.Handler
-	movementHandler      *movementhttp.Handler
-	candidatePoolHandler *poolhttp.Handler
-	talentBaseHandler    *talentbasehttp.Handler
+	siteHandler      *siteshttp.Handler
+	requireAuth      func(http.Handler) http.Handler
+	requireCandidate func(http.Handler) http.Handler
+	identityHandler  *identityhttp.CandidateIdentityHandler
+	requireRecruiter func(http.Handler) http.Handler
+	requireOwner     func(http.Handler) http.Handler
+	// requireMetricsViewer passes owners and stakeholders; it guards the
+	// company metrics routes (stakeholder-metrics-v1 §3, slice 3c).
+	requireMetricsViewer func(http.Handler) http.Handler
+	// metricsHandler serves the company metrics read API (§3).
+	metricsHandler *metricshttp.Handler
+	// stakeholderInvitationHandler serves the invitation routes (§1.3).
+	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
+	companyHandler               *companieshttp.CompanyHandler
+	memberHandler                *companieshttp.MemberHandler
+	candidateHandler             *candidateshttp.CandidateHandler
+	publicJobsHandler            *jobshttp.PublicJobsHandler
+	savedJobsHandler             *jobshttp.SavedJobsHandler
+	jobHandler                   *jobshttp.JobHandler
+	draftHandler                 *jobshttp.DraftHandler
+	draftV2Handler               *jobshttp.DraftV2Handler
+	teamHandler                  *jobshttp.TeamHandler
+	offboardHandler              *jobshttp.OffboardHandler
+	dashboardHandler             *jobshttp.DashboardHandler
+	draftListHandler             *jobshttp.DraftListHandler
+	pipelineHandler              *jobshttp.PipelineHandler
+	substatesHandler             *jobshttp.SubstatesHandler
+	deliveryHandler              *jobshttp.DeliveryHandler
+	managementHandler            *jobshttp.ManagementHandler
+	publicationHandler           *jobshttp.PublicationHandler
+	lifecycleHandler             *jobshttp.LifecycleHandler
+	requesterHandler             *jobshttp.RequesterHandler
+	applicationHandler           *applicationshttp.ApplicationHandler
+	cvHandler                    *cvshttp.Handler
+	participationHandler         *applicationsv2http.Handler
+	movementHandler              *movementhttp.Handler
+	candidatePoolHandler         *poolhttp.Handler
+	talentBaseHandler            *talentbasehttp.Handler
 	// requireTalentBase gates the company-wide candidate routes after the role gate.
 	requireTalentBase func(http.Handler) http.Handler
 	queries           *db.Queries
@@ -111,6 +119,10 @@ func newRouter(d routerDeps) chi.Router {
 	// The talent base is never served ungated: a missing gate refuses everyone.
 	if d.requireTalentBase == nil {
 		d.requireTalentBase = refuseTalentBase
+	}
+	// Metrics are never served ungated: a missing gate refuses everyone.
+	if d.requireMetricsViewer == nil {
+		d.requireMetricsViewer = refuseMetrics
 	}
 	// The public assessment prefix is never served unlimited.
 	if d.publicAssessmentLimit == nil {
@@ -237,12 +249,35 @@ func newRouter(d routerDeps) chi.Router {
 	r.With(d.requireAuth, d.requireRecruiter).Post("/jobs", jobHandlers.CreateJob)
 	r.With(d.requireAuth, d.requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)
 
+	// Stakeholder invitations (stakeholder-metrics-v1 §1.3): the owner creates,
+	// lists and revokes; any signed-in user accepts.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireOwner)
+		r.Post("/v2/me/company/stakeholder-invitations", d.stakeholderInvitationHandler.Create)
+		r.Get("/v2/me/company/stakeholder-invitations", d.stakeholderInvitationHandler.List)
+		r.Delete("/v2/me/company/stakeholder-invitations/{id}", d.stakeholderInvitationHandler.Revoke)
+	})
+
+	// Company metrics (stakeholder-metrics-v1 §3): owners and stakeholders
+	// read; detail reads with candidate names audit themselves.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireMetricsViewer)
+		r.Get("/v2/me/company/metrics/summary", d.metricsHandler.Summary)
+		r.Get("/v2/me/company/metrics/recruiters", d.metricsHandler.Recruiters)
+		r.Get("/v2/me/company/metrics/recruiters/{userId}", d.metricsHandler.Recruiter)
+		r.Get("/v2/me/company/metrics/vacancies", d.metricsHandler.Vacancies)
+		r.Get("/v2/me/company/metrics/reassignments", d.metricsHandler.Reassignments)
+		r.Get("/v2/me/company/metrics/vacancies/{draftId}/deliveries", d.metricsHandler.Deliveries)
+		r.Get("/v2/me/company/metrics/vacancies/{draftId}/placements", d.metricsHandler.Placements)
+	})
+
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth)
 		r.Get("/v2/me", d.identityHandler.Me)
 		r.Post("/v2/me/candidate-account", d.identityHandler.CreateCandidateAccount)
 		r.Post("/v2/me/session/start", d.sessionHandler.Start)
 		r.Post("/v2/me/session/end", d.sessionHandler.End)
+		r.Post("/v2/me/stakeholder-invitations/accept", d.stakeholderInvitationHandler.Accept)
 	})
 
 	// Applications — candidate apply (RequireAuth + live candidate) + recruiter pipeline
@@ -407,6 +442,14 @@ func newRouter(d routerDeps) chi.Router {
 func refuseTalentBase(http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeTalentBaseRestricted))
+	})
+}
+
+// refuseMetrics is the fail-closed default for a router built without the
+// metrics viewer gate.
+func refuseMetrics(http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeForbidden))
 	})
 }
 

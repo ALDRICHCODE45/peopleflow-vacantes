@@ -314,7 +314,7 @@ func TestTalentBaseVisibility_CapabilityFlagOnMyCompany(t *testing.T) {
 			t.Fatalf("%d %s", r.status, r.body)
 		}
 		body := draftFlowObject(t, r.body)
-		flag := orgCandidateKeys(t, body["can"], "view_talent_base")["view_talent_base"]
+		flag := orgCandidateKeys(t, body["can"], "view_talent_base", "view_metrics")["view_talent_base"]
 		value, ok := flag.(bool)
 		if !ok {
 			t.Fatalf("view_talent_base is not a boolean: %s", r.body)

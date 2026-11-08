@@ -7,8 +7,8 @@ resolved by `RequireCompanyRole`, never a company ID from the request body.
 | --- | --- | --- |
 | `GET /me/company` | Authenticated user; no role gate; missing membership → 404 | 200 |
 | `GET /me/company/members` | Recruiter or owner; live company | 200 |
-| `POST /me/company/members` | Owner; live company; target must be a recruiter account; one membership per user | 201 |
-| `PATCH /me/company/members/{id}` | Owner; live company; valid role; same-company target; retain an owner | 200 |
+| `POST /me/company/members` | Owner; live company; target must be a recruiter (employer) account; one membership per user | 201 |
+| `PATCH /me/company/members/{id}` | Owner; live company; valid role; same-company target; retain an owner; never to or from `stakeholder` | 200 |
 | `DELETE /me/company/members/{id}` | Owner; live company; same-company target; retain an owner | 204 |
 
 Every successful add, role change and removal is audited in the same transaction
@@ -19,6 +19,37 @@ Missing/invalid authentication returns 401; insufficient role, no membership, or
 an unavailable company returns 403 on gated routes. Invalid UUIDs/roles return
 400. Unknown and foreign member IDs both return 404, without revealing whether
 the foreign row exists. Duplicate membership creation returns 409.
+
+## Roles and the gate
+
+`company_members.role` is `owner | recruiter | stakeholder` (migration `00057`).
+Owner and recruiter form the ladder `RequireCompanyRole(minRole)` checks with
+`MemberRole.AtLeast`: an owner passes a recruiter gate. The **stakeholder** is a
+read-only role outside the ladder (contract
+[`stakeholder-metrics-v1.md`](../../docs/contracts/stakeholder-metrics-v1.md) §1):
+it passes **no** `requireRecruiter` or `requireOwner` gate (403 `forbidden`,
+`"insufficient role"`, before any store lookup). `RequireMetricsViewer` passes
+owner and stakeholder only; it is composed in `cmd/api/main.go` for the metrics
+routes of slice 3c.
+
+A stakeholder answers on `GET /v2/me`, `GET /me/company`, the session reports
+and `POST /v2/me/stakeholder-invitations/accept` (see
+[stakeholder-invitations.md](stakeholder-invitations.md)), plus public routes.
+
+- `GET /me/company` returns `role` and `can`: `view_metrics` is true for owner
+  and stakeholder, false for recruiter; `view_talent_base` keeps its rule for
+  owner and recruiter and is always false for a stakeholder.
+- `GET /me/company/members` lists stakeholders with `role: "stakeholder"`.
+- `POST /me/company/members` accepts `role: "stakeholder"` (owner fallback for
+  tests and local scripts), audited as `CompanyMemberAdded` with that role.
+- `PATCH` with `role: "stakeholder"`, or on a stakeholder target, returns 422
+  `stakeholder_role_change_not_supported` (no write, no audit): remove and
+  re-invite.
+- `DELETE` of a stakeholder uses the normal removal path: one
+  `CompanyMemberOffboarded` row with empty reassignment/assignment ids.
+- A stakeholder is never a team member, responsible, offboard handover target
+  (422 `not_company_member`, the non-member code) or talent base viewer (422
+  `talent_base_viewer_not_member`).
 
 ## Final owner
 
@@ -88,7 +119,17 @@ migrations and cleans its own fixtures):
 
 ```sh
 make test-integration PKG=./cmd/api RUN='^TestCompanyMembersLastOwner(HTTP|Concurrent)$'
+make test-integration PKG=./cmd/api RUN='^(TestStakeholder|TestMeCompany_CapabilitiesByRole|TestMembersList_IncludesStakeholders)'
+make test PKG='./internal/features/identity/infrastructure/http/ ./internal/features/companies/...'
 ```
+
+Stakeholder coverage: `cmd/api/stakeholder_gate_integration_test.go` (every
+gated group refuses a stakeholder with no write; reachable routes; `can` by
+role; members list), `stakeholder_members_integration_test.go` (add, PATCH
+refusals, DELETE audit, talent base viewer) and
+`stakeholder_team_writes_integration_test.go` (team writes and offboard
+handover targets); unit tests `requireCompanyRole_stakeholder_test.go` and
+`memberRole_stakeholder_test.go`.
 
 The new tests never read `.env` or ambient `DATABASE_URL`. They skip when the
 explicit variable is absent; a skip does not prove database behavior. Older

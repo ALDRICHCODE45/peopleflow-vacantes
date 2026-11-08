@@ -159,6 +159,9 @@ func Resolve(code Code) Definition {
 		if def, ok := resolveCompanyMemberError(code); ok {
 			return def
 		}
+		if def, ok := resolveStakeholderError(code); ok {
+			return def
+		}
 		if def, ok := resolveIdentityError(code); ok {
 			return def
 		}

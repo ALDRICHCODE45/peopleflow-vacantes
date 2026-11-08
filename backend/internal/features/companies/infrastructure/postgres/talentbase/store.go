@@ -152,7 +152,8 @@ func checkMembers(ctx context.Context, tx pgx.Tx, company uuid.UUID, ids []uuid.
 	for i, id := range ids {
 		role, member := roles[id]
 		switch {
-		case !member:
+		// A stakeholder is never a viewer entry (stakeholder-metrics-v1 §1.1).
+		case !member || role == "stakeholder":
 			return &app.RuleError{Rule: app.RuleViewerNotMember, Field: app.UserIDField(i)}
 		case role == "owner":
 			return &app.RuleError{Rule: app.RuleViewerIsOwner, Field: app.UserIDField(i)}

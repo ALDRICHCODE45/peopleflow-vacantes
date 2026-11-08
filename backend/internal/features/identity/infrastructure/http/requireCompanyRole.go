@@ -38,7 +38,8 @@ import (
 //     and short-circuits BEFORE the membership table is touched (no
 //     IDOR leak from probing membership rows with a bogus sub).
 //   - users.id → members.GetMembershipByUserID. Missing row maps to
-//     403; role < minRole maps to 403 (per design D4 / spec scenarios).
+//     403; a role that does not satisfy minRole (role.AtLeast) maps to
+//     403 (per design D4 / spec scenarios); stakeholder never satisfies it.
 //   - After membership resolution, the middleware probes the company's
 //     liveness via the narrow CompanyLivenessRepository. A tombstoned
 //     company (`deleted_at IS NOT NULL`) and a missing company (no
@@ -65,6 +66,31 @@ func RequireCompanyRole(
 	members companiesrepositories.CompanyMemberRepository,
 	liveness companiesrepositories.CompanyLivenessRepository,
 	minRole valueobjects.MemberRole,
+) func(http.Handler) http.Handler {
+	// The ladder rule rejects a stakeholder for every recruiter and owner gate
+	// (stakeholder-metrics-v1 §1.2): fail closed, same 403 as a lower role.
+	return requireCompanyMember(users, members, liveness, func(role valueobjects.MemberRole) bool { return role.AtLeast(minRole) })
+}
+
+// RequireMetricsViewer passes owners and stakeholders only; it guards the
+// company metrics routes (stakeholder-metrics-v1 §1.2, §3). Every other step
+// (subject, membership, liveness) is the RequireCompanyRole chain.
+func RequireMetricsViewer(
+	users identityrepositories.UserRepository,
+	members companiesrepositories.CompanyMemberRepository,
+	liveness companiesrepositories.CompanyLivenessRepository,
+) func(http.Handler) http.Handler {
+	return requireCompanyMember(users, members, liveness, func(role valueobjects.MemberRole) bool {
+		return role == valueobjects.OwnerRole || role == valueobjects.StakeholderRole
+	})
+}
+
+// requireCompanyMember is the shared resolver chain; allowed decides the role.
+func requireCompanyMember(
+	users identityrepositories.UserRepository,
+	members companiesrepositories.CompanyMemberRepository,
+	liveness companiesrepositories.CompanyLivenessRepository,
+	allowed func(valueobjects.MemberRole) bool,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +158,7 @@ func RequireCompanyRole(
 				return
 			}
 
-			if member.Role < minRole {
+			if !allowed(member.Role) {
 				respondForbiddenSafe(w, "insufficient role")
 				return
 			}

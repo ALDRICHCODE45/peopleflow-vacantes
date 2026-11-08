@@ -25,6 +25,9 @@ func writeError(w http.ResponseWriter, err error) {
 	var restriction *app.CountryRestriction
 	var unavailable *app.NotAcceptingApplications
 	switch {
+	case errors.Is(err, app.ErrInvalidChannel):
+		httpjson.WriteValidationError(w, []httpjson.ValidationField{{Field: "channel", Code: "invalid"}})
+		return
 	case errors.As(err, &unavailable):
 		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeVacancyNotAcceptingApplications), unavailable)
 		return

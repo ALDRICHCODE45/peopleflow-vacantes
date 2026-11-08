@@ -3,6 +3,7 @@ package draftstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,7 +36,7 @@ func (s *Store) GetAssignmentHistory(ctx context.Context, company, actor uuid.UU
  WHERE a.company_id=$1 AND a.user_id=$2
  ) SELECT a.id,a.draft_id,a.at,a.started_at,a.ended_at,c.cutoff_stage_id::text,d.fields,
  (CASE WHEN a.ended_at IS NULL THEN COALESCE(a.recruiter_deadline,c.commitment_date) ELSE a.closing_deadline END)::text,
- f.fulfilled_at,COALESCE(f.target,c.target_quantity),
+ f.process_id IS NOT NULL,(f.candidates->(f.target-1)->>'reached_at')::timestamptz,COALESCE(f.target,c.target_quantity),
  jsonb_build_object(
  'vacancy_status',jsonb_build_object('publication',COALESCE(vp.status,'draft'),'process',vp.process_status),
  'vacancy_title',convert_from(d.fields,'UTF8')::jsonb->'fields'->>'title',
@@ -70,6 +71,7 @@ func (s *Store) GetAssignmentHistory(ctx context.Context, company, actor uuid.UU
 		cutoff    *string
 		fields    []byte
 		deadline  *string
+		frozen    bool
 		fulfilled *time.Time
 		target    *int64
 		body      map[string]json.RawMessage
@@ -78,9 +80,13 @@ func (s *Store) GetAssignmentHistory(ctx context.Context, company, actor uuid.UU
 	for rows.Next() {
 		e := entry{cursor: vacancyteam.Cursor{Scope: scope, Kind: "tramo"}}
 		var raw []byte
-		if err := rows.Scan(&e.cursor.ID, &e.draft, &e.cursor.At, &e.start, &e.end, &e.cutoff, &e.fields, &e.deadline, &e.fulfilled, &e.target, &raw); err != nil {
+		if err := rows.Scan(&e.cursor.ID, &e.draft, &e.cursor.At, &e.start, &e.end, &e.cutoff, &e.fields, &e.deadline, &e.frozen, &e.fulfilled, &e.target, &raw); err != nil {
 			rows.Close()
 			return drafts.Result{}, err
+		}
+		if e.frozen && e.fulfilled == nil {
+			rows.Close()
+			return drafts.Result{}, errors.New("draftstore: fulfillment without the target candidate")
 		}
 		if err := json.Unmarshal(raw, &e.body); err != nil {
 			rows.Close()
@@ -160,6 +166,9 @@ func (s *Store) GetAssignmentHistory(ctx context.Context, company, actor uuid.UU
 	return drafts.Result{Body: body}, nil
 }
 
+// fulfilled is the target moment of stakeholder-metrics-v1 §2.3 (D8): the
+// reached_at of the N-th frozen candidate, never fulfilled_at, which can be a
+// configuration save or a recovery time.
 // assignmentDeadlineResult evaluates the shared target only within this stay's
 // half-open instant window. Civil-date comparisons, not delta signs, determine
 // lateness: a weekend may be late with a zero business-day delta.

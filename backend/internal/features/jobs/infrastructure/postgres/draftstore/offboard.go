@@ -270,7 +270,8 @@ func (s *Store) departCompanyMember(ctx context.Context, company, actor, members
 		}
 		for _, target := range targets {
 			var valid bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_id=$1 AND user_id=$2)`, company, target).Scan(&valid); err != nil {
+			// A stakeholder is never a handover target (stakeholder-metrics-v1 §1.1).
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_id=$1 AND user_id=$2 AND role<>'stakeholder')`, company, target).Scan(&valid); err != nil {
 				return drafts.Result{}, err
 			}
 			if !valid || target == preview.User.ID {

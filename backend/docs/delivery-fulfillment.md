@@ -126,6 +126,15 @@ this private process summary. Coverage/headcount and hiring rules are independen
 | Remaining, §16.2 | Same signed endpoint rule from Mexico City today to commitment; negative past dates; null after fulfillment. |
 | Audit | `VacancyDeliveryFulfilled`, actor and vacancy association, immutable JSON `snapshot` metadata. Snapshot is private recruiter-facing evidence, never public projection, candidate API or request logs. Audit failure rolls back the triggering operation too. |
 
+**Target moment (D8, `docs/contracts/stakeholder-metrics-v1.md` §2.3).** The frozen
+`fulfilled_at` is when the row was written: a delivery PUT that newly satisfies the
+target records its save time, recovery records the recovery time. Readers that judge
+punctuality use `candidates[target-1].reached_at` instead: «Mi rendimiento»
+(`GET /v2/me/vacancy-assignments/history`) computes `deadline_result` and
+`deadline_delta_business_days` from it, with the same field names, shapes and enums.
+The frozen row itself (`fulfilled_at`, `result`, `business_days_delta`) and the
+status/preview responses are unchanged.
+
 Composition ports in applications avoid sibling-feature implementation imports:
 the composition root injects draftstore's recorder and summary reader. All guard,
 recording and read queries run inside the existing locked transaction.

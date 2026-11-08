@@ -74,6 +74,15 @@ rolls the change back.
 | `PATCH /me/company/members/{id}` | `CompanyMemberRoleChanged` | `company_member` / `{id}` | `{member_user_id, from_role, to_role}`; **no row when the role does not change** |
 | `DELETE /me/company/members/{id}` | `CompanyMemberOffboarded` | `company_member` / `{id}` | see below |
 | `POST /me/company/members/{id}/offboard` | `CompanyMemberOffboarded` | same | see below |
+| `POST /v2/me/company/stakeholder-invitations` | `StakeholderInvitationCreated` | `stakeholder_invitation` / the invitation id | `{invitation_id, expires_at}` |
+| `DELETE /v2/me/company/stakeholder-invitations/{id}` | `StakeholderInvitationRevoked` | same | `{invitation_id}`; **no row** for an already used, expired, revoked or unknown invitation |
+| `POST /v2/me/stakeholder-invitations/accept` | `StakeholderInvitationAccepted` + `CompanyMemberAdded` (actor: the new stakeholder) | invitation / new membership | `{invitation_id, member_user_id}` / `{member_user_id, role: "stakeholder"}`; **no row on a replay** |
+
+A stakeholder added with `POST /me/company/members` is a normal
+`CompanyMemberAdded` with `role: "stakeholder"`; removing one is a normal
+`CompanyMemberOffboarded`. `MetricsDetailViewed` (`sensitive_read`, `{report,
+vacancy_id}`) is in the catalog ahead of its emitter (metrics API, slice 3c) and
+listed in `pendingEmitters`. Details: [stakeholder-invitations.md](stakeholder-invitations.md).
 
 `CompanyMemberOffboarded` metadata is built by one function,
 `entities.CompanyMemberOffboardedMetadata`: `{company_id, user_id, member_user_id,
@@ -103,4 +112,6 @@ drop the record.
   both removal paths, the plain fallback, rejections and rollbacks.
 - Unit: `session_test.go` (identity http), `contacts_audit_test.go` (pool store),
   `companyMemberRepository_test.go` (events, none on rejection or no-op),
-  `TestEveryCatalogTypeHasAnEmitter` (no type is pending: `AuditLogExported` is emitted by the export, see [audit-read-api.md](audit-read-api.md)).
+  `TestEveryCatalogTypeHasAnEmitter` (`AuditLogExported` is emitted by the export, see [audit-read-api.md](audit-read-api.md); only `MetricsDetailViewed` is pending).
+- `cmd/api/stakeholder_invitations_integration_test.go`: invitation create,
+  revoke and accept rows, none on rejection, replay or idempotent revoke.

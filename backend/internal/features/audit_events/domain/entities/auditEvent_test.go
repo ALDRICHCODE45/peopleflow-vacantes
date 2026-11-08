@@ -67,11 +67,12 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 	// catalog, or a catalog entry without a constant, fails here. Adding an
 	// event type is a deliberate catalog change (catalog.go).
 	want := map[string]bool{
-		EntityApplication:       true,
-		EntityCompany:           true,
-		EntityCompanySite:       true,
-		EntityJobDraft:          true,
-		EntityJobDraftRequester: true,
+		EntityApplication:           true,
+		EntityCompany:               true,
+		EntityCompanySite:           true,
+		EntityJobDraft:              true,
+		EntityJobDraftRequester:     true,
+		EntityStakeholderInvitation: true,
 	}
 	for _, spec := range Catalog() {
 		want[spec.Type] = true

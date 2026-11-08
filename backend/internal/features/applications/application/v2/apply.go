@@ -25,6 +25,15 @@ var (
 	ErrAlreadyApplied       = errors.New("already applied")
 	ErrCVUnavailable        = errors.New("CV unavailable")
 	ErrIdempotencyConflict  = errors.New("idempotency conflict")
+	// ErrInvalidChannel is a field validation error, not a shape error.
+	ErrInvalidChannel = errors.New("invalid application channel")
+)
+
+// Origin channels a candidate may report (stakeholder-metrics-v1 §2.5). The
+// value is analytics only: the client self-reports it.
+const (
+	ChannelPortal      = "portal"
+	ChannelCareersSite = "careers_site"
 )
 
 type InvalidAnswers struct{ Details []httpjson.AnswerDetail }
@@ -44,6 +53,8 @@ type Request struct {
 	CVID     uuid.UUID `json:"cv_id"`
 	Revision string    `json:"questionnaire_revision"`
 	Answers  []Answer  `json:"answers"`
+	// Channel is normalized by Decode: a missing channel is "portal".
+	Channel string `json:"channel,omitempty"`
 }
 type Submitted struct {
 	ID        uuid.UUID `json:"id"`
@@ -100,7 +111,12 @@ func Decode(body []byte, decode JSONDecoder) (Request, error) {
 		return Request{}, ErrInvalidRequest
 	}
 	root, ok := value.(map[string]any)
-	if !ok || len(root) != 3 {
+	channel, hasChannel := root["channel"]
+	keys := 3
+	if hasChannel {
+		keys = 4
+	}
+	if !ok || len(root) != keys {
 		return Request{}, ErrInvalidRequest
 	}
 	cv, ok := root["cv_id"].(string)
@@ -151,6 +167,14 @@ func Decode(body []byte, decode JSONDecoder) (Request, error) {
 			a.WrongType = a.WrongType || !ok
 		}
 		req.Answers = append(req.Answers, a)
+	}
+	req.Channel = ChannelPortal
+	if hasChannel {
+		value, ok := channel.(string)
+		if !ok || value != ChannelPortal && value != ChannelCareersSite {
+			return Request{}, ErrInvalidChannel
+		}
+		req.Channel = value
 	}
 	return req, nil
 }

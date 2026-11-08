@@ -23,7 +23,9 @@ preconditions. Every response, including middleware failures, has
 ```
 
 These five keys and the single limit key are exact. Both values are always
-present, nullable. `today` is the date in `America/Mexico_City` from the server
+present, nullable. A sixth key, `targetCloseDate` (`YYYY-MM-DD`), appears only
+while a closing target is set (`docs/contracts/stakeholder-metrics-v1.md` §2.2,
+D7); absent means none. `today` is the date in `America/Mexico_City` from the server
 clock; it is not the browser's date.
 
 `PUT` requires `If-Match` from this resource and exactly:
@@ -33,7 +35,10 @@ clock; it is not the browser's date.
 ```
 
 Both keys are required and nullable; unknown/duplicate keys and invalid UTF-8
-are rejected. A non-null date must be exactly `YYYY-MM-DD`. On change it must
+are rejected. `targetCloseDate` is optional: **absent keeps the stored date**
+(clients that predate it never erase it), `null` clears it, a date sets it. It must
+be exactly `YYYY-MM-DD` (else `400 invalid_request`); any calendar date is
+accepted, with no today or request-date bound. A non-null date must be exactly `YYYY-MM-DD`. On change it must
 be today or any past date, including weekends and holidays; there is no lower
 window. An unchanged stored date is accepted even if the clock has moved
 backwards. Headcount must be an integer in `1..999` (integral JSON numbers are
@@ -54,6 +59,12 @@ ordered missing codes rejects the candidate state and commits no configuration,
 version, projection or audit changes. `commitment_date_past` alone is exempt.
 See [public-jobs-v2.md](public-jobs-v2.md) (§10.2 guard and tests).
 No Idempotency-Key: reconcile an uncertain PUT with GET, not an automatic retry.
+
+Every change of `targetCloseDate` (set, move, clear) also inserts one
+`vacancy_close_target_changes` row in the same transaction: `previous_date`,
+`new_date` (null when cleared), `performed_by`, `performed_at`, company and draft,
+like `vacancy_commitment_changes` but without a reason. Saves that keep the date write no
+row. The audit `previous` / `new` values include `targetCloseDate` only while set.
 
 ## Errors
 
@@ -78,6 +89,9 @@ Migration `00018_create_job_draft_management_configs.sql` is additive: one
 optional row per draft, positive version, nullable DATE and range-checked
 INTEGER, cascading draft FK. No backfill or legacy changes. Down removes saved
 management settings, not drafts or audits; it is **not data-preserving**.
+Migration `00058_metrics_data_capture.sql` adds nullable `target_close_date` and the
+`vacancy_close_target_changes` log (no backfill: existing vacancies have no target);
+its down drops both.
 
 | Tests | Contract coverage |
 | --- | --- |

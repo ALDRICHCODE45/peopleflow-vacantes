@@ -344,14 +344,16 @@ type Job struct {
 }
 
 type JobDraft struct {
-	ID        uuid.UUID          `json:"id"`
-	CompanyID uuid.UUID          `json:"company_id"`
-	CreatedBy uuid.UUID          `json:"created_by"`
-	Status    string             `json:"status"`
-	Version   int64              `json:"version"`
-	Fields    []byte             `json:"fields"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID            uuid.UUID          `json:"id"`
+	CompanyID     uuid.UUID          `json:"company_id"`
+	CreatedBy     uuid.UUID          `json:"created_by"`
+	Status        string             `json:"status"`
+	Version       int64              `json:"version"`
+	Fields        []byte             `json:"fields"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	RequesterKind pgtype.Text        `json:"requester_kind"`
+	RequesterID   pgtype.UUID        `json:"requester_id"`
 }
 
 type JobDraftChecklist struct {
@@ -386,6 +388,7 @@ type JobDraftManagementConfig struct {
 	Version         int64       `json:"version"`
 	RequestDate     pgtype.Date `json:"request_date"`
 	HiringHeadcount pgtype.Int4 `json:"hiring_headcount"`
+	TargetCloseDate pgtype.Date `json:"target_close_date"`
 }
 
 type JobDraftPipelineConfig struct {
@@ -528,6 +531,7 @@ type ProcessParticipation struct {
 	AddedBy                pgtype.UUID        `json:"added_by"`
 	CorrectedCompanyCvID   pgtype.UUID        `json:"corrected_company_cv_id"`
 	CandidateMessageReadAt pgtype.Timestamptz `json:"candidate_message_read_at"`
+	OriginChannel          string             `json:"origin_channel"`
 }
 
 type ProfileLanguageName struct {
@@ -611,6 +615,19 @@ type SavedJob struct {
 	SavedAt     pgtype.Timestamptz `json:"saved_at"`
 }
 
+type StakeholderInvitation struct {
+	ID          uuid.UUID          `json:"id"`
+	CompanyID   uuid.UUID          `json:"company_id"`
+	TokenSha256 []byte             `json:"token_sha256"`
+	CreatedBy   uuid.UUID          `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
+	UsedAt      pgtype.Timestamptz `json:"used_at"`
+	UsedBy      pgtype.UUID        `json:"used_by"`
+	MemberID    pgtype.UUID        `json:"member_id"`
+}
+
 type User struct {
 	ID         uuid.UUID          `json:"id"`
 	CognitoSub string             `json:"cognito_sub"`
@@ -647,6 +664,16 @@ type VacancyAssignmentFunction struct {
 	StartCause   string             `json:"start_cause"`
 	EndedAt      pgtype.Timestamptz `json:"ended_at"`
 	EndCause     pgtype.Text        `json:"end_cause"`
+}
+
+type VacancyCloseTargetChange struct {
+	ID           uuid.UUID          `json:"id"`
+	DraftID      uuid.UUID          `json:"draft_id"`
+	CompanyID    uuid.UUID          `json:"company_id"`
+	PreviousDate pgtype.Date        `json:"previous_date"`
+	NewDate      pgtype.Date        `json:"new_date"`
+	PerformedBy  uuid.UUID          `json:"performed_by"`
+	PerformedAt  pgtype.Timestamptz `json:"performed_at"`
 }
 
 type VacancyCommitmentChange struct {
