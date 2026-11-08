@@ -37,7 +37,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T10 (S3, L5, L13, L14) Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin — commit: d2a commit.
 - [x] T11 (S1, S3, S5, L17) Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role — commit: d2b commit.
 - [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
-- [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
+- [x] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms) — commit: benchmark commit.
 
 ## Log
 
@@ -139,3 +139,9 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   links carry `window`. Low notes: the cursor binds scope type, not user (only a sort position); no pinned metrics
   cursor hash test; pool_added equality tested for the owner only; BOM/formula guard on dashboard exports rely on the
   shared writer.
+- **L19** Seeded benchmark (opt-in `METRICS_BENCH=1`, 300 vacancies / ~10k participations per company, N=30,
+  backend/docs/metrics-benchmark.md): every budget passes. Metrics cold summary p95 56.8 ms, dashboard cold summary
+  p95 236.2 ms (least headroom: LoadHistory `tracks` ~110 ms, per-participation lookup + JIT), warm routes p95 ≤ 16.1 ms.
+  Nightly rollup not needed. Recommendations recorded, not implemented (tracks single scan + JIT off, company-bound
+  `entries`, candidate indexes to EXPLAIN on a production-size copy). metricsdemo purge now takes the company id
+  (demo digest pinned, scoped by db.verify).

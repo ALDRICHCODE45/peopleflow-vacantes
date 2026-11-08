@@ -129,6 +129,7 @@ type candidate struct {
 }
 
 type builder struct {
+	company     uuid.UUID // CompanyID() for the demo, a bench company otherwise
 	now, today  time.Time
 	periodStart time.Time // first day of the month eleven months back
 	monthEnd    time.Time // last day of the current month
@@ -814,7 +815,7 @@ func textPtr(s string) *string {
 }
 
 func (v *vacancy) emit(out *[]Statement) {
-	b, company, owner := v.b, CompanyID(), v.b.people.Owner
+	b, company, owner := v.b, v.b.company, v.b.people.Owner
 	add := func(s Statement) { *out = append(*out, s) }
 	kind, requesterID := v.requesterColumns()
 	add(insert("job_drafts", "id,company_id,created_by,status,version,fields,created_at,updated_at,requester_kind,requester_id",
@@ -1041,7 +1042,7 @@ func BuildPlan(now time.Time, people People) (*Plan, error) {
 		return nil, errors.New("the three accounts are required")
 	}
 	today := civil(now)
-	b := &builder{now: now, today: today, people: people,
+	b := &builder{company: CompanyID(), now: now, today: today, people: people,
 		periodStart: time.Date(today.Year(), today.Month()-11, 1, 0, 0, 0, 0, time.UTC),
 		monthEnd:    time.Date(today.Year(), today.Month()+1, 0, 0, 0, 0, 0, time.UTC),
 		users:       map[string]uuid.UUID{"owner": people.Owner, "stakeholder": people.Stakeholder, "recruiter": people.Recruiter},

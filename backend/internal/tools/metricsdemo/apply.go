@@ -72,7 +72,7 @@ func Apply(ctx context.Context, pool Beginner, db Database, accounts Accounts, n
 	if err != nil {
 		return out, fmt.Errorf("build the demo: %w", err)
 	}
-	if out.Removed, err = purge(ctx, tx, plan.FictitiousUsers); err != nil {
+	if out.Removed, err = purge(ctx, tx, CompanyID(), plan.FictitiousUsers); err != nil {
 		return out, err
 	}
 	batch := &pgx.Batch{}
@@ -106,7 +106,7 @@ func Remove(ctx context.Context, pool Beginner, db Database) (Removed, error) {
 	if err := db.verify(ctx, tx); err != nil {
 		return nil, err
 	}
-	removed, err := purge(ctx, tx, FictitiousUsers())
+	removed, err := purge(ctx, tx, CompanyID(), FictitiousUsers())
 	if err != nil {
 		return nil, err
 	}
@@ -165,11 +165,12 @@ func lookupAccounts(ctx context.Context, tx pgx.Tx, accounts Accounts) (People, 
 	return people, nil
 }
 
-// purge deletes every row tied to the demo company, children first, plus the
-// fictitious users. Every statement is scoped by the demo company id or the
-// fixed demo user ids, so no other company is ever touched. audit_events has
-// no foreign keys and refuses deletes (append-only): its rows stay.
-func purge(ctx context.Context, tx pgx.Tx, fictitious []uuid.UUID) (Removed, error) {
+// purge deletes every row tied to the company (the demo's, or a benchmark
+// company's), children first, plus the fictitious users. Every statement is
+// scoped by that company id or the fixed fictitious user ids, so no other
+// company is ever touched. audit_events has no foreign keys and refuses
+// deletes (append-only): its rows stay.
+func purge(ctx context.Context, tx pgx.Tx, company uuid.UUID, fictitious []uuid.UUID) (Removed, error) {
 	const processes = `(SELECT id FROM vacancy_processes WHERE company_id=$1)`
 	const participations = `(SELECT p.id FROM process_participations p WHERE p.process_id IN ` + processes + `)`
 	steps := []struct {
@@ -204,7 +205,7 @@ func purge(ctx context.Context, tx pgx.Tx, fictitious []uuid.UUID) (Removed, err
 	}
 	var out Removed
 	for _, s := range steps {
-		arg := any(CompanyID())
+		arg := any(company)
 		if s.users {
 			arg = fictitious
 		}
