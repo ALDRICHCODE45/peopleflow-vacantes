@@ -206,3 +206,18 @@ detail): compare with the user's references, research modern dashboard patterns,
   top vacancies opening the DD2 query) and detail kinds candidates (never links) and applications (summary uses the
   response total). Stage labels reuse the app's pipeline words (Nuevos, Screening, Screening OK, En proceso, Placement,
   «Columnas propias», «Columnas retiradas»). 212 tests green in company-metrics + metricas routes.
+- **L30** Full suite after T10c (`ccdf1162`): 560 files passed, 1 failed — `features/jobs/requestPath.test.ts` (3 tests):
+  the metrics CSV export broke the reviewed request-path boundary (fetch in `company-metrics/client.ts` and
+  `detail/detail-page.tsx`, route handler outside `app/api`). Fix delegated: mirror the audit export
+  (`app/api/company/metrics/[kind]/export/route.ts`, server-only `export-client.ts`, `detail/export-button.tsx`).
+  Risk: item 2 (a route handler forwarding the session token) → independent verification after the fix.
+- **L31** Backend demo seed ready (`c13cae15`, verified only against draft_test): company «Demo Métricas», 31 published
+  vacancies, deliveries 12/6/5/3/5, 20 placements (1 did not hold), 6 reassignments, applications 68/37/19/16, pipeline
+  with stalled and custom/retired, 7 recruiter cards (1 former member). Order proposed: backend migrates the local DB to
+  00060 and starts the v2 API on :8081 → frontend dev on :3000 → user registers and signs in once with each demo account
+  (no company) → backend runs `apply`.
+- **L32** Export boundary fixed (95cf6b2f): route `app/api/company/metrics/[kind]/export/route.ts`,
+  server-only `company-metrics/export-client.ts`, `detail/export-button.tsx`; old route removed; request-path guard
+  allowlists extended for the new files only. 498 focused tests green, typecheck 0. Differs from the audit export: GET
+  with a query (matches the upstream GET) instead of POST; cross-site blocked by Origin/Sec-Fetch-Site. Backend DD2
+  applied (`cd8bcaae`), API on :8081 restarted.
