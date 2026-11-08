@@ -221,3 +221,7 @@ detail): compare with the user's references, research modern dashboard patterns,
   allowlists extended for the new files only. 498 focused tests green, typecheck 0. Differs from the audit export: GET
   with a query (matches the upstream GET) instead of POST; cross-site blocked by Origin/Sec-Fetch-Site. Backend DD2
   applied (`cd8bcaae`), API on :8081 restarted.
+- **L33** Independent verification of the export boundary: pass (no token leak, path injection, backend text echo or
+  weakened guard), with one low-severity note — a GET export relies only on Origin/Sec-Fetch-Site against cross-site
+  navigation. Hardened in `74f2617e`: the route answers only POST (like the audit export, so SameSite=Lax keeps the session
+  cookie off cross-site requests) and «Exportar CSV» is a button posting to it. 93 focused tests green, typecheck 0.
