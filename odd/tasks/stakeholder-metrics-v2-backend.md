@@ -101,3 +101,8 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   fixed: the top-vacancy drill-down is `candidates?vacancy_id=V&stage_kind=new,screening,screening_ok,in_process,custom,retired`
   (placement excluded, as the figure); paused vacancies are open; entry falls back to `created_at`. Low notes:
   cross-company test has no competing pipeline data; no EXPLAIN of the new index.
+- **L13** T7 draft `docs/contracts/company-dashboard-v2.md` sent to the frontend for review. Exploration facts: today's
+  dashboard is gated owner+recruiter, scoped by open assignment for recruiters (`visibleV2Drafts`), has no top
+  vacancies, deltas or daily in-process series; talent base has no added-date filter; archguard forbids jobs↔metrics
+  imports (compose in cmd/api). Proposed DD1–DD6, incl. DD2 one «en proceso» definition (not new, not placement) that
+  would change metrics §4.4 top_vacancies before the v2 merge.
