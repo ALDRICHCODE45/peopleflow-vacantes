@@ -31,7 +31,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T3 (S2, S3) Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin — commit: v2a commit.
 - [x] T4 (S1, S3, S4, S5) Slice v2b: sortable keyset lists with total, facets, applied filters, vacancy_id, deliveries, placements (audited), CSV export, overdue top requester/attributed_to — commit: v2b commit.
 - [x] T5 (S1–S5) Slice v2c: pipeline section, candidates (audited), applications, exports, participation index 00060 — commit: v2c commit.
-- [ ] T8 Dev-only demo seed (`cmd/devseed-metrics-demo`) for the browser review, approved (L11), after T5.
+- [x] T8 (L10, L11) Dev-only demo seed (`cmd/devseed-metrics-demo` + `internal/tools/metricsdemo`) — commit: seed commit.
 - [x] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5) — agreed (L14), commit: f8e8a0c6 + agreement commit.
 - [ ] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired`, after T8.
 - [ ] T10 Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin.
@@ -114,3 +114,9 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   incluida (en proceso = activos sin new ni placement, igual en dashboard y métricas). Ajustá métricas §4.4
   top_vacancies.in_process antes del merge único … Orden: primero el seed demo, después d2a/d2b; el dashboard lo
   implemento después de verificar Métricas en el navegador.»
+- **L15** Demo seed built by a worker and independently verified (data deletion scope, guards): pass, no defects.
+  Purge/remove bounded by the demo company id or fixed fictitious ids; the 3 real accounts only lose membership;
+  audit_events never deleted; local-only guards incl. pgx fallback hosts and current_database(). Low gap: the rollback
+  path when another company references a demo user is untested. archguard (`go run ./cmd/archguard`) fails on a
+  pre-existing `locked-non-goal-path docker/minio/Dockerfile` (f03af5fe, Oct 27), unrelated. Not run against
+  `peopleflow_vacancies` or Cognito yet.
