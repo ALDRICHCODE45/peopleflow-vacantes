@@ -31,6 +31,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T3 (S2, S3) Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin — commit: v2a commit.
 - [x] T4 (S1, S3, S4, S5) Slice v2b: sortable keyset lists with total, facets, applied filters, vacancy_id, deliveries, placements (audited), CSV export, overdue top requester/attributed_to — commit: v2b commit.
 - [ ] T5 Slice v2c: pipeline section, candidates (audited), applications, participation index.
+- [ ] T8 Dev-only demo seed (`cmd/devseed-metrics-demo`) for the browser review, proposal sent, waiting for user approval (L10), after T5.
 - [ ] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5), after T5.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
 
@@ -80,3 +81,11 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - **L9** Frontend session (2026-11-08): main pushed with the v2-tolerant frontend. «Te propongo no mergear por partes:
   hacemos un solo merge cuando termines v2c y el frontend del tablero nuevo esté verificado. Los merges los hago yo y
   el push lo hace el usuario.»
+- **L10** Frontend session (2026-11-08), user request: «un script de seed **solo para desarrollo** (nunca en migraciones
+  de producción …, idempotente y reversible) que cree una **empresa demo aparte** en la base local
+  `peopleflow_vacancies`, sin tocar Trust People Company … Que los números cuadren entre secciones y listas.» «el
+  usuario prefiere iniciar sesión él mismo en el navegador de revisión … proponé cómo … Avisame la propuesta antes de
+  correr nada sobre la base local o Cognito.» Proposal sent: Go dev-only cmd with apply/remove, local-only guard,
+  deterministic ids, dates relative to today, integration test figure == list total over the seed; accounts signed up
+  by the user (nocheblanca92+demo-owner/stakeholder/recruiter), memberships attached by email; admin-create-user only
+  with explicit ok.
