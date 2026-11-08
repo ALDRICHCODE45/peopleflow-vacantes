@@ -4,9 +4,9 @@ import "@testing-library/jest-dom/vitest";
 import { DataTable, formatReceivedDate } from "./data-table";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
-import { dashboard } from "@/features/employer-dashboard/test-fixtures";
+import { recentRows } from "@/features/employer-dashboard/test-fixtures";
 const source = readFileSync("src/components/company-dashboard/data-table.tsx", "utf8");
-const applicants = Array.from({ length: 12 }, (_, i) => ({ ...dashboard.recent[i % 2], participation_id: `participation-${i}`, candidate: { ...dashboard.recent[i % 2].candidate, name: `Persona ${i}`, professional_title: i === 0 ? "Ingeniera" : null } }));
+const applicants = Array.from({ length: 12 }, (_, i) => ({ ...recentRows[i % 2], participation_id: `participation-${i}`, candidate: { ...recentRows[i % 2].candidate, name: `Persona ${i}`, professional_title: i === 0 ? "Ingeniera" : null } }));
 function tableBody() { return document.querySelector<HTMLElement>("[data-slot='table-body']")!; }
 function bodyRows() { return Array.from(tableBody().querySelectorAll("tr")); }
 function toggleCheckbox(name: string) { const control = screen.getByRole("checkbox", { name }); fireEvent.click(control.parentElement!.querySelector("input[type='checkbox']")!); }

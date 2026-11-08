@@ -10,11 +10,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import type { Dashboard } from "@/features/employer-dashboard/model"
 import { accentIconTile } from "@/lib/accent"
 import { cn } from "@/lib/utils"
 
-type Metrics = Pick<Dashboard, "published_vacancies" | "in_process" | "pool_added_last_7_days" | "positions">
+/** The v1 dashboard figures this legacy strip renders; the dashboard itself now uses the d2 sections (artboard 09). */
+type Metrics = { published_vacancies: number; in_process: number; pool_added_last_7_days: number | null; positions: { covered: number; required: number } }
 
 export function SectionCards({ data }: { data: Metrics }) {
   const kpiCards = [

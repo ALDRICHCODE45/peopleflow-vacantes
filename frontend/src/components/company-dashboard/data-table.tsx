@@ -22,10 +22,10 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IconChevronDown, IconChevronLeft, IconChevronRight, IconChevronsLeft, IconChevronsRight, IconLayoutColumns, IconUsers } from "@tabler/icons-react"
-import type { Dashboard } from "@/features/employer-dashboard/model"
+import type { RecentRow } from "@/features/employer-dashboard/model"
 import { vacancyPipelineHref } from "@/features/employer-vacancies/model"
 
-type Applicant = Dashboard["recent"][number]
+type Applicant = RecentRow
 const STAGE_VARIANTS: Record<Applicant["stage"]["kind"], BadgeVariant> = {
   new: "info", screening: "review", screening_ok: "review", in_process: "review", custom: "review", placement: "success", discarded: "neutral",
 }
@@ -98,7 +98,7 @@ function CandidateCell({ applicant }: { applicant: Applicant }) {
   )
 }
 
-export function DataTable({ data: applicants }: { data: Dashboard["recent"] }) {
+export function DataTable({ data: applicants }: { data: readonly RecentRow[] }) {
   const router = useRouter()
   const [statusTab, setStatusTab] = React.useState<PipelineTab>("all")
   const [rowSelection, setRowSelection] = React.useState({})
