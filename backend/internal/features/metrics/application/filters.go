@@ -39,15 +39,33 @@ const (
 	RouteCompliance
 	RouteDelays
 	RouteOrigin
+	RouteDeliveries
+	RoutePlacements
 )
 
 func (r Route) String() string {
-	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail", "closures", "compliance", "delays", "origin"}[r]
+	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail", "closures", "compliance", "delays", "origin", "deliveries", "placements"}[r]
 }
 
 func (r Route) paginated() bool {
-	return r == RouteRecruiters || r == RouteVacancies || r == RouteReassignments
+	return r == RouteRecruiters || r.sortable()
 }
+
+// sortable lists take the v2 §5 grammar: sort, order and vacancy_id.
+func (r Route) sortable() bool {
+	return r == RouteVacancies || r == RouteReassignments || r == RouteDeliveries || r == RoutePlacements
+}
+
+// sorts lists each sortable route's sort keys, the default first (v2 §5).
+var sorts = map[Route][]string{
+	RouteDeliveries:    {"commitment_date", "business_days_late", "business_days_overdue", "target_reached_at", "delivered", "title"},
+	RouteVacancies:     {"opened_at", "last_close_date", "business_days_to_close", "title"},
+	RoutePlacements:    {"hired_at", "title", "candidate"},
+	RouteReassignments: {"performed_at", "reason", "title"},
+}
+
+// textSorts default to asc; every other sort defaults to desc.
+var textSorts = []string{"title", "candidate", "reason"}
 
 // RequesterFilter is the M6 requester selection. The zero value selects every
 // vacancy; None with no Kind is «sin solicitante»; None with a Kind is «X sin
@@ -67,6 +85,28 @@ type Query struct {
 	DeliveryResult string
 	Limit          int
 	Cursor         *string
+
+	// v2 §5 list grammar. Sort and Order are resolved to the route's
+	// defaults; every other zero value means "not sent".
+	Sort, Order string
+	VacancyID   *uuid.UUID
+	// deliveries (§5.1)
+	Results         []string
+	LateBucket      string
+	CommitmentMonth string
+	AttributedTo    *uuid.UUID
+	// vacancies (§5.2)
+	Scope         string
+	ClosedMonth   string
+	CloseReasons  []string
+	ClosingTarget string
+	CreditedTo    *uuid.UUID
+	// placements (§5.3)
+	Recipient *uuid.UUID
+	Held      *bool
+	// reassignments (§5.4)
+	Direction string
+	Reasons   []string
 }
 
 // Field is one rejected parameter and its bounded code; the value is never echoed.
@@ -88,18 +128,50 @@ var (
 var (
 	outcomes        = []string{"filled", "cancelled", "other", "open"}
 	deliveryResults = []string{"on_time", "late", "overdue", "pending", "not_configured"}
+	lateBuckets     = []string{"up_to_2", "from_3_to_5", "over_5"}
+	scopes          = []string{"activity", "assigned", "closed", "closed_assigned"}
+	closeReasons    = []string{"filled", "cancelled", "other", "no_reason"}
+	closingTargets  = []string{"on_time", "late", "no_target"}
+	directions      = []string{"received", "lost"}
+	reasons         = []string{"workload", "recruiter_departure", "performance", "client_request", "other"}
 )
 
-func (r Route) allows(key string) bool {
+func (r Route) allows(key string, export bool) bool {
 	switch key {
 	case "from", "to", "recruiter_id", "requester_kind", "requester_id":
 		return true
 	case "limit", "cursor":
-		return r.paginated()
-	case "outcome", "delivery_result":
+		return r.paginated() && !export
+	case "sort", "order", "vacancy_id":
+		return r.sortable()
+	case "outcome", "delivery_result", "scope", "closed_month", "close_reason", "closing_target", "credited_to":
 		return r == RouteVacancies
+	case "result", "late_bucket", "commitment_month", "attributed_to":
+		return r == RouteDeliveries
+	case "recipient", "held":
+		return r == RoutePlacements
+	case "direction", "reason":
+		return r == RouteReassignments
 	}
 	return false
+}
+
+// validMonth accepts YYYY-MM.
+func validMonth(v string) bool {
+	d, err := time.Parse("2006-01", v)
+	return err == nil && d.Format("2006-01") == v
+}
+
+// multi parses a comma-separated multi-value filter (v2 §3): every value in
+// the enum, none empty, none repeated; the order is kept as sent.
+func multi(v string, enum []string) ([]string, bool) {
+	out := strings.Split(v, ",")
+	for i, x := range out {
+		if !slices.Contains(enum, x) || slices.Contains(out[:i], x) {
+			return nil, false
+		}
+	}
+	return out, true
 }
 
 func canonicalUUID(v string) (uuid.UUID, bool) {
@@ -130,7 +202,13 @@ func reportedKey(k string) string {
 // extras: unknown, duplicate and invalid parameters are rejected together with
 // one code per field. The cursor token is only checked later, against the
 // filters it was issued for.
-func ParseQuery(raw string, route Route) (Query, error) {
+func ParseQuery(raw string, route Route) (Query, error) { return parseQuery(raw, route, false) }
+
+// ParseExportQuery parses a list's CSV export (v2 §8): the list's filters,
+// sort and order, never a cursor or a limit.
+func ParseExportQuery(raw string, route Route) (Query, error) { return parseQuery(raw, route, true) }
+
+func parseQuery(raw string, route Route, export bool) (Query, error) {
 	values := map[string][]string{}
 	failures := map[string]string{}
 	for _, pair := range strings.Split(raw, "&") {
@@ -152,7 +230,7 @@ func ParseQuery(raw string, route Route) (Query, error) {
 	q := Query{Limit: DefaultLimit}
 	for key, vs := range values {
 		switch {
-		case !route.allows(key):
+		case !route.allows(key, export):
 			failures[reportedKey(key)] = "unknown"
 			continue
 		case len(vs) != 1:
@@ -204,6 +282,82 @@ func ParseQuery(raw string, route Route) (Query, error) {
 		case "cursor":
 			token := v
 			q.Cursor = &token
+		case "sort":
+			if slices.Contains(sorts[route], v) {
+				q.Sort = v
+			} else {
+				failures[key] = "invalid"
+			}
+		case "order":
+			if v == "asc" || v == "desc" {
+				q.Order = v
+			} else {
+				failures[key] = "invalid"
+			}
+		case "vacancy_id", "attributed_to", "credited_to", "recipient":
+			id, ok := canonicalUUID(v)
+			if !ok {
+				failures[key] = "invalid"
+				break
+			}
+			*map[string]**uuid.UUID{"vacancy_id": &q.VacancyID, "attributed_to": &q.AttributedTo, "credited_to": &q.CreditedTo, "recipient": &q.Recipient}[key] = &id
+		case "result", "close_reason", "reason":
+			enum, target := deliveryResults, &q.Results
+			if key == "close_reason" {
+				enum, target = closeReasons, &q.CloseReasons
+			} else if key == "reason" {
+				enum, target = reasons, &q.Reasons
+			}
+			if vs, ok := multi(v, enum); ok {
+				*target = vs
+			} else {
+				failures[key] = "invalid"
+			}
+		case "late_bucket", "scope", "closing_target", "direction":
+			enum, target := lateBuckets, &q.LateBucket
+			switch key {
+			case "scope":
+				enum, target = scopes, &q.Scope
+			case "closing_target":
+				enum, target = closingTargets, &q.ClosingTarget
+			case "direction":
+				enum, target = directions, &q.Direction
+			}
+			if slices.Contains(enum, v) {
+				*target = v
+			} else {
+				failures[key] = "invalid"
+			}
+		case "commitment_month", "closed_month":
+			if !validMonth(v) {
+				failures[key] = "invalid"
+			} else if key == "closed_month" {
+				q.ClosedMonth = v
+			} else {
+				q.CommitmentMonth = v
+			}
+		case "held":
+			if v == "true" || v == "false" {
+				held := v == "true"
+				q.Held = &held
+			} else {
+				failures[key] = "invalid"
+			}
+		}
+	}
+	// A direction is relative to a recruiter (v2 §5.4).
+	if q.Direction != "" && q.RecruiterID == nil && failures["recruiter_id"] == "" {
+		failures["recruiter_id"] = "required"
+	}
+	if route.sortable() {
+		if q.Sort == "" {
+			q.Sort = sorts[route][0]
+		}
+		if q.Order == "" {
+			q.Order = "desc"
+			if slices.Contains(textSorts, q.Sort) {
+				q.Order = "asc"
+			}
 		}
 	}
 	if vs, ok := values["requester_id"]; ok && failures["requester_id"] == "" {

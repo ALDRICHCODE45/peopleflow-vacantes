@@ -63,9 +63,13 @@ type Overdue struct {
 	Top   []OverdueRow `json:"top"`
 }
 
-// OverdueRow is one overdue delivery (N4).
+// OverdueRow is one overdue delivery (N4). Requester and AttributedTo follow
+// the deliveries list row (§5.1): the people active at the end of the
+// commitment day.
 type OverdueRow struct {
 	Vacancy             VacancyRef `json:"vacancy"`
+	Requester           *Requester `json:"requester"`
+	AttributedTo        []Person   `json:"attributed_to"`
 	CommitmentDate      string     `json:"commitment_date"`
 	BusinessDaysOverdue int        `json:"business_days_overdue"`
 	Delivered           int        `json:"delivered"`
@@ -166,7 +170,8 @@ func (s *Service) Delays(ctx context.Context, company uuid.UUID, raw string) (*D
 			continue
 		}
 		if result, _ := vac.DeliveryResult(v.asOf, s.calendar); result == "overdue" {
-			row := OverdueRow{Vacancy: VacancyRef{vac.ID, vac.Title}, CommitmentDate: *vac.Delivery.Commitment,
+			row := OverdueRow{Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester, AttributedTo: vac.attributedPeople(result, v.data),
+				CommitmentDate:      *vac.Delivery.Commitment,
 				BusinessDaysOverdue: s.calendar.Between(civilDate(*vac.Delivery.Commitment), civilOf(v.asOf)), Delivered: vac.Delivered()}
 			if vac.Delivery.Target != nil {
 				row.Target = *vac.Delivery.Target

@@ -23,33 +23,37 @@ type cursorWire struct {
 	Company uuid.UUID `json:"company_id"`
 	Route   string    `json:"route"`
 	Filters string    `json:"filters"`
+	Sort    string    `json:"sort"`
+	Order   string    `json:"order"`
 	Key     *string   `json:"key"`
 	ID      uuid.UUID `json:"id"`
 }
 
-// filterHash binds a cursor to the filters it was issued for: a page of other
+// cursorVersion 2 binds the sort and order (v2 §5); version 1 tokens are
+// rejected.
+const cursorVersion = 2
+
+// filterHash binds a cursor to the filters it was issued for (every filter,
+// sort and order; limit and the cursor itself excluded): a page of other
 // filters is never continued.
 func filterHash(q Query) string {
-	raw, _ := json.Marshal(struct {
-		From, To, Outcome, DeliveryResult string
-		RecruiterID                       *uuid.UUID
-		Requester                         RequesterFilter
-	}{q.From, q.To, q.Outcome, q.DeliveryResult, q.RecruiterID, q.Requester})
+	q.Limit, q.Cursor = 0, nil
+	raw, _ := json.Marshal(q)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
 
 // EncodeCursor returns the opaque next_cursor.
 func EncodeCursor(company uuid.UUID, route Route, q Query, p Position) (string, error) {
-	raw, err := json.Marshal(cursorWire{1, company, route.String(), filterHash(q), p.Key, p.ID})
+	raw, err := json.Marshal(cursorWire{cursorVersion, company, route.String(), filterHash(q), q.Sort, q.Order, p.Key, p.ID})
 	if err != nil {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
-// DecodeCursor accepts only an exact token this company issued for this route
-// and these filters.
+// DecodeCursor accepts only an exact token this company issued for this route,
+// these filters, this sort and this order.
 func DecodeCursor(company uuid.UUID, route Route, q Query, token string) (Position, error) {
 	if token == "" || len(token) > maxCursorBytes {
 		return Position{}, ErrInvalidCursor
@@ -63,8 +67,8 @@ func DecodeCursor(company uuid.UUID, route Route, q Query, token string) (Positi
 		return Position{}, ErrInvalidCursor
 	}
 	canonical, err := json.Marshal(wire)
-	if err != nil || string(canonical) != string(raw) || wire.Version != 1 || wire.Company != company ||
-		wire.Route != route.String() || wire.Filters != filterHash(q) || wire.ID == uuid.Nil {
+	if err != nil || string(canonical) != string(raw) || wire.Version != cursorVersion || wire.Company != company ||
+		wire.Route != route.String() || wire.Filters != filterHash(q) || wire.Sort != q.Sort || wire.Order != q.Order || wire.ID == uuid.Nil {
 		return Position{}, ErrInvalidCursor
 	}
 	return Position{Key: wire.Key, ID: wire.ID}, nil

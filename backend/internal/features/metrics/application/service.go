@@ -14,6 +14,8 @@ type Service struct {
 	calendar  Calendar
 	now       func() time.Time
 	snapshots *snapshots
+	// exportLimit bounds a CSV export (ExportLimit; WithExportLimit in tests).
+	exportLimit int
 }
 
 // NewService needs the fulfillment business-day calendar; now is the clock of
@@ -22,7 +24,7 @@ func NewService(store Store, calendar Calendar, now func() time.Time) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	s := &Service{store: store, calendar: calendar, now: now}
+	s := &Service{store: store, calendar: calendar, now: now, exportLimit: ExportLimit}
 	load := func(ctx context.Context, company uuid.UUID, p Period) (*Dataset, error) {
 		return store.Load(ctx, company, Scope{Period: p})
 	}
@@ -49,9 +51,11 @@ func newHeader(p Period, asOf time.Time) header {
 	return header{DefinitionsVersion, p.JSON(), asOf.UTC().Truncate(time.Second)}
 }
 
-// view is a snapshot narrowed by the request's filters.
+// view is a snapshot narrowed by the request's filters; all is the whole
+// snapshot (applied_filters names people and vacancies from it).
 type view struct {
 	data *Dataset
+	all  *Dataset
 	asOf time.Time
 }
 
@@ -63,7 +67,7 @@ func (s *Service) view(ctx context.Context, company uuid.UUID, p Period, request
 	if err != nil {
 		return view{}, err
 	}
-	return view{snap.Data.narrow(p, requester, recruiter), snap.AsOf}, nil
+	return view{snap.Data.narrow(p, requester, recruiter), snap.Data, snap.AsOf}, nil
 }
 
 // views loads the period and its previous period in parallel (v2 §4.1), so the

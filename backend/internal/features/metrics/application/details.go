@@ -1,21 +1,12 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
 )
-
-// VacancyList is the §3.4 vacancy detail list. It carries no candidate data.
-type VacancyList struct {
-	header
-	Items      []VacancyRow `json:"items"`
-	NextCursor *string      `json:"next_cursor"`
-}
 
 type VacancyRow struct {
 	DraftID          uuid.UUID       `json:"draft_id"`
@@ -27,6 +18,11 @@ type VacancyRow struct {
 	Delivery         VacancyDelivery `json:"delivery"`
 	Placements       Coverage        `json:"placements"`
 	Reassignments    int             `json:"reassignments"`
+	// v2 §5.2
+	OpenedAt            time.Time `json:"opened_at"`
+	LastClose           *CloseRow `json:"last_close"`
+	BusinessDaysToClose *int      `json:"business_days_to_close"`
+	ClosingTarget       *string   `json:"closing_target"`
 }
 
 // CloseRow is one close in the period; Reason is null for legacy closes (M2).
@@ -49,13 +45,6 @@ type VacancyDelivery struct {
 type Coverage struct {
 	Covered  int  `json:"covered"`
 	Required *int `json:"required"`
-}
-
-// ReassignmentList is the §3.4 reassignment list.
-type ReassignmentList struct {
-	header
-	Items      []ReassignmentRow `json:"items"`
-	NextCursor *string           `json:"next_cursor"`
 }
 
 type ReassignmentRow struct {
@@ -108,130 +97,6 @@ type Detail[T any] struct {
 	header
 	DraftID uuid.UUID `json:"draft_id"`
 	Items   []T       `json:"items"`
-}
-
-// Vacancies lists every vacancy in scope (any activity in the period), newest
-// first publication first.
-func (s *Service) Vacancies(ctx context.Context, company uuid.UUID, raw string) (*VacancyList, error) {
-	q, p, err := prepare(raw, RouteVacancies)
-	if err != nil {
-		return nil, err
-	}
-	from, err := after(company, RouteVacancies, q)
-	if err != nil {
-		return nil, err
-	}
-	snap, err := s.view(ctx, company, p, q.Requester, q.RecruiterID)
-	if err != nil {
-		return nil, err
-	}
-	data, now := snap.data, snap.asOf
-	rows := []VacancyRow{}
-	for _, v := range data.Vacancies {
-		row := VacancyRow{
-			DraftID: v.ID, Title: v.Title, Requester: v.Requester, Responsible: data.personPtr(v.Responsible),
-			FirstPublishedAt: v.PublishedAt.UTC(), Closes: []CloseRow{},
-			Placements: Coverage{Covered: v.activeCredits(), Required: v.Headcount},
-		}
-		reasons := map[string]bool{}
-		for _, c := range v.closesIn(p.Start, p.End) {
-			row.Closes = append(row.Closes, CloseRow{LocalDate(c.At), c.Reason})
-			reasons[reasonKey(c.Reason)] = true
-		}
-		switch q.Outcome {
-		case "filled", "cancelled", "other":
-			if !reasons[q.Outcome] {
-				continue
-			}
-		case "open":
-			if len(row.Closes) > 0 {
-				continue
-			}
-		}
-		result, late := v.DeliveryResult(now, s.calendar)
-		if q.DeliveryResult != "" && q.DeliveryResult != result {
-			continue
-		}
-		d := v.Delivery
-		row.Delivery = VacancyDelivery{Result: result, Target: d.Target, Delivered: v.Delivered(), CommitmentDate: d.Commitment,
-			OriginalCommitmentDate: d.OriginalCommitment, Renegotiations: d.Renegotiations, BusinessDaysLate: late}
-		if d.TargetReachedAt != nil {
-			at := d.TargetReachedAt.UTC()
-			row.Delivery.TargetReachedAt = &at
-		}
-		for _, r := range v.Reassigns {
-			if p.Contains(r.At) {
-				row.Reassignments++
-			}
-		}
-		rows = append(rows, row)
-	}
-	at := func(r VacancyRow) Position {
-		key := r.FirstPublishedAt.Format(time.RFC3339Nano)
-		return Position{Key: &key, ID: r.DraftID}
-	}
-	slices.SortFunc(rows, func(a, b VacancyRow) int { return compareNewest(at(a), at(b)) })
-	rows, next, err := page(company, RouteVacancies, q, rows, from, func(a, b Position) bool { return compareNewest(a, b) < 0 }, at)
-	if err != nil {
-		return nil, err
-	}
-	return &VacancyList{header: newHeader(p, now), Items: rows, NextCursor: next}, nil
-}
-
-// compareNewest orders time keys descending, then ids ascending. Keys are
-// RFC 3339 instants in UTC, compared as times.
-func compareNewest(a, b Position) int {
-	ta, _ := time.Parse(time.RFC3339Nano, *a.Key)
-	tb, _ := time.Parse(time.RFC3339Nano, *b.Key)
-	if c := tb.Compare(ta); c != 0 {
-		return c
-	}
-	return cmp.Compare(a.ID.String(), b.ID.String())
-}
-
-// Reassignments lists the reassignments performed in the period, newest first.
-// The recruiter filter keeps the rows where that user lost or received.
-func (s *Service) Reassignments(ctx context.Context, company uuid.UUID, raw string) (*ReassignmentList, error) {
-	q, p, err := prepare(raw, RouteReassignments)
-	if err != nil {
-		return nil, err
-	}
-	from, err := after(company, RouteReassignments, q)
-	if err != nil {
-		return nil, err
-	}
-	// The recruiter filter keeps rows, not vacancies (below).
-	snap, err := s.view(ctx, company, p, q.Requester, nil)
-	if err != nil {
-		return nil, err
-	}
-	data := snap.data
-	rows := []ReassignmentRow{}
-	for _, v := range data.Vacancies {
-		for _, r := range v.Reassigns {
-			if !p.Contains(r.At) || (q.RecruiterID != nil && r.From != *q.RecruiterID && r.To != *q.RecruiterID) {
-				continue
-			}
-			row := ReassignmentRow{ID: r.ID, PerformedAt: r.At.UTC(), Vacancy: VacancyRef{v.ID, v.Title},
-				From: data.person(r.From), To: data.person(r.To), Reason: r.Reason, PerformedBy: data.person(r.By),
-				OutgoingTramoBusinessDays: s.calendar.BetweenInstants(r.FromStarted, r.At), Snapshot: snapshotSummary(r.Snapshot)}
-			// The note exists only for `other` and appears only in detail (§2.9).
-			if r.Reason == "other" {
-				row.Note = r.Note
-			}
-			rows = append(rows, row)
-		}
-	}
-	at := func(r ReassignmentRow) Position {
-		key := r.PerformedAt.Format(time.RFC3339Nano)
-		return Position{Key: &key, ID: r.ID}
-	}
-	slices.SortFunc(rows, func(a, b ReassignmentRow) int { return compareNewest(at(a), at(b)) })
-	rows, next, err := page(company, RouteReassignments, q, rows, from, func(a, b Position) bool { return compareNewest(a, b) < 0 }, at)
-	if err != nil {
-		return nil, err
-	}
-	return &ReassignmentList{header: newHeader(p, snap.asOf), Items: rows, NextCursor: next}, nil
 }
 
 // snapshotSummary keeps the handover state (lifecycle, delivery, placements)

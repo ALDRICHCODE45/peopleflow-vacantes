@@ -16,7 +16,7 @@ func TestCatalogRegistersStakeholderTypes(t *testing.T) {
 		EventStakeholderInvitationCreated:  {CategoryMembers, []string{"expires_at", "invitation_id"}},
 		EventStakeholderInvitationRevoked:  {CategoryMembers, []string{"invitation_id"}},
 		EventStakeholderInvitationAccepted: {CategoryMembers, []string{"invitation_id", "member_user_id"}},
-		EventMetricsDetailViewed:           {CategorySensitiveRead, []string{"report", "vacancy_id"}},
+		EventMetricsDetailViewed:           {CategorySensitiveRead, []string{"filters", "report", "vacancy_id"}},
 	} {
 		spec, ok := LookupEvent(eventType)
 		if !ok {

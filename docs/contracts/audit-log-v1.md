@@ -324,6 +324,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `ParticipationCVDownloaded` | sensitive_read | Inició la descarga de un CV de la vacante |
 | `PsychometricResultViewed` | sensitive_read | Vio un resultado psicométrico |
 | `MetricsDetailViewed` | sensitive_read | Detalle de métricas consultado |
+| `MetricsDetailExported` | sensitive_read | Detalle de métricas exportado |
 | `CandidateAccountCreated` | candidate | Creó su cuenta de candidato |
 | `CompanyCandidateEdited` | candidate | Editó los datos de un candidato |
 | `CompanyCandidateCVCorrected` | candidate | Corrigió el CV de un candidato |

@@ -29,7 +29,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T1 (S1–S4) Draft contract v2 and send it to the frontend session for review — commit: c56132e2.
 - [x] T2 (S1–S5) Agree contract (frontend review + user decisions DV1–DV6) — commit: facets/applied filters commit.
 - [x] T3 (S2, S3) Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin — commit: v2a commit.
-- [ ] T4 Slice v2b: sortable keyset lists with total, deliveries, placements (audited), CSV export.
+- [x] T4 (S1, S3, S4, S5) Slice v2b: sortable keyset lists with total, facets, applied filters, vacancy_id, deliveries, placements (audited), CSV export, overdue top requester/attributed_to — commit: v2b commit.
 - [ ] T5 Slice v2c: pipeline section, candidates (audited), applications, participation index.
 - [ ] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5), after T5.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
@@ -71,3 +71,9 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   details ignore unknown keys; strict stay: summary, closures/compliance/delays/origin, recruiter cards and
   recruiters/{id} — «Si v2b o v2c agregan algo en esas rutas, avisame antes de mergear». `delays.overdue.top`
   `requester`/`attributed_to` (§4.5 addition) already decoded as optional.
+- **L8** v2b implemented by a worker, independently verified (audit of personal data, cross-company names): pass, no
+  blocking defects; 61 `^TestMetrics|^TestAudit` integration tests, race x3, vet green. Approved edits outside the
+  metrics surfaces: httpjson errors.go dispatch line, audit catalog pins, audit-log-v1 annex row, audit type count
+  67→68. Contract §5 records the worker's choices (default order, repeated multi-value, requester_kind echo, cursor v2).
+  Low notes: previous-period drill-downs asserted indirectly, mid-stream CSV abort untested, full page walk only on
+  deliveries, unsigned cursor (as v1, company-bound).

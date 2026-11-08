@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -333,7 +335,23 @@ func TestDelays_OverdueTopClosingTargetAndReasons(t *testing.T) {
 		{ID: uuid.New(), At: at("2025-12-20T18:00:00Z"), Reason: "workload"}, // outside the period
 	}
 	vs = append(vs, closed, vacancy("Sin meta", "2026-01-05T16:00:00Z").withClose("2026-03-02T18:00:00Z", ptr("filled"), nil))
-	store := &periodStore{data: map[string]*Dataset{"2026-01-01..2026-03-31": {Vacancies: vs, People: map[uuid.UUID]Person{}}}}
+	// Beta: a requester and a responsible who handed over after the end of
+	// the commitment day (Mar 2), so the result stays theirs; Alfa: a shared
+	// team, both members active then.
+	u, w, x := uuid.New(), uuid.New(), uuid.New()
+	acme := &Requester{Kind: "client", ID: ptr(uuid.New()), Name: ptr("Acme")}
+	vs[3].Requester = acme
+	vs[3].Functions = []Function{
+		{UserID: u, Function: "responsible", Start: at("2026-01-05T16:00:00Z"), End: ptr(at("2026-03-04T18:00:00Z"))},
+		{UserID: x, Function: "responsible", Start: at("2026-03-04T18:00:00Z")},
+	}
+	vs[2].Functions = []Function{
+		{UserID: w, Function: "member", Start: at("2026-01-05T16:00:00Z")},
+		{UserID: u, Function: "member", Start: at("2026-01-05T16:00:00Z")},
+		{UserID: x, Function: "collaborator", Start: at("2026-01-05T16:00:00Z")},
+	}
+	people := map[uuid.UUID]Person{u: {UserID: u, Name: ptr("Ursula")}, w: {UserID: w, Name: ptr("Walter")}, x: {UserID: x, Name: ptr("Xime")}}
+	store := &periodStore{data: map[string]*Dataset{"2026-01-01..2026-03-31": {Vacancies: vs, People: people}}}
 	got, err := newTestService(store, at("2026-03-25T18:00:00Z")).Delays(context.Background(), uuid.New(), q1)
 	if err != nil {
 		t.Fatal(err)
@@ -351,6 +369,27 @@ func TestDelays_OverdueTopClosingTargetAndReasons(t *testing.T) {
 		row := got.Overdue.Top[i]
 		if row.Vacancy.Title != w.title || row.BusinessDaysOverdue != w.days || row.Delivered != 1 || row.Target != 3 {
 			t.Fatalf("top[%d] %+v, want %s %d", i, row, w.title, w.days)
+		}
+	}
+	top := got.Overdue.Top
+	if top[0].Requester != acme || len(top[0].AttributedTo) != 1 || top[0].AttributedTo[0] != people[u] {
+		t.Fatalf("beta requester/attributed %+v", top[0])
+	}
+	if top[1].Requester != nil || len(top[1].AttributedTo) != 2 || top[1].AttributedTo[0] != people[w] || top[1].AttributedTo[1] != people[u] {
+		t.Fatalf("alfa requester/attributed %+v", top[1])
+	}
+	if top[2].AttributedTo == nil || len(top[2].AttributedTo) != 0 {
+		t.Fatalf("zeta attributed %+v", top[2])
+	}
+	// The deliveries list attributes the same people (one attribution rule).
+	list, err := newTestService(&listStore{data: store.data["2026-01-01..2026-03-31"]}, at("2026-03-25T18:00:00Z")).ListDeliveries(context.Background(), uuid.New(), q1+"&result=overdue&sort=business_days_overdue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range top {
+		i := slices.IndexFunc(list.Items, func(r DeliveryListRow) bool { return r.Vacancy.DraftID == row.Vacancy.DraftID })
+		if i < 0 || !reflect.DeepEqual(list.Items[i].AttributedTo, row.AttributedTo) || list.Items[i].Requester != row.Requester {
+			t.Fatalf("%s: list %+v, top %+v", row.Vacancy.Title, list.Items, row)
 		}
 	}
 	if got.ReassignmentsByReason != (ByReason{Performance: 1, ClientRequest: 1}) {

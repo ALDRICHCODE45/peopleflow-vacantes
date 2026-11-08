@@ -249,6 +249,11 @@ Common to every list:
   null (no names leak across companies); it is not an error, and the list is simply empty.
   Example: `"applied_filters": { "recruiter": { "user_id": "…", "name": "Jorge Paredes", "former_member": false },
   "requester": { "kind": "client", "id": "…", "name": "Banorte · Finanzas" }, "result": ["late"] }`.
+- Default `order` is `asc` for text columns (`title`, `candidate`, `reason`) and `desc` for the rest; the id tie-break
+  is ascending in both orders. A repeated value inside a multi-value filter (`result=late,late`) is 422
+  `invalid_filter`. In `applied_filters`, `requester_kind` sent alone echoes as `requester_kind` (not a requester
+  object, so it never reads as «sin especificar») and `held` echoes as a boolean. CSV enum cells keep the API codes.
+- The list cursor format moved to version 2 (it binds sort and order); a v1 cursor answers 400 `invalid_cursor`.
 - Keyset over `(sort value, id)`; nulls last in both orders. The cursor binds company, route, filters, sort and order
   (v1 binds no sort); any mismatch is 400 `invalid_cursor`. An unknown `sort` value is 422 `invalid_filter`
   (`sort: invalid`).

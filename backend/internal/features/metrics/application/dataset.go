@@ -80,7 +80,8 @@ type Close struct {
 type Credit struct {
 	ID         uuid.UUID
 	HiredAt    time.Time
-	Status     string // active | did_not_hold (voided credits are never loaded)
+	Status     string    // active | did_not_hold (voided credits are never loaded)
+	Candidate  Candidate // as the company sees them (placements list, v2 §5.3)
 	Recipients []Recipient
 }
 
@@ -116,6 +117,12 @@ type Store interface {
 	People(ctx context.Context, company uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]Person, error)
 	Deliveries(ctx context.Context, company, actor, draft uuid.UUID) ([]DeliveryRow, error)
 	Placements(ctx context.Context, company, actor, draft uuid.UUID) ([]PlacementRow, error)
+	// Names resolves the applied filters the snapshot cannot name, never
+	// across companies (v2 §5).
+	Names(ctx context.Context, company uuid.UUID, q NameQuery) (Names, error)
+	// RecordDetail writes one audited list read or export in its own
+	// transaction (v2 §6); an error fails the read.
+	RecordDetail(ctx context.Context, a DetailAudit) error
 }
 
 // reaches is the first qualifying entry of every participation, in delivery
@@ -170,6 +177,18 @@ func (v *Vacancy) deliveryMoment(result string) (time.Time, bool) {
 		return day.AddDate(0, 0, 1), err == nil
 	}
 	return time.Time{}, false
+}
+
+// attributedPeople names the users a delivery result counts for (§2.3 per
+// recruiter): the deliveries list rows and the overdue top share it.
+func (v *Vacancy) attributedPeople(result string, data *Dataset) []Person {
+	out := []Person{}
+	if at, ok := v.deliveryMoment(result); ok {
+		for _, id := range v.attributedAt(at) {
+			out = append(out, data.person(id))
+		}
+	}
+	return out
 }
 
 // attributedAt lists the users a delivery result counts for: the responsible

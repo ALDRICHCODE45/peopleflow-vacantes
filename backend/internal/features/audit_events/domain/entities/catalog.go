@@ -47,8 +47,11 @@ const (
 	EventParticipationCVDownloaded        = "ParticipationCVDownloaded"
 	EventPsychometricResultViewed         = "PsychometricResultViewed"
 	// EventMetricsDetailViewed: a metrics detail list with candidate names
-	// (stakeholder-metrics-v1 §3.5); its emitter lands with the metrics API.
+	// (stakeholder-metrics-v1 §3.5, v2 §6: one row per page read).
 	EventMetricsDetailViewed = "MetricsDetailViewed"
+	// EventMetricsDetailExported: a CSV export of a metrics list with
+	// candidate names (stakeholder-metrics-v2 §6, §8).
+	EventMetricsDetailExported = "MetricsDetailExported"
 
 	// Candidate.
 	EventCandidateAccountCreated        = "CandidateAccountCreated"
@@ -167,7 +170,8 @@ var catalog = []EventSpec{
 	spec(EventParticipationViewed, CategorySensitiveRead),
 	spec(EventParticipationCVDownloaded, CategorySensitiveRead, "variant"),
 	spec(EventPsychometricResultViewed, CategorySensitiveRead, "vacancy_id", "participation_id"),
-	spec(EventMetricsDetailViewed, CategorySensitiveRead, "report", "vacancy_id"),
+	spec(EventMetricsDetailViewed, CategorySensitiveRead, "report", "vacancy_id", "filters"),
+	spec(EventMetricsDetailExported, CategorySensitiveRead, "report", "vacancy_id", "filters", "row_count"),
 
 	// candidate
 	{Type: EventCandidateAccountCreated, Category: CategoryCandidate, CompanyScoped: false},

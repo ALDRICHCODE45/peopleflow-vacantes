@@ -103,6 +103,10 @@ func TestMetricsVacancies_List(t *testing.T) {
 		"delivery": map[string]any{"result": "on_time", "target": 2, "delivered": 3, "target_reached_at": "2025-01-15T18:00:00Z",
 			"commitment_date": "2025-01-20", "original_commitment_date": "2025-01-20", "renegotiations": 0, "business_days_late": nil},
 		"placements": map[string]any{"covered": 1, "required": 2}, "reassignments": 1,
+		// v2 §5.2: last close in the period; time to close and closing target
+		// from the first filled close (Jan 6 → Feb 14 = 28, against Feb 28).
+		"opened_at": "2025-01-06T16:00:00Z", "last_close": map[string]any{"date": "2025-03-05", "reason": "filled"},
+		"business_days_to_close": 28, "closing_target": "on_time",
 	}
 	v2 := map[string]any{
 		"draft_id": s.v2.String(), "title": "Dos", "requester": map[string]any{"kind": "client", "id": nil, "name": nil},
@@ -111,10 +115,14 @@ func TestMetricsVacancies_List(t *testing.T) {
 		"delivery": map[string]any{"result": "overdue", "target": 3, "delivered": 0, "target_reached_at": nil,
 			"commitment_date": "2025-02-28", "original_commitment_date": "2025-02-28", "renegotiations": 0, "business_days_late": nil},
 		"placements": map[string]any{"covered": 0, "required": nil}, "reassignments": 1,
+		"opened_at": "2025-01-08T16:00:00Z", "last_close": map[string]any{"date": "2025-03-10", "reason": nil},
+		"business_days_to_close": nil, "closing_target": nil,
 	}
 	v3 := map[string]any{
 		"draft_id": s.v3.String(), "title": "Tres", "requester": nil, "responsible": mxPerson(s.beto, "Beto", false),
 		"first_published_at": "2024-12-02T16:00:00Z", "closes": []any{map[string]any{"date": "2025-01-31", "reason": "cancelled"}},
+		"opened_at": "2024-12-02T16:00:00Z", "last_close": map[string]any{"date": "2025-01-31", "reason": "cancelled"},
+		"business_days_to_close": nil, "closing_target": nil,
 		"delivery": map[string]any{"result": "not_configured", "target": nil, "delivered": 0, "target_reached_at": nil,
 			"commitment_date": nil, "original_commitment_date": nil, "renegotiations": 0, "business_days_late": nil},
 		"placements": map[string]any{"covered": 0, "required": nil}, "reassignments": 0,
@@ -122,6 +130,7 @@ func TestMetricsVacancies_List(t *testing.T) {
 	v4 := map[string]any{
 		"draft_id": s.v4.String(), "title": "Cuatro", "requester": map[string]any{"kind": "internal_area", "id": s.mustRequester(s.v4), "name": "Finanzas"},
 		"responsible": nil, "first_published_at": "2025-01-02T16:00:00Z", "closes": []any{},
+		"opened_at": "2025-01-02T16:00:00Z", "last_close": nil, "business_days_to_close": nil, "closing_target": nil,
 		"delivery": map[string]any{"result": "pending", "target": 1, "delivered": 0, "target_reached_at": nil,
 			"commitment_date": "2025-03-20", "original_commitment_date": "2025-02-15", "renegotiations": 2, "business_days_late": nil},
 		"placements": map[string]any{"covered": 0, "required": nil}, "reassignments": 0,
@@ -129,6 +138,7 @@ func TestMetricsVacancies_List(t *testing.T) {
 	v5 := map[string]any{
 		"draft_id": s.v5.String(), "title": "Cinco", "requester": acme, "responsible": mxPerson(s.beto, "Beto", false),
 		"first_published_at": "2025-01-06T16:00:00Z", "closes": []any{},
+		"opened_at": "2025-01-06T16:00:00Z", "last_close": nil, "business_days_to_close": nil, "closing_target": nil,
 		"delivery": map[string]any{"result": "late", "target": 1, "delivered": 1, "target_reached_at": "2025-02-05T18:00:00Z",
 			"commitment_date": "2025-01-31", "original_commitment_date": "2025-01-31", "renegotiations": 0, "business_days_late": 2},
 		"placements": map[string]any{"covered": 0, "required": nil}, "reassignments": 0,

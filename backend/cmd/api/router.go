@@ -258,8 +258,9 @@ func newRouter(d routerDeps) chi.Router {
 		r.Delete("/v2/me/company/stakeholder-invitations/{id}", d.stakeholderInvitationHandler.Revoke)
 	})
 
-	// Company metrics (stakeholder-metrics-v1 §3, v2 §4 sections): owners and
-	// stakeholders read; detail reads with candidate names audit themselves.
+	// Company metrics (stakeholder-metrics-v1 §3, v2 §4 sections, §5 lists,
+	// §8 exports): owners and stakeholders read; detail reads and exports with
+	// candidate names audit themselves.
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireMetricsViewer)
 		r.Get("/v2/me/company/metrics/summary", d.metricsHandler.Summary)
@@ -273,6 +274,12 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/metrics/reassignments", d.metricsHandler.Reassignments)
 		r.Get("/v2/me/company/metrics/vacancies/{draftId}/deliveries", d.metricsHandler.Deliveries)
 		r.Get("/v2/me/company/metrics/vacancies/{draftId}/placements", d.metricsHandler.Placements)
+		r.Get("/v2/me/company/metrics/deliveries", d.metricsHandler.DeliveryList)
+		r.Get("/v2/me/company/metrics/placements", d.metricsHandler.PlacementList)
+		r.Get("/v2/me/company/metrics/deliveries/export", d.metricsHandler.Export("deliveries"))
+		r.Get("/v2/me/company/metrics/vacancies/export", d.metricsHandler.Export("vacancies"))
+		r.Get("/v2/me/company/metrics/placements/export", d.metricsHandler.Export("placements"))
+		r.Get("/v2/me/company/metrics/reassignments/export", d.metricsHandler.Export("reassignments"))
 	})
 
 	r.Group(func(r chi.Router) {
