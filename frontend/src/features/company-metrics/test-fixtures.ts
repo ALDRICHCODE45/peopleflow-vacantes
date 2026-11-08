@@ -1,4 +1,5 @@
 import type {
+  ClosuresSection, ComplianceSection, DelaysSection, OriginSection,
   DeliveriesDetail, MetricsSummary, PlacementsDetail, ReassignmentPage, RecruiterCard, RecruiterDetail, RecruiterPage, VacancyPage, VacancyRow,
 } from "./model";
 
@@ -157,4 +158,71 @@ export function placements(): PlacementsDetail {
       { candidate: { id: "50000000-0000-4000-8000-000000000005", full_name: "Óscar Gutiérrez Pineda" }, hired_at: "2026-09-12T17:00:00Z", status: "did_not_hold", recipients: [{ person: { user_id: carlosId, name: "Carlos Mendoza Ruiz", former_member: true }, kind: "participant" }] },
     ],
   };
+}
+
+/** The v2 header every route sends since stakeholder-metrics v2 §3: `definitions_version`, `period`, `as_of`. */
+export const asOf = "2026-11-08T19:40:12Z";
+const v2Header = { definitions_version: "v2", period, as_of: asOf };
+
+/** `GET …/metrics/summary` under v2 §4.1: the v1 fields plus the previous period, headline (N1) and monthly on-time (N2). */
+export function summaryV2(overrides: Partial<MetricsSummary> = {}): MetricsSummary {
+  return summary({
+    ...v2Header,
+    previous_period: { from: "2026-05-02", to: "2026-07-31" },
+    headline: {
+      on_time_rate: { current: { value: 0.6667, numerator: 20, denominator: 30 }, previous: { value: 0.5, numerator: 10, denominator: 20 } },
+      assigned: { current: 42, previous: 38 },
+      median_business_days_to_close: { current: 23, previous: 27 },
+      placements: { current: 25, previous: 19 },
+      reassignments: { current: 6, previous: 9 },
+    },
+    on_time_by_month: [
+      { month: "2026-08", rate: { value: 0.6, numerator: 6, denominator: 10 } },
+      { month: "2026-09", rate: { value: 0.7, numerator: 7, denominator: 10 } },
+      { month: "2026-10", rate: { value: 0.7, numerator: 7, denominator: 10 } },
+    ],
+    ...overrides,
+  });
+}
+
+/** §4.2: distinct vacancies closed per month (the reasons add up to `closed`) and the delivery status split. */
+export function closures(overrides: Partial<ClosuresSection> = {}): ClosuresSection {
+  return {
+    ...v2Header,
+    closed_by_month: [
+      { month: "2026-08", closed: 6, filled: 5, cancelled: 1, other: 0, no_reason: 0 },
+      { month: "2026-09", closed: 9, filled: 6, cancelled: 2, other: 1, no_reason: 0 },
+      { month: "2026-10", closed: 8, filled: 7, cancelled: 1, other: 0, no_reason: 0 },
+    ],
+    delivery_status: { on_time: 20, late: 7, overdue: 3, pending: 9, not_configured: 3 },
+    ...overrides,
+  };
+}
+
+/** §4.3: late deliveries by business days late (they add up to `late` = 7) and the monthly on-time rate. */
+export function compliance(overrides: Partial<ComplianceSection> = {}): ComplianceSection {
+  return { ...v2Header, late_buckets: { up_to_2: 3, from_3_to_5: 2, over_5: 2 }, on_time_by_month: summaryV2().on_time_by_month!, ...overrides };
+}
+
+/** §4.5: closing target of filled closes, the overdue top (N4) and reassignments by reason. */
+export function delays(overrides: Partial<DelaysSection> = {}): DelaysSection {
+  return {
+    ...v2Header,
+    closing_target: { on_time: 9, late: 5, no_target: 4 },
+    overdue: {
+      total: 3,
+      top: [
+        { vacancy: { draft_id: draftId, title: "Ejecutivo de cuenta" }, commitment_date: "2026-10-20", business_days_overdue: 13, delivered: 2, target: 5,
+          requester: { kind: "client", id: clientId, name: "Grupo Bimbo" }, attributed_to: [{ user_id: marianaId, name: "Mariana Torres", former_member: false }] },
+        { vacancy: { draft_id: "30000000-0000-4000-8000-000000000002", title: null }, commitment_date: "2026-10-28", business_days_overdue: 8, delivered: 0, target: 3 },
+      ],
+    },
+    reassignments_by_reason: { workload: 2, recruiter_departure: 3, performance: 0, client_request: 1, other: 0 },
+    ...overrides,
+  };
+}
+
+/** §4.6 origin: applications by channel in the period. */
+export function origin(overrides: Partial<OriginSection> = {}): OriginSection {
+  return { ...v2Header, by_channel: { portal: 120, careers_site: 34, manual: 61, unknown: 300 }, ...overrides };
 }

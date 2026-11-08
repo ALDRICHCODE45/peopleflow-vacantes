@@ -2,6 +2,7 @@ import "server-only";
 import type { z } from "zod";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import {
+  closuresSchema, complianceSchema, delaysSchema, originSchema,
   companyAccessSchema, deliveriesSchema, errorEnvelopeSchema, placementsSchema, reassignmentPageSchema, recruiterDetailSchema,
   recruiterPageSchema, summarySchema, UUID_PATTERN, vacancyPageSchema, type MetricsErrorEnvelope,
 } from "./model";
@@ -45,6 +46,11 @@ const paged = (query: URLSearchParams, limit: number, cursor?: string) => {
 
 export const getCompanyAccess = (token: string) => get("/me/company", token, companyAccessSchema);
 export const getSummary = (token: string, query: URLSearchParams) => get(`${PATH}/summary`, token, summarySchema, query);
+/** v2 §4: the board sections, each its own route with the common filters, all served from one snapshot. */
+export const getClosures = (token: string, query: URLSearchParams) => get(`${PATH}/closures`, token, closuresSchema, query);
+export const getCompliance = (token: string, query: URLSearchParams) => get(`${PATH}/compliance`, token, complianceSchema, query);
+export const getDelays = (token: string, query: URLSearchParams) => get(`${PATH}/delays`, token, delaysSchema, query);
+export const getOrigin = (token: string, query: URLSearchParams) => get(`${PATH}/origin`, token, originSchema, query);
 export const listRecruiters = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/recruiters`, token, recruiterPageSchema, paged(query, RECRUITER_LIMIT, cursor));
 export const listVacancies = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/vacancies`, token, vacancyPageSchema, paged(query, LIST_LIMIT, cursor));
 export const listReassignments = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/reassignments`, token, reassignmentPageSchema, paged(query, LIST_LIMIT, cursor));

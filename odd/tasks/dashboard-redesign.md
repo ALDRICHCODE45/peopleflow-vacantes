@@ -44,7 +44,11 @@ detail): compare with the user's references, research modern dashboard patterns,
 | T7 | S6, S8 | Update `design/system.md` dashboard rules: status palette, professional titles, drill-down rule, help only in popovers (done, L7) | — |
 | T8 | S5, S7, S9 | Data needs for contract v2 (`docs/product/stakeholder-metrics-v2-needs.md`), sent to the backend session; system.md dashboard rules binding (done, L8) | `ef2a4a9b` |
 | T9 | S5–S9 | Review the backend's contract v2 proposal (done, L10) | — |
-| T10 | S6–S10 | Implement `/empresa/metricas` from 07 and `/empresa/metricas/detalle` from 08 against v2 (slices, Playwright UI review) | — |
+| T10a | S6–S10 | (branch `feat/metrics-redesign`) Métricas board from 07 against v2a: v2 client/model, sections summary, closures, compliance, delays, origin, recruiters, lazy loading, delivery palette, drill-down hrefs | — |
+| T10b | S7, S9, S10 | Detail page `/empresa/metricas/detalle` from 08 against v2b (lists, facets, applied_filters, export) | — |
+| T10c | S6, S7 | Pipeline section and candidates drill-down against v2c | — |
+| T12 | S3, S5 | Dashboard 09 data needs (`docs/product/company-dashboard-v2-needs.md`) sent to the backend; review its proposal | — |
+| T13 | S3, S7–S10 | Implement `/empresa/dashboard` from 09 | — |
 | T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) (done, L12) | `ae0707a8` |
 
 ## Log
@@ -131,3 +135,22 @@ detail): compare with the user's references, research modern dashboard patterns,
   «Necesita atención» hero with tabs vencidas / vencen esta semana / detenidos (N4) + Pipeline por etapa (N3), Vacantes
   activas + Candidatos recientes, Postulaciones last. Parent review: smoothed the chart to a 7-day average and unified
   stage badges. Waiting for the user's review.
+- **L13** Backend v2a ready on `feat/stakeholder-metrics-v2-backend` (`afebab8d`): summary with `previous_period`,
+  `headline {current, previous}`, `on_time_by_month`; `closures`, `compliance`, `delays`, `origin` per §4; every response
+  `definitions_version "v2"` + `as_of`. Note: summary `closed_by_month` keeps v1 shape (no `closed`); monthly `closed`
+  only in `/closures`. Backend continues with v2b (detail lists).
+- **L14** Merged into local `main` (no push; the user pushes): `feat/stakeholder-metrics-backend` (`472cf029`) then
+  `feat/stakeholder-metrics`, no conflicts. Full checks on merged main: typecheck 0, lint 0 errors (12 pre-existing
+  warnings), vitest 547 files / 10090 passed, 2 skipped; go build, go vet, go test all pass. Branch
+  `feat/metrics-redesign` created from main for T10.
+- **L15** User: «Bien hermano, retomando, me gusta la propuesta 09, adelante, y ya hice push de lo mergeado.» 09 approved;
+  main pushed by the user. 09 needs data outside contract v2 (dashboard endpoint): needs doc written and sent (T12).
+- **L16** Backend contract v2 §5 addendum: every list accepts optional `vacancy_id` (422 on malformed uuid, empty list +
+  `applied_filters.vacancy.title` null for foreign/unknown ids, recorded on audited reads); arrives with v2b.
+- **L17** Backend scheduled the dashboard contract after v2c (reuses pipeline snapshot and candidate lists). Leaning:
+  owner sees the whole company, recruiter by default only vacancies with an open tramo (user decides); same formulas and
+  snapshot behind recruiter-gated routes; «vencen esta semana» = Monday–Sunday, Mexico City time.
+- **L18** T10a-A1 (`5db857e7`): v1 decoders accept the v2 header (`as_of`) and the v2 summary fields (`previous_period`,
+  `headline`, `on_time_by_month`); new schemas and actions for closures, compliance, delays, origin and recruiters, each
+  section loading on its own. Overdue rows decode optional `requester` + `attributed_to [person]` (backend choice, v2b).
+  Merged to local main so the backend can merge v2 after the user pushes (main frontend decoded v1 with `.strict()`).
