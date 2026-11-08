@@ -199,6 +199,8 @@ with `recruiter_id`, the vacancies where that user has an open tramo.
 ```
 
 - `overdue.top` (N4): up to 4 rows, most business days overdue first (commitment date to `as_of`), ties by title.
+  Each row also carries `requester` (null for «sin solicitante») and `attributed_to` ([person], the same rule as the
+  §5.1 deliveries row: responsible, or every member in `shared`, active at the end of the commitment day).
 - Opens: closing target → `vacancies?scope=closed&close_reason=filled&closing_target=X`; overdue →
   `deliveries?result=overdue&sort=business_days_overdue&order=desc`; reason →
   `reassignments?reason=R`.

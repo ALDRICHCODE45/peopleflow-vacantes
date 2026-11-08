@@ -67,3 +67,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - **L6** Frontend session (2026-11-08): «No mergees feat/stakeholder-metrics-v2-backend a main hasta que te avise que el
   frontend tolerante está en main» (v1 frontend decodes with zod `.strict()`; new keys break it). Confirmed every
   metrics response carries `as_of` since v2a.
+- **L7** Frontend tolerant decoders in its local main (5db857e7, push pending). Lists, list rows and per-vacancy
+  details ignore unknown keys; strict stay: summary, closures/compliance/delays/origin, recruiter cards and
+  recruiters/{id} — «Si v2b o v2c agregan algo en esas rutas, avisame antes de mergear». `delays.overdue.top`
+  `requester`/`attributed_to` (§4.5 addition) already decoded as optional.
