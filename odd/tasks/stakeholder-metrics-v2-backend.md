@@ -31,7 +31,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T3 (S2, S3) Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin — commit: v2a commit.
 - [x] T4 (S1, S3, S4, S5) Slice v2b: sortable keyset lists with total, facets, applied filters, vacancy_id, deliveries, placements (audited), CSV export, overdue top requester/attributed_to — commit: v2b commit.
 - [ ] T5 Slice v2c: pipeline section, candidates (audited), applications, participation index.
-- [ ] T8 Dev-only demo seed (`cmd/devseed-metrics-demo`) for the browser review, proposal sent, waiting for user approval (L10), after T5.
+- [ ] T8 Dev-only demo seed (`cmd/devseed-metrics-demo`) for the browser review, approved (L11), after T5.
 - [ ] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5), after T5.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
 
@@ -89,3 +89,10 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   deterministic ids, dates relative to today, integration test figure == list total over the seed; accounts signed up
   by the user (nocheblanca92+demo-owner/stakeholder/recruiter), memberships attached by email; admin-create-user only
   with explicit ok.
+- **L11** User approved via the frontend session: «tu propuesta tal cual: cmd dev-only `devseed-metrics-demo`
+  (apply/remove, guardas de base local, ids deterministas, test de integración figura = total de lista). Las 3 cuentas
+  … las registra él en la app con el registro normal, sin admin-create-user. Las filas de auditoría que genere la demo
+  se quedan al hacer remove (no usar el bypass). Hacelo después de v2c». Environment: frontend local uses the Cognito
+  dev pool, API at http://127.0.0.1:8081, database `peopleflow_vacancies`. Notify the frontend when the seed is ready;
+  the user registers the 3 accounts before `apply`. Implementation note: remove must cope with audit rows that keep
+  the demo company id (check FKs from audit_events before deleting the company).
