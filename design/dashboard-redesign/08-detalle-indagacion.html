@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entregas tarde · Jorge Paredes · Métricas · PeopleFlow</title>
+<style>
+/* base:start */
+:root{
+  --background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;
+  --primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);
+  --secondary:#F1EEF7;--muted:#F1EEF7;--accent:#F1EEF7;--muted-foreground:#6B6480;
+  --border:#E4DFF0;--input:#E4DFF0;--destructive:oklch(0.577 0.245 27.325);--ring:oklch(0.708 0 0);
+  --brand-decorative-strong:oklch(0.54 0.15 292.581);
+  --status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);
+  --radius:0.625rem;
+  --chart-accent:var(--primary);
+  --hero-bg:var(--foreground);--hero-fg:var(--background);
+  --hero-accent:oklch(0.70 0.14 292.759);--hero-success:oklch(0.78 0.14 155);
+  /* delivery / deadline palette (system.md rule 9) */
+  --d-ok:var(--primary);
+  --d-late:color-mix(in oklab,var(--primary) 45%,var(--card));
+  --d-pend:color-mix(in oklab,var(--muted-foreground) 35%,var(--card));
+  --d-over:var(--destructive);
+  --d-none:var(--border);
+  --font-sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+.dark{
+  --background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;
+  --primary:oklch(0.432 0.232 292.759);--secondary:#171226;--muted:#171226;--accent:#171226;
+  --muted-foreground:#A79FBF;--border:#262233;--input:#262233;--destructive:oklch(0.704 0.191 22.216);
+  --brand-decorative-strong:oklch(0.70 0.14 292.759);
+  --status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);
+  --hero-accent:oklch(0.54 0.15 292.581);--hero-success:oklch(0.46 0.13 152);
+  --chart-accent:var(--brand-decorative-strong);
+  --d-ok:var(--brand-decorative-strong);
+  --d-late:color-mix(in oklab,var(--brand-decorative-strong) 45%,var(--card));
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--brand-decorative-strong);outline-offset:2px;border-radius:6px}
+.skip{position:absolute;left:16px;top:-48px;z-index:40;background:var(--card);padding:10px 14px;border-radius:8px}
+.skip:focus{top:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted-foreground)}
+
+/* chrome */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:24px;padding:24px 16px;background:var(--card);border-right:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px;font-size:16px;font-weight:600}
+.brand-mark{width:32px;height:32px;border-radius:calc(var(--radius)*.8);background:var(--primary);display:grid;place-items:center}
+.brand small{display:block;font-size:12px;line-height:16px;font-weight:400;color:var(--muted-foreground)}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:var(--radius);font-weight:500;color:var(--muted-foreground)}
+.nav a:hover{background:var(--muted);color:var(--foreground)}
+.nav a[aria-current="page"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong)}
+.dark .nav a[aria-current="page"]{color:var(--foreground)}
+.user{margin-top:auto;display:flex;align-items:center;gap:12px;padding:8px}
+.avatar{width:32px;height:32px;border-radius:999px;background:var(--secondary);display:grid;place-items:center;font-size:12px;font-weight:500;color:var(--foreground);flex:none}
+.user b{display:block;font-weight:500}
+.user span{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.icon-btn{margin-left:auto;width:40px;height:40px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);display:grid;place-items:center;color:var(--muted-foreground)}
+.icon-btn:hover{color:var(--foreground);background:var(--muted)}
+main{padding:32px;min-width:0}
+.page{max-width:1128px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+
+/* header + controls */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.head h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.01em}
+.head .lead{margin-top:8px;color:var(--muted-foreground)}
+.head .fresh{margin-top:8px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.head-actions{display:flex;align-items:center;gap:12px;flex:none}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden}
+.seg button{min-height:40px;padding:0 14px;border:0;background:transparent;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button:hover{color:var(--foreground);background:var(--muted)}
+.seg button[aria-pressed="true"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong);font-weight:600}
+.dark .seg button[aria-pressed="true"]{color:var(--foreground)}
+.seg button:focus-visible{outline-offset:-3px}
+.seg .c{margin-left:6px;font-variant-numeric:tabular-nums;color:var(--muted-foreground);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:var(--radius);font-weight:500;border:1px solid transparent;background:transparent;white-space:nowrap}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{background:color-mix(in srgb,var(--primary) 88%,var(--foreground))}
+.btn-outline{background:var(--card);border-color:var(--border)}
+.btn-outline:hover{background:var(--muted)}
+.btn-ghost{color:var(--muted-foreground);padding:0 12px}
+.btn-ghost:hover,.btn-ghost[aria-expanded="true"]{background:var(--muted);color:var(--foreground)}
+
+/* sections + cards */
+.sec{display:flex;flex-direction:column;gap:16px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px}
+.sec-head h2{font-size:18px;line-height:28px;font-weight:600}
+.tools{display:flex;align-items:center;gap:4px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:stretch}
+.c8{grid-column:span 8}.c6{grid-column:span 6}.c4{grid-column:span 4}.c12{grid-column:span 12}
+.card{position:relative;background:var(--card);border-radius:calc(var(--radius)*1.4);padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0;
+  box-shadow:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent)}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.card-head h3{font-size:15px;line-height:22px;font-weight:600}
+.cap{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.card-head .cap{margin-top:4px}
+.new{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted-foreground) 60%,transparent);border-radius:6px;font-size:11px;line-height:16px;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+
+/* drillable figure (rule 16) */
+.fig{color:inherit;border-radius:4px;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;text-decoration-thickness:1px}
+.fig:hover,.fig:focus-visible{text-decoration-color:currentColor}
+.fig:focus-visible{outline-offset:2px}
+svg a:focus-visible{outline:none}
+svg a:focus-visible .hit{stroke:var(--brand-decorative-strong);stroke-width:2;fill:color-mix(in srgb,var(--primary) 6%,transparent)}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px;white-space:nowrap}
+td{padding:12px;height:56px;white-space:nowrap;vertical-align:middle}
+th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}
+tbody tr{border-top:1px solid var(--border)}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:color-mix(in srgb,var(--muted) 60%,transparent)}
+
+/* popovers */
+.pop{position:absolute;z-index:30;width:360px;background:var(--popover);border-radius:calc(var(--radius)*1.4);padding:20px;
+  box-shadow:0 12px 32px color-mix(in srgb,var(--foreground) 14%,transparent),0 0 0 1px var(--border)}
+.pop[hidden]{display:none}
+.pop h3{font-size:15px;line-height:22px;font-weight:600}
+.pop dl{margin:12px 0 0}
+.pop dd+dt{margin-top:12px}
+.pop dt{font-weight:500}
+.pop dd{margin:4px 0 0;color:var(--muted-foreground)}
+.pop .new{margin-left:6px;vertical-align:1px}
+.field{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.field label{font-weight:500}
+.field select{min-height:40px;border:1px solid var(--input);border-radius:var(--radius);background:var(--card);padding:0 12px}
+.pop-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+/* artboard-only design control */
+.design-ctl{position:fixed;top:12px;right:16px;z-index:50;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;
+  border:1.5px dashed var(--brand-decorative-strong);border-radius:var(--radius);background:color-mix(in srgb,var(--card) 92%,transparent);
+  color:var(--brand-decorative-strong);font-size:12px;font-weight:600}
+.design-ctl small{font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+
+/* skeleton */
+.sk{display:block;border-radius:6px;background:var(--muted)}
+.dark .sk{background:var(--border)}
+@media (prefers-reduced-motion:no-preference){
+  .sk{background:linear-gradient(90deg,var(--muted) 0%,color-mix(in srgb,var(--border) 70%,var(--muted)) 50%,var(--muted) 100%);background-size:200% 100%;animation:sh 1.4s linear infinite}
+  .dark .sk{background:linear-gradient(90deg,var(--border) 0%,color-mix(in srgb,var(--muted-foreground) 25%,var(--border)) 50%,var(--border) 100%);background-size:200% 100%;animation:sh 1.4s linear infinite}
+  @keyframes sh{from{background-position:100% 0}to{background-position:-100% 0}}
+  .nav a,.btn,.seg button,.icon-btn,.fig{transition:background-color .15s ease,color .15s ease,text-decoration-color .15s ease}
+}
+@media (max-width:1180px){.grid>*{grid-column:span 12}.head{flex-direction:column;align-items:flex-start}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center}.nav{flex-direction:row;flex-wrap:wrap}main{padding:24px}.head-actions{flex-wrap:wrap}}
+/* base:end */
+.page{gap:24px}
+.crumb{display:flex;align-items:center;gap:4px;font-size:14px;color:var(--muted-foreground)}
+.crumb a{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 8px;margin-left:-8px;border-radius:8px;font-weight:500;color:var(--brand-decorative-strong)}
+.crumb a:hover{background:var(--muted)}
+.crumb [aria-current]{color:var(--foreground);font-weight:500}
+.chips{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:2px;height:32px;padding:0 4px 0 12px;border:1px solid var(--border);border-radius:999px;background:var(--card);font-size:13px}
+.chip b{font-weight:500;margin-left:4px}
+.chip button{width:28px;height:28px;border:0;border-radius:999px;background:transparent;display:grid;place-items:center;color:var(--muted-foreground)}
+.chip button:hover{background:var(--muted);color:var(--foreground)}
+.chip button svg.i{width:14px;height:14px}
+.add-filter{min-height:32px;height:32px;padding:0 10px;font-size:13px}
+.chips-tail{margin-left:auto}
+.summary{font-size:16px;line-height:24px}
+.summary b{font-weight:600;font-variant-numeric:tabular-nums}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.sortbtn{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 6px;margin:-8px -6px;border:0;border-radius:6px;background:transparent;font-size:12px;font-weight:500;color:var(--muted-foreground)}
+.sortbtn:hover{background:var(--muted);color:var(--foreground)}
+th.n .sortbtn{flex-direction:row-reverse}
+th:last-child .sortbtn{margin-right:0}
+thead th{vertical-align:middle;height:44px}
+.sortbtn{vertical-align:middle}
+th[aria-sort] .sortbtn{color:var(--foreground)}
+.sortbtn svg.i{width:14px;height:14px}
+.vac a{font-weight:500;color:var(--brand-decorative-strong)}
+.vac a:hover{text-decoration:underline;text-underline-offset:3px}
+.vac small{display:block;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.late{display:inline-flex;align-items:center;justify-content:flex-end;min-width:64px;height:24px;padding:0 8px;border-radius:6px;font-weight:600;font-variant-numeric:tabular-nums;
+  background:color-mix(in oklab,var(--d-late) 55%,var(--card));color:var(--foreground)}
+.late.zero{background:transparent;color:var(--muted-foreground);font-weight:400}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted-foreground)}
+.pager{display:flex;gap:8px}
+.pager .btn{min-height:32px;height:32px;padding:0 12px;font-size:13px}
+.pager .btn:disabled{opacity:.5;cursor:not-allowed}
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:32px 0}
+.empty .tile{width:40px;height:40px;border-radius:var(--radius);background:var(--muted);display:grid;place-items:center;color:var(--muted-foreground);margin-bottom:8px}
+.empty .tile svg.i{width:20px;height:20px}
+.empty h3{font-size:16px;line-height:24px;font-weight:600}
+.empty p{max-width:28rem;color:var(--muted-foreground)}
+.empty .btn{margin-top:8px}
+[hidden]{display:none!important}
+.loading .real{display:none!important}
+body:not(.loading) .skel{display:none!important}
+.skel td{height:56px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></symbol>
+  <symbol id="i-pool" viewBox="0 0 24 24"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><circle cx="12" cy="11" r="3"/><rect x="3" y="4" width="18" height="18" rx="2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-audit" viewBox="0 0 24 24"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></symbol>
+  <symbol id="i-searchx" viewBox="0 0 24 24"><path d="m13.5 8.5-5 5M8.5 8.5l5 5"/><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+</svg>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+<button class="design-ctl" id="design-load" type="button" aria-pressed="false"><small>Diseño</small><span>Ver estado de carga</span></button>
+<div class="app">
+<aside class="side" aria-label="Barra lateral">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M10.5 10.5l3 3"/></svg></span>
+    <span>PeopleFlow<small>Trust People Company</small></span>
+  </div>
+  <nav class="nav" aria-label="Principal">
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-brief"/></svg>Vacantes</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-pool"/></svg>Base de talento</a>
+    <a href="07-metricas-combinada.html" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-team"/></svg>Equipo</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-audit"/></svg>Auditoría</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-cog"/></svg>Configuración</a>
+  </nav>
+  <div class="user">
+    <span class="avatar" aria-hidden="true">MT</span>
+    <div><b>Mariana Torres</b><span>Owner</span></div>
+    <button class="icon-btn" id="theme" type="button" aria-label="Cambiar a tema oscuro"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button>
+  </div>
+</aside>
+
+<main id="contenido" tabindex="-1">
+<div class="page">
+  <nav class="crumb" aria-label="Ruta">
+    <a href="07-metricas-combinada.html"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>Métricas</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page" id="crumb-cur">Entregas tarde</span>
+  </nav>
+
+  <header class="head" style="margin-top:-16px">
+    <div>
+      <h1 id="title">Entregas tarde · Jorge Paredes</h1>
+      <p class="fresh">Actualizado hoy 10:42 · 9 nov 2025 – 8 nov 2026 · Definiciones v3</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn btn-outline" type="button" id="export"><svg class="i" aria-hidden="true"><use href="#i-dl"/></svg>Exportar CSV</button>
+    </div>
+  </header>
+
+  <div class="chips" aria-label="Filtros activos" role="group">
+    <span class="chip" data-chip="periodo">Periodo:<b>Año</b><button type="button" aria-label="Quitar filtro Periodo: Año"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></span>
+    <span class="chip" data-chip="reclutador">Reclutador:<b>Jorge Paredes</b><button type="button" aria-label="Quitar filtro Reclutador: Jorge Paredes"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></span>
+    <span class="chip" data-chip="estado" id="chip-estado">Estado:<b id="chip-estado-v">Tarde</b><button type="button" aria-label="Quitar filtro Estado"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></span>
+    <button class="btn btn-ghost add-filter" type="button" data-panel aria-haspopup="dialog" aria-controls="add" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Agregar filtro</button>
+  </div>
+
+  <section class="card" aria-labelledby="title" style="gap:20px">
+    <p class="summary real" id="summary" aria-live="polite"></p>
+    <span class="sk skel" style="width:520px;height:16px;margin:4px 0"></span>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Estado de la entrega" id="status">
+        <button type="button" data-s="todas" aria-pressed="false">Todas<span class="c">5</span></button>
+        <button type="button" data-s="a-tiempo" aria-pressed="false">A tiempo<span class="c">1</span></button>
+        <button type="button" data-s="tarde" aria-pressed="true">Tarde<span class="c">4</span></button>
+        <button type="button" data-s="vencidas" aria-pressed="false">Vencidas<span class="c">0</span></button>
+      </div>
+      <span class="cap">Fechas en días hábiles · ordenado por <span id="sort-label">fecha meta, más reciente primero</span></span>
+    </div>
+    <table id="tbl">
+      <caption class="sr">Entregas de candidatos de Jorge Paredes</caption>
+      <thead><tr>
+        <th scope="col" data-k="vac"><button class="sortbtn" type="button">Vacante<svg class="i" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+        <th scope="col" data-k="cli"><button class="sortbtn" type="button">Cliente o área<svg class="i" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+        <th scope="col" data-k="meta" aria-sort="descending"><button class="sortbtn" type="button">Fecha meta<svg class="i" aria-hidden="true"><use href="#i-down"/></svg></button></th>
+        <th scope="col" data-k="ent"><button class="sortbtn" type="button">Entregada<svg class="i" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+        <th scope="col" class="n" data-k="dias"><button class="sortbtn" type="button">Días de retraso<svg class="i" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+        <th scope="col" class="n" data-k="cand"><button class="sortbtn" type="button">Candidatos entregados<svg class="i" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+      </tr></thead>
+      <tbody class="real" id="rows"></tbody>
+      <tbody class="skel" aria-hidden="true">
+        <tr><td><span class="sk" style="width:180px;height:12px"></span><span class="sk" style="width:96px;height:10px;margin-top:8px"></span></td><td><span class="sk" style="width:160px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td class="n"><span class="sk" style="width:64px;height:24px;margin-left:auto"></span></td><td class="n"><span class="sk" style="width:24px;height:12px;margin-left:auto"></span></td></tr>
+        <tr><td><span class="sk" style="width:150px;height:12px"></span><span class="sk" style="width:96px;height:10px;margin-top:8px"></span></td><td><span class="sk" style="width:180px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td class="n"><span class="sk" style="width:64px;height:24px;margin-left:auto"></span></td><td class="n"><span class="sk" style="width:24px;height:12px;margin-left:auto"></span></td></tr>
+        <tr><td><span class="sk" style="width:200px;height:12px"></span><span class="sk" style="width:96px;height:10px;margin-top:8px"></span></td><td><span class="sk" style="width:120px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td class="n"><span class="sk" style="width:64px;height:24px;margin-left:auto"></span></td><td class="n"><span class="sk" style="width:24px;height:12px;margin-left:auto"></span></td></tr>
+        <tr><td><span class="sk" style="width:170px;height:12px"></span><span class="sk" style="width:96px;height:10px;margin-top:8px"></span></td><td><span class="sk" style="width:180px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td><span class="sk" style="width:88px;height:12px"></span></td><td class="n"><span class="sk" style="width:64px;height:24px;margin-left:auto"></span></td><td class="n"><span class="sk" style="width:24px;height:12px;margin-left:auto"></span></td></tr>
+      </tbody>
+    </table>
+    <div class="empty real" id="empty" hidden>
+      <span class="tile" aria-hidden="true"><svg class="i"><use href="#i-searchx"/></svg></span>
+      <h3>Sin resultados</h3>
+      <p>Jorge Paredes no tiene entregas vencidas en el periodo «Año». Todas sus entregas con fecha ya se enviaron.</p>
+      <button class="btn btn-outline" type="button" data-s-go="todas">Ver todas sus entregas</button>
+    </div>
+    <div class="foot">
+      <span id="range" class="num">1–4 de 4</span>
+      <div class="pager"><button class="btn btn-outline" type="button" disabled>Anterior</button><button class="btn btn-outline" type="button" disabled>Siguiente</button></div>
+    </div>
+  </section>
+</div>
+</main>
+</div>
+<div class="pop" id="add" role="dialog" aria-labelledby="add-t" tabindex="-1" hidden>
+  <h3 id="add-t">Agregar filtro</h3>
+  <div class="field"><label for="f-cli">Cliente o área</label><select id="f-cli"><option>Todos</option><option>Banorte · Finanzas</option><option>Grupo Bimbo · Operaciones</option><option>Liverpool · Tecnología</option><option>Interno · RR. HH.</option></select></div>
+  <div class="field"><label for="f-vac">Vacante</label><select id="f-vac"><option>Todas</option><option>Abiertas</option><option>Cerradas</option></select></div>
+  <div class="pop-actions"><button class="btn btn-ghost" type="button" data-close>Cancelar</button><button class="btn btn-primary" type="button" data-close>Aplicar</button></div>
+</div>
+<script>
+/* Jorge Paredes · 5 entregas con fecha en el periodo (1 a tiempo, 4 tarde, 0 vencidas) — same as 07 */
+const ROWS=[
+ {vac:'Coordinador de logística',id:'VAC-2291',cli:'Grupo Bimbo · Operaciones',meta:'2026-09-18',ent:'2026-09-25',dias:5,cand:3,s:'tarde'},
+ {vac:'Analista de nómina',id:'VAC-2214',cli:'Interno · RR. HH.',meta:'2026-07-10',ent:'2026-07-14',dias:2,cand:4,s:'tarde'},
+ {vac:'Jefe de almacén',id:'VAC-2167',cli:'Grupo Bimbo · Operaciones',meta:'2026-05-22',ent:'2026-06-02',dias:7,cand:2,s:'tarde'},
+ {vac:'Supervisor de planta',id:'VAC-2108',cli:'Grupo Bimbo · Operaciones',meta:'2026-03-20',ent:'2026-03-26',dias:4,cand:3,s:'tarde'},
+ {vac:'Ejecutivo de sucursal',id:'VAC-2049',cli:'Banorte · Finanzas',meta:'2026-02-06',ent:'2026-02-05',dias:0,cand:4,s:'a-tiempo'}];
+const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const fmt=d=>{const [y,m,dd]=d.split('-');return `${+dd} ${MES[m-1]} ${y}`};
+const LABEL={todas:'Todas',"a-tiempo":'A tiempo',tarde:'Tarde',vencidas:'Vencidas'};
+const TITLE={todas:'Entregas',"a-tiempo":'Entregas a tiempo',tarde:'Entregas tarde',vencidas:'Entregas vencidas'};
+/* summary parts: [text, bold?] */
+const SUM={
+ todas:[['5 entregas',1],[' con fecha de Jorge Paredes en el periodo: 1 a tiempo y 4 tarde — '],['20 %',1],[' a tiempo.']],
+ "a-tiempo":[['1 de 5',1],[' entregas de Jorge Paredes llegó a tiempo en el periodo — '],['20 %',1],['.']],
+ tarde:[['4 de 5',1],[' entregas de Jorge Paredes llegaron tarde en el periodo — '],['80 %',1],['.']],
+ vencidas:[['0 de 5',1],[' entregas de Jorge Paredes están vencidas en el periodo.']]};
+function el(tag,props,...kids){const n=document.createElement(tag);Object.assign(n,props||{});
+  if(props&&props.attrs)for(const [k,v] of Object.entries(props.attrs))n.setAttribute(k,v);
+  n.append(...kids);return n}
+function lateCell(d){
+  if(!d)return el('span',{className:'late zero',attrs:{'aria-label':'Sin retraso'}},'—');
+  return el('span',{className:'late'},d+(d===1?' día':' días'))}
+let state=new URLSearchParams(location.search).get('estado');if(!LABEL[state])state='tarde';
+let sortK='meta',sortDir=-1;
+const rowsEl=document.getElementById('rows');
+function render(){
+  const list=ROWS.filter(r=>state==='todas'||r.s===state).sort((a,b)=>{const x=a[sortK],y=b[sortK];return (x>y?1:x<y?-1:0)*sortDir});
+  rowsEl.replaceChildren(...list.map(r=>el('tr',null,
+    el('td',{className:'vac'},el('a',{href:'#',attrs:{'aria-label':`Abrir vacante ${r.vac}, ${r.id}`}},r.vac),el('small',null,r.id)),
+    el('td',null,r.cli),el('td',{className:'num'},fmt(r.meta)),el('td',{className:'num'},fmt(r.ent)),
+    el('td',{className:'n'},lateCell(r.dias)),el('td',{className:'n'},String(r.cand)))));
+  document.getElementById('tbl').hidden=!list.length;
+  document.getElementById('empty').hidden=!!list.length;
+  document.getElementById('range').textContent=list.length?`1–${list.length} de ${list.length}`:'0 de 0';
+  document.getElementById('summary').replaceChildren(...SUM[state].map(([t,b])=>b?el('b',null,t):t));
+  document.getElementById('title').textContent=TITLE[state]+' · Jorge Paredes';
+  document.getElementById('crumb-cur').textContent=TITLE[state];
+  document.title=TITLE[state]+' · Jorge Paredes · Métricas · PeopleFlow';
+  document.getElementById('chip-estado').hidden=state==='todas';
+  document.getElementById('chip-estado-v').textContent=LABEL[state];
+  document.querySelectorAll('#status button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===state)));
+  history.replaceState(null,'',location.pathname+'?periodo=anio&reclutador=jorge-paredes'+(state==='todas'?'':'&estado='+state));
+}
+function setState(s){state=s;render()}
+document.querySelectorAll('#status button').forEach(b=>b.addEventListener('click',()=>setState(b.dataset.s)));
+document.querySelector('[data-s-go]').addEventListener('click',e=>setState(e.currentTarget.dataset.sGo));
+document.querySelector('#chip-estado button').addEventListener('click',()=>{setState('todas');document.querySelector('#status button').focus()});
+document.querySelectorAll('.chip:not(#chip-estado) button').forEach(b=>b.addEventListener('click',()=>{b.closest('.chip').hidden=true;document.querySelector('.add-filter').focus()}));
+/* sortable headers */
+const SORTL={vac:'vacante',cli:'cliente o área',meta:'fecha meta',ent:'fecha de entrega',dias:'días de retraso',cand:'candidatos entregados'};
+document.querySelectorAll('th[data-k]').forEach(th=>th.querySelector('button').addEventListener('click',()=>{
+  const k=th.dataset.k;sortDir=sortK===k?-sortDir:(k==='vac'||k==='cli'?1:-1);sortK=k;
+  document.querySelectorAll('th[data-k]').forEach(o=>{o.removeAttribute('aria-sort');o.querySelector('use').setAttribute('href','#i-sort')});
+  th.setAttribute('aria-sort',sortDir>0?'ascending':'descending');th.querySelector('use').setAttribute('href',sortDir>0?'#i-up':'#i-down');
+  document.getElementById('sort-label').textContent=SORTL[k]+(sortDir>0?', ascendente':', descendente');render()}));
+render();
+/* theme */
+const themeBtn=document.getElementById('theme');
+themeBtn.addEventListener('click',()=>{const dark=document.documentElement.classList.toggle('dark');
+  themeBtn.setAttribute('aria-label',dark?'Cambiar a tema claro':'Cambiar a tema oscuro');
+  themeBtn.querySelector('use').setAttribute('href',dark?'#i-sun':'#i-moon')});
+/* popover: one open at a time, Escape/outside click close, focus returns */
+let trig=null,panel=null;
+function place(el,b){el.hidden=false;const r=b.getBoundingClientRect();let x=r.left+scrollX;
+  x=Math.max(8,Math.min(x,scrollX+document.documentElement.clientWidth-el.offsetWidth-8));el.style.left=x+'px';el.style.top=(r.bottom+scrollY+8)+'px'}
+function closeAll(ret=true){if(!trig)return;panel.hidden=true;trig.setAttribute('aria-expanded','false');if(ret)trig.focus();trig=null;panel=null}
+function openFor(b){if(trig===b){closeAll();return}closeAll(false);panel=document.getElementById(b.getAttribute('aria-controls'));
+  place(panel,b);b.setAttribute('aria-expanded','true');trig=b;panel.focus()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-panel]');if(b){openFor(b);return}if(trig&&!panel.contains(e.target))closeAll(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeAll()));
+/* artboard-only: loading state (server page in flight) */
+const dl=document.getElementById('design-load');
+dl.addEventListener('click',()=>{const on=document.body.classList.toggle('loading');dl.setAttribute('aria-pressed',String(on));
+  dl.querySelector('span').textContent=on?'Ver contenido cargado':'Ver estado de carga';
+  document.getElementById('tbl').setAttribute('aria-busy',String(on));if(on)document.getElementById('tbl').hidden=false;else render()});
+</script>
+</body>
+</html>

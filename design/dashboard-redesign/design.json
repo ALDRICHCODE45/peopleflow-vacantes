@@ -1,0 +1,63 @@
+{
+  "title": "Rediseño de dashboards · Empresa y Métricas",
+  "brief": "Company dashboard (/empresa/dashboard) and company metrics (/empresa/metricas) redesigned with order, air and a reading path, following the new Dashboards rules in design/system.md and the research in design/dashboard-redesign/research.md",
+  "feature": "odd/tasks/dashboard-redesign.md",
+  "artboards": [
+    {
+      "file": "01-pulso-dashboard.html",
+      "title": "01 · Pulso · Dashboard",
+      "tradeoff": "Bento close to the references: hero KPI, main chart, attention card; most familiar, needs deltas (N1) to shine",
+      "width": 1440,
+      "height": 1950
+    },
+    {
+      "file": "02-pulso-metricas.html",
+      "title": "02 · Pulso · Métricas",
+      "tradeoff": "Same bento for metrics: strong first glance, detail pushed down; recruiter table trimmed to 6 columns",
+      "width": 1440,
+      "height": 1980
+    },
+    {
+      "file": "03-historia-dashboard.html",
+      "title": "03 · Historia · Dashboard",
+      "tradeoff": "Sections titled as questions with lots of air; calm and guided, longer scroll",
+      "width": 1440,
+      "height": 3070
+    },
+    {
+      "file": "04-historia-metricas.html",
+      "title": "04 · Historia · Métricas",
+      "tradeoff": "Metrics told as a story (¿Cómo vamos? ¿Dónde se atora? ¿Quién?); easiest to read for a stakeholder, less dense",
+      "width": 1440,
+      "height": 3200
+    },
+    {
+      "file": "05-foco-dashboard.html",
+      "title": "05 · Foco · Dashboard",
+      "tradeoff": "Minimal first screen plus an attention rail; fastest to act, hides analysis behind tabs",
+      "width": 1440,
+      "height": 1220
+    },
+    {
+      "file": "06-foco-metricas.html",
+      "title": "06 · Foco · Métricas",
+      "tradeoff": "Overview strip + tabs Resumen / Reclutadores / Clientes; one screen at a time, needs a click to compare",
+      "width": 1440,
+      "height": 1340
+    },
+    {
+      "file": "07-metricas-combinada.html",
+      "title": "07 · Métricas combinada (elegida por el usuario, L5)",
+      "tradeoff": "KPIs de 02, curva de cierres al estilo 01, estado de entregas, pipeline, retrasos y desempeño de 03/04; cada cifra abre su detalle; origen al final",
+      "width": 1440,
+      "height": 3370
+    },
+    {
+      "file": "08-detalle-indagacion.html",
+      "title": "08 · Detalle filtrado (indagar una cifra)",
+      "tradeoff": "Página de detalle a la que lleva cualquier número: filtros como chips, estados, tabla ordenable, exportar",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}

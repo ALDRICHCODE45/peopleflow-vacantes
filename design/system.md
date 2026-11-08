@@ -110,5 +110,65 @@ accessible name «¿Qué es …?» or «Ayuda: …») that opens a shadcn `Popov
 optional muted footer. Never shown by default; one open at a time; Escape / outside click close it and focus returns to
 the trigger. A trigger inside a selectable row is its own button and never selects the row.
 
+## Dashboards and metrics (binding since 2026-11-08, `design/dashboard-redesign/research.md`)
+
+Applies to overview surfaces: `/empresa/dashboard`, `/empresa/metricas` and their detail pages. Values use the tokens
+above; spacing is in Tailwind steps (4 px). Status: binding; approved with artboards `07-metricas-combinada.html` and
+`08-detalle-indagacion.html` (the reference implementation for these rules).
+
+1. **Reading order.** Header → KPI strip → main analysis row → attention / rankings → detail tables. Each step answers
+   one question: *how are we doing → why → who or what → the rows*. Detail is always last and opt-in. Section titles
+   are short professional nouns («Cumplimiento de entregas», «Pipeline por etapa», «Desempeño por reclutador»), never
+   colloquial questions, and carry no explanatory sentence under them.
+2. **Header.** Page title 24/600, one sentence of context (14 muted), period selector and at most one primary action
+   on the right. Freshness («Actualizado hoy 10:42») lives here, once, 12 muted.
+3. **Spacing scale (three levels, never the same value twice).** Inside a card: 8–12 px between label/value/meta,
+   16 px between groups. Card padding 24 px (`p-6`). Between cards 24 px (`gap-6`). Between sections 40 px (`gap-10`).
+   Page inset 24 px, 32 px from `xl`.
+4. **One container level.** A card holds one job. No `border-t` subdivisions, no card or tinted figure inside a card;
+   lists inside a card separate rows with `divide-y` only. Two jobs → two cards.
+5. **Size is importance (12-column grid).** Main chart 8 columns + side card 4; pairs 6 + 6; tables 12. At most one
+   hero element per screen (a hero KPI tile or the main chart); rows keep equal card heights.
+6. **KPI card.** Label 14/500 muted-foreground with at most one 16 px icon; value 32/600 `tabular-nums` (hero 44/600);
+   one line below: delta pill (12/500, success/danger tint over 10% fill, arrow + sign + «vs periodo anterior») *or*
+   a context fraction («de 12 posiciones»); optional sparkline. No ⓘ, no footer, no second number block.
+   Strip: 4 cards, or hero + 3–4. Rule of 6 for any group.
+7. **Help.** Explanations are never shown by default. One «Cómo se calcula» ghost trigger per section heading opens
+   the definitions and any reading of the data (popover or sheet); never an ⓘ per card or per stat. At most one
+   muted caption line per card, and only for scope («146 vacantes asignadas»), never for prose.
+8. **Charts (recharts, already installed).** Line/area for time; horizontal bars sorted descending for comparison;
+   stacked bar for composition of one total. Pies/donuts only with ≤ 3 parts. One accent series in `--primary`, others
+   `--muted-foreground` at 30–60% or `--primary` tints; gridlines `--border` dashed, no chart border. The same data is
+   never shown as chart and table at once: table behind a «Ver como tabla» toggle.
+9. **Color.** Canvas `--background`, cards `--card`. `--primary` only for the primary action, the selected control and
+   the one series or bar that matters. **Delivery / deadline palette** (one hue family plus one alarm, no brown, no
+   green): a tiempo `--primary`; tarde `color-mix(in oklab, var(--primary) 45%, var(--card))`; pendiente
+   `color-mix(in oklab, var(--muted-foreground) 35%, var(--card))`; vencida `--destructive`; sin meta
+   `--border`. Every segment always carries its word and count; color never stands alone. `--status-success` and
+   `--status-review` stay for badges elsewhere, not for chart segments.
+10. **Typography roles.** Page 24/600 · section 18/600 · card title 15/600 · label 14/500 · body 14 · meta 12 muted.
+    Numbers `tabular-nums`, right-aligned in tables.
+11. **Filters.** Period as a segmented control in the header (30 días · 90 días · Año · Personalizado). Other filters
+    (reclutador, cliente o área) in one «Filtros» popover; active filters show as removable chips under the header.
+    Never a full form bar above the data.
+12. **Tables in an overview.** ≤ 6 visible columns, one-line cells, avatar + name first, numbers right-aligned, a
+    status or bar column at most once; «Ver todos» leads to the full table. No checkboxes, column menus or pagination
+    for ≤ 10 rows.
+13. **Attention list.** When a surface has actionable exceptions (vencidas, por vencer), a card «Necesita atención»
+    with ≤ 5 rows, each naming the consequence and a link; empty state «Todo al día».
+14. **Narrow screens.** Stack in reading order; KPI strip 2×2; main chart full width with fewer ticks; tables become
+    list rows (name + the one number that matters + chevron).
+15. **States.** Skeleton mirrors the layout card by card; each card has its own empty state (`SectionEmpty`); a real
+    `0` shows as 0, missing data as «Sin dato».
+16. **Every figure is drillable.** Each count, percentage, bar segment, chart point and table cell that counts records
+    is a link (underline on hover/focus, accessible name «Ver las 5 entregas tarde») to the filtered detail page
+    `/empresa/metricas/detalle?…` with the same period and filters plus the figure's own filter. The detail page:
+    breadcrumb back to Métricas, title naming the figure («Entregas tarde · Diego Ramírez»), removable filter chips,
+    one summary line (count and the figure it came from), a full sortable table of the records with a link to each
+    vacancy or candidate, export, and server pagination. A `0` is not a link.
+17. **Loading.** Header and filters render first; each section loads on its own (skeleton of its exact shape), sections
+    below the fold load when they approach the viewport; changing the period keeps the old numbers dimmed until the new
+    ones arrive (no layout jump); detail pages paginate on the server.
+
 A section never disappears silently when its emptiness is meaningful to the person (a tab, a panel, a list the
 person manages); optional public content (job detail sections, careers-site blocks) may be omitted.

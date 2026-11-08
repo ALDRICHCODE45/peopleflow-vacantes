@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 · Foco · Métricas</title>
+<style>
+:root{--background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;--primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);--muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;--ring:oklch(0.708 0 0);--brand-decorative-strong:oklch(0.54 0.15 292.581);--status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);--status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);--radius:.625rem;
+  --shadow-card:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent);
+  --shadow-pop:0 4px 8px color-mix(in srgb,var(--foreground) 8%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 70%,transparent);color-scheme:light}
+html.dark{--background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;--primary:oklch(0.432 0.232 292.759);--muted:#171226;--muted-foreground:#A79FBF;--border:#262233;--brand-decorative-strong:oklch(0.70 0.14 292.759);--status-info:oklch(0.78 0.12 245);--status-review:oklch(0.82 0.12 78);--status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--background);color:var(--foreground);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}ul,ol{padding:0;list-style:none}
+button{font:inherit;color:inherit}
+a{color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted-foreground)}
+.meta{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border-radius:calc(var(--radius)*.8);border:1px solid var(--border);background:var(--card);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;color:var(--foreground)}
+.btn:hover{background:var(--muted)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}
+.btn.primary:hover{background:color-mix(in srgb,var(--primary) 90%,var(--foreground))}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted-foreground)}
+.btn.ghost:hover,.btn.ghost[aria-expanded=true]{background:var(--muted);color:var(--foreground)}
+.btn.icon{width:40px;padding:0}
+.btn.link{background:transparent;border-color:transparent;padding:0 8px;color:var(--brand-decorative-strong)}
+.btn.link:hover{background:var(--muted)}
+
+/* shell */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.side{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:4px;padding:16px 12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 8px;margin-bottom:16px}
+.mark{width:32px;height:32px;border-radius:10px;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-size:15px;font-weight:700}
+.brand b{display:block;font-size:15px;font-weight:600;line-height:20px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:calc(var(--radius)*.8);text-decoration:none;color:var(--muted-foreground);font-weight:500}
+.nav a:hover{background:var(--muted);color:var(--foreground)}
+.nav a[aria-current=page]{background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--foreground);font-weight:600}
+.nav a[aria-current=page] svg{color:var(--primary)}
+.navgap{height:16px}
+.who{margin-top:auto;display:flex;gap:12px;align-items:center;padding:12px 8px;border-radius:var(--radius)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font-size:12px;font-weight:500;flex:none;color:var(--foreground)}
+
+.page{padding:32px 32px 56px;min-width:0}
+
+/* header */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.head h1{font-size:24px;font-weight:600;line-height:32px;letter-spacing:-.01em}
+.head p{color:var(--muted-foreground);margin-top:4px}
+.head .meta{margin-top:8px}
+.head-actions{display:flex;align-items:center;gap:12px}
+.seg{display:inline-flex;padding:4px;gap:2px;background:var(--muted);border-radius:var(--radius)}
+.seg button{min-height:32px;padding:0 12px;border:0;background:transparent;border-radius:calc(var(--radius)*.8);font-weight:500;color:var(--muted-foreground);cursor:pointer}
+.seg{min-height:40px}
+.seg button:hover{color:var(--foreground)}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--foreground);box-shadow:var(--shadow-card)}
+
+/* layout */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;margin-top:40px;align-items:start}
+.main{display:flex;flex-direction:column;gap:40px;min-width:0}
+.rail{position:sticky;top:32px}
+
+.card{background:var(--card);border-radius:calc(var(--radius)*1.4);box-shadow:var(--shadow-card);padding:24px;min-width:0}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:600;line-height:20px}
+.card-head .meta{margin-top:4px}
+
+/* KPI strip */
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+.kpi dt{font-size:14px;font-weight:500;color:var(--muted-foreground);line-height:20px}
+.kpi dd{margin-top:8px}
+.kpi .value{display:block;font-size:32px;font-weight:600;line-height:36px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .ctx{display:block;margin-top:8px}
+
+/* tabs */
+.tabs-row{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border)}
+.tablist{display:flex;gap:24px}
+.tab{min-height:44px;padding:0 4px;border:0;background:transparent;font-weight:500;color:var(--muted-foreground);cursor:pointer;box-shadow:inset 0 -2px 0 transparent;margin-bottom:-1px}
+.tab:hover{color:var(--foreground)}
+.tab[aria-selected=true]{color:var(--foreground);font-weight:600;box-shadow:inset 0 -2px 0 var(--primary)}
+.tab .count{font-size:12px;font-weight:500;color:var(--muted-foreground);margin-left:6px}
+.panel{display:flex;flex-direction:column;gap:24px;margin-top:24px}
+.panel[hidden]{display:none}
+
+/* chart */
+.chart-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px}
+.chart-total{font-size:32px;font-weight:600;line-height:36px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:16px;align-items:center}
+.legend li{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted-foreground)}
+.legend b{color:var(--foreground);font-weight:600;font-variant-numeric:tabular-nums}
+.sw{width:10px;height:10px;border-radius:3px;flex:none}
+.sw.p{background:var(--primary)}.sw.m{background:color-mix(in srgb,var(--muted-foreground) 55%,transparent)}
+.plot{position:relative}
+.plot svg{display:block;overflow:visible}
+.plot .grid line{stroke:var(--border);stroke-dasharray:3 3}
+.plot .axis text{fill:var(--muted-foreground);font-size:12px;font-variant-numeric:tabular-nums}
+.plot .s-org{fill:none;stroke:var(--primary);stroke-width:2}
+.plot .s-man{fill:none;stroke:color-mix(in srgb,var(--muted-foreground) 60%,transparent);stroke-width:1.75}
+.plot .cursor{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.plot .dot-org{fill:var(--primary);stroke:var(--card);stroke-width:2}
+.plot .dot-man{fill:var(--muted-foreground);stroke:var(--card);stroke-width:2}
+.tip{position:absolute;top:0;pointer-events:none;background:var(--popover);border-radius:var(--radius);box-shadow:var(--shadow-pop);padding:8px 12px;min-width:156px;font-size:12px;line-height:18px}
+.tip strong{display:block;font-weight:600;margin-bottom:4px}
+.tip div{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.tip span{display:inline-flex;align-items:center;gap:8px;color:var(--muted-foreground)}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* lists */
+.rows{display:flex;flex-direction:column}
+.rows>li+li{border-top:1px solid var(--border)}
+.vrow{display:grid;grid-template-columns:minmax(0,1fr) 160px 96px;align-items:center;gap:16px;padding:10px 0}
+.vrow:first-child{padding-top:0}.vrow:last-child{padding-bottom:0}
+.vname{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:6px;border-radius:3px;background:var(--muted);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;background:color-mix(in srgb,var(--primary) 35%,var(--card))}
+.bar.top i{background:var(--primary)}
+.vcount{text-align:right;font-variant-numeric:tabular-nums}
+.vcount b{font-weight:600}
+
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px;white-space:nowrap}
+td{padding:10px 12px;border-top:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+.person{display:flex;align-items:center;gap:12px;min-width:0}
+.person a{font-weight:500;text-decoration:none}.person a:hover{text-decoration:underline}
+
+.badge{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;line-height:1;border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground);white-space:nowrap}
+.badge.success{--t:var(--status-success)}.badge.info{--t:var(--status-info)}.badge.review{--t:var(--status-review)}.badge.danger{--t:var(--status-danger)}.badge.process{--t:var(--primary)}
+.badge.success,.badge.info,.badge.review,.badge.danger,.badge.process{color:var(--t);border-color:color-mix(in srgb,var(--t) 30%,transparent);background:color-mix(in srgb,var(--t) 10%,var(--card))}
+html.dark .badge.process{color:var(--brand-decorative-strong)}
+
+.tag-new{display:inline-flex;align-items:center;height:20px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted-foreground) 70%,transparent);border-radius:6px;font-size:11px;font-weight:500;line-height:1;color:var(--muted-foreground);white-space:nowrap}
+
+/* attention rail */
+.att-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:16px}
+.att-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 8px;margin:0 -8px;border-radius:var(--radius);text-decoration:none;min-height:40px}
+.att-row:hover{background:var(--muted)}
+.rows>li+li .att-row{border-radius:var(--radius)}
+.att-row .t{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px}
+.att-row .c{display:block;margin-top:2px}
+.att-row .chev{color:var(--muted-foreground)}
+.att-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+
+/* popover */
+.pop{position:absolute;z-index:50;width:360px;background:var(--popover);border-radius:var(--radius);box-shadow:var(--shadow-pop);padding:16px;display:none}
+.pop.open{display:block}
+.pop h2{font-size:14px;font-weight:600;line-height:20px}
+.pop dl{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.pop dt{font-weight:500}
+.pop dd{color:var(--muted-foreground);margin-top:2px}
+.pop footer{margin-top:12px;font-size:12px;color:var(--muted-foreground)}
+
+@media (prefers-reduced-motion:no-preference){
+  .btn,.tab,.nav a,.seg button,.att-row{transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+}
+
+/* métricas */
+.chips{display:flex;align-items:center;gap:8px;margin-top:16px}
+.chip{display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 4px 0 12px;border-radius:999px;background:color-mix(in srgb,var(--primary) 10%,var(--card));border:1px solid color-mix(in srgb,var(--primary) 25%,transparent);font-weight:500;font-size:13px}
+.chip button{width:24px;height:24px;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--muted-foreground);position:relative}
+.chip button::after{content:"";position:absolute;inset:-8px}
+.chip button:hover{background:color-mix(in srgb,var(--primary) 16%,var(--card));color:var(--foreground)}
+.chips .btn.ghost{min-height:40px}
+.count-pill{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:600}
+
+.strip-meta{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.kpi .value small{line-height:1;font-size:14px;font-weight:500;letter-spacing:0;color:var(--muted-foreground);margin-left:4px}
+.delta{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums}
+.delta.up{color:var(--status-success);background:color-mix(in srgb,var(--status-success) 10%,var(--card))}
+.delta.down{color:var(--status-danger);background:color-mix(in srgb,var(--status-danger) 10%,var(--card))}
+.delta svg{width:12px;height:12px}
+.kpi .ctx{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.stack{display:flex;gap:2px;height:12px;border-radius:6px;overflow:hidden;margin-bottom:16px}
+.stack i{display:block;height:100%}
+.legend-rows li{display:grid;grid-template-columns:minmax(0,1fr) 40px 44px;align-items:center;gap:12px;padding:8px 0}
+.legend-rows li+li{border-top:1px solid var(--border)}
+.legend-rows .lab{display:flex;align-items:center;gap:8px}
+.legend-rows .n{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.legend-rows .pc{text-align:right;font-size:12px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.dot{width:10px;height:10px;border-radius:3px;flex:none}
+.caption{margin-top:16px}
+
+.hbars li{padding:10px 0}
+.hbars li+li{border-top:1px solid var(--border)}
+.hbars .top{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px}
+.hbars .top span:first-child{font-weight:500}
+.hbars .top .num b{font-weight:600}
+.track{height:8px;border-radius:4px;background:var(--muted);overflow:hidden;position:relative}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+
+.plot .bar-rest{fill:color-mix(in srgb,var(--primary) 22%,var(--card))}
+.plot .bar-hi{fill:var(--primary)}
+.plot .bar-now{fill:color-mix(in srgb,var(--muted-foreground) 25%,var(--card))}
+
+.rec td{padding:12px 10px}.rec th{padding:0 10px 12px}
+.rec th:first-child,.rec td:first-child{padding-left:0}.rec th:last-child,.rec td:last-child{padding-right:0}
+.rate{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}
+.rate .bar{width:32px}
+.rate .bar i{background:color-mix(in srgb,var(--primary) 45%,var(--card))}
+
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 0}
+.empty .tile{width:40px;height:40px;border-radius:var(--radius);display:grid;place-items:center;background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--primary)}
+html.dark .empty .tile{color:var(--brand-decorative-strong)}
+.empty .tile svg{width:20px;height:20px}
+.empty h3{font-size:16px;font-weight:600;margin-top:16px}
+.empty p{color:var(--muted-foreground);max-width:28rem;margin-top:8px}
+.empty .actions{display:flex;gap:12px;margin-top:24px}
+
+.att-group{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:500;color:var(--muted-foreground);margin:16px 0 4px}
+.att-group:first-of-type{margin-top:0}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><path d="M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><path d="M3 7h18v13H3zM8 7V4h8v3M3 13h18"/></symbol>
+  <symbol id="i-pool" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20c0-2.8-1.6-4.8-4-5.6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18M6 16v-5M11 16V6M16 16v-8"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></symbol>
+  <symbol id="i-audit" viewBox="0 0 24 24"><path d="M9 3h6v3H9zM7 4.5H5V21h14V4.5h-2M9 11h6M9 15h4"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14A8.5 8.5 0 1 1 10 3.5a6.8 6.8 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+</svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><path d="M3 4h18v16H3zM3 10h18M9 10v10"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side" aria-label="Navegación principal">
+    <div class="brand"><span class="mark" aria-hidden="true">P</span><div><b>PeopleFlow</b><span class="meta">Trust People Company</span></div></div>
+    <nav class="nav" aria-label="Secciones">
+      <a href="05-foco-dashboard.html"><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-brief"/></svg>Vacantes</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-pool"/></svg>Base de talento</a>
+      <a href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+      <div class="navgap" aria-hidden="true"></div>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-team"/></svg>Equipo</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-audit"/></svg>Auditoría</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-gear"/></svg>Configuración</a>
+    </nav>
+    <div class="who"><span class="avatar" aria-hidden="true">MT</span><div><div style="font-weight:500">Mariana Torres</div><div class="meta">Owner</div></div></div>
+  </aside>
+
+  <main class="page" id="contenido">
+    <header>
+      <div class="head">
+        <div>
+          <h1>Métricas</h1>
+          <p>Cómo cumple el equipo con sus vacantes, entregas y placements.</p>
+          <div class="meta">Actualizado hoy 10:42 · Definiciones v1</div>
+        </div>
+        <div class="head-actions">
+          <div class="seg" role="group" aria-label="Periodo">
+            <button type="button" aria-pressed="false">30 días</button>
+            <button type="button" aria-pressed="false">90 días</button>
+            <button type="button" aria-pressed="true">Año</button>
+            <button type="button" aria-pressed="false">Personalizado</button>
+          </div>
+          <button class="btn" type="button" aria-haspopup="dialog"><svg class="i" aria-hidden="true"><use href="#i-filter"/></svg>Filtros<span class="count-pill" aria-label="1 filtro activo">1</span></button>
+          <button class="btn icon" type="button" id="theme" aria-pressed="false" aria-label="Usar tema oscuro"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button>
+        </div>
+      </div>
+      <div class="chips" aria-label="Filtros activos">
+        <span class="chip">Cliente: Banorte · Finanzas<button type="button" aria-label="Quitar filtro Cliente: Banorte · Finanzas"><svg class="i" aria-hidden="true" style="width:14px;height:14px"><use href="#i-x"/></svg></button></span>
+        <button class="btn ghost" type="button">Limpiar filtros</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <div class="main">
+        <section aria-labelledby="h-kpi">
+          <div class="strip-meta">
+            <h2 id="h-kpi" class="meta" style="font-weight:500">Últimos 12 meses (dic 2025 – nov 2026) contra los 12 anteriores</h2>
+            <span class="tag-new" title="Requiere calcular las mismas cifras en el periodo anterior">Dato nuevo · N1</span>
+          </div>
+          <div class="card">
+            <dl class="strip">
+              <div class="kpi"><dt>Cierres</dt><dd><span class="value">31</span><span class="ctx"><span class="delta up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+6</span></span></dd></div>
+              <div class="kpi"><dt>Mediana para cerrar</dt><dd><span class="value">18<small>días hábiles</small></span><span class="ctx"><span class="delta up"><svg class="i" aria-hidden="true"><use href="#i-down"/></svg>−3 días</span></span></dd></div>
+              <div class="kpi"><dt>Entregas a tiempo</dt><dd><span class="value">75 %<small>21 de 28</small></span><span class="ctx"><span class="delta up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+8 pts</span></span></dd></div>
+              <div class="kpi"><dt>Placements</dt><dd><span class="value">29</span><span class="ctx"><span class="delta down"><svg class="i" aria-hidden="true"><use href="#i-down"/></svg>−2</span></span></dd></div>
+            </dl>
+          </div>
+        </section>
+
+        <section aria-label="Análisis">
+          <div class="tabs-row">
+            <div class="tablist" role="tablist" aria-label="Vistas de métricas">
+              <button class="tab" role="tab" id="t-res" aria-controls="p-res" aria-selected="true" tabindex="0">Resumen</button>
+              <button class="tab" role="tab" id="t-rec" aria-controls="p-rec" aria-selected="false" tabindex="-1">Reclutadores<span class="count num">5</span></button>
+              <button class="tab" role="tab" id="t-cli" aria-controls="p-cli" aria-selected="false" tabindex="-1">Clientes y áreas<span class="count num">4</span></button>
+              <button class="tab" role="tab" id="t-det" aria-controls="p-det" aria-selected="false" tabindex="-1">Detalle</button>
+            </div>
+            <button class="btn ghost" type="button" data-help="tab" aria-haspopup="dialog" aria-expanded="false" aria-controls="pop">Cómo se calcula</button>
+          </div>
+
+          <!-- Resumen -->
+          <div class="panel" role="tabpanel" id="p-res" aria-labelledby="t-res" tabindex="0">
+            <article class="card" aria-labelledby="h-month">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title" id="h-month">Cerradas por mes</h3>
+                  <div class="meta">Vacantes con al menos un cierre en cada mes</div>
+                </div>
+                <button class="btn ghost" type="button" id="as-table" aria-pressed="false" aria-controls="month-plot month-table" style="margin-right:-12px"><svg class="i" aria-hidden="true"><use href="#i-table"/></svg><span>Ver como tabla</span></button>
+              </div>
+              <figure class="plot" id="month-plot" aria-labelledby="month-cap">
+                <figcaption id="month-cap" class="sr">Gráfica de barras de vacantes cerradas por mes, de diciembre de 2025 a noviembre de 2026. Octubre, el último mes completo, tuvo 4.</figcaption>
+              </figure>
+              <table id="month-table" hidden>
+                <caption class="sr">Vacantes cerradas por mes</caption>
+                <thead><tr><th scope="col">Mes</th><th scope="col" class="r">Vacantes cerradas</th></tr></thead>
+                <tbody id="month-rows"></tbody>
+              </table>
+              <p class="meta caption">31 cierres: 24 cubiertas, 5 canceladas, 1 por otro motivo y 1 sin motivo · noviembre va en curso</p>
+            </article>
+
+            <div class="pair">
+              <article class="card" aria-labelledby="h-del">
+                <div class="card-head">
+                  <div>
+                    <h3 class="card-title" id="h-del">Estado de entregas</h3>
+                    <div class="meta">42 vacantes del periodo</div>
+                  </div>
+                </div>
+                <div class="stack" role="img" aria-label="21 a tiempo, 4 tarde, 3 vencidas, 6 pendientes y 8 sin configurar, de 42">
+                  <i style="flex:21;background:var(--status-success)"></i><i style="flex:4;background:var(--status-review)"></i><i style="flex:3;background:var(--status-danger)"></i><i style="flex:6;background:var(--status-info)"></i><i style="flex:8;background:color-mix(in srgb,var(--muted-foreground) 30%,var(--card))"></i>
+                </div>
+                <ul class="legend-rows">
+                  <li><span class="lab"><span class="dot" style="background:var(--status-success)"></span>A tiempo</span><span class="n">21</span><span class="pc">50 %</span></li>
+                  <li><span class="lab"><span class="dot" style="background:var(--status-review)"></span>Tarde</span><span class="n">4</span><span class="pc">10 %</span></li>
+                  <li><span class="lab"><span class="dot" style="background:var(--status-danger)"></span>Vencidas</span><span class="n">3</span><span class="pc">7 %</span></li>
+                  <li><span class="lab"><span class="dot" style="background:var(--status-info)"></span>Pendientes</span><span class="n">6</span><span class="pc">14 %</span></li>
+                  <li><span class="lab"><span class="dot" style="background:color-mix(in srgb,var(--muted-foreground) 30%,var(--card))"></span>Sin configurar</span><span class="n">8</span><span class="pc">19 %</span></li>
+                </ul>
+                <p class="meta caption">34 de 42 con entrega configurada (81 %) · mediana a la meta: 9 días hábiles</p>
+              </article>
+
+              <article class="card" aria-labelledby="h-ori">
+                <div class="card-head">
+                  <div>
+                    <h3 class="card-title" id="h-ori">Origen de las postulaciones</h3>
+                    <div class="meta">900 postulaciones en el periodo</div>
+                  </div>
+                </div>
+                <ul class="hbars">
+                  <li><div class="top"><span>Portal de vacantes</span><span class="num"><b>486</b> <span class="meta">54 %</span></span></div><div class="track" aria-hidden="true"><i style="width:100%;background:var(--primary)"></i></div></li>
+                  <li><div class="top"><span>Sitio de empleo</span><span class="num"><b>212</b> <span class="meta">24 %</span></span></div><div class="track" aria-hidden="true"><i style="width:44%;background:color-mix(in srgb,var(--primary) 30%,var(--card))"></i></div></li>
+                  <li><div class="top"><span>Registro manual</span><span class="num"><b>157</b> <span class="meta">17 %</span></span></div><div class="track" aria-hidden="true"><i style="width:32%;background:color-mix(in srgb,var(--primary) 30%,var(--card))"></i></div></li>
+                  <li><div class="top"><span>Portal o sitio, sin distinguir</span><span class="num"><b>45</b> <span class="meta">5 %</span></span></div><div class="track" aria-hidden="true"><i style="width:9%;background:color-mix(in srgb,var(--muted-foreground) 30%,var(--card))"></i></div></li>
+                </ul>
+                <p class="meta caption">«Sin distinguir»: postulaciones anteriores al registro del canal.</p>
+              </article>
+            </div>
+          </div>
+
+          <!-- Reclutadores -->
+          <div class="panel" role="tabpanel" id="p-rec" aria-labelledby="t-rec" tabindex="0" hidden>
+            <article class="card" aria-labelledby="h-rec">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title" id="h-rec">Reclutadores</h3>
+                  <div class="meta">5 personas con vacantes de Banorte · Finanzas · vacantes: responsable · colaborador; reasignaciones: recibidas · perdidas</div>
+                </div>
+              </div>
+              <table class="rec">
+                <caption class="sr">Desempeño por reclutador</caption>
+                <thead><tr><th scope="col">Reclutador</th><th scope="col" class="r"><abbr title="Vacantes como responsable · como colaborador" style="text-decoration:none">Vacantes</abbr></th><th scope="col" class="r">Entregas a tiempo</th><th scope="col" class="r">Placements</th><th scope="col" class="r">Conversión</th><th scope="col" class="r"><abbr title="Reasignaciones recibidas · perdidas" style="text-decoration:none">Reasignaciones</abbr></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">DR</span><a href="#">Diego Ramírez</a></div></td><td class="r">11 · 3</td><td class="r"><span class="rate"><span class="bar" aria-hidden="true"><i style="width:88%"></i></span>88 % <span class="meta">7 de 8</span></span></td><td class="r"><b style="font-weight:600">9</b></td><td class="r">78 % <span class="meta">7 de 9</span></td><td class="r">2 · 0</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">VO</span><a href="#">Valeria Ortiz</a></div></td><td class="r">9 · 4</td><td class="r"><span class="rate"><span class="bar" aria-hidden="true"><i style="width:71%"></i></span>71 % <span class="meta">5 de 7</span></span></td><td class="r"><b style="font-weight:600">7</b></td><td class="r">71 % <span class="meta">5 de 7</span></td><td class="r">1 · 1</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">AC</span><a href="#">Andrés Castillo</a></div></td><td class="r">8 · 2</td><td class="r"><span class="rate"><span class="bar" aria-hidden="true"><i style="width:67%"></i></span>67 % <span class="meta">4 de 6</span></span></td><td class="r"><b style="font-weight:600">6</b></td><td class="r">67 % <span class="meta">4 de 6</span></td><td class="r">1 · 2</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">SM</span><a href="#">Sofía Méndez</a></div></td><td class="r">8 · 5</td><td class="r"><span class="rate"><span class="bar" aria-hidden="true"><i style="width:80%"></i></span>80 % <span class="meta">4 de 5</span></span></td><td class="r"><b style="font-weight:600">5</b></td><td class="r">80 % <span class="meta">4 de 5</span></td><td class="r">3 · 1</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">JP</span><a href="#">Jorge Paredes</a></div></td><td class="r">6 · 3</td><td class="r"><span class="rate"><span class="bar" aria-hidden="true"><i style="width:50%"></i></span>50 % <span class="meta">1 de 2</span></span></td><td class="r"><b style="font-weight:600">2</b></td><td class="r">25 % <span class="meta">1 de 4</span></td><td class="r">0 · 3</td></tr>
+                </tbody>
+              </table>
+              <p class="meta caption">7 reasignaciones por motivo: carga de trabajo 3 · salida del reclutador 2 · petición del cliente 1 · otro motivo 1 · desempeño 0</p>
+            </article>
+          </div>
+
+          <!-- Clientes y áreas -->
+          <div class="panel" role="tabpanel" id="p-cli" aria-labelledby="t-cli" tabindex="0" hidden>
+            <article class="card" aria-labelledby="h-cli">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title" id="h-cli">Vacantes por cliente o área</h3>
+                  <div class="meta">117 vacantes asignadas en el periodo · barra completa: asignadas, parte oscura: cubiertas</div>
+                </div>
+              </div>
+              <ul class="hbars">
+                <li><div class="top"><span>Banorte · Finanzas <span class="badge process" style="margin-left:8px">Filtro activo</span></span><span class="num"><b>42</b> <span class="meta">· 24 cubiertas (57 %)</span></span></div><div class="track" aria-hidden="true"><i style="width:100%;background:color-mix(in srgb,var(--primary) 25%,var(--card))"></i><i style="width:57%;background:var(--primary)"></i></div></li>
+                <li><div class="top"><span>Liverpool · Tecnología</span><span class="num"><b>35</b> <span class="meta">· 19 cubiertas (54 %)</span></span></div><div class="track" aria-hidden="true"><i style="width:83%;background:color-mix(in srgb,var(--muted-foreground) 22%,var(--card))"></i><i style="width:45%;background:color-mix(in srgb,var(--muted-foreground) 60%,var(--card))"></i></div></li>
+                <li><div class="top"><span>Grupo Bimbo · Operaciones</span><span class="num"><b>28</b> <span class="meta">· 17 cubiertas (61 %)</span></span></div><div class="track" aria-hidden="true"><i style="width:67%;background:color-mix(in srgb,var(--muted-foreground) 22%,var(--card))"></i><i style="width:40%;background:color-mix(in srgb,var(--muted-foreground) 60%,var(--card))"></i></div></li>
+                <li><div class="top"><span>Interno · RR. HH.</span><span class="num"><b>12</b> <span class="meta">· 8 cubiertas (67 %)</span></span></div><div class="track" aria-hidden="true"><i style="width:29%;background:color-mix(in srgb,var(--muted-foreground) 22%,var(--card))"></i><i style="width:19%;background:color-mix(in srgb,var(--muted-foreground) 60%,var(--card))"></i></div></li>
+              </ul>
+              <p class="meta caption">Esta vista ignora el filtro de cliente para que puedas comparar; Banorte · Finanzas va resaltado.</p>
+            </article>
+          </div>
+
+          <!-- Detalle -->
+          <div class="panel" role="tabpanel" id="p-det" aria-labelledby="t-det" tabindex="0" hidden>
+            <article class="card" aria-labelledby="h-det">
+              <div class="empty">
+                <span class="tile" aria-hidden="true"><svg class="i"><use href="#i-list"/></svg></span>
+                <h3 id="h-det">El detalle vacante por vacante vive en su propia lista</h3>
+                <p>Las 42 vacantes asignadas y sus 31 cierres, con fecha objetivo, entrega y reasignaciones de cada una. Ahí puedes ordenar, filtrar y exportar sin cargar este resumen.</p>
+                <div class="actions">
+                  <a class="btn primary" href="#">Abrir lista completa</a>
+                  <a class="btn" href="#">Exportar CSV</a>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <aside class="rail" aria-labelledby="h-att">
+        <section class="card">
+          <div class="att-head">
+            <h2 class="card-title" id="h-att" style="line-height:40px">Necesita atención</h2>
+            <button class="btn ghost" type="button" data-help="att" aria-haspopup="dialog" aria-expanded="false" aria-controls="pop" style="margin-right:-12px">Cómo se calcula</button>
+          </div>
+          <p class="meta" style="margin:-16px 0 16px">Lo que se salió del plan en el periodo</p>
+
+          <div class="att-group"><span>Entregas vencidas · 3</span><span class="tag-new" title="La cifra existe hoy; la lista por vacante con su fecha compromiso es nueva">Dato nuevo · N4</span></div>
+          <ul class="rows">
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge danger">Vencida hace 11 días</span><span class="t">Analista de cobranza</span><span class="c meta">Entregó 1 de 3 candidatos · Valeria Ortiz</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge danger">Vencida hace 5 días</span><span class="t">Gerente de sucursal</span><span class="c meta">Entregó 0 de 2 candidatos · Jorge Paredes</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge danger">Vencida hace 2 días</span><span class="t">Analista de crédito Sr.</span><span class="c meta">Entregó 2 de 4 candidatos · Diego Ramírez</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+          </ul>
+
+          <div class="att-group"><span>Fuera de fecha objetivo</span></div>
+          <ul class="rows">
+            <li><button class="att-row" type="button" data-goto="t-det" style="width:calc(100% + 16px);border:0;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit"><span style="min-width:0"><span class="badge review">Cerraron tarde</span><span class="t">6 de 24 vacantes cubiertas</span><span class="c meta">15 a tiempo · 3 sin fecha objetivo</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></button></li>
+          </ul>
+
+          <div class="att-group"><span>Reasignaciones recientes</span></div>
+          <ul class="rows">
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge">7 en el periodo</span><span class="t">Ejecutivo de cuenta</span><span class="c meta">De Jorge Paredes a Valeria Ortiz · carga de trabajo · 30 oct</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<div class="pop" id="pop" role="dialog" aria-labelledby="pop-title">
+  <h2 id="pop-title"></h2>
+  <dl id="pop-body"></dl>
+  <footer id="pop-foot"></footer>
+</div>
+
+<script>
+(() => {
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, kids, svg) {
+    const n = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => n.setAttribute(k, v));
+    (kids || []).forEach(k => n.append(k));
+    return n;
+  }
+  const s$ = (tag, attrs, kids) => el(tag, attrs, kids, true);
+
+  /* ---------- theme ---------- */
+  const theme = document.getElementById('theme');
+  theme.addEventListener('click', () => {
+    const dark = document.documentElement.classList.toggle('dark');
+    theme.setAttribute('aria-pressed', String(dark));
+    theme.setAttribute('aria-label', dark ? 'Usar tema claro' : 'Usar tema oscuro');
+    theme.querySelector('use').setAttribute('href', dark ? '#i-sun' : '#i-moon');
+  });
+
+  /* ---------- period segmented ---------- */
+  document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+
+  /* ---------- tabs ---------- */
+  const tabs = [...document.querySelectorAll('[role=tab]')];
+  let active = tabs[0];
+  function select(tab, focus) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    active = tab;
+    if (focus) tab.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => select(t));
+    t.addEventListener('keydown', e => {
+      let n = null;
+      if (e.key === 'ArrowRight') n = tabs[(i + 1) % tabs.length];
+      if (e.key === 'ArrowLeft') n = tabs[(i - 1 + tabs.length) % tabs.length];
+      if (e.key === 'Home') n = tabs[0];
+      if (e.key === 'End') n = tabs[tabs.length - 1];
+      if (n) { e.preventDefault(); select(n, true); }
+    });
+  });
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => select(document.getElementById(b.dataset.goto), true)));
+
+  /* ---------- help popover (content follows the active tab) ---------- */
+  const DAYS = 'Días hábiles: lunes a viernes, sin festivos · Hora del centro de México';
+  const HELP = {
+    't-res': { title: 'Cómo se calcula el resumen', items: [
+      ['Cierres', 'Cierres registrados en el periodo por motivo. Cuenta cierres, no vacantes: una vacante reabierta y cerrada otra vez suma dos.'],
+      ['Mediana para cerrar', 'Mediana de días hábiles entre la primera publicación y el cierre como cubierta.'],
+      ['Entregas a tiempo', 'Entregas a tiempo entre las ya juzgadas: a tiempo, tarde y vencidas. Las pendientes no cuentan.'],
+      ['Origen', 'Postulaciones creadas en el periodo según el canal desde el que se postuló la persona.']
+    ], foot: DAYS },
+    't-rec': { title: 'Cómo se calcula por reclutador', items: [
+      ['Vacantes', 'Vacantes con un tramo de asignación en el periodo, como responsable o colaborador. La suma por función puede ser mayor que el total.'],
+      ['Conversión', 'Vacantes con al menos un placement acreditado a la persona entre las que tuvo asignadas y cerraron en el periodo.'],
+      ['Reasignaciones', 'Recibidas: pasó a ser responsable. Perdidas: dejó de serlo, incluidas las bajas de la empresa.']
+    ], foot: 'Siempre se muestra con «N de M»' },
+    't-cli': { title: 'Cómo se calcula por cliente o área', items: [
+      ['Cliente o área', 'El solicitante actual de cada vacante. Si cambió de solicitante, cuenta completa en el actual.'],
+      ['Cubiertas', 'Vacantes cerradas como cubiertas en el periodo.']
+    ], foot: 'El solicitante no guarda historial: es una aproximación' },
+    't-det': { title: 'Qué hay en el detalle', items: [
+      ['Lista completa', 'Una fila por vacante asignada en el periodo, con sus cierres, fecha objetivo, entrega y reasignaciones.']
+    ], foot: 'Respeta el periodo y los filtros activos' },
+    att: { title: 'Qué entra en «Necesita atención»', items: [
+      ['Entrega vencida', 'Sin cumplir la meta y la fecha compromiso ya pasó.'],
+      ['Fuera de fecha objetivo', 'Vacantes cubiertas que cerraron después de su fecha objetivo de cierre vigente.'],
+      ['Reasignación', 'Cambio de responsable. Sumar o quitar colaboradores no cuenta.']
+    ], foot: DAYS }
+  };
+  const pop = document.getElementById('pop');
+  let owner = null;
+  function closePop(restore) {
+    if (!owner) return;
+    pop.classList.remove('open');
+    owner.setAttribute('aria-expanded', 'false');
+    if (restore) owner.focus();
+    owner = null;
+  }
+  function openPop(btn) {
+    const h = HELP[btn.dataset.help === 'tab' ? active.id : btn.dataset.help];
+    document.getElementById('pop-title').textContent = h.title;
+    document.getElementById('pop-body').replaceChildren(...h.items.map(([t, d]) => el('div', {}, [el('dt', {}, [t]), el('dd', {}, [d])])));
+    document.getElementById('pop-foot').textContent = h.foot;
+    pop.classList.add('open');
+    const r = btn.getBoundingClientRect();
+    const left = Math.max(16, Math.min(r.right - pop.offsetWidth, window.innerWidth - pop.offsetWidth - 16));
+    pop.style.left = (left + window.scrollX) + 'px';
+    pop.style.top = (r.bottom + 8 + window.scrollY) + 'px';
+    btn.setAttribute('aria-expanded', 'true');
+    owner = btn;
+  }
+  document.querySelectorAll('[data-help]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const was = owner === b;
+    closePop(false);
+    if (!was) openPop(b);
+  }));
+  document.addEventListener('click', e => { if (owner && !pop.contains(e.target)) closePop(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(true); });
+
+  /* ---------- cerradas por mes (recharts-like bars) ---------- */
+  const MONTHS = [
+    ['dic', 'Diciembre 2025', 2], ['ene', 'Enero 2026', 3], ['feb', 'Febrero 2026', 2], ['mar', 'Marzo 2026', 3],
+    ['abr', 'Abril 2026', 2], ['may', 'Mayo 2026', 4], ['jun', 'Junio 2026', 3], ['jul', 'Julio 2026', 2],
+    ['ago', 'Agosto 2026', 3], ['sep', 'Septiembre 2026', 2], ['oct', 'Octubre 2026', 4], ['nov', 'Noviembre 2026 (en curso)', 1]
+  ];
+  const HI = 10, NOW = 11;
+  document.getElementById('month-rows').replaceChildren(...MONTHS.map(([, name, v]) => el('tr', {}, [el('td', {}, [name]), el('td', { class: 'r' }, [String(v)])])));
+
+  const plot = document.getElementById('month-plot');
+  function render() {
+    plot.querySelectorAll('svg,.tip').forEach(n => n.remove());
+    const W = plot.clientWidth, H = 240, L = 28, R = 0, T = 12, B = 28;
+    const iw = W - L - R, ih = H - T - B, ymax = 6, step = iw / MONTHS.length, bw = Math.min(36, step * 0.56);
+    const y = v => T + ih - (v / ymax) * ih;
+    const cx = i => L + step * i + step / 2;
+    const barPath = (x, top, w, base) => {
+      const r = Math.min(4, (base - top) / 2);
+      return `M${x},${base}V${top + r}Q${x},${top} ${x + r},${top}H${x + w - r}Q${x + w},${top} ${x + w},${top + r}V${base}Z`;
+    };
+    const ticks = [0, 2, 4, 6];
+    const bars = MONTHS.map(([, , v], i) => s$('path', {
+      class: i === HI ? 'bar-hi' : i === NOW ? 'bar-now' : 'bar-rest',
+      d: barPath(cx(i) - bw / 2, y(v), bw, y(0))
+    }));
+    const hit = s$('rect', { x: L, y: T, width: iw, height: ih, fill: 'transparent' });
+    plot.appendChild(s$('svg', { width: W, height: H, 'aria-hidden': 'true', focusable: 'false' }, [
+      s$('g', { class: 'grid' }, ticks.map(v => s$('line', { x1: L, x2: W - R, y1: y(v), y2: y(v) }))),
+      s$('g', { class: 'axis' }, [
+        ...ticks.map(v => s$('text', { x: L - 10, y: y(v) + 4, 'text-anchor': 'end' }, [String(v)])),
+        ...MONTHS.map(([m], i) => s$('text', { x: cx(i), y: H - 6, 'text-anchor': 'middle' }, [m]))
+      ]),
+      ...bars, hit
+    ]));
+    const tip = el('div', { class: 'tip', 'aria-hidden': 'true' });
+    plot.appendChild(tip);
+    function show(i) {
+      const [, name, v] = MONTHS[i];
+      tip.replaceChildren(el('strong', {}, [name]), el('div', {}, [el('span', {}, [el('i', { class: 'sw ' + (i === HI ? 'p' : 'm') }), 'Vacantes cerradas']), el('b', {}, [String(v)])]));
+      const tw = tip.offsetWidth;
+      let left = cx(i) + bw / 2 + 12; if (left + tw > W) left = cx(i) - bw / 2 - tw - 12;
+      tip.style.left = left + 'px';
+      tip.style.top = Math.max(0, y(v) - 24) + 'px';
+    }
+    show(HI);
+    hit.addEventListener('pointermove', e => {
+      const r = hit.getBoundingClientRect();
+      show(Math.max(0, Math.min(MONTHS.length - 1, Math.floor((e.clientX - r.left) / (r.width / MONTHS.length)))));
+    });
+    hit.addEventListener('pointerleave', () => show(HI));
+  }
+  render();
+  window.addEventListener('resize', render);
+
+  const asTable = document.getElementById('as-table');
+  asTable.addEventListener('click', () => {
+    const on = asTable.getAttribute('aria-pressed') !== 'true';
+    asTable.setAttribute('aria-pressed', String(on));
+    asTable.querySelector('span').textContent = on ? 'Ver como gráfica' : 'Ver como tabla';
+    plot.hidden = on;
+    document.getElementById('month-table').hidden = !on;
+    if (!on) render();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Métricas · PeopleFlow — Pulso</title>
+<style>
+:root{
+  --background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;
+  --primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);
+  --secondary:#F1EEF7;--muted:#F1EEF7;--accent:#F1EEF7;--muted-foreground:#6B6480;
+  --border:#E4DFF0;--input:#E4DFF0;--destructive:oklch(0.577 0.245 27.325);--ring:oklch(0.708 0 0);
+  --brand-decorative-strong:oklch(0.54 0.15 292.581);
+  --status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);
+  --status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);
+  --radius:0.625rem;
+  --chart-accent:var(--primary);
+  /* hero tile = inverted surface; its accents borrow the opposite theme's tokens */
+  --hero-bg:var(--foreground);--hero-fg:var(--background);
+  --hero-accent:oklch(0.70 0.14 292.759);--hero-success:oklch(0.78 0.14 155);
+  --font-sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+.dark{
+  --background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;
+  --primary:oklch(0.432 0.232 292.759);--secondary:#171226;--muted:#171226;--accent:#171226;
+  --muted-foreground:#A79FBF;--border:#262233;--input:#262233;--destructive:oklch(0.704 0.191 22.216);
+  --brand-decorative-strong:oklch(0.70 0.14 292.759);
+  --status-info:oklch(0.78 0.12 245);--status-review:oklch(0.82 0.12 78);
+  --status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);
+  --hero-accent:oklch(0.54 0.15 292.581);--hero-success:oklch(0.46 0.13 152);
+  --chart-accent:var(--brand-decorative-strong);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);
+  -webkit-font-smoothing:antialiased;font-feature-settings:"cv11"}
+.num,td.n,th.n{font-variant-numeric:tabular-nums}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--brand-decorative-strong);outline-offset:2px;border-radius:8px}
+.skip{position:absolute;left:16px;top:-48px;z-index:20;background:var(--card);padding:10px 14px;border-radius:8px}
+.skip:focus{top:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* chrome */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:24px;padding:24px 16px;
+  background:var(--card);border-right:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px;font-size:16px;font-weight:600}
+.brand-mark{width:32px;height:32px;border-radius:calc(var(--radius)*.8);background:var(--primary);display:grid;place-items:center}
+.brand small{display:block;font-size:12px;line-height:16px;font-weight:400;color:var(--muted-foreground)}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:var(--radius);
+  font-weight:500;color:var(--muted-foreground)}
+.nav a:hover{background:var(--muted);color:var(--foreground)}
+.nav a[aria-current="page"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong)}
+.dark .nav a[aria-current="page"]{color:var(--foreground)}
+.user{margin-top:auto;display:flex;align-items:center;gap:12px;padding:8px}
+.avatar{width:32px;height:32px;border-radius:999px;background:var(--secondary);display:grid;place-items:center;
+  font-size:12px;font-weight:500;color:var(--foreground);flex:none}
+.user b{display:block;font-weight:500}
+.user span{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.icon-btn{margin-left:auto;width:40px;height:40px;border-radius:var(--radius);border:1px solid var(--border);
+  background:var(--card);display:grid;place-items:center;color:var(--muted-foreground)}
+.icon-btn:hover{color:var(--foreground);background:var(--muted)}
+
+main{padding:32px;min-width:0}
+.page{max-width:1128px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+
+/* header */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.head h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.01em}
+.head p{margin-top:8px;color:var(--muted-foreground)}
+.head .fresh{margin-top:8px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.head-actions{display:flex;align-items:center;gap:12px;flex:none}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden}
+.seg button{min-height:40px;padding:0 14px;border:0;background:transparent;font-weight:500;color:var(--muted-foreground)}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button:hover{color:var(--foreground);background:var(--muted)}
+.seg button[aria-pressed="true"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong);font-weight:600}
+.dark .seg button[aria-pressed="true"]{color:var(--foreground)}
+.seg button:focus-visible{outline-offset:-3px}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:var(--radius);
+  font-weight:500;border:1px solid transparent;white-space:nowrap}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{background:color-mix(in srgb,var(--primary) 88%,var(--foreground))}
+.btn-outline{background:var(--card);border-color:var(--border)}
+.btn-outline:hover{background:var(--muted)}
+.btn-ghost{background:transparent;color:var(--muted-foreground);padding:0 12px}
+.btn-ghost:hover{background:var(--muted);color:var(--foreground)}
+
+/* sections */
+.sec{display:flex;flex-direction:column;gap:16px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.sec-head h2{font-size:18px;line-height:28px;font-weight:600}
+.sec-head .tools{display:flex;align-items:center;gap:4px}
+.rows{display:flex;flex-direction:column;gap:24px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:stretch}
+.c8{grid-column:span 8}.c6{grid-column:span 6}.c4{grid-column:span 4}.c12{grid-column:span 12}
+
+/* card */
+.card{background:var(--card);border-radius:calc(var(--radius)*1.4);padding:24px;display:flex;flex-direction:column;gap:16px;
+  box-shadow:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent)}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.card-head h3{font-size:15px;line-height:22px;font-weight:600}
+.cap{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.card-head .cap{margin-top:4px}
+.link{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 8px;margin:-10px -8px 0 0;border-radius:8px;
+  font-weight:500;color:var(--brand-decorative-strong)}
+.link:hover{background:var(--muted)}
+
+/* KPI strip */
+.strip{display:grid;gap:24px}
+.kpi{gap:12px}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:20px}
+.kpi-label{font-weight:500;color:var(--muted-foreground)}
+.kpi-value{font-size:32px;line-height:40px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi-value small{font-size:14px;line-height:20px;font-weight:500;letter-spacing:0;color:var(--muted-foreground);margin-left:4px}
+.kpi-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.pill{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:500;
+  font-variant-numeric:tabular-nums}
+.pill svg.i{width:12px;height:12px;stroke-width:2.5}
+.up{color:var(--status-success);background:color-mix(in srgb,var(--status-success) 10%,transparent)}
+.down{color:var(--status-danger);background:color-mix(in srgb,var(--status-danger) 10%,transparent)}
+.hero{background:var(--hero-bg);color:var(--hero-fg);box-shadow:none}
+.hero .kpi-label,.hero .kpi-line{color:color-mix(in srgb,var(--hero-fg) 74%,transparent)}
+.hero .kpi-value{font-size:44px;line-height:52px}
+.hero .up{color:var(--hero-success);background:color-mix(in srgb,var(--hero-success) 16%,transparent)}
+.hero .new{color:color-mix(in srgb,var(--hero-fg) 74%,transparent);border-color:color-mix(in srgb,var(--hero-fg) 45%,transparent)}
+.hero-body{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.tag-end{margin-top:auto;align-self:flex-start}
+.spark{width:180px;height:48px;flex:none;display:block}
+.spark .l{fill:none;stroke:var(--hero-accent);stroke-width:2}
+.spark .a{fill:var(--hero-accent);opacity:.18}
+
+/* «Dato nuevo» tag */
+.new{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted-foreground) 60%,transparent);
+  border-radius:6px;font-size:11px;line-height:16px;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;
+  border:1px solid color-mix(in srgb,var(--t) 30%,transparent);color:var(--t);background:color-mix(in srgb,var(--t) 10%,transparent);white-space:nowrap}
+.b-info{--t:var(--status-info)}.b-review{--t:var(--status-review)}.b-success{--t:var(--status-success)}.b-danger{--t:var(--status-danger)}
+.b-accent{--t:var(--primary);color:var(--foreground);background:color-mix(in srgb,var(--primary) 12%,transparent)}
+.b-neutral{--t:var(--muted-foreground);background:var(--muted);border-color:var(--border)}
+.dot{width:8px;height:8px;border-radius:999px;flex:none;display:inline-block}
+
+/* lists inside cards: divide-y only */
+.list{list-style:none;margin:0;padding:0}
+.list>li+li{border-top:1px solid var(--border)}
+.row-link{display:flex;align-items:center;gap:16px;min-height:64px;padding:12px 8px;margin:0 -8px;border-radius:8px}
+.row-link:hover{background:var(--muted)}
+.row-main{min-width:0;flex:1}
+.row-main b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-main span{display:block;margin-top:4px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.chev{color:var(--muted-foreground)}
+
+/* horizontal bars */
+.hbars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:16px}
+.hbar{display:grid;grid-template-columns:168px minmax(0,1fr) 96px;align-items:center;gap:16px}
+.hbar-track{height:10px;border-radius:999px;background:var(--muted);overflow:hidden;display:flex}
+.hbar-fill{height:100%;border-radius:999px;background:color-mix(in srgb,var(--muted-foreground) 40%,var(--card))}
+.hbar-fill.top{background:var(--chart-accent)}
+.hbar-val{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.hbar-val span{color:var(--muted-foreground);font-weight:400}
+
+/* charts */
+.chart{display:block;width:100%;height:auto;overflow:visible}
+.grid-l{stroke:var(--border);stroke-dasharray:3 3}
+.ax{fill:var(--muted-foreground);font-size:12px;font-family:var(--font-sans);font-variant-numeric:tabular-nums}
+.legend{display:flex;align-items:center;gap:16px;font-size:12px;line-height:16px;color:var(--muted-foreground);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend b{color:var(--foreground);font-weight:500;font-variant-numeric:tabular-nums}
+.tip-box{fill:var(--popover);stroke:var(--border)}
+.tip-t{fill:var(--foreground);font-size:12px;font-weight:600;font-family:var(--font-sans)}
+.tip-v{fill:var(--muted-foreground);font-size:12px;font-family:var(--font-sans);font-variant-numeric:tabular-nums}
+.tip-v tspan.b{fill:var(--foreground);font-weight:600}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px;white-space:nowrap}
+td{padding:12px;height:60px;white-space:nowrap;vertical-align:middle}
+th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}
+tbody tr{border-top:1px solid var(--border)}
+th.n,td.n{text-align:right}
+.who{display:flex;align-items:center;gap:12px}
+.who b{font-weight:500}
+td .muted,.muted{color:var(--muted-foreground)}
+
+/* popovers */
+.pop{position:absolute;z-index:30;width:360px;background:var(--popover);border-radius:calc(var(--radius)*1.4);padding:20px;
+  box-shadow:0 12px 32px color-mix(in srgb,var(--foreground) 14%,transparent),0 0 0 1px var(--border)}
+.pop h3{font-size:15px;line-height:22px;font-weight:600}
+.pop dl{margin:12px 0 0}
+.pop dd+dt{margin-top:12px}
+.pop dt{font-weight:500}
+.pop dd{margin:4px 0 0;color:var(--muted-foreground)}
+.pop .new{margin-left:6px;vertical-align:1px}
+
+@media (prefers-reduced-motion:no-preference){
+  .nav a,.btn,.seg button,.row-link,.icon-btn,.link{transition:background-color .15s ease,color .15s ease}
+}
+@media (max-width:1180px){
+  .grid>*{grid-column:span 12}
+  .strip{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .head{flex-direction:column;align-items:flex-start}
+}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center}
+  .nav{flex-direction:row;flex-wrap:wrap}
+  main{padding:24px}
+  .head-actions{flex-wrap:wrap}
+  .hbar{grid-template-columns:120px minmax(0,1fr) 80px}
+}
+
+.strip{grid-template-columns:repeat(12,minmax(0,1fr))}
+.strip>.hero{grid-column:span 4;grid-row:span 2}
+.strip>.kpi:not(.hero){grid-column:span 4}
+.hero .spark{width:100%;height:72px;margin-top:auto}
+.bar{fill:color-mix(in srgb,var(--primary) 24%,var(--card))}
+.bar.hl{fill:var(--chart-accent)}
+.dark .bar{fill:color-mix(in srgb,var(--primary) 45%,var(--card))}
+.chart-wrap[hidden],.table-wrap[hidden]{display:none}
+.stack{display:flex;gap:2px;height:12px;border-radius:999px;overflow:hidden}
+.stack i{display:block;height:100%}
+.leg-list>li{display:flex;align-items:center;gap:12px;min-height:44px}
+.leg-list>li span:first-of-type{flex:1}
+.leg-list .v{font-variant-numeric:tabular-nums;font-weight:500;min-width:32px;text-align:right}
+.leg-list .p{font-variant-numeric:tabular-nums;color:var(--muted-foreground);min-width:40px;text-align:right}
+.hbar-fill.done{background:var(--chart-accent);border-radius:999px 0 0 999px}
+.hbar-fill.rest{background:color-mix(in srgb,var(--primary) 18%,var(--card));border-radius:0 999px 999px 0}
+.cli .hbar-track{background:transparent}
+.hbar{grid-template-columns:200px minmax(0,1fr) 96px}
+.rate{display:inline-flex;align-items:center;gap:12px;justify-content:flex-end}
+.rate .t{width:96px;height:6px;border-radius:999px;background:var(--muted);overflow:hidden}
+.rate .t i{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--primary) 60%,var(--card))}
+.rate b{font-weight:500;min-width:36px;text-align:right}
+td.go{width:56px}
+td.go a{display:grid;place-items:center;width:40px;height:40px;border-radius:8px;color:var(--muted-foreground);margin-left:auto}
+td.go a:hover{background:var(--muted);color:var(--foreground)}
+tbody tr:hover{background:color-mix(in srgb,var(--muted) 60%,transparent)}
+.field{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.field label{font-weight:500}
+.field select{min-height:40px;border:1px solid var(--input);border-radius:var(--radius);background:var(--card);color:var(--foreground);font:inherit;padding:0 12px}
+.pop-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.mini-table th,.mini-table td{height:auto;padding-top:8px;padding-bottom:8px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></symbol>
+  <symbol id="i-pool" viewBox="0 0 24 24"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><circle cx="12" cy="11" r="3"/><rect x="3" y="4" width="18" height="18" rx="2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-audit" viewBox="0 0 24 24"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+</svg>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+<div class="app">
+<aside class="side" aria-label="Barra lateral">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M10.5 10.5l3 3"/></svg></span>
+    <span>PeopleFlow<small>Trust People Company</small></span>
+  </div>
+  <nav class="nav" aria-label="Principal">
+    <a href="#" ><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-brief"/></svg>Vacantes</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-pool"/></svg>Base de talento</a>
+    <a href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-team"/></svg>Equipo</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-audit"/></svg>Auditoría</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-cog"/></svg>Configuración</a>
+  </nav>
+  <div class="user">
+    <span class="avatar" aria-hidden="true">MT</span>
+    <div><b>Mariana Torres</b><span>Owner</span></div>
+    <button class="icon-btn" id="theme" type="button" aria-label="Cambiar a tema oscuro"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button>
+  </div>
+</aside>
+
+<main id="contenido" tabindex="-1">
+<div class="page">
+
+  <header class="head">
+    <div>
+      <h1>Métricas</h1>
+      <p>Cómo cumple tu equipo con entregas, cierres y placements en los últimos 12 meses.</p>
+      <p class="fresh">Actualizado hoy 10:42 · 9 nov 2025 – 8 nov 2026 · Definiciones v3</p>
+    </div>
+    <div class="head-actions">
+      <div class="seg" role="group" aria-label="Periodo">
+        <button type="button" aria-pressed="false">30 días</button>
+        <button type="button" aria-pressed="false">90 días</button>
+        <button type="button" aria-pressed="true">Año</button>
+        <button type="button" aria-pressed="false">Personalizado</button>
+      </div>
+      <button class="btn btn-outline" type="button" data-panel aria-haspopup="dialog" aria-controls="filters" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-filter"/></svg>Filtros</button>
+    </div>
+  </header>
+
+  <section class="sec" aria-labelledby="s-resumen">
+    <div class="sec-head">
+      <h2 id="s-resumen">Resumen</h2>
+      <button class="btn btn-ghost" type="button" data-help="resumen" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="strip">
+      <article class="card kpi hero" aria-labelledby="k1">
+        <div class="kpi-top"><h3 class="kpi-label" id="k1">Entregas a tiempo</h3></div>
+        <p class="kpi-value">78%</p>
+        <p class="kpi-line"><span class="pill up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+6 pts</span>vs año anterior</p>
+        <svg class="spark" viewBox="0 0 200 48" preserveAspectRatio="none" style="height:72px" role="img" aria-label="Entregas a tiempo por mes: de 69% en diciembre a 78% en noviembre">
+          <path class="a" d="M0.0,35.4 C3.0,34.5 12.1,30.2 18.2,29.7 C24.2,29.2 30.3,33.5 36.4,32.6 C42.4,31.6 48.5,25.0 54.5,24.0 C60.6,23.0 66.7,27.3 72.7,26.9 C78.8,26.4 84.8,22.6 90.9,21.1 C97.0,19.7 103.0,18.3 109.1,18.3 C115.2,18.3 121.2,21.6 127.3,21.1 C133.3,20.7 139.4,16.9 145.5,15.4 C151.5,14.0 157.6,12.6 163.6,12.6 C169.7,12.6 175.8,15.9 181.8,15.4 C187.9,15.0 197.0,10.7 200.0,9.7 L200,48 L0,48 Z"/><path class="l" d="M0.0,35.4 C3.0,34.5 12.1,30.2 18.2,29.7 C24.2,29.2 30.3,33.5 36.4,32.6 C42.4,31.6 48.5,25.0 54.5,24.0 C60.6,23.0 66.7,27.3 72.7,26.9 C78.8,26.4 84.8,22.6 90.9,21.1 C97.0,19.7 103.0,18.3 109.1,18.3 C115.2,18.3 121.2,21.6 127.3,21.1 C133.3,20.7 139.4,16.9 145.5,15.4 C151.5,14.0 157.6,12.6 163.6,12.6 C169.7,12.6 175.8,15.9 181.8,15.4 C187.9,15.0 197.0,10.7 200.0,9.7" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <p class="kpi-line">98 de 126 entregas con fecha cumplida</p>
+        <span class="new tag-end">Dato nuevo · N1 · N2</span>
+      </article>
+      <article class="card kpi" aria-labelledby="k2">
+        <div class="kpi-top"><h3 class="kpi-label" id="k2">Vacantes asignadas</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value">146</p>
+        <p class="kpi-line"><span class="pill up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+12</span>vs año anterior</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k3">
+        <div class="kpi-top"><h3 class="kpi-label" id="k3">Mediana para cerrar</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value">23<small>días hábiles</small></p>
+        <p class="kpi-line"><span class="pill up" aria-label="3 días menos, mejora"><svg class="i" aria-hidden="true"><use href="#i-down"/></svg>−3 días</span>vs año anterior</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k4">
+        <div class="kpi-top"><h3 class="kpi-label" id="k4">Placements</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value">124</p>
+        <p class="kpi-line"><span class="pill up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+18%</span>vs año anterior</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k5">
+        <div class="kpi-top"><h3 class="kpi-label" id="k5">Reasignaciones</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value">21</p>
+        <p class="kpi-line"><span class="pill up" aria-label="4 menos, mejora"><svg class="i" aria-hidden="true"><use href="#i-down"/></svg>−4</span>vs año anterior</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-cie">
+    <div class="sec-head">
+      <h2 id="s-cie">Cierres y entregas</h2>
+      <button class="btn btn-ghost" type="button" data-help="cierres" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c8" aria-labelledby="t-mes">
+        <div class="card-head">
+          <div><h3 id="t-mes">Vacantes cerradas por mes</h3><p class="cap">118 cerradas: 92 cubiertas, 17 canceladas y 9 por otro motivo o sin motivo</p></div>
+          <button class="btn btn-ghost" type="button" id="as-table" aria-pressed="false" style="margin:-10px -12px 0 0">Ver como tabla</button>
+        </div>
+        <div class="chart-wrap" id="mes-chart">
+          <svg class="chart" viewBox="0 0 696 300" role="img" aria-label="Gráfica de barras: vacantes cerradas por mes de diciembre 2025 a noviembre 2026. Julio es el mes con más cierres: 13.">
+            <g>
+              <line class="grid-l" x1="28" x2="696" y1="8" y2="8"/><line class="grid-l" x1="28" x2="696" y1="97.3" y2="97.3"/>
+              <line class="grid-l" x1="28" x2="696" y1="186.7" y2="186.7"/><line class="grid-l" x1="28" x2="696" y1="276" y2="276"/>
+            </g>
+            <g class="ax" text-anchor="end"><text x="18" y="12">15</text><text x="18" y="101">10</text><text x="18" y="191">5</text><text x="18" y="280">0</text></g>
+            <path class="bar" d="M42.8,276 V137.1 Q42.8,133.1 46.8,133.1 H64.8 Q68.8,133.1 68.8,137.1 V276 Z"/>
+            <text class="ax" x="55.8" y="296" text-anchor="middle">dic</text>
+            <path class="bar" d="M98.5,276 V154.9 Q98.5,150.9 102.5,150.9 H120.5 Q124.5,150.9 124.5,154.9 V276 Z"/>
+            <text class="ax" x="111.5" y="296" text-anchor="middle">ene</text>
+            <path class="bar" d="M154.2,276 V101.3 Q154.2,97.3 158.2,97.3 H176.2 Q180.2,97.3 180.2,101.3 V276 Z"/>
+            <text class="ax" x="167.2" y="296" text-anchor="middle">feb</text>
+            <path class="bar" d="M209.8,276 V119.2 Q209.8,115.2 213.8,115.2 H231.8 Q235.8,115.2 235.8,119.2 V276 Z"/>
+            <text class="ax" x="222.8" y="296" text-anchor="middle">mar</text>
+            <path class="bar" d="M265.5,276 V65.6 Q265.5,61.6 269.5,61.6 H287.5 Q291.5,61.6 291.5,65.6 V276 Z"/>
+            <text class="ax" x="278.5" y="296" text-anchor="middle">abr</text>
+            <path class="bar" d="M321.2,276 V83.5 Q321.2,79.5 325.2,79.5 H343.2 Q347.2,79.5 347.2,83.5 V276 Z"/>
+            <text class="ax" x="334.2" y="296" text-anchor="middle">may</text>
+            <path class="bar" d="M376.8,276 V119.2 Q376.8,115.2 380.8,115.2 H398.8 Q402.8,115.2 402.8,119.2 V276 Z"/>
+            <text class="ax" x="389.8" y="296" text-anchor="middle">jun</text>
+            <path class="bar hl" d="M432.5,276 V47.7 Q432.5,43.7 436.5,43.7 H454.5 Q458.5,43.7 458.5,47.7 V276 Z"/>
+            <text class="ax" x="445.5" y="296" text-anchor="middle">jul</text>
+            <path class="bar" d="M488.2,276 V101.3 Q488.2,97.3 492.2,97.3 H510.2 Q514.2,97.3 514.2,101.3 V276 Z"/>
+            <text class="ax" x="501.2" y="296" text-anchor="middle">ago</text>
+            <path class="bar" d="M543.8,276 V65.6 Q543.8,61.6 547.8,61.6 H565.8 Q569.8,61.6 569.8,65.6 V276 Z"/>
+            <text class="ax" x="556.8" y="296" text-anchor="middle">sep</text>
+            <path class="bar" d="M599.5,276 V83.5 Q599.5,79.5 603.5,79.5 H621.5 Q625.5,79.5 625.5,83.5 V276 Z"/>
+            <text class="ax" x="612.5" y="296" text-anchor="middle">oct</text>
+            <path class="bar" d="M655.2,276 V172.8 Q655.2,168.8 659.2,168.8 H677.2 Q681.2,168.8 681.2,172.8 V276 Z"/>
+            <text class="ax" x="668.2" y="296" text-anchor="middle">nov</text>
+            <g><rect class="tip-box" x="293.5" y="8" width="124" height="70" rx="8"/><text class="tip-t" x="307.5" y="30">Julio 2026</text><text class="tip-v" x="307.5" y="50">Cerradas <tspan class="b">13</tspan></text><text class="tip-v" x="307.5" y="68">Cubiertas <tspan class="b">11</tspan></text></g>
+          </svg>
+        </div>
+        <div class="table-wrap" id="mes-table" hidden>
+          <table class="mini-table">
+            <caption class="sr">Vacantes cerradas por mes</caption>
+            <thead><tr><th scope="col">Mes</th><th scope="col" class="n">Cerradas</th></tr></thead>
+            <tbody><tr><td>Diciembre 2025</td><td class="n">8</td></tr><tr><td>Enero 2026</td><td class="n">7</td></tr><tr><td>Febrero 2026</td><td class="n">10</td></tr><tr><td>Marzo 2026</td><td class="n">9</td></tr><tr><td>Abril 2026</td><td class="n">12</td></tr><tr><td>Mayo 2026</td><td class="n">11</td></tr><tr><td>Junio 2026</td><td class="n">9</td></tr><tr><td>Julio 2026</td><td class="n">13</td></tr><tr><td>Agosto 2026</td><td class="n">10</td></tr><tr><td>Septiembre 2026</td><td class="n">12</td></tr><tr><td>Octubre 2026</td><td class="n">11</td></tr><tr><td>Noviembre 2026 (en curso)</td><td class="n">6</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card c4" aria-labelledby="t-ent">
+        <div class="card-head">
+          <div><h3 id="t-ent">Estado de entregas</h3><p class="cap">146 vacantes asignadas</p></div>
+        </div>
+        <div class="stack" role="img" aria-label="98 a tiempo, 22 tarde, 6 vencidas, 8 pendientes, 12 sin meta">
+          <i style="width:67.1%;background:var(--status-success)"></i><i style="width:15.1%;background:var(--status-review)"></i><i style="width:4.1%;background:var(--status-danger)"></i><i style="width:5.5%;background:var(--status-info)"></i><i style="width:8.2%;background:color-mix(in srgb,var(--muted-foreground) 35%,var(--card))"></i>
+        </div>
+        <ul class="list leg-list">
+          <li><i class="dot" style="background:var(--status-success)"></i><span>A tiempo</span><span class="v">98</span><span class="p">67%</span></li>
+          <li><i class="dot" style="background:var(--status-review)"></i><span>Tarde</span><span class="v">22</span><span class="p">15%</span></li>
+          <li><i class="dot" style="background:var(--status-danger)"></i><span>Vencidas</span><span class="v">6</span><span class="p">4%</span></li>
+          <li><i class="dot" style="background:var(--status-info)"></i><span>Pendientes</span><span class="v">8</span><span class="p">5%</span></li>
+          <li><i class="dot" style="background:color-mix(in srgb,var(--muted-foreground) 35%,var(--card))"></i><span>Sin meta configurada</span><span class="v">12</span><span class="p">8%</span></li>
+        </ul>
+        <p class="cap">92% con meta configurada · mediana de 9 días hábiles a la meta</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-cli">
+    <div class="sec-head">
+      <h2 id="s-cli">Clientes y origen</h2>
+      <button class="btn btn-ghost" type="button" data-help="clientes" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c6 cli" aria-labelledby="t-cli">
+        <div class="card-head">
+          <div><h3 id="t-cli">Por cliente o área</h3><p class="cap">Vacantes asignadas y cuántas se cubrieron</p></div>
+          <div class="legend"><span><i class="dot" style="background:var(--chart-accent)"></i>Cubiertas</span><span><i class="dot" style="background:color-mix(in srgb,var(--primary) 18%,var(--card));box-shadow:inset 0 0 0 1px var(--border)"></i>Resto</span></div>
+        </div>
+        <ul class="hbars">
+          <li class="hbar"><span>Banorte · Finanzas</span><div class="hbar-track" role="img" aria-label="41 cubiertas de 52 vacantes"><i class="hbar-fill done" style="width:78.8%"></i><i class="hbar-fill rest" style="width:21.2%"></i></div><span class="hbar-val">41 <span>de 52</span></span></li>
+          <li class="hbar"><span>Grupo Bimbo · Operaciones</span><div class="hbar-track" role="img" aria-label="27 cubiertas de 38 vacantes"><i class="hbar-fill done" style="width:51.9%"></i><i class="hbar-fill rest" style="width:21.2%"></i></div><span class="hbar-val">27 <span>de 38</span></span></li>
+          <li class="hbar"><span>Liverpool · Tecnología</span><div class="hbar-track" role="img" aria-label="16 cubiertas de 34 vacantes"><i class="hbar-fill done" style="width:30.8%"></i><i class="hbar-fill rest" style="width:34.6%"></i></div><span class="hbar-val">16 <span>de 34</span></span></li>
+          <li class="hbar"><span>Interno · RR. HH.</span><div class="hbar-track" role="img" aria-label="8 cubiertas de 14 vacantes"><i class="hbar-fill done" style="width:15.4%"></i><i class="hbar-fill rest" style="width:11.5%"></i></div><span class="hbar-val">8 <span>de 14</span></span></li>
+          <li class="hbar"><span>Sin solicitante</span><div class="hbar-track" role="img" aria-label="0 cubiertas de 8 vacantes"><i class="hbar-fill rest" style="width:15.4%;border-radius:999px"></i></div><span class="hbar-val">0 <span>de 8</span></span></li>
+        </ul>
+        <p class="cap" style="margin-top:auto">Cuenta el solicitante actual de cada vacante.</p>
+      </article>
+
+      <article class="card c6" aria-labelledby="t-org">
+        <div class="card-head">
+          <div><h3 id="t-org">Origen de las postulaciones</h3><p class="cap">6,920 postulaciones en 12 meses</p></div>
+        </div>
+        <ul class="hbars">
+          <li class="hbar"><span>Portal de vacantes</span><div class="hbar-track" role="img" aria-label="3,412 postulaciones, 49%"><i class="hbar-fill top" style="width:100%"></i></div><span class="hbar-val">3,412 <span>· 49%</span></span></li>
+          <li class="hbar"><span>Sitio de carreras</span><div class="hbar-track" role="img" aria-label="1,986 postulaciones, 29%"><i class="hbar-fill" style="width:58.2%"></i></div><span class="hbar-val">1,986 <span>· 29%</span></span></li>
+          <li class="hbar"><span>Registro manual</span><div class="hbar-track" role="img" aria-label="1,204 postulaciones, 17%"><i class="hbar-fill" style="width:35.3%"></i></div><span class="hbar-val">1,204 <span>· 17%</span></span></li>
+          <li class="hbar"><span>Portal o sitio, sin distinguir</span><div class="hbar-track" role="img" aria-label="318 postulaciones, 5%"><i class="hbar-fill" style="width:9.3%"></i></div><span class="hbar-val">318 <span>· 5%</span></span></li>
+        </ul>
+        <p class="cap" style="margin-top:auto">«Sin distinguir»: postulaciones anteriores a que el portal y el sitio se separaran.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-rec">
+    <div class="sec-head">
+      <h2 id="s-rec">Reclutadores</h2>
+      <div class="tools">
+        <button class="btn btn-ghost" type="button" data-help="reclutadores" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+        <a class="link" href="#" style="margin:0">Ver tabla completa<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a>
+      </div>
+    </div>
+    <div class="card">
+      <table>
+        <caption class="sr">Reclutadores ordenados por entregas a tiempo</caption>
+        <thead><tr><th scope="col">Reclutador</th><th scope="col" class="n">Vacantes <span class="muted">(resp. · colab.)</span></th><th scope="col" class="n">Entregas a tiempo</th><th scope="col" class="n">Placements</th><th scope="col" class="n">Conversión</th><th scope="col"><span class="sr">Detalle</span></th></tr></thead>
+        <tbody>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">DR</span><b>Diego Ramírez</b></a></td><td class="n">38 <span class="muted">· 6</span></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:86%"></i></span><b>86%</b><span class="muted">31 de 36</span></span></td><td class="n">34</td><td class="n">87% <span class="muted">· 27 de 31</span></td><td class="go"><a href="#" aria-label="Ver detalle de Diego Ramírez"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">VO</span><b>Valeria Ortiz</b></a></td><td class="n">34 <span class="muted">· 4</span></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:81%"></i></span><b>81%</b><span class="muted">25 de 31</span></span></td><td class="n">29</td><td class="n">81% <span class="muted">· 22 de 27</span></td><td class="go"><a href="#" aria-label="Ver detalle de Valeria Ortiz"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">SM</span><b>Sofía Méndez</b></a></td><td class="n">26 <span class="muted">· 3</span></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:75%"></i></span><b>75%</b><span class="muted">15 de 20</span></span></td><td class="n">21</td><td class="n">75% <span class="muted">· 15 de 20</span></td><td class="go"><a href="#" aria-label="Ver detalle de Sofía Méndez"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">AC</span><b>Andrés Castillo</b></a></td><td class="n">30 <span class="muted">· 9</span></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:73%"></i></span><b>73%</b><span class="muted">19 de 26</span></span></td><td class="n">25</td><td class="n">75% <span class="muted">· 18 de 24</span></td><td class="go"><a href="#" aria-label="Ver detalle de Andrés Castillo"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">JP</span><b>Jorge Paredes</b></a></td><td class="n">18 <span class="muted">· 2</span></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:62%"></i></span><b>62%</b><span class="muted">8 de 13</span></span></td><td class="n">15</td><td class="n">63% <span class="muted">· 10 de 16</span></td><td class="go"><a href="#" aria-label="Ver detalle de Jorge Paredes"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+</main>
+</div>
+<div class="pop" id="pop" role="dialog" aria-labelledby="pop-t" tabindex="-1" hidden><h3 id="pop-t"></h3><dl></dl></div>
+<div class="pop" id="filters" role="dialog" aria-labelledby="f-t" tabindex="-1" hidden>
+  <h3 id="f-t">Filtros</h3>
+  <div class="field"><label for="f-rec">Reclutador</label><select id="f-rec"><option>Todos</option><option>Diego Ramírez</option><option>Valeria Ortiz</option><option>Andrés Castillo</option><option>Sofía Méndez</option><option>Jorge Paredes</option></select></div>
+  <div class="field"><label for="f-cli">Cliente o área</label><select id="f-cli"><option>Todos</option><option>Banorte · Finanzas</option><option>Grupo Bimbo · Operaciones</option><option>Liverpool · Tecnología</option><option>Interno · RR. HH.</option><option>Sin solicitante</option></select></div>
+  <div class="pop-actions"><button class="btn btn-ghost" type="button" data-close>Cancelar</button><button class="btn btn-primary" type="button" data-close>Aplicar</button></div>
+</div>
+<script>
+const HELP={
+ resumen:{t:'Cómo se calcula el resumen',items:[
+  ['Entregas a tiempo','Entregas de candidatos hechas en o antes de su fecha meta, entre las que ya llegaron a su fecha (a tiempo, tarde o vencidas).'],
+  ['Vacantes asignadas','Vacantes distintas con un responsable asignado durante el periodo.'],
+  ['Mediana para cerrar','Días hábiles entre la apertura y el cierre de la vacante; la mitad cerró en menos.'],
+  ['Placements','Contrataciones con fecha en el periodo, activas o que no se sostuvieron (7). Las anuladas no cuentan.'],
+  ['Reasignaciones','Cambios de responsable en el periodo. Sumar o quitar colaboradores no cuenta.'],
+  ['Comparación y tendencia','Mismo cálculo en el periodo anterior de igual duración y serie mensual de toda la empresa.','N1 · N2']]},
+ cierres:{t:'Cómo se calculan cierres y entregas',items:[
+  ['Vacantes cerradas por mes','Vacantes distintas con al menos un cierre en cada mes, por motivo. Noviembre va en curso. Meses sin cierres aparecen en cero.'],
+  ['Estado de entregas','Situación de la entrega de candidatos de cada vacante asignada frente a su fecha meta.'],
+  ['Meta configurada','Vacantes que tienen fecha meta de entrega entre todas las asignadas.']]},
+ clientes:{t:'Cómo se calculan clientes y origen',items:[
+  ['Por cliente o área','Cliente o área interna actual de cada vacante. Si cambió de solicitante, cuenta completa en el actual.'],
+  ['Origen de las postulaciones','Postulaciones creadas en el periodo según el canal: portal de vacantes, sitio de carreras o registro manual.']]},
+ reclutadores:{t:'Cómo se calcula por reclutador',items:[
+  ['Vacantes','Asignadas como responsable · como colaborador durante el periodo.'],
+  ['Entregas a tiempo','Entregas a tiempo entre las entregas con fecha cumplida de sus vacantes como responsable.'],
+  ['Placements','Contrataciones acreditadas a la persona: crédito directo, participación y compartido.'],
+  ['Conversión','Vacantes con al menos un placement acreditado entre sus vacantes que cerraron en el periodo.']]}};
+/* theme toggle */
+const themeBtn=document.getElementById('theme');
+themeBtn.addEventListener('click',()=>{const dark=document.documentElement.classList.toggle('dark');
+  themeBtn.setAttribute('aria-label',dark?'Cambiar a tema claro':'Cambiar a tema oscuro');
+  themeBtn.querySelector('use').setAttribute('href',dark?'#i-sun':'#i-moon')});
+/* period segmented control (visual only in the artboard) */
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  b.parentElement.querySelectorAll('button').forEach(o=>o.setAttribute('aria-pressed',String(o===b)))}));
+/* popovers: «Cómo se calcula» per section (and «Filtros» when present). One open at a time. */
+const pop=document.getElementById('pop');let trig=null,panel=null;
+function place(el,b){el.hidden=false;const r=b.getBoundingClientRect();
+  let x=r.right+scrollX-el.offsetWidth;x=Math.max(8,Math.min(x,scrollX+document.documentElement.clientWidth-el.offsetWidth-8));
+  el.style.left=x+'px';el.style.top=(r.bottom+scrollY+8)+'px'}
+function closeAll(ret=true){if(!trig)return;panel.hidden=true;trig.setAttribute('aria-expanded','false');if(ret)trig.focus();trig=null;panel=null}
+function openFor(b){if(trig===b){closeAll();return}closeAll(false);
+  if(b.dataset.help){const d=HELP[b.dataset.help];pop.querySelector('h3').textContent=d.t;const dl=pop.querySelector('dl');dl.innerHTML='';
+    d.items.forEach(([t,x,n])=>{const dt=document.createElement('dt');dt.textContent=t;if(n){const s=document.createElement('span');s.className='new';s.textContent='Dato nuevo · '+n;dt.append(s)}
+      const dd=document.createElement('dd');dd.textContent=x;dl.append(dt,dd)});panel=pop}
+  else panel=document.getElementById(b.getAttribute('aria-controls'));
+  place(panel,b);b.setAttribute('aria-expanded','true');trig=b;panel.focus()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-help],[data-panel]');if(b){openFor(b);return}
+  if(trig&&!panel.contains(e.target))closeAll(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeAll()));
+
+/* chart ↔ table */
+const asTable=document.getElementById('as-table');
+asTable.addEventListener('click',()=>{const on=asTable.getAttribute('aria-pressed')!=='true';asTable.setAttribute('aria-pressed',String(on));
+  document.getElementById('mes-chart').hidden=on;document.getElementById('mes-table').hidden=!on;asTable.textContent=on?'Ver como gráfica':'Ver como tabla'});
+</script>
+</body>
+</html>
