@@ -147,3 +147,10 @@ detail): compare with the user's references, research modern dashboard patterns,
   main pushed by the user. 09 needs data outside contract v2 (dashboard endpoint): needs doc written and sent (T12).
 - **L16** Backend contract v2 §5 addendum: every list accepts optional `vacancy_id` (422 on malformed uuid, empty list +
   `applied_filters.vacancy.title` null for foreign/unknown ids, recorded on audited reads); arrives with v2b.
+- **L17** Backend scheduled the dashboard contract after v2c (reuses pipeline snapshot and candidate lists). Leaning:
+  owner sees the whole company, recruiter by default only vacancies with an open tramo (user decides); same formulas and
+  snapshot behind recruiter-gated routes; «vencen esta semana» = Monday–Sunday, Mexico City time.
+- **L18** T10a-A1 (`5db857e7`): v1 decoders accept the v2 header (`as_of`) and the v2 summary fields (`previous_period`,
+  `headline`, `on_time_by_month`); new schemas and actions for closures, compliance, delays, origin and recruiters, each
+  section loading on its own. Overdue rows decode optional `requester` + `attributed_to [person]` (backend choice, v2b).
+  Merged to local main so the backend can merge v2 after the user pushes (main frontend decoded v1 with `.strict()`).
