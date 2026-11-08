@@ -2,7 +2,8 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/api/server", async () => await import("@/lib/api/requestJson"));
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080/api/v1/", apiTimeoutMs: 8000 } }));
-import { getDashboardSection } from "./client";
+import { getDashboardSection, listDashboard } from "./client";
+import { dashboardApplications, dashboardCandidates, dashboardDeliveries, dashboardVacancies } from "./detail/test-fixtures";
 import { attention, origin, pipeline, recent, summary, vacancies } from "./test-fixtures";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -49,4 +50,24 @@ it.each([401, 403, 422, 500])("preserves HTTP %s and the error envelope without 
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "private", code: "forbidden" }), { status })); vi.stubGlobal("fetch", fetch);
   expect(await getDashboardSection("x", "attention", 30)).toMatchObject({ ok: false, error: { kind: "status", status, retryable: false }, envelope: { code: "forbidden" } });
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ["candidates", dashboardCandidates()], ["deliveries", dashboardDeliveries()], ["vacancies", dashboardVacancies()], ["applications", dashboardApplications()],
+] as const)("reads the %s list (§5) with its query, the page size and the cursor, tagged with its kind", async (kind, body) => {
+  const fetch = ok(body); vi.stubGlobal("fetch", fetch);
+  expect(await listDashboard(" token ", kind, new URLSearchParams({ window: "90", vacancy_id: "v" }), "c2")).toEqual({ ok: true, data: { kind, page: body } });
+  const [url, init] = fetch.mock.calls[0];
+  expect(url).toBe(`http://localhost:8080/v2/me/company/dashboard/lists/${kind}?window=90&vacancy_id=v&limit=50&cursor=c2`);
+  expect(init).toMatchObject({ cache: "no-store", redirect: "error", method: "GET" });
+  expect(new Headers(init.headers).get("authorization")).toBe("Bearer token");
+});
+
+it("never builds a list path from an unknown kind and rejects a page that is not the list", async () => {
+  const fetch = ok(dashboardCandidates()); vi.stubGlobal("fetch", fetch);
+  expect(await listDashboard("x", "../summary" as never, new URLSearchParams())).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
+  expect(await listDashboard("", "candidates", new URLSearchParams())).toMatchObject({ ok: false, error: { kind: "missing_token" } });
+  expect(fetch).not.toHaveBeenCalled();
+  vi.stubGlobal("fetch", ok({ ...dashboardCandidates(), definitions_version: undefined }));
+  expect(await listDashboard("x", "candidates", new URLSearchParams())).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
 });

@@ -18,8 +18,8 @@ export type Column<R> = { id: string; header: string; sort?: string; numeric?: b
 
 const momentDay = new Intl.DateTimeFormat("es-MX", { timeZone: MX_TIME_ZONE, day: "numeric", month: "short", year: "numeric" });
 /** The Mexico City day of an instant («25 sep 2026»); missing is «—». */
-const instantDay = (value: string | null) => value ? momentDay.format(new Date(value)).replace(".", "") : "—";
-const civilDay = (value: string | null) => value ? dayLabel(value) : "—";
+export const instantDay = (value: string | null) => value ? momentDay.format(new Date(value)).replace(".", "") : "—";
+export const civilDay = (value: string | null) => value ? dayLabel(value) : "—";
 const people = (list: { name: string | null }[]) => list.length ? list.map(personName).join(", ") : "—";
 const days = (value: number) => plural(value, "día", "días");
 
@@ -32,13 +32,13 @@ function DelayCell({ row }: { row: DeliveryListRow }) {
   return <span className="text-muted-foreground" aria-label="Sin retraso">—</span>;
 }
 
-const deliveryColumns = (state: DetailState): Column<DeliveryListRow>[] => [
+/** `overdue`: a list of overdue deliveries sorts its delay column by days overdue; every other list by days late. */
+export const deliveryColumns = (overdue: boolean): Column<DeliveryListRow>[] => [
   { id: "vacancy", header: "Vacante", sort: "title", cell: (row, context) => context.vacancy(row.vacancy) },
   { id: "requester", header: "Cliente o área", cell: row => requesterLabel(row.requester) },
   { id: "commitment", header: "Fecha meta", sort: "commitment_date", cell: row => civilDay(row.commitment_date) },
   { id: "reached", header: "Entregada", sort: "target_reached_at", cell: row => instantDay(row.target_reached_at) },
-  // An overdue list sorts by days overdue; every other list by days late.
-  { id: "delay", header: "Días de retraso", sort: state.params.result === "overdue" ? "business_days_overdue" : "business_days_late", numeric: true, cell: row => <DelayCell row={row} /> },
+  { id: "delay", header: "Días de retraso", sort: overdue ? "business_days_overdue" : "business_days_late", numeric: true, cell: row => <DelayCell row={row} /> },
   { id: "delivered", header: "Candidatos entregados", sort: "delivered", numeric: true, cell: row => row.target ? `${number.format(row.delivered)} de ${number.format(row.target)}` : number.format(row.delivered) },
 ];
 
@@ -75,7 +75,7 @@ function stageName(stage: CandidateListRow["stage"]): string {
   if (stage.kind === "retired") return name ? `${name} (retirada)` : "Columna retirada";
   return name || STAGE_KIND_LABEL[stage.kind];
 }
-const candidateColumns: Column<CandidateListRow>[] = [
+export const candidateColumns: Column<CandidateListRow>[] = [
   // No candidate profile route exists, and a stakeholder reaches none (§7): the name is never a link.
   { id: "candidate", header: "Candidato", sort: "candidate", cell: row => <span className="font-medium">{row.candidate.full_name.trim() || "Candidato sin nombre"}</span> },
   { id: "vacancy", header: "Vacante", sort: "title", cell: (row, context) => context.vacancy(row.vacancy) },
@@ -88,7 +88,7 @@ const candidateColumns: Column<CandidateListRow>[] = [
 ];
 
 // Six columns (rule 12): the requester is one click away on the vacancy.
-const applicationColumns: Column<ApplicationListRow>[] = [
+export const applicationColumns: Column<ApplicationListRow>[] = [
   { id: "vacancy", header: "Vacante", sort: "title", cell: (row, context) => context.vacancy(row.vacancy) },
   { id: "portal", header: "Portal", numeric: true, cell: row => number.format(row.portal) },
   { id: "careers_site", header: "Sitio de carreras", numeric: true, cell: row => number.format(row.careers_site) },
@@ -106,7 +106,7 @@ export function detailTable(state: DetailState, data: DetailPage, context: CellC
     rows: items.map((row, index) => ({ id: `${id(row)}:${index}`, cells: columns.map(column => column.cell(row, context)) })),
   });
   switch (data.kind) {
-    case "deliveries": return build(deliveryColumns(state), data.page.items, row => row.vacancy.draft_id);
+    case "deliveries": return build(deliveryColumns(state.params.result === "overdue"), data.page.items, row => row.vacancy.draft_id);
     case "vacancies": return build(vacancyColumns, data.page.items, row => row.draft_id);
     case "placements": return build(placementColumns, data.page.items, row => row.credit_id);
     case "reassignments": return build(reassignmentColumns, data.page.items, row => row.id);
@@ -116,7 +116,7 @@ export function detailTable(state: DetailState, data: DetailPage, context: CellC
 }
 /** The headers alone, for the skeleton before the first page. */
 export function detailColumns(state: DetailState & { kind: ListKind }): Column<never>[] {
-  const columns = { deliveries: deliveryColumns(state), vacancies: vacancyColumns, placements: placementColumns, reassignments: reassignmentColumns,
+  const columns = { deliveries: deliveryColumns(state.params.result === "overdue"), vacancies: vacancyColumns, placements: placementColumns, reassignments: reassignmentColumns,
     candidates: candidateColumns, applications: applicationColumns }[state.kind];
   return columns as Column<never>[];
 }

@@ -1,9 +1,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
-vi.mock("./client", () => ({ getDashboardSection: vi.fn() }));
+vi.mock("./client", () => ({ getDashboardSection: vi.fn(), listDashboard: vi.fn() }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { getDashboardSection } from "./client";
-import { loadAttentionAction, loadOriginAction, loadPipelineAction, loadRecentAction, loadSummaryAction, loadVacanciesAction } from "./actions";
+import { getDashboardSection, listDashboard } from "./client";
+import {
+  loadAttentionAction, loadOriginAction, loadPipelineAction, loadRecentAction, loadSummaryAction, loadVacanciesAction,
+  listDashboardApplicationsAction, listDashboardCandidatesAction, listDashboardDeliveriesAction, listDashboardVacanciesAction,
+} from "./actions";
 import { summary } from "./test-fixtures";
 
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(getActionAccessToken).mockResolvedValue("token"); });
@@ -50,4 +53,25 @@ it.each(["session", "client"])("sanitizes thrown %s errors", async source => {
   if (source === "session") vi.mocked(getActionAccessToken).mockRejectedValue(new Error("private"));
   else vi.mocked(getDashboardSection).mockRejectedValue(new Error("private"));
   expect(await loadRecentAction(30)).toEqual({ ok: false, reason: "no_response", reference: {} });
+});
+
+it.each([
+  ["candidates", listDashboardCandidatesAction, { in_process: "true", on: "2026-11-01", state: "overdue" }, { window: "90", in_process: "true", on: "2026-11-01" }],
+  ["deliveries", listDashboardDeliveriesAction, { state: "due_this_week", channel: "manual" }, { window: "90", state: "due_this_week" }],
+  ["vacancies", listDashboardVacanciesAction, { status: "published", sort: "positions_open" }, { window: "90", status: "published", sort: "positions_open" }],
+  ["applications", listDashboardApplicationsAction, { from: "2026-11-01", to: "2026-11-01", channel: "manual" }, { window: "90", from: "2026-11-01", to: "2026-11-01", channel: "manual" }],
+] as const)("%s list action validates the query again and keeps the window", async (kind, action, query, sent) => {
+  vi.mocked(listDashboard).mockResolvedValue({ ok: true, data: { kind, page: {} } } as never);
+  expect(await action({ window: 90, query, cursor: "c" })).toEqual({ ok: true, data: { kind, page: {} } });
+  const [token, calledKind, params, cursor] = vi.mocked(listDashboard).mock.calls[0];
+  expect([token, calledKind, Object.fromEntries(params), cursor]).toEqual(["token", kind, sent, "c"]);
+});
+
+it("list actions refuse a malformed cursor and map failures safely", async () => {
+  expect(await listDashboardCandidatesAction({ window: 30, query: {}, cursor: "x".repeat(3000) })).toMatchObject({ ok: false, reason: "not_found" });
+  expect(listDashboard).not.toHaveBeenCalled();
+  vi.mocked(listDashboard).mockResolvedValue({ ok: false, error: { kind: "status", status: 400, retryable: false }, envelope: { error: "private", code: "invalid_cursor" } });
+  expect(await listDashboardDeliveriesAction({ window: 30, query: {}, cursor: "c" })).toMatchObject({ ok: false, reason: "invalid_cursor" });
+  vi.mocked(getActionAccessToken).mockResolvedValue(null);
+  expect(await listDashboardVacanciesAction({ window: 30, query: {} })).toEqual({ ok: false, reason: "unauthenticated", reference: {} });
 });

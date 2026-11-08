@@ -4,9 +4,12 @@ import { DASHBOARD_DETAIL_ENABLED, DASHBOARD_DETAIL_PATH, dashboardDrillHref, da
 const query = (href: string | null) => Object.fromEntries(new URL(href!, "https://app.test").searchParams);
 
 describe("dashboard drill-down (contract §5)", () => {
-  it("stays off until the dashboard lists (d2b) and their page ship", () => {
-    expect(DASHBOARD_DETAIL_ENABLED).toBe(false);
-    expect(dashboardDrillHref({ kind: "candidates", params: { in_process: "true" } }, 30, { count: 5 })).toBeNull();
+  it("is on: the d2b lists have their page (T14), so every figure opens its records by default", () => {
+    expect(DASHBOARD_DETAIL_ENABLED).toBe(true);
+    expect(query(dashboardDrillHref({ kind: "candidates", params: { in_process: "true" } }, 30, { count: 5 }))).toEqual({ kind: "candidates", window: "30", in_process: "true" });
+    expect(query(drillFor(7)({ kind: "deliveries", params: { state: "overdue" } }, 2))).toEqual({ kind: "deliveries", window: "7", state: "overdue" });
+    // The switch still turns every figure back into plain text.
+    expect(dashboardDrillHref({ kind: "candidates", params: { in_process: "true" } }, 30, { enabled: false, count: 5 })).toBeNull();
   });
 
   it("builds the list query with the window and the figure's own filter", () => {

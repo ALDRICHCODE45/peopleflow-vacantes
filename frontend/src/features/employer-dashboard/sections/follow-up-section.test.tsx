@@ -47,11 +47,11 @@ describe("Necesita atención (artboard 09, rule 13)", () => {
     expect(screen.getByRole("heading", { name: "Todo al día" })).toBeInTheDocument();
   });
 
-  it("links the «Ver …» foot only when the lists are on", () => {
-    const { unmount } = show();
+  it("links the «Ver …» foot by default, and not when the lists are switched off", () => {
+    const { unmount } = show({ drill: drillFor(30, false) });
     expect(screen.queryByRole("link", { name: /Ver las 6 entregas vencidas/ })).toBeNull();
     unmount();
-    show({ drill: drillFor(30, true) });
+    show();
     expect(query(screen.getByRole("link", { name: "Ver las 6 entregas vencidas" }))).toEqual({ kind: "deliveries", window: "30", state: "overdue" });
   });
 

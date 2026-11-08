@@ -69,7 +69,7 @@ export function DashboardWorkspace() {
 }
 
 /** The current dashboard's access handling: an expired session signs in again; no membership is restricted. */
-function AccessCard({ failure }: { failure: MetricsFailure }) {
+export function AccessCard({ failure }: { failure: MetricsFailure }) {
   const unauthenticated = failure.reason === "unauthenticated";
   return <StateCard icon={AlertCircle} tone="forbidden" role="alert"
     title={unauthenticated ? "Tu sesión expiró" : "No tienes acceso al dashboard"}

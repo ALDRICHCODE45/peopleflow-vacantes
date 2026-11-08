@@ -1,15 +1,15 @@
 import type { DashboardWindow } from "./model";
 
-/** The page that will list the records behind a dashboard figure (`design/system.md` rule 16, contract §5). */
+/** The page that lists the records behind a dashboard figure (`design/system.md` rule 16, contract §5). */
 export const DASHBOARD_DETAIL_PATH = "/empresa/dashboard/detalle";
 /**
- * The dashboard lists arrive with backend d2b and their page after it; until then every figure stays plain text (like
- * `company-metrics/drilldown.ts` before T10b). Vacancy titles and recent rows keep linking to the existing boards.
+ * On since the d2b lists have their page (T14, `detail/detail-page.tsx`): every figure but a 0 opens its records. Vacancy
+ * titles and recent rows keep linking to the existing boards.
  */
-export const DASHBOARD_DETAIL_ENABLED = false;
+export const DASHBOARD_DETAIL_ENABLED = true;
 
 export type DashboardListKind = "candidates" | "deliveries" | "vacancies" | "applications";
-/** Contract §5 lists (backend d2b): `GET /v2/me/company/dashboard/lists/{kind}`, the API route the detail page will read. */
+/** Contract §5 lists (backend d2b): `GET /v2/me/company/dashboard/lists/{kind}`, the API route the detail page reads. */
 export const dashboardListPath = (kind: DashboardListKind) => `/v2/me/company/dashboard/lists/${kind}`;
 /**
  * A figure's records: one d2b list kind with the figure's filters (the same query the API list takes), or the talent
@@ -17,7 +17,7 @@ export const dashboardListPath = (kind: DashboardListKind) => `/v2/me/company/da
  */
 export type DashboardDrill = { kind: DashboardListKind | "talent_base"; params: Record<string, string> };
 
-/** The link of a figure, or null while the lists are off or for a 0 (a 0 is never a link). */
+/** The link of a figure, or null when the lists are switched off or for a 0 (a 0 is never a link). */
 export function dashboardDrillHref(target: DashboardDrill, window: DashboardWindow, options: { enabled?: boolean; count?: number } = {}): string | null {
   if (!(options.enabled ?? DASHBOARD_DETAIL_ENABLED) || options.count === 0) return null;
   if (target.kind === "talent_base") return `/empresa/talento?${new URLSearchParams(target.params)}`;

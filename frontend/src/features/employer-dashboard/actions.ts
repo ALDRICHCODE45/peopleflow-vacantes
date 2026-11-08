@@ -2,7 +2,10 @@
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { toMetricsFailure } from "@/features/company-metrics/failure";
 import type { MetricsFailure, MetricsResult } from "@/features/company-metrics/model";
-import { getDashboardSection, type DashboardClientFailure } from "./client";
+import { getDashboardSection, listDashboard, type DashboardClientFailure } from "./client";
+import type { DashboardListKind } from "./drilldown";
+import { dashboardApiQuery, parseDashboardDetail } from "./detail/query";
+import type { DashboardApplicationList, DashboardCandidateList, DashboardDeliveryList, DashboardVacancyList } from "./detail/model";
 import {
   parseWindow, type AttentionSection, type DashboardSectionName, type DashboardWindow, type OriginSection, type PipelineSection,
   type RecentSection, type SummarySection, type VacanciesSection,
@@ -33,3 +36,29 @@ export async function loadPipelineAction(window?: DashboardWindow): Promise<Metr
 export async function loadVacanciesAction(window?: DashboardWindow): Promise<MetricsResult<VacanciesSection>> { return read("vacancies", window); }
 export async function loadRecentAction(window?: DashboardWindow): Promise<MetricsResult<RecentSection>> { return read("recent", window); }
 export async function loadOriginAction(window?: DashboardWindow): Promise<MetricsResult<OriginSection>> { return read("origin", window); }
+
+/** Opaque cursors are short; anything longer never travels. */
+const MAX_CURSOR_LENGTH = 2048;
+type ListInput = { window: unknown; query: Record<string, string>; cursor?: string };
+type ListPage<K extends DashboardListKind, P> = MetricsResult<{ kind: K; page: P }>;
+/**
+ * Contract §5: one page of a dashboard list. The query is validated again here (per kind, unknown keys dropped, the
+ * window 7 | 30 | 90), so only a well-formed query reaches the API. Scope is the server's, from the session role.
+ */
+async function list<K extends DashboardListKind, P>(kind: K, { window, query, cursor }: ListInput): Promise<ListPage<K, P>> {
+  try {
+    const token = await getActionAccessToken();
+    if (!token?.trim()) return unauthenticated;
+    let state: ReturnType<typeof parseDashboardDetail> = null;
+    try { state = parseDashboardDetail(new URLSearchParams({ ...query, kind, window: String(parseWindow(window)) })); } catch { state = null; }
+    const validCursor = cursor === undefined || (typeof cursor === "string" && cursor.length > 0 && cursor.length <= MAX_CURSOR_LENGTH);
+    if (!state || state.kind !== kind || !validCursor) return toMetricsFailure({ error: { kind: "invalid_request" } });
+    const result = await listDashboard(token, kind, dashboardApiQuery(state), cursor);
+    return result.ok ? { ok: true, data: result.data as { kind: K; page: P } } : failure(result);
+  } catch { return noResponse; }
+}
+/** One Server Action per list (contract §5). */
+export async function listDashboardCandidatesAction(input: ListInput): Promise<ListPage<"candidates", DashboardCandidateList>> { return list("candidates", input); }
+export async function listDashboardDeliveriesAction(input: ListInput): Promise<ListPage<"deliveries", DashboardDeliveryList>> { return list("deliveries", input); }
+export async function listDashboardVacanciesAction(input: ListInput): Promise<ListPage<"vacancies", DashboardVacancyList>> { return list("vacancies", input); }
+export async function listDashboardApplicationsAction(input: ListInput): Promise<ListPage<"applications", DashboardApplicationList>> { return list("applications", input); }

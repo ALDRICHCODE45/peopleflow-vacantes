@@ -18,6 +18,13 @@ type Option = { value: string; label: string };
 const none = { value: "none", label: "Sin dato" };
 const yearsOptions = [{ value: "0_1", label: "Menos de 1 año" }, { value: "1_3", label: "1 a 3 años" }, { value: "3_5", label: "3 a 5 años" }, { value: "5_plus", label: "5 años o más" }, none];
 const origins = [{ value: "manual", label: "Manual" }, { value: "organic", label: "Orgánico" }];
+/** «10 oct 2026 – 8 nov 2026», «desde 8 nov 2026» or «hasta 8 nov 2026» (Mexico City days). */
+const addedDay = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const day = (value: string) => addedDay.format(new Date(`${value}T12:00:00Z`)).replace(".", "");
+function addedLabel({ added_from: from, added_to: to }: CandidateFilters): string {
+  if (from && to) return from === to ? day(from) : `${day(from)} – ${day(to)}`;
+  return from ? `desde ${day(from)}` : `hasta ${day(to!)}`;
+}
 const labels: Record<string, string> = { q: "Búsqueda", origin: "Origen", vacancy: "Vacante", country: "País", active_process: "Solo procesos activos", state: "Estado", municipality: "Municipio", seniority: "Seniority", years: "Años de experiencia", language: "Idiomas", language_min_level: "Nivel mínimo", education_level: "Nivel de estudios", education_in_progress: "Incluye estudios en curso" };
 function MultiFilter({ id, label, options, selected, onChange }: { id: string; label: string; options: Option[]; selected: string[]; onChange: (values: string[]) => void }) {
   // Same primitive-id Combobox pattern as the board's PipelineFilterBar. Options
@@ -73,7 +80,9 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
     education_level: [...EDUCATION_LEVELS.map(value => ({ value, label: educationLabels[value] })), none],
     language_min_level: CEFR_LEVELS.map(value => ({ value, label: value === "native" ? "Nativo" : value })),
   };
-  const chips = Object.entries(filters).flatMap(([key, raw]) => (Array.isArray(raw) ? raw : raw ? [raw] : []).map(value => ({ key, value, label: `${labels[key] ?? key}: ${key === "education_in_progress" || key === "active_process" ? "Sí" : options[key]?.find(option => option.value === value)?.label ?? (value === "none" ? "Sin dato" : value)}` })));
+  // The added dates (from the dashboard) are one chip that removes both; they have no control in the panel.
+  const added = filters.added_from || filters.added_to ? [{ key: "added", value: "dates", label: `Agregados a la base: ${addedLabel(filters)}` }] : [];
+  const chips = [...added, ...Object.entries(filters).filter(([name]) => name !== "added_from" && name !== "added_to").flatMap(([key, raw]) => (Array.isArray(raw) ? raw : raw ? [raw] : []).map(value => ({ key, value, label: `${labels[key] ?? key}: ${key === "education_in_progress" || key === "active_process" ? "Sí" : options[key]?.find(option => option.value === value)?.label ?? (value === "none" ? "Sin dato" : value)}` })))];
   return <section aria-label="Filtros de candidatos" className="flex min-w-0 flex-col gap-3">
     <div data-candidates-toolbar className="flex min-w-0 flex-wrap items-end gap-3 md:flex-nowrap">
       {search}
@@ -113,7 +122,7 @@ export function CandidateFiltersBar({ filters, onChange, onClear, languages, sea
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-prose text-xs text-muted-foreground">Las opciones de un mismo filtro se suman; entre filtros se cumplen todas las condiciones.</p><Button type="button" variant="ghost" className="min-h-10" onClick={onClear}>Limpiar filtros</Button></div>
     </div>}
     {!!chips.length && <div className="flex min-w-0 flex-wrap items-center gap-2">
-    {chips.map(chip => <Button key={`${chip.key}:${chip.value}`} type="button" variant="outline" className="h-auto min-h-10 max-w-full whitespace-normal" aria-label={`Quitar filtro ${chip.label}`} onClick={() => onChange(repeatableKeys.includes(chip.key as typeof repeatableKeys[number]) ? { [chip.key]: (filters[chip.key as typeof repeatableKeys[number]] ?? []).filter(value => value !== chip.value) } : { [chip.key]: undefined })}>{chip.label}<X aria-hidden="true" data-icon="inline-end" /></Button>)}
+    {chips.map(chip => <Button key={`${chip.key}:${chip.value}`} type="button" variant="outline" className="h-auto min-h-10 max-w-full whitespace-normal" aria-label={`Quitar filtro ${chip.label}`} onClick={() => onChange(chip.key === "added" ? { added_from: undefined, added_to: undefined } : repeatableKeys.includes(chip.key as typeof repeatableKeys[number]) ? { [chip.key]: (filters[chip.key as typeof repeatableKeys[number]] ?? []).filter(value => value !== chip.value) } : { [chip.key]: undefined })}>{chip.label}<X aria-hidden="true" data-icon="inline-end" /></Button>)}
     <Button type="button" variant="ghost" className="min-h-10" onClick={onClear}>Limpiar</Button>
     </div>}
   </section>;

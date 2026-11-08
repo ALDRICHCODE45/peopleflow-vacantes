@@ -6,11 +6,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { saveBlob } from "@/features/audit-log/download";
 import type { DetailState } from "./query";
 
-const FALLBACK_FILE = "metricas.csv";
 const FAILED = "No pudimos exportar los registros. Inténtalo de nuevo.";
-const filename = (disposition: string | null) => {
+const filename = (disposition: string | null, fallback: string) => {
   const name = (disposition && /filename="?([^";]*)"?/i.exec(disposition)?.[1]) || "";
-  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$/.test(name) ? name : FALLBACK_FILE;
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$/.test(name) ? name : fallback;
 };
 
 async function errorOf(response: Response): Promise<string> {
@@ -26,9 +25,15 @@ async function errorOf(response: Response): Promise<string> {
  * the route answers 200, so a refused export (more than 50,000 rows, an expired session) explains itself next to it.
  */
 export function ExportDetailButton({ state }: { state: DetailState }) {
+  return <ExportCsvButton href={`/api/company/metrics/${state.kind}/export?${new URLSearchParams(state.params)}`} fallbackFile="metricas.csv" />;
+}
+
+/** A same-origin export route of the company detail pages; never an absolute URL. */
+export type ExportHref = `/api/company/${string}/export?${string}`;
+/** The button behind every «Exportar CSV» of a detail page: POST to its fixed same-origin route, download only on 200. */
+export function ExportCsvButton({ href, fallbackFile }: { href: ExportHref; fallbackFile: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const href = `/api/company/metrics/${state.kind}/export?${new URLSearchParams(state.params)}`;
   // A message about previous filters would mislead once they change.
   useEffect(() => setError(null), [href]);
 
@@ -38,7 +43,7 @@ export function ExportDetailButton({ state }: { state: DetailState }) {
     try {
       const response = await fetch(href, { method: "POST", credentials: "same-origin" });
       if (!response.ok) { setError(await errorOf(response)); return; }
-      saveBlob(await response.blob(), filename(response.headers.get("content-disposition")));
+      saveBlob(await response.blob(), filename(response.headers.get("content-disposition"), fallbackFile));
     } catch { setError(FAILED); }
     finally { setPending(false); }
   }

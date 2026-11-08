@@ -42,11 +42,11 @@ describe("Resumen (artboard 09)", () => {
     expect(screen.getAllByRole("article")).toHaveLength(3);
   });
 
-  it("keeps figures as plain text while the lists are off, and links them with an accessible name when on", () => {
-    const { unmount } = render(<SummarySection state={ready(summary())} window={30} drill={drillFor(30)} />);
+  it("links every figure by default with an accessible name, and keeps them as plain text when the lists are switched off", () => {
+    const { unmount } = render(<SummarySection state={ready(summary())} window={30} drill={drillFor(30, false)} />);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     unmount();
-    render(<SummarySection state={ready(summary())} window={30} drill={drillFor(30, true)} />);
+    render(<SummarySection state={ready(summary())} window={30} drill={drillFor(30)} />);
     expect(query(screen.getByRole("link", { name: "Ver los 143 candidatos en proceso" }))).toEqual({ kind: "candidates", window: "30", in_process: "true" });
     expect(query(screen.getAllByRole("link", { name: "Ver las 28 vacantes publicadas" })[0])).toEqual({ kind: "vacancies", window: "30", status: "published" });
     expect(screen.getByRole("link", { name: "Ver los 96 perfiles agregados a la base" })).toHaveAttribute("href", "/empresa/talento?added_from=2026-10-10&added_to=2026-11-08");
