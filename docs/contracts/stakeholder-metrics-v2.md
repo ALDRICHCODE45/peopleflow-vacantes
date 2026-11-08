@@ -223,6 +223,9 @@ Common to every list:
 
 - Query: common filters + the kind's filters + `sort`, `order` (`asc | desc`), `limit` (1–100, default 50),
   `cursor`.
+- Every list also accepts an optional `vacancy_id` (canonical uuid; malformed → 422 `invalid_filter`
+  `vacancy_id: invalid`; another company's or unknown id → empty list, `applied_filters.vacancy.title` null). It is
+  what §7's stakeholder vacancy links use, and audited reads record it as `vacancy_id` (§6).
 - Response: `{ "definitions_version", "period", "as_of", "total", "facets", "applied_filters", "items": [...],
   "next_cursor" }`. `total` is the exact count for the filters (not the page).
 - **Facets** (frontend F1): counts for the tabs of the detail page. Each facet is computed with every filter of the

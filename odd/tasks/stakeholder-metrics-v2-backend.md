@@ -31,6 +31,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T3 (S2, S3) Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin — commit: v2a commit.
 - [ ] T4 Slice v2b: sortable keyset lists with total, deliveries, placements (audited), CSV export.
 - [ ] T5 Slice v2c: pipeline section, candidates (audited), applications, participation index.
+- [ ] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5), after T5.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
 
 ## Log
@@ -56,3 +57,10 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   vacancies whose last close is filled, at their first filled close (written into §3.1). Moved: participation index to
   v2c (it serves applications), the seeded benchmark to T6. Note: `WithClock` swaps the clock without a lock (tests
   only).
+- **L5** Frontend session (2026-11-08): «Otro pedido, sin apuro (va después de v2b/v2c o cuando te cierre mejor): el
+  usuario aprobó el rediseño del dashboard de empresa (/empresa/dashboard …). Necesita datos que hoy no da GET
+  /v2/me/company/dashboard: deltas vs ventana anterior, serie diaria de candidatos en proceso, «Necesita atención»
+  (entregas vencidas, que vencen esta semana y candidatos detenidos, top 5 + total cada una), pipeline por etapa (mismo
+  criterio que metrics pipeline, DV1), posiciones por vacante, y que cada cifra abra sus registros.» Open questions:
+  scope per role (recruiter whole company or own vacancies), reuse of metrics snapshot/lists by recruiters (not metrics
+  viewers), «vencen esta semana» Mon–Sun vs next 7 days. Main pushed with v1 merged (frontend + backend).
