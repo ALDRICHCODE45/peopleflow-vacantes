@@ -242,3 +242,13 @@ detail): compare with the user's references, research modern dashboard patterns,
   `added_from/added_to` (drill-down of «Nuevos en la base», total = pool_added). Figure = list total tested for owner
   and two recruiters. Pending: a frontend page for the dashboard lists (follow-up T14) before switching those links on;
   backend d2c (remove the old endpoint) after the frontend stops calling it.
+- **L39** Backend benchmark (`221fca61`, backend/docs/metrics-benchmark.md; 300 vacancies, ~10k participations, 30 runs
+  per route): metrics summary cold p95 57 ms (budget 400), dashboard summary cold p95 236 ms (least margin: history
+  rebuild), every warm section or list page p95 ≤ 16 ms (budget 50); no nightly rollup needed. Backend metrics v2 and
+  dashboard v2 complete; only d2c (remove the old dashboard endpoint) remains.
+- **L40** T14 (`8963eaad`): `/empresa/dashboard/detalle` reads the four d2b lists with the URL window (Back keeps it),
+  shared detail parts extracted from the Métricas page (`company-metrics/detail/detail-parts.tsx`, its tests still
+  green), POST-only CSV export `app/api/company/dashboard/[kind]/export/route.ts` + server-only
+  `employer-dashboard/export-client.ts` (requestPath allowlist extended), dashboard links on, talent base reads
+  `added_from/added_to` with one removable chip. 83 files / 1073 focused tests green, typecheck 0. Risk item 2 (token
+  forwarding) → independent verification.
