@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 · Historia · Dashboard</title>
+<style>
+:root{
+  --background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;
+  --primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);
+  --muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;
+  --brand-decorative-strong:oklch(0.54 0.15 292.581);
+  --status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);
+  --status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);
+  --radius:.625rem;
+  --shadow-card:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent);
+  --shadow-pop:0 4px 8px color-mix(in srgb,var(--foreground) 8%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 70%,transparent);
+  color-scheme:light;
+}
+[data-theme="dark"]{
+  --background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;
+  --primary:oklch(0.432 0.232 292.759);--primary-foreground:oklch(0.969 0.016 293.756);
+  --muted:#171226;--muted-foreground:#A79FBF;--border:#262233;
+  --brand-decorative-strong:oklch(0.70 0.14 292.759);
+  --status-info:oklch(0.78 0.12 245);--status-review:oklch(0.82 0.12 78);
+  --status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--background);color:var(--foreground);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p,ul,ol,figure{margin:0}
+ul,ol{padding:0;list-style:none}
+a{color:inherit}
+button,select{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:calc(var(--radius)*.8);border:1px solid var(--border);background:var(--card);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;color:var(--foreground);transition:background-color .15s,color .15s}
+.btn:hover{background:var(--muted)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}
+.btn.primary:hover{background:color-mix(in srgb,var(--primary) 88%,var(--foreground))}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted-foreground)}
+.btn.ghost:hover,.btn.ghost[aria-expanded="true"]{background:var(--muted);color:var(--foreground)}
+.btn.icon{width:40px;padding:0}
+.seg{display:inline-flex;padding:3px;gap:2px;border-radius:calc(var(--radius)*.8);background:var(--muted);border:1px solid var(--border)}
+.seg button{min-height:34px;padding:0 12px;border:0;border-radius:calc(var(--radius)*.6);background:transparent;color:var(--muted-foreground);font-weight:500;cursor:pointer}
+.seg button:hover{color:var(--foreground)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--foreground);box-shadow:var(--shadow-card)}
+.seg-wrap{display:inline-flex;align-items:center;min-height:40px}
+
+/* Badges and tags */
+.badge{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground);white-space:nowrap}
+.badge.info{--t:var(--status-info)}.badge.review{--t:var(--status-review)}.badge.success{--t:var(--status-success)}.badge.danger{--t:var(--status-danger)}.badge.process{--t:var(--primary)}
+.badge.info,.badge.review,.badge.success,.badge.danger,.badge.process{color:var(--t);border-color:color-mix(in srgb,var(--t) 30%,transparent);background:color-mix(in srgb,var(--t) 10%,var(--card))}
+[data-theme="dark"] .badge.process{color:var(--brand-decorative-strong)}
+.new{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted-foreground) 70%,transparent);border-radius:999px;font-size:11px;font-weight:500;line-height:1;color:var(--muted-foreground);white-space:nowrap;vertical-align:middle}
+
+/* Shell */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.side{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:24px;padding:16px 12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 8px;font-weight:600;font-size:16px}
+.mark{width:28px;height:28px;border-radius:8px;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-size:13px;font-weight:600}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:calc(var(--radius)*.8);text-decoration:none;color:var(--muted-foreground);font-weight:500}
+.nav a:hover{background:var(--muted);color:var(--foreground)}
+.nav a[aria-current="page"]{background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--foreground)}
+.nav a[aria-current="page"] svg{color:var(--primary)}
+[data-theme="dark"] .nav a[aria-current="page"] svg{color:var(--brand-decorative-strong)}
+.nav-label{font-size:12px;color:var(--muted-foreground);padding:0 12px 4px}
+.user{margin-top:auto;display:flex;align-items:center;gap:12px;padding:12px;border-radius:calc(var(--radius)*.8)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--muted);color:var(--foreground);display:grid;place-items:center;font-size:12px;font-weight:500;flex:none}
+.avatar.sm{width:28px;height:28px;font-size:11px}
+.user b{display:block;font-weight:500;font-size:14px}
+.user span{font-size:12px;color:var(--muted-foreground)}
+
+/* Page */
+main{padding:32px 32px 72px}
+.page{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.head h1{font-size:24px;font-weight:600;line-height:1.3}
+.head .lead{color:var(--muted-foreground);margin-top:8px}
+.head .fresh{font-size:12px;color:var(--muted-foreground);margin-top:8px}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.index{display:flex;gap:8px;flex-wrap:wrap;margin-top:-16px}
+.index a{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border-radius:999px;text-decoration:none;color:var(--muted-foreground);border:1px solid var(--border);background:transparent}
+.index a:hover{color:var(--foreground);background:var(--card)}
+.index a span{font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted-foreground)}
+
+/* Story sections */
+.story{display:flex;flex-direction:column;gap:24px;scroll-margin-top:24px}
+.q{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.q .eyebrow{font-size:12px;font-weight:500;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.q h2{font-size:18px;font-weight:600;line-height:1.35;margin-top:4px}
+.q .answer{font-size:16px;line-height:1.55;max-width:62ch;margin-top:8px}
+.q .answer strong{font-weight:600}
+.help-wrap{position:relative;flex:none}
+
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c6{grid-column:span 6}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.card{background:var(--card);border-radius:calc(var(--radius)*1.4);box-shadow:var(--shadow-card);padding:24px;min-width:0;display:flex;flex-direction:column;gap:16px}
+.card-h{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.card-h h3{font-size:15px;font-weight:600;line-height:1.4}
+.meta{font-size:12px;color:var(--muted-foreground)}
+.link{display:inline-flex;align-items:center;gap:6px;min-height:40px;font-weight:500;text-decoration:none;color:var(--foreground);border-radius:6px}
+.link:hover{text-decoration:underline;text-underline-offset:3px}
+.link svg{color:var(--muted-foreground)}
+
+/* KPI */
+.kpi{gap:8px}
+.kpi .label{font-size:14px;font-weight:500;color:var(--muted-foreground)}
+.kpi .value{font-size:32px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi .line{font-size:14px;color:var(--muted-foreground)}
+.meter{height:6px;border-radius:999px;background:var(--muted);overflow:hidden;margin-top:4px}
+.meter i{display:block;height:100%;background:var(--primary);border-radius:999px}
+
+/* Pipeline (hero) */
+.stages{display:flex;flex-direction:column}
+.stage{display:grid;grid-template-columns:112px minmax(0,1fr) 44px 92px 112px;align-items:center;gap:16px;min-height:56px}
+.stage + .stage{border-top:1px solid var(--border)}
+.stage .name{font-weight:500}
+.stage .bar{height:12px;border-radius:999px;background:var(--muted);overflow:hidden}
+.stage .bar i{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--primary) 28%,var(--card))}
+.stage.hot .bar i{background:var(--primary)}
+.stage .count{font-size:20px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.stage .days{font-size:14px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.stage .state{justify-self:end}
+.stage-cols{display:grid;grid-template-columns:112px minmax(0,1fr) 44px 92px 112px;gap:16px;font-size:12px;color:var(--muted-foreground)}
+.stage-cols span:nth-child(3){text-align:right}.stage-cols span:last-child{text-align:right}
+
+/* Simple rows */
+.rows{display:flex;flex-direction:column}
+.rows > li + li{border-top:1px solid var(--border)}
+.vrow{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px}
+.vrow b{display:block;font-weight:500}
+.vrow .n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.vrow .n strong{font-weight:600}
+.card .foot{margin-top:auto}
+
+/* Attention list */
+.att{display:grid;grid-template-columns:150px minmax(0,1.1fr) minmax(0,1.3fr) 168px 132px;align-items:center;gap:16px;min-height:64px}
+.att b{display:block;font-weight:500}
+.att .who{display:flex;align-items:center;gap:8px;font-size:14px}
+.att .go{justify-self:end}
+
+/* Chart */
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.grid-line{stroke:var(--border);stroke-dasharray:4 4;stroke-width:1}
+.axis{fill:var(--muted-foreground);font-size:12px;font-variant-numeric:tabular-nums}
+.s-primary{stroke:var(--primary);fill:none;stroke-width:2}
+.s-muted{stroke:color-mix(in srgb,var(--muted-foreground) 55%,transparent);fill:none;stroke-width:2}
+.a-primary{fill:url(#g-primary)}
+.a-muted{fill:color-mix(in srgb,var(--muted-foreground) 10%,transparent)}
+.stop-a{stop-color:var(--primary);stop-opacity:.22}.stop-b{stop-color:var(--primary);stop-opacity:0}
+.hi-line{stroke:var(--muted-foreground);stroke-dasharray:3 3;stroke-width:1}
+.dot-p{fill:var(--card);stroke:var(--primary);stroke-width:2.5}
+.dot-m{fill:var(--card);stroke:var(--muted-foreground);stroke-width:2}
+.tip-box{fill:var(--popover);stroke:var(--border)}
+.tip-t{fill:var(--foreground);font-size:12px;font-weight:600}
+.tip-s{fill:var(--muted-foreground);font-size:12px;font-variant-numeric:tabular-nums}
+.tip-v{fill:var(--foreground);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:16px;align-items:center;font-size:14px;color:var(--muted-foreground)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.legend strong{color:var(--foreground);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* Table */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px}
+td{padding:12px;border-top:1px solid var(--border);white-space:nowrap}
+th:first-child,td:first-child{padding-left:0}
+th:last-child,td:last-child{padding-right:0;text-align:right}
+.person{display:flex;align-items:center;gap:12px;font-weight:500}
+td.muted{color:var(--muted-foreground)}
+
+/* Popover */
+.pop{position:absolute;right:0;top:calc(100% + 8px);z-index:20;width:340px;background:var(--popover);border-radius:var(--radius);box-shadow:var(--shadow-pop);padding:16px;display:flex;flex-direction:column;gap:12px;text-align:left}
+.pop[hidden]{display:none}
+.pop h4{margin:0;font-size:14px;font-weight:600}
+.pop dl{margin:0;display:flex;flex-direction:column;gap:8px}
+.pop dt{font-weight:500}
+.pop dd{margin:0;color:var(--muted-foreground)}
+.pop .foot-note{font-size:12px;color:var(--muted-foreground)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:14px;font-weight:500}
+.field select{min-height:40px;border:1px solid var(--border);border-radius:calc(var(--radius)*.8);background:var(--card);padding:0 10px}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+@media (max-width:1100px){
+  .app{grid-template-columns:1fr}.side{display:none}
+  main{padding:24px 24px 56px}
+  .head{flex-direction:column}
+  .c3{grid-column:span 6}.c4,.c8{grid-column:span 12}
+  .att{grid-template-columns:120px minmax(0,1fr) 40px}.att .why,.att .who{display:none}
+  .stage,.stage-cols{grid-template-columns:96px minmax(0,1fr) 40px 96px}.stage .days,.stage-cols span:nth-child(4){display:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M19 8v6M22 11h-6"/></symbol>
+  <symbol id="i-audit" viewBox="0 0 24 24"><path d="M15 12h-5M15 8h-5M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side" aria-label="Navegación principal">
+    <div class="brand"><span class="mark" aria-hidden="true">P</span>PeopleFlow</div>
+    <nav aria-label="Secciones">
+      <p class="nav-label">Trust People Company</p>
+      <div class="nav">
+        <a href="#" aria-current="page"><svg class="i"><use href="#i-dash"/></svg>Dashboard</a>
+        <a href="#"><svg class="i"><use href="#i-brief"/></svg>Vacantes</a>
+        <a href="#"><svg class="i"><use href="#i-users"/></svg>Base de talento</a>
+        <a href="#"><svg class="i"><use href="#i-chart"/></svg>Métricas</a>
+        <a href="#"><svg class="i"><use href="#i-team"/></svg>Equipo</a>
+        <a href="#"><svg class="i"><use href="#i-audit"/></svg>Auditoría</a>
+        <a href="#"><svg class="i"><use href="#i-gear"/></svg>Configuración</a>
+      </div>
+    </nav>
+    <div class="user"><span class="avatar" aria-hidden="true">MT</span><div><b>Mariana Torres</b><span>Owner</span></div></div>
+  </aside>
+
+  <main id="main">
+    <div class="page">
+      <header class="head">
+        <div>
+          <h1>Buenos días, Mariana</h1>
+          <p class="lead">Lo importante de Trust People Company hoy, contado en cinco preguntas.</p>
+          <p class="fresh">Actualizado hoy 10:42</p>
+        </div>
+        <div class="actions">
+          <div class="seg-wrap"><div class="seg" role="group" aria-label="Periodo">
+            <button type="button" aria-pressed="false">30 días</button>
+            <button type="button" aria-pressed="true">90 días</button>
+            <button type="button" aria-pressed="false">Año</button>
+            <button type="button" aria-pressed="false">Personalizado</button>
+          </div></div>
+          <div class="help-wrap">
+            <button class="btn" type="button" aria-expanded="false" aria-controls="pop-filtros" data-pop><svg class="i"><use href="#i-filter"/></svg>Filtros</button>
+            <div class="pop" id="pop-filtros" role="dialog" aria-label="Filtros" hidden>
+              <div class="field"><label for="f-rec">Reclutador</label><select id="f-rec"><option>Todos</option><option>Diego Ramírez</option><option>Valeria Ortiz</option><option>Andrés Castillo</option><option>Sofía Méndez</option><option>Jorge Paredes</option></select></div>
+              <div class="field"><label for="f-cli">Cliente o área</label><select id="f-cli"><option>Todos</option><option>Banorte · Finanzas</option><option>Liverpool · Tecnología</option><option>Grupo Bimbo · Operaciones</option><option>Interno · RR. HH.</option></select></div>
+              <button class="btn primary" type="button" data-close>Aplicar filtros</button>
+            </div>
+          </div>
+          <button class="btn icon" type="button" id="theme" aria-pressed="false" aria-label="Usar tema oscuro"><svg class="i"><use href="#i-moon"/></svg></button>
+          <a class="btn primary" href="#"><svg class="i"><use href="#i-plus"/></svg>Publicar vacante</a>
+        </div>
+      </header>
+
+      <nav class="index" aria-label="En esta página">
+        <a href="#q1"><span>01</span>Tu semana</a>
+        <a href="#q2"><span>02</span>Tu gente</a>
+        <a href="#q3"><span>03</span>Atención hoy</a>
+        <a href="#q4"><span>04</span>De dónde llegan</a>
+        <a href="#q5"><span>05</span>Lo más reciente</a>
+      </nav>
+
+      <!-- 01 -->
+      <section class="story" id="q1" aria-labelledby="h1q">
+        <div class="q">
+          <div>
+            <p class="eyebrow">01</p>
+            <h2 id="h1q">¿Cómo va tu semana?</h2>
+            <p class="answer">Tienes <strong class="num">14 vacantes</strong> recibiendo postulaciones y <strong class="num">63 personas</strong> en proceso. Esta semana sumaste <strong class="num">12 candidatos</strong> a tu base de talento, 4 más que la semana pasada <span class="new">Dato nuevo · N1</span></p>
+          </div>
+          <div class="help-wrap">
+            <button class="btn ghost" type="button" aria-expanded="false" aria-controls="pop-1" data-pop>Cómo se calcula</button>
+            <div class="pop" id="pop-1" role="dialog" aria-label="Cómo se calcula: tu semana" hidden>
+              <h4>Cómo se calcula</h4>
+              <dl>
+                <div><dt>Vacantes publicadas</dt><dd>Vacantes visibles en el Portal de vacantes y en tu Sitio de carreras en este momento.</dd></div>
+                <div><dt>En proceso</dt><dd>Candidatos en cualquier etapa activa del pipeline, sin contar descartados ni contratados.</dd></div>
+                <div><dt>Nuevos en tu base</dt><dd>Personas agregadas a la base de talento en los últimos 7 días.</dd></div>
+              </dl>
+              <p class="foot-note">Las posiciones cubiertas suman todas las vacantes activas.</p>
+            </div>
+          </div>
+        </div>
+        <div class="grid">
+          <article class="card kpi c3"><h3 class="label">Vacantes publicadas</h3><p class="value">14</p><p class="line">Recibiendo postulaciones hoy</p></article>
+          <article class="card kpi c3"><h3 class="label">En proceso</h3><p class="value">63</p><p class="line"><span class="num">4.5</span> personas por vacante</p></article>
+          <article class="card kpi c3"><h3 class="label">Nuevos en tu base</h3><p class="value">12</p><p class="line">Agregados en los últimos 7 días</p></article>
+          <article class="card kpi c3"><h3 class="label">Posiciones cubiertas</h3><p class="value">9</p><p class="line">de <span class="num">22</span> que pidieron tus clientes</p><div class="meter" role="img" aria-label="9 de 22 posiciones cubiertas, 41%"><i style="width:41%"></i></div></article>
+        </div>
+      </section>
+
+      <!-- 02 -->
+      <section class="story" id="q2" aria-labelledby="h2q">
+        <div class="q">
+          <div>
+            <p class="eyebrow">02</p>
+            <h2 id="h2q">¿Dónde está tu gente?</h2>
+            <p class="answer">Casi todos avanzan bien, pero <strong>Evaluación se está atorando</strong>: <span class="num">7</span> personas llevan más de 5 días sin moverse y <span class="num">4</span> de ellas están ahí. <span class="new">Dato nuevo · N3</span></p>
+          </div>
+          <div class="help-wrap">
+            <button class="btn ghost" type="button" aria-expanded="false" aria-controls="pop-2" data-pop>Cómo se calcula</button>
+            <div class="pop" id="pop-2" role="dialog" aria-label="Cómo se calcula: tu gente" hidden>
+              <h4>Cómo se calcula</h4>
+              <dl>
+                <div><dt>Personas por etapa</dt><dd>Candidatos en proceso agrupados por la etapa actual del pipeline, en todas las vacantes activas.</dd></div>
+                <div><dt>Días en la etapa</dt><dd>Mediana de días naturales desde que la persona entró a la etapa.</dd></div>
+                <div><dt>Detenidos</dt><dd>Personas con más de 5 días en la misma etapa.</dd></div>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="grid">
+          <article class="card c8" aria-labelledby="pipe-t">
+            <div class="card-h">
+              <div><h3 id="pipe-t">Personas por etapa</h3><p class="meta"><span class="num">63</span> en proceso en 14 vacantes</p></div>
+            </div>
+            <div>
+              <div class="stage-cols" aria-hidden="true"><span>Etapa</span><span></span><span>Personas</span><span>Mediana</span><span>Estado</span></div>
+              <ul class="stages">
+                <li class="stage"><span class="name">Nuevo</span><span class="bar"><i style="width:100%"></i></span><span class="count">21</span><span class="days">1 día</span><span class="state badge review">1 detenido</span></li>
+                <li class="stage"><span class="name">Filtro</span><span class="bar"><i style="width:66.7%"></i></span><span class="count">14</span><span class="days">3 días</span><span class="state badge review">1 detenido</span></li>
+                <li class="stage"><span class="name">Entrevista</span><span class="bar"><i style="width:76.2%"></i></span><span class="count">16</span><span class="days">4 días</span><span class="state badge review">1 detenido</span></li>
+                <li class="stage hot"><span class="name">Evaluación</span><span class="bar"><i style="width:38.1%"></i></span><span class="count">8</span><span class="days">6 días</span><span class="state badge danger">4 detenidos</span></li>
+                <li class="stage"><span class="name">Oferta</span><span class="bar"><i style="width:19%"></i></span><span class="count">4</span><span class="days">2 días</span><span class="state badge success">Al día</span></li>
+              </ul>
+            </div>
+          </article>
+          <article class="card c4" aria-labelledby="vac-t">
+            <div class="card-h"><div><h3 id="vac-t">Vacantes con más gente</h3><p class="meta">5 de 14 vacantes activas</p></div></div>
+            <ul class="rows">
+              <li class="vrow"><div><b>Analista de crédito Sr.</b><span class="meta">Banorte · Finanzas</span></div><span class="n"><strong>11</strong> <span class="meta">en proceso</span></span></li>
+              <li class="vrow"><div><b>Desarrollador backend Go</b><span class="meta">Liverpool · Tecnología</span></div><span class="n"><strong>9</strong> <span class="meta">en proceso</span></span></li>
+              <li class="vrow"><div><b>Ejecutivo de cuenta</b><span class="meta">Banorte · Finanzas</span></div><span class="n"><strong>7</strong> <span class="meta">en proceso</span></span></li>
+              <li class="vrow"><div><b>Supervisor de planta</b><span class="meta">Grupo Bimbo · Operaciones</span></div><span class="n"><strong>6</strong> <span class="meta">en proceso</span></span></li>
+              <li class="vrow"><div><b>Analista de nómina</b><span class="meta">Interno · RR. HH.</span></div><span class="n"><strong>5</strong> <span class="meta">en proceso</span></span></li>
+            </ul>
+            <a class="link foot" href="#">Ver las 14 vacantes<svg class="i"><use href="#i-arrow"/></svg></a>
+          </article>
+        </div>
+      </section>
+
+      <!-- 03 -->
+      <section class="story" id="q3" aria-labelledby="h3q">
+        <div class="q">
+          <div>
+            <p class="eyebrow">03</p>
+            <h2 id="h3q">¿Qué necesita tu atención hoy?</h2>
+            <p class="answer"><strong class="num">2 entregas ya vencieron</strong> y 3 vencen esta semana. Empieza por Banorte · Finanzas: tiene dos de ellas. <span class="new">Dato nuevo · N4</span></p>
+          </div>
+          <div class="help-wrap">
+            <button class="btn ghost" type="button" aria-expanded="false" aria-controls="pop-3" data-pop>Cómo se calcula</button>
+            <div class="pop" id="pop-3" role="dialog" aria-label="Cómo se calcula: atención hoy" hidden>
+              <h4>Cómo se calcula</h4>
+              <dl>
+                <div><dt>Vencida</dt><dd>La fecha de entrega acordada con el cliente ya pasó y no se enviaron todos los candidatos.</dd></div>
+                <div><dt>Vence esta semana</dt><dd>Entregas con fecha en los próximos 7 días.</dd></div>
+              </dl>
+              <p class="foot-note">Se muestran hasta 5, de la más urgente a la menos urgente.</p>
+            </div>
+          </div>
+        </div>
+        <article class="card" aria-labelledby="att-t">
+          <div class="card-h"><div><h3 id="att-t">Necesita atención</h3><p class="meta">Entregas vencidas o por vencer, de la más urgente a la menos urgente</p></div></div>
+          <ul class="rows">
+            <li class="att"><span><span class="badge danger">Vencida hace 2 días</span></span><div><b>Ejecutivo de cuenta</b><span class="meta">Banorte · Finanzas</span></div><span class="why">Terna prometida para el 6 nov; van 1 de 3 candidatos</span><span class="who"><span class="avatar sm" aria-hidden="true">DR</span>Diego Ramírez</span><a class="link go" href="#">Abrir vacante<svg class="i"><use href="#i-arrow"/></svg></a></li>
+            <li class="att"><span><span class="badge danger">Vencida hace 1 día</span></span><div><b>Supervisor de planta</b><span class="meta">Grupo Bimbo · Operaciones</span></div><span class="why">2 candidatos para el 7 nov; ninguno enviado</span><span class="who"><span class="avatar sm" aria-hidden="true">JP</span>Jorge Paredes</span><a class="link go" href="#">Abrir vacante<svg class="i"><use href="#i-arrow"/></svg></a></li>
+            <li class="att"><span><span class="badge review">Vence mañana</span></span><div><b>Analista de crédito Sr.</b><span class="meta">Banorte · Finanzas</span></div><span class="why">Faltan 2 candidatos; 4 siguen en Evaluación</span><span class="who"><span class="avatar sm" aria-hidden="true">VO</span>Valeria Ortiz</span><a class="link go" href="#">Abrir vacante<svg class="i"><use href="#i-arrow"/></svg></a></li>
+            <li class="att"><span><span class="badge review">Vence en 3 días</span></span><div><b>Desarrollador backend Go</b><span class="meta">Liverpool · Tecnología</span></div><span class="why">Entrega el 11 nov; 2 de 3 candidatos listos</span><span class="who"><span class="avatar sm" aria-hidden="true">AC</span>Andrés Castillo</span><a class="link go" href="#">Abrir vacante<svg class="i"><use href="#i-arrow"/></svg></a></li>
+            <li class="att"><span><span class="badge review">Vence en 5 días</span></span><div><b>Analista de nómina</b><span class="meta">Interno · RR. HH.</span></div><span class="why">Entrega el 13 nov; 1 de 2 candidatos listos</span><span class="who"><span class="avatar sm" aria-hidden="true">SM</span>Sofía Méndez</span><a class="link go" href="#">Abrir vacante<svg class="i"><use href="#i-arrow"/></svg></a></li>
+          </ul>
+        </article>
+      </section>
+
+      <!-- 04 -->
+      <section class="story" id="q4" aria-labelledby="h4q">
+        <div class="q">
+          <div>
+            <p class="eyebrow">04</p>
+            <h2 id="h4q">¿De dónde llegan?</h2>
+            <p class="answer">En 90 días llegaron <strong class="num">412 postulaciones</strong>. <strong>7 de cada 10</strong> llegaron solas, por el Portal de vacantes o tu Sitio de carreras; el resto llegó por Registro manual.</p>
+          </div>
+          <div class="help-wrap">
+            <button class="btn ghost" type="button" aria-expanded="false" aria-controls="pop-4" data-pop>Cómo se calcula</button>
+            <div class="pop" id="pop-4" role="dialog" aria-label="Cómo se calcula: de dónde llegan" hidden>
+              <h4>Cómo se calcula</h4>
+              <dl>
+                <div><dt>Orgánicas</dt><dd>Postulaciones que la persona hizo por su cuenta desde el Portal de vacantes o tu Sitio de carreras.</dd></div>
+                <div><dt>Manuales</dt><dd>Registro manual: candidatos que alguien de tu equipo agregó a una vacante.</dd></div>
+              </dl>
+              <p class="foot-note">Un punto por día, del 10 ago al 7 nov.</p>
+            </div>
+          </div>
+        </div>
+        <article class="card chart" aria-labelledby="ch-t">
+          <div class="card-h">
+            <div><h3 id="ch-t">Postulaciones por día</h3><p class="meta">10 ago – 7 nov</p></div>
+            <div class="legend">
+              <span><i style="background:var(--primary)"></i>Orgánicas <strong>289</strong></span>
+              <span><i style="background:color-mix(in srgb,var(--muted-foreground) 55%,transparent)"></i>Manuales <strong>123</strong></span>
+            </div>
+          </div>
+          <svg id="area" viewBox="0 0 1032 236" role="img" aria-label="Área de postulaciones diarias: 289 orgánicas y 123 manuales entre el 10 de agosto y el 7 de noviembre. Punto destacado: 4 de noviembre, 6 orgánicas y 2 manuales."></svg>
+        </article>
+      </section>
+
+      <!-- 05 -->
+      <section class="story" id="q5" aria-labelledby="h5q">
+        <div class="q">
+          <div>
+            <p class="eyebrow">05</p>
+            <h2 id="h5q">Lo más reciente</h2>
+            <p class="answer">Desde el viernes llegaron <strong class="num">6 personas</strong>; Sofía Méndez agregó a 2 de ellas y las demás se postularon solas.</p>
+          </div>
+        </div>
+        <article class="card" aria-labelledby="rec-t">
+          <div class="card-h"><div><h3 id="rec-t">Candidatos recientes</h3><p class="meta">Últimas 6 postulaciones</p></div></div>
+          <table>
+            <thead><tr><th scope="col">Candidato</th><th scope="col">Vacante</th><th scope="col">Etapa</th><th scope="col">Origen</th><th scope="col">Agregado por</th><th scope="col">Postuló</th></tr></thead>
+            <tbody>
+              <tr><td><span class="person"><span class="avatar sm" aria-hidden="true">LH</span>Lucía Hernández</span></td><td>Analista de crédito Sr.</td><td><span class="badge">Nuevo</span></td><td>Portal de vacantes</td><td class="muted">Se postuló</td><td class="num">Hoy 9:14</td></tr>
+              <tr><td><span class="person"><span class="avatar sm" aria-hidden="true">RF</span>Ricardo Fuentes</span></td><td>Desarrollador backend Go</td><td><span class="badge info">Filtro</span></td><td>Sitio de carreras</td><td class="muted">Se postuló</td><td class="num">Hoy 8:02</td></tr>
+              <tr><td><span class="person"><span class="avatar sm" aria-hidden="true">MC</span>Mariela Cruz</span></td><td>Ejecutivo de cuenta</td><td><span class="badge">Nuevo</span></td><td>Registro manual</td><td>Sofía Méndez</td><td class="num">Ayer 17:40</td></tr>
+              <tr><td><span class="person"><span class="avatar sm" aria-hidden="true">TA</span>Tomás Aguilar</span></td><td>Supervisor de planta</td><td><span class="badge process">Entrevista</span></td><td>Portal de vacantes</td><td class="muted">Se postuló</td><td class="num">Ayer 11:05</td></tr>
+              <tr><td><span class="person"><span class="avatar sm" aria-hidden="true">DR</span>Daniela Ríos</span></td><td>Analista de nómina</td><td><span class="badge">Nuevo</span></td><td>Registro manual</td><td>Sofía Méndez</td><td class="num">6 nov</td></tr>
+              <tr><td><span class="person"><span class="avatar sm" aria-hidden="true">OV</span>Óscar Villalobos</span></td><td>Analista de crédito Sr.</td><td><span class="badge info">Filtro</span></td><td>Portal de vacantes</td><td class="muted">Se postuló</td><td class="num">6 nov</td></tr>
+            </tbody>
+          </table>
+          <a class="link" href="#">Ver todos los candidatos<svg class="i"><use href="#i-arrow"/></svg></a>
+        </article>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // 90 daily points, 10 ago – 7 nov (sums: 289 orgánicas, 123 manuales)
+  var org=[3,3,4,3,4,1,1,4,4,4,4,4,2,2,4,4,4,4,4,1,1,2,3,3,2,2,1,1,2,3,3,2,3,1,1,3,4,4,4,4,1,1,5,5,5,5,5,2,2,5,6,4,5,5,1,2,3,4,4,4,4,1,1,3,3,3,3,4,1,1,2,4,4,5,4,1,1,5,4,5,5,5,2,2,5,5,6,6,5,2];
+  var man=[1,2,2,2,1,1,1,2,3,2,2,2,1,1,2,2,1,2,1,1,1,2,1,1,1,0,1,0,1,1,1,1,1,0,0,1,1,1,1,1,0,0,1,2,1,3,2,1,1,2,2,2,3,3,1,1,1,1,1,1,2,0,0,2,1,1,1,0,0,1,2,2,1,1,1,1,1,2,2,2,3,3,1,1,3,3,2,3,2,1];
+  var W=1032,x0=28,x1=1024,y0=12,y1=204,ymax=8,n=org.length,hi=86;
+  function X(i){return x0+(x1-x0)*i/(n-1)}
+  function Y(v){return y1-(y1-y0)*v/ymax}
+  function path(v){
+    var p=v.map(function(d,i){return [X(i),Y(d)]}),d='M'+p[0][0].toFixed(1)+','+p[0][1].toFixed(1);
+    for(var k=0;k<p.length-1;k++){
+      var a=p[Math.max(k-1,0)],b=p[k],c=p[k+1],e=p[Math.min(k+2,p.length-1)],t=.16;
+      var c1y=Math.min(Math.max(b[1]+(c[1]-a[1])*t,y0),y1),c2y=Math.min(Math.max(c[1]-(e[1]-b[1])*t,y0),y1);
+      d+=' C'+(b[0]+(c[0]-a[0])*t).toFixed(1)+','+c1y.toFixed(1)+' '+(c[0]-(e[0]-b[0])*t).toFixed(1)+','+c2y.toFixed(1)+' '+c[0].toFixed(1)+','+c[1].toFixed(1);
+    }
+    return d;
+  }
+  var s='<defs><linearGradient id="g-primary" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="stop-a"/><stop offset="1" class="stop-b"/></linearGradient></defs>';
+  [0,2,4,6,8].forEach(function(t){s+='<line class="grid-line" x1="'+x0+'" x2="'+x1+'" y1="'+Y(t)+'" y2="'+Y(t)+'"/><text class="axis" x="'+(x0-10)+'" y="'+(Y(t)+4)+'" text-anchor="end">'+t+'</text>'});
+  [[0,'10 ago'],[21,'31 ago'],[42,'21 sep'],[63,'12 oct'],[84,'2 nov']].forEach(function(l){s+='<text class="axis" x="'+X(l[0])+'" y="'+(y1+24)+'" text-anchor="middle">'+l[1]+'</text>'});
+  var po=path(org),pm=path(man);
+  s+='<path class="a-muted" d="'+pm+' L'+x1+','+y1+' L'+x0+','+y1+' Z"/><path class="s-muted" d="'+pm+'"/>';
+  s+='<path class="a-primary" d="'+po+' L'+x1+','+y1+' L'+x0+','+y1+' Z"/><path class="s-primary" d="'+po+'"/>';
+  var hx=X(hi);
+  s+='<line class="hi-line" x1="'+hx+'" x2="'+hx+'" y1="'+y0+'" y2="'+y1+'"/><circle class="dot-m" cx="'+hx+'" cy="'+Y(man[hi])+'" r="4"/><circle class="dot-p" cx="'+hx+'" cy="'+Y(org[hi])+'" r="5"/>';
+  var tx=hx-176,ty=24;
+  s+='<g aria-hidden="true"><rect class="tip-box" x="'+tx+'" y="'+ty+'" width="160" height="72" rx="8"/><text class="tip-t" x="'+(tx+12)+'" y="'+(ty+22)+'">Miércoles 4 nov</text>'+
+     '<rect x="'+(tx+12)+'" y="'+(ty+34)+'" width="8" height="8" rx="2" style="fill:var(--primary)"/><text class="tip-s" x="'+(tx+26)+'" y="'+(ty+42)+'">Orgánicas</text><text class="tip-v" x="'+(tx+148)+'" y="'+(ty+42)+'" text-anchor="end">6</text>'+
+     '<rect x="'+(tx+12)+'" y="'+(ty+52)+'" width="8" height="8" rx="2" style="fill:color-mix(in srgb,var(--muted-foreground) 55%,transparent)"/><text class="tip-s" x="'+(tx+26)+'" y="'+(ty+60)+'">Manuales</text><text class="tip-v" x="'+(tx+148)+'" y="'+(ty+60)+'" text-anchor="end">2</text></g>';
+  var svgDoc=new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg">'+s+'</svg>','image/svg+xml'),area=document.getElementById('area');
+  Array.prototype.forEach.call(svgDoc.documentElement.childNodes,function(n){area.appendChild(document.importNode(n,true))});
+
+  // Period control
+  document.querySelectorAll('.seg button').forEach(function(b){b.addEventListener('click',function(){b.parentNode.querySelectorAll('button').forEach(function(o){o.setAttribute('aria-pressed',o===b?'true':'false')})})});
+
+  // Popovers: one open at a time, Escape / outside click close, focus returns
+  var open=null;
+  function close(ret){if(!open)return;open.pop.hidden=true;open.btn.setAttribute('aria-expanded','false');if(ret)open.btn.focus();open=null}
+  document.querySelectorAll('[data-pop]').forEach(function(btn){
+    var pop=document.getElementById(btn.getAttribute('aria-controls'));
+    btn.addEventListener('click',function(e){e.stopPropagation();var same=open&&open.btn===btn;close(false);if(!same){pop.hidden=false;btn.setAttribute('aria-expanded','true');open={btn:btn,pop:pop};var f=pop.querySelector('select,button');if(f)f.focus()}});
+    pop.addEventListener('click',function(e){e.stopPropagation();if(e.target.closest('[data-close]'))close(true)});
+  });
+  document.addEventListener('click',function(){close(false)});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')close(true)});
+
+  // Theme toggle
+  var t=document.getElementById('theme');
+  t.addEventListener('click',function(){var dark=document.documentElement.getAttribute('data-theme')!=='dark';
+    if(dark)document.documentElement.setAttribute('data-theme','dark');else document.documentElement.removeAttribute('data-theme');
+    t.setAttribute('aria-pressed',dark?'true':'false');t.setAttribute('aria-label',dark?'Usar tema claro':'Usar tema oscuro');
+    t.querySelector('use').setAttribute('href',dark?'#i-sun':'#i-moon');});
+})();
+</script>
+</body>
+</html>

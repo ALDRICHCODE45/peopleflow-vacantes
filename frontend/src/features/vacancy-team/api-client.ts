@@ -74,7 +74,8 @@ export async function getHistory(input: ReadInput & { cursor?: string }): Promis
 // Member routes live under /me, not /v2/me (contract 9bc2a080). Same strict decoder as employer-team;
 // a membership without a user (deactivated account) cannot join a team, so it is skipped.
 const companyMembersRead = membersSchema.transform(({ members }): CompanyMembers => ({
-  members: members.flatMap(member => member.user ? [{ id: member.id, role: member.role, user: member.user }] : []),
+  // Stakeholders are read-only members and never join a vacancy team (stakeholder-metrics-v1 §1.1).
+  members: members.flatMap(member => member.user && member.role !== "stakeholder" ? [{ id: member.id, role: member.role, user: member.user }] : []),
 }));
 export async function getCompanyMembers(input: ReadInput): Promise<ReadResult<CompanyMembers>> { return read(input, "/me/company/members", companyMembersRead); }
 export async function getCalendar(input: ReadInput): Promise<ReadResult<Pick<Delivery, "calendar" | "commitmentDate">>> {

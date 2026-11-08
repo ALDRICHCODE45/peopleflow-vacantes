@@ -7,8 +7,9 @@ import { managementFixture } from "./test-fixture";
 vi.mock("@/features/jobs/drafts/pipeline/management-actions", () => ({ loadDraftManagementAction: vi.fn(), saveDraftManagementAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 vi.mock("./date-field", async importOriginal => {
-  const { ManagementDateField } = await importOriginal<typeof import("./date-field")>();
-  return { ManagementDateField: (props: React.ComponentProps<typeof ManagementDateField>) => <>
+  const original = await importOriginal<typeof import("./date-field")>();
+  const { ManagementDateField } = original;
+  return { ...original, ManagementDateField: (props: React.ComponentProps<typeof ManagementDateField>) => <>
     <ManagementDateField {...props} />
     {/* Exercise the parent's validation boundary even if the picker emits a bad date. */}
     <button onClick={() => props.onChange("2026-10-17")}>Emitir fecha futura</button>

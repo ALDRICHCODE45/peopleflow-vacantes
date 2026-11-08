@@ -72,3 +72,24 @@ it.each([null, {}, { ...body, extra: true }, { requestDate: null }, { hiringHead
 });
 it.each(["", "   "])("guards blank If-Match %j", async ifMatch => { const fetch = vi.fn(); vi.stubGlobal("fetch", fetch); expect(await saveDraftManagement({ token: "x", draftId, ifMatch, body })).toMatchObject({ ok: false, error: { kind: "invalid_request" } }); expect(env.reads).toBe(0); expect(fetch).not.toHaveBeenCalled(); });
 it("accepts nullable keys and leaves business validation/opaque If-Match to their owners", async () => { const fetch = response(management); const nullable = { requestDate: null, hiringHeadcount: null }; expect(await saveDraftManagement({ token: "x", draftId, ifMatch: "opaque", body: nullable })).toMatchObject({ ok: true }); expect(fetch.mock.calls[0][1].body).toBe(JSON.stringify(nullable)); });
+describe("target close date", () => {
+  it("decodes a stored target close date and keeps it absent while unset", async () => {
+    const data = { ...management, targetCloseDate: "2026-12-15" }; response(data);
+    expect(await getDraftManagement({ token: "x", draftId })).toEqual({ ok: true, data, etag });
+    response(management); const unset = await getDraftManagement({ token: "x", draftId });
+    expect(unset.ok && "targetCloseDate" in unset.data).toBe(false);
+  });
+  it.each([null, "2026-02-30", "2026-12-15\n", 20261215])("rejects a malformed stored target close date %j", async targetCloseDate => {
+    response({ ...management, targetCloseDate }); expect(await getDraftManagement({ token: "x", draftId })).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
+  });
+  it.each(["2026-12-15", null])("sends target close date %j exactly", async targetCloseDate => {
+    const fetch = response(management); const exact = { ...body, targetCloseDate };
+    expect(await saveDraftManagement({ token: "x", draftId, ifMatch: etag, body: exact })).toMatchObject({ ok: true });
+    expect(fetch.mock.calls[0][1].body).toBe(JSON.stringify(exact));
+  });
+  it.each(["15/12/2026", "2026-02-30", ""])("guards a malformed target close date %j before fetch", async targetCloseDate => {
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    expect(await saveDraftManagement({ token: "x", draftId, ifMatch: etag, body: { ...body, targetCloseDate } })).toEqual({ ok: false, error: { kind: "invalid_request", retryable: false } });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

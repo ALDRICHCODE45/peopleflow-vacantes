@@ -97,3 +97,11 @@ it("classifies timeout without retry", async () => {
   const pending = createCompany({ token: "secret", body: {} }); await vi.advanceTimersByTimeAsync(60);
   expect(await pending).toEqual({ ok: false, error: { kind: "timeout", retryable: false } });
 });
+it("decodes a stakeholder membership with both capabilities (contract stakeholder-metrics-v1 §1.2)", async () => {
+  fetchMock.mockResolvedValueOnce(Response.json({ company_id: "c", role: "stakeholder", company, can: { view_talent_base: false, view_metrics: true } }));
+  expect(await getMyCompany({ token: "secret" })).toEqual({ ok: true, data: { company_id: "c", role: "stakeholder", company, can: { view_talent_base: false, view_metrics: true } } });
+  fetchMock.mockResolvedValueOnce(Response.json({ company_id: "c", role: "owner", company, can: { view_talent_base: true } }));
+  expect(await getMyCompany({ token: "secret" })).toMatchObject({ ok: true, data: { role: "owner", can: { view_talent_base: true } } });
+  fetchMock.mockResolvedValueOnce(Response.json({ company_id: "c", role: "stakeholder", company, can: { view_talent_base: false, view_metrics: "yes" } }));
+  expect(await getMyCompany({ token: "secret" })).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
+});

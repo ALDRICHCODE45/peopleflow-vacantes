@@ -124,3 +124,8 @@ it.each(["list", "cards", "by_area"] as const)("%s links lift above siblings wit
     expect(surface).toHaveClass("group-hover/job:bg-primary/5", "group-focus-visible/job:bg-primary/5");
   }
 });
+it("links each job to its vacancy with the careers site origin", () => {
+  render(<CompanyJobs jobs={jobs} />);
+  for (const job of jobs) expect(screen.getByRole("link", { name: job.title })).toHaveAttribute("href", `/vacantes/${job.id}?origen=sitio`);
+});
+

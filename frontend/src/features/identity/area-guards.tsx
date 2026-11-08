@@ -3,17 +3,19 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useIdentity } from "./identity-session";
-import { IdentityCheck, IdentityError, RoleBlocked } from "./identity-states";
+import { IdentityCheck, IdentityError, RoleBlocked, StakeholderRouteBlocked } from "./identity-states";
+import { STAKEHOLDER_HOME, isInvitationRoute, stakeholderRoute } from "./stakeholder-routes";
+import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context";
 import { candidateAuthHref, safeReturnTo } from "./return-to";
 
 import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 
-function IdentityFrame({ area, children }: { area: "candidate" | "employer"; children: React.ReactNode }) {
+function IdentityFrame({ area, title = "Tu cuenta", children }: { area: "candidate" | "employer"; title?: string; children: React.ReactNode }) {
   const Header = area === "candidate" ? CandidateHeader : SiteHeader;
   return <>
-    <Header title="Tu cuenta" />
+    <Header title={title} />
     <DashboardPageContent className="flex-1 items-center justify-center">
       <div className="w-full max-w-xl">{children}</div>
     </DashboardPageContent>
@@ -44,12 +46,23 @@ export function EmployerGuard({ children }: { children: React.ReactNode }) {
   const identity = useIdentity();
   const router = useRouter();
   const pathname = usePathname();
+  const shared = useCompanyMembershipState();
   const result = identity.result;
+  // The invitation pages own every state themselves, including «no session» (the token rides in their login link).
+  const invitation = isInvitationRoute(pathname);
   // No session: go to the employer login and come back to the requested page.
-  const login = identity.status === "unauthenticated" || (result && !result.ok && result.reason === "unauthenticated")
+  const login = !invitation && (identity.status === "unauthenticated" || (result && !result.ok && result.reason === "unauthenticated"))
     ? `/empresa/login?callbackUrl=${encodeURIComponent(pathname ?? "/empresa/dashboard")}` : null;
-  React.useEffect(() => { if (login) router.replace(login); }, [login, router]);
-  if (identity.status === "loading" || login) return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
+  // Stakeholder gate (stakeholder-metrics-v1 §1.2): decided before the page mounts, so it never calls the API.
+  const employer = result?.ok && result.data.role === "recruiter";
+  const membership = shared && employer && shared.userId !== null ? shared.state : undefined;
+  const stakeholder = membership?.kind === "exists" && membership.role === "stakeholder" ? stakeholderRoute(pathname) : null;
+  const destination = login ?? (stakeholder === "landing" ? STAKEHOLDER_HOME : null);
+  React.useEffect(() => { if (destination) router.replace(destination); }, [destination, router]);
+  if (invitation) return <>{children}</>;
+  if (identity.status === "loading" || destination) return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
+  if (membership === null) return <IdentityFrame area="employer"><IdentityCheck /></IdentityFrame>;
+  if (stakeholder === "blocked") return <IdentityFrame area="employer" title="Sección no disponible"><StakeholderRouteBlocked /></IdentityFrame>;
   if (!result?.ok) {
     // Additive identity check only: a transient /v2/me outage must not lock an
     // existing recruiter out. Fail open ONLY for no_response/server_error;

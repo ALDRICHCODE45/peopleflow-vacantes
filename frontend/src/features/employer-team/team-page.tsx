@@ -16,6 +16,7 @@ import { useTeamMembers } from "./use-team-members";
 import { TeamWorkspace } from "./team-workspace";
 import { createOffboardFixtureClient, offboardPrototypeEnabled, offboardApiEnabled, prototypeMembers, OffboardError, type OffboardBody, type OffboardPreview, type OffboardScenario } from "./offboard-client";
 import { OffboardDialog } from "./offboard-dialog";
+import { StakeholderInvitationsCard } from "@/features/stakeholder-invitations/invitations-card";
 import { createOffboardApiClient } from "./offboard-action-client";
 import { plural } from "@/features/employer-vacancies/plural";
 type OffboardClient = ReturnType<typeof createOffboardApiClient> | ReturnType<typeof createOffboardFixtureClient>;
@@ -45,7 +46,7 @@ export function TeamPage() {
   if (identity.status === "loading") return <TeamWorkspace members={[]} loading />;
   if (identity.status === "unauthenticated") return <TeamReadFailure failure={{ ok: false, reason: "unauthenticated", reference: {} }} retry={identity.retry} />;
   if (!userId) return <TeamReadFailure failure={{ ok: false, reason: "no_response", reference: {} }} retry={identity.retry} />;
-  return <ConnectedTeam key={JSON.stringify([userId, membership?.company.id ?? null])} userId={userId} role={membership?.role ?? null} companyId={membership?.company.id ?? null} />;
+  return <ConnectedTeam key={JSON.stringify([userId, membership?.company.id ?? null])} userId={userId} role={membership && membership.role !== "stakeholder" ? membership.role : null} companyId={membership?.company.id ?? null} />;
 }
 
 function ConnectedTeam({ userId, role, companyId }: { userId: string; role: TeamMemberRole | null; companyId: string | null }) {
@@ -66,7 +67,8 @@ function ConnectedTeam({ userId, role, companyId }: { userId: string; role: Team
   const selectedMember = selection ? members.find(member => member.id === selection.member.id) : undefined;
   const selectionAllowed = selectedMember && selection && memberRowActions(selectedMember, members, effectiveRole, userId).some(action => action.kind === selection.action.kind && (action.kind !== "role" || (selection.action.kind === "role" && action.role === selection.action.role)));
   async function choose(member: CompanyMember, action: MemberRowAction) {
-    if ((!offboardPrototypeEnabled() && !offboardApiEnabled()) || action.kind !== "remove") { setSelection({ member, action }); return; }
+    // A stakeholder has no tramos: the owner removes it with the plain DELETE, never the offboard flow (§1.3).
+    if ((!offboardPrototypeEnabled() && !offboardApiEnabled()) || action.kind !== "remove" || member.role === "stakeholder") { setSelection({ member, action }); return; }
     if (lock.current || !memberRowActions(member, members, effectiveRole, userId).some(item => item.kind === "remove")) return;
     lock.current = true; setPending(true); setOffboardFailure(null);
     const requested = new URLSearchParams(window.location.search).get("offboard");
@@ -155,12 +157,14 @@ function ConnectedTeam({ userId, role, companyId }: { userId: string; role: Team
       role={effectiveRole} userId={userId} disabled={pending || team.pending} onAction={(member, action) => { void choose(member, action); }}
       actionStatusId={status ? "team-action-status" : undefined}
       feedback={status && <ActionStatusSlot><ActionStatus id="team-action-status" tone={status.tone} text={status.text} /></ActionStatusSlot>} />
+    {/* Owner only (stakeholder-metrics-v1 §1.3); the API answers 403 to anyone else. */}
+    {effectiveRole === "owner" && <StakeholderInvitationsCard members={members} stakeholderCount={members.filter(member => member.role === "stakeholder").length} />}
     {offboard && <OffboardDialog key={offboard.preview.vacancies.map(v => v.draft_id).join(",")} preview={offboard.preview} members={members} pending={pending} failure={offboardFailure} onClose={() => { if (!pending) setOffboard(null); }} onConfirm={body => { void confirmOffboard(body); }} />}
     {/* Controlled dialog is a sibling of the list, not a modal root wrapping the screen. */}
     <ConfirmActionDialog open={selection !== null} onOpenChange={open => { if (!open) setSelection(null); }} onConfirm={() => { void confirm(); }}
       icon={selection?.action.kind === "remove" ? UserRoundMinus : UserRoundCog}
       title={selection?.action.kind === "remove" ? `¿Quitar a ${memberName(selection.member)} del equipo?` : `¿Cambiar el rol de ${selection ? memberName(selection.member) : "este miembro"}?`}
-      description={selection?.action.kind === "remove" ? "Perderá el acceso a las vacantes y candidatos de la empresa." : selection?.action.kind === "role" && selection.action.role === "owner" ? "Podrá administrar los miembros y la configuración de la empresa." : "Dejará de poder administrar los miembros del equipo."}
+      description={selection?.action.kind === "remove" ? selection.member.role === "stakeholder" ? "Perderá el acceso a las Métricas de la empresa. Para volver a darle acceso, crea una invitación nueva." : "Perderá el acceso a las vacantes y candidatos de la empresa." : selection?.action.kind === "role" && selection.action.role === "owner" ? "Podrá administrar los miembros y la configuración de la empresa." : "Dejará de poder administrar los miembros del equipo."}
       confirmLabel={selection?.action.kind === "remove" ? "Quitar del equipo" : "Cambiar rol"} pendingLabel={selection?.action.kind === "remove" ? "Quitando…" : "Guardando…"}
       tone={selection?.action.kind === "remove" ? "destructive" : "default"} pending={pending} confirmDisabled={!selectionAllowed || team.pending} />
   </>;

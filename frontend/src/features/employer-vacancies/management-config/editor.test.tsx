@@ -22,6 +22,12 @@ const draftId = "123e4567-e89b-42d3-a456-426614174000";
 const save = () => screen.getByRole("button", { name: "Guardar cambios" });
 const headcount = () => screen.getByRole("textbox", { name: "Plazas a cubrir" });
 const dateField = () => screen.getByRole("button", { name: "Fecha de solicitud" });
+const targetField = () => screen.getByRole("button", { name: "Fecha objetivo de cierre" });
+async function pickTarget(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(targetField()); const calendar = document.querySelector('[data-slot="calendar"]')!;
+  for (let step = 0; step < 2; step++) await user.click(calendar.querySelector(".rdp-button_next") as HTMLButtonElement);
+  const day = calendar.querySelector('button[data-day="15/12/2026"]') as HTMLButtonElement; expect(day).toBeEnabled(); await user.click(day);
+}
 const edit = (value = "5") => fireEvent.change(headcount(), { target: { value } });
 const success = (version = "1", quantity: number | null = 5): DraftManagementActionResult => ({ ok: true, management: { ...managementFixture(), version, hiringHeadcount: quantity }, etag: '"management-next"' });
 function mount(management = managementFixture()) { return render(<ManagementEditor draftId={draftId} management={management} etag={'"management-0"'} />); }
@@ -30,8 +36,8 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("composes one Solicitud card, ordered icon Fields and a reserved status in the compact footer", () => {
   const { container } = mount(); expect(screen.getByRole("heading", { level: 3, name: "Solicitud" })).toBeVisible();
   expect(screen.getByText("Datos internos de la solicitud. Los candidatos nunca los ven. Hacen falta para publicar.")).toBeVisible();
-  expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(1); expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(2);
-  const labels = container.querySelectorAll('[data-slot="field-label"]'); expect([...labels].map(label => label.textContent)).toEqual(["Fecha de solicitud", "Plazas a cubrir"]);
+  expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(1); expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(3);
+  const labels = container.querySelectorAll('[data-slot="field-label"]'); expect([...labels].map(label => label.textContent)).toEqual(["Fecha de solicitud", "Plazas a cubrir", "Fecha objetivo de cierre"]);
   for (const label of labels) expect(label.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
   expect(headcount()).toHaveAttribute("type", "text"); expect(headcount()).toHaveAttribute("inputmode", "numeric");
   expect(headcount()).toHaveAccessibleDescription("Cuántas personas hay que contratar (1 a 999). Es independiente del objetivo de entrega.");
@@ -117,4 +123,38 @@ it.each(["unauthenticated", "company_inactive"] as const)("offers real recovery 
 it("makes the toast shortcut follow the status link", async () => {
   vi.mocked(saveDraftManagementAction).mockResolvedValue({ ok: false, reason: "unauthenticated", reference: {} }); const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   mount(); edit(); fireEvent.click(save()); await screen.findByRole("status"); vi.mocked(notifyActionResult).mock.calls.at(-1)![0].action!.onClick(); expect(click).toHaveBeenCalledTimes(1); expect(click.mock.contexts[0]).toHaveAttribute("href", "/empresa/login");
+});
+it("explains the optional target close date and how Métricas uses it", () => {
+  mount(); expect(targetField()).toHaveTextContent("Elige una fecha");
+  expect(targetField()).toHaveAccessibleDescription("Opcional. Métricas la usa para saber si la vacante cerró en tiempo. Sin esta fecha, la vacante aparece como «Sin objetivo».");
+  expect(screen.queryByRole("button", { name: "Quitar fecha objetivo" })).not.toBeInTheDocument();
+});
+it("sets a target close date, including a future one, and sends it with the other fields", async () => {
+  const user = userEvent.setup(); mount(); await pickTarget(user); expect(targetField()).toHaveTextContent("15 de diciembre de 2026");
+  fireEvent.click(save());
+  await waitFor(() => expect(saveDraftManagementAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"management-0"', body: { requestDate: null, hiringHeadcount: null, targetCloseDate: "2026-12-15" } }));
+});
+it("clears a stored target close date with null", async () => {
+  mount({ ...managementFixture(), targetCloseDate: "2026-12-15" }); expect(targetField()).toHaveTextContent("15 de diciembre de 2026");
+  fireEvent.click(screen.getByRole("button", { name: "Quitar fecha objetivo" })); expect(targetField()).toHaveTextContent("Elige una fecha"); fireEvent.click(save());
+  await waitFor(() => expect(saveDraftManagementAction).toHaveBeenCalledWith(expect.objectContaining({ body: { requestDate: null, hiringHeadcount: null, targetCloseDate: null } })));
+});
+it("keeps a stored target close date by omitting it when only the request date is cleared", async () => {
+  vi.mocked(saveDraftManagementAction).mockResolvedValue({ ok: true, management: { ...managementFixture(), version: "1", targetCloseDate: "2026-12-15" }, etag: '"management-next"' });
+  mount({ ...managementFixture(), requestDate: "2026-10-10", targetCloseDate: "2026-12-15" }); fireEvent.click(screen.getByRole("button", { name: "Quitar fecha" })); fireEvent.click(save());
+  await waitFor(() => expect(saveDraftManagementAction).toHaveBeenCalledWith(expect.objectContaining({ body: { requestDate: null, hiringHeadcount: null } })));
+  await waitFor(() => expect(save()).toBeDisabled()); expect(targetField()).toHaveTextContent("15 de diciembre de 2026");
+});
+it("shows the server's invalid_request on the target close date as a field error and keeps the edit", async () => {
+  vi.mocked(saveDraftManagementAction).mockResolvedValue({ ok: false, reason: "invalid_request", reference: { status: 400, code: "invalid_request" } });
+  const user = userEvent.setup(); mount(); await pickTarget(user); fireEvent.click(save());
+  const error = await screen.findByText("No pudimos guardar esta fecha. Elige otra.");
+  expect(error).toHaveAttribute("data-slot", "field-error"); expect(targetField()).toHaveAttribute("aria-invalid", "true"); expect(targetField()).toHaveFocus();
+  expect(targetField()).toHaveTextContent("15 de diciembre de 2026"); expect(save()).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Quitar fecha objetivo" })); expect(screen.queryByText("No pudimos guardar esta fecha. Elige otra.")).not.toBeInTheDocument();
+});
+it("does not blame the target close date for an invalid_request when it was not sent", async () => {
+  vi.mocked(saveDraftManagementAction).mockResolvedValue({ ok: false, reason: "invalid_request", reference: { status: 400, code: "invalid_request" } });
+  mount({ ...managementFixture(), targetCloseDate: "2026-12-15" }); edit(); fireEvent.click(save());
+  await screen.findByText("No se guardó · revisa los datos"); expect(targetField()).toHaveAttribute("aria-invalid", "false");
 });

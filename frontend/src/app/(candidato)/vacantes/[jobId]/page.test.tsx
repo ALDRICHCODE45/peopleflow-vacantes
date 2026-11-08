@@ -49,6 +49,14 @@ describe("public detail route", () => {
     expect(container).not.toHaveTextContent(/Hace 2 h|Hace 5 h|Verificada por|Postulantes/);
     expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
   });
+  it.each<[{ origen?: string | string[] }, boolean]>([[{ origen: "sitio" }, true], [{ origen: "Sitio" }, false], [{ origen: ["sitio", "sitio"] }, false], [{}, false]])("forwards origen %j only into the Postularme link", async (searchParams, careersSite) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(vacancyDetail)));
+    render(await Page({ params: params(vacancyDetail.id), searchParams: Promise.resolve(searchParams) }));
+    for (const link of screen.getAllByRole("link", { name: "Postularme" })) expect(link).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}/postular${careersSite ? "?origen=sitio" : ""}`);
+    const others = screen.getAllByRole("link").filter(link => link.textContent !== "Postularme");
+    expect(others.length).toBeGreaterThan(0);
+    for (const link of others) expect(link.getAttribute("href") ?? "").not.toContain("origen");
+  });
   it("uses plain text for SEO even when the description is rich", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(vacancyDetail)));
     const meta = await generateMetadata({ params: params(vacancyDetail.id) });

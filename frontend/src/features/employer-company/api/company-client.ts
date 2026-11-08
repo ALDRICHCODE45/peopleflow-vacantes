@@ -15,7 +15,8 @@ const companySchema = z.object({
 });
 const industriesSchema = z.array(z.object({ id: z.string(), label_es: z.string(), label_en: z.string(), sort_order: z.number().int() }));
 // `can` is always present from talent-base-visibility v1; an older backend omits it and keeps today's open base.
-const membershipSchema = z.object({ company_id: z.string(), role: z.enum(["owner", "recruiter"]), company: companySchema, can: z.object({ view_talent_base: z.boolean() }).optional() });
+// Stakeholder metrics v1 (§1.2) adds the read-only `stakeholder` role and `can.view_metrics` (owner and stakeholder).
+const membershipSchema = z.object({ company_id: z.string(), role: z.enum(["owner", "recruiter", "stakeholder"]), company: companySchema, can: z.object({ view_talent_base: z.boolean(), view_metrics: z.boolean().optional() }).optional() });
 const errorSchema = z.object({ error: z.string(), code: z.string(), details: z.unknown().optional(), data: editorSchema.optional() });
 export type Company = z.infer<typeof companySchema>;
 export type Industry = z.infer<typeof industriesSchema>[number];

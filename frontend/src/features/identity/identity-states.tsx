@@ -78,3 +78,10 @@ export function IdentityError({ retry }: { retry: () => void }) {
     <ActionStatus id={statusId} tone="error" text="No confirmamos tu acceso." />
   </StateCard>;
 }
+
+/** A stakeholder (read-only, stakeholder-metrics-v1 §1.2) opened an employer route outside Métricas. */
+export function StakeholderRouteBlocked() {
+  return <StateCard icon={ShieldLock} tone="forbidden" title="Esta sección no está disponible para tu rol"
+    description="Como stakeholder ves las métricas de la empresa en solo lectura. Si necesitas algo más, pídelo a la persona dueña de la cuenta."
+    primaryAction={{ label: "Ir a Métricas", href: "/empresa/metricas" }} />;
+}

@@ -47,3 +47,25 @@ describe("public vacancy HTTP decisions before streaming", () => {
     expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(true);
   });
 });
+
+describe("stakeholder invitation pages never leak the token (stakeholder-metrics-v1 §1.3)", () => {
+  const token = "q3Jv8tR0wXbN5eLk2sYp9uHf7aCd1gMz4iOq6TnVrWo";
+  it.each([`/empresa/invitacion/${token}`, "/empresa/invitacion", "/empresa/invitacion?estado=unido"])("sends no referrer and stores nothing for %s", (path) => {
+    const response = middleware(request(path));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it.each(["/empresa/invitacion", `/empresa/invitacion/${token}`])("matches %s", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(true);
+  });
+
+  it.each(["/empresa/dashboard", "/empresa/invitaciones", `/empresa/invitacion/${token}/extra`])("leaves %s untouched", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(false);
+  });
+
+  it("keeps the public vacancy decisions free of the invitation headers", () => {
+    expect(middleware(request(`/vacantes/${id}`)).headers.get("referrer-policy")).toBeNull();
+  });
+});

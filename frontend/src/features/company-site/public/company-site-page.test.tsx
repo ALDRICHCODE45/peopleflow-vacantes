@@ -61,7 +61,7 @@ it("renders all 13 block contents in order, one H1, visible anchor navigation, p
   expect(within(container.querySelector("footer")!).getByRole("link", { name: "LinkedIn" })).toHaveAttribute("href", data.company.linkedin_url);
   expect(screen.getByAltText("Equipo en el taller")).toHaveAttribute("src", mediaUrl(mediaId));
   expect(container.querySelectorAll('img[src^="/v2/"]')).toHaveLength(0);
-  expect(screen.getByRole("link", { name: vacancyDetail.title })).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}`);
+  expect(screen.getByRole("link", { name: vacancyDetail.title })).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}?origen=sitio`);
 });
 it("exposes adjusted brand shades and readable text for both backgrounds without changing the saved theme", async () => {
   const data = publishedFixture(); data.site.theme.brand_color = "#FFFF00";

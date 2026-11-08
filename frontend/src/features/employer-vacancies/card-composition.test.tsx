@@ -40,7 +40,7 @@ it("composes current careers vacancy cards with a title, area, conditions and cl
   expect(card.querySelector('[data-slot="card-description"]')).not.toBeNull();
   expect(card.querySelector('[data-slot="card-content"] [data-job-meta]')).not.toBeNull();
   expect(card.querySelector('[data-slot="card-footer"] time')).toHaveAttribute("datetime", vacancyDetail.published_at);
-  expect(card.closest("a")).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}`);
+  expect(card.closest("a")).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}?origen=sitio`);
 });
 
 it("mirrors the real editor toolbar, sections, preview and properties while loading", () => {

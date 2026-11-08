@@ -18,7 +18,9 @@ export const answerSchema = z.union([
   z.object({ question_id: uuid, text: z.string().trim().min(1).refine(value => Array.from(value).length <= 2000) }).strict(),
   z.object({ question_id: uuid, option_id: uuid }).strict(),
 ]);
-export const applicationBodySchema = z.object({ cv_id: uuid, questionnaire_revision: text, answers: z.array(answerSchema).refine(items => new Set(items.map(item => item.question_id.toLowerCase())).size === items.length) }).strict();
+/** Self-reported analytics origin; optional, the backend defaults to portal. */
+export const applicationChannelSchema = z.enum(["portal", "careers_site"]);
+export const applicationBodySchema = z.object({ cv_id: uuid, questionnaire_revision: text, answers: z.array(answerSchema).refine(items => new Set(items.map(item => item.question_id.toLowerCase())).size === items.length), channel: applicationChannelSchema.optional() }).strict();
 export const submittedSchema = z.object({ id: uuid, vacancy_id: uuid, status: z.literal("submitted"), applied_at: timestamp }).strict();
 export const applicationsSchema = z.object({ items: z.array(z.object({ id: uuid, vacancy: z.object({ id: uuid, title: text, state: z.enum(["open", "closed"]) }).strict(), company: z.object({ id: uuid, name: text }).strict(), applied_at: timestamp, updated_at: timestamp.optional(), first_response_at: timestamp.nullable().optional(), status: z.enum(["submitted", "in_process", "closed"]), message: text.nullable(), message_read_at: timestamp.nullable().optional() }).strict().refine(item => item.status === "closed" || item.message === null).refine(item => item.updated_at === undefined || Date.parse(item.updated_at) >= Date.parse(item.applied_at)).refine(item => item.first_response_at == null || Date.parse(item.first_response_at) >= Date.parse(item.applied_at)).refine(item => item.message_read_at == null || (item.message !== null && Date.parse(item.message_read_at) >= Date.parse(item.applied_at)))).refine(items => new Set(items.map(item => item.id.toLowerCase())).size === items.length), next_cursor: z.string().min(1).nullable() }).strict();
 // Concurrency token: the updated_at the candidate saw; a newer message makes the backend answer 409 message_changed.
@@ -30,6 +32,7 @@ export const errorSchema = z.union([
   z.object({ error: text, code: z.literal("vacancy_not_accepting_applications"), data: z.object({ availability: availabilitySchema }).strict() }).strict(),
   z.object({ error: text, code: z.enum(["applicant_country_required", "applicant_country_not_allowed"]), data: z.object({ allowed: z.array(countryCodeSchema).min(1).refine(codes => new Set(codes).size === codes.length) }).strict() }).strict(),
   z.object({ error: text, code: z.literal("invalid_answers"), details: z.array(detailSchema).min(1) }).strict(),
+  z.object({ error: text, code: z.literal("validation_error"), fields: z.array(z.object({ field: text, code: text }).strict()).min(1) }).strict(),
   z.object({ error: text, code: text.refine(code => !["vacancy_unavailable", "vacancy_not_accepting_applications", "invalid_answers", "applicant_country_required", "applicant_country_not_allowed"].includes(code)) }).strict(),
 ]);
 export const CODES = ["vacancy_unavailable", "vacancy_not_accepting_applications", "applicant_country_required", "applicant_country_not_allowed", "not_found", "already_applied", "questionnaire_changed", "invalid_answers", "cv_unavailable", "invalid_request", "idempotency_conflict", "invalid_idempotency_key", "idempotency_key_required", "precondition_required", "unauthenticated", "forbidden", "wrong_role", "message_unavailable", "message_changed", "internal_error"] as const;
@@ -38,6 +41,7 @@ export type Failure = { ok: false; reason: Reason; reference: { status?: number;
 export type Result<T> = { ok: true; data: T } | Failure;
 export type Screening = z.infer<typeof screeningSchema>;
 export type ApplicationBody = z.infer<typeof applicationBodySchema>;
+export type ApplicationChannel = z.infer<typeof applicationChannelSchema>;
 export type Submitted = z.infer<typeof submittedSchema>;
 export type ApplicationsPage = z.infer<typeof applicationsSchema>;
 export type ApplicationsQuery = z.infer<typeof querySchema>;

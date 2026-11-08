@@ -10,7 +10,7 @@ import { BusinessDateField } from "@/features/employer-vacancies/delivery-config
 import { plural } from "@/features/employer-vacancies/plural";
 import type { Delivery } from "@/features/jobs/drafts/pipeline/delivery-model";
 import { ChoiceField, PersonField } from "./controls";
-import { formatDate, formatLongDate, reassignSchema, reasons, type CompanyMembers, type Reassign, type Snapshot, type Team } from "./model";
+import { assignablePeople, formatDate, formatLongDate, reassignSchema, reasons, type CompanyMembers, type Reassign, type Snapshot, type Team } from "./model";
 
 export function ReassignDialog({ team, company, calendar, commitmentDate = null, snapshot, onConfirm, onClose, pending = false, frozen = false }: { team: Team; company: CompanyMembers; calendar: Delivery["calendar"]; commitmentDate?: string | null; snapshot?: Snapshot; onConfirm: (body: Reassign) => void; onClose: () => void; pending?: boolean; frozen?: boolean }) {
   const [target, setTarget] = useState("");
@@ -21,7 +21,7 @@ export function ReassignDialog({ team, company, calendar, commitmentDate = null,
   const [errors, setErrors] = useState<Record<string, string>>({});
   const responsible = team.members.find(member => member.function === "responsible");
   const currentMember = team.members.find(member => member.user.id === target);
-  const candidates = company.members.filter(member => member.user.id !== responsible?.user.id);
+  const candidates = assignablePeople(company.members).filter(member => member.user.id !== responsible?.user.id);
   function confirm() {
     const result = reassignSchema.safeParse({ to_user_id: target, reason, note, previous_responsible: previous, recruiter_deadline: currentMember ? null : deadline });
     if (!result.success) {

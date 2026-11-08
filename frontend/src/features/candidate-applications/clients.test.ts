@@ -189,4 +189,32 @@ describe("action failure boundary", () => {
     vi.mocked(getActionAccessToken).mockRejectedValue(new Error("secret"));
     expect(await loadApplicationsAction()).toEqual({ ok: false, reason: "no_response", reference: {} });
   });
+  it.each(["portal", "careers_site"])("sends the application channel %s exactly, next to the existing fields", async channel => {
+    fetchMock.mockResolvedValueOnce(Response.json(submitted, { status: 201 }));
+    expect(await submitApplication({ token: "private-token", id, key, body: { ...body, channel } })).toEqual({ ok: true, data: submitted });
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ ...body, channel }));
+  });
+  it.each(["web", "", null, "CAREERS_SITE"])("rejects an unknown channel %j before fetch", async channel => {
+    expect(await submitApplication({ token: "private-token", id, key, body: { ...body, channel } })).toEqual({ ok: false, error: { kind: "invalid_request" } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("maps a rejected channel to the generic invalid_request failure", async () => {
+    fetchMock.mockResolvedValue(Response.json({ error: "private-token", code: "validation_error", fields: [{ field: "channel", code: "invalid" }] }, { status: 400 }));
+    const result = await submitApplicationAction(id, key, { ...body, channel: "portal" });
+    expect(result).toEqual({ ok: false, reason: "invalid_request", reference: { status: 400, code: "validation_error" } });
+    expect(JSON.stringify(result)).not.toContain("private-token");
+  });
+  it.each([
+    [400, { error: "x", code: "validation_error", fields: [{ field: "cv_id", code: "invalid" }] }],
+    [400, { error: "x", code: "validation_error", fields: [{ field: "channel", code: "required" }] }],
+    [422, { error: "x", code: "validation_error", fields: [{ field: "channel", code: "invalid" }] }],
+    [400, { error: "x", code: "validation_error", fields: [{ field: "channel", code: "invalid", extra: true }] }],
+    [400, { error: "x", code: "validation_error", fields: [] }],
+    [400, { error: "x", code: "invalid_request", fields: [{ field: "channel", code: "invalid" }] }],
+    [400, { error: "x", code: "validation_error" }],
+  ] as const)("keeps any other validation envelope unrecognized (%i %j)", async (status, envelope) => {
+    fetchMock.mockResolvedValue(Response.json(envelope, { status }));
+    expect(await submitApplicationAction(id, key, body)).toMatchObject({ ok: false, reason: "unrecognized_response" });
+  });
 });
+

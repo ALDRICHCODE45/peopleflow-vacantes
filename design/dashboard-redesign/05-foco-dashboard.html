@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 · Foco · Dashboard</title>
+<style>
+:root{--background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;--primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);--muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;--ring:oklch(0.708 0 0);--brand-decorative-strong:oklch(0.54 0.15 292.581);--status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);--status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);--radius:.625rem;
+  --shadow-card:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent);
+  --shadow-pop:0 4px 8px color-mix(in srgb,var(--foreground) 8%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 70%,transparent);color-scheme:light}
+html.dark{--background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;--primary:oklch(0.432 0.232 292.759);--muted:#171226;--muted-foreground:#A79FBF;--border:#262233;--brand-decorative-strong:oklch(0.70 0.14 292.759);--status-info:oklch(0.78 0.12 245);--status-review:oklch(0.82 0.12 78);--status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--background);color:var(--foreground);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}ul,ol{padding:0;list-style:none}
+button{font:inherit;color:inherit}
+a{color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted-foreground)}
+.meta{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border-radius:calc(var(--radius)*.8);border:1px solid var(--border);background:var(--card);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;color:var(--foreground)}
+.btn:hover{background:var(--muted)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}
+.btn.primary:hover{background:color-mix(in srgb,var(--primary) 90%,var(--foreground))}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted-foreground)}
+.btn.ghost:hover,.btn.ghost[aria-expanded=true]{background:var(--muted);color:var(--foreground)}
+.btn.icon{width:40px;padding:0}
+.btn.link{background:transparent;border-color:transparent;padding:0 8px;color:var(--brand-decorative-strong)}
+.btn.link:hover{background:var(--muted)}
+
+/* shell */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.side{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:4px;padding:16px 12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 8px;margin-bottom:16px}
+.mark{width:32px;height:32px;border-radius:10px;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-size:15px;font-weight:700}
+.brand b{display:block;font-size:15px;font-weight:600;line-height:20px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:calc(var(--radius)*.8);text-decoration:none;color:var(--muted-foreground);font-weight:500}
+.nav a:hover{background:var(--muted);color:var(--foreground)}
+.nav a[aria-current=page]{background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--foreground);font-weight:600}
+.nav a[aria-current=page] svg{color:var(--primary)}
+.navgap{height:16px}
+.who{margin-top:auto;display:flex;gap:12px;align-items:center;padding:12px 8px;border-radius:var(--radius)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font-size:12px;font-weight:500;flex:none;color:var(--foreground)}
+
+.page{padding:32px 32px 56px;min-width:0}
+
+/* header */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.head h1{font-size:24px;font-weight:600;line-height:32px;letter-spacing:-.01em}
+.head p{color:var(--muted-foreground);margin-top:4px}
+.head .meta{margin-top:8px}
+.head-actions{display:flex;align-items:center;gap:12px}
+.seg{display:inline-flex;padding:4px;gap:2px;background:var(--muted);border-radius:var(--radius)}
+.seg button{min-height:32px;padding:0 12px;border:0;background:transparent;border-radius:calc(var(--radius)*.8);font-weight:500;color:var(--muted-foreground);cursor:pointer}
+.seg{min-height:40px}
+.seg button:hover{color:var(--foreground)}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--foreground);box-shadow:var(--shadow-card)}
+
+/* layout */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;margin-top:40px;align-items:start}
+.main{display:flex;flex-direction:column;gap:40px;min-width:0}
+.rail{position:sticky;top:32px}
+
+.card{background:var(--card);border-radius:calc(var(--radius)*1.4);box-shadow:var(--shadow-card);padding:24px;min-width:0}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:600;line-height:20px}
+.card-head .meta{margin-top:4px}
+
+/* KPI strip */
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+.kpi dt{font-size:14px;font-weight:500;color:var(--muted-foreground);line-height:20px}
+.kpi dd{margin-top:8px}
+.kpi .value{display:block;font-size:32px;font-weight:600;line-height:36px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .ctx{display:block;margin-top:8px}
+
+/* tabs */
+.tabs-row{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border)}
+.tablist{display:flex;gap:24px}
+.tab{min-height:44px;padding:0 4px;border:0;background:transparent;font-weight:500;color:var(--muted-foreground);cursor:pointer;box-shadow:inset 0 -2px 0 transparent;margin-bottom:-1px}
+.tab:hover{color:var(--foreground)}
+.tab[aria-selected=true]{color:var(--foreground);font-weight:600;box-shadow:inset 0 -2px 0 var(--primary)}
+.tab .count{font-size:12px;font-weight:500;color:var(--muted-foreground);margin-left:6px}
+.panel{display:flex;flex-direction:column;gap:24px;margin-top:24px}
+.panel[hidden]{display:none}
+
+/* chart */
+.chart-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px}
+.chart-total{font-size:32px;font-weight:600;line-height:36px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:16px;align-items:center}
+.legend li{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted-foreground)}
+.legend b{color:var(--foreground);font-weight:600;font-variant-numeric:tabular-nums}
+.sw{width:10px;height:10px;border-radius:3px;flex:none}
+.sw.p{background:var(--primary)}.sw.m{background:color-mix(in srgb,var(--muted-foreground) 55%,transparent)}
+.plot{position:relative}
+.plot svg{display:block;overflow:visible}
+.plot .grid line{stroke:var(--border);stroke-dasharray:3 3}
+.plot .axis text{fill:var(--muted-foreground);font-size:12px;font-variant-numeric:tabular-nums}
+.plot .s-org{fill:none;stroke:var(--primary);stroke-width:2}
+.plot .s-man{fill:none;stroke:color-mix(in srgb,var(--muted-foreground) 60%,transparent);stroke-width:1.75}
+.plot .cursor{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.plot .dot-org{fill:var(--primary);stroke:var(--card);stroke-width:2}
+.plot .dot-man{fill:var(--muted-foreground);stroke:var(--card);stroke-width:2}
+.tip{position:absolute;top:0;pointer-events:none;background:var(--popover);border-radius:var(--radius);box-shadow:var(--shadow-pop);padding:8px 12px;min-width:156px;font-size:12px;line-height:18px}
+.tip strong{display:block;font-weight:600}
+.tip .tip-sub{display:block;margin-bottom:4px}
+.tip div{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.tip span{display:inline-flex;align-items:center;gap:8px;color:var(--muted-foreground)}
+.tip b{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* lists */
+.rows{display:flex;flex-direction:column}
+.rows>li+li{border-top:1px solid var(--border)}
+.vrow{display:grid;grid-template-columns:minmax(0,1fr) 160px 96px;align-items:center;gap:16px;padding:10px 0}
+.vrow:first-child{padding-top:0}.vrow:last-child{padding-bottom:0}
+.vname{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:6px;border-radius:3px;background:var(--muted);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;background:color-mix(in srgb,var(--primary) 35%,var(--card))}
+.bar.top i{background:var(--primary)}
+.vcount{text-align:right;font-variant-numeric:tabular-nums}
+.vcount b{font-weight:600}
+
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px;white-space:nowrap}
+td{padding:10px 12px;border-top:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+.person{display:flex;align-items:center;gap:12px;min-width:0}
+.person a{font-weight:500;text-decoration:none}.person a:hover{text-decoration:underline}
+
+.badge{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;line-height:1;border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground);white-space:nowrap}
+.badge.success{--t:var(--status-success)}.badge.info{--t:var(--status-info)}.badge.review{--t:var(--status-review)}.badge.danger{--t:var(--status-danger)}.badge.process{--t:var(--primary)}
+.badge.success,.badge.info,.badge.review,.badge.danger,.badge.process{color:var(--t);border-color:color-mix(in srgb,var(--t) 30%,transparent);background:color-mix(in srgb,var(--t) 10%,var(--card))}
+html.dark .badge.process{color:var(--brand-decorative-strong)}
+
+.tag-new{display:inline-flex;align-items:center;height:20px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted-foreground) 70%,transparent);border-radius:6px;font-size:11px;font-weight:500;line-height:1;color:var(--muted-foreground);white-space:nowrap}
+
+/* attention rail */
+.att-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:16px}
+.att-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 8px;margin:0 -8px;border-radius:var(--radius);text-decoration:none;min-height:40px}
+.att-row:hover{background:var(--muted)}
+.rows>li+li .att-row{border-radius:var(--radius)}
+.att-row .t{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px}
+.att-row .c{display:block;margin-top:2px}
+.att-row .chev{color:var(--muted-foreground)}
+.att-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+
+/* popover */
+.pop{position:absolute;z-index:50;width:360px;background:var(--popover);border-radius:var(--radius);box-shadow:var(--shadow-pop);padding:16px;display:none}
+.pop.open{display:block}
+.pop h2{font-size:14px;font-weight:600;line-height:20px}
+.pop dl{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.pop dt{font-weight:500}
+.pop dd{color:var(--muted-foreground);margin-top:2px}
+.pop footer{margin-top:12px;font-size:12px;color:var(--muted-foreground)}
+
+@media (prefers-reduced-motion:no-preference){
+  .btn,.tab,.nav a,.seg button,.att-row{transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><path d="M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><path d="M3 7h18v13H3zM8 7V4h8v3M3 13h18"/></symbol>
+  <symbol id="i-pool" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20c0-2.8-1.6-4.8-4-5.6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18M6 16v-5M11 16V6M16 16v-8"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></symbol>
+  <symbol id="i-audit" viewBox="0 0 24 24"><path d="M9 3h6v3H9zM7 4.5H5V21h14V4.5h-2M9 11h6M9 15h4"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14A8.5 8.5 0 1 1 10 3.5a6.8 6.8 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side" aria-label="Navegación principal">
+    <div class="brand"><span class="mark" aria-hidden="true">P</span><div><b>PeopleFlow</b><span class="meta">Trust People Company</span></div></div>
+    <nav class="nav" aria-label="Secciones">
+      <a href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-brief"/></svg>Vacantes</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-pool"/></svg>Base de talento</a>
+      <a href="06-foco-metricas.html"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+      <div class="navgap" aria-hidden="true"></div>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-team"/></svg>Equipo</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-audit"/></svg>Auditoría</a>
+      <a href="#"><svg class="i" aria-hidden="true"><use href="#i-gear"/></svg>Configuración</a>
+    </nav>
+    <div class="who"><span class="avatar" aria-hidden="true">MT</span><div><div style="font-weight:500">Mariana Torres</div><div class="meta">Owner</div></div></div>
+  </aside>
+
+  <main class="page" id="contenido">
+    <header class="head">
+      <div>
+        <h1>Buenos días, Mariana</h1>
+        <p>Tienes 14 vacantes publicadas y 3 entregas vencidas que conviene revisar hoy.</p>
+        <div class="meta">Actualizado hoy 10:42</div>
+      </div>
+      <div class="head-actions">
+        <div class="seg" role="group" aria-label="Periodo">
+          <button type="button" aria-pressed="false">30 días</button>
+          <button type="button" aria-pressed="true">90 días</button>
+          <button type="button" aria-pressed="false">Año</button>
+          <button type="button" aria-pressed="false">Personalizado</button>
+        </div>
+        <a class="btn primary" href="#"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Crear vacante</a>
+        <button class="btn icon" type="button" id="theme" aria-pressed="false" aria-label="Usar tema oscuro"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <div class="main">
+        <section aria-labelledby="h-kpi" class="card">
+          <h2 id="h-kpi" class="sr">Cómo vamos</h2>
+          <dl class="strip">
+            <div class="kpi"><dt>Vacantes publicadas</dt><dd><span class="value">14</span><span class="ctx meta">en 4 clientes y áreas</span></dd></div>
+            <div class="kpi"><dt>Candidatos en proceso</dt><dd><span class="value">86</span><span class="ctx meta">en las 14 vacantes</span></dd></div>
+            <div class="kpi"><dt>Nuevos en la base</dt><dd><span class="value">23</span><span class="ctx meta">en los últimos 7 días</span></dd></div>
+            <div class="kpi"><dt>Posiciones cubiertas</dt><dd><span class="value">19</span><span class="ctx meta">de 31 requeridas</span></dd></div>
+          </dl>
+        </section>
+
+        <section aria-label="Análisis">
+          <div class="tabs-row">
+            <div class="tablist" role="tablist" aria-label="Vistas del dashboard">
+              <button class="tab" role="tab" id="t-res" aria-controls="p-res" aria-selected="true" tabindex="0">Resumen</button>
+              <button class="tab" role="tab" id="t-vac" aria-controls="p-vac" aria-selected="false" tabindex="-1">Vacantes<span class="count num">14</span></button>
+              <button class="tab" role="tab" id="t-can" aria-controls="p-can" aria-selected="false" tabindex="-1">Candidatos<span class="count num">10</span></button>
+            </div>
+            <button class="btn ghost" type="button" data-help="tabs" aria-haspopup="dialog" aria-expanded="false" aria-controls="pop">Cómo se calcula</button>
+          </div>
+
+          <div class="panel" role="tabpanel" id="p-res" aria-labelledby="t-res" tabindex="0">
+            <article class="card" aria-labelledby="h-chart">
+              <div class="chart-head">
+                <div>
+                  <h3 class="card-title" id="h-chart">Postulaciones</h3>
+                  <div class="meta">Últimos 90 días · 11 ago – 8 nov · promedio diario de 7 días</div>
+                  <div class="chart-total" style="margin-top:8px"><span id="tot-all">—</span> <span class="muted" style="font-size:14px;font-weight:400;letter-spacing:0"><span id="tot-pct">—</span> llegaron solas</span></div>
+                </div>
+                <ul class="legend">
+                  <li><span class="sw p" aria-hidden="true"></span>Orgánicas <b id="tot-org">—</b></li>
+                  <li><span class="sw m" aria-hidden="true"></span>Manuales <b id="tot-man">—</b></li>
+                </ul>
+              </div>
+              <figure class="plot" id="plot" aria-labelledby="plot-cap">
+                <figcaption id="plot-cap" class="sr">Gráfica de área con el promedio móvil de 7 días de postulaciones diarias, del 11 de agosto al 8 de noviembre: orgánicas (portal y sitio de empleo) frente a registradas a mano.</figcaption>
+              </figure>
+            </article>
+
+            <article class="card" aria-labelledby="h-vac">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title" id="h-vac">Vacantes activas</h3>
+                  <div class="meta">Las 5 con más candidatos en proceso</div>
+                </div>
+                <button class="btn link" type="button" data-goto="t-vac">Ver las 14<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></button>
+              </div>
+              <ul class="rows">
+                <li class="vrow"><div style="min-width:0"><div class="vname"><a href="#" style="text-decoration:none">Desarrollador backend Go</a></div><div class="meta">Liverpool · Tecnología</div></div><div class="bar top" aria-hidden="true"><i style="width:100%"></i></div><div class="vcount"><b>17</b> <span class="meta">en proceso</span></div></li>
+                <li class="vrow"><div style="min-width:0"><div class="vname"><a href="#" style="text-decoration:none">Analista de crédito Sr.</a></div><div class="meta">Banorte · Finanzas</div></div><div class="bar" aria-hidden="true"><i style="width:82%"></i></div><div class="vcount"><b>14</b> <span class="meta">en proceso</span></div></li>
+                <li class="vrow"><div style="min-width:0"><div class="vname"><a href="#" style="text-decoration:none">Ejecutivo de cuenta</a></div><div class="meta">Banorte · Finanzas</div></div><div class="bar" aria-hidden="true"><i style="width:65%"></i></div><div class="vcount"><b>11</b> <span class="meta">en proceso</span></div></li>
+                <li class="vrow"><div style="min-width:0"><div class="vname"><a href="#" style="text-decoration:none">Supervisor de planta</a></div><div class="meta">Grupo Bimbo · Operaciones</div></div><div class="bar" aria-hidden="true"><i style="width:53%"></i></div><div class="vcount"><b>9</b> <span class="meta">en proceso</span></div></li>
+                <li class="vrow"><div style="min-width:0"><div class="vname"><a href="#" style="text-decoration:none">Analista de datos</a></div><div class="meta">Liverpool · Tecnología</div></div><div class="bar" aria-hidden="true"><i style="width:47%"></i></div><div class="vcount"><b>8</b> <span class="meta">en proceso</span></div></li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="panel" role="tabpanel" id="p-vac" aria-labelledby="t-vac" tabindex="0" hidden>
+            <article class="card" aria-labelledby="h-vac2">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title" id="h-vac2">Vacantes activas</h3>
+                  <div class="meta">14 publicadas · 86 candidatos en proceso · ordenadas por candidatos</div>
+                </div>
+                <a class="btn" href="#">Ir a Vacantes</a>
+              </div>
+              <table>
+                <caption class="sr">Vacantes activas con candidatos en proceso</caption>
+                <thead><tr><th scope="col">Vacante</th><th scope="col">Cliente o área</th><th scope="col" class="r">Candidatos en proceso</th></tr></thead>
+                <tbody>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Desarrollador backend Go</a></td><td class="muted">Liverpool · Tecnología</td><td class="r">17</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Analista de crédito Sr.</a></td><td class="muted">Banorte · Finanzas</td><td class="r">14</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Ejecutivo de cuenta</a></td><td class="muted">Banorte · Finanzas</td><td class="r">11</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Supervisor de planta</a></td><td class="muted">Grupo Bimbo · Operaciones</td><td class="r">9</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Analista de datos</a></td><td class="muted">Liverpool · Tecnología</td><td class="r">8</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Diseñador UX</a></td><td class="muted">Liverpool · Tecnología</td><td class="r">6</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Auxiliar contable</a></td><td class="muted">Banorte · Finanzas</td><td class="r">5</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Técnico de mantenimiento</a></td><td class="muted">Grupo Bimbo · Operaciones</td><td class="r">4</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Gerente de sucursal</a></td><td class="muted">Banorte · Finanzas</td><td class="r">4</td></tr>
+                  <tr><td><a href="#" style="font-weight:500;text-decoration:none">Especialista en reclutamiento</a></td><td class="muted">Interno · RR. HH.</td><td class="r">3</td></tr>
+                </tbody>
+              </table>
+              <div class="meta" style="margin-top:16px">Se muestran 10 de 14. Las otras 4 suman 5 candidatos en proceso.</div>
+            </article>
+          </div>
+
+          <div class="panel" role="tabpanel" id="p-can" aria-labelledby="t-can" tabindex="0" hidden>
+            <article class="card" aria-labelledby="h-can">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title" id="h-can">Candidatos recientes</h3>
+                  <div class="meta">Los 10 últimos en entrar a una vacante</div>
+                </div>
+                <a class="btn" href="#">Ir a Base de talento</a>
+              </div>
+              <table>
+                <caption class="sr">Diez candidatos más recientes</caption>
+                <thead><tr><th scope="col">Candidato y vacante</th><th scope="col">Etapa</th><th scope="col">Origen</th><th scope="col" class="r">Postuló</th><th scope="col">Agregado por</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">FL</span><div style="min-width:0"><a href="#">Fernanda López</a><div class="meta">Analista de crédito Sr.</div></div></div></td><td><span class="badge">Nuevo</span></td><td>Portal</td><td class="r">8 nov</td><td class="muted">Postulación propia</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">RH</span><div style="min-width:0"><a href="#">Ricardo Herrera</a><div class="meta">Desarrollador backend Go</div></div></div></td><td><span class="badge">Nuevo</span></td><td>Sitio de empleo</td><td class="r">8 nov</td><td class="muted">Postulación propia</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">PJ</span><div style="min-width:0"><a href="#">Paola Jiménez</a><div class="meta">Ejecutivo de cuenta</div></div></div></td><td><span class="badge info">Filtro telefónico</span></td><td>Manual</td><td class="r">7 nov</td><td>Valeria Ortiz</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">LC</span><div style="min-width:0"><a href="#">Luis Alberto Cruz</a><div class="meta">Supervisor de planta</div></div></div></td><td><span class="badge">Nuevo</span></td><td>Portal</td><td class="r">7 nov</td><td class="muted">Postulación propia</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">DV</span><div style="min-width:0"><a href="#">Daniela Vega</a><div class="meta">Desarrollador backend Go</div></div></div></td><td><span class="badge process">Entrevista</span></td><td>Manual</td><td class="r">6 nov</td><td>Andrés Castillo</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">EN</span><div style="min-width:0"><a href="#">Emilio Navarro</a><div class="meta">Analista de datos</div></div></div></td><td><span class="badge">Nuevo</span></td><td>Portal</td><td class="r">6 nov</td><td class="muted">Postulación propia</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">KD</span><div style="min-width:0"><a href="#">Karla Domínguez</a><div class="meta">Analista de crédito Sr.</div></div></div></td><td><span class="badge review">Evaluación</span></td><td>Manual</td><td class="r">5 nov</td><td>Diego Ramírez</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">MR</span><div style="min-width:0"><a href="#">Miguel Ángel Rosas</a><div class="meta">Supervisor de planta</div></div></div></td><td><span class="badge info">Filtro telefónico</span></td><td>Sitio de empleo</td><td class="r">5 nov</td><td class="muted">Postulación propia</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">AT</span><div style="min-width:0"><a href="#">Ana Sofía Treviño</a><div class="meta">Ejecutivo de cuenta</div></div></div></td><td><span class="badge success">Oferta</span></td><td>Portal</td><td class="r">4 nov</td><td class="muted">Postulación propia</td></tr>
+                  <tr><td><div class="person"><span class="avatar" aria-hidden="true">OG</span><div style="min-width:0"><a href="#">Óscar Guzmán</a><div class="meta">Diseñador UX</div></div></div></td><td><span class="badge">Nuevo</span></td><td>Manual</td><td class="r">4 nov</td><td>Sofía Méndez</td></tr>
+                </tbody>
+              </table>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <aside class="rail" aria-labelledby="h-att">
+        <section class="card">
+          <div class="att-head">
+            <h2 class="card-title" id="h-att" style="line-height:40px">Necesita atención</h2>
+            <button class="btn ghost" type="button" data-help="att" aria-haspopup="dialog" aria-expanded="false" aria-controls="pop" style="margin-right:-12px">Cómo se calcula</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-16px 0 16px">
+            <span class="meta">3 vencidas y 3 por vencer esta semana</span>
+            <span class="tag-new" title="Requiere la lista de entregas por vacante con su fecha compromiso, que hoy no existe en el dashboard">Dato nuevo · N4</span>
+          </div>
+          <ul class="rows">
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge danger">Vencida hace 11 días</span><span class="t">Analista de cobranza</span><span class="c meta">Entregó 1 de 3 candidatos · Valeria Ortiz</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge danger">Vencida hace 5 días</span><span class="t">Gerente de sucursal</span><span class="c meta">Entregó 0 de 2 candidatos · Jorge Paredes</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge danger">Vencida hace 2 días</span><span class="t">Analista de crédito Sr.</span><span class="c meta">Entregó 2 de 4 candidatos · Diego Ramírez</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge review">Vence mañana</span><span class="t">Desarrollador backend Go</span><span class="c meta">Lleva 3 de 4 candidatos · Andrés Castillo</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+            <li><a class="att-row" href="#"><span style="min-width:0"><span class="badge review">Vence el miércoles</span><span class="t">Supervisor de planta</span><span class="c meta">Lleva 1 de 3 candidatos · Sofía Méndez</span></span><svg class="i chev" aria-hidden="true"><use href="#i-chev"/></svg></a></li>
+          </ul>
+          <div class="att-foot">
+            <span class="meta">1 más vence el viernes</span>
+            <a class="btn link" href="#">Ver las 6<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<div class="pop" id="pop" role="dialog" aria-labelledby="pop-title">
+  <h2 id="pop-title"></h2>
+  <dl id="pop-body"></dl>
+  <footer id="pop-foot"></footer>
+</div>
+
+<script>
+(() => {
+  /* ---------- theme ---------- */
+  const theme = document.getElementById('theme');
+  theme.addEventListener('click', () => {
+    const dark = document.documentElement.classList.toggle('dark');
+    theme.setAttribute('aria-pressed', String(dark));
+    theme.setAttribute('aria-label', dark ? 'Usar tema claro' : 'Usar tema oscuro');
+    theme.querySelector('use').setAttribute('href', dark ? '#i-sun' : '#i-moon');
+  });
+
+  /* ---------- period segmented ---------- */
+  document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+
+  /* ---------- tabs ---------- */
+  const tabs = [...document.querySelectorAll('[role=tab]')];
+  function select(tab, focus) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => select(t));
+    t.addEventListener('keydown', e => {
+      let n = null;
+      if (e.key === 'ArrowRight') n = tabs[(i + 1) % tabs.length];
+      if (e.key === 'ArrowLeft') n = tabs[(i - 1 + tabs.length) % tabs.length];
+      if (e.key === 'Home') n = tabs[0];
+      if (e.key === 'End') n = tabs[tabs.length - 1];
+      if (n) { e.preventDefault(); select(n, true); }
+    });
+  });
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => select(document.getElementById(b.dataset.goto), true)));
+
+  /* ---------- DOM helper (no HTML strings) ---------- */
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, kids, svg) {
+    const n = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => n.setAttribute(k, v));
+    (kids || []).forEach(k => n.append(k));
+    return n;
+  }
+  const s$ = (tag, attrs, kids) => el(tag, attrs, kids, true);
+
+  /* ---------- help popover ---------- */
+  const HELP = {
+    tabs: { title: 'Cómo se calcula el resumen', items: [
+      ['Vacantes publicadas', 'Vacantes visibles hoy en el portal o en tu sitio de empleo.'],
+      ['Candidatos en proceso', 'Personas en una etapa activa del pipeline; no cuenta descartados ni contratados.'],
+      ['Nuevos en la base', 'Perfiles agregados a la base de talento en los últimos 7 días, sin importar el periodo elegido.'],
+      ['Postulaciones', 'Orgánicas: la persona se postuló desde el portal o tu sitio de empleo. Manuales: alguien del equipo la registró.']
+    ], foot: 'Días calendario en hora del centro de México' },
+    att: { title: 'Qué entra en «Necesita atención»', items: [
+      ['Vencida', 'La fecha compromiso de entrega ya pasó y la meta de candidatos no se cumplió.'],
+      ['Por vencer', 'La fecha compromiso cae en los próximos 7 días y la meta sigue incompleta.']
+    ], foot: 'Ordenadas de la más urgente a la menos · Máximo 5 a la vista' }
+  };
+  const pop = document.getElementById('pop');
+  let owner = null;
+  function closePop(restore) {
+    if (!owner) return;
+    pop.classList.remove('open');
+    owner.setAttribute('aria-expanded', 'false');
+    if (restore) owner.focus();
+    owner = null;
+  }
+  function openPop(btn) {
+    const h = HELP[btn.dataset.help];
+    document.getElementById('pop-title').textContent = h.title;
+    document.getElementById('pop-body').replaceChildren(...h.items.map(([t, d]) => el('div', {}, [el('dt', {}, [t]), el('dd', {}, [d])])));
+    document.getElementById('pop-foot').textContent = h.foot;
+    pop.classList.add('open');
+    const r = btn.getBoundingClientRect();
+    const left = Math.max(16, Math.min(r.right - pop.offsetWidth, window.innerWidth - pop.offsetWidth - 16));
+    pop.style.left = (left + window.scrollX) + 'px';
+    pop.style.top = (r.bottom + 8 + window.scrollY) + 'px';
+    btn.setAttribute('aria-expanded', 'true');
+    owner = btn;
+  }
+  document.querySelectorAll('[data-help]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const was = owner === b;
+    closePop(false);
+    if (!was) openPop(b);
+  }));
+  document.addEventListener('click', e => { if (owner && !pop.contains(e.target)) closePop(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(true); });
+
+  /* ---------- area chart (recharts-like) ---------- */
+  let seed = 20261108;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  const MONTHS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const start = Date.UTC(2026, 7, 11);
+  const data = [];
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(start + i * 864e5);
+    const dow = d.getUTCDay();
+    const weekend = dow === 0 || dow === 6;
+    const trend = 4.2 + i * 0.04 + Math.sin(i / 11) * 0.8;
+    const org = Math.max(0, Math.round((weekend ? trend * 0.7 : trend) + (rnd() - 0.5) * 1.2));
+    const man = Math.max(0, Math.round((weekend ? 0.6 : 1.3) + (rnd() - 0.5) * 1.0 + (i > 60 ? 0.3 : 0)));
+    data.push({ d, org, man, label: `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}` });
+  }
+  const totOrg = data.reduce((s, p) => s + p.org, 0);
+  const totMan = data.reduce((s, p) => s + p.man, 0);
+  const fmt = n => n.toLocaleString('es-MX');
+  document.getElementById('tot-org').textContent = fmt(totOrg);
+  document.getElementById('tot-man').textContent = fmt(totMan);
+  document.getElementById('tot-all').textContent = fmt(totOrg + totMan);
+  document.getElementById('tot-pct').textContent = Math.round(totOrg / (totOrg + totMan) * 100) + ' %';
+  // Plot a trailing 7-day average so the curve shows the trend, not weekday noise; totals stay daily sums.
+  data.forEach((p, i) => {
+    const win = data.slice(Math.max(0, i - 6), i + 1);
+    p.orgAvg = win.reduce((s, q) => s + q.org, 0) / win.length;
+    p.manAvg = win.reduce((s, q) => s + q.man, 0) / win.length;
+    p.from = win[0].label;
+  });
+  const dec = v => v.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  let hi = 6; data.forEach((p, i) => { if (i >= 6 && p.orgAvg >= data[hi].orgAvg) hi = i; });
+
+  function monotone(pts) {
+    const n = pts.length, m = [], t = [];
+    for (let i = 0; i < n - 1; i++) m[i] = (pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0]);
+    t[0] = m[0]; t[n - 1] = m[n - 2];
+    for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+      const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+      if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+    }
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let i = 0; i < n - 1; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], h = (x1 - x0) / 3;
+      d += `C${(x0 + h).toFixed(1)},${(y0 + t[i] * h).toFixed(1)} ${(x1 - h).toFixed(1)},${(y1 - t[i + 1] * h).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+    }
+    return d;
+  }
+
+  const plot = document.getElementById('plot');
+  function render() {
+    plot.querySelectorAll('svg,.tip').forEach(n => n.remove());
+    const W = plot.clientWidth, H = 210, L = 32, R = 8, T = 12, B = 28;
+    const iw = W - L - R, ih = H - T - B;
+    const max = Math.max(...data.map(p => p.orgAvg)), ymax = Math.ceil((max + 0.5) / 2) * 2;
+    const x = i => L + (i / (data.length - 1)) * iw;
+    const y = v => T + ih - (v / ymax) * ih;
+    const ticks = []; for (let v = 0; v <= ymax; v += 2) ticks.push(v);
+    const po = data.map((p, i) => [x(i), y(p.orgAvg)]);
+    const pm = data.map((p, i) => [x(i), y(p.manAvg)]);
+    const lo = monotone(po), lm = monotone(pm);
+    const cur = s$('line', { class: 'cursor', y1: T, y2: T + ih });
+    const dMan = s$('circle', { class: 'dot-man', r: 4 });
+    const dOrg = s$('circle', { class: 'dot-org', r: 5 });
+    const hit = s$('rect', { x: L, y: T, width: iw, height: ih, fill: 'transparent' });
+    const svg = s$('svg', { width: W, height: H, 'aria-hidden': 'true', focusable: 'false' }, [
+      s$('defs', {}, [s$('linearGradient', { id: 'g-org', x1: 0, y1: 0, x2: 0, y2: 1 }, [
+        s$('stop', { offset: 0, 'stop-color': 'var(--primary)', 'stop-opacity': '.22' }),
+        s$('stop', { offset: 1, 'stop-color': 'var(--primary)', 'stop-opacity': '0' })
+      ])]),
+      s$('g', { class: 'grid' }, ticks.map(v => s$('line', { x1: L, x2: W - R, y1: y(v), y2: y(v) }))),
+      s$('g', { class: 'axis' }, [
+        ...ticks.map(v => s$('text', { x: L - 10, y: y(v) + 4, 'text-anchor': 'end' }, [String(v)])),
+        ...data.flatMap((p, i) => [1, 15].includes(p.d.getUTCDate()) ? [s$('text', { x: x(i), y: H - 6, 'text-anchor': 'middle' }, [p.label])] : [])
+      ]),
+      s$('path', { d: `${lo}L${x(data.length - 1)},${y(0)}L${x(0)},${y(0)}Z`, fill: 'url(#g-org)' }),
+      s$('path', { class: 's-man', d: lm }),
+      s$('path', { class: 's-org', d: lo }),
+      cur, dMan, dOrg, hit
+    ]);
+    plot.appendChild(svg);
+    const tip = el('div', { class: 'tip', 'aria-hidden': 'true' });
+    plot.appendChild(tip);
+    const row = (cls, name, v) => el('div', {}, [el('span', {}, [el('i', { class: 'sw ' + cls }), name]), el('b', {}, [String(v)])]);
+    function show(i) {
+      const p = data[i], cx = x(i);
+      cur.setAttribute('x1', cx); cur.setAttribute('x2', cx);
+      dOrg.setAttribute('cx', cx); dOrg.setAttribute('cy', y(p.orgAvg));
+      dMan.setAttribute('cx', cx); dMan.setAttribute('cy', y(p.manAvg));
+      tip.replaceChildren(el('strong', {}, [`${p.from} – ${p.label}`]), el('span', { class: 'tip-sub' }, ['Promedio al día']), row('p', 'Orgánicas', dec(p.orgAvg)), row('m', 'Manuales', dec(p.manAvg)));
+      const tw = tip.offsetWidth;
+      let left = cx + 14; if (left + tw > W) left = cx - tw - 14;
+      tip.style.left = left + 'px';
+      tip.style.top = Math.max(0, y(p.orgAvg) - 84) + 'px';
+    }
+    show(hi);
+    hit.addEventListener('pointermove', e => {
+      const r = hit.getBoundingClientRect();
+      const i = Math.round(((e.clientX - r.left) / r.width) * (data.length - 1));
+      show(Math.max(0, Math.min(data.length - 1, i)));
+    });
+    hit.addEventListener('pointerleave', () => show(hi));
+  }
+  render();
+  window.addEventListener('resize', render);
+})();
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { CandidateApplicationWizard } from "@/features/candidate-applications/wizard";
 
 import { VacancyApplicationShell } from "../../../../../features/jobs/application/vacancy-application-shell";
+import { applicationChannel } from "../../../../../features/jobs/application/application-draft";
 import { createVacanteDetailScope } from "../page-data";
 
 // The application read is request-scoped: it must run on the Node server on
@@ -17,6 +18,8 @@ export const dynamic = "force-dynamic";
 
 type VacanteApplicationPageProps = {
   params: Promise<{ jobId: string }>;
+  // `origen=sitio` marks an application that started on a company careers site.
+  searchParams?: Promise<{ origen?: string | string[] }>;
 };
 
 // React `cache` ties one fresh request-scoped scope to the current server
@@ -59,8 +62,10 @@ export async function generateMetadata({
 
 export default async function VacanteApplicationPage({
   params,
+  searchParams,
 }: VacanteApplicationPageProps) {
   const { jobId } = await params;
+  const channel = applicationChannel((await searchParams)?.origen);
   const result = await getApplicationScope().read(jobId);
 
   // Malformed UUIDs never reach the API: `getJob` short-circuits them into the
@@ -76,7 +81,7 @@ export default async function VacanteApplicationPage({
   }
 
   if (result.kind === "unavailable_vacancy") return <UnavailableVacancyCard vacancy={result.vacancy} headingLevel={1} />;
-  if (result.job.source === "vacancy") return <VacancyApplicationShell job={result.job}><CandidateApplicationWizard job={result.job} /></VacancyApplicationShell>;
+  if (result.job.source === "vacancy") return <VacancyApplicationShell job={result.job}><CandidateApplicationWizard job={result.job} channel={channel} /></VacancyApplicationShell>;
   // No endpoint accepts a legacy catalog row (POST /v2/jobs/{id}/applications only
   // knows vacancy processes), so a direct link gets an honest state, not a form.
   return <StateCard icon={Briefcase} tone="info" headingLevel={1}

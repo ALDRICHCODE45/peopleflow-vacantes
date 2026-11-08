@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Métricas · PeopleFlow</title>
+<style>
+/* base:start */
+:root{
+  --background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;
+  --primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);
+  --secondary:#F1EEF7;--muted:#F1EEF7;--accent:#F1EEF7;--muted-foreground:#6B6480;
+  --border:#E4DFF0;--input:#E4DFF0;--destructive:oklch(0.577 0.245 27.325);--ring:oklch(0.708 0 0);
+  --brand-decorative-strong:oklch(0.54 0.15 292.581);
+  --status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);
+  --radius:0.625rem;
+  --chart-accent:var(--primary);
+  --hero-bg:var(--foreground);--hero-fg:var(--background);
+  --hero-accent:oklch(0.70 0.14 292.759);--hero-success:oklch(0.78 0.14 155);
+  /* delivery / deadline palette (system.md rule 9) */
+  --d-ok:var(--primary);
+  --d-late:color-mix(in oklab,var(--primary) 45%,var(--card));
+  --d-pend:color-mix(in oklab,var(--muted-foreground) 35%,var(--card));
+  --d-over:var(--destructive);
+  --d-none:var(--border);
+  --font-sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+.dark{
+  --background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;
+  --primary:oklch(0.432 0.232 292.759);--secondary:#171226;--muted:#171226;--accent:#171226;
+  --muted-foreground:#A79FBF;--border:#262233;--input:#262233;--destructive:oklch(0.704 0.191 22.216);
+  --brand-decorative-strong:oklch(0.70 0.14 292.759);
+  --status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);
+  --hero-accent:oklch(0.54 0.15 292.581);--hero-success:oklch(0.46 0.13 152);
+  --chart-accent:var(--brand-decorative-strong);
+  --d-ok:var(--brand-decorative-strong);
+  --d-late:color-mix(in oklab,var(--brand-decorative-strong) 45%,var(--card));
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--brand-decorative-strong);outline-offset:2px;border-radius:6px}
+.skip{position:absolute;left:16px;top:-48px;z-index:40;background:var(--card);padding:10px 14px;border-radius:8px}
+.skip:focus{top:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted-foreground)}
+
+/* chrome */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:24px;padding:24px 16px;background:var(--card);border-right:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px;font-size:16px;font-weight:600}
+.brand-mark{width:32px;height:32px;border-radius:calc(var(--radius)*.8);background:var(--primary);display:grid;place-items:center}
+.brand small{display:block;font-size:12px;line-height:16px;font-weight:400;color:var(--muted-foreground)}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:var(--radius);font-weight:500;color:var(--muted-foreground)}
+.nav a:hover{background:var(--muted);color:var(--foreground)}
+.nav a[aria-current="page"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong)}
+.dark .nav a[aria-current="page"]{color:var(--foreground)}
+.user{margin-top:auto;display:flex;align-items:center;gap:12px;padding:8px}
+.avatar{width:32px;height:32px;border-radius:999px;background:var(--secondary);display:grid;place-items:center;font-size:12px;font-weight:500;color:var(--foreground);flex:none}
+.user b{display:block;font-weight:500}
+.user span{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.icon-btn{margin-left:auto;width:40px;height:40px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);display:grid;place-items:center;color:var(--muted-foreground)}
+.icon-btn:hover{color:var(--foreground);background:var(--muted)}
+main{padding:32px;min-width:0}
+.page{max-width:1128px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+
+/* header + controls */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.head h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.01em}
+.head .lead{margin-top:8px;color:var(--muted-foreground)}
+.head .fresh{margin-top:8px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.head-actions{display:flex;align-items:center;gap:12px;flex:none}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden}
+.seg button{min-height:40px;padding:0 14px;border:0;background:transparent;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button:hover{color:var(--foreground);background:var(--muted)}
+.seg button[aria-pressed="true"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong);font-weight:600}
+.dark .seg button[aria-pressed="true"]{color:var(--foreground)}
+.seg button:focus-visible{outline-offset:-3px}
+.seg .c{margin-left:6px;font-variant-numeric:tabular-nums;color:var(--muted-foreground);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:var(--radius);font-weight:500;border:1px solid transparent;background:transparent;white-space:nowrap}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{background:color-mix(in srgb,var(--primary) 88%,var(--foreground))}
+.btn-outline{background:var(--card);border-color:var(--border)}
+.btn-outline:hover{background:var(--muted)}
+.btn-ghost{color:var(--muted-foreground);padding:0 12px}
+.btn-ghost:hover,.btn-ghost[aria-expanded="true"]{background:var(--muted);color:var(--foreground)}
+
+/* sections + cards */
+.sec{display:flex;flex-direction:column;gap:16px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px}
+.sec-head h2{font-size:18px;line-height:28px;font-weight:600}
+.tools{display:flex;align-items:center;gap:4px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:stretch}
+.c8{grid-column:span 8}.c6{grid-column:span 6}.c4{grid-column:span 4}.c12{grid-column:span 12}
+.card{position:relative;background:var(--card);border-radius:calc(var(--radius)*1.4);padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0;
+  box-shadow:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent)}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.card-head h3{font-size:15px;line-height:22px;font-weight:600}
+.cap{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.card-head .cap{margin-top:4px}
+.new{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted-foreground) 60%,transparent);border-radius:6px;font-size:11px;line-height:16px;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+
+/* drillable figure (rule 16) */
+.fig{color:inherit;border-radius:4px;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;text-decoration-thickness:1px}
+.fig:hover,.fig:focus-visible{text-decoration-color:currentColor}
+.fig:focus-visible{outline-offset:2px}
+svg a:focus-visible{outline:none}
+svg a:focus-visible .hit{stroke:var(--brand-decorative-strong);stroke-width:2;fill:color-mix(in srgb,var(--primary) 6%,transparent)}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px;white-space:nowrap}
+td{padding:12px;height:56px;white-space:nowrap;vertical-align:middle}
+th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}
+tbody tr{border-top:1px solid var(--border)}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:color-mix(in srgb,var(--muted) 60%,transparent)}
+
+/* popovers */
+.pop{position:absolute;z-index:30;width:360px;background:var(--popover);border-radius:calc(var(--radius)*1.4);padding:20px;
+  box-shadow:0 12px 32px color-mix(in srgb,var(--foreground) 14%,transparent),0 0 0 1px var(--border)}
+.pop[hidden]{display:none}
+.pop h3{font-size:15px;line-height:22px;font-weight:600}
+.pop dl{margin:12px 0 0}
+.pop dd+dt{margin-top:12px}
+.pop dt{font-weight:500}
+.pop dd{margin:4px 0 0;color:var(--muted-foreground)}
+.pop .new{margin-left:6px;vertical-align:1px}
+.field{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.field label{font-weight:500}
+.field select{min-height:40px;border:1px solid var(--input);border-radius:var(--radius);background:var(--card);padding:0 12px}
+.pop-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+/* artboard-only design control */
+.design-ctl{position:fixed;top:12px;right:16px;z-index:50;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;
+  border:1.5px dashed var(--brand-decorative-strong);border-radius:var(--radius);background:color-mix(in srgb,var(--card) 92%,transparent);
+  color:var(--brand-decorative-strong);font-size:12px;font-weight:600}
+.design-ctl small{font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+
+/* skeleton */
+.sk{display:block;border-radius:6px;background:var(--muted)}
+.dark .sk{background:var(--border)}
+@media (prefers-reduced-motion:no-preference){
+  .sk{background:linear-gradient(90deg,var(--muted) 0%,color-mix(in srgb,var(--border) 70%,var(--muted)) 50%,var(--muted) 100%);background-size:200% 100%;animation:sh 1.4s linear infinite}
+  .dark .sk{background:linear-gradient(90deg,var(--border) 0%,color-mix(in srgb,var(--muted-foreground) 25%,var(--border)) 50%,var(--border) 100%);background-size:200% 100%;animation:sh 1.4s linear infinite}
+  @keyframes sh{from{background-position:100% 0}to{background-position:-100% 0}}
+  .nav a,.btn,.seg button,.icon-btn,.fig{transition:background-color .15s ease,color .15s ease,text-decoration-color .15s ease}
+}
+@media (max-width:1180px){.grid>*{grid-column:span 12}.head{flex-direction:column;align-items:flex-start}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center}.nav{flex-direction:row;flex-wrap:wrap}main{padding:24px}.head-actions{flex-wrap:wrap}}
+/* base:end */
+/* KPI strip (from 02) */
+.strip{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px}
+.strip>.hero{grid-column:span 4;grid-row:span 2}
+.strip>.kpi:not(.hero){grid-column:span 4}
+.kpi{gap:12px}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:20px}
+.kpi-label{font-size:14px;line-height:20px;font-weight:500;color:var(--muted-foreground)}
+.kpi-value{font-size:32px;line-height:40px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi-value small{font-size:14px;line-height:20px;font-weight:500;letter-spacing:0;color:var(--muted-foreground);margin-left:4px}
+.kpi-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.pill{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums}
+.pill svg.i{width:12px;height:12px;stroke-width:2.5}
+.up{color:var(--status-success);background:color-mix(in srgb,var(--status-success) 10%,transparent)}
+.hero{background:var(--hero-bg);color:var(--hero-fg);box-shadow:none}
+.hero .kpi-label,.hero .kpi-line{color:color-mix(in srgb,var(--hero-fg) 74%,transparent)}
+.hero .kpi-value{font-size:44px;line-height:52px}
+.hero .up{color:var(--hero-success);background:color-mix(in srgb,var(--hero-success) 16%,transparent)}
+.hero .new{color:color-mix(in srgb,var(--hero-fg) 74%,transparent);border-color:color-mix(in srgb,var(--hero-fg) 45%,transparent)}
+.hero :focus-visible{outline-color:var(--hero-accent)}
+.spark{display:block;width:100%;height:72px;margin-top:auto}
+.spark .l{fill:none;stroke:var(--hero-accent);stroke-width:2}
+.spark .a{fill:var(--hero-accent);opacity:.18}
+.tag-end{align-self:flex-start}
+
+/* charts (area style from 01) */
+.chart{display:block;width:100%;height:auto;overflow:visible}
+.grid-l{stroke:var(--border);stroke-dasharray:3 3}
+.ax{fill:var(--muted-foreground);font-size:12px;font-family:var(--font-sans);font-variant-numeric:tabular-nums}
+.s-main{stroke:var(--chart-accent);stroke-width:2;fill:none}
+.s-main-a{fill:url(#g-cer)}
+.s-sec{stroke:color-mix(in srgb,var(--muted-foreground) 70%,transparent);stroke-width:1.75;fill:none}
+.cursor{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.pt-main{fill:var(--chart-accent);stroke:var(--card);stroke-width:2}
+.pt-sec{fill:var(--muted-foreground);stroke:var(--card);stroke-width:2}
+.hit{fill:transparent;stroke:none}
+svg a:hover .hit{fill:color-mix(in srgb,var(--primary) 5%,transparent)}
+.tip-box{fill:var(--popover);stroke:var(--border)}
+.tip-t{fill:var(--foreground);font-size:12px;font-weight:600;font-family:var(--font-sans)}
+.tip-v{fill:var(--muted-foreground);font-size:12px;font-family:var(--font-sans);font-variant-numeric:tabular-nums}
+.tip-v tspan.b{fill:var(--foreground);font-weight:600}
+.legend{display:flex;align-items:center;gap:16px;font-size:12px;line-height:16px;color:var(--muted-foreground);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend .fig{color:var(--foreground);font-weight:500;font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:999px;flex:none;display:inline-block}
+.dot.line{width:12px;height:2px;border-radius:2px}
+
+/* stacked bar + legend list */
+.stack{display:flex;gap:2px;height:12px;border-radius:999px;overflow:hidden}
+.stack a,.stack i{display:block;height:100%}
+.stack a:hover{filter:brightness(1.08)}
+.stack a:focus-visible{outline:2px solid var(--foreground);outline-offset:-2px;border-radius:0}
+.list{list-style:none;margin:0;padding:0}
+.list>li+li{border-top:1px solid var(--border)}
+.leg-list>li{display:flex;align-items:center;gap:12px;min-height:44px}
+.leg-list>li .lbl{flex:1}
+.leg-list .v{font-variant-numeric:tabular-nums;font-weight:500;min-width:32px;text-align:right}
+.leg-list .p{font-variant-numeric:tabular-nums;color:var(--muted-foreground);min-width:40px;text-align:right}
+.sw-ok{background:var(--d-ok)}.sw-late{background:var(--d-late)}.sw-pend{background:var(--d-pend)}.sw-over{background:var(--d-over)}.sw-none{background:var(--d-none)}
+.big{display:flex;align-items:baseline;gap:12px}
+.big>b,.big>.fig{font-size:44px;line-height:52px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.big span{color:var(--muted-foreground)}
+.mid{display:flex;align-items:baseline;gap:8px}
+.mid .fig{font-size:32px;line-height:40px;font-weight:600;font-variant-numeric:tabular-nums}
+.mid span{color:var(--muted-foreground)}
+.keys{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px;color:var(--muted-foreground)}
+.keys span{display:inline-flex;align-items:center;gap:8px}
+.keys i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.keys .fig{color:var(--foreground);font-weight:600;font-variant-numeric:tabular-nums}
+.sub-h{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground)}
+.rows-mini>li{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px}
+.rows-mini .fig{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* horizontal bars */
+.hbars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:16px}
+.hbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}
+.hbar .lbl{font-weight:500}
+.hbar .val{text-align:right;font-variant-numeric:tabular-nums}
+.hbar .val .fig{font-weight:600}
+.hbar-track{grid-column:1 / -1;height:10px;border-radius:999px;background:var(--muted);overflow:hidden}
+.hbar-track i{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--muted-foreground) 40%,var(--card))}
+.hbar.top .hbar-track i{background:var(--chart-accent)}
+.hbars.wide .hbar{grid-template-columns:220px minmax(0,1fr) 120px;gap:24px}
+.hbars.wide .hbar-track{grid-column:auto}
+
+/* pipeline (from 03) */
+.stage-cols,.stage{display:grid;grid-template-columns:104px minmax(0,1fr) 72px 112px 120px;align-items:center;gap:16px}
+.stage-cols{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground);padding-bottom:8px}
+.stage-cols span:nth-child(n+3){text-align:right}
+.stage{min-height:56px}
+.stage .name{font-weight:500}
+.stage .bar{height:12px;border-radius:999px;background:var(--muted);overflow:hidden}
+.stage .bar i{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--primary) 28%,var(--card))}
+.stage.hot .bar i{background:var(--chart-accent)}
+.stage .count{font-size:20px;line-height:28px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.stage .days{text-align:right;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.stage .stall{justify-self:end}
+.badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;white-space:nowrap;
+  border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground)}
+.badge.danger{--t:var(--status-danger);color:var(--t);border-color:color-mix(in srgb,var(--t) 30%,transparent);background:color-mix(in srgb,var(--t) 10%,var(--card))}
+a.badge:hover,a.badge:focus-visible{text-decoration:underline;text-underline-offset:3px}
+.vrow{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px}
+.vrow b{display:block;font-weight:500}
+.vrow .meta{display:block;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.vrow .n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.vrow .n .fig{font-weight:600}
+.card .foot-link{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 8px;margin-left:-8px;border-radius:8px;font-weight:500;color:var(--brand-decorative-strong)}
+.card .foot-link:hover{background:var(--muted)}
+
+/* recruiter table */
+.who{display:flex;align-items:center;gap:12px;font-weight:500}
+.who:hover b{text-decoration:underline;text-underline-offset:3px}
+.rate{display:inline-flex;align-items:center;gap:12px;justify-content:flex-end}
+.rate .t{width:120px;height:8px;border-radius:999px;background:var(--muted);overflow:hidden}
+.rate .t i{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--primary) 60%,var(--card))}
+.rate .pct{font-weight:600;min-width:40px;text-align:right}
+.rate .of{min-width:64px;text-align:right;color:var(--muted-foreground)}
+.dark .stage .bar i{background:color-mix(in srgb,var(--brand-decorative-strong) 38%,var(--card))}
+.dark .rate .t i{background:color-mix(in srgb,var(--brand-decorative-strong) 70%,var(--card))}
+td.go{width:56px}
+td.go a{display:grid;place-items:center;width:40px;height:40px;border-radius:8px;color:var(--muted-foreground);margin-left:auto}
+td.go a:hover{background:var(--muted);color:var(--foreground)}
+
+/* progressive loading (rule 17) */
+.sk-layer{position:absolute;inset:0;pointer-events:none}
+.sk-layer .sk{position:absolute}
+.loading [data-load] .card>*:not(.sk-layer){visibility:hidden}
+.ph-label{position:absolute;padding:4px 10px;border-radius:999px;background:var(--background);border:1px dashed var(--border);left:50%;top:50%;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted-foreground);white-space:nowrap}
+[data-load="near"] .sk-layer .sk{animation:none;background:color-mix(in srgb,var(--border) 55%,transparent)}
+.loading [data-load="near"] .card{box-shadow:inset 0 0 0 1px var(--border);background:transparent}
+.loading [data-load="near"] .sec-head .btn-ghost{visibility:hidden}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></symbol>
+  <symbol id="i-pool" viewBox="0 0 24 24"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><circle cx="12" cy="11" r="3"/><rect x="3" y="4" width="18" height="18" rx="2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-audit" viewBox="0 0 24 24"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></symbol>
+  <symbol id="i-searchx" viewBox="0 0 24 24"><path d="m13.5 8.5-5 5M8.5 8.5l5 5"/><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+</svg>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+<button class="design-ctl" id="design-load" type="button" aria-pressed="false"><small>Diseño</small><span>Ver estado de carga</span></button>
+<div class="app">
+<aside class="side" aria-label="Barra lateral">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M10.5 10.5l3 3"/></svg></span>
+    <span>PeopleFlow<small>Trust People Company</small></span>
+  </div>
+  <nav class="nav" aria-label="Principal">
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-brief"/></svg>Vacantes</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-pool"/></svg>Base de talento</a>
+    <a href="07-metricas-combinada.html" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-team"/></svg>Equipo</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-audit"/></svg>Auditoría</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-cog"/></svg>Configuración</a>
+  </nav>
+  <div class="user">
+    <span class="avatar" aria-hidden="true">MT</span>
+    <div><b>Mariana Torres</b><span>Owner</span></div>
+    <button class="icon-btn" id="theme" type="button" aria-label="Cambiar a tema oscuro"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button>
+  </div>
+</aside>
+
+<main id="contenido" tabindex="-1">
+<div class="page">
+  <header class="head">
+    <div>
+      <h1>Métricas</h1>
+      <p class="lead">Entregas, cierres y desempeño del equipo de Trust People Company.</p>
+      <p class="fresh">Actualizado hoy 10:42 · 9 nov 2025 – 8 nov 2026 · Definiciones v3</p>
+    </div>
+    <div class="head-actions">
+      <div class="seg" role="group" aria-label="Periodo">
+        <button type="button" aria-pressed="false">30 días</button>
+        <button type="button" aria-pressed="false">90 días</button>
+        <button type="button" aria-pressed="true">Año</button>
+        <button type="button" aria-pressed="false">Personalizado</button>
+      </div>
+      <button class="btn btn-outline" type="button" data-panel aria-haspopup="dialog" aria-controls="filters" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-filter"/></svg>Filtros</button>
+    </div>
+  </header>
+  <section class="sec" aria-labelledby="s-resumen">
+    <div class="sec-head">
+      <h2 id="s-resumen">Resumen</h2>
+      <button class="btn btn-ghost" type="button" data-help="resumen" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="strip">
+      <article class="card kpi hero" aria-labelledby="k1">
+        <div class="kpi-top"><h3 class="kpi-label" id="k1">Entregas a tiempo</h3></div>
+        <p class="kpi-value"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo, 78 %">78%</a></p>
+        <p class="kpi-line"><span class="pill up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+6 pts</span>vs año anterior</p>
+        <svg class="spark" viewBox="0 0 200 48" preserveAspectRatio="none" role="img" aria-label="Entregas a tiempo por mes: de 67 % en diciembre a 88 % en noviembre">
+          <path class="a" d="M0.0,36.0 C3.0,34.5 12.1,28.0 18.2,26.9 C24.2,25.7 30.3,28.2 36.4,29.1 C42.4,30.1 48.5,33.0 54.5,32.6 C60.6,32.2 66.7,29.1 72.7,26.9 C78.8,24.6 84.8,19.8 90.9,18.9 C97.0,17.9 103.0,20.2 109.1,21.1 C115.2,22.1 121.2,25.0 127.3,24.6 C133.3,24.2 139.4,20.0 145.5,18.9 C151.5,17.7 157.6,17.7 163.6,17.7 C169.7,17.7 175.8,19.8 181.8,18.9 C187.9,17.9 197.0,13.1 200.0,12.0 L200,48 L0,48 Z"/>
+          <path class="l" vector-effect="non-scaling-stroke" d="M0.0,36.0 C3.0,34.5 12.1,28.0 18.2,26.9 C24.2,25.7 30.3,28.2 36.4,29.1 C42.4,30.1 48.5,33.0 54.5,32.6 C60.6,32.2 66.7,29.1 72.7,26.9 C78.8,24.6 84.8,19.8 90.9,18.9 C97.0,17.9 103.0,20.2 109.1,21.1 C115.2,22.1 121.2,25.0 127.3,24.6 C133.3,24.2 139.4,20.0 145.5,18.9 C151.5,17.7 157.6,17.7 163.6,17.7 C169.7,17.7 175.8,19.8 181.8,18.9 C187.9,17.9 197.0,13.1 200.0,12.0"/>
+        </svg>
+        <p class="kpi-line"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo de 126 con fecha cumplida">98 de 126</a> entregas con fecha cumplida</p>
+        <span class="new tag-end">Dato nuevo · N1 · N2</span>
+      </article>
+      <article class="card kpi" aria-labelledby="k2">
+        <div class="kpi-top"><h3 class="kpi-label" id="k2">Vacantes asignadas</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-asignadas" aria-label="Ver las 146 vacantes asignadas">146</a></p>
+        <p class="kpi-line"><span class="pill up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+12</span>vs año anterior</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k3">
+        <div class="kpi-top"><h3 class="kpi-label" id="k3">Mediana para cerrar</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;orden=dias-para-cerrar" aria-label="Ver las 118 vacantes cerradas ordenadas por días para cerrar; mediana 23 días hábiles">23</a><small>días hábiles</small></p>
+        <p class="kpi-line"><span class="pill up" aria-label="3 días menos, mejora"><svg class="i" aria-hidden="true"><use href="#i-down"/></svg>−3 días</span>vs año anterior</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k4">
+        <div class="kpi-top"><h3 class="kpi-label" id="k4">Placements</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=placements" aria-label="Ver los 124 placements">124</a></p>
+        <p class="kpi-line"><span class="pill up"><svg class="i" aria-hidden="true"><use href="#i-up"/></svg>+18%</span>vs año anterior</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k5">
+        <div class="kpi-top"><h3 class="kpi-label" id="k5">Reasignaciones</h3><span class="new">Dato nuevo · N1</span></div>
+        <p class="kpi-value"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=reasignaciones" aria-label="Ver las 21 reasignaciones">21</a></p>
+        <p class="kpi-line"><span class="pill up" aria-label="4 menos, mejora"><svg class="i" aria-hidden="true"><use href="#i-down"/></svg>−4</span>vs año anterior</p>
+      </article>
+    </div>
+  </section>
+  <section class="sec" aria-labelledby="s-cie" data-load="view">
+    <div class="sec-head">
+      <h2 id="s-cie">Cierres y entregas</h2>
+      <button class="btn btn-ghost" type="button" data-help="cierres" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c8" aria-labelledby="t-mes">
+        <div class="card-head">
+          <div><h3 id="t-mes">Cierres de vacantes</h3>
+            <div class="legend" style="margin-top:6px">
+              <span><i class="dot" style="background:var(--chart-accent)"></i>Cerradas <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas" aria-label="Ver las 118 vacantes cerradas">118</a></span>
+              <span><i class="dot line" style="background:color-mix(in srgb,var(--muted-foreground) 70%,transparent)"></i>Cubiertas <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;motivo=cubierta" aria-label="Ver las 92 vacantes cubiertas">92</a></span>
+            </div>
+          </div>
+          <button class="btn btn-ghost" type="button" id="as-table" aria-pressed="false" style="margin-top:-10px">Ver como tabla</button>
+        </div>
+        <div id="mes-chart">
+          <svg class="chart" viewBox="0 0 696 300" role="group" aria-label="Gráfica de área: vacantes cerradas y cubiertas por mes de diciembre 2025 a noviembre 2026. Julio es el mes con más cierres: 13 cerradas, 11 cubiertas. Cada mes abre sus vacantes.">
+            <defs><linearGradient id="g-cer" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--chart-accent);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--chart-accent);stop-opacity:0"/></linearGradient></defs>
+            <g aria-hidden="true">
+              <line class="grid-l" x1="32" x2="696" y1="8" y2="8"/><line class="grid-l" x1="32" x2="696" y1="97.3" y2="97.3"/>
+              <line class="grid-l" x1="32" x2="696" y1="186.7" y2="186.7"/><line class="grid-l" x1="32" x2="696" y1="276" y2="276"/>
+              <g class="ax" text-anchor="end"><text x="20" y="12">15</text><text x="20" y="101">10</text><text x="20" y="191">5</text><text x="20" y="280">0</text></g>
+              <text class="ax" x="40.0" y="296" text-anchor="middle">dic</text><text class="ax" x="98.2" y="296" text-anchor="middle">ene</text><text class="ax" x="156.4" y="296" text-anchor="middle">feb</text><text class="ax" x="214.5" y="296" text-anchor="middle">mar</text><text class="ax" x="272.7" y="296" text-anchor="middle">abr</text><text class="ax" x="330.9" y="296" text-anchor="middle">may</text><text class="ax" x="389.1" y="296" text-anchor="middle">jun</text><text class="ax" x="447.3" y="296" text-anchor="middle">jul</text><text class="ax" x="505.5" y="296" text-anchor="middle">ago</text><text class="ax" x="563.6" y="296" text-anchor="middle">sep</text><text class="ax" x="621.8" y="296" text-anchor="middle">oct</text><text class="ax" x="680.0" y="296" text-anchor="middle">nov</text>
+              <path class="s-main-a" d="M40.0,133.1 C49.7,136.0 78.8,156.9 98.2,150.9 C117.6,145.0 137.0,103.3 156.4,97.3 C175.8,91.4 195.2,121.2 214.5,115.2 C233.9,109.2 253.3,67.6 272.7,61.6 C292.1,55.6 311.5,70.5 330.9,79.5 C350.3,88.4 369.7,121.2 389.1,115.2 C408.5,109.2 427.9,46.7 447.3,43.7 C466.7,40.8 486.1,94.4 505.5,97.3 C524.8,100.3 544.2,64.6 563.6,61.6 C583.0,58.6 602.4,61.6 621.8,79.5 C641.2,97.3 670.3,153.9 680.0,168.8 L680,276 L40,276 Z"/>
+              <path class="s-sec" d="M40.0,168.8 C49.7,171.8 78.8,192.6 98.2,186.7 C117.6,180.7 137.0,139.0 156.4,133.1 C175.8,127.1 195.2,156.9 214.5,150.9 C233.9,145.0 253.3,103.3 272.7,97.3 C292.1,91.4 311.5,106.3 330.9,115.2 C350.3,124.1 369.7,156.9 389.1,150.9 C408.5,145.0 427.9,82.4 447.3,79.5 C466.7,76.5 486.1,130.1 505.5,133.1 C524.8,136.0 544.2,97.3 563.6,97.3 C583.0,97.3 602.4,112.2 621.8,133.1 C641.2,153.9 670.3,207.5 680.0,222.4"/>
+              <path class="s-main" d="M40.0,133.1 C49.7,136.0 78.8,156.9 98.2,150.9 C117.6,145.0 137.0,103.3 156.4,97.3 C175.8,91.4 195.2,121.2 214.5,115.2 C233.9,109.2 253.3,67.6 272.7,61.6 C292.1,55.6 311.5,70.5 330.9,79.5 C350.3,88.4 369.7,121.2 389.1,115.2 C408.5,109.2 427.9,46.7 447.3,43.7 C466.7,40.8 486.1,94.4 505.5,97.3 C524.8,100.3 544.2,64.6 563.6,61.6 C583.0,58.6 602.4,61.6 621.8,79.5 C641.2,97.3 670.3,153.9 680.0,168.8"/>
+              <line class="cursor" x1="447.3" x2="447.3" y1="8" y2="276"/>
+              <circle class="pt-sec" cx="447.3" cy="79.5" r="4"/>
+              <circle class="pt-main" cx="447.3" cy="43.7" r="5"/>
+              <g>
+                <rect class="tip-box" x="296" y="104" width="136" height="70" rx="8"/>
+                <text class="tip-t" x="310" y="126">Julio 2026</text>
+                <circle cx="314" cy="144" r="4" style="fill:var(--chart-accent)"/>
+                <text class="tip-v" x="324" y="148">Cerradas <tspan class="b">13</tspan></text>
+                <circle cx="314" cy="162" r="4" style="fill:color-mix(in srgb,var(--muted-foreground) 70%,transparent)"/>
+                <text class="tip-v" x="324" y="166">Cubiertas <tspan class="b">11</tspan></text>
+              </g>
+            </g>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2025-12" aria-label="Ver las 8 vacantes cerradas en diciembre 2025, 6 cubiertas"><rect class="hit" x="11.0" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-01" aria-label="Ver las 7 vacantes cerradas en enero 2026, 5 cubiertas"><rect class="hit" x="69.2" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-02" aria-label="Ver las 10 vacantes cerradas en febrero 2026, 8 cubiertas"><rect class="hit" x="127.4" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-03" aria-label="Ver las 9 vacantes cerradas en marzo 2026, 7 cubiertas"><rect class="hit" x="185.5" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-04" aria-label="Ver las 12 vacantes cerradas en abril 2026, 10 cubiertas"><rect class="hit" x="243.7" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-05" aria-label="Ver las 11 vacantes cerradas en mayo 2026, 9 cubiertas"><rect class="hit" x="301.9" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-06" aria-label="Ver las 9 vacantes cerradas en junio 2026, 7 cubiertas"><rect class="hit" x="360.1" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-07" aria-label="Ver las 13 vacantes cerradas en julio 2026, 11 cubiertas"><rect class="hit" x="418.3" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-08" aria-label="Ver las 10 vacantes cerradas en agosto 2026, 8 cubiertas"><rect class="hit" x="476.5" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-09" aria-label="Ver las 12 vacantes cerradas en septiembre 2026, 10 cubiertas"><rect class="hit" x="534.6" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-10" aria-label="Ver las 11 vacantes cerradas en octubre 2026, 8 cubiertas"><rect class="hit" x="592.8" y="8" width="58.2" height="268" rx="6"/></a>
+            <a href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;mes=2026-11" aria-label="Ver las 6 vacantes cerradas en noviembre 2026 (en curso), 3 cubiertas"><rect class="hit" x="651.0" y="8" width="58.2" height="268" rx="6"/></a>
+          </svg>
+        </div>
+        <div id="mes-table" hidden>
+          <table>
+            <caption class="sr">Vacantes cerradas y cubiertas por mes</caption>
+            <thead><tr><th scope="col">Mes</th><th scope="col" class="n">Cerradas</th><th scope="col" class="n">Cubiertas</th></tr></thead>
+            <tbody id="mes-rows"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card c4" aria-labelledby="t-ent">
+        <div class="card-head">
+          <div><h3 id="t-ent">Estado de entregas</h3><p class="cap"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-asignadas" aria-label="Ver las 146 vacantes asignadas">146</a> vacantes asignadas</p></div>
+        </div>
+        <div class="stack" role="group" aria-label="Estado de entregas: 98 a tiempo, 22 tarde, 6 vencidas, 8 pendientes, 12 sin meta">
+          <a class="sw-ok" style="width:67.1%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo"></a><a class="sw-late" style="width:15.1%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde" aria-label="Ver las 22 entregas tarde"></a><a class="sw-over" style="width:4.1%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=vencidas" aria-label="Ver las 6 entregas vencidas"></a><a class="sw-pend" style="width:5.5%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=pendientes" aria-label="Ver las 8 entregas pendientes"></a><a class="sw-none" style="width:8.2%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=sin-meta" aria-label="Ver las 12 vacantes sin meta configurada"></a>
+        </div>
+        <ul class="list leg-list">
+          <li><i class="dot sw-ok"></i><span class="lbl">A tiempo</span><a class="fig v" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo">98</a><span class="p">67%</span></li>
+          <li><i class="dot sw-late"></i><a class="fig lbl" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde" aria-label="Ver las 22 entregas tarde">Tarde</a><a class="fig v" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde" aria-label="Ver las 22 entregas tarde">22</a><span class="p">15%</span></li>
+          <li><i class="dot sw-over"></i><span class="lbl">Vencidas</span><a class="fig v" href="08-detalle-indagacion.html?periodo=anio&amp;estado=vencidas" aria-label="Ver las 6 entregas vencidas">6</a><span class="p">4%</span></li>
+          <li><i class="dot sw-pend"></i><span class="lbl">Pendientes</span><a class="fig v" href="08-detalle-indagacion.html?periodo=anio&amp;estado=pendientes" aria-label="Ver las 8 entregas pendientes">8</a><span class="p">5%</span></li>
+          <li><i class="dot sw-none"></i><span class="lbl">Sin meta configurada</span><a class="fig v" href="08-detalle-indagacion.html?periodo=anio&amp;estado=sin-meta" aria-label="Ver las 12 vacantes sin meta configurada">12</a><span class="p">8%</span></li>
+        </ul>
+      </article>
+    </div>
+  </section>
+  <section class="sec" aria-labelledby="s-cum" data-load="view">
+    <div class="sec-head">
+      <h2 id="s-cum">Cumplimiento de entregas</h2>
+      <button class="btn btn-ghost" type="button" data-help="cumplimiento" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c6" aria-labelledby="t-cum">
+        <div class="card-head"><div><h3 id="t-cum">Entregas con fecha cumplida</h3><p class="cap"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=con-fecha-cumplida" aria-label="Ver las 126 entregas con fecha cumplida">126</a> entregas en el periodo</p></div></div>
+        <p class="big"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo, 78 %">78%</a><span>a tiempo · <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo de 126">98 de 126</a></span></p>
+        <div class="stack" role="group" aria-label="126 entregas con fecha cumplida: 98 a tiempo, 22 tarde, 6 vencidas">
+          <a class="sw-ok" style="width:77.8%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo"></a><a class="sw-late" style="width:17.5%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde" aria-label="Ver las 22 entregas tarde"></a><a class="sw-over" style="width:4.7%" href="08-detalle-indagacion.html?periodo=anio&amp;estado=vencidas" aria-label="Ver las 6 entregas vencidas"></a>
+        </div>
+        <div class="keys">
+          <span><i class="sw-ok"></i>A tiempo <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo" aria-label="Ver las 98 entregas a tiempo">98</a></span>
+          <span><i class="sw-late"></i>Tarde <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde" aria-label="Ver las 22 entregas tarde">22</a></span>
+          <span><i class="sw-over"></i>Vencidas <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=vencidas" aria-label="Ver las 6 entregas vencidas">6</a></span>
+        </div>
+        <div>
+          <p class="sub-h">Entregas tarde por días de retraso</p>
+          <ul class="list rows-mini">
+            <li><span>1 a 2 días hábiles</span><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde&amp;retraso=1-2" aria-label="Ver las 12 entregas con 1 a 2 días de retraso">12</a></li>
+            <li><span>3 a 5 días hábiles</span><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde&amp;retraso=3-5" aria-label="Ver las 7 entregas con 3 a 5 días de retraso">7</a></li>
+            <li><span>Más de 5 días hábiles</span><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=tarde&amp;retraso=6-mas" aria-label="Ver las 3 entregas con más de 5 días de retraso">3</a></li>
+          </ul>
+        </div>
+      </article>
+      <article class="card c6" aria-labelledby="t-mon">
+        <div class="card-head"><div><h3 id="t-mon">A tiempo por mes</h3><p class="cap">Toda la empresa · últimos 12 meses</p></div><span class="new">Dato nuevo · N2</span></div>
+        <svg class="chart" viewBox="0 0 512 236" role="group" aria-label="Línea del porcentaje de entregas a tiempo por mes, de diciembre 2025 a noviembre 2026: de 67 % a 88 %. Cada mes abre sus entregas." style="margin-top:auto">
+          <defs><linearGradient id="g-on" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--chart-accent);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--chart-accent);stop-opacity:0"/></linearGradient></defs>
+          <g aria-hidden="true">
+            <line class="grid-l" x1="40" x2="512" y1="12" y2="12"/><line class="grid-l" x1="40" x2="512" y1="50.4" y2="50.4"/><line class="grid-l" x1="40" x2="512" y1="88.8" y2="88.8"/><line class="grid-l" x1="40" x2="512" y1="127.2" y2="127.2"/><line class="grid-l" x1="40" x2="512" y1="165.6" y2="165.6"/><line class="grid-l" x1="40" x2="512" y1="204" y2="204"/>
+            <g class="ax" text-anchor="end"><text x="30" y="16">100%</text><text x="30" y="54">90%</text><text x="30" y="93">80%</text><text x="30" y="131">70%</text><text x="30" y="170">60%</text><text x="30" y="208">50%</text></g>
+            <text class="ax" x="48.0" y="228" text-anchor="middle">dic</text><text class="ax" x="130.2" y="228" text-anchor="middle">feb</text><text class="ax" x="212.4" y="228" text-anchor="middle">abr</text><text class="ax" x="294.5" y="228" text-anchor="middle">jun</text><text class="ax" x="376.7" y="228" text-anchor="middle">ago</text><text class="ax" x="458.9" y="228" text-anchor="middle">oct</text><text class="ax" x="500.0" y="228" text-anchor="middle">nov</text>
+            <path style="fill:url(#g-on)" d="M48.0,138.7 C54.8,133.6 75.4,111.8 89.1,108.0 C102.8,104.2 116.5,112.5 130.2,115.7 C143.9,118.9 157.6,128.5 171.3,127.2 C185.0,125.9 198.7,115.7 212.4,108.0 C226.1,100.3 239.8,84.3 253.5,81.1 C267.2,77.9 280.8,85.6 294.5,88.8 C308.2,92.0 321.9,101.6 335.6,100.3 C349.3,99.0 363.0,85.0 376.7,81.1 C390.4,77.3 404.1,77.3 417.8,77.3 C431.5,77.3 445.2,84.3 458.9,81.1 C472.6,77.9 493.2,61.9 500.0,58.1 L500,204 L48,204 Z"/>
+            <path class="s-main" d="M48.0,138.7 C54.8,133.6 75.4,111.8 89.1,108.0 C102.8,104.2 116.5,112.5 130.2,115.7 C143.9,118.9 157.6,128.5 171.3,127.2 C185.0,125.9 198.7,115.7 212.4,108.0 C226.1,100.3 239.8,84.3 253.5,81.1 C267.2,77.9 280.8,85.6 294.5,88.8 C308.2,92.0 321.9,101.6 335.6,100.3 C349.3,99.0 363.0,85.0 376.7,81.1 C390.4,77.3 404.1,77.3 417.8,77.3 C431.5,77.3 445.2,84.3 458.9,81.1 C472.6,77.9 493.2,61.9 500.0,58.1"/>
+            <line class="cursor" x1="500" x2="500" y1="12" y2="204"/>
+            <circle class="pt-main" cx="500" cy="58.1" r="5"/>
+            <g><rect class="tip-box" x="300" y="120" width="186" height="52" rx="8"/><text class="tip-t" x="314" y="141">Noviembre 2026 (en curso)</text><text class="tip-v" x="314" y="161">A tiempo <tspan class="b">88 %</tspan> · 7 de 8</text></g>
+          </g>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2025-12" aria-label="Ver las 6 entregas a tiempo de 9 en diciembre 2025, 67 %"><rect class="hit" x="27.5" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-01" aria-label="Ver las 6 entregas a tiempo de 8 en enero 2026, 75 %"><rect class="hit" x="68.5" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-02" aria-label="Ver las 8 entregas a tiempo de 11 en febrero 2026, 73 %"><rect class="hit" x="109.6" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-03" aria-label="Ver las 7 entregas a tiempo de 10 en marzo 2026, 70 %"><rect class="hit" x="150.7" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-04" aria-label="Ver las 9 entregas a tiempo de 12 en abril 2026, 75 %"><rect class="hit" x="191.8" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-05" aria-label="Ver las 9 entregas a tiempo de 11 en mayo 2026, 82 %"><rect class="hit" x="232.9" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-06" aria-label="Ver las 8 entregas a tiempo de 10 en junio 2026, 80 %"><rect class="hit" x="274.0" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-07" aria-label="Ver las 10 entregas a tiempo de 13 en julio 2026, 77 %"><rect class="hit" x="315.1" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-08" aria-label="Ver las 9 entregas a tiempo de 11 en agosto 2026, 82 %"><rect class="hit" x="356.2" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-09" aria-label="Ver las 10 entregas a tiempo de 12 en septiembre 2026, 83 %"><rect class="hit" x="397.3" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-10" aria-label="Ver las 9 entregas a tiempo de 11 en octubre 2026, 82 %"><rect class="hit" x="438.4" y="12" width="41.1" height="192" rx="6"/></a>
+          <a href="08-detalle-indagacion.html?periodo=anio&amp;estado=a-tiempo&amp;mes=2026-11" aria-label="Ver las 7 entregas a tiempo de 8 en noviembre 2026, 88 %"><rect class="hit" x="479.5" y="12" width="41.1" height="192" rx="6"/></a>
+        </svg>
+      </article>
+    </div>
+  </section>
+  <section class="sec" aria-labelledby="s-pipe" data-load="view">
+    <div class="sec-head">
+      <h2 id="s-pipe">Pipeline por etapa</h2>
+      <button class="btn btn-ghost" type="button" data-help="pipeline" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c8" aria-labelledby="t-pipe">
+        <div class="card-head">
+          <div><h3 id="t-pipe">Candidatos por etapa</h3><p class="cap">Hoy · <a class="fig" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso" aria-label="Ver los 143 candidatos en proceso">143</a> en proceso en <a class="fig" href="08-detalle-indagacion.html?tipo=vacantes-abiertas" aria-label="Ver las 28 vacantes abiertas">28</a> vacantes abiertas</p></div>
+          <span class="new">Dato nuevo · N3</span>
+        </div>
+        <div>
+          <div class="stage-cols" aria-hidden="true"><span>Etapa</span><span></span><span>Candidatos</span><span>Mediana en etapa</span><span>Detenidos</span></div>
+          <ul class="list">
+            <li class="stage"><span class="name">Nuevo</span><span class="bar" aria-hidden="true"><i style="width:100%"></i></span><a class="fig count" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=nuevo" aria-label="Ver los 48 candidatos en Nuevo">48</a><span class="days">1 día</span><a class="stall badge" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=nuevo&amp;detenidos=1" aria-label="Ver los 2 candidatos detenidos en Nuevo">2 detenidos</a></li>
+            <li class="stage"><span class="name">Filtro</span><span class="bar" aria-hidden="true"><i style="width:64.6%"></i></span><a class="fig count" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=filtro" aria-label="Ver los 31 candidatos en Filtro">31</a><span class="days">3 días</span><a class="stall badge" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=filtro&amp;detenidos=1" aria-label="Ver los 3 candidatos detenidos en Filtro">3 detenidos</a></li>
+            <li class="stage"><span class="name">Entrevista</span><span class="bar" aria-hidden="true"><i style="width:75%"></i></span><a class="fig count" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=entrevista" aria-label="Ver los 36 candidatos en Entrevista">36</a><span class="days">4 días</span><a class="stall badge" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=entrevista&amp;detenidos=1" aria-label="Ver los 2 candidatos detenidos en Entrevista">2 detenidos</a></li>
+            <li class="stage hot"><span class="name">Evaluación</span><span class="bar" aria-hidden="true"><i style="width:39.6%"></i></span><a class="fig count" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=evaluacion" aria-label="Ver los 19 candidatos en Evaluación">19</a><span class="days">6 días</span><a class="stall badge danger" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=evaluacion&amp;detenidos=1" aria-label="Ver los 7 candidatos detenidos en Evaluación">7 detenidos</a></li>
+            <li class="stage"><span class="name">Oferta</span><span class="bar" aria-hidden="true"><i style="width:18.8%"></i></span><a class="fig count" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;etapa=oferta" aria-label="Ver los 9 candidatos en Oferta">9</a><span class="days">2 días</span><span class="stall badge">Al día</span></li>
+          </ul>
+        </div>
+      </article>
+      <article class="card c4" aria-labelledby="t-vac">
+        <div class="card-head"><div><h3 id="t-vac">Vacantes con más candidatos</h3><p class="cap">5 de 28 vacantes abiertas</p></div></div>
+        <ul class="list">
+          <li class="vrow"><div><b>Analista de crédito Sr.</b><span class="meta">Banorte · Finanzas</span></div><span class="n"><a class="fig" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;vacante=VAC-2318" aria-label="Ver los 14 candidatos en proceso de Analista de crédito Sr.">14</a> <span class="muted">en proceso</span></span></li>
+          <li class="vrow"><div><b>Desarrollador backend Go</b><span class="meta">Liverpool · Tecnología</span></div><span class="n"><a class="fig" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;vacante=VAC-2302" aria-label="Ver los 12 candidatos en proceso de Desarrollador backend Go">12</a> <span class="muted">en proceso</span></span></li>
+          <li class="vrow"><div><b>Ejecutivo de cuenta</b><span class="meta">Banorte · Finanzas</span></div><span class="n"><a class="fig" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;vacante=VAC-2297" aria-label="Ver los 10 candidatos en proceso de Ejecutivo de cuenta">10</a> <span class="muted">en proceso</span></span></li>
+          <li class="vrow"><div><b>Supervisor de turno</b><span class="meta">Grupo Bimbo · Operaciones</span></div><span class="n"><a class="fig" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;vacante=VAC-2285" aria-label="Ver los 9 candidatos en proceso de Supervisor de turno">9</a> <span class="muted">en proceso</span></span></li>
+          <li class="vrow"><div><b>Analista de compensaciones</b><span class="meta">Interno · RR. HH.</span></div><span class="n"><a class="fig" href="08-detalle-indagacion.html?tipo=candidatos-en-proceso&amp;vacante=VAC-2276" aria-label="Ver los 8 candidatos en proceso de Analista de compensaciones">8</a> <span class="muted">en proceso</span></span></li>
+        </ul>
+      </article>
+    </div>
+  </section>
+  <section class="sec" aria-labelledby="s-ret" data-load="near">
+    <div class="sec-head">
+      <h2 id="s-ret">Retrasos y reasignaciones</h2>
+      <button class="btn btn-ghost" type="button" data-help="retrasos" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c4" aria-labelledby="t-meta">
+        <div class="card-head"><div><h3 id="t-meta">Meta de cierre</h3><p class="cap">De <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas" aria-label="Ver las 118 vacantes cerradas">118</a> vacantes cerradas</p></div></div>
+        <p class="mid"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;meta-cierre=tarde" aria-label="Ver las 23 vacantes que cerraron después de su meta">23</a><span>cerraron después de su meta</span></p>
+        <div class="stack" role="group" aria-label="Meta de cierre: 79 a tiempo, 23 tarde, 16 sin meta">
+          <a class="sw-ok" style="width:66.9%" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;meta-cierre=a-tiempo" aria-label="Ver las 79 vacantes cerradas a tiempo"></a><a class="sw-late" style="width:19.5%" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;meta-cierre=tarde" aria-label="Ver las 23 vacantes cerradas tarde"></a><a class="sw-none" style="width:13.6%" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;meta-cierre=sin-meta" aria-label="Ver las 16 vacantes cerradas sin meta"></a>
+        </div>
+        <div class="keys">
+          <span><i class="sw-ok"></i>A tiempo <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;meta-cierre=a-tiempo" aria-label="Ver las 79 vacantes cerradas a tiempo">79</a></span>
+          <span><i class="sw-late"></i>Tarde <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;meta-cierre=tarde" aria-label="Ver las 23 vacantes cerradas tarde">23</a></span>
+          <span><i class="sw-none"></i>Sin meta <a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=vacantes-cerradas&amp;meta-cierre=sin-meta" aria-label="Ver las 16 vacantes cerradas sin meta">16</a></span>
+        </div>
+      </article>
+      <article class="card c4" aria-labelledby="t-venc">
+        <div class="card-head"><div><h3 id="t-venc">Entregas vencidas</h3><p class="cap"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;estado=vencidas" aria-label="Ver las 6 entregas vencidas">6</a> sin enviar a la fecha</p></div><span class="new">Dato nuevo · N4</span></div>
+        <ul class="list">
+          <li class="vrow"><div><b><a class="fig" href="#" aria-label="Abrir vacante Ejecutivo de cuenta, entrega vencida hace 6 días">Ejecutivo de cuenta</a></b><span class="meta">Banorte · Andrés Castillo</span></div><span class="badge danger">Hace 6 días</span></li>
+          <li class="vrow"><div><b><a class="fig" href="#" aria-label="Abrir vacante Analista de riesgos, entrega vencida hace 4 días">Analista de riesgos</a></b><span class="meta">Banorte · Andrés Castillo</span></div><span class="badge danger">Hace 4 días</span></li>
+          <li class="vrow"><div><b><a class="fig" href="#" aria-label="Abrir vacante Desarrollador frontend, entrega vencida hace 3 días">Desarrollador frontend</a></b><span class="meta">Liverpool · Diego Ramírez</span></div><span class="badge danger">Hace 3 días</span></li>
+          <li class="vrow"><div><b><a class="fig" href="#" aria-label="Abrir vacante Jefe de mantenimiento, entrega vencida hace 2 días">Jefe de mantenimiento</a></b><span class="meta">Grupo Bimbo · Valeria Ortiz</span></div><span class="badge danger">Hace 2 días</span></li>
+        </ul>
+        <a class="foot-link" href="08-detalle-indagacion.html?periodo=anio&amp;estado=vencidas">Ver las 6 entregas vencidas<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a>
+      </article>
+      <article class="card c4" aria-labelledby="t-reas">
+        <div class="card-head"><div><h3 id="t-reas">Reasignaciones por motivo</h3><p class="cap"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=reasignaciones" aria-label="Ver las 21 reasignaciones">21</a> en el periodo</p></div></div>
+        <ul class="hbars">
+          <li class="hbar top"><span class="lbl">Carga de trabajo</span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=reasignaciones&amp;motivo=carga" aria-label="Ver las 9 reasignaciones por carga de trabajo">9</a></span><span class="hbar-track" aria-hidden="true"><i style="width:100%"></i></span></li>
+          <li class="hbar"><span class="lbl">Solicitud del cliente</span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=reasignaciones&amp;motivo=cliente" aria-label="Ver las 6 reasignaciones por solicitud del cliente">6</a></span><span class="hbar-track" aria-hidden="true"><i style="width:66.7%"></i></span></li>
+          <li class="hbar"><span class="lbl">Ausencia o incapacidad</span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=reasignaciones&amp;motivo=ausencia" aria-label="Ver las 3 reasignaciones por ausencia o incapacidad">3</a></span><span class="hbar-track" aria-hidden="true"><i style="width:33.3%"></i></span></li>
+          <li class="hbar"><span class="lbl">Cambio de especialidad</span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=reasignaciones&amp;motivo=especialidad" aria-label="Ver las 2 reasignaciones por cambio de especialidad">2</a></span><span class="hbar-track" aria-hidden="true"><i style="width:22.2%"></i></span></li>
+          <li class="hbar"><span class="lbl">Otro motivo</span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=reasignaciones&amp;motivo=otro" aria-label="Ver la 1 reasignación por otro motivo">1</a></span><span class="hbar-track" aria-hidden="true"><i style="width:11.1%"></i></span></li>
+        </ul>
+      </article>
+    </div>
+  </section>
+  <section class="sec" aria-labelledby="s-rec" data-load="near">
+    <div class="sec-head">
+      <h2 id="s-rec">Desempeño por reclutador</h2>
+      <div class="tools">
+        <button class="btn btn-ghost" type="button" data-help="reclutadores" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+        <a class="btn btn-ghost" href="#">Ver tabla completa<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a>
+      </div>
+    </div>
+    <article class="card" aria-labelledby="s-rec">
+      <table>
+        <caption class="sr">Reclutadores ordenados por entregas a tiempo</caption>
+        <thead><tr><th scope="col">Reclutador</th><th scope="col" class="n">Vacantes asignadas</th><th scope="col" class="n">Entregas a tiempo</th><th scope="col" class="n">Placements</th><th scope="col" class="n">Conversión</th><th scope="col"><span class="sr">Detalle</span></th></tr></thead>
+        <tbody>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">DR</span><b>Diego Ramírez</b></a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=diego-ramirez&amp;tipo=vacantes-asignadas" aria-label="38 vacantes: ver las vacantes asignadas a Diego Ramírez">38</a></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:90%"></i></span><a class="fig pct" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=diego-ramirez&amp;estado=tarde" aria-label="90% a tiempo: ver las 3 entregas tarde de Diego Ramírez">90%</a><a class="fig of" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=diego-ramirez&amp;estado=todas" aria-label="36 de 40: ver las 40 entregas con fecha de Diego Ramírez">36 de 40</a></span></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=diego-ramirez&amp;tipo=placements" aria-label="38 placements: ver los placements de Diego Ramírez">38</a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=diego-ramirez&amp;tipo=vacantes-cerradas&amp;con-placement=1" aria-label="89% conversión: ver las 31 de 35 vacantes cerradas con placement de Diego Ramírez">89%</a> <span class="muted">· 31 de 35</span></td><td class="go"><a href="#" aria-label="Ver detalle de Diego Ramírez"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">VO</span><b>Valeria Ortiz</b></a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=valeria-ortiz&amp;tipo=vacantes-asignadas" aria-label="34 vacantes: ver las vacantes asignadas a Valeria Ortiz">34</a></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:88%"></i></span><a class="fig pct" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=valeria-ortiz&amp;estado=tarde" aria-label="88% a tiempo: ver las 3 entregas tarde de Valeria Ortiz">88%</a><a class="fig of" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=valeria-ortiz&amp;estado=todas" aria-label="28 de 32: ver las 32 entregas con fecha de Valeria Ortiz">28 de 32</a></span></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=valeria-ortiz&amp;tipo=placements" aria-label="33 placements: ver los placements de Valeria Ortiz">33</a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=valeria-ortiz&amp;tipo=vacantes-cerradas&amp;con-placement=1" aria-label="90% conversión: ver las 26 de 29 vacantes cerradas con placement de Valeria Ortiz">90%</a> <span class="muted">· 26 de 29</span></td><td class="go"><a href="#" aria-label="Ver detalle de Valeria Ortiz"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">SM</span><b>Sofía Méndez</b></a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=sofia-mendez&amp;tipo=vacantes-asignadas" aria-label="26 vacantes: ver las vacantes asignadas a Sofía Méndez">26</a></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:82%"></i></span><a class="fig pct" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=sofia-mendez&amp;estado=tarde" aria-label="82% a tiempo: ver las 3 entregas tarde de Sofía Méndez">82%</a><a class="fig of" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=sofia-mendez&amp;estado=todas" aria-label="18 de 22: ver las 22 entregas con fecha de Sofía Méndez">18 de 22</a></span></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=sofia-mendez&amp;tipo=placements" aria-label="22 placements: ver los placements de Sofía Méndez">22</a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=sofia-mendez&amp;tipo=vacantes-cerradas&amp;con-placement=1" aria-label="80% conversión: ver las 16 de 20 vacantes cerradas con placement de Sofía Méndez">80%</a> <span class="muted">· 16 de 20</span></td><td class="go"><a href="#" aria-label="Ver detalle de Sofía Méndez"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr><td><a class="who" href="#"><span class="avatar" aria-hidden="true">AC</span><b>Andrés Castillo</b></a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=andres-castillo&amp;tipo=vacantes-asignadas" aria-label="34 vacantes: ver las vacantes asignadas a Andrés Castillo">34</a></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:56%"></i></span><a class="fig pct" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=andres-castillo&amp;estado=tarde" aria-label="56% a tiempo: ver las 9 entregas tarde de Andrés Castillo">56%</a><a class="fig of" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=andres-castillo&amp;estado=todas" aria-label="15 de 27: ver las 27 entregas con fecha de Andrés Castillo">15 de 27</a></span></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=andres-castillo&amp;tipo=placements" aria-label="26 placements: ver los placements de Andrés Castillo">26</a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=andres-castillo&amp;tipo=vacantes-cerradas&amp;con-placement=1" aria-label="59% conversión: ver las 17 de 29 vacantes cerradas con placement de Andrés Castillo">59%</a> <span class="muted">· 17 de 29</span></td><td class="go"><a href="#" aria-label="Ver detalle de Andrés Castillo"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+          <tr class="weak"><td><a class="who" href="#"><span class="avatar" aria-hidden="true">JP</span><b>Jorge Paredes</b></a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=jorge-paredes&amp;tipo=vacantes-asignadas" aria-label="14 vacantes: ver las vacantes asignadas a Jorge Paredes">14</a></td><td class="n"><span class="rate"><span class="t" aria-hidden="true"><i style="width:20%"></i></span><a class="fig pct" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=jorge-paredes&amp;estado=tarde" aria-label="20% a tiempo: ver las 4 entregas tarde de Jorge Paredes">20%</a><a class="fig of" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=jorge-paredes&amp;estado=todas" aria-label="1 de 5: ver las 5 entregas con fecha de Jorge Paredes">1 de 5</a></span></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=jorge-paredes&amp;tipo=placements" aria-label="5 placements: ver los placements de Jorge Paredes">5</a></td><td class="n"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;reclutador=jorge-paredes&amp;tipo=vacantes-cerradas&amp;con-placement=1" aria-label="40% conversión: ver las 2 de 5 vacantes cerradas con placement de Jorge Paredes">40%</a> <span class="muted">· 2 de 5</span></td><td class="go"><a href="#" aria-label="Ver detalle de Jorge Paredes"><svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a></td></tr>
+        </tbody>
+      </table>
+    </article>
+  </section>
+  <section class="sec" aria-labelledby="s-org" data-load="near">
+    <div class="sec-head">
+      <h2 id="s-org">Origen de las postulaciones</h2>
+      <button class="btn btn-ghost" type="button" data-help="origen" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <article class="card" aria-labelledby="s-org">
+      <div class="card-head"><div><h3>Postulaciones por canal</h3><p class="cap"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=postulaciones" aria-label="Ver las 6,920 postulaciones">6,920</a> postulaciones en 12 meses</p></div></div>
+      <ul class="hbars wide">
+          <li class="hbar top"><span class="lbl">Portal de vacantes</span><span class="hbar-track" aria-hidden="true"><i style="width:100%"></i></span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=postulaciones&amp;origen=portal" aria-label="Ver las 3,412 postulaciones de Portal de vacantes, 49 %">3,412</a> <span class="muted">· 49%</span></span></li>
+          <li class="hbar"><span class="lbl">Sitio de carreras</span><span class="hbar-track" aria-hidden="true"><i style="width:58.2%"></i></span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=postulaciones&amp;origen=sitio" aria-label="Ver las 1,986 postulaciones de Sitio de carreras, 29 %">1,986</a> <span class="muted">· 29%</span></span></li>
+          <li class="hbar"><span class="lbl">Registro manual</span><span class="hbar-track" aria-hidden="true"><i style="width:35.3%"></i></span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=postulaciones&amp;origen=manual" aria-label="Ver las 1,204 postulaciones de Registro manual, 17 %">1,204</a> <span class="muted">· 17%</span></span></li>
+          <li class="hbar"><span class="lbl">Portal o sitio, sin distinguir</span><span class="hbar-track" aria-hidden="true"><i style="width:9.3%"></i></span><span class="val"><a class="fig" href="08-detalle-indagacion.html?periodo=anio&amp;tipo=postulaciones&amp;origen=sin-distinguir" aria-label="Ver las 318 postulaciones de Portal o sitio, sin distinguir, 5 %">318</a> <span class="muted">· 5%</span></span></li>
+      </ul>
+    </article>
+  </section>
+</div>
+</main>
+</div>
+<div class="pop" id="pop" role="dialog" aria-labelledby="pop-t" tabindex="-1" hidden><h3 id="pop-t"></h3><dl></dl></div>
+<div class="pop" id="filters" role="dialog" aria-labelledby="f-t" tabindex="-1" hidden>
+  <h3 id="f-t">Filtros</h3>
+  <div class="field"><label for="f-rec">Reclutador</label><select id="f-rec"><option>Todos</option><option>Diego Ramírez</option><option>Valeria Ortiz</option><option>Sofía Méndez</option><option>Andrés Castillo</option><option>Jorge Paredes</option></select></div>
+  <div class="field"><label for="f-cli">Cliente o área</label><select id="f-cli"><option>Todos</option><option>Banorte · Finanzas</option><option>Grupo Bimbo · Operaciones</option><option>Liverpool · Tecnología</option><option>Interno · RR. HH.</option><option>Sin solicitante</option></select></div>
+  <div class="pop-actions"><button class="btn btn-ghost" type="button" data-close>Cancelar</button><button class="btn btn-primary" type="button" data-close>Aplicar</button></div>
+</div>
+<script>
+const HELP={
+ resumen:{t:'Cómo se calcula el resumen',items:[
+  ['Entregas a tiempo','Entregas de candidatos hechas en o antes de su fecha meta, entre las que ya llegaron a su fecha (a tiempo, tarde o vencidas).'],
+  ['Vacantes asignadas','Vacantes distintas con un responsable asignado durante el periodo.'],
+  ['Mediana para cerrar','Días hábiles entre la apertura y el cierre de la vacante; la mitad cerró en menos.'],
+  ['Placements','Contrataciones con fecha en el periodo. Las anuladas no cuentan.'],
+  ['Reasignaciones','Cambios de responsable en el periodo. Sumar o quitar colaboradores no cuenta.'],
+  ['Comparación y tendencia','Mismo cálculo en el periodo anterior de igual duración y serie mensual de toda la empresa.','N1 · N2']]},
+ cierres:{t:'Cómo se calculan cierres y entregas',items:[
+  ['Cierres de vacantes','Vacantes distintas con un cierre en cada mes; «cubiertas» son las cerradas con motivo cubierta. Noviembre va en curso. Abril, julio y septiembre concentran los cierres.'],
+  ['Estado de entregas','Situación de la entrega de candidatos de cada vacante asignada frente a su fecha meta. El 92 % tiene meta configurada; la mediana es de 9 días hábiles a la meta.'],
+  ['Ver los registros','Cada número, segmento y mes abre la lista de vacantes o entregas que lo forman.']]},
+ cumplimiento:{t:'Cómo se calcula el cumplimiento',items:[
+  ['A tiempo','Entregas a tiempo entre las entregas con fecha que ya se cumplieron o vencieron (a tiempo + tarde + vencidas). Pendientes y sin meta no cuentan.'],
+  ['Días de retraso','Días hábiles entre la fecha meta y la entrega real, sin fines de semana ni días festivos.'],
+  ['A tiempo por mes','Mismo cálculo por mes de la fecha meta. La tendencia sube desde marzo.','N2']]},
+ pipeline:{t:'Cómo se calcula el pipeline',items:[
+  ['Candidatos por etapa','Candidatos en proceso hoy, agrupados por su etapa actual, en todas las vacantes abiertas. No sigue el periodo seleccionado.','N3'],
+  ['Mediana en etapa','Mediana de días naturales desde que la persona entró a la etapa.'],
+  ['Detenidos','Personas con más de 5 días en la misma etapa. Evaluación concentra la mitad de los detenidos.']]},
+ retrasos:{t:'Cómo se calculan retrasos y reasignaciones',items:[
+  ['Meta de cierre','Compara la fecha de cierre de cada vacante cerrada con su fecha meta de cierre.'],
+  ['Entregas vencidas','Entregas cuya fecha meta ya pasó sin enviar los candidatos; ordenadas por antigüedad.','N4'],
+  ['Reasignaciones por motivo','Cambios de responsable en el periodo, por el motivo registrado al reasignar.']]},
+ reclutadores:{t:'Cómo se calcula por reclutador',items:[
+  ['Vacantes asignadas','Vacantes donde la persona fue responsable durante el periodo.'],
+  ['Entregas a tiempo','Entregas a tiempo entre las entregas con fecha cumplida de sus vacantes. El porcentaje abre las entregas tarde; «N de M» abre todas.'],
+  ['Placements','Contrataciones acreditadas a la persona.'],
+  ['Conversión','Vacantes con al menos un placement entre sus vacantes cerradas en el periodo.']]},
+ origen:{t:'Cómo se calcula el origen',items:[
+  ['Postulaciones por canal','Postulaciones creadas en el periodo según el canal: portal de vacantes, sitio de carreras o registro manual.'],
+  ['Sin distinguir','Postulaciones anteriores a que el portal y el sitio se separaran.']]}};
+/* theme */
+const themeBtn=document.getElementById('theme');
+themeBtn.addEventListener('click',()=>{const dark=document.documentElement.classList.toggle('dark');
+  themeBtn.setAttribute('aria-label',dark?'Cambiar a tema claro':'Cambiar a tema oscuro');
+  themeBtn.querySelector('use').setAttribute('href',dark?'#i-sun':'#i-moon')});
+/* period (visual only) */
+document.querySelectorAll('.head .seg button').forEach(b=>b.addEventListener('click',()=>{
+  b.parentElement.querySelectorAll('button').forEach(o=>o.setAttribute('aria-pressed',String(o===b)))}));
+/* popovers: one open at a time; Escape / outside click close; focus returns to the trigger */
+const pop=document.getElementById('pop');let trig=null,panel=null;
+function place(el,b){el.hidden=false;const r=b.getBoundingClientRect();
+  let x=r.right+scrollX-el.offsetWidth;x=Math.max(8,Math.min(x,scrollX+document.documentElement.clientWidth-el.offsetWidth-8));
+  el.style.left=x+'px';el.style.top=(r.bottom+scrollY+8)+'px'}
+function closeAll(ret=true){if(!trig)return;panel.hidden=true;trig.setAttribute('aria-expanded','false');if(ret)trig.focus();trig=null;panel=null}
+function openFor(b){if(trig===b){closeAll();return}closeAll(false);
+  if(b.dataset.help){const d=HELP[b.dataset.help];pop.querySelector('h3').textContent=d.t;const dl=pop.querySelector('dl');dl.replaceChildren();
+    d.items.forEach(([t,x,n])=>{const dt=document.createElement('dt');dt.textContent=t;
+      if(n){const s=document.createElement('span');s.className='new';s.textContent='Dato nuevo · '+n;dt.append(s)}
+      const dd=document.createElement('dd');dd.textContent=x;dl.append(dt,dd)});panel=pop}
+  else panel=document.getElementById(b.getAttribute('aria-controls'));
+  place(panel,b);b.setAttribute('aria-expanded','true');trig=b;panel.focus()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-help],[data-panel]');if(b){openFor(b);return}
+  if(trig&&!panel.contains(e.target))closeAll(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeAll()));
+/* chart ↔ table (rule 8) */
+const CER=[8,7,10,9,12,11,9,13,10,12,11,6],CUB=[6,5,8,7,10,9,7,11,8,10,8,3];
+const MESES=['Diciembre 2025','Enero 2026','Febrero 2026','Marzo 2026','Abril 2026','Mayo 2026','Junio 2026','Julio 2026','Agosto 2026','Septiembre 2026','Octubre 2026','Noviembre 2026 (en curso)'];
+document.getElementById('mes-rows').replaceChildren(...MESES.map((m,i)=>{const tr=document.createElement('tr');
+  [m,CER[i],CUB[i]].forEach((v,j)=>{const td=document.createElement('td');if(j){td.className='n';const a=document.createElement('a');a.className='fig';a.href='08-detalle-indagacion.html?periodo=anio&tipo=vacantes-cerradas'+(j===2?'&motivo=cubierta':'');
+    a.setAttribute('aria-label',`Ver las ${v} vacantes ${j===1?'cerradas':'cubiertas'} en ${m}`);a.textContent=v;td.append(a)}else td.textContent=v;tr.append(td)});return tr}));
+const asTable=document.getElementById('as-table');
+asTable.addEventListener('click',()=>{const on=asTable.getAttribute('aria-pressed')!=='true';asTable.setAttribute('aria-pressed',String(on));
+  document.getElementById('mes-chart').hidden=on;document.getElementById('mes-table').hidden=!on;asTable.textContent=on?'Ver como gráfica':'Ver como tabla'});
+/* artboard-only: progressive loading (rule 17). Skeleton blocks are measured from the real layout so each card keeps its exact shape. */
+function block(layer,x,y,w,h,r){const s=document.createElement('span');s.className='sk';Object.assign(s.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px',borderRadius:(r||6)+'px'});layer.append(s)}
+function skeletonize(card,near){const cr=card.getBoundingClientRect(),layer=document.createElement('div');layer.className='sk-layer';layer.setAttribute('aria-hidden','true');
+  const rel=el=>{const r=el.getBoundingClientRect();return {x:r.left-cr.left,y:r.top-cr.top,w:r.width,h:r.height}};
+  [...card.children].forEach(ch=>{if(ch.hidden)return;const b=rel(ch);
+    if(ch.classList.contains('card-head')){block(layer,b.x,b.y+4,Math.min(200,b.w*.5),14);if(b.h>30)block(layer,b.x,b.y+30,Math.min(260,b.w*.7),10)}
+    else if(ch.matches('ul,table')||ch.querySelector(':scope>ul,:scope>table')){
+      const items=ch.querySelectorAll('li,tbody tr');items.forEach(li=>{const r=rel(li),mid=r.y+r.h/2;block(layer,b.x,mid-6,Math.min(b.w*.45,260),12);block(layer,b.x+b.w-72,mid-6,72,12)})}
+    else if(ch.classList.contains('stack'))block(layer,b.x,b.y,b.w,b.h,999);
+    else block(layer,b.x,b.y,b.w,b.h,ch.tagName==='svg'||ch.id==='mes-chart'?8:6)});
+  if(near){const l=document.createElement('span');l.className='ph-label';l.textContent='Se cargará al acercarte';layer.append(l)}
+  card.append(layer)}
+function clearSkeletons(sec){sec.querySelectorAll('.sk-layer').forEach(l=>l.remove())}
+const dctl=document.getElementById('design-load');let io=null;
+dctl.addEventListener('click',()=>{const on=!document.body.classList.contains('loading');
+  document.querySelectorAll('[data-load]').forEach(sec=>{clearSkeletons(sec);sec.removeAttribute('aria-busy')});
+  if(io){io.disconnect();io=null}
+  if(on){document.querySelectorAll('[data-load]').forEach(sec=>{sec.setAttribute('aria-busy','true');
+      if(sec.dataset.loadOrig)sec.dataset.load=sec.dataset.loadOrig;sec.dataset.loadOrig=sec.dataset.load;
+      sec.querySelectorAll('.card').forEach(c=>skeletonize(c,sec.dataset.load==='near'))});
+    /* below-the-fold sections switch to an active skeleton when they approach the viewport */
+    io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting&&e.target.dataset.load==='near'){const s=e.target;s.dataset.load='view';clearSkeletons(s);s.querySelectorAll('.card').forEach(c=>skeletonize(c,false))}}),{rootMargin:'0px 0px -35% 0px'});
+    document.querySelectorAll('[data-load="near"]').forEach(s=>io.observe(s))}
+  else document.querySelectorAll('[data-load]').forEach(sec=>{if(sec.dataset.loadOrig)sec.dataset.load=sec.dataset.loadOrig});
+  document.body.classList.toggle('loading',on);dctl.setAttribute('aria-pressed',String(on));
+  dctl.querySelector('span').textContent=on?'Ver contenido cargado':'Ver estado de carga'});
+</script>
+</body>
+</html>

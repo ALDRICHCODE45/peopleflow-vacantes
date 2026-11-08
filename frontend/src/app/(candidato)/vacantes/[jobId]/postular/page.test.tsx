@@ -55,7 +55,7 @@ const errorFetch = (status: number) =>
 const RAW_COLOR_UTILITY =
   /(?:^|\s|[a-z-]+:)(?:text|bg|border)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)-\d{2,3}(?:\s|$)/;
 
-vi.mock("@/features/candidate-applications/wizard", () => ({ CandidateApplicationWizard: () => <h2>Datos de candidato</h2> }));
+vi.mock("@/features/candidate-applications/wizard", () => ({ CandidateApplicationWizard: ({ channel }: { channel?: string }) => <h2 data-channel={channel}>Datos de candidato</h2> }));
 
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -138,6 +138,15 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     render(await Page({ params: paramsFor(vacancyDetail.id) }));
     expect(screen.getByRole("heading", { name: "Datos de candidato" })).toBeVisible();
     expect(await generateMetadata({ params: paramsFor(vacancyDetail.id) })).toMatchObject({ title: `Postularme · ${vacancyDetail.title}`, robots: { index: false, follow: false } });
+  });
+
+  it.each([
+    [{ origen: "sitio" }, "careers_site"], [{ origen: "Sitio" }, "portal"], [{ origen: ["sitio", "sitio"] }, "portal"], [{}, "portal"], [undefined, "portal"],
+  ] as const)("passes the channel from origen %j to the wizard as %s", async (searchParams, channel) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => vacancyDetail }));
+    const { default: Page } = await load("page");
+    render(await Page({ params: paramsFor(vacancyDetail.id), ...(searchParams ? { searchParams: Promise.resolve(searchParams) } : {}) }));
+    expect(screen.getByRole("heading", { name: "Datos de candidato" })).toHaveAttribute("data-channel", channel);
   });
 
   it("maps a backend 404 to notFound() and a retryable failure to a real error", async () => {

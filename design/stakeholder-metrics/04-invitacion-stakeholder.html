@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>04 · Invitar stakeholder · flujo completo</title>
+<style>
+
+:root{--background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);--muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;--destructive:oklch(0.577 0.245 27.325);--brand-decorative-strong:oklch(0.54 0.15 292.581);--status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);--status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);--radius:.625rem;--shadow-card:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent);--shadow-pop:0 4px 8px color-mix(in srgb,var(--foreground) 8%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 70%,transparent);--hatch:repeating-linear-gradient(45deg,var(--muted-foreground) 0 2px,var(--muted) 2px 5px)}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--background);color:var(--foreground);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}ul,ol{padding:0;list-style:none}h1{font-size:20px;font-weight:600;line-height:1.3}h2{font-size:16px;font-weight:600}h3{font-size:14px;font-weight:600}
+.num{font-variant-numeric:tabular-nums}.muted{color:var(--muted-foreground)}.sm{font-size:12.5px}.xs{font-size:12px}.eyebrow{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}svg.s14{width:14px;height:14px}svg.s20{width:20px;height:20px}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}button,input,select{font:inherit;color:inherit}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:calc(var(--radius)*.8);border:1px solid var(--border);background:var(--card);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;color:var(--foreground)}
+.btn:hover{background:var(--muted)}.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}.btn.ghost{background:transparent;border-color:transparent}.btn.ghost:hover{background:var(--muted)}.btn:disabled{color:var(--muted-foreground);cursor:not-allowed;background:var(--card)}.btn.icon{width:40px;padding:0}
+.input,.select{min-height:40px;border:1px solid var(--border);border-radius:calc(var(--radius)*.8);background:var(--card);padding:0 12px}
+.field{display:grid;gap:4px}.field>label,.field>.lbl{font-size:12.5px;font-weight:500}
+.badge{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground);white-space:nowrap}
+.badge.success{--t:var(--status-success)}.badge.info{--t:var(--status-info)}.badge.review{--t:var(--status-review)}.badge.danger{--t:var(--status-danger)}
+.badge.success,.badge.info,.badge.review,.badge.danger{color:var(--t);border-color:color-mix(in srgb,var(--t) 30%,transparent);background:color-mix(in srgb,var(--t) 10%,var(--card))}
+.badge.accent{background:color-mix(in srgb,var(--primary) 12%,var(--card));border-color:color-mix(in srgb,var(--primary) 25%,transparent);color:var(--foreground)}
+.card{background:var(--card);border-radius:calc(var(--radius)*1.4);box-shadow:var(--shadow-card);min-width:0}.card-h{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}.card-b{padding:16px 20px}.card-f{padding:12px 20px;border-top:1px solid var(--border)}
+.medal{width:36px;height:36px;border-radius:50%;background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--primary);display:grid;place-items:center;flex:none}
+.info{display:inline-grid;place-items:center;width:40px;height:40px;margin:-10px -12px -10px -8px;border:0;background:transparent;border-radius:calc(var(--radius)*.8);color:var(--muted-foreground);cursor:pointer;flex:none}.info:hover,.info[aria-expanded=true]{background:var(--muted);color:var(--foreground)}
+.pop{position:absolute;z-index:60;width:320px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-pop);padding:14px 16px;display:grid;gap:6px}.pop small{font-size:12px;color:var(--muted-foreground);border-top:1px solid var(--border);padding-top:8px}
+/* shell */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:900px}.side{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;padding:12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 8px;font-weight:600;font-size:16px}.mark{width:24px;height:24px;border-radius:50%;background:var(--foreground);color:var(--card);display:grid;place-items:center;font-size:13px;font-weight:700}
+.navlabel{padding:14px 10px 4px;font-size:12px;font-weight:500;color:var(--muted-foreground)}.nav a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:calc(var(--radius)*.8);text-decoration:none;color:var(--foreground)}.nav a:hover{background:var(--muted)}.nav a[aria-current=page]{background:var(--muted);font-weight:600}
+.side .new{width:100%;justify-content:flex-start}.who{margin-top:auto;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;padding:12px 8px 4px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font-size:12px;font-weight:500;flex:none}
+.top{height:56px;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--border);background:var(--background)}.crumb{font-size:13px;display:flex;gap:6px;align-items:center}
+.page{padding:24px 32px 48px;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0}[hidden]{display:none!important}
+/* charts */
+.seg{display:flex;gap:2px;height:10px;border-radius:999px;overflow:hidden;background:var(--muted)}.seg>span{background:var(--c)}
+.legend{display:grid;gap:6px}.legend li{display:flex;align-items:center;gap:8px;font-size:13px}.legend b{margin-left:auto;font-weight:500}.sw{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none}
+.big{font-size:28px;font-weight:600;line-height:1.1;letter-spacing:-.01em}.mid{font-size:20px;font-weight:600;line-height:1.2}
+.progress{height:8px;border-radius:999px;background:var(--muted);overflow:hidden}.progress>span{display:block;height:100%;background:var(--primary);border-radius:inherit}
+.kv{display:flex;align-items:center;gap:6px}.zero{color:var(--muted-foreground)}
+.sheetwrap{position:fixed;inset:0;z-index:70;background:color-mix(in srgb,var(--foreground) 40%,transparent);display:flex;justify-content:flex-end}.sheet{width:440px;max-width:100%;height:100%;background:var(--card);display:flex;flex-direction:column}.sheet header{padding:20px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}.sheet .body{flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:grid;gap:16px;align-content:start}.sheet dt{font-weight:600}.sheet dd{color:var(--muted-foreground);font-size:13px;margin-top:2px}
+.note{display:flex;gap:10px;padding:12px 14px;border-radius:var(--radius);background:var(--muted);font-size:13px}
+.states{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:32px 20px}.empty p{max-width:28rem;color:var(--muted-foreground)}.tile{width:40px;height:40px;border-radius:var(--radius);display:grid;place-items:center;background:var(--muted)}.tile.err{background:color-mix(in srgb,var(--destructive) 10%,var(--card));color:var(--destructive)}
+.sk{background:var(--muted);border-radius:6px;height:12px}
+.err-text{color:var(--destructive);font-size:12.5px;display:flex;gap:6px;align-items:center}.input.invalid{border-color:var(--destructive)}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;max-width:300px;padding:0 4px 0 10px;border:1px solid var(--border);border-radius:calc(var(--radius)*.8);background:var(--card);font-size:13px}.chip .x{all:unset;width:28px;height:28px;display:grid;place-items:center;border-radius:6px;cursor:pointer}.chip .x:hover{background:var(--muted)}.chip .x:focus-visible{outline:2px solid var(--primary)}
+.dirnote{border-top:1px solid var(--border);padding-top:20px;display:grid;grid-template-columns:1fr 390px;gap:28px;align-items:start}
+.phone{width:390px;border-radius:calc(var(--radius)*2.6);background:var(--background);box-shadow:var(--shadow-card);overflow:hidden;font-size:13px}.phone .bar{display:flex;align-items:center;gap:8px;height:52px;padding:0 12px;background:var(--card);border-bottom:1px solid var(--border)}.phone .in{padding:14px;display:grid;gap:12px}
+@media (max-width:900px){.app{grid-template-columns:1fr}.side{display:none}.grid3,.grid2,.grid2b,.states,.dirnote{grid-template-columns:1fr}.page{padding:16px}.toolbar{position:static}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* tables (shared) */
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}th{font-size:12.5px;font-weight:500;color:var(--muted-foreground);white-space:nowrap}tbody tr:last-child td{border-bottom:0}tbody tr:hover td{background:color-mix(in srgb,var(--muted) 60%,var(--card))}
+.l2{display:block;font-size:12px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* layout 04 */
+.board{padding:28px 32px 48px;display:grid;gap:28px;max-width:1440px}
+.step{display:grid;gap:12px}.step>header{display:flex;align-items:baseline;gap:12px}.stepno{font-size:12px;font-weight:600;color:var(--brand-decorative-strong)}
+.frame{border-radius:calc(var(--radius)*1.8);overflow:hidden;background:var(--background);box-shadow:var(--shadow-card)}
+.frame .chrome{height:36px;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--card);border-bottom:1px solid var(--border);font-size:12px;color:var(--muted-foreground)}
+.mini{display:grid;grid-template-columns:200px minmax(0,1fr)}.mini .side{position:static;height:auto;min-height:100%}.mini .nav a{min-height:36px;font-size:13px}
+.mini main{padding:20px 24px;display:grid;gap:16px;align-content:start}
+.row2{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:20px;align-items:start}
+.dialog{background:var(--card);border-radius:calc(var(--radius)*1.4);box-shadow:var(--shadow-pop);padding:22px;display:grid;gap:14px;max-width:520px;margin:auto}
+.scrim{background:color-mix(in srgb,var(--foreground) 40%,transparent);padding:28px 20px;display:grid;place-items:center;min-height:100%}
+.ig{display:flex;border:1px solid var(--border);border-radius:calc(var(--radius)*.8);overflow:hidden;background:var(--muted)}.ig input{flex:1;min-width:0;border:0;background:transparent;padding:0 12px;min-height:40px;font-size:12.5px;font-variant-numeric:tabular-nums}.ig .btn{border-radius:0;border-width:0 0 0 1px}
+.status-ok{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--status-success)}
+.warnline{display:flex;gap:10px;padding:10px 12px;border-radius:var(--radius);background:color-mix(in srgb,var(--status-review) 10%,var(--card));color:var(--foreground);font-size:13px}.warnline svg{color:var(--status-review)}
+.accept{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.accept .frame{display:flex;flex-direction:column}.accept .stage{flex:1;padding:24px 16px;display:grid;place-items:center}
+.state{background:var(--card);border-radius:calc(var(--radius)*1.4);box-shadow:var(--shadow-card);padding:28px 22px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;max-width:380px;width:100%}.state h3{font-size:17px}.state p{color:var(--muted-foreground);font-size:13.5px}.state .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.tile.info{background:color-mix(in srgb,var(--primary) 10%,var(--card));color:var(--primary)}
+.cap{font-size:12px;color:var(--muted-foreground);padding:8px 14px;border-top:1px solid var(--border);background:var(--card)}
+.spin{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.pend td{font-size:13px}
+.shell2{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:330px}.shell2 .side{position:static;height:auto}
+@media (max-width:900px){.row2,.accept,.mini,.shell2{grid-template-columns:1fr}.mini .side,.shell2 .side{display:none}.board{padding:16px}}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-brief" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 3.1a4 4 0 0 1 0 7.8M21 21v-2a4 4 0 0 0-3-3.9"/></symbol>
+<symbol id="i-team" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M6 21v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1M17 10a2 2 0 1 0 0-4M7 10a2 2 0 1 1 0-4"/></symbol>
+<symbol id="i-world" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 21h18"/><rect x="5" y="11" width="3" height="7" rx="1"/><rect x="10.5" y="6" width="3" height="12" rx="1"/><rect x="16" y="9" width="3" height="9" rx="1"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-chevr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+<symbol id="i-sort" viewBox="0 0 24 24"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-pkg" viewBox="0 0 24 24"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+<symbol id="i-ucheck" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M3 21a6 6 0 0 1 12 0M16 11l2 2 4-4"/></symbol>
+<symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H12"/></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 12V9a3 3 0 0 1 3-3h13M17 3l3 3-3 3M20 12v3a3 3 0 0 1-3 3H4M7 21l-3-3 3-3"/></symbol>
+<symbol id="i-bldg" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h13"/></symbol>
+<symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+<symbol id="i-filterx" viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/><path d="M17 16l4 4M21 16l-4 4"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+<symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2.3 5.7M4 4v7h7"/></symbol>
+</svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2M9 12h12M18 9l3 3-3 3"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M9 15l6-6M11 6l.5-.5a4 4 0 0 1 5.7 5.7l-.5.5M13 18l-.5.5a4 4 0 0 1-5.7-5.7l.5-.5"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol><symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/></symbol><symbol id="i-login" viewBox="0 0 24 24"><path d="M10 8V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-2M3 12h12M12 9l3 3-3 3"/></symbol><symbol id="i-hour" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7 3v3a5 5 0 0 0 10 0V3M7 21v-3a5 5 0 0 1 10 0v3"/></symbol><symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol><symbol id="i-uplus" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M3 21a6 6 0 0 1 12 0M19 8v6M16 11h6"/></symbol></svg>
+
+<main class="board">
+  <header style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
+    <div style="flex:1;min-width:320px"><span class="eyebrow">Artboard 04 · S1 · S2 · S3 · S8</span><h1 style="margin-top:4px">Invitar a un stakeholder: del enlace al acceso de solo lectura</h1><p class="muted" style="margin-top:4px;max-width:52rem">El owner crea un enlace de un solo uso que vence en 7 días y lo envía por el canal que quiera. Quien lo abre entra con una cuenta de empresa y queda como stakeholder: ve Métricas y nada más.</p></div>
+    <p class="sm muted" style="max-width:340px"><strong style="color:var(--foreground)">Tradeoff:</strong> el enlace copiable funciona sin proveedor de correo y en cualquier entorno, pero se muestra una sola vez y la lista de pendientes no puede volver a mostrarlo; si el owner lo pierde, revoca y crea otro.</p>
+  </header>
+
+  <!-- Step 1 -->
+  <section class="step" aria-labelledby="s1">
+    <header><span class="stepno">1</span><h2 id="s1">El owner crea el enlace desde Equipo</h2></header>
+    <div class="row2">
+      <div class="frame">
+        <div class="chrome"><svg class="i s14" aria-hidden="true"><use href="#i-lock"/></svg>app.peopleflow.mx/empresa/equipo</div>
+        <div class="mini">
+          <aside class="side" aria-label="Navegación (owner)">
+            <div class="brand"><span class="mark" aria-hidden="true">p</span>PeopleFlow</div>
+            <nav class="nav" aria-label="Secciones del owner"><div class="navlabel">Organización</div><a href="#" aria-current="page"><svg class="i"><use href="#i-team"/></svg>Equipo</a><a href="#"><svg class="i"><use href="#i-gear"/></svg>Configuración</a><a href="#"><svg class="i"><use href="#i-chart"/></svg>Métricas</a><a href="#"><svg class="i"><use href="#i-shield"/></svg>Auditoría</a></nav>
+          </aside>
+          <main>
+            <div><h1>Equipo</h1><p class="sm muted">Reclutadores y stakeholders de Talentia Consultores.</p></div>
+            <section class="card" aria-labelledby="h-stk">
+              <div class="card-h" style="flex-wrap:wrap"><span class="medal" aria-hidden="true"><svg class="i s20"><use href="#i-eye"/></svg></span><div style="flex:1;min-width:220px"><h2 id="h-stk" style="font-size:15px">Stakeholders</h2><p class="xs muted">Solo ven Métricas, incluidos nombres de candidatos en el detalle auditado. No trabajan vacantes ni reciben créditos.</p></div><button class="btn primary"><svg class="i"><use href="#i-link"/></svg>Crear enlace de invitación</button></div>
+              <div class="card-b" style="display:grid;gap:14px">
+                <ul style="display:grid;gap:2px">
+                  <li style="display:flex;align-items:center;gap:10px;min-height:48px"><span class="avatar" aria-hidden="true">JT</span><div style="flex:1"><div style="font-weight:500">Jorge Treviño</div><div class="xs muted">jorge.trevino@talentia.mx · se unió el 3 nov 2026</div></div><span class="badge">Stakeholder</span><button class="btn ghost icon" aria-label="Acciones de Jorge Treviño"><svg class="i"><use href="#i-dots"/></svg></button></li>
+                </ul>
+                <div style="display:flex;align-items:center;gap:8px"><h3 style="font-size:13px">Invitaciones pendientes</h3><span class="xs muted num">2 de 20</span></div>
+                <table class="pend">
+                  <thead><tr><th scope="col">Invitación</th><th scope="col">Creada por</th><th scope="col">Vence</th><th scope="col"><span class="sr">Acciones</span></th></tr></thead>
+                  <tbody class="num">
+                    <tr><td>5 nov 2026, 09:14</td><td>Sofía Ramírez</td><td>12 nov 2026<span class="l2">en 5 días</span></td><td style="text-align:right"><button class="btn ghost" aria-label="Revocar invitación del 5 nov 2026, 09:14"><svg class="i"><use href="#i-ban"/></svg>Revocar</button></td></tr>
+                    <tr><td>7 nov 2026, 10:42 <span class="badge accent">Nueva</span></td><td>Sofía Ramírez</td><td>14 nov 2026<span class="l2">en 7 días</span></td><td style="text-align:right"><button class="btn ghost" aria-label="Revocar invitación del 7 nov 2026, 10:42"><svg class="i"><use href="#i-ban"/></svg>Revocar</button></td></tr>
+                  </tbody>
+                </table>
+                <p class="xs muted">Por seguridad el enlace no se vuelve a mostrar. Si se perdió, revoca la invitación y crea otra. Quitar a un stakeholder se hace desde «Acciones»; para cambiarle el rol hay que quitarlo e invitarlo de nuevo.</p>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="chrome">Diálogo tras «Crear enlace de invitación»</div>
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-d">
+            <span class="tile info" aria-hidden="true"><svg class="i s20"><use href="#i-link"/></svg></span>
+            <div><h2 id="dlg-t" style="font-size:17px">Copia el enlace ahora</h2><p id="dlg-d" class="sm muted" style="margin-top:4px">Por seguridad no lo volveremos a mostrar. Envíalo por WhatsApp o chat a la persona que quieres invitar. Sirve una sola vez y vence el 14 nov 2026 a las 10:42.</p></div>
+            <div class="field"><label for="lnk">Enlace de invitación</label><div class="ig"><input id="lnk" readonly value="https://app.peopleflow.mx/empresa/invitacion/q3Jv8tR0wXbN5eLk2sYp9uHf7aCd1gMz4iOq6TnVrWo"><button class="btn" id="copy"><svg class="i"><use href="#i-copy"/></svg><span>Copiar enlace</span></button></div><p id="copy-st" class="status-ok" role="status" hidden><svg class="i s14" aria-hidden="true"><use href="#i-check"/></svg>Enlace copiado. Pégalo en el mensaje para la persona invitada.</p></div>
+            <div class="warnline"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><span>Quien use este enlace verá las métricas de toda la empresa y los nombres de candidatos en el detalle auditado.</span></div>
+            <div style="display:flex;justify-content:flex-end"><button class="btn primary">Listo, ya lo copié</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="step" aria-labelledby="s2">
+    <header><span class="stepno">2</span><h2 id="s2">Revocar, límite y lista vacía</h2></header>
+    <div class="accept">
+      <div class="frame"><div class="chrome">Confirmar revocación</div><div class="scrim" style="padding:20px">
+        <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="rv-t" aria-describedby="rv-d" style="max-width:400px">
+          <span class="tile err" aria-hidden="true"><svg class="i s20"><use href="#i-ban"/></svg></span>
+          <div><h3 id="rv-t" style="font-size:16px">¿Revocar la invitación del 5 nov, 09:14?</h3><p id="rv-d" class="sm muted" style="margin-top:4px">El enlace deja de funcionar de inmediato. Si la persona todavía no se une, tendrás que enviarle uno nuevo.</p></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn">Cancelar</button><button class="btn" style="background:var(--destructive);border-color:var(--destructive);color:var(--card)">Revocar invitación</button></div>
+        </div></div><p class="cap">ConfirmActionDialog, tono destructivo, foco inicial en «Cancelar». Revocar una ya usada o vencida también termina bien: la lista solo se actualiza.</p></div>
+      <div class="frame"><div class="chrome">Límite de 20 pendientes</div><div class="stage"><div class="card" style="width:100%"><div class="card-h" style="flex-wrap:wrap"><h3 style="flex:1">Stakeholders</h3><button class="btn primary" disabled aria-describedby="lim">Crear enlace de invitación</button></div><div class="card-b"><p id="lim" class="sm" style="display:flex;gap:8px"><svg class="i" aria-hidden="true" style="color:var(--status-review)"><use href="#i-alert"/></svg><span>Tienes 20 invitaciones pendientes, el máximo. Revoca alguna que ya no uses para crear otra.</span></p></div></div></div><p class="cap">La razón queda visible junto al botón deshabilitado, no en un tooltip.</p></div>
+      <div class="frame"><div class="chrome">Sin stakeholders ni invitaciones</div><div class="stage"><div class="card" style="width:100%"><div class="card-h"><h3>Stakeholders</h3></div><div class="empty" style="padding:24px 16px"><span class="tile info" aria-hidden="true"><svg class="i s20"><use href="#i-eye"/></svg></span><h3 style="font-size:16px">Aún no hay stakeholders</h3><p>Un stakeholder ve las métricas de la empresa en solo lectura, por ejemplo un director. Crea un enlace y envíaselo.</p><button class="btn primary"><svg class="i"><use href="#i-link"/></svg>Crear enlace de invitación</button></div></div></div><p class="cap">En este estado el botón vive en el vacío y no en el encabezado: una sola entrada.</p></div>
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="step" aria-labelledby="s3">
+    <header><span class="stepno">3</span><h2 id="s3">La persona invitada abre el enlace</h2><p class="sm muted">La página acepta desde el servidor, redirige a una dirección sin el token y no envía referrer.</p></header>
+    <div class="accept">
+      <div class="frame"><div class="chrome"><svg class="i s14" aria-hidden="true"><use href="#i-lock"/></svg>…/empresa/invitacion · sin sesión</div><div class="stage"><div class="state"><span class="tile info" aria-hidden="true"><svg class="i s20"><use href="#i-login"/></svg></span><h3>Te invitaron a ver métricas en PeopleFlow</h3><p>Inicia sesión o crea una cuenta de empresa para aceptar. Al terminar volverás aquí y la invitación se confirmará sola.</p><div class="acts"><button class="btn primary">Iniciar sesión</button><button class="btn">Crear cuenta de empresa</button></div></div></div><p class="cap">Sin sesión no se valida el token, así que no se muestra el nombre de la empresa. El token viaja en el callbackUrl del login.</p></div>
+      <div class="frame"><div class="chrome">Confirmando</div><div class="stage"><div class="state" aria-busy="true"><span class="spin" aria-hidden="true"></span><h3 role="status">Confirmando tu invitación…</h3><p>Esto tarda unos segundos.</p></div></div><p class="cap">Si la red falla y se reintenta, el mismo usuario recibe la misma respuesta: no se duplica nada.</p></div>
+      <div class="frame"><div class="chrome">Válida → te uniste</div><div class="stage"><div class="state"><span class="tile" style="background:color-mix(in srgb,var(--status-success) 12%,var(--card));color:var(--status-success)" aria-hidden="true"><svg class="i s20"><use href="#i-check"/></svg></span><h3>Te uniste a Talentia Consultores</h3><p>Tienes acceso de solo lectura a las métricas de la empresa. Puedes ver nombres de candidatos en el detalle; cada consulta queda registrada.</p><div class="acts"><a class="btn primary" href="02-riel-y-fichas.html">Ver métricas</a></div></div></div><p class="cap">Rol «Stakeholder». El owner verá «Invitación aceptada» en Auditoría.</p></div>
+      <div class="frame"><div class="chrome">Inválida o vencida</div><div class="stage"><div class="state"><span class="tile" aria-hidden="true"><svg class="i s20"><use href="#i-hour"/></svg></span><h3>Este enlace ya no es válido</h3><p>Puede haber vencido, haberse revocado o ya se usó. Pide a quien te invitó un enlace nuevo.</p><div class="acts"><a class="btn" href="#">Ir al inicio</a></div></div></div><p class="cap">Un solo mensaje para desconocido, vencido, revocado o usado por otra persona: no revela cuál fue.</p></div>
+      <div class="frame"><div class="chrome">Cuenta de candidato</div><div class="stage"><div class="state"><span class="tile err" aria-hidden="true"><svg class="i s20"><use href="#i-lock"/></svg></span><h3>Este enlace es para cuentas de empresa</h3><p>Entraste con una cuenta de candidato. Cierra sesión, entra con una cuenta de empresa (o crea una) y vuelve a abrir el enlace que te enviaron.</p><div class="acts"><button class="btn primary"><svg class="i"><use href="#i-logout"/></svg>Cerrar sesión</button></div></div></div><p class="cap">La invitación no se gasta: el enlace sigue sirviendo hasta que vence.</p></div>
+      <div class="frame"><div class="chrome">Ya perteneces a una empresa</div><div class="stage"><div class="state"><span class="tile info" aria-hidden="true"><svg class="i s20"><use href="#i-bldg"/></svg></span><h3>Ya perteneces a una empresa</h3><p>Tu cuenta ya es parte de otra empresa y solo puede pertenecer a una. Para ver estas métricas, usa otra cuenta de empresa.</p><div class="acts"><a class="btn primary" href="#">Ir a mi empresa</a><button class="btn">Cerrar sesión</button></div></div></div><p class="cap">La invitación tampoco se gasta en este caso.</p></div>
+    </div>
+    <div class="card card-b" style="display:flex;gap:14px;align-items:center;max-width:720px"><span class="tile err" aria-hidden="true"><svg class="i s20"><use href="#i-alert"/></svg></span><div style="flex:1"><h3>No pudimos confirmar tu invitación</h3><p class="sm muted">No se completó nada todavía. Puedes reintentar sin riesgo.</p></div><button class="btn primary"><svg class="i"><use href="#i-refresh"/></svg>Reintentar</button></div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="step" aria-labelledby="s4">
+    <header><span class="stepno">4</span><h2 id="s4">Lo que ve el stakeholder</h2></header>
+    <div class="row2">
+      <div class="frame">
+        <div class="chrome"><svg class="i s14" aria-hidden="true"><use href="#i-lock"/></svg>app.peopleflow.mx/empresa/metricas</div>
+        <div class="shell2">
+          <aside class="side" aria-label="Navegación del stakeholder">
+            <div class="brand"><span class="mark" aria-hidden="true">p</span>PeopleFlow</div>
+            <nav class="nav" aria-label="Secciones del stakeholder"><div class="navlabel">Talentia Consultores</div><a href="#" aria-current="page"><svg class="i"><use href="#i-chart"/></svg>Métricas</a><a href="#"><svg class="i"><use href="#i-user"/></svg>Mi cuenta</a></nav>
+            <div class="who" style="flex-direction:column;align-items:stretch;gap:6px"><div style="display:flex;gap:10px;align-items:center"><span class="avatar" aria-hidden="true">JT</span><div><div style="font-weight:500;font-size:13px">Jorge Treviño</div><div class="xs muted">Stakeholder</div></div></div><button class="btn ghost" style="justify-content:flex-start"><svg class="i"><use href="#i-logout"/></svg>Cerrar sesión</button></div>
+          </aside>
+          <main style="padding:20px 24px;display:grid;gap:12px;align-content:start">
+            <div style="display:flex;align-items:center;gap:10px"><h1 style="flex:1">Métricas de la empresa</h1><span class="badge accent"><svg class="i s14" aria-hidden="true"><use href="#i-eye"/></svg>Solo lectura</span></div>
+            <p class="sm muted">Sin «Nueva vacante», sin Vacantes, Base de talento, Equipo ni Configuración. La pantalla es la misma que ve el owner (direcciones 01–03).</p>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px" aria-hidden="true"><div class="card card-b"><div class="xs muted">Vacantes asignadas</div><div class="mid num">42</div></div><div class="card card-b"><div class="xs muted">Entregas a tiempo</div><div class="mid num">20 <span class="xs muted" style="font-weight:400">de 30</span></div></div><div class="card card-b"><div class="xs muted">Placements</div><div class="mid num">25</div></div></div>
+          </main>
+        </div>
+      </div>
+      <div style="display:grid;gap:16px">
+        <div class="frame"><div class="chrome">Si abre otra dirección (por ejemplo /empresa/vacantes)</div><div class="stage" style="padding:20px;display:grid;place-items:center"><div class="state"><span class="tile err" aria-hidden="true"><svg class="i s20"><use href="#i-lock"/></svg></span><h3>Esta sección no está disponible para tu rol</h3><p>Como stakeholder ves las métricas de la empresa en solo lectura. Si necesitas algo más, pídelo a la persona dueña de la cuenta.</p><div class="acts"><a class="btn primary" href="#">Ir a Métricas</a></div></div></div></div>
+        <div class="card card-b" style="display:grid;gap:6px"><h3>Qué queda en Auditoría (solo owner)</h3><ul class="sm muted" style="display:grid;gap:4px;list-style:disc;padding-left:18px"><li>Invitación creada y revocada, con quién lo hizo.</li><li>Invitación aceptada y miembro agregado con rol «Stakeholder».</li><li>Cada consulta de datos personales en Métricas (ver 05).</li><li>Quitar a un stakeholder, como cualquier baja de miembro.</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="dirnote" aria-labelledby="h-dir" style="grid-template-columns:1fr 390px">
+    <div style="display:grid;gap:8px"><span class="eyebrow">Notas</span><h2 id="h-dir">Decisiones que esta pantalla hace visibles</h2>
+      <ul class="sm muted" style="display:grid;gap:4px;list-style:disc;padding-left:18px">
+        <li>El enlace se muestra una vez, con copiar y estado «Enlace copiado» junto al botón; el diálogo no se cierra solo.</li>
+        <li>La lista de pendientes identifica cada invitación por fecha de creación porque el API no devuelve el token.</li>
+        <li>Los estados de la página de aceptación usan StateCard: tono informativo para «no es tu caso», destructivo para permiso y error.</li>
+        <li>El stakeholder no aparece en selectores de equipo ni de responsable: el frontend filtra el rol.</li>
+      </ul></div>
+    <div class="phone" aria-label="Página de aceptación a 390 px"><div class="bar"><span class="mark" aria-hidden="true">p</span><strong>PeopleFlow</strong></div><div class="in" style="padding:24px 14px"><div class="state" style="box-shadow:none;padding:12px 4px"><span class="tile" style="background:color-mix(in srgb,var(--status-success) 12%,var(--card));color:var(--status-success)" aria-hidden="true"><svg class="i s20"><use href="#i-check"/></svg></span><h3>Te uniste a Talentia Consultores</h3><p>Tienes acceso de solo lectura a las métricas.</p><button class="btn primary" style="width:100%">Ver métricas</button></div><p class="xs muted">En celular los botones van a ancho completo y apilados; el texto no se reduce.</p></div></div>
+  </aside>
+</main>
+<script>
+const cp=document.getElementById('copy'),st=document.getElementById('copy-st');
+cp.addEventListener('click',()=>{const inp=document.getElementById('lnk');const ok=()=>{st.className='status-ok';st.lastChild.textContent='Enlace copiado. Pégalo en el mensaje para la persona invitada.';cp.querySelector('span').textContent='Copiado';cp.querySelector('use').setAttribute('href','#i-check');st.hidden=false};const fail=()=>{st.className='err-text';st.querySelector('use').setAttribute('href','#i-alert');st.lastChild.textContent='No se pudo copiar. El enlace quedó seleccionado: cópialo con Ctrl+C.';inp.select();st.hidden=false};navigator.clipboard?navigator.clipboard.writeText(inp.value).then(ok,fail):fail()});
+</script>
+</body></html>

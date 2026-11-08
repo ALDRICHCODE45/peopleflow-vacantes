@@ -5,6 +5,9 @@ export function applicationFailure({ error, envelope }: ClientFailure): Failure 
   const status = error.status;
   const code = envelope && (CODES as readonly string[]).includes(envelope.code) ? envelope.code : undefined;
   let reason: Failure["reason"] = "unrecognized_response";
+  // A rejected channel is a client bug, not candidate input: it gets the generic copy.
+  const channelRejected = status === 400 && envelope?.code === "validation_error" && "fields" in envelope && envelope.fields.some(field => field.field === "channel" && field.code === "invalid");
+  if (channelRejected) return { ok: false, reason: "invalid_request", reference: { status, code: "validation_error" } };
   if (error.kind === "missing_token" || status === 401) reason = "unauthenticated";
   else if (error.kind === "invalid_request") reason = "invalid_request";
   else if (error.kind === "network" || error.kind === "timeout") reason = "no_response";

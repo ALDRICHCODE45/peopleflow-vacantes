@@ -62,3 +62,11 @@ it("rejects malformed successes, unknown fields and guards before transport", as
   expect(await getTeam({ ...input, token: "" })).toMatchObject({ ok: false, code: "unauthenticated" });
   expect(fetch).not.toHaveBeenCalled();
 });
+it("drops stakeholder memberships from the members a vacancy team can use (team writes would answer 422 not_company_member)", async () => {
+  const company = "20000000-0000-4000-8000-000000000001";
+  const member = (i: number, role: string) => ({ id: `30000000-0000-4000-8000-00000000000${i}`, company_id: company, role, created_at: "2026-10-15T00:07:43Z", updated_at: "2026-10-15T00:07:43Z", user: { id: `40000000-0000-4000-8000-00000000000${i}`, full_name: `Persona ${i}`, email: `p${i}@example.test` } });
+  reply({ members: [member(1, "owner"), member(2, "stakeholder"), member(3, "recruiter")] });
+  const result = await getCompanyMembers(input);
+  expect(result).toMatchObject({ ok: true });
+  expect(result.ok && result.data.members.map(item => item.role)).toEqual(["owner", "recruiter"]);
+});

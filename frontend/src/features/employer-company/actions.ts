@@ -17,7 +17,7 @@ type Reference = { status?: number; code?: string };
 export type CompanyUnavailable = { kind: "server_error" | "no_response" | "unrecognized_response"; reference: Reference };
 export type CompanyState =
   | { kind: "unauthenticated"; reference: Reference }
-  | { kind: "exists"; company: Company; role: Membership["role"]; industryLabel: string; canViewTalentBase: boolean }
+  | { kind: "exists"; company: Company; role: Membership["role"]; industryLabel: string; canViewTalentBase: boolean; /** Always set by loadCompanyStateAction; optional only for states built before stakeholder metrics v1. */ canViewMetrics?: boolean }
   | { kind: "none"; industries: Industry[] }
   | CompanyUnavailable;
 export type CreateCompanyState =
@@ -56,7 +56,9 @@ export async function loadCompanyStateAction(): Promise<CompanyState> {
       const industries = await listIndustries();
       if (industries.ok) industryLabel = industries.data.find(item => item.id === mine.data.company.industry_id)?.label_es ?? industryLabel;
     } catch { /* Keep the authenticated company summary. */ }
-    return { kind: "exists", company: mine.data.company, role: mine.data.role, industryLabel, canViewTalentBase: mine.data.can?.view_talent_base ?? true };
+    const { role, can } = mine.data;
+    // A pre-v1 backend omits view_metrics; the contract grants it to owner and stakeholder only (D2).
+    return { kind: "exists", company: mine.data.company, role, industryLabel, canViewTalentBase: can?.view_talent_base ?? true, canViewMetrics: can?.view_metrics ?? role !== "recruiter" };
   } catch {
     return unavailable();
   }

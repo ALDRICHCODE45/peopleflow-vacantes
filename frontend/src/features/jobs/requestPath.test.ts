@@ -25,6 +25,8 @@ describe("single application-facing request path", () => {
       "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
       "app/media/sitios/[id]/route.ts",
       "components/auth/CandidateAuthControls.tsx",
+      "features/audit-log/client.ts",
+      "features/audit-log/export-button.tsx",
       // Bodyless PUT 204 (mark a company message read), server-only to the configured origin.
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/file-client.ts",
@@ -44,6 +46,7 @@ describe("single application-facing request path", () => {
       "features/psychometrics/client.ts",
       // Bodyless DELETE 204 and bounded list bodies (saved vacancies), server-only to the configured origin.
       "features/saved-vacancies/client.ts",
+      "features/stakeholder-invitations/client.ts",
       // Bodyless DELETE 204 (clear a checklist mark), same-origin guarded like employer-team.
       "features/vacancy-checklist/client.ts",
       "lib/api/requestJson.ts",
@@ -96,7 +99,7 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
-  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
+  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/stakeholder-invitations/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
     const adapter = source(join(SRC, file));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');
@@ -110,6 +113,13 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
+  it("keeps the audit export download fixed to its same-origin route without credentials in the browser", () => {
+    const button = source(join(SRC, "features/audit-log/export-button.tsx"));
+    expect(button).toContain('credentials: "same-origin"');
+    expect(button).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:/);
+    expect(source(join(SRC, "app/api/company/audit-events/export/route.ts"))).not.toMatch(/\bfetch\(/);
+  });
+
   it("keeps the manual-intake upload fixed to its same-origin route and the backend call server-only", () => {
     const upload = source(join(SRC, "features/manual-intake/upload.ts"));
     expect(upload).toContain("fetch(`/api/company/manual-candidates/${encodeURIComponent(vacancyId)}`");
@@ -121,7 +131,7 @@ describe("single application-facing request path", () => {
     expect(source(join(SRC, "app/api/company/manual-candidates/[vacancyId]/route.ts"))).not.toMatch(/\bfetch\(/);
   });
 
-  it.each(["features/employer-dashboard/client.ts", "features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts", "features/vacancy-team/api-client.ts", "features/vacancy-assignments/api-client.ts", "features/talent-base-visibility/client.ts"])("keeps %s server-only through the shared transport", file => {
+  it.each(["features/employer-dashboard/client.ts", "features/org-candidates/contacts/contacts-client.ts", "features/org-candidates/edit/edit-client.ts", "features/org-candidates/history/history-client.ts", "features/org-candidates/summary/summary-client.ts", "features/vacancy-team/api-client.ts", "features/vacancy-assignments/api-client.ts", "features/talent-base-visibility/client.ts", "features/company-metrics/client.ts"])("keeps %s server-only through the shared transport", file => {
     const client = source(join(SRC, file));
     expect(client).toContain('import "server-only"');
     expect(client).toContain('from "@/lib/api/server"');
@@ -230,9 +240,11 @@ describe("single application-facing request path", () => {
       /lib\/api\/server"/.test(source(file)),
     );
     expect(importers.map(rel).sort()).toEqual([
+      "features/audit-log/client.ts",
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
       "features/candidate/profile-client.ts",
+      "features/company-metrics/client.ts",
       "features/company-site/api/client.ts",
       "features/company-site/public/read.ts",
       "features/employer-company/api/company-client.ts",
@@ -263,6 +275,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
+      "features/stakeholder-invitations/client.ts",
       "features/talent-base-visibility/client.ts",
       "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
@@ -277,9 +290,11 @@ describe("single application-facing request path", () => {
         /from "\.\/requestJson"/.test(source(file)),
     );
     expect(transportImporters.map(rel).sort()).toEqual([
+      "features/audit-log/client.ts",
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
       "features/candidate/profile-client.ts",
+      "features/company-metrics/client.ts",
       "features/company-site/api/client.ts",
       "features/company-site/public/read.ts",
       "features/employer-company/api/company-client.ts",
@@ -310,6 +325,7 @@ describe("single application-facing request path", () => {
       "features/org-candidates/summary/summary-client.ts",
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
+      "features/stakeholder-invitations/client.ts",
       "features/talent-base-visibility/client.ts",
       "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
@@ -333,6 +349,7 @@ describe("single application-facing request path", () => {
       "app/api/candidate/cvs/[id]/file/route.ts",
       "app/api/candidate/cvs/route.ts",
       "app/api/catalogs/languages/route.ts",
+      "app/api/company/audit-events/export/route.ts",
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts",
       "app/api/company/manual-candidates/[vacancyId]/route.ts",

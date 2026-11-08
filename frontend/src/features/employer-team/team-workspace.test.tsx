@@ -31,6 +31,7 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
 vi.mock("./actions", () => ({ listTeamMembersAction: vi.fn(), changeTeamRoleAction: vi.fn(), removeTeamMemberAction: vi.fn(), previewOffboardAction: vi.fn(), offboardMemberAction: vi.fn() }));
 vi.mock("@/features/employer-company/use-company-membership", () => ({ useCompanyMembership: vi.fn() }));
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
+vi.mock("@/features/stakeholder-invitations/actions", () => ({ listStakeholderInvitationsAction: vi.fn(async () => ({ ok: true, items: [] })), createStakeholderInvitationAction: vi.fn(), revokeStakeholderInvitationAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
 import { TeamPage } from "@/features/employer-team/team-page";
 import { listTeamMembersAction, changeTeamRoleAction, removeTeamMemberAction, previewOffboardAction, offboardMemberAction } from "@/features/employer-team/actions";
@@ -38,6 +39,7 @@ import { useCompanyMembership } from "@/features/employer-company/use-company-me
 import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import { IdentityContext, type IdentityState } from "@/features/identity/identity-session";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { listStakeholderInvitationsAction } from "@/features/stakeholder-invitations/actions";
 import { members, selfId, draft } from "./test-fixtures";
 import * as offboarding from "./offboard-client";
 const identity: IdentityState = { status: "ready", result: { ok: true, data: { role: "recruiter", user: { id: selfId, full_name: "Ana Real", email: "ana@example.test" } } }, email: "ana@example.test", retry() {}, update() {} };
@@ -153,7 +155,8 @@ it("renders only real members, role labels, dates and three factual summaries", 
 it("reserves no empty status row between the search and the results until an action reports", async () => {
   mount();
   await screen.findByText("José Real");
-  expect(document.querySelector("[data-pf-action-status-slot]")).toBeNull();
+  // Scoped to the members list: the owner's invitations card below reserves its own slot (rules §12).
+  expect(document.querySelector("[data-pf-team-workspace] [data-pf-action-status-slot]")).toBeNull();
 });
 it("keeps diacritic-insensitive name/email search and clears empty results", async () => {
   const user = userEvent.setup(); mount(); await screen.findByText("José Real");
@@ -331,4 +334,54 @@ it("explains the backend's last-owner guard and refreshes the list", async () =>
   await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cambiar rol" }));
   expect(await screen.findByText("La empresa debe conservar al menos un dueño")).toBeInTheDocument();
   await waitFor(() => expect(listTeamMembersAction).toHaveBeenCalledTimes(2));
+});
+const stakeholder = { ...members[1], id: "20000000-0000-4000-8000-000000000005", role: "stakeholder" as const, user: { id: "10000000-0000-4000-8000-000000000005", full_name: "Jorge Treviño", email: "jorge@example.test" } };
+it("lists a stakeholder with its label, no workload and only «Quitar» (D5), leaving recruiter rows as they were", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [...members, stakeholder] });
+  const user = userEvent.setup(); mount(); await screen.findByText("Jorge Treviño");
+  expect(within(row(stakeholder.id)).getByText("Stakeholder")).toBeInTheDocument();
+  expect(within(row(stakeholder.id)).getByText("Solo ve Métricas")).toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("Reclutador")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Acciones de Jorge Treviño" }));
+  expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Quitar"]);
+  await user.click(screen.getByRole("button", { name: "Acciones de Jorge Treviño" }));
+  await user.click(screen.getByRole("button", { name: "Acciones de José Real" }));
+  expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Hacer dueño", "Quitar"]);
+});
+it.each(["api", "1", ""])("removes a stakeholder with the plain DELETE, never the offboard preview (flag=%s)", async flag => {
+  vi.stubEnv("NODE_ENV", "development"); vi.stubEnv("NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE", flag);
+  const fixture = vi.spyOn(offboarding, "createOffboardFixtureClient");
+  vi.mocked(listTeamMembersAction).mockResolvedValueOnce({ ok: true, members: [...members, stakeholder] }).mockResolvedValue({ ok: true, members });
+  const user = userEvent.setup(); mount(); await screen.findByText("Jorge Treviño");
+  await user.click(screen.getByRole("button", { name: "Acciones de Jorge Treviño" }));
+  await user.click(screen.getByRole("menuitem", { name: "Quitar" }));
+  const dialog = screen.getByRole("alertdialog");
+  expect(within(dialog).getByRole("heading", { name: "¿Quitar a Jorge Treviño del equipo?" })).toBeVisible();
+  expect(within(dialog).getByText("Perderá el acceso a las Métricas de la empresa. Para volver a darle acceso, crea una invitación nueva.")).toBeVisible();
+  expect(removeTeamMemberAction).not.toHaveBeenCalled();
+  await user.click(within(dialog).getByRole("button", { name: "Quitar del equipo" }));
+  expect(removeTeamMemberAction).toHaveBeenCalledExactlyOnceWith(stakeholder.id);
+  expect(previewOffboardAction).not.toHaveBeenCalled();
+  expect(fixture).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.queryByText("Jorge Treviño")).not.toBeInTheDocument());
+});
+it("places the owner-only «Stakeholders» invitations card under the members list", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
+  mount();
+  expect(await screen.findByRole("heading", { name: "Stakeholders" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Aún no hay stakeholders" })).toBeInTheDocument();
+  const list = document.querySelector("[data-pf-team-workspace]")!;
+  expect(list.compareDocumentPosition(document.querySelector("[data-pf-stakeholder-invitations]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+it("counts current stakeholders so the card skips the first-time empty state", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [...members, stakeholder] });
+  mount();
+  expect(await screen.findByRole("heading", { name: "No hay invitaciones pendientes" })).toBeInTheDocument();
+});
+it("never shows the invitations card nor reads invitations for a recruiter", async () => {
+  vi.mocked(useCompanyMembership).mockReturnValue({ ...membership, role: "recruiter" } as ReturnType<typeof useCompanyMembership>);
+  mount(); await screen.findByText("José Real");
+  expect(screen.queryByRole("heading", { name: "Stakeholders" })).toBeNull();
+  expect(listStakeholderInvitationsAction).not.toHaveBeenCalled();
 });

@@ -6,6 +6,8 @@ import { notFound } from "next/navigation";
 import { ExploreDetail } from "../../../../features/jobs/related/ui";
 import { readCompanyVacancies, readRelatedCompany, readSimilarVacancies } from "../../../../features/jobs/related/read";
 import { createVacanteDetailScope } from "./page-data";
+import { applicationChannel } from "../../../../features/jobs/application/application-draft";
+import { ApplicationChannelProvider } from "../../../../features/jobs/application/application-channel";
 
 // The detail read is request-scoped: it must run on the Node server on every
 // request with live route params, never prerendered or cached.
@@ -14,6 +16,8 @@ export const dynamic = "force-dynamic";
 
 type VacanteDetailPageProps = {
   params: Promise<{ jobId: string }>;
+  // `origen=sitio` marks a visit from a company careers site; only the apply link carries it on.
+  searchParams?: Promise<{ origen?: string | string[] }>;
 };
 
 /** Maximum plain-text description length emitted in metadata. */
@@ -62,6 +66,7 @@ export async function generateMetadata({
 
 export default async function VacanteDetailPage({
   params,
+  searchParams,
 }: VacanteDetailPageProps) {
   const { jobId } = await params;
   const result = await getDetailScope().read(jobId);
@@ -79,5 +84,6 @@ export default async function VacanteDetailPage({
   }
 
   if (result.kind === "unavailable_vacancy") return <UnavailableVacancyCard vacancy={result.vacancy} headingLevel={1} />;
-  return <ExploreDetail job={result.job} company={readRelatedCompany(result.job)} companyVacancies={readCompanyVacancies(result.job)} similar={readSimilarVacancies(result.job)} />;
+  const channel = applicationChannel((await searchParams)?.origen);
+  return <ApplicationChannelProvider channel={channel}><ExploreDetail job={result.job} company={readRelatedCompany(result.job)} companyVacancies={readCompanyVacancies(result.job)} similar={readSimilarVacancies(result.job)} /></ApplicationChannelProvider>;
 }

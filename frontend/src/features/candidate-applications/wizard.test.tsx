@@ -365,3 +365,23 @@ it.each([["already_applied", "Ya te postulaste a esta vacante"], ["not_found", "
   vi.mocked(submitApplicationAction).mockResolvedValue({ ok: false, reason, reference: {} }); mount(); await toSummary(); await user().click(screen.getByRole("button", { name: "Enviar postulación" })); expect(await screen.findByText(text)).toBeVisible();
   if (reason === "cv_unavailable") expect(screen.getByLabelText("Subir un CV nuevo")).toBeVisible();
 });
+it("sends the careers site channel after the existing fields and replays it on an explicit retry", async () => {
+  vi.mocked(submitApplicationAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValueOnce({ ok: true, data: submitted });
+  render(<CandidateApplicationWizard job={{ id, title: "Backend Go", company: { name: "Acme" } }} channel="careers_site" />); await toSummary();
+  await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  expect(JSON.stringify(vi.mocked(submitApplicationAction).mock.calls[0][2])).toBe(JSON.stringify({ cv_id: cv.id, questionnaire_revision: screening.questionnaire_revision, answers: [{ question_id: id, text: "Experiencia Go" }, { question_id: questionId, option_id: optionId }], channel: "careers_site" }));
+  await user().click(await screen.findByRole("button", { name: "Reintentar" }));
+  expect(vi.mocked(submitApplicationAction).mock.calls[1]).toEqual(vi.mocked(submitApplicationAction).mock.calls[0]);
+});
+it("sends the portal channel from /vacantes", async () => {
+  render(<CandidateApplicationWizard job={{ id, title: "Backend Go", company: { name: "Acme" } }} channel="portal" />); await toSummary();
+  await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  expect(submitApplicationAction).toHaveBeenCalledWith(id, expect.any(String), expect.objectContaining({ channel: "portal" }));
+});
+it.each([["careers_site", `/vacantes/${id}/postular?origen=sitio`], ["portal", `/vacantes/${id}/postular`]] as const)("keeps the %s origin through sign-in back to the wizard", async (channel, callbackUrl) => {
+  vi.mocked(loadMeAction).mockResolvedValue({ ok: false, reason: "unauthenticated", reference: {} });
+  render(<CandidateApplicationWizard job={{ id, title: "Backend Go", company: { name: "Acme" } }} channel={channel} />);
+  await user().click(await screen.findByRole("button", { name: "Ingresar como candidato" }));
+  expect(signIn).toHaveBeenCalledExactlyOnceWith("cognito", { callbackUrl });
+});
+
