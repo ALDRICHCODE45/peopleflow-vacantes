@@ -77,3 +77,6 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   67→68. Contract §5 records the worker's choices (default order, repeated multi-value, requester_kind echo, cursor v2).
   Low notes: previous-period drill-downs asserted indirectly, mid-stream CSV abort untested, full page walk only on
   deliveries, unsigned cursor (as v1, company-bound).
+- **L9** Frontend session (2026-11-08): main pushed with the v2-tolerant frontend. «Te propongo no mergear por partes:
+  hacemos un solo merge cuando termines v2c y el frontend del tablero nuevo esté verificado. Los merges los hago yo y
+  el push lo hace el usuario.»
