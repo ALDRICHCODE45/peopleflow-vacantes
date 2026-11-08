@@ -6,7 +6,7 @@ vi.mock("../actions", () => ({ loadMetricsAccessAction: vi.fn(), loadDetailActio
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { loadDetailAction, loadMetricsAccessAction } from "../actions";
 import type { DetailPage, MetricsResult } from "../model";
-import { clientId, deliveryList, deliveryListRow, draftId, jorge, jorgeId, placementList, vacancyList } from "../test-fixtures";
+import { applicationList, candidateList, clientId, deliveryList, deliveryListRow, draftId, jorge, jorgeId, placementList, vacancyList } from "../test-fixtures";
 import { MetricsDetailPage } from "./detail-page";
 
 const access = vi.mocked(loadMetricsAccessAction);
@@ -17,6 +17,8 @@ const search = () => Object.fromEntries(new URLSearchParams(window.location.sear
 const ok = (data: DetailPage): MetricsResult<DetailPage> => ({ ok: true, data });
 const deliveries = (overrides: Parameters<typeof deliveryList>[0] = {}) => ok({ kind: "deliveries", page: deliveryList(overrides) });
 const lastCall = () => load.mock.calls.at(-1)![0];
+/** The summary line holds bold parts, so it is matched as one paragraph. */
+const summaryText = (text: string) => screen.findByText((_, node) => node?.tagName === "P" && node.textContent === text);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -166,10 +168,53 @@ describe("metrics detail page (artboard 08)", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(link.getAttribute("href"));
   });
 
-  it("says the candidates and applications lists arrive later, without reading anything", async () => {
-    at(`kind=candidates&${period}`);
+  it("lists candidates in stage as plain text for every role, with the stage switch, «Solo detenidos» and «Foto de hoy»", async () => {
+    at(`kind=candidates&${period}&stage_kind=screening&stalled=true`);
+    load.mockResolvedValue(ok({ kind: "candidates", page: candidateList() }));
     render(<MetricsDetailPage />);
-    expect(await screen.findByRole("heading", { name: "Esta lista llega pronto" })).toBeInTheDocument();
-    expect(load).not.toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { level: 2, name: "Candidatos detenidos en Screening" })).toBeInTheDocument();
+    expect(lastCall()).toEqual({ kind: "candidates", query: { from: "2026-08-01", to: "2026-10-31", stage_kind: "screening", stalled: "true" } });
+    expect(screen.getByText(/Foto de hoy/)).toBeInTheDocument();
+    expect(await summaryText("2 candidatos detenidos hoy.")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").map(header => header.textContent)).toEqual(["Candidato", "Vacante", "Etapa", "Días hábiles en etapa", "Detenido", "Entró a la etapa"]);
+    expect(screen.getByText("Lucía Herrera Gómez").closest("a")).toBeNull();
+    expect(screen.getByText("Candidato sin nombre")).toBeInTheDocument();
+    expect(screen.getByText("Filtro telefónico")).toBeInTheDocument();
+    expect(screen.getByText("Columna retirada")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Analista de crédito Sr." })[0]).toHaveAttribute("href", `/empresa/vacantes/${draftId}/pipeline`);
+    const stages = screen.getByRole("group", { name: "Etapa" });
+    expect(within(stages).getByRole("button", { name: "Screening 2" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(stages).getByRole("button", { name: "Todas 12" })).toBeInTheDocument();
+    const stalled = screen.getByRole("button", { name: "Solo detenidos 2" });
+    expect(stalled).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(stalled);
+    expect(search()).not.toHaveProperty("stalled");
+    await userEvent.click(within(stages).getByRole("button", { name: "Nuevos 2" }));
+    expect(search().stage_kind).toBe("new");
+    expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", "/empresa/metricas/detalle/export?kind=candidates&from=2026-08-01&to=2026-10-31&stage_kind=new");
+  });
+
+  it("never links a candidate for a stakeholder either", async () => {
+    access.mockResolvedValue({ kind: "allowed", role: "stakeholder" });
+    at(`kind=candidates&${period}`);
+    load.mockResolvedValue(ok({ kind: "candidates", page: candidateList({ applied_filters: {} }) }));
+    render(<MetricsDetailPage />);
+    expect((await screen.findByText("Lucía Herrera Gómez")).closest("a")).toBeNull();
+  });
+
+  it("lists applications per vacancy by channel and counts the applications, not the rows", async () => {
+    at(`kind=applications&${period}&channel=portal,careers_site`);
+    load.mockResolvedValue(ok({ kind: "applications", page: applicationList() }));
+    render(<MetricsDetailPage />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Postulaciones" })).toBeInTheDocument();
+    expect(await summaryText("154 postulaciones en el periodo.")).toBeInTheDocument();
+    const headers = screen.getAllByRole("columnheader").map(header => header.textContent);
+    expect(headers).toEqual(["Vacante", "Portal", "Sitio de carreras", "Manual", "Sin distinguir", "Total"]);
+    expect(headers.length).toBeLessThanOrEqual(6);
+    const row = screen.getAllByRole("row")[1];
+    expect(within(row).getAllByRole("cell").map(cell => cell.textContent)).toEqual(["Analista de crédito Sr.", "100", "30", "5", "0", "130"]);
+    expect(screen.getByText("Vacantes 1–2")).toBeInTheDocument();
+    expect(screen.queryByText(/de 154/)).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Canal" })).getByRole("button", { name: "Todos 515" })).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import {
-  CLOSE_REASON_LABEL, monthLabel, number, plural, REASSIGNMENT_REASON_LABEL, requesterLabel, share,
+  CHANNEL_LABEL, CLOSE_REASON_LABEL, monthLabel, STAGE_KIND_LABEL, number, plural, REASSIGNMENT_REASON_LABEL, requesterLabel, share,
   type AppliedFilters, type DetailPage, type Person,
 } from "../model";
 import { NO_REQUESTER } from "../url-state";
@@ -23,6 +23,12 @@ const SCOPE_LABEL: Record<string, string> = { activity: "Con actividad", assigne
 const CLOSING_TARGET_LABEL: Record<string, string> = { on_time: "A tiempo", late: "Tarde", no_target: "Sin meta" };
 export const HELD_LABEL: Record<string, string> = { true: "Se sostuvieron", false: "No se sostuvieron" };
 const DIRECTION_LABEL: Record<string, string> = { received: "Recibidas", lost: "Perdidas" };
+/** The stage kinds of a top vacancy's «en proceso» figure (§4.4 with DD2): active, neither new nor placement. */
+const IN_PROCESS_KINDS = "screening,screening_ok,in_process,custom,retired";
+const CHANNEL_TITLE: Record<string, string> = {
+  portal: "Postulaciones del portal de vacantes", careers_site: "Postulaciones del sitio de carreras", manual: "Postulaciones de registro manual",
+  unknown: "Postulaciones de portal o sitio, sin distinguir",
+};
 
 /** «octubre 2026» from `2026-10`. */
 export const monthName = (month: string) => monthLabel(month).toLowerCase().replace(" de ", " ");
@@ -79,8 +85,13 @@ export function figureTitle({ kind, params }: DetailState): string {
       const base = params.direction === "received" ? "Reasignaciones recibidas" : params.direction === "lost" ? "Reasignaciones perdidas" : "Reasignaciones";
       return reason ? `${base} por ${REASSIGNMENT_REASON_LABEL[reason as keyof typeof REASSIGNMENT_REASON_LABEL].toLowerCase()}` : base;
     }
-    case "candidates": return "Candidatos";
-    case "applications": return "Postulaciones";
+    case "candidates": {
+      const base = params.stalled === "true" ? "Candidatos detenidos" : "Candidatos";
+      const kind = single(params.stage_kind);
+      if (kind) return `${base} en ${STAGE_KIND_LABEL[kind as keyof typeof STAGE_KIND_LABEL]}`;
+      return params.stage_kind === IN_PROCESS_KINDS ? `${base} en proceso` : base;
+    }
+    case "applications": return CHANNEL_TITLE[single(params.channel) ?? ""] ?? "Postulaciones";
   }
 }
 
@@ -115,6 +126,9 @@ export function filterChips(state: DetailState, applied?: AppliedFilters): Chip[
   if (params.held) add("held", `Permanencia: ${HELD_LABEL[params.held]}`);
   if (params.direction) add("direction", `Dirección: ${DIRECTION_LABEL[params.direction]}`);
   if (params.reason) add("reason", `Motivo: ${list(params.reason, REASSIGNMENT_REASON_LABEL)}`);
+  if (params.stage_kind) add("stage_kind", `Etapa: ${list(params.stage_kind, STAGE_KIND_LABEL)}`);
+  if (params.stalled) add("stalled", "Solo detenidos");
+  if (params.channel) add("channel", `Canal: ${list(params.channel, CHANNEL_LABEL)}`);
   return chips;
 }
 
@@ -128,6 +142,7 @@ export type SummaryPart = readonly [string, boolean];
 /**
  * «4 de 5 entregas de Jorge Paredes llegaron tarde en el periodo — 80 %» for one delivery result, against the same
  * universe as the board's on-time rate (a tiempo + tarde + vencidas) or every delivery for pending and sin meta;
+ * candidates are counted today (current state); applications by their sum in the chosen channels, never by the rows;
  * «N registros» otherwise.
  */
 export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[] {
@@ -143,5 +158,10 @@ export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[]
       return [[`${number.format(count)} de ${number.format(of)}`, true], [` entregas${person ? ` de ${person}` : ""} ${VERB[result][count === 1 ? 0 : 1]} en el periodo — `, false], [percent, true], [".", false]];
     }
   }
+  if (data.kind === "candidates") {
+    const count = state.params.stalled === "true" ? plural(data.page.total, "candidato detenido", "candidatos detenidos") : plural(data.page.total, "candidato", "candidatos");
+    return [[count, true], [" hoy.", false]];
+  }
+  if (data.kind === "applications") return [[plural(data.page.total, "postulación", "postulaciones"), true], [" en el periodo.", false]];
   return [[plural(data.page.total, "registro", "registros"), false]];
 }

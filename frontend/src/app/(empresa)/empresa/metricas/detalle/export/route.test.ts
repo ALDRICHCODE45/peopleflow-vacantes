@@ -68,8 +68,18 @@ it.each([
   expect(JSON.stringify(await response.json())).not.toContain("private backend message");
 });
 
-it("refuses without a session, for a kind without a list and for a cross-site request, without calling the API", async () => {
-  expect((await get("kind=candidates")).status).toBe(404);
+it.each([
+  ["candidates", "stage_kind=screening&stalled=true&channel=portal", "/v2/me/company/metrics/candidates/export", "?from=2026-08-10&to=2026-11-07&stage_kind=screening&stalled=true"],
+  ["applications", "channel=portal,manual&stalled=true", "/v2/me/company/metrics/applications/export", "?from=2026-08-10&to=2026-11-07&channel=portal%2Cmanual"],
+])("exports the %s list (§8) with its own filters only", async (kind, query, path, search) => {
+  fetchMock.mockResolvedValue(upstreamCsv());
+  expect((await get(`kind=${kind}&${query}`)).status).toBe(200);
+  const called = new URL(String(fetchMock.mock.calls[0][0]));
+  expect(called.pathname).toBe(path);
+  expect(called.search).toBe(search);
+});
+
+it("refuses without a session, for an unknown kind and for a cross-site request, without calling the API", async () => {
   expect((await get("kind=nope")).status).toBe(404);
   expect((await get("kind=deliveries", { "sec-fetch-site": "cross-site" })).status).toBe(403);
   vi.mocked(getActionAccessToken).mockResolvedValue(null);

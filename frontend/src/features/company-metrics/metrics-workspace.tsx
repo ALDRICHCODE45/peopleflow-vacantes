@@ -5,7 +5,7 @@ import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { StateCard } from "@/components/feedback/state-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadRecruitersAction, loadSummaryAction } from "./actions";
+import { loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadPipelineAction, loadRecruitersAction, loadSummaryAction } from "./actions";
 import { failureMessage, fieldErrors, filterIssueMessages } from "./failure";
 import type { RecruiterOption, RequesterOption } from "./metrics-filters";
 import { MetricsBoardHeader } from "./metrics-header";
@@ -16,6 +16,7 @@ import { ClosuresSection } from "./sections/closures-section";
 import { ComplianceSection } from "./sections/compliance-section";
 import { DelaysSection } from "./sections/delays-section";
 import { OriginSection } from "./sections/origin-section";
+import { PipelineSection } from "./sections/pipeline-section";
 import { RecruitersSection } from "./sections/recruiters-section";
 import { SummaryStrip } from "./sections/summary-strip";
 import { useMetricsUrl } from "./use-metrics-url";
@@ -84,6 +85,7 @@ export function MetricsWorkspace({ details }: { details?: (filters: MetricsFilte
   const summary = useSection(loadSummaryAction, filters, key);
   const closures = useSection(loadClosuresAction, filters, key, { lazy: true });
   const compliance = useSection(loadComplianceAction, filters, key, { lazy: true });
+  const pipeline = useSection(loadPipelineAction, filters, key, { lazy: true });
   const delays = useSection(loadDelaysAction, filters, key, { lazy: true });
   const recruiters = useSection(loadRecruitersAction, filters, key, { lazy: true });
   const origin = useSection(loadOriginAction, filters, key, { lazy: true });
@@ -108,6 +110,7 @@ export function MetricsWorkspace({ details }: { details?: (filters: MetricsFilte
         <SummaryStrip state={summary} {...sectionProps} />
         <ClosuresSection state={closures} {...sectionProps} />
         <ComplianceSection state={compliance} {...sectionProps} />
+        <PipelineSection state={pipeline} {...sectionProps} />
         <DelaysSection state={delays} {...sectionProps} />
         <RecruitersSection state={recruiters} {...sectionProps} />
         <OriginSection state={origin} {...sectionProps} />

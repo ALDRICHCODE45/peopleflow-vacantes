@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./actions", () => ({
   loadMetricsAccessAction: vi.fn(), loadSummaryAction: vi.fn(), loadClosuresAction: vi.fn(), loadComplianceAction: vi.fn(), loadDelaysAction: vi.fn(),
-  loadRecruitersAction: vi.fn(), loadOriginAction: vi.fn(), listVacanciesAction: vi.fn(), listReassignmentsAction: vi.fn(), loadAuditedDetailAction: vi.fn(),
+  loadPipelineAction: vi.fn(), loadRecruitersAction: vi.fn(), loadOriginAction: vi.fn(), listVacanciesAction: vi.fn(), listReassignmentsAction: vi.fn(), loadAuditedDetailAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // Same boundary as audit-workspace.test: the real Base UI popover close path refocus-loops under jsdom.
@@ -30,15 +30,15 @@ vi.mock("@/components/ui/select", async importOriginal => {
 });
 import {
   listReassignmentsAction, listVacanciesAction, loadClosuresAction, loadComplianceAction, loadDelaysAction, loadMetricsAccessAction, loadOriginAction,
-  loadRecruitersAction, loadSummaryAction,
+  loadPipelineAction, loadRecruitersAction, loadSummaryAction,
 } from "./actions";
 import { CompanyMetricsPage } from "./company-metrics-page";
 import type { MetricsFailure } from "./model";
-import { carlos, clientId, closures, compliance, delays, emptySummary, origin, reassignmentPage, recruiterPage, summaryV2, vacancyPage } from "./test-fixtures";
+import { carlos, clientId, closures, compliance, delays, emptySummary, origin, pipeline, reassignmentPage, recruiterPage, summaryV2, vacancyPage } from "./test-fixtures";
 
 const access = vi.mocked(loadMetricsAccessAction);
 const summary = vi.mocked(loadSummaryAction);
-const sectionActions = [loadClosuresAction, loadComplianceAction, loadDelaysAction, loadRecruitersAction, loadOriginAction].map(action => vi.mocked(action));
+const sectionActions = [loadClosuresAction, loadComplianceAction, loadPipelineAction, loadDelaysAction, loadRecruitersAction, loadOriginAction].map(action => vi.mocked(action));
 const failure = (reason: MetricsFailure["reason"], extra: Partial<MetricsFailure> = {}): MetricsFailure => ({ ok: false, reason, reference: {}, ...extra });
 const at = (search = "") => window.history.replaceState(null, "", `/empresa/metricas${search}`);
 const search = () => Object.fromEntries(new URLSearchParams(window.location.search));
@@ -57,6 +57,7 @@ beforeEach(() => {
   summary.mockResolvedValue({ ok: true, data: summaryV2() });
   vi.mocked(loadClosuresAction).mockResolvedValue({ ok: true, data: closures() });
   vi.mocked(loadComplianceAction).mockResolvedValue({ ok: true, data: compliance() });
+  vi.mocked(loadPipelineAction).mockResolvedValue({ ok: true, data: pipeline() });
   vi.mocked(loadDelaysAction).mockResolvedValue({ ok: true, data: delays() });
   vi.mocked(loadRecruitersAction).mockResolvedValue({ ok: true, data: recruiterPage().items });
   vi.mocked(loadOriginAction).mockResolvedValue({ ok: true, data: origin() });
@@ -87,8 +88,8 @@ describe("board (artboard 07)", () => {
     render(<CompanyMetricsPage />);
     await waitFor(() => expect(summary).toHaveBeenCalledWith({}));
     for (const action of sectionActions) await waitFor(() => expect(action).toHaveBeenCalledWith({}));
-    expect(screen.getAllByRole("region").slice(0, 6).map(region => within(region).getAllByRole("heading", { level: 2 })[0].textContent))
-      .toEqual(["Resumen", "Cierres y entregas", "Cumplimiento de entregas", "Retrasos y reasignaciones", "Desempeño por reclutador", "Origen de las postulaciones"]);
+    expect(screen.getAllByRole("region").slice(0, 7).map(region => within(region).getAllByRole("heading", { level: 2 })[0].textContent))
+      .toEqual(["Resumen", "Cierres y entregas", "Cumplimiento de entregas", "Pipeline por etapa", "Retrasos y reasignaciones", "Desempeño por reclutador", "Origen de las postulaciones"]);
   });
 
   it("states freshness once in the header: as_of, the applied period and the definitions version", async () => {

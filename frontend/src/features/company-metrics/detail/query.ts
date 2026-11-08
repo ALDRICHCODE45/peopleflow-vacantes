@@ -1,5 +1,5 @@
 import { DETAIL_PATH, type DrilldownKind } from "../drilldown";
-import { UUID_PATTERN } from "../model";
+import { STAGE_KINDS, UUID_PATTERN } from "../model";
 import { periodIssues } from "../period";
 import { effectivePeriod, normalizeFilters, serializeFilters, type MetricsFilters } from "../url-state";
 
@@ -8,9 +8,8 @@ import { effectivePeriod, normalizeFilters, serializeFilters, type MetricsFilter
  * board's drill-down URL (`drilldown.ts`) is the API query. Validated per kind, like the backend's strict parser: an
  * unknown or malformed parameter is dropped here instead of travelling as a guaranteed 422.
  */
-export const LIST_KINDS = ["deliveries", "vacancies", "placements", "reassignments"] as const;
+export const LIST_KINDS = ["deliveries", "vacancies", "placements", "reassignments", "candidates", "applications"] as const satisfies readonly DrilldownKind[];
 export type ListKind = (typeof LIST_KINDS)[number];
-const DETAIL_KINDS: readonly DrilldownKind[] = [...LIST_KINDS, "candidates", "applications"];
 export const isListKind = (kind: string): kind is ListKind => (LIST_KINDS as readonly string[]).includes(kind);
 
 export type DetailParams = Record<string, string>;
@@ -29,19 +28,26 @@ const KIND_RULES: Record<ListKind, Record<string, Rule>> = {
   },
   placements: { recipient: { uuid: true }, held: { one: ["true", "false"] } },
   reassignments: { direction: { one: ["received", "lost"] }, reason: { multi: REASSIGNMENT_REASONS } },
+  // Only the stalled rows can be asked for (§5.5).
+  candidates: { stage_kind: { multi: STAGE_KINDS }, stalled: { one: ["true"] } },
+  applications: { channel: { multi: ["portal", "careers_site", "manual", "unknown"] } },
 };
-/** Sort keys per list (§5.1–§5.4), the default first. */
+/** Sort keys per list (§5.1–§5.6), the default first. */
 export const SORTS: Record<ListKind, readonly string[]> = {
   deliveries: ["commitment_date", "business_days_late", "business_days_overdue", "target_reached_at", "delivered", "title"],
   vacancies: ["opened_at", "last_close_date", "business_days_to_close", "title"],
   placements: ["hired_at", "title", "candidate"],
   reassignments: ["performed_at", "reason", "title"],
+  candidates: ["business_days_in_stage", "candidate", "title", "entered_stage_at"],
+  applications: ["total", "title"],
 };
 const TEXT_SORTS = ["title", "candidate", "reason"];
 /** The backend's default order: asc on text columns, desc on the rest. */
 export const defaultOrder = (sort: string): "asc" | "desc" => TEXT_SORTS.includes(sort) ? "asc" : "desc";
 /** The filter the status switch of each kind rewrites (its facet). */
-export const FACET_PARAM: Record<ListKind, string> = { deliveries: "result", vacancies: "close_reason", placements: "held", reassignments: "reason" };
+export const FACET_PARAM: Record<ListKind, string> = {
+  deliveries: "result", vacancies: "close_reason", placements: "held", reassignments: "reason", candidates: "stage_kind", applications: "channel",
+};
 
 const validMonth = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 function readRule(values: string[], rule: Rule): string | undefined {
@@ -57,9 +63,7 @@ function readRule(values: string[], rule: Rule): string | undefined {
 }
 
 type Source = { get(key: string): string | null; getAll(key: string): string[] };
-function normalize(kind: DrilldownKind, source: Source): DetailParams {
-  // Candidates and applications arrive with v2c; until then their page sends nothing.
-  if (!isListKind(kind)) return {};
+function normalize(kind: ListKind, source: Source): DetailParams {
   const board = normalizeFilters({
     from: source.get("from") ?? undefined, to: source.get("to") ?? undefined, recruiter_id: source.get("recruiter_id") ?? undefined,
     requester_kind: (source.get("requester_kind") ?? undefined) as MetricsFilters["requester_kind"], requester_id: source.get("requester_id") ?? undefined,
@@ -85,15 +89,15 @@ function normalize(kind: DrilldownKind, source: Source): DetailParams {
 /** Null without a known kind. */
 export function parseDetail(search: Source): DetailState | null {
   const kind = search.get("kind");
-  if (!kind || !(DETAIL_KINDS as readonly string[]).includes(kind)) return null;
-  return { kind: kind as DrilldownKind, params: normalize(kind as DrilldownKind, search) };
+  if (!kind || !isListKind(kind)) return null;
+  return { kind, params: normalize(kind, search) };
 }
 
 /** One filter set or removed (`undefined`); the result is validated again, so a patch never adds an invalid value. */
 export function withParams(state: DetailState, patch: Record<string, string | undefined>): DetailState {
   const next = new URLSearchParams(state.params);
   for (const [key, value] of Object.entries(patch)) if (value === undefined) next.delete(key); else next.set(key, value);
-  return { kind: state.kind, params: normalize(state.kind, next) };
+  return { kind: state.kind, params: isListKind(state.kind) ? normalize(state.kind, next) : {} };
 }
 
 export const detailHref = (state: DetailState) => `${DETAIL_PATH}?${new URLSearchParams({ kind: state.kind, ...state.params })}`;

@@ -4,7 +4,7 @@ import { boundedJson } from "@/features/candidate-cvs/bounded-body";
 import { deadlineStream } from "@/features/org-candidates/detail/deadline-stream";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import {
-  closuresSchema, complianceSchema, delaysSchema, originSchema,
+  closuresSchema, complianceSchema, delaysSchema, originSchema, pipelineSchema, applicationListSchema, candidateListSchema,
   companyAccessSchema, deliveriesSchema, errorEnvelopeSchema, placementsSchema, reassignmentPageSchema, recruiterDetailSchema,
   recruiterPageSchema, summarySchema, UUID_PATTERN, vacancyPageSchema, type MetricsErrorEnvelope,
   deliveryListSchema, placementListSchema, reassignmentListSchema, vacancyListSchema, type DetailPage,
@@ -55,6 +55,8 @@ export const getClosures = (token: string, query: URLSearchParams) => get(`${PAT
 export const getCompliance = (token: string, query: URLSearchParams) => get(`${PATH}/compliance`, token, complianceSchema, query);
 export const getDelays = (token: string, query: URLSearchParams) => get(`${PATH}/delays`, token, delaysSchema, query);
 export const getOrigin = (token: string, query: URLSearchParams) => get(`${PATH}/origin`, token, originSchema, query);
+/** v2 §4.4: current state; the period is validated and echoed by the API, never applied. */
+export const getPipeline = (token: string, query: URLSearchParams) => get(`${PATH}/pipeline`, token, pipelineSchema, query);
 export const listRecruiters = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/recruiters`, token, recruiterPageSchema, paged(query, RECRUITER_LIMIT, cursor));
 export const listVacancies = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/vacancies`, token, vacancyPageSchema, paged(query, LIST_LIMIT, cursor));
 export const listReassignments = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/reassignments`, token, reassignmentPageSchema, paged(query, LIST_LIMIT, cursor));
@@ -90,6 +92,8 @@ export async function listDetail(token: string, kind: ListKind, query: URLSearch
     case "vacancies": { const r = await get(`${PATH}/vacancies`, token, vacancyListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
     case "placements": { const r = await get(`${PATH}/placements`, token, placementListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
     case "reassignments": { const r = await get(`${PATH}/reassignments`, token, reassignmentListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    case "candidates": { const r = await get(`${PATH}/candidates`, token, candidateListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    case "applications": { const r = await get(`${PATH}/applications`, token, applicationListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
     default: return invalidRequest;
   }
 }
@@ -101,11 +105,13 @@ const ATTACHMENT = /^attachment(?:\s*;|$)/i;
 export type MetricsCsv = { body: ReadableStream<Uint8Array>; contentType: string; disposition: string };
 /**
  * v2 §8 `GET …/{kind}/export`: the list's filters, sort and order, no cursor or limit. Every error is decided before the
- * first byte (placements write their audit row first), so a 200 is the CSV, streamed without buffering.
+ * first byte (placements and candidates write their audit row first), so a 200 is the CSV, streamed without buffering.
  */
 export async function exportDetail(token: string, kind: ListKind, query: URLSearchParams): Promise<{ ok: true; data: MetricsCsv } | MetricsClientFailure> {
   if (typeof token !== "string" || !token.trim()) return noToken;
-  const path = { deliveries: "deliveries", vacancies: "vacancies", placements: "placements", reassignments: "reassignments" }[kind];
+  const path = ({
+    deliveries: "deliveries", vacancies: "vacancies", placements: "placements", reassignments: "reassignments", candidates: "candidates", applications: "applications",
+  } as Record<string, string>)[kind];
   if (!path) return invalidRequest;
   const controller = new AbortController();
   let timedOut = false;

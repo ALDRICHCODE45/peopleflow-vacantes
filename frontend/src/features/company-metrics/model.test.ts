@@ -7,6 +7,8 @@ import {
 import { asOf, closures, compliance, delays, origin, summaryV2 } from "./test-fixtures";
 import { deliveryListSchema, placementListSchema, reassignmentListSchema, vacancyListSchema } from "./model";
 import { deliveryList, placementList, reassignmentList, vacancyList } from "./test-fixtures";
+import { applicationListSchema, candidateListSchema, pipelineSchema, STAGE_KIND_LABEL } from "./model";
+import { applicationList, candidateList, pipeline } from "./test-fixtures";
 import { card, carlos, clientId, deliveries, fernanda, placements, recruiterDetail, recruiterPage, summary, vacancyPage, vacancyRow } from "./test-fixtures";
 
 describe("contract decoding", () => {
@@ -166,5 +168,33 @@ describe("v2 §5 detail lists", () => {
     };
     expect(placementListSchema.parse(placementList({ applied_filters: applied as never, total: 0, items: [] })).applied_filters).toEqual(applied);
     expect(deliveryListSchema.parse(deliveryList({ applied_filters: { requester_kind: "client" } })).applied_filters).toEqual({ requester_kind: "client" });
+  });
+});
+
+describe("v2c pipeline and its lists (§4.4, §5.5, §5.6)", () => {
+  it("decodes the pipeline section strictly, with as_of required", () => {
+    expect(pipelineSchema.parse(pipeline())).toEqual(pipeline());
+    const retired = pipeline({ stages: [...pipeline().stages, { kind: "retired", candidates: 1, median_business_days_in_stage: 2, stalled: 1 }] });
+    expect(pipelineSchema.parse(retired)).toEqual(retired);
+    expect(pipelineSchema.safeParse({ ...pipeline(), as_of: undefined }).success).toBe(false);
+    expect(pipelineSchema.safeParse({ ...pipeline(), score: 1 }).success).toBe(false);
+    expect(pipelineSchema.safeParse(pipeline({ stages: [{ kind: "discarded" as never, candidates: 1, median_business_days_in_stage: 1, stalled: 0 }] })).success).toBe(false);
+    expect(pipelineSchema.safeParse(pipeline({ stages: [{ kind: "new", candidates: 1, median_business_days_in_stage: 1, stalled: null as never }] })).success).toBe(false);
+    expect(pipelineSchema.safeParse(pipeline({ top_vacancies: Array(6).fill(pipeline().top_vacancies[0]) })).success).toBe(false);
+  });
+
+  it("decodes the candidates and applications lists, retired only when present", () => {
+    expect(candidateListSchema.parse(candidateList())).toEqual(candidateList());
+    const withRetired = candidateList({ facets: { stage_kind: { ...candidateList().facets.stage_kind, retired: 1 }, stalled: 0 } });
+    expect(candidateListSchema.parse(withRetired)).toEqual(withRetired);
+    expect(candidateListSchema.safeParse({ ...candidateList(), facets: { stage_kind: candidateList().facets.stage_kind } }).success).toBe(false);
+    expect(applicationListSchema.parse(applicationList())).toEqual(applicationList());
+    expect(applicationListSchema.safeParse({ ...applicationList(), facets: {} }).success).toBe(false);
+  });
+
+  it("names every stage kind with the pipeline's own words", () => {
+    expect(STAGE_KIND_LABEL).toEqual({
+      new: "Nuevos", screening: "Screening", screening_ok: "Screening OK", in_process: "En proceso", custom: "Columnas propias", placement: "Placement", retired: "Columnas retiradas",
+    });
   });
 });

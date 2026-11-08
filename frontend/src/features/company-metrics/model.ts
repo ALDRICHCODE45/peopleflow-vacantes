@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STAGE_KIND_LABELS } from "@/features/jobs/drafts/pipeline/editor-model";
 
 /**
  * Decoders and es-MX presentation for `docs/contracts/stakeholder-metrics-v1.md` §3 (backend `39669aa5`) and the
@@ -146,6 +147,23 @@ export const originSchema = z.object({
   by_channel: z.object({ portal: count, careers_site: count, manual: count, unknown: count }).strict(),
 }).strict();
 
+/** v2 §4.4 stage kinds in the contract order; every vacancy's custom stages fold into `custom`, `retired` only when > 0. */
+export const STAGE_KINDS = ["new", "screening", "screening_ok", "in_process", "custom", "placement", "retired"] as const;
+const stageKindSchema = z.enum(STAGE_KINDS);
+export type StageKind = (typeof STAGE_KINDS)[number];
+/**
+ * v2 §4.4 Pipeline por etapa (N3): a picture of now (`as_of`), not of the period, so `as_of` is required. Medians are
+ * business days in the current stage; `stalled` never counts in placement.
+ */
+export const pipelineSchema = z.object({
+  ...envelope, as_of: timestamp,
+  stalled_threshold_business_days: count,
+  stages: z.array(z.object({ kind: stageKindSchema, candidates: count, median_business_days_in_stage: median, stalled: count }).strict()),
+  top_vacancies: z.array(z.object({
+    vacancy: z.object({ draft_id: text, title: z.string().nullable() }).strict(), requester: requesterSchema, responsible: personSchema.nullable(), in_process: count,
+  }).strict()).max(5),
+}).strict();
+
 /**
  * v2 §5 detail lists: `total` is the exact count for the filters, `facets` count the tabs (each ignoring only its own
  * filter, every enum value present), `applied_filters` echo the request with names resolved (null names for ids of
@@ -162,6 +180,7 @@ export const appliedFiltersSchema = z.object({
   result: z.array(z.string()).optional(), close_reason: z.array(z.string()).optional(), reason: z.array(z.string()).optional(),
   late_bucket: z.string().optional(), commitment_month: z.string().optional(), scope: z.string().optional(), closed_month: z.string().optional(),
   closing_target: z.string().optional(), direction: z.string().optional(), held: z.boolean().optional(),
+  stage_kind: z.array(z.string()).optional(), stalled: z.boolean().optional(), channel: z.array(z.string()).optional(),
 });
 const detailList = <R extends z.ZodTypeAny, F extends z.ZodTypeAny>(row: R, facets: F) => z.object({
   ...envelope, total: count, facets, applied_filters: appliedFiltersSchema, items: z.array(row).max(100), next_cursor: z.string().nullable(),
@@ -181,10 +200,26 @@ export const placementListRowSchema = z.object({
   recipients: z.array(z.object({ person: personSchema, kind: z.enum(["direct", "participant", "shared"]) })),
   status: z.enum(["active", "did_not_hold"]), hired_at: timestamp,
 });
+/** §5.5: one active participation of an open vacancy; `stage.name` is empty when unknown. */
+export const candidateListRowSchema = z.object({
+  participation_id: text, candidate: candidateSchema, vacancy: vacancyRefSchema, stage: z.object({ kind: stageKindSchema, name: z.string() }),
+  business_days_in_stage: count, stalled: z.boolean(), entered_stage_at: timestamp,
+});
+/** §5.6: one vacancy with applications in the period; `total` sums only the chosen channels. */
+export const applicationListRowSchema = z.object({
+  vacancy: vacancyRefSchema, requester: requesterSchema, portal: count, careers_site: count, manual: count, unknown: count, total: count,
+});
+const channels = { portal: count, careers_site: count, manual: count, unknown: count };
 export const deliveryListSchema = detailList(deliveryListRowSchema, z.object({ result: z.object({ on_time: count, late: count, overdue: count, pending: count, not_configured: count }) }));
 export const vacancyListSchema = detailList(vacancyListRowSchema, z.object({ close_reason: z.object(closedReasons) }));
 export const placementListSchema = detailList(placementListRowSchema, z.object({ held: z.object({ true: count, false: count }) }));
 export const reassignmentListSchema = detailList(reassignmentRowSchema, z.object({ reason: z.object(reassignmentReasons) }));
+export const candidateListSchema = detailList(candidateListRowSchema, z.object({
+  stage_kind: z.object({ new: count, screening: count, screening_ok: count, in_process: count, custom: count, placement: count, retired: count.optional() }),
+  stalled: count,
+}));
+/** Its `total` is the sum of applications in the chosen channels (the origin figure), not the row count. */
+export const applicationListSchema = detailList(applicationListRowSchema, z.object({ channel: z.object(channels) }));
 
 /** Narrow read of `GET /me/company`: only the role decides this screen. Follow-up: unify with employer-company once it parses `stakeholder` (T4). */
 export const companyAccessSchema = z.object({ role: z.enum(["owner", "recruiter", "stakeholder"]) });
@@ -203,6 +238,7 @@ export type ClosuresSection = z.infer<typeof closuresSchema>;
 export type ComplianceSection = z.infer<typeof complianceSchema>;
 export type DelaysSection = z.infer<typeof delaysSchema>;
 export type OriginSection = z.infer<typeof originSchema>;
+export type PipelineSection = z.infer<typeof pipelineSchema>;
 export type RecruiterCard = z.infer<typeof recruiterCardSchema>;
 export type RecruiterPage = z.infer<typeof recruiterPageSchema>;
 export type RecruiterDetail = z.infer<typeof recruiterDetailSchema>;
@@ -220,10 +256,15 @@ export type DeliveryList = z.infer<typeof deliveryListSchema>;
 export type VacancyList = z.infer<typeof vacancyListSchema>;
 export type PlacementList = z.infer<typeof placementListSchema>;
 export type ReassignmentList = z.infer<typeof reassignmentListSchema>;
+export type CandidateListRow = z.infer<typeof candidateListRowSchema>;
+export type ApplicationListRow = z.infer<typeof applicationListRowSchema>;
+export type CandidateList = z.infer<typeof candidateListSchema>;
+export type ApplicationList = z.infer<typeof applicationListSchema>;
 /** One page of a detail list, tagged with its kind (the response itself carries none). */
 export type DetailPage =
   | { kind: "deliveries"; page: DeliveryList } | { kind: "vacancies"; page: VacancyList }
-  | { kind: "placements"; page: PlacementList } | { kind: "reassignments"; page: ReassignmentList };
+  | { kind: "placements"; page: PlacementList } | { kind: "reassignments"; page: ReassignmentList }
+  | { kind: "candidates"; page: CandidateList } | { kind: "applications"; page: ApplicationList };
 export type CompanyRole = z.infer<typeof companyAccessSchema>["role"];
 export type MetricsErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 export type FilterIssue = { field: string; code: string };
@@ -271,6 +312,17 @@ export const DELIVERY_RESULT_LABEL: Record<z.infer<typeof deliveryResultSchema>,
 export const CLOSE_REASON_LABEL = { filled: "Cubierta", cancelled: "Cancelada", other: "Otro motivo", no_reason: "Sin motivo" } as const;
 export const REASSIGNMENT_REASON_LABEL: Record<z.infer<typeof reassignmentReasonSchema>, string> = {
   workload: "Carga de trabajo", recruiter_departure: "Salida del reclutador", performance: "Desempeño", client_request: "Petición del cliente", other: "Otro motivo",
+};
+
+/** The pipeline's own stage words (`STAGE_KIND_LABELS`); custom and retired fold every vacancy's columns, so plural. */
+export const STAGE_KIND_LABEL: Record<StageKind, string> = {
+  new: STAGE_KIND_LABELS.new, screening: STAGE_KIND_LABELS.screening, screening_ok: STAGE_KIND_LABELS.screening_ok, in_process: STAGE_KIND_LABELS.in_process,
+  custom: "Columnas propias", placement: STAGE_KIND_LABELS.placement, retired: "Columnas retiradas",
+};
+export type Channel = keyof typeof channels;
+/** Same words as the origin section (§4.6). */
+export const CHANNEL_LABEL: Record<Channel, string> = {
+  portal: "Portal de vacantes", careers_site: "Sitio de carreras", manual: "Registro manual", unknown: "Portal o sitio, sin distinguir",
 };
 
 const monthFormat = new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric", timeZone: "UTC" });

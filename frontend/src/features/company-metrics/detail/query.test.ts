@@ -17,11 +17,22 @@ describe("detail query (the board's drill-down URL, validated per kind)", () => 
     });
   });
 
-  it("is null without a known kind, and accepts the kinds that arrive later", () => {
+  it("is null without a known kind", () => {
     expect(parse(period)).toBeNull();
     expect(parse(`kind=secrets&${period}`)).toBeNull();
-    expect(parse("kind=candidates")).toEqual({ kind: "candidates", params: {} });
-    expect(parse("kind=applications&channel=portal")).toEqual({ kind: "applications", params: {} });
+  });
+
+  it("reads the candidates filters (§5.5): stage kinds incl. custom and retired, stalled only as true, its sort keys", () => {
+    expect(parse(`kind=candidates&${period}&vacancy_id=${draftId}&stage_kind=new,screening,screening_ok,in_process,custom,retired&stalled=true&sort=entered_stage_at&order=asc`)).toEqual({
+      kind: "candidates",
+      params: { from: "2026-08-01", to: "2026-10-31", stage_kind: "new,screening,screening_ok,in_process,custom,retired", stalled: "true", vacancy_id: draftId, sort: "entered_stage_at", order: "asc" },
+    });
+    expect(parse("kind=candidates&stage_kind=discarded,placement&stalled=false&channel=portal&sort=total")?.params).toEqual({ stage_kind: "placement" });
+  });
+
+  it("reads the applications filters (§5.6): channels and the total or title sort", () => {
+    expect(parse("kind=applications&channel=portal,portal,unknown,email&sort=total&stage_kind=new")?.params).toEqual({ channel: "portal,unknown", sort: "total" });
+    expect(parse("kind=applications&sort=business_days_in_stage")?.params).toEqual({});
   });
 
   it("drops unknown params, another kind's filters and malformed values instead of sending a guaranteed 422", () => {

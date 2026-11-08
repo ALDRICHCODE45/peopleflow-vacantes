@@ -2,6 +2,7 @@ import type {
   ClosuresSection, ComplianceSection, DelaysSection, OriginSection,
   DeliveriesDetail, MetricsSummary, PlacementsDetail, ReassignmentPage, RecruiterCard, RecruiterDetail, RecruiterPage, VacancyPage, VacancyRow,
   DeliveryList, DeliveryListRow, PlacementList, ReassignmentList, VacancyList,
+  ApplicationList, CandidateList, PipelineSection,
 } from "./model";
 
 export const marianaId = "10000000-0000-4000-8000-000000000001";
@@ -277,5 +278,58 @@ export function reassignmentList(overrides: Partial<ReassignmentList> = {}): Rea
   return {
     ...v2Header, total: 1, facets: { reason: { workload: 0, recruiter_departure: 1, performance: 0, client_request: 0, other: 0 } }, applied_filters: {},
     items: reassignmentPage().items, next_cursor: null, ...overrides,
+  };
+}
+
+/** §4.4 Pipeline por etapa: the open vacancies today (N3), every stage kind in the contract order, stalled at 7 business days. */
+export function pipeline(overrides: Partial<PipelineSection> = {}): PipelineSection {
+  return {
+    ...v2Header, stalled_threshold_business_days: 7,
+    stages: [
+      { kind: "new", candidates: 48, median_business_days_in_stage: 1, stalled: 2 },
+      { kind: "screening", candidates: 31, median_business_days_in_stage: 3, stalled: 3 },
+      { kind: "screening_ok", candidates: 1, median_business_days_in_stage: 4, stalled: 1 },
+      { kind: "in_process", candidates: 19, median_business_days_in_stage: 6.5, stalled: 7 },
+      { kind: "custom", candidates: 0, median_business_days_in_stage: null, stalled: 0 },
+      { kind: "placement", candidates: 2, median_business_days_in_stage: 1, stalled: 0 },
+    ],
+    top_vacancies: [
+      { vacancy: { draft_id: draftId, title: "Analista de crédito Sr." }, requester: { kind: "client", id: clientId, name: "Grupo Bimbo" },
+        responsible: { user_id: marianaId, name: "Mariana Torres", former_member: false }, in_process: 14 },
+      { vacancy: { draft_id: "30000000-0000-4000-8000-000000000002", title: null }, requester: null, responsible: null, in_process: 1 },
+    ],
+    ...overrides,
+  };
+}
+
+/** §5.5 candidates in stage (audited): «Candidatos detenidos en Screening». */
+export function candidateList(overrides: Partial<CandidateList> = {}): CandidateList {
+  return {
+    ...v2Header, total: 2,
+    facets: { stage_kind: { new: 2, screening: 2, screening_ok: 1, in_process: 7, custom: 0, placement: 0 }, stalled: 2 },
+    applied_filters: { stage_kind: ["screening"], stalled: true },
+    items: [
+      { participation_id: "70000000-0000-4000-8000-000000000001", candidate: { id: "50000000-0000-4000-8000-000000000001", full_name: "Lucía Herrera Gómez" },
+        vacancy: { draft_id: draftId, title: "Analista de crédito Sr." }, stage: { kind: "screening", name: "Filtro telefónico" },
+        business_days_in_stage: 12, stalled: true, entered_stage_at: "2026-10-22T16:00:00Z" },
+      { participation_id: "70000000-0000-4000-8000-000000000002", candidate: { id: "50000000-0000-4000-8000-000000000002", full_name: "" },
+        vacancy: { draft_id: draftId, title: "Analista de crédito Sr." }, stage: { kind: "retired", name: "" },
+        business_days_in_stage: 3, stalled: false, entered_stage_at: "2026-11-03T16:00:00Z" },
+    ],
+    next_cursor: null, ...overrides,
+  };
+}
+
+/** §5.6 applications per vacancy: `total` is the sum of applications in the chosen channels, not the row count. */
+export function applicationList(overrides: Partial<ApplicationList> = {}): ApplicationList {
+  return {
+    ...v2Header, total: 154,
+    facets: { channel: { portal: 120, careers_site: 34, manual: 61, unknown: 300 } },
+    applied_filters: { channel: ["portal", "careers_site"] },
+    items: [
+      { vacancy: { draft_id: draftId, title: "Analista de crédito Sr." }, requester: { kind: "client", id: clientId, name: "Grupo Bimbo" }, portal: 100, careers_site: 30, manual: 5, unknown: 0, total: 130 },
+      { vacancy: { draft_id: "30000000-0000-4000-8000-000000000002", title: "Supervisor de turno" }, requester: null, portal: 20, careers_site: 4, manual: 0, unknown: 9, total: 24 },
+    ],
+    next_cursor: null, ...overrides,
   };
 }

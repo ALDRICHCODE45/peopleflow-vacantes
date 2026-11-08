@@ -2,8 +2,8 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
-  CLOSE_REASON_LABEL, dayLabel, MX_TIME_ZONE, number, personName, plural, REASSIGNMENT_REASON_LABEL, requesterLabel,
-  type DeliveryListRow, type DetailPage, type PlacementListRow, type ReassignmentRow, type VacancyListRow,
+  CLOSE_REASON_LABEL, dayLabel, MX_TIME_ZONE, number, personName, plural, REASSIGNMENT_REASON_LABEL, requesterLabel, STAGE_KIND_LABEL,
+  type ApplicationListRow, type CandidateListRow, type DeliveryListRow, type DetailPage, type PlacementListRow, type ReassignmentRow, type VacancyListRow,
 } from "../model";
 import { DELIVERY_TONE } from "../palette";
 import type { DetailState, ListKind } from "./query";
@@ -69,6 +69,35 @@ const reassignmentColumns: Column<ReassignmentRow>[] = [
   { id: "performed", header: "Fecha", sort: "performed_at", cell: row => instantDay(row.performed_at) },
 ];
 
+/** The stage's name in its vacancy; a retired one says so, an unknown one falls back to the kind's word. */
+function stageName(stage: CandidateListRow["stage"]): string {
+  const name = stage.name.trim();
+  if (stage.kind === "retired") return name ? `${name} (retirada)` : "Columna retirada";
+  return name || STAGE_KIND_LABEL[stage.kind];
+}
+const candidateColumns: Column<CandidateListRow>[] = [
+  // No candidate profile route exists, and a stakeholder reaches none (§7): the name is never a link.
+  { id: "candidate", header: "Candidato", sort: "candidate", cell: row => <span className="font-medium">{row.candidate.full_name.trim() || "Candidato sin nombre"}</span> },
+  { id: "vacancy", header: "Vacante", sort: "title", cell: (row, context) => context.vacancy(row.vacancy) },
+  { id: "stage", header: "Etapa", cell: row => stageName(row.stage) },
+  { id: "days", header: "Días hábiles en etapa", sort: "business_days_in_stage", numeric: true, cell: row => number.format(row.business_days_in_stage) },
+  { id: "stalled", header: "Detenido", cell: row => row.stalled
+    ? <span className="inline-flex h-[22px] items-center rounded-md border border-destructive/30 bg-destructive/10 px-2 text-xs font-medium text-destructive">Detenido</span>
+    : <span className="text-muted-foreground" aria-label="No">—</span> },
+  { id: "entered", header: "Entró a la etapa", sort: "entered_stage_at", cell: row => instantDay(row.entered_stage_at) },
+];
+
+// Six columns (rule 12): the requester is one click away on the vacancy.
+const applicationColumns: Column<ApplicationListRow>[] = [
+  { id: "vacancy", header: "Vacante", sort: "title", cell: (row, context) => context.vacancy(row.vacancy) },
+  { id: "portal", header: "Portal", numeric: true, cell: row => number.format(row.portal) },
+  { id: "careers_site", header: "Sitio de carreras", numeric: true, cell: row => number.format(row.careers_site) },
+  { id: "manual", header: "Manual", numeric: true, cell: row => number.format(row.manual) },
+  { id: "unknown", header: "Sin distinguir", numeric: true, cell: row => number.format(row.unknown) },
+  // Sums only the chosen channels, so the rows add up to the summary line.
+  { id: "total", header: "Total", sort: "total", numeric: true, cell: row => <span className="font-semibold">{number.format(row.total)}</span> },
+];
+
 /** Columns and rows of a page, typed together so a row is only ever read by its own columns. */
 export type Table = { columns: Column<never>[]; rows: { id: string; cells: ReactNode[] }[] };
 export function detailTable(state: DetailState, data: DetailPage, context: CellContext): Table {
@@ -81,10 +110,13 @@ export function detailTable(state: DetailState, data: DetailPage, context: CellC
     case "vacancies": return build(vacancyColumns, data.page.items, row => row.draft_id);
     case "placements": return build(placementColumns, data.page.items, row => row.credit_id);
     case "reassignments": return build(reassignmentColumns, data.page.items, row => row.id);
+    case "candidates": return build(candidateColumns, data.page.items, row => row.participation_id);
+    case "applications": return build(applicationColumns, data.page.items, row => row.vacancy.draft_id);
   }
 }
 /** The headers alone, for the skeleton before the first page. */
 export function detailColumns(state: DetailState & { kind: ListKind }): Column<never>[] {
-  const columns = { deliveries: deliveryColumns(state), vacancies: vacancyColumns, placements: placementColumns, reassignments: reassignmentColumns }[state.kind];
+  const columns = { deliveries: deliveryColumns(state), vacancies: vacancyColumns, placements: placementColumns, reassignments: reassignmentColumns,
+    candidates: candidateColumns, applications: applicationColumns }[state.kind];
   return columns as Column<never>[];
 }

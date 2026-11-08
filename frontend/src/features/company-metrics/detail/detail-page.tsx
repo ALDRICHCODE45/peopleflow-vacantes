@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronsUpDown, CircleAlert, Download, Hourglass, SearchX, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronsUpDown, CircleAlert, Download, SearchX, X } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { loadDetailAction } from "../actions";
 import { DETAIL_PATH } from "../drilldown";
 import { MetricsAccessGate } from "../metrics-page";
 import { MetricsFailureCard } from "../metrics-workspace";
-import { CLOSE_REASON_LABEL, dayLabel, momentLabel, number, REASSIGNMENT_REASON_LABEL, type DetailPage, type MetricsFailure } from "../model";
+import { CHANNEL_LABEL, CLOSE_REASON_LABEL, dayLabel, momentLabel, number, REASSIGNMENT_REASON_LABEL, STAGE_KIND_LABEL, type DetailPage, type MetricsFailure } from "../model";
 import { mexicoToday } from "../period";
 import { effectivePeriod } from "../url-state";
 import { detailColumns, detailTable, type Column, type VacancyRef } from "./detail-columns";
@@ -95,12 +95,7 @@ function DetailWorkspace({ role }: { role: Role }) {
       description="El enlace no indica qué registros mostrar. Vuelve a Métricas y elige una cifra." primaryAction={{ label: "Volver a Métricas", href: "/empresa/metricas" }} /></Card>
   </DashboardPageContent>;
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-6">
-    {isListKind(state.kind) ? <ListDetail key={state.kind} state={state as DetailState & { kind: ListKind }} role={role} navigate={navigate} />
-      : <>
-        <DetailHeader state={state} title={figureTitle(state)} />
-        <Card className="p-6"><SectionEmpty icon={Hourglass} tone="info" title="Esta lista llega pronto"
-          description="Los registros de esta cifra estarán disponibles en una próxima versión de Métricas." primaryAction={{ label: "Volver a Métricas", href: boardHref(state) }} /></Card>
-      </>}
+    {isListKind(state.kind) && <ListDetail key={state.kind} state={state as DetailState & { kind: ListKind }} role={role} navigate={navigate} />}
   </DashboardPageContent>;
 }
 
@@ -128,7 +123,9 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
   const [today] = useState(mexicoToday);
   const applied = list.data?.page.applied_filters;
   const period = list.data && !list.stale ? list.data.page.period : effectivePeriod(state.params, today);
-  const freshness = [list.data?.page.as_of && `Actualizado ${momentLabel(list.data.page.as_of)}`, `${dayLabel(period.from)} – ${dayLabel(period.to)}`,
+  // Candidates are current state (§5.5): the period is echoed but never applied, so it is not shown as their scope.
+  const scope = state.kind === "candidates" ? "Foto de hoy; no depende del periodo" : `${dayLabel(period.from)} – ${dayLabel(period.to)}`;
+  const freshness = [list.data?.page.as_of && `Actualizado ${momentLabel(list.data.page.as_of)}`, scope,
     list.data && `Definiciones ${list.data.page.definitions_version}`].filter(Boolean).join(" · ");
   const go = (next: DetailState) => navigate(detailHref(next));
   const chips = filterChips(state, applied);
@@ -167,6 +164,8 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
             <p className="text-base" aria-live="polite">{summaryLine(state, list.data).map(([text, bold], index) => bold ? <b key={index} className="font-semibold tabular-nums">{text}</b> : text)}</p>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <StatusSwitch state={state} data={list.data} onChange={value => go(withParams(state, { [facetParam]: value }))} />
+              {list.data.kind === "candidates" && <StalledToggle pressed={state.params.stalled === "true"} count={list.data.page.facets.stalled}
+                onChange={pressed => go(withParams(state, { stalled: pressed ? "true" : undefined }))} />}
             </div>
             {list.data.page.total === 0 || list.data.page.items.length === 0
               ? <SectionEmpty icon={SearchX} tone="empty" title="Sin resultados"
@@ -174,7 +173,7 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
                 {...(statusFiltered ? { primaryAction: { label: "Ver todas", onClick: () => go(withParams(state, { [facetParam]: undefined })) } } : {})} />
               : <RecordsTable state={state} data={list.data} vacancy={vacancy} onSort={(sort, order) => go(withParams(state, { sort, order }))} />}
             {list.data.page.items.length > 0 && <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4 text-xs text-muted-foreground">
-              <span className="tabular-nums">{`${number.format(list.first)}–${number.format(list.first + list.data.page.items.length - 1)} de ${number.format(list.data.page.total)}`}</span>
+              <span className="tabular-nums">{pageRange(list.data, list.first)}</span>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" size="sm" disabled={!list.hasPrevious || list.pending} onClick={list.previous}>Anterior</Button>
                 <Button type="button" variant="outline" size="sm" disabled={!list.hasNext} onClick={list.next}>Siguiente</Button>
@@ -183,6 +182,20 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
           </div>}
     </Card>
   </>;
+}
+
+/** «1–50 de 120»; applications count rows of vacancies while their total sums applications, so they show the rows only. */
+function pageRange(data: DetailPage, first: number): string {
+  const range = `${number.format(first)}–${number.format(first + data.page.items.length - 1)}`;
+  return data.kind === "applications" ? `Vacantes ${range}` : `${range} de ${number.format(data.page.total)}`;
+}
+
+/** «Solo detenidos» (§5.5 `stalled=true`); its count ignores only this filter. */
+function StalledToggle({ pressed, count, onChange }: { pressed: boolean; count: number; onChange: (pressed: boolean) => void }) {
+  return <Button type="button" variant="outline" aria-pressed={pressed} onClick={() => onChange(!pressed)}
+    className={cn("min-h-10 gap-1 px-3 text-muted-foreground", pressed && "border-destructive/30 bg-destructive/10 font-semibold text-destructive hover:bg-destructive/15 hover:text-destructive")}>
+    Solo detenidos{" "}<span className="font-medium tabular-nums">{number.format(count)}</span>
+  </Button>;
 }
 
 type Option = { value: string | undefined; label: string; count: number };
@@ -199,6 +212,10 @@ function statusOptions(state: DetailState, data: DetailPage): { label: string; o
       return withAll("Motivo de cierre", "Todas", Object.entries(data.page.facets.close_reason).map(([key, count]) => [key, CLOSE_REASON_LABEL[key as keyof typeof CLOSE_REASON_LABEL], count]));
     case "placements": return withAll("Permanencia", "Todos", [["true", HELD_LABEL.true, data.page.facets.held.true], ["false", HELD_LABEL.false, data.page.facets.held.false]]);
     case "reassignments": return withAll("Motivo", "Todas", Object.entries(data.page.facets.reason).map(([key, count]) => [key, REASSIGNMENT_REASON_LABEL[key as keyof typeof REASSIGNMENT_REASON_LABEL], count]));
+    // `retired` arrives only when > 0, so it appears only then.
+    case "candidates": return withAll("Etapa", "Todas", Object.entries(data.page.facets.stage_kind).flatMap(([key, count]): [string, string, number][] =>
+      count === undefined ? [] : [[key, STAGE_KIND_LABEL[key as keyof typeof STAGE_KIND_LABEL], count]]));
+    case "applications": return withAll("Canal", "Todos", Object.entries(data.page.facets.channel).map(([key, count]) => [key, CHANNEL_LABEL[key as keyof typeof CHANNEL_LABEL], count]));
   }
 }
 function StatusSwitch({ state, data, onChange }: { state: DetailState & { kind: ListKind }; data: DetailPage; onChange: (value: string | undefined) => void }) {
