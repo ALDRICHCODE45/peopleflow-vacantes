@@ -22,8 +22,8 @@ const (
 	TopVacancies = 5
 	// InProcessQuery is the candidates filter that reproduces a top
 	// vacancy's in_process figure (with vacancy_id): every active stage
-	// outside placement and the exit stage.
-	InProcessQuery = "stage_kind=new,screening,screening_ok,in_process,custom,retired"
+	// outside new, placement and the exit stage (DD2).
+	InProcessQuery = "stage_kind=screening,screening_ok,in_process,custom,retired"
 )
 
 // stageKinds is the fixed order of §4.4; retired goes last, only when > 0.
@@ -184,8 +184,8 @@ type StageFigure struct {
 	Stalled                   int      `json:"stalled"`
 }
 
-// TopVacancy is one open vacancy by active participations outside placement
-// and the exit stage.
+// TopVacancy is one open vacancy by active participations outside new,
+// placement and the exit stage (DD2 «en proceso»).
 type TopVacancy struct {
 	Vacancy     VacancyRef `json:"vacancy"`
 	Requester   *Requester `json:"requester"`
@@ -211,7 +211,7 @@ func (s *Service) Pipeline(ctx context.Context, company uuid.UUID, raw string) (
 		if r.stalled {
 			stalled[r.kind]++
 		}
-		if r.kind != "placement" {
+		if r.kind != "new" && r.kind != "placement" {
 			inProcess[r.vac]++
 		}
 	}

@@ -201,9 +201,11 @@ func TestMetricsPipeline_Figures(t *testing.T) {
 	if fmt.Sprint(figures) != fmt.Sprint(want) {
 		t.Fatalf("%v, want %v", figures, want)
 	}
+	// DD2: new is not in process, so A's three new candidates leave its
+	// figure (screening only) and B (custom, retired, in_process) leads.
 	editJSONEqual(t, got["top_vacancies"], mxJSON(t, []any{
-		map[string]any{"vacancy": map[string]any{"draft_id": s.a.String(), "title": "Analista"}, "requester": nil, "responsible": mxPerson(s.ana, "Ana", false), "in_process": 4},
 		map[string]any{"vacancy": map[string]any{"draft_id": s.b.String(), "title": "Backend"}, "requester": map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}, "responsible": nil, "in_process": 3},
+		map[string]any{"vacancy": map[string]any{"draft_id": s.a.String(), "title": "Analista"}, "requester": nil, "responsible": mxPerson(s.ana, "Ana", false), "in_process": 1},
 	}))
 	// The period is echoed, never applied.
 	if other := s.get(s.owner, "pipeline?from=2020-01-01&to=2020-01-31"); mxNum(other["stages"].([]any)[0].(map[string]any)["candidates"]) != 3 {
@@ -240,7 +242,7 @@ func TestMetricsPipeline_FigureEqualsTotal(t *testing.T) {
 		for _, raw := range pipeline["top_vacancies"].([]any) {
 			v := raw.(map[string]any)
 			id := mxAt2(v, "vacancy", "draft_id").(string)
-			if got := total("candidates", base+"&vacancy_id="+id+"&stage_kind=new,screening,screening_ok,in_process,custom,retired"); got != mxNum(v["in_process"]) {
+			if got := total("candidates", base+"&vacancy_id="+id+"&stage_kind=screening,screening_ok,in_process,custom,retired"); got != mxNum(v["in_process"]) {
 				t.Fatalf("%s top %s: figure %v, total %d", common, id, v["in_process"], got)
 			}
 		}

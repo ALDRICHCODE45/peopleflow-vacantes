@@ -33,7 +33,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T5 (S1–S5) Slice v2c: pipeline section, candidates (audited), applications, exports, participation index 00060 — commit: v2c commit.
 - [x] T8 (L10, L11) Dev-only demo seed (`cmd/devseed-metrics-demo` + `internal/tools/metricsdemo`) — commit: seed commit.
 - [x] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5) — agreed (L14), commit: f8e8a0c6 + agreement commit.
-- [ ] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired`, after T8.
+- [x] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired` — commit: DD2 commit.
 - [ ] T10 Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin.
 - [ ] T11 Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role.
 - [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
@@ -120,3 +120,8 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   path when another company references a demo user is untested. archguard (`go run ./cmd/archguard`) fails on a
   pre-existing `locked-non-goal-path docker/minio/Dockerfile` (f03af5fe, Oct 27), unrelated. Not run against
   `peopleflow_vacancies` or Cognito yet.
+- **L16** DD2 applied in metrics by a worker: `top_vacancies.in_process` excludes `new` and `placement`,
+  `InProcessQuery` = `stage_kind=screening,screening_ok,in_process,custom,retired`; RED observed
+  (TestPipeline_TopVacanciesBoundedTiesByTitle), unit + 33 `^TestMetrics` integration green; demo top 5 now DevOps 4,
+  Cajero 3, Frontend 2, Oficial 2, Reclutador TI 2. Local DB migrated to 00060; branch API running on :8081 for the
+  browser review (binary `backend/.devapi-metrics`, untracked, delete after the review).

@@ -182,11 +182,11 @@ with `recruiter_id`, the vacancies where that user has an open tramo.
   `participation_stage_history` row of kind `intake | move | recovery` into the participation's current `stage_id`;
   `substate` and `not_applicable` rows never reset it.
 - **Stalled:** days in stage ≥ the threshold (DV1: 7 business days, same for every stage), never in `placement`.
-- **Top vacancies:** the 5 open vacancies with most active participations outside `placement` and the exit stage;
-  ties by title.
+- **Top vacancies:** the 5 open vacancies with most participations «en proceso» (DD2 of
+  `company-dashboard-v2.md`: active, not discarded, in any stage except `new` and `placement`); ties by title.
 - Opens: stage → `candidates?stage_kind=K` (`&stalled=true` for stalled); top vacancy `in_process` →
-  `candidates?vacancy_id=V&stage_kind=new,screening,screening_ok,in_process,custom,retired` (placement excluded, as in
-  the figure).
+  `candidates?vacancy_id=V&stage_kind=screening,screening_ok,in_process,custom,retired` (new and placement excluded,
+  as in the figure).
 - Open vacancy = published, not closed and not finished at `as_of` (a paused vacancy is open). A participation with no
   intake/move/recovery row into its current stage enters it at its `created_at`. Top vacancies count `retired`
   participations as active and leave out vacancies with 0 active participations.

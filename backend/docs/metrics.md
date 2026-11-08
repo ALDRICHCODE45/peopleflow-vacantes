@@ -166,8 +166,9 @@ caller's company is ever read.
   `entered_stage_at`. `recruiter_id` = an open tramo at `as_of` (as the section), never
   the period. The list for `stage_kind=K` (`&stalled=true`) reproduces the section's
   `candidates` (`stalled`) of K; a top vacancy's `in_process` is reproduced by
-  `vacancy_id=V&stage_kind=new,screening,screening_ok,in_process,custom,retired`
-  (`application.InProcessQuery`): plain `vacancy_id=V` also lists its placement rows.
+  `vacancy_id=V&stage_kind=screening,screening_ok,in_process,custom,retired`
+  (`application.InProcessQuery`): plain `vacancy_id=V` also lists its new and placement
+  rows.
 - **Applications:** one row per vacancy of the period snapshot with ≥ 1 participation
   created in the period in the selected channels (every channel without `channel`).
   Rows carry all four channel counts; row `total` and the response `total` sum only the
@@ -288,9 +289,9 @@ Every route except the v1 per-vacancy detail reads computes from a shared snapsh
   stage (retired or unknown) it is `retired`. Days in stage are business days from the
   entry to `as_of` (the fulfillment calendar, `(entry, as_of]`); the median is null at 0
   candidates. Stalled = days ≥ 7 (`StalledThreshold`, DV1), never in `placement`. Top
-  vacancies: up to 5 open vacancies by active participations outside `placement` and the
-  exit stage (retired included), ties by title (case-insensitive) then id; a vacancy with
-  0 is not listed. `responsible` is the open responsible function, null without one.
+  vacancies: up to 5 open vacancies by active participations outside `new`, `placement`
+  and the exit stage (retired included; DD2 «en proceso», shared with the company
+  dashboard), ties by title (case-insensitive) then id; a vacancy with 0 is not listed. `responsible` is the open responsible function, null without one.
 - **Previous period (v2 V2).** `[from − n, from − 1]` with `n = to − from + 1`, the same
   filters, read from its own snapshot with today's knowledge: a delivery fulfilled
   after that window ended counts as fulfilled.

@@ -215,19 +215,29 @@ func TestPipeline_StagesByKindDaysStalledAndRetired(t *testing.T) {
 
 func TestPipeline_TopVacanciesBoundedTiesByTitle(t *testing.T) {
 	fx := newPipelineFixture()
+	// DD2: new is not in process. Zeta gains 3 candidates in new (1 in
+	// process still); Nueva holds only new candidates (0 in process).
+	for _, name := range []string{"Ximena", "Yago", "Zoe"} {
+		fx.zeta.with(name, "NEW", "2026-03-20T18:00:00Z")
+	}
+	nueva := openVacancy("Nueva", stagedPipeline(nil))
+	nueva.with("Ana", "NEW", "2026-03-20T18:00:00Z")
+	nueva.with("Beto", "NEW", "2026-03-20T18:00:00Z")
+	fx.store.pipeline.Vacancies = append(fx.store.pipeline.Vacancies, nueva)
 	got := fx.section(t, "")
 	var titles []string
 	for _, v := range got.TopVacancies {
 		titles = append(titles, v.Vacancy.Title)
 	}
-	// A: 4 outside placement and exit (retired included); B: 2; then the
-	// ones by title, case-insensitive; Zeta falls off; Colocada (placement
-	// only) never counts.
+	// A: 2 outside new, placement and exit (retired included); B: 2, after
+	// A by title; then the ones by title, case-insensitive; Zeta falls off
+	// (its new candidates do not count); Nueva (new only) and Colocada
+	// (placement only) never count.
 	if !reflect.DeepEqual(titles, []string{"Analista", "Backend", "alfa", "Beta", "Omega"}) {
 		t.Fatalf("%v", titles)
 	}
 	a, b := got.TopVacancies[0], got.TopVacancies[1]
-	if a.InProcess != 4 || a.Responsible == nil || a.Responsible.UserID != fx.u || *a.Responsible.Name != "Ursula" || a.Requester != nil {
+	if a.InProcess != 2 || a.Responsible == nil || a.Responsible.UserID != fx.u || *a.Responsible.Name != "Ursula" || a.Requester != nil {
 		t.Fatalf("A %+v", a)
 	}
 	if b.InProcess != 2 || b.Responsible != nil || b.Requester == nil || *b.Requester.Name != "Acme" {
