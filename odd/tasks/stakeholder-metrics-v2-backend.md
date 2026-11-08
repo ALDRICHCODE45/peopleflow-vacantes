@@ -28,9 +28,10 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 
 - [x] T1 (S1–S4) Draft contract v2 and send it to the frontend session for review — commit: c56132e2.
 - [x] T2 (S1–S5) Agree contract (frontend review + user decisions DV1–DV6) — commit: facets/applied filters commit.
-- [ ] T3 Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin.
+- [x] T3 (S2, S3) Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin — commit: v2a commit.
 - [ ] T4 Slice v2b: sortable keyset lists with total, deliveries, placements (audited), CSV export.
 - [ ] T5 Slice v2c: pipeline section, candidates (audited), applications, participation index.
+- [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
 
 ## Log
 
@@ -50,3 +51,8 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   de 60 s con as_of).» Two additions applied in §5: facets per list (own filter ignored) and `applied_filters` with
   resolved names. Frontend builds on `feat/metrics-redesign` (from main) following the backend slices; it merges v1
   (backend then frontend) into main.
+- **L4** v2a implemented by a worker, independently verified (concurrency): pass, no blocking defects. Unit, race x5,
+  15 `^TestMetrics` integration tests, vet, archguard green. Decided: median/closing target/by_requester.filled use
+  vacancies whose last close is filled, at their first filled close (written into §3.1). Moved: participation index to
+  v2c (it serves applications), the seeded benchmark to T6. Note: `WithClock` swaps the clock without a lock (tests
+  only).

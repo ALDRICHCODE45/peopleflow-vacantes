@@ -114,15 +114,18 @@ func TestMetricsSummary_Formulas(t *testing.T) {
 	s := newMXScenario(t, h)
 	got := s.get(s.owner, "summary?"+mxRange)
 	want := map[string]any{
-		"definitions_version": "v1",
+		"definitions_version": "v2",
 		"period":              mxPeriod("2025-01-01", "2025-03-31"),
+		"as_of":               "2025-03-15T18:00:00Z",
 		"vacancies": map[string]any{
 			"assigned": 5,
-			"closed":   map[string]any{"filled": 2, "cancelled": 1, "other": 0, "no_reason": 1},
-			// Jan 6 → Feb 14 = 28 and Jan 6 → Mar 5 = 41 business days.
-			"median_business_days_to_close": 34.5,
-			// Target in effect: Feb 28 at the first close, Mar 3 at the second.
-			"closing_target": map[string]any{"on_time": 1, "late": 1, "no_target": 0},
+			// v2 V1: distinct vacancies by their last close in the period; V1
+			// closed twice (filled) counts once.
+			"closed": map[string]any{"filled": 1, "cancelled": 1, "other": 0, "no_reason": 1},
+			// V1's first filled close: Jan 6 → Feb 14 = 28 business days.
+			"median_business_days_to_close": 28,
+			// Judged at that close, against Feb 28 in effect then.
+			"closing_target": map[string]any{"on_time": 1, "late": 0, "no_target": 0},
 		},
 		"delivery": map[string]any{
 			"on_time": 1, "late": 1, "overdue": 1, "pending": 1, "not_configured": 1, "configured": 4, "total": 5,
@@ -141,10 +144,27 @@ func TestMetricsSummary_Formulas(t *testing.T) {
 		},
 		"reassignments": map[string]any{"total": 2, "by_reason": map[string]any{"workload": 1, "recruiter_departure": 1, "performance": 0, "client_request": 0, "other": 0}},
 		"by_requester": []any{
-			map[string]any{"requester": map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}, "vacancies": 2, "filled": 2},
+			map[string]any{"requester": map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}, "vacancies": 2, "filled": 1},
 			map[string]any{"requester": map[string]any{"kind": "internal_area", "id": s.mustRequester(s.v4), "name": "Finanzas"}, "vacancies": 1, "filled": 0},
 			map[string]any{"requester": map[string]any{"kind": "client", "id": nil, "name": nil}, "vacancies": 1, "filled": 0},
 			map[string]any{"requester": nil, "vacancies": 1, "filled": 0},
+		},
+		// N1: the 90 days before (2024-10-03..2024-12-31) hold V3 (Beto since
+		// December, not configured) and V8 (tramo until November).
+		"previous_period": map[string]any{"from": "2024-10-03", "to": "2024-12-31"},
+		"headline": map[string]any{
+			"on_time_rate":                  map[string]any{"current": mxRate(0.3333, 1, 3), "previous": mxRate(nil, 0, 0)},
+			"assigned":                      map[string]any{"current": 5, "previous": 2},
+			"median_business_days_to_close": map[string]any{"current": 28, "previous": nil},
+			"placements":                    map[string]any{"current": 2, "previous": 0},
+			"reassignments":                 map[string]any{"current": 2, "previous": 0},
+		},
+		// N2 by commitment month: Jan V1 on time + V5 late; Feb V2 overdue;
+		// Mar V4 still pending (not judged).
+		"on_time_by_month": []any{
+			map[string]any{"month": "2025-01", "rate": mxRate(0.5, 1, 2)},
+			map[string]any{"month": "2025-02", "rate": mxRate(0, 0, 1)},
+			map[string]any{"month": "2025-03", "rate": mxRate(nil, 0, 0)},
 		},
 	}
 	editJSONEqual(t, got, mxJSON(t, want))
@@ -197,11 +217,12 @@ func TestMetricsSummary_EmptyCompany(t *testing.T) {
 	h := newDraftFlowHarness(t)
 	f := newMXFixture(t, h)
 	got := f.get(f.owner, "summary?from=2025-11-15&to=2026-01-10")
+	mxTakeAsOf(t, got)
 	zeroMonth := func(m string) map[string]any {
 		return map[string]any{"month": m, "filled": 0, "cancelled": 0, "other": 0, "no_reason": 0}
 	}
 	want := map[string]any{
-		"definitions_version": "v1",
+		"definitions_version": "v2",
 		"period":              mxPeriod("2025-11-15", "2026-01-10"),
 		"vacancies": map[string]any{"assigned": 0, "closed": map[string]any{"filled": 0, "cancelled": 0, "other": 0, "no_reason": 0},
 			"median_business_days_to_close": nil, "closing_target": map[string]any{"on_time": 0, "late": 0, "no_target": 0}},
@@ -212,10 +233,25 @@ func TestMetricsSummary_EmptyCompany(t *testing.T) {
 		"closed_by_month": []any{zeroMonth("2025-11"), zeroMonth("2025-12"), zeroMonth("2026-01")},
 		"reassignments":   map[string]any{"total": 0, "by_reason": map[string]any{"workload": 0, "recruiter_departure": 0, "performance": 0, "client_request": 0, "other": 0}},
 		"by_requester":    []any{},
+		"previous_period": map[string]any{"from": "2025-09-19", "to": "2025-11-14"},
+		"headline": map[string]any{
+			"on_time_rate":                  map[string]any{"current": mxRate(nil, 0, 0), "previous": mxRate(nil, 0, 0)},
+			"assigned":                      map[string]any{"current": 0, "previous": 0},
+			"median_business_days_to_close": map[string]any{"current": nil, "previous": nil},
+			"placements":                    map[string]any{"current": 0, "previous": 0},
+			"reassignments":                 map[string]any{"current": 0, "previous": 0},
+		},
+		"on_time_by_month": []any{
+			map[string]any{"month": "2025-11", "rate": mxRate(nil, 0, 0)},
+			map[string]any{"month": "2025-12", "rate": mxRate(nil, 0, 0)},
+			map[string]any{"month": "2026-01", "rate": mxRate(nil, 0, 0)},
+		},
 	}
 	editJSONEqual(t, got, mxJSON(t, want))
-	editJSONEqual(t, f.get(f.owner, "recruiters?from=2025-11-15&to=2026-01-10"), mxJSON(t, map[string]any{
-		"definitions_version": "v1", "period": mxPeriod("2025-11-15", "2026-01-10"), "items": []any{}, "next_cursor": nil}))
+	recruiters := f.get(f.owner, "recruiters?from=2025-11-15&to=2026-01-10")
+	mxTakeAsOf(t, recruiters)
+	editJSONEqual(t, recruiters, mxJSON(t, map[string]any{
+		"definitions_version": "v2", "period": mxPeriod("2025-11-15", "2026-01-10"), "items": []any{}, "next_cursor": nil}))
 }
 
 func TestMetricsRecruiters_Cards(t *testing.T) {
@@ -245,7 +281,7 @@ func TestMetricsRecruiters_Cards(t *testing.T) {
 	// Carla: former member, keeps her V2 history.
 	carla := card(mxPerson(s.carla, "Carla", true), 1, 1, 0, 0, 1, 0, 0, 0, nil, 0, 0, 0, 0, 0, 1, mxRate(0, 0, 1), 0, 1, 17)
 	editJSONEqual(t, s.get(s.owner, "recruiters?"+mxRange), mxJSON(t, map[string]any{
-		"definitions_version": "v1", "period": mxPeriod("2025-01-01", "2025-03-31"),
+		"definitions_version": "v2", "period": mxPeriod("2025-01-01", "2025-03-31"), "as_of": "2025-03-15T18:00:00Z",
 		"items": []any{ana, beto, carla}, "next_cursor": nil}))
 
 	// Pagination: alphabetical, opaque cursor, null at the end.
@@ -268,7 +304,7 @@ func TestMetricsRecruiters_Cards(t *testing.T) {
 	one := s.get(s.owner, "recruiters/"+s.ana.String()+"?"+mxRange)
 	byMonth := one["by_month"]
 	delete(one, "by_month")
-	wantOne := map[string]any{"definitions_version": "v1", "period": mxPeriod("2025-01-01", "2025-03-31")}
+	wantOne := map[string]any{"definitions_version": "v2", "period": mxPeriod("2025-01-01", "2025-03-31"), "as_of": "2025-03-15T18:00:00Z"}
 	for k, v := range ana {
 		wantOne[k] = v
 	}

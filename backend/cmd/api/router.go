@@ -258,11 +258,15 @@ func newRouter(d routerDeps) chi.Router {
 		r.Delete("/v2/me/company/stakeholder-invitations/{id}", d.stakeholderInvitationHandler.Revoke)
 	})
 
-	// Company metrics (stakeholder-metrics-v1 §3): owners and stakeholders
-	// read; detail reads with candidate names audit themselves.
+	// Company metrics (stakeholder-metrics-v1 §3, v2 §4 sections): owners and
+	// stakeholders read; detail reads with candidate names audit themselves.
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireMetricsViewer)
 		r.Get("/v2/me/company/metrics/summary", d.metricsHandler.Summary)
+		r.Get("/v2/me/company/metrics/closures", d.metricsHandler.Closures)
+		r.Get("/v2/me/company/metrics/compliance", d.metricsHandler.Compliance)
+		r.Get("/v2/me/company/metrics/delays", d.metricsHandler.Delays)
+		r.Get("/v2/me/company/metrics/origin", d.metricsHandler.Origin)
 		r.Get("/v2/me/company/metrics/recruiters", d.metricsHandler.Recruiters)
 		r.Get("/v2/me/company/metrics/recruiters/{userId}", d.metricsHandler.Recruiter)
 		r.Get("/v2/me/company/metrics/vacancies", d.metricsHandler.Vacancies)

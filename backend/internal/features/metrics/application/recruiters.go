@@ -90,10 +90,11 @@ func (s *Service) Recruiters(ctx context.Context, company uuid.UUID, raw string)
 	}
 	// Cards attribute across every vacancy of the requester scope; the
 	// recruiter filter picks the card, it does not narrow the vacancies.
-	data, err := s.store.Load(ctx, company, Scope{Period: p, Requester: q.Requester})
+	v, err := s.view(ctx, company, p, q.Requester, nil)
 	if err != nil {
 		return nil, err
 	}
+	data := v.data
 	var people []Person
 	seen := map[uuid.UUID]bool{}
 	for _, v := range data.Vacancies {
@@ -118,9 +119,9 @@ func (s *Service) Recruiters(ctx context.Context, company uuid.UUID, raw string)
 	if err != nil {
 		return nil, err
 	}
-	out := &RecruiterList{header: newHeader(p), Items: make([]Card, 0, len(people)), NextCursor: next}
+	out := &RecruiterList{header: newHeader(p, v.asOf), Items: make([]Card, 0, len(people)), NextCursor: next}
 	for _, person := range people {
-		out.Items = append(out.Items, s.card(data, person, p))
+		out.Items = append(out.Items, s.card(data, person, p, v.asOf))
 	}
 	return out, nil
 }
@@ -153,10 +154,11 @@ func (s *Service) Recruiter(ctx context.Context, company, user uuid.UUID, raw st
 	if !had {
 		return nil, ErrNotFound
 	}
-	data, err := s.store.Load(ctx, company, Scope{Period: p, Requester: q.Requester})
+	snap, err := s.view(ctx, company, p, q.Requester, nil)
 	if err != nil {
 		return nil, err
 	}
+	data, now := snap.data, snap.asOf
 	person, ok := data.People[user]
 	if !ok {
 		// Tramos only outside the scoped vacancies: name the user anyway.
@@ -167,8 +169,7 @@ func (s *Service) Recruiter(ctx context.Context, company, user uuid.UUID, raw st
 		person = people[user]
 		person.UserID = user
 	}
-	out := &RecruiterDetail{header: newHeader(p), Card: s.card(data, person, p), ByMonth: []CardMonth{}}
-	now := s.now()
+	out := &RecruiterDetail{header: newHeader(p, now), Card: s.card(data, person, p, now), ByMonth: []CardMonth{}}
 	for _, m := range p.Months() {
 		cm := CardMonth{Month: m.Key}
 		for _, v := range data.Vacancies {
@@ -207,9 +208,8 @@ func (s *Service) attributedResult(v *Vacancy, user uuid.UUID, now time.Time) (s
 	return result, slices.Contains(v.attributedAt(at), user)
 }
 
-func (s *Service) card(data *Dataset, person Person, p Period) Card {
+func (s *Service) card(data *Dataset, person Person, p Period, now time.Time) Card {
 	user := person.UserID
-	now := s.now()
 	c := Card{Person: person}
 	var toTarget []int
 	closedWithCredit := 0

@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	// DefinitionsVersion travels on every response (§3.0).
-	DefinitionsVersion = "v1"
+	// DefinitionsVersion travels on every response (v2 §3).
+	DefinitionsVersion = "v2"
 	// TimeZone is the zone of every calendar rule (§2.0).
 	TimeZone = "America/Mexico_City"
 	// MaxSpanDays bounds to - from (M7).
@@ -35,10 +35,14 @@ const (
 	RouteVacancies
 	RouteReassignments
 	RouteDetail
+	RouteClosures
+	RouteCompliance
+	RouteDelays
+	RouteOrigin
 )
 
 func (r Route) String() string {
-	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail"}[r]
+	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail", "closures", "compliance", "delays", "origin"}[r]
 }
 
 func (r Route) paginated() bool {

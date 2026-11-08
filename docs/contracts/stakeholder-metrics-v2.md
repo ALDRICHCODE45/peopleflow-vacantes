@@ -56,7 +56,7 @@ only pays off if the pieces share the load. Hence §2.
   browser; the frontend's own query cache handles revisits.
 - **Audit unaffected:** audited reads (§6) write their audit row in their own transaction **before** serving from
   the snapshot, fail-closed; a cache hit never skips the audit.
-- **Indexes to add with the slice:** `process_participations (process_id, created_at)` (origin and applications by
+- **Indexes to add with slice v2c:** `process_participations (process_id, created_at)` (origin and applications by
   vacancy; today only a global `(created_at, origin_channel)` exists). The current-stage lookup uses the existing
   `participation_history_order_idx (participation_id, created_at, id)`.
 - **Budgets** (realistic seed: 300 vacancies, 10k participations): cold `summary` p95 ≤ 400 ms including the
@@ -79,7 +79,10 @@ only pays off if the pieces share the load. Hence §2.
 - **V1 Closed counts distinct vacancies everywhere.** v1 counted close *events* in `summary.vacancies.closed` and
   distinct vacancies in `closed_by_month` (v1 §3.7.4). A figure must equal its list and a list has one row per
   vacancy, so v2 counts **distinct vacancies with ≥ 1 close in the period**, grouped by the reason of their **last**
-  close in the period. The median to close uses each vacancy's **first** `filled` close in the period. Only a close →
+  close in the period. The median to close, `closing_target` and
+  `by_requester.filled` use vacancies whose last close in the period is `filled`, measured at their **first** `filled`
+  close in the period (a vacancy closed filled and then cancelled counts as cancelled and is out of the median), so
+  they agree with the `close_reason=filled` list. Only a close →
   reopen → close inside one period changes a number. (Decision DV2.)
 - **V2 Previous period** (N1) = the same number of days immediately before `from`
   (`[from − n, from − 1]`, `n = to − from + 1`), same filters, computed **with what is known today** (`as_of`): a

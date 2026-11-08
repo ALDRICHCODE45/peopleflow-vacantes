@@ -121,11 +121,11 @@ func (s *Service) Vacancies(ctx context.Context, company uuid.UUID, raw string) 
 	if err != nil {
 		return nil, err
 	}
-	data, err := s.store.Load(ctx, company, Scope{Period: p, Requester: q.Requester, Recruiter: q.RecruiterID})
+	snap, err := s.view(ctx, company, p, q.Requester, q.RecruiterID)
 	if err != nil {
 		return nil, err
 	}
-	now := s.now()
+	data, now := snap.data, snap.asOf
 	rows := []VacancyRow{}
 	for _, v := range data.Vacancies {
 		row := VacancyRow{
@@ -175,7 +175,7 @@ func (s *Service) Vacancies(ctx context.Context, company uuid.UUID, raw string) 
 	if err != nil {
 		return nil, err
 	}
-	return &VacancyList{header: newHeader(p), Items: rows, NextCursor: next}, nil
+	return &VacancyList{header: newHeader(p, now), Items: rows, NextCursor: next}, nil
 }
 
 // compareNewest orders time keys descending, then ids ascending. Keys are
@@ -200,10 +200,12 @@ func (s *Service) Reassignments(ctx context.Context, company uuid.UUID, raw stri
 	if err != nil {
 		return nil, err
 	}
-	data, err := s.store.Load(ctx, company, Scope{Period: p, Requester: q.Requester})
+	// The recruiter filter keeps rows, not vacancies (below).
+	snap, err := s.view(ctx, company, p, q.Requester, nil)
 	if err != nil {
 		return nil, err
 	}
+	data := snap.data
 	rows := []ReassignmentRow{}
 	for _, v := range data.Vacancies {
 		for _, r := range v.Reassigns {
@@ -229,7 +231,7 @@ func (s *Service) Reassignments(ctx context.Context, company uuid.UUID, raw stri
 	if err != nil {
 		return nil, err
 	}
-	return &ReassignmentList{header: newHeader(p), Items: rows, NextCursor: next}, nil
+	return &ReassignmentList{header: newHeader(p, snap.asOf), Items: rows, NextCursor: next}, nil
 }
 
 // snapshotSummary keeps the handover state (lifecycle, delivery, placements)
@@ -262,7 +264,7 @@ func (s *Service) Deliveries(ctx context.Context, company, actor, draft uuid.UUI
 	if err != nil {
 		return nil, err
 	}
-	return &Detail[DeliveryRow]{newHeader(p), draft, rows}, nil
+	return &Detail[DeliveryRow]{newHeader(p, s.now()), draft, rows}, nil
 }
 
 // Placements lists a vacancy's active and did_not_hold credits and records the
@@ -276,7 +278,7 @@ func (s *Service) Placements(ctx context.Context, company, actor, draft uuid.UUI
 	if err != nil {
 		return nil, err
 	}
-	return &Detail[PlacementRow]{newHeader(p), draft, rows}, nil
+	return &Detail[PlacementRow]{newHeader(p, s.now()), draft, rows}, nil
 }
 
 // Reaches turns a vacancy's qualifying entries into its delivered candidates:

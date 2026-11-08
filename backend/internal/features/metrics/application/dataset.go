@@ -245,3 +245,31 @@ func (d *Dataset) personPtr(id *uuid.UUID) *Person {
 	p := d.person(*id)
 	return &p
 }
+
+// narrow keeps the vacancies the request's filters select (M6 requester rule;
+// with recruiter, a tramo of that user overlapping the period). People stay
+// whole: they only name ids the kept vacancies carry.
+func (d *Dataset) narrow(p Period, requester RequesterFilter, recruiter *uuid.UUID) *Dataset {
+	out := &Dataset{Vacancies: make([]*Vacancy, 0, len(d.Vacancies)), People: d.People}
+	for _, v := range d.Vacancies {
+		if requester.selects(v.Requester) && (recruiter == nil || v.assignedIn(recruiter, p.Start, p.End)) {
+			out.Vacancies = append(out.Vacancies, v)
+		}
+	}
+	return out
+}
+
+// selects applies the requester filter to a vacancy's current requester.
+func (f RequesterFilter) selects(r *Requester) bool {
+	switch {
+	case f.Kind == "":
+		return !f.None || r == nil
+	case r == nil || r.Kind != f.Kind:
+		return false
+	case f.None:
+		return r.ID == nil
+	case f.ID != uuid.Nil:
+		return r.ID != nil && *r.ID == f.ID
+	}
+	return true
+}

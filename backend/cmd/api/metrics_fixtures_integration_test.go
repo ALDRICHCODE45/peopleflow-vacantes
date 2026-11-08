@@ -274,6 +274,17 @@ func mxPerson(id uuid.UUID, name any, former bool) map[string]any {
 	return map[string]any{"user_id": id.String(), "name": name, "former_member": former}
 }
 
+// mxTakeAsOf removes as_of after checking it is an RFC 3339 instant to the
+// second (reads on the real clock).
+func mxTakeAsOf(t *testing.T, body map[string]any) {
+	t.Helper()
+	raw, ok := body["as_of"].(string)
+	if _, err := time.Parse(time.RFC3339, raw); !ok || err != nil || strings.Contains(raw, ".") {
+		t.Fatalf("as_of %v", body["as_of"])
+	}
+	delete(body, "as_of")
+}
+
 func mxPeriod(from, to string) map[string]any {
 	return map[string]any{"from": from, "to": to, "time_zone": "America/Mexico_City"}
 }

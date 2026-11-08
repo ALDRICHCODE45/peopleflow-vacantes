@@ -6,6 +6,7 @@ import (
 	"context"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -207,6 +208,8 @@ func TestMetricsReassignments_List(t *testing.T) {
 	from := s.stay(extra, s.ana, "responsible", mxAt("2025-01-06T16:00:00Z"), mxPtr(mxAt("2025-03-03T18:00:00Z")))
 	to := s.stay(extra, s.beto, "responsible", mxAt("2025-03-03T18:00:00Z"), nil)
 	s.reassign(extra, from, to, "other", mxPtr("cambio de cliente"), mxAt("2025-03-03T18:00:00Z"))
+	// The period's snapshot lives 60 s (v2 §2): the write shows once it expires.
+	h.metrics.WithClock(func() time.Time { return mxAt("2025-03-15T18:01:01Z") })
 	first := s.get(s.owner, "reassignments?"+mxRange)["items"].([]any)[0].(map[string]any)
 	if first["reason"] != "other" || first["note"] != "cambio de cliente" {
 		t.Fatalf("note %v", first)
@@ -223,7 +226,7 @@ func TestMetricsDetail_DeliveriesAndPlacementsAudited(t *testing.T) {
 		}
 		return map[string]any{"id": id, "full_name": name}
 	}
-	header := map[string]any{"definitions_version": "v1", "period": mxPeriod("2025-01-01", "2025-03-31"), "draft_id": s.v1.String()}
+	header := map[string]any{"definitions_version": "v2", "period": mxPeriod("2025-01-01", "2025-03-31"), "as_of": "2025-03-15T18:00:00Z", "draft_id": s.v1.String()}
 	with := func(items []any) map[string]any {
 		out := map[string]any{"items": items}
 		for k, v := range header {
