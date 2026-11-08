@@ -32,7 +32,11 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T4 (S1, S3, S4, S5) Slice v2b: sortable keyset lists with total, facets, applied filters, vacancy_id, deliveries, placements (audited), CSV export, overdue top requester/attributed_to — commit: v2b commit.
 - [x] T5 (S1–S5) Slice v2c: pipeline section, candidates (audited), applications, exports, participation index 00060 — commit: v2c commit.
 - [ ] T8 Dev-only demo seed (`cmd/devseed-metrics-demo`) for the browser review, approved (L11), after T5.
-- [ ] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5), after T5.
+- [x] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5) — agreed (L14), commit: f8e8a0c6 + agreement commit.
+- [ ] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired`, after T8.
+- [ ] T10 Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin.
+- [ ] T11 Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role.
+- [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
 
 ## Log
@@ -106,3 +110,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   vacancies, deltas or daily in-process series; talent base has no added-date filter; archguard forbids jobs↔metrics
   imports (compose in cmd/api). Proposed DD1–DD6, incl. DD2 one «en proceso» definition (not new, not placement) that
   would change metrics §4.4 top_vacancies before the v2 merge.
+- **L14** Frontend session (2026-11-08): «aprobado sin agregados. El usuario aceptó DD1–DD6 como las recomendaste, DD2
+  incluida (en proceso = activos sin new ni placement, igual en dashboard y métricas). Ajustá métricas §4.4
+  top_vacancies.in_process antes del merge único … Orden: primero el seed demo, después d2a/d2b; el dashboard lo
+  implemento después de verificar Métricas en el navegador.»

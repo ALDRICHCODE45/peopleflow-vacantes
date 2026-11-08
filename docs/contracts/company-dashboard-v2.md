@@ -1,7 +1,7 @@
 # Company dashboard v2 (internal, employer-only)
 
-Status: **draft (2026-11-08)**, proposed by the backend session for frontend review; nothing is built until the
-frontend session and the user agree. Frontend needs: `docs/product/company-dashboard-v2-needs.md` (frontend repo),
+Status: **agreed (2026-11-08)**: frontend review approved it without additions and the user approved DD1–DD6 as
+recommended. Frontend needs: `docs/product/company-dashboard-v2-needs.md` (frontend repo),
 artboard `design/dashboard-redesign/09-dashboard-empresa.html`. Builds on `stakeholder-metrics-v2.md` (snapshot, list
 grammar, pipeline rules, DV1) and replaces `GET /v2/me/company/dashboard` (`backend/docs/dashboard.md`) once the
 frontend moves. Backend tracking: `odd/tasks/stakeholder-metrics-v2-backend.md` T7.
@@ -187,7 +187,7 @@ Same grammar as metrics §5; scope forced by role; period = the window unless st
 2. **d2b:** dashboard lists and exports, talent-base `added_from/added_to`, figure = total tests per role.
 3. **d2c:** remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
 
-## Decisions (proposed, pending)
+## Decisions (approved 2026-11-08, all as recommended)
 
 1. **DD1 Recruiter scope.** Recommendation: own vacancies (open assignment); owner whole company.
 2. **DD2 «En proceso».** Recommendation: one definition everywhere: active, not in `new`, not in `placement`.
