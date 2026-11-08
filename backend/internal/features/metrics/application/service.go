@@ -14,6 +14,8 @@ type Service struct {
 	calendar  Calendar
 	now       func() time.Time
 	snapshots *snapshots
+	// pipelines caches the pipeline snapshot per company (v2 §2).
+	pipelines *cache[uuid.UUID, *PipelineData]
 	// exportLimit bounds a CSV export (ExportLimit; WithExportLimit in tests).
 	exportLimit int
 }
@@ -28,7 +30,9 @@ func NewService(store Store, calendar Calendar, now func() time.Time) *Service {
 	load := func(ctx context.Context, company uuid.UUID, p Period) (*Dataset, error) {
 		return store.Load(ctx, company, Scope{Period: p})
 	}
-	s.snapshots = newSnapshots(load, func() time.Time { return s.now() }, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	clock := func() time.Time { return s.now() }
+	s.snapshots = newSnapshots(load, clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	s.pipelines = newCache[uuid.UUID, *PipelineData](clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
 	return s
 }
 

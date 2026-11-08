@@ -25,15 +25,16 @@ import (
 type StagesFrom func(draft uuid.UUID, config []byte, cutoff uuid.UUID) ([]uuid.UUID, error)
 
 type Store struct {
-	pool   *pgxpool.Pool
-	audit  auditrepositories.AuditEventRepository
-	stages StagesFrom
+	pool     *pgxpool.Pool
+	audit    auditrepositories.AuditEventRepository
+	stages   StagesFrom
+	pipeline PipelineFrom
 }
 
 var _ app.Store = (*Store)(nil)
 
-func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository, stages StagesFrom) *Store {
-	return &Store{pool: pool, audit: audit, stages: stages}
+func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository, stages StagesFrom, pipeline PipelineFrom) *Store {
+	return &Store{pool: pool, audit: audit, stages: stages, pipeline: pipeline}
 }
 
 type querier interface {

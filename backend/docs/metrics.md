@@ -2,7 +2,7 @@
 
 Contracts: `docs/contracts/stakeholder-metrics-v1.md` §2 (definitions) and §3 (API), and
 `docs/contracts/stakeholder-metrics-v2.md` (snapshot, definition changes, board sections,
-detail lists and CSV exports; slices v2a and v2b implemented). The contracts are authoritative; this page summarizes it and records how the code reads the
+detail lists and CSV exports; slices v2a, v2b and v2c implemented). The contracts are authoritative; this page summarizes it and records how the code reads the
 points the contract leaves open. The data captured for it (origin channel, requester
 columns, closing target) is slice 3b; the stakeholder role and gate are slice 3a
 ([stakeholder-invitations.md](stakeholder-invitations.md)).
@@ -10,17 +10,21 @@ columns, closing target) is slice 3b; the stakeholder role and gate are slice 3a
 Code: `internal/features/metrics/`:
 
 - `application`: filter parser, period, cursor and shape helpers (`filters.go`, `period.go`,
-  `cursor.go`, `shape.go`), the metrics snapshot cache (`snapshot.go`), the formulas
+  `cursor.go`, `shape.go`), the snapshot caches (`snapshot.go`), the formulas
   (`dataset.go`, `summary.go`, `sections.go`, `recruiters.go`, `details.go`), the v2 list
   grammar (`lists.go`: keyset, facets, applied filters, audit filters), the list kinds
-  (`kinds.go`) and the CSV export rows (`export.go`).
-- `infrastructure/postgres`: the fact loader (`store.go`), the audited detail reads
-  (`details.go`), name resolution and the list/export audit rows (`lists.go`).
+  (`kinds.go`), the pipeline section with the candidates and applications lists
+  (`pipeline.go`) and the CSV export rows (`export.go`).
+- `infrastructure/postgres`: the fact loader (`store.go`), the pipeline loader
+  (`pipeline.go`), the audited detail reads (`details.go`), name resolution and the
+  list/export audit rows (`lists.go`).
 - `infrastructure/http`: the handlers; `export.go` streams the CSV.
 
 Wiring lives in `cmd/api/metrics.go`, plus one router group. The jobs rules the metrics share
-come in from there: the fulfillment business-day calendar (`businesscalendar.IsBusinessDay`)
-and the pipeline stage order for manual intake at or beyond the cutoff. The metrics
+come in from there: the fulfillment business-day calendar (`businesscalendar.IsBusinessDay`),
+the pipeline stage order for manual intake at or beyond the cutoff, and each vacancy's
+pipeline configuration (`pipelineconfig.Defaults` plus the stored configuration, mapped
+to `application.Pipeline` by `metricsPipelineFrom`) for the pipeline section. The metrics
 feature imports nothing from jobs (architecture guard).
 
 ## Access
@@ -37,13 +41,16 @@ caller's company is ever read.
 | `GET …/metrics/compliance` | late buckets and the on-time series (v2 §4.3) |
 | `GET …/metrics/delays` | closing target, overdue top, reassignments by reason (v2 §4.5) |
 | `GET …/metrics/origin` | applications by channel (v2 §4.6) |
+| `GET …/metrics/pipeline` | current candidates per stage kind, stalled, top vacancies (v2 §4.4) |
 | `GET …/metrics/recruiters` | recruiter cards, paginated (§3.2) |
 | `GET …/metrics/recruiters/{userId}` | one card plus `by_month` (§3.3); 404 if the user never had a tramo here |
 | `GET …/metrics/deliveries` | delivery rows (v2 §5.1) |
 | `GET …/metrics/vacancies` | vacancy rows (§3.4, v2 §5.2) |
 | `GET …/metrics/placements` | credits with candidates, **audited per page** (v2 §5.3) |
 | `GET …/metrics/reassignments` | reassignment rows (§3.4, v2 §5.4) |
-| `GET …/metrics/{kind}/export` | CSV of `deliveries`, `vacancies`, `placements` (**audited**), `reassignments` (v2 §8) |
+| `GET …/metrics/candidates` | current participations of open vacancies, **audited per page** (v2 §5.5) |
+| `GET …/metrics/applications` | applications per vacancy and channel (v2 §5.6) |
+| `GET …/metrics/{kind}/export` | CSV of `deliveries`, `vacancies`, `placements` (**audited**), `reassignments`, `candidates` (**audited**), `applications` (v2 §8) |
 | `GET …/metrics/vacancies/{draftId}/deliveries` | delivered candidates, **audited** (§3.5) |
 | `GET …/metrics/vacancies/{draftId}/placements` | credits with candidates, **audited** (§3.5) |
 
@@ -56,12 +63,13 @@ caller's company is ever read.
   `requester_kind` alone means every vacancy of that kind (M6).
 - **Lists only:** `limit` (1–100, default 50) and `cursor`. Summary and the sections
   take no list parameters. Exports take neither (`unknown`).
-- **Sortable lists** (deliveries, vacancies, placements, reassignments, and their exports):
+- **Sortable lists** (deliveries, vacancies, placements, reassignments, candidates,
+  applications, and their exports):
   `sort`, `order` (`asc | desc`) and `vacancy_id` (a canonical uuid; a vacancy of another
   company or an unknown id answers an empty list, not an error). An unknown sort is
   `sort: invalid`. The default sort is the first one listed below; a text sort (`title`,
   `candidate`, `reason`) defaults to `asc`, every other sort to `desc`.
-- **Multi-value filters** (`result`, `close_reason`, `reason`) are one comma-separated
+- **Multi-value filters** (`result`, `close_reason`, `reason`, `stage_kind`, `channel`) are one comma-separated
   parameter; an empty, unknown or repeated value is `invalid`, a repeated parameter
   `duplicate`. The values are kept in the order sent.
 - **Deliveries:** `result` (multi), `late_bucket` (`up_to_2 | from_3_to_5 | over_5`),
@@ -76,6 +84,14 @@ caller's company is ever read.
   `hired_at`, `title`, `candidate`.
 - **Reassignments:** `direction` (`received | lost`; without `recruiter_id` it is
   `recruiter_id: required`), `reason` (multi). Sorts `performed_at`, `reason`, `title`.
+- **Pipeline:** the common filters only; `from`/`to` are validated and echoed, never
+  applied (a picture of now).
+- **Candidates:** `stage_kind` (multi, `new | screening | screening_ok | in_process |
+  custom | placement | retired`), `stalled` (only `true`; anything else `invalid`). The
+  period is echoed, not applied. Sorts `business_days_in_stage`, `candidate`, `title`,
+  `entered_stage_at`.
+- **Applications:** `channel` (multi, `portal | careers_site | manual | unknown`). Sorts
+  `total`, `title`.
 - **Strict parser:** an unknown, duplicate or invalid parameter answers
   `422 invalid_filter` with `fields: [{field, code}]`, sorted by field. Codes are
   `required`, `invalid`, `unknown`, `duplicate` and `range` (on `to`, for `from > to` or a
@@ -114,7 +130,8 @@ caller's company is ever read.
 - **Facets** are counted over the rows that pass every filter except the facet's own:
   `deliveries.result`, `vacancies.close_reason` (closed rows by the reason of their last
   close in the close window), `placements.held` (`{"true", "false"}`),
-  `reassignments.reason`. Every enum value is present.
+  `reassignments.reason`, `candidates.stage_kind` (with `retired` only when > 0) and
+  `candidates.stalled` (a count), `applications.channel`. Every enum value is present.
 - **Applied filters:** `recruiter`, `attributed_to`, `recipient`, `credited_to` as people;
   `requester` as the requester object for a uuid, `{kind, id: null, name: null}` for
   «X sin especificar», `"none"` for «sin solicitante»; `requester_kind` alone is echoed as
@@ -143,18 +160,34 @@ caller's company is ever read.
   the snapshot.
 - **Reassignments:** `recruiter_id` keeps the rows where that user lost or received;
   `direction` keeps one side.
+- **Candidates:** every active participation of the pipeline snapshot (below) with its
+  `stage {kind, name}` (the stage's name in its vacancy; a retired stage keeps its retired
+  name, empty if the id is unknown), `business_days_in_stage`, `stalled` and
+  `entered_stage_at`. `recruiter_id` = an open tramo at `as_of` (as the section), never
+  the period. The list for `stage_kind=K` (`&stalled=true`) reproduces the section's
+  `candidates` (`stalled`) of K; a top vacancy's `in_process` is reproduced by
+  `vacancy_id=V&stage_kind=new,screening,screening_ok,in_process,custom,retired`
+  (`application.InProcessQuery`): plain `vacancy_id=V` also lists its placement rows.
+- **Applications:** one row per vacancy of the period snapshot with ≥ 1 participation
+  created in the period in the selected channels (every channel without `channel`).
+  Rows carry all four channel counts; row `total` and the response `total` sum only the
+  selected channels, so the response total is the §4.6 origin figure (not the row count)
+  and the rows add up to it. `facets.channel` equals `origin.by_channel` for the same
+  common filters.
 
 ## Audit of lists and exports (v2 §6)
 
-- `placements` writes one `MetricsDetailViewed` per successful page, after the page is
+- `placements` and `candidates` write one `MetricsDetailViewed` per successful page, after the page is
   built from the snapshot and before it is written, in its own transaction; a failed
   insert answers `500` and serves nothing. Metadata: `report`, `filters` (the normalized
-  query: `from`, `to`, sent filters, `sort`, `order`, `limit`; never the cursor) and,
+  query: `from`, `to`, sent filters (`stage_kind` and `stalled` included), `sort`,
+  `order`, `limit`; never the cursor) and,
   when filtered by vacancy, `vacancy_id`. The entity is the vacancy when filtered by one,
   else the company; the row's vacancy column is set only for a vacancy of this company.
-- A `placements` export writes one `MetricsDetailExported` (`sensitive_read`; `report`,
+- A `placements` or `candidates` export writes one `MetricsDetailExported` (`sensitive_read`; `report`,
   `filters` without `limit`, `row_count`, `vacancy_id` when filtered) the same way,
-  before the first byte. Deliveries, vacancies and reassignments are not audited.
+  before the first byte. Deliveries, vacancies, reassignments, applications and the
+  pipeline section are not audited.
 - A rejected request or an export over the limit writes nothing.
 
 ## CSV export (v2 §8)
@@ -164,7 +197,8 @@ caller's company is ever read.
   export's formula guard on every cell (header included), `Content-Disposition:
   attachment; filename="metricas-<kind>-<from>-<to>.csv"`, `Cache-Control: no-store`.
   Rows are formatted on demand and flushed every 500.
-- Enum cells (result, reason, status) keep the API codes; people are names (`Cuenta
+- Enum cells (result, reason, status, stage kind) keep the API codes; `Detenido` is
+  `true`/`false`; people are names (`Cuenta
   eliminada` for a deleted account), joined with `; `; a requester is its name, `Cliente
   sin especificar`, `Área sin especificar` or `Sin solicitante`.
 - Above 50,000 rows: `422 metrics_export_too_large` with `row_count` and `limit` (the
@@ -191,6 +225,17 @@ Every route except the v1 per-vacancy detail reads computes from a shared snapsh
   request fails no other. Failed loads are not cached. A write shows in metrics at most
   60 s later; responses stay `Cache-Control: no-store`.
 - `summary` loads the period and its previous period in parallel.
+- **Pipeline snapshot** (`pipeline`, `candidates`): a separate entry keyed `(company_id)`
+  only, so every period shares it, with the same TTL, LRU bound, singleflight and
+  detached 10 s load (the generic `cache` in `snapshot.go`). `Store.LoadPipeline` reads, in
+  one REPEATABLE READ transaction, the open vacancies (`vacancy_processes.status <>
+  'closed'` and `process_status <> 'finished'`; paused counts as open), their tramos,
+  responsible, requester and pipeline configuration, and their participations with
+  `discarded_at IS NULL`, each with its history rows into the current `stage_id`
+  (`participation_history_order_idx`). `application.StageEntry` takes the latest
+  `intake | move | recovery` row as the current-stage entry (`substate` and
+  `not_applicable` never reset it); without one it falls back to the participation's
+  `created_at`.
 - The clock is the service clock (`WithClock` in tests); TTL, bound and timeout are
   constructor parameters of the cache (`newSnapshots`) for unit tests.
 - `recruiters/{userId}` still asks the store whether the user ever had a tramo here,
@@ -236,6 +281,16 @@ Every route except the v1 per-vacancy detail reads computes from a shared snapsh
   the requester catalog. In `by_requester`, `vacancies` is the assigned count and `filled`
   is the filled closes; named groups sort by name, then «sin especificar», then
   «sin solicitante».
+- **Pipeline (v2 §4.4, N3).** Stage kinds in the fixed order `new, screening,
+  screening_ok, in_process, custom, placement`, then `retired` only when > 0. A
+  participation in a stage of its vacancy's progression takes that stage's kind (every
+  custom stage folds into `custom`); in the exit stage it is not counted; in any other
+  stage (retired or unknown) it is `retired`. Days in stage are business days from the
+  entry to `as_of` (the fulfillment calendar, `(entry, as_of]`); the median is null at 0
+  candidates. Stalled = days ≥ 7 (`StalledThreshold`, DV1), never in `placement`. Top
+  vacancies: up to 5 open vacancies by active participations outside `placement` and the
+  exit stage (retired included), ties by title (case-insensitive) then id; a vacancy with
+  0 is not listed. `responsible` is the open responsible function, null without one.
 - **Previous period (v2 V2).** `[from − n, from − 1]` with `n = to − from + 1`, the same
   filters, read from its own snapshot with today's knowledge: a delivery fulfilled
   after that window ended counts as fulfilled.
@@ -280,7 +335,9 @@ not audited.
 ## Indexes
 
 Migration `00059_metrics_indexes.sql` adds `vacancy_assignments (draft_id, started_at)` and
-`vacancy_lifecycle_events (action, created_at)`. The participation and requester indexes
+`vacancy_lifecycle_events (action, created_at)`; `00060_metrics_participation_index.sql`
+adds `process_participations (process_id, created_at)` (origin and applications by
+vacancy). The participation and requester indexes
 §3.6 names came with `00058`. Revisit with a nightly table only if `summary` p95 goes over
 500 ms on realistic data.
 
@@ -313,4 +370,14 @@ cover:
   (`TestMetricsLists_FigureEqualsTotal`);
 - sorting and keyset pages, the cursor bound to sort and order, facets, applied filters
   without cross-company names, the placements audit per page and per export with their
-  failure paths, the CSV shape and the export limit.
+  failure paths, the CSV shape and the export limit;
+- the pipeline (`metrics_pipeline_integration_test.go`): a default and a stored pipeline
+  with custom and retired stages, a closed vacancy, a discarded, a recovered, a placed
+  participation and substate / not_applicable rows that never reset the entry; every
+  stage figure, stalled figure, top vacancy and origin figure equals its candidates or
+  applications total with and without the common filters; candidates audit per page and
+  export with the failure paths; the gate and other-company isolation of the five new
+  routes; the pipeline snapshot expiring after 60 s.
+
+`db/migrations/migration_00060_integration_test.go` applies, rolls back and reapplies
+00060.

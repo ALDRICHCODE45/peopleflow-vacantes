@@ -41,11 +41,12 @@ func (s *Service) WithExportLimit(n int) *Service {
 	return s
 }
 
-// Export answers GET …/metrics/{kind}/export. An audited kind (placements)
-// writes one MetricsDetailExported row in its own transaction before anything
-// is returned; a failed audit exports nothing (v2 §6).
+// Export answers GET …/metrics/{kind}/export. An audited kind (placements,
+// candidates) writes one MetricsDetailExported row in its own transaction
+// before anything is returned; a failed audit exports nothing (v2 §6).
 func (s *Service) Export(ctx context.Context, company, actor uuid.UUID, kind, raw string) (*Export, error) {
-	route, ok := map[string]Route{"deliveries": RouteDeliveries, "vacancies": RouteVacancies, "placements": RoutePlacements, "reassignments": RouteReassignments}[kind]
+	route, ok := map[string]Route{"deliveries": RouteDeliveries, "vacancies": RouteVacancies, "placements": RoutePlacements, "reassignments": RouteReassignments,
+		"candidates": RouteCandidates, "applications": RouteApplications}[kind]
 	if !ok {
 		return nil, ErrUnknownKind
 	}
@@ -81,12 +82,25 @@ func (s *Service) Export(ctx context.Context, company, actor uuid.UUID, kind, ra
 			return nil, err
 		}
 		out.Header, out.rows, out.record = reassignmentHeader, len(b.rows), func(i int) []string { return reassignmentRecord(b.rows[i]) }
+	case RouteCandidates:
+		b, err := s.buildCandidates(ctx, l)
+		if err != nil {
+			return nil, err
+		}
+		owned = b.owned
+		out.Header, out.rows, out.record = candidateHeader, len(b.rows), func(i int) []string { return candidateRecord(b.rows[i]) }
+	case RouteApplications:
+		b, _, err := s.buildApplications(ctx, l)
+		if err != nil {
+			return nil, err
+		}
+		out.Header, out.rows, out.record = applicationHeader, len(b.rows), func(i int) []string { return applicationRecord(b.rows[i]) }
 	}
 	limit := s.exportLimit
 	if out.rows > limit {
 		return nil, &TooLarge{RowCount: out.rows, Limit: limit}
 	}
-	if route == RoutePlacements {
+	if route == RoutePlacements || route == RouteCandidates {
 		if err := s.store.RecordDetail(ctx, DetailAudit{Company: company, Actor: actor, Exported: true, Report: kind, Vacancy: l.q.VacancyID,
 			VacancyOwned: owned, Filters: auditFilters(l), RowCount: out.rows}); err != nil {
 			return nil, err
@@ -195,4 +209,19 @@ var reassignmentHeader = []string{"ID reasignación", "Fecha", "ID vacante", "Va
 func reassignmentRecord(r ReassignmentRow) []string {
 	return []string{r.ID.String(), cellInstant(r.PerformedAt), r.Vacancy.DraftID.String(), r.Vacancy.Title, cellPerson(r.From), cellPerson(r.To),
 		r.Reason, cellString(r.Note), cellPerson(r.PerformedBy), strconv.Itoa(r.OutgoingTramoBusinessDays)}
+}
+
+var candidateHeader = []string{"ID participación", "ID candidato", "Candidato", "ID vacante", "Vacante", "Etapa", "Nombre de etapa",
+	"Días hábiles en etapa", "Detenido", "Entró a la etapa"}
+
+func candidateRecord(r CandidateRow) []string {
+	return []string{r.ParticipationID.String(), r.Candidate.ID.String(), r.Candidate.FullName, r.Vacancy.DraftID.String(), r.Vacancy.Title,
+		r.Stage.Kind, r.Stage.Name, strconv.Itoa(r.BusinessDaysInStage), strconv.FormatBool(r.Stalled), cellInstant(r.EnteredStageAt)}
+}
+
+var applicationHeader = []string{"ID vacante", "Vacante", "Solicitante", "Portal", "Sitio de carreras", "Manual", "Desconocido", "Total"}
+
+func applicationRecord(r ApplicationRow) []string {
+	return []string{r.Vacancy.DraftID.String(), r.Vacancy.Title, cellRequester(r.Requester), strconv.Itoa(r.Portal), strconv.Itoa(r.CareersSite),
+		strconv.Itoa(r.Manual), strconv.Itoa(r.Unknown), strconv.Itoa(r.Total)}
 }

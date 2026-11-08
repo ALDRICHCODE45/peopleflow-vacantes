@@ -280,6 +280,11 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/metrics/vacancies/export", d.metricsHandler.Export("vacancies"))
 		r.Get("/v2/me/company/metrics/placements/export", d.metricsHandler.Export("placements"))
 		r.Get("/v2/me/company/metrics/reassignments/export", d.metricsHandler.Export("reassignments"))
+		r.Get("/v2/me/company/metrics/pipeline", d.metricsHandler.Pipeline)
+		r.Get("/v2/me/company/metrics/candidates", d.metricsHandler.CandidateList)
+		r.Get("/v2/me/company/metrics/applications", d.metricsHandler.ApplicationList)
+		r.Get("/v2/me/company/metrics/candidates/export", d.metricsHandler.Export("candidates"))
+		r.Get("/v2/me/company/metrics/applications/export", d.metricsHandler.Export("applications"))
 	})
 
 	r.Group(func(r chi.Router) {

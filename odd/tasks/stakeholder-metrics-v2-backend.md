@@ -30,7 +30,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T2 (S1–S5) Agree contract (frontend review + user decisions DV1–DV6) — commit: facets/applied filters commit.
 - [x] T3 (S2, S3) Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin — commit: v2a commit.
 - [x] T4 (S1, S3, S4, S5) Slice v2b: sortable keyset lists with total, facets, applied filters, vacancy_id, deliveries, placements (audited), CSV export, overdue top requester/attributed_to — commit: v2b commit.
-- [ ] T5 Slice v2c: pipeline section, candidates (audited), applications, participation index.
+- [x] T5 (S1–S5) Slice v2c: pipeline section, candidates (audited), applications, exports, participation index 00060 — commit: v2c commit.
 - [ ] T8 Dev-only demo seed (`cmd/devseed-metrics-demo`) for the browser review, approved (L11), after T5.
 - [ ] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5), after T5.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
@@ -96,3 +96,8 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   dev pool, API at http://127.0.0.1:8081, database `peopleflow_vacancies`. Notify the frontend when the seed is ready;
   the user registers the 3 accounts before `apply`. Implementation note: remove must cope with audit rows that keep
   the demo company id (check FKs from audit_events before deleting the company).
+- **L12** v2c implemented by a worker, independently verified (audited candidate names, generic cache refactor): pass,
+  no defects; 69 `^TestMetrics|^TestAudit` + `TestMigration00060` integration tests, race x3, vet green. Contract §4.4
+  fixed: the top-vacancy drill-down is `candidates?vacancy_id=V&stage_kind=new,screening,screening_ok,in_process,custom,retired`
+  (placement excluded, as the figure); paused vacancies are open; entry falls back to `created_at`. Low notes:
+  cross-company test has no competing pipeline data; no EXPLAIN of the new index.

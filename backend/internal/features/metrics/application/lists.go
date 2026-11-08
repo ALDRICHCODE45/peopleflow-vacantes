@@ -270,13 +270,16 @@ func (s *Service) applied(ctx context.Context, company uuid.UUID, q Query, all *
 			out[key] = value
 		}
 	}
-	for key, values := range map[string][]string{"result": q.Results, "close_reason": q.CloseReasons, "reason": q.Reasons} {
+	for key, values := range map[string][]string{"result": q.Results, "close_reason": q.CloseReasons, "reason": q.Reasons, "stage_kind": q.StageKinds, "channel": q.Channels} {
 		if values != nil {
 			out[key] = values
 		}
 	}
 	if q.Held != nil {
 		out["held"] = *q.Held
+	}
+	if q.Stalled {
+		out["stalled"] = true
 	}
 	return out, vacancy != nil && vacancy.Title != nil, nil
 }
@@ -314,6 +317,12 @@ func auditFilters(l listing) map[string]any {
 	}
 	if q.Held != nil {
 		out["held"] = *q.Held
+	}
+	if q.StageKinds != nil {
+		out["stage_kind"] = q.StageKinds
+	}
+	if q.Stalled {
+		out["stalled"] = true
 	}
 	return out
 }

@@ -41,10 +41,13 @@ const (
 	RouteOrigin
 	RouteDeliveries
 	RoutePlacements
+	RoutePipeline
+	RouteCandidates
+	RouteApplications
 )
 
 func (r Route) String() string {
-	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail", "closures", "compliance", "delays", "origin", "deliveries", "placements"}[r]
+	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail", "closures", "compliance", "delays", "origin", "deliveries", "placements", "pipeline", "candidates", "applications"}[r]
 }
 
 func (r Route) paginated() bool {
@@ -53,7 +56,7 @@ func (r Route) paginated() bool {
 
 // sortable lists take the v2 §5 grammar: sort, order and vacancy_id.
 func (r Route) sortable() bool {
-	return r == RouteVacancies || r == RouteReassignments || r == RouteDeliveries || r == RoutePlacements
+	return r == RouteVacancies || r == RouteReassignments || r == RouteDeliveries || r == RoutePlacements || r == RouteCandidates || r == RouteApplications
 }
 
 // sorts lists each sortable route's sort keys, the default first (v2 §5).
@@ -62,6 +65,8 @@ var sorts = map[Route][]string{
 	RouteVacancies:     {"opened_at", "last_close_date", "business_days_to_close", "title"},
 	RoutePlacements:    {"hired_at", "title", "candidate"},
 	RouteReassignments: {"performed_at", "reason", "title"},
+	RouteCandidates:    {"business_days_in_stage", "candidate", "title", "entered_stage_at"},
+	RouteApplications:  {"total", "title"},
 }
 
 // textSorts default to asc; every other sort defaults to desc.
@@ -107,6 +112,11 @@ type Query struct {
 	// reassignments (§5.4)
 	Direction string
 	Reasons   []string
+	// candidates (§5.5)
+	StageKinds []string
+	Stalled    bool
+	// applications (§5.6)
+	Channels []string
 }
 
 // Field is one rejected parameter and its bounded code; the value is never echoed.
@@ -134,6 +144,7 @@ var (
 	closingTargets  = []string{"on_time", "late", "no_target"}
 	directions      = []string{"received", "lost"}
 	reasons         = []string{"workload", "recruiter_departure", "performance", "client_request", "other"}
+	channels        = []string{"portal", "careers_site", "manual", "unknown"}
 )
 
 func (r Route) allows(key string, export bool) bool {
@@ -152,6 +163,10 @@ func (r Route) allows(key string, export bool) bool {
 		return r == RoutePlacements
 	case "direction", "reason":
 		return r == RouteReassignments
+	case "stage_kind", "stalled":
+		return r == RouteCandidates
+	case "channel":
+		return r == RouteApplications
 	}
 	return false
 }
@@ -301,12 +316,17 @@ func parseQuery(raw string, route Route, export bool) (Query, error) {
 				break
 			}
 			*map[string]**uuid.UUID{"vacancy_id": &q.VacancyID, "attributed_to": &q.AttributedTo, "credited_to": &q.CreditedTo, "recipient": &q.Recipient}[key] = &id
-		case "result", "close_reason", "reason":
+		case "result", "close_reason", "reason", "stage_kind", "channel":
 			enum, target := deliveryResults, &q.Results
-			if key == "close_reason" {
+			switch key {
+			case "close_reason":
 				enum, target = closeReasons, &q.CloseReasons
-			} else if key == "reason" {
+			case "reason":
 				enum, target = reasons, &q.Reasons
+			case "stage_kind":
+				enum, target = stageKinds, &q.StageKinds
+			case "channel":
+				enum, target = channels, &q.Channels
 			}
 			if vs, ok := multi(v, enum); ok {
 				*target = vs
@@ -335,6 +355,13 @@ func parseQuery(raw string, route Route, export bool) (Query, error) {
 				q.ClosedMonth = v
 			} else {
 				q.CommitmentMonth = v
+			}
+		case "stalled":
+			// Only the stalled rows can be asked for (§5.5).
+			if v == "true" {
+				q.Stalled = true
+			} else {
+				failures[key] = "invalid"
 			}
 		case "held":
 			if v == "true" || v == "false" {

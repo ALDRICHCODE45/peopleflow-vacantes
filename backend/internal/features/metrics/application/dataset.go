@@ -123,6 +123,9 @@ type Store interface {
 	// RecordDetail writes one audited list read or export in its own
 	// transaction (v2 §6); an error fails the read.
 	RecordDetail(ctx context.Context, a DetailAudit) error
+	// LoadPipeline reads the company's open vacancies and their active
+	// participations with the current-stage entry (v2 §2, §4.4).
+	LoadPipeline(ctx context.Context, company uuid.UUID) (*PipelineData, error)
 }
 
 // reaches is the first qualifying entry of every participation, in delivery
