@@ -31,14 +31,15 @@ export const CARD = "flex min-w-0 flex-col gap-4 rounded-[min(var(--radius-4xl),
 
 const ON_TIME_UNIVERSE = "on_time,late,overdue";
 const TONE: Record<Delta["tone"], string> = {
-  positive: "bg-primary/10 text-primary",
-  negative: "bg-destructive/10 text-destructive",
+  // Same tints as the company dashboard (rule 6, artboards 07 and 09): success / danger over a 10% fill.
+  positive: "bg-status-success/10 text-status-success",
+  negative: "bg-status-danger/10 text-status-danger",
   neutral: "bg-muted text-muted-foreground",
 };
 // The hero is inverted (foreground canvas): tints mix toward --background so they read in both themes.
 const HERO_TONE: Record<Delta["tone"], string> = {
-  positive: "bg-[color-mix(in_oklab,var(--primary)_30%,transparent)] text-[color-mix(in_oklab,var(--primary)_45%,var(--background))]",
-  negative: "bg-[color-mix(in_oklab,var(--destructive)_30%,transparent)] text-[color-mix(in_oklab,var(--destructive)_55%,var(--background))]",
+  positive: "bg-[color-mix(in_oklab,var(--status-success)_30%,transparent)] text-[color-mix(in_oklab,var(--status-success)_45%,var(--background))]",
+  negative: "bg-[color-mix(in_oklab,var(--status-danger)_30%,transparent)] text-[color-mix(in_oklab,var(--status-danger)_55%,var(--background))]",
   neutral: "bg-background/15 text-background/80",
 };
 const ARROW = { up: ArrowUp, down: ArrowDown, flat: ArrowRight } as const;
