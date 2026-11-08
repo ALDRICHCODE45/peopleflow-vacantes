@@ -6,7 +6,9 @@ vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import {
   listReassignmentsAction, listVacanciesAction, loadAuditedDetailAction, loadMetricsAccessAction, loadOverviewAction, loadRecruiterAction,
+  loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadRecruitersAction, loadSummaryAction,
 } from "./actions";
+import { closures, compliance, delays, origin, summaryV2 } from "./test-fixtures";
 import { card, carlos, clientId, deliveries, draftId, marianaId, placements, reassignmentPage, recruiterDetail, recruiterPage, summary, vacancyPage } from "./test-fixtures";
 
 const fetchMock = vi.fn();
@@ -126,4 +128,39 @@ it.each(["deliveries", "placements"] as const)("sends exactly the applied period
   expect(call(0).url.search).toBe("?from=2026-08-01&to=2026-10-31");
   await loadAuditedDetailAction({ report, draftId, period: { from: "2026-13-01" } });
   expect(call(1).url.search).toBe("?from=2026-08-10&to=2026-11-07");
+});
+
+// v2 §4: each board section is its own route with the common filters; the board loads them independently.
+it.each([
+  ["summary", loadSummaryAction, summaryV2],
+  ["closures", loadClosuresAction, closures],
+  ["compliance", loadComplianceAction, compliance],
+  ["delays", loadDelaysAction, delays],
+  ["origin", loadOriginAction, origin],
+] as const)("loads the %s section with the filters and the applied period", async (route, action, fixture) => {
+  fetchMock.mockResolvedValueOnce(Response.json(fixture()));
+  expect(await action({ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId })).toEqual({ ok: true, data: fixture() });
+  expect(call(0).url.pathname).toBe(`/v2/me/company/metrics/${route}`);
+  expect(call(0).url.search).toBe(`?from=2026-08-01&to=2026-10-31&recruiter_id=${marianaId}`);
+  expect(new Headers(call(0).init.headers).get("authorization")).toBe("Bearer private-token");
+  fetchMock.mockResolvedValueOnce(envelope(422, "invalid_filter", { fields: [{ field: "to", code: "invalid" }] }));
+  expect(await action({})).toMatchObject({ ok: false, reason: "invalid_filter", fields: [{ field: "to", code: "invalid" }] });
+  expect(call(1).url.search).toBe("?from=2026-08-10&to=2026-11-07");
+  fetchMock.mockResolvedValueOnce(Response.json({ ...fixture(), unexpected: true }));
+  expect(await action({})).toMatchObject({ ok: false, reason: "unrecognized_response" });
+});
+
+it("answers every section unauthenticated without a request when there is no session", async () => {
+  vi.mocked(getActionAccessToken).mockResolvedValue(null);
+  for (const action of [loadSummaryAction, loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadRecruitersAction]) {
+    expect(await action({})).toMatchObject({ ok: false, reason: "unauthenticated" });
+  }
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("loads every recruiter card page for the recruiters section", async () => {
+  fetchMock.mockImplementation(async (url: URL | string) => Response.json(new URL(String(url)).searchParams.get("cursor") === "next" ? recruiterPage([carlos()]) : recruiterPage([card()], "next")));
+  expect(await loadRecruitersAction({})).toEqual({ ok: true, data: [card(), carlos()] });
+  expect(call(0).url.pathname).toBe("/v2/me/company/metrics/recruiters");
+  expect(call(1).url.searchParams.get("cursor")).toBe("next");
 });

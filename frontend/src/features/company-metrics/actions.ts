@@ -1,10 +1,13 @@
 "use server";
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { getCompanyAccess, getDeliveries, getPlacements, getRecruiter, getSummary, listReassignments, listRecruiters, listVacancies } from "./client";
+import {
+  getClosures, getCompanyAccess, getCompliance, getDelays, getDeliveries, getOrigin, getPlacements, getRecruiter, getSummary, listReassignments,
+  listRecruiters, listVacancies, type MetricsClientFailure,
+} from "./client";
 import { toMetricsFailure } from "./failure";
 import {
-  metricsAllowed, type DeliveriesDetail, type MetricsAccess, type MetricsFailure, type MetricsResult, type MetricsSummary,
+  metricsAllowed, type ClosuresSection, type ComplianceSection, type DelaysSection, type OriginSection, type DeliveriesDetail, type MetricsAccess, type MetricsFailure, type MetricsResult, type MetricsSummary,
   type PlacementsDetail, type ReassignmentPage, type RecruiterCard, type RecruiterDetail, type VacancyPage,
 } from "./model";
 import { mexicoToday } from "./period";
@@ -33,28 +36,45 @@ export async function loadMetricsAccessAction(): Promise<MetricsAccess> {
   });
 }
 
+/** Every recruiter card of the period: the table sorts the whole set, so all pages are read. */
+async function readRecruiters(token: string, query: URLSearchParams): Promise<MetricsResult<RecruiterCard[]>> {
+  const items: RecruiterCard[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < MAX_RECRUITER_PAGES; page += 1) {
+    const result = await listRecruiters(token, query, cursor);
+    if (!result.ok) return toMetricsFailure(result);
+    items.push(...result.data.items);
+    if (!result.data.next_cursor) break;
+    cursor = result.data.next_cursor;
+  }
+  return { ok: true, data: items };
+}
+
 export type Overview = { summary: MetricsSummary; recruiters: RecruiterCard[] };
-/** Summary and every recruiter card of the period: the table sorts the whole set, so all pages are read. */
+/** Summary and every recruiter card of the period (v1 board; the v2 board loads each section on its own). */
 export async function loadOverviewAction(filters: MetricsFilters): Promise<MetricsResult<Overview>> {
   return withToken(async token => {
     const query = apiQuery(filters, mexicoToday());
-    const readRecruiters = async (): Promise<MetricsResult<RecruiterCard[]>> => {
-      const items: RecruiterCard[] = [];
-      let cursor: string | undefined;
-      for (let page = 0; page < MAX_RECRUITER_PAGES; page += 1) {
-        const result = await listRecruiters(token, query, cursor);
-        if (!result.ok) return toMetricsFailure(result);
-        items.push(...result.data.items);
-        if (!result.data.next_cursor) break;
-        cursor = result.data.next_cursor;
-      }
-      return { ok: true, data: items };
-    };
-    const [summary, recruiters] = await Promise.all([getSummary(token, query), readRecruiters()]);
+    const [summary, recruiters] = await Promise.all([getSummary(token, query), readRecruiters(token, query)]);
     if (!summary.ok) return toMetricsFailure(summary);
     if (!recruiters.ok) return recruiters;
     return { ok: true, data: { summary: summary.data, recruiters: recruiters.data } };
   });
+}
+
+type SectionRead<T> = (token: string, query: URLSearchParams) => Promise<{ ok: true; data: T } | MetricsClientFailure>;
+const section = <T>(read: SectionRead<T>) => (filters: MetricsFilters): Promise<MetricsResult<T>> => withToken(async token => {
+  const result = await read(token, apiQuery(filters, mexicoToday()));
+  return result.ok ? result : toMetricsFailure(result);
+});
+/** v2 §4: one action per board section, so each section loads, fails and retries on its own. */
+export async function loadSummaryAction(filters: MetricsFilters): Promise<MetricsResult<MetricsSummary>> { return section(getSummary)(filters); }
+export async function loadClosuresAction(filters: MetricsFilters): Promise<MetricsResult<ClosuresSection>> { return section(getClosures)(filters); }
+export async function loadComplianceAction(filters: MetricsFilters): Promise<MetricsResult<ComplianceSection>> { return section(getCompliance)(filters); }
+export async function loadDelaysAction(filters: MetricsFilters): Promise<MetricsResult<DelaysSection>> { return section(getDelays)(filters); }
+export async function loadOriginAction(filters: MetricsFilters): Promise<MetricsResult<OriginSection>> { return section(getOrigin)(filters); }
+export async function loadRecruitersAction(filters: MetricsFilters): Promise<MetricsResult<RecruiterCard[]>> {
+  return withToken(token => readRecruiters(token, apiQuery(filters, mexicoToday())));
 }
 
 type ListInput = { filters: MetricsFilters; cursor?: string };

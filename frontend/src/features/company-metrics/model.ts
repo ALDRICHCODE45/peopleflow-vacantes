@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 /**
- * Decoders and es-MX presentation for `docs/contracts/stakeholder-metrics-v1.md` §3 (backend `39669aa5`).
+ * Decoders and es-MX presentation for `docs/contracts/stakeholder-metrics-v1.md` §3 (backend `39669aa5`) and the
+ * additive v2 (`stakeholder-metrics-v2.md`, backend branch `feat/stakeholder-metrics-v2-backend`): every v2 response adds
+ * `as_of`, and v1 routes keep their fields, so the v1 decoders accept v2 answers too.
  * Counts are integers and never null; medians and rate values are null without a sample (F3–F5).
  */
 export const MX_TIME_ZONE = "America/Mexico_City";
@@ -19,8 +21,12 @@ export const personSchema = z.object({ user_id: text, name: z.string().nullable(
 const requesterKind = z.enum(["client", "internal_area"]);
 /** `id` and `name` null for «sin especificar»; the whole object null for «sin solicitante». */
 export const requesterSchema = z.object({ kind: requesterKind, id: z.string().nullable(), name: z.string().nullable() }).strict().nullable();
-const envelope = { definitions_version: text, period: z.object({ from: day, to: day, time_zone: text }).strict() };
+/** v2 §3: every response carries `as_of`, the instant of the snapshot it was computed from; v1 answers have none. */
+const envelope = { definitions_version: text, period: z.object({ from: day, to: day, time_zone: text }).strict(), as_of: timestamp.optional() };
 const closedReasons = { filled: count, cancelled: count, other: count, no_reason: count };
+const reassignmentReasons = { workload: count, recruiter_departure: count, performance: count, client_request: count, other: count };
+const comparison = <T extends z.ZodTypeAny>(value: T) => z.object({ current: value, previous: value }).strict();
+const monthRateSchema = z.object({ month, rate: rateSchema }).strict();
 
 export const summarySchema = z.object({
   ...envelope,
@@ -37,10 +43,20 @@ export const summarySchema = z.object({
   closed_by_month: z.array(z.object({ month, ...closedReasons }).strict()),
   reassignments: z.object({
     total: count,
-    by_reason: z.object({ workload: count, recruiter_departure: count, performance: count, client_request: count, other: count }).strict(),
+    by_reason: z.object(reassignmentReasons).strict(),
   }).strict(),
   // «Sin solicitante» is `requester: null`; «sin especificar» is `{ kind, id: null, name: null }` (M5).
   by_requester: z.array(z.object({ requester: requesterSchema, vacancies: count, filled: count }).strict()),
+  // v2 §4.1: the previous window of the same length (N1) and the monthly on-time rate (N2); absent in v1 answers.
+  previous_period: z.object({ from: day, to: day }).strict().optional(),
+  headline: z.object({
+    on_time_rate: comparison(rateSchema),
+    assigned: comparison(count),
+    median_business_days_to_close: comparison(median),
+    placements: comparison(count),
+    reassignments: comparison(count),
+  }).strict().optional(),
+  on_time_by_month: z.array(monthRateSchema).optional(),
 }).strict();
 
 const cardShape = {
@@ -95,6 +111,41 @@ export const placementsSchema = z.object({
     recipients: z.array(z.object({ person: personSchema, kind: z.enum(["direct", "participant", "shared"]) })),
   })),
 });
+/** v2 §4.2 Cierres y entregas: `closed` counts distinct vacancies; the reasons split it and add up to it. */
+export const closuresSchema = z.object({
+  ...envelope,
+  closed_by_month: z.array(z.object({ month, closed: count, ...closedReasons }).strict()),
+  delivery_status: z.object({ on_time: count, late: count, overdue: count, pending: count, not_configured: count }).strict(),
+}).strict();
+/** v2 §4.3 Cumplimiento: late deliveries split by business days late (0–2, 3–5, more than 5); they add up to `late`. */
+export const complianceSchema = z.object({
+  ...envelope,
+  late_buckets: z.object({ up_to_2: count, from_3_to_5: count, over_5: count }).strict(),
+  on_time_by_month: z.array(monthRateSchema),
+}).strict();
+/**
+ * v2 §4.5 Retrasos. `overdue.top` (N4) holds at most 4 rows, most business days overdue first; `requester` and
+ * `attributed_to` (the responsible, or every member when shared) arrive with v2b, so they are optional here.
+ */
+export const delaysSchema = z.object({
+  ...envelope,
+  closing_target: z.object({ on_time: count, late: count, no_target: count }).strict(),
+  overdue: z.object({
+    total: count,
+    top: z.array(z.object({
+      vacancy: z.object({ draft_id: text, title: z.string().nullable() }).strict(),
+      commitment_date: day, business_days_overdue: count, delivered: count, target: count,
+      requester: requesterSchema.optional(), attributed_to: z.array(personSchema).optional(),
+    }).strict()).max(4),
+  }).strict(),
+  reassignments_by_reason: z.object(reassignmentReasons).strict(),
+}).strict();
+/** v2 §4.6: applications created in the period by channel. */
+export const originSchema = z.object({
+  ...envelope,
+  by_channel: z.object({ portal: count, careers_site: count, manual: count, unknown: count }).strict(),
+}).strict();
+
 /** Narrow read of `GET /me/company`: only the role decides this screen. Follow-up: unify with employer-company once it parses `stakeholder` (T4). */
 export const companyAccessSchema = z.object({ role: z.enum(["owner", "recruiter", "stakeholder"]) });
 export const errorEnvelopeSchema = z.object({ error: z.string(), code: text, fields: z.array(z.object({ field: text, code: text })).optional() });
@@ -103,6 +154,11 @@ export type Rate = z.infer<typeof rateSchema>;
 export type Person = z.infer<typeof personSchema>;
 export type Requester = z.infer<typeof requesterSchema>;
 export type MetricsSummary = z.infer<typeof summarySchema>;
+export type MonthRate = z.infer<typeof monthRateSchema>;
+export type ClosuresSection = z.infer<typeof closuresSchema>;
+export type ComplianceSection = z.infer<typeof complianceSchema>;
+export type DelaysSection = z.infer<typeof delaysSchema>;
+export type OriginSection = z.infer<typeof originSchema>;
 export type RecruiterCard = z.infer<typeof recruiterCardSchema>;
 export type RecruiterPage = z.infer<typeof recruiterPageSchema>;
 export type RecruiterDetail = z.infer<typeof recruiterDetailSchema>;

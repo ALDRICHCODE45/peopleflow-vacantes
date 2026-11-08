@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   companyAccessSchema, deliveriesSchema, placementsSchema, formatMedian, formatRate, metricsAllowed, placementTotal, recruiterDetailSchema,
   recruiterPageSchema, requesterLabel, summarySchema, vacancyPageSchema,
+  closuresSchema, complianceSchema, delaysSchema, originSchema,
 } from "./model";
+import { asOf, closures, compliance, delays, origin, summaryV2 } from "./test-fixtures";
 import { card, carlos, clientId, deliveries, fernanda, placements, recruiterDetail, recruiterPage, summary, vacancyPage, vacancyRow } from "./test-fixtures";
 
 describe("contract decoding", () => {
@@ -66,6 +68,48 @@ describe("contract decoding", () => {
     expect(metricsAllowed("owner")).toBe(true);
     expect(metricsAllowed("stakeholder")).toBe(true);
     expect(metricsAllowed("recruiter")).toBe(false);
+  });
+});
+
+describe("contract v2 decoding (stakeholder-metrics v2 §3–§4)", () => {
+  it("keeps decoding the v1 summary and accepts the v2 header and summary fields", () => {
+    expect(summarySchema.parse(summary())).toEqual(summary());
+    const v2 = summarySchema.parse(summaryV2());
+    expect(v2.as_of).toBe(asOf);
+    expect(v2.previous_period).toEqual({ from: "2026-05-02", to: "2026-07-31" });
+    expect(v2.headline?.assigned).toEqual({ current: 42, previous: 38 });
+    expect(v2.on_time_by_month).toHaveLength(3);
+  });
+
+  it("still rejects drift in the v2 summary: a null headline count or an unknown key", () => {
+    const headline = summaryV2().headline!;
+    expect(() => summarySchema.parse(summaryV2({ headline: { ...headline, assigned: { current: null, previous: 38 } as never } }))).toThrow();
+    expect(() => summarySchema.parse(summaryV2({ headline: { ...headline, median_business_days_to_close: { current: null, previous: null } } }))).not.toThrow();
+    expect(() => summarySchema.parse({ ...summaryV2(), score: 1 })).toThrow();
+    expect(() => summarySchema.parse({ ...summaryV2(), as_of: "ayer" })).toThrow();
+  });
+
+  it("accepts as_of on recruiter pages and the recruiter detail", () => {
+    expect(recruiterPageSchema.parse({ ...recruiterPage(), definitions_version: "v2", as_of: asOf }).as_of).toBe(asOf);
+    expect(recruiterDetailSchema.parse({ ...recruiterDetail(), definitions_version: "v2", as_of: asOf }).as_of).toBe(asOf);
+  });
+
+  it("decodes the closures, compliance, delays and origin sections and rejects drift", () => {
+    expect(closuresSchema.parse(closures())).toEqual(closures());
+    expect(complianceSchema.parse(compliance())).toEqual(compliance());
+    expect(delaysSchema.parse(delays())).toEqual(delays());
+    expect(originSchema.parse(origin())).toEqual(origin());
+    expect(() => closuresSchema.parse({ ...closures(), extra: 1 })).toThrow();
+    expect(() => complianceSchema.parse(compliance({ late_buckets: { up_to_2: 1, from_3_to_5: 1 } as never }))).toThrow();
+    expect(() => originSchema.parse(origin({ by_channel: { portal: -1, careers_site: 0, manual: 0, unknown: 0 } }))).toThrow();
+  });
+
+  it("decodes an overdue row with or without requester and attributed_to (they arrive with v2b) and caps the top at 4", () => {
+    const [first, second] = delaysSchema.parse(delays()).overdue.top;
+    expect(first.attributed_to?.[0].name).toBe("Mariana Torres");
+    expect(second.requester).toBeUndefined();
+    const row = delays().overdue.top[1];
+    expect(() => delaysSchema.parse(delays({ overdue: { total: 5, top: [row, row, row, row, row] } }))).toThrow();
   });
 });
 
