@@ -14,9 +14,9 @@ export function MetricsRestricted() {
 
 /**
  * Resolves the membership role before any metric is read, so a recruiter gets the restricted card and no metrics
- * request is ever made; the API still answers 403 (§1.2).
+ * request is ever made; the API still answers 403 (§1.2). A render function receives the role.
  */
-export function MetricsAccessGate({ label, children }: { label: string; children: ReactNode }) {
+export function MetricsAccessGate({ label, children }: { label: string; children: ReactNode | ((role: "owner" | "stakeholder") => ReactNode) }) {
   const [access, setAccess] = useState<MetricsAccess | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -26,7 +26,8 @@ export function MetricsAccessGate({ label, children }: { label: string; children
     return () => { active = false; };
   }, [attempt]);
 
-  if (access && "kind" in access && access.kind === "allowed") return <>{children}</>;
+  // The role decides the links (v2 §7): the owner opens vacancy boards, a stakeholder stays inside metrics.
+  if (access && "kind" in access && access.kind === "allowed") return <>{typeof children === "function" ? children(access.role) : children}</>;
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
     {!access && <div role="status" aria-label={label} aria-busy="true" className="flex flex-col gap-2"><Skeleton aria-hidden="true" className="h-24 w-full" /><Skeleton aria-hidden="true" className="h-48 w-full" /></div>}
     {access && "kind" in access && access.kind === "restricted" && <MetricsRestricted />}

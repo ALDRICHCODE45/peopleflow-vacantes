@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/api/server", async () => await import("@/lib/api/requestJson"));
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "https://api.example.test/api/v1/", apiTimeoutMs: 100 } }));
@@ -9,6 +9,8 @@ import {
   loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadRecruitersAction, loadSummaryAction,
 } from "./actions";
 import { closures, compliance, delays, origin, summaryV2 } from "./test-fixtures";
+import { loadDetailAction } from "./actions";
+import { deliveryList, jorgeId, placementList, reassignmentList, vacancyList } from "./test-fixtures";
 import { card, carlos, clientId, deliveries, draftId, marianaId, placements, reassignmentPage, recruiterDetail, recruiterPage, summary, vacancyPage } from "./test-fixtures";
 
 const fetchMock = vi.fn();
@@ -163,4 +165,43 @@ it("loads every recruiter card page for the recruiters section", async () => {
   expect(await loadRecruitersAction({})).toEqual({ ok: true, data: [card(), carlos()] });
   expect(call(0).url.pathname).toBe("/v2/me/company/metrics/recruiters");
   expect(call(1).url.searchParams.get("cursor")).toBe("next");
+});
+
+// v2 §5: one list route per kind; the page's query is validated again on the server before it reaches the API.
+describe("detail lists", () => {
+  it("reads a page of the kind's route with the validated query, the default period, limit 50 and the opaque cursor", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(deliveryList()));
+    const result = await loadDetailAction({ kind: "deliveries", query: { recruiter_id: jorgeId, result: "late,late", held: "true", token: "x" }, cursor: "a+/=" });
+    expect(result).toEqual({ ok: true, data: { kind: "deliveries", page: deliveryList() } });
+    expect(call(0).url.pathname).toBe("/v2/me/company/metrics/deliveries");
+    expect(call(0).url.search).toBe(`?from=2026-08-10&to=2026-11-07&recruiter_id=${jorgeId}&result=late&limit=50&cursor=a%2B%2F%3D`);
+    expect(new Headers(call(0).init.headers).get("authorization")).toBe("Bearer private-token");
+  });
+
+  it.each([
+    ["vacancies", vacancyList], ["placements", placementList], ["reassignments", reassignmentList],
+  ] as const)("reads the %s list", async (kind, fixture) => {
+    fetchMock.mockResolvedValueOnce(Response.json(fixture()));
+    expect(await loadDetailAction({ kind, query: { from: "2026-08-01", to: "2026-10-31" } })).toEqual({ ok: true, data: { kind, page: fixture() } });
+    expect(call(0).url.pathname).toBe(`/v2/me/company/metrics/${kind}`);
+    expect(call(0).url.searchParams.has("cursor")).toBe(false);
+  });
+
+  it("answers not found without a request for a kind that has no list yet or an unknown kind", async () => {
+    expect(await loadDetailAction({ kind: "candidates", query: {} })).toMatchObject({ ok: false, reason: "not_found" });
+    expect(await loadDetailAction({ kind: "../summary", query: {} })).toMatchObject({ ok: false, reason: "not_found" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("maps a stale cursor, a filter error and drift, and needs a session", async () => {
+    fetchMock.mockResolvedValueOnce(envelope(400, "invalid_cursor"));
+    expect(await loadDetailAction({ kind: "deliveries", query: {}, cursor: "v1" })).toMatchObject({ ok: false, reason: "invalid_cursor" });
+    fetchMock.mockResolvedValueOnce(envelope(422, "invalid_filter", { fields: [{ field: "result", code: "invalid" }] }));
+    expect(await loadDetailAction({ kind: "deliveries", query: {} })).toMatchObject({ ok: false, reason: "invalid_filter" });
+    fetchMock.mockResolvedValueOnce(Response.json({ ...deliveryList(), facets: {} }));
+    expect(await loadDetailAction({ kind: "deliveries", query: {} })).toMatchObject({ ok: false, reason: "unrecognized_response" });
+    vi.mocked(getActionAccessToken).mockResolvedValue(null);
+    expect(await loadDetailAction({ kind: "deliveries", query: {} })).toMatchObject({ ok: false, reason: "unauthenticated" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });

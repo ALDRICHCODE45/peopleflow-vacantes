@@ -1,6 +1,7 @@
 import type {
   ClosuresSection, ComplianceSection, DelaysSection, OriginSection,
   DeliveriesDetail, MetricsSummary, PlacementsDetail, ReassignmentPage, RecruiterCard, RecruiterDetail, RecruiterPage, VacancyPage, VacancyRow,
+  DeliveryList, DeliveryListRow, PlacementList, ReassignmentList, VacancyList,
 } from "./model";
 
 export const marianaId = "10000000-0000-4000-8000-000000000001";
@@ -225,4 +226,56 @@ export function delays(overrides: Partial<DelaysSection> = {}): DelaysSection {
 /** §4.6 origin: applications by channel in the period. */
 export function origin(overrides: Partial<OriginSection> = {}): OriginSection {
   return { ...v2Header, by_channel: { portal: 120, careers_site: 34, manual: 61, unknown: 300 }, ...overrides };
+}
+
+/** v2 §5 detail lists: the artboard 08 example, «Entregas tarde · Jorge Paredes» (1 a tiempo, 4 tarde of 5). */
+export const jorgeId = "10000000-0000-4000-8000-000000000005";
+export const jorge = { user_id: jorgeId, name: "Jorge Paredes", former_member: false };
+export function deliveryListRow(overrides: Partial<DeliveryListRow> = {}): DeliveryListRow {
+  return {
+    vacancy: { draft_id: draftId, title: "Coordinador de logística" }, requester: { kind: "client", id: clientId, name: "Grupo Bimbo" }, attributed_to: [jorge],
+    commitment_date: "2026-09-18", target_reached_at: "2026-09-25T17:00:00Z", result: "late", business_days_late: 5, business_days_overdue: null, delivered: 3, target: 3,
+    ...overrides,
+  };
+}
+export function deliveryList(overrides: Partial<DeliveryList> = {}): DeliveryList {
+  return {
+    ...v2Header, total: 4,
+    facets: { result: { on_time: 1, late: 4, overdue: 0, pending: 0, not_configured: 0 } },
+    applied_filters: { recruiter: jorge, result: ["late"] },
+    items: [
+      deliveryListRow(),
+      deliveryListRow({ vacancy: { draft_id: "30000000-0000-4000-8000-000000000003", title: "Analista de nómina" }, requester: { kind: "internal_area", id: null, name: null }, commitment_date: "2026-07-10", target_reached_at: "2026-07-14T17:00:00Z", business_days_late: 2, delivered: 4 }),
+    ],
+    next_cursor: null,
+    ...overrides,
+  };
+}
+export function vacancyList(overrides: Partial<VacancyList> = {}): VacancyList {
+  return {
+    ...v2Header, total: 1, facets: { close_reason: { filled: 1, cancelled: 0, other: 0, no_reason: 0 } }, applied_filters: { scope: "closed", closed_month: "2026-10" },
+    items: [{
+      draft_id: draftId, title: "Supervisor de Producción", requester: { kind: "client", id: clientId, name: "Grupo Bimbo" },
+      responsible: { user_id: marianaId, name: "Mariana Torres", former_member: false }, opened_at: "2026-08-04T16:00:00Z",
+      last_close: { date: "2026-10-15", reason: "filled" }, business_days_to_close: 23, closing_target: "on_time",
+    }],
+    next_cursor: null, ...overrides,
+  };
+}
+export function placementList(overrides: Partial<PlacementList> = {}): PlacementList {
+  return {
+    ...v2Header, total: 1, facets: { held: { true: 1, false: 0 } }, applied_filters: { requester: { kind: "client", id: clientId, name: "Grupo Bimbo" } },
+    items: [{
+      credit_id: "60000000-0000-4000-8000-000000000001", candidate: { id: "50000000-0000-4000-8000-000000000004", full_name: "Brenda Sánchez Villegas" },
+      vacancy: { draft_id: draftId, title: "Supervisor de Producción" }, requester: { kind: "client", id: clientId, name: "Grupo Bimbo" },
+      recipients: [{ person: { user_id: marianaId, name: "Mariana Torres", former_member: false }, kind: "direct" }], status: "active", hired_at: "2026-09-10T17:00:00Z",
+    }],
+    next_cursor: null, ...overrides,
+  };
+}
+export function reassignmentList(overrides: Partial<ReassignmentList> = {}): ReassignmentList {
+  return {
+    ...v2Header, total: 1, facets: { reason: { workload: 0, recruiter_departure: 1, performance: 0, client_request: 0, other: 0 } }, applied_filters: {},
+    items: reassignmentPage().items, next_cursor: null, ...overrides,
+  };
 }

@@ -62,8 +62,11 @@ describe("labels (contract Annex)", () => {
     expect(eventLabel("JobDraftCreated")).toBe("Creó una vacante");
     expect(eventLabel("CompanyCandidateEdited")).toBe("Editó los datos de un candidato");
     expect(eventLabel("VacancyTeamCreated")).toBe("Creó el equipo de una vacante");
-    expect(KNOWN_EVENT_TYPES).toHaveLength(63);
-    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(63);
+    // Stakeholder metrics v2 §6: an export of a metrics detail list is a sensitive read.
+    expect(eventLabel("MetricsDetailExported")).toBe("Detalle de métricas exportado");
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "MetricsDetailExported", category: "sensitive_read" });
+    expect(KNOWN_EVENT_TYPES).toHaveLength(64);
+    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(64);
     expect(KNOWN_EVENT_TYPES.filter(type => eventLabel(type.event_type) === UNKNOWN_EVENT_LABEL)).toEqual([]);
   });
 

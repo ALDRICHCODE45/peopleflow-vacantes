@@ -5,6 +5,8 @@ import {
   closuresSchema, complianceSchema, delaysSchema, originSchema,
 } from "./model";
 import { asOf, closures, compliance, delays, origin, summaryV2 } from "./test-fixtures";
+import { deliveryListSchema, placementListSchema, reassignmentListSchema, vacancyListSchema } from "./model";
+import { deliveryList, placementList, reassignmentList, vacancyList } from "./test-fixtures";
 import { card, carlos, clientId, deliveries, fernanda, placements, recruiterDetail, recruiterPage, summary, vacancyPage, vacancyRow } from "./test-fixtures";
 
 describe("contract decoding", () => {
@@ -139,5 +141,30 @@ describe("presentation rules", () => {
     expect(requesterLabel({ kind: "client", id: null, name: null })).toBe("Cliente sin especificar");
     expect(requesterLabel({ kind: "internal_area", id: null, name: null })).toBe("Área sin especificar");
     expect(requesterLabel(null)).toBe("Sin solicitante");
+  });
+});
+
+describe("v2 §5 detail lists", () => {
+  it("decodes total, facets, applied filters, rows and the cursor of every list kind", () => {
+    expect(deliveryListSchema.parse(deliveryList())).toEqual(deliveryList());
+    expect(vacancyListSchema.parse(vacancyList())).toEqual(vacancyList());
+    expect(placementListSchema.parse(placementList())).toEqual(placementList());
+    expect(reassignmentListSchema.parse(reassignmentList())).toEqual(reassignmentList());
+  });
+
+  it("ignores extra row keys but rejects a missing total or facet", () => {
+    const extra = deliveryList({ items: [{ ...deliveryList().items[0], renegotiations: 1, original_commitment_date: null } as never] });
+    expect(deliveryListSchema.safeParse(extra).success).toBe(true);
+    expect(deliveryListSchema.safeParse({ ...deliveryList(), total: undefined }).success).toBe(false);
+    expect(deliveryListSchema.safeParse({ ...deliveryList(), facets: {} }).success).toBe(false);
+  });
+
+  it("accepts null names for ids of another company, «sin solicitante», a kind alone and held as a boolean", () => {
+    const applied = {
+      recruiter: { user_id: "10000000-0000-4000-8000-000000000009", name: null, former_member: true },
+      vacancy: { draft_id: "30000000-0000-4000-8000-000000000009", title: null }, requester: "none", held: false,
+    };
+    expect(placementListSchema.parse(placementList({ applied_filters: applied as never, total: 0, items: [] })).applied_filters).toEqual(applied);
+    expect(deliveryListSchema.parse(deliveryList({ applied_filters: { requester_kind: "client" } })).applied_filters).toEqual({ requester_kind: "client" });
   });
 });

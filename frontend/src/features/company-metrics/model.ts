@@ -146,9 +146,53 @@ export const originSchema = z.object({
   by_channel: z.object({ portal: count, careers_site: count, manual: count, unknown: count }).strict(),
 }).strict();
 
+/**
+ * v2 §5 detail lists: `total` is the exact count for the filters, `facets` count the tabs (each ignoring only its own
+ * filter, every enum value present), `applied_filters` echo the request with names resolved (null names for ids of
+ * another company). Rows decode only what the page reads, like the v1 lists.
+ */
+const vacancyRefSchema = z.object({ draft_id: text, title: z.string().nullable() });
+const detailRequesterSchema = z.object({ kind: requesterKind, id: z.string().nullable(), name: z.string().nullable() });
+export const appliedFiltersSchema = z.object({
+  recruiter: personSchema.optional(), attributed_to: personSchema.optional(), recipient: personSchema.optional(), credited_to: personSchema.optional(),
+  // «Sin solicitante» echoes as "none"; a kind sent alone echoes as `requester_kind`, never as a requester (v2b note).
+  requester: z.union([z.literal("none"), detailRequesterSchema]).optional(),
+  requester_kind: requesterKind.optional(),
+  vacancy: vacancyRefSchema.optional(),
+  result: z.array(z.string()).optional(), close_reason: z.array(z.string()).optional(), reason: z.array(z.string()).optional(),
+  late_bucket: z.string().optional(), commitment_month: z.string().optional(), scope: z.string().optional(), closed_month: z.string().optional(),
+  closing_target: z.string().optional(), direction: z.string().optional(), held: z.boolean().optional(),
+});
+const detailList = <R extends z.ZodTypeAny, F extends z.ZodTypeAny>(row: R, facets: F) => z.object({
+  ...envelope, total: count, facets, applied_filters: appliedFiltersSchema, items: z.array(row).max(100), next_cursor: z.string().nullable(),
+});
+export const deliveryListRowSchema = z.object({
+  vacancy: vacancyRefSchema, requester: requesterSchema, attributed_to: z.array(personSchema),
+  commitment_date: day.nullable(), target_reached_at: timestamp.nullable(), result: deliveryResultSchema,
+  business_days_late: count.nullable(), business_days_overdue: count.nullable(), delivered: count, target: count.nullable(),
+});
+export const vacancyListRowSchema = z.object({
+  draft_id: text, title: z.string().nullable(), requester: requesterSchema, responsible: personSchema.nullable(), opened_at: timestamp.nullable(),
+  last_close: z.object({ date: day, reason: z.enum(["filled", "cancelled", "other"]).nullable() }).nullable(),
+  business_days_to_close: count.nullable(), closing_target: z.enum(["on_time", "late", "no_target"]).nullable(),
+});
+export const placementListRowSchema = z.object({
+  credit_id: text, candidate: candidateSchema, vacancy: vacancyRefSchema, requester: requesterSchema,
+  recipients: z.array(z.object({ person: personSchema, kind: z.enum(["direct", "participant", "shared"]) })),
+  status: z.enum(["active", "did_not_hold"]), hired_at: timestamp,
+});
+export const deliveryListSchema = detailList(deliveryListRowSchema, z.object({ result: z.object({ on_time: count, late: count, overdue: count, pending: count, not_configured: count }) }));
+export const vacancyListSchema = detailList(vacancyListRowSchema, z.object({ close_reason: z.object(closedReasons) }));
+export const placementListSchema = detailList(placementListRowSchema, z.object({ held: z.object({ true: count, false: count }) }));
+export const reassignmentListSchema = detailList(reassignmentRowSchema, z.object({ reason: z.object(reassignmentReasons) }));
+
 /** Narrow read of `GET /me/company`: only the role decides this screen. Follow-up: unify with employer-company once it parses `stakeholder` (T4). */
 export const companyAccessSchema = z.object({ role: z.enum(["owner", "recruiter", "stakeholder"]) });
-export const errorEnvelopeSchema = z.object({ error: z.string(), code: text, fields: z.array(z.object({ field: text, code: text })).optional() });
+export const errorEnvelopeSchema = z.object({
+  error: z.string(), code: text, fields: z.array(z.object({ field: text, code: text })).optional(),
+  // v2 §8: a too-large export says how many rows it would have and the limit.
+  row_count: count.optional(), limit: count.optional(),
+});
 
 export type Rate = z.infer<typeof rateSchema>;
 export type Person = z.infer<typeof personSchema>;
@@ -168,6 +212,18 @@ export type ReassignmentRow = z.infer<typeof reassignmentRowSchema>;
 export type ReassignmentPage = z.infer<typeof reassignmentPageSchema>;
 export type DeliveriesDetail = z.infer<typeof deliveriesSchema>;
 export type PlacementsDetail = z.infer<typeof placementsSchema>;
+export type AppliedFilters = z.infer<typeof appliedFiltersSchema>;
+export type DeliveryListRow = z.infer<typeof deliveryListRowSchema>;
+export type VacancyListRow = z.infer<typeof vacancyListRowSchema>;
+export type PlacementListRow = z.infer<typeof placementListRowSchema>;
+export type DeliveryList = z.infer<typeof deliveryListSchema>;
+export type VacancyList = z.infer<typeof vacancyListSchema>;
+export type PlacementList = z.infer<typeof placementListSchema>;
+export type ReassignmentList = z.infer<typeof reassignmentListSchema>;
+/** One page of a detail list, tagged with its kind (the response itself carries none). */
+export type DetailPage =
+  | { kind: "deliveries"; page: DeliveryList } | { kind: "vacancies"; page: VacancyList }
+  | { kind: "placements"; page: PlacementList } | { kind: "reassignments"; page: ReassignmentList };
 export type CompanyRole = z.infer<typeof companyAccessSchema>["role"];
 export type MetricsErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 export type FilterIssue = { field: string; code: string };

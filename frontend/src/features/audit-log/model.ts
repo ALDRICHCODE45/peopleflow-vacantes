@@ -70,6 +70,7 @@ const ANNEX: readonly (readonly [string, string, string])[] = [
   ["ParticipationViewed", "sensitive_read", "Vio un candidato de la vacante"],
   ["ParticipationCVDownloaded", "sensitive_read", "Inició la descarga de un CV de la vacante"],
   ["PsychometricResultViewed", "sensitive_read", "Vio un resultado psicométrico"],
+  ["MetricsDetailExported", "sensitive_read", "Detalle de métricas exportado"],
   ["CandidateAccountCreated", "candidate", "Creó su cuenta de candidato"],
   ["CompanyCandidateEdited", "candidate", "Editó los datos de un candidato"],
   ["CompanyCandidateCVCorrected", "candidate", "Corrigió el CV de un candidato"],
