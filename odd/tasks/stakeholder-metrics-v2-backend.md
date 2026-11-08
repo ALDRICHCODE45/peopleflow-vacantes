@@ -64,3 +64,6 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   criterio que metrics pipeline, DV1), posiciones por vacante, y que cada cifra abra sus registros.» Open questions:
   scope per role (recruiter whole company or own vacancies), reuse of metrics snapshot/lists by recruiters (not metrics
   viewers), «vencen esta semana» Mon–Sun vs next 7 days. Main pushed with v1 merged (frontend + backend).
+- **L6** Frontend session (2026-11-08): «No mergees feat/stakeholder-metrics-v2-backend a main hasta que te avise que el
+  frontend tolerante está en main» (v1 frontend decodes with zod `.strict()`; new keys break it). Confirmed every
+  metrics response carries `as_of` since v2a.
