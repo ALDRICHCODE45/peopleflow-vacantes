@@ -45,7 +45,7 @@ detail): compare with the user's references, research modern dashboard patterns,
 | T8 | S5, S7, S9 | Data needs for contract v2 (`docs/product/stakeholder-metrics-v2-needs.md`), sent to the backend session; system.md dashboard rules binding (done, L8) | `ef2a4a9b` |
 | T9 | S5–S9 | Review the backend's contract v2 proposal (done, L10) | — |
 | T10 | S6–S10 | Implement `/empresa/metricas` from 07 and `/empresa/metricas/detalle` from 08 against v2 (slices, Playwright UI review) | — |
-| T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) (done, L12) | PENDING |
+| T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) (done, L12) | `ae0707a8` |
 
 ## Log
 
