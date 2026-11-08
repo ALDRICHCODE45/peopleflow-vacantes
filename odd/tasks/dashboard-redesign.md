@@ -225,3 +225,5 @@ detail): compare with the user's references, research modern dashboard patterns,
   weakened guard), with one low-severity note — a GET export relies only on Origin/Sec-Fetch-Site against cross-site
   navigation. Hardened in `74f2617e`: the route answers only POST (like the audit export, so SameSite=Lax keeps the session
   cookie off cross-site requests) and «Exportar CSV» is a button posting to it. 93 focused tests green, typecheck 0.
+- **L34** Full frontend suite on `feat/metrics-redesign` after the export hardening: 562 files / 10235 tests passed, 2
+  skipped; lint 0 errors (12 pre-existing warnings); typecheck 0. Waiting for the user's demo account sign-ins.
