@@ -44,6 +44,21 @@ describe("useSection (rule 17: each section loads on its own)", () => {
     expect(observers[0].disconnect).toHaveBeenCalled();
   });
 
+  it("loads a lazy section at once where IntersectionObserver does not exist", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const load = vi.fn(async () => ok(6));
+    const { result } = renderHook(() => useSection(load, {}, "a", { lazy: true }));
+    act(() => result.current.ref(document.createElement("div")));
+    await waitFor(() => expect(result.current.data).toBe(6));
+  });
+
+  it("loads a lazy section early when asked (the «Filtros» popover needs the recruiter names)", async () => {
+    const load = vi.fn(async () => ok(5));
+    const { result } = renderHook(() => useSection(load, {}, "a", { lazy: true }));
+    act(() => result.current.activate());
+    await waitFor(() => expect(result.current.data).toBe(5));
+  });
+
   it("keeps the old numbers, marked stale, until the new period arrives, and ignores a late older answer", async () => {
     const first = deferred<MetricsResult<number>>();
     const second = deferred<MetricsResult<number>>();

@@ -3,7 +3,10 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("./actions", () => ({ loadMetricsAccessAction: vi.fn(), loadOverviewAction: vi.fn(), listVacanciesAction: vi.fn(), listReassignmentsAction: vi.fn(), loadAuditedDetailAction: vi.fn() }));
+vi.mock("./actions", () => ({
+  loadMetricsAccessAction: vi.fn(), loadSummaryAction: vi.fn(), loadClosuresAction: vi.fn(), loadComplianceAction: vi.fn(), loadDelaysAction: vi.fn(),
+  loadRecruitersAction: vi.fn(), loadOriginAction: vi.fn(), listVacanciesAction: vi.fn(), listReassignmentsAction: vi.fn(), loadAuditedDetailAction: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // Same boundary as audit-workspace.test: the real Base UI popover close path refocus-loops under jsdom.
 vi.mock("@/components/ui/popover", async () => {
@@ -25,18 +28,21 @@ vi.mock("@/components/ui/select", async importOriginal => {
   const actual = await importOriginal<typeof import("@/components/ui/select")>();
   return { ...actual, SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div> };
 });
-import { listReassignmentsAction, listVacanciesAction, loadMetricsAccessAction, loadOverviewAction } from "./actions";
+import {
+  listReassignmentsAction, listVacanciesAction, loadClosuresAction, loadComplianceAction, loadDelaysAction, loadMetricsAccessAction, loadOriginAction,
+  loadRecruitersAction, loadSummaryAction,
+} from "./actions";
 import { CompanyMetricsPage } from "./company-metrics-page";
 import type { MetricsFailure } from "./model";
-import { carlos, clientId, emptySummary, marianaId, reassignmentPage, recruiterPage, summary, vacancyPage } from "./test-fixtures";
+import { carlos, clientId, closures, compliance, delays, emptySummary, origin, reassignmentPage, recruiterPage, summaryV2, vacancyPage } from "./test-fixtures";
 
-const overview = vi.mocked(loadOverviewAction);
 const access = vi.mocked(loadMetricsAccessAction);
-const ok = (data = { summary: summary(), recruiters: recruiterPage().items }) => ({ ok: true as const, data });
+const summary = vi.mocked(loadSummaryAction);
+const sectionActions = [loadClosuresAction, loadComplianceAction, loadDelaysAction, loadRecruitersAction, loadOriginAction].map(action => vi.mocked(action));
 const failure = (reason: MetricsFailure["reason"], extra: Partial<MetricsFailure> = {}): MetricsFailure => ({ ok: false, reason, reference: {}, ...extra });
 const at = (search = "") => window.history.replaceState(null, "", `/empresa/metricas${search}`);
-const card$ = (title: string) => screen.getByRole("region", { name: title });
-const namesInTable = () => screen.getAllByRole("row").slice(1).map(row => within(row).queryByRole("link", { name: /^(?!Ver ficha)/ })?.textContent).filter(Boolean);
+const search = () => Object.fromEntries(new URLSearchParams(window.location.search));
+const openFilters = async (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole("button", { name: /^Filtros/ }));
 const pick = async (user: ReturnType<typeof userEvent.setup>, label: string, option: string) => {
   const field = screen.getByRole("combobox", { name: label }).closest('[data-slot="field"]') as HTMLElement;
   await user.click(within(field).getByRole("option", { name: option }));
@@ -48,7 +54,12 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-11-07T18:00:00Z"));
   at();
   access.mockResolvedValue({ kind: "allowed", role: "stakeholder" });
-  overview.mockResolvedValue(ok());
+  summary.mockResolvedValue({ ok: true, data: summaryV2() });
+  vi.mocked(loadClosuresAction).mockResolvedValue({ ok: true, data: closures() });
+  vi.mocked(loadComplianceAction).mockResolvedValue({ ok: true, data: compliance() });
+  vi.mocked(loadDelaysAction).mockResolvedValue({ ok: true, data: delays() });
+  vi.mocked(loadRecruitersAction).mockResolvedValue({ ok: true, data: recruiterPage().items });
+  vi.mocked(loadOriginAction).mockResolvedValue({ ok: true, data: origin() });
   vi.mocked(listVacanciesAction).mockResolvedValue({ ok: true, data: vacancyPage() });
   vi.mocked(listReassignmentsAction).mockResolvedValue({ ok: true, data: reassignmentPage() });
 });
@@ -59,206 +70,126 @@ describe("access", () => {
     access.mockResolvedValue({ kind: "restricted" });
     render(<CompanyMetricsPage />);
     expect(await screen.findByText("Métricas restringidas")).toBeInTheDocument();
-    expect(screen.getByText(/Solo el owner y los stakeholders de la empresa pueden consultar las métricas/)).toBeInTheDocument();
-    expect(overview).not.toHaveBeenCalled();
+    expect(summary).not.toHaveBeenCalled();
+    for (const action of sectionActions) expect(action).not.toHaveBeenCalled();
   });
 
-  it("asks to retry when the role cannot be verified, and shows the metrics to an owner", async () => {
+  it("asks to retry when the role cannot be verified, and shows the board to an owner", async () => {
     access.mockResolvedValueOnce(failure("server_error")).mockResolvedValueOnce({ kind: "allowed", role: "owner" });
     render(<CompanyMetricsPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
-    expect(await screen.findByRole("heading", { name: "Métricas de la empresa" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Métricas" })).toBeInTheDocument();
   });
 });
 
-describe("summary", () => {
-  it("shows each rate with its «N de M», counts as counts and missing medians as «Sin datos suficientes»", async () => {
-    overview.mockResolvedValue(ok({ summary: summary({ vacancies: { ...summary().vacancies, median_business_days_to_close: null } }), recruiters: recruiterPage().items }));
+describe("board (artboard 07)", () => {
+  it("loads every section on its own with the URL filters, in the order of the artboard", async () => {
     render(<CompanyMetricsPage />);
-    const delivery = await screen.findByRole("region", { name: "Entregas de candidatos" });
-    expect(within(delivery).getByText("67%")).toBeInTheDocument();
-    expect(within(delivery).getByText("20 de 30 juzgadas")).toBeInTheDocument();
-    expect(within(delivery).getByText("93%")).toBeInTheDocument();
-    expect(within(delivery).getByText("39 de 42 vacantes")).toBeInTheDocument();
-    expect(within(delivery).getByText("11 días hábiles")).toBeInTheDocument();
-    expect(within(delivery).getByText("Además, 3 vacantes sin entrega configurada. Las pendientes aún no se juzgan.")).toBeInTheDocument();
-    expect(within(card$("Vacantes")).getByText("Sin datos suficientes")).toBeInTheDocument();
-    expect(within(card$("Vacantes")).getByText("23")).toBeInTheDocument();
-    expect(within(card$("Placements")).getByText("De ellas, 2 no se sostuvieron")).toBeInTheDocument();
-    expect(within(card$("Placements")).getByText("23 de 31 posiciones")).toBeInTheDocument();
-    expect(within(card$("Por cliente o área")).getByText("Cliente sin especificar")).toBeInTheDocument();
-    expect(within(card$("Por cliente o área")).getByText("Sin solicitante")).toBeInTheDocument();
+    await waitFor(() => expect(summary).toHaveBeenCalledWith({}));
+    for (const action of sectionActions) await waitFor(() => expect(action).toHaveBeenCalledWith({}));
+    expect(screen.getAllByRole("region").slice(0, 6).map(region => within(region).getAllByRole("heading", { level: 2 })[0].textContent))
+      .toEqual(["Resumen", "Cierres y entregas", "Cumplimiento de entregas", "Retrasos y reasignaciones", "Desempeño por reclutador", "Origen de las postulaciones"]);
   });
 
-  it("§3.7.4: names close events and distinct vacancies per month apart, so their totals may differ", async () => {
+  it("states freshness once in the header: as_of, the applied period and the definitions version", async () => {
     render(<CompanyMetricsPage />);
-    const vacancies = await screen.findByRole("region", { name: "Vacantes" });
-    expect(within(vacancies).getByText("Cierres")).toBeInTheDocument();
-    await userEvent.click(within(vacancies).getByRole("button", { name: "Ayuda: Cierres por motivo" }));
-    expect(await screen.findByText(/Cuenta cierres, no vacantes: una vacante cerrada, reabierta y cerrada otra vez en el periodo suma dos/)).toBeInTheDocument();
-    await userEvent.click(within(screen.getByRole("region", { name: "Vacantes cerradas por mes" })).getAllByRole("button", { name: "Ayuda: Vacantes cerradas por mes" })[0]);
-    expect(await screen.findByText(/Cuenta vacantes distintas, no cierres: por eso la suma de los meses puede ser menor que «Cierres» del resumen/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Actualizado 8 nov 2026, 01:40 p\.?\s?m\.? · 1 ago 2026 – 31 oct 2026 · Definiciones v2$/)).toBeInTheDocument();
   });
 
-  it("§3.7.11: keeps the backend order of by_requester in the table and the filter options", async () => {
-    const rows = [
-      { requester: { kind: "client" as const, id: "20000000-0000-4000-8000-000000000002", name: "Liverpool" }, vacancies: 2, filled: 1 },
-      { requester: { kind: "client" as const, id: "20000000-0000-4000-8000-000000000001", name: "banorte" }, vacancies: 1, filled: 0 },
-      { requester: { kind: "client" as const, id: null, name: null }, vacancies: 1, filled: 0 },
-      { requester: null, vacancies: 1, filled: 0 },
-    ];
-    overview.mockResolvedValue(ok({ summary: summary({ by_requester: rows }), recruiters: recruiterPage().items }));
+  it("explains a section only on demand, behind «Cómo se calcula»", async () => {
+    const user = userEvent.setup();
     render(<CompanyMetricsPage />);
-    const table = await screen.findByRole("region", { name: "Por cliente o área" });
-    expect(within(table).getAllByRole("row").slice(1).map(row => within(row).getAllByRole("cell")[0].textContent)).toEqual(["Liverpool", "banorte", "Cliente sin especificar", "Sin solicitante"]);
-    const field = screen.getByRole("combobox", { name: "Cliente o área" }).closest('[data-slot="field"]') as HTMLElement;
-    expect(within(field).getAllByRole("option").map(option => option.textContent)).toEqual(
-      ["Todos los clientes y áreas", "Todos los clientes", "Liverpool", "banorte", "Cliente sin especificar", "Todas las áreas internas", "Sin solicitante"]);
-  });
-
-  it("explains every number in a definition popover", async () => {
-    render(<CompanyMetricsPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Ayuda: Entregas a tiempo" }));
-    expect(await screen.findByText(/Las pendientes todavía no se juzgan y no cuentan/)).toBeInTheDocument();
+    await screen.findByText(/Actualizado/);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cómo se calcula: Resumen" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("separates a quiet period from a filter without results", async () => {
-    overview.mockResolvedValue(ok({ summary: emptySummary(), recruiters: [] }));
-    const view = render(<CompanyMetricsPage />);
+    summary.mockResolvedValue({ ok: true, data: emptySummary() });
+    render(<CompanyMetricsPage />);
     expect(await screen.findByText("No hubo actividad en este periodo")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ver últimos 90 días" })).toBeInTheDocument();
-    view.unmount();
-    at(`?recruiter_id=${marianaId}`);
+    expect(screen.queryByRole("region", { name: "Resumen" })).not.toBeInTheDocument();
+    cleanup();
+    at(`?recruiter_id=${carlos().user_id}`);
     render(<CompanyMetricsPage />);
     expect(await screen.findByText("Sin resultados")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
-    expect(window.location.search).toBe("?from=2026-08-10&to=2026-11-07");
+    await userEvent.click(screen.getAllByRole("button", { name: "Limpiar filtros" }).at(-1)!);
+    expect(search().recruiter_id).toBeUndefined();
+  });
+
+  it("keeps a failed section to itself and retries only that section", async () => {
+    summary.mockResolvedValueOnce(failure("server_error")).mockResolvedValueOnce({ ok: true, data: summaryV2() });
+    render(<CompanyMetricsPage />);
+    const strip = await screen.findByRole("region", { name: "Resumen" });
+    expect(await within(strip).findByRole("alert")).toHaveTextContent("No pudimos cargar resumen");
+    expect(screen.getByRole("region", { name: "Cierres y entregas" })).toBeInTheDocument();
+    await userEvent.click(within(strip).getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(within(strip).queryByRole("alert")).not.toBeInTheDocument());
+    expect(summary).toHaveBeenCalledTimes(2);
+  });
+
+  it("names the rejected filters of a 422 and resets the view", async () => {
+    summary.mockResolvedValueOnce(failure("invalid_filter", { fields: [{ field: "to", code: "range" }] }));
+    at("?from=2026-08-01&to=2026-10-31");
+    render(<CompanyMetricsPage />);
+    expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Restablecer vista" }));
+    expect(window.location.search).toBe("");
   });
 });
 
-describe("recruiter table", () => {
-  it("starts alphabetical and sorts by a header, keeping rows without a sample last", async () => {
-    render(<CompanyMetricsPage />);
-    await screen.findByText("Fichas por reclutador");
-    expect(namesInTable()).toEqual(["Andrea Villalobos", "Carlos Mendoza Ruiz", "Fernanda Ortiz", "Mariana Torres"]);
-    expect(screen.getByRole("columnheader", { name: "Reclutador" })).toHaveAttribute("aria-sort", "ascending");
-    expect(screen.getByTestId("sort-label")).toHaveTextContent("Orden: nombre (A–Z)");
-    await userEvent.click(screen.getByRole("button", { name: "Conversión" }));
-    expect(screen.getByRole("columnheader", { name: "Conversión" })).toHaveAttribute("aria-sort", "ascending");
-    expect(screen.getByRole("columnheader", { name: "Reclutador" })).not.toHaveAttribute("aria-sort");
-    expect(namesInTable()).toEqual(["Carlos Mendoza Ruiz", "Mariana Torres", "Andrea Villalobos", "Fernanda Ortiz"]);
-    await userEvent.click(screen.getByRole("button", { name: "Conversión" }));
-    expect(screen.getByRole("columnheader", { name: "Conversión" })).toHaveAttribute("aria-sort", "descending");
-    expect(namesInTable()).toEqual(["Andrea Villalobos", "Mariana Torres", "Carlos Mendoza Ruiz", "Fernanda Ortiz"]);
-  });
-
-  it("names every column in full and lets a long header wrap instead of cutting it", async () => {
-    render(<CompanyMetricsPage />);
-    const section = (await screen.findByRole("heading", { name: "Fichas por reclutador" })).closest("section") as HTMLElement;
-    for (const label of ["Reclutador", "Asignadas", "Entregas", "Mediana a la meta", "Entregados", "Placements", "Conversión", "Reasignaciones", "Días en tramos"]) {
-      const header = within(section).getByRole("columnheader", { name: label });
-      const button = within(header).getByRole("button", { name: label });
-      expect(button).toHaveTextContent(label);
-      expect(button).toHaveClass("whitespace-normal");
-    }
-  });
-
-  it("shows rates with «N de M», former members, and did_not_hold inside the placement total", async () => {
-    render(<CompanyMetricsPage />);
-    await screen.findByText("Fichas por reclutador");
-    const row = (name: string) => screen.getAllByRole("row").find(item => within(item).queryByText(name))!;
-    expect(within(row("Mariana Torres")).getByText("75%")).toBeInTheDocument();
-    expect(within(row("Mariana Torres")).getByText("6 de 8")).toBeInTheDocument();
-    expect(within(row("Fernanda Ortiz")).getAllByText("Sin datos suficientes")).toHaveLength(2);
-    expect(within(row("Fernanda Ortiz")).getByText("0 de 0")).toBeInTheDocument();
-    expect(within(row("Carlos Mendoza Ruiz")).getByText("Ex miembro")).toBeInTheDocument();
-    expect(within(row("Carlos Mendoza Ruiz")).getByText("3")).toBeInTheDocument();
-    expect(within(row("Carlos Mendoza Ruiz")).getByText("2 dir. · 1 part. · de ellos 1 no se sostuvo")).toBeInTheDocument();
-    expect(within(row("Mariana Torres")).getByRole("link", { name: "Ver ficha de Mariana Torres" })).toHaveAttribute("href", `/empresa/metricas/reclutadores/${marianaId}?from=2026-08-10&to=2026-11-07`);
-    expect(screen.queryByText(/puntaje:|#1/)).not.toBeInTheDocument();
-  });
-
-  it("explains every column in «Qué mide cada columna»", async () => {
-    render(<CompanyMetricsPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Qué mide cada columna" }));
-    const sheet = await screen.findByRole("dialog", { name: "Qué mide cada columna" });
-    expect(within(sheet).getByText("Conversión · Conversión a placement")).toBeInTheDocument();
-    expect(within(sheet).getAllByRole("term")).toHaveLength(8);
-  });
-});
-
-describe("filters", () => {
-  it("writes each filter to the URL and reads the metrics with it", async () => {
+describe("period and filters (rule 11)", () => {
+  it("marks the 90-day default and switches the period from the header", async () => {
     const user = userEvent.setup();
     render(<CompanyMetricsPage />);
-    await screen.findByText("Fichas por reclutador");
-    expect(overview).toHaveBeenLastCalledWith({});
+    expect(await screen.findByRole("button", { name: "90 días" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "30 días" }));
+    expect(search()).toEqual({ from: "2026-10-09", to: "2026-11-07" });
+    await waitFor(() => expect(summary).toHaveBeenLastCalledWith({ from: "2026-10-09", to: "2026-11-07" }));
+    await user.click(screen.getByRole("button", { name: "12 meses" }));
+    expect(search()).toEqual({ from: "2025-12-01", to: "2026-11-07" });
+    expect(screen.getByRole("button", { name: "12 meses" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("filters by recruiter from the «Filtros» popover and shows a removable chip", async () => {
+    const user = userEvent.setup();
+    render(<CompanyMetricsPage />);
+    await screen.findByText(/Actualizado/);
+    await openFilters(user);
     await pick(user, "Reclutador", "Carlos Mendoza Ruiz (Ex miembro)");
-    expect(new URLSearchParams(window.location.search).get("recruiter_id")).toBe(carlos().user_id);
-    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ recruiter_id: carlos().user_id }));
-    // §3.7.3: what a recruiter filter keeps, in the summary, the lists and the reassignments.
-    expect(screen.getByText("Vista filtrada · Reclutador: el resumen y las vacantes cuentan las vacantes en las que esa persona tuvo un tramo en el periodo; las reasignaciones, las que perdió o recibió.")).toBeInTheDocument();
-    await pick(user, "Cliente o área", "Sin solicitante");
-    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ recruiter_id: carlos().user_id, requester_id: "none" }));
-    await pick(user, "Atajo", "Últimos 30 días");
-    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ from: "2026-10-09", to: "2026-11-07", recruiter_id: carlos().user_id, requester_id: "none" }));
-    expect(screen.getByText(/^30 días, ambos incluidos/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Restablecer" }));
-    expect(window.location.search).toBe("");
+    expect(search().recruiter_id).toBe(carlos().user_id);
+    await waitFor(() => expect(summary).toHaveBeenLastCalledWith({ recruiter_id: carlos().user_id }));
+    const chips = screen.getByRole("list", { name: "Filtros activos" });
+    expect(within(chips).getByText("Reclutador: Carlos Mendoza Ruiz (Ex miembro)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filtros · 1" })).toBeInTheDocument();
+    await user.click(within(chips).getByRole("button", { name: "Quitar filtro Reclutador: Carlos Mendoza Ruiz (Ex miembro)" }));
+    expect(search().recruiter_id).toBeUndefined();
+    expect(screen.queryByRole("list", { name: "Filtros activos" })).not.toBeInTheDocument();
   });
 
   it("M5/M6: offers «Cliente sin especificar» from by_requester and sends it as requester_kind with requester_id=none", async () => {
     const user = userEvent.setup();
     render(<CompanyMetricsPage />);
-    await screen.findByText("Fichas por reclutador");
+    await screen.findByText(/Actualizado/);
+    await openFilters(user);
     const field = screen.getByRole("combobox", { name: "Cliente o área" }).closest('[data-slot="field"]') as HTMLElement;
     expect(within(field).getAllByRole("option").map(option => option.textContent)).toEqual(
       ["Todos los clientes y áreas", "Todos los clientes", "Grupo Bimbo", "Cliente sin especificar", "Todas las áreas internas", "Sin solicitante"]);
     await pick(user, "Cliente o área", "Cliente sin especificar");
     expect(window.location.search).toBe("?requester_kind=client&requester_id=none");
-    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ requester_kind: "client", requester_id: "none" }));
+    expect(screen.getByText("Cliente: Cliente sin especificar")).toBeInTheDocument();
     await pick(user, "Cliente o área", "Grupo Bimbo");
-    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ requester_kind: "client", requester_id: clientId }));
-    await pick(user, "Cliente o área", "Sin solicitante");
-    await waitFor(() => expect(overview).toHaveBeenLastCalledWith({ requester_id: "none" }));
-  });
-
-  it("keeps an invalid period as a field error while the metrics show the last valid period", async () => {
-    at("?from=2025-09-01&to=2026-10-31");
-    render(<CompanyMetricsPage />);
-    expect(await screen.findByText("El periodo puede abarcar hasta 366 días. Elegiste 426.")).toBeInTheDocument();
-    expect(screen.getByText("Las métricas siguen mostrando el último periodo válido hasta que lo corrijas.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Hasta")).toHaveAttribute("aria-invalid", "true");
-  });
-
-  it("§3.7.10: shows a 422 field error at its own control", async () => {
-    overview.mockResolvedValueOnce(failure("invalid_filter", { fields: [{ field: "requester_kind", code: "required" }, { field: "to", code: "range" }] }));
-    render(<CompanyMetricsPage />);
-    expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
-    const requester = screen.getByRole("combobox", { name: "Cliente o área" });
-    expect(requester).toHaveAttribute("aria-invalid", "true");
-    expect(requester.closest('[data-slot="field"]')).toHaveTextContent("Elige si el solicitante es un cliente o un área interna.");
-    expect(screen.getByLabelText("Hasta").closest('[data-slot="field"]')).toHaveTextContent("El periodo puede abarcar hasta 366 días.");
-    expect(screen.getByText("Cliente o área: elige si el solicitante es un cliente o un área interna.")).toBeInTheDocument();
-  });
-
-  it("names the rejected filters of a 422 and resets the view", async () => {
-    overview.mockResolvedValueOnce(failure("invalid_filter", { fields: [{ field: "to", code: "range" }] }));
-    at("?from=2026-08-01&to=2026-10-31");
-    render(<CompanyMetricsPage />);
-    expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
-    expect(screen.getAllByText("El periodo puede abarcar hasta 366 días.").length).toBeGreaterThan(0);
-    await userEvent.click(screen.getByRole("button", { name: "Restablecer vista" }));
+    await waitFor(() => expect(summary).toHaveBeenLastCalledWith({ requester_kind: "client", requester_id: clientId }));
+    await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));
     expect(window.location.search).toBe("");
   });
 
-  it("offers retry on a server failure without showing stale numbers", async () => {
-    overview.mockResolvedValueOnce(failure("server_error"));
+  it("loads the recruiter names as soon as «Filtros» opens", async () => {
+    const user = userEvent.setup();
     render(<CompanyMetricsPage />);
-    expect(await screen.findByText("No pudimos calcular las métricas")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Vacantes" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
-    expect(await screen.findByRole("region", { name: "Vacantes" })).toBeInTheDocument();
+    await screen.findByText(/Actualizado/);
+    await openFilters(user);
+    await waitFor(() => expect(loadRecruitersAction).toHaveBeenCalled());
   });
 });
-

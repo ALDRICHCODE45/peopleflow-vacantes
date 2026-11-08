@@ -158,3 +158,10 @@ detail): compare with the user's references, research modern dashboard patterns,
   never a link), `delta.ts` (N1 count/median/rate deltas with "lower is better"), `use-section.ts` (eager or lazy near
   the viewport, stale data kept dimmed, late answers dropped, retry). Slice boundary: the next commit starts slice 2
   (workspace rewrite + sections).
+- **L20** T10a-A3: board workspace rewritten for v2 — `MetricsBoardHeader` (title, scope, freshness from `as_of` +
+  applied period + definitions version, period control 30 días / 90 días / 12 meses / Personalizado, one «Filtros»
+  popover with removable chips), `MetricsSection` shell (professional title, «Cómo se calcula» popover, own skeleton,
+  failure + retry, stale numbers dimmed), section slots in `sections/*` (placeholders for B1/B2), `palette.ts`
+  (rule 9 tones), `figure.tsx` (drillable figure). New period shortcut «12 meses» = twelve calendar months up to today
+  (artboard said «Año»; twelve whole months keep twelve chart points inside the 366-day limit). Lazy sections load
+  near the viewport; «Filtros» loads the recruiter names on open. Tests: company-metrics 99 passed; typecheck 0; eslint 0.

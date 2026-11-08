@@ -16,6 +16,8 @@ export type SectionState<T> = {
   /** Attach to the section root; a lazy section loads once it approaches the viewport. */
   ref: (node: Element | null) => void;
   retry: () => void;
+  /** Load a lazy section now, before it scrolls near (the «Filtros» popover needs the recruiter names). */
+  activate: () => void;
 };
 
 /**
@@ -35,6 +37,7 @@ export function useSection<T>(load: (filters: MetricsFilters) => Promise<Metrics
     observer.current?.disconnect();
     observer.current = null;
     if (!node || !options.lazy) return;
+    if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
     const watcher = new IntersectionObserver(entries => {
       if (!entries.some(entry => entry.isIntersecting)) return;
       watcher.disconnect();
@@ -58,6 +61,7 @@ export function useSection<T>(load: (filters: MetricsFilters) => Promise<Metrics
   }, [visible, key, attempt]);
 
   const retry = useCallback(() => setAttempt(value => value + 1), []);
+  const activate = useCallback(() => setVisible(true), []);
   const status = !visible ? "idle" : state.loading ? "loading" : state.failure ? "failed" : state.key === null ? "loading" : "ready";
-  return { status, data: state.data, stale: state.data !== null && state.key !== key, failure: state.failure, ref, retry };
+  return { status, data: state.data, stale: state.data !== null && state.key !== key, failure: state.failure, ref, retry, activate };
 }

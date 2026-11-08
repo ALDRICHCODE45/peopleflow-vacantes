@@ -14,6 +14,9 @@ describe("period", () => {
     expect(defaultPeriod("2026-11-07")).toEqual({ from: "2026-08-10", to: "2026-11-07" });
     expect(shortcutPeriod("last_30", "2026-11-07")).toEqual({ from: "2026-10-09", to: "2026-11-07" });
     expect(shortcutPeriod("this_year", "2026-11-07")).toEqual({ from: "2026-01-01", to: "2026-11-07" });
+    expect(shortcutPeriod("last_12_months", "2026-11-08")).toEqual({ from: "2025-12-01", to: "2026-11-08" });
+    expect(shortcutPeriod("last_12_months", "2026-01-31")).toEqual({ from: "2025-02-01", to: "2026-01-31" });
+    expect(periodIssues(shortcutPeriod("last_12_months", "2028-12-31"))).toEqual([]);
   });
 
   it("allows up to 366 days and reports a longer or inverted period as field errors", () => {
