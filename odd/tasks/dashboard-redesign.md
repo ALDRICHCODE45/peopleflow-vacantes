@@ -257,3 +257,6 @@ detail): compare with the user's references, research modern dashboard patterns,
   adapter identical to metrics; shared POST button; requestPath additions only; talent-base dates validated; Métricas
   detail role links unchanged). Not verified: the dashboard detail page has no client role gate of its own (relies on
   the API 403 → access card, DD5); no live checks.
+- **L42** Full frontend suite after T14 (`f875d4ed`): 571 files / 10352 tests passed, 2 skipped; typecheck 0; lint 0
+  errors (12 pre-existing warnings). Remaining before the single merge: the browser review (S10) with the demo seed,
+  which waits for the user's three demo sign-ins.
