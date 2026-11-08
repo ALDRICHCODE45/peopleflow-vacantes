@@ -252,3 +252,8 @@ detail): compare with the user's references, research modern dashboard patterns,
   `employer-dashboard/export-client.ts` (requestPath allowlist extended), dashboard links on, talent base reads
   `added_from/added_to` with one removable chip. 83 files / 1073 focused tests green, typecheck 0. Risk item 2 (token
   forwarding) → independent verification.
+- **L41** Independent verification of the dashboard export boundary (`8963eaad`): PASS on all 7 items (POST only,
+  Origin/Sec-Fetch-Site, kind allowlist, window kept, token server-side, only CSV headers, no backend text; server-only
+  adapter identical to metrics; shared POST button; requestPath additions only; talent-base dates validated; Métricas
+  detail role links unchanged). Not verified: the dashboard detail page has no client role gate of its own (relies on
+  the API 403 → access card, DD5); no live checks.
