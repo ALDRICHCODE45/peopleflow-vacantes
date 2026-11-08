@@ -154,3 +154,7 @@ detail): compare with the user's references, research modern dashboard patterns,
   `headline`, `on_time_by_month`); new schemas and actions for closures, compliance, delays, origin and recruiters, each
   section loading on its own. Overdue rows decode optional `requester` + `attributed_to [person]` (backend choice, v2b).
   Merged to local main so the backend can merge v2 after the user pushes (main frontend decoded v1 with `.strict()`).
+- **L19** T10a-A2 (`73d3cd48`): `drilldown.ts` (detail URL from the figure query, period and filters; off until T10b; 0 is
+  never a link), `delta.ts` (N1 count/median/rate deltas with "lower is better"), `use-section.ts` (eager or lazy near
+  the viewport, stale data kept dimmed, late answers dropped, retry). Slice boundary: the next commit starts slice 2
+  (workspace rewrite + sections).
