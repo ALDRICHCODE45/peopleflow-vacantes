@@ -165,3 +165,26 @@ detail): compare with the user's references, research modern dashboard patterns,
   (rule 9 tones), `figure.tsx` (drillable figure). New period shortcut «12 meses» = twelve calendar months up to today
   (artboard said «Año»; twelve whole months keep twelve chart points inside the 366-day limit). Lazy sections load
   near the viewport; «Filtros» loads the recruiter names on open. Tests: company-metrics 99 passed; typecheck 0; eslint 0.
+- **L21** Backend v2b ready (`81041985`): lists deliveries/vacancies/placements/reassignments with sort/order/limit/
+  cursor (cursor v2; a v1 cursor is 400), total, facets, applied_filters, vacancy_id; `{kind}/export` CSV (placements
+  audited per page and per export). Default order asc on title/candidate/reason, desc otherwise; a repeated value in a
+  multi filter is 422; `requester_kind` alone echoes as `requester_kind`; `held` is boolean; CSV enum cells carry API
+  codes. Strict routes only gain `requester`/`attributed_to` on `delays.overdue.top`. T10b unblocked.
+- **L22** User pushed main (tolerant decoders on origin/main). Agreed with the backend: one merge of v2 after v2c and the
+  verified board frontend. T10b writer launch refused while B1/B2 run (the `(empresa)` route glob was read as
+  overlapping); relaunch T10b when B1/B2 finish.
+- **L23** Browser review plan (explorer): real backend v2 branch on :8081 + frontend dev on :3000 + Cognito sign-in in
+  the Playwright MCP browser; no test sessions exist and the fixture API has no metrics routes. User decisions: «Tú
+  inicias sesión» (the user types the passwords) and «Empresa demo con datos» (a dev-only seed creating a separate demo
+  company with realistic metrics data, Trust People Company untouched). Seed + demo accounts requested from the backend
+  session, proposal first before touching the local DB or Cognito.
+- **L24** Demo seed approved by the user: backend dev-only Go command `backend/cmd/devseed-metrics-demo` (apply/remove,
+  refuses non-local DBs, deterministic ids, relative dates, integration test figure = list total), company «Demo
+  Métricas». The user registers nocheblanca92+demo-owner/stakeholder/recruiter@gmail.com himself through normal app
+  sign-up; `apply` then adds their memberships. Audit rows from the demo stay on `remove`. Backend builds it after v2c.
+- **L25** T10b (`759391ee`): `/empresa/metricas/detalle` per artboard 08 — per-kind query validation, title from
+  applied_filters, chips, facet status switch, sortable table (≤ 6 columns), cursor pagination, links by role (owner →
+  vacancy board, stakeholder → stays in metrics), CSV export route handler (422 too large → readable message), audit
+  catalog «Detalle de métricas exportado». Drill-down links switched on (`DETAIL_PAGE_ENABLED = true`).
+  Backend §4.4 adjustment for v2c: a top vacancy opens `candidates?vacancy_id=V&stage_kind=new,screening,screening_ok,
+  in_process,custom,retired`; applications `total` = sum of applications in the chosen channels.

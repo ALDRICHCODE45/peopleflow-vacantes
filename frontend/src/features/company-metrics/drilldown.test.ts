@@ -26,9 +26,10 @@ describe("drilldown links (rule 16: every figure opens its records)", () => {
     expect([params.get("from"), params.get("to"), params.get("scope")]).toEqual(["2026-05-02", "2026-07-31", "assigned"]);
   });
 
-  it("is not a link for a 0 figure, and stays off until the detail page ships", () => {
+  it("is not a link for a 0 figure, and links by default now that the detail page ships", () => {
     expect(drilldownHref(late, period, { enabled: true, count: 0 })).toBeNull();
     expect(drilldownHref(late, period, { enabled: true, count: 3 })).not.toBeNull();
-    expect(drilldownHref(late, period)).toBeNull();
+    expect(drilldownHref(late, period)).not.toBeNull();
+    expect(drilldownHref(late, period, { enabled: false })).toBeNull();
   });
 });

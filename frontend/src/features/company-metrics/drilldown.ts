@@ -3,8 +3,8 @@ import { serializeFilters, type MetricsFilters } from "./url-state";
 
 /** The detail page every figure opens (`design/system.md` rule 16, artboard 08). */
 export const DETAIL_PATH = "/empresa/metricas/detalle";
-/** Off until the detail page ships (T10b): a link to a missing page is worse than a plain number. */
-export const DETAIL_PAGE_ENABLED = false;
+/** The detail page shipped with T10b; a figure stays plain text only when it is 0. */
+export const DETAIL_PAGE_ENABLED = true;
 
 export type DrilldownKind = "deliveries" | "vacancies" | "placements" | "reassignments" | "candidates" | "applications";
 /**
