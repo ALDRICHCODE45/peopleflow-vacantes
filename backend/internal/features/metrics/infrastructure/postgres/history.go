@@ -50,7 +50,9 @@ func (s *Store) LoadHistory(ctx context.Context, company uuid.UUID, since time.T
 	steps := []func() error{
 		func() error { return loadLifecycle(ctx, tx, ids, byID) },
 		func() error { return loadActiveCredits(ctx, tx, company, ids, byID) },
-		func() error { return loadTracks(ctx, tx, ids, since, byID) },
+		// Functions name the deliveries list's attributed_to (overdue rows).
+		func() error { return loadFunctions(ctx, tx, ids, facts) },
+		func() error { return loadTracks(ctx, tx, company, ids, since, byID) },
 		func() error { return loadRecent(ctx, tx, company, ids, byID) },
 		func() error {
 			// Delivered counts only matter for open vacancies (attention).
@@ -148,14 +150,15 @@ func loadActiveCredits(ctx context.Context, q querier, company uuid.UUID, ids []
 
 // loadTracks reads every participation that could be in process since the
 // history began or was created after it, with its intake, move, recovery and
-// discard rows (substate and not_applicable never change the stage).
-func loadTracks(ctx context.Context, q querier, ids []uuid.UUID, since time.Time, byID map[uuid.UUID]*app.HistoryVacancy) error {
-	rows, err := q.Query(ctx, `SELECT p.process_id, p.id, p.created_at, p.origin_channel, p.stage_id, p.discarded_at IS NOT NULL,
+// discard rows (substate and not_applicable never change the stage), and the
+// company's view of the candidate's name (the dashboard candidates list).
+func loadTracks(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UUID, since time.Time, byID map[uuid.UUID]*app.HistoryVacancy) error {
+	rows, err := q.Query(ctx, `SELECT p.process_id, p.id, COALESCE(cc.id, u.id), `+candidateName+`, p.created_at, p.origin_channel, p.stage_id, p.discarded_at IS NOT NULL,
  COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',h.event_kind,'stage_id',h.stage_id,'at',h.created_at) ORDER BY h.created_at, h.id)
   FROM participation_stage_history h WHERE h.participation_id=p.id AND h.event_kind IN ('intake','move','recovery','discard')),'[]'::jsonb)
- FROM process_participations p
- WHERE p.process_id=ANY($1) AND (p.discarded_at IS NULL OR p.discarded_at >= $2 OR p.created_at >= $2)
- ORDER BY p.process_id, p.created_at, p.id`, ids, since)
+ FROM process_participations p`+candidateJoins+`
+ WHERE p.process_id=ANY($1) AND (p.discarded_at IS NULL OR p.discarded_at >= $3 OR p.created_at >= $3)
+ ORDER BY p.process_id, p.created_at, p.id`, ids, company, since)
 	if err != nil {
 		return fmt.Errorf("metrics tracks: %w", err)
 	}
@@ -163,7 +166,7 @@ func loadTracks(ctx context.Context, q querier, ids []uuid.UUID, since time.Time
 	for rows.Next() {
 		var id uuid.UUID
 		var t app.Track
-		if err := rows.Scan(&id, &t.ID, &t.CreatedAt, &t.Channel, &t.StageID, &t.Discarded, &t.Moves); err != nil {
+		if err := rows.Scan(&id, &t.ID, &t.Candidate.ID, &t.Candidate.FullName, &t.CreatedAt, &t.Channel, &t.StageID, &t.Discarded, &t.Moves); err != nil {
 			return err
 		}
 		byID[id].Tracks = append(byID[id].Tracks, t)

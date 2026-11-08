@@ -47,6 +47,7 @@ type LifecycleEvent struct {
 // change the stage). Loaded unless it was discarded before the history began.
 type Track struct {
 	ID        uuid.UUID
+	Candidate Candidate // as the company sees them (dashboard candidates list)
 	CreatedAt time.Time
 	Channel   string // origin_channel
 	StageID   uuid.UUID
@@ -145,6 +146,21 @@ func (p *Track) stageAt(t time.Time) (uuid.UUID, bool) {
 		return p.StageID, !p.Discarded && p.CreatedAt.Before(t)
 	}
 	return stage, seen && active
+}
+
+// entryAt is the entry into stage as of t: the latest intake, move or
+// recovery row into it before t (StageEntry's rule), else the creation.
+func (p *Track) entryAt(stage uuid.UUID, t time.Time) time.Time {
+	entry := p.CreatedAt
+	for _, m := range p.Moves {
+		if !m.At.Before(t) {
+			break
+		}
+		if m.StageID == stage && (m.Kind == "intake" || m.Kind == "move" || m.Kind == "recovery") {
+			entry = m.At
+		}
+	}
+	return entry
 }
 
 // moved reports a stage row (substate and not_applicable rows do not count).

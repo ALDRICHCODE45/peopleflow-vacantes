@@ -512,3 +512,43 @@ func TestTalentBaseVisibility_DashboardHidesPoolCountWithoutAccess(t *testing.T)
 		}
 	}
 }
+
+// The dashboard's pool_added (window W and its previous window) equals the
+// talent base list filtered by the same local days (added_from/added_to,
+// the summary's created_at rule); the cursor binds the dates.
+func TestTalentBaseAddedFilter_EqualsDashboardPoolAdded(t *testing.T) {
+	h := newDraftFlowHarness(t)
+	s := newMXDashboard(t, h)
+	list := func(query string) map[string]any {
+		t.Helper()
+		r := h.do(t, "GET", "/v2/me/company/candidates?"+query, "", s.owner.token, nil)
+		if r.status != 200 {
+			t.Fatalf("%s: %d %s", query, r.status, r.body)
+		}
+		return draftFlowObject(t, r.body)
+	}
+	for _, window := range []string{"7", "30"} {
+		sum := s.dash(s.owner, "summary?window="+window)
+		w, pool := sum["window"].(map[string]any), sum["pool_added"].(map[string]any)
+		cur := list("added_from=" + w["from"].(string) + "&added_to=" + w["to"].(string))
+		prev := list("added_from=" + w["previous_from"].(string) + "&added_to=" + w["previous_to"].(string))
+		if mxNum(cur["total"]) != mxNum(pool["current"]) || mxNum(prev["total"]) != mxNum(pool["previous"]) {
+			t.Fatalf("window %s: list %v/%v, figure %v", window, cur["total"], prev["total"], pool)
+		}
+	}
+	// 03-19 (Carla) and 03-23 01:00 local (Diego) are in 03-18..03-24; one day.
+	if n := mxNum(list("added_from=2026-03-23&added_to=2026-03-23")["total"]); n != 1 {
+		t.Fatal(n)
+	}
+	page := list("limit=1&added_from=2026-03-18&added_to=2026-03-24")
+	next := page["next_cursor"].(string)
+	if mxNum(page["total"]) != 2 {
+		t.Fatal(page["total"])
+	}
+	if r := h.do(t, "GET", "/v2/me/company/candidates?limit=1&added_from=2026-03-18&added_to=2026-03-24&cursor="+next, "", s.owner.token, nil); r.status != 200 {
+		t.Fatalf("%d %s", r.status, r.body)
+	}
+	draftFlowAssertCatalogError(t, h.do(t, "GET", "/v2/me/company/candidates?limit=1&cursor="+next, "", s.owner.token, nil), 400, "invalid_cursor")
+	r := h.do(t, "GET", "/v2/me/company/candidates?added_from=2026-03-24&added_to=2026-03-18", "", s.owner.token, nil)
+	shAssertBody(t, r, 400, map[string]any{"error": "invalid filter", "code": "invalid_filter", "fields": []any{map[string]any{"field": "added_to", "code": "range"}}})
+}

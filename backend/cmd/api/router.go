@@ -297,6 +297,15 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/dashboard/vacancies", d.metricsHandler.DashboardVacancies)
 		r.Get("/v2/me/company/dashboard/recent", d.metricsHandler.DashboardRecent)
 		r.Get("/v2/me/company/dashboard/origin", d.metricsHandler.DashboardOrigin)
+		// Lists (§5) under /lists/: /dashboard/vacancies is the §3.4 section.
+		r.Get("/v2/me/company/dashboard/lists/candidates", d.metricsHandler.DashboardCandidateList)
+		r.Get("/v2/me/company/dashboard/lists/deliveries", d.metricsHandler.DashboardDeliveryList)
+		r.Get("/v2/me/company/dashboard/lists/vacancies", d.metricsHandler.DashboardVacancyList)
+		r.Get("/v2/me/company/dashboard/lists/applications", d.metricsHandler.DashboardApplicationList)
+		r.Get("/v2/me/company/dashboard/lists/candidates/export", d.metricsHandler.DashboardExport("candidates"))
+		r.Get("/v2/me/company/dashboard/lists/deliveries/export", d.metricsHandler.DashboardExport("deliveries"))
+		r.Get("/v2/me/company/dashboard/lists/vacancies/export", d.metricsHandler.DashboardExport("vacancies"))
+		r.Get("/v2/me/company/dashboard/lists/applications/export", d.metricsHandler.DashboardExport("applications"))
 	})
 
 	r.Group(func(r chi.Router) {

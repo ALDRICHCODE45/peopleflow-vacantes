@@ -161,8 +161,13 @@ func TestOrgCandidatesInvalidFilters(t *testing.T) {
 		{"large limit", "limit=51", "limit", "invalid"},
 		{"signed limit", "limit=+1", "limit", "invalid"},
 		{"blank limit", "limit=", "limit", "invalid"},
+		{"added_from format", "added_from=2026-3-01", "added_from", "invalid"},
+		{"added_from impossible", "added_from=2026-02-30", "added_from", "invalid"},
+		{"added_to instant", "added_to=2026-03-01T00:00:00Z", "added_to", "invalid"},
+		{"added_to blank", "added_to=", "added_to", "invalid"},
+		{"added range", "added_from=2026-03-02&added_to=2026-03-01", "added_to", "range"},
 	}
-	for _, key := range []string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "active_process", "limit", "cursor"} {
+	for _, key := range []string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "active_process", "limit", "cursor", "added_from", "added_to"} {
 		cases = append(cases, struct{ name, query, field, code string }{"duplicate " + key, key + "=x&" + key + "=x", key, "duplicate"})
 	}
 	for _, tc := range cases {
@@ -230,7 +235,7 @@ func TestOrgCandidatesPage(t *testing.T) {
 	if len(get("?limit=50")["items"].([]any)) != 50 {
 		t.Fatal("max limit not respected")
 	}
-	for _, filters := range []string{"country=MX&country=US", "active_process=true", "country=MX&active_process=true"} {
+	for _, filters := range []string{"country=MX&country=US", "active_process=true", "country=MX&active_process=true", "added_from=2026-03-18&added_to=2026-03-24", "added_from=2026-03-18"} {
 		page := get("?limit=1&" + filters)
 		token := url.QueryEscape(page["next_cursor"].(string))
 		get("?" + filters + "&cursor=" + token)
@@ -254,6 +259,17 @@ func TestOrgCandidatesPage(t *testing.T) {
 	get("?q=MiXeD&origin=organic&vacancy=" + routeTestDraftID.String() + "&country=none&country=MX&country=MX&active_process=true&state=none&state=14&municipality=14039&seniority=senior&years=none&language=en&language_min_level=native&education_level=master&education_in_progress=true")
 	q := reader.queries[len(reader.queries)-1]
 	if !reflect.DeepEqual(q.Country, []string{"MX", "none"}) || !q.ActiveProcess || q.Q != "mixed" || q.Origin != "organic" || q.LanguageMinLevel != "native" || q.EducationLevel != "master" || !q.EducationInProgress || !reflect.DeepEqual(q.State, []string{"14", "none"}) {
+		t.Fatal(q)
+	}
+	// Added dates are local Mexico City days, inclusive: half-open instants.
+	get("?added_from=2026-03-18&added_to=2026-03-24")
+	q = reader.queries[len(reader.queries)-1]
+	if q.AddedFrom != "2026-03-18" || q.AddedTo != "2026-03-24" || q.AddedSince == nil || q.AddedBefore == nil ||
+		!q.AddedSince.Equal(time.Date(2026, 3, 18, 6, 0, 0, 0, time.UTC)) || !q.AddedBefore.Equal(time.Date(2026, 3, 25, 6, 0, 0, 0, time.UTC)) {
+		t.Fatal(q)
+	}
+	get("?added_to=2026-03-24")
+	if q = reader.queries[len(reader.queries)-1]; q.AddedSince != nil || q.AddedBefore == nil {
 		t.Fatal(q)
 	}
 	reader.err = errors.New("PRIVATE datastore failure")

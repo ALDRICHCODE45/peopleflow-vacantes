@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // America/Mexico_City must resolve in minimal containers
 	"unicode/utf8"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
@@ -26,11 +27,18 @@ type Filters struct {
 	LanguageMinLevel, EducationLevel                                  string
 	EducationInProgress                                               bool
 	ActiveProcess                                                     bool
+	// AddedFrom and AddedTo are inclusive local dates (YYYY-MM-DD) of the
+	// added rule; left out of the cursor hash when unset.
+	AddedFrom string `json:",omitempty"`
+	AddedTo   string `json:",omitempty"`
 }
 type Query struct {
 	Filters
 	Limit int
 	After *Position
+	// AddedSince and AddedBefore are the half-open instants of AddedFrom and
+	// AddedTo: the first day's local midnight and the midnight after the last.
+	AddedSince, AddedBefore *time.Time
 }
 type Position struct {
 	At   time.Time
@@ -61,7 +69,7 @@ func ParseQuery(company uuid.UUID, raw string) (Query, error) {
 	}
 	q := Query{Limit: 20}
 	for key, vs := range values {
-		single := slices.Contains([]string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "active_process", "limit", "cursor"}, key)
+		single := slices.Contains([]string{"q", "origin", "language_min_level", "education_level", "education_in_progress", "active_process", "limit", "cursor", "added_from", "added_to"}, key)
 		known := single || slices.Contains([]string{"vacancy", "country", "state", "municipality", "seniority", "years", "language"}, key)
 		if !known {
 			failures[key] = "unknown"
@@ -122,6 +130,15 @@ func ParseQuery(company uuid.UUID, raw string) (Query, error) {
 				n, err := strconv.Atoi(v)
 				valid = err == nil && len(v) <= 2 && strings.Trim(v, "0123456789") == "" && n >= 1 && n <= 50
 				q.Limit = n
+			case "added_from", "added_to":
+				var start time.Time
+				start, valid = localDay(v)
+				if key == "added_from" {
+					q.AddedFrom, q.AddedSince = v, &start
+				} else {
+					end := start.AddDate(0, 0, 1)
+					q.AddedTo, q.AddedBefore = v, &end
+				}
 			case "cursor": // Validated separately after filter errors, with a bounded decoder.
 			}
 			if !valid {
@@ -135,6 +152,9 @@ func ParseQuery(company uuid.UUID, raw string) (Query, error) {
 	}
 	if len(values["education_in_progress"]) == 1 && len(values["education_level"]) == 0 {
 		failures["education_level"] = "required"
+	}
+	if q.AddedSince != nil && q.AddedBefore != nil && failures["added_from"] == "" && failures["added_to"] == "" && !q.AddedSince.Before(*q.AddedBefore) {
+		failures["added_to"] = "range"
 	}
 	for _, selection := range []*[]string{&q.Vacancy, &q.Country, &q.State, &q.Municipality, &q.Seniority, &q.Years, &q.Language} {
 		slices.Sort(*selection)
@@ -157,6 +177,22 @@ func ParseQuery(company uuid.UUID, raw string) (Query, error) {
 	}
 	return q, nil
 }
+
+// mexicoCity is the zone of the added dates (the dashboard's local days).
+var mexicoCity = func() *time.Location {
+	loc, err := time.LoadLocation("America/Mexico_City")
+	if err != nil {
+		panic(err)
+	}
+	return loc
+}()
+
+// localDay parses a strict YYYY-MM-DD date as its local midnight.
+func localDay(v string) (time.Time, bool) {
+	d, err := time.ParseInLocation(time.DateOnly, v, mexicoCity)
+	return d, err == nil && d.Format(time.DateOnly) == v
+}
+
 func digits(v string, n int) bool { return len(v) == n && strings.Trim(v, "0123456789") == "" }
 func filterHash(q Query) string {
 	raw, _ := json.Marshal(q.Filters)

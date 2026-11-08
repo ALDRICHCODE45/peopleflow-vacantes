@@ -44,10 +44,17 @@ const (
 	RoutePipeline
 	RouteCandidates
 	RouteApplications
+	// The company dashboard lists (company-dashboard-v2 §5) have their own
+	// parser (parseDashboardList); the route names bind their cursors.
+	RouteDashboardCandidates
+	RouteDashboardDeliveries
+	RouteDashboardVacancies
+	RouteDashboardApplications
 )
 
 func (r Route) String() string {
-	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail", "closures", "compliance", "delays", "origin", "deliveries", "placements", "pipeline", "candidates", "applications"}[r]
+	return [...]string{"summary", "recruiters", "recruiter", "vacancies", "reassignments", "detail", "closures", "compliance", "delays", "origin", "deliveries", "placements", "pipeline", "candidates", "applications",
+		"dashboard_candidates", "dashboard_deliveries", "dashboard_vacancies", "dashboard_applications"}[r]
 }
 
 func (r Route) paginated() bool {
@@ -67,6 +74,11 @@ var sorts = map[Route][]string{
 	RouteReassignments: {"performed_at", "reason", "title"},
 	RouteCandidates:    {"business_days_in_stage", "candidate", "title", "entered_stage_at"},
 	RouteApplications:  {"total", "title"},
+
+	RouteDashboardCandidates:   {"business_days_in_stage", "candidate", "title", "entered_stage_at"},
+	RouteDashboardDeliveries:   {"commitment_date", "business_days_late", "business_days_overdue", "target_reached_at", "delivered", "title"},
+	RouteDashboardVacancies:    {"published_at", "title", "positions_open", "in_process"},
+	RouteDashboardApplications: {"total", "title"},
 }
 
 // textSorts default to asc; every other sort defaults to desc.
@@ -117,6 +129,16 @@ type Query struct {
 	Stalled    bool
 	// applications (§5.6)
 	Channels []string
+
+	// company dashboard lists (company-dashboard-v2 §5); omitted from the
+	// cursor hash when unset, so metrics cursors keep their hash. Viewer is
+	// the caller's scope, bound by the cursor.
+	Window    int    `json:",omitempty"`
+	Viewer    string `json:",omitempty"`
+	InProcess bool   `json:",omitempty"`
+	On        string `json:",omitempty"`
+	State     string `json:",omitempty"`
+	Status    string `json:",omitempty"`
 }
 
 // Field is one rejected parameter and its bounded code; the value is never echoed.

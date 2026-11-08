@@ -56,6 +56,8 @@ performance en el cargado de la data, tecnicas de lazy loading o tecnicas para m
 - **Positions:** covered = active placement credits of the vacancy (as metrics §2.4), required = `hiring_headcount`
   (unset → 0). Today's dashboard counts people sitting in the placement stage; credits are the hire record and do
   not drop when a candidate moves. (DD3.)
+- **Drill-down links carry the section's `window`.** List dates (`on`, `from`, `to`) are checked against the
+  request's `window` (default 30), so a link from a `window=90` figure without `&window=90` answers 422 `range`.
 - Lists follow metrics §5 (sort, order, limit, cursor, total, facets, applied_filters, CSV export). Scope is forced
   by role; `total` equals the figure for the same snapshot.
 - **Audit (DD4):** dashboard lists are not audited: they show owners and recruiters the candidates of vacancies they
@@ -87,10 +89,12 @@ performance en el cargado de la data, tecnicas de lazy loading o tecnicas para m
 
 | Figure | Opens |
 | --- | --- |
-| in process (and each series point) | `dashboard/candidates?in_process=true` (point: `&on=YYYY-MM-DD`) |
-| published vacancies | `dashboard/vacancies?status=published` |
+| in process (and each series point) | `dashboard/lists/candidates?in_process=true` (point: `&on=YYYY-MM-DD`) |
+| published vacancies | `dashboard/lists/vacancies?status=published` |
 | pool added | talent base `GET /v2/me/company/candidates?added_from=…&added_to=…` (new filter, §5) |
-| positions | `dashboard/vacancies?status=published&sort=positions_open` |
+| positions | `dashboard/lists/vacancies?status=published&sort=positions_open` |
+
+The lists live under `dashboard/lists/…` because `dashboard/vacancies` is the §3.4 section route (d2b).
 
 ### 3.2 `GET …/dashboard/attention` (Necesita atención)
 
@@ -114,12 +118,12 @@ performance en el cargado de la data, tecnicas de lazy loading o tecnicas para m
   current Monday–Sunday week** in Mexico City time; soonest first. On Sunday it covers only Sunday.
 - `stalled`: metrics DV1 (≥ 7 business days in the current stage, never placement), most days first.
 - `top` holds up to 5 rows; `responsible` is the open responsible function (person or null).
-- Opens: `dashboard/deliveries?state=overdue` / `state=due_this_week`; `dashboard/candidates?stalled=true`.
+- Opens: `dashboard/lists/deliveries?state=overdue` / `state=due_this_week`; `dashboard/lists/candidates?stalled=true`.
 
 ### 3.3 `GET …/dashboard/pipeline` (Pipeline por etapa)
 
 Metrics §4.4 `stages` (same kinds, order, `custom` folding, `retired`, stalled rule), scoped by role; no
-`top_vacancies` here (they are §3.4). Opens `dashboard/candidates?stage_kind=K` (`&stalled=true`).
+`top_vacancies` here (they are §3.4). Opens `dashboard/lists/candidates?stage_kind=K` (`&stalled=true`).
 
 ### 3.4 `GET …/dashboard/vacancies` section (Vacantes activas)
 
@@ -129,7 +133,7 @@ Metrics §4.4 `stages` (same kinds, order, `custom` folding, `retired`, stalled 
 ```
 
 Top 5 published vacancies in scope by `in_process` (DD2), ties by title. Opens
-`dashboard/candidates?vacancy_id=V&in_process=true`; the title links to the board (owner and recruiter both reach
+`dashboard/lists/candidates?vacancy_id=V&in_process=true`; the title links to the board (owner and recruiter both reach
 it).
 
 ### 3.5 `GET …/dashboard/recent` and `GET …/dashboard/origin`
@@ -138,7 +142,7 @@ it).
   candidate and the vacancy as today.
 - `origin`: `{ "by_day": [ { "date", "organic", "manual" } ] }`, one point per day of the window (organic = portal,
   careers site and unknown channels; manual = manual), participations in scope. A day opens
-  `dashboard/applications?from=D&to=D`.
+  `dashboard/lists/applications?from=D&to=D`.
 
 ## 4. Data and performance
 
@@ -161,11 +165,15 @@ Same grammar as metrics §5; scope forced by role; period = the window unless st
 
 | Route | Rows | Filters |
 | --- | --- | --- |
-| `dashboard/candidates` | metrics §5.5 row | `in_process`, `on` (a series day: candidates in process at the end of that day), `stage_kind`, `stalled`, `vacancy_id` |
-| `dashboard/deliveries` | metrics §5.1 row | `state` (`overdue`, `due_this_week`), `vacancy_id` |
-| `dashboard/vacancies` | vacancy, requester, responsible, status, published_at, in_process, positions | `status` (`published`), `vacancy_id`; sort adds `positions_open`, `in_process` |
-| `dashboard/applications` | metrics §5.6 row | `from`, `to` (inside the window), `channel` |
-| `…/{kind}/export` | CSV as metrics §8 | same |
+| `dashboard/lists/candidates` | metrics §5.5 row | `in_process`, `on` (a series day: candidates in process at the end of that day), `stage_kind`, `stalled`, `vacancy_id` |
+| `dashboard/lists/deliveries` | metrics §5.1 row | `state` (`overdue`, `due_this_week`), `vacancy_id` |
+| `dashboard/lists/vacancies` | vacancy, requester, responsible, status, published_at, in_process, positions | `status` (`published`), `vacancy_id`; sort adds `positions_open`, `in_process` |
+| `dashboard/lists/applications` | metrics §5.6 row | `from`, `to` (inside the window), `channel` |
+| `dashboard/lists/{kind}/export` | CSV as metrics §8 | same |
+
+- **Path (d2b):** the lists are `GET /v2/me/company/dashboard/lists/{candidates,deliveries,vacancies,applications}`
+  and `…/lists/{kind}/export`: `GET …/dashboard/vacancies` is already the §3.4 section, so the lists take the
+  `/lists/` segment. The §3 "Opens" lines use these paths. Implementation notes: `backend/docs/dashboard-v2.md`.
 
 - Talent base: `GET /v2/me/company/candidates` (applications feature, talent-base gate unchanged) gains
   `added_from` / `added_to` (dates, local, inclusive) so «Nuevos en la base» opens its records; the count in

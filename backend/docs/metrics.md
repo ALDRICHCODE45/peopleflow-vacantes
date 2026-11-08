@@ -9,7 +9,8 @@ columns, closing target) is slice 3b; the stakeholder role and gate are slice 3a
 
 The company dashboard v2 sections (`GET /v2/me/company/dashboard/{summary,attention,pipeline,vacancies,recent,origin}`,
 owner and recruiter) run on this engine: the same pipeline snapshot plus a history snapshot
-keyed by company. See [dashboard-v2.md](dashboard-v2.md).
+keyed by company, and so do its lists (`GET …/dashboard/lists/{candidates,deliveries,vacancies,applications}`
+and their exports, the §5 grammar of this page, not audited). See [dashboard-v2.md](dashboard-v2.md).
 
 Code: `internal/features/metrics/`:
 

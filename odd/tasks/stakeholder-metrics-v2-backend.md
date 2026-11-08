@@ -35,7 +35,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5) — agreed (L14), commit: f8e8a0c6 + agreement commit.
 - [x] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired` — commit: DD2 commit.
 - [x] T10 (S3, L5, L13, L14) Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin — commit: d2a commit.
-- [ ] T11 Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role.
+- [x] T11 (S1, S3, S5, L17) Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role — commit: d2b commit.
 - [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
 
@@ -132,3 +132,10 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   vacancies; origin split by origin_channel; window=7 pool count by local days vs old rolling 7×24 h). Low notes:
   recent/origin include closed vacancies still assigned to the recruiter; discarded participations without history
   rows count as never active in past points; no test of a pool-cache hit for a recruiter without talent-base access.
+- **L18** d2b implemented by a worker, independently verified (recruiter scope of unaudited lists, new talent-base
+  filter, metrics cursor hash): pass, no defects; 89 integration tests green. Lists at
+  `/v2/me/company/dashboard/lists/{candidates,deliveries,vacancies,applications}` (+ `/export`); talent base
+  `added_from`/`added_to` (documented in backend/docs/org-candidates.md by the parent). Contract §2 now says drill-down
+  links carry `window`. Low notes: the cursor binds scope type, not user (only a sort position); no pinned metrics
+  cursor hash test; pool_added equality tested for the owner only; BOM/formula guard on dashboard exports rely on the
+  shared writer.

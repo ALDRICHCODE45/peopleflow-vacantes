@@ -61,6 +61,13 @@ func (s *Store) Search(ctx context.Context, company uuid.UUID, q app.Query) (app
 	if q.ActiveProcess {
 		filters.WriteString(" AND active>=1")
 	}
+	// The summary's added rule (ReadAddedBetween): half-open local days.
+	if q.AddedSince != nil {
+		filters.WriteString(" AND created_at>=" + param(*q.AddedSince) + "::timestamptz")
+	}
+	if q.AddedBefore != nil {
+		filters.WriteString(" AND created_at<" + param(*q.AddedBefore) + "::timestamptz")
+	}
 	if len(q.Vacancy) > 0 {
 		filters.WriteString(" AND EXISTS(SELECT 1 FROM participations p WHERE p.kind=candidates.kind AND p.person_id=candidates.id AND p.process_id::text=ANY(" + param(q.Vacancy) + "::text[]))")
 	}
