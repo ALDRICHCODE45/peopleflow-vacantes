@@ -161,11 +161,11 @@ describe("metrics detail page (artboard 08)", () => {
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ code: "metrics_export_too_large", message: "Son más de 50,000 filas: acota el periodo o los filtros" }, { status: 422 }));
     vi.stubGlobal("fetch", fetchMock);
     render(<MetricsDetailPage />);
-    const link = await screen.findByRole("link", { name: "Exportar CSV" });
-    expect(link).toHaveAttribute("href", `/api/company/metrics/deliveries/export?${period}&recruiter_id=${jorgeId}&result=late`);
-    await userEvent.click(link);
+    // POST like the audit export: SameSite=Lax keeps the session cookie off any cross-site request.
+    await userEvent.click(await screen.findByRole("button", { name: "Exportar CSV" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Son más de 50,000 filas: acota el periodo o los filtros");
-    expect(fetchMock.mock.calls[0][0]).toBe(link.getAttribute("href"));
+    expect(fetchMock.mock.calls[0][0]).toBe(`/api/company/metrics/deliveries/export?${period}&recruiter_id=${jorgeId}&result=late`);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", credentials: "same-origin" });
   });
 
   it("lists candidates in stage as plain text for every role, with the stage switch, «Solo detenidos» and «Foto de hoy»", async () => {
@@ -191,7 +191,10 @@ describe("metrics detail page (artboard 08)", () => {
     expect(search()).not.toHaveProperty("stalled");
     await userEvent.click(within(stages).getByRole("button", { name: "Nuevos 2" }));
     expect(search().stage_kind).toBe("new");
-    expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", "/api/company/metrics/candidates/export?from=2026-08-01&to=2026-10-31&stage_kind=new");
+    const fetchMock = vi.fn().mockResolvedValue(new Response("x", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/company/metrics/candidates/export?from=2026-08-01&to=2026-10-31&stage_kind=new");
   });
 
   it("never links a candidate for a stakeholder either", async () => {

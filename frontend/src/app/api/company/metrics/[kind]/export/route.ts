@@ -34,8 +34,10 @@ function failure({ error, envelope }: MetricsClientFailure): Response {
  * «Exportar CSV» of the metrics detail page (contract v2 §8): the same validated query as the list, without cursor or
  * limit, streamed from the API with the session token. The API decides every error before the first byte (placements
  * and candidates record their audit row first), so a 200 here is the CSV itself; the browser downloads it only then.
+ * POST like the audit export, even though the API export is a GET: SameSite=Lax then keeps the session cookie off any
+ * cross-site navigation or subresource, and the Origin/Sec-Fetch-Site check is a second layer, not the only one.
  */
-export async function GET(request: Request, context: { params: Promise<{ kind: string }> }): Promise<Response> {
+export async function POST(request: Request, context: { params: Promise<{ kind: string }> }): Promise<Response> {
   try {
     const origin = request.headers.get("origin");
     if ((origin && origin !== new URL(request.url).origin) || request.headers.get("sec-fetch-site") === "cross-site") return problem(403, "forbidden");

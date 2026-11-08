@@ -4,7 +4,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:8080/api/v1/", apiTimeoutMs: 200 } }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { dynamic, GET, runtime } from "./route";
+import * as route from "./route";
+import { dynamic, POST, runtime } from "./route";
 
 const recruiter = "10000000-0000-4000-8000-000000000005";
 const CSV = "﻿Vacante,Resultado\r\nCoordinador de logística,late\r\n";
@@ -24,7 +25,7 @@ const get = (search: string, headers: HeadersInit = {}) => {
   const query = new URLSearchParams(search);
   const kind = query.get("kind") ?? "";
   query.delete("kind");
-  return GET(new Request(`http://localhost/api/company/metrics/${encodeURIComponent(kind)}/export?${query}`, { headers }), { params: Promise.resolve({ kind }) });
+  return POST(new Request(`http://localhost/api/company/metrics/${encodeURIComponent(kind)}/export?${query}`, { method: "POST", headers }), { params: Promise.resolve({ kind }) });
 };
 const upstreamError = (status: number, code: string, extra: object = {}) => Response.json({ error: "private backend message", code, ...extra }, { status });
 
@@ -54,7 +55,7 @@ it("streams the kind's API export with the session token, the validated query an
 
 it("takes the kind from the path, never from a kind in the query", async () => {
   fetchMock.mockResolvedValue(upstreamCsv());
-  const response = await GET(new Request("http://localhost/api/company/metrics/placements/export?kind=deliveries&held=true"), { params: Promise.resolve({ kind: "placements" }) });
+  const response = await POST(new Request("http://localhost/api/company/metrics/placements/export?kind=deliveries&held=true", { method: "POST" }), { params: Promise.resolve({ kind: "placements" }) });
   expect(response.status).toBe(200);
   const called = new URL(String(fetchMock.mock.calls[0][0]));
   expect(called.pathname).toBe("/v2/me/company/metrics/placements/export");
@@ -105,4 +106,10 @@ it("refuses without a session, for an unknown kind and for a cross-origin reques
   vi.mocked(getActionAccessToken).mockResolvedValue(null);
   expect((await get("kind=deliveries")).status).toBe(401);
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+// Like the audit export: a POST, so SameSite=Lax keeps the session cookie off cross-site navigations and subresources.
+it("answers only POST: a cross-site link or <img> cannot trigger an audited export", () => {
+  expect(Object.keys(route)).not.toContain("GET");
+  expect(typeof POST).toBe("function");
 });
