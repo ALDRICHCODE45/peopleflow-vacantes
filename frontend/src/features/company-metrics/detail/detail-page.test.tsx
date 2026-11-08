@@ -162,7 +162,7 @@ describe("metrics detail page (artboard 08)", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<MetricsDetailPage />);
     const link = await screen.findByRole("link", { name: "Exportar CSV" });
-    expect(link).toHaveAttribute("href", `/empresa/metricas/detalle/export?kind=deliveries&${period}&recruiter_id=${jorgeId}&result=late`);
+    expect(link).toHaveAttribute("href", `/api/company/metrics/deliveries/export?${period}&recruiter_id=${jorgeId}&result=late`);
     await userEvent.click(link);
     expect(await screen.findByRole("alert")).toHaveTextContent("Son más de 50,000 filas: acota el periodo o los filtros");
     expect(fetchMock.mock.calls[0][0]).toBe(link.getAttribute("href"));
@@ -191,7 +191,7 @@ describe("metrics detail page (artboard 08)", () => {
     expect(search()).not.toHaveProperty("stalled");
     await userEvent.click(within(stages).getByRole("button", { name: "Nuevos 2" }));
     expect(search().stage_kind).toBe("new");
-    expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", "/empresa/metricas/detalle/export?kind=candidates&from=2026-08-01&to=2026-10-31&stage_kind=new");
+    expect(screen.getByRole("link", { name: "Exportar CSV" })).toHaveAttribute("href", "/api/company/metrics/candidates/export?from=2026-08-01&to=2026-10-31&stage_kind=new");
   });
 
   it("never links a candidate for a stakeholder either", async () => {

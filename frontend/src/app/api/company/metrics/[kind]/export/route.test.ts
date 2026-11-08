@@ -19,7 +19,13 @@ beforeEach(() => {
   vi.mocked(getActionAccessToken).mockReset().mockResolvedValue(" private-token ");
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
-const get = (search: string, headers: HeadersInit = {}) => GET(new Request(`http://localhost/empresa/metricas/detalle/export?${search}`, { headers }));
+/** `kind=…` is the path segment, as the browser button builds it; the rest stays in the query. */
+const get = (search: string, headers: HeadersInit = {}) => {
+  const query = new URLSearchParams(search);
+  const kind = query.get("kind") ?? "";
+  query.delete("kind");
+  return GET(new Request(`http://localhost/api/company/metrics/${encodeURIComponent(kind)}/export?${query}`, { headers }), { params: Promise.resolve({ kind }) });
+};
 const upstreamError = (status: number, code: string, extra: object = {}) => Response.json({ error: "private backend message", code, ...extra }, { status });
 
 it("is dynamic and runs on the Node runtime", () => {
@@ -34,6 +40,7 @@ it("streams the kind's API export with the session token, the validated query an
   expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
   expect(response.headers.get("content-disposition")).toBe('attachment; filename="metricas-deliveries-2026-08-01-2026-10-31.csv"');
   expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   expect(response.headers.has("set-cookie")).toBe(false);
   expect(response.headers.has("x-secret")).toBe(false);
   expect(new TextDecoder("utf-8", { ignoreBOM: true }).decode(await response.arrayBuffer())).toBe(CSV);
@@ -41,7 +48,17 @@ it("streams the kind's API export with the session token, the validated query an
   const called = new URL(String(url));
   expect(called.pathname).toBe("/v2/me/company/metrics/deliveries/export");
   expect(called.search).toBe(`?from=2026-08-01&to=2026-10-31&recruiter_id=${recruiter}&result=late&sort=title`);
+  expect(init).toMatchObject({ method: "GET", cache: "no-store", redirect: "error" });
   expect(new Headers(init.headers).get("authorization")).toBe("Bearer private-token");
+});
+
+it("takes the kind from the path, never from a kind in the query", async () => {
+  fetchMock.mockResolvedValue(upstreamCsv());
+  const response = await GET(new Request("http://localhost/api/company/metrics/placements/export?kind=deliveries&held=true"), { params: Promise.resolve({ kind: "placements" }) });
+  expect(response.status).toBe(200);
+  const called = new URL(String(fetchMock.mock.calls[0][0]));
+  expect(called.pathname).toBe("/v2/me/company/metrics/placements/export");
+  expect(called.searchParams.has("kind")).toBe(false);
 });
 
 it("sends the default period when the link has none", async () => {
@@ -79,9 +96,12 @@ it.each([
   expect(called.search).toBe(search);
 });
 
-it("refuses without a session, for an unknown kind and for a cross-site request, without calling the API", async () => {
+it("refuses without a session, for an unknown kind and for a cross-origin request, without calling the API", async () => {
   expect((await get("kind=nope")).status).toBe(404);
+  expect((await get("kind=recruiters")).status).toBe(404);
+  expect((await get("kind=..%2Fsummary")).status).toBe(404);
   expect((await get("kind=deliveries", { "sec-fetch-site": "cross-site" })).status).toBe(403);
+  expect((await get("kind=deliveries", { origin: "https://evil.test" })).status).toBe(403);
   vi.mocked(getActionAccessToken).mockResolvedValue(null);
   expect((await get("kind=deliveries")).status).toBe(401);
   expect(fetchMock).not.toHaveBeenCalled();

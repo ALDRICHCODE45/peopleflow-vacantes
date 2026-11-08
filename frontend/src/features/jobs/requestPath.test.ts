@@ -31,6 +31,8 @@ describe("single application-facing request path", () => {
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
+      "features/company-metrics/detail/export-button.tsx",
+      "features/company-metrics/export-client.ts",
       "features/company-site/api/file-client.ts",
       "features/company-site/upload.ts",
       "features/employer-team/client.ts",
@@ -99,7 +101,7 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
-  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/stakeholder-invitations/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
+  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/company-metrics/export-client.ts", "features/stakeholder-invitations/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
     const adapter = source(join(SRC, file));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');
@@ -118,6 +120,14 @@ describe("single application-facing request path", () => {
     expect(button).toContain('credentials: "same-origin"');
     expect(button).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:/);
     expect(source(join(SRC, "app/api/company/audit-events/export/route.ts"))).not.toMatch(/\bfetch\(/);
+  });
+
+  it("keeps the metrics export download fixed to its same-origin route without credentials in the browser", () => {
+    const button = source(join(SRC, "features/company-metrics/detail/export-button.tsx"));
+    expect(button).toContain("`/api/company/metrics/${state.kind}/export?");
+    expect(button).toContain('credentials: "same-origin"');
+    expect(button).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:/);
+    expect(source(join(SRC, "app/api/company/metrics/[kind]/export/route.ts"))).not.toMatch(/\bfetch\(/);
   });
 
   it("keeps the manual-intake upload fixed to its same-origin route and the backend call server-only", () => {
@@ -353,6 +363,7 @@ describe("single application-facing request path", () => {
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts",
       "app/api/company/manual-candidates/[vacancyId]/route.ts",
+      "app/api/company/metrics/[kind]/export/route.ts",
       "app/api/company/site/media/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",

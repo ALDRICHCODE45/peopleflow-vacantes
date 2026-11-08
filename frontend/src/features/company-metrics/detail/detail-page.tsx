@@ -1,15 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronsUpDown, CircleAlert, Download, SearchX, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronsUpDown, SearchX, X } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { SectionEmpty } from "@/components/feedback/state-card";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { saveBlob } from "@/features/audit-log/download";
 import { cn } from "@/lib/utils";
 import { loadDetailAction } from "../actions";
 import { DETAIL_PATH } from "../drilldown";
@@ -19,6 +17,7 @@ import { CHANNEL_LABEL, CLOSE_REASON_LABEL, dayLabel, momentLabel, number, REASS
 import { mexicoToday } from "../period";
 import { effectivePeriod } from "../url-state";
 import { detailColumns, detailTable, type Column, type VacancyRef } from "./detail-columns";
+import { ExportDetailButton } from "./export-button";
 import { boardHref, defaultOrder, detailHref, FACET_PARAM, isListKind, parseDetail, SORTS, withParams, type DetailState, type ListKind } from "./query";
 import { detailTitle, figureTitle, filterChips, HELD_LABEL, RESULT_LABEL, summaryLine } from "./titles";
 
@@ -144,7 +143,7 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
   };
 
   return <>
-    <DetailHeader state={state} title={detailTitle(state, applied)} freshness={freshness} actions={<ExportLink state={state} />} />
+    <DetailHeader state={state} title={detailTitle(state, applied)} freshness={freshness} actions={<ExportDetailButton state={state} />} />
     {chips.length > 0 && <ul aria-label="Filtros activos" className="flex flex-wrap items-center gap-2">
       {chips.map(chip => <li key={chip.key} className="flex h-8 items-center gap-0.5 rounded-full border bg-card pr-1 pl-3 text-sm">
         {chip.label}
@@ -284,43 +283,5 @@ function DetailSkeleton({ state }: { state: DetailState & { kind: ListKind } }) 
         <Skeleton className={cn("h-3", column.numeric ? "ml-auto w-12" : "w-28")} />
       </TableCell>)}</TableRow>)}</TableBody>
     </Table>
-  </div>;
-}
-
-const FALLBACK_FILE = "metricas.csv";
-const filename = (disposition: string | null) => {
-  const name = (disposition && /filename="?([^";]*)"?/i.exec(disposition)?.[1]) || "";
-  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$/.test(name) ? name : FALLBACK_FILE;
-};
-/**
- * «Exportar CSV» (v2 §8): a link to the route handler with the same validated query. A plain click downloads it here,
- * so a refused export (more than 50,000 rows, an expired session) explains itself next to the button.
- */
-function ExportLink({ state }: { state: DetailState }) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const href = `${DETAIL_PATH}/export?${new URLSearchParams({ kind: state.kind, ...state.params })}`;
-  useEffect(() => setError(null), [href]);
-  async function run(event: MouseEvent<HTMLAnchorElement>) {
-    if (!plainClick(event)) return;
-    event.preventDefault();
-    if (pending) return;
-    setPending(true); setError(null);
-    try {
-      const response = await fetch(href, { credentials: "same-origin" });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null) as { message?: unknown } | null;
-        setError(typeof body?.message === "string" ? body.message : response.status === 401 ? "Tu sesión expiró. Inicia sesión de nuevo para exportar." : "No pudimos exportar los registros. Inténtalo de nuevo.");
-        return;
-      }
-      saveBlob(await response.blob(), filename(response.headers.get("content-disposition")));
-    } catch { setError("No pudimos exportar los registros. Inténtalo de nuevo."); }
-    finally { setPending(false); }
-  }
-  return <div className="flex flex-col items-start gap-2 sm:items-end">
-    <a href={href} onClick={event => void run(event)} aria-busy={pending || undefined} className={cn(buttonVariants({ variant: "outline" }), "min-h-10 gap-2 px-4")}>
-      {pending ? <Spinner aria-hidden="true" /> : <Download aria-hidden="true" />}Exportar CSV
-    </a>
-    {error && <p role="alert" className="flex max-w-md items-center gap-2 text-sm text-status-danger sm:text-right"><CircleAlert aria-hidden="true" className="size-4 shrink-0" />{error}</p>}
   </div>;
 }
