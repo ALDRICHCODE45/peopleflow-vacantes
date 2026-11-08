@@ -40,9 +40,10 @@ type PipelineStage struct {
 // the exit stage and the retired stages. The composition root parses it from
 // the jobs rules (defaults without a stored configuration).
 type Pipeline struct {
-	Stages  []PipelineStage
-	Exit    uuid.UUID
-	Retired []PipelineStage
+	Stages   []PipelineStage
+	Exit     uuid.UUID
+	ExitName string
+	Retired  []PipelineStage
 }
 
 // PipelineData is the pipeline snapshot: every open vacancy (published, not
@@ -114,7 +115,11 @@ func (p Pipeline) stageOf(id uuid.UUID) (kind, name string, exit bool) {
 
 // openTramo reports a tramo of user open at asOf.
 func (v *OpenVacancy) openTramo(user uuid.UUID, asOf time.Time) bool {
-	return slices.ContainsFunc(v.Tramos, func(t Tramo) bool {
+	return openTramo(v.Tramos, user, asOf)
+}
+
+func openTramo(tramos []Tramo, user uuid.UUID, asOf time.Time) bool {
+	return slices.ContainsFunc(tramos, func(t Tramo) bool {
 		return t.UserID == user && !t.Start.After(asOf) && (t.End == nil || t.End.After(asOf))
 	})
 }
@@ -203,25 +208,13 @@ func (s *Service) Pipeline(ctx context.Context, company uuid.UUID, raw string) (
 	if err != nil {
 		return nil, err
 	}
-	days := map[string][]int{}
-	stalled := map[string]int{}
 	inProcess := map[*OpenVacancy]int{}
 	for _, r := range v.rows {
-		days[r.kind] = append(days[r.kind], r.days)
-		if r.stalled {
-			stalled[r.kind]++
-		}
 		if r.kind != "new" && r.kind != "placement" {
 			inProcess[r.vac]++
 		}
 	}
-	out := &PipelineSection{header: newHeader(p, v.snap.AsOf), StalledThreshold: StalledThreshold, Stages: []StageFigure{}, TopVacancies: []TopVacancy{}}
-	for _, kind := range stageKinds {
-		if kind == "retired" && len(days[kind]) == 0 {
-			continue
-		}
-		out.Stages = append(out.Stages, StageFigure{Kind: kind, Candidates: len(days[kind]), MedianBusinessDaysInStage: Median(days[kind]), Stalled: stalled[kind]})
-	}
+	out := &PipelineSection{header: newHeader(p, v.snap.AsOf), StalledThreshold: StalledThreshold, Stages: stageFigures(v.rows), TopVacancies: []TopVacancy{}}
 	top := make([]*OpenVacancy, 0, len(inProcess))
 	for vac := range inProcess {
 		top = append(top, vac)
@@ -243,6 +236,27 @@ func (s *Service) Pipeline(ctx context.Context, company uuid.UUID, raw string) (
 			Responsible: data.personPtr(vac.Responsible), InProcess: inProcess[vac]})
 	}
 	return out, nil
+}
+
+// stageFigures groups the rows by kind in the fixed order, retired only when
+// > 0 (§4.4; the company dashboard's pipeline shares it).
+func stageFigures(rows []staged) []StageFigure {
+	days := map[string][]int{}
+	stalled := map[string]int{}
+	for _, r := range rows {
+		days[r.kind] = append(days[r.kind], r.days)
+		if r.stalled {
+			stalled[r.kind]++
+		}
+	}
+	out := []StageFigure{}
+	for _, kind := range stageKinds {
+		if kind == "retired" && len(days[kind]) == 0 {
+			continue
+		}
+		out = append(out, StageFigure{Kind: kind, Candidates: len(days[kind]), MedianBusinessDaysInStage: Median(days[kind]), Stalled: stalled[kind]})
+	}
+	return out
 }
 
 // CandidateRow is one active participation of an open vacancy (§5.5); it

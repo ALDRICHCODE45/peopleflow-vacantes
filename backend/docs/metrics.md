@@ -7,6 +7,10 @@ points the contract leaves open. The data captured for it (origin channel, reque
 columns, closing target) is slice 3b; the stakeholder role and gate are slice 3a
 ([stakeholder-invitations.md](stakeholder-invitations.md)).
 
+The company dashboard v2 sections (`GET /v2/me/company/dashboard/{summary,attention,pipeline,vacancies,recent,origin}`,
+owner and recruiter) run on this engine: the same pipeline snapshot plus a history snapshot
+keyed by company. See [dashboard-v2.md](dashboard-v2.md).
+
 Code: `internal/features/metrics/`:
 
 - `application`: filter parser, period, cursor and shape helpers (`filters.go`, `period.go`,

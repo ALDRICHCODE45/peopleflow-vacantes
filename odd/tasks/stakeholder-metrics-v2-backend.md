@@ -34,7 +34,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T8 (L10, L11) Dev-only demo seed (`cmd/devseed-metrics-demo` + `internal/tools/metricsdemo`) — commit: seed commit.
 - [x] T7 Propose company dashboard v2 contract (frontend needs `docs/product/company-dashboard-v2-needs.md`, L5) — agreed (L14), commit: f8e8a0c6 + agreement commit.
 - [x] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired` — commit: DD2 commit.
-- [ ] T10 Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin.
+- [x] T10 (S3, L5, L13, L14) Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin — commit: d2a commit.
 - [ ] T11 Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role.
 - [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
 - [ ] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms), after T5.
@@ -125,3 +125,10 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   (TestPipeline_TopVacanciesBoundedTiesByTitle), unit + 33 `^TestMetrics` integration green; demo top 5 now DevOps 4,
   Cajero 3, Frontend 2, Oficial 2, Reclutador TI 2. Local DB migrated to 00060; branch API running on :8081 for the
   browser review (binary `backend/.devapi-metrics`, untracked, delete after the review).
+- **L17** d2a implemented by a worker, independently verified (recruiter scope, new caches): pass, no defects; 55
+  `^TestMetrics|^TestDashboard|^TestStakeholder` integration tests, race x3, vet green. Approved edit outside the
+  metrics surfaces: `pool.ReadAddedBetween` (applications). Decisions recorded in `backend/docs/dashboard-v2.md`
+  (paused vacancies leave the headline figures but stay in attention/pipeline; vacancies section lists 0 in-process
+  vacancies; origin split by origin_channel; window=7 pool count by local days vs old rolling 7×24 h). Low notes:
+  recent/origin include closed vacancies still assigned to the recruiter; discarded participations without history
+  rows count as never active in past points; no test of a pool-cache hit for a recruiter without talent-base access.

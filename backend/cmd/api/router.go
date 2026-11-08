@@ -287,6 +287,18 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/metrics/applications/export", d.metricsHandler.Export("applications"))
 	})
 
+	// Company dashboard v2 sections (company-dashboard-v2 §3): owners and
+	// recruiters, served by the metrics engine; the scope follows the role.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Get("/v2/me/company/dashboard/summary", d.metricsHandler.DashboardSummary)
+		r.Get("/v2/me/company/dashboard/attention", d.metricsHandler.DashboardAttention)
+		r.Get("/v2/me/company/dashboard/pipeline", d.metricsHandler.DashboardPipeline)
+		r.Get("/v2/me/company/dashboard/vacancies", d.metricsHandler.DashboardVacancies)
+		r.Get("/v2/me/company/dashboard/recent", d.metricsHandler.DashboardRecent)
+		r.Get("/v2/me/company/dashboard/origin", d.metricsHandler.DashboardOrigin)
+	})
+
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth)
 		r.Get("/v2/me", d.identityHandler.Me)

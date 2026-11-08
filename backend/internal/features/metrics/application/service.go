@@ -16,6 +16,11 @@ type Service struct {
 	snapshots *snapshots
 	// pipelines caches the pipeline snapshot per company (v2 §2).
 	pipelines *cache[uuid.UUID, *PipelineData]
+	// histories caches the company dashboard's history snapshot per company
+	// (company-dashboard-v2 §4); pools the pool additions per window.
+	histories  *cache[uuid.UUID, *HistoryData]
+	pools      *cache[poolKey, [2]int]
+	talentBase *TalentBase
 	// exportLimit bounds a CSV export (ExportLimit; WithExportLimit in tests).
 	exportLimit int
 }
@@ -33,6 +38,8 @@ func NewService(store Store, calendar Calendar, now func() time.Time) *Service {
 	clock := func() time.Time { return s.now() }
 	s.snapshots = newSnapshots(load, clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
 	s.pipelines = newCache[uuid.UUID, *PipelineData](clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	s.histories = newCache[uuid.UUID, *HistoryData](clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	s.pools = newCache[poolKey, [2]int](clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
 	return s
 }
 

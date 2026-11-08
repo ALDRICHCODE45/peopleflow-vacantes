@@ -126,6 +126,10 @@ type Store interface {
 	// LoadPipeline reads the company's open vacancies and their active
 	// participations with the current-stage entry (v2 §2, §4.4).
 	LoadPipeline(ctx context.Context, company uuid.UUID) (*PipelineData, error)
+	// LoadHistory reads the company dashboard's history snapshot: every
+	// published vacancy, its publication history and the stage history of
+	// the participations not discarded before since (company-dashboard-v2 §4).
+	LoadHistory(ctx context.Context, company uuid.UUID, since time.Time) (*HistoryData, error)
 }
 
 // reaches is the first qualifying entry of every participation, in delivery

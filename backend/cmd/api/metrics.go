@@ -1,26 +1,55 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
+	poolpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/pool"
 	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
+	talentbasepostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres/talentbase"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/businesscalendar"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	metricsapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/application"
 	metricshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/http"
 	metricspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/metrics/infrastructure/postgres"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // newMetricsService composes the metrics read API (stakeholder-metrics-v1 §3)
 // with the jobs rules it shares: the fulfillment business-day calendar, the
 // pipeline stage order of manual intake beyond the cutoff and the pipeline
-// configuration of the pipeline section (v2 §4.4).
+// configuration of the pipeline section (v2 §4.4), plus the talent base's
+// access rule and added count for the company dashboard (company-dashboard-v2
+// §3.1).
 func newMetricsService(pool *pgxpool.Pool, events auditrepositories.AuditEventRepository) *metricsapp.Service {
 	store := metricspostgres.NewStore(pool, events, metricsStagesFrom, metricsPipelineFrom)
-	return metricsapp.NewService(store, businesscalendar.IsBusinessDay, time.Now)
+	return metricsapp.NewService(store, businesscalendar.IsBusinessDay, time.Now).WithTalentBase(dashboardTalentBase(pool))
+}
+
+// dashboardTalentBase reuses the talent base visibility rule and the pool's
+// added rule: pool_added is company-wide and null without access.
+func dashboardTalentBase(pool *pgxpool.Pool) metricsapp.TalentBase {
+	return metricsapp.TalentBase{
+		CanView: func(ctx context.Context, company, user uuid.UUID) (bool, error) {
+			tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+			if err != nil {
+				return false, err
+			}
+			defer tx.Rollback(ctx)
+			allowed, err := talentbasepostgres.CanViewIn(ctx, tx, company, user)
+			if err != nil {
+				return false, err
+			}
+			return allowed, tx.Commit(ctx)
+		},
+		Added: func(ctx context.Context, company uuid.UUID, current, previous metricsapp.Period) (int, int, error) {
+			cur, prev, err := poolpostgres.ReadAddedBetween(ctx, pool, company, current.Start, current.End, previous.Start, previous.End)
+			return int(cur), int(prev), err
+		},
+	}
 }
 
 func newMetricsHandler(service *metricsapp.Service) *metricshttp.Handler {
@@ -54,7 +83,7 @@ func metricsPipelineFrom(draft uuid.UUID, raw []byte) (metricsapp.Pipeline, erro
 	if err != nil {
 		return out, err
 	}
-	out.Exit = exit.ID
+	out.Exit, out.ExitName = exit.ID, exit.Name
 	for _, s := range config.Stages {
 		st, err := stage(s)
 		if err != nil {
