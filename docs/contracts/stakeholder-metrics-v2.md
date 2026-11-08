@@ -1,7 +1,7 @@
 # Stakeholder metrics v2 (internal, employer-only)
 
-Status: **draft (2026-11-08)**, proposed by the backend session for frontend review. Nothing is built until the
-frontend session and the user agree on it. It builds on `stakeholder-metrics-v1.md` (agreed, slices 3a–3c, branch
+Status: **agreed (2026-11-08)**. Frontend review approved it with two additions (facets and applied filters, §5) and
+the user approved DV1–DV6 as recommended. It builds on `stakeholder-metrics-v1.md` (agreed, slices 3a–3c, branch
 `feat/stakeholder-metrics-backend`): every v1 definition, gate, filter, shape rule and audit rule stays unless this
 document changes it explicitly. Frontend needs: `docs/product/stakeholder-metrics-v2-needs.md` in the frontend repo
 (artboards `design/dashboard-redesign/07-metricas-combinada.html` and `08-detalle-indagacion.html`). Backend tracking:
@@ -220,8 +220,27 @@ Common to every list:
 
 - Query: common filters + the kind's filters + `sort`, `order` (`asc | desc`), `limit` (1–100, default 50),
   `cursor`.
-- Response: `{ "definitions_version", "period", "as_of", "total", "items": [...], "next_cursor" }`. `total` is the
-  exact count for the filters (not the page).
+- Response: `{ "definitions_version", "period", "as_of", "total", "facets", "applied_filters", "items": [...],
+  "next_cursor" }`. `total` is the exact count for the filters (not the page).
+- **Facets** (frontend F1): counts for the tabs of the detail page. Each facet is computed with every filter of the
+  request **except its own**, from the same snapshot, so its values add up to the total of the list without that
+  filter. Every value of the facet's enum is present, zeros included. Per kind:
+  - `deliveries`: `facets.result` (`on_time, late, overdue, pending, not_configured`);
+  - `candidates`: `facets.stage_kind` (the §4.4 kinds, `retired` only when > 0) and `facets.stalled` (count of
+    stalled rows, ignoring the `stalled` filter);
+  - `vacancies`: `facets.close_reason` (`filled, cancelled, other, no_reason`, over closed rows);
+  - `placements`: `facets.held` (`{ "true": n, "false": n }`);
+  - `reassignments`: `facets.reason`;
+  - `applications`: `facets.channel`.
+  Example: `"facets": { "result": { "on_time": 1, "late": 4, "overdue": 0, "pending": 0, "not_configured": 0 } }`.
+- **Applied filters** (frontend F2): `applied_filters` echoes the request's filters with their names resolved, even
+  when `items` is empty: `recruiter`, `attributed_to`, `recipient`, `credited_to` as people, `requester` as the
+  requester object (or `"none"` for «sin solicitante»), `vacancy` as `{ draft_id, title }`, plus the plain filters
+  as sent (`result`, `late_bucket`, `commitment_month`, …). Keys absent from the request are absent. A person who
+  never was a member of the company, or a requester or vacancy of another company, resolves with `name` / `title`
+  null (no names leak across companies); it is not an error, and the list is simply empty.
+  Example: `"applied_filters": { "recruiter": { "user_id": "…", "name": "Jorge Paredes", "former_member": false },
+  "requester": { "kind": "client", "id": "…", "name": "Banorte · Finanzas" }, "result": ["late"] }`.
 - Keyset over `(sort value, id)`; nulls last in both orders. The cursor binds company, route, filters, sort and order
   (v1 binds no sort); any mismatch is 400 `invalid_cursor`. An unknown `sort` value is 422 `invalid_filter`
   (`sort: invalid`).
@@ -339,7 +358,7 @@ Opening read-only boards to stakeholders remains a separate later slice. (Decisi
 Each slice ships with integration tests through the production router that assert, per figure, that the list
 `total` for the figure's drill-down query equals the figure.
 
-## Decisions (proposed, pending)
+## Decisions (approved 2026-11-08, all as recommended)
 
 1. **DV1 Stalled threshold.** Recommendation: 7 business days, same for every stage, placement excluded.
    Alternative: a threshold per stage kind (more settings, no clear default per stage yet).

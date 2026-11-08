@@ -17,13 +17,17 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   «responses must be cancel-safe»; «Detail lists paginate on the server (cursor or keyset), sortable on the listed
   columns, with an exact total»; «Previous-period comparison (N1) should not double the latency of the summary»; «the
   detail total equals the figure».
+- **S5** Frontend review: «Pido que `deliveries` devuelva `facets.result` = conteos por result con los mismos filtros
+  ignorando el propio `result` (mismo snapshot, así suman igual), y que `candidates` devuelva `facets.stage_kind` (y
+  el conteo de stalled) con la misma regla»; «pido `applied_filters` en la respuesta de cada lista con las
+  personas/solicitantes resueltos».
 - **S4** Answer the four open questions: generic vs per-kind detail endpoint; stalled threshold; CSV server vs
   client; which detail reads are audited.
 
 ## Tasks
 
-- [x] T1 (S1–S4) Draft contract v2 and send it to the frontend session for review — commit: this doc's commit.
-- [ ] T2 Agree contract (frontend review + user decisions DV1–DV6).
+- [x] T1 (S1–S4) Draft contract v2 and send it to the frontend session for review — commit: c56132e2.
+- [x] T2 (S1–S5) Agree contract (frontend review + user decisions DV1–DV6) — commit: facets/applied filters commit.
 - [ ] T3 Slice v2a: snapshot cache, definition changes, summary N1/N2, closures, compliance, delays, origin.
 - [ ] T4 Slice v2b: sortable keyset lists with total, deliveries, placements (audited), CSV export.
 - [ ] T5 Slice v2c: pipeline section, candidates (audited), applications, participation index.
@@ -40,3 +44,9 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   paginates in memory; stage history exists (`participation_stage_history`, current-stage entry derivable); the
   audit export is the only CSV export (BOM, formula guard, 50k limit); the v1 cursor binds no sort. Hence the shared
   snapshot (§2) and the sort-bound keyset (§5).
+- **L3** Frontend session (2026-11-08): «aprobado, muy buena propuesta … El usuario aceptó DV1–DV6 tal como las
+  recomendaste (7 días hábiles fijos sin placement; cerradas = vacantes distintas; periodo anterior del mismo largo con
+  el conocimiento de hoy; origen por vacante y canal sin personas; links del stakeholder dentro de métricas; snapshot
+  de 60 s con as_of).» Two additions applied in §5: facets per list (own filter ignored) and `applied_filters` with
+  resolved names. Frontend builds on `feat/metrics-redesign` (from main) following the backend slices; it merges v1
+  (backend then frontend) into main.
