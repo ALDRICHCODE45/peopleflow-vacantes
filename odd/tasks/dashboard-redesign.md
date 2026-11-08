@@ -227,3 +227,18 @@ detail): compare with the user's references, research modern dashboard patterns,
   cookie off cross-site requests) and «Exportar CSV» is a button posting to it. 93 focused tests green, typecheck 0.
 - **L34** Full frontend suite on `feat/metrics-redesign` after the export hardening: 562 files / 10235 tests passed, 2
   skipped; lint 0 errors (12 pre-existing warnings); typecheck 0. Waiting for the user's demo account sign-ins.
+- **L35** Backend d2a ready (`569f75f1`): `/v2/me/company/dashboard/{summary,attention,pipeline,vacancies,recent,origin}
+  ?window=7|30|90`, owner + recruiter, scope from the session; decisions in backend/docs/dashboard-v2.md (paused
+  vacancies out of the summary figures but in attention/pipeline; vacancies section lists 0-in-process too; origin
+  splits manual by origin_channel; window=7 pool counts 7 Mexico City calendar days; recent/origin include closed
+  vacancies the recruiter still holds). T13 worker launched against d2a, drill-down links off until d2b. :8081
+  restarted with d2a (no seed yet).
+- **L36** T13 worker stalled once on a large write (partial work on disk); resumed once in small writes. Backend: :8081
+  runs `569f75f1` (metrics v2 + DD2 + dashboard d2a); d2b lists will live at
+  `/v2/me/company/dashboard/lists/{candidates,deliveries,vacancies,applications}`.
+- **L37** Backend d2b ready (`5abe42b0`, :8081 runs it): dashboard lists `/v2/me/company/dashboard/lists/{candidates,
+  deliveries,vacancies,applications}` + `/export`, metrics §5 grammar, scope forced by role, not audited; every
+  drill-down link must carry the section's `window` (on/from/to validated against it); talent base accepts
+  `added_from/added_to` (drill-down of «Nuevos en la base», total = pool_added). Figure = list total tested for owner
+  and two recruiters. Pending: a frontend page for the dashboard lists (follow-up T14) before switching those links on;
+  backend d2c (remove the old endpoint) after the frontend stops calling it.
