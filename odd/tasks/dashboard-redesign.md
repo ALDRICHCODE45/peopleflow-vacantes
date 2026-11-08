@@ -42,10 +42,10 @@ detail): compare with the user's references, research modern dashboard patterns,
 | T5 | S6–S9 | Artboard `07-metricas-combinada.html` (combined Métricas, new status palette, loading states) (done, L7) | — |
 | T6 | S7, S9 | Artboard `08-detalle-indagacion.html` (filtered detail page reached from any number) (done, L7) | — |
 | T7 | S6, S8 | Update `design/system.md` dashboard rules: status palette, professional titles, drill-down rule, help only in popovers (done, L7) | — |
-| T8 | S5, S7, S9 | Data needs for contract v2 (`docs/product/stakeholder-metrics-v2-needs.md`), sent to the backend session; system.md dashboard rules binding (done, L8) | — |
-| T9 | S5–S9 | Review the backend's contract v2 proposal | — |
+| T8 | S5, S7, S9 | Data needs for contract v2 (`docs/product/stakeholder-metrics-v2-needs.md`), sent to the backend session; system.md dashboard rules binding (done, L8) | `ef2a4a9b` |
+| T9 | S5–S9 | Review the backend's contract v2 proposal (done, L10) | — |
 | T10 | S6–S10 | Implement `/empresa/metricas` from 07 and `/empresa/metricas/detalle` from 08 against v2 (slices, Playwright UI review) | — |
-| T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) | — |
+| T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) (done, L12) | PENDING |
 
 ## Log
 
@@ -116,3 +116,18 @@ detail): compare with the user's references, research modern dashboard patterns,
   marked binding. Needs document `docs/product/stakeholder-metrics-v2-needs.md` written and sent to the backend session
   (01a1bbfc-ccc2, `peopleflow-vacantes`) by intercom with the user's verbatim performance message; waiting for its v2
   proposal. Next while waiting: company dashboard artboard (T11).
+- **L9** Slice boundary: `feat/stakeholder-metrics` already holds ~12k authored lines unmerged. T10 (implementation)
+  starts on its own branch after the user's merge decision on `feat/stakeholder-metrics`; design commits stop here.
+- **L10** Backend proposal `docs/contracts/stakeholder-metrics-v2.md` (branch `feat/stakeholder-metrics-v2-backend`,
+  `c56132e2`): shared 60 s snapshot per (company, period), sections summary/closures/compliance/pipeline/delays/origin/
+  recruiters, one list route per kind (deliveries, vacancies, placements, reassignments, candidates, applications) with
+  keyset + exact total, server CSV export, audit for lists with candidate names. User accepted DV1–DV6 as recommended
+  («Acepto las 6 recomendaciones»). Frontend review approved with two additions sent to the backend: `facets.result`
+  on deliveries and `facets.stage_kind`/stalled on candidates (detail tabs), and `applied_filters` with resolved names
+  on every list (filter chips). Backend slices v2a sections, v2b lists, v2c pipeline; frontend follows them.
+- **L11** Backend agreed contract v2 (`10474af9`): facets on every list kind (all enum values, zeros, ignoring only
+  their own filter), `applied_filters` with resolved names (null name for foreign ids, no error). Backend started v2a.
+- **L12** `09-dashboard-empresa.html` written by a worker (2238 px): Resumen strip as 07 (hero Candidatos en proceso),
+  «Necesita atención» hero with tabs vencidas / vencen esta semana / detenidos (N4) + Pipeline por etapa (N3), Vacantes
+  activas + Candidatos recientes, Postulaciones last. Parent review: smoothed the chart to a 7-day average and unified
+  stage badges. Waiting for the user's review.

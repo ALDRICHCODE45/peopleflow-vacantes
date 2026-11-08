@@ -58,6 +58,13 @@
       "tradeoff": "Página de detalle a la que lleva cualquier número: filtros como chips, estados, tabla ordenable, exportar",
       "width": 1440,
       "height": 900
+    },
+    {
+      "file": "09-dashboard-empresa.html",
+      "title": "09 · Dashboard de empresa",
+      "tradeoff": "Día a día del reclutador con las reglas de 07: «Necesita atención» protagonista, pipeline por etapa, vacantes y candidatos, postulaciones al final",
+      "width": 1440,
+      "height": 2240
     }
   ]
 }
