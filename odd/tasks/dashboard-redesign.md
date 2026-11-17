@@ -52,6 +52,10 @@ detail): compare with the user's references, research modern dashboard patterns,
 | T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) (done, L12) | `ae0707a8` |
 | T15 | S6–S10 | S10 review fixes (L43): blank «A tiempo por mes», old «Detalle del periodo» table removed (L44), 390 px overflow (attention tabs, period control, «Cómo se calcula»), «días hábiles» on overdue badges, organic applications table, attention card empty space, applications y-axis, low findings | — |
 | T16 | S7 | «Posiciones» drill-down summary from the list's positions aggregate (L44, needs backend field) | — |
+| T17 | S3, S7, S8 | Artboard `10-detalle-reclutador.html` (recruiter detail under Métricas with the dashboard rules), open on canvas (L48) | — |
+| T18 | S3, S6–S10 | Implement `/empresa/metricas/reclutadores/[id]` from artboard 10 (L48) | — |
+| T19 | S10 | Rule 14 at 390 px: tables become list rows (recruiters, detail tables, attention rows); attention tabs and period control wrap instead of clipping (L48) | — |
+| T20 | S6–S10 | Re-review fixes (L47): Volver keeps the board state, dark-mode violet contrast, y-axis tick labels, sparse «A tiempo por mes», recruiters heading wrap, figure-named summaries, organic CSV columns, tab Home/End and duplicate tab stops, KPI unit wrap | — |
 
 ## Log
 
@@ -285,3 +289,13 @@ detail): compare with the user's references, research modern dashboard patterns,
   Volver with replace, dark hero tile `.pf-kpi-hero` and tint tokens, taller closures x-axis, pipeline label column.
   Métricas month-point CSV names unchanged. Full suite: 572 files / 10360 tests passed, 2 skipped; tsc 0; lint 0 errors
   (12 pre-existing warnings). Assess: no independent verifier (no high-risk item).
+- **L47** S10 re-review at `3566fa80` (`/tmp/pf-review/s10b/`): L43 fixes hold (positions summary, old table gone,
+  días hábiles, organic table, dark hero, grammar, Volver history); partial: «A tiempo por mes» shows two lone dots, 390 px
+  tabs/period scroll and clip, attention card blank tail, y-axis ticks «0.3/0.8». New: High — recruiter detail
+  `/empresa/metricas/reclutadores/[id]` still v1 (rules 4, 7, 9, 11, 12, 16). Medium — Volver rebuilds the board from the
+  detail filters (recruiter_id chip «seleccionado», previous period); dark-mode violet text ≈2:1; 390 px tables scroll
+  instead of list rows (rule 14). Low — summaries not naming the figure (40% a tiempo, conversión, orgánicas), «vacantes
+  sin meta» vs «entregas», organic CSV keeps Manual, tabs lack Home/End, duplicate tab stops, «16 días / hábiles» wrap.
+  34 drill-downs: figure = list total = CSV rows; no console errors, no ≥400.
+- **L48** User decisions: recruiter detail → «Rediseñarla ahora, antes del merge (Recomendado)» (artboard 10 first, then
+  implementation); 390 px → «Sí, en esta rama (Recomendado)» (tables to list rows, tabs and period wrap).
