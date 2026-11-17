@@ -477,7 +477,7 @@ var dashboardVacancyColumns = map[string]sortColumn[DashboardVacancyRow]{
 // DashboardVacancyList answers GET …/dashboard/lists/vacancies: every vacancy
 // in scope published at least once; status=published is the summary's
 // published vacancies and positions.
-func (s *Service) DashboardVacancyList(ctx context.Context, company uuid.UUID, viewer Viewer, raw string) (*DashboardList[DashboardVacancyRow, DashboardVacancyFacets], error) {
+func (s *Service) DashboardVacancyList(ctx context.Context, company uuid.UUID, viewer Viewer, raw string) (*DashboardVacancyList, error) {
 	l, err := prepareDashboardList(company, viewer, raw, RouteDashboardVacancies, false)
 	if err != nil {
 		return nil, err
@@ -486,7 +486,24 @@ func (s *Service) DashboardVacancyList(ctx context.Context, company uuid.UUID, v
 	if err != nil {
 		return nil, err
 	}
-	return finishDashboard(l, h, b)
+	list, err := finishDashboard(l, h, b)
+	if err != nil {
+		return nil, err
+	}
+	out := &DashboardVacancyList{DashboardList: *list}
+	for _, r := range b.rows {
+		out.Positions.Covered += r.Positions.Covered
+		out.Positions.Required += r.Positions.Required
+	}
+	return out, nil
+}
+
+// DashboardVacancyList is the vacancies list response. Positions aggregates
+// every row of the filtered result (not only the page), so status=published
+// answers the summary's positions figure.
+type DashboardVacancyList struct {
+	DashboardList[DashboardVacancyRow, DashboardVacancyFacets]
+	Positions Positions `json:"positions"`
 }
 
 func (s *Service) buildDashVacancies(ctx context.Context, l dashListing) (dashboardHeader, *built[DashboardVacancyRow, DashboardVacancyFacets], error) {

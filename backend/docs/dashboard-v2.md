@@ -197,6 +197,10 @@ fields are `omitempty` in the hash, so metrics cursors keep theirs.
   `in_process` is the DD2 count for published vacancies and 0 otherwise (its
   drill-down only opens published vacancies). `positions_open` =
   `max(required − covered, 0)`.
+  The response carries `positions: {covered, required}` next to `total`: the
+  sum of every row of the filtered result, not only the page, so
+  `status=published` equals `summary.positions`. The CSV export has no aggregate
+  (each row keeps its covered/required columns).
 - **Applications:** total = the selected channels' sum (metrics §5.6); a
   channel outside the four is `unknown`. `from`/`to` are echoed in
   `applied_filters` (they narrow the window, unlike the metrics period).

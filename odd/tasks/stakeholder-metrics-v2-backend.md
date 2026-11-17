@@ -151,3 +151,9 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   (`/tmp/pf-api-v2`), `backend/.devapi-metrics` deleted; demo seed applied («Demo Métricas»
   d9c29115-8540-5434-a4d2-3c577dcaabed, 997 rows; demo-owner/stakeholder/recruiter). The dev Cognito pool has no
   PostConfirmation trigger, so the 3 `users` rows were inserted by hand with their real `cognito_sub`.
+- **L21** 2026-11-17, frontend S10 browser review: «Posiciones» (2 de 14) opens
+  `dashboard/lists/vacancies?status=published&sort=positions_open`, whose total is 8 vacancies (figure ≠ list total).
+  User decision via the frontend: same list, the summary speaks of positions. Added response-level
+  `positions: {covered, required}` to the vacancies list, summed over every filtered row (all pages, role scope, DD3);
+  export unchanged. RED observed (unit, compile), unit + `^TestDashboard|^TestMetrics|^TestStakeholder` integration on
+  the draft test DB green (owner, ana, beto: list aggregate with limit=1 = summary.positions).

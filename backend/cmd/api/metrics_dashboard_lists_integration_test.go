@@ -85,6 +85,10 @@ func TestDashboardLists_FigureEqualsTotal(t *testing.T) {
 		pos := sum["positions"].(map[string]any)
 		check("positions covered", covered, mxNum(pos["covered"]))
 		check("positions required", required, mxNum(pos["required"]))
+		// The response-level aggregate covers every page of the filtered list.
+		paged := s.list(actor, "vacancies", "window=7&status=published&sort=positions_open&limit=1")["positions"].(map[string]any)
+		check("list positions covered", mxNum(paged["covered"]), mxNum(pos["covered"]))
+		check("list positions required", mxNum(paged["required"]), mxNum(pos["required"]))
 
 		att := s.dash(actor, "attention")
 		check("overdue", s.listTotal(actor, "deliveries", "state=overdue"), mxNum(att["overdue"].(map[string]any)["total"]))

@@ -225,10 +225,28 @@ func TestDashboardVacancies_PublishedAndPositions(t *testing.T) {
 		if got.Total != sum.PublishedVacancies.Current || pos != sum.Positions || got.Facets.Status.Published != got.Total {
 			t.Errorf("owner=%v: %d %+v %+v, want %d %+v", viewer.Owner, got.Total, pos, got.Facets, sum.PublishedVacancies.Current, sum.Positions)
 		}
+		// The response-level positions aggregate the whole filtered result,
+		// not the page: one item per page still answers the summary figure.
+		paged, err := fx.svc.DashboardVacancyList(context.Background(), fx.company, viewer, "status=published&sort=positions_open&limit=1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if paged.Positions != sum.Positions || len(paged.Items) != min(1, got.Total) {
+			t.Errorf("owner=%v: paged positions %+v (%d items), want %+v", viewer.Owner, paged.Positions, len(paged.Items), sum.Positions)
+		}
 	}
 	all, _ := fx.svc.DashboardVacancyList(context.Background(), fx.company, listOwner, "sort=in_process")
 	if all.Total != 4 || all.Facets.Status != (StatusFacet{Published: 2, Paused: 1, Closed: 1}) {
 		t.Fatalf("%+v", all.Facets)
+	}
+	// Without a status filter the aggregate sums every row in the result.
+	var allPos Positions
+	for _, r := range all.Items {
+		allPos.Covered += r.Positions.Covered
+		allPos.Required += r.Positions.Required
+	}
+	if all.Positions != allPos {
+		t.Fatalf("positions %+v, want %+v", all.Positions, allPos)
 	}
 	// A (4 in process) first; C paused counts 0 (its candidates open nothing).
 	if all.Items[0].Vacancy.DraftID != fx.a.ID || all.Items[0].InProcess != 4 || all.Items[0].Status != "published" {

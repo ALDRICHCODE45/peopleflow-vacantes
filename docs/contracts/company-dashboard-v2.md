@@ -92,7 +92,7 @@ performance en el cargado de la data, tecnicas de lazy loading o tecnicas para m
 | in process (and each series point) | `dashboard/lists/candidates?in_process=true` (point: `&on=YYYY-MM-DD`) |
 | published vacancies | `dashboard/lists/vacancies?status=published` |
 | pool added | talent base `GET /v2/me/company/candidates?added_from=…&added_to=…` (new filter, §5) |
-| positions | `dashboard/lists/vacancies?status=published&sort=positions_open` |
+| positions | `dashboard/lists/vacancies?status=published&sort=positions_open`; the figure equals the response's `positions` aggregate, not `total` (S10 review) |
 
 The lists live under `dashboard/lists/…` because `dashboard/vacancies` is the §3.4 section route (d2b).
 
@@ -167,7 +167,7 @@ Same grammar as metrics §5; scope forced by role; period = the window unless st
 | --- | --- | --- |
 | `dashboard/lists/candidates` | metrics §5.5 row | `in_process`, `on` (a series day: candidates in process at the end of that day), `stage_kind`, `stalled`, `vacancy_id` |
 | `dashboard/lists/deliveries` | metrics §5.1 row | `state` (`overdue`, `due_this_week`), `vacancy_id` |
-| `dashboard/lists/vacancies` | vacancy, requester, responsible, status, published_at, in_process, positions | `status` (`published`), `vacancy_id`; sort adds `positions_open`, `in_process` |
+| `dashboard/lists/vacancies` | vacancy, requester, responsible, status, published_at, in_process, positions; the response adds `positions: {covered, required}` summed over every row of the filtered result (all pages, same role scope, DD3) | `status` (`published`), `vacancy_id`; sort adds `positions_open`, `in_process` |
 | `dashboard/lists/applications` | metrics §5.6 row | `from`, `to` (inside the window), `channel` |
 | `dashboard/lists/{kind}/export` | CSV as metrics §8 | same |
 
