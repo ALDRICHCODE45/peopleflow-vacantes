@@ -169,7 +169,7 @@ Same grammar as metrics §5; scope forced by role; period = the window unless st
 | `dashboard/lists/deliveries` | metrics §5.1 row | `state` (`overdue`, `due_this_week`), `vacancy_id` |
 | `dashboard/lists/vacancies` | vacancy, requester, responsible, status, published_at, in_process, positions; the response adds `positions: {covered, required}` summed over every row of the filtered result (all pages, same role scope, DD3) | `status` (`published`), `vacancy_id`; sort adds `positions_open`, `in_process` |
 | `dashboard/lists/applications` | metrics §5.6 row | `from`, `to` (inside the window), `channel` |
-| `dashboard/lists/{kind}/export` | CSV as metrics §8 | same |
+| `dashboard/lists/{kind}/export` | CSV as metrics §8; applications with `channel` keeps only the selected channels' columns (S10 review) | same |
 
 - **Path (d2b):** the lists are `GET /v2/me/company/dashboard/lists/{candidates,deliveries,vacancies,applications}`
   and `…/lists/{kind}/export`: `GET …/dashboard/vacancies` is already the §3.4 section, so the lists take the

@@ -630,6 +630,28 @@ func dashboardVacancyRecord(r DashboardVacancyRow) []string {
 		strconv.Itoa(r.InProcess), strconv.Itoa(r.Positions.Covered), strconv.Itoa(r.Positions.Required)}
 }
 
+// dashboardApplicationColumns lists the applicationHeader columns the
+// dashboard applications CSV keeps: every column without channel, else only
+// the selected channels' columns, so each row's channel cells add up to its
+// Total (the metrics applications export keeps every column).
+func dashboardApplicationColumns(selected []string) []int {
+	keep := []int{0, 1, 2}
+	for i, channel := range channels {
+		if selected == nil || slices.Contains(selected, channel) {
+			keep = append(keep, 3+i)
+		}
+	}
+	return append(keep, 3+len(channels))
+}
+
+func pick(cells []string, keep []int) []string {
+	out := make([]string, len(keep))
+	for i, k := range keep {
+		out[i] = cells[k]
+	}
+	return out
+}
+
 // DashboardExport answers GET …/dashboard/lists/{kind}/export (metrics §8):
 // the list's filters, sort and order, every row; not audited (DD4). The
 // file is dashboard-<kind>-<window from>-<window to>.csv.
@@ -664,7 +686,9 @@ func (s *Service) DashboardExport(ctx context.Context, company uuid.UUID, viewer
 	case RouteDashboardApplications:
 		var b *built[ApplicationRow, ApplicationFacets]
 		if h, b, _, err = s.buildDashApplications(ctx, l); err == nil {
-			out.Header, out.rows, out.record = applicationHeader, len(b.rows), func(i int) []string { return applicationRecord(b.rows[i]) }
+			keep := dashboardApplicationColumns(l.q.Channels)
+			out.Header, out.rows = pick(applicationHeader, keep), len(b.rows)
+			out.record = func(i int) []string { return pick(applicationRecord(b.rows[i]), keep) }
 		}
 	}
 	if err != nil {

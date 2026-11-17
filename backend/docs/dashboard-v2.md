@@ -204,6 +204,9 @@ fields are `omitempty` in the hash, so metrics cursors keep theirs.
 - **Applications:** total = the selected channels' sum (metrics §5.6); a
   channel outside the four is `unknown`. `from`/`to` are echoed in
   `applied_filters` (they narrow the window, unlike the metrics period).
+  Its CSV export keeps only the selected channels' columns when `channel` is
+  set (each row's channel cells add up to its Total); without `channel` it has
+  every column, as the metrics applications export.
 - **Exports:** `dashboard-<kind>-<window from>-<window to>.csv`, the metrics
   writer (BOM, formula guard, 50,000 rows → `422 metrics_export_too_large`).
   Candidates, deliveries and applications reuse the metrics headers;

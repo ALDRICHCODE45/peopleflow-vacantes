@@ -157,3 +157,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   `positions: {covered, required}` to the vacancies list, summed over every filtered row (all pages, role scope, DD3);
   export unchanged. RED observed (unit, compile), unit + `^TestDashboard|^TestMetrics|^TestStakeholder` integration on
   the draft test DB green (owner, ana, beto: list aggregate with limit=1 = summary.positions).
+- **L22** 2026-11-17, second S10 review (frontend): `dashboard/lists/applications/export?channel=portal,careers_site,unknown`
+  kept the Manual column while the row Total excluded it. Now the dashboard applications CSV keeps only the selected
+  channels' columns (no `channel` = every column, unchanged); the metrics applications export (shared header/record)
+  is untouched. RED observed (header mismatch), unit + `^TestDashboard|^TestMetrics|^TestStakeholder` integration green.

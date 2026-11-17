@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -350,6 +352,40 @@ func TestDashboardExport_RowsAndFilename(t *testing.T) {
 		for i := 0; i < e.Len(); i++ {
 			if len(e.Record(i)) != len(e.Header) {
 				t.Errorf("%s row %d", kind, i)
+			}
+		}
+	}
+	// Without channel the applications CSV keeps every channel column.
+	all, err := fx.svc.DashboardExport(context.Background(), fx.company, listOwner, "applications", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(all.Header, applicationHeader) {
+		t.Errorf("header %v", all.Header)
+	}
+	// With channel only the selected channel columns stay, so each row's
+	// cells add up to its Total.
+	for raw, want := range map[string][]string{
+		"channel=portal,careers_site,unknown": {"ID vacante", "Vacante", "Solicitante", "Portal", "Sitio de carreras", "Desconocido", "Total"},
+		"channel=manual":                      {"ID vacante", "Vacante", "Solicitante", "Manual", "Total"},
+	} {
+		e, err := fx.svc.DashboardExport(context.Background(), fx.company, listOwner, "applications", raw)
+		if err != nil {
+			t.Fatal(raw, err)
+		}
+		if !slices.Equal(e.Header, want) {
+			t.Errorf("%s: header %v, want %v", raw, e.Header, want)
+			continue
+		}
+		for i := 0; i < e.Len(); i++ {
+			rec := e.Record(i)
+			sum := 0
+			for _, cell := range rec[3 : len(rec)-1] {
+				n, _ := strconv.Atoi(cell)
+				sum += n
+			}
+			if len(rec) != len(want) || strconv.Itoa(sum) != rec[len(rec)-1] {
+				t.Errorf("%s row %d: %v", raw, i, rec)
 			}
 		}
 	}
