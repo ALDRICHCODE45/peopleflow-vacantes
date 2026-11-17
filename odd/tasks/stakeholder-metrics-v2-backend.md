@@ -36,7 +36,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired` — commit: DD2 commit.
 - [x] T10 (S3, L5, L13, L14) Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin — commit: d2a commit.
 - [x] T11 (S1, S3, S5, L17) Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role — commit: d2b commit.
-- [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
+- [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it — deferred (L20): separate branch after the frontend merge reaches main.
 - [x] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms) — commit: benchmark commit.
 
 ## Log
@@ -145,3 +145,9 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   Nightly rollup not needed. Recommendations recorded, not implemented (tracks single scan + JIT off, company-bound
   `entries`, candidate indexes to EXPLAIN on a production-size copy). metricsdemo purge now takes the company id
   (demo digest pinned, scoped by db.verify).
+- **L20** 2026-11-17. `main` frontend still calls the legacy route (`frontend/src/features/employer-dashboard/client.ts:10`);
+  `feat/metrics-redesign` no longer does. User: «Si hermano, si es la recomendacion, adelante.» → T12 waits until the
+  frontend merge reaches `main`, then lands on its own branch. Same day: API v2 rebuilt at 221fca61 on :8081
+  (`/tmp/pf-api-v2`), `backend/.devapi-metrics` deleted; demo seed applied («Demo Métricas»
+  d9c29115-8540-5434-a4d2-3c577dcaabed, 997 rows; demo-owner/stakeholder/recruiter). The dev Cognito pool has no
+  PostConfirmation trigger, so the 3 `users` rows were inserted by hand with their real `cognito_sub`.
