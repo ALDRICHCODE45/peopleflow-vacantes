@@ -20,8 +20,9 @@ type TopVacancy = PipelineSectionData["top_vacancies"][number];
 const see = (count: number, singular: string, pluralForm: string, tail = "") => `Ver ${count === 1 ? `el 1 ${singular}` : `los ${number.format(count)} ${pluralForm}`}${tail}`;
 /** The stage kinds of a top vacancy's «en proceso» (§4.4 with DD2): active, neither new nor placement, as in the figure. */
 const IN_PROCESS_KINDS = "screening,screening_ok,in_process,custom,retired";
-const STAGE_BAR = "color-mix(in oklab, var(--primary) 28%, var(--card))";
-const STAGE_GRID = "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 sm:grid-cols-[112px_minmax(0,1fr)_72px_128px_112px]";
+const STAGE_BAR = "color-mix(in oklab, var(--primary) 28%, var(--pf-tint-base))";
+// The stage column fits the longest label («Columnas retiradas», «Columnas propias») at 14/500 without truncating.
+const STAGE_GRID = "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 sm:grid-cols-[minmax(0,152px)_minmax(0,1fr)_72px_128px_112px]";
 
 /** Rule 7: «foto de hoy» and the stalled threshold are explanations, so they live in the popover. */
 function help(threshold: number | undefined) {

@@ -1,13 +1,13 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
-import { applicationColumns, candidateColumns, deliveryColumns, instantDay, type CellContext, type Column, type Table } from "@/features/company-metrics/detail/detail-columns";
+import { applicationColumnsFor, candidateColumns, deliveryColumns, instantDay, type CellContext, type Column, type Table } from "@/features/company-metrics/detail/detail-columns";
 import { number, personName, requesterLabel, type DeliveryListRow } from "@/features/company-metrics/model";
 import type { DashboardDetailPage, DashboardVacancyRow } from "./model";
 import type { DashboardDetailState } from "./query";
 
 /**
  * The tables of the dashboard lists (artboard 08, rule 12: at most six columns). Candidates and applications are the
- * metrics §5.5 / §5.6 tables as they are; deliveries are the metrics §5.1 table for open commitments, so «Entregada»
+ * metrics §5.5 / §5.6 tables as they are (applications show only the chosen channels); deliveries are the metrics §5.1 table for open commitments, so «Entregada»
  * (never set on an unfulfilled delivery) gives its place to the person responsible.
  */
 const responsible: Column<DeliveryListRow> = {
@@ -44,11 +44,11 @@ export function dashboardTable(state: DashboardDetailState, data: DashboardDetai
     case "candidates": return build(candidateColumns, data.page.items, row => row.participation_id);
     case "deliveries": return build(dashboardDeliveryColumns(overdueList(state)), data.page.items, row => row.vacancy.draft_id);
     case "vacancies": return build(vacancyColumns, data.page.items, row => row.vacancy.draft_id);
-    case "applications": return build(applicationColumns, data.page.items, row => row.vacancy.draft_id);
+    case "applications": return build(applicationColumnsFor(state.params.channel), data.page.items, row => row.vacancy.draft_id);
   }
 }
 /** The headers alone, for the skeleton before the first page. */
 export function dashboardColumns(state: DashboardDetailState): Column<never>[] {
-  const columns = { candidates: candidateColumns, deliveries: dashboardDeliveryColumns(overdueList(state)), vacancies: vacancyColumns, applications: applicationColumns }[state.kind];
+  const columns = { candidates: candidateColumns, deliveries: dashboardDeliveryColumns(overdueList(state)), vacancies: vacancyColumns, applications: applicationColumnsFor(state.params.channel) }[state.kind];
   return columns as Column<never>[];
 }

@@ -71,7 +71,8 @@ describe("Cierres y entregas (artboard 07)", () => {
       "A tiempo2048%", "Tarde717%", "Vencidas37%", "Pendientes921%", "Sin meta configurada37%",
     ]);
     expect(status.getByRole("group", { name: "Estado de entregas: 20 a tiempo, 7 tarde, 3 vencidas, 9 pendientes, 3 sin meta configurada" })).toBeInTheDocument();
-    expect(status.getByText(/vacantes en el periodo/)).toHaveTextContent("42 vacantes en el periodo");
+    // The figure opens the deliveries list («Entregas», «42 entregas en el periodo.»), so it counts entregas too.
+    expect(status.getByText(/entregas en el periodo/)).toHaveTextContent("42 entregas en el periodo");
   });
 
   it("keeps every figure as plain text while the detail page is off", () => {
@@ -89,7 +90,7 @@ describe("Cierres y entregas (artboard 07)", () => {
     expect(query(row("Tarde").getByRole("link", { name: "Ver las 7 entregas tarde" }))).toEqual({ kind: "deliveries", result: "late", ...period });
     expect(query(row("Sin meta configurada").getByRole("link", { name: "Ver las 3 vacantes sin meta configurada" })))
       .toEqual({ kind: "deliveries", result: "not_configured", ...period });
-    expect(query(card("Estado de entregas").getByRole("link", { name: "Ver las 42 vacantes en el periodo" }))).toEqual({ kind: "deliveries", ...period });
+    expect(query(card("Estado de entregas").getByRole("link", { name: "Ver las 42 entregas en el periodo" }))).toEqual({ kind: "deliveries", ...period });
     await userEvent.click(screen.getByRole("button", { name: "Ver como tabla" }));
     expect(query(screen.getByRole("link", { name: "Ver las 6 vacantes cubiertas en septiembre de 2026" })))
       .toEqual({ kind: "vacancies", scope: "closed", closed_month: "2026-09", close_reason: "filled", ...period });

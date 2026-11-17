@@ -64,7 +64,7 @@ function ActiveVacancies({ data, drill }: { data: VacanciesData; drill: Drill })
               </div>
               <span className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_28px]">
                 <span aria-hidden="true" className="hidden h-2 overflow-hidden rounded-full bg-muted sm:block">
-                  <span className="block h-full rounded-full bg-[color-mix(in_oklab,var(--primary)_60%,var(--card))]" style={{ width: `${max > 0 ? (row.in_process / max) * 100 : 0}%` }} />
+                  <span className="block h-full rounded-full bg-[color-mix(in_oklab,var(--primary)_60%,var(--pf-tint-base))]" style={{ width: `${max > 0 ? (row.in_process / max) * 100 : 0}%` }} />
                 </span>
                 <Figure href={drill({ kind: "candidates", params: { vacancy_id: row.vacancy.draft_id, in_process: "true" } }, row.in_process)}
                   label={`Ver ${row.in_process === 1 ? "el 1 candidato" : `los ${number.format(row.in_process)} candidatos`} en proceso de ${name}`}

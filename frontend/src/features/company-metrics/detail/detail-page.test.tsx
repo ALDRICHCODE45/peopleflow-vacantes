@@ -65,11 +65,11 @@ describe("metrics detail page (artboard 08)", () => {
     expect(await screen.findByText((_, node) => node?.tagName === "P" && /^4 de 5 entregas de Jorge Paredes llegaron tarde en el periodo — 80\s?%\.$/.test(node.textContent ?? ""))).toBeInTheDocument();
   });
 
-  it("says «N registros» without a status filter", async () => {
+  it("names the figure in the summary instead of «registros»", async () => {
     at(`kind=vacancies&${period}&scope=assigned`);
     load.mockResolvedValue(ok({ kind: "vacancies", page: vacancyList({ total: 12, applied_filters: { scope: "assigned" } }) }));
     render(<MetricsDetailPage />);
-    expect(await screen.findByText("12 registros")).toBeInTheDocument();
+    expect(await summaryText("Vacantes asignadas: 12 en el periodo.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Vacantes asignadas" })).toBeInTheDocument();
   });
 
@@ -212,10 +212,11 @@ describe("metrics detail page (artboard 08)", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Postulaciones" })).toBeInTheDocument();
     expect(await summaryText("154 postulaciones en el periodo.")).toBeInTheDocument();
     const headers = screen.getAllByRole("columnheader").map(header => header.textContent);
-    expect(headers).toEqual(["Vacante", "Portal", "Sitio de carreras", "Manual", "Sin distinguir", "Total"]);
+    // Only the chosen channels, so each row adds up to its total.
+    expect(headers).toEqual(["Vacante", "Portal", "Sitio de carreras", "Total"]);
     expect(headers.length).toBeLessThanOrEqual(6);
     const row = screen.getAllByRole("row")[1];
-    expect(within(row).getAllByRole("cell").map(cell => cell.textContent)).toEqual(["Analista de crédito Sr.", "100", "30", "5", "0", "130"]);
+    expect(within(row).getAllByRole("cell").map(cell => cell.textContent)).toEqual(["Analista de crédito Sr.", "100", "30", "130"]);
     expect(screen.getByText("Vacantes 1–2")).toBeInTheDocument();
     expect(screen.queryByText(/de 154/)).not.toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Canal" })).getByRole("button", { name: "Todos 515" })).toBeInTheDocument();

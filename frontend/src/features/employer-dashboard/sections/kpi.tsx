@@ -43,7 +43,7 @@ export function DeltaLine({ current, previous, comparison, hero }: { current: nu
 /** KPI card (rule 6): label 14/500 muted, value 32/600, one line below. */
 export function KpiCard({ label, className, hero, children }: { label: string; className?: string; hero?: boolean; children: ReactNode }) {
   const id = useId();
-  return <article aria-labelledby={id} className={cn(CARD, "gap-3", hero && "bg-foreground text-background shadow-none ring-0", className)}>
+  return <article aria-labelledby={id} className={cn(CARD, "gap-3", hero && "pf-kpi-hero bg-foreground text-background shadow-none ring-0", className)}>
     <h3 id={id} className={cn("text-sm font-medium", hero ? "text-background/75" : "text-muted-foreground")}>{label}</h3>
     {children}
   </article>;

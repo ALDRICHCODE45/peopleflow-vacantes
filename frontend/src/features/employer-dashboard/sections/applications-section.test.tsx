@@ -45,6 +45,19 @@ describe("Postulaciones (last, artboard 09)", () => {
     expect(screen.getByRole("heading", { name: "Sin postulaciones en el periodo" })).toBeInTheDocument();
   });
 
+  it("names each chart point's link in correct Spanish, singular included", () => {
+    const raw = origin(7);
+    const by_day = raw.by_day.map((day, index) => index === 6 ? { ...day, organic: 1, manual: 0 } : index === 5 ? { ...day, organic: 0, manual: 1 } : { ...day, organic: 2, manual: 3 });
+    render(<ApplicationsSection state={ready({ ...raw, by_day })} window={7} drill={drillFor(7, true)} />);
+    expect(screen.getByRole("link", { name: "Ver 1 postulación del dom 8 nov: 1 orgánica y 0 manuales" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver 1 postulación del sáb 7 nov: 0 orgánicas y 1 manual" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver las 5 postulaciones del vie 6 nov: 2 orgánicas y 3 manuales" })).toBeInTheDocument();
+    cleanup();
+    render(<ApplicationsSection state={ready({ ...raw, by_day: raw.by_day.map((day, index) => ({ ...day, organic: index === 6 ? 1 : 0, manual: index === 6 ? 1 : 0 })) })} window={7} drill={drillFor(7, true)} />);
+    expect(screen.getByRole("link", { name: "Ver 1 postulación manual de los últimos 7 días" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver 1 postulación orgánica de los últimos 7 días" })).toBeInTheDocument();
+  });
+
   it("links the legend totals to the applications list when on", () => {
     render(<ApplicationsSection state={ready(origin(30))} window={30} drill={drillFor(30, true)} />);
     const href = screen.getByRole("link", { name: /postulaciones manuales de los últimos 30 días/ }).getAttribute("href")!;

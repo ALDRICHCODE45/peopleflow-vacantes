@@ -19,7 +19,8 @@ import { CARD, drillFor, seeLabel, type Drill } from "./summary-strip";
 import type { SectionProps } from "./types";
 
 /** Plot box shared by the month charts: the overlay links below sit exactly over the plotted points. */
-export const PLOT = { margin: { top: 8, right: 12, bottom: 0, left: 0 }, yAxisWidth: 40, xAxisHeight: 24 } as const;
+/** The x-axis is tall enough for the tick margin and a descender («Ago», «28 ago», «Sep»), which 24 px clipped. */
+export const PLOT = { margin: { top: 8, right: 12, bottom: 0, left: 0 }, yAxisWidth: 40, xAxisHeight: 32 } as const;
 const lower = (month: string) => monthLabel(month).toLowerCase();
 const domId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "");
 
@@ -179,7 +180,7 @@ function DeliveryStatusCard({ status, drill }: { status: ClosuresSectionData["de
     <div>
       <h3 id={titleId} className="text-[15px] leading-[22px] font-semibold">Estado de entregas</h3>
       {total > 0 && <p className="mt-1 text-xs text-muted-foreground">
-        <Figure href={drill(target(), total)} label={`${seeLabel(total, "las", "vacante", "vacantes")} en el periodo`} className="font-medium">{number.format(total)}</Figure> vacantes en el periodo
+        <Figure href={drill(target(), total)} label={`${seeLabel(total, "las", "entrega", "entregas")} en el periodo`} className="font-medium">{number.format(total)}</Figure> {total === 1 ? "entrega" : "entregas"} en el periodo
       </p>}
     </div>
     {total === 0

@@ -25,7 +25,8 @@ const HELP: [string, string][] = [
 ];
 /** Contract §3.5: organic is every channel except manual (the d2b applications `channel` filter). */
 const ORGANIC_CHANNELS = "portal,careers_site,unknown";
-const see = (count: number, kind: string, tail: string) => `Ver ${count === 1 ? `1 postulación ${kind.replace(/s$/, "")}` : `las ${number.format(count)} postulaciones ${kind}`} ${tail}`;
+const SINGULAR: Record<string, string> = { orgánicas: "orgánica", manuales: "manual" };
+const see = (count: number, kind: "orgánicas" | "manuales", tail: string) => `Ver ${count === 1 ? `1 postulación ${SINGULAR[kind]}` : `las ${number.format(count)} postulaciones ${kind}`} ${tail}`;
 
 /** «Postulaciones» (artboard 09, last): applications per day, organic vs manual; a 7-day trailing average for 30 and 90 days. */
 export function ApplicationsSection({ state, window, drill }: { state: SectionState<OriginSection>; window: DashboardWindow; drill: Drill }) {
@@ -45,8 +46,8 @@ function ApplicationsCard({ data, window, drill }: { data: OriginSection; window
   const target = (channel: string, from = data.window.from, to = data.window.to): DashboardDrill => ({ kind: "applications", params: { from, to, channel } });
   const empty = organic + manual === 0;
   const legend = [
-    { key: "organic", label: "Orgánicas", total: organic, color: CHART_ACCENT, dot: "size-2", target: target(ORGANIC_CHANNELS), name: "orgánicas" },
-    { key: "manual", label: "Manuales", total: manual, color: CHART_MUTED, dot: "h-0.5 w-3", target: target("manual"), name: "manuales" },
+    { key: "organic", label: "Orgánicas", total: organic, color: CHART_ACCENT, dot: "size-2", target: target(ORGANIC_CHANNELS), name: "orgánicas" as const },
+    { key: "manual", label: "Manuales", total: manual, color: CHART_MUTED, dot: "h-0.5 w-3", target: target("manual"), name: "manuales" as const },
   ];
   return <article aria-labelledby={headingId} className={CARD}>
     <CardHead id={headingId} title="Postulaciones por día"

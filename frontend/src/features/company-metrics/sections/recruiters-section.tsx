@@ -122,7 +122,7 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
       {onTime.value === null ? <span className="text-muted-foreground">{NO_SAMPLE}</span>
         : <span className="inline-flex items-center justify-end gap-3">
           <span aria-hidden="true" className="h-2 w-28 overflow-hidden rounded-full bg-muted">
-            <span className="block h-full rounded-full" style={{ width: `${onTime.value * 100}%`, background: "color-mix(in oklab, var(--primary) 60%, var(--card))" }} />
+            <span className="block h-full rounded-full" style={{ width: `${onTime.value * 100}%`, background: "color-mix(in oklab, var(--primary) 60%, var(--pf-tint-base))" }} />
           </span>
           <Figure href={href(delivered("on_time"), onTime.numerator)} className="min-w-10 font-semibold"
             label={`${onTimeText.value} a tiempo: ver ${onTime.numerator === 1 ? "la 1 entrega a tiempo" : `las ${number.format(onTime.numerator)} entregas a tiempo`} de ${name}`}>{onTimeText.value}</Figure>

@@ -3,6 +3,12 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+// next/link's `replace` leaves no trace in the DOM; the stand-in shows it so «Volver» can be checked.
+vi.mock("next/link", async () => {
+  const { forwardRef, createElement } = await import("react");
+  return { default: forwardRef<HTMLAnchorElement, { href: string; replace?: boolean }>(({ href, replace, ...props }, ref) =>
+    createElement("a", { ...props, ref, href, "data-replace": replace ? "true" : undefined })) };
+});
 vi.mock("./actions", () => ({
   loadMetricsAccessAction: vi.fn(), loadRecruiterAction: vi.fn(), listVacanciesAction: vi.fn(), listReassignmentsAction: vi.fn(), loadAuditedDetailAction: vi.fn(),
 }));
@@ -45,6 +51,7 @@ it("shows the recruiter card in the artboard's order, with the period of the lin
   expect(recruiter).toHaveBeenCalledWith({ userId: marianaId, filters: { from: "2026-08-01", to: "2026-10-31" } });
   expect(screen.getByText("201 días hábiles en tramos · 11 vacantes · 1 ago 2026 – 31 oct 2026")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Volver a Métricas" })).toHaveAttribute("href", "/empresa/metricas?from=2026-08-01&to=2026-10-31");
+  expect(screen.getByRole("link", { name: "Volver a Métricas" })).toHaveAttribute("data-replace", "true");
   expect(within(region("Volumen")).getByText("Responsable en 8 · colabora en 2 · miembro en 3 · 5 nuevas")).toBeInTheDocument();
   expect(within(region("Volumen")).getByText("61 entregados en su tramo")).toBeInTheDocument();
   expect(within(region("Puntualidad")).getByText("1 tarde · 1 vencida")).toBeInTheDocument();

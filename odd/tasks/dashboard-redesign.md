@@ -279,3 +279,9 @@ detail): compare with the user's references, research modern dashboard patterns,
 - **L45** Backend `812903c8`: `GET /v2/me/company/dashboard/lists/vacancies` returns a response-level
   `positions: {covered, required}` over every filtered row (all pages, role scope, DD3); with `status=published` it equals
   `summary.positions`; always present (0/0 when empty); export unchanged; :8081 restarted.
+- **L46** T15/T16 rest (worker): dashboard «Posiciones» page reads the list `positions` («2 de 14 posiciones cubiertas en
+  8 vacantes publicadas; 12 por cubrir.»), applications columns follow the channel filter with an «Orgánicas» tab, fitted
+  applications y-axis (`yScale`), singular grammar, figure-named summaries, point CSV names, centred recruiter access card,
+  Volver with replace, dark hero tile `.pf-kpi-hero` and tint tokens, taller closures x-axis, pipeline label column.
+  Métricas month-point CSV names unchanged. Full suite: 572 files / 10360 tests passed, 2 skipped; tsc 0; lint 0 errors
+  (12 pre-existing warnings). Assess: no independent verifier (no high-risk item).

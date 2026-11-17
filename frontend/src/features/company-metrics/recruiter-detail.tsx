@@ -82,7 +82,7 @@ function RecruiterDetailWorkspace({ userId }: { userId: string }) {
   }, [userId, key, attempt]);
   const period = effectivePeriod(filters, today);
   const back = `/empresa/metricas?${serializeFilters(period)}`;
-  const backLink = <Button variant="ghost" className="min-h-10 w-fit" nativeButton={false} role="link" render={<Link href={back} />}><ArrowLeft aria-hidden="true" data-icon="inline-start" />Volver a Métricas</Button>;
+  const backLink = <Button variant="ghost" className="min-h-10 w-fit" nativeButton={false} role="link" render={<Link href={back} replace />}><ArrowLeft aria-hidden="true" data-icon="inline-start" />Volver a Métricas</Button>;
 
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
     {!(result && !result.ok && result.reason === "not_found") && backLink}

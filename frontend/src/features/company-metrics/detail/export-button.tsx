@@ -30,8 +30,11 @@ export function ExportDetailButton({ state }: { state: DetailState }) {
 
 /** A same-origin export route of the company detail pages; never an absolute URL. */
 export type ExportHref = `/api/company/${string}/export?${string}`;
-/** The button behind every «Exportar CSV» of a detail page: POST to its fixed same-origin route, download only on 200. */
-export function ExportCsvButton({ href, fallbackFile }: { href: ExportHref; fallbackFile: string }) {
+/**
+ * The button behind every «Exportar CSV» of a detail page: POST to its fixed same-origin route, download only on 200.
+ * `file` overrides the backend's name when the list covers less than the name says (a chart point inside the window).
+ */
+export function ExportCsvButton({ href, fallbackFile, file }: { href: ExportHref; fallbackFile: string; file?: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A message about previous filters would mislead once they change.
@@ -43,7 +46,7 @@ export function ExportCsvButton({ href, fallbackFile }: { href: ExportHref; fall
     try {
       const response = await fetch(href, { method: "POST", credentials: "same-origin" });
       if (!response.ok) { setError(await errorOf(response)); return; }
-      saveBlob(await response.blob(), filename(response.headers.get("content-disposition"), fallbackFile));
+      saveBlob(await response.blob(), file ?? filename(response.headers.get("content-disposition"), fallbackFile));
     } catch { setError(FAILED); }
     finally { setPending(false); }
   }

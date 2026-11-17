@@ -31,7 +31,7 @@ export function dashboardVacancyRow(overrides: Partial<DashboardVacancyRow> = {}
 }
 export function dashboardVacancies(overrides: Partial<DashboardVacancyList> = {}): DashboardVacancyList {
   return {
-    ...listHeader(), total: 2, facets: { status: { published: 2, paused: 1, closed: 4, finished: 0 } }, applied_filters: { status: "published" },
+    ...listHeader(), total: 2, facets: { status: { published: 2, paused: 1, closed: 4, finished: 0 } }, applied_filters: { status: "published" }, positions: { covered: 3, required: 5 },
     items: [dashboardVacancyRow(), dashboardVacancyRow({ vacancy: { draft_id: "30000000-0000-4000-8000-000000000002", title: null }, requester: null, responsible: null, in_process: 0, positions: { covered: 2, required: 2 } })],
     next_cursor: null, ...overrides,
   };

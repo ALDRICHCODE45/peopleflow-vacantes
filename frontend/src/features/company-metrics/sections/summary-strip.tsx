@@ -140,7 +140,7 @@ function Strip({ data, drill }: { data: MetricsSummary; drill: Drill }) {
   </KpiCard>;
 
   return <div className="grid grid-cols-2 gap-6 lg:grid-cols-12">
-    <article aria-labelledby={heroId} className={cn(CARD, "col-span-2 gap-3 bg-foreground text-background shadow-none ring-0 lg:col-span-4 lg:row-span-2")}>
+    <article aria-labelledby={heroId} className={cn(CARD, "pf-kpi-hero col-span-2 gap-3 bg-foreground text-background shadow-none ring-0 lg:col-span-4 lg:row-span-2")}>
       <h3 id={heroId} className="text-sm font-medium text-background/75">Entregas a tiempo</h3>
       {rate.value === null
         ? <p className={cn(MISSING, "text-background/75")}>{NO_SAMPLE}</p>

@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { MonthLinks, PLOT, useMonthClick, type MonthLink } from "@/features/company-metrics/sections/closures-section";
 import { CHART_ACCENT, CHART_GRID, CHART_MUTED } from "@/features/company-metrics/palette";
+import { plural } from "@/features/company-metrics/model";
 import { cn } from "@/lib/utils";
 import type { Drill } from "../drilldown";
 import { dayRange, shortDay, trailingAverage, weekdayDay } from "../format";
@@ -15,9 +16,30 @@ export function chartPoints(days: OriginSection["by_day"], averaged: boolean): C
   return averaged ? trailingAverage(days) : days.map(day => ({ ...day, from: day.date, organicSum: day.organic, manualSum: day.manual }));
 }
 
+/** About four steps of 1, 2, 2.5 or 5 × 10ⁿ; counts never step by a fraction (2.5 or below 1). */
+function niceStep(rough: number, whole: boolean): number {
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const steps = [1, 2, 2.5, 5, 10].map(factor => factor * magnitude).filter(step => !whole || (Number.isInteger(step) && step >= 1));
+  return steps.find(step => step >= rough) ?? (whole ? Math.max(1, Math.ceil(rough)) : 10 * magnitude);
+}
+/**
+ * The y-axis fitted to what the chart plots: raw daily counts take whole ticks, a 7-day average takes decimal ones, and
+ * the top tick is the first step at or above the largest value (a 1.7 peak ends at 2, not 4).
+ */
+export function yScale(points: ChartPoint[], averaged: boolean): { domain: [number, number]; ticks: number[]; allowDecimals: boolean } {
+  const whole = !averaged;
+  const max = Math.max(0, ...points.flatMap(point => [point.organic, point.manual]));
+  if (max === 0) return { domain: [0, 1], ticks: [0, 1], allowDecimals: !whole };
+  const step = niceStep(max / 4, whole);
+  const count = Math.ceil(max / step - 1e-9);
+  const ticks = Array.from({ length: count + 1 }, (_, index) => Number((index * step).toFixed(4)));
+  return { domain: [0, ticks[count]], ticks, allowDecimals: !whole };
+}
+
 const config = { organic: { label: "Orgánicas", color: CHART_ACCENT }, manual: { label: "Manuales", color: CHART_MUTED } } satisfies ChartConfig;
 const decimal = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat("es-MX");
+const tickNumber = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
 const longDate = new Intl.DateTimeFormat("es-MX", { timeZone: "UTC", day: "numeric", month: "long" });
 const long = (date: string) => longDate.format(new Date(`${date}T12:00:00Z`));
 /** «del 2 al 8 de noviembre», «del 16 de octubre al 8 de noviembre». */
@@ -34,9 +56,10 @@ export function ApplicationsChart({ points, averaged, drill }: { points: ChartPo
     const total = point.organicSum + point.manualSum;
     const when = averaged ? spanLong(point.from, point.date) : `del ${weekdayDay(point.date)}`;
     return { month: point.date, href: drill({ kind: "applications", params: { from: point.from, to: point.date } }, total),
-      label: `Ver las ${whole.format(total)} postulaciones ${when}: ${whole.format(point.organicSum)} orgánicas y ${whole.format(point.manualSum)} manuales` };
+      label: `${total === 1 ? "Ver 1 postulación" : `Ver las ${whole.format(total)} postulaciones`} ${when}: ${plural(point.organicSum, "orgánica", "orgánicas")} y ${plural(point.manualSum, "manual", "manuales")}` };
   });
   const click = useMonthClick(links);
+  const scale = yScale(points, averaged);
   const first = points[0];
   const last = points[points.length - 1];
   const summary = averaged
@@ -54,7 +77,8 @@ export function ApplicationsChart({ points, averaged, drill }: { points: ChartPo
           </defs>
           <CartesianGrid vertical={false} stroke={CHART_GRID} strokeDasharray="3 3" />
           <XAxis dataKey="date" height={PLOT.xAxisHeight} tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} tickFormatter={value => shortDay(String(value))} />
-          <YAxis width={PLOT.yAxisWidth} tickLine={false} axisLine={false} allowDecimals={false} />
+          <YAxis width={PLOT.yAxisWidth} tickLine={false} axisLine={false} domain={scale.domain} ticks={scale.ticks} allowDecimals={scale.allowDecimals}
+            tickFormatter={value => tickNumber.format(Number(value))} />
           <ChartTooltip cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
             content={({ active, payload }) => {
               const point = active ? (payload?.[0]?.payload as ChartPoint | undefined) : undefined;

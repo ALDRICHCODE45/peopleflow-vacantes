@@ -48,6 +48,8 @@ describe("Resumen strip (artboard 07)", () => {
     expect(pill(hero, "+17 pts")).toHaveAttribute("data-tone", "positive");
     expect(hero.getByText("17 puntos más que el periodo anterior")).toBeInTheDocument();
     expect(hero.getByText("vs periodo anterior")).toBeInTheDocument();
+    // `.pf-kpi-hero` (globals.css) keeps the inverted tile dark in dark mode instead of a near-white block.
+    expect(screen.getByRole("article", { name: "Entregas a tiempo" })).toHaveClass("pf-kpi-hero");
   });
 
   it("shows the four headline cards with their deltas, lower being better for days and reassignments", () => {

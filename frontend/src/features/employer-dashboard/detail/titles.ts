@@ -1,4 +1,4 @@
-import { CHANNEL_LABEL, dayLabel, momentLabel, plural, STAGE_KIND_LABEL, type StageKind } from "@/features/company-metrics/model";
+import { CHANNEL_LABEL, dayLabel, momentLabel, number, plural, STAGE_KIND_LABEL, type StageKind } from "@/features/company-metrics/model";
 import { VACANCY_UNAVAILABLE } from "@/features/company-metrics/detail/titles";
 import type { FilterChip } from "@/features/company-metrics/detail/detail-parts";
 import type { DashboardApplied, DashboardDetailPage } from "./model";
@@ -24,6 +24,9 @@ function vacancyTitle(state: DashboardDetailState, applied: DashboardApplied | u
   return vacancy.title?.trim() || VACANCY_UNAVAILABLE;
 }
 
+/** The board's «Posiciones» figures: the published vacancies sorted by open positions. */
+const positionsView = ({ params }: Pick<DashboardDetailState, "params">) => params.status === "published" && params.sort === "positions_open";
+
 /** The figure without its subjects: the breadcrumb's current page. */
 export function figureTitle({ kind, params }: DashboardDetailState): string {
   switch (kind) {
@@ -34,8 +37,8 @@ export function figureTitle({ kind, params }: DashboardDetailState): string {
     }
     case "deliveries": return params.state === "overdue" ? "Entregas vencidas" : params.state === "due_this_week" ? "Entregas que vencen esta semana" : "Entregas por atender";
     case "vacancies":
-      // «Posiciones» on the board opens the published vacancies with the most open positions first.
-      if (params.status === "published") return params.sort === "positions_open" ? "Posiciones por cubrir" : "Vacantes publicadas";
+      // «Posiciones» on the board (covered and open alike) opens the published vacancies with the most open positions first.
+      if (params.status === "published") return positionsView({ params }) ? "Posiciones de las vacantes publicadas" : "Vacantes publicadas";
       return "Vacantes";
     case "applications":
       if (params.channel === ORGANIC_CHANNELS) return "Postulaciones orgánicas";
@@ -83,8 +86,17 @@ export function summaryLine(state: DashboardDetailState, data: DashboardDetailPa
       if (state.params.state === "due_this_week") return [[plural(total, "entrega", "entregas"), true], [one ? " vence esta semana." : " vencen esta semana.", false]];
       if (state.params.state === "overdue") return [[plural(total, "entrega vencida", "entregas vencidas"), true], [" hoy.", false]];
       return [[plural(total, "entrega", "entregas"), true], [one ? " vencida o por vencer esta semana." : " vencidas o por vencer esta semana.", false]];
-    case "vacancies":
-      return state.params.status === "published" ? [[plural(total, "vacante publicada", "vacantes publicadas"), true], [" hoy.", false]] : [[plural(total, "vacante", "vacantes"), true], [".", false]];
+    case "vacancies": {
+      const published = plural(total, "vacante publicada", "vacantes publicadas");
+      if (positionsView(state)) {
+        // The list's own aggregate over every filtered row (not this page), so it states the figures the board linked.
+        const { covered, required } = data.page.positions;
+        if (required === 0 && covered === 0) return [[published, true], [" sin posiciones definidas.", false]];
+        return [[`${number.format(covered)} de ${plural(required, "posición", "posiciones")}`, true], [` ${required === 1 ? "cubierta" : "cubiertas"} en ${published}; `, false],
+          [number.format(Math.max(required - covered, 0)), true], [" por cubrir.", false]];
+      }
+      return state.params.status === "published" ? [[published, true], [" hoy.", false]] : [[plural(total, "vacante", "vacantes"), true], [".", false]];
+    }
     case "applications": return [[plural(total, "postulación", "postulaciones"), true], [" en el periodo.", false]];
   }
 }

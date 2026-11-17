@@ -34,7 +34,9 @@ export const dashboardCandidateListSchema = list(candidateListRowSchema, z.objec
   stalled: count,
 }));
 export const dashboardDeliveryListSchema = list(deliveryListRowSchema, z.object({ state: z.object({ overdue: count, due_this_week: count }) }));
-export const dashboardVacancyListSchema = list(dashboardVacancyRowSchema, z.object({ status: z.object({ published: count, paused: count, closed: count, finished: count }) }));
+/** Backend `812903c8`: `positions` sums every filtered row (all pages, role scope, DD3); always present, 0/0 when empty. */
+export const dashboardVacancyListSchema = list(dashboardVacancyRowSchema, z.object({ status: z.object({ published: count, paused: count, closed: count, finished: count }) }))
+  .extend({ positions: z.object({ covered: count, required: count }) });
 /** Its `total` is the sum of applications in the chosen channels, not the row count. */
 export const dashboardApplicationListSchema = list(applicationListRowSchema, z.object({ channel: z.object({ portal: count, careers_site: count, manual: count, unknown: count }) }));
 

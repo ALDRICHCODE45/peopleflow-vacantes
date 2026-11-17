@@ -97,6 +97,12 @@ export const applicationColumns: Column<ApplicationListRow>[] = [
   // Sums only the chosen channels, so the rows add up to the summary line.
   { id: "total", header: "Total", sort: "total", numeric: true, cell: row => <span className="font-semibold">{number.format(row.total)}</span> },
 ];
+/** Only the channels a `channel` filter chose (every one without it): the row's total sums exactly those, so the columns add up to it. */
+export function applicationColumnsFor(channel: string | undefined): Column<ApplicationListRow>[] {
+  const chosen = (channel ?? "").split(",").filter(Boolean);
+  if (chosen.length === 0) return applicationColumns;
+  return applicationColumns.filter(column => column.id === "vacancy" || column.id === "total" || chosen.includes(column.id));
+}
 
 /** Columns and rows of a page, typed together so a row is only ever read by its own columns. */
 export type Table = { columns: Column<never>[]; rows: { id: string; cells: ReactNode[] }[] };
@@ -111,12 +117,12 @@ export function detailTable(state: DetailState, data: DetailPage, context: CellC
     case "placements": return build(placementColumns, data.page.items, row => row.credit_id);
     case "reassignments": return build(reassignmentColumns, data.page.items, row => row.id);
     case "candidates": return build(candidateColumns, data.page.items, row => row.participation_id);
-    case "applications": return build(applicationColumns, data.page.items, row => row.vacancy.draft_id);
+    case "applications": return build(applicationColumnsFor(state.params.channel), data.page.items, row => row.vacancy.draft_id);
   }
 }
 /** The headers alone, for the skeleton before the first page. */
 export function detailColumns(state: DetailState & { kind: ListKind }): Column<never>[] {
   const columns = { deliveries: deliveryColumns(state.params.result === "overdue"), vacancies: vacancyColumns, placements: placementColumns, reassignments: reassignmentColumns,
-    candidates: candidateColumns, applications: applicationColumns }[state.kind];
+    candidates: candidateColumns, applications: applicationColumnsFor(state.params.channel) }[state.kind];
   return columns as Column<never>[];
 }

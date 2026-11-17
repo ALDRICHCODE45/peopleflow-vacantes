@@ -21,6 +21,8 @@ describe("Resumen (artboard 09)", () => {
     expect(within(hero).getByText("vs hace 30 días")).toBeInTheDocument();
     expect(within(hero).getByRole("img", { name: /Candidatos en proceso por día: de 125 el 9 oct a 143 hoy/ })).toBeInTheDocument();
     expect(hero).toHaveTextContent("En 28 vacantes publicadas");
+    // `.pf-kpi-hero` (globals.css) keeps the inverted tile dark in dark mode instead of a near-white block.
+    expect(hero).toHaveClass("pf-kpi-hero");
   });
 
   it("shows published vacancies, pool additions and covered positions with their bar", () => {

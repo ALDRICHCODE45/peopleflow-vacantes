@@ -527,6 +527,36 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
   }
 }
 
+/* Dashboards (`design/system.md` rules 6 and 9). Light tints mix toward the card; in dark mode the card is
+   near-black and `--primary` is deep, so they mix toward a mid grey instead and stay visible on the card and the
+   `bg-muted` track. «Sin meta» / «Por cubrir» gets the same treatment over `--border`. */
+:root {
+  --pf-tint-base: var(--card);
+  --pf-tone-none: var(--border);
+}
+.dark {
+  --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
+  --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
+    --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
+  }
+}
+/* The hero KPI tile is inverted (`bg-foreground text-background`). In dark mode that is a near-white block, so the
+   tile swaps its two tokens: a dark violet surface with light text, dark on dark like the rest of the board. */
+.dark .pf-kpi-hero {
+  --foreground: color-mix(in oklab, var(--primary) 30%, var(--card));
+  --background: var(--card-foreground);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .pf-kpi-hero {
+    --foreground: color-mix(in oklab, var(--primary) 30%, var(--card));
+    --background: var(--card-foreground);
+  }
+}
+
 /* Pipeline presentation: stage paint is derived only from shared theme tokens.
    A single recipe covers columns, headings, dots and the sheet identity badge. */
 .stage-neutral { --stage: var(--muted-foreground); }

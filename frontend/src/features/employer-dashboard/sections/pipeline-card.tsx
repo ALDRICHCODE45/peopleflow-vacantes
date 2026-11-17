@@ -12,7 +12,7 @@ import type { PipelineSection } from "../model";
 import { CardHead, FootLink } from "../section";
 
 type Stage = PipelineSection["stages"][number];
-const STAGE_BAR = "color-mix(in oklab, var(--primary) 28%, var(--card))";
+const STAGE_BAR = "color-mix(in oklab, var(--primary) 28%, var(--pf-tint-base))";
 const see = (count: number, singular: string, pluralForm: string, tail = "") => `Ver ${count === 1 ? `el 1 ${singular}` : `los ${number.format(count)} ${pluralForm}`}${tail}`;
 
 /** «Pipeline por etapa» (artboard 09, 4 columns): today's candidates per stage kind, stalled people and the stage that holds most of them. */

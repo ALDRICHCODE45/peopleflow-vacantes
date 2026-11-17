@@ -143,7 +143,7 @@ export type SummaryPart = readonly [string, boolean];
  * «4 de 5 entregas de Jorge Paredes llegaron tarde en el periodo — 80 %» for one delivery result, against the same
  * universe as the board's on-time rate (a tiempo + tarde + vencidas) or every delivery for pending and sin meta;
  * candidates are counted today (current state); applications by their sum in the chosen channels, never by the rows;
- * «N registros» otherwise.
+ * otherwise the count with the figure it came from («Vacantes asignadas: 12 en el periodo.»).
  */
 export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[] {
   const result = single(state.params.result);
@@ -155,7 +155,7 @@ export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[]
     const percent = share(count, of);
     if (percent !== null) {
       const person = subjectPerson(state, data.page.applied_filters);
-      return [[`${number.format(count)} de ${number.format(of)}`, true], [` entregas${person ? ` de ${person}` : ""} ${VERB[result][count === 1 ? 0 : 1]} en el periodo — `, false], [percent, true], [".", false]];
+      return [[`${number.format(count)} de ${number.format(of)}`, true], [` ${of === 1 ? "entrega" : "entregas"}${person ? ` de ${person}` : ""} ${VERB[result][count === 1 ? 0 : 1]} en el periodo — `, false], [percent, true], [".", false]];
     }
   }
   if (data.kind === "candidates") {
@@ -163,5 +163,13 @@ export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[]
     return [[count, true], [" hoy.", false]];
   }
   if (data.kind === "applications") return [[plural(data.page.total, "postulación", "postulaciones"), true], [" en el periodo.", false]];
-  return [[plural(data.page.total, "registro", "registros"), false]];
+  // Rule 16: the line names the figure. A bare kind reads «11 entregas en el periodo.»; a filtered one leads with its title.
+  const [title, singular, pluralNoun] = BARE[data.kind];
+  const figure = figureTitle(state);
+  if (figure === title) return [[plural(data.page.total, singular, pluralNoun), true], [" en el periodo.", false]];
+  return [[`${figure}: `, false], [number.format(data.page.total), true], [" en el periodo.", false]];
 }
+const BARE: Record<"deliveries" | "vacancies" | "placements" | "reassignments", [string, string, string]> = {
+  deliveries: ["Entregas", "entrega", "entregas"], vacancies: ["Vacantes", "vacante", "vacantes"],
+  placements: ["Placements", "placement", "placements"], reassignments: ["Reasignaciones", "reasignación", "reasignaciones"],
+};

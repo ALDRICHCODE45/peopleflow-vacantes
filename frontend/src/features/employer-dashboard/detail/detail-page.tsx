@@ -19,7 +19,7 @@ import { AccessCard } from "../workspace";
 import { dashboardColumns, dashboardTable } from "./columns";
 import { ExportDashboardButton } from "./export-button";
 import type { DashboardDetailPage as DetailPage } from "./model";
-import { boardHref, detailHref, FACET_PARAM, parseDashboardDetail, SORTS, withParams, type DashboardDetailState } from "./query";
+import { boardHref, detailHref, FACET_PARAM, ORGANIC_CHANNELS, parseDashboardDetail, SORTS, withParams, type DashboardDetailState } from "./query";
 import { detailTitle, figureTitle, filterChips, freshnessLine, STATE_LABEL, STATUS_LABEL, summaryLine } from "./titles";
 
 const CHANGED = "employer-dashboard-detail-url-change";
@@ -81,7 +81,12 @@ function statusOptions(data: DetailPage): { label: string; options: FacetOption[
       const all = Object.values(data.page.facets.status).reduce((sum, count) => sum + count, 0);
       return { label: "Estado de la vacante", options: [{ value: undefined, label: "Todas", count: all }, { value: "published", label: STATUS_LABEL.published, count: published }] };
     }
-    case "applications": return { label: "Canal", options: facetOptions("Todos", Object.entries(data.page.facets.channel).map(([key, count]) => [key, CHANNEL_LABEL[key as keyof typeof CHANNEL_LABEL], count])) };
+    case "applications": {
+      // The board's «Orgánicas» opens every channel but manual, so it is a choice of its own (selected, like the others).
+      const { channel } = data.page.facets;
+      const [all, ...each] = facetOptions("Todos", Object.entries(channel).map(([key, count]) => [key, CHANNEL_LABEL[key as keyof typeof CHANNEL_LABEL], count]));
+      return { label: "Canal", options: [all, { value: ORGANIC_CHANNELS, label: "Orgánicas", count: channel.portal + channel.careers_site + channel.unknown }, ...each] };
+    }
   }
 }
 

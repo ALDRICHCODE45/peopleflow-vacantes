@@ -58,7 +58,8 @@ export function useCursorPages<T extends { page: { items: unknown[]; next_cursor
 export function DetailHeading({ back, crumb, title, freshness, actions }: { back: { href: string; label: string }; crumb: string; title: string; freshness?: string; actions?: ReactNode }) {
   return <div className="flex flex-col gap-2">
     <nav aria-label="Ruta" className="flex items-center gap-1 text-sm text-muted-foreground">
-      <Link href={back.href} className="-ml-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 font-medium text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+      {/* Replace: going back to the board must not leave this list behind the browser's Back. */}
+      <Link href={back.href} replace className="-ml-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 font-medium text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
         <ChevronLeft aria-hidden="true" className="size-4" />{back.label}
       </Link>
       <span aria-hidden="true">/</span>

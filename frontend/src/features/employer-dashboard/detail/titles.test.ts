@@ -16,7 +16,7 @@ describe("dashboard detail words", () => {
     expect(figureTitle(state("kind=deliveries&state=due_this_week"))).toBe("Entregas que vencen esta semana");
     expect(figureTitle(state("kind=deliveries"))).toBe("Entregas por atender");
     expect(figureTitle(state("kind=vacancies&status=published"))).toBe("Vacantes publicadas");
-    expect(figureTitle(state("kind=vacancies&status=published&sort=positions_open"))).toBe("Posiciones por cubrir");
+    expect(figureTitle(state("kind=vacancies&status=published&sort=positions_open"))).toBe("Posiciones de las vacantes publicadas");
     expect(figureTitle(state("kind=vacancies"))).toBe("Vacantes");
     expect(figureTitle(state("kind=applications&channel=portal,careers_site,unknown"))).toBe("Postulaciones orgánicas");
     expect(figureTitle(state("kind=applications&channel=manual"))).toBe("Postulaciones de registro manual");
@@ -52,6 +52,8 @@ describe("dashboard detail words", () => {
     expect(text(summaryLine(state("kind=deliveries&state=overdue"), { kind: "deliveries", page: dashboardDeliveries() }))).toBe("2 entregas vencidas hoy.");
     expect(text(summaryLine(state("kind=deliveries&state=due_this_week"), { kind: "deliveries", page: dashboardDeliveries({ total: 1 }) }))).toBe("1 entrega vence esta semana.");
     expect(text(summaryLine(state("kind=vacancies&status=published"), { kind: "vacancies", page: dashboardVacancies() }))).toBe("2 vacantes publicadas hoy.");
+    expect(text(summaryLine(state("kind=vacancies&status=published&sort=positions_open"), { kind: "vacancies", page: dashboardVacancies({ total: 8, positions: { covered: 2, required: 14 } }) })))
+      .toBe("2 de 14 posiciones cubiertas en 8 vacantes publicadas; 12 por cubrir.");
     expect(text(summaryLine(state("kind=applications"), { kind: "applications", page: dashboardApplications() }))).toBe("154 postulaciones en el periodo.");
   });
 

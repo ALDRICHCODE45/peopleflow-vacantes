@@ -71,6 +71,11 @@ describe("access", () => {
     access.mockResolvedValue({ kind: "restricted" });
     render(<CompanyMetricsPage />);
     expect(await screen.findByText("Métricas restringidas")).toBeInTheDocument();
+    // «Mi historial de vacantes» is only named when the recruiter's navigation has it (prototype flag, off here).
+    expect(screen.getByText("Solo el owner y los stakeholders de la empresa pueden consultar las métricas.")).toBeInTheDocument();
+    expect(screen.queryByText(/Mi historial de vacantes/)).not.toBeInTheDocument();
+    // Centred in the page like the stakeholder's «Sección no disponible» card.
+    expect(screen.getByText("Métricas restringidas").closest(".max-w-xl")?.parentElement).toHaveClass("flex-1", "items-center", "justify-center");
     expect(summary).not.toHaveBeenCalled();
     for (const action of sectionActions) expect(action).not.toHaveBeenCalled();
   });

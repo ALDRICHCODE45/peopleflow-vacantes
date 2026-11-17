@@ -71,3 +71,13 @@ it("never builds a list path from an unknown kind and rejects a page that is not
   vi.stubGlobal("fetch", ok({ ...dashboardCandidates(), definitions_version: undefined }));
   expect(await listDashboard("x", "candidates", new URLSearchParams())).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
 });
+
+it("reads the vacancies list's positions over every filtered row and fails closed without them", async () => {
+  const body = dashboardVacancies({ positions: { covered: 2, required: 14 } });
+  vi.stubGlobal("fetch", ok(body));
+  expect(await listDashboard("x", "vacancies", new URLSearchParams())).toMatchObject({ ok: true, data: { kind: "vacancies", page: { positions: { covered: 2, required: 14 } } } });
+  for (const positions of [undefined, null, { covered: 2 }, { covered: -1, required: 14 }, { covered: 1.5, required: 14 }]) {
+    vi.stubGlobal("fetch", ok({ ...body, positions }));
+    expect(await listDashboard("x", "vacancies", new URLSearchParams())).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
+  }
+});
