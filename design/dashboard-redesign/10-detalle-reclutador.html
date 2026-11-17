@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fernanda Ortiz · Métricas · PeopleFlow</title>
+<style>
+/* base:start */
+:root{
+  --background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;
+  --primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);
+  --secondary:#F1EEF7;--muted:#F1EEF7;--accent:#F1EEF7;--muted-foreground:#6B6480;
+  --border:#E4DFF0;--input:#E4DFF0;--destructive:oklch(0.577 0.245 27.325);--ring:oklch(0.708 0 0);
+  --brand-decorative-strong:oklch(0.54 0.15 292.581);
+  --status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);
+  --radius:0.625rem;
+  --chart-accent:var(--primary);
+  --hero-bg:var(--foreground);--hero-fg:var(--background);
+  --hero-accent:oklch(0.70 0.14 292.759);--hero-success:oklch(0.78 0.14 155);
+  /* delivery / deadline palette (system.md rule 9) */
+  --d-ok:var(--primary);
+  --d-late:color-mix(in oklab,var(--primary) 45%,var(--card));
+  --d-pend:color-mix(in oklab,var(--muted-foreground) 35%,var(--card));
+  --d-over:var(--destructive);
+  --d-none:var(--border);
+  --font-sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+.dark{
+  --background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;
+  --primary:oklch(0.432 0.232 292.759);--secondary:#171226;--muted:#171226;--accent:#171226;
+  --muted-foreground:#A79FBF;--border:#262233;--input:#262233;--destructive:oklch(0.704 0.191 22.216);
+  --brand-decorative-strong:oklch(0.70 0.14 292.759);
+  --status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);
+  --hero-accent:oklch(0.54 0.15 292.581);--hero-success:oklch(0.46 0.13 152);
+  --chart-accent:var(--brand-decorative-strong);
+  --d-ok:var(--brand-decorative-strong);
+  --d-late:color-mix(in oklab,var(--brand-decorative-strong) 45%,var(--card));
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--brand-decorative-strong);outline-offset:2px;border-radius:6px}
+.skip{position:absolute;left:16px;top:-48px;z-index:40;background:var(--card);padding:10px 14px;border-radius:8px}
+.skip:focus{top:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted-foreground)}
+
+/* chrome */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:24px;padding:24px 16px;background:var(--card);border-right:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px;font-size:16px;font-weight:600}
+.brand-mark{width:32px;height:32px;border-radius:calc(var(--radius)*.8);background:var(--primary);display:grid;place-items:center}
+.brand small{display:block;font-size:12px;line-height:16px;font-weight:400;color:var(--muted-foreground)}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 12px;border-radius:var(--radius);font-weight:500;color:var(--muted-foreground)}
+.nav a:hover{background:var(--muted);color:var(--foreground)}
+.nav a[aria-current="page"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong)}
+.dark .nav a[aria-current="page"]{color:var(--foreground)}
+.user{margin-top:auto;display:flex;align-items:center;gap:12px;padding:8px}
+.avatar{width:32px;height:32px;border-radius:999px;background:var(--secondary);display:grid;place-items:center;font-size:12px;font-weight:500;color:var(--foreground);flex:none}
+.user b{display:block;font-weight:500}
+.user span{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.icon-btn{margin-left:auto;width:40px;height:40px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);display:grid;place-items:center;color:var(--muted-foreground)}
+.icon-btn:hover{color:var(--foreground);background:var(--muted)}
+main{padding:32px;min-width:0}
+.page{max-width:1128px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+
+/* header + controls */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.head h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.01em}
+.head .lead{margin-top:8px;color:var(--muted-foreground)}
+.head .fresh{margin-top:8px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.head-actions{display:flex;align-items:center;gap:12px;flex:none}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden}
+.seg button{min-height:40px;padding:0 14px;border:0;background:transparent;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button:hover{color:var(--foreground);background:var(--muted)}
+.seg button[aria-pressed="true"]{background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong);font-weight:600}
+.dark .seg button[aria-pressed="true"]{color:var(--foreground)}
+.seg button:focus-visible{outline-offset:-3px}
+.seg .c{margin-left:6px;font-variant-numeric:tabular-nums;color:var(--muted-foreground);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:var(--radius);font-weight:500;border:1px solid transparent;background:transparent;white-space:nowrap}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{background:color-mix(in srgb,var(--primary) 88%,var(--foreground))}
+.btn-outline{background:var(--card);border-color:var(--border)}
+.btn-outline:hover{background:var(--muted)}
+.btn-ghost{color:var(--muted-foreground);padding:0 12px}
+.btn-ghost:hover,.btn-ghost[aria-expanded="true"]{background:var(--muted);color:var(--foreground)}
+
+/* sections + cards */
+.sec{display:flex;flex-direction:column;gap:16px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px}
+.sec-head h2{font-size:18px;line-height:28px;font-weight:600}
+.tools{display:flex;align-items:center;gap:4px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:stretch}
+.c8{grid-column:span 8}.c6{grid-column:span 6}.c4{grid-column:span 4}.c12{grid-column:span 12}
+.card{position:relative;background:var(--card);border-radius:calc(var(--radius)*1.4);padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0;
+  box-shadow:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent)}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.card-head h3{font-size:15px;line-height:22px;font-weight:600}
+.cap{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.card-head .cap{margin-top:4px}
+.new{display:inline-flex;align-items:center;height:18px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted-foreground) 60%,transparent);border-radius:6px;font-size:11px;line-height:16px;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+
+/* drillable figure (rule 16) */
+.fig{color:inherit;border-radius:4px;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;text-decoration-thickness:1px}
+.fig:hover,.fig:focus-visible{text-decoration-color:currentColor}
+.fig:focus-visible{outline-offset:2px}
+svg a:focus-visible{outline:none}
+svg a:focus-visible .hit{stroke:var(--brand-decorative-strong);stroke-width:2;fill:color-mix(in srgb,var(--primary) 6%,transparent)}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px;white-space:nowrap}
+td{padding:12px;height:56px;white-space:nowrap;vertical-align:middle}
+th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}
+tbody tr{border-top:1px solid var(--border)}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:color-mix(in srgb,var(--muted) 60%,transparent)}
+
+/* popovers */
+.pop{position:absolute;z-index:30;width:360px;background:var(--popover);border-radius:calc(var(--radius)*1.4);padding:20px;
+  box-shadow:0 12px 32px color-mix(in srgb,var(--foreground) 14%,transparent),0 0 0 1px var(--border)}
+.pop[hidden]{display:none}
+.pop h3{font-size:15px;line-height:22px;font-weight:600}
+.pop dl{margin:12px 0 0}
+.pop dd+dt{margin-top:12px}
+.pop dt{font-weight:500}
+.pop dd{margin:4px 0 0;color:var(--muted-foreground)}
+.pop .new{margin-left:6px;vertical-align:1px}
+.field{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.field label{font-weight:500}
+.field select{min-height:40px;border:1px solid var(--input);border-radius:var(--radius);background:var(--card);padding:0 12px}
+.pop-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+/* artboard-only design control */
+.design-ctl{position:fixed;top:12px;right:16px;z-index:50;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;
+  border:1.5px dashed var(--brand-decorative-strong);border-radius:var(--radius);background:color-mix(in srgb,var(--card) 92%,transparent);
+  color:var(--brand-decorative-strong);font-size:12px;font-weight:600}
+.design-ctl small{font-weight:500;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+
+/* skeleton */
+.sk{display:block;border-radius:6px;background:var(--muted)}
+.dark .sk{background:var(--border)}
+@media (prefers-reduced-motion:no-preference){
+  .sk{background:linear-gradient(90deg,var(--muted) 0%,color-mix(in srgb,var(--border) 70%,var(--muted)) 50%,var(--muted) 100%);background-size:200% 100%;animation:sh 1.4s linear infinite}
+  .dark .sk{background:linear-gradient(90deg,var(--border) 0%,color-mix(in srgb,var(--muted-foreground) 25%,var(--border)) 50%,var(--border) 100%);background-size:200% 100%;animation:sh 1.4s linear infinite}
+  @keyframes sh{from{background-position:100% 0}to{background-position:-100% 0}}
+  .nav a,.btn,.seg button,.icon-btn,.fig{transition:background-color .15s ease,color .15s ease,text-decoration-color .15s ease}
+}
+@media (max-width:1180px){.grid>*{grid-column:span 12}.head{flex-direction:column;align-items:flex-start}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center}.nav{flex-direction:row;flex-wrap:wrap}main{padding:24px}.head-actions{flex-wrap:wrap}}
+/* base:end */
+/* shared dashboard parts (same recipes as 07 / 09) */
+.kpi{gap:12px}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:20px}
+.kpi-label{font-size:14px;line-height:20px;font-weight:500;color:var(--muted-foreground)}
+.kpi-value{font-size:32px;line-height:40px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi-value small{font-size:14px;line-height:20px;font-weight:500;letter-spacing:0;color:var(--muted-foreground);margin-left:4px}
+.kpi-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.kpi-line .fig{color:var(--foreground);font-weight:500;font-variant-numeric:tabular-nums}
+.chart{display:block;width:100%;height:auto;overflow:visible}
+.grid-l{stroke:var(--border);stroke-dasharray:3 3}
+.ax{fill:var(--muted-foreground);font-size:12px;font-family:var(--font-sans);font-variant-numeric:tabular-nums}
+.stack{display:flex;gap:2px;height:12px;border-radius:999px;overflow:hidden}
+.stack a,.stack i{display:block;height:100%}
+.stack a:hover{filter:brightness(1.08)}
+.stack a:focus-visible{outline:2px solid var(--foreground);outline-offset:-2px;border-radius:0}
+.list{list-style:none;margin:0;padding:0}
+.list>li+li{border-top:1px solid var(--border)}
+.sw-ok{background:var(--d-ok)}.sw-late{background:var(--d-late)}.sw-pend{background:var(--d-pend)}.sw-over{background:var(--d-over)}.sw-none{background:var(--d-none)}
+.dot{width:8px;height:8px;border-radius:999px;flex:none;display:inline-block}
+.big{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.big>.fig{font-size:44px;line-height:52px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.big span{color:var(--muted-foreground)}
+.mid{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}
+.mid .fig,.mid b{font-size:32px;line-height:40px;font-weight:600;font-variant-numeric:tabular-nums}
+.mid span{color:var(--muted-foreground)}
+.keys{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px;color:var(--muted-foreground)}
+.keys span{display:inline-flex;align-items:center;gap:8px}
+.keys i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.keys .fig,.keys b{color:var(--foreground);font-weight:600;font-variant-numeric:tabular-nums}
+.sub-h{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground)}
+.rows-mini>li{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px}
+.rows-mini .fig,.rows-mini b{font-weight:500;font-variant-numeric:tabular-nums}
+.hbars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:16px}
+.hbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}
+.hbar .lbl{font-weight:500}
+.hbar .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.hbar-track{grid-column:1 / -1;height:10px;border-radius:999px;background:var(--muted);overflow:hidden}
+.hbar-track i{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--muted-foreground) 40%,var(--card))}
+.hbar.top .hbar-track i{background:var(--chart-accent)}
+.badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:calc(var(--radius)*.8);font-size:12px;font-weight:500;white-space:nowrap;
+  border:1px solid var(--border);background:var(--muted);color:var(--muted-foreground)}
+.badge.st{background:var(--card);color:var(--foreground)}
+/* progressive loading (rule 17), same mechanism as 07 */
+.sk-layer{position:absolute;inset:0;pointer-events:none}
+.sk-layer .sk{position:absolute}
+.loading [data-load] .card>*:not(.sk-layer){visibility:hidden}
+.ph-label{position:absolute;padding:4px 10px;border-radius:999px;background:var(--background);border:1px dashed var(--border);left:50%;top:50%;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted-foreground);white-space:nowrap}
+[data-load="near"] .sk-layer .sk{animation:none;background:color-mix(in srgb,var(--border) 55%,transparent)}
+.loading [data-load="near"] .card{box-shadow:inset 0 0 0 1px var(--border);background:transparent}
+.loading [data-load="near"] .sec-head .btn-ghost{visibility:hidden}
+
+/* ---- 10 · recruiter detail ---- */
+[hidden]{display:none!important}
+.frame{container:frame / inline-size}
+.design-bar{position:fixed;top:12px;right:16px;z-index:50;display:flex;gap:8px}
+.design-bar .design-ctl{position:static}
+.crumb{display:flex;align-items:center;gap:4px;font-size:14px;color:var(--muted-foreground);margin-bottom:-24px}
+.crumb a{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 8px;margin-left:-8px;border-radius:8px;font-weight:500;color:var(--brand-decorative-strong)}
+.crumb a:hover{background:var(--muted)}
+.crumb svg.i{width:14px;height:14px}
+.crumb [aria-current]{color:var(--foreground);font-weight:500}
+.person{display:flex;align-items:center;gap:16px;min-width:0}
+.avatar.lg{width:48px;height:48px;font-size:16px;background:color-mix(in srgb,var(--primary) 12%,var(--card));color:var(--brand-decorative-strong)}
+.dark .avatar.lg{color:var(--foreground)}
+.name-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}
+.strip{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px}
+.strip>.kpi{grid-column:span 3}
+.card-head .fig{color:inherit}
+.cap .fig{color:var(--foreground);font-weight:500}
+/* monthly small multiples: one card, three plots side by side, no tinted panels */
+.mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:40px}
+.mini figure{margin:0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.mini figcaption{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.mini figcaption b{font-size:14px;line-height:20px;font-weight:500}
+.mini .keys{font-size:12px;line-height:16px;gap:6px 14px}
+.mini .keys i{width:8px;height:8px;border-radius:999px}
+.b-n{fill:color-mix(in srgb,var(--muted-foreground) 40%,var(--card))}
+.f-ok{fill:var(--d-ok)}.f-late{fill:var(--d-late)}.f-over{fill:var(--d-over)}
+.val-t{fill:var(--foreground);font-size:12px;font-weight:600;font-family:var(--font-sans);font-variant-numeric:tabular-nums}
+.val-z{fill:var(--muted-foreground);font-weight:400}
+.hit{fill:transparent}
+svg a:hover .hit{fill:color-mix(in srgb,var(--primary) 5%,transparent)}
+svg a:focus-visible{outline:none}
+svg a:focus-visible .hit{stroke:var(--brand-decorative-strong);stroke-width:2;fill:color-mix(in srgb,var(--primary) 6%,transparent)}
+.fig{color:inherit;border-radius:4px;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;text-decoration-thickness:1px}
+.fig:hover,.fig:focus-visible{text-decoration-color:currentColor}
+button.fig{border:0;background:transparent;padding:0;font:inherit;cursor:pointer}
+/* vacancy table (≤ 6 columns, rule 12) */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;line-height:16px;font-weight:500;color:var(--muted-foreground);text-align:left;padding:0 12px 12px;white-space:nowrap}
+td{padding:12px;height:64px;vertical-align:middle}
+th:first-child,td:first-child{padding-left:0}th:last-child,td:last-child{padding-right:0}
+tbody tr{border-top:1px solid var(--border)}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:color-mix(in srgb,var(--muted) 60%,transparent)}
+.vac a{font-weight:500;color:var(--brand-decorative-strong)}
+.vac a:hover{text-decoration:underline;text-underline-offset:3px}
+.two small,.vac small{display:block;font-size:12px;line-height:16px;color:var(--muted-foreground);margin-top:2px}
+.two small .fig{color:var(--foreground);font-weight:500}
+.miss{color:var(--muted-foreground)}
+.n .fig{font-weight:600}
+.mrows{display:none}
+.mrows a{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 0}
+.mrows .t{flex:1;min-width:0}
+.mrows .t b{display:block;font-weight:500;color:var(--brand-decorative-strong)}
+.mrows .t small{display:block;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.mrows svg.i{color:var(--muted-foreground)}
+.month-table td{height:48px}
+.sheet-list li{display:flex;flex-direction:column;padding:10px 0}
+.sheet-list small{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.pop .foot{margin-top:12px;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.field input{min-height:40px;border:1px solid var(--input);border-radius:var(--radius);background:var(--card);padding:0 12px;font:inherit;color:inherit}
+.range{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.topbar{display:none;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--border)}
+/* 390 px preview: the frame narrows and the container rules below take over (rule 14) */
+.m390{background:color-mix(in srgb,var(--muted-foreground) 14%,var(--background))}
+.m390 .frame{width:390px;margin:72px auto 40px;background:var(--background);border-radius:24px;overflow:hidden;
+  box-shadow:0 0 0 1px var(--border),0 12px 32px color-mix(in srgb,var(--foreground) 14%,transparent)}
+.m390 .app{min-height:auto}
+@container frame (max-width:560px){
+  .app{grid-template-columns:1fr}
+  .side{display:none}
+  .topbar{display:flex}
+  main{padding:16px 16px 32px}
+  .page{gap:32px}
+  .crumb{margin-bottom:-20px}
+  .head{flex-direction:column;align-items:stretch;gap:16px}
+  .person{gap:12px}
+  .avatar.lg{width:40px;height:40px;font-size:14px}
+  .head h1{font-size:22px;line-height:28px}
+  .head-actions{width:100%}
+  .seg.period{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  .seg.period button{white-space:normal}
+  .seg.period button+button{border-left:0}
+  .seg.period button:nth-child(2n){border-left:1px solid var(--border)}
+  .seg.period button:nth-child(n+3){border-top:1px solid var(--border)}
+  .sec-head{flex-wrap:wrap;gap:8px}
+  .sec-head h2{font-size:17px}
+  .grid{gap:16px}
+  .grid>*{grid-column:span 12}
+  .strip{gap:12px}
+  .strip>.kpi{grid-column:span 6;padding:16px}
+  .kpi-value{font-size:28px;line-height:36px}
+  .big>.fig{font-size:36px;line-height:44px}
+  .mini{grid-template-columns:1fr;gap:32px}
+  .vac-table{display:none}
+  .mrows{display:block}
+  .month-table,.month-table tbody{display:block}
+  .month-table thead{display:none}
+  .month-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 16px;padding:12px 0}
+  .month-table td{height:auto;padding:0;display:flex;justify-content:space-between;gap:8px;text-align:left}
+  .month-table tbody th{grid-column:1 / -1;padding:0!important;font-weight:600!important}
+  .month-table td[data-l]::before{content:attr(data-l);color:var(--muted-foreground)}
+}
+@media (prefers-reduced-motion:no-preference){.fig{transition:text-decoration-color .15s ease}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></symbol>
+  <symbol id="i-pool" viewBox="0 0 24 24"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><circle cx="12" cy="11" r="3"/><rect x="3" y="4" width="18" height="18" rx="2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-audit" viewBox="0 0 24 24"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></symbol>
+  <symbol id="i-searchx" viewBox="0 0 24 24"><path d="m13.5 8.5-5 5M8.5 8.5l5 5"/><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></symbol>
+</svg>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+<div class="design-bar">
+  <button class="design-ctl" id="design-load" type="button" aria-pressed="false"><small>Diseño</small><span>Ver estado de carga</span></button>
+  <button class="design-ctl" id="design-390" type="button" aria-pressed="false"><small>Diseño</small><span>Ver a 390 px</span></button>
+  <button class="design-ctl" id="design-former" type="button" aria-pressed="false"><small>Diseño</small><span>Ver como ex miembro</span></button>
+</div>
+<div class="frame">
+<div class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M10.5 10.5l3 3"/></svg></span>
+    <span>PeopleFlow</span>
+  </div>
+  <button class="icon-btn" type="button" aria-label="Abrir menú"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
+</div>
+<div class="app">
+<aside class="side" aria-label="Barra lateral">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M10.5 10.5l3 3"/></svg></span>
+    <span>PeopleFlow<small>Trust People Company</small></span>
+  </div>
+  <nav class="nav" aria-label="Principal">
+    <a href="09-dashboard-empresa.html"><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-brief"/></svg>Vacantes</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-pool"/></svg>Base de talento</a>
+    <a href="07-metricas-combinada.html?from=2026-08-20&amp;to=2026-11-17" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>Métricas</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-team"/></svg>Equipo</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-audit"/></svg>Auditoría</a>
+    <a href="#"><svg class="i" aria-hidden="true"><use href="#i-cog"/></svg>Configuración</a>
+  </nav>
+  <div class="user">
+    <span class="avatar" aria-hidden="true">MT</span>
+    <div><b>Mariana Torres</b><span>Owner</span></div>
+    <button class="icon-btn" id="theme" type="button" aria-label="Cambiar a tema oscuro"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button>
+  </div>
+</aside>
+
+<main id="contenido" tabindex="-1">
+<div class="page">
+  <!-- Back keeps the board window only (period); never the recruiter as a filter chip (L47) -->
+  <nav class="crumb" aria-label="Ruta">
+    <a href="07-metricas-combinada.html?from=2026-08-20&amp;to=2026-11-17"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>Métricas</a>
+    <svg class="i" aria-hidden="true"><use href="#i-chev"/></svg>
+    <span aria-current="page">Fernanda Ortiz</span>
+  </nav>
+
+  <header class="head">
+    <div class="person">
+      <span class="avatar lg" aria-hidden="true">FO</span>
+      <div>
+        <div class="name-line"><h1>Fernanda Ortiz</h1><span class="badge" id="former" title="Ya no pertenece a la empresa; su historial se conserva" hidden>Ex miembro</span></div>
+        <p class="fresh">Actualizado hoy 10:42 · 20 ago – 17 nov 2026 · Definiciones v2</p>
+      </div>
+    </div>
+    <div class="head-actions">
+      <div class="seg period" role="group" aria-label="Periodo">
+        <button type="button" aria-pressed="false">30 días</button>
+        <button type="button" aria-pressed="true">90 días</button>
+        <button type="button" aria-pressed="false">12 meses</button>
+        <button type="button" aria-pressed="false" data-panel aria-haspopup="dialog" aria-controls="custom" aria-expanded="false">Personalizado</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1 · Resumen: four KPIs, no ⓘ, one context line each -->
+  <section class="sec" aria-labelledby="s-res" data-load="view">
+    <div class="sec-head">
+      <h2 id="s-res">Resumen</h2>
+      <button class="btn btn-ghost" type="button" data-help="resumen" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="strip">
+      <article class="card kpi" aria-labelledby="k1">
+        <div class="kpi-top"><h3 class="kpi-label" id="k1">Vacantes asignadas</h3></div>
+        <p class="kpi-value"><a class="fig" data-dd="kind=vacancies&amp;scope=assigned&amp;recruiter_id={U}" href="08-detalle-indagacion.html" aria-label="Ver las 9 vacantes asignadas a Fernanda Ortiz">9</a></p>
+        <p class="kpi-line">4 nuevas en el periodo</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k2">
+        <div class="kpi-top"><h3 class="kpi-label" id="k2">Entregas a tiempo</h3></div>
+        <p class="kpi-value"><a class="fig" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=on_time" href="08-detalle-indagacion.html" aria-label="50% a tiempo: ver la 1 entrega a tiempo de Fernanda Ortiz">50%</a></p>
+        <p class="kpi-line"><a class="fig" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=on_time,late,overdue" href="08-detalle-indagacion.html" aria-label="1 de 2: ver las 2 entregas con fecha de Fernanda Ortiz">1 de 2</a> entregas con fecha</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k3">
+        <div class="kpi-top"><h3 class="kpi-label" id="k3">Conversión a placement</h3></div>
+        <p class="kpi-value"><a class="fig" data-dd="kind=vacancies&amp;scope=closed_assigned&amp;recruiter_id={U}&amp;credited_to={U}" href="08-detalle-indagacion.html" aria-label="100% de conversión: ver las 2 vacantes cerradas con placement de Fernanda Ortiz">100%</a></p>
+        <p class="kpi-line"><a class="fig" data-dd="kind=vacancies&amp;scope=closed_assigned&amp;recruiter_id={U}" href="08-detalle-indagacion.html" aria-label="2 de 2: ver las 2 vacantes cerradas de Fernanda Ortiz">2 de 2</a> vacantes cerradas</p>
+      </article>
+      <article class="card kpi" aria-labelledby="k4">
+        <div class="kpi-top"><h3 class="kpi-label" id="k4">Placements</h3></div>
+        <p class="kpi-value"><a class="fig" data-dd="kind=placements&amp;recipient={U}" href="08-detalle-indagacion.html" aria-label="Ver los 2 placements de Fernanda Ortiz">2</a></p>
+        <p class="kpi-line"><a class="fig" data-dd="kind=placements&amp;recipient={U}&amp;held=true" href="08-detalle-indagacion.html" aria-label="Ver los 2 placements de Fernanda Ortiz que se sostienen">2</a> se sostienen · 0 no se sostuvieron</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 2 · Entregas y placements -->
+  <section class="sec" aria-labelledby="s-ent" data-load="view">
+    <div class="sec-head">
+      <h2 id="s-ent">Entregas y placements</h2>
+      <button class="btn btn-ghost" type="button" data-help="entregas" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c6" aria-labelledby="t-ent">
+        <div class="card-head"><div><h3 id="t-ent">Entregas con fecha cumplida</h3><p class="cap"><a class="fig" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=on_time,late,overdue" href="08-detalle-indagacion.html" aria-label="Ver las 2 entregas con fecha de Fernanda Ortiz">2</a> entregas en el periodo</p></div></div>
+        <p class="big"><a class="fig" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=on_time" href="08-detalle-indagacion.html" aria-label="50% a tiempo: ver la 1 entrega a tiempo de Fernanda Ortiz">50%</a><span>a tiempo · <a class="fig" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=on_time,late,overdue" href="08-detalle-indagacion.html" aria-label="1 de 2: ver las 2 entregas con fecha de Fernanda Ortiz">1 de 2</a></span></p>
+        <div class="stack" role="group" aria-label="2 entregas con fecha: 1 a tiempo, 1 tarde, 0 vencidas">
+          <a class="sw-ok" style="width:50%" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=on_time" href="08-detalle-indagacion.html" aria-label="Ver la 1 entrega a tiempo de Fernanda Ortiz"></a><a class="sw-late" style="width:50%" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=late" href="08-detalle-indagacion.html" aria-label="Ver la 1 entrega tarde de Fernanda Ortiz"></a>
+        </div>
+        <div class="keys">
+          <span><i class="sw-ok"></i>A tiempo <a class="fig" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=on_time" href="08-detalle-indagacion.html" aria-label="Ver la 1 entrega a tiempo de Fernanda Ortiz">1</a></span>
+          <span><i class="sw-late"></i>Tarde <a class="fig" data-dd="kind=deliveries&amp;attributed_to={U}&amp;result=late" href="08-detalle-indagacion.html" aria-label="Ver la 1 entrega tarde de Fernanda Ortiz">1</a></span>
+          <span><i class="sw-over"></i>Vencidas <b>0</b></span>
+        </div>
+        <ul class="list rows-mini">
+          <li><span>Mediana a la meta</span><b>6 días hábiles</b></li>
+          <li><span>Candidatos entregados en su tramo</span><b>8</b></li>
+        </ul>
+      </article>
+      <article class="card c6" aria-labelledby="t-plc">
+        <div class="card-head"><div><h3 id="t-plc">Placements por crédito</h3></div></div>
+        <p class="mid"><a class="fig" data-dd="kind=placements&amp;recipient={U}" href="08-detalle-indagacion.html" aria-label="Ver los 2 placements de Fernanda Ortiz">2</a><span>placements</span></p>
+        <ul class="hbars">
+          <li class="hbar top"><span class="lbl">Crédito directo</span><span class="val">1</span><span class="hbar-track" aria-hidden="true"><i style="width:50%"></i></span></li>
+          <li class="hbar"><span class="lbl">Por participación</span><span class="val">0</span><span class="hbar-track" aria-hidden="true"><i style="width:0%"></i></span></li>
+          <li class="hbar"><span class="lbl">Compartido</span><span class="val">1</span><span class="hbar-track" aria-hidden="true"><i style="width:50%"></i></span></li>
+        </ul>
+        <ul class="list rows-mini" style="margin-top:auto">
+          <li><span>No se sostuvieron</span><b>0</b></li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <!-- 3 · Carga de trabajo -->
+  <section class="sec" aria-labelledby="s-car" data-load="view">
+    <div class="sec-head">
+      <h2 id="s-car">Carga de trabajo</h2>
+      <button class="btn btn-ghost" type="button" data-help="carga" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <div class="grid">
+      <article class="card c4" aria-labelledby="t-fun">
+        <div class="card-head"><div><h3 id="t-fun">Vacantes por función</h3><p class="cap">De <a class="fig" data-dd="kind=vacancies&amp;scope=assigned&amp;recruiter_id={U}" href="08-detalle-indagacion.html" aria-label="Ver las 9 vacantes asignadas a Fernanda Ortiz">9</a> vacantes asignadas</p></div></div>
+        <ul class="hbars">
+          <li class="hbar top"><span class="lbl">Responsable</span><span class="val">6</span><span class="hbar-track" aria-hidden="true"><i style="width:66.7%"></i></span></li>
+          <li class="hbar"><span class="lbl">Colaborador</span><span class="val">2</span><span class="hbar-track" aria-hidden="true"><i style="width:22.2%"></i></span></li>
+          <li class="hbar"><span class="lbl">Miembro</span><span class="val">1</span><span class="hbar-track" aria-hidden="true"><i style="width:11.1%"></i></span></li>
+        </ul>
+      </article>
+      <article class="card c4" aria-labelledby="t-rea">
+        <div class="card-head"><div><h3 id="t-rea">Reasignaciones</h3></div></div>
+        <p class="mid"><a class="fig" data-dd="kind=reassignments&amp;recruiter_id={U}&amp;direction=received" href="08-detalle-indagacion.html" aria-label="Ver la 1 reasignación recibida por Fernanda Ortiz">1</a><span>recibida</span></p>
+        <ul class="list rows-mini" style="margin-top:auto">
+          <li><span>Recibidas</span><a class="fig" data-dd="kind=reassignments&amp;recruiter_id={U}&amp;direction=received" href="08-detalle-indagacion.html" aria-label="Ver la 1 reasignación recibida por Fernanda Ortiz">1</a></li>
+          <li><span>Perdidas</span><b>0</b></li>
+        </ul>
+      </article>
+      <article class="card c4" aria-labelledby="t-tra">
+        <div class="card-head"><div><h3 id="t-tra">Tiempo en tramos</h3><p class="cap">En <a class="fig" data-dd="kind=vacancies&amp;scope=assigned&amp;recruiter_id={U}" href="08-detalle-indagacion.html" aria-label="Ver las 9 vacantes asignadas a Fernanda Ortiz">9</a> vacantes asignadas</p></div></div>
+        <p class="mid"><b>286</b><span>días hábiles</span></p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 4 · Evolución mensual: one card, three small plots, «Ver como tabla» -->
+  <section class="sec" aria-labelledby="s-mes" data-load="near">
+    <div class="sec-head">
+      <h2 id="s-mes">Evolución mensual</h2>
+      <button class="btn btn-ghost" type="button" data-help="mensual" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+    </div>
+    <article class="card" aria-labelledby="t-mes">
+      <div class="card-head">
+        <div><h3 id="t-mes">Actividad por mes</h3><p class="cap">Agosto a noviembre 2026 · noviembre en curso</p></div>
+        <button class="btn btn-ghost" type="button" id="as-table" aria-pressed="false" aria-controls="mes-chart mes-table" style="margin-top:-10px">Ver como tabla</button>
+      </div>
+      <div class="mini" id="mes-chart">
+        <figure><figcaption><b>Vacantes asignadas</b></figcaption><div id="c-asig"></div></figure>
+        <figure><figcaption><b>Entregas por fecha compromiso</b></figcaption><div id="c-ent"></div>
+          <div class="keys"><span><i class="sw-ok"></i>A tiempo</span><span><i class="sw-late"></i>Tarde</span><span><i class="sw-over"></i>Vencidas</span></div></figure>
+        <figure><figcaption><b>Placements</b></figcaption><div id="c-plc"></div></figure>
+      </div>
+      <div id="mes-table" hidden>
+        <table class="month-table">
+          <caption class="sr">Serie mensual de Fernanda Ortiz</caption>
+          <thead><tr><th scope="col">Mes</th><th scope="col" class="n">Vacantes asignadas</th><th scope="col" class="n">A tiempo</th><th scope="col" class="n">Tarde</th><th scope="col" class="n">Vencidas</th><th scope="col" class="n">Placements</th></tr></thead>
+          <tbody id="mes-rows"></tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <!-- 5 · Vacantes: ≤ 6 columns, no «Columnas» menu, list rows at 390 px -->
+  <section class="sec" aria-labelledby="s-vac" data-load="near">
+    <div class="sec-head">
+      <h2 id="s-vac">Vacantes con su participación</h2>
+      <div class="tools">
+        <button class="btn btn-ghost" type="button" data-help="vacantes" aria-haspopup="dialog" aria-controls="pop" aria-expanded="false">Cómo se calcula</button>
+        <a class="btn btn-ghost" data-dd="kind=vacancies&amp;scope=assigned&amp;recruiter_id={U}" href="08-detalle-indagacion.html" aria-label="Ver las 9 vacantes asignadas a Fernanda Ortiz en el detalle">Ver en detalle<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></a>
+      </div>
+    </div>
+    <article class="card" aria-labelledby="s-vac">
+      <table class="vac-table">
+        <caption class="sr">Vacantes asignadas a Fernanda Ortiz en el periodo</caption>
+        <thead><tr><th scope="col">Vacante</th><th scope="col">Responsable actual</th><th scope="col">Entrega</th><th scope="col">Cierre</th><th scope="col" class="n">Posiciones</th><th scope="col" class="n">Reasignaciones</th></tr></thead>
+        <tbody id="vac-rows"></tbody>
+      </table>
+      <ul class="list mrows" id="vac-list" aria-label="Vacantes asignadas a Fernanda Ortiz en el periodo"></ul>
+    </article>
+  </section>
+</div>
+</main>
+</div>
+</div>
+
+<div class="pop" id="pop" role="dialog" aria-labelledby="pop-t" tabindex="-1" hidden><h3 id="pop-t"></h3><dl></dl><p class="foot" id="pop-foot" hidden></p></div>
+<div class="pop" id="custom" role="dialog" aria-labelledby="cu-t" tabindex="-1" hidden>
+  <h3 id="cu-t">Periodo personalizado</h3>
+  <div class="range">
+    <div class="field"><label for="cu-from">Desde</label><input id="cu-from" type="date" value="2026-08-20"></div>
+    <div class="field"><label for="cu-to">Hasta</label><input id="cu-to" type="date" value="2026-11-17"></div>
+  </div>
+  <p class="foot">Hasta 366 días.</p>
+  <div class="pop-actions"><button class="btn btn-ghost" type="button" data-close>Cancelar</button><button class="btn btn-primary" type="button" data-close>Aplicar</button></div>
+</div>
+<div class="pop" id="sheet" role="dialog" aria-labelledby="sh-t" tabindex="-1" hidden>
+  <h3 id="sh-t">Candidatos entregados</h3>
+  <p class="cap" id="sh-sub"></p>
+  <ul class="list sheet-list" id="sh-list"></ul>
+  <p class="foot">Esta consulta queda registrada en Auditoría.</p>
+</div>
+
+<script>
+/* demo data (Fernanda Ortiz, 90 días = 20 ago – 17 nov 2026): 9 asignadas, 1 de 2 entregas a tiempo, 100% conversión (2 de 2), 2 placements */
+const U='10000000-0000-4000-8000-000000000003',PERIOD={from:'2026-08-20',to:'2026-11-17'};
+const DETAIL='08-detalle-indagacion.html';
+/* the drill-down URL = the board period + the figure's own query (drilldown.ts); a month may narrow the period */
+function dd(query,period){const q=new URLSearchParams(query.replaceAll('{U}',U));const kind=q.get('kind');q.delete('kind');
+  return DETAIL+'?'+new URLSearchParams({kind,...(period||PERIOD),...Object.fromEntries(q)})}
+document.querySelectorAll('[data-dd]').forEach(a=>a.href=dd(a.dataset.dd));
+
+const HELP={
+ resumen:{t:'Cómo se calcula el resumen',items:[
+  ['Vacantes asignadas','Vacantes publicadas al menos una vez con un tramo de Fernanda que se cruza con el periodo. Cuenta una vez aunque haya salido y vuelto. «Nuevas» son las que empezaron en el periodo.'],
+  ['Entregas a tiempo','Entregas a tiempo entre las ya juzgadas: a tiempo, tarde y vencidas. Las pendientes todavía no cuentan.'],
+  ['Conversión a placement','Vacantes con al menos un placement acreditado a Fernanda entre las que tuvo asignadas y cerraron en el periodo. Si ninguna cerró, no hay porcentaje.'],
+  ['Placements','Contrataciones con fecha en el periodo acreditadas a Fernanda, activas o que no se sostuvieron; las anuladas no cuentan.']]},
+ entregas:{t:'Cómo se calculan entregas y placements',items:[
+  ['Entregas con fecha cumplida','Se juzga con el día en que el candidato que completó la meta llegó a la etapa de corte. A tiempo: igual o antes de la fecha compromiso vigente. Tarde: después. Vencida: sin cumplir y la fecha ya pasó.'],
+  ['Mediana a la meta','Mediana de días hábiles entre la primera publicación y el día en que se completó la meta. Sin entregas cumplidas no hay mediana.'],
+  ['Candidatos entregados en su tramo','Candidatos que Fernanda movió a la etapa de corte mientras estaba asignada. Las postulaciones que llegan directo a esa etapa cuentan para la vacante, no para ella.'],
+  ['Placements por crédito','Crédito directo, por participación o compartido. Los tres ya incluyen los que no se sostuvieron, que se muestran aparte sin sumarse de nuevo.']],
+  foot:'Días hábiles: lunes a viernes, sin festivos · Hora del centro de México'},
+ carga:{t:'Cómo se calcula la carga de trabajo',items:[
+  ['Vacantes por función','Función que tuvo en cada vacante: responsable, colaborador o miembro. Una vacante puede contar en más de una función, así que la suma puede ser mayor que el total.'],
+  ['Reasignaciones','Recibidas: pasó a ser responsable. Perdidas: dejó de serlo, incluidas las bajas de la empresa. Sumar o quitar colaboradores no es una reasignación.'],
+  ['Tiempo en tramos','Días hábiles que estuvo asignada a vacantes dentro del periodo, sumados por vacante.']]},
+ mensual:{t:'Cómo se calcula la evolución mensual',items:[
+  ['Meses del periodo','La serie trae todos los meses del periodo, también los que quedan en cero. Agosto empieza el 20 y noviembre va en curso.'],
+  ['Vacantes asignadas','Una vacante cuenta en cada mes en que tuvo tramo, así que los meses no suman el total del periodo.'],
+  ['Entregas','Por mes de la fecha compromiso.'],
+  ['Placements','Por fecha de contratación.']]},
+ vacantes:{t:'Cómo se lee la lista de vacantes',items:[
+  ['Vacantes','Las vacantes asignadas a Fernanda en el periodo, con su entrega, su último cierre, posiciones cubiertas y reasignaciones.'],
+  ['Datos personales','La lista no muestra nombres de candidatos. «Entregados» y «Posiciones» los abren aparte y esa consulta queda registrada en Auditoría.']]}};
+
+/* monthly series (by_month) */
+const MONTHS=[
+ {k:'2026-08',s:'ago',l:'Agosto 2026',from:'2026-08-20',to:'2026-08-31'},
+ {k:'2026-09',s:'sep',l:'Septiembre 2026',from:'2026-09-01',to:'2026-09-30'},
+ {k:'2026-10',s:'oct',l:'Octubre 2026',from:'2026-10-01',to:'2026-10-31'},
+ {k:'2026-11',s:'nov',l:'Noviembre 2026 (en curso)',from:'2026-11-01',to:'2026-11-17'}];
+const ASIG=[5,7,8,6],ONT=[0,1,0,0],LATE=[0,0,1,0],OVER=[0,0,0,0],PLC=[0,1,0,1];
+const NS='http://www.w3.org/2000/svg';
+function s(tag,attrs,...kids){const n=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs||{}))n.setAttribute(k,v);n.append(...kids);return n}
+const plural=(n,one,many)=>n===1?one:many;
+/* one small plot: integer ticks only, a 0 is plain text, every other bar or segment is a link */
+function plot(host,{label,max,ticks,segs}){
+  const W=344,H=196,L=28,R=4,T=20,B=168,n=MONTHS.length,bw=36,y=v=>B-v/max*(B-T);
+  const svg=s('svg',{class:'chart',viewBox:`0 0 ${W} ${H}`,role:'group','aria-label':label});
+  const g=s('g',{'aria-hidden':'true'});
+  ticks.forEach(t=>{g.append(s('line',{class:'grid-l',x1:L,x2:W,y1:y(t),y2:y(t)}),s('text',{class:'ax',x:L-10,y:y(t)+4,'text-anchor':'end'},String(t)))});
+  MONTHS.forEach((m,i)=>g.append(s('text',{class:'ax',x:L+(W-L-R)*(i+.5)/n,y:H-6,'text-anchor':'middle'},m.s)));
+  svg.append(g);
+  MONTHS.forEach((m,i)=>{const cx=L+(W-L-R)*(i+.5)/n,x=cx-bw/2;let base=B,total=0;
+    segs.forEach(sg=>{const v=sg.v[i];if(!v)return;total+=v;const h=v/max*(B-T);base-=h;
+      svg.append(s('a',{href:dd(sg.q,{from:m.from,to:m.to}),'aria-label':sg.a(v,m)},
+        s('rect',{class:'hit',x:cx-bw/2-6,y:base-18,width:bw+12,height:h+18,rx:6}),
+        s('rect',{class:sg.c,x,y:base,width:bw,height:h,rx:4})))});
+    svg.append(s('text',{class:'val-t'+(total?'':' val-z'),x:cx,y:(total?base:B)-6,'text-anchor':'middle','aria-hidden':'true'},String(total)))});
+  host.replaceChildren(svg)}
+plot(document.getElementById('c-asig'),{label:'Vacantes asignadas por mes: agosto 5, septiembre 7, octubre 8, noviembre 6. Cada mes abre sus vacantes.',max:8,ticks:[0,4,8],
+  segs:[{v:ASIG,c:'b-n',q:'kind=vacancies&scope=assigned&recruiter_id={U}',a:(v,m)=>`Ver las ${v} vacantes asignadas a Fernanda Ortiz en ${m.l}`}]});
+plot(document.getElementById('c-ent'),{label:'Entregas por mes de la fecha compromiso: septiembre 1 a tiempo, octubre 1 tarde; agosto y noviembre sin entregas con fecha.',max:2,ticks:[0,1,2],
+  segs:[{v:ONT,c:'f-ok',q:'kind=deliveries&attributed_to={U}&result=on_time',a:(v,m)=>`Ver ${plural(v,'la','las')} ${v} ${plural(v,'entrega','entregas')} a tiempo de Fernanda Ortiz con compromiso en ${m.l}`},
+        {v:LATE,c:'f-late',q:'kind=deliveries&attributed_to={U}&result=late',a:(v,m)=>`Ver ${plural(v,'la','las')} ${v} ${plural(v,'entrega','entregas')} tarde de Fernanda Ortiz con compromiso en ${m.l}`},
+        {v:OVER,c:'f-over',q:'kind=deliveries&attributed_to={U}&result=overdue',a:(v,m)=>`Ver las ${v} entregas vencidas de Fernanda Ortiz con compromiso en ${m.l}`}]});
+plot(document.getElementById('c-plc'),{label:'Placements por mes: septiembre 1, noviembre 1; agosto y octubre 0.',max:2,ticks:[0,1,2],
+  segs:[{v:PLC,c:'b-n',q:'kind=placements&recipient={U}',a:(v,m)=>`Ver ${plural(v,'el','los')} ${v} ${plural(v,'placement','placements')} de Fernanda Ortiz en ${m.l}`}]});
+/* delivery months use the list's own commitment_month filter instead of narrowing the period */
+document.querySelectorAll('#c-ent a').forEach((a,i)=>{const u=new URL(a.getAttribute('href'),location.href),m=MONTHS.find(x=>x.from===u.searchParams.get('from'));
+  u.searchParams.set('from',PERIOD.from);u.searchParams.set('to',PERIOD.to);u.searchParams.set('commitment_month',m.k);a.setAttribute('href',DETAIL+u.search)});
+
+function el(tag,props,...kids){const n=document.createElement(tag);for(const [k,v] of Object.entries(props||{})){if(k==='cls')n.className=v;else n.setAttribute(k,v)}n.append(...kids);return n}
+function figLink(v,href,label){return v?el('a',{cls:'fig',href,'aria-label':label},String(v)):String(v)}
+/* month table (rule 8 toggle), same figures and links as the plots */
+document.getElementById('mes-rows').replaceChildren(...MONTHS.map((m,i)=>{const p={from:m.from,to:m.to},cm={...PERIOD};
+  const cells=[
+    ['Vacantes asignadas',figLink(ASIG[i],dd('kind=vacancies&scope=assigned&recruiter_id={U}',p),`Ver las ${ASIG[i]} vacantes asignadas a Fernanda Ortiz en ${m.l}`)],
+    ['A tiempo',figLink(ONT[i],dd(`kind=deliveries&attributed_to={U}&result=on_time&commitment_month=${m.k}`,cm),`Ver la entrega a tiempo de Fernanda Ortiz con compromiso en ${m.l}`)],
+    ['Tarde',figLink(LATE[i],dd(`kind=deliveries&attributed_to={U}&result=late&commitment_month=${m.k}`,cm),`Ver la entrega tarde de Fernanda Ortiz con compromiso en ${m.l}`)],
+    ['Vencidas',figLink(OVER[i],dd(`kind=deliveries&attributed_to={U}&result=overdue&commitment_month=${m.k}`,cm),'')],
+    ['Placements',figLink(PLC[i],dd('kind=placements&recipient={U}',p),`Ver el placement de Fernanda Ortiz en ${m.l}`)]];
+  return el('tr',null,el('th',{scope:'row',style:'font-size:14px;font-weight:500;color:var(--foreground);padding:12px 12px 12px 0'},m.l),...cells.map(([l,v])=>el('td',{cls:'n','data-l':l},v)))}));
+const asTable=document.getElementById('as-table');
+asTable.addEventListener('click',()=>{const on=asTable.getAttribute('aria-pressed')!=='true';asTable.setAttribute('aria-pressed',String(on));
+  document.getElementById('mes-chart').hidden=on;document.getElementById('mes-table').hidden=!on;asTable.textContent=on?'Ver como gráfica':'Ver como tabla'});
+
+/* vacancies with her participation (assigned in the period) */
+const RES={ok:['sw-ok','A tiempo'],late:['sw-late','Tarde'],pend:['sw-pend','Pendiente'],over:['sw-over','Vencida']};
+const VAC=[
+ {id:'30000000-0000-4000-8000-000000000101',t:'Ejecutivo de ventas B2B',req:'Banorte · Cliente',resp:'Fernanda Ortiz',res:'ok',del:4,tgt:4,com:'18 sep 2026',close:['Cubierta','9 oct 2026'],cov:1,need:1,rea:0,
+  names:[['Luis Ángel Ramírez Soto','10 sep 2026'],['Karla Ivonne Medina','12 sep 2026'],['José Manuel Cárdenas Ruiz','15 sep 2026'],['Brenda Sánchez Villegas','17 sep 2026']]},
+ {id:'30000000-0000-4000-8000-000000000102',t:'Analista de crédito',req:'Banorte · Cliente',resp:'Fernanda Ortiz',res:'late',late:3,del:3,tgt:3,com:'14 oct 2026',close:['Cubierta','6 nov 2026'],cov:2,need:2,rea:0,
+  names:[['Óscar Gutiérrez Pineda','9 oct 2026'],['Daniela Fuentes Arriaga','15 oct 2026'],['Ricardo Salinas Mora','17 oct 2026']]},
+ {id:'30000000-0000-4000-8000-000000000103',t:'Supervisor de turno',req:'Grupo Bimbo · Cliente',resp:'Fernanda Ortiz',res:'pend',del:1,tgt:3,com:'28 nov 2026',pub:'2 sep 2026',cov:0,need:2,rea:1,
+  names:[['Paola Jiménez Cortés','11 nov 2026']]},
+ {id:'30000000-0000-4000-8000-000000000104',t:'Jefe de almacén',req:'Grupo Bimbo · Cliente',resp:'Fernanda Ortiz',res:'pend',del:0,tgt:4,com:'5 dic 2026',pub:'23 sep 2026',cov:0,need:1,rea:0},
+ {id:'30000000-0000-4000-8000-000000000105',t:'Desarrollador frontend',req:'Liverpool · Cliente',resp:'Fernanda Ortiz',res:null,pub:'7 oct 2026',cov:0,need:1,rea:0},
+ {id:'30000000-0000-4000-8000-000000000106',t:'Coordinador de compras',req:'Liverpool · Cliente',resp:'Fernanda Ortiz',res:null,pub:'21 oct 2026',cov:0,need:1,rea:0},
+ {id:'30000000-0000-4000-8000-000000000107',t:'Analista de nómina',req:'Recursos Humanos · Área interna',resp:'Valeria Ortiz',res:'pend',del:0,tgt:3,com:'24 nov 2026',pub:'12 ago 2026',cov:0,need:1,rea:0},
+ {id:'30000000-0000-4000-8000-000000000108',t:'Ejecutivo de cuenta',req:'Banorte · Cliente',resp:'Andrés Castillo',res:'pend',del:0,tgt:3,com:'1 dic 2026',pub:'3 ago 2026',cov:0,need:2,rea:0},
+ {id:'30000000-0000-4000-8000-000000000109',t:'Auxiliar contable',req:'Finanzas · Área interna',resp:'Sofía Méndez',res:null,pub:'28 jul 2026',cov:0,need:1,rea:0}];
+const badge=r=>{if(!r.res)return el('span',{cls:'miss'},'Sin entrega configurada');const [c,w]=RES[r.res];
+  return el('span',{cls:'badge st'},el('i',{cls:'dot '+c}),r.res==='late'?`${w} · ${r.late} días hábiles`:w)};
+const deliveredBtn=r=>r.del?el('button',{cls:'fig',type:'button','data-sheet':r.id,'aria-haspopup':'dialog','aria-controls':'sheet','aria-expanded':'false','aria-label':`Ver ${plural(r.del,'el candidato entregado','los '+r.del+' candidatos entregados')} de ${r.t}`},`${r.del} de ${r.tgt}`):`${r.del} de ${r.tgt}`;
+document.getElementById('vac-rows').replaceChildren(...VAC.map(r=>el('tr',null,
+  el('td',{cls:'vac'},el('a',{href:'#','aria-label':`Abrir vacante ${r.t}`},r.t),el('small',null,r.req)),
+  el('td',null,r.resp),
+  el('td',{cls:'two'},badge(r),r.res?el('small',null,deliveredBtn(r),` entregados · compromiso ${r.com}`):''),
+  el('td',{cls:'two'},r.close?r.close[0]:'Abierta',el('small',null,r.close?r.close[1]:`publicada ${r.pub}`)),
+  el('td',{cls:'n'},r.cov?el('a',{cls:'fig',href:dd(`kind=placements&vacancy_id=${r.id}`),'aria-label':`${r.cov} de ${r.need} posiciones: ver los placements de ${r.t}`},`${r.cov} de ${r.need}`):`${r.cov} de ${r.need}`),
+  el('td',{cls:'n'},figLink(r.rea,dd(`kind=reassignments&vacancy_id=${r.id}`),`Ver la ${r.rea} reasignación de ${r.t}`)))));
+/* 390 px: name + the one value that matters (delivery state) + chevron */
+document.getElementById('vac-list').replaceChildren(...VAC.map(r=>el('li',null,el('a',{href:'#','aria-label':`Abrir vacante ${r.t}`},
+  el('span',{cls:'t'},el('b',null,r.t),el('small',null,r.req)),badge(r),
+  (()=>{const v=document.createElementNS(NS,'svg');v.setAttribute('class','i');v.setAttribute('aria-hidden','true');v.append(s('use',{href:'#i-chev'}));return v})()))));
+
+/* theme */
+const themeBtn=document.getElementById('theme');
+themeBtn.addEventListener('click',()=>{const dark=document.documentElement.classList.toggle('dark');
+  themeBtn.setAttribute('aria-label',dark?'Cambiar a tema claro':'Cambiar a tema oscuro');
+  themeBtn.querySelector('use').setAttribute('href',dark?'#i-sun':'#i-moon')});
+/* period (visual only): shortcuts change the window; «Personalizado» opens the date range */
+document.querySelectorAll('.seg.period button').forEach(b=>b.addEventListener('click',()=>{
+  b.parentElement.querySelectorAll('button').forEach(o=>o.setAttribute('aria-pressed',String(o===b)))}));
+/* popovers: one open at a time; Escape / outside click close; focus returns to the trigger */
+const pop=document.getElementById('pop');let trig=null,panel=null;
+function place(el,b){el.hidden=false;const r=b.getBoundingClientRect();
+  let x=r.right+scrollX-el.offsetWidth;x=Math.max(8,Math.min(x,scrollX+document.documentElement.clientWidth-el.offsetWidth-8));
+  el.style.left=x+'px';el.style.top=(r.bottom+scrollY+8)+'px';
+  el.style.width=Math.min(360,document.documentElement.clientWidth-16)+'px'}
+function closeAll(ret=true){if(!trig)return;panel.hidden=true;trig.setAttribute('aria-expanded','false');if(ret)trig.focus();trig=null;panel=null}
+function openFor(b){if(trig===b){closeAll();return}closeAll(false);
+  if(b.dataset.help){const d=HELP[b.dataset.help];pop.querySelector('h3').textContent=d.t;const dl=pop.querySelector('dl');dl.replaceChildren();
+    d.items.forEach(([t,x])=>dl.append(el('dt',null,t),el('dd',null,x)));
+    const f=document.getElementById('pop-foot');f.hidden=!d.foot;f.textContent=d.foot||'';panel=pop}
+  else if(b.dataset.sheet){const r=VAC.find(v=>v.id===b.dataset.sheet);panel=document.getElementById('sheet');
+    document.getElementById('sh-sub').textContent=`${r.t} · ${r.del} de ${r.tgt} entregados`;
+    document.getElementById('sh-list').replaceChildren(...r.names.map(([n,d])=>el('li',null,n,el('small',null,`Llegó a la etapa de corte el ${d}`))))}
+  else panel=document.getElementById(b.getAttribute('aria-controls'));
+  place(panel,b);b.setAttribute('aria-expanded','true');trig=b;panel.focus()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-help],[data-panel],[data-sheet]');if(b){openFor(b);return}
+  if(trig&&!panel.contains(e.target))closeAll(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeAll()));
+
+/* artboard-only: progressive loading (rule 17), skeleton blocks measured from the real layout (same as 07) */
+function block(layer,x,y,w,h,r){const sk=document.createElement('span');sk.className='sk';Object.assign(sk.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px',borderRadius:(r||6)+'px'});layer.append(sk)}
+function skeletonize(card,near){const cr=card.getBoundingClientRect(),layer=document.createElement('div');layer.className='sk-layer';layer.setAttribute('aria-hidden','true');
+  const rel=e=>{const r=e.getBoundingClientRect();return {x:r.left-cr.left,y:r.top-cr.top,w:r.width,h:r.height}};
+  [...card.children].forEach(ch=>{if(ch.hidden||!ch.getClientRects().length)return;const b=rel(ch);
+    if(ch.classList.contains('card-head')||ch.classList.contains('kpi-top')){block(layer,b.x,b.y+4,Math.min(200,b.w*.5),14);if(b.h>30)block(layer,b.x,b.y+30,Math.min(260,b.w*.7),10)}
+    else if(ch.matches('ul,table')){ch.querySelectorAll(':scope>li,tbody tr').forEach(li=>{const r=rel(li),mid=r.y+r.h/2;block(layer,b.x,mid-6,Math.min(b.w*.45,260),12);block(layer,b.x+b.w-72,mid-6,72,12)})}
+    else if(ch.classList.contains('stack'))block(layer,b.x,b.y,b.w,b.h,999);
+    else if(ch.classList.contains('kpi-value'))block(layer,b.x,b.y+4,Math.min(96,b.w),b.h-8);
+    else block(layer,b.x,b.y,Math.min(b.w,ch.matches('p')?Math.max(140,b.w*.6):b.w),b.h,ch.matches('.mini')?8:6)});
+  if(near){const l=document.createElement('span');l.className='ph-label';l.textContent='Se cargará al acercarte';layer.append(l)}
+  card.append(layer)}
+function clearSkeletons(){document.querySelectorAll('.sk-layer').forEach(l=>l.remove())}
+const dctl=document.getElementById('design-load');let io=null;
+function applyLoading(on){clearSkeletons();if(io){io.disconnect();io=null}
+  document.querySelectorAll('[data-load]').forEach(sec=>{if(sec.dataset.loadOrig)sec.dataset.load=sec.dataset.loadOrig;sec.dataset.loadOrig=sec.dataset.load;
+    if(on)sec.setAttribute('aria-busy','true');else sec.removeAttribute('aria-busy')});
+  document.body.classList.toggle('loading',on);
+  if(!on)return;
+  document.querySelectorAll('[data-load]').forEach(sec=>sec.querySelectorAll('.card').forEach(c=>skeletonize(c,sec.dataset.load==='near')));
+  /* below-the-fold sections switch to an active skeleton when they approach the viewport */
+  io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting&&e.target.dataset.load==='near'){const sc=e.target;sc.dataset.load='view';sc.querySelectorAll('.sk-layer').forEach(l=>l.remove());sc.querySelectorAll('.card').forEach(c=>skeletonize(c,false))}}),{rootMargin:'0px 0px -35% 0px'});
+  document.querySelectorAll('[data-load="near"]').forEach(sc=>io.observe(sc))}
+dctl.addEventListener('click',()=>{const on=!document.body.classList.contains('loading');applyLoading(on);
+  dctl.setAttribute('aria-pressed',String(on));dctl.querySelector('span').textContent=on?'Ver contenido cargado':'Ver estado de carga'});
+/* artboard-only: 390 px preview (rule 14) */
+const d390=document.getElementById('design-390');
+d390.addEventListener('click',()=>{const on=document.body.classList.toggle('m390');closeAll(false);
+  d390.setAttribute('aria-pressed',String(on));d390.querySelector('span').textContent=on?'Ver a 1440 px':'Ver a 390 px';
+  if(document.body.classList.contains('loading'))requestAnimationFrame(()=>applyLoading(true))});
+/* artboard-only: former member label */
+const dfm=document.getElementById('design-former');
+dfm.addEventListener('click',()=>{const on=dfm.getAttribute('aria-pressed')!=='true';document.getElementById('former').hidden=!on;
+  dfm.setAttribute('aria-pressed',String(on))});
+</script>
+</body>
+</html>

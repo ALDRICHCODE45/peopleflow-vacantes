@@ -55,6 +55,9 @@ describe("dashboard detail words", () => {
     expect(text(summaryLine(state("kind=vacancies&status=published&sort=positions_open"), { kind: "vacancies", page: dashboardVacancies({ total: 8, positions: { covered: 2, required: 14 } }) })))
       .toBe("2 de 14 posiciones cubiertas en 8 vacantes publicadas; 12 por cubrir.");
     expect(text(summaryLine(state("kind=applications"), { kind: "applications", page: dashboardApplications() }))).toBe("154 postulaciones en el periodo.");
+    // The summary names the figure it came from: the board's «Orgánicas» and «Manuales».
+    expect(text(summaryLine(state("kind=applications&channel=portal,careers_site,unknown"), { kind: "applications", page: dashboardApplications({ total: 14 }) }))).toBe("14 postulaciones orgánicas en el periodo.");
+    expect(text(summaryLine(state("kind=applications&channel=manual"), { kind: "applications", page: dashboardApplications({ total: 1 }) }))).toBe("1 postulación de registro manual en el periodo.");
   });
 
   it("says what the list covers: a window for applications and past days, today for the rest, and a recruiter's own scope", () => {

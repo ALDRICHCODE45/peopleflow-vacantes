@@ -64,7 +64,7 @@ export function DashboardDetailPage() {
 }
 
 const vacancyLink = (ref: VacancyRef) => <Link href={vacancyPipelineHref(ref.draft_id)}
-  className="rounded-sm font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring">
+  className="rounded-sm font-medium text-primary-text underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring">
   {ref.title?.trim() || "Vacante sin título"}
 </Link>;
 

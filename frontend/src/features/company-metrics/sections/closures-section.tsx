@@ -29,15 +29,15 @@ export type MonthLink = { month: string; href: string | null; label: string };
  * Rule 16 for chart points: one link per month laid over the plot, reachable by keyboard and screen readers. They let
  * the pointer through so the tooltip keeps working; a click on the chart opens the hovered month (`useMonthClick`).
  */
-export function MonthLinks({ links }: { links: MonthLink[] }) {
+export function MonthLinks({ links, bands = false }: { links: MonthLink[]; /** Bars sit in the middle of equal bands; points sit on the edges. */ bands?: boolean }) {
   if (!links.some(link => link.href)) return null;
-  const step = links.length > 1 ? 100 / (links.length - 1) : 100;
+  const step = bands ? 100 / links.length : links.length > 1 ? 100 / (links.length - 1) : 100;
   return <div className="pointer-events-none absolute" style={{
     top: PLOT.margin.top, bottom: PLOT.xAxisHeight + PLOT.margin.bottom, left: PLOT.margin.left + PLOT.yAxisWidth, right: PLOT.margin.right,
   }}>
     {links.map((link, index) => {
       if (!link.href) return null;
-      const center = links.length > 1 ? index * step : 50;
+      const center = bands ? (index + 0.5) * step : links.length > 1 ? index * step : 50;
       const left = Math.max(0, center - step / 2);
       const right = Math.min(100, center + step / 2);
       return <Link key={link.month} href={link.href} aria-label={link.label}

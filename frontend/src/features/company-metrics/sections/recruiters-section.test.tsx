@@ -46,7 +46,9 @@ const period = { from: "2026-08-01", to: "2026-10-31" };
 const ready = (data: RecruiterCard[]): SectionState<RecruiterCard[]> => ({ status: "ready", data, stale: false, failure: null, ref: vi.fn(), retry: vi.fn(), activate: vi.fn() });
 const show = (items: RecruiterCard[] = recruiterPage().items) => render(<RecruitersSection state={ready(items)} filters={{}} period={period} />);
 const rows = () => screen.getAllByRole("row").slice(1);
-const query = (link: HTMLElement) => Object.fromEntries(new URL(link.getAttribute("href")!, "https://app.test").searchParams);
+/** The figure's own query; `back` (the board it returns to) is checked on its own. */
+const query = (link: HTMLElement) => { const params = new URL(link.getAttribute("href")!, "https://app.test").searchParams; params.delete("back"); return Object.fromEntries(params); };
+const back = (link: HTMLElement) => new URL(link.getAttribute("href")!, "https://app.test").searchParams.get("back");
 
 beforeEach(() => { flags.detailPage = false; table.props = null; });
 afterEach(cleanup);
@@ -74,6 +76,24 @@ describe("Desempeño por reclutador (artboard 07)", () => {
     expect(andreaRow.slice(1, 5)).toEqual(["9", "86%6 de 7", "6", "83% · 5 de 6"]);
     expect(carlosRow.slice(1, 5)).toEqual(["6", "40%2 de 5", "3", "50% · 2 de 4"]);
     expect(fernandaRow.slice(1, 5)).toEqual(["2", "Sin datos suficientes", "0", "Sin datos suficientes"]);
+  });
+
+  it("keeps the heading on one line on a narrow screen: its actions wrap below it instead of squeezing it (rule 14)", () => {
+    show();
+    const heading = screen.getByRole("heading", { level: 2, name: "Desempeño por reclutador" });
+    expect(heading.parentElement).toHaveClass("flex-wrap");
+    expect(screen.getByRole("button", { name: "Ver tabla completa" }).parentElement).toHaveClass("ml-auto");
+  });
+
+  it("turns each row into a stacked list row on a narrow screen, every figure named by its column (rule 14)", () => {
+    show();
+    const table = screen.getByRole("table");
+    expect(table).toHaveClass("max-md:block");
+    const [name, assigned, onTime, placements, conversion, detail] = within(rows()[1]).getAllByRole("cell");
+    expect([assigned, onTime, placements, conversion].map(cell => cell.getAttribute("data-label"))).toEqual(["Vacantes asignadas", "Entregas a tiempo", "Placements", "Conversión"]);
+    expect(name).not.toHaveAttribute("data-label");
+    expect(detail).not.toHaveAttribute("data-label");
+    expect(within(rows()[1]).getAllByRole("cell").map(cell => cell.textContent).slice(1, 5)).toEqual(["11", "75%6 de 8", "9", "75% · 6 de 8"]);
   });
 
   it("names a recruiter without a name", () => {
@@ -108,6 +128,8 @@ describe("Desempeño por reclutador (artboard 07)", () => {
     show();
     const open = (name: string) => query(screen.getByRole("link", { name }));
     expect(open("Ver las 11 vacantes asignadas a Mariana Torres")).toEqual({ kind: "vacancies", scope: "assigned", recruiter_id: marianaId, ...period });
+    // «Volver» returns to this board, without a «Reclutador» chip the board never had.
+    expect(back(screen.getByRole("link", { name: "Ver las 11 vacantes asignadas a Mariana Torres" }))).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");
     expect(open("75% a tiempo: ver las 6 entregas a tiempo de Mariana Torres")).toEqual({ kind: "deliveries", attributed_to: marianaId, result: "on_time", ...period });
     expect(open("6 de 8: ver las 8 entregas con fecha de Mariana Torres")).toEqual({ kind: "deliveries", attributed_to: marianaId, result: "on_time,late,overdue", ...period });
     expect(open("Ver los 9 placements de Mariana Torres")).toEqual({ kind: "placements", recipient: marianaId, ...period });

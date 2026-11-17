@@ -299,3 +299,12 @@ detail): compare with the user's references, research modern dashboard patterns,
   34 drill-downs: figure = list total = CSV rows; no console errors, no ≥400.
 - **L48** User decisions: recruiter detail → «Rediseñarla ahora, antes del merge (Recomendado)» (artboard 10 first, then
   implementation); 390 px → «Sí, en esta rama (Recomendado)» (tables to list rows, tabs and period wrap).
+- **L49** Artboard 10 `10-detalle-reclutador.html` (T17) approved by the user («Aprobado, implementalo»). Figures with no
+  v2 list (function split, «nuevas en el periodo», credit split, entregados en su tramo, mediana, días en tramos) stay
+  plain text; «N de M entregados» keeps the audited sheet.
+- **L50** T19/T20 (worker): stacked rows below `md` (recruiters table and sheet, both detail tables via
+  `components/data-table/stacked-table.ts`, attention rows keep «Faltan…»), tabs and period wrap, heading actions wrap,
+  KPI unit wrap; drill-down `back` (same-origin `/empresa/metricas` only) so Volver returns to the origin board;
+  `--primary-text` token for dark-mode violet text; honest tick labels; sparse «A tiempo por mes» as labelled bars;
+  figure-named summaries; «vacantes sin meta» noun; Home/End and no duplicate tab stops. (g) organic CSV Manual column is
+  backend-built → asked to the backend. 27 related files / 259 tests + 3 CSS test files green; tsc 0; eslint 0.

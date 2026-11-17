@@ -20,7 +20,13 @@ const TABS: { key: Tab; label: string; empty: (threshold: number) => string }[] 
   { key: "due_this_week", label: "Vencen esta semana", empty: () => "Ninguna entrega vence de hoy al domingo." },
   { key: "stalled", label: "Candidatos detenidos", empty: threshold => `Nadie lleva ${number.format(threshold)} días hábiles o más en la misma etapa.` },
 ];
-const ROW = "-mx-2 grid min-h-15 grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-4 rounded-lg px-2 outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_188px_148px_16px]";
+/**
+ * Rule 14: below `md` the row stacks the name and meta over the consequence, with the badge and chevron on the right;
+ * from `md` the four cells sit on one line. Every figure stays at every width.
+ */
+const ROW = "-mx-2 grid min-h-15 grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-x-4 gap-y-1 rounded-lg px-2 py-2 outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_188px_148px_16px] md:gap-y-4 md:py-0";
+const CONSEQUENCE = "col-start-1 row-start-2 text-xs whitespace-nowrap tabular-nums md:col-start-2 md:row-start-1 md:text-sm";
+const SIDE = "row-span-2 row-start-1 md:row-span-1";
 const title = (value: string) => value.trim() || "Vacante sin título";
 const lower = (value: string) => value.charAt(0).toLowerCase() + value.slice(1);
 
@@ -31,10 +37,11 @@ export function AttentionCard({ data, drill, today }: { data: AttentionSection; 
   const [selected, setSelected] = useState<Tab>(() => TABS.find(tab => data[tab.key].total > 0)?.key ?? "overdue");
   const buttons = useRef<Record<Tab, HTMLButtonElement | null>>({ overdue: null, due_this_week: null, stalled: null });
   const onKey = (event: KeyboardEvent, index: number) => {
-    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (!step) return;
+    const target = event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1
+      : event.key === "ArrowRight" ? (index + 1) % TABS.length : event.key === "ArrowLeft" ? (index - 1 + TABS.length) % TABS.length : null;
+    if (target === null) return;
     event.preventDefault();
-    const next = TABS[(index + step + TABS.length) % TABS.length].key;
+    const next = TABS[target].key;
     setSelected(next);
     buttons.current[next]?.focus();
   };
@@ -46,7 +53,8 @@ export function AttentionCard({ data, drill, today }: { data: AttentionSection; 
   const rows = data[selected].top;
   return <article aria-labelledby={headingId} className={cn(CARD, "flex-1")}>
     <CardHead id={headingId} title="Necesita atención" />
-    <div role="tablist" aria-label="Tipo de pendiente" className="flex max-w-full self-start overflow-x-auto rounded-xl border bg-card p-0.5">
+    {/* Rule 14: on a narrow screen the tabs wrap onto a second line, each label whole. */}
+    <div role="tablist" aria-label="Tipo de pendiente" className="flex max-w-full flex-wrap self-start rounded-xl border bg-card p-0.5">
       {TABS.map((tab, index) => {
         const active = tab.key === selected;
         const total = data[tab.key].total;
@@ -86,9 +94,9 @@ function DeliveryRow({ row, badge }: { row: AttentionSection["overdue"]["top"][n
         <b className="block truncate font-medium group-hover/row:underline group-focus-visible/row:underline">{name}</b>
         <span className="block truncate text-xs text-muted-foreground">{meta}</span>
       </span>
-      <span className="hidden whitespace-nowrap tabular-nums md:block">{consequence}</span>
-      <Badge variant={badge.danger ? "danger" : "neutral"} className="h-[22px] justify-self-end">{badge.text}</Badge>
-      <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
+      <span className={CONSEQUENCE}>{consequence}</span>
+      <Badge variant={badge.danger ? "danger" : "neutral"} className={cn("col-start-2 h-[22px] justify-self-end md:col-start-3", SIDE)}>{badge.text}</Badge>
+      <ChevronRight aria-hidden="true" className={cn("col-start-3 size-4 text-muted-foreground md:col-start-4", SIDE)} />
     </Link>
   </li>;
 }
@@ -107,9 +115,9 @@ function StalledRow({ row }: { row: AttentionSection["stalled"]["top"][number] }
           <span className="block truncate text-xs text-muted-foreground">{vacancy}</span>
         </span>
       </span>
-      <span className="hidden whitespace-nowrap tabular-nums md:block">{days}</span>
-      <Badge className={cn("stage-badge h-[22px] justify-self-end", stageTone(row.stage.kind))}>{stage}</Badge>
-      <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
+      <span className={cn(CONSEQUENCE, "pl-11 md:pl-0")}>{days}</span>
+      <Badge className={cn("stage-badge col-start-2 h-[22px] max-w-36 justify-self-end truncate md:col-start-3", SIDE, stageTone(row.stage.kind))}>{stage}</Badge>
+      <ChevronRight aria-hidden="true" className={cn("col-start-3 size-4 text-muted-foreground md:col-start-4", SIDE)} />
     </Link>
   </li>;
 }

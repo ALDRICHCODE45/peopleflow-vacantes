@@ -10,7 +10,8 @@ describe("detail titles (rule 16: the title names the figure)", () => {
   it("names each kind's figure from its filters", () => {
     expect(detailTitle(state("kind=vacancies&scope=closed&closed_month=2026-10"))).toBe("Vacantes cerradas · octubre 2026");
     expect(figureTitle(state("kind=vacancies&scope=closed&close_reason=filled&closing_target=late"))).toBe("Vacantes cubiertas tarde");
-    expect(figureTitle(state("kind=deliveries&result=on_time,late,overdue"))).toBe("Entregas");
+    expect(figureTitle(state("kind=deliveries&result=on_time,late,overdue"))).toBe("Entregas con fecha cumplida");
+    expect(figureTitle(state(`kind=vacancies&scope=closed_assigned&recruiter_id=${marianaId}&credited_to=${marianaId}`))).toBe("Vacantes cerradas con placement");
     expect(figureTitle(state("kind=deliveries&result=late&late_bucket=over_5"))).toBe("Entregas tarde · más de 5 días hábiles");
     expect(figureTitle(state(`kind=reassignments&recruiter_id=${marianaId}&direction=lost&reason=workload`))).toBe("Reasignaciones perdidas por carga de trabajo");
     expect(figureTitle(state("kind=placements&held=false"))).toBe("Placements que no se sostuvieron");
@@ -52,14 +53,32 @@ describe("detail titles (rule 16: the title names the figure)", () => {
     expect(text(summaryLine(state("kind=deliveries&result=overdue"), one))).toMatch(/^1 de 1 entrega está vencida en el periodo — 100\s?%\.$/);
   });
 
-  it("names the figure instead of «registros»", () => {
+  it("names the figure instead of «registros», in a sentence", () => {
     const deliveries = { kind: "deliveries" as const, page: deliveryList({ total: 1 }) };
     expect(text(summaryLine(state("kind=deliveries&result=late,overdue"), deliveries))).toBe("1 entrega en el periodo.");
     expect(text(summaryLine(state("kind=deliveries"), { ...deliveries, page: deliveryList({ total: 11 }) }))).toBe("11 entregas en el periodo.");
-    expect(text(summaryLine(state("kind=vacancies&scope=assigned"), { kind: "vacancies", page: vacancyList({ total: 12 }) }))).toBe("Vacantes asignadas: 12 en el periodo.");
+    expect(text(summaryLine(state("kind=vacancies&scope=assigned"), { kind: "vacancies", page: vacancyList({ total: 29 }) }))).toBe("29 vacantes asignadas en el periodo.");
+    expect(text(summaryLine(state("kind=vacancies&scope=assigned"), { kind: "vacancies", page: vacancyList({ total: 1 }) }))).toBe("1 vacante asignada en el periodo.");
+    expect(text(summaryLine(state(`kind=vacancies&scope=assigned&recruiter_id=${marianaId}`), { kind: "vacancies", page: vacancyList({ total: 2, applied_filters: { recruiter: { ...jorge, user_id: marianaId, name: "Mariana Torres" } } }) })))
+      .toBe("2 vacantes asignadas a Mariana Torres en el periodo.");
     expect(text(summaryLine(state("kind=vacancies"), { kind: "vacancies", page: vacancyList({ total: 1 }) }))).toBe("1 vacante en el periodo.");
-    expect(text(summaryLine(state("kind=placements&held=false"), { kind: "placements", page: placementList({ total: 2 }) }))).toBe("Placements que no se sostuvieron: 2 en el periodo.");
+    expect(text(summaryLine(state("kind=placements&held=false"), { kind: "placements", page: placementList({ total: 2 }) }))).toBe("2 placements que no se sostuvieron en el periodo.");
     expect(text(summaryLine(state("kind=reassignments"), { kind: "reassignments", page: reassignmentList({ total: 1 }) }))).toBe("1 reasignación en el periodo.");
+  });
+
+  it("names the on-time deliveries behind «40% a tiempo» and the closed vacancies with placement behind «100% de conversión»", () => {
+    const universe = { kind: "deliveries" as const, page: deliveryList({ total: 5, facets: { result: { on_time: 2, late: 2, overdue: 1, pending: 3, not_configured: 0 } } }) };
+    expect(text(summaryLine(state("kind=deliveries&result=on_time,late,overdue"), universe))).toMatch(/^2 de 5 entregas con fecha cumplida llegaron a tiempo en el periodo — 40\s?%\.$/);
+    expect(text(summaryLine(state(`kind=deliveries&result=on_time,late,overdue&attributed_to=${jorgeId}`), { ...universe, page: { ...universe.page, applied_filters: { attributed_to: jorge } } })))
+      .toMatch(/^2 de 5 entregas con fecha cumplida de Jorge Paredes llegaron a tiempo en el periodo — 40\s?%\.$/);
+    const mariana = { ...jorge, user_id: marianaId, name: "Mariana Torres" };
+    expect(text(summaryLine(state(`kind=vacancies&scope=closed_assigned&recruiter_id=${marianaId}&credited_to=${marianaId}`),
+      { kind: "vacancies", page: vacancyList({ total: 3, applied_filters: { recruiter: mariana, credited_to: mariana } }) }))).toBe("3 vacantes cerradas con placement de Mariana Torres en el periodo.");
+  });
+
+  it("counts vacancies without a delivery target as vacancies, like the board's «vacantes sin meta configurada»", () => {
+    const data = { kind: "deliveries" as const, page: deliveryList({ total: 5, facets: { result: { on_time: 2, late: 2, overdue: 1, pending: 1, not_configured: 5 } } }) };
+    expect(text(summaryLine(state("kind=deliveries&result=not_configured"), data))).toMatch(/^5 de 11 vacantes no tienen meta de entrega en el periodo — 45\s?%\.$/);
   });
 
   it("counts candidates today and applications by their sum, not by the rows", () => {
@@ -67,5 +86,6 @@ describe("detail titles (rule 16: the title names the figure)", () => {
     expect(text(summaryLine(state("kind=candidates"), { kind: "candidates", page: candidateList({ total: 1 }) }))).toBe("1 candidato hoy.");
     expect(text(summaryLine(state("kind=applications"), { kind: "applications", page: applicationList() }))).toBe("154 postulaciones en el periodo.");
     expect(text(summaryLine(state("kind=applications"), { kind: "applications", page: applicationList({ total: 1 }) }))).toBe("1 postulación en el periodo.");
+    expect(text(summaryLine(state("kind=applications&channel=careers_site"), { kind: "applications", page: applicationList({ total: 14 }) }))).toBe("14 postulaciones del sitio de carreras en el periodo.");
   });
 });

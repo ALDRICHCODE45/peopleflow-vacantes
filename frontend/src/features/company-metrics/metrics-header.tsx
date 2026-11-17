@@ -48,9 +48,10 @@ export function MetricsBoardHeader({ filters, today, asOf, version, appliedPerio
         <p className="text-xs text-muted-foreground">{freshness}</p>
       </div>
       <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
-        <div role="group" aria-label="Periodo" className="flex max-w-full overflow-x-auto rounded-xl border bg-card p-0.5">
+        {/* Rule 14: on a narrow screen the options wrap onto a second line, «Personalizado» whole. */}
+        <div role="group" aria-label="Periodo" className="flex max-w-full flex-wrap rounded-xl border bg-card p-0.5">
           {PERIODS.map(item => <Button key={item.value} type="button" variant="ghost" aria-pressed={shortcut === item.value}
-            className={cn("min-h-10 rounded-lg px-3 text-muted-foreground", shortcut === item.value && "bg-primary/10 font-semibold text-primary hover:bg-primary/15 hover:text-primary")}
+            className={cn("min-h-10 rounded-lg px-3 text-muted-foreground", shortcut === item.value && "bg-primary/10 font-semibold text-primary-text hover:bg-primary/15 hover:text-primary-text")}
             onClick={() => onChange({ ...filters, ...shortcutPeriod(item.value, today) })}>{item.label}</Button>)}
           <CustomPeriod period={period} active={!shortcut} error={serverErrors.from ?? serverErrors.to} onApply={next => onChange({ ...filters, ...next })} />
         </div>
@@ -89,7 +90,7 @@ function CustomPeriod({ period, active, error, onApply }: { period: Period; acti
   const issue = (field: "from" | "to") => issues.find(item => item.field === field)?.message;
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger render={<Button type="button" variant="ghost" aria-pressed={active}
-      className={cn("min-h-10 rounded-lg px-3 text-muted-foreground", active && "bg-primary/10 font-semibold text-primary hover:bg-primary/15 hover:text-primary")} />}>
+      className={cn("min-h-10 rounded-lg px-3 text-muted-foreground", active && "bg-primary/10 font-semibold text-primary-text hover:bg-primary/15 hover:text-primary-text")} />}>
       <CalendarRange aria-hidden="true" data-icon="inline-start" />Personalizado
     </PopoverTrigger>
     <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">

@@ -33,7 +33,8 @@ const period = { from: "2026-08-01", to: "2026-10-31" };
 const ready = (data: ComplianceData) => ({ status: "ready" as const, data, stale: false, failure: null, ref: vi.fn(), retry: vi.fn(), activate: vi.fn() });
 const show = (data: ComplianceData = compliance()) => render(<ComplianceSection state={ready(data)} filters={{}} period={period} />);
 const card = (name: string) => within(screen.getByRole("article", { name }));
-const query = (link: HTMLElement) => Object.fromEntries(new URL(link.getAttribute("href")!, "https://app.test").searchParams);
+/** The figure's own query; `back` (the board it returns to) is checked on its own. */
+const query = (link: HTMLElement) => { const params = new URL(link.getAttribute("href")!, "https://app.test").searchParams; params.delete("back"); return Object.fromEntries(params); };
 const row = (label: string) => within(card("Entregas con fecha cumplida").getByText(label).closest("li")!);
 const noSample = { value: null, numerator: 0, denominator: 0 };
 
@@ -63,6 +64,21 @@ describe("Cumplimiento de entregas (artboard 07)", () => {
   it("draws the monthly on-time line", () => {
     show();
     expect(card("A tiempo por mes").getByRole("img", { name: /Porcentaje de entregas a tiempo por mes/ })).toBeInTheDocument();
+  });
+
+  it("draws bars labelled with their rate when fewer than three months have due deliveries, each month still opening its records", () => {
+    drill.enabled = true;
+    show(compliance({ on_time_by_month: [
+      { month: "2026-08", rate: { value: 0.4, numerator: 2, denominator: 5 } }, { month: "2026-09", rate: noSample }, { month: "2026-10", rate: { value: 1, numerator: 3, denominator: 3 } },
+    ] }));
+    const monthly = card("A tiempo por mes");
+    expect(monthly.getByRole("img", { name: "Gráfica de barras: porcentaje de entregas a tiempo por mes, de agosto de 2026 a octubre de 2026. Agosto de 2026: 40% (2 de 5); octubre de 2026: 100% (3 de 3)." }))
+      .toBeInTheDocument();
+    expect(monthly.queryByRole("img", { name: /^Porcentaje de entregas a tiempo por mes/ })).toBeNull();
+    expect(query(monthly.getByRole("link", { name: "Ver las 5 entregas con fecha cumplida de agosto de 2026, 40% a tiempo" })))
+      .toEqual({ kind: "deliveries", result: "on_time,late,overdue", commitment_month: "2026-08", ...period });
+    expect(monthly.getByRole("link", { name: "Ver las 3 entregas con fecha cumplida de octubre de 2026, 100% a tiempo" })).toBeInTheDocument();
+    expect(monthly.queryByRole("link", { name: /septiembre/ })).toBeNull();
   });
 
   it("keeps every figure as plain text while the detail page is off", () => {

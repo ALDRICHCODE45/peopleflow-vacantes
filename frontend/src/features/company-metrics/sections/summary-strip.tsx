@@ -159,9 +159,10 @@ function Strip({ data, drill }: { data: MetricsSummary; drill: Drill }) {
     <KpiCard label="Mediana para cerrar">
       {median === null
         ? <p className={MISSING}>{NO_SAMPLE}</p>
-        : <p className={VALUE}>
+        // On a narrow card the unit moves whole under the number instead of breaking between «días» and «hábiles».
+        : <p className={cn(VALUE, "flex flex-wrap items-baseline gap-x-1")}>
           <Figure href={drill(targets.median, filled)} label={seeLabel(filled, "las", "vacante cubierta por días para cerrar", "vacantes cubiertas por días para cerrar")}>{number.format(median)}</Figure>
-          <span className="ml-1 text-sm font-medium tracking-normal text-muted-foreground">{median === 1 ? "día hábil" : "días hábiles"}</span>
+          <span className="text-sm font-medium tracking-normal whitespace-nowrap text-muted-foreground">{median === 1 ? "día hábil" : "días hábiles"}</span>
         </p>}
       {median !== null && <DeltaLine delta={medianDelta && medianDelta.direction !== "flat" ? { ...medianDelta, label: `${medianDelta.label} días` } : medianDelta}
         previous={previousLink(targets.median, undefined, "Ver las vacantes cubiertas por días para cerrar")} />}

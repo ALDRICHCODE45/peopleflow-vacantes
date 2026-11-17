@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Users } from "lucide-react";
+import { STACKED_CELL, STACKED_TABLE } from "@/components/data-table/stacked-table";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -61,7 +62,7 @@ export function RecruitersSection({ state, filters, period }: SectionProps<Recru
     {data => <>
       <Card className="gap-4 p-6">
         {data.length === 0 ? <SectionEmpty icon={Users} tone="empty" title="Aún no hay reclutadores con actividad en este periodo" description="Aquí verás la comparación por persona cuando tengan vacantes asignadas." />
-          : <Table className="text-sm">
+          : <Table className={cn("text-sm", STACKED_TABLE)}>
             <caption className="sr-only">Reclutadores ordenados por entregas a tiempo</caption>
             <TableHeader className="[&_tr]:border-0">
               <TableRow className="hover:bg-transparent">
@@ -101,11 +102,12 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
   const conversion = card.placements.conversion;
   const conversionText = formatRate(conversion);
   const placements = placementTotal(card.placements);
-  const cell = "h-14 px-3 text-right tabular-nums";
+  // Rule 14: below `md` the row stacks; name and chevron on top, the four figures in a 2×2 named by their column.
+  const cell = cn("h-14 px-3 text-right tabular-nums", STACKED_CELL);
   const delivered = (result: string): Drilldown => ({ kind: "deliveries", params: { attributed_to: user, result } });
   const closed = (credited: boolean): Drilldown => ({ kind: "vacancies", params: { scope: "closed_assigned", recruiter_id: user, ...(credited && { credited_to: user }) } });
-  return <TableRow className="hover:bg-muted/60">
-    <TableCell className="h-14 pr-3 pl-0">
+  return <TableRow className="hover:bg-muted/60 max-md:grid max-md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] max-md:items-center max-md:gap-x-4 max-md:gap-y-3 max-md:py-3">
+    <TableCell className="h-14 pr-3 pl-0 max-md:col-span-2 max-md:col-start-1 max-md:row-start-1 max-md:block max-md:h-auto max-md:p-0">
       <div className="flex min-w-0 items-center gap-3">
         <span aria-hidden="true" className={cn("grid size-8 shrink-0 place-items-center rounded-full text-xs font-medium", accentAvatar)}>{initials(name)}</span>
         <span className="min-w-0 truncate">
@@ -114,14 +116,14 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
         </span>
       </div>
     </TableCell>
-    <TableCell className={cell}>
+    <TableCell data-label="Vacantes asignadas" className={cn(cell, "max-md:col-start-1")}>
       <Figure href={href({ kind: "vacancies", params: { scope: "assigned", recruiter_id: user } }, card.vacancies.assigned)}
         label={`Ver ${card.vacancies.assigned === 1 ? "la 1 vacante asignada" : `las ${number.format(card.vacancies.assigned)} vacantes asignadas`} a ${name}`}>{number.format(card.vacancies.assigned)}</Figure>
     </TableCell>
-    <TableCell className={cell}>
+    <TableCell data-label="Entregas a tiempo" className={cn(cell, "max-md:col-span-2 max-md:col-start-2")}>
       {onTime.value === null ? <span className="text-muted-foreground">{NO_SAMPLE}</span>
-        : <span className="inline-flex items-center justify-end gap-3">
-          <span aria-hidden="true" className="h-2 w-28 overflow-hidden rounded-full bg-muted">
+        : <span className="inline-flex items-center justify-end gap-3 max-md:justify-start">
+          <span aria-hidden="true" className="h-2 w-28 overflow-hidden rounded-full bg-muted max-md:hidden">
             <span className="block h-full rounded-full" style={{ width: `${onTime.value * 100}%`, background: "color-mix(in oklab, var(--primary) 60%, var(--pf-tint-base))" }} />
           </span>
           <Figure href={href(delivered("on_time"), onTime.numerator)} className="min-w-10 font-semibold"
@@ -130,11 +132,11 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
             label={`${onTimeText.detail}: ver ${onTime.denominator === 1 ? "la 1 entrega con fecha" : `las ${number.format(onTime.denominator)} entregas con fecha`} de ${name}`}>{onTimeText.detail}</Figure>
         </span>}
     </TableCell>
-    <TableCell className={cell}>
+    <TableCell data-label="Placements" className={cn(cell, "max-md:col-start-1")}>
       <Figure href={href({ kind: "placements", params: { recipient: user } }, placements)}
         label={`Ver ${placements === 1 ? "el 1 placement" : `los ${number.format(placements)} placements`} de ${name}`}>{number.format(placements)}</Figure>
     </TableCell>
-    <TableCell className={cell}>
+    <TableCell data-label="Conversión" className={cn(cell, "max-md:col-span-2 max-md:col-start-2")}>
       {conversion.value === null ? <span className="text-muted-foreground">{NO_SAMPLE}</span>
         : <>
           <Figure href={href(closed(true), conversion.numerator)} className="font-semibold"
@@ -145,7 +147,7 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
           </span>
         </>}
     </TableCell>
-    <TableCell className="h-14 w-14 pr-0 pl-3">
+    <TableCell className="h-14 w-14 pr-0 pl-3 max-md:col-start-3 max-md:row-start-1 max-md:block max-md:h-auto max-md:w-auto max-md:p-0">
       <Button variant="ghost" size="icon" className="ml-auto flex size-10 text-muted-foreground" nativeButton={false} role="link" aria-label={`Ver detalle de ${name}`} render={<Link href={detail} />}>
         <ChevronRight aria-hidden="true" />
       </Button>

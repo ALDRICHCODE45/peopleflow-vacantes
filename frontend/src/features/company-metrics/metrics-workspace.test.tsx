@@ -158,6 +158,21 @@ describe("period and filters (rule 11)", () => {
     expect(screen.getByRole("button", { name: "12 meses" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("wraps the period control onto a second line on a narrow screen, «Personalizado» whole (rule 14)", async () => {
+    render(<CompanyMetricsPage />);
+    const group = await screen.findByRole("group", { name: "Periodo" });
+    expect(group).toHaveClass("flex-wrap");
+    expect(group).not.toHaveClass("overflow-x-auto");
+    expect(within(group).getByRole("button", { name: "Personalizado" })).toBeInTheDocument();
+  });
+
+  it("paints the selected period with the accent text token, which keeps 4.5:1 on the dark card", async () => {
+    render(<CompanyMetricsPage />);
+    const selected = await screen.findByRole("button", { name: "90 días" });
+    expect(selected).toHaveClass("text-primary-text");
+    expect(selected).not.toHaveClass("text-primary");
+  });
+
   it("filters by recruiter from the «Filtros» popover and shows a removable chip", async () => {
     const user = userEvent.setup();
     render(<CompanyMetricsPage />);

@@ -32,7 +32,9 @@ const period = { from: "2026-08-01", to: "2026-10-31" };
 const ready = (data: MetricsSummary) => ({ status: "ready" as const, data, stale: false, failure: null, ref: vi.fn(), retry: vi.fn(), activate: vi.fn() });
 const show = (data: MetricsSummary = summaryV2()) => render(<SummaryStrip state={ready(data)} filters={{}} period={period} />);
 const kpi = (name: string) => within(screen.getByRole("article", { name }));
-const query = (link: HTMLElement) => Object.fromEntries(new URL(link.getAttribute("href")!, "https://app.test").searchParams);
+/** The figure's own query; `back` (the board it returns to) is checked on its own. */
+const query = (link: HTMLElement) => { const params = new URL(link.getAttribute("href")!, "https://app.test").searchParams; params.delete("back"); return Object.fromEntries(params); };
+const back = (link: HTMLElement) => new URL(link.getAttribute("href")!, "https://app.test").searchParams.get("back");
 const pill = (container: ReturnType<typeof kpi>, label: string) => container.getByText(label).closest("[data-tone]");
 
 beforeEach(() => { drill.enabled = false; });
@@ -58,6 +60,9 @@ describe("Resumen strip (artboard 07)", () => {
     expect(pill(kpi("Vacantes asignadas"), "+4")).toHaveAttribute("data-tone", "positive");
     expect(kpi("Mediana para cerrar").getByText("23")).toBeInTheDocument();
     expect(kpi("Mediana para cerrar").getByText("días hábiles")).toBeInTheDocument();
+    // On a narrow card the unit moves whole under the number, never «días» on one line and «hábiles» on the next.
+    expect(kpi("Mediana para cerrar").getByText("días hábiles")).toHaveClass("whitespace-nowrap");
+    expect(kpi("Mediana para cerrar").getByText("días hábiles").parentElement).toHaveClass("flex-wrap");
     expect(pill(kpi("Mediana para cerrar"), "−4 días")).toHaveAttribute("data-tone", "positive");
     expect(kpi("Placements").getByText("25")).toBeInTheDocument();
     expect(pill(kpi("Placements"), "+6")).toHaveAttribute("data-tone", "positive");
@@ -119,6 +124,8 @@ describe("Resumen strip (artboard 07)", () => {
       .toEqual({ kind: "vacancies", scope: "assigned", from: "2026-05-02", to: "2026-07-31" });
     expect(query(screen.getByRole("link", { name: "Ver las 20 entregas con fecha cumplida del periodo anterior" })))
       .toEqual({ kind: "deliveries", result: "on_time,late,overdue", from: "2026-05-02", to: "2026-07-31" });
+    // «Volver» from a previous-period list returns to this board, not to the previous period.
+    expect(back(screen.getByRole("link", { name: "Ver las 38 vacantes asignadas del periodo anterior" }))).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");
   });
 
   it("never links a 0", () => {

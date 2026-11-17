@@ -77,4 +77,21 @@ describe("detail query (the board's drill-down URL, validated per kind)", () => 
     expect(boardHref(state)).toBe(`/empresa/metricas?${period}&recruiter_id=${marianaId}`);
     expect(boardHref(parse("kind=deliveries&result=late")!)).toBe("/empresa/metricas");
   });
+
+  it("keeps a valid «back» apart from the API query, through every rewrite, and returns there", () => {
+    const back = encodeURIComponent("/empresa/metricas?from=2026-08-01&to=2026-10-31");
+    const state = parse(`kind=vacancies&from=2026-05-02&to=2026-07-31&recruiter_id=${marianaId}&scope=assigned&back=${back}`)!;
+    expect(state.params).toEqual({ from: "2026-05-02", to: "2026-07-31", recruiter_id: marianaId, scope: "assigned" });
+    expect(boardHref(state)).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");
+    const next = withParams(state, { recruiter_id: undefined });
+    expect(boardHref(next)).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");
+    expect(new URL(detailHref(next), "https://app.test").searchParams.get("back")).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");
+    expect(detailApiQuery(state, "2026-11-07").has("back")).toBe(false);
+  });
+
+  it("ignores a «back» that is not the board and rebuilds it from the filters", () => {
+    const state = parse(`kind=deliveries&${period}&back=${encodeURIComponent("https://evil.test/empresa/metricas")}`)!;
+    expect(state.back).toBeUndefined();
+    expect(boardHref(state)).toBe(`/empresa/metricas?${period}`);
+  });
 });

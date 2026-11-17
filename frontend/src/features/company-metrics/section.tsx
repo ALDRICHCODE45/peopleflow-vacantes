@@ -25,9 +25,10 @@ export function MetricsSection<T>({ title, help, state, skeleton, actions, child
   const headingId = useId();
   const busy = state.status === "loading" || state.status === "idle";
   return <section ref={state.ref} aria-labelledby={headingId} aria-busy={busy || undefined} className="flex min-w-0 flex-col gap-6">
-    <div className="flex items-center justify-between gap-3">
+    {/* Rule 14: when the title and its actions do not fit on one line, the actions wrap below instead of squeezing it. */}
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <h2 id={headingId} className="min-w-0 text-lg font-semibold tracking-tight">{title}</h2>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         {actions}
         <SectionHelp title={help.title} body={help.body} section={title} />
       </div>

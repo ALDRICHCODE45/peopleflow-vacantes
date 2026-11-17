@@ -7,7 +7,6 @@ import { SectionEmpty } from "@/components/feedback/state-card";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { loadDetailAction } from "../actions";
-import { DETAIL_PATH } from "../drilldown";
 import { MetricsAccessGate } from "../metrics-page";
 import { MetricsFailureCard } from "../metrics-workspace";
 import { CHANNEL_LABEL, CLOSE_REASON_LABEL, dayLabel, momentLabel, number, REASSIGNMENT_REASON_LABEL, STAGE_KIND_LABEL, type DetailPage } from "../model";
@@ -79,10 +78,10 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
   const statusFiltered = Boolean(state.params[facetParam]);
 
   const vacancyHref = (ref: VacancyRef) => role === "owner" ? `/empresa/vacantes/${ref.draft_id}/pipeline`
-    : `${DETAIL_PATH}?${new URLSearchParams({ kind: "deliveries", from: period.from, to: period.to, vacancy_id: ref.draft_id })}`;
+    : detailHref({ kind: "deliveries", params: { from: period.from, to: period.to, vacancy_id: ref.draft_id }, back: state.back });
   const vacancy = (ref: VacancyRef) => {
     const title = ref.title?.trim() || "Vacante sin título";
-    const className = "font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring rounded-sm";
+    const className = "font-medium text-primary-text underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring rounded-sm";
     // Owner: the vacancy board. Stakeholder: the same metrics, filtered by the vacancy (v2 §7).
     if (role === "owner") return <Link href={vacancyHref(ref)} className={className}>{title}</Link>;
     const href = vacancyHref(ref);
@@ -95,7 +94,7 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
     <Card className="gap-5 p-6" aria-busy={list.pending || undefined}>
       {list.notice && <p role="status" className="text-sm text-muted-foreground">{list.notice}</p>}
       {list.failure && !list.pending
-        ? <MetricsFailureCard failure={list.failure} subject="los registros" onRetry={list.retry} onReset={() => go({ kind: state.kind, params: {} })} />
+        ? <MetricsFailureCard failure={list.failure} subject="los registros" onRetry={list.retry} onReset={() => go({ ...state, params: {} })} />
         : !list.data
           ? <DetailSkeleton state={state} />
           : <div className={cn("flex min-w-0 flex-col gap-5 transition-opacity motion-reduce:transition-none", list.stale && "opacity-60")}>

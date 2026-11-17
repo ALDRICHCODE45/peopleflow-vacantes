@@ -44,6 +44,38 @@ describe("metrics detail page (artboard 08)", () => {
     expect(lastCall()).toEqual({ kind: "deliveries", query: { from: "2026-08-01", to: "2026-10-31", recruiter_id: jorgeId, result: "late" } });
   });
 
+  it("returns «Volver» to the board it came from, not to one rebuilt from the figure's filters", async () => {
+    const back = "/empresa/metricas?from=2026-08-01&to=2026-10-31";
+    at(`kind=vacancies&from=2026-05-02&to=2026-07-31&recruiter_id=${jorgeId}&scope=assigned&back=${encodeURIComponent(back)}`);
+    load.mockResolvedValue(ok({ kind: "vacancies", page: vacancyList({ total: 12, applied_filters: { scope: "assigned", recruiter: jorge } }) }));
+    render(<MetricsDetailPage />);
+    const crumb = await screen.findByRole("navigation", { name: "Ruta" });
+    expect(within(crumb).getByRole("link", { name: "Métricas" })).toHaveAttribute("href", back);
+    expect(lastCall()).toEqual({ kind: "vacancies", query: { from: "2026-05-02", to: "2026-07-31", recruiter_id: jorgeId, scope: "assigned" } });
+    await userEvent.click(await screen.findByRole("button", { name: "Quitar filtro Reclutador: Jorge Paredes" }));
+    expect(search()).toEqual({ kind: "vacancies", from: "2026-05-02", to: "2026-07-31", scope: "assigned", back });
+    expect(within(crumb).getByRole("link", { name: "Métricas" })).toHaveAttribute("href", back);
+  });
+
+  it("stacks each record as a list row on a narrow screen, every cell named by its column (rule 14)", async () => {
+    render(<MetricsDetailPage />);
+    const table = await screen.findByRole("table");
+    expect(table).toHaveClass("max-md:block");
+    const [vacancy, ...cells] = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+    expect(vacancy).not.toHaveAttribute("data-label");
+    expect(cells.map(cell => cell.getAttribute("data-label"))).toEqual(["Cliente o área", "Fecha meta", "Entregada", "Días de retraso", "Candidatos entregados"]);
+  });
+
+  it("paints the violet text (breadcrumb, record links, selected status) with the accent text token that keeps 4.5:1 in dark mode", async () => {
+    render(<MetricsDetailPage />);
+    const crumb = await screen.findByRole("navigation", { name: "Ruta" });
+    expect(within(crumb).getByRole("link", { name: "Métricas" })).toHaveClass("text-primary-text");
+    expect(await screen.findByRole("link", { name: "Coordinador de logística" })).toHaveClass("text-primary-text");
+    const selected = within(screen.getByRole("group", { name: "Estado de la entrega" })).getByRole("button", { name: "Tarde 4" });
+    expect(selected).toHaveClass("text-primary-text");
+    for (const element of [within(crumb).getByRole("link", { name: "Métricas" }), selected]) expect(element).not.toHaveClass("text-primary");
+  });
+
   it("removes a chip by rewriting the URL", async () => {
     render(<MetricsDetailPage />);
     await userEvent.click(await screen.findByRole("button", { name: "Quitar filtro Reclutador: Jorge Paredes" }));
@@ -69,7 +101,7 @@ describe("metrics detail page (artboard 08)", () => {
     at(`kind=vacancies&${period}&scope=assigned`);
     load.mockResolvedValue(ok({ kind: "vacancies", page: vacancyList({ total: 12, applied_filters: { scope: "assigned" } }) }));
     render(<MetricsDetailPage />);
-    expect(await summaryText("Vacantes asignadas: 12 en el periodo.")).toBeInTheDocument();
+    expect(await summaryText("12 vacantes asignadas en el periodo.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Vacantes asignadas" })).toBeInTheDocument();
   });
 

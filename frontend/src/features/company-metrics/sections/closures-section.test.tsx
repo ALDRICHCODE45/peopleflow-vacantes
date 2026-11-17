@@ -33,7 +33,8 @@ const period = { from: "2026-08-01", to: "2026-10-31" };
 const ready = (data: ClosuresData) => ({ status: "ready" as const, data, stale: false, failure: null, ref: vi.fn(), retry: vi.fn(), activate: vi.fn() });
 const show = (data: ClosuresData = closures()) => render(<ClosuresSection state={ready(data)} filters={{}} period={period} />);
 const card = (name: string) => within(screen.getByRole("article", { name }));
-const query = (link: HTMLElement) => Object.fromEntries(new URL(link.getAttribute("href")!, "https://app.test").searchParams);
+/** The figure's own query; `back` (the board it returns to) is checked on its own. */
+const query = (link: HTMLElement) => { const params = new URL(link.getAttribute("href")!, "https://app.test").searchParams; params.delete("back"); return Object.fromEntries(params); };
 const row = (label: string) => within(card("Estado de entregas").getByText(label).closest("li")!);
 
 beforeEach(() => {

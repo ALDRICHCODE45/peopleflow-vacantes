@@ -50,8 +50,17 @@ describe("Resumen (artboard 09)", () => {
     unmount();
     render(<SummarySection state={ready(summary())} window={30} drill={drillFor(30)} />);
     expect(query(screen.getByRole("link", { name: "Ver los 143 candidatos en proceso" }))).toEqual({ kind: "candidates", window: "30", in_process: "true" });
-    expect(query(screen.getAllByRole("link", { name: "Ver las 28 vacantes publicadas" })[0])).toEqual({ kind: "vacancies", window: "30", status: "published" });
+    expect(query(screen.getByRole("link", { name: "Ver las 28 vacantes publicadas" }))).toEqual({ kind: "vacancies", window: "30", status: "published" });
     expect(screen.getByRole("link", { name: "Ver los 96 perfiles agregados a la base" })).toHaveAttribute("href", "/empresa/talento?added_from=2026-10-10&added_to=2026-11-08");
+  });
+
+  it("puts each figure in the tab order once: the repeated published and covered figures stay clickable but are not a second tab stop", () => {
+    render(<SummarySection state={ready(summary())} window={30} drill={drillFor(30)} />);
+    expect(screen.getAllByRole("link", { name: "Ver las 28 vacantes publicadas" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "Ver las 19 posiciones cubiertas" })).toHaveLength(1);
+    const repeats = [...document.querySelectorAll<HTMLAnchorElement>("a[href]")].filter(link => link.getAttribute("tabindex") === "-1");
+    expect(repeats.map(link => link.textContent)).toEqual(["28 vacantes", "19"]);
+    for (const link of repeats) expect(link).toHaveAttribute("aria-hidden", "true");
   });
 
   it("says «Sin posiciones definidas» instead of inventing a ratio, and «Sin cambio» for a flat delta", () => {

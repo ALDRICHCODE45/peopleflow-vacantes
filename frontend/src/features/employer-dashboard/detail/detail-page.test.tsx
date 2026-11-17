@@ -91,6 +91,10 @@ describe("dashboard detail page (artboard 08 anatomy)", () => {
     expect(screen.getByRole("columnheader", { name: /Posiciones por cubrir/ })).toHaveAttribute("aria-sort", "descending");
     const row = screen.getAllByRole("row")[1];
     expect(within(row).getAllByRole("cell").map(cell => cell.textContent)).toEqual(["Analista de crédito Sr.", "Grupo Bimbo", "Publicada", "14 sep 2026", "14", "2 de 3"]);
+    // Rule 14: below `md` the row stacks, each value named by its column, the vacancy as its title.
+    expect(screen.getByRole("table")).toHaveClass("max-md:block");
+    expect(within(row).getAllByRole("cell").map(cell => cell.getAttribute("data-label"))).toEqual([null, "Cliente o área", "Estado", "Publicada", "En proceso", "Posiciones por cubrir"]);
+    expect(screen.getByRole("link", { name: "Analista de crédito Sr." })).toHaveClass("text-primary-text");
     expect(screen.getByRole("link", { name: "Vacante sin título" })).toHaveAttribute("href", "/empresa/vacantes/30000000-0000-4000-8000-000000000002/pipeline");
     await userEvent.click(screen.getByRole("button", { name: /En proceso/ }));
     expect(search()).toMatchObject({ sort: "in_process", order: "desc" });

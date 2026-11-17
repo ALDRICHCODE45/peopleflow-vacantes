@@ -72,7 +72,7 @@ export function filterChips(state: DashboardDetailState, applied?: DashboardAppl
 
 /** Summary parts: `[text, bold]`. */
 export type SummaryPart = readonly [string, boolean];
-/** «14 candidatos en proceso hoy.», «2 entregas vencidas hoy.», «154 postulaciones en el periodo.» */
+/** «14 candidatos en proceso hoy.», «2 entregas vencidas hoy.», «14 postulaciones orgánicas en el periodo.» */
 export function summaryLine(state: DashboardDetailState, data: DashboardDetailPage): SummaryPart[] {
   const total = data.page.total;
   const one = total === 1;
@@ -97,7 +97,12 @@ export function summaryLine(state: DashboardDetailState, data: DashboardDetailPa
       }
       return state.params.status === "published" ? [[published, true], [" hoy.", false]] : [[plural(total, "vacante", "vacantes"), true], [".", false]];
     }
-    case "applications": return [[plural(total, "postulación", "postulaciones"), true], [" en el periodo.", false]];
+    case "applications": {
+      // Named after the board figure it came from: «Orgánicas» (every channel but manual) or «Manuales».
+      const where = state.params.channel === ORGANIC_CHANNELS ? ["postulación orgánica", "postulaciones orgánicas"]
+        : state.params.channel === "manual" ? ["postulación de registro manual", "postulaciones de registro manual"] : ["postulación", "postulaciones"];
+      return [[plural(total, where[0], where[1]), true], [" en el periodo.", false]];
+    }
   }
 }
 

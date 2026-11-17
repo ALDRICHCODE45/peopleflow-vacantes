@@ -107,6 +107,7 @@
     --color-secondary: var(--secondary);
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
+    --color-primary-text: var(--primary-text);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -533,15 +534,20 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
 :root {
   --pf-tint-base: var(--card);
   --pf-tone-none: var(--border);
+  /* Violet text (`text-primary-text`): links, breadcrumbs, the selected tab or period. Light keeps --primary; dark
+     --primary is a deep button fill (~2:1 on the near-black card), so text takes the brand strong tone (~6.6:1). */
+  --primary-text: var(--primary);
 }
 .dark {
   --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
   --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
+  --primary-text: var(--brand-decorative-strong);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
     --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
+    --primary-text: var(--brand-decorative-strong);
   }
 }
 /* The hero KPI tile is inverted (`bg-foreground text-background`). In dark mode that is a near-white block, so the

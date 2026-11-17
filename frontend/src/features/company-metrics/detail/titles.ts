@@ -64,10 +64,19 @@ function vacancyTitle(state: DetailState, applied: AppliedFilters | undefined): 
 const subjectPerson = (state: DetailState, applied?: AppliedFilters) =>
   personName(state, applied, "attributed_to") ?? personName(state, applied, "recipient") ?? personName(state, applied, "credited_to") ?? personName(state, applied, "recruiter");
 
+const ON_TIME_UNIVERSE = ["on_time", "late", "overdue"];
+/** The deliveries already due (a tiempo + tarde + vencidas): the universe of every on-time rate. */
+const isUniverse = (params: DetailState["params"]) => {
+  const results = (params.result ?? "").split(",").filter(Boolean);
+  return results.length === ON_TIME_UNIVERSE.length && ON_TIME_UNIVERSE.every(result => results.includes(result));
+};
+const closedScope = (params: DetailState["params"]) => params.scope === "closed" || params.scope === "closed_assigned" || Boolean(params.closed_month || params.close_reason);
+
 /** The figure without its subjects: the breadcrumb's current page. */
 export function figureTitle({ kind, params }: DetailState): string {
   switch (kind) {
     case "deliveries": {
+      if (isUniverse(params) && !params.late_bucket) return "Entregas con fecha cumplida";
       const base = RESULT_TITLE[single(params.result) ?? ""] ?? "Entregas";
       return params.late_bucket ? `${base} · ${LATE_BUCKET_LABEL[params.late_bucket]}` : base;
     }
@@ -75,7 +84,7 @@ export function figureTitle({ kind, params }: DetailState): string {
       const reason = single(params.close_reason);
       if (params.closing_target) return { on_time: "Vacantes cubiertas a tiempo", late: "Vacantes cubiertas tarde", no_target: "Vacantes cubiertas sin meta" }[params.closing_target] ?? "Vacantes";
       if (reason) return { filled: "Vacantes cubiertas", cancelled: "Vacantes canceladas", other: "Vacantes cerradas por otro motivo", no_reason: "Vacantes cerradas sin motivo" }[reason] ?? "Vacantes cerradas";
-      if (params.scope === "closed" || params.scope === "closed_assigned" || params.closed_month || params.close_reason) return "Vacantes cerradas";
+      if (closedScope(params)) return params.credited_to ? "Vacantes cerradas con placement" : "Vacantes cerradas";
       if (params.credited_to) return "Vacantes con colocación";
       return params.scope === "assigned" ? "Vacantes asignadas" : "Vacantes";
     }
@@ -132,44 +141,81 @@ export function filterChips(state: DetailState, applied?: AppliedFilters): Chip[
   return chips;
 }
 
-const ON_TIME_UNIVERSE = ["on_time", "late", "overdue"];
 const VERB: Record<string, [string, string]> = {
   on_time: ["llegó a tiempo", "llegaron a tiempo"], late: ["llegó tarde", "llegaron tarde"], overdue: ["está vencida", "están vencidas"],
   pending: ["está pendiente", "están pendientes"], not_configured: ["no tiene meta de entrega", "no tienen meta de entrega"],
 };
 /** Summary parts: `[text, bold]`. */
 export type SummaryPart = readonly [string, boolean];
+type Noun = readonly [singular: string, plural: string, preposition?: string];
+/**
+ * The figure as a noun for the summary sentence («29 vacantes asignadas en el periodo.»), with the preposition its
+ * person takes («asignadas a Mariana Torres», «con placement de Mariana Torres»).
+ */
+function figureNoun({ kind, params }: DetailState): Noun {
+  switch (kind) {
+    case "vacancies": {
+      const reason = single(params.close_reason);
+      if (params.closing_target) return ({
+        on_time: ["vacante cubierta a tiempo", "vacantes cubiertas a tiempo"], late: ["vacante cubierta tarde", "vacantes cubiertas tarde"],
+        no_target: ["vacante cubierta sin meta", "vacantes cubiertas sin meta"],
+      } as Record<string, Noun>)[params.closing_target] ?? ["vacante", "vacantes"];
+      if (reason) return ({
+        filled: ["vacante cubierta", "vacantes cubiertas"], cancelled: ["vacante cancelada", "vacantes canceladas"],
+        other: ["vacante cerrada por otro motivo", "vacantes cerradas por otro motivo"], no_reason: ["vacante cerrada sin motivo", "vacantes cerradas sin motivo"],
+      } as Record<string, Noun>)[reason] ?? ["vacante cerrada", "vacantes cerradas"];
+      if (closedScope(params)) return params.credited_to ? ["vacante cerrada con placement", "vacantes cerradas con placement"] : ["vacante cerrada", "vacantes cerradas"];
+      if (params.credited_to) return ["vacante con colocación", "vacantes con colocación"];
+      return params.scope === "assigned" ? ["vacante asignada", "vacantes asignadas", "a"] : ["vacante", "vacantes"];
+    }
+    case "placements": return params.held === "true" ? ["placement que se sostuvo", "placements que se sostuvieron"]
+      : params.held === "false" ? ["placement que no se sostuvo", "placements que no se sostuvieron"] : ["placement", "placements"];
+    case "reassignments": {
+      const reason = single(params.reason);
+      const [one, many]: Noun = params.direction === "received" ? ["reasignación recibida", "reasignaciones recibidas"]
+        : params.direction === "lost" ? ["reasignación perdida", "reasignaciones perdidas"] : ["reasignación", "reasignaciones"];
+      const why = reason ? ` por ${REASSIGNMENT_REASON_LABEL[reason as keyof typeof REASSIGNMENT_REASON_LABEL].toLowerCase()}` : "";
+      return [`${one}${why}`, `${many}${why}`];
+    }
+    case "applications": {
+      const channel = CHANNEL_TITLE[single(params.channel) ?? ""];
+      const where = channel ? channel.slice("Postulaciones".length) : "";
+      return [`postulación${where}`, `postulaciones${where}`];
+    }
+    case "candidates": return ["candidato", "candidatos"];
+    case "deliveries": return ["entrega", "entregas"];
+  }
+}
 /**
  * «4 de 5 entregas de Jorge Paredes llegaron tarde en el periodo — 80 %» for one delivery result, against the same
- * universe as the board's on-time rate (a tiempo + tarde + vencidas) or every delivery for pending and sin meta;
- * candidates are counted today (current state); applications by their sum in the chosen channels, never by the rows;
- * otherwise the count with the figure it came from («Vacantes asignadas: 12 en el periodo.»).
+ * universe as the board's on-time rate (a tiempo + tarde + vencidas) or every delivery for pending and sin meta; the
+ * universe itself reads as its on-time share («2 de 5 entregas con fecha cumplida llegaron a tiempo — 40 %»), as the
+ * board's rate it opens from; candidates are counted today (current state); applications by their sum in the chosen
+ * channels, never by the rows; otherwise the count named after its figure («29 vacantes asignadas en el periodo.»).
  */
 export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[] {
-  const result = single(state.params.result);
+  const universe = data.kind === "deliveries" && isUniverse(state.params) && !state.params.late_bucket;
+  const result = universe ? "on_time" : single(state.params.result);
   if (data.kind === "deliveries" && result && VERB[result]) {
     const facets = data.page.facets.result;
-    const universe = ON_TIME_UNIVERSE.includes(result) ? ON_TIME_UNIVERSE : Object.keys(facets);
-    const of = universe.reduce((sum, key) => sum + facets[key as keyof typeof facets], 0);
+    const keys = ON_TIME_UNIVERSE.includes(result) ? ON_TIME_UNIVERSE : Object.keys(facets);
+    const of = keys.reduce((sum, key) => sum + facets[key as keyof typeof facets], 0);
     const count = facets[result as keyof typeof facets];
     const percent = share(count, of);
     if (percent !== null) {
       const person = subjectPerson(state, data.page.applied_filters);
-      return [[`${number.format(count)} de ${number.format(of)}`, true], [` ${of === 1 ? "entrega" : "entregas"}${person ? ` de ${person}` : ""} ${VERB[result][count === 1 ? 0 : 1]} en el periodo — `, false], [percent, true], [".", false]];
+      // «Sin meta» counts vacancies, as the board's «vacantes sin meta configurada» does.
+      const noun = result === "not_configured" ? (of === 1 ? "vacante" : "vacantes") : `${of === 1 ? "entrega" : "entregas"}${universe ? " con fecha cumplida" : ""}`;
+      return [[`${number.format(count)} de ${number.format(of)}`, true], [` ${noun}${person ? ` de ${person}` : ""} ${VERB[result][count === 1 ? 0 : 1]} en el periodo — `, false], [percent, true], [".", false]];
     }
   }
   if (data.kind === "candidates") {
     const count = state.params.stalled === "true" ? plural(data.page.total, "candidato detenido", "candidatos detenidos") : plural(data.page.total, "candidato", "candidatos");
     return [[count, true], [" hoy.", false]];
   }
-  if (data.kind === "applications") return [[plural(data.page.total, "postulación", "postulaciones"), true], [" en el periodo.", false]];
-  // Rule 16: the line names the figure. A bare kind reads «11 entregas en el periodo.»; a filtered one leads with its title.
-  const [title, singular, pluralNoun] = BARE[data.kind];
-  const figure = figureTitle(state);
-  if (figure === title) return [[plural(data.page.total, singular, pluralNoun), true], [" en el periodo.", false]];
-  return [[`${figure}: `, false], [number.format(data.page.total), true], [" en el periodo.", false]];
+  const [singular, pluralNoun, preposition = "de"] = figureNoun(state);
+  if (data.kind === "applications") return [[plural(data.page.total, singular, pluralNoun), true], [" en el periodo.", false]];
+  // Rule 16: the line names the figure, and the person it is about when there is one.
+  const person = subjectPerson(state, data.page.applied_filters);
+  return [[plural(data.page.total, singular, pluralNoun), true], [`${person ? ` ${preposition} ${person}` : ""} en el periodo.`, false]];
 }
-const BARE: Record<"deliveries" | "vacancies" | "placements" | "reassignments", [string, string, string]> = {
-  deliveries: ["Entregas", "entrega", "entregas"], vacancies: ["Vacantes", "vacante", "vacantes"],
-  placements: ["Placements", "placement", "placements"], reassignments: ["Reasignaciones", "reasignación", "reasignaciones"],
-};

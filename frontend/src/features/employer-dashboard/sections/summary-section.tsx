@@ -48,7 +48,8 @@ function Strip({ data, window, drill }: { data: SummaryData; window: DashboardWi
       <DeltaLine hero current={data.in_process.current} previous={data.in_process.previous} comparison={stock} />
       <Sparkline series={data.in_process.series} />
       <p className="text-xs text-background/75">
-        En <Figure href={drill(target.published, published)} label={publishedLabel(published)} className="font-medium text-background">{plural(published, "vacante", "vacantes")}</Figure> {published === 1 ? "publicada" : "publicadas"}
+        {/* The «Vacantes publicadas» card links the same figure, so this copy is no second tab stop. */}
+        En <Figure repeat href={drill(target.published, published)} label={publishedLabel(published)} className="font-medium text-background">{plural(published, "vacante", "vacantes")}</Figure> {published === 1 ? "publicada" : "publicadas"}
       </p>
     </KpiCard>
     <KpiCard label="Vacantes publicadas" className={cn("lg:col-span-4", !data.pool_added && "col-span-2 lg:col-span-8")}>
@@ -116,7 +117,8 @@ function Positions({ positions, drill }: { positions: SummaryData["positions"]; 
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
           {parts.map(part => <span key={part.key} className="inline-flex items-center gap-2">
             <i aria-hidden="true" className="size-2 rounded-full" style={{ background: part.tone }} />
-            {part.label} <Figure href={drill(target.positions, part.count)} label={part.see} className="font-semibold text-foreground tabular-nums">{number.format(part.count)}</Figure> · {share(part.count, total)}
+            {/* «Cubiertas» repeats the card's value, which is already a link. */}
+            {part.label} <Figure repeat={part.key === "covered"} href={drill(target.positions, part.count)} label={part.see} className="font-semibold text-foreground tabular-nums">{number.format(part.count)}</Figure> · {share(part.count, total)}
           </span>)}
         </div>
       </div>}

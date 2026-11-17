@@ -36,10 +36,17 @@ export function yScale(points: ChartPoint[], averaged: boolean): { domain: [numb
   return { domain: [0, ticks[count]], ticks, allowDecimals: !whole };
 }
 
+/** Decimals of a tick value (0.25 → 2), at most 4 as the ticks are rounded to. */
+const decimalsOf = (value: number) => (String(Number(value.toFixed(4))).split(".")[1] ?? "").length;
+/** Every tick with the precision of the finest one: «0 · 0.25 · 0.5 · 0.75 · 1», never a rounded «0.3» or «0.8». */
+export function tickFormatter(ticks: number[]): (value: number) => string {
+  const format = new Intl.NumberFormat("es-MX", { maximumFractionDigits: Math.max(0, ...ticks.map(decimalsOf)) });
+  return value => format.format(value);
+}
+
 const config = { organic: { label: "Orgánicas", color: CHART_ACCENT }, manual: { label: "Manuales", color: CHART_MUTED } } satisfies ChartConfig;
 const decimal = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat("es-MX");
-const tickNumber = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
 const longDate = new Intl.DateTimeFormat("es-MX", { timeZone: "UTC", day: "numeric", month: "long" });
 const long = (date: string) => longDate.format(new Date(`${date}T12:00:00Z`));
 /** «del 2 al 8 de noviembre», «del 16 de octubre al 8 de noviembre». */
@@ -60,6 +67,7 @@ export function ApplicationsChart({ points, averaged, drill }: { points: ChartPo
   });
   const click = useMonthClick(links);
   const scale = yScale(points, averaged);
+  const tick = tickFormatter(scale.ticks);
   const first = points[0];
   const last = points[points.length - 1];
   const summary = averaged
@@ -78,7 +86,7 @@ export function ApplicationsChart({ points, averaged, drill }: { points: ChartPo
           <CartesianGrid vertical={false} stroke={CHART_GRID} strokeDasharray="3 3" />
           <XAxis dataKey="date" height={PLOT.xAxisHeight} tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} tickFormatter={value => shortDay(String(value))} />
           <YAxis width={PLOT.yAxisWidth} tickLine={false} axisLine={false} domain={scale.domain} ticks={scale.ticks} allowDecimals={scale.allowDecimals}
-            tickFormatter={value => tickNumber.format(Number(value))} />
+            tickFormatter={value => tick(Number(value))} />
           <ChartTooltip cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
             content={({ active, payload }) => {
               const point = active ? (payload?.[0]?.payload as ChartPoint | undefined) : undefined;

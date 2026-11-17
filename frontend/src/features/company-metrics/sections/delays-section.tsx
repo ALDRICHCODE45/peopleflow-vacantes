@@ -102,7 +102,7 @@ function OverdueDeliveries({ overdue, href }: { overdue: DelaysSectionData["over
         <ul className="flex flex-col divide-y">
           {overdue.top.map(row => <OverdueRow key={row.vacancy.draft_id} row={row} href={href} />)}
         </ul>
-        {all && <Link href={all} className="-ml-2 mt-auto inline-flex min-h-10 items-center gap-1 self-start rounded-lg px-2 font-medium text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+        {all && <Link href={all} className="-ml-2 mt-auto inline-flex min-h-10 items-center gap-1 self-start rounded-lg px-2 font-medium text-primary-text outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
           {allLabel}<ChevronRight aria-hidden="true" className="size-4" />
         </Link>}
       </>}

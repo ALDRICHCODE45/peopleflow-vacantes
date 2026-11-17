@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronsUpDown, X } from "lucide-react";
+import { STACKED_CELL, STACKED_ROW, STACKED_TABLE, STACKED_TITLE } from "@/components/data-table/stacked-table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -59,7 +60,7 @@ export function DetailHeading({ back, crumb, title, freshness, actions }: { back
   return <div className="flex flex-col gap-2">
     <nav aria-label="Ruta" className="flex items-center gap-1 text-sm text-muted-foreground">
       {/* Replace: going back to the board must not leave this list behind the browser's Back. */}
-      <Link href={back.href} replace className="-ml-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 font-medium text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+      <Link href={back.href} replace className="-ml-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 font-medium text-primary-text outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
         <ChevronLeft aria-hidden="true" className="size-4" />{back.label}
       </Link>
       <span aria-hidden="true">/</span>
@@ -108,7 +109,7 @@ export function FacetSwitch({ label, options, selected, onChange }: { label: str
     {options.map(option => {
       const pressed = option.value === selected;
       return <Button key={option.label} type="button" variant="ghost" aria-pressed={pressed} onClick={() => onChange(option.value)}
-        className={cn("min-h-10 rounded-lg px-3 text-muted-foreground", pressed && "bg-primary/10 font-semibold text-primary hover:bg-primary/15 hover:text-primary")}>
+        className={cn("min-h-10 rounded-lg px-3 text-muted-foreground", pressed && "bg-primary/10 font-semibold text-primary-text hover:bg-primary/15 hover:text-primary-text")}>
         {option.label}{" "}<span className="font-medium tabular-nums text-muted-foreground">{number.format(option.count)}</span>
       </Button>;
     })}
@@ -133,7 +134,10 @@ function Headers({ columns, sort, order, onSort }: { columns: Column<never>[]; s
   })}</TableRow></TableHeader>;
 }
 
-/** The records of a page, sorted on the server from the header buttons (rule 12: one-line cells, numbers right-aligned). */
+/**
+ * The records of a page, sorted on the server from the header buttons (rule 12: one-line cells, numbers right-aligned).
+ * Below `md` each record is a list row (rule 14): the first column is its title, the others are named by their header.
+ */
 export function RecordsTable({ table, caption, sort, order, onSort }: {
   table: RecordsTableData; caption: string; sort: string; order: "asc" | "desc"; onSort: (sort: string, order: "asc" | "desc") => void;
 }) {
@@ -141,11 +145,12 @@ export function RecordsTable({ table, caption, sort, order, onSort }: {
   return <div className="flex min-w-0 flex-col gap-2">
     {sortedColumn && <p className="text-xs text-muted-foreground">{`Fechas en hora del centro de México · ordenado por ${sortedColumn.header.toLowerCase()}, ${order === "asc" ? "ascendente" : "descendente"}`}</p>}
     <div className="min-w-0 overflow-x-auto">
-      <Table>
+      <Table className={STACKED_TABLE}>
         <TableCaption className="sr-only">{caption}</TableCaption>
         <Headers columns={table.columns} sort={sort} order={order} onSort={onSort} />
-        <TableBody>{table.rows.map(row => <TableRow key={row.id}>
-          {row.cells.map((cell, index) => <TableCell key={table.columns[index].id} className={cn("h-14 whitespace-nowrap", table.columns[index].numeric && "text-right tabular-nums")}>{cell}</TableCell>)}
+        <TableBody>{table.rows.map(row => <TableRow key={row.id} className={STACKED_ROW}>
+          {row.cells.map((cell, index) => <TableCell key={table.columns[index].id} data-label={index === 0 ? undefined : table.columns[index].header}
+            className={cn("h-14 whitespace-nowrap", table.columns[index].numeric && "text-right tabular-nums", index === 0 ? STACKED_TITLE : STACKED_CELL)}>{cell}</TableCell>)}
         </TableRow>)}</TableBody>
       </Table>
     </div>
@@ -157,9 +162,9 @@ export function RecordsSkeleton({ columns }: { columns: Column<never>[] }) {
   return <div role="status" aria-label="Cargando los registros" className="flex flex-col gap-5">
     <Skeleton aria-hidden="true" className="h-4 w-full max-w-lg" />
     <Skeleton aria-hidden="true" className="h-10 w-full max-w-xl" />
-    <Table aria-hidden="true">
+    <Table aria-hidden="true" className={STACKED_TABLE}>
       <Headers columns={columns} />
-      <TableBody>{[0, 1, 2, 3].map(row => <TableRow key={row}>{columns.map(column => <TableCell key={column.id} className="h-14">
+      <TableBody>{[0, 1, 2, 3].map(row => <TableRow key={row} className={STACKED_ROW}>{columns.map((column, index) => <TableCell key={column.id} className={cn("h-14", index === 0 ? STACKED_TITLE : "max-md:block max-md:h-auto max-md:p-0")}>
         <Skeleton className={cn("h-3", column.numeric ? "ml-auto w-12" : "w-28")} />
       </TableCell>)}</TableRow>)}</TableBody>
     </Table>

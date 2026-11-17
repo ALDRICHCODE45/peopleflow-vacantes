@@ -32,7 +32,8 @@ import { OriginSection } from "./origin-section";
 const period = { from: "2026-08-01", to: "2026-10-31" };
 const ready = (data: OriginData): SectionState<OriginData> => ({ status: "ready", data, stale: false, failure: null, ref: vi.fn(), retry: vi.fn(), activate: vi.fn() });
 const show = (data: OriginData = origin()) => render(<OriginSection state={ready(data)} filters={{ recruiter_id: "10000000-0000-4000-8000-000000000001" }} period={period} />);
-const query = (link: HTMLElement) => Object.fromEntries(new URL(link.getAttribute("href")!, "https://app.test").searchParams);
+/** The figure's own query; `back` (the board it returns to) is checked on its own. */
+const query = (link: HTMLElement) => { const params = new URL(link.getAttribute("href")!, "https://app.test").searchParams; params.delete("back"); return Object.fromEntries(params); };
 
 beforeEach(() => { flags.detailPage = false; });
 afterEach(cleanup);

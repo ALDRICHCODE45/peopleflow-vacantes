@@ -1,7 +1,7 @@
 "use client";
 import { useId } from "react";
 import { CalendarCheck } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -90,10 +90,28 @@ function MonthlyCard({ months, drill }: { months: MonthRate[]; drill: Drill }) {
   }));
   const click = useMonthClick(links);
   const known = data.filter(point => point.rate !== null);
+  // Fewer than three months with due deliveries draw as lone dots on an area: bars with their rate read instead.
+  const sparse = known.length < 3;
   const range = months.length > 1 ? `${monthLabel(months[0].month)} a ${lower(months[months.length - 1].month)}` : monthLabel(months[0]?.month ?? "");
-  const summary = known.length
-    ? `Porcentaje de entregas a tiempo por mes, de ${lower(months[0].month)} a ${lower(months[months.length - 1].month)}: de ${known[0].rate}% a ${known[known.length - 1].rate}%.`
-    : "";
+  const span = months.length > 1 ? `de ${lower(months[0].month)} a ${lower(months[months.length - 1].month)}` : `en ${lower(months[0]?.month ?? "")}`;
+  const each = known.map(point => `${lower(point.month)}: ${point.rate}% (${number.format(point.numerator)} de ${number.format(point.denominator)})`).join("; ");
+  const summary = !known.length ? ""
+    : sparse ? `Gráfica de barras: porcentaje de entregas a tiempo por mes, ${span}. ${each.charAt(0).toUpperCase()}${each.slice(1)}.`
+      : `Porcentaje de entregas a tiempo por mes, ${span}: de ${known[0].rate}% a ${known[known.length - 1].rate}%.`;
+  const axes = <>
+    <CartesianGrid vertical={false} stroke={CHART_GRID} strokeDasharray="3 3" />
+    <XAxis dataKey="month" height={PLOT.xAxisHeight} tickLine={false} axisLine={false} tickMargin={8} minTickGap={16} tickFormatter={shortMonthLabel} />
+    <YAxis width={PLOT.yAxisWidth} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickLine={false} axisLine={false} tickFormatter={value => `${value}%`} />
+    <ChartTooltip cursor={sparse ? { fill: "var(--muted)", opacity: 0.5 } : { stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
+      content={<ChartTooltipContent indicator="dot" labelFormatter={value => monthLabel(String(value))}
+        formatter={(_, __, item) => {
+          const point = item.payload as Point;
+          return <span className="flex w-full items-center justify-between gap-3">
+            <span className="text-muted-foreground">A tiempo</span>
+            <span className="tabular-nums"><b className="font-medium text-foreground">{point.rate}%</b> · {number.format(point.numerator)} de {number.format(point.denominator)}</span>
+          </span>;
+        }} />} />
+  </>;
 
   return <article aria-labelledby={titleId} className={cn(CARD, "lg:col-span-6")}>
     <div>
@@ -105,32 +123,28 @@ function MonthlyCard({ months, drill }: { months: MonthRate[]; drill: Drill }) {
       : <div className="relative mt-auto">
         <div role="img" aria-label={summary}>
           <ChartContainer config={monthlyConfig} className={cn("aspect-auto h-[236px] w-full", click.clickable && "cursor-pointer")}>
-            <AreaChart data={data} margin={PLOT.margin} accessibilityLayer={false} onClick={click.onClick}>
-              <defs>
-                <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-rate)" stopOpacity={0.22} />
-                  <stop offset="100%" stopColor="var(--color-rate)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke={CHART_GRID} strokeDasharray="3 3" />
-              <XAxis dataKey="month" height={PLOT.xAxisHeight} tickLine={false} axisLine={false} tickMargin={8} minTickGap={16} tickFormatter={shortMonthLabel} />
-              <YAxis width={PLOT.yAxisWidth} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickLine={false} axisLine={false} tickFormatter={value => `${value}%`} />
-              <ChartTooltip cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
-                content={<ChartTooltipContent indicator="dot" labelFormatter={value => monthLabel(String(value))}
-                  formatter={(_, __, item) => {
-                    const point = item.payload as Point;
-                    return <span className="flex w-full items-center justify-between gap-3">
-                      <span className="text-muted-foreground">A tiempo</span>
-                      <span className="tabular-nums"><b className="font-medium text-foreground">{point.rate}%</b> · {number.format(point.numerator)} de {number.format(point.denominator)}</span>
-                    </span>;
-                  }} />} />
-              <Area dataKey="rate" type="monotone" stroke="var(--color-rate)" strokeWidth={2} fill={`url(#${gradient})`} isAnimationActive={false}
-                // A month with no due delivery is a gap; dots keep a month between two gaps visible.
-                dot={{ r: 3, fill: "var(--color-rate)", strokeWidth: 0 }} />
-            </AreaChart>
+            {sparse
+              ? <BarChart data={data} margin={{ ...PLOT.margin, top: 24 }} accessibilityLayer={false} onClick={click.onClick}>
+                {axes}
+                <Bar dataKey="rate" fill="var(--color-rate)" radius={[6, 6, 0, 0]} maxBarSize={48} isAnimationActive={false}>
+                  <LabelList dataKey="rate" position="top" offset={8} className="fill-foreground text-xs font-medium tabular-nums" formatter={(value: unknown) => value === null || value === undefined ? "" : `${value}%`} />
+                </Bar>
+              </BarChart>
+              : <AreaChart data={data} margin={PLOT.margin} accessibilityLayer={false} onClick={click.onClick}>
+                <defs>
+                  <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--color-rate)" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="var(--color-rate)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                {axes}
+                <Area dataKey="rate" type="monotone" stroke="var(--color-rate)" strokeWidth={2} fill={`url(#${gradient})`} isAnimationActive={false}
+                  // A month with no due delivery is a gap; dots keep a month between two gaps visible.
+                  dot={{ r: 3, fill: "var(--color-rate)", strokeWidth: 0 }} />
+              </AreaChart>}
           </ChartContainer>
         </div>
-        <MonthLinks links={links} />
+        <MonthLinks links={links} bands={sparse} />
       </div>}
   </article>;
 }

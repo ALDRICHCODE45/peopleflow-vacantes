@@ -1,4 +1,4 @@
-import { DETAIL_PATH, type DrilldownKind } from "../drilldown";
+import { DETAIL_PATH, safeBoardPath, type DrilldownKind } from "../drilldown";
 import { STAGE_KINDS, UUID_PATTERN } from "../model";
 import { periodIssues } from "../period";
 import { effectivePeriod, normalizeFilters, serializeFilters, type MetricsFilters } from "../url-state";
@@ -13,7 +13,8 @@ export type ListKind = (typeof LIST_KINDS)[number];
 export const isListKind = (kind: string): kind is ListKind => (LIST_KINDS as readonly string[]).includes(kind);
 
 export type DetailParams = Record<string, string>;
-export type DetailState = { kind: DrilldownKind; params: DetailParams };
+/** `back`: the board the figure was opened from (validated), kept apart from the API query. */
+export type DetailState = { kind: DrilldownKind; params: DetailParams; back?: string };
 
 type Rule = { multi?: readonly string[]; one?: readonly string[]; uuid?: true; month?: true };
 const DELIVERY_RESULTS = ["on_time", "late", "overdue", "pending", "not_configured"] as const;
@@ -90,24 +91,26 @@ function normalize(kind: ListKind, source: Source): DetailParams {
 export function parseDetail(search: Source): DetailState | null {
   const kind = search.get("kind");
   if (!kind || !isListKind(kind)) return null;
-  return { kind, params: normalize(kind, search) };
+  const back = safeBoardPath(search.get("back"));
+  return { kind, params: normalize(kind, search), ...(back ? { back } : {}) };
 }
 
 /** One filter set or removed (`undefined`); the result is validated again, so a patch never adds an invalid value. */
 export function withParams(state: DetailState, patch: Record<string, string | undefined>): DetailState {
   const next = new URLSearchParams(state.params);
   for (const [key, value] of Object.entries(patch)) if (value === undefined) next.delete(key); else next.set(key, value);
-  return { kind: state.kind, params: isListKind(state.kind) ? normalize(state.kind, next) : {} };
+  return { kind: state.kind, params: isListKind(state.kind) ? normalize(state.kind, next) : {}, ...(state.back ? { back: state.back } : {}) };
 }
 
-export const detailHref = (state: DetailState) => `${DETAIL_PATH}?${new URLSearchParams({ kind: state.kind, ...state.params })}`;
+export const detailHref = (state: DetailState) => `${DETAIL_PATH}?${new URLSearchParams({ kind: state.kind, ...state.params, ...(state.back ? { back: state.back } : {}) })}`;
 /** The API query: the validated filters with the applied period (the URL one when valid, else the default). */
 export function detailApiQuery(state: DetailState, today: string): URLSearchParams {
   const { from, to } = effectivePeriod(state.params, today);
   return new URLSearchParams({ from, to, ...state.params });
 }
-/** Back to the board with the board filters only (period, recruiter, requester). */
+/** Back to the board the figure was opened from; without one, the board filters only (period, recruiter, requester). */
 export function boardHref(state: DetailState): string {
+  if (state.back) return state.back;
   const query = serializeFilters(state.params).toString();
   return `/empresa/metricas${query ? `?${query}` : ""}`;
 }

@@ -40,6 +40,33 @@ describe("Necesita atención (artboard 09, rule 13)", () => {
     expect(within(row).getByText("Evaluación")).toHaveClass("stage-badge", "stage-process");
   });
 
+  it("jumps to the first and last tab with Home and End", async () => {
+    show();
+    await userEvent.click(screen.getByRole("tab", { name: /Entregas vencidas/ }));
+    await userEvent.keyboard("{End}");
+    expect(screen.getByRole("tab", { name: /Candidatos detenidos/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Candidatos detenidos/ })).toHaveFocus();
+    await userEvent.keyboard("{Home}");
+    expect(screen.getByRole("tab", { name: /Entregas vencidas/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Entregas vencidas/ })).toHaveFocus();
+  });
+
+  it("wraps the tabs onto a second line on a narrow screen instead of scrolling or clipping them (rule 14)", () => {
+    show();
+    const tabs = screen.getByRole("tablist", { name: "Tipo de pendiente" });
+    expect(tabs).toHaveClass("flex-wrap");
+    expect(tabs).not.toHaveClass("overflow-x-auto");
+  });
+
+  it("keeps the consequence and the badge in each row on a narrow screen, stacked under the name (rule 14)", async () => {
+    show();
+    const row = screen.getByRole("link", { name: /^Abrir el pipeline de Ejecutivo de cuenta/ });
+    expect(within(row).getByText("Faltan 3 de 5 candidatos")).not.toHaveClass("hidden");
+    expect(within(row).getByText("Venció hace 6 días hábiles")).not.toHaveClass("hidden");
+    await userEvent.click(screen.getByRole("tab", { name: /Candidatos detenidos/ }));
+    expect(within(screen.getByRole("link", { name: /Héctor Salinas/ })).getByText("12 días sin avanzar")).not.toHaveClass("hidden");
+  });
+
   it("starts on the first tab with rows and shows «Todo al día» for an empty one", async () => {
     show({ attention: ready({ ...emptyAttention(), stalled: attention().stalled }) });
     expect(screen.getByRole("tab", { name: /Candidatos detenidos/ })).toHaveAttribute("aria-selected", "true");
