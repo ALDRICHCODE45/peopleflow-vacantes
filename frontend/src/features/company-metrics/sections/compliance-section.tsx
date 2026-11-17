@@ -124,7 +124,9 @@ function MonthlyCard({ months, drill }: { months: MonthRate[]; drill: Drill }) {
                       <span className="tabular-nums"><b className="font-medium text-foreground">{point.rate}%</b> · {number.format(point.numerator)} de {number.format(point.denominator)}</span>
                     </span>;
                   }} />} />
-              <Area dataKey="rate" type="monotone" stroke="var(--color-rate)" strokeWidth={2} fill={`url(#${gradient})`} isAnimationActive={false} />
+              <Area dataKey="rate" type="monotone" stroke="var(--color-rate)" strokeWidth={2} fill={`url(#${gradient})`} isAnimationActive={false}
+                // A month with no due delivery is a gap; dots keep a month between two gaps visible.
+                dot={{ r: 3, fill: "var(--color-rate)", strokeWidth: 0 }} />
             </AreaChart>
           </ChartContainer>
         </div>

@@ -50,6 +50,8 @@ detail): compare with the user's references, research modern dashboard patterns,
 | T12 | S3, S5 | Dashboard 09 data needs (`docs/product/company-dashboard-v2-needs.md`) sent to the backend; review its proposal | — |
 | T13 | S3, S7–S10 | Implement `/empresa/dashboard` from 09 | — |
 | T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) (done, L12) | `ae0707a8` |
+| T15 | S6–S10 | S10 review fixes (L43): blank «A tiempo por mes», old «Detalle del periodo» table removed (L44), 390 px overflow (attention tabs, period control, «Cómo se calcula»), «días hábiles» on overdue badges, organic applications table, attention card empty space, applications y-axis, low findings | — |
+| T16 | S7 | «Posiciones» drill-down summary from the list's positions aggregate (L44, needs backend field) | — |
 
 ## Log
 
@@ -260,3 +262,20 @@ detail): compare with the user's references, research modern dashboard patterns,
 - **L42** Full frontend suite after T14 (`f875d4ed`): 571 files / 10352 tests passed, 2 skipped; typecheck 0; lint 0
   errors (12 pre-existing warnings). Remaining before the single merge: the browser review (S10) with the demo seed,
   which waits for the user's three demo sign-ins.
+- **L43** S10 browser review (2026-11-17, demo seed applied by the backend, owner/stakeholder/recruiter signed in by the
+  agent, 44 drill-downs, CSV, Volver, scope, dark, 390 px; screenshots `/tmp/pf-review/s10/`): S10 fails. High: «A tiempo
+  por mes» draws nothing (isolated points, no dots, `compliance-section.tsx:127`); «Posiciones» (2 de 14) opens 8
+  vacancies (figure ≠ list). Medium: old «Detalle del periodo» table still on Métricas; 390 px overflow of the attention
+  tabs and the period control; «Venció hace 64 días» counts business days without saying so; organic applications table
+  shows Manual but the total omits it, no selected channel tab; attention card empty space (`flex-1`); applications
+  y-axis 0–4 for max ~1.6 (`allowDecimals={false}`). Low: dark hero tile near-white, clipped axis labels / «Columnas
+  pro…», grammar «Ver las 1 …», «1 de 1 entregas está», summaries saying «registros», «11 vacantes en el periodo» opens
+  «Entregas» with no chip, point CSV named after the window, recruiter access card alignment, Volver pushes history.
+  Every other figure = list total; no console errors; scope per role correct. Login lands on `/empresa/login`
+  («Ir a mi panel») by design. «Nuevos en la base» = 0 is the seed (no `company_candidates`).
+- **L44** User decisions: «Posiciones» → «Lista de vacantes, mostrando las posiciones (Recomendado)» (same list; title
+  and summary speak of positions, backend adds the positions totals to the list response; asked to the backend);
+  «Detalle del periodo» table → «Quitarla (Recomendado)».
+- **L45** Backend `812903c8`: `GET /v2/me/company/dashboard/lists/vacancies` returns a response-level
+  `positions: {covered, required}` over every filtered row (all pages, role scope, DD3); with `status=published` it equals
+  `summary.positions`; always present (0/0 when empty); export unchanged; :8081 restarted.

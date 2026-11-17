@@ -9,7 +9,7 @@ vi.mock("./audited-detail-sheet", async importOriginal => {
 });
 import { listReassignmentsAction, listVacanciesAction, loadAuditedDetailAction } from "./actions";
 import { AuditedDetailSheet } from "./audited-detail-sheet";
-import { DetailLists } from "./detail-lists";
+import { VacancyList } from "./detail-lists";
 import type { MetricsFailure } from "./model";
 import { deliveries, draftId, marianaId, placements, reassignmentPage, vacancyPage, vacancyRow } from "./test-fixtures";
 
@@ -27,7 +27,7 @@ afterEach(cleanup);
 
 describe("detail lists", () => {
   it("lists the period's vacancies without personal data, with the delivery against its renegotiated date", async () => {
-    render(<DetailLists filters={{ recruiter_id: marianaId }} />);
+    render(<VacancyList filters={{ recruiter_id: marianaId }} />);
     expect(await screen.findByText("Supervisor de Producción")).toBeInTheDocument();
     expect(vacancies).toHaveBeenCalledWith({ filters: { recruiter_id: marianaId } });
     expect(screen.getByText("Grupo Bimbo · Cliente")).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe("detail lists", () => {
     const second = vacancyRow({ draft_id: "30000000-0000-4000-8000-000000000002", title: "Contador General", closes: [], requester: null, responsible: null,
       delivery: { ...vacancyRow().delivery, result: "on_time", business_days_late: null } });
     vacancies.mockResolvedValueOnce({ ok: true, data: vacancyPage([vacancyRow()], "c2" ) }).mockResolvedValueOnce({ ok: true, data: vacancyPage([second]) });
-    render(<DetailLists filters={{}} />);
+    render(<VacancyList filters={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
     expect(await screen.findByText("Contador General")).toBeInTheDocument();
     expect(screen.getByText("Supervisor de Producción")).toBeInTheDocument();
@@ -56,7 +56,7 @@ describe("detail lists", () => {
 
   it("restarts from the first page when the cursor went stale", async () => {
     vacancies.mockResolvedValueOnce({ ok: true, data: vacancyPage([vacancyRow()], "old") }).mockResolvedValueOnce(failure("invalid_cursor"));
-    render(<DetailLists filters={{}} />);
+    render(<VacancyList filters={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
     expect(await screen.findByText("La lista se actualizó. Volvimos a la primera página.")).toBeInTheDocument();
     expect(vacancies).toHaveBeenCalledTimes(3);
@@ -64,19 +64,9 @@ describe("detail lists", () => {
 
   // Opening the row menu over the full table takes jsdom tens of seconds, so the thread is checked at the sheet's props.
   it("hands the audited detail the list's applied period only", async () => {
-    render(<DetailLists filters={{ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId }} />);
+    render(<VacancyList filters={{ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId }} />);
     await screen.findByText("Supervisor de Producción");
     expect(vi.mocked(AuditedDetailSheet).mock.lastCall?.[0]).toMatchObject({ target: null, period: { from: "2026-08-01", to: "2026-10-31" } });
-  });
-
-  it("reads reassignments only when their tab opens, and names former members", async () => {
-    render(<DetailLists filters={{}} />);
-    await screen.findByText("Supervisor de Producción");
-    expect(listReassignmentsAction).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("tab", { name: "Reasignaciones" }));
-    expect(await screen.findByText("Salida del reclutador")).toBeInTheDocument();
-    expect(screen.getByText("Carlos Mendoza Ruiz · Ex miembro")).toBeInTheDocument();
-    expect(screen.getByText("21 días hábiles")).toBeInTheDocument();
   });
 });
 

@@ -41,7 +41,7 @@ export function shortfall(delivered: number, target: number): string {
   return `${missing === 1 ? "Falta" : "Faltan"} ${number.format(missing)} de ${number.format(target)} candidatos`;
 }
 /** Business days since the commitment date (contract §3.2); the help popover says they are business days. */
-export const overdueLabel = (days: number) => days === 0 ? "Vencida" : `Venció hace ${number.format(days)} ${days === 1 ? "día" : "días"}`;
+export const overdueLabel = (days: number) => days === 0 ? "Vencida" : `Venció hace ${number.format(days)} ${days === 1 ? "día hábil" : "días hábiles"}`;
 export const stalledLabel = (days: number) => `${number.format(days)} ${days === 1 ? "día" : "días"} sin avanzar`;
 /** «Vence mañana», «Vence mié 11 nov», with the long words for the row's accessible name. */
 export function dueLabel(commitment: string, today: string): { short: string; long: string } {

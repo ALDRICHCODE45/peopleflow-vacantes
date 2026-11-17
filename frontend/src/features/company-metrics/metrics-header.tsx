@@ -47,8 +47,8 @@ export function MetricsBoardHeader({ filters, today, asOf, version, appliedPerio
         <p className="text-sm text-muted-foreground">Entregas, cierres y desempeño del equipo de tu empresa.</p>
         <p className="text-xs text-muted-foreground">{freshness}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Periodo" className="flex rounded-xl border bg-card p-0.5">
+      <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
+        <div role="group" aria-label="Periodo" className="flex max-w-full overflow-x-auto rounded-xl border bg-card p-0.5">
           {PERIODS.map(item => <Button key={item.value} type="button" variant="ghost" aria-pressed={shortcut === item.value}
             className={cn("min-h-10 rounded-lg px-3 text-muted-foreground", shortcut === item.value && "bg-primary/10 font-semibold text-primary hover:bg-primary/15 hover:text-primary")}
             onClick={() => onChange({ ...filters, ...shortcutPeriod(item.value, today) })}>{item.label}</Button>)}

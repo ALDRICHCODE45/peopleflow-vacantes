@@ -46,7 +46,7 @@ export function AttentionCard({ data, drill, today }: { data: AttentionSection; 
   const rows = data[selected].top;
   return <article aria-labelledby={headingId} className={cn(CARD, "flex-1")}>
     <CardHead id={headingId} title="Necesita atención" />
-    <div role="tablist" aria-label="Tipo de pendiente" className="flex self-start overflow-x-auto rounded-xl border bg-card p-0.5">
+    <div role="tablist" aria-label="Tipo de pendiente" className="flex max-w-full self-start overflow-x-auto rounded-xl border bg-card p-0.5">
       {TABS.map((tab, index) => {
         const active = tab.key === selected;
         const total = data[tab.key].total;
@@ -58,7 +58,7 @@ export function AttentionCard({ data, drill, today }: { data: AttentionSection; 
         </button>;
       })}
     </div>
-    <div role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${selected}`} className="flex flex-1 flex-col gap-2">
+    <div role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${selected}`} className="flex flex-col gap-2">
       {rows.length === 0
         ? <SectionEmpty icon={CircleCheck} tone="empty" title="Todo al día" description={TABS.find(tab => tab.key === selected)!.empty(data.stalled.threshold_business_days)} />
         : <ul className="flex flex-col divide-y">

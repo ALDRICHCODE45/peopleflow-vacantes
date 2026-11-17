@@ -1,23 +1,21 @@
 "use client";
 import { createContext, useContext, useState } from "react";
-import { BriefcaseBusiness, Ellipsis, Repeat, TriangleAlert } from "lucide-react";
+import { BriefcaseBusiness, Ellipsis, TriangleAlert } from "lucide-react";
 import { RichDataTable, type RichColumnDef } from "@/components/data-table/rich-data-table";
 import { TwoLineCell } from "@/components/data-table/truncated-text";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { listReassignmentsAction, listVacanciesAction } from "./actions";
+import { listVacanciesAction } from "./actions";
 import { AuditedDetailSheet, type AuditedTarget } from "./audited-detail-sheet";
 import { failureMessage } from "./failure";
 import {
-  CLOSE_REASON_LABEL, dayLabel, DELIVERY_RESULT_LABEL, momentLabel, number, personName, plural, REASSIGNMENT_REASON_LABEL, requesterKindLabel,
-  requesterLabel, type Person, type ReassignmentRow, type VacancyRow,
+  CLOSE_REASON_LABEL, dayLabel, DELIVERY_RESULT_LABEL, momentLabel, number, personName, plural, requesterKindLabel,
+  requesterLabel, type Person, type VacancyRow,
 } from "./model";
 import { usePagedList, type PagedList } from "./use-paged-list";
 import type { MetricsFilters } from "./url-state";
@@ -62,16 +60,6 @@ const vacancyColumns: RichColumnDef<VacancyRow>[] = [
   { id: "reassignments", size: 140, meta: { label: "Reasignaciones" }, cell: ({ row }) => <TwoLineCell primary={number.format(row.original.reassignments)} /> },
   { id: "actions", size: 56, header: () => <span className="sr-only">Acciones</span>, meta: { label: "Acciones", align: "center" }, enablePinning: false, enableHiding: false, enableReorder: false, cell: ({ row }) => <VacancyActions row={row.original} /> },
 ];
-const reassignmentColumns: RichColumnDef<ReassignmentRow>[] = [
-  { id: "performed_at", size: 170, meta: { label: "Fecha" }, enableHiding: false, cell: ({ row }) => <TwoLineCell primary={momentLabel(row.original.performed_at)} /> },
-  { id: "vacancy", size: 240, meta: { label: "Vacante", grow: true }, cell: ({ row }) => <TwoLineCell primary={row.original.vacancy.title ?? "Vacante sin título"} /> },
-  { id: "from", size: 200, meta: { label: "Dejó de ser responsable" }, cell: ({ row }) => <TwoLineCell primary={personLine(row.original.from, "Sin responsable")} missing={!row.original.from} /> },
-  { id: "to", size: 200, meta: { label: "Pasó a ser responsable" }, cell: ({ row }) => <TwoLineCell primary={personLine(row.original.to, "")} /> },
-  { id: "reason", size: 200, meta: { label: "Motivo" }, cell: ({ row }) => <TwoLineCell primary={REASSIGNMENT_REASON_LABEL[row.original.reason]} secondary={row.original.reason === "other" ? row.original.note : null} /> },
-  { id: "performed_by", size: 180, meta: { label: "La hizo" }, cell: ({ row }) => <TwoLineCell primary={personLine(row.original.performed_by, "Sistema")} /> },
-  { id: "outgoing", size: 150, meta: { label: "Tramo saliente" }, cell: ({ row }) => <TwoLineCell primary={row.original.outgoing_tramo_business_days === null ? "Sin dato" : plural(row.original.outgoing_tramo_business_days, "día hábil", "días hábiles")} missing={row.original.outgoing_tramo_business_days === null} /> },
-];
-
 function ListBody<T>({ list, render, empty }: { list: PagedList<T>; render: (items: T[]) => React.ReactNode; empty: React.ReactNode }) {
   if (list.failure) return <SectionEmpty icon={TriangleAlert} tone="info" title="No pudimos cargar la lista" description={failureMessage(list.failure, "la lista")} primaryAction={{ label: "Reintentar", onClick: list.retry }} />;
   if (!list.items) return <div role="status" aria-label="Cargando la lista" aria-busy="true" className="flex flex-col gap-2">{[0, 1, 2].map(index => <Skeleton key={index} aria-hidden="true" className="h-16 w-full" />)}</div>;
@@ -96,23 +84,4 @@ export function VacancyList({ filters, title = "Vacantes del periodo" }: { filte
     <p className="text-xs text-muted-foreground">{`${title}: sin datos personales. Los nombres de candidatos se abren aparte y esa consulta queda registrada en Auditoría.`}</p>
     <AuditedDetailSheet target={target} period={filters} onClose={() => setTarget(null)} />
   </OpenContext.Provider>;
-}
-function ReassignmentList({ filters }: { filters: MetricsFilters }) {
-  const list = usePagedList(listReassignmentsAction, filters);
-  return <ListBody list={list} empty={<SectionEmpty icon={Repeat} tone="empty" title="No hubo reasignaciones en este periodo" description="Ninguna vacante cambió de responsable en el periodo elegido." />}
-    render={items => <RichDataTable id="company-metrics-reassignments" columns={reassignmentColumns} data={items} getRowId={row => row.id} defaultPinning={{ start: ["performed_at"], end: [] }} emptyState={null} compactControls />} />;
-}
-
-/** Detail lists of §3.4 below the recruiter table; the reassignments tab reads only once it is opened. */
-export function DetailLists({ filters }: { filters: MetricsFilters }) {
-  return <Card role="region" aria-label="Detalle del periodo" className="min-w-0">
-    <CardHeader><CardTitle><h2>Detalle del periodo</h2></CardTitle><CardDescription>Cada vacante y cada reasignación que entra en los números de arriba.</CardDescription></CardHeader>
-    <CardContent>
-      <Tabs defaultValue="vacancies" className="min-w-0">
-        <TabsList variant="line"><TabsTrigger value="vacancies">Vacantes</TabsTrigger><TabsTrigger value="reassignments">Reasignaciones</TabsTrigger></TabsList>
-        <TabsContent value="vacancies" className="flex min-w-0 flex-col gap-3 pt-4"><VacancyList filters={filters} /></TabsContent>
-        <TabsContent value="reassignments" className="min-w-0 pt-4"><ReassignmentList filters={filters} /></TabsContent>
-      </Tabs>
-    </CardContent>
-  </Card>;
 }

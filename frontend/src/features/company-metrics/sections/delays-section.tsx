@@ -22,7 +22,7 @@ const see = (count: number, singular: string, plural: string, tail = "") => `Ver
 
 const HELP = [
   ["Meta de cierre", "Compara la fecha del cierre como cubierta de cada vacante con su fecha meta de cierre. «Sin meta»: vacantes cubiertas sin fecha meta."],
-  ["Entregas vencidas", "Entregas cuya fecha meta ya pasó sin enviar los candidatos. Se muestran las más atrasadas; «Hace N días» cuenta días hábiles desde la fecha meta."],
+  ["Entregas vencidas", "Entregas cuya fecha meta ya pasó sin enviar los candidatos. Se muestran las más atrasadas; «Hace N días hábiles» cuenta desde la fecha meta."],
   ["Reasignaciones por motivo", "Cambios de responsable en el periodo, por el motivo registrado al reasignar. Sumar o quitar colaboradores no cuenta."],
 ] as const;
 
@@ -122,7 +122,7 @@ function OverdueRow({ row, href }: { row: Overdue; href: Href }) {
     </div>
     <div className="flex shrink-0 flex-col items-end gap-1">
       <span className="inline-flex h-[22px] items-center rounded-md border border-destructive/30 bg-destructive/10 px-2 text-xs font-medium whitespace-nowrap text-destructive">
-        {`Hace ${number.format(days)} ${days === 1 ? "día" : "días"}`}
+        {`Hace ${number.format(days)} ${days === 1 ? "día hábil" : "días hábiles"}`}
       </span>
       <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{`Entregó ${number.format(row.delivered)} de ${number.format(row.target)}`}</span>
     </div>

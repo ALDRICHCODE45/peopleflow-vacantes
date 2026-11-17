@@ -12,7 +12,7 @@ import { PipelineCard } from "./pipeline-card";
 function help(threshold: number | undefined): [string, string][] {
   const days = threshold === undefined ? "el umbral de días hábiles" : `${threshold} días hábiles`;
   return [
-    ["Entregas vencidas", "Entregas de candidatos de vacantes abiertas (también pausadas) cuya fecha meta ya pasó sin completar los candidatos prometidos. «Venció hace N días» cuenta días hábiles desde la fecha meta; primero la más atrasada."],
+    ["Entregas vencidas", "Entregas de candidatos de vacantes abiertas (también pausadas) cuya fecha meta ya pasó sin completar los candidatos prometidos. «Venció hace N días hábiles» cuenta desde la fecha meta; primero la más atrasada."],
     ["Vencen esta semana", "Entregas aún incompletas con fecha meta de hoy al domingo de esta semana, hora del centro de México; primero la más próxima."],
     ["Candidatos detenidos", `Personas con ${days} o más en la misma etapa. Placement no cuenta. «N días sin avanzar» son días hábiles.`],
     ["Pipeline por etapa", "Foto de hoy, no depende del periodo: candidatos activos de tus vacantes abiertas por el tipo de su etapa actual. Las columnas propias de cada vacante se suman juntas."],

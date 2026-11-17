@@ -39,8 +39,8 @@ describe("attention consequences", () => {
   ])("delivered %s of %s → %s", (delivered, target, expected) => { expect(shortfall(delivered, target)).toBe(expected); });
 
   it("counts overdue days and stalled days", () => {
-    expect(overdueLabel(6)).toBe("Venció hace 6 días");
-    expect(overdueLabel(1)).toBe("Venció hace 1 día");
+    expect(overdueLabel(6)).toBe("Venció hace 6 días hábiles");
+    expect(overdueLabel(1)).toBe("Venció hace 1 día hábil");
     expect(overdueLabel(0)).toBe("Vencida");
     expect(stalledLabel(12)).toBe("12 días sin avanzar");
     expect(stalledLabel(1)).toBe("1 día sin avanzar");

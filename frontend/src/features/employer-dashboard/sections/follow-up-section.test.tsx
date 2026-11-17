@@ -19,11 +19,11 @@ describe("Necesita atención (artboard 09, rule 13)", () => {
     show();
     expect(screen.getByRole("region", { name: "Seguimiento" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Entregas vencidas\s*6/ })).toHaveAttribute("aria-selected", "true");
-    const row = screen.getByRole("link", { name: "Abrir el pipeline de Ejecutivo de cuenta: entrega vencida hace 6 días, faltan 3 de 5 candidatos" });
+    const row = screen.getByRole("link", { name: "Abrir el pipeline de Ejecutivo de cuenta: entrega vencida hace 6 días hábiles, faltan 3 de 5 candidatos" });
     expect(row).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/pipeline`);
     expect(row).toHaveTextContent("Banorte · Andrés Castillo");
     expect(row).toHaveTextContent("Faltan 3 de 5 candidatos");
-    expect(row).toHaveTextContent("Venció hace 6 días");
+    expect(row).toHaveTextContent("Venció hace 6 días hábiles");
     expect(screen.getByRole("link", { name: /Jefe de mantenimiento/ })).toHaveAttribute("href", `/empresa/vacantes/${secondVacancyId}/pipeline`);
     expect(screen.getByText("Sin solicitante · Sin responsable")).toBeInTheDocument();
   });

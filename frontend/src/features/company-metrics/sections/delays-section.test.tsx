@@ -74,10 +74,10 @@ describe("Retrasos y reasignaciones (artboard 07)", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent("Ejecutivo de cuenta");
     expect(rows[0]).toHaveTextContent("Grupo Bimbo · Mariana Torres");
-    expect(rows[0]).toHaveTextContent("Hace 13 días");
+    expect(rows[0]).toHaveTextContent("Hace 13 días hábiles");
     expect(rows[0]).toHaveTextContent("Entregó 2 de 5");
     expect(rows[1]).toHaveTextContent("Vacante sin título");
-    expect(rows[1]).toHaveTextContent("Hace 8 días");
+    expect(rows[1]).toHaveTextContent("Hace 8 días hábiles");
     expect(rows[1]).toHaveTextContent("Entregó 0 de 3");
   });
 
@@ -86,7 +86,7 @@ describe("Retrasos y reasignaciones (artboard 07)", () => {
       requester: null, attributed_to: [{ user_id: "u1", name: null, former_member: false }, { user_id: "u2", name: "Carlos Mendoza", former_member: true }] }] } }));
     const row = within(card("Entregas vencidas")).getByRole("listitem");
     expect(row).toHaveTextContent("Sin solicitante · Persona sin nombre, Carlos Mendoza (Ex miembro)");
-    expect(row).toHaveTextContent("Hace 1 día");
+    expect(row).toHaveTextContent("Hace 1 día hábil");
   });
 
   it("sorts the reassignment reasons, keeps zeros as plain 0 and labels each reason", () => {
