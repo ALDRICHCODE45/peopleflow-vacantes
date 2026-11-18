@@ -27,6 +27,18 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   ui me parece seca, sin gracia, muy basica, no me parece para nada algo digno de un sass como PF». Proposal first, then
   implementation after approval (S5).
 
+- **S7** Align, do not redesign, the rest of the candidate UI with the new dashboard and saved-vacancies language,
+  starting with the most important screens. User: «no quiero hacer un rediseno completo profundo de toda la ui, no,
+  quiero ALINEAR poco a poco lo demas, iniciando con las partes mas importantes que son: 1. postulaciones. 2. cvs. y
+  perfil, de nuevo, no quiero algo completamente cambiado que no tenga nada que ver, pero la verdad es que lo que estamos
+  haciendo me gusta mas que lo que estaba y eso hay que aprovecharlo. de todas formas, haz las propuestas, yo las reviso y
+  en ello nos basamos».
+- **S8** `design/system.md` is reviewed and updated with the patterns the new screens introduced. User: «tambien no
+  olvides revisar tu system design y corregir/actualizar lo que sea necesario».
+- **S9** The dark violet/black surface is used sparingly, with an explicit rule. User: «este fondo morado/negro que hay
+  en algunas partes de la ui: [Image#4] me gusta mucho pero hay que usarlo con mucha cabeza en el sistema porque si nos
+  pasamos un poco, terminamos con un sistema con una identidad visual completamente distinta».
+
 ## Tasks
 
 | ID | Specs | Task | Commit |
@@ -38,6 +50,9 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T5 | S4 | (done, L9) Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
 | T6 | S5, S6 | 2–3 proposal artboards for «Vacantes guardadas» in `design/candidate-saved-modern/`, desktop and 390 px, on the canvas (done, L13) | — |
 | T7 | S4, S6 | (done, L15) Implement `design/candidate-saved-modern/02-postulate-primero.html` on `/candidato/guardadas` (L14) | `00f962fd` |
+| T8 | S8, S9 | Update `design/system.md`: candidate workspace patterns from artboards 04 and saved 02, and the dark surface rule | — |
+| T9 | S7, S9 | Alignment proposals for Postulaciones, CVs and Perfil in `design/candidate-align/`, each comparable with the current screen, on the canvas | — |
+| T10 | S7 | Implement the approved alignment, screen by screen (after approval) | — |
 
 ## Log
 
@@ -136,3 +151,5 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   files / 10441 tests passed (2 skipped), tsc 0, lint 0 errors. Rebuilt :3000 and checked in the browser at 1440, 390 and
   dark: no overflow, no console errors or ≥400, the joined status «Enviada» shows, the preview and the expanded row match
   the artboard (`/tmp/pf-sv/*.png`).
+- **L16** User approved saved vacancies («me gusta ya lo revise y me gusta») and set the next plan (S7–S9, verbatim
+  above). Image#4 is the dark preview panel of saved vacancies.
