@@ -346,3 +346,8 @@ detail): compare with the user's references, research modern dashboard patterns,
   el periodo», late-bucket % compares with itself, 390 px Métricas recruiter names cut by «Sin datos suficientes»,
   «Desempeño por reclutador» action order, dashboard «Vacantes activas» not stacked at 390 px. Backend observation: each
   drill-down page read writes two `MetricsDetailViewed` rows (IP 127.0.0.1, agent «node»: the Next server).
+- **L59** Double `MetricsDetailViewed` rows per drill-down: backend log shows two identical GETs per page. Likely `next dev`
+  Strict Mode double-running the client effect in `useCursorPages` (`detail-parts.tsx:34`; the first result is discarded by
+  `active` but the request is sent). To measure on the production build before the demo; fix if it also doubles there.
+  Follow-up: confirm the server-side client forwards `X-PF-Proxy-Secret` + client IP/User-Agent when `AUDIT_PROXY_SECRET`
+  is set (audit-log-v1; mandatory in production).
