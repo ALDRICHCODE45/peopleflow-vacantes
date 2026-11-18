@@ -193,3 +193,9 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   «Lo ven las empresas / Solo tú» to be confirmed by the backend); completeness → «10 datos en los dos lados
   (Recomendado)» (LinkedIn and portfolio optional on the dashboard too).
 - **L23** Perfil 04 handoff started (T12c), in an isolated worktree `feat/candidate-profile` because T12a is writing in this one; visibility labels live in one map to adjust after the backend's answer.
+- **L24** Backend visibility answer (main, with file evidence): companies receive a COPY at application time
+  (`process_participations.profile_snapshot`: location, skills, years, seniority, highest education level, languages),
+  plus the live phone, name and email, and the CV version attached to the application. NOT shared: birth date, LinkedIn,
+  portfolio, current company, summary, study details, all salaries, period and currency. Professional title is
+  inconsistent (only live in the dashboard «recent» section and the legacy v1 route) → product decision for the user. The
+  Perfil worker was steered to this map, with the ficha showing only company-visible data and the snapshot note.
