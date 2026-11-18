@@ -1,7 +1,9 @@
 # PeopleFlow design system (synced)
 
 Synced read-only from the project sources on 2026-10-28; tokens re-synced with `frontend/src/app/globals.css` on
-2026-11-18 (dashboard tokens, sidebar, chart and ambient tokens). Values are copied as authored; nothing here is invented.
+2026-11-18 (dashboard tokens, sidebar, chart and ambient tokens). Reviewed again on 2026-11-18 against the implemented
+candidate dashboard and saved vacancies (radius, elevation, buttons, inputs, segmented control, the candidate workspace
+patterns and the dark surface rule). Values are copied as authored; nothing here is invented.
 Product rules (composition, density, states) live in `docs/frontend-ui-design-rules.md`; this file only records tokens
 and the component recipes the canvas needs.
 
@@ -47,6 +49,7 @@ Derived tokens for rules 6 and 9 and for violet text. Light values below; dark v
 
 `.pf-kpi-hero` (inverted hero KPI tile, `bg-foreground text-background`) swaps its tokens in dark mode:
 `--foreground: color-mix(in oklab, var(--primary) 30%, var(--card))`, `--background: var(--card-foreground)`.
+Where it may be used is ruled by «Superficie oscura (hero)» at the end of this file.
 
 ## Colors — sidebar (`frontend/src/app/globals.css` `:root` / `.dark`)
 
@@ -99,17 +102,40 @@ The same dark values also apply under `@media (prefers-color-scheme: dark)` with
 
 ## Typography (`frontend/src/app/globals.css` `@theme inline`, `app/layout.tsx`)
 
-- Family: Inter through `--font-sans` (headings share it). Canvas fallback: system UI stack.
+- Family: Inter through `--font-sans`, loaded by `next/font` in `app/layout.tsx`; it is the only app face and
+  `--font-heading` resolves to it too. Canvas fallback: system UI stack.
 - Pipeline scale (`docs/frontend-ui-design-rules.md` §14.3): page title 20/600, card name 14/500 (2 lines),
   card metadata 12/400 muted, column counters 11.
+- Company overview scale: «Dashboards and metrics» rule 10 (page title 24/600, `text-2xl`).
+- Candidate workspace scale: «Espacio del candidato» below (page title 24/32, 28/36 from `sm`).
 
 ## Radius (`frontend/src/app/globals.css`)
 
-`--radius: 0.625rem`; sm ×0.6, md ×0.8, lg ×1, xl ×1.4, 2xl ×1.8, 3xl ×2.2, 4xl ×2.6.
+`--radius: 0.625rem`; sm ×0.6, md ×0.8, lg ×1, xl ×1.4, 2xl ×1.8, 3xl ×2.2, 4xl ×2.6
+(6 · 8 · 10 · 14 · 18 · 22 · 26 px).
 
-## Shadows (`frontend/src/app/globals.css` `.pf-candidate-card`)
+| Element | Radius | Source |
+|---|---|---|
+| Card (shared, every product card, tile, section card and the dark hero) | `rounded-[min(var(--radius-4xl),24px)]` = **24 px** | `components/ui/card.tsx`, `features/company-metrics/sections/summary-strip.tsx` `CARD`, `features/candidate/saved/queue.tsx` `CARD` |
+| Dashboard inset panel | `rounded-3xl` = 22 px | `components/dashboard-frame/frame-classes.ts` |
+| Button, input, input group | `rounded-2xl` = 18 px | `components/ui/button.tsx`, `input.tsx`, `input-group.tsx` |
+| Segmented control, list row, company logo tile 48 px, empty-state icon tile | `rounded-xl` = 14 px | `toggle-group.tsx`, `saved/queue.tsx`, `PublicCompanyAvatar.tsx`, `empty.tsx` |
+| Pipeline candidate card (`.pf-candidate-card`) | `var(--radius-xl)` = 14 px | `globals.css` |
+| Badge | `rounded-md` = 8 px | `components/ui/badge.tsx` |
+| Chip (reason, section, salary) | `rounded-full` | `saved/queue.tsx`, `candidate-dashboard-overview.tsx` |
 
-- Candidate card: `0 2px 3px color-mix(in srgb, var(--foreground) 4%, transparent), 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent)`;
+The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipeline card, not the shared card.
+
+## Shadows
+
+- Shared card (`components/ui/card.tsx`): Tailwind `shadow-sm` plus `ring-1 ring-foreground/5`
+  (`dark:ring-foreground/10`). Tiles, section cards and list cards use the same pair.
+- Dashboard inset panel: `shadow-md` plus `ring-1 ring-primary/15`.
+- Tinted cards («Siguiente paso», first-use empty state): `0 0 0 1px color-mix(in srgb, var(--primary) 14–16%,
+  var(--border))` plus the glow `0 10px 24px -18px color-mix(in srgb, var(--primary) 55%, transparent)`
+  (`features/candidate/dashboard/dashboard.module.css` `.next`, `features/candidate/saved/saved.module.css` `.empty`).
+- Dark surface: see «Superficie oscura (hero)».
+- Pipeline candidate card (`globals.css` `.pf-candidate-card`): `0 2px 3px color-mix(in srgb, var(--foreground) 4%, transparent), 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent)`;
   hover `0 4px 8px … 8%`, ring `… 70%`.
 
 ## Component rules
@@ -123,6 +149,15 @@ The same dark values also apply under `@media (prefers-color-scheme: dark)` with
 - **Candidate card** (§14.3): `Card size="sm"`, radius-xl, p-3, gap-3, avatar 32 (secondary fill, 12/500 initials),
   name 14/500 with tooltip, metadata lines with 14px icons, `Separator`, file row (icon + truncated name), drag handle
   40px revealed on hover/focus. Menu: allowed stages → «Ver ficha» → «Descartar».
+- **Button** (`components/ui/button.tsx`): `rounded-2xl` (18 px, not a full pill), 14/500, default `h-8 px-3`; product
+  call sites set `min-h-10` (40 px) and `min-h-11` (44 px) for the main action of a card or any button below `sm`.
+  Variants `default` (primary), `outline`, `ghost` (muted-foreground text for header and card-head links), `link`.
+- **Input / input group** (`input.tsx`, `input-group.tsx`): `rounded-2xl`, fill `bg-input/50`, no border at rest,
+  `ring-3 ring-ring/30` on focus; default `h-8`, forms use `min-h-10`; search fields `h-11`.
+- **Segmented control** (`toggle-group.tsx` `variant="segmented"`): `h-9 rounded-xl bg-muted p-1`, items `rounded-lg px-3`
+  14/500 in `foreground/70`, the pressed item on `--background` with `shadow-sm` (dark: `foreground/10`, no shadow). Candidate page headers use it at `h-11` (44 px). Use it for one choice among 2–4
+  views or sorts; a count sits after the label in a quiet badge.
+- **Skeleton** (`components/ui/skeleton.tsx`): `rounded-2xl bg-muted animate-pulse`.
 - **Targets** ≥ 40px for independent controls; semantic tokens only, no raw colors in product code (§3).
 
 ## Empty states (`frontend/src/components/feedback/state-card.tsx`, `components/ui/empty.tsx`, rules §22)
@@ -155,6 +190,7 @@ filter or search is actually active, never on a truly empty catalog.
 | In a card | A card, tab or sheet section is empty while the rest of the page has content | `SectionEmpty` (same file as `StateCard`): `Empty` inside the card body (py-8), same anatomy, smaller title (16/600, heading level 3); never a bare paragraph |
 | No results | Filter or search returns nothing | `SectionEmpty` (or `StateCard` for a whole page) with `SearchX`/`FilterX` icon, title «Sin resultados», description quotes the non-empty query or names the filters, action «Limpiar filtros» |
 | Nothing selected | Master-detail with no selection | `SectionEmpty` in the detail panel: icon of the list subject, instruction «Selecciona … para verlo aquí», no button |
+| First use (candidate page) | A candidate page whose whole list is empty (no saved vacancies, no applications) | Tinted card (`saved/queue.tsx` `EmptySaved`): eyebrow, title, description, primary + outline actions and a fan of three mini cards; see «Espacio del candidato» → Empty states |
 | Compact (exception) | Board columns (dashed 96px placeholder, §13.12/14), field-level «Sin dato», combobox «Sin coincidencias.», form notices | Text allowed; these are the only plain-text empties |
 
 ## On-demand help (`frontend/src/features/psychometrics/help/info-popover.tsx`)
@@ -226,3 +262,170 @@ above; spacing is in Tailwind steps (4 px). Status: binding; approved with artbo
 
 A section never disappears silently when its emptiness is meaningful to the person (a tab, a panel, a list the
 person manages); optional public content (job detail sections, careers-site blocks) may be omitted.
+
+## Espacio del candidato (binding since 2026-11-18)
+
+Applies to `/candidato/*`. Reference implementations: `/candidato/dashboard`
+(`design/candidate-dashboard-modern/04-bento-con-siguiente-paso.html` →
+`components/candidate-dashboard/candidate-dashboard-overview.tsx`, `features/candidate/dashboard/`) and
+`/candidato/guardadas` (`design/candidate-saved-modern/02-postulate-primero.html` →
+`features/candidate/saved-vacancies-workspace.tsx`, `features/candidate/saved/`). Values come from that code; where the
+artboards differ (card radius 14 px, logo tile 36–44 px, dividers between queue rows), the code wins. The goal is one
+recognisable language across the candidate screens: other candidate pages *align* to these patterns and keep their own
+structure, content and flows.
+
+**Page frame.** `DashboardPageContent width="screen-2xl"` (max 1536 px): inset 16 px, 24 px from `md` vertically and
+from `lg` horizontally. Header → content 24 px (`gap-6`); between page sections 24 px. The dashboard uses 32/40 px
+under its greeting because its header carries no controls.
+
+**1. Page header.** `header.flex.flex-wrap.items-end.justify-between.gap-x-6.gap-y-4`.
+- Title `h2` 24/32 600 `tracking-tight`, 28/36 from `sm` (`text-2xl sm:text-[28px] sm:leading-9`); focusable
+  (`tabIndex=-1`) when actions move focus back to it.
+- Summary line under it (gap 4 px): 14/20 muted, `tabular-nums`, counts joined by « · », the key counts in
+  `--foreground` 600 («**3** guardadas · **2** por postularte · todas siguen abiertas»). It states facts, never a
+  slogan; the dashboard uses the long date instead.
+- Controls on the right, bottom-aligned with the summary, in one row: the page's view or sort segmented control
+  (h-11) with its ⓘ help trigger, a search field (h-11, 240 px) and/or the page's primary actions (a form's
+  «Guardar» last, on the far right). Nothing else lives there; filters beyond one segmented control go in a
+  «Filtros» popover (rule 11). Below `sm` the controls take the full width
+  (segmented items share it equally: `grid grid-cols-3`, four items as a 2×2 grid).
+
+**2. Section card.** The shared card (24 px, `bg-card`, `shadow-sm ring-1 ring-foreground/5`) holding one group.
+- List section: padding `px-1.5 pt-4 pb-1.5`, `sm:px-3 sm:pt-5 sm:pb-2`, so rows run almost edge to edge while the
+  head text sits 24 px in (head `px-2.5 pb-2 sm:px-3`).
+- Head: title 18/28 600 + count `Badge variant="neutral"` (no dot) after it; optional caption 12/16 muted under it
+  (gap 2 px) saying how the list is ordered or scoped; optional action on the right as a ghost button `min-h-10`
+  in muted-foreground («Ver postulaciones», «Ver todas →»), pulled up by `-mt-1.5` so it aligns with the title.
+- Content sections (forms, side panels): padding 16 px, 24 px from `sm`; head then content 16 px apart; no
+  `border-b` under the head and no card inside a card.
+- Bento cards on the dashboard use the card title 15/22 600 (rule 10); page sections use 18/28.
+
+**3. Tile** (`features/candidate/dashboard/charts.tsx` `Tile`): shared card, `gap-3 p-4 sm:p-6`.
+- Label: 14/500 muted with one 16 px icon in `--primary-text` (`flex items-center gap-2`).
+- Figure: 26/32 600 `tracking-tight tabular-nums`, 32/40 from `sm`; unit after it 14/500 muted (`de 10`, `semanas`).
+  Worded figure («El mismo día») 28/34 → 32/40; a figure that is a sentence («Sin respuestas aún») 20/28.
+- Context line: 12/16 muted, one line; may end in an inline link («1 en uso · Subir otro»).
+- Foot link: 12/500 `--primary-text`, `mt-auto min-h-10`, underline on hover; one per tile.
+- Bento grid: 2 columns, 12 from `xl`, gap 12 → 24 px from `sm`, rows `minmax(176px, auto)`. A summary that already
+  exists on a screen (capacity, completeness, counts) may become a tile; never invent figures to fill one.
+
+**4. List row** (`features/candidate/saved/queue.tsx` `QueueRow`). The whole row is one button (selection) or one
+link; secondary actions live in the detail.
+- Grid: `[rank 28] [logo 48] [text 1fr] [value auto] [chevron 16]`, gap 10 → 14 px from `sm`, padding `py-3 px-2.5`
+  (`sm:px-3`), `rounded-xl`, min height 76 px (64 px without chips). Rows are 4 px apart (`gap-1`), no dividers.
+- Logo tile: `PublicCompanyAvatar` 48 px `rounded-xl` (64 px `rounded-2xl` in a detail), the company logo or its
+  initials on `--background` with a 1 px `--border`; a file uses the same tile tinted by type (PDF danger, Word info).
+- Title: 15/22 600, up to 2 lines (`line-clamp-2 break-words`). Meta: 12/16 muted, facts joined by « · ».
+- Chips under the meta (6 px gap, `mt-1.5`): reasons or status, see 6.
+- Value: right-aligned 15/22 600 `tabular-nums` with a 12/16 muted note under it (salary «$22k–26k / bruto»), or the
+  status badge for a record whose state is the point. Then a 16 px chevron, muted (`--primary-text` when selected).
+- Hover `bg-muted/70`; focus `ring-3 ring-ring/40`; colour transitions 150 ms. Arrow keys move between rows.
+- Rows that are not selectable (a file in a library) end in their own actions (ghost button + ⋯ menu) instead of a
+  value and a chevron.
+- A compact list inside a bento card (dashboard «Postulaciones recientes») uses `divide-y` rows of 60 px with the
+  title 14/500 and no logo.
+
+**5. Selected row.** `bg-primary/7` plus a 3 px bar `bg-primary` on the left edge, inset 14 px top and bottom,
+`rounded-full`; `aria-current="true"` (wide) and the chevron in `--primary-text`. Narrow: the whole `li` gets
+`bg-primary/6`, the row expands in place (`aria-expanded`) and the chevron turns 90°. Never an outline ring as the
+selection cue: the ring is the focus cue.
+
+**6. Status and reason chips.**
+- Application status = `Badge` with `dot`, one mapping everywhere (`features/candidate/saved/application-status.ts`,
+  same as the inbox): Enviada `info` · En proceso `review` · Cerrada / Vacante cerrada `neutral`. On the dark surface
+  the same words re-tint: info `oklch(0.78 0.12 245)`, review `--hero-accent` at 22%, neutral `background/10`.
+  Known drift: the dashboard «Postulaciones recientes» paints En proceso with `accent`; align it to `review`.
+- Reason chip (why a row is where it is, or what is pending on it): `rounded-full px-2 py-[3px]` 12/16 500; the lead
+  reason `bg-primary/9 text-primary-text`, the others `bg-muted text-muted-foreground`, at most 2 per row; a value
+  folded in on narrow screens `ring-1 ring-border ring-inset tabular-nums`.
+- Section chip (what companies see, what is missing): `h-5 rounded-full px-2` 11/16 500; complete
+  `color-mix(in oklab, var(--primary) 8%, var(--card))` + `ring-1 ring-primary/15` + 12 px check; missing
+  `border border-dashed border-border text-muted-foreground`; at most 3 plus «+N más».
+- Chips state facts from the data; never a judgement the data cannot support.
+
+**7. Thin brand ring** (`charts.tsx` `Ring`): one SVG, 56 px with a 5 px stroke (48/5 in «Siguiente paso»), track
+`--muted` (`--border` in dark), arc `--primary-text` with round caps; with `brand` it stays violet at 100 % and shows a
+20 px check (stroke 2.5) instead of «100%»; below 100 % the centre shows the percentage 13/600 `tabular-nums`. Only for a
+part of a whole with a goal (profile completeness, assessment n/63). Accessible name «Perfil completo al 100 %».
+
+**8. Empty states.** Three levels, all with the anatomy in «Empty states» above:
+- First use of a whole candidate page: the tinted card (`EmptySaved`): `color-mix(in oklab, var(--primary) 5%,
+  var(--card))` (11 % dark), tinted ring + glow, two radial washes; eyebrow 12/16 600 uppercase `tracking-wider`
+  `--primary-text` with a 6 px dot; title 20/28 → 24/32 (`sm`); description 14/22 → 15/24 muted; primary + outline
+  actions `min-h-11`, full width below `sm`; a fan of three 170–220 px mini cards (150 / 180 / 220 px tall art) that
+  sits above the copy until `xl` and beside it from `xl` (`1fr 420px`). Padding 24/20 → 32 → 48/40 px.
+- A group or bento card with nothing in it: `SectionEmpty` inside that card.
+- Filters or search with no match: `SectionEmpty` «Sin resultados» quoting the query, with «Limpiar filtros».
+
+**9. Skeletons.** Same footprint as the loaded layout, card by card: the header summary as a 14 px bar, list rows with
+the row grid (48 px `rounded-xl` logo, title `h-3.5 w-3/5`, meta `h-3 w-2/5`, a value bar from `sm`), a tile as label
++ 32 px figure + context bar, the dark surface as a light card with skeleton blocks. Real counts are never shown as
+`0` while loading. Skeletons pulse (`animate-pulse`) but never play the entrance; an `sr-only` `role="status"` says
+what is loading.
+
+**10. Motion.** Once, when a part first shows its loaded content (`dashboard.module.css`, `saved.module.css`):
+- Entrance `rise`: opacity 0 → 1 and `translateY(6px)` → 0, 320 ms `cubic-bezier(0.22, 1, 0.36, 1)`, stagger 40 ms per
+  card (`--d`), at most 4 staggered cards.
+- Charts: ring arc 400 ms (`stroke-dashoffset`), bars 320–360 ms (`scaleX`/`scaleY`), sparkline draw 400 ms, all with
+  an 80–100 ms delay.
+- Content arriving more than 600 ms after mount only fades in (150 ms), without inner chart motion.
+- Sorting, filtering, selecting, switching tabs or removing never replays the entrance (`.enter` lives 700 ms on the
+  workspace). Hover and chevron transitions 150 ms.
+- Only `transform`, `opacity` and `stroke-dashoffset`; everything inside `prefers-reduced-motion: no-preference`, and
+  `motion-reduce:transition-none` on transitions.
+
+**11. 390 px rules** (checked at 390 × 844 in a real browser):
+- No horizontal page scroll and no clipped text; long titles wrap (2 lines) and long names break (`break-words`,
+  `overflow-wrap:anywhere` for e-mails and URLs).
+- Inset 16 px; cards 16 px padding (list cards 6 px); bento 2 columns with 12 px gaps; the dark hero 20 px padding.
+- Header controls full width; four segmented options as a 2×2 grid; tab rows wrap to a second line instead of
+  clipping.
+- List rows: the value column folds into the chips (salary chip, status badge), the chevron stays; a master-detail
+  side panel is not shown: the row expands in place, or opens the screen's existing full-screen detail.
+- Buttons that are the main action of a card are full width and 44 px tall; icon-only buttons 40 × 40.
+- Secondary columns (timestamps) hide below `sm`; nothing the person needs to decide is hidden.
+
+## Superficie oscura (hero) (binding since 2026-11-18)
+
+The dark violet/black surface (`.pf-kpi-hero`: `bg-foreground text-background`) is the strongest accent in the
+product. Used sparingly it marks «this is the one thing on this screen»; used often it turns PeopleFlow into a different,
+dark brand. Treat it as a scarce resource.
+
+**Do**
+- Use it for **one focal item per screen at most**: the headline figure of an overview («Este mes», «Candidatos en
+  proceso», «Entregas a tiempo») or the single item the person is about to act on, with one primary action
+  (the saved vacancy preview, «Postularme»).
+- Keep it a card among light cards: same 24 px radius, at most half of the content width from `sm` (6 of 12 columns,
+  or a 400 px side panel); full width only in the single-column layout below `sm`.
+- Inside, use the dark-surface tokens: text `text-background`, secondary text `text-background/65–75`, accent
+  `--hero-accent: oklch(0.70 0.14 292.759)`, status re-tints (see Espacio del candidato → 6), skeleton blocks on
+  `background/14%`. Optional glow: two radial washes of `--hero-accent` (34 % / 14 %) and, in light mode, the shadow
+  `0 12px 32px -12px color-mix(in srgb, var(--primary) 45%, transparent)`.
+- Give it **one** primary button, the light one (`bg-background text-foreground`, 44 px); secondary actions
+  `outline` on `border-background/25` or `ghost` in `text-background/70`.
+- In dark mode it stays a distinct violet tile: `.pf-kpi-hero` swaps `--foreground` to
+  `color-mix(in oklab, var(--primary) 30%, var(--card))` and `--background` to `--card-foreground`, with a
+  `ring-1 primary/40` instead of the shadow. It is never a lighter block on a dark page.
+
+**Don't**
+- Two dark surfaces on one screen, or two side by side.
+- Lists, tables, sections, side navigation, headers, banners, full-width bands, dialogs, sheets, popovers, toasts in
+  product code, or forms.
+- Form and settings screens (Perfil, CVs, Configuración, the vacancy editor): they have no focal figure.
+- A record the person reads rather than decides on (an application detail with its activity and the company's
+  message): long text on the dark surface reads worse and the panel would be dark on every visit.
+- As decoration, for emphasis of a warning (that is `--destructive` / the review tone), or to fill an empty state.
+- It is optional: most screens have none. Adding one to a screen that has none needs a design review.
+
+**Inventory (2026-11-18).** Every current use complies (one per screen, focal, half width or less from `sm`):
+
+| Screen | Item | Why it qualifies | Source |
+|---|---|---|---|
+| `/candidato/dashboard` | «Este mes» hero (6 of 12 columns, 2 rows) | Headline figure of the overview | `features/candidate/dashboard/charts.tsx` `MonthHero` |
+| `/candidato/guardadas` | Preview of the selected vacancy (400 px sticky panel, from 1280 px) | The item to act on, one primary action «Postularme»; below 1280 px the row expands light | `features/candidate/saved/queue.tsx` `VacancyPreview` |
+| `/empresa/dashboard` | «Candidatos en proceso» hero KPI (4 of 12, 2 rows) | Headline figure | `features/employer-dashboard/sections/summary-section.tsx` → `kpi.tsx` `KpiCard hero` |
+| `/empresa/metricas` | «Entregas a tiempo» hero KPI (4 of 12, 2 rows) | Headline figure | `features/company-metrics/sections/summary-strip.tsx` |
+
+Not dark surfaces: modal scrims (`bg-black/30` in `dialog.tsx`, `sheet.tsx`, `drawer.tsx`); the marketing landing and
+public careers sites keep their own art direction and are outside this rule. The candidate Postulaciones, CVs and
+Perfil screens have none (`design/candidate-align/`).

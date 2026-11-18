@@ -20,10 +20,38 @@ p{margin:0;font-size:12px;color:var(--muted-foreground)}
 .t{--t:var(--muted-foreground);color:var(--t);border-color:color-mix(in oklch,var(--t) 40%,transparent);background:color-mix(in oklch,var(--t) 10%,transparent)}
 .neutral{background:var(--muted);color:var(--muted-foreground);border-color:var(--border)}
 .type div{margin-bottom:8px}.radius{display:flex;gap:10px}.radius b{width:56px;height:40px;background:var(--muted);border:1px solid var(--border)}
-.btn{display:inline-flex;align-items:center;height:40px;padding:0 16px;border-radius:999px;font-size:14px;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--foreground)}
+.btn{display:inline-flex;align-items:center;height:40px;padding:0 16px;border-radius:calc(var(--radius)*1.8);font-size:14px;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--foreground)}
 .btn.primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent}
 .card{background:var(--card);border-radius:calc(var(--radius)*1.4);padding:12px;width:260px;box-shadow:0 2px 3px color-mix(in srgb,var(--foreground) 4%,transparent),0 0 0 1px color-mix(in srgb,var(--border) 50%,transparent);font-size:12px;color:var(--muted-foreground)}
 .card strong{display:block;color:var(--foreground);font-size:14px;font-weight:500;margin-bottom:6px}
+
+/* Superficie oscura (hero): do / don't */
+.rule{width:1440px;padding:40px;background:#F7F5FB;color:#1A1626;border-top:1px solid #E4DFF0}
+.rule>h2{margin-top:0}
+.rule>p.lead{font-size:14px;line-height:20px;color:#1A1626;max-width:880px;margin-bottom:20px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.ex{display:flex;flex-direction:column;gap:12px}
+.verdict{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.verdict i{width:22px;height:22px;border-radius:999px;display:grid;place-items:center;font-style:normal;font-size:13px;color:#fff}
+.ok i{background:oklch(0.46 0.13 152)}.ok{color:oklch(0.46 0.13 152)}
+.no i{background:oklch(0.45 0.2 25)}.no{color:oklch(0.45 0.2 25)}
+.board{background:#F7F5FB;border:1px solid #E4DFF0;border-radius:22px;padding:20px;display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.c{background:#fff;border-radius:min(calc(.625rem*2.6),24px);padding:16px;box-shadow:0 1px 3px rgb(0 0 0/.1),0 1px 2px -1px rgb(0 0 0/.1),0 0 0 1px color-mix(in srgb,#1A1626 5%,transparent);display:flex;flex-direction:column;gap:6px;font-size:12px;color:#6B6480;min-height:96px}
+.c b{font-size:24px;line-height:30px;color:#1A1626;font-weight:600;font-variant-numeric:tabular-nums}
+.c .lb{font-size:12px;font-weight:500}
+.c.dk{background:#1A1626;color:color-mix(in oklab,#F7F5FB 70%,#1A1626);box-shadow:0 12px 32px -12px color-mix(in srgb,oklch(0.491 0.27 292.581) 45%,transparent);position:relative;overflow:hidden;isolation:isolate}
+.c.dk::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(60% 70% at 100% 0%,color-mix(in oklab,oklch(0.70 0.14 292.759) 34%,transparent),transparent 70%)}
+.c.dk b{color:#F7F5FB;font-size:40px;line-height:44px}
+.c .row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid color-mix(in oklab,#F7F5FB 14%,transparent)}
+.c .row:first-of-type{border-top:0}
+.why{font-size:12px;line-height:18px;color:#6B6480;margin:0}
+.why strong{color:#1A1626;font-weight:600}
+.darkmode{margin-top:24px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.darkmode .board{background:#0C0912;border-color:#262233;grid-template-columns:repeat(6,1fr);width:420px}
+.darkmode .c{background:#15121F;color:#A79FBF;box-shadow:0 0 0 1px color-mix(in srgb,#F6F2FF 10%,transparent)}
+.darkmode .c b{color:#F6F2FF}
+.darkmode .c.dk{background:color-mix(in oklab,oklch(0.432 0.232 292.759) 30%,#15121F);color:color-mix(in oklab,#F6F2FF 72%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,oklch(0.432 0.232 292.759) 40%,transparent)}
+.darkmode .c.dk b{color:#F6F2FF}
 </style>
 </head>
 <body>
@@ -38,7 +66,7 @@ p{margin:0;font-size:12px;color:var(--muted-foreground)}
   <h2>Tipografía (Inter)</h2>
   <div class="type"><div style="font-size:20px;font-weight:600">Pipeline 20/600</div><div style="font-size:14px;font-weight:500">Nombre de candidato 14/500</div><div style="font-size:12px;color:var(--muted-foreground)">Metadato 12/400 muted</div></div>
   <h2>Radio</h2>
-  <div class="radius"><b style="border-radius:calc(var(--radius)*0.6)"></b><b style="border-radius:calc(var(--radius)*0.8)"></b><b style="border-radius:calc(var(--radius)*1)"></b><b style="border-radius:calc(var(--radius)*1.4)"></b><b style="border-radius:calc(var(--radius)*1.8)"></b></div>
+  <div class="radius"><b style="border-radius:calc(var(--radius)*0.6)"></b><b style="border-radius:calc(var(--radius)*0.8)"></b><b style="border-radius:calc(var(--radius)*1)"></b><b style="border-radius:calc(var(--radius)*1.4)"></b><b style="border-radius:calc(var(--radius)*1.8)"></b><b style="border-radius:min(calc(var(--radius)*2.6),24px);width:72px" title="Card compartida 24 px"></b></div>
   <h2>Badge</h2>
   <div class="badges"><span class="badge accent">accent</span><span class="badge t" style="--t:var(--status-info)">info</span><span class="badge t" style="--t:var(--status-review)">review</span><span class="badge t" style="--t:var(--status-success)">success</span><span class="badge t" style="--t:var(--status-danger)">danger</span><span class="badge neutral">neutral</span></div>
   <h2>Botón</h2>
@@ -56,7 +84,7 @@ p{margin:0;font-size:12px;color:var(--muted-foreground)}
   <h2>Tipografía (Inter)</h2>
   <div class="type"><div style="font-size:20px;font-weight:600">Pipeline 20/600</div><div style="font-size:14px;font-weight:500">Nombre de candidato 14/500</div><div style="font-size:12px;color:var(--muted-foreground)">Metadato 12/400 muted</div></div>
   <h2>Radio</h2>
-  <div class="radius"><b style="border-radius:calc(var(--radius)*0.6)"></b><b style="border-radius:calc(var(--radius)*0.8)"></b><b style="border-radius:calc(var(--radius)*1)"></b><b style="border-radius:calc(var(--radius)*1.4)"></b><b style="border-radius:calc(var(--radius)*1.8)"></b></div>
+  <div class="radius"><b style="border-radius:calc(var(--radius)*0.6)"></b><b style="border-radius:calc(var(--radius)*0.8)"></b><b style="border-radius:calc(var(--radius)*1)"></b><b style="border-radius:calc(var(--radius)*1.4)"></b><b style="border-radius:calc(var(--radius)*1.8)"></b><b style="border-radius:min(calc(var(--radius)*2.6),24px);width:72px" title="Card compartida 24 px"></b></div>
   <h2>Badge</h2>
   <div class="badges"><span class="badge accent">accent</span><span class="badge t" style="--t:var(--status-info)">info</span><span class="badge t" style="--t:var(--status-review)">review</span><span class="badge t" style="--t:var(--status-success)">success</span><span class="badge t" style="--t:var(--status-danger)">danger</span><span class="badge neutral">neutral</span></div>
   <h2>Botón</h2>
@@ -65,5 +93,38 @@ p{margin:0;font-size:12px;color:var(--muted-foreground)}
   <div class="card"><strong>Ana Pérez Gómez</strong>Postuló 17 oct<br>En la etapa desde 19 oct</div>
 </section>
 </main>
+
+<section class="rule" aria-labelledby="rule-dark">
+  <h2 id="rule-dark">Superficie oscura (hero)</h2>
+  <p class="lead">Una sola por pantalla, solo para el elemento focal: la cifra principal o el elemento sobre el que la persona va a actuar, con un único botón primario claro. Nunca listas, secciones, formularios, navegación, diálogos ni bandas a todo el ancho. Perfil, CVs y Configuración no la usan. Detalle en <code>design/system.md</code> → «Superficie oscura (hero)».</p>
+  <div class="pair">
+    <div class="ex">
+      <span class="verdict ok"><i aria-hidden="true">✓</i>Sí: una tile focal entre tiles claras</span>
+      <div class="board" role="img" aria-label="Ejemplo correcto: una tile oscura «Este mes» de 6 columnas junto a cuatro tiles claras">
+        <div class="c dk" style="grid-column:span 6;grid-row:span 2"><span class="lb">Este mes</span><b>4</b><span>postulaciones</span><span style="margin-top:auto;color:#F7F5FB;font-size:14px;font-weight:600">2 de 4 ya avanzaron a proceso</span></div>
+        <div class="c" style="grid-column:span 3"><span class="lb">Racha</span><b>1</b><span>semana</span></div>
+        <div class="c" style="grid-column:span 3"><span class="lb">Avanzaron</span><b>2</b><span>de 4</span></div>
+        <div class="c" style="grid-column:span 3"><span class="lb">Primera respuesta</span><b style="font-size:18px;line-height:26px">El mismo día</b></div>
+        <div class="c" style="grid-column:span 3"><span class="lb">Guardadas</span><b>2</b><span>sin postular</span></div>
+      </div>
+      <p class="why"><strong>Por qué funciona:</strong> la oscura es la única, ocupa la mitad del ancho como máximo, carga la cifra que importa y, si lleva una acción, es un único botón claro. El resto del sistema sigue siendo claro y violeta.</p>
+    </div>
+    <div class="ex">
+      <span class="verdict no"><i aria-hidden="true">✕</i>No: dos superficies oscuras y una lista oscura</span>
+      <div class="board" role="img" aria-label="Ejemplo incorrecto: una tile oscura junto a una lista de postulaciones también oscura">
+        <div class="c dk" style="grid-column:span 5;grid-row:span 2"><span class="lb">Este mes</span><b>4</b><span>postulaciones</span></div>
+        <div class="c dk" style="grid-column:span 7;grid-row:span 2"><span class="lb">Mis postulaciones</span>
+          <span class="row"><span>Residente de Obra Civil</span><span>Enviada</span></span>
+          <span class="row"><span>Ejecutivo(a) de Ventas Institucionales</span><span>En proceso</span></span>
+          <span class="row"><span>Desarrollador(a) Backend Go</span><span>Cerrada</span></span></div>
+      </div>
+      <p class="why"><strong>Por qué falla:</strong> dos oscuras lado a lado compiten por el foco, y una lista o un detalle que se lee en oscuro cambia la identidad de la pantalla. La lista va en una section card clara con su fila seleccionada (tinte + barra).</p>
+    </div>
+  </div>
+  <div class="darkmode">
+    <div class="board" role="img" aria-label="Modo oscuro: la tile hero es violeta, no un bloque claro"><div class="c dk" style="grid-column:span 4"><span class="lb">Este mes</span><b>4</b></div><div class="c" style="grid-column:span 2"><span class="lb">Racha</span><b>1</b></div></div>
+    <p class="why"><strong>Modo oscuro:</strong> <code>.pf-kpi-hero</code> cambia sus tokens y queda como una tile violeta (<code>primary 30% + card</code>) con anillo <code>primary/40</code>, nunca como un bloque más claro que la página.</p>
+  </div>
+</section>
 </body>
 </html>

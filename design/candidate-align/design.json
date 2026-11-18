@@ -1,0 +1,28 @@
+{
+  "title": "Alineación del espacio del candidato",
+  "brief": "Alinear (no rediseñar) Postulaciones, CVs y Perfil con el lenguaje del dashboard aprobado (candidate-dashboard-modern/04) y de Vacantes guardadas (candidate-saved-modern/02), aplicando los patrones de design/system.md «Espacio del candidato»: encabezado de página con resumen y controles a la derecha, section cards con título y conteo, filas de lista (logo, título en 2 líneas, meta, chips, valor y chevron), fila seleccionada con tinte y barra, chips de estado, tiles donde ya existe un resumen, anillo fino de marca, estados vacíos y de carga, movimiento una sola vez y reglas de 390 px. Cada pantalla conserva su estructura, contenido, flujos y funciones. Datos de Valeria Mendoza: 4 postulaciones en Grupo Altavista, 1 CV de 10 y perfil completo con las pestañas Personal, Experiencia, Educación, Compensación e Idiomas. Cada artboard tiene «Ver actual» (la pantalla de hoy junto a la propuesta), «Ver a 390 px», «Ver estado de carga» y sus estados vacíos. Superficie oscura: ninguna en las tres, según la regla «Superficie oscura (hero)».",
+  "feature": "odd/tasks/candidate-dashboard-modern.md",
+  "artboards": [
+    {
+      "file": "01-postulaciones.html",
+      "title": "01 · Postulaciones alineada",
+      "tradeoff": "Mismo maestro-detalle, filtros, búsqueda y detalle a pantalla completa en móvil. Cambian la piel y el orden visual: encabezado «Mis postulaciones» con conteos y los filtros y la búsqueda a la derecha; la lista vive en una section card «Tus postulaciones» con filas como en Guardadas (logo de la empresa, título de hasta 2 líneas, «Postulada hoy», chip «Mensaje nuevo / Mensaje de la empresa», estado a la derecha y chevron) y la seleccionada con tinte + barra en lugar del contorno; el detalle es una tarjeta clara con logo grande, estado, actividad y mensaje. Sin superficie oscura: el detalle es un registro que se lee (actividad y el mensaje de la empresa), no una decisión con una acción principal; ponerlo oscuro haría oscuro un panel grande en cada visita y el texto largo se lee peor. Se gana consistencia con Guardadas; se pierde algo de densidad (filas de 64–76 px frente a 72 px con contorno) y el chip de mensaje es nuevo como señal visual (el dato ya existe y el dashboard ya lo muestra).",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-cvs.html",
+      "title": "02 · CVs alineada",
+      "tradeoff": "Misma biblioteca, mismas acciones (Descargar, Renombrar, Eliminar, ⓘ «Usado en postulaciones») y el mismo panel para subir. La biblioteca pasa a una section card «Biblioteca» con conteo y filas con el mosaico del archivo de 48 px; el panel lateral se separa en tres tarjetas en lugar de una con divisiones (Subir un CV con zona tintada, el tile «Espacio en tu biblioteca» con la cifra 1 de 10 y su barra, y «Cómo aprovecharlos» con iconos en mosaico). Sin superficie oscura (pantalla de gestión, sin cifra focal). Se gana jerarquía y un resumen legible; a 390 px el panel sigue arriba como hoy, así que la biblioteca queda más abajo (pregunta abierta: ¿subir la biblioteca antes de «Cómo aprovecharlos» en móvil?).",
+      "width": 1440,
+      "height": 1050
+    },
+    {
+      "file": "03-perfil.html",
+      "title": "03 · Perfil alineada",
+      "tradeoff": "Mismo formulario, mismas cinco pestañas, mismos campos, mismo guardado y «Restaurar copia original». Se agrega el encabezado de página «Tu perfil» con el estado de cambios como resumen y las dos acciones a la derecha (Guardar al final); la tarjeta de identidad muestra el avance con el anillo fino de marca (check al 100 %) en lugar de la barra y el «100%» grande; las secciones dejan de ser tarjetas dentro de una tarjeta y pasan a section cards de primer nivel sin la línea bajo el título. Los controles del formulario no cambian (son los componentes compartidos). Sin superficie oscura: Perfil es un formulario y la regla lo excluye. Se gana un frente más limpio y consistente; el título de página repite el «Perfil» del encabezado superior.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}

@@ -50,8 +50,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T5 | S4 | (done, L9) Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
 | T6 | S5, S6 | 2–3 proposal artboards for «Vacantes guardadas» in `design/candidate-saved-modern/`, desktop and 390 px, on the canvas (done, L13) | — |
 | T7 | S4, S6 | (done, L15) Implement `design/candidate-saved-modern/02-postulate-primero.html` on `/candidato/guardadas` (L14) | `00f962fd` |
-| T8 | S8, S9 | Update `design/system.md`: candidate workspace patterns from artboards 04 and saved 02, and the dark surface rule | — |
-| T9 | S7, S9 | Alignment proposals for Postulaciones, CVs and Perfil in `design/candidate-align/`, each comparable with the current screen, on the canvas | — |
+| T8 | S8, S9 | (done, L17) Update `design/system.md`: candidate workspace patterns from artboards 04 and saved 02, and the dark surface rule | — |
+| T9 | S7, S9 | (done, L17) Alignment proposals for Postulaciones, CVs and Perfil in `design/candidate-align/`, each comparable with the current screen, on the canvas | — |
 | T10 | S7 | Implement the approved alignment, screen by screen (after approval) | — |
 
 ## Log
@@ -153,3 +153,12 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   the artboard (`/tmp/pf-sv/*.png`).
 - **L16** User approved saved vacancies («me gusta ya lo revise y me gusta») and set the next plan (S7–S9, verbatim
   above). Image#4 is the dark preview panel of saved vacancies.
+- **L17** T8/T9 (worker). `design/system.md`: new «Espacio del candidato» patterns (values from the implemented code)
+  and the rule «Superficie oscura (hero)» (at most one per screen, only the headline figure or the single item to act
+  on, never lists/sections/forms/navigation/dialogs/bands, none on Perfil/CVs/Configuración); inventory of the four
+  current uses (candidate «Este mes», saved preview, company dashboard and Métricas hero), all compliant; fixes: radius
+  table (cards 24 px), shadows, typography scope, Button/Input/Segmented/Skeleton, first-use empty state; drift flagged:
+  the dashboard paints «En proceso» violet while inbox/Guardadas use amber (fix in T10). `system.html`: do/don't pair.
+  Artboards `design/candidate-align/01-postulaciones.html`, `02-cvs.html`, `03-perfil.html` with «Ver actual»: same
+  structure and features, shared header/section cards/rows/chips/ring, no dark surface on any of them. 150 overflow runs
+  and 126 interaction checks pass; screenshots `/tmp/pf-design-align/`.
