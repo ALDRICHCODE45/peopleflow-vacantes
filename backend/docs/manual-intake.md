@@ -183,7 +183,8 @@ candidate_id/company_candidate_id, source is manual, added_by is the recruiter,
 version is 1, and profile snapshot comes from the selected record.
 After migration 00043 (H4), stored snapshots and live manual board profiles contain
 exactly `location`, `skills`, `years_of_experience`, `seniority`, `education`,
-`languages`. Years remain decimal strings; education is
+`languages`; after 00061 they also contain `professional_title` (the record's
+title, string or null; legacy copies lack it and read null). Years remain decimal strings; education is
 `{highest_completed,in_progress}`, each the highest level among studies with that
 status (all eight levels, null when absent). In-progress levels never count as
 completed; paused/incomplete studies contribute to neither summary.

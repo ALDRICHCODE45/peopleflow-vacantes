@@ -43,7 +43,7 @@ func assertBoardMatchesMutationItem(t *testing.T, current, mutation, initial boa
 	if !reflect.DeepEqual(current.Profile, initial.Profile) || !reflect.DeepEqual(current.ScreeningAnswers, initial.ScreeningAnswers) {
 		t.Fatal("substate operation changed immutable board filter data")
 	}
-	current.Profile = board.Profile{}
+	current.Profile = board.ItemProfile{}
 	current.ScreeningAnswers = nil
 	if !reflect.DeepEqual(current, mutation) {
 		t.Fatal("board and mutation item fields differ")

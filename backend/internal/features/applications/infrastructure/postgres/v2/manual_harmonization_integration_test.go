@@ -45,7 +45,7 @@ func TestManualHarmonizationPersistenceReuseAndSnapshot(t *testing.T) {
 		if err := f.pool.QueryRow(ctx, `SELECT profile_snapshot FROM process_participations WHERE id=$1`, id).Scan(&raw); err != nil {
 			t.Fatal(err)
 		}
-		snapshot := movementKeys(t, movementObject(t, raw), "location", "skills", "years_of_experience", "seniority", "education", "languages")
+		snapshot := movementKeys(t, movementObject(t, raw), "location", "professional_title", "skills", "years_of_experience", "seniority", "education", "languages")
 		education := movementKeys(t, snapshot["education"], "highest_completed", "in_progress")
 		spoken := snapshot["languages"].([]any)
 		if snapshot["years_of_experience"] != "7.9" || snapshot["seniority"] != "senior" || education["highest_completed"] != want || education["in_progress"] != "phd" || len(spoken) != 1 {

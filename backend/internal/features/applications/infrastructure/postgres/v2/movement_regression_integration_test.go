@@ -111,7 +111,7 @@ func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 		t.Fatal("uncorrected fields must be []", obj["corrected_fields"])
 	}
 	if !mutation {
-		profile := movementKeys(t, obj["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
+		profile := movementKeys(t, obj["profile"], "location", "professional_title", "skills", "years_of_experience", "seniority", "education", "languages")
 		movementKeys(t, profile["education"], "highest_completed", "in_progress")
 		for _, language := range profile["languages"].([]any) {
 			movementKeys(t, language, "code", "level")

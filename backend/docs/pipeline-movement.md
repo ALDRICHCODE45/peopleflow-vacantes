@@ -53,7 +53,7 @@ An item is exactly:
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
   "cv": {"id": "…", "name": "CV", "source": "candidate"}, "moved_at": "2026-10-16T18:00:00Z",
   "discard": null, "substate_id": null, "corrected_fields": [],
-  "profile": {"location": null, "skills": [], "years_of_experience": null, "seniority": null, "education": {"highest_completed": null, "in_progress": null}, "languages": []},
+  "profile": {"location": null, "professional_title": null, "skills": [], "years_of_experience": null, "seniority": null, "education": {"highest_completed": null, "in_progress": null}, "languages": []},
   "screening_answers": []
 }
 ```
@@ -71,8 +71,12 @@ responses. Manual participation never appears in the candidate application list.
 not a precondition clients construct. Participation tags are strong and
 domain-separated from draft/pipeline/other tags. The board itself has no ETag.
 Default stage IDs remain the deterministic cut-1 UUIDv5 identities.
-For organic identities, `profile` is the immutable application-time six-field
-snapshot **overlaid at read time with this company's corrections** (E4).
+For organic identities, `profile` is the immutable application-time snapshot
+(six fields plus `professional_title`) **overlaid at read time with this company's
+corrections** (E4). `profile.professional_title` is the title frozen at application
+(string or null; null for copies taken before migration 00061, never the live
+profile); a `professional_title` correction wins. Manual identities read it live
+from the company record.
 Legacy SQL NULL rows use the empty profile above. `candidate.full_name` is also
 effective; `corrected_fields` is the sorted correction-key list, or `[]` for manual
 and uncorrected organic identities. Stored snapshots never change. Years are decimal
@@ -158,7 +162,8 @@ byte, fail-closed): see [audit-capture.md](audit-capture.md).
 | `GET …/participations/{participationId}/cv/original` | Original candidate/manual-intake CV; works before any correction, 404 only when no original reference/metadata is available |
 
 E4 detail's `original` has the [pool original shape](org-candidate-edits.md),
-using **this participation's** snapshot rather than the pool's latest one; null
+using **this participation's** snapshot rather than the pool's latest one
+(including `original.professional_title`, this copy's uncorrected title); null
 for manual candidates or no corrected fields. Effective contact overlays the same
 company's corrections on account email/profile phone (manual remains live).
 Current `cv` is `{id,name,source:"candidate"|"company"}`; `original_cv` is

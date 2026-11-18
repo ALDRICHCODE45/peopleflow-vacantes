@@ -47,7 +47,7 @@ func boardCorrectionWire(t *testing.T, item map[string]any, detail bool) {
 	}
 	orgCandidateKeys(t, item, keys...)
 	orgCandidateKeys(t, item["candidate"], "id", "full_name", "kind")
-	orgCandidateKeys(t, item["profile"], "location", "skills", "years_of_experience", "seniority", "education", "languages")
+	orgCandidateKeys(t, item["profile"], "location", "professional_title", "skills", "years_of_experience", "seniority", "education", "languages")
 	orgCandidateKeys(t, item["cv"], "id", "name", "source")
 }
 func boardCorrectionFile(t *testing.T, f *candidateCVFixture, path, data, name, typ string) {
@@ -133,7 +133,7 @@ func TestBoardCorrectionsFlow(t *testing.T) {
 				if view["candidate"].(map[string]any)["full_name"] != "Corrected Candidate" {
 					t.Fatal(view)
 				}
-				editJSONEqual(t, view["profile"], pool["profile"])
+				boardProfileEqualsTalent(t, view["profile"], pool)
 				editJSONEqual(t, view["corrected_fields"], pool["corrected_fields"])
 			}
 			editJSONEqual(t, detail["contact"], pool["contact"])
@@ -165,7 +165,7 @@ func TestBoardCorrectionsFlow(t *testing.T) {
 				t.Fatal(cleared.status, string(cleared.body))
 			}
 			clearDetail := draftFlowObject(t, boardCorrectionRead(t, f, path, f.owner).body)
-			editJSONEqual(t, clearDetail["profile"], draftFlowObject(t, cleared.body)["profile"])
+			boardProfileEqualsTalent(t, clearDetail["profile"], draftFlowObject(t, cleared.body))
 			if clearDetail["contact"].(map[string]any)["phone"] != nil {
 				t.Fatal(clearDetail)
 			}
@@ -207,7 +207,7 @@ func TestBoardCorrectionsFlow(t *testing.T) {
 				if originalProfile["location"] != nil || originalProfile["years_of_experience"] != nil {
 					t.Fatal("original uses latest or live profile", originalProfile)
 				}
-				editJSONEqual(t, older["profile"], draftFlowObject(t, f.detail(t).body)["profile"])
+				boardProfileEqualsTalent(t, older["profile"], draftFlowObject(t, f.detail(t).body))
 				// A reset returns this participation to its frozen value, never candidate live data.
 				reset := f.patch(t, `{"reset":["skills","education","location"]}`, upload.header.Get("ETag"))
 				if reset.status != 200 {
@@ -340,5 +340,21 @@ func boardCorrectionReuse(t *testing.T, f *candidateCVFixture, kind string) {
 	if result.Candidate.FullName != "Corrected Candidate" || result.Candidate.Kind != kind || result.Source != "manual" || result.CV.Source != "candidate" {
 		t.Fatal(string(created.body))
 	}
-	editJSONEqual(t, draftFlowObject(t, created.body)["profile"], draftFlowObject(t, f.detail(t).body)["profile"])
+	boardProfileEqualsTalent(t, draftFlowObject(t, created.body)["profile"], draftFlowObject(t, f.detail(t).body))
+}
+
+// The board profile carries the professional title that the talent base keeps
+// top-level; everything else in the two profile objects is identical.
+func boardProfileEqualsTalent(t *testing.T, boardProfile any, talent map[string]any) {
+	t.Helper()
+	rest := map[string]any{}
+	for k, v := range boardProfile.(map[string]any) {
+		rest[k] = v
+	}
+	title, ok := rest["professional_title"]
+	if !ok || title != talent["professional_title"] {
+		t.Fatalf("board title %v (present %v) != talent base %v", title, ok, talent["professional_title"])
+	}
+	delete(rest, "professional_title")
+	editJSONEqual(t, rest, talent["profile"])
 }

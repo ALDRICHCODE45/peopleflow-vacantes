@@ -10,7 +10,7 @@ import (
 )
 
 func TestManualCreatedBodyUsesGETItem(t *testing.T) {
-	item := app.Item{ID: uuid.New(), Source: "manual", Profile: app.Profile{Skills: []string{"go"}}, ScreeningAnswers: []app.ScreeningAnswer{}}
+	item := app.Item{ID: uuid.New(), Source: "manual", Profile: app.ItemProfile{Profile: app.Profile{Skills: []string{"go"}}}, ScreeningAnswers: []app.ScreeningAnswer{}}
 	cover := app.Coverage{Covered: 2}
 	delivery := app.Delivery{State: "pending", Delivered: 1, Target: 3}
 	body, err := marshalManualItem(item, cover, delivery)

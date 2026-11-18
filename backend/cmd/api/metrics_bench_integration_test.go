@@ -410,11 +410,10 @@ const (
  COALESCE(p.company_candidate_id,p.candidate_id),
  COALESCE(CASE WHEN o.corrections ? 'full_name' THEN o.corrections->>'full_name' ELSE COALESCE(cc.full_name,u.full_name) END,''),
  CASE WHEN o.corrections ? 'professional_title' THEN o.corrections->>'professional_title'
- ELSE CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.professional_title ELSE cp.professional_title END END,
+ ELSE CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.professional_title ELSE p.profile_snapshot->>'professional_title' END END,
  p.stage_id, p.source, p.created_at, ad.id, COALESCE(ad.full_name,'')
  FROM process_participations p
  LEFT JOIN users u ON u.id=p.candidate_id
- LEFT JOIN candidate_profiles cp ON cp.user_id=p.candidate_id
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=$2
  LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id=p.candidate_id AND o.company_id=$2
  LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'

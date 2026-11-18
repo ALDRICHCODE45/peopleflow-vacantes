@@ -3,6 +3,7 @@ package v2_test
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
@@ -20,12 +21,12 @@ func TestProfileSnapshotNormalization(t *testing.T) {
 		{"municipality", &app.SnapshotLocation{Country: "MX", State: str("14"), Municipality: str("14039")}, map[string]any{"country": "MX", "state": "14", "municipality": "14039"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			years, education, seniority := "1.5", "bachelor", "junior"
+			years, education, seniority, title := "1.5", "bachelor", "junior", "Backend Engineer"
 			languages := []app.SnapshotLanguage{{Code: "en", Level: "B2"}}
 			skills := []string{" Go ", "SQL", "Go"}
-			got := app.SnapshotProfile(tc.location, skills, &years, &seniority, app.SnapshotEducation{HighestCompleted: &education, InProgress: &education}, languages)
+			got := app.SnapshotProfile(tc.location, &title, skills, &years, &seniority, app.SnapshotEducation{HighestCompleted: &education, InProgress: &education}, languages)
 			skills[0] = "edited"
-			years, education, seniority = "9", "phd", "senior"
+			years, education, seniority, title = "9", "phd", "senior", "edited"
 			languages[0].Level = "native"
 			if tc.location != nil {
 				tc.location.Country = "US"
@@ -44,7 +45,7 @@ func TestProfileSnapshotNormalization(t *testing.T) {
 			if err = json.Unmarshal(raw, &obj); err != nil {
 				t.Fatal(err)
 			}
-			want := map[string]any{"location": tc.want, "skills": []any{" Go ", "SQL", "Go"}, "years_of_experience": "1.5", "seniority": "junior", "education": map[string]any{"highest_completed": "bachelor", "in_progress": "bachelor"}, "languages": []any{map[string]any{"code": "en", "level": "B2"}}}
+			want := map[string]any{"location": tc.want, "professional_title": "Backend Engineer", "skills": []any{" Go ", "SQL", "Go"}, "years_of_experience": "1.5", "seniority": "junior", "education": map[string]any{"highest_completed": "bachelor", "in_progress": "bachelor"}, "languages": []any{map[string]any{"code": "en", "level": "B2"}}}
 			if !reflect.DeepEqual(obj, want) {
 				t.Fatalf("got %s", raw)
 			}
@@ -52,6 +53,34 @@ func TestProfileSnapshotNormalization(t *testing.T) {
 	}
 }
 func str(s string) *string { return &s }
+
+// Profiles do not bound the title server-side; the copy keeps 120 characters.
+func TestProfileSnapshotTitleCappedAt120Characters(t *testing.T) {
+	long := strings.Repeat("á", 121)
+	got := app.SnapshotProfile(nil, &long, nil, nil, nil, app.SnapshotEducation{}, nil).ProfessionalTitle
+	if got == nil || *got != strings.Repeat("á", 120) {
+		t.Fatalf("got %v", got)
+	}
+	exact := strings.Repeat("é", 120)
+	if got = app.SnapshotProfile(nil, &exact, nil, nil, nil, app.SnapshotEducation{}, nil).ProfessionalTitle; got == nil || *got != exact {
+		t.Fatalf("got %v", got)
+	}
+}
+
+// A missing title is frozen as an explicit null, never omitted.
+func TestProfileSnapshotNullProfessionalTitle(t *testing.T) {
+	raw, err := json.Marshal(app.SnapshotProfile(nil, nil, nil, nil, nil, app.SnapshotEducation{}, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var obj map[string]any
+	if err = json.Unmarshal(raw, &obj); err != nil {
+		t.Fatal(err)
+	}
+	if value, present := obj["professional_title"]; !present || value != nil {
+		t.Fatalf("got %s", raw)
+	}
+}
 
 func TestApplicantCountryGate(t *testing.T) {
 	for _, tc := range []struct {

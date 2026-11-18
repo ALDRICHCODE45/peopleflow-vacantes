@@ -100,9 +100,18 @@ type Substate struct {
 	Name string `json:"name"`
 }
 
+// ItemProfile is the board's profile: the shared snapshot projection plus the
+// professional title frozen at application time (live company record for
+// manual intakes; company corrections win; null for legacy copies). The talent
+// base keeps the title top-level instead, so it does not use this type.
+type ItemProfile struct {
+	Profile
+	ProfessionalTitle *string `json:"professional_title"`
+}
+
 type Item struct {
 	CorrectedFields  []string          `json:"corrected_fields"`
-	Profile          Profile           `json:"profile"`
+	Profile          ItemProfile       `json:"profile"`
 	ScreeningAnswers []ScreeningAnswer `json:"screening_answers"`
 	SubstateID       *string           `json:"substate_id"`
 	ID               uuid.UUID         `json:"id"`

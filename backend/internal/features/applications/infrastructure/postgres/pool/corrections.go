@@ -89,7 +89,7 @@ func (s *Store) EditOrganic(ctx context.Context, company, actor, id uuid.UUID, e
 // catalogs. Do not derive originals from the effective item or the live profile.
 func organicDetail(ctx context.Context, tx pgx.Tx, company, id uuid.UUID, out *app.Detail) error {
 	query := poolSQL + ` AND kind='organic' AND id=$2), page AS (
- SELECT kind,id,corrected_fields,original_full_name AS full_name,NULL::text AS professional_title,NULL::text AS current_company,NULL::text AS postal_code,original_profile AS profile,last_activity_at,total,active,process_id,stage_id,discarded_at,applied_at FROM filtered
+ SELECT kind,id,corrected_fields,original_full_name AS full_name,original_professional_title AS professional_title,NULL::text AS current_company,NULL::text AS postal_code,original_profile AS profile,last_activity_at,total,active,process_id,stage_id,discarded_at,applied_at FROM filtered
  ) SELECT to_jsonb(r) FROM (` + projectionSQL + `) r`
 	var raw []byte
 	if err := tx.QueryRow(ctx, query, company, id).Scan(&raw); err != nil {
@@ -101,7 +101,7 @@ func organicDetail(ctx context.Context, tx pgx.Tx, company, id uuid.UUID, out *a
 	}
 	// Copy the pointed-to values: corrections below unmarshal into out.Contact,
 	// and sharing its pointers would rewrite the original contact too.
-	out.Original = &app.Original{FullName: original.FullName, Profile: original.Profile, Contact: out.Contact}
+	out.Original = &app.Original{FullName: original.FullName, ProfessionalTitle: original.ProfessionalTitle, Profile: original.Profile, Contact: out.Contact}
 	out.Original.Contact.Email = cloneString(out.Contact.Email)
 	out.Original.Contact.Phone = cloneString(out.Contact.Phone)
 	var version int64

@@ -278,7 +278,7 @@ func TestManualCreateExistingReuseAndAlreadyInProcess(t *testing.T) {
 			identity := f.actor
 			if kind == "organic" {
 				ctx := context.Background()
-				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,seniority) VALUES($1,'{}',7.9,'senior')`, identity); err != nil {
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,professional_title,skills,years_of_experience,seniority) VALUES($1,'Reused Title','{}',7.9,'senior')`, identity); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() { _, _ = f.pool.Exec(ctx, `DELETE FROM candidate_profiles WHERE user_id=$1`, identity) })
@@ -290,7 +290,14 @@ func TestManualCreateExistingReuseAndAlreadyInProcess(t *testing.T) {
 				}
 			}
 			if kind == "manual" {
-				result, err := f.create(f.input(pipelineconfig.Defaults(f.vacancy).Stages[0].ID))
+				first := f.input(pipelineconfig.Defaults(f.vacancy).Stages[0].ID)
+				var data map[string]any
+				if err := json.Unmarshal(first.Data, &data); err != nil {
+					t.Fatal(err)
+				}
+				data["candidate"].(map[string]any)["professional_title"] = "Manual Title"
+				first.Data, _ = json.Marshal(data)
+				result, err := f.create(first)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -310,15 +317,20 @@ func TestManualCreateExistingReuseAndAlreadyInProcess(t *testing.T) {
 			}
 			item := intakeItem(t, result)
 			assertManualGETItem(t, f, other, result)
+			// Organic reuse freezes the live title; manual intakes read the company record.
+			wantTitle := map[string]string{"organic": "Reused Title", "manual": "Manual Title"}[kind]
+			if got := item.Profile.ProfessionalTitle; got == nil || *got != wantTitle {
+				t.Fatalf("reuse title = %v, want %s", got, wantTitle)
+			}
 			if kind == "organic" {
 				var raw []byte
 				if err := f.pool.QueryRow(context.Background(), `SELECT profile_snapshot FROM process_participations WHERE id=$1`, item.ID).Scan(&raw); err != nil {
 					t.Fatal(err)
 				}
-				snapshot := movementKeys(t, movementObject(t, raw), "location", "skills", "years_of_experience", "seniority", "education", "languages")
+				snapshot := movementKeys(t, movementObject(t, raw), "location", "professional_title", "skills", "years_of_experience", "seniority", "education", "languages")
 				education := movementKeys(t, snapshot["education"], "highest_completed", "in_progress")
 				wantLanguages := []any{map[string]any{"code": "en", "level": "B2"}, map[string]any{"code": "es", "level": "native"}}
-				if snapshot["years_of_experience"] != "7.9" || snapshot["seniority"] != "senior" || education["highest_completed"] != "master" || education["in_progress"] != "phd" || !reflect.DeepEqual(snapshot["languages"], wantLanguages) {
+				if snapshot["professional_title"] != "Reused Title" || snapshot["years_of_experience"] != "7.9" || snapshot["seniority"] != "senior" || education["highest_completed"] != "master" || education["in_progress"] != "phd" || !reflect.DeepEqual(snapshot["languages"], wantLanguages) {
 					t.Fatal(snapshot)
 				}
 			}

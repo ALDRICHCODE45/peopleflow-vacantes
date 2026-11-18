@@ -134,7 +134,13 @@ Each figure then adds its own state rule:
   active); metrics §4.4 `top_vacancies` leaves those out.
 - **`recent`:** today's row shape (`participation_id`, `candidate {kind, id,
   name, professional_title}`, `vacancy {id, title}`, `stage {id, name, kind}`,
-  `source`, `applied_at`, `added_by`), the same name and title rules. Stage
+  `source`, `applied_at`, `added_by`), the same name rule. The title differs
+  from today's endpoint: organic rows read `professional_title` from the
+  participation's application-time snapshot (like the board), not the live
+  candidate profile; snapshots taken before migration 00061 read null; company
+  corrections (including explicit null) win; manual intakes read their company
+  record. The legacy `GET /v2/me/company/dashboard` still reads the live profile
+  until it is removed (T12 of stakeholder-metrics-v2-backend). Stage
   names and kinds come from the current configuration: the exit stage is kind
   `discarded`, a retired stage keeps its configured kind. Newest first, ties by
   participation id descending. Unlike today's (10 rows, schema-2 drafts) it has
