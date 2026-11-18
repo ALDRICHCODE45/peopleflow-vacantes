@@ -27,7 +27,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
 | T1 | S2, S4 | Browser audit of `/candidato/*` with Valeria's demo data at 1440 and 390 px, plus the cause of the donut stutter (verify, background) | — |
-| T2 | S1, S3, S5 | Research modern candidate and personal dashboards and chart patterns; write `design/candidate-dashboard-modern/research.md` (explore, background) | — |
+| T2 | S1, S3, S5 | Research modern candidate and personal dashboards and chart patterns; write `design/candidate-dashboard-modern/research.md` (explore, background) (done, L3) | — |
 | T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas | — |
 | T4 | S1–S4 | Implement the artboard the user chooses (after approval) | — |
 | T5 | S4 | Fix the mobile overflows the audit finds on the other candidate screens (after approval) | — |
@@ -54,3 +54,10 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   build on :3000 with Grupo Altavista data. Valeria Mendoza (nocheblanca92+demo-candidato) has 4 applications,
   3 saved vacancies and 1 unread message; all are dated today. `design/system.md` is older than
   `frontend/src/app/globals.css` (token drift from the metrics redesign).
+- **L3** Research done (`design/candidate-dashboard-modern/research.md`): the current dashboard repeats the status four
+  times, opens with an old alert-box «Pendientes», gives four KPIs equal weight, and draws 13 nearly empty weekly bars for
+  4 applications. Data available: applications (status, applied/updated/first response, message), assessments
+  (answered/63), profile completeness, CVs, saved vacancies (API exists, not read by the dashboard). No event history.
+  Three directions: A «Tu siguiente paso» (one action hero + rings + segmented status bar + 12-week dot strip), B «Bento
+  personal» (hero figure + tiles + pending chips), C «Bitácora viva» (timeline protagonist + side summary). Chart rule:
+  no chart under 5 records; rings only for part-of-whole with a goal; one animation on mount, ease-out 200–400 ms.
