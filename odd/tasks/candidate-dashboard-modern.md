@@ -77,3 +77,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   at 390, toggles work), screenshots `/tmp/pf-design-cd/`. Assumed data not loaded today: saved vacancies (API exists),
   per-application pipeline stage (not exposed), CV usage count (only `in_use`), derived streak/dot strip/histogram/focus
   order (computable from existing fields).
+- **L6** User asked which one I recommend; recommendation: 02 · Bento personal, with one change taken from 01: when
+  something is pending (message, assessment about to expire, incomplete profile), a highlighted «Siguiente paso» card
+  with one action sits above the bento instead of the pending chips; with nothing pending it disappears and the bento
+  moves up. User: «Si hermano, hazla y a ver como queda, pero ya me gusta esta version, haz ese ajuste, y si me gusta
+  comenzamos a implementar.» → artboard `04-bento-con-siguiente-paso.html`.
