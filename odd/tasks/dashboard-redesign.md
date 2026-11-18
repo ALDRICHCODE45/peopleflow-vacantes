@@ -337,3 +337,6 @@ detail): compare with the user's references, research modern dashboard patterns,
   `back`; singular verb; compact 390 px rows on the recruiter page and Métricas recruiters; `helpFirst` on the recruiter
   vacancies section; KPI line breaks only between parts; sparse sparkline hidden; first stacked row without top border;
   `--pf-tone-late` for dark mode. Full suite (rerun): 574 files / 10404 tests passed, 2 skipped; tsc 0; lint 0 errors.
+- **L57** Audit log labels: the frontend Annex lacked 4 backend catalog types (backend `catalog.go`, 68 types):
+  `MetricsDetailViewed` («Vio un detalle de métricas», sensitive_read) and `StakeholderInvitation{Created,Revoked,Accepted}`
+  (members). RED observed («Otra acción»), pinned count 64 → 68; 8 related files / 142 tests green; eslint 0.
