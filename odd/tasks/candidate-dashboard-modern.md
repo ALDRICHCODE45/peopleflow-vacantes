@@ -22,6 +22,11 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 - **S5** Research and proposal come first; implementation follows only after the user approves a proposal. User:
   «investiga patrones para dashboards modernos, metodos, etc.. haz la propuestas y despues implementamos».
 
+- **S6** «Vacantes guardadas» (`/candidato/guardadas`) is redesigned with the same quality bar as the dashboard. User:
+  «me gustaria que redisenes esta pantalla, la pantalla de vacantes guardadas: [Image#3] lo mismo que con el dashboard,
+  ui me parece seca, sin gracia, muy basica, no me parece para nada algo digno de un sass como PF». Proposal first, then
+  implementation after approval (S5).
+
 ## Tasks
 
 | ID | Specs | Task | Commit |
@@ -31,6 +36,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas (done, L5) | — |
 | T4 | S1–S3 | (done, L9–L11) Implement artboard `04-bento-con-siguiente-paso.html` on `/candidato/dashboard` (L8): next-step card, bento tiles, charts by threshold, saved vacancies read, fix the 1 s assessment ticker re-render (L4) | — |
 | T5 | S4 | (done, L9) Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
+| T6 | S5, S6 | 2–3 proposal artboards for «Vacantes guardadas» in `design/candidate-saved-modern/`, desktop and 390 px, on the canvas | — |
+| T7 | S4, S6 | Implement the chosen saved-vacancies artboard (after approval) | — |
 
 ## Log
 
@@ -111,3 +118,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   shared card uses 24 px, the artboard's 14 px is the odd one out. Rebuilt :3000 and measured: greeting «Hola, Valeria»,
   figure 32 px/600, hero legend on one line at 390 (3 items at the same y), Perfil tile 348×212 at 1440 and 358×196 at
   390, screenshots `/tmp/pf-polish/after-perfil-*.png` checked by eye.
+- **L12** User approved the dashboard («Perfecto hermnao, me gusta») and asked to redesign «Vacantes guardadas» (S6),
+  verbatim in S6. Image#3: page title, «3 guardadas · 2 por postularte», groups «Por postularte» and «Ya te postulaste»,
+  full-width white cards with logo initials, title, company, location, salary, «Guardada el …», «Postularme» / «Ver
+  vacante», a bookmark icon; lots of empty width.
