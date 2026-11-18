@@ -194,6 +194,12 @@ func purge(ctx context.Context, tx pgx.Tx, company uuid.UUID, fictitious []uuid.
 		// target changes, and the draft configurations.
 		{"job_drafts", `DELETE FROM job_drafts WHERE company_id=$1`, false},
 		{"job_draft_requesters", `DELETE FROM job_draft_requesters WHERE company_id=$1`, false},
+		// Rows the seed never writes but the app may create for the company
+		// once someone uses it: legacy jobs (POST /jobs, saved_jobs cascade)
+		// and their applications; the careers site (GET /v2/me/company/site
+		// lazily creates its draft row) with its slug history and media.
+		{"applications", `DELETE FROM applications WHERE job_id IN (SELECT id FROM jobs WHERE company_id=$1)`, false},
+		{"jobs", `DELETE FROM jobs WHERE company_id=$1`, false},
 		{"company_site_slug_history", `DELETE FROM company_site_slug_history WHERE company_id=$1`, false},
 		{"company_site_media", `DELETE FROM company_site_media WHERE company_id=$1`, false},
 		{"company_sites", `DELETE FROM company_sites WHERE company_id=$1`, false},

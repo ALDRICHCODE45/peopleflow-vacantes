@@ -169,11 +169,13 @@ func scenario(b *builder) {
 	v.credit(p0, "active", recipient{"recruiter", "direct"})
 	v.close("filled", "", v.t(26, 17))
 
-	// v10: no delivery configuration; closed for another reason.
+	// v10: nobody reached the cutoff before the commitment (overdue); closed
+	// for another reason.
 	v = b.vacancy("v10", "Especialista en Nómina", "human_resources", "rrhh", b.month(7, 14), "with_responsible")
 	v.stay("recruiter", "responsible", v.created)
 	v.closingTarget(1, nil)
-	v.expect("not_configured", -1)
+	v.deliver(2, v.d(10))
+	v.expect("overdue", -1)
 	v.apply("portal", v.t(1, 11)).to("screening", v.t(3, 10), "recruiter")
 	v.apply("careers_site", v.t(2, 11)).discard(v.t(4, 10), "recruiter", "profile_mismatch")
 	v.intake("recruiter", v.t(5, 9))
@@ -297,11 +299,12 @@ func scenario(b *builder) {
 	p1.to("screening_ok", v.t(14, 12), "diego")
 	v.close("cancelled", "", v.t(20, 17))
 
-	// v19: «cliente sin especificar», no delivery configuration, filled.
+	// v19: «cliente sin especificar», one delivery on time, filled.
 	v = b.vacancy("v19", "Jefe de Turno", "operations_production", "client?", b.month(3, 6), "with_responsible")
 	v.stay("diego", "responsible", v.created)
 	v.closingTarget(1, nil)
-	v.expect("not_configured", -1)
+	v.deliver(1, v.d(5))
+	v.expect("on_time", -1)
 	p0 = v.apply("portal", v.t(1, 11)).to("screening", v.t(2, 10), "diego").to("screening_ok", v.t(4, 12), "diego").to("in_process", v.t(6, 10), "diego")
 	v.apply("portal", v.t(1, 15)).discard(v.t(3, 10), "diego", "requirements_not_met")
 	v.apply("careers_site", v.t(2, 11)).to("screening", v.t(5, 10), "diego")
@@ -339,11 +342,12 @@ func scenario(b *builder) {
 	v.credit(p0, "active", recipient{"lucia", "direct"})
 	v.close("filled", "", v.t(14, 17))
 
-	// v30: no delivery configuration; cancelled recently.
+	// v30: nobody delivered by the commitment (overdue); cancelled recently.
 	v = b.vacancy("v30", "Auditor Interno", "administration_finance", "rrhh", b.month(1, 1), "with_responsible")
 	v.stay("jorge", "responsible", v.created)
 	v.closingTarget(1, nil)
-	v.expect("not_configured", -1)
+	v.deliver(2, v.d(10))
+	v.expect("overdue", -1)
 	v.apply("portal", v.t(0, 11)).to("screening", v.t(1, 10), "jorge")
 	v.apply("careers_site", v.t(1, 11))
 	v.close("cancelled", "", at(b.recent(1), 17, 0))
@@ -382,7 +386,9 @@ func scenario(b *builder) {
 	v.intake("recruiter", at(b.recent(9), 9, 0)).to("screening", at(b.recent(8), 10, 0), "recruiter").expectStalled(true)
 
 	// v21: stored pipeline with a custom and a retired stage, a hire in an
-	// open vacancy, every stage kind occupied.
+	// open vacancy. The app retires only empty stages, so the candidate who
+	// entered the retired stage was discarded from it (previous_stage_id =
+	// the retired stage) before it was retired.
 	v = b.vacancy("v21", "Ingeniero DevOps", "technology_systems", "liverpool", b.month(2, 5), "with_responsible")
 	v.seniority = "senior"
 	v.customPipeline("Entrevista con cliente", "Prueba técnica (anterior)")
@@ -395,7 +401,7 @@ func scenario(b *builder) {
 		to("in_process", v.t(6, 10), "recruiter").to("custom", v.t(9, 10), "recruiter").expectStalled(true)
 	p1 = v.apply("careers_site", v.t(1, 15)).to("screening", v.t(3, 10), "lucia").to("screening_ok", v.t(7, 12), "lucia").to("in_process", v.t(10, 10), "recruiter")
 	v.apply("portal", v.t(2, 11)).to("screening", v.t(3, 11), "recruiter").to("screening_ok", v.t(12, 12), "recruiter").
-		to("retired", v.t(13, 10), "recruiter").expectStalled(true)
+		to("retired", v.t(13, 10), "recruiter").discard(v.t(14, 11), "recruiter", "profile_mismatch").expectStalled(false)
 	v.apply("unknown", v.t(5, 11)).discard(v.t(8, 10), "lucia", "requirements_not_met")
 	p1.hire(v.t(14, 10), "recruiter").expectStalled(false)
 	v.credit(p1, "active", recipient{"recruiter", "direct"}, recipient{"lucia", "participant"})
@@ -439,12 +445,13 @@ func scenario(b *builder) {
 	v.intake("recruiter", at(b.recent(2), 9, 0)).expectStalled(false)
 	v.apply("portal", at(b.recent(1), 11, 0)).expectStalled(false)
 
-	// v25: shared team, no delivery configuration, a shared hire while open.
+	// v25: shared team, both deliveries on time, a shared hire while open.
 	v = b.vacancy("v25", "Promotor de Ventas", "sales_business_development", "bimbo", b.month(2, 15), "shared")
 	v.stay("lucia", "member", v.created)
 	v.stay("diego", "member", v.created)
 	v.closingTarget(3, nil)
-	v.expect("not_configured", -1)
+	v.deliver(2, v.d(6))
+	v.expect("on_time", -1)
 	p0 = v.apply("portal", v.t(1, 11)).to("screening", v.t(2, 10), "lucia").to("screening_ok", v.t(4, 12), "lucia").to("in_process", v.t(6, 10), "diego")
 	v.apply("careers_site", v.t(1, 15)).to("screening", v.t(3, 10), "diego").to("screening_ok", v.t(6, 12), "diego").
 		to("in_process", v.t(8, 10), "diego").expectStalled(true)
@@ -476,12 +483,13 @@ func scenario(b *builder) {
 	v.apply("careers_site", at(b.recent(9), 11, 0)).expectStalled(true)
 	v.intake("mariana", at(b.recent(5), 9, 0)).to("screening_ok", at(b.recent(1), 12, 0), "mariana").expectStalled(false)
 
-	// v28: no requester, the owner recruits it, no delivery configuration.
+	// v28: no requester, the owner recruits it, its delivery still pending.
 	v = b.vacancy("v28", "Asistente de Dirección", "administration_finance", "", b.recent(20), "with_responsible")
 	v.seniority = "junior"
 	v.stay("owner", "responsible", v.created)
 	v.closingTarget(1, nil)
-	v.expect("not_configured", -1)
+	v.deliver(1, b.pending(3))
+	v.expect("pending", -1)
 	v.apply("portal", at(b.recent(17), 11, 0)).expectStalled(true)
 	v.apply("portal", at(b.recent(8), 11, 0)).discard(at(b.recent(7), 10, 0), "owner", "profile_mismatch")
 	v.apply("careers_site", at(b.recent(2), 11, 0)).to("screening", at(b.recent(1), 10, 0), "owner").expectStalled(false)

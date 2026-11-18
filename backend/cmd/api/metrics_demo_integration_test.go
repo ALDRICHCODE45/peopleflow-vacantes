@@ -224,23 +224,31 @@ func demoFigures(r demoReader, base string, withCards bool) map[string]int {
 	return figures
 }
 
-// demoNonTrivial asserts every section of the board shows each of its cases.
+// demoNonTrivial asserts every section of the board shows each of its cases
+// the app can reach. delivery not_configured and stage retired cannot: a
+// vacancy publishes only with a complete delivery configuration and only an
+// empty stage can be retired (T13), so both stay 0 and are asserted so.
 func demoNonTrivial(t *testing.T, f map[string]int, cards bool) {
 	t.Helper()
 	want := []string{"summary placements", "summary did_not_hold", "summary reassignments", "summary assigned",
 		"summary closed filled", "summary closed cancelled", "summary closed other", "summary closed no_reason",
-		"delivery on_time", "delivery late", "delivery overdue", "delivery pending", "delivery not_configured",
+		"delivery on_time", "delivery late", "delivery overdue", "delivery pending",
 		"late bucket up_to_2", "late bucket from_3_to_5", "late bucket over_5",
 		"closing target on_time", "closing target late", "closing target no_target",
 		"reassignment workload", "reassignment recruiter_departure", "reassignment performance", "reassignment client_request", "reassignment other",
 		"channel portal", "channel careers_site", "channel manual", "channel unknown",
-		"stage new", "stage screening", "stage screening_ok", "stage in_process", "stage custom", "stage placement", "stage retired"}
+		"stage new", "stage screening", "stage screening_ok", "stage in_process", "stage custom", "stage placement"}
 	if cards {
 		want = append(want, "former member cards")
 	}
 	for _, name := range want {
 		if f[name] == 0 {
 			t.Errorf("%s is 0", name)
+		}
+	}
+	for _, name := range []string{"delivery not_configured", "stage retired"} {
+		if f[name] != 0 {
+			t.Errorf("%s is %d, an unreachable state", name, f[name])
 		}
 	}
 	stalled := 0
@@ -367,7 +375,10 @@ func TestMetricsDemo_FiguresEqualListsAndRemove(t *testing.T) {
 	if _, err := metricsdemo.Apply(ctx, h3.pool, demoDB, a.emails, today); err != nil {
 		t.Fatal(err)
 	}
-	demoNonTrivial(t, demoFigures(demoReader{t: t, h: h3, token: owner.token}, demoPeriod(today), true), true)
+	todayFigures := demoFigures(demoReader{t: t, h: h3, token: owner.token}, demoPeriod(today), true)
+	demoNonTrivial(t, todayFigures, true)
+	t.Logf("figures applied today (%s):", today.Format(time.DateOnly))
+	demoLog(t, todayFigures)
 
 	// Remove: nothing of the demo stays but its audit rows; the accounts stay
 	// without membership; the other company is untouched.

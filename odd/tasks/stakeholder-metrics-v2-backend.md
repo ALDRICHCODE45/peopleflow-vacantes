@@ -37,6 +37,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T10 (S3, L5, L13, L14) Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin — commit: d2a commit.
 - [x] T11 (S1, S3, S5, L17) Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role — commit: d2b commit.
 - [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it — deferred (L20): separate branch after the frontend merge reaches main.
+- [x] T13 (L10, L11, L23) Demo seed operable: vacancy drafts readable by the v2 draft routes (list, board, checklist, publication, draft), dashboard «Abrir pipeline» links work; remove copes with rows the app creates for the demo company (company_sites) — commit: T13 commit.
 - [x] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms) — commit: benchmark commit.
 
 ## Log
@@ -161,3 +162,15 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   kept the Manual column while the row Total excluded it. Now the dashboard applications CSV keeps only the selected
   channels' columns (no `channel` = every column, unchanged); the metrics applications export (shared header/record)
   is untouched. RED observed (header mismatch), unit + `^TestDashboard|^TestMetrics|^TestStakeholder` integration green.
+- **L23** 2026-11-17, frontend session (from a read-only diagnosis by the Presentation session): «metricsdemo guarda
+  job_drafts.fields con schema_version 1 (plan.go fields()), pero visibleV2Drafts / requireV2ReadDocument
+  (draftstore/list_v2.go) exigen la versión 2. Resultado: /empresa/vacantes sale vacía, y board, checklist, publication
+  y draft de las vacantes demo dan 404 … Los links «Abrir pipeline» del dashboard también quedan rotos.» Also: opening
+  /empresa/sitio created an empty draft company_sites row for Demo Métricas (the GET writes). Opened T13.
+- **L24** T13 by a worker. Drafts are canonical schema 2 (draftinput.DecodeCreateV2; default seniority semi_senior);
+  candidate_cv_library row per candidate; purge also removes the demo company's legacy jobs/applications. The seed
+  had two states the app cannot reach (active candidate in a retired stage; published without delivery config) that
+  broke the draft list (500) and 6 boards; parent decision: seed only reachable states (option A). New figures:
+  deliveries on_time 14, late 6, overdue 7, pending 4, not_configured 0; stage retired 0; DevOps in_process 4→3;
+  stalled 14. RED observed (list 0 drafts; FK on remove); 46 `^TestMetricsDemo|^TestDashboard|^TestMetrics` green.
+  Still absent: CV files, public projection of demo vacancies.

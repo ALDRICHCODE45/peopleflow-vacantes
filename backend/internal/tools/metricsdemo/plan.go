@@ -13,6 +13,7 @@ import (
 	_ "time/tzdata" // America/Mexico_City must resolve anywhere
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/businesscalendar"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
 	"github.com/google/uuid"
@@ -346,7 +347,7 @@ func (v *vacancy) actor(key string) uuid.UUID { return v.b.user(key) }
 func (b *builder) vacancy(key, title, area, req string, pub time.Time, mode string) *vacancy {
 	v := &vacancy{b: b, key: key, title: title, area: area, requester: req, draft: ID("draft", key), pubDate: pub,
 		pub: at(pub, 9, 30), created: at(pub.AddDate(0, 0, -3), 12, 0), published: true, mode: mode,
-		seniority: "mid", workMode: "hybrid", headcount: 1, expectLate: -1}
+		seniority: "semi_senior", workMode: "hybrid", headcount: 1, expectLate: -1}
 	v.usePipeline(pipelineconfig.Defaults(v.draft), false)
 	b.check(v.where("publication"), v.pub)
 	if pub.Before(b.periodStart) {
@@ -769,6 +770,10 @@ func (v *vacancy) validate() {
 	}
 }
 
+// fields is the job_drafts.fields document: the canonical schema-2 draft the
+// app's own create codec (draftinput.DecodeCreateV2) produces for these
+// values, so the v2 draft routes read it (T13, L23). Every other field keeps
+// its create default.
 func (v *vacancy) fields() []byte {
 	fields := map[string]any{"title": v.title, "professional_area": v.area, "seniority": v.seniority, "work_mode": v.workMode,
 		"work_schedule": "full_time", "contract_type": "indefinite"}
@@ -780,11 +785,17 @@ func (v *vacancy) fields() []byte {
 		r := v.b.requesters[v.requester]
 		fields["requester"] = map[string]any{"kind": r.kind, "id": r.id.String()}
 	}
-	raw, err := json.Marshal(map[string]any{"schema_version": 1, "fields": fields})
+	body, err := json.Marshal(map[string]any{"fields": fields})
 	if err != nil {
 		v.b.fail("%s: fields: %v", v.key, err)
+		return nil
 	}
-	return raw
+	create, err := draftinput.DecodeCreateV2(body)
+	if err != nil {
+		v.b.fail("%s: fields: %v", v.key, err)
+		return nil
+	}
+	return create.Fingerprint()
 }
 
 func (v *vacancy) requesterColumns() (*string, *uuid.UUID) {
@@ -1085,7 +1096,10 @@ func BuildPlan(now time.Time, people People) (*Plan, error) {
 		hash := sha256.Sum256([]byte("devseed-metrics-demo/cv/" + c.cv.String()))
 		plan.Statements = append(plan.Statements,
 			insert("users", "id,cognito_sub,email,full_name,user_type,created_at", c.id, "devseed-metrics-demo|candidate|"+strconv.Itoa(i+1), c.email, name, "candidate", start),
-			insert("candidate_cv_versions", "id,candidate_id,storage_key,size,content_type,uploaded_at", c.cv, c.id, hex.EncodeToString(hash[:]), int64(204_800), "application/pdf", start))
+			insert("candidate_cv_versions", "id,candidate_id,storage_key,size,content_type,uploaded_at", c.cv, c.id, hex.EncodeToString(hash[:]), int64(204_800), "application/pdf", start),
+			// The library entry names the CV on the board (T13); the file
+			// itself is never uploaded.
+			insert("candidate_cv_library", "id,candidate_id,version_id,name", ID("candidate-cv-library", strconv.Itoa(i)), c.id, c.cv, "CV "+name+".pdf"))
 	}
 
 	scenario(b)

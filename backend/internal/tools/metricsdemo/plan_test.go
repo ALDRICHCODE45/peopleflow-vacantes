@@ -1,12 +1,14 @@
 package metricsdemo
 
 import (
+	"encoding/json"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/google/uuid"
 )
 
@@ -181,5 +183,54 @@ func TestBuilderRejectsBrokenDesigns(t *testing.T) {
 		if len(b.errs) == 0 {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+// Every draft is the canonical schema-2 document the v2 draft routes read
+// (T13): it passes the persisted-v2 validation and keeps the vacancy's
+// title and requester, matching the requester columns.
+func TestBuildPlanDraftsAreSchemaV2(t *testing.T) {
+	plan, err := BuildPlan(time.Date(2026, 11, 8, 18, 0, 0, 0, time.UTC), testPeople)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drafts := 0
+	for _, s := range plan.Statements {
+		if tableOf(s.SQL) != "job_drafts" {
+			continue
+		}
+		drafts++
+		raw := s.Args[5].([]byte)
+		if err := draftinput.ValidatePersistedDraftV2(raw); err != nil {
+			t.Fatalf("draft %v: %v\n%s", s.Args[0], err, raw)
+		}
+		var doc struct {
+			SchemaVersion int `json:"schema_version"`
+			Fields        struct {
+				Title     *string `json:"title"`
+				Requester *struct {
+					Kind string     `json:"kind"`
+					ID   *uuid.UUID `json:"id"`
+				} `json:"requester"`
+			} `json:"fields"`
+		}
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatal(err)
+		}
+		if doc.SchemaVersion != 2 || doc.Fields.Title == nil || *doc.Fields.Title == "" {
+			t.Fatalf("draft %v: %s", s.Args[0], raw)
+		}
+		kind, id := s.Args[8].(*string), s.Args[9].(*uuid.UUID)
+		switch r := doc.Fields.Requester; {
+		case r == nil:
+			if kind != nil || id != nil {
+				t.Fatalf("draft %v: requester columns without a requester", s.Args[0])
+			}
+		case kind == nil || *kind != r.Kind || (id == nil) != (r.ID == nil) || (id != nil && *id != *r.ID):
+			t.Fatalf("draft %v: requester %v/%v, columns %v/%v", s.Args[0], r.Kind, r.ID, kind, id)
+		}
+	}
+	if drafts == 0 {
+		t.Fatal("no drafts")
 	}
 }

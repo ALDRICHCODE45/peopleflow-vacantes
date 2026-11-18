@@ -144,8 +144,11 @@ func TestBuildPlanDigestUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Recorded on the demo code before the benchmark builder (5abe42b0).
-	const want = "1531d7bb43016a4b8fb08ab13a7d7ef0df10d816b70a59c7fe56dfcb7cba43ff"
+	// Recorded on the demo code before the benchmark builder (5abe42b0),
+	// re-recorded by T13: schema-2 drafts, candidate_cv_library rows and
+	// only app-reachable states (delivery configured on every published
+	// vacancy, v21's retired-stage candidate discarded).
+	const want = "bc2a8b7b7e1b64b18f7c82cd55e7eff6fcc6133b831ceff65e7869848e2c7c36"
 	if got := planDigest(plan); got != want {
 		t.Fatalf("demo plan digest %s, want %s (the demo output changed)", got, want)
 	}
