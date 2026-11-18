@@ -99,3 +99,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   before the demo. Polish left: «Primera respuesta» value 20 px vs 32–40, card radius 24 vs 14 px, hero legend wraps at
   390, tiles taller than the artboard, greeting with full name, «100%» crowds the ring at 390, 1–2 tiles rise twice
   (loading → loaded swap), whole entrance 565–785 ms.
+- **L10** User on the «Perfil» tile (screenshot: thick dark-green ring, «100%» crammed inside, empty band below):
+  «mira, lo unico que no me encanta es esto: [Image#2] pero lo demas, lo de la racha todas las demas cards me gustan
+  mucho.» Added to the running polish worker: thin brand ring, a check icon when complete, the profile sections companies
+  see (real data), missing items as chips when incomplete, «Ver perfil»/«Completar perfil» link, same height as the
+  neighbouring tiles, no empty band.
