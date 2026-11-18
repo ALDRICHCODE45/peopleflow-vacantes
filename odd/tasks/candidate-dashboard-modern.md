@@ -43,6 +43,13 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   cvs y mi perfil no me gusta, si me gustaria un rdiseno competo de esas dos pantallas.» Proposal first (S5); the
   dark-surface rule (S9, system.md) still applies.
 
+- **S11** Perfil goes back to tabs, improved, with much less on screen at once. User: «hay DEMASIADA INFORMACION, mucha para
+  los ojos del usuario, muchas cosas llamando su atencion al mismo tiempo, tambien hay mucho texto [...] en la card de
+  "Perfil completo" hay muchos badges, muchos badges que sinceramente siento que se ven mal, entonces, quiero una version
+  en tabs como en la version anterior pero mejorada». Reference images (a candidate profile with a left identity card —
+  banner, avatar, name with role badge, skills chips, position type, location tiles, lists — and content on the right)
+  are «NO PARA QUE LAS COPIES EXACTAMENTE, es para que lo uses como inspiracion». The dark surface rule still applies.
+
 ## Tasks
 
 | ID | Specs | Task | Commit |
@@ -62,6 +69,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T12b | S10 | Real first-page preview for PDFs (source to decide: pdf.js vs backend inline/thumbnail) | — |
 | T13 | S10 | (done, L31) Employer side: accept and show `professional_title` from the application snapshot (board card, candidate sheet, talent base, dashboard recent, manual intake) before the backend merges (L29) | — |
 | T12c | S10 | (done, L28) Implement the chosen Perfil artboard (after the user's choice) | — |
+| T14 | S5, S11 | 2 proposal artboards for a tabbed Perfil in `design/candidate-profile-tabs/`, on the canvas | — |
+| T15 | S11 | Implement the chosen tabbed Perfil (after approval), keeping visibility, completeness and every field | — |
 
 ## Log
 
@@ -233,3 +242,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   minification (add a third-party notice), title truncated on 284 px cards, no cMap/standard fonts (fallback rendering).
 - **L33** Full suite after T12–T13: 581 files passed, 1 failed — `requestPath.test.ts` guard (fetch only in registered same-origin adapters) caught the new `cvs/pdf-page.ts` fetch. Fixed: the preview now fetches the fixed `/api/candidate/cvs/${encodeURIComponent(id)}/file` with `redirect: "error"`, registered in the guard list with a reason, plus a dedicated guard test (47 related tests green, tsc/eslint 0). Full suite rerun.
 - **L34** Full suite rerun: 582 files / 10504 tests passed (2 skipped), tsc 0, lint 0 errors. Rebuilt :3000 (final candidate build); smoke: CV first page drawn on a canvas with one `/file` 200, dashboard tile «Lo que ven las empresas está completo», no console errors, no ≥400.
+- **L35** User rejected the one-page Perfil 04 as implemented (too much information, text and badges; the completeness card with 10 chips looks bad) and asked for an improved tabbed version, using the reference images only as inspiration (S11). The merge into main waits until Perfil is approved.
