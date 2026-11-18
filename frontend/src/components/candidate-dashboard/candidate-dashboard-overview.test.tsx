@@ -42,7 +42,7 @@ const apps: Item[] = [
 ];
 const assessment: AccountAssessment = { id: "evaluation", application_id: "a2", vacancy: { id: "v-a2", title: apps[1].vacancy.title }, company, status: "in_progress", created_at: at(11, 18, 11), expires_at: at(11, 20, 23, 59), finished_at: null, answered_count: 23, total_count: 63, estimated_minutes: 10 };
 const later: AccountAssessment = { ...assessment, id: "later", status: "created", answered_count: 0, expires_at: at(11, 28) };
-const profile = (phone: string | null) => ({ ok: true as const, data: { profile: { user_id: "u", professional_title: "Ingeniería", profile_summary: "Mi experiencia", phone, location: phone ? { country: "MX", state: "Jalisco", city: "Guadalajara" } : null, education: [{ level: "bachelor", status: "completed", institution: null, field: null, start_year: null, end_year: null }], seniority: "junior", years_of_experience: "0", skills: ["Go"], linkedin_url: "https://example.com", portfolio_url: "https://example.com", expected_salary: 0, salary_currency: "MXN", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, languages: { languages: [{ code: "es", level: "native" }] } } }) as never;
+const profile = (phone: string | null) => ({ ok: true as const, data: { profile: { user_id: "u", professional_title: "Ingeniería", current_company: "Grupo Norte", profile_summary: "Mi experiencia", phone, location: phone ? { country: { id: "MX", name: "México" }, state: { id: "14", name: "Jalisco" }, municipality: null, postal_code: null, label: "Jalisco, México" } : null, education: [{ level: "bachelor", status: "completed", institution: null, field: null, start_year: null, end_year: null }], seniority: "junior", years_of_experience: "0", skills: ["Go"], expected_salary: 0, salary_currency: "MXN", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }, languages: { languages: [{ code: "es", level: "native" }] } } }) as never;
 const savedRow = (id: string, applied: boolean, availability: "open" | "closed" = "open") => ({ job_id: id, saved_at: at(11, 10), availability, closed_at: null, application: applied ? { id, applied_at: at(11, 12) } : null, job: {} });
 const saved = (rows: ReturnType<typeof savedRow>[]) => ({ ok: true as const, data: { items: rows, total: rows.length, limit: 200 } as unknown as SavedJobs });
 const cvs = (count: number) => ({ ok: true as const, data: { items: Array.from({ length: count }, (_, index) => ({ id: `cv${index}`, name: "Mi CV", in_use: true, size: 10, content_type: "application/pdf" as const, uploaded_at: "2026-01-01T00:00:00Z" })), limits: { max_cvs: 7, max_bytes: 100, content_types: ["application/pdf" as const] } } });
@@ -121,7 +121,7 @@ it("falls back to the unread message, opens it, and moves on to the profile once
   await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Mensaje de la empresa" })).toBeNull());
   expect(within(region("Siguiente paso")).getByRole("heading", { name: "Completa tu perfil: te faltan 2 datos" })).toBeVisible();
-  expect(within(region("Siguiente paso")).getByText("Falta teléfono y ubicación · 10 de 12 datos completos")).toBeVisible();
+  expect(within(region("Siguiente paso")).getByText("Falta teléfono y ubicación · 8 de 10 datos completos")).toBeVisible();
   expect(within(region("Siguiente paso")).getByRole("link", { name: "Completar perfil" })).toHaveAttribute("href", "/candidato/perfil");
   expect(within(region("Siguiente paso")).queryByRole("button", { name: /pendientes? más/ })).toBeNull();
 });
@@ -250,10 +250,10 @@ const items = (list: HTMLElement) => within(list).getAllByRole("listitem").map(i
 it("shows an incomplete profile as its percentage, the missing items as chips and «Completar perfil»", async () => {
   render(<CandidateDashboardWorkspace />);
   const card = await screen.findByRole("article", { name: "Perfil" });
-  const ring = await within(card).findByRole("img", { name: "Perfil completo al 83 %" });
-  expect(ring).toHaveTextContent("83%");
+  const ring = await within(card).findByRole("img", { name: "Perfil completo al 80 %" });
+  expect(ring).toHaveTextContent("80%");
   expect(within(card).getByText("Te falta poco")).toBeVisible();
-  expect(within(card).getByText("10 de 12 datos completos")).toBeVisible();
+  expect(within(card).getByText("8 de 10 datos completos")).toBeVisible();
   expect(items(within(card).getByRole("list", { name: "Datos que faltan" }))).toEqual(["Teléfono", "Ubicación"]);
   expect(within(card).getByRole("link", { name: "Completar perfil" })).toHaveAttribute("href", "/candidato/perfil");
   expect(within(card).queryByRole("link", { name: "Ver perfil" })).toBeNull();
@@ -261,6 +261,7 @@ it("shows an incomplete profile as its percentage, the missing items as chips an
 });
 
 it("shows a complete profile with a check, what companies see from the real data and «Ver perfil»", async () => {
+  // The same ten key data as the editor (L22): the fixture has no LinkedIn, portfolio or seniority weight and is still complete.
   vi.mocked(loadProfileAction).mockResolvedValue(profile("+52 33 1234 5678"));
   render(<CandidateDashboardWorkspace />);
   const card = await screen.findByRole("article", { name: "Perfil" });
@@ -311,11 +312,11 @@ it("teaches the first visit instead of showing zeros", async () => {
   expect(screen.getByRole("heading", { name: "Tu primera postulación va aquí" })).toBeVisible();
   expect(await within(tile("Guardadas")).findByText("Aún no guardas vacantes")).toBeVisible();
   expect(within(tile("CVs")).getByRole("link", { name: "Subir CV" })).toHaveAttribute("href", "/candidato/cvs");
-  expect(within(region("Siguiente paso")).getByRole("heading", { name: "Completa tu perfil: te faltan 12 datos" })).toBeVisible();
+  expect(within(region("Siguiente paso")).getByRole("heading", { name: "Completa tu perfil: te faltan 10 datos" })).toBeVisible();
   // An empty profile keeps the chips to the first three missing items and a count of the rest.
   const card = tile("Perfil");
   expect(within(card).getByText("Completa tu perfil")).toBeVisible();
-  expect(items(within(card).getByRole("list", { name: "Datos que faltan" }))).toEqual(["Título profesional", "Resumen profesional", "Teléfono", "+9 más"]);
+  expect(items(within(card).getByRole("list", { name: "Datos que faltan" }))).toEqual(["Título profesional", "Empresa actual", "Años de experiencia", "+7 más"]);
 });
 
 it("notes when only the latest page of applications is summarised", async () => {

@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { CARD } from "@/features/company-metrics/sections/summary-strip";
 import { profileFromWire } from "@/features/candidate/profile-adapter";
-import { profileCompleteness } from "@/features/candidate/profile-completeness";
+import { profileCompleteness, type Completeness } from "@/features/candidate/profile-completeness";
 import type { CandidateProfile } from "@/features/candidate/model";
 import type { ProfileLanguages, ProfileRead } from "@/features/candidate/profile-api";
 import type { ApplicationsPage } from "@/features/candidate-applications/model";
@@ -30,7 +30,6 @@ import { cn } from "@/lib/utils";
 
 const loadApplications = () => loadApplicationsAction({ limit: 50 });
 type Profile = { profile: ProfileRead | null; languages: ProfileLanguages };
-type Completeness = ReturnType<typeof profileCompleteness>;
 export type CandidateDashboardOverviewProps = { assessments: AssessmentResult };
 const RECENT = 5;
 /** The canonical status words and paint, shared with the inbox and Guardadas (design/system.md, candidate 6). */
@@ -144,6 +143,7 @@ export function CandidateDashboardOverview({ assessments }: CandidateDashboardOv
   const insights = useMemo(() => original ? dashboardInsights(original.items) : undefined, [original]);
   const profileData = profile.result?.ok ? profile.result.data : undefined;
   const candidate = useMemo(() => profileData?.profile ? profileFromWire(profileData.profile, profileData.languages) : null, [profileData]);
+  // The ten key data points shared with /candidato/perfil (profile-completeness.ts): the tile and «Siguiente paso».
   const completeness = useMemo(() => profileData ? profileCompleteness(candidate) : undefined, [profileData, candidate]);
   const cvCount = cvs.result?.ok ? cvs.result.data.items.length : undefined;
   const sections = useMemo(() => profileSections(candidate, cvCount), [candidate, cvCount]);

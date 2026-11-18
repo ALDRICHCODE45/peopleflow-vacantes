@@ -1,0 +1,33 @@
+/* «Tu perfil» (artboard design/candidate-cvs-profile/04-perfil-como-te-ven.html). No dark surface on Perfil
+   (design/system.md, «Superficie oscura»): the ficha and the editing section use the light violet tint of the
+   candidate space. Motion follows «Espacio del candidato» 10: one entrance when the loaded editor mounts, 320 ms
+   ease-out, 40 ms stagger, transform and opacity only, nothing under prefers-reduced-motion. Opening, closing or
+   saving a section keeps the same elements, so the entrance never replays. */
+
+/* Ficha: the tinted card head with a soft corner wash. */
+.ficha {
+  background: radial-gradient(520px 180px at 100% 0%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in oklab, var(--primary) 5%, var(--card)), var(--card));
+}
+:global(.dark) .ficha {
+  background: radial-gradient(520px 180px at 100% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in oklab, var(--primary) 11%, var(--card)), var(--card));
+}
+
+/* A section being edited turns into a tinted panel with a 3 px brand edge. */
+.editing {
+  background: color-mix(in oklab, var(--primary) 5%, var(--card));
+  box-shadow: inset 3px 0 0 var(--primary), 0 0 0 1px color-mix(in srgb, var(--primary) 15%, var(--border));
+}
+:global(.dark) .editing { background: color-mix(in oklab, var(--primary) 11%, var(--card)); }
+
+/* «Cambios sin guardar»: a floating bar with a brand-tinted ring. */
+.bar {
+  box-shadow: 0 12px 32px -8px color-mix(in srgb, var(--foreground) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, var(--border));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--d, 0) * 40ms); }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
