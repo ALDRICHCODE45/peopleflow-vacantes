@@ -37,7 +37,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T4 | S1–S3 | (done, L9–L11) Implement artboard `04-bento-con-siguiente-paso.html` on `/candidato/dashboard` (L8): next-step card, bento tiles, charts by threshold, saved vacancies read, fix the 1 s assessment ticker re-render (L4) | — |
 | T5 | S4 | (done, L9) Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
 | T6 | S5, S6 | 2–3 proposal artboards for «Vacantes guardadas» in `design/candidate-saved-modern/`, desktop and 390 px, on the canvas (done, L13) | — |
-| T7 | S4, S6 | Implement the chosen saved-vacancies artboard (after approval) | — |
+| T7 | S4, S6 | Implement `design/candidate-saved-modern/02-postulate-primero.html` on `/candidato/guardadas` (L14) | — |
 
 ## Log
 
@@ -128,3 +128,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   shared salary scale, bruto/neto never ranked together, picker up to 3). Toggles 9 / 0 / loading / 390; 36 overflow
   checks pass, Quitar + Deshacer works, motion once with reduced motion respected. Data gaps: application status needs a
   join with the candidate applications by id; no closing date, so no «cierra pronto»; no «similares» data.
+- **L14** User chose «02 · Postúlate primero»: «Me gusta mas la segunda hermano, vamos por esa.» Handoff started (T7).
