@@ -81,7 +81,7 @@ function profileSections(profile: CandidateProfile | null, cvs?: number): string
   if (!profile) return [];
   return [
     [profile.seniority !== null || profile.yearsOfExperience !== null, "Experiencia"],
-    [profile.education.length > 0, "Educación"],
+    [profile.education.length > 0, "Nivel de estudios"],
     [profile.languages.length > 0, "Idiomas"],
     [!!cvs, "CV"],
   ].flatMap(([shown, label]) => shown ? [label as string] : []);
@@ -101,7 +101,7 @@ const ProfileTile = memo(function ProfileTile({ source, completeness, sections }
         </Ring></div>
         <div className="min-w-0">
           <p className="font-semibold">{complete ? "Perfil completo" : percentage >= 50 ? "Te falta poco" : "Completa tu perfil"}</p>
-          <p className={CONTEXT}>{complete ? "Las empresas ven todo tu perfil" : `${completeness.completed} de ${completeness.total} datos completos`}</p>
+          <p className={CONTEXT}>{complete ? "Lo que ven las empresas está completo" : `${completeness.completed} de ${completeness.total} datos completos`}</p>
         </div>
         {chips.length > 0 && <ul aria-label={complete ? "Lo que ven las empresas" : "Datos que faltan"} className="col-start-2 flex flex-wrap gap-1">
           {chips.map(chip => <li key={chip} className={cn(CHIP, complete ? "bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] text-foreground ring-1 ring-primary/15" : "border border-dashed border-border text-muted-foreground")}>

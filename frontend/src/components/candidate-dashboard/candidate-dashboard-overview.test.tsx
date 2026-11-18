@@ -269,8 +269,8 @@ it("shows a complete profile with a check, what companies see from the real data
   expect(ring).not.toHaveTextContent("100");
   expect(ring.querySelector("[data-profile-check]")).toBeInTheDocument();
   expect(within(card).getByText("Perfil completo")).toBeVisible();
-  expect(within(card).getByText("Las empresas ven todo tu perfil")).toBeVisible();
-  await waitFor(() => expect(items(within(card).getByRole("list", { name: "Lo que ven las empresas" }))).toEqual(["Experiencia", "Educación", "Idiomas", "CV"]));
+  expect(within(card).getByText("Lo que ven las empresas está completo")).toBeVisible();
+  await waitFor(() => expect(items(within(card).getByRole("list", { name: "Lo que ven las empresas" }))).toEqual(["Experiencia", "Nivel de estudios", "Idiomas", "CV"]));
   expect(within(card).getByRole("link", { name: "Ver perfil" })).toHaveAttribute("href", "/candidato/perfil");
   expect(within(card).queryByRole("list", { name: "Datos que faltan" })).toBeNull();
 });
@@ -281,7 +281,7 @@ it("lists only the sections that exist: no CV chip without a CV", async () => {
   render(<CandidateDashboardWorkspace />);
   const card = await screen.findByRole("article", { name: "Perfil" });
   await within(tile("CVs")).findByRole("link", { name: "Subir CV" });
-  expect(items(await within(card).findByRole("list", { name: "Lo que ven las empresas" }))).toEqual(["Experiencia", "Educación", "Idiomas"]);
+  expect(items(await within(card).findByRole("list", { name: "Lo que ven las empresas" }))).toEqual(["Experiencia", "Nivel de estudios", "Idiomas"]);
 });
 
 it("shows the CV library", async () => {
