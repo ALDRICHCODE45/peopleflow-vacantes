@@ -199,3 +199,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   portfolio, current company, summary, study details, all salaries, period and currency. Professional title is
   inconsistent (only live in the dashboard «recent» section and the legacy v1 route) → product decision for the user. The
   Perfil worker was steered to this map, with the ficha showing only company-visible data and the snapshot note.
+- **L25** User: título profesional → «Que lo vean las empresas (Recomendado)». Asked the backend to add `professional_title` to the application snapshot and expose it in the pipeline detail and talent base; the profile map keeps it as company-visible.
