@@ -28,7 +28,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | --- | --- | --- | --- |
 | T1 | S2, S4 | Browser audit of `/candidato/*` with Valeria's demo data at 1440 and 390 px, plus the cause of the donut stutter (verify, background) (done, L4) | — |
 | T2 | S1, S3, S5 | Research modern candidate and personal dashboards and chart patterns; write `design/candidate-dashboard-modern/research.md` (explore, background) (done, L3) | — |
-| T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas | — |
+| T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas (done, L5) | — |
 | T4 | S1–S4 | Implement the artboard the user chooses (after approval) | — |
 | T5 | S4 | Fix the mobile overflows the audit finds on the other candidate screens (after approval) | — |
 
@@ -71,3 +71,9 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   toggle group in `applications-workspace.tsx:111` (hidden «Cerradas»), profile tabs `profile-workspace.tsx:31,256`, job
   section nav `PublicJobDetailView.tsx:64` without fade, CV file name cut `cv-workspace.tsx:42`, settings switches stacked
   under text, ~80 px gap in guardadas. Copy bugs: «excluye las 1», «1 aún esperan».
+- **L5** T3 artboards (worker): `01-siguiente-paso.html` (A), `02-bento-personal.html` (B), `03-bitacora-viva.html` (C)
+  + `design.json`; tokens re-synced in `design/system.md`/`system.html` (rules untouched). Each has toggles for rich
+  history, pending assessment, profile 83 %, loading and 390 px; validated in headless Chromium (no errors, no overflow
+  at 390, toggles work), screenshots `/tmp/pf-design-cd/`. Assumed data not loaded today: saved vacancies (API exists),
+  per-application pipeline stage (not exposed), CV usage count (only `in_use`), derived streak/dot strip/histogram/focus
+  order (computable from existing fields).

@@ -1,0 +1,28 @@
+{
+  "title": "Dashboard del candidato · moderno",
+  "brief": "Rediseño de /candidato/dashboard dentro del shell real del candidato, siguiendo design/candidate-dashboard-modern/research.md: tres direcciones (A Tu siguiente paso, B Bento personal, C Bitácora viva) con los datos de Valeria Mendoza (4 postulaciones en Grupo Altavista, 3 guardadas, 1 CV de 10, 1 mensaje sin leer). Sin banner «Pendientes»; gráficas solo por encima de su umbral (anillos para parte de un total con meta, barra segmentada en lugar del donut, tira de puntos para la constancia) y animadas una sola vez. Cada artboard incluye los controles «Ver con más historial», evaluación pendiente, perfil al 83 %, estado de carga y vista a 390 px.",
+  "feature": "odd/tasks/candidate-dashboard-modern.md",
+  "artboards": [
+    {
+      "file": "01-siguiente-paso.html",
+      "title": "01 · Tu siguiente paso",
+      "tradeoff": "Una sola acción protagonista (evaluación → mensaje → perfil → guardadas) con su anillo y «+N más»; la más enfocada y guiada, pero las cifras de la búsqueda quedan en una segunda fila y el resto de pendientes se ve con un clic",
+      "width": 1440,
+      "height": 1400
+    },
+    {
+      "file": "02-bento-personal.html",
+      "title": "02 · Bento personal",
+      "tradeoff": "Tile hero oscuro con el mes (sparkline desde 4 semanas activas) y mosaico de cifras con chips de pendientes arriba; la más vistosa y fácil de presumir, pero reparte la atención entre muchos tiles y con pocos datos varios dicen lo mismo",
+      "width": 1440,
+      "height": 1160
+    },
+    {
+      "file": "03-bitacora-viva.html",
+      "title": "03 · Bitácora viva",
+      "tradeoff": "La línea de tiempo de postulaciones es la protagonista, con pendientes fijados arriba («Requiere acción») y un resumen lateral fijo; la más narrativa y cercana a «qué pasó con cada postulación», pero no hay historial de eventos y con mucho historial la página es la más larga",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}

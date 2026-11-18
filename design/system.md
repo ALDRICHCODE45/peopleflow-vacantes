@@ -1,6 +1,7 @@
 # PeopleFlow design system (synced)
 
-Synced read-only from the project sources on 2026-10-28. Values are copied as authored; nothing here is invented.
+Synced read-only from the project sources on 2026-10-28; tokens re-synced with `frontend/src/app/globals.css` on
+2026-11-18 (dashboard tokens, sidebar, chart and ambient tokens). Values are copied as authored; nothing here is invented.
 Product rules (composition, density, states) live in `docs/frontend-ui-design-rules.md`; this file only records tokens
 and the component recipes the canvas needs.
 
@@ -10,10 +11,12 @@ and the component recipes the canvas needs.
 |---|---|---|
 | `--background` | `#F7F5FB` | page foundation |
 | `--foreground` | `#1A1626` | body text, `*-foreground` roles |
+| `--card-foreground` / `--popover-foreground` | `#1A1626` | text on cards and popovers |
 | `--card` / `--popover` | `#FFFFFF` | cards, popovers |
 | `--primary` | `oklch(0.491 0.27 292.581)` | violet accent, primary buttons |
 | `--primary-foreground` | `oklch(0.969 0.016 293.756)` | text on primary |
 | `--secondary` / `--muted` / `--accent` | `#F1EEF7` | quiet surfaces, avatar fill |
+| `--secondary-foreground` / `--accent-foreground` | `#1A1626` | text on quiet surfaces |
 | `--muted-foreground` | `#6B6480` | metadata text |
 | `--border` / `--input` | `#E4DFF0` | borders, separators |
 | `--destructive` | `oklch(0.577 0.245 27.325)` | destructive actions |
@@ -23,6 +26,43 @@ and the component recipes the canvas needs.
 | `--status-review` | `oklch(0.47 0.12 70)` | review/warning tone |
 | `--status-success` | `oklch(0.46 0.13 152)` | success tone |
 | `--status-danger` | `oklch(0.45 0.2 25)` | danger tone |
+| `--chart-1` | `oklch(0.87 0 0)` | neutral chart preset (unused by dashboards, rule 8) |
+| `--chart-2` | `oklch(0.556 0 0)` | neutral chart preset |
+| `--chart-3` | `oklch(0.439 0 0)` | neutral chart preset |
+| `--chart-4` | `oklch(0.371 0 0)` | neutral chart preset |
+| `--chart-5` | `oklch(0.269 0 0)` | neutral chart preset |
+| `--pf-glow-alpha` | `0.12` | `/vacantes` top glow intensity (`.pf-top-glow`) |
+| `--pf-grid-dot-alpha` | `0.07` | `/vacantes` dot grid intensity (`.pf-dot-grid`) |
+
+## Colors — dashboard tokens (`frontend/src/app/globals.css`, «Dashboards» block)
+
+Derived tokens for rules 6 and 9 and for violet text. Light values below; dark values in the dark table.
+
+| Token | Value | Usage |
+|---|---|---|
+| `--primary-text` | `var(--primary)` | violet text (`text-primary-text`): links, breadcrumbs, selected tab or period |
+| `--pf-tint-base` | `var(--card)` | base that light tints mix toward |
+| `--pf-tone-late` | `color-mix(in oklab, var(--primary) 45%, var(--pf-tint-base))` | «Tarde» segment and dot (rule 9) |
+| `--pf-tone-none` | `var(--border)` | «Sin meta» / «Por cubrir» segment (rule 9) |
+
+`.pf-kpi-hero` (inverted hero KPI tile, `bg-foreground text-background`) swaps its tokens in dark mode:
+`--foreground: color-mix(in oklab, var(--primary) 30%, var(--card))`, `--background: var(--card-foreground)`.
+
+## Colors — sidebar (`frontend/src/app/globals.css` `:root` / `.dark`)
+
+The candidate and employer shells use the shadcn `inset` sidebar on `--sidebar`; the inset panel is `--background`
+with `rounded-3xl`, `ring-1 ring-primary/15`, `shadow-md` (`components/dashboard-frame/frame-classes.ts`).
+
+| Token | Value | Dark value |
+|---|---|---|
+| `--sidebar` | `oklch(0.985 0 0)` | `oklch(0.205 0 0)` |
+| `--sidebar-foreground` | `oklch(0.145 0 0)` | `oklch(0.985 0 0)` |
+| `--sidebar-primary` | `oklch(0.541 0.281 293.009)` | `oklch(0.606 0.25 292.717)` |
+| `--sidebar-primary-foreground` | `oklch(0.969 0.016 293.756)` | `oklch(0.969 0.016 293.756)` |
+| `--sidebar-accent` | `oklch(0.97 0 0)` | `oklch(0.269 0 0)` |
+| `--sidebar-accent-foreground` | `oklch(0.205 0 0)` | `oklch(0.985 0 0)` |
+| `--sidebar-border` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 10%)` |
+| `--sidebar-ring` | `oklch(0.708 0 0)` | `oklch(0.556 0 0)` |
 
 ## Colors — dark (`frontend/src/app/globals.css` `.dark`)
 
@@ -30,18 +70,32 @@ and the component recipes the canvas needs.
 |---|---|
 | `--background` | `#0C0912` |
 | `--foreground` | `#F6F2FF` |
+| `--card-foreground` / `--popover-foreground` | `#F6F2FF` |
 | `--card` | `#15121F` |
 | `--popover` | `#1A1626` |
 | `--primary` | `oklch(0.432 0.232 292.759)` |
+| `--primary-foreground` | `oklch(0.969 0.016 293.756)` |
 | `--secondary` / `--muted` / `--accent` | `#171226` |
+| `--secondary-foreground` / `--accent-foreground` | `#F6F2FF` |
 | `--muted-foreground` | `#A79FBF` |
 | `--border` / `--input` | `#262233` |
 | `--destructive` | `oklch(0.704 0.191 22.216)` |
+| `--ring` | `oklch(0.556 0 0)` |
 | `--brand-decorative-strong` | `oklch(0.70 0.14 292.759)` |
 | `--status-info` | `oklch(0.78 0.12 245)` |
 | `--status-review` | `oklch(0.82 0.12 78)` |
 | `--status-success` | `oklch(0.78 0.14 155)` |
 | `--status-danger` | `oklch(0.75 0.15 22)` |
+| `--pf-glow-alpha` | `0.22` |
+| `--pf-grid-dot-alpha` | `0.11` |
+| `--primary-text` | `var(--brand-decorative-strong)` |
+| `--pf-tint-base` | `color-mix(in oklab, var(--foreground) 40%, var(--card))` |
+| `--pf-tone-late` | `color-mix(in oklab, var(--brand-decorative-strong) 70%, var(--card))` |
+| `--pf-tone-none` | `color-mix(in oklab, var(--muted-foreground) 28%, var(--card))` |
+
+The same dark values also apply under `@media (prefers-color-scheme: dark)` with `:root:not([data-theme])`. The
+`--chart-*` tokens are identical in both themes. Pipeline `.stage-process` uses
+`color-mix(in oklch, var(--primary) 60%, var(--foreground))` in dark mode.
 
 ## Typography (`frontend/src/app/globals.css` `@theme inline`, `app/layout.tsx`)
 
