@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: "candidate" } } }) }));
 import { readFileSync } from "node:fs";
@@ -24,7 +24,7 @@ it("keeps metadata, one header and one live workspace inside the existing shell"
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   expect(document.querySelectorAll("[data-pf-applications-workspace]")).toHaveLength(1);
   expect(await screen.findByRole("link", { name: "Backend Go" })).toHaveAttribute("href", `/vacantes/${id}`);
-  expect(screen.getByText("Enviada")).toBeVisible();
+  expect(within(screen.getByRole("list", { name: "Mis postulaciones" })).getByText("Enviada")).toBeVisible();
   const nav = document.querySelector("[data-slot='sidebar-content']")!;
   expect(Array.from(nav.querySelectorAll("a[data-active]")).map(link => link.textContent)).toEqual(["Postulaciones"]);
 });

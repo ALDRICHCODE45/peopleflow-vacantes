@@ -21,6 +21,7 @@ import { dashboardInsights, isUnread, nextSteps, type Application } from "@/feat
 import { NextStep, NextStepSkeleton } from "@/features/candidate/dashboard/next-step";
 import { EntranceClock } from "@/features/candidate/dashboard/entrance";
 import { SourceError, SourceLoading, useSource, type Source } from "@/features/candidate/dashboard/source";
+import { applicationBadge } from "@/features/candidate/saved/application-status";
 import { loadApplicationsAction, markMessageReadAction } from "@/features/candidate-applications/actions";
 import { loadCvsAction } from "@/features/candidate-cvs/actions";
 import { loadProfileAction } from "@/features/candidate/profile-actions";
@@ -31,9 +32,12 @@ const loadApplications = () => loadApplicationsAction({ limit: 50 });
 type Profile = { profile: ProfileRead | null; languages: ProfileLanguages };
 type Completeness = ReturnType<typeof profileCompleteness>;
 export type CandidateDashboardOverviewProps = { assessments: AssessmentResult };
-const labels = { submitted: "Enviada", in_process: "En proceso", closed: "Cerrada" } as const;
-const variants = { submitted: "info", in_process: "accent", closed: "neutral" } as const;
 const RECENT = 5;
+/** The canonical status words and paint, shared with the inbox and Guardadas (design/system.md, candidate 6). */
+function StatusBadge({ item }: { item: Application }) {
+  const { label, variant } = applicationBadge(item);
+  return <Badge variant={variant} dot>{label}</Badge>;
+}
 // Confirmed reads are scoped to the exact visible revision, never a replacement message.
 const revision = (item: Application) => `${item.id}:${item.updated_at}`;
 const changed = (item: Application) => Date.parse(item.updated_at ?? item.applied_at);
@@ -63,7 +67,7 @@ const RecentApplications = memo(function RecentApplications({ source, items, ass
             </p>
             <p className="text-xs break-words text-muted-foreground sm:truncate">{item.company.name}{unread ? " · 1 mensaje nuevo" : ""}{pending ? ` · Evaluación ${pending.answered_count}/${pending.total_count}` : ""}</p>
           </div>
-          <Badge variant={variants[item.status]} dot>{labels[item.status]}</Badge>
+          <StatusBadge item={item} />
           <time dateTime={item.updated_at ?? item.applied_at} className="hidden min-w-18 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:block">{relativeTime(item.updated_at ?? item.applied_at, now)}</time>
         </li>;
       })}</ol>}

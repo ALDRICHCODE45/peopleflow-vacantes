@@ -234,6 +234,13 @@ it("lists recent applications by last change with their badge, pending marks and
   expect(within(rows[0]).getByLabelText("Mensaje sin leer")).toBeInTheDocument();
   expect(within(rows[1]).getByText("Grupo Altavista · Evaluación 23/63")).toBeVisible();
   expect(rows.map(row => row.querySelector('[data-slot="badge"]')?.textContent)).toEqual(["Cerrada", "En proceso", "En proceso", "Enviada"]);
+  // One status paint everywhere (inbox, Guardadas, dashboard): En proceso is the amber review chip, not violet accent.
+  const inProcess = within(rows[1]).getByText("En proceso");
+  expect(inProcess).toHaveAttribute("data-variant", "review");
+  expect(inProcess).toHaveClass("text-status-review");
+  expect(inProcess).not.toHaveClass("bg-primary/12");
+  expect(within(rows[3]).getByText("Enviada")).toHaveClass("text-status-info");
+  expect(within(rows[0]).getByText("Cerrada")).toHaveAttribute("data-variant", "neutral");
   expect(rows.map(row => row.querySelector("time")?.textContent)).toEqual(["Hoy, 12:30", "Hoy, 11:02", "Hoy, 10:15", "Hoy, 9:05"]);
   expect(within(recent).getByRole("link", { name: "Ver todas" })).toHaveAttribute("href", "/candidato/postulaciones");
 });
