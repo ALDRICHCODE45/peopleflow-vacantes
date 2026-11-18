@@ -211,6 +211,18 @@ func purge(ctx context.Context, tx pgx.Tx, company uuid.UUID, fictitious []uuid.
 	}
 	var out Removed
 	for _, s := range steps {
+		// The legacy applications table (00010) is missing on some local
+		// databases that drifted from the migrations; nothing to delete there.
+		if s.table == "applications" {
+			var exists bool
+			if err := tx.QueryRow(ctx, `SELECT to_regclass('applications') IS NOT NULL`).Scan(&exists); err != nil {
+				return out, fmt.Errorf("remove demo %s: %w", s.table, err)
+			}
+			if !exists {
+				out = append(out, TableCount{Table: s.table})
+				continue
+			}
+		}
 		arg := any(company)
 		if s.users {
 			arg = fictitious
