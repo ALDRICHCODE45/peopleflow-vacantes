@@ -16,7 +16,8 @@ Branch feat/snapshot-professional-title (from main 4771d3fe). Backend only; the 
 ## Tasks
 
 - [x] T1 (S1, S2) Snapshot key, board/pipeline detail, talent base list/detail, dashboard recent, contract, tests — worker; commits: migration 00061, then behavior.
-- [ ] T2 Independent verification (Risk: item 1, schema constraint migration 00061).
+- [x] T2 Independent verification (Risk: item 1, schema constraint migration 00061) — PASS (L5).
+- [ ] T3 Merge into local main together with the frontend schemas branch (frontend asked to wait, L6).
 
 ## Log
 
@@ -40,3 +41,12 @@ Branch feat/snapshot-professional-title (from main 4771d3fe). Backend only; the 
 - **L4** Worker checks: unit applications/metrics/candidates ok; v2 integration 108 PASS; cmd/api 86 + 120 PASS
   (snapshot-related suites); db/migrations 92 PASS; vet, gofmt, sqlc compile clean. Not run: candidates and legacy
   applications Postgres packages (they read the env file DATABASE_URL).
+- **L5** Independent verify: PASS S1, S2, no blocking/major defects. 00061 Up only adds the optional key (diffed against
+  00043), Down byte-identical to 00043 and guarded; no data rewrite. Shared EffectiveProfileSQL only used by board and
+  talent base. Minor: every new snapshot carries the key (even null), so Down is refused once anyone applies after
+  deploy (by design). Info: code-point cut can split a grapheme over 120; empty "" title frozen as "".
+  Runs: unit ok; v2 108 PASS; cmd/api 97 PASS 1 SKIP (bench); migrations 00061|00043 PASS.
+- **L6** Frontend: its board `profileSchema` is `.strict()`, so the new keys break decoding; «NO mergees … hasta que yo
+  tenga los schemas del frontend aceptando y mostrando el campo … mergeamos los dos juntos». New keys sent:
+  board item `profile.professional_title`, board detail `original.professional_title`, talent base detail
+  `original.professional_title`.
