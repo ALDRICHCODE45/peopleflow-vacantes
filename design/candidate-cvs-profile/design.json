@@ -1,0 +1,49 @@
+{
+  "title": "Mis CVs y Perfil · rediseño",
+  "brief": "Rediseño completo (no alineación, S10) de «Mis CVs» (/candidato/cvs) y «Perfil» (/candidato/perfil) con el lenguaje aprobado del dashboard (candidate-dashboard-modern/04) y de Guardadas (candidate-saved-modern/02), siguiendo «Espacio del candidato» en design/system.md. No hay superficie oscura en ninguna de las dos pantallas. Se conservan todos los campos, acciones, validaciones y reglas de hoy: biblioteca de hasta 10 CVs, PDF o Word de hasta 5 MB, Descargar, Renombrar, Eliminar, la marca «en uso» y la regla «cada postulación guarda su copia»; en el perfil, las pestañas Personal, Experiencia, Educación, Compensación e Idiomas con todos sus campos, la validación, Guardar perfil, Restaurar copia original y los 10 datos clave. Datos de demostración de Valeria Mendoza. Cada artboard trae los controles «Con más datos», «Vacío / Perfil nuevo», «Ver estado de carga», «Ver a 390 px» y, en Perfil, «Con cambios sin guardar». Los principios están en research.md.",
+  "feature": "odd/tasks/candidate-dashboard-modern.md",
+  "artboards": [
+    {
+      "file": "01-cvs-galeria.html",
+      "title": "CVs 01 · Galería con miniaturas",
+      "tradeoff": "Cada CV se reconoce por su primera página y el mosaico «Agregar CV» lleva la zona para soltar archivos y el espacio usado (n de 10) dentro de la misma cuadrícula. Renombrar se hace en la misma tarjeta. Se gana reconocimiento y una pantalla más visual; se pierde densidad, porque 10 CVs ocupan tres filas. Las miniaturas necesitan generarse (pdf.js en el cliente o un endpoint de miniaturas) y Word no tiene vista previa (se muestra un aviso honesto).",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-cvs-version-actual.html",
+      "title": "CVs 02 · Versión actual e historial",
+      "tradeoff": "El CV más reciente es el protagonista: página grande, formato, tamaño, fecha, uso y las tres acciones a la vista, junto a las reglas «Al postularte». Los demás forman un historial con fechas. Es un modelo mental claro («subo una versión nueva»), pero es «más reciente» y no un «CV principal»: el modelo no tiene esa marca y el asistente de postulación no preselecciona ninguno. Si el candidato usa versiones distintas por puesto, la línea de tiempo pesa más de lo que aporta.",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "03-cvs-vista-previa.html",
+      "title": "CVs 03 · Biblioteca con vista previa",
+      "tradeoff": "Maestro y detalle como en Guardadas: filas con la barra de selección a la izquierda y un panel claro con la primera página grande, los datos y las acciones. Es el más rápido para comparar versiones antes de postularse y el más coherente con Guardadas. Necesita mostrar el PDF dentro de la página (el endpoint de descarga tendría que permitir mostrarlo en línea, o usar pdf.js). Por debajo de 900 px no hay panel: la fila se abre en su lugar.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "04-perfil-como-te-ven.html",
+      "title": "Perfil 04 · Así te ven las empresas",
+      "tradeoff": "El perfil se lee como la ficha que recibe una empresa, con cada sección marcada «Lo ven las empresas» o «Solo tú», y se edita en su lugar. Los cambios se juntan en una barra fija «Cambios sin guardar» con Guardar y Restaurar. Es el que más motiva a completar y explica la privacidad. A cambio, las etiquetas de visibilidad dependen de qué expone el backend a la empresa (se dedujo del esquema del detalle del candidato y falta confirmarlo), y para editar hay que abrir cada sección.",
+      "width": 1440,
+      "height": 1660
+    },
+    {
+      "file": "05-perfil-una-pagina.html",
+      "title": "Perfil 05 · Una sola página",
+      "tradeoff": "Todos los campos en una página, sin pestañas: un riel fijo a la izquierda con el anillo, las cinco secciones con su estado («2/2», «Sin guardar») y el guardado con la lista de lo que cambió. Cada campo editado lleva la marca «Editado». Es lo más rápido para quien quiere revisar o llenar todo de una vez, y ningún error queda escondido en una pestaña. Pero es una página larga (unos 3 400 px a 1440 px), con más carga visual, y en móvil depende del menú «Ir a» y de la barra de guardado fija.",
+      "width": 1440,
+      "height": 3360
+    },
+    {
+      "file": "06-perfil-tarjetas.html",
+      "title": "Perfil 06 · Secciones como tarjetas",
+      "tradeoff": "Un resumen en bento, como el dashboard: identidad, avance, Experiencia (con la cifra de años), Personal, Educación, Idiomas y Compensación (con el salario esperado como cifra principal). «Editar» abre una hoja enfocada con solo esa sección y su propio Guardar perfil o Restaurar copia original. Si cierras con cambios, pide confirmar. Es el más tranquilo y el más cercano al dashboard aprobado. A cambio, se edita una sección a la vez (dos secciones son dos guardados) y el resumen muestra lo guardado, no lo que estás editando.",
+      "width": 1440,
+      "height": 1240
+    }
+  ]
+}
