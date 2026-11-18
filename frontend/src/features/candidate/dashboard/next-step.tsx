@@ -12,6 +12,7 @@ import { Ring } from "./charts";
 import { relativeTime, shortDate } from "./format";
 import type { Application, Step } from "./insights";
 import motion from "./dashboard.module.css";
+import { useEntrance } from "./entrance";
 
 const FRAME = "relative isolate flex flex-col gap-3 overflow-hidden rounded-[min(var(--radius-4xl),24px)] p-4 text-sm text-card-foreground sm:gap-4 sm:px-7 sm:pt-6 sm:pb-7";
 const PRIMARY = buttonVariants({ className: "min-h-11 w-full sm:min-h-10 sm:w-auto" });
@@ -76,8 +77,9 @@ export const NextStep = memo(function NextStep({ steps, onRead }: { steps: Step[
   const read = (item: Application) => { setMore(false); setReading(item); onRead(item); };
   const [first, ...rest] = steps;
   const current = first && view(first, read);
+  const entrance = useEntrance(current !== undefined);
   return <>
-    {current && <section aria-labelledby={id} className={cn(FRAME, motion.next, motion.rise)}>
+    {current && <section aria-labelledby={id} className={cn(FRAME, motion.next, entrance)}>
       <div className="flex min-h-6 items-center justify-between gap-3">
         <p id={id} className="flex items-center gap-2 text-xs font-semibold tracking-[0.04em] text-primary-text uppercase"><span aria-hidden="true" className="size-1.5 rounded-full bg-primary-text" />Siguiente paso</p>
         {rest.length > 0 && <Popover open={more} onOpenChange={setMore}>

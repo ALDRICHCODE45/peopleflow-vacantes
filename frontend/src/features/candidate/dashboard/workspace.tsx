@@ -11,7 +11,9 @@ import { longDate } from "./format";
 export function CandidateDashboardWorkspace() {
   const [assessments, setAssessments] = useState<AssessmentResult>();
   const identity = useIdentity();
-  const name = identity.result?.ok ? identity.result.data.user?.full_name.trim() : undefined;
+  const fullName = identity.result?.ok ? identity.result.data.user?.full_name.trim() : undefined;
+  // First given name («Hola, Valeria»); the full name only if no first token can be taken.
+  const name = fullName?.split(/\s+/u)[0] || fullName;
   return <DashboardPageContent data-pf-candidate-overview width="screen-2xl" container className="flex-1">
     <div className="flex w-full min-w-0 flex-col gap-8 sm:gap-10">
       <header className="flex flex-col gap-1">

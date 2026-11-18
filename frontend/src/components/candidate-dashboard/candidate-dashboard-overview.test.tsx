@@ -25,6 +25,7 @@ import type { ApplicationsPage } from "@/features/candidate-applications/model";
 import type { AccountAssessment } from "@/features/psychometrics/model";
 import type { SavedJobs } from "@/features/saved-vacancies/model";
 import { CandidateDashboardWorkspace } from "@/features/candidate/dashboard/workspace";
+import motion from "@/features/candidate/dashboard/dashboard.module.css";
 
 type Item = ApplicationsPage["items"][number];
 // «Hoy» is Wednesday 18 Nov 2026, local time, like Valeria's demo account (L2).
@@ -66,9 +67,9 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
-it("greets the candidate with today's date", async () => {
+it("greets the candidate by the first given name with today's date", async () => {
   render(<CandidateDashboardWorkspace />);
-  expect(screen.getByRole("heading", { level: 2, name: "Hola, Valeria Mendoza" })).toBeVisible();
+  expect(screen.getByRole("heading", { level: 2, name: "Hola, Valeria" })).toBeVisible();
   expect(screen.getByText("Miércoles 18 de noviembre")).toBeVisible();
   await screen.findByRole("region", { name: "Este mes" });
 });
@@ -146,7 +147,7 @@ it("hides «Siguiente paso» when nothing is pending, even with saved vacancies 
   vi.mocked(loadProfileAction).mockResolvedValue(profile("+52 33 1234 5678"));
   render(<CandidateDashboardWorkspace />);
   expect(await within(await screen.findByRole("article", { name: "Guardadas" })).findByText("2")).toBeVisible();
-  await waitFor(() => expect(within(tile("Perfil")).getByText("Completo")).toBeVisible());
+  await waitFor(() => expect(within(tile("Perfil")).getByText("Perfil completo")).toBeVisible());
   expect(screen.queryByRole("region", { name: "Siguiente paso" })).toBeNull();
   expect(screen.queryByLabelText(/Cargando/)).toBeNull();
 });
@@ -192,6 +193,8 @@ it("fills the bento tiles from real data", async () => {
   expect(within(advanced).getByRole("link", { name: "Ver en proceso" })).toHaveAttribute("href", "/candidato/postulaciones");
   const response = tile("Primera respuesta");
   expect(within(response).getByText("El mismo día")).toBeVisible();
+  // Same figure as the other tiles (artboard: 32/600 at desktop), not the 20 px text value.
+  expect(within(response).getByText("El mismo día")).toHaveClass("text-[28px]", "sm:text-[32px]", "font-semibold", "tracking-tight");
   expect(within(response).getByText("3 respuestas de 4")).toBeVisible();
   expect(within(response).queryByRole("img")).toBeNull();
   const savedTile = await within(screen.getByRole("article", { name: "Guardadas" })).findByText("2");
@@ -235,13 +238,46 @@ it("lists recent applications by last change with their badge, pending marks and
   expect(within(recent).getByRole("link", { name: "Ver todas" })).toHaveAttribute("href", "/candidato/postulaciones");
 });
 
-it("shows the profile ring and the CV library", async () => {
+const items = (list: HTMLElement) => within(list).getAllByRole("listitem").map(item => item.textContent);
+
+it("shows an incomplete profile as its percentage, the missing items as chips and «Completar perfil»", async () => {
   render(<CandidateDashboardWorkspace />);
   const card = await screen.findByRole("article", { name: "Perfil" });
-  expect(await within(card).findByRole("img", { name: "Perfil completo al 83 %" })).toBeVisible();
-  expect(within(card).getByText("Casi listo")).toBeVisible();
-  expect(within(card).getByText(/Falta teléfono y ubicación/)).toBeVisible();
-  expect(within(card).getByRole("link", { name: "Completar" })).toHaveAttribute("href", "/candidato/perfil");
+  const ring = await within(card).findByRole("img", { name: "Perfil completo al 83 %" });
+  expect(ring).toHaveTextContent("83%");
+  expect(within(card).getByText("Te falta poco")).toBeVisible();
+  expect(within(card).getByText("10 de 12 datos completos")).toBeVisible();
+  expect(items(within(card).getByRole("list", { name: "Datos que faltan" }))).toEqual(["Teléfono", "Ubicación"]);
+  expect(within(card).getByRole("link", { name: "Completar perfil" })).toHaveAttribute("href", "/candidato/perfil");
+  expect(within(card).queryByRole("link", { name: "Ver perfil" })).toBeNull();
+  expect(within(card).queryByRole("list", { name: "Lo que ven las empresas" })).toBeNull();
+});
+
+it("shows a complete profile with a check, what companies see from the real data and «Ver perfil»", async () => {
+  vi.mocked(loadProfileAction).mockResolvedValue(profile("+52 33 1234 5678"));
+  render(<CandidateDashboardWorkspace />);
+  const card = await screen.findByRole("article", { name: "Perfil" });
+  const ring = await within(card).findByRole("img", { name: "Perfil completo al 100 %" });
+  expect(ring).not.toHaveTextContent("100");
+  expect(ring.querySelector("[data-profile-check]")).toBeInTheDocument();
+  expect(within(card).getByText("Perfil completo")).toBeVisible();
+  expect(within(card).getByText("Las empresas ven todo tu perfil")).toBeVisible();
+  await waitFor(() => expect(items(within(card).getByRole("list", { name: "Lo que ven las empresas" }))).toEqual(["Experiencia", "Educación", "Idiomas", "CV"]));
+  expect(within(card).getByRole("link", { name: "Ver perfil" })).toHaveAttribute("href", "/candidato/perfil");
+  expect(within(card).queryByRole("list", { name: "Datos que faltan" })).toBeNull();
+});
+
+it("lists only the sections that exist: no CV chip without a CV", async () => {
+  vi.mocked(loadProfileAction).mockResolvedValue(profile("+52 33 1234 5678"));
+  vi.mocked(loadCvsAction).mockResolvedValue(cvs(0));
+  render(<CandidateDashboardWorkspace />);
+  const card = await screen.findByRole("article", { name: "Perfil" });
+  await within(tile("CVs")).findByRole("link", { name: "Subir CV" });
+  expect(items(await within(card).findByRole("list", { name: "Lo que ven las empresas" }))).toEqual(["Experiencia", "Educación", "Idiomas"]);
+});
+
+it("shows the CV library", async () => {
+  render(<CandidateDashboardWorkspace />);
   const library = tile("CVs");
   expect(await within(library).findByText(exact("1 de 7"))).toBeVisible();
   expect(within(library).getByText(/1 en uso/)).toBeVisible();
@@ -269,6 +305,10 @@ it("teaches the first visit instead of showing zeros", async () => {
   expect(await within(tile("Guardadas")).findByText("Aún no guardas vacantes")).toBeVisible();
   expect(within(tile("CVs")).getByRole("link", { name: "Subir CV" })).toHaveAttribute("href", "/candidato/cvs");
   expect(within(region("Siguiente paso")).getByRole("heading", { name: "Completa tu perfil: te faltan 12 datos" })).toBeVisible();
+  // An empty profile keeps the chips to the first three missing items and a count of the rest.
+  const card = tile("Perfil");
+  expect(within(card).getByText("Completa tu perfil")).toBeVisible();
+  expect(items(within(card).getByRole("list", { name: "Datos que faltan" }))).toEqual(["Título profesional", "Resumen profesional", "Teléfono", "+9 más"]);
 });
 
 it("notes when only the latest page of applications is summarised", async () => {
@@ -308,6 +348,49 @@ it("loads every section with a skeleton, never zeros or empty states before reso
   expect(document.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
   expect(screen.queryByText("0")).toBeNull();
   expect(screen.queryByRole("region", { name: "Siguiente paso" })).toBeNull();
+});
+
+// Title of every element that ever carried a class, one entry per element (a remount counts twice).
+function recordClass(name: string) {
+  const seen = new Map<Element, string>();
+  const note = (element: Element) => { if (element.classList.contains(name) && !seen.has(element)) seen.set(element, element.querySelector("h3, [id]")?.textContent ?? ""); };
+  const scan = (node: Node) => { if (node instanceof Element) { note(node); node.querySelectorAll(`.${CSS.escape(name)}`).forEach(note); } };
+  scan(document.body);
+  const observer = new MutationObserver(records => records.forEach(record => { if (record.type === "attributes") scan(record.target); record.addedNodes.forEach(scan); }));
+  observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+  return { titles: () => { scan(document.body); observer.disconnect(); return [...seen.values()].sort(); } };
+}
+
+it("enters each part once, on its loaded content, never on its skeleton", async () => {
+  expect(motion.rise).toBeTruthy();
+  let resolve!: (value: Awaited<ReturnType<typeof loadApplicationsAction>>) => void;
+  vi.mocked(loadApplicationsAction).mockReturnValue(new Promise(done => { resolve = done; }));
+  const rise = recordClass(motion.rise);
+  render(<CandidateDashboardWorkspace />);
+  await within(tile("CVs")).findByText(exact("1 de 7"));
+  // The bento skeleton is still on screen and carries no entrance.
+  expect(screen.getByLabelText("Cargando este mes")).toBeInTheDocument();
+  for (const name of ["Racha", "Avanzaron", "Primera respuesta"]) expect(tile(name)).not.toHaveClass(motion.rise);
+  await act(async () => resolve({ ok: true, data: { items: apps, next_cursor: null } }));
+  await screen.findByRole("region", { name: "Este mes" });
+  await screen.findByRole("region", { name: "Siguiente paso" });
+  expect(rise.titles()).toEqual(["Avanzaron", "CVs", "Este mes", "Guardadas", "Perfil", "Primera respuesta", "Racha", "Siguiente paso"]);
+});
+
+it("lets content that arrives after 600 ms appear with a short fade instead of the entrance", async () => {
+  expect(motion.quiet).toBeTruthy();
+  let resolve!: (value: Awaited<ReturnType<typeof loadSavedJobsAction>>) => void;
+  vi.mocked(loadSavedJobsAction).mockReturnValue(new Promise(done => { resolve = done; }));
+  const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+  render(<CandidateDashboardWorkspace />);
+  await screen.findByRole("region", { name: "Este mes" });
+  expect(tile("Racha")).toHaveClass(motion.rise);
+  expect(tile("Guardadas")).not.toHaveClass(motion.rise);
+  now.mockReturnValue(1601);
+  await act(async () => resolve(saved([savedRow("s1", false)])));
+  await within(tile("Guardadas")).findByText("1");
+  expect(tile("Guardadas")).toHaveClass(motion.quiet);
+  expect(tile("Guardadas")).not.toHaveClass(motion.rise);
 });
 
 it("does not re-render the dashboard or its charts while the clock runs (S2)", async () => {

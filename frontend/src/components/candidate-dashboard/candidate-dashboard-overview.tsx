@@ -1,23 +1,25 @@
 "use client";
 import { memo, useCallback, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, Files, UserRound } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Check, Files, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { CARD } from "@/features/company-metrics/sections/summary-strip";
 import { profileFromWire } from "@/features/candidate/profile-adapter";
-import { missingProfileText, profileCompleteness } from "@/features/candidate/profile-completeness";
+import { profileCompleteness } from "@/features/candidate/profile-completeness";
+import type { CandidateProfile } from "@/features/candidate/model";
 import type { ProfileLanguages, ProfileRead } from "@/features/candidate/profile-api";
 import type { ApplicationsPage } from "@/features/candidate-applications/model";
 import type { CvLibrary } from "@/features/candidate-cvs/model";
 import type { AccountAssessment } from "@/features/psychometrics/model";
 import type { SavedJobs } from "@/features/saved-vacancies/model";
 import type { AssessmentResult } from "@/features/candidate/dashboard/assessments";
-import { ApplicationsBento, CONTEXT, INLINE_LINK, Ring, SavedTile, Tile, UNIT, VALUE } from "@/features/candidate/dashboard/charts";
+import { ApplicationsBento, CONTEXT, FOOT_LINK, INLINE_LINK, Ring, SavedTile, Tile, UNIT, VALUE } from "@/features/candidate/dashboard/charts";
 import { relativeTime } from "@/features/candidate/dashboard/format";
 import { dashboardInsights, isUnread, nextSteps, type Application } from "@/features/candidate/dashboard/insights";
 import { NextStep, NextStepSkeleton } from "@/features/candidate/dashboard/next-step";
+import { EntranceClock } from "@/features/candidate/dashboard/entrance";
 import { SourceError, SourceLoading, useSource, type Source } from "@/features/candidate/dashboard/source";
 import { loadApplicationsAction, markMessageReadAction } from "@/features/candidate-applications/actions";
 import { loadCvsAction } from "@/features/candidate-cvs/actions";
@@ -68,22 +70,50 @@ const RecentApplications = memo(function RecentApplications({ source, items, ass
   </section>;
 });
 
-const ProfileTile = memo(function ProfileTile({ source, completeness }: { source: Source<Profile>; completeness?: Completeness }) {
+const CHIP = "inline-flex h-5 items-center gap-1 rounded-full px-2 text-[11px] leading-4 font-medium whitespace-nowrap";
+const MISSING_CHIPS = 3;
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+/** What companies see, only from sections with real data (profile read + CV library). */
+function profileSections(profile: CandidateProfile | null, cvs?: number): string[] {
+  if (!profile) return [];
+  return [
+    [profile.seniority !== null || profile.yearsOfExperience !== null, "Experiencia"],
+    [profile.education.length > 0, "Educación"],
+    [profile.languages.length > 0, "Idiomas"],
+    [!!cvs, "CV"],
+  ].flatMap(([shown, label]) => shown ? [label as string] : []);
+}
+
+/** «Perfil»: a thin brand ring (check when complete, % when not), then what companies see or what is missing. */
+const ProfileTile = memo(function ProfileTile({ source, completeness, sections }: { source: Source<Profile>; completeness?: Completeness; sections: string[] }) {
   const percentage = completeness?.percentage ?? 0;
-  return <Tile title="Perfil" icon={UserRound} order={3}>
-    {!source.result ? <SourceLoading label="Cargando perfil" compact /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="tu perfil" /> : completeness && <div className="flex flex-col items-start gap-2.5 sm:flex-row sm:items-center sm:gap-4">
-      <Ring value={percentage} total={100} size={64} stroke={7} label={`Perfil completo al ${percentage} %`}><b className="text-[15px]">{percentage}<span className="text-[11px]">%</span></b></Ring>
-      <div className="min-w-0">
-        <p className="font-semibold">{percentage === 100 ? "Completo" : percentage >= 75 ? "Casi listo" : "En progreso"}</p>
-        <p className={CONTEXT}>{percentage === 100 ? "Las empresas ven todo tu perfil" : <>Falta {missingProfileText(completeness.missing)} · <Link className={INLINE_LINK} href="/candidato/perfil">Completar</Link></>}</p>
+  const complete = percentage === 100;
+  const missing = completeness?.missing ?? [];
+  const chips = complete ? sections : [...missing.slice(0, MISSING_CHIPS).map(capitalize), ...missing.length > MISSING_CHIPS ? [`+${missing.length - MISSING_CHIPS} más`] : []];
+  return <Tile title="Perfil" icon={UserRound} order={3} ready={source.result !== undefined}>
+    {!source.result ? <SourceLoading label="Cargando perfil" compact /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="tu perfil" /> : completeness && <>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2">
+        <div className="row-span-2 self-start"><Ring value={percentage} total={100} size={56} stroke={5} brand label={`Perfil completo al ${percentage} %`}>
+          {complete ? <Check data-profile-check className="size-5 text-primary-text" strokeWidth={2.5} /> : <b className="text-[13px] font-semibold tracking-tight tabular-nums">{percentage}%</b>}
+        </Ring></div>
+        <div className="min-w-0">
+          <p className="font-semibold">{complete ? "Perfil completo" : percentage >= 50 ? "Te falta poco" : "Completa tu perfil"}</p>
+          <p className={CONTEXT}>{complete ? "Las empresas ven todo tu perfil" : `${completeness.completed} de ${completeness.total} datos completos`}</p>
+        </div>
+        {chips.length > 0 && <ul aria-label={complete ? "Lo que ven las empresas" : "Datos que faltan"} className="col-start-2 flex flex-wrap gap-1">
+          {chips.map(chip => <li key={chip} className={cn(CHIP, complete ? "bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] text-foreground ring-1 ring-primary/15" : "border border-dashed border-border text-muted-foreground")}>
+            {complete && <Check aria-hidden="true" className="size-3 shrink-0 text-primary-text" strokeWidth={3} />}{chip}
+          </li>)}
+        </ul>}
       </div>
-    </div>}
+      <Link href="/candidato/perfil" className={FOOT_LINK}>{complete ? "Ver perfil" : "Completar perfil"}</Link>
+    </>}
   </Tile>;
 });
 
 const CvTile = memo(function CvTile({ source }: { source: Source<CvLibrary> }) {
   const data = source.result?.ok ? source.result.data : undefined;
-  return <Tile title="CVs" icon={Files} order={4}>
+  return <Tile title="CVs" icon={Files} order={4} ready={source.result !== undefined}>
     {!source.result ? <SourceLoading label="Cargando CVs" compact /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="tus CVs" /> : data && <div>
       <p className={VALUE}>{data.items.length} <small className={UNIT}>de {data.limits.max_cvs}</small></p>
       <p className={CONTEXT}>{data.items.length === 0 ? <>Aún no subes un CV · <Link className={INLINE_LINK} href="/candidato/cvs">Subir CV</Link></>
@@ -109,7 +139,10 @@ export function CandidateDashboardOverview({ assessments }: CandidateDashboardOv
   const items = useMemo(() => original?.items.map(item => read.has(revision(item)) ? { ...item, message_read_at: item.updated_at } : item), [original, read]);
   const insights = useMemo(() => original ? dashboardInsights(original.items) : undefined, [original]);
   const profileData = profile.result?.ok ? profile.result.data : undefined;
-  const completeness = useMemo(() => profileData ? profileCompleteness(profileData.profile ? profileFromWire(profileData.profile, profileData.languages) : null) : undefined, [profileData]);
+  const candidate = useMemo(() => profileData?.profile ? profileFromWire(profileData.profile, profileData.languages) : null, [profileData]);
+  const completeness = useMemo(() => profileData ? profileCompleteness(candidate) : undefined, [profileData, candidate]);
+  const cvCount = cvs.result?.ok ? cvs.result.data.items.length : undefined;
+  const sections = useMemo(() => profileSections(candidate, cvCount), [candidate, cvCount]);
   const eligible = assessments?.ok ? assessments.data.items : undefined;
   const steps = useMemo(() => nextSteps({ assessments: eligible, applications: items, profile: completeness }), [eligible, items, completeness]);
   // A failed source contributes nothing; the card waits until each pending source answered, so it never jumps.
@@ -124,17 +157,17 @@ export function CandidateDashboardOverview({ assessments }: CandidateDashboardOv
       else if (result.reference.status === 409 && result.reference.code === "message_changed") retryApplications();
     }, () => { /* A read acknowledgment must never interrupt reading or retry itself. */ });
   }, [retryApplications]);
-  return <div className="flex min-w-0 flex-col gap-3 sm:gap-6">
+  return <EntranceClock><div className="flex min-w-0 flex-col gap-3 sm:gap-6">
     {settled ? <NextStep steps={steps} onRead={onRead} /> : assessments && <NextStepSkeleton label="Cargando siguiente paso" />}
     {original?.next_cursor && <p role="note" className="text-xs text-muted-foreground">Resumen de las últimas {original.items.length} postulaciones. Consulta todas en Postulaciones.</p>}
     <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-6 xl:auto-rows-[minmax(176px,auto)] xl:grid-cols-12">
       <ApplicationsBento source={applications} insights={insights} />
       <SavedTile source={saved} />
       <RecentApplications source={applications} items={items} assessments={eligible} />
-      <div className="col-span-2 grid min-w-0 grid-cols-2 gap-3 sm:gap-6 xl:col-span-4 xl:row-span-2 xl:grid-cols-1">
-        <ProfileTile source={profile} completeness={completeness} />
+      <div className="col-span-2 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 xl:col-span-4 xl:row-span-2 xl:grid-cols-1">
+        <ProfileTile source={profile} completeness={completeness} sections={sections} />
         <CvTile source={cvs} />
       </div>
     </div>
-  </div>;
+  </div></EntranceClock>;
 }

@@ -10,6 +10,7 @@ import type { Insights, Status, Week } from "./insights";
 import { SourceError, SourceLoading, type Source } from "./source";
 import { capitalize, monthName, SHORT_MONTHS } from "./format";
 import motion from "./dashboard.module.css";
+import { useEntrance } from "./entrance";
 
 /* Thresholds from research.md §5: no chart under 5 records, a sparkline only with 4 active weeks or more. */
 const SPARKLINE_WEEKS = 4;
@@ -24,14 +25,16 @@ const LABEL: Record<Status, string> = { submitted: "Enviada", in_process: "En pr
 const PLURAL: Record<Status, [string, string]> = { submitted: ["enviada", "enviadas"], in_process: ["en proceso", "en proceso"], closed: ["cerrada", "cerradas"] };
 const VALUE = "flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[26px] leading-8 font-semibold tracking-tight tabular-nums sm:text-[32px] sm:leading-10";
 const VALUE_TEXT = "text-xl leading-7 font-semibold tracking-tight";
+// A worded figure («El mismo día») at the tiles' figure size; it may wrap to two lines in a 173 px mobile tile.
+const VALUE_WORDS = "text-[28px] leading-[34px] font-semibold tracking-tight text-balance sm:text-[32px] sm:leading-10";
 const UNIT = "text-sm font-medium tracking-normal text-muted-foreground";
 const CONTEXT = "text-xs text-muted-foreground";
 const INLINE_LINK = "font-medium text-primary-text underline-offset-3 hover:underline";
-const FOOT_LINK = "mt-auto inline-flex min-h-10 items-center self-start text-xs font-medium text-primary-text underline-offset-3 hover:underline";
+const FOOT_LINK = "mt-auto -mb-2 inline-flex min-h-10 items-center self-start sm:-mb-3 text-xs font-medium text-primary-text underline-offset-3 hover:underline";
 const delay = (d: number) => ({ "--d": d }) as CSSProperties;
 
 /** Part of a whole with a goal (profile %, assessment n/63): one SVG, the arc drawn with stroke-dashoffset. */
-export const Ring = memo(function Ring({ value, total, size, stroke, label, children }: { value: number; total: number; size: number; stroke: number; label: string; children: ReactNode }) {
+export const Ring = memo(function Ring({ value, total, size, stroke, label, brand = false, children }: { value: number; total: number; size: number; stroke: number; label: string; brand?: boolean; children: ReactNode }) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - Math.min(value, total) / total);
@@ -39,7 +42,7 @@ export const Ring = memo(function Ring({ value, total, size, stroke, label, chil
     <svg aria-hidden="true" width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
       <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={stroke} className="fill-none stroke-muted dark:stroke-border" />
       <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
-        className={cn("fill-none", value >= total ? "stroke-status-success" : "stroke-primary-text", motion.arc)} style={{ "--c": circumference } as CSSProperties} />
+        className={cn("fill-none", value >= total && !brand ? "stroke-status-success" : "stroke-primary-text", motion.arc)} style={{ "--c": circumference } as CSSProperties} />
     </svg>
     <span aria-hidden="true" className="absolute inset-0 grid place-items-center font-semibold tabular-nums">{children}</span>
   </div>;
@@ -78,8 +81,9 @@ const StatusSummary = memo(function StatusSummary({ statuses, total }: { statuse
     {total >= STATUS_BAR_MIN && <div role="img" aria-label={`Postulaciones por estado: ${label}`} className={cn("flex h-2 gap-[3px] overflow-hidden rounded-full", motion.grow)}>
       {ORDER.filter(status => statuses[status]).map(status => <span key={status} className="block h-full min-w-1.5" style={{ flex: statuses[status], background: `var(--st-${status})` }} />)}
     </div>}
-    <ul aria-label="Postulaciones por estado" className="flex flex-wrap gap-x-5 gap-y-2">
-      {ORDER.map(status => <li key={status} className="inline-flex items-center gap-2 text-background/70">
+    {/* Tighter gaps below sm keep «Enviada 1 · En proceso 2 · Cerrada 1» on one line in a 390 px hero (318 px). */}
+    <ul aria-label="Postulaciones por estado" className="flex flex-wrap gap-x-3.5 gap-y-2 sm:gap-x-5">
+      {ORDER.map(status => <li key={status} className="inline-flex items-center gap-1.5 text-background/70 sm:gap-2">
         <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ background: `var(--st-${status})` }} />{LABEL[status]} <b className="font-semibold text-background tabular-nums">{statuses[status]}</b>
       </li>)}
     </ul>
@@ -98,9 +102,10 @@ const Histogram = memo(function Histogram({ bins }: { bins: number[] }) {
 });
 
 /** Bento tile (rule 6): label 14/500 muted with its icon, value 32/600, one line of context, a link at the foot. */
-export function Tile({ title, icon: Icon, className, order, children }: { title: string; icon: LucideIcon; className?: string; order: number; children: ReactNode }) {
+export function Tile({ title, icon: Icon, className, order, ready = true, children }: { title: string; icon: LucideIcon; className?: string; order: number; ready?: boolean; children: ReactNode }) {
   const id = useId();
-  return <article aria-labelledby={id} className={cn(CARD, "gap-3 p-4 sm:p-6", motion.rise, className)} style={delay(order)}>
+  const entrance = useEntrance(ready);
+  return <article aria-labelledby={id} className={cn(CARD, "gap-3 p-4 sm:p-6", entrance, className)} style={delay(order)}>
     <h3 id={id} className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0 text-primary-text" />{title}</h3>
     {children}
   </article>;
@@ -115,7 +120,8 @@ function MonthHero({ insights }: { insights: Insights }) {
   const advanced = statuses.in_process;
   const sameDay = advanced > 0 && responses.average === 0 ? ", el mismo día que postulaste" : "";
   const Arrow = difference > 0 ? ArrowUp : difference < 0 ? ArrowDown : ArrowRight;
-  return <section aria-labelledby={id} className={cn(CARD, "pf-kpi-hero relative isolate col-span-2 justify-between gap-5 overflow-hidden bg-foreground p-5 text-background shadow-none ring-0 sm:p-7 xl:col-span-6 xl:row-span-2", motion.hero, motion.rise)}>
+  const entrance = useEntrance();
+  return <section aria-labelledby={id} className={cn(CARD, "pf-kpi-hero relative isolate col-span-2 justify-between gap-5 overflow-hidden bg-foreground p-5 text-background shadow-none ring-0 sm:p-7 xl:col-span-6 xl:row-span-2", motion.hero, entrance)}>
     <div className="flex items-center justify-between gap-3 text-sm font-medium text-background/70"><h3 id={id}>Este mes</h3><span>{capitalize(monthName(now))}</span></div>
     <div className="flex flex-col gap-3">
       <p className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1"><span className="text-[56px] leading-[56px] font-semibold tracking-[-0.04em] tabular-nums sm:text-[72px] sm:leading-[72px]">{month.current}</span><span className="text-lg font-medium">{month.current === 1 ? "postulación" : "postulaciones"}</span></p>
@@ -138,8 +144,15 @@ function ResponseValue({ insights }: { insights: Insights }) {
   const { responses, total } = insights;
   if (!responses.available) return <p className={VALUE_TEXT}>Sin datos de respuesta</p>;
   if (responses.average === null) return <><p className={VALUE_TEXT}>Sin respuestas aún</p><p className={CONTEXT}>{plural(responses.waiting, "postulación espera", "postulaciones esperan")} su primer cambio</p></>;
-  if (responses.average === 0) return <><p className={VALUE_TEXT}>El mismo día</p><p className={CONTEXT}>{plural(responses.count, "respuesta", "respuestas")} de {total}</p></>;
+  if (responses.average === 0) return <><p className={VALUE_WORDS}>El mismo día</p><p className={CONTEXT}>{plural(responses.count, "respuesta", "respuestas")} de {total}</p></>;
   return <><p className={VALUE}>{number.format(responses.average)} <small className={UNIT}>{responses.average === 1 ? "día" : "días"}</small></p><p className={CONTEXT}>en promedio · {plural(responses.count, "respuesta", "respuestas")}</p></>;
+}
+
+function FirstVisit() {
+  const entrance = useEntrance();
+  return <section aria-label="Tu búsqueda" className={cn(CARD, "col-span-2 xl:col-span-9", entrance)}>
+    <SectionEmpty tone="empty" icon={BriefcaseBusiness} title="Aquí empieza tu búsqueda" description="Cuando envíes tu primera postulación verás tu ritmo del mes, tu racha semanal y cuánto tardan las empresas en responder." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} />
+  </section>;
 }
 
 function TileLoading({ label }: { label: string }) {
@@ -153,13 +166,11 @@ function TileLoading({ label }: { label: string }) {
 export const ApplicationsBento = memo(function ApplicationsBento({ source, insights }: { source: Source<unknown>; insights?: Insights }) {
   if (!source.result) return <>
     <div aria-busy="true" className={cn(CARD, "col-span-2 gap-4 xl:col-span-6 xl:row-span-2")}><SourceLoading label="Cargando este mes" /></div>
-    {[["Racha", Flame], ["Avanzaron", Sparkles], ["Primera respuesta", Clock]].map(([title, icon], index) => <Tile key={title as string} title={title as string} icon={icon as LucideIcon} order={index + 1} className="xl:col-span-3"><TileLoading label="Cargando postulaciones" /></Tile>)}
+    {[["Racha", Flame], ["Avanzaron", Sparkles], ["Primera respuesta", Clock]].map(([title, icon], index) => <Tile key={title as string} title={title as string} icon={icon as LucideIcon} order={index + 1} ready={false} className="xl:col-span-3"><TileLoading label="Cargando postulaciones" /></Tile>)}
   </>;
   // The recent applications card owns the error and its retry; the bento has nothing true to show.
   if (!source.result.ok || !insights) return null;
-  if (insights.total === 0) return <section aria-label="Tu búsqueda" className={cn(CARD, "col-span-2 xl:col-span-9", motion.rise)}>
-    <SectionEmpty tone="empty" icon={BriefcaseBusiness} title="Aquí empieza tu búsqueda" description="Cuando envíes tu primera postulación verás tu ritmo del mes, tu racha semanal y cuánto tardan las empresas en responder." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} />
-  </section>;
+  if (insights.total === 0) return <FirstVisit />;
   const { streak, active, weeks, statuses, total, responses } = insights;
   return <>
     <MonthHero insights={insights} />
@@ -183,7 +194,7 @@ export const SavedTile = memo(function SavedTile({ source }: { source: Source<Sa
   const data = source.result?.ok ? source.result.data : undefined;
   const pending = data?.items.filter(item => item.application === null) ?? [];
   const open = pending.filter(item => item.availability === "open").length;
-  return <Tile title="Guardadas" icon={Bookmark} order={4} className="xl:col-span-3">
+  return <Tile title="Guardadas" icon={Bookmark} order={4} ready={source.result !== undefined} className="xl:col-span-3">
     {!source.result ? <TileLoading label="Cargando guardadas" /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="tus guardadas" /> : !data?.items.length ? <>
       <div><p className={VALUE}>0</p><p className={CONTEXT}>Aún no guardas vacantes</p></div>
       <Link href="/vacantes" className={FOOT_LINK}>Explorar vacantes</Link>
@@ -197,4 +208,4 @@ export const SavedTile = memo(function SavedTile({ source }: { source: Source<Sa
   </Tile>;
 });
 
-export { CONTEXT, INLINE_LINK, VALUE, UNIT };
+export { CONTEXT, FOOT_LINK, INLINE_LINK, VALUE, UNIT };

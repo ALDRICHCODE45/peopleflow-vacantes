@@ -1,6 +1,7 @@
 /* Candidate dashboard (artboard 04-bento-con-siguiente-paso). Motion follows research.md §5: one entrance on mount,
    ease-out 200–400 ms, transform / opacity / stroke-dashoffset only, nothing under prefers-reduced-motion.
-   Memoized parts keep their DOM between renders, so a CSS animation never restarts on an unrelated update. */
+   Memoized parts keep their DOM between renders, so a CSS animation never restarts on an unrelated update.
+   Skeletons never animate; each part enters once on its loaded content, staggered 40 ms per card. */
 
 /* «Siguiente paso»: a quiet violet tint with the hero's glow, no alert border or warning colour. */
 .next {
@@ -49,6 +50,9 @@
   .fade { animation: fade 320ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; }
   .draw { animation: draw 400ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; }
   .late { animation: appear 300ms ease-out 300ms both; }
+  /* Late content (after 600 ms from mount, entrance.tsx): a 150 ms fade, and none of its inner chart motion. */
+  .quiet { animation: appear 150ms ease-out both; }
+  .quiet * { animation: none; }
 }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 @keyframes arc { from { stroke-dashoffset: var(--c); } }
