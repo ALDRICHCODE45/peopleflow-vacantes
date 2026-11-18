@@ -222,3 +222,12 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   dashboard «Candidatos recientes»; the talent base already showed it. Findings for the backend: `original.professional_title`
   already existed on main (only its value changes); move/discard responses do NOT carry the profile
   (`board/filter_data.go:51`).
+- **L32** Independent verification at the merge of T12–T13 (`/tmp/pf-verify-cvp/`): Part A pdfjs-dist 6.5.438 PASS (checks
+  before bytes reach pdf.js, same-origin source only, no scripting/forms layer, no CDN, async chunks only and no server
+  code, worker emitted same-origin, Apache-2.0, optional `@napi-rs/canvas` without install scripts, lockfile limited to
+  that subtree). Part B PASS at 1440/1024/390, light and dark: CVs real first page sharp, Perfil ficha shows only
+  company-visible data with the title, Descartar restores, rail and dashboard both 10 de 10, title end to end (new
+  application `ca97bc3d-5403-41d7-be8f-130caeb7593f`: card, sheet and «Candidatos recientes»), 0 console errors and 0
+  ≥400. Fixed the medium finding: the dashboard profile tile said «Las empresas ven todo tu perfil» → «Lo que ven las
+  empresas está completo», chip «Educación» → «Nivel de estudios». Open low items: Apache-2.0 notice stripped by
+  minification (add a third-party notice), title truncated on 284 px cards, no cMap/standard fonts (fallback rendering).
