@@ -91,3 +91,11 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   applied to do NOT count as a pending step (my recommendation, which the user's go-ahead accepted): the «Siguiente
   paso» card shows only for an assessment about to expire, an unread message or an incomplete profile; saved vacancies
   keep their bento tile. Handoff started on the canvas. T4 and T5 run as two parallel writers with disjoint surfaces.
+- **L9** T4 `27c154b3` + T5 merge `afddde3d`; full suite 577 files / 10424 tests passed (2 skipped), tsc 0, lint 0 errors.
+  Browser check on the production build (`/tmp/pf-check-cd/`): no overflow at 390, card button 44 px, thresholds hold,
+  donut/banner/«Estado» gone; S2 PASS (17 commits in the first 2 s, then 0 commits and 0 DOM mutations over 10 s; ring
+  draws in ~400 ms without pauses); all six T5 fixes PASS at 390 and 1440; no console errors, no ≥400. Valeria's message
+  was read at 09:31:38 (before the check), so the live card is hidden (correct for 0 pending) — the backend re-applies
+  before the demo. Polish left: «Primera respuesta» value 20 px vs 32–40, card radius 24 vs 14 px, hero legend wraps at
+  390, tiles taller than the artboard, greeting with full name, «100%» crowds the ring at 390, 1–2 tiles rise twice
+  (loading → loaded swap), whole entrance 565–785 ms.
