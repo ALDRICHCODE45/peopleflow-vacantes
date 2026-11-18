@@ -36,7 +36,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas (done, L5) | — |
 | T4 | S1–S3 | (done, L9–L11) Implement artboard `04-bento-con-siguiente-paso.html` on `/candidato/dashboard` (L8): next-step card, bento tiles, charts by threshold, saved vacancies read, fix the 1 s assessment ticker re-render (L4) | — |
 | T5 | S4 | (done, L9) Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
-| T6 | S5, S6 | 2–3 proposal artboards for «Vacantes guardadas» in `design/candidate-saved-modern/`, desktop and 390 px, on the canvas | — |
+| T6 | S5, S6 | 2–3 proposal artboards for «Vacantes guardadas» in `design/candidate-saved-modern/`, desktop and 390 px, on the canvas (done, L13) | — |
 | T7 | S4, S6 | Implement the chosen saved-vacancies artboard (after approval) | — |
 
 ## Log
@@ -122,3 +122,9 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   verbatim in S6. Image#3: page title, «3 guardadas · 2 por postularte», groups «Por postularte» and «Ya te postulaste»,
   full-width white cards with logo initials, title, company, location, salary, «Guardada el …», «Postularme» / «Ver
   vacante», a bookmark icon; lots of empty width.
+- **L13** T6 artboards in `design/candidate-saved-modern/` (worker): `01-shortlist.html` (dark «Por postularte» hero +
+  tiles + card grid with chips, applied cards with a status strip), `02-postulate-primero.html` (ranked queue with
+  reasons + sticky dark preview; sort Sugerido/Salario/Recientes), `03-compara-y-decide.html` (dark side-by-side board,
+  shared salary scale, bruto/neto never ranked together, picker up to 3). Toggles 9 / 0 / loading / 390; 36 overflow
+  checks pass, Quitar + Deshacer works, motion once with reduced motion respected. Data gaps: application status needs a
+  join with the candidate applications by id; no closing date, so no «cierra pronto»; no «similares» data.
