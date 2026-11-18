@@ -39,7 +39,7 @@ function CvCard({ cv, onEdit }: { cv: Cv; onEdit: (mode: "rename" | "delete") =>
     <CardHeader className={ROW_HEADER}>
       <CardTitle className="contents">
         <span aria-hidden="true" className={cn(TILE, type === "PDF" ? "border-status-danger/25 bg-status-danger/10 text-status-danger" : "border-status-info/25 bg-status-info/10 text-status-info")}><FileText className="size-5" /><span className="text-[10px] font-semibold">{type}</span></span>
-        <h3 className="col-start-2 row-start-1 min-w-0 self-end truncate text-sm font-medium" title={cv.name}>{cv.name}</h3>
+        <h3 className="col-start-2 row-start-1 min-w-0 self-end line-clamp-2 break-words text-sm font-medium" title={cv.name}>{cv.name}</h3>
       </CardTitle>
       <CardDescription className="col-start-2 row-start-2 self-start text-xs">{type} · {formatSize(cv.size)} · Subido el {DATE_FORMAT.format(new Date(cv.uploaded_at))}</CardDescription>
       {/* Contents exposes the badge and actions to the header grid: below metadata on small

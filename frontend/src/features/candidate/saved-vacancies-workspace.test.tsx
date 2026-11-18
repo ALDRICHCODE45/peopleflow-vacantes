@@ -96,6 +96,21 @@ it("keeps a row and counts until confirmed, then removes it and offers a working
   await waitFor(() => expect(saveJobAction).toHaveBeenCalledWith(first.job_id));
   await waitFor(() => expect(card(first.job_id)).not.toBeNull());
 });
+it("puts «Por postularte» right under the summary, adding the status row only while there is a result to show", async () => {
+  await loaded();
+  // An always-mounted empty status slot (40px) plus two 20px gaps left ~80px between the summary and the first group.
+  const workspace = document.querySelector("[data-pf-saved-vacancies-workspace]")!;
+  const header = screen.getByText("4 guardadas · 2 por postularte").closest("header")!;
+  expect(header.nextElementSibling).not.toHaveAttribute("data-pf-action-bar");
+  expect(header.nextElementSibling).toContainElement(screen.getByRole("heading", { name: "Por postularte 2" }));
+  expect(workspace.querySelectorAll(":scope > [data-pf-action-bar]")).toHaveLength(0);
+  vi.mocked(removeSavedJobAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 503 } });
+  fireEvent.click(within(card(first.job_id)).getByRole("button", { name: /Quitar .* de guardadas/ }));
+  const retry = await screen.findByRole("button", { name: "Reintentar" });
+  // The result line appears between the summary and the groups, as before.
+  expect(header.nextElementSibling).toHaveAttribute("data-pf-action-bar");
+  expect(header.nextElementSibling).toContainElement(retry);
+});
 it("preserves rows and counts on mutation failure with persistent retry and sanitized error reference", async () => {
   await loaded();
   vi.mocked(removeSavedJobAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 503 } });

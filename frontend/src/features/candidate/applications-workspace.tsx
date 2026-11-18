@@ -108,7 +108,8 @@ export function ApplicationsWorkspace({ initialApplicationId }: { initialApplica
         secondaryAction={{ label: "Ir al panel", href: "/candidato" }} />}
       {!!data?.items.length && <>
         <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0 overflow-x-auto"><ToggleGroup variant="segmented" value={[filter]} onValueChange={values => { if (values[0]) { setFilter(values[0] as Filter); setMobileOpen(false); } }} aria-label="Filtrar postulaciones">{filters.map(option => <ToggleGroupItem key={option.value} value={option.value}>{option.label}<Badge variant="secondary">{items.filter(item => matches(item, option.value)).length}</Badge></ToggleGroupItem>)}</ToggleGroup></div>
+          {/* Below sm a 2×2 grid keeps all four filters and counts in view; sm and up keep the single segmented row. */}
+          <ToggleGroup variant="segmented" className="max-sm:grid max-sm:h-auto! max-sm:w-full max-sm:grid-cols-2" value={[filter]} onValueChange={values => { if (values[0]) { setFilter(values[0] as Filter); setMobileOpen(false); } }} aria-label="Filtrar postulaciones">{filters.map(option => <ToggleGroupItem key={option.value} value={option.value} className="max-sm:h-9!">{option.label}<Badge variant="secondary">{items.filter(item => matches(item, option.value)).length}</Badge></ToggleGroupItem>)}</ToggleGroup>
           <label htmlFor="applications-search" className="sr-only">Buscar por puesto o empresa</label>
           <InputGroup className="h-11 w-full xl:w-60"><InputGroupInput id="applications-search" type="search" placeholder="Puesto o empresa" value={query} onChange={event => setQuery(event.target.value)} /><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon></InputGroup>
         </div>

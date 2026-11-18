@@ -140,13 +140,16 @@ describe("live candidate profile", () => {
     // The 40px target does not make this header taller than «Contacto».
     expect(remove.closest('[data-slot="card-action"]')).toHaveClass("row-span-1", "-my-2");
   });
-  it("signals mobile tab overflow with an edge fade, without a native scrollbar or hint text", async () => {
+  it("wraps the five section tabs below md so none reads as cut off at 390 px", async () => {
     await ready();
     const tabs = screen.getByRole("tablist");
+    // Every section stays visible and tappable; the faded, half-hidden «Compensación» is gone.
+    expect(tabs).toHaveClass("max-md:flex-wrap", "max-md:h-auto!", "max-md:gap-y-2");
+    expect(tabs.className).not.toMatch(/mask-image|max-md:pr-12/);
+    for (const tab of screen.getAllByRole("tab")) expect(tab).toHaveClass("max-md:flex-none", "max-md:h-8");
+    expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Personal", "Experiencia", "Educación", "Compensación", "Idiomas"]);
+    // md and up keep the single scrollable row, without a native scrollbar or hint text.
     expect(tabs).toHaveClass("[scrollbar-width:none]");
-    expect(tabs.className).toMatch(/mask-image/);
-    // Room past the last tab so «Idiomas» leaves the fade once scrolled to the end.
-    expect(tabs).toHaveClass("max-md:pr-12");
     expect(screen.queryByText(/Desliza para ver más secciones/)).not.toBeInTheDocument();
   });
 

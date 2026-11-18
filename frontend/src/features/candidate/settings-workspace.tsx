@@ -89,12 +89,14 @@ function SettingsGroup({ children }: { readonly children: React.ReactNode }) {
 }
 
 /** One setting row: contextual medallion, labelled copy and the control slot. */
-function SettingRow({ icon: Icon, titleId, title, descriptionId, description, children }: {
+function SettingRow({ icon: Icon, titleId, title, descriptionId, description, compact = false, children }: {
   readonly icon: LucideIcon;
   readonly titleId: string;
   readonly title: string;
   readonly descriptionId: string;
   readonly description: string;
+  /** A switch-sized control stays beside the copy at every width; wide controls drop below it on phones. */
+  readonly compact?: boolean;
   readonly children: React.ReactNode;
 }) {
   return (
@@ -109,7 +111,7 @@ function SettingRow({ icon: Icon, titleId, title, descriptionId, description, ch
           <ItemTitle id={titleId} className="line-clamp-none break-words">{title}</ItemTitle>
           <ItemDescription id={descriptionId} className="max-w-prose line-clamp-none">{description}</ItemDescription>
         </ItemContent>
-        <ItemActions className="w-full justify-start sm:w-auto sm:justify-end [&_[data-slot=button]]:w-full [&_[data-slot=select-trigger]]:w-full sm:[&_[data-slot=button]]:w-auto sm:[&_[data-slot=select-trigger]]:w-auto">{children}</ItemActions>
+        <ItemActions className={compact ? "shrink-0 justify-end" : "w-full justify-start sm:w-auto sm:justify-end [&_[data-slot=button]]:w-full [&_[data-slot=select-trigger]]:w-full sm:[&_[data-slot=button]]:w-auto sm:[&_[data-slot=select-trigger]]:w-auto"}>{children}</ItemActions>
       </Item>
     </li>
   );
@@ -126,7 +128,7 @@ function NotificationsSection({ notifications, onToggle }: {
           const labelId = `pf-settings-${notification.key}-label`;
           const descriptionId = `pf-settings-${notification.key}-description`;
           return (
-            <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description}>
+            <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description} compact>
               <Switch
                 checked={notifications[notification.key]}
                 onCheckedChange={(checked) => onToggle(notification.key, checked)}
@@ -167,7 +169,7 @@ function SecuritySection() {
   return (
     <SettingsSection section={SECURITY_SECTION}>
       <SettingsGroup>
-        <SettingRow icon={ShieldCheck} titleId="pf-settings-2fa-label" title="Autenticación en dos pasos" descriptionId="pf-settings-2fa-description" description="Segundo factor para iniciar sesión.">
+        <SettingRow icon={ShieldCheck} titleId="pf-settings-2fa-label" title="Autenticación en dos pasos" descriptionId="pf-settings-2fa-description" description="Segundo factor para iniciar sesión." compact>
           {/* Controlled `false` keeps the switch enabled, focusable and inert. */}
           <Switch checked={false} aria-labelledby="pf-settings-2fa-label" aria-describedby="pf-settings-2fa-description" data-pf-settings-2fa />
         </SettingRow>

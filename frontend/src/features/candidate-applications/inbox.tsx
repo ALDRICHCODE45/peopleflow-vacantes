@@ -29,7 +29,7 @@ export function ApplicationRow({ item, assessment, selected, onSelect, now }: { 
   return <Item variant="outline" data-pf-application-row data-selected={selected} className={cn("relative min-w-0 cursor-pointer outline-none transition-colors hover:bg-muted hover:text-foreground has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/30", selected ? "border-transparent bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground")} onClick={event => onSelect(event.currentTarget.querySelector("a")!)}>
     <ItemMedia><Avatar className="size-10" aria-hidden="true"><AvatarFallback>{initials(item.company.name)}</AvatarFallback></Avatar></ItemMedia>
     <ItemContent className="min-w-0">
-      <ItemTitle className="text-foreground"><h3 className="truncate">
+      <ItemTitle className="w-full min-w-0 line-clamp-none text-foreground"><h3 className="line-clamp-2 min-w-0 break-words">
         {/* Preserve the vacancy href for no-JS / modified clicks; ordinary activation selects the full record. */}
         <Link href={`/vacantes/${item.vacancy.id}`} aria-current={selected ? "true" : undefined} aria-controls="application-detail" className="outline-none after:absolute after:inset-0 after:rounded-2xl" onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) event.preventDefault(); else event.stopPropagation(); }}>{item.vacancy.title}</Link>
       </h3></ItemTitle>

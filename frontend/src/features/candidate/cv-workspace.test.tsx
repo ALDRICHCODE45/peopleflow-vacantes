@@ -27,6 +27,14 @@ function selectFile(file: File) { fireEvent.change(screen.getByLabelText("Archiv
 const unavailableTitle = "Los CVs no están disponibles en este momento";
 const unavailableDescription = "Puedes intentarlo más tarde; lo que ya escribiste se conserva.";
 describe("real CV workspace", () => {
+  it("lets a long file name wrap to two lines with word breaks so its extension shows at 390 px", async () => {
+    await ready();
+    const name = screen.getByRole("heading", { level: 3, name: cv.name });
+    expect(name).toHaveClass("line-clamp-2", "break-words");
+    expect(name).not.toHaveClass("truncate");
+    // The full name stays available on hover when even two lines are not enough.
+    expect(name).toHaveAttribute("title", cv.name);
+  });
   it("explains the in-use badge only on demand", async () => {
     await ready();
     const description = "Enviaste este CV en al menos una postulación.";
@@ -158,7 +166,7 @@ describe("real CV workspace", () => {
     const title = header.querySelector('[data-slot="card-title"]')!;
     expect([...title.children].map(node => node.tagName)).toEqual(["SPAN", "H3"]);
     expect(title.querySelector("h3")).toHaveAttribute("title", cv.name);
-    expect(title.querySelector("h3")).toHaveClass("truncate");
+    expect(title.querySelector("h3")).toHaveClass("line-clamp-2", "break-words");
     expect(title.querySelector('[aria-hidden="true"]')).toHaveTextContent("PDF");
     // The tile stays in the row's flow (its own grid column) so it sets the row height; an absolute tile made rows thin.
     expect(title.querySelector('[aria-hidden="true"]')).not.toHaveClass("absolute");
