@@ -1,0 +1,59 @@
+/* Candidate dashboard (artboard 04-bento-con-siguiente-paso). Motion follows research.md §5: one entrance on mount,
+   ease-out 200–400 ms, transform / opacity / stroke-dashoffset only, nothing under prefers-reduced-motion.
+   Memoized parts keep their DOM between renders, so a CSS animation never restarts on an unrelated update. */
+
+/* «Siguiente paso»: a quiet violet tint with the hero's glow, no alert border or warning colour. */
+.next {
+  background: color-mix(in oklab, var(--primary) 6%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 16%, var(--border)),
+    0 10px 24px -18px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+:global(.dark) .next {
+  background: color-mix(in oklab, var(--primary) 11%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 34%, transparent);
+}
+.next::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(38% 160% at 100% 0%, color-mix(in oklab, var(--primary-text) 13%, transparent), transparent 72%),
+    radial-gradient(30% 120% at 0% 100%, color-mix(in oklab, var(--primary-text) 5%, transparent), transparent 70%);
+}
+
+/* «Este mes»: the inverted `.pf-kpi-hero` tile with its own status paint, readable on the dark surface. */
+.hero {
+  --hero-accent: oklch(0.70 0.14 292.759);
+  --st-submitted: oklch(0.78 0.12 245);
+  --st-in_process: var(--hero-accent);
+  --st-closed: color-mix(in oklab, var(--background) 32%, var(--foreground));
+  box-shadow: 0 12px 32px -12px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+:global(.dark) .hero { box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent); }
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(60% 70% at 100% 0%, color-mix(in oklab, var(--hero-accent) 34%, transparent), transparent 70%),
+    radial-gradient(50% 60% at 0% 100%, color-mix(in oklab, var(--hero-accent) 14%, transparent), transparent 70%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--d, 0) * 40ms); }
+  .arc { animation: arc 400ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; }
+  .grow { animation: grow 360ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; transform-origin: left center; }
+  .growY { animation: grow-y 320ms cubic-bezier(0.22, 1, 0.36, 1) 100ms both; transform-origin: bottom center; }
+  .fade { animation: fade 320ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; }
+  .draw { animation: draw 400ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; }
+  .late { animation: appear 300ms ease-out 300ms both; }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes arc { from { stroke-dashoffset: var(--c); } }
+@keyframes grow { from { transform: scaleX(0); } }
+@keyframes grow-y { from { transform: scaleY(0); } }
+@keyframes fade { from { opacity: 0; transform: scale(0.96); } }
+@keyframes draw { from { stroke-dashoffset: 1; } }
+@keyframes appear { from { opacity: 0; } }

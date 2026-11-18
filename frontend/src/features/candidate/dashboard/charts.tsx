@@ -1,71 +1,200 @@
 "use client";
-import { useState, type ReactNode } from "react";
-import { Bar, BarChart, CartesianGrid, Label, Pie, PieChart, XAxis, YAxis } from "recharts";
-import { BarChart3, BriefcaseBusiness, Clock } from "lucide-react";
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
+import { memo, useId, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
+import { ArrowDown, ArrowRight, ArrowUp, Bookmark, BriefcaseBusiness, Clock, Flame, Sparkles, type LucideIcon } from "lucide-react";
 import { SectionEmpty } from "@/components/feedback/state-card";
-import type { ApplicationsPage } from "@/features/candidate-applications/model";
-import { dashboardInsights, type Period } from "./insights";
+import { CARD } from "@/features/company-metrics/sections/summary-strip";
+import type { SavedJobs } from "@/features/saved-vacancies/model";
+import { cn } from "@/lib/utils";
+import type { Insights, Status, Week } from "./insights";
 import { SourceError, SourceLoading, type Source } from "./source";
-export const statusConfig = { in_process: { label: "En proceso", color: "var(--primary)" }, submitted: { label: "Enviada", color: "var(--status-info)" }, closed: { label: "Cerrada", color: "var(--muted-foreground)" } } satisfies ChartConfig;
-const responseConfig = { responses: { label: "Primeras respuestas", color: "var(--primary)" } } satisfies ChartConfig;
-const tick = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString("es-MX", { day: "numeric", month: "short" });
-const amount = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-function ChartData({ caption, headers, rows }: { caption: string; headers: string[]; rows: (string | number)[][] }) {
-  return <div className="sr-only"><Table><TableCaption>{caption}</TableCaption><TableHeader><TableRow>{headers.map(header => <TableHead scope="col" key={header}>{header}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.map((row, index) => <TableRow key={index}>{row.map((cell, column) => <TableCell key={column}>{cell}</TableCell>)}</TableRow>)}</TableBody></Table></div>;
+import { capitalize, monthName, SHORT_MONTHS } from "./format";
+import motion from "./dashboard.module.css";
+
+/* Thresholds from research.md §5: no chart under 5 records, a sparkline only with 4 active weeks or more. */
+const SPARKLINE_WEEKS = 4;
+const STATUS_BAR_MIN = 5;
+const HISTOGRAM_MIN = 5;
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const number = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
+const weekLabel = (start: string) => { const [, month, day] = start.split("-").map(Number); return `${day} ${SHORT_MONTHS[month - 1]}`; };
+const ORDER: Status[] = ["submitted", "in_process", "closed"];
+const LABEL: Record<Status, string> = { submitted: "Enviada", in_process: "En proceso", closed: "Cerrada" };
+const PLURAL: Record<Status, [string, string]> = { submitted: ["enviada", "enviadas"], in_process: ["en proceso", "en proceso"], closed: ["cerrada", "cerradas"] };
+const VALUE = "flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[26px] leading-8 font-semibold tracking-tight tabular-nums sm:text-[32px] sm:leading-10";
+const VALUE_TEXT = "text-xl leading-7 font-semibold tracking-tight";
+const UNIT = "text-sm font-medium tracking-normal text-muted-foreground";
+const CONTEXT = "text-xs text-muted-foreground";
+const INLINE_LINK = "font-medium text-primary-text underline-offset-3 hover:underline";
+const FOOT_LINK = "mt-auto inline-flex min-h-10 items-center self-start text-xs font-medium text-primary-text underline-offset-3 hover:underline";
+const delay = (d: number) => ({ "--d": d }) as CSSProperties;
+
+/** Part of a whole with a goal (profile %, assessment n/63): one SVG, the arc drawn with stroke-dashoffset. */
+export const Ring = memo(function Ring({ value, total, size, stroke, label, children }: { value: number; total: number; size: number; stroke: number; label: string; children: ReactNode }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - Math.min(value, total) / total);
+  return <div role="img" aria-label={label} className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }}>
+    <svg aria-hidden="true" width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={stroke} className="fill-none stroke-muted dark:stroke-border" />
+      <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
+        className={cn("fill-none", value >= total ? "stroke-status-success" : "stroke-primary-text", motion.arc)} style={{ "--c": circumference } as CSSProperties} />
+    </svg>
+    <span aria-hidden="true" className="absolute inset-0 grid place-items-center font-semibold tabular-nums">{children}</span>
+  </div>;
+});
+
+/** 12 ISO weeks × 1 row (GitHub contributions): reads well with a single dot; the running week is outlined dashed. */
+const DotStrip = memo(function DotStrip({ weeks, streak, active }: { weeks: Week[]; streak: number; active: number }) {
+  const level = (count: number) => count === 0 ? "bg-muted dark:bg-border" : count === 1 ? "bg-(--pf-tone-late)" : count === 2 ? "bg-[color-mix(in_oklab,var(--primary-text)_75%,var(--pf-tint-base))]" : "bg-primary-text";
+  return <div role="img" aria-label={`Constancia de las últimas 12 semanas: ${active} con postulaciones, racha de ${plural(streak, "semana", "semanas")}`} className={cn("grid grid-cols-12 items-center gap-1", motion.fade)}>
+    {weeks.map(week => <span key={week.start} data-week={week.start} data-current={week.current} title={`Semana del ${weekLabel(week.start)}${week.current ? " (en curso)" : ""}: ${plural(week.count, "postulación", "postulaciones")}`}
+      className={cn("aspect-square w-full max-w-7 justify-self-center rounded-full", level(week.count), week.current && "outline-[1.5px] outline-offset-1 outline-primary-text outline-dashed")} />)}
+  </div>;
+});
+
+/** Tufte sparkline: no axes, last point marked; only drawn from SPARKLINE_WEEKS active weeks. */
+const Sparkline = memo(function Sparkline({ weeks }: { weeks: Week[] }) {
+  const width = 480, height = 64, max = Math.max(1, ...weeks.map(week => week.count)), step = width / (weeks.length - 1);
+  const points = weeks.map((week, index) => [index * step, height - 4 - week.count / max * (height - 12)] as const);
+  const line = points.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const [lastX, lastY] = points.at(-1)!;
+  return <div className="flex flex-col gap-1.5">
+    <span aria-hidden="true" className="text-xs text-background/70">Postulaciones por semana</span>
+    <svg role="img" aria-label={`Postulaciones por semana, últimas 12 semanas: ${weeks.map(week => week.count).join(", ")}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="block h-16 w-full overflow-visible">
+      <path d={`${line} L${width} ${height} L0 ${height} Z`} className={cn("fill-[color-mix(in_srgb,var(--hero-accent)_18%,transparent)]", motion.late)} />
+      <path d={line} pathLength={1} strokeDasharray={1} vectorEffect="non-scaling-stroke" className={cn("fill-none stroke-(--hero-accent) [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:2]", motion.draw)} />
+      <circle cx={lastX} cy={lastY} r={3.5} className={cn("fill-(--hero-accent)", motion.late)} />
+    </svg>
+    <div aria-hidden="true" className="flex justify-between text-xs text-background/70"><span>{weekLabel(weeks[0].start)}</span><span>Esta semana</span></div>
+  </div>;
+});
+
+/** Composition by status (replaces the donut and «Estado de tus postulaciones»): a segmented bar from 5 applications. */
+const StatusSummary = memo(function StatusSummary({ statuses, total }: { statuses: Record<Status, number>; total: number }) {
+  const label = ORDER.map(status => plural(statuses[status], ...PLURAL[status])).join(", ");
+  return <div className="flex flex-col gap-3">
+    {total >= STATUS_BAR_MIN && <div role="img" aria-label={`Postulaciones por estado: ${label}`} className={cn("flex h-2 gap-[3px] overflow-hidden rounded-full", motion.grow)}>
+      {ORDER.filter(status => statuses[status]).map(status => <span key={status} className="block h-full min-w-1.5" style={{ flex: statuses[status], background: `var(--st-${status})` }} />)}
+    </div>}
+    <ul aria-label="Postulaciones por estado" className="flex flex-wrap gap-x-5 gap-y-2">
+      {ORDER.map(status => <li key={status} className="inline-flex items-center gap-2 text-background/70">
+        <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ background: `var(--st-${status})` }} />{LABEL[status]} <b className="font-semibold text-background tabular-nums">{statuses[status]}</b>
+      </li>)}
+    </ul>
+  </div>;
+});
+
+const Histogram = memo(function Histogram({ bins }: { bins: number[] }) {
+  const max = Math.max(...bins);
+  const names = ["el mismo día", "1 día", "2 días", "3 días", "4 días", "5 días", "6 o más días"];
+  return <div className="mt-auto flex flex-col gap-1.5">
+    <div role="img" aria-label={`Días hasta la primera respuesta: ${bins.map((count, index) => `${names[index]} ${count}`).join(", ")}`} className={cn("grid h-10 grid-cols-7 items-end gap-1", motion.growY)}>
+      {bins.map((count, index) => <span key={index} className={cn("block min-h-[3px] rounded-t-[4px] rounded-b-[2px]", count === max ? "bg-primary-text" : "bg-(--pf-tone-late)", !count && "opacity-50")} style={{ height: `${count ? Math.max(10, count / max * 100) : 6}%` }} />)}
+    </div>
+    <div aria-hidden="true" className="flex justify-between text-[11px] leading-3.5 text-muted-foreground"><span>Mismo día</span><span>6+ días</span></div>
+  </div>;
+});
+
+/** Bento tile (rule 6): label 14/500 muted with its icon, value 32/600, one line of context, a link at the foot. */
+export function Tile({ title, icon: Icon, className, order, children }: { title: string; icon: LucideIcon; className?: string; order: number; children: ReactNode }) {
+  const id = useId();
+  return <article aria-labelledby={id} className={cn(CARD, "gap-3 p-4 sm:p-6", motion.rise, className)} style={delay(order)}>
+    <h3 id={id} className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0 text-primary-text" />{title}</h3>
+    {children}
+  </article>;
 }
-function Frame({ title, description, action, children, footer, source }: { title: string; description: string; action?: ReactNode; children: ReactNode; footer?: string; source: Source<ApplicationsPage> }) {
-  return <Card size="sm" role="region" aria-label={title} className="@container/insight min-w-0">
-    <CardHeader className="min-h-32 content-start @[330px]/insight:min-h-20"><CardTitle><h2 className="text-sm">{title}</h2></CardTitle><CardDescription className="text-xs">{description}</CardDescription>{action && <CardAction className="col-start-1 row-start-3 justify-self-start @[330px]/insight:col-start-2 @[330px]/insight:row-start-1 @[330px]/insight:justify-self-end">{action}</CardAction>}</CardHeader>
-    <CardContent className="flex min-h-80 flex-1 flex-col gap-3">{!source.result ? <SourceLoading label="Cargando gráficas" /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="las postulaciones" /> : children}</CardContent>
-    {source.result?.ok && footer && <CardFooter className="min-h-12 border-t text-xs text-muted-foreground">{footer}</CardFooter>}
-  </Card>;
-}
-/** Company chart Card/header-action pattern; shadcn Donut with Text center label.
- * Empty uses SectionEmpty instead of mounting misleading empty axes. */
-export function DashboardCharts({ source }: { source: Source<ApplicationsPage> }) {
-  const [period, setPeriod] = useState<Period>("3m");
-  const data = dashboardInsights(source.result?.ok ? source.result.data.items : [], period);
-  const response = data.responses;
-  const range = <ToggleGroup aria-label="Período de constancia" multiple={false} variant="segmented" size="sm" value={[period]} onValueChange={(values: string[]) => { if (values[0] === "3m" || values[0] === "30d") setPeriod(values[0]); }}><ToggleGroupItem value="3m" aria-label="Últimos 3 meses">3 meses</ToggleGroupItem><ToggleGroupItem value="30d" aria-label="Últimos 30 días">30 días</ToggleGroupItem></ToggleGroup>;
-  const distribution = Object.entries(statusConfig).map(([status]) => ({ status, count: data.statuses[status as keyof typeof data.statuses], fill: `var(--color-${status})` })).filter(slice => slice.count > 0);
-  return <section aria-label="Tu búsqueda en tres preguntas" className="grid min-w-0 gap-4 min-[850px]:grid-cols-3">
-    <Frame source={source} title="¿Estoy siendo constante?" description="Tu ritmo de búsqueda" action={range} footer={data.total ? "Estado actual · la semana actual está en curso." : undefined}>
-      {!data.total ? <SectionEmpty icon={BarChart3} tone="info" title="Aquí empieza tu ritmo" description="Verás tus postulaciones por semana y su estado actual después de enviar la primera." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} /> : <>
-        <div className="min-h-16"><p className="text-xs text-muted-foreground"><strong className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.month.current}</strong> {data.month.current === 1 ? "postulación este mes" : "postulaciones este mes"}</p><p className="text-xs text-muted-foreground">{data.month.difference === 0 ? "Igual que el mes anterior" : `${Math.abs(data.month.difference)} ${data.month.difference > 0 ? "más" : "menos"} que el mes anterior`}</p></div>
-        <ChartContainer config={statusConfig} className="aspect-auto h-60 w-full" aria-label="Postulaciones por semana y estado actual">
-          <BarChart accessibilityLayer data={data.weeks} margin={{ left: -24, right: 4 }}><CartesianGrid vertical={false} strokeDasharray="3 4" /><XAxis dataKey="week" tickFormatter={tick} tickLine={false} axisLine={false} minTickGap={24} /><YAxis allowDecimals={false} tickLine={false} axisLine={false} /><ChartTooltip content={<ChartTooltipContent labelFormatter={value => tick(String(value))} />} /><ChartLegend content={<ChartLegendContent className="flex-wrap gap-2 text-xs" />} />{Object.keys(statusConfig).map(status => <Bar key={status} dataKey={status} stackId="applications" fill={`var(--color-${status})`} radius={[4, 4, 0, 0]} />)}</BarChart>
-        </ChartContainer><ChartData caption="Postulaciones por semana" headers={["Semana", "En proceso", "Enviada", "Cerrada"]} rows={data.weeks.map(week => [week.week, week.in_process, week.submitted, week.closed])} /><p className="text-xs text-muted-foreground">{period === "3m" ? "Últimos 3 meses" : "Últimos 30 días"} · estado actual</p>
-      </>}
-    </Frame>
-    <Frame source={source} title="¿Está funcionando?" description="Tus resultados · estado actual" footer={data.total ? "En proceso hoy / total; no predice contratación." : undefined}>
-      {!data.total ? <SectionEmpty icon={BriefcaseBusiness} tone="info" title="Cada avance cuenta" description="Aquí verás cuántas postulaciones están en proceso, enviadas o cerradas." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} /> : <>
-        <div className="min-h-16"><p className="text-xs text-muted-foreground"><strong className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.advanceRate}%</strong> avanzó a proceso</p><p className="text-xs text-muted-foreground">{data.statuses.in_process} de tus {data.total} postulaciones</p></div>
-        <ChartContainer config={statusConfig} className="aspect-auto h-60 w-full" aria-label="Distribución actual de postulaciones">
-          <PieChart accessibilityLayer><ChartTooltip content={<ChartTooltipContent nameKey="status" hideLabel />} /><Pie data={distribution} dataKey="count" nameKey="status" innerRadius={64} outerRadius={86} paddingAngle={distribution.length > 1 ? 2 : 0} strokeWidth={distribution.length > 1 ? 3 : 0}><Label content={({ viewBox }) => viewBox && "cx" in viewBox && "cy" in viewBox ? <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle"><tspan x={viewBox.cx} y={(viewBox.cy ?? 0) - 8} className="fill-foreground text-3xl font-semibold tabular-nums">{data.total}</tspan><tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 18} className="fill-muted-foreground text-xs">{data.total === 1 ? "postulación" : "postulaciones"}</tspan></text> : null} /></Pie></PieChart>
-        </ChartContainer>
-        {/* Own legend: Recharts sorts legend items by value, and every chart lists the statuses in this shared order. */}
-        <ul aria-label="Leyenda de estados" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">{Object.entries(statusConfig).map(([status, config]) => <li key={status} className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: config.color }} />{config.label}<span className="text-muted-foreground tabular-nums">{data.statuses[status as keyof typeof data.statuses]}</span></li>)}</ul>
-        <ChartData caption="Distribución de postulaciones" headers={["Estado", "Postulaciones"]} rows={Object.entries(statusConfig).map(([status, config]) => [String(config.label), data.statuses[status as keyof typeof data.statuses]])} />
-      </>}
-    </Frame>
-    <Frame source={source} title="¿Cuánto tardan en responder?" description="Primer cambio visible de tus postulaciones" footer={response.answered ? `Días naturales · excluye las ${response.waiting} aún sin cambios.${response.unknown ? ` ${response.unknown} sin dato de respuesta.` : ""}` : undefined}>
-      {!data.total ? <SectionEmpty icon={Clock} tone="info" title="Las respuestas toman tiempo" description="Después del primer cambio de una empresa, aquí podrás ver los días que esperaste." /> : !response.available ? <SectionEmpty icon={Clock} tone="info" title="Todavía no hay datos de respuesta" description="Cuando estén disponibles, aquí podrás ver cuánto tardan las empresas en dar su primera respuesta." /> : response.average === null ? <SectionEmpty icon={Clock} tone="info" title="Las respuestas toman tiempo" description={`${amount(response.waiting, "postulación aún espera", "postulaciones aún esperan")} su primer cambio. Aquí verás los días de espera cuando llegue una respuesta.`} /> : <>
-        <div className="min-h-16"><p className="text-xs text-muted-foreground"><strong className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">{amount(response.average, "día", "días")}</strong> en promedio</p><p className="text-xs text-muted-foreground">{amount(response.answered, "primera respuesta", "primeras respuestas")} · {response.waiting} aún esperan</p></div>
-        <ChartContainer config={responseConfig} className="aspect-auto h-60 w-full" aria-label="Días naturales hasta la primera respuesta">
-          <BarChart accessibilityLayer data={response.histogram} margin={{ left: -24, right: 4 }}><CartesianGrid vertical={false} strokeDasharray="3 4" /><XAxis dataKey="days" tickFormatter={value => `${value} días`} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} axisLine={false} tickLine={false} /><ChartTooltip content={<ChartTooltipContent labelFormatter={value => `${value} días`} />} /><ChartLegend content={<ChartLegendContent />} /><Bar dataKey="responses" fill="var(--color-responses)" radius={[4, 4, 0, 0]} /></BarChart>
-        </ChartContainer><ChartData caption="Días hasta la primera respuesta" headers={["Días naturales", "Primeras respuestas"]} rows={response.histogram.map(item => [item.days, item.responses])} />
-      </>}
-    </Frame>
+
+function MonthHero({ insights }: { insights: Insights }) {
+  const id = useId();
+  const now = new Date();
+  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const { month, statuses, total, responses, active, weeks } = insights;
+  const difference = month.current - month.previous;
+  const advanced = statuses.in_process;
+  const sameDay = advanced > 0 && responses.average === 0 ? ", el mismo día que postulaste" : "";
+  const Arrow = difference > 0 ? ArrowUp : difference < 0 ? ArrowDown : ArrowRight;
+  return <section aria-labelledby={id} className={cn(CARD, "pf-kpi-hero relative isolate col-span-2 justify-between gap-5 overflow-hidden bg-foreground p-5 text-background shadow-none ring-0 sm:p-7 xl:col-span-6 xl:row-span-2", motion.hero, motion.rise)}>
+    <div className="flex items-center justify-between gap-3 text-sm font-medium text-background/70"><h3 id={id}>Este mes</h3><span>{capitalize(monthName(now))}</span></div>
+    <div className="flex flex-col gap-3">
+      <p className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1"><span className="text-[56px] leading-[56px] font-semibold tracking-[-0.04em] tabular-nums sm:text-[72px] sm:leading-[72px]">{month.current}</span><span className="text-lg font-medium">{month.current === 1 ? "postulación" : "postulaciones"}</span></p>
+      {month.first
+        ? <span className="inline-flex h-6 items-center self-start rounded-full bg-background/12 px-2.5 text-xs font-medium">Primer mes de actividad</span>
+        : <span className={cn("inline-flex h-6 items-center gap-1.5 self-start rounded-full px-2.5 text-xs font-medium tabular-nums", difference > 0 ? "bg-[color-mix(in_oklab,var(--status-success)_30%,transparent)] text-[color-mix(in_oklab,var(--status-success)_45%,var(--background))]" : "bg-background/12")}>
+          <Arrow aria-hidden="true" className="size-3" strokeWidth={2.5} />
+          {difference === 0 ? `Igual que en ${monthName(previous)}` : `${Math.abs(difference)} ${difference > 0 ? "más" : "menos"} que en ${monthName(previous)}`}
+        </span>}
+    </div>
+    {active >= SPARKLINE_WEEKS && <Sparkline weeks={weeks} />}
+    <p className="max-w-[420px] text-lg leading-[26px] font-semibold tracking-tight text-balance sm:text-xl sm:leading-7">
+      {advanced === 0 ? "Aún ninguna avanzó a proceso." : <><em className="text-(--hero-accent) not-italic">{advanced} de {total}</em> {advanced === 1 ? "ya avanzó" : "ya avanzaron"} a proceso{sameDay}.</>}
+    </p>
+    <StatusSummary statuses={statuses} total={total} />
   </section>;
 }
-export function ApplicationStatus({ source }: { source: Source<ApplicationsPage> }) {
-  const data = source.result?.ok ? dashboardInsights(source.result.data.items) : undefined;
-  return <Card size="sm" role="region" aria-label="Estado de tus postulaciones"><CardHeader className="border-b"><CardTitle><h2>Estado de tus postulaciones</h2></CardTitle><CardDescription>Una mirada a tu búsqueda completa.</CardDescription></CardHeader><CardContent className="grid gap-4">
-    {!source.result ? <SourceLoading label="Cargando estados" /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="las postulaciones" /> : !data?.total ? <SectionEmpty tone="empty" icon={BriefcaseBusiness} title="Tu búsqueda, de un vistazo" description="Cuando envíes una postulación verás aquí su estado y cuántas siguen activas." /> : <>{Object.entries(statusConfig).map(([status, config]) => <div key={status}><div className="mb-2 flex justify-between gap-3 text-sm"><span>{config.label}</span><strong className="tabular-nums">{data.statuses[status as keyof typeof data.statuses]}</strong></div><Progress className={status === "submitted" ? "**:data-[slot=progress-indicator]:bg-status-info" : status === "closed" ? "**:data-[slot=progress-indicator]:bg-muted-foreground" : undefined} aria-label={String(config.label)} value={data.statuses[status as keyof typeof data.statuses]} max={data.total} /></div>)}<p className="text-xs text-muted-foreground">{data.statuses.in_process + data.statuses.submitted} activas de {data.total} postulaciones en total.</p></>}
-  </CardContent></Card>;
+
+function ResponseValue({ insights }: { insights: Insights }) {
+  const { responses, total } = insights;
+  if (!responses.available) return <p className={VALUE_TEXT}>Sin datos de respuesta</p>;
+  if (responses.average === null) return <><p className={VALUE_TEXT}>Sin respuestas aún</p><p className={CONTEXT}>{plural(responses.waiting, "postulación espera", "postulaciones esperan")} su primer cambio</p></>;
+  if (responses.average === 0) return <><p className={VALUE_TEXT}>El mismo día</p><p className={CONTEXT}>{plural(responses.count, "respuesta", "respuestas")} de {total}</p></>;
+  return <><p className={VALUE}>{number.format(responses.average)} <small className={UNIT}>{responses.average === 1 ? "día" : "días"}</small></p><p className={CONTEXT}>en promedio · {plural(responses.count, "respuesta", "respuestas")}</p></>;
 }
+
+function TileLoading({ label }: { label: string }) {
+  return <SourceLoading label={label} compact />;
+}
+
+/**
+ * Hero «Este mes» and the Racha / Avanzaron / Primera respuesta tiles from the applications read. Memoized on stable
+ * props (the source object and the insights memo), so another source resolving never re-renders or re-animates them.
+ */
+export const ApplicationsBento = memo(function ApplicationsBento({ source, insights }: { source: Source<unknown>; insights?: Insights }) {
+  if (!source.result) return <>
+    <div aria-busy="true" className={cn(CARD, "col-span-2 gap-4 xl:col-span-6 xl:row-span-2")}><SourceLoading label="Cargando este mes" /></div>
+    {[["Racha", Flame], ["Avanzaron", Sparkles], ["Primera respuesta", Clock]].map(([title, icon], index) => <Tile key={title as string} title={title as string} icon={icon as LucideIcon} order={index + 1} className="xl:col-span-3"><TileLoading label="Cargando postulaciones" /></Tile>)}
+  </>;
+  // The recent applications card owns the error and its retry; the bento has nothing true to show.
+  if (!source.result.ok || !insights) return null;
+  if (insights.total === 0) return <section aria-label="Tu búsqueda" className={cn(CARD, "col-span-2 xl:col-span-9", motion.rise)}>
+    <SectionEmpty tone="empty" icon={BriefcaseBusiness} title="Aquí empieza tu búsqueda" description="Cuando envíes tu primera postulación verás tu ritmo del mes, tu racha semanal y cuánto tardan las empresas en responder." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} />
+  </section>;
+  const { streak, active, weeks, statuses, total, responses } = insights;
+  return <>
+    <MonthHero insights={insights} />
+    <Tile title="Racha" icon={Flame} order={1} className="xl:col-span-3">
+      <div><p className={VALUE}>{streak} <small className={UNIT}>{streak === 1 ? "semana" : streak === 0 ? "semanas" : "semanas seguidas"}</small></p><p className={CONTEXT}>{streak === 1 && active === 1 ? "Tu primera semana activa" : `${active} de 12 semanas activas`}</p></div>
+      <div className="mt-auto"><DotStrip weeks={weeks} streak={streak} active={active} /></div>
+    </Tile>
+    <Tile title="Avanzaron" icon={Sparkles} order={2} className="xl:col-span-3">
+      <div><p className={VALUE}>{statuses.in_process} <small className={UNIT}>de {total}</small></p><p className={CONTEXT}>{statuses.in_process === 1 ? "pasó a proceso" : "pasaron a proceso"}</p></div>
+      <Link href="/candidato/postulaciones" className={FOOT_LINK}>Ver en proceso</Link>
+    </Tile>
+    <Tile title="Primera respuesta" icon={Clock} order={3} className="xl:col-span-3">
+      <div><ResponseValue insights={insights} /></div>
+      {responses.count >= HISTOGRAM_MIN && <Histogram bins={responses.histogram} />}
+    </Tile>
+  </>;
+});
+
+/** Saved vacancies not applied to: a bento tile, never a pending step (L8). */
+export const SavedTile = memo(function SavedTile({ source }: { source: Source<SavedJobs> }) {
+  const data = source.result?.ok ? source.result.data : undefined;
+  const pending = data?.items.filter(item => item.application === null) ?? [];
+  const open = pending.filter(item => item.availability === "open").length;
+  return <Tile title="Guardadas" icon={Bookmark} order={4} className="xl:col-span-3">
+    {!source.result ? <TileLoading label="Cargando guardadas" /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="tus guardadas" /> : !data?.items.length ? <>
+      <div><p className={VALUE}>0</p><p className={CONTEXT}>Aún no guardas vacantes</p></div>
+      <Link href="/vacantes" className={FOOT_LINK}>Explorar vacantes</Link>
+    </> : !pending.length ? <>
+      <div><p className={VALUE}>0 <small className={UNIT}>sin postular</small></p><p className={CONTEXT}>Ya postulaste a todas las que guardaste</p></div>
+      <Link href="/vacantes" className={FOOT_LINK}>Explorar vacantes</Link>
+    </> : <>
+      <div><p className={VALUE}>{pending.length}</p><p className={CONTEXT}>sin postular · {open === pending.length ? (open === 1 ? "sigue abierta" : "todas abiertas") : `${open} de ${pending.length} abiertas`}</p></div>
+      <Link href="/candidato/guardadas" className={FOOT_LINK}>Ver guardadas</Link>
+    </>}
+  </Tile>;
+});
+
+export { CONTEXT, INLINE_LINK, VALUE, UNIT };
