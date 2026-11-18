@@ -23,6 +23,13 @@
       "tradeoff": "La línea de tiempo de postulaciones es la protagonista, con pendientes fijados arriba («Requiere acción») y un resumen lateral fijo; la más narrativa y cercana a «qué pasó con cada postulación», pero no hay historial de eventos y con mucho historial la página es la más larga",
       "width": 1440,
       "height": 1100
+    },
+    {
+      "file": "04-bento-con-siguiente-paso.html",
+      "title": "04 · Bento con siguiente paso",
+      "tradeoff": "El bento de 02 sin los chips de pendientes: una tarjeta «Siguiente paso» tintada, a todo el ancho sobre el bento, con una sola acción (evaluación que vence → mensaje → perfil → guardadas sin postular) y «+N más»; desaparece si no hay pendientes. Deja claro qué hacer primero sin perder el bento, pero lo baja unos 170 px y con los datos de la demo casi siempre hay algo pendiente (las guardadas sin postular)",
+      "width": 1440,
+      "height": 1340
     }
   ]
 }

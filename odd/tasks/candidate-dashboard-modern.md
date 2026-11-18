@@ -82,3 +82,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   with one action sits above the bento instead of the pending chips; with nothing pending it disappears and the bento
   moves up. User: «Si hermano, hazla y a ver como queda, pero ya me gusta esta version, haz ese ajuste, y si me gusta
   comenzamos a implementar.» → artboard `04-bento-con-siguiente-paso.html`.
+- **L7** Artboard `04-bento-con-siguiente-paso.html` (worker): 02 with the pending chips replaced by a full-width
+  «Siguiente paso» card above the bento (144 px at 1440, one action in the focus order assessment → message → profile →
+  saved vacancies, «+N más» popover, tinted card without alert styling); «Sin pendientes» hides it and the bento moves up.
+  Validated: 32 toggle combinations at 1440 and 390 without overflow, popover focus return, reduced motion. Screenshots
+  `/tmp/pf-design-cd/d-*.png`. Open question: saved vacancies count as pending, so the card almost always shows.
