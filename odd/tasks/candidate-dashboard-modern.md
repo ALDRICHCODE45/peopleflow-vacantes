@@ -56,7 +56,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T7 | S4, S6 | (done, L15) Implement `design/candidate-saved-modern/02-postulate-primero.html` on `/candidato/guardadas` (L14) | `00f962fd` |
 | T8 | S8, S9 | (done, L17) Update `design/system.md`: candidate workspace patterns from artboards 04 and saved 02, and the dark surface rule | — |
 | T9 | S7, S9 | (done, L17) Alignment proposals for Postulaciones, CVs and Perfil in `design/candidate-align/`, each comparable with the current screen, on the canvas | — |
-| T10 | S7 | Implement the approved alignment of Postulaciones (`design/candidate-align/01-postulaciones.html`), plus the «En proceso» chip colour drift on the dashboard (L17) | — |
+| T10 | S7 | (done, L19) Implement the approved alignment of Postulaciones (`design/candidate-align/01-postulaciones.html`), plus the «En proceso» chip colour drift on the dashboard (L17) | — |
 | T11 | S5, S10 | Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
 | T12 | S10 | Implement the chosen CVs and Perfil directions (after approval) | — |
 
@@ -170,3 +170,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   and 126 interaction checks pass; screenshots `/tmp/pf-design-align/`.
 - **L18** User: «MIs postulaciones esta bien, pero mis cvs y mi perfil no me gusta, si me gustaria un rdiseno competo de
   esas dos pantallas.» → T10 implements the Postulaciones alignment; T11 designs full redesigns for CVs and Perfil.
+- **L19** T10 `af9a9183` (worker; related 121 green, tsc/eslint 0): Postulaciones aligned to `candidate-align/01` (header
+  counts, section card, saved-style rows with message chip, tint + left bar selection, light detail with 64 px logo,
+  «Postulada hoy», first-use card with «Ver vacantes guardadas»); the dashboard «En proceso» chip now uses the canonical
+  amber mapping. Full suite 577 files / 10451 tests passed (2 skipped), tsc 0, lint 0 errors. Rebuilt :3000; browser at
+  1440, 1024, 390 and dark: no overflow, no errors or ≥400, layout matches the artboard (`/tmp/pf-pa/*.png`).
