@@ -67,6 +67,20 @@ describe("Necesita atención (artboard 09, rule 13)", () => {
     expect(within(screen.getByRole("link", { name: /Héctor Salinas/ })).getByText("12 días sin avanzar")).not.toHaveClass("hidden");
   });
 
+  it("gives the vacancy title the row's full width on a narrow screen: the badge goes on its own line under «Faltan…» (rule 14)", async () => {
+    show();
+    const row = screen.getByRole("link", { name: /^Abrir el pipeline de Ejecutivo de cuenta/ });
+    // Two columns below `md` (text, chevron), four from `md`.
+    expect(row).toHaveClass("grid-cols-[minmax(0,1fr)_16px]", "md:grid-cols-[minmax(0,1fr)_188px_148px_16px]");
+    expect(within(row).getByText("Ejecutivo de cuenta")).toHaveClass("max-md:line-clamp-2", "md:truncate");
+    expect(within(row).getByText("Ejecutivo de cuenta")).not.toHaveClass("truncate");
+    expect(within(row).getByText("Faltan 3 de 5 candidatos")).toHaveClass("col-start-1", "row-start-2");
+    expect(within(row).getByText("Venció hace 6 días hábiles")).toHaveClass("col-start-1", "row-start-3", "justify-self-start", "md:col-start-3", "md:row-start-1");
+    await userEvent.click(screen.getByRole("tab", { name: /Candidatos detenidos/ }));
+    const stalled = screen.getByRole("link", { name: /Héctor Salinas/ });
+    expect(within(stalled).getByText("Evaluación")).toHaveClass("col-start-1", "row-start-3", "md:col-start-3");
+  });
+
   it("starts on the first tab with rows and shows «Todo al día» for an empty one", async () => {
     show({ attention: ready({ ...emptyAttention(), stalled: attention().stalled }) });
     expect(screen.getByRole("tab", { name: /Candidatos detenidos/ })).toHaveAttribute("aria-selected", "true");

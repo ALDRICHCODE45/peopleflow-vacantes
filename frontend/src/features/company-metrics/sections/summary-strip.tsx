@@ -60,10 +60,16 @@ function DeltaLine({ delta, previous, hero }: { delta: Delta | null; previous: {
 
 const sparkConfig = { rate: { label: "A tiempo", color: "color-mix(in oklab, var(--primary) 55%, var(--background))" } } satisfies ChartConfig;
 
+/**
+ * The area draws only between two consecutive months with a rate; isolated months draw nothing, so without such a pair
+ * the trend is left out instead of leaving a blank band in the hero (390 px review).
+ */
+const drawable = (months: MonthRate[] | undefined) => Boolean(months?.some((month, index) => index > 0 && month.rate.value !== null && months[index - 1].rate.value !== null));
+
 function Sparkline({ months }: { months: MonthRate[] }) {
   const data = months.map(({ month, rate }) => ({ month, rate: rate.value === null ? null : Math.round(rate.value * 100) }));
   const known = data.filter(point => point.rate !== null);
-  if (known.length < 2) return null;
+  if (!drawable(months)) return null;
   const [first, last] = [known[0], known[known.length - 1]];
   const label = `Entregas a tiempo por mes: de ${first.rate}% en ${monthLabel(first.month).toLowerCase()} a ${last.rate}% en ${monthLabel(last.month).toLowerCase()}`;
   return <div role="img" aria-label={label} className="mt-auto">
@@ -149,8 +155,8 @@ function Strip({ data, drill }: { data: MetricsSummary; drill: Drill }) {
         </p>}
       {rate.value !== null && <DeltaLine hero delta={headline ? rateDelta(headline.on_time_rate) : null}
         previous={previousLink(universe, headline?.on_time_rate.previous.denominator, dueLabel(headline?.on_time_rate.previous.denominator ?? 0))} />}
-      {data.on_time_by_month && <Sparkline months={data.on_time_by_month} />}
-      <p className={cn("text-xs text-background/75", !data.on_time_by_month && "mt-auto")}>
+      {drawable(data.on_time_by_month) && <Sparkline months={data.on_time_by_month!} />}
+      <p className={cn("text-xs text-background/75", !drawable(data.on_time_by_month) && "mt-auto")}>
         <Figure href={drill(universe, rate.denominator)} label={`${dueLabel(rate.denominator)}, ${number.format(rate.numerator)} a tiempo`}
           className="font-medium text-background">{shown.detail}</Figure> entregas con fecha cumplida
       </p>

@@ -73,8 +73,8 @@ describe("Desempeño por reclutador (artboard 07)", () => {
   it("reads each figure with its «N de M», and a missing sample as «Sin datos suficientes»", () => {
     show();
     const [andreaRow, , carlosRow, fernandaRow] = rows().map(row => within(row).getAllByRole("cell").map(cell => cell.textContent));
-    expect(andreaRow.slice(1, 5)).toEqual(["9", "86%6 de 7", "6", "83% · 5 de 6"]);
-    expect(carlosRow.slice(1, 5)).toEqual(["6", "40%2 de 5", "3", "50% · 2 de 4"]);
+    expect(andreaRow.slice(1, 5)).toEqual(["9", "86% a tiempo6 de 7", "6", "83% · 5 de 6"]);
+    expect(carlosRow.slice(1, 5)).toEqual(["6", "40% a tiempo2 de 5", "3", "50% · 2 de 4"]);
     expect(fernandaRow.slice(1, 5)).toEqual(["2", "Sin datos suficientes", "0", "Sin datos suficientes"]);
   });
 
@@ -93,7 +93,20 @@ describe("Desempeño por reclutador (artboard 07)", () => {
     expect([assigned, onTime, placements, conversion].map(cell => cell.getAttribute("data-label"))).toEqual(["Vacantes asignadas", "Entregas a tiempo", "Placements", "Conversión"]);
     expect(name).not.toHaveAttribute("data-label");
     expect(detail).not.toHaveAttribute("data-label");
-    expect(within(rows()[1]).getAllByRole("cell").map(cell => cell.textContent).slice(1, 5)).toEqual(["11", "75%6 de 8", "9", "75% · 6 de 8"]);
+    expect(within(rows()[1]).getAllByRole("cell").map(cell => cell.textContent).slice(1, 5)).toEqual(["11", "75% a tiempo6 de 8", "9", "75% · 6 de 8"]);
+  });
+
+  it("keeps a narrow row to the name, the on-time rate and the chevron (rule 14), with no empty divider above the first row", () => {
+    flags.detailPage = true;
+    show();
+    const table = screen.getByRole("table");
+    expect(table).toHaveClass("max-md:[&_tbody_tr:first-child]:border-t-0");
+    const [name, assigned, onTime, placements, conversion, detail] = within(rows()[1]).getAllByRole("cell");
+    for (const cell of [assigned, placements, conversion]) expect(cell).toHaveClass("max-md:hidden");
+    for (const cell of [name, onTime, detail]) expect(cell).not.toHaveClass("max-md:hidden");
+    // The one figure says what it is on its own line, and its «N de M» waits for the wide table.
+    expect(within(onTime).getByText("a tiempo")).toHaveClass("md:hidden");
+    expect(within(onTime).getByRole("link", { name: "6 de 8: ver las 8 entregas con fecha de Mariana Torres" })).toHaveClass("max-md:hidden");
   });
 
   it("names a recruiter without a name", () => {

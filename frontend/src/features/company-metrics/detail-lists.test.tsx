@@ -27,6 +27,7 @@ afterEach(cleanup);
 
 // The page hands the list its drill-down: here a stand-in that marks the query, null for a 0 (as `drilldownHref`).
 const drill = (target: { kind: string; params: Record<string, string> }, count: number) => count === 0 ? null : `/detalle?${new URLSearchParams({ kind: target.kind, ...target.params })}`;
+const line = (text: string) => screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent === text);
 const show = (filters: Parameters<typeof VacancyList>[0]["filters"] = {}) =>
   render(<VacancyList filters={filters} person="Mariana Torres" drill={drill} vacancyHref={row => `/empresa/vacantes/${row.draft_id}/pipeline`} />);
 
@@ -41,10 +42,38 @@ describe("detail lists", () => {
     expect(screen.getByText("Tarde · 2 días hábiles")).toBeInTheDocument();
     expect(screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent === "7 de 6 entregados · compromiso 26 ago 2026")).toBeInTheDocument();
     expect(screen.getByText("Cubierta")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "2 de 2 posiciones: ver los placements de Supervisor de Producción" })).toHaveAttribute("href", `/detalle?kind=placements&vacancy_id=${draftId}`);
     expect(screen.getByRole("link", { name: "Ver la 1 reasignación de Supervisor de Producción" })).toHaveAttribute("href", `/detalle?kind=reassignments&vacancy_id=${draftId}`);
     expect(screen.queryByRole("button", { name: /^Acciones de|Columnas/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/sin datos personales/)).not.toBeInTheDocument();
+  });
+
+  it("shows «Posiciones» as the vacancy's current coverage in plain text, never a period-bound link (L54)", async () => {
+    show({ recruiter_id: marianaId });
+    const table = await screen.findByRole("table", { name: "Vacantes asignadas a Mariana Torres en el periodo" });
+    const positions = within(within(table).getAllByRole("row")[1]).getAllByRole("cell")[4];
+    expect(positions).toHaveAttribute("data-label", "Posiciones");
+    expect(positions).toHaveTextContent(/^2 de 2$/);
+    expect(within(positions).queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /posiciones/ })).not.toBeInTheDocument();
+  });
+
+  it("turns each row into name, delivery state and chevron on a narrow screen (rule 14, artboard 10 at 390 px)", async () => {
+    show({ recruiter_id: marianaId });
+    const table = await screen.findByRole("table", { name: "Vacantes asignadas a Mariana Torres en el periodo" });
+    const row = within(table).getAllByRole("row")[1];
+    const [title, responsible, delivery, close, positions, reassignments, chevron] = within(row).getAllByRole("cell");
+    for (const cell of [responsible, close, positions, reassignments]) expect(cell).toHaveClass("max-md:hidden");
+    expect(title).not.toHaveClass("max-md:hidden");
+    expect(delivery).not.toHaveClass("max-md:hidden");
+    // The state badge sits under the title and wraps instead of running past the card edge.
+    expect(within(delivery).getByText("Tarde · 2 días hábiles")).toHaveClass("max-md:whitespace-normal", "max-md:h-auto");
+    expect(line("7 de 6 entregados · compromiso 26 ago 2026")).toHaveClass("max-md:hidden");
+    // The chevron opens the vacancy, without a second tab stop or announcement; only below `md`.
+    expect(chevron).toHaveClass("md:hidden");
+    const open = chevron.querySelector("a");
+    expect(open).toHaveAttribute("href", `/empresa/vacantes/${draftId}/pipeline`);
+    expect(open).toHaveAttribute("tabindex", "-1");
+    expect(open).toHaveAttribute("aria-hidden", "true");
   });
 
   it("keeps a 0 as plain text: no delivered button, no positions or reassignments link", async () => {

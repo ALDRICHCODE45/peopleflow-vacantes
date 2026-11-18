@@ -2,7 +2,8 @@ import {
   CHANNEL_LABEL, CLOSE_REASON_LABEL, monthLabel, STAGE_KIND_LABEL, number, plural, REASSIGNMENT_REASON_LABEL, requesterLabel, share,
   type AppliedFilters, type DetailPage, type Person,
 } from "../model";
-import { NO_REQUESTER } from "../url-state";
+import { addDays, periodDays } from "../period";
+import { effectivePeriod, NO_REQUESTER, parseFilters } from "../url-state";
 import { isListKind, type DetailState } from "./query";
 
 /**
@@ -104,9 +105,29 @@ export function figureTitle({ kind, params }: DetailState): string {
   }
 }
 
+/**
+ * Where the figure's window sits against the board it was opened from (`back`): «vs periodo anterior» opens the period
+ * of the same length just before it (N1); a monthly bar of a recruiter page opens one month of its window. Read from
+ * the URL alone, so a shared link reads the same.
+ */
+export type WindowContext = { previous: boolean; month: string | null };
+const lastDay = (month: string) => { const [year, index] = month.split("-").map(Number); return new Date(Date.UTC(year, index, 0)).toISOString().slice(0, 10); };
+export function windowContext(state: DetailState, today: string): WindowContext {
+  const none = { previous: false, month: null };
+  if (!state.back || !state.params.from || !state.params.to) return none;
+  const board = effectivePeriod(parseFilters(new URL(state.back, "https://board.invalid").searchParams), today);
+  const { from, to } = state.params;
+  if (from === board.from && to === board.to) return none;
+  if (to === addDays(board.from, -1) && periodDays({ from, to }) === periodDays(board)) return { previous: true, month: null };
+  const month = from.slice(0, 7);
+  const whole = to.slice(0, 7) === month && from >= board.from && to <= board.to
+    && (from === `${month}-01` || from === board.from) && (to === lastDay(month) || to === board.to);
+  return whole ? { previous: false, month } : none;
+}
+
 /** «Entregas tarde · Jorge Paredes», «Vacantes cerradas · octubre 2026», «Placements · Grupo Bimbo». */
-export function detailTitle(state: DetailState, applied?: AppliedFilters): string {
-  const month = state.params.commitment_month ?? state.params.closed_month;
+export function detailTitle(state: DetailState, applied?: AppliedFilters, context?: WindowContext): string {
+  const month = state.params.commitment_month ?? state.params.closed_month ?? context?.month;
   const subjects = [subjectPerson(state, applied), requesterName(state, applied), vacancyTitle(state, applied), month && monthName(month)].filter(Boolean);
   return [figureTitle(state), ...subjects].join(" · ");
 }
@@ -186,14 +207,21 @@ function figureNoun({ kind, params }: DetailState): Noun {
     case "deliveries": return ["entrega", "entregas"];
   }
 }
+/** `previous`: opened from «vs periodo anterior» (`windowContext`); `closedTotal`: the conversion's closed vacancies. */
+export type SummaryContext = { previous?: boolean; closedTotal?: number | null };
+/** A conversion figure: closed vacancies with a placement credited to the person (its universe drops `credited_to`). */
+export const isConversion = ({ kind, params }: DetailState) => kind === "vacancies" && Boolean(params.credited_to) && closedScope(params);
 /**
  * «4 de 5 entregas de Jorge Paredes llegaron tarde en el periodo — 80 %» for one delivery result, against the same
  * universe as the board's on-time rate (a tiempo + tarde + vencidas) or every delivery for pending and sin meta; the
  * universe itself reads as its on-time share («2 de 5 entregas con fecha cumplida llegaron a tiempo — 40 %»), as the
  * board's rate it opens from; candidates are counted today (current state); applications by their sum in the chosen
- * channels, never by the rows; otherwise the count named after its figure («29 vacantes asignadas en el periodo.»).
+ * channels, never by the rows; a conversion as «N de M vacantes cerradas … tuvieron placement — X %» once its closed
+ * vacancies are counted; otherwise the count named after its figure («29 vacantes asignadas en el periodo.»). A figure
+ * from «vs periodo anterior» says «en el periodo anterior».
  */
-export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[] {
+export function summaryLine(state: DetailState, data: DetailPage, context: SummaryContext = {}): SummaryPart[] {
+  const where = context.previous ? "en el periodo anterior" : "en el periodo";
   const universe = data.kind === "deliveries" && isUniverse(state.params) && !state.params.late_bucket;
   const result = universe ? "on_time" : single(state.params.result);
   if (data.kind === "deliveries" && result && VERB[result]) {
@@ -206,7 +234,21 @@ export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[]
       const person = subjectPerson(state, data.page.applied_filters);
       // «Sin meta» counts vacancies, as the board's «vacantes sin meta configurada» does.
       const noun = result === "not_configured" ? (of === 1 ? "vacante" : "vacantes") : `${of === 1 ? "entrega" : "entregas"}${universe ? " con fecha cumplida" : ""}`;
-      return [[`${number.format(count)} de ${number.format(of)}`, true], [` ${noun}${person ? ` de ${person}` : ""} ${VERB[result][count === 1 ? 0 : 1]} en el periodo — `, false], [percent, true], [".", false]];
+      // «0 de 1 entrega … llegó»: one record in the universe also takes the singular.
+      const verb = VERB[result][count === 1 || of === 1 ? 0 : 1];
+      return [[`${number.format(count)} de ${number.format(of)}`, true], [` ${noun}${person ? ` de ${person}` : ""} ${verb} ${where} — `, false], [percent, true], [".", false]];
+    }
+  }
+  // «3 de 4 vacantes cerradas de Mariana Torres tuvieron placement — 75 %», as the on-time rate, once the closed
+  // vacancies (the same query without the credit) are counted.
+  if (data.kind === "vacancies" && isConversion(state) && context.closedTotal != null) {
+    const count = data.page.total;
+    const of = context.closedTotal;
+    const percent = share(count, of);
+    if (percent !== null) {
+      const person = subjectPerson(state, data.page.applied_filters);
+      const noun = of === 1 ? "vacante cerrada" : "vacantes cerradas";
+      return [[`${number.format(count)} de ${number.format(of)}`, true], [` ${noun}${person ? ` de ${person}` : ""} ${count === 1 || of === 1 ? "tuvo" : "tuvieron"} placement ${where} — `, false], [percent, true], [".", false]];
     }
   }
   if (data.kind === "candidates") {
@@ -214,8 +256,8 @@ export function summaryLine(state: DetailState, data: DetailPage): SummaryPart[]
     return [[count, true], [" hoy.", false]];
   }
   const [singular, pluralNoun, preposition = "de"] = figureNoun(state);
-  if (data.kind === "applications") return [[plural(data.page.total, singular, pluralNoun), true], [" en el periodo.", false]];
+  if (data.kind === "applications") return [[plural(data.page.total, singular, pluralNoun), true], [` ${where}.`, false]];
   // Rule 16: the line names the figure, and the person it is about when there is one.
   const person = subjectPerson(state, data.page.applied_filters);
-  return [[plural(data.page.total, singular, pluralNoun), true], [`${person ? ` ${preposition} ${person}` : ""} en el periodo.`, false]];
+  return [[plural(data.page.total, singular, pluralNoun), true], [`${person ? ` ${preposition} ${person}` : ""} ${where}.`, false]];
 }

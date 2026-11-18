@@ -56,7 +56,7 @@ function VacanciesSection({ who, assigned, period, drill, vacancyHref }: { who: 
   const ready = near && who !== null;
   const retry = useCallback(() => {}, []);
   const detailHref = who ? drill(targets(who.id).assigned, assigned) : null;
-  return <MetricsSection title="Vacantes con su participación"
+  return <MetricsSection title="Vacantes con su participación" helpFirst
     state={{ status: ready ? "ready" : "idle", data: ready ? who : null, stale: false, failure: null, ref, retry }}
     help={{ title: "Cómo se lee la lista de vacantes", body: <HelpList items={[
       ["Vacantes", `Las vacantes asignadas a ${who?.first ?? "la persona"} en el periodo, con su entrega, su último cierre, posiciones cubiertas y reasignaciones.`],

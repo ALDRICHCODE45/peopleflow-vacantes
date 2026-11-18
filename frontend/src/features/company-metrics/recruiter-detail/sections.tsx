@@ -81,11 +81,16 @@ function Strip({ data, drill, who }: { data: RecruiterDetail; drill: Drill; who:
     </KpiCard>
     <KpiCard label="Placements">
       <p className={KPI_VALUE}><Figure href={drill(t.placements, placements)} label={`${see(placements, "m", "placement", "placements")} de ${who.name}`}>{number.format(placements)}</Figure></p>
+      {/* Two whole parts: on a narrow card the line breaks between them, never inside «no se sostuvieron». */}
       <p className={KPI_LINE}>
-        <Figure href={drill(t.held, held)} className={INLINE_FIGURE} label={`${see(held, "m", "placement", "placements")} de ${who.name} que ${held === 1 ? "se sostiene" : "se sostienen"}`}>{number.format(held)}</Figure>
-        {held === 1 ? " se sostiene · " : " se sostienen · "}
-        <Figure href={drill(t.notHeld, notHeld)} className={INLINE_FIGURE} label={`${see(notHeld, "m", "placement", "placements")} de ${who.name} que no ${notHeld === 1 ? "se sostuvo" : "se sostuvieron"}`}>{number.format(notHeld)}</Figure>
-        {notHeld === 1 ? " no se sostuvo" : " no se sostuvieron"}
+        <span className="whitespace-nowrap">
+          <Figure href={drill(t.held, held)} className={INLINE_FIGURE} label={`${see(held, "m", "placement", "placements")} de ${who.name} que ${held === 1 ? "se sostiene" : "se sostienen"}`}>{number.format(held)}</Figure>
+          {held === 1 ? " se sostiene ·" : " se sostienen ·"}
+        </span>{" "}
+        <span className="whitespace-nowrap">
+          <Figure href={drill(t.notHeld, notHeld)} className={INLINE_FIGURE} label={`${see(notHeld, "m", "placement", "placements")} de ${who.name} que no ${notHeld === 1 ? "se sostuvo" : "se sostuvieron"}`}>{number.format(notHeld)}</Figure>
+          {notHeld === 1 ? " no se sostuvo" : " no se sostuvieron"}
+        </span>
       </p>
     </KpiCard>
   </div>;

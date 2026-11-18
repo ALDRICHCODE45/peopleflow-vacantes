@@ -117,6 +117,9 @@ describe("recruiter detail (artboard 10)", () => {
     expect(link(placements, "Ver los 9 placements de Mariana Torres")).toHaveTextContent(/^9$/);
     expect(link(placements, "Ver los 9 placements de Mariana Torres")).toHaveAttribute("href", dd("placements", { recipient: U }));
     expect(line(placements, "p", "9 se sostienen · 0 no se sostuvieron")).toBeInTheDocument();
+    // On a narrow KPI card the line breaks between its two parts only, never inside «no se sostuvieron».
+    expect(line(placements, "span", "9 se sostienen ·")).toHaveClass("whitespace-nowrap");
+    expect(line(placements, "span", "0 no se sostuvieron")).toHaveClass("whitespace-nowrap");
     expect(link(placements, "Ver los 9 placements de Mariana Torres que se sostienen")).toHaveAttribute("href", dd("placements", { recipient: U, held: "true" }));
     expect(within(placements).getAllByRole("link")).toHaveLength(2);
   });
@@ -202,6 +205,10 @@ describe("recruiter detail (artboard 10)", () => {
       "Cómo se calcula: Resumen", "Cómo se calcula: Entregas y placements", "Cómo se calcula: Carga de trabajo", "Cómo se calcula: Evolución mensual", "Cómo se calcula: Vacantes con su participación",
     ]);
     expect(screen.queryByText(/Entregas a tiempo entre las ya juzgadas/)).not.toBeInTheDocument();
+    // Artboard 10 order in the vacancies heading: «Cómo se calcula» first, then «Ver en detalle».
+    const heading = within(section("Vacantes con su participación")).getByRole("heading", { level: 2 }).parentElement!;
+    expect([...heading.querySelectorAll("button, a")].map(item => item.getAttribute("aria-label")))
+      .toEqual(["Cómo se calcula: Vacantes con su participación", "Ver las 11 vacantes asignadas a Mariana Torres en el detalle"]);
     await userEvent.click(screen.getByRole("button", { name: "Cómo se calcula: Resumen" }));
     const help = screen.getByRole("dialog");
     expect(within(help).getByText("Cómo se calcula el resumen")).toBeInTheDocument();
@@ -244,7 +251,9 @@ describe("recruiter detail (artboard 10)", () => {
     expect(screen.queryByRole("button", { name: /^Acciones de/ })).not.toBeInTheDocument();
     expect(link(vacancies, "Ver las 11 vacantes asignadas a Mariana Torres en el detalle")).toHaveAttribute("href", dd("vacancies", { scope: "assigned", recruiter_id: U }));
     expect(link(table, "Abrir vacante Supervisor de Producción")).toHaveAttribute("href", `/empresa/vacantes/${draftId}/pipeline`);
-    expect(link(table, "2 de 2 posiciones: ver los placements de Supervisor de Producción")).toHaveAttribute("href", dd("placements", { vacancy_id: draftId }));
+    // L54: «Posiciones» is the vacancy's current coverage (plain text); the period's placements open from the KPI.
+    expect(within(table).queryByRole("link", { name: /posiciones/ })).not.toBeInTheDocument();
+    expect(within(within(table).getAllByRole("row")[1]).getAllByRole("cell")[4]).toHaveTextContent(/^2 de 2$/);
     expect(link(table, "Ver la 1 reasignación de Supervisor de Producción")).toHaveAttribute("href", dd("reassignments", { vacancy_id: draftId }));
     expect(within(table).getByText("Tarde · 2 días hábiles")).toBeInTheDocument();
     expect(line(table, "span", "7 de 6 entregados · compromiso 26 ago 2026")).toBeInTheDocument();

@@ -12,25 +12,29 @@ import type { SectionState } from "./use-section";
 /**
  * One board section (`design/system.md` rules 1, 7, 15, 17): a short professional title, one «Cómo se calcula» trigger
  * with the definitions (never shown by default), its own skeleton, failure and retry; while new filters load, the last
- * numbers stay visible and dimmed so nothing jumps.
+ * numbers stay visible and dimmed so nothing jumps. `helpFirst` puts «Cómo se calcula» before the actions, as the
+ * recruiter page's artboard 10 does; the board keeps its actions first.
  */
-export function MetricsSection<T>({ title, help, state, skeleton, actions, children }: {
+export function MetricsSection<T>({ title, help, state, skeleton, actions, helpFirst = false, children }: {
   title: string;
   help: { title: string; body: ReactNode };
   state: Pick<SectionState<T>, "status" | "data" | "stale" | "failure" | "ref" | "retry">;
   skeleton: ReactNode;
   actions?: ReactNode;
+  helpFirst?: boolean;
   children: (data: T) => ReactNode;
 }) {
   const headingId = useId();
+  const helpTrigger = <SectionHelp title={help.title} body={help.body} section={title} />;
   const busy = state.status === "loading" || state.status === "idle";
   return <section ref={state.ref} aria-labelledby={headingId} aria-busy={busy || undefined} className="flex min-w-0 flex-col gap-6">
     {/* Rule 14: when the title and its actions do not fit on one line, the actions wrap below instead of squeezing it. */}
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <h2 id={headingId} className="min-w-0 text-lg font-semibold tracking-tight">{title}</h2>
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        {helpFirst && helpTrigger}
         {actions}
-        <SectionHelp title={help.title} body={help.body} section={title} />
+        {!helpFirst && helpTrigger}
       </div>
     </div>
     {state.data !== null && state.status !== "failed"

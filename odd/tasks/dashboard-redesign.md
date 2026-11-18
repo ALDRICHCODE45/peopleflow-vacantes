@@ -326,3 +326,14 @@ detail): compare with the user's references, research modern dashboard patterns,
   divider at 390, dark «Tarde» dot. S3, S5, S6, S8, S9 pass; S7, S10 fail.
 - **L54** User decision on «Posiciones»: «La celda muestra el estado, sin link (Recomendado)» — the cell stays the current
   coverage state as plain text; period placements keep their linked «Placements» KPI.
+- **L55** Demo diagnosis (Presentation request, read-only, `/tmp/pf-review/demo-diag/`): only Métricas demos well; the
+  seed writes `schema_version: 1` drafts, so vacancies/pipeline/config 404 and dashboard pipeline links break. Backend
+  confirmed it as a seed defect (backend T13, L23 there): seed moves to valid v2 drafts and `remove` also drops the
+  `company_sites` row the editor GET creates; metric figures unchanged; same branch, before the merge. Frontend gap found:
+  audit log shows `MetricsDetailViewed` without a Spanish label. The frontend dev server hit a Node heap OOM after ~4 h
+  (restarted); the first T21 suite run aborted before running any test (rerun).
+- **L56** T21 (worker): «Posiciones» as plain coverage state (L54); 390 px attention rows stack title/«Faltan»/badge (2-line
+  clamp); conversion summary «N de M … — X %» (extra closed-vacancy request); month and «periodo anterior» wording from
+  `back`; singular verb; compact 390 px rows on the recruiter page and Métricas recruiters; `helpFirst` on the recruiter
+  vacancies section; KPI line breaks only between parts; sparse sparkline hidden; first stacked row without top border;
+  `--pf-tone-late` for dark mode. Full suite (rerun): 574 files / 10404 tests passed, 2 skipped; tsc 0; lint 0 errors.

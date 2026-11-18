@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { SearchX } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -16,7 +16,7 @@ import { detailColumns, detailTable, type VacancyRef } from "./detail-columns";
 import { DetailHeading, FacetSwitch, facetOptions, FilterChipList, Pager, RecordsSkeleton, RecordsTable, rowRange, StalledToggle, useCursorPages, type FacetOption } from "./detail-parts";
 import { ExportDetailButton } from "./export-button";
 import { boardHref, defaultOrder, detailHref, FACET_PARAM, isListKind, parseDetail, SORTS, withParams, type DetailState, type ListKind } from "./query";
-import { detailTitle, figureTitle, filterChips, HELD_LABEL, RESULT_LABEL, summaryLine } from "./titles";
+import { detailTitle, figureTitle, filterChips, HELD_LABEL, isConversion, RESULT_LABEL, summaryLine, windowContext, type WindowContext } from "./titles";
 
 type Role = "owner" | "stakeholder";
 const CHANGED = "company-metrics-detail-url-change";
@@ -43,6 +43,26 @@ function useDetailList(state: DetailState & { kind: ListKind }) {
   return useCursorPages(detailHref(state), cursor => loadDetailAction({ kind, query: params, ...(cursor ? { cursor } : {}) }));
 }
 
+/**
+ * A conversion's universe: the same closed vacancies without the credit filter, counted by its own list `total`, so the
+ * summary reads «N de M … — X %» like the on-time rate. Null until it arrives (the line names the figure alone).
+ */
+function useClosedTotal(state: DetailState & { kind: ListKind }): number | null {
+  const query = useMemo(() => {
+    if (!isConversion(state)) return null;
+    return Object.fromEntries(Object.entries(state.params).filter(([name]) => !["credited_to", "sort", "order"].includes(name)));
+  }, [state]);
+  const asked = query ? new URLSearchParams(query).toString() : "";
+  const [counted, setCounted] = useState<[string, number] | null>(null);
+  useEffect(() => {
+    if (!query) return;
+    let active = true;
+    void loadDetailAction({ kind: "vacancies", query }).then(result => { if (active && result.ok) setCounted([asked, result.data.page.total]); }, () => {});
+    return () => { active = false; };
+  }, [asked]); // eslint-disable-line react-hooks/exhaustive-deps
+  return query && counted && counted[0] === asked ? counted[1] : null;
+}
+
 /** `/empresa/metricas/detalle`: the role gate first; the role decides where a vacancy opens (v2 §7). */
 export function MetricsDetailPage() {
   return <MetricsAccessGate label="Cargando el detalle">{role => <DetailWorkspace role={role} />}</MetricsAccessGate>;
@@ -67,6 +87,8 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
   const list = useDetailList(state);
   const [today] = useState(mexicoToday);
   const applied = list.data?.page.applied_filters;
+  const context = windowContext(state, today);
+  const closedTotal = useClosedTotal(state);
   const period = list.data && !list.stale ? list.data.page.period : effectivePeriod(state.params, today);
   // Candidates are current state (§5.5): the period is echoed but never applied, so it is not shown as their scope.
   const scope = state.kind === "candidates" ? "Foto de hoy; no depende del periodo" : `${dayLabel(period.from)} – ${dayLabel(period.to)}`;
@@ -89,7 +111,7 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
   };
 
   return <>
-    <DetailHeader state={state} title={detailTitle(state, applied)} freshness={freshness} actions={<ExportDetailButton state={state} />} />
+    <DetailHeader state={state} title={detailTitle(state, applied, context)} freshness={freshness} actions={<ExportDetailButton state={state} />} />
     <FilterChipList chips={chips} onRemove={chip => go(withParams(state, Object.fromEntries(chip.remove.map(key => [key, undefined]))))} />
     <Card className="gap-5 p-6" aria-busy={list.pending || undefined}>
       {list.notice && <p role="status" className="text-sm text-muted-foreground">{list.notice}</p>}
@@ -98,7 +120,7 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
         : !list.data
           ? <DetailSkeleton state={state} />
           : <div className={cn("flex min-w-0 flex-col gap-5 transition-opacity motion-reduce:transition-none", list.stale && "opacity-60")}>
-            <p className="text-base" aria-live="polite">{summaryLine(state, list.data).map(([text, bold], index) => bold ? <b key={index} className="font-semibold tabular-nums">{text}</b> : text)}</p>
+            <p className="text-base" aria-live="polite">{summaryLine(state, list.data, { previous: context.previous, closedTotal }).map(([text, bold], index) => bold ? <b key={index} className="font-semibold tabular-nums">{text}</b> : text)}</p>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <StatusSwitch state={state} data={list.data} onChange={value => go(withParams(state, { [facetParam]: value }))} />
               {list.data.kind === "candidates" && <StalledToggle pressed={state.params.stalled === "true"} count={list.data.page.facets.stalled}
@@ -108,7 +130,7 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
               ? <SectionEmpty icon={SearchX} tone="empty" title="Sin resultados"
                 description={statusFiltered ? "Ningún registro tiene este estado en el periodo y con estos filtros." : "Ningún registro coincide con estos filtros en el periodo."}
                 {...(statusFiltered ? { primaryAction: { label: "Ver todas", onClick: () => go(withParams(state, { [facetParam]: undefined })) } } : {})} />
-              : <RecordsTableFor state={state} data={list.data} vacancy={vacancy} onSort={(sort, order) => go(withParams(state, { sort, order }))} />}
+              : <RecordsTableFor state={state} data={list.data} context={context} vacancy={vacancy} onSort={(sort, order) => go(withParams(state, { sort, order }))} />}
             {list.data.page.items.length > 0 && <Pager range={pageRange(list.data, list.first)} hasPrevious={list.hasPrevious} hasNext={list.hasNext} pending={list.pending} onPrevious={list.previous} onNext={list.next} />}
           </div>}
     </Card>
@@ -149,11 +171,11 @@ function useSort(state: DetailState & { kind: ListKind }) {
   const order = state.params.order ?? defaultOrder(sort);
   return { sort, order: order as "asc" | "desc" };
 }
-function RecordsTableFor({ state, data, vacancy, onSort }: {
-  state: DetailState & { kind: ListKind }; data: DetailPage; vacancy: (ref: VacancyRef) => ReactNode; onSort: (sort: string, order: "asc" | "desc") => void;
+function RecordsTableFor({ state, data, context, vacancy, onSort }: {
+  state: DetailState & { kind: ListKind }; data: DetailPage; context: WindowContext; vacancy: (ref: VacancyRef) => ReactNode; onSort: (sort: string, order: "asc" | "desc") => void;
 }) {
   const { sort, order } = useSort(state);
-  return <RecordsTable table={detailTable(state, data, { vacancy })} caption={detailTitle(state, data.page.applied_filters)} sort={sort} order={order} onSort={onSort} />;
+  return <RecordsTable table={detailTable(state, data, { vacancy })} caption={detailTitle(state, data.page.applied_filters, context)} sort={sort} order={order} onSort={onSort} />;
 }
 
 function DetailSkeleton({ state }: { state: DetailState & { kind: ListKind } }) {

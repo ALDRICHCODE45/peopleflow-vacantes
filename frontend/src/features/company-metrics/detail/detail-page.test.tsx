@@ -105,6 +105,31 @@ describe("metrics detail page (artboard 08)", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Vacantes asignadas" })).toBeInTheDocument();
   });
 
+  it("states a conversion as «N de M vacantes cerradas … tuvo/tuvieron placement — X %», counting the closed vacancies without the credit filter", async () => {
+    at(`kind=vacancies&${period}&scope=closed_assigned&recruiter_id=${jorgeId}&credited_to=${jorgeId}`);
+    load.mockImplementation(async ({ query }) => ok({ kind: "vacancies", page: vacancyList({
+      total: query.credited_to ? 1 : 4, applied_filters: { recruiter: jorge, ...(query.credited_to ? { credited_to: jorge } : {}), scope: "closed_assigned" },
+    }) }));
+    render(<MetricsDetailPage />);
+    expect(await screen.findByText((_, node) => node?.tagName === "P" && /^1 de 4 vacantes cerradas de Jorge Paredes tuvo placement en el periodo — 25\s?%\.$/.test(node.textContent ?? ""))).toBeInTheDocument();
+    expect(load).toHaveBeenCalledWith({ kind: "vacancies", query: { from: "2026-08-01", to: "2026-10-31", recruiter_id: jorgeId, scope: "closed_assigned" } });
+  });
+
+  it("says «en el periodo anterior» for a figure opened from «vs periodo anterior» on the board", async () => {
+    at(`kind=vacancies&from=2026-05-01&to=2026-07-31&scope=assigned&back=${encodeURIComponent(`/empresa/metricas?${period}`)}`);
+    load.mockResolvedValue(ok({ kind: "vacancies", page: vacancyList({ total: 21, applied_filters: { scope: "assigned" } }) }));
+    render(<MetricsDetailPage />);
+    expect(await summaryText("21 vacantes asignadas en el periodo anterior.")).toBeInTheDocument();
+  });
+
+  it("names the month of a monthly figure opened from a recruiter page", async () => {
+    const back = `/empresa/metricas/reclutadores/${jorgeId}?from=2026-08-20&to=2026-11-17`;
+    at(`kind=vacancies&from=2026-09-01&to=2026-09-30&scope=assigned&recruiter_id=${jorgeId}&back=${encodeURIComponent(back)}`);
+    load.mockResolvedValue(ok({ kind: "vacancies", page: vacancyList({ total: 6, applied_filters: { scope: "assigned", recruiter: jorge } }) }));
+    render(<MetricsDetailPage />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Vacantes asignadas · Jorge Paredes · septiembre 2026" })).toBeInTheDocument();
+  });
+
   it("switches status from the facet counts and rewrites the URL filter", async () => {
     render(<MetricsDetailPage />);
     const group = await screen.findByRole("group", { name: "Estado de la entrega" });

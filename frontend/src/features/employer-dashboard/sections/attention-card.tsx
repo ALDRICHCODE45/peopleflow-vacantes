@@ -21,12 +21,15 @@ const TABS: { key: Tab; label: string; empty: (threshold: number) => string }[] 
   { key: "stalled", label: "Candidatos detenidos", empty: threshold => `Nadie lleva ${number.format(threshold)} días hábiles o más en la misma etapa.` },
 ];
 /**
- * Rule 14: below `md` the row stacks the name and meta over the consequence, with the badge and chevron on the right;
- * from `md` the four cells sit on one line. Every figure stays at every width.
+ * Rule 14: below `md` the row stacks the name and meta, the consequence and the badge in one full-width column, with the
+ * chevron on the right, so the title keeps the row's width (two lines at most); from `md` the four cells sit on one
+ * line. Every figure stays at every width.
  */
-const ROW = "-mx-2 grid min-h-15 grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-x-4 gap-y-1 rounded-lg px-2 py-2 outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_188px_148px_16px] md:gap-y-4 md:py-0";
+const ROW = "-mx-2 grid min-h-15 grid-cols-[minmax(0,1fr)_16px] items-center gap-x-4 gap-y-1 rounded-lg px-2 py-2 outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_188px_148px_16px] md:gap-y-4 md:py-0";
+const TITLE = "block font-medium group-hover/row:underline group-focus-visible/row:underline max-md:line-clamp-2 md:truncate";
 const CONSEQUENCE = "col-start-1 row-start-2 text-xs whitespace-nowrap tabular-nums md:col-start-2 md:row-start-1 md:text-sm";
-const SIDE = "row-span-2 row-start-1 md:row-span-1";
+const BADGE = "col-start-1 row-start-3 mt-1 justify-self-start md:col-start-3 md:row-start-1 md:mt-0 md:justify-self-end";
+const CHEVRON = "col-start-2 row-span-3 row-start-1 size-4 text-muted-foreground md:col-start-4 md:row-span-1";
 const title = (value: string) => value.trim() || "Vacante sin título";
 const lower = (value: string) => value.charAt(0).toLowerCase() + value.slice(1);
 
@@ -91,12 +94,12 @@ function DeliveryRow({ row, badge }: { row: AttentionSection["overdue"]["top"][n
   return <li>
     <Link href={vacancyPipelineHref(row.vacancy.draft_id)} aria-label={`Abrir el pipeline de ${name}: ${badge.long}, ${lower(consequence)}`} className={cn(ROW, "group/row")}>
       <span className="min-w-0">
-        <b className="block truncate font-medium group-hover/row:underline group-focus-visible/row:underline">{name}</b>
+        <b className={TITLE}>{name}</b>
         <span className="block truncate text-xs text-muted-foreground">{meta}</span>
       </span>
       <span className={CONSEQUENCE}>{consequence}</span>
-      <Badge variant={badge.danger ? "danger" : "neutral"} className={cn("col-start-2 h-[22px] justify-self-end md:col-start-3", SIDE)}>{badge.text}</Badge>
-      <ChevronRight aria-hidden="true" className={cn("col-start-3 size-4 text-muted-foreground md:col-start-4", SIDE)} />
+      <Badge variant={badge.danger ? "danger" : "neutral"} className={cn("h-[22px]", BADGE)}>{badge.text}</Badge>
+      <ChevronRight aria-hidden="true" className={CHEVRON} />
     </Link>
   </li>;
 }
@@ -111,13 +114,13 @@ function StalledRow({ row }: { row: AttentionSection["stalled"]["top"][number] }
       <span className="flex min-w-0 items-center gap-3">
         <Avatar className="size-8 shrink-0"><AvatarFallback className="bg-secondary text-xs font-medium text-foreground">{initials(name)}</AvatarFallback></Avatar>
         <span className="min-w-0">
-          <b className="block truncate font-medium group-hover/row:underline group-focus-visible/row:underline">{name}</b>
+          <b className={TITLE}>{name}</b>
           <span className="block truncate text-xs text-muted-foreground">{vacancy}</span>
         </span>
       </span>
       <span className={cn(CONSEQUENCE, "pl-11 md:pl-0")}>{days}</span>
-      <Badge className={cn("stage-badge col-start-2 h-[22px] max-w-36 justify-self-end truncate md:col-start-3", SIDE, stageTone(row.stage.kind))}>{stage}</Badge>
-      <ChevronRight aria-hidden="true" className={cn("col-start-3 size-4 text-muted-foreground md:col-start-4", SIDE)} />
+      <Badge className={cn("stage-badge h-[22px] max-w-36 truncate max-md:ml-11", BADGE, stageTone(row.stage.kind))}>{stage}</Badge>
+      <ChevronRight aria-hidden="true" className={CHEVRON} />
     </Link>
   </li>;
 }

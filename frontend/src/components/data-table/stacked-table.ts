@@ -2,9 +2,10 @@
  * Rule 14 (`design/system.md`, narrow screens): below `md` an overview or detail table becomes list rows, so nothing
  * scrolls sideways and no figure is lost. One markup for every width (no second copy of the links in the DOM): the
  * header row hides, each row stacks, the first cell is the row's title and every other cell names its column through
- * `data-label` (shown before its value).
+ * `data-label` (shown before its value). With the header row hidden, the first row drops its top divider so the list
+ * does not open on an empty line.
  */
-export const STACKED_TABLE = "max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden";
+export const STACKED_TABLE = "max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tbody_tr:first-child]:border-t-0";
 /** Each row as a two-column list item. */
 export const STACKED_ROW = "max-md:grid max-md:grid-cols-2 max-md:gap-x-4 max-md:gap-y-3 max-md:py-4";
 /** The row's title (its first cell): full width, wrapping. */

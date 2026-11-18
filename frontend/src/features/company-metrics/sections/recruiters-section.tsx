@@ -102,12 +102,14 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
   const conversion = card.placements.conversion;
   const conversionText = formatRate(conversion);
   const placements = placementTotal(card.placements);
-  // Rule 14: below `md` the row stacks; name and chevron on top, the four figures in a 2×2 named by their column.
+  // Rule 14: below `md` the row is the name, the on-time rate (the ranking's figure) and the chevron; the other figures
+  // wait for the wide table and the recruiter page.
   const cell = cn("h-14 px-3 text-right tabular-nums", STACKED_CELL);
+  const narrowHidden = "max-md:hidden";
   const delivered = (result: string): Drilldown => ({ kind: "deliveries", params: { attributed_to: user, result } });
   const closed = (credited: boolean): Drilldown => ({ kind: "vacancies", params: { scope: "closed_assigned", recruiter_id: user, ...(credited && { credited_to: user }) } });
-  return <TableRow className="hover:bg-muted/60 max-md:grid max-md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] max-md:items-center max-md:gap-x-4 max-md:gap-y-3 max-md:py-3">
-    <TableCell className="h-14 pr-3 pl-0 max-md:col-span-2 max-md:col-start-1 max-md:row-start-1 max-md:block max-md:h-auto max-md:p-0">
+  return <TableRow className="hover:bg-muted/60 max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto_40px] max-md:items-center max-md:gap-x-3 max-md:py-2">
+    <TableCell className="h-14 pr-3 pl-0 max-md:col-start-1 max-md:row-start-1 max-md:block max-md:h-auto max-md:min-w-0 max-md:p-0">
       <div className="flex min-w-0 items-center gap-3">
         <span aria-hidden="true" className={cn("grid size-8 shrink-0 place-items-center rounded-full text-xs font-medium", accentAvatar)}>{initials(name)}</span>
         <span className="min-w-0 truncate">
@@ -116,27 +118,29 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
         </span>
       </div>
     </TableCell>
-    <TableCell data-label="Vacantes asignadas" className={cn(cell, "max-md:col-start-1")}>
+    <TableCell data-label="Vacantes asignadas" className={cn(cell, narrowHidden)}>
       <Figure href={href({ kind: "vacancies", params: { scope: "assigned", recruiter_id: user } }, card.vacancies.assigned)}
         label={`Ver ${card.vacancies.assigned === 1 ? "la 1 vacante asignada" : `las ${number.format(card.vacancies.assigned)} vacantes asignadas`} a ${name}`}>{number.format(card.vacancies.assigned)}</Figure>
     </TableCell>
-    <TableCell data-label="Entregas a tiempo" className={cn(cell, "max-md:col-span-2 max-md:col-start-2")}>
-      {onTime.value === null ? <span className="text-muted-foreground">{NO_SAMPLE}</span>
-        : <span className="inline-flex items-center justify-end gap-3 max-md:justify-start">
+    <TableCell data-label="Entregas a tiempo" className="h-14 px-3 text-right tabular-nums max-md:col-start-2 max-md:row-start-1 max-md:block max-md:h-auto max-md:p-0">
+      {onTime.value === null ? <span className="text-muted-foreground max-md:text-xs">{NO_SAMPLE}</span>
+        : <span className="inline-flex items-center justify-end gap-3 max-md:gap-1">
           <span aria-hidden="true" className="h-2 w-28 overflow-hidden rounded-full bg-muted max-md:hidden">
             <span className="block h-full rounded-full" style={{ width: `${onTime.value * 100}%`, background: "color-mix(in oklab, var(--primary) 60%, var(--pf-tint-base))" }} />
           </span>
           <Figure href={href(delivered("on_time"), onTime.numerator)} className="min-w-10 font-semibold"
             label={`${onTimeText.value} a tiempo: ver ${onTime.numerator === 1 ? "la 1 entrega a tiempo" : `las ${number.format(onTime.numerator)} entregas a tiempo`} de ${name}`}>{onTimeText.value}</Figure>
-          <Figure href={href(delivered("on_time,late,overdue"), onTime.denominator)} className="min-w-16 text-muted-foreground"
+          {/* Below `md` the header is hidden, so the one figure says what it is. */}
+          {" "}<span aria-hidden="true" className="text-xs text-muted-foreground md:hidden">a tiempo</span>
+          <Figure href={href(delivered("on_time,late,overdue"), onTime.denominator)} className="min-w-16 text-muted-foreground max-md:hidden"
             label={`${onTimeText.detail}: ver ${onTime.denominator === 1 ? "la 1 entrega con fecha" : `las ${number.format(onTime.denominator)} entregas con fecha`} de ${name}`}>{onTimeText.detail}</Figure>
         </span>}
     </TableCell>
-    <TableCell data-label="Placements" className={cn(cell, "max-md:col-start-1")}>
+    <TableCell data-label="Placements" className={cn(cell, narrowHidden)}>
       <Figure href={href({ kind: "placements", params: { recipient: user } }, placements)}
         label={`Ver ${placements === 1 ? "el 1 placement" : `los ${number.format(placements)} placements`} de ${name}`}>{number.format(placements)}</Figure>
     </TableCell>
-    <TableCell data-label="Conversión" className={cn(cell, "max-md:col-span-2 max-md:col-start-2")}>
+    <TableCell data-label="Conversión" className={cn(cell, narrowHidden)}>
       {conversion.value === null ? <span className="text-muted-foreground">{NO_SAMPLE}</span>
         : <>
           <Figure href={href(closed(true), conversion.numerator)} className="font-semibold"

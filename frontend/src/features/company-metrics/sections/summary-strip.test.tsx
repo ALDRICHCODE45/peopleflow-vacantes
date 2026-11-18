@@ -54,6 +54,18 @@ describe("Resumen strip (artboard 07)", () => {
     expect(screen.getByRole("article", { name: "Entregas a tiempo" })).toHaveClass("pf-kpi-hero");
   });
 
+  it("draws the hero trend only when two months in a row have a rate, so sparse months leave no blank band", () => {
+    show();
+    expect(kpi("Entregas a tiempo").getByRole("img", { name: "Entregas a tiempo por mes: de 60% en agosto de 2026 a 70% en octubre de 2026" })).toBeInTheDocument();
+    cleanup();
+    const rate = (value: number | null) => ({ value, numerator: value === null ? 0 : 1, denominator: value === null ? 0 : 2 });
+    show(summaryV2({ on_time_by_month: [{ month: "2026-08", rate: rate(0.5) }, { month: "2026-09", rate: rate(null) }, { month: "2026-10", rate: rate(0) }] }));
+    const hero = kpi("Entregas a tiempo");
+    expect(hero.queryByRole("img")).not.toBeInTheDocument();
+    // Without a trend, the fraction keeps to the bottom of the tall desktop tile instead of floating under the pill.
+    expect(hero.getByText(/entregas con fecha cumplida/)).toHaveClass("mt-auto");
+  });
+
   it("shows the four headline cards with their deltas, lower being better for days and reassignments", () => {
     show();
     expect(kpi("Vacantes asignadas").getByText("42")).toBeInTheDocument();

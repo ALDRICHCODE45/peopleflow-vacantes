@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, TriangleAlert } from "lucide-react";
-import { STACKED_CELL, STACKED_ROW, STACKED_TABLE, STACKED_TITLE } from "@/components/data-table/stacked-table";
+import { BriefcaseBusiness, ChevronRight, TriangleAlert } from "lucide-react";
+import { STACKED_TABLE } from "@/components/data-table/stacked-table";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,13 @@ type Drill = (target: Drilldown, count: number) => string | null;
 const COLUMNS = ["Vacante", "Responsable actual", "Entrega", "Cierre", "Posiciones", "Reasignaciones"] as const;
 const FIGURE = "rounded-sm font-semibold underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring";
 const META = "mt-0.5 block text-xs text-muted-foreground";
+/**
+ * Rule 14 at 390 px (artboard 10 `.mrows`): name, the delivery state and a chevron; the other columns wait for the wide
+ * table («Ver en detalle» lists every figure). Title and state stack in the first column so the title keeps its width.
+ */
+const NARROW_ROW = "max-md:grid max-md:grid-cols-[minmax(0,1fr)_16px] max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:py-3";
+const NARROW_HIDDEN = "max-md:hidden";
+const NARROW_CELL = "max-md:block max-md:h-auto max-md:p-0 max-md:whitespace-normal";
 const personLine = (person: Person | null, fallback: string) => person ? `${personName(person)}${person.former_member ? " · Ex miembro" : ""}` : fallback;
 const titleOf = (row: VacancyRow) => row.title?.trim() || "Vacante sin título";
 
@@ -40,8 +47,9 @@ function DeliveryCell({ row, onOpen }: { row: VacancyRow; onOpen: () => void }) 
   const count = delivery.target !== null ? `${number.format(delivery.delivered)} de ${number.format(delivery.target)}` : number.format(delivery.delivered);
   const title = titleOf(row);
   return <>
-    <Badge variant="outline" className="h-[22px] gap-1.5 bg-card"><i aria-hidden="true" className="size-2 rounded-full" style={{ background: DELIVERY_TONE[delivery.result] }} />{text}</Badge>
-    <span className={META}>
+    {/* Below `md` the badge may wrap onto two lines instead of running past the card edge. */}
+    <Badge variant="outline" className="h-[22px] max-w-full gap-1.5 bg-card max-md:h-auto max-md:min-h-[22px] max-md:whitespace-normal"><i aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ background: DELIVERY_TONE[delivery.result] }} />{text}</Badge>
+    <span className={cn(META, NARROW_HIDDEN)}>
       {/* «N de M entregados» names candidates: it opens the audited sheet, never a list. */}
       {delivery.delivered > 0
         ? <button type="button" onClick={onOpen} className={cn(FIGURE, "font-medium text-foreground")} aria-haspopup="dialog"
@@ -78,9 +86,10 @@ function ListBody<T>({ list, render, empty }: { list: PagedList<T>; render: (ite
 }
 
 /**
- * «Vacantes con su participación» (artboard 10, rule 12): six columns, no column or row menus, rows below `md`
- * (`stacked-table.ts`). No candidate names: «N de M entregados» opens the audited sheet; positions and reassignments
- * open their detail lists; a 0 stays plain text.
+ * «Vacantes con su participación» (artboard 10, rule 12): six columns, no column or row menus; below `md` each row is
+ * name, delivery state and chevron (rule 14). No candidate names: «N de M entregados» opens the audited sheet;
+ * reassignments open their detail list; a 0 stays plain text. «Posiciones» is the vacancy's coverage today (L54): plain
+ * text, since the period's placements list would not match it (they open from the «Placements» KPI).
  */
 export function VacancyList({ filters, person, drill, vacancyHref }: {
   filters: MetricsFilters; person: string; drill: Drill; vacancyHref: (row: VacancyRow) => string;
@@ -97,21 +106,23 @@ export function VacancyList({ filters, person, drill, vacancyHref }: {
         <TableBody className="[&_tr]:border-t [&_tr]:border-b-0">{items.map(row => {
           const title = titleOf(row);
           const { covered, required } = row.placements;
-          return <TableRow key={row.draft_id} className={STACKED_ROW}>
-            <TableCell className={cn("h-16 pl-0 whitespace-normal", STACKED_TITLE)}>
-              <Link href={vacancyHref(row)} aria-label={`Abrir vacante ${title}`} className="rounded-sm font-medium text-primary-text underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring">{title}</Link>
+          const href = vacancyHref(row);
+          return <TableRow key={row.draft_id} className={NARROW_ROW}>
+            <TableCell className={cn("h-16 pl-0 whitespace-normal", NARROW_CELL, "max-md:col-start-1")}>
+              <Link href={href} aria-label={`Abrir vacante ${title}`} className="rounded-sm font-medium text-primary-text underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring">{title}</Link>
               <span className={META}>{`${requesterLabel(row.requester)} · ${requesterKindLabel(row.requester?.kind ?? null)}`}</span>
             </TableCell>
-            <TableCell data-label={COLUMNS[1]} className={cn("h-16", !row.responsible && "text-muted-foreground", STACKED_CELL)}>{personLine(row.responsible, "Sin responsable")}</TableCell>
-            <TableCell data-label={COLUMNS[2]} className={cn("h-16", STACKED_CELL)}><DeliveryCell row={row} onOpen={() => setTarget({ report: "deliveries", vacancy: row })} /></TableCell>
-            <TableCell data-label={COLUMNS[3]} className={cn("h-16", STACKED_CELL)}><CloseCell row={row} /></TableCell>
-            <TableCell data-label={COLUMNS[4]} className={cn("h-16 text-right tabular-nums", STACKED_CELL)}>
-              <Count href={drill({ kind: "placements", params: { vacancy_id: row.draft_id } }, covered)}
-                label={`${number.format(covered)} de ${number.format(required)} posiciones: ver los placements de ${title}`}>{`${number.format(covered)} de ${number.format(required)}`}</Count>
-            </TableCell>
-            <TableCell data-label={COLUMNS[5]} className={cn("h-16 pr-0 text-right tabular-nums", STACKED_CELL)}>
+            <TableCell data-label={COLUMNS[1]} className={cn("h-16", !row.responsible && "text-muted-foreground", NARROW_HIDDEN)}>{personLine(row.responsible, "Sin responsable")}</TableCell>
+            <TableCell data-label={COLUMNS[2]} className={cn("h-16", NARROW_CELL, "max-md:col-start-1 max-md:row-start-2")}><DeliveryCell row={row} onOpen={() => setTarget({ report: "deliveries", vacancy: row })} /></TableCell>
+            <TableCell data-label={COLUMNS[3]} className={cn("h-16", NARROW_HIDDEN)}><CloseCell row={row} /></TableCell>
+            <TableCell data-label={COLUMNS[4]} className={cn("h-16 text-right tabular-nums", NARROW_HIDDEN)}>{`${number.format(covered)} de ${number.format(required)}`}</TableCell>
+            <TableCell data-label={COLUMNS[5]} className={cn("h-16 pr-0 text-right tabular-nums", NARROW_HIDDEN)}>
               <Count href={drill({ kind: "reassignments", params: { vacancy_id: row.draft_id } }, row.reassignments)}
                 label={row.reassignments === 1 ? `Ver la 1 reasignación de ${title}` : `Ver las ${number.format(row.reassignments)} reasignaciones de ${title}`}>{number.format(row.reassignments)}</Count>
+            </TableCell>
+            {/* The chevron repeats the title's link below `md`: clickable, but not a second tab stop or announcement. */}
+            <TableCell className="max-md:col-start-2 max-md:row-span-2 max-md:row-start-1 max-md:block max-md:h-auto max-md:p-0 md:hidden">
+              <Link href={href} tabIndex={-1} aria-hidden="true" className="text-muted-foreground"><ChevronRight className="size-4" /></Link>
             </TableCell>
           </TableRow>;
         })}</TableBody>

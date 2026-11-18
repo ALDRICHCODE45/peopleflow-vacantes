@@ -5,7 +5,8 @@
  */
 export const DELIVERY_TONE = {
   on_time: "var(--primary)",
-  late: "color-mix(in oklab, var(--primary) 45%, var(--pf-tint-base))",
+  // globals.css: light violet over the card; in dark mode a brand-strong tint, since dark --primary is a deep fill.
+  late: "var(--pf-tone-late)",
   pending: "color-mix(in oklab, var(--muted-foreground) 35%, var(--card))",
   overdue: "var(--destructive)",
   not_configured: "var(--pf-tone-none)",
