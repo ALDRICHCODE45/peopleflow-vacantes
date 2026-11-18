@@ -1,0 +1,10 @@
+/* «Tus CVs» (artboard design/candidate-cvs-profile/03-cvs-vista-previa.html). Motion per design/system.md «Espacio del
+   candidato» 10: one entrance when the library first shows, transform and opacity only, nothing under reduced motion.
+   `.enter` sits on the workspace for 700 ms only, so selecting, uploading, renaming or deleting never replays it.
+   Content that arrives more than 600 ms after mount only fades in. */
+@media (prefers-reduced-motion: no-preference) {
+  .enter .rise { animation: rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--d, 0) * 40ms); }
+  .enter .fade { animation: fade 150ms ease-out both; }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes fade { from { opacity: 0; } }
