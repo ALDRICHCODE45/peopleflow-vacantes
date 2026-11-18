@@ -60,6 +60,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T11 | S5, S10 | (done, L20) Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
 | T12a | S10 | (done, L27) Implement `design/candidate-cvs-profile/03-cvs-vista-previa.html` on `/candidato/cvs` (L21); preview slot pluggable | — |
 | T12b | S10 | Real first-page preview for PDFs (source to decide: pdf.js vs backend inline/thumbnail) | — |
+| T13 | S10 | Employer side: accept and show `professional_title` from the application snapshot (board card, candidate sheet, talent base, dashboard recent, manual intake) before the backend merges (L29) | — |
 | T12c | S10 | (done, L28) Implement the chosen Perfil artboard (after the user's choice) | — |
 
 ## Log
@@ -213,3 +214,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   portfolio and seniority do not count) used by the editor and the dashboard. Worker choices: education status «Solo tú»;
   highest level includes «En curso»; ficha facts line; «Qué recibe la empresa» kept at 390. TDD partial: screen tests
   written after the first draft (RED observed only for completeness and visibility).
+- **L29** Backend `feat/snapshot-professional-title` (bb9e10bc migration 00061 constraint, ec4c7777 behaviour; not merged): board card/detail `profile.professional_title` (+ `original.professional_title`), talent base `professional_title` from the latest snapshot, dashboard `recent[].candidate.professional_title` from the snapshot, manual 201 includes it. The frontend board `profileSchema` is `.strict()` → the new key would break decoding; backend asked not to merge until the frontend accepts and shows it (T13), then merge together.
