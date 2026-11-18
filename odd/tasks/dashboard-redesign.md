@@ -340,3 +340,9 @@ detail): compare with the user's references, research modern dashboard patterns,
 - **L57** Audit log labels: the frontend Annex lacked 4 backend catalog types (backend `catalog.go`, 68 types):
   `MetricsDetailViewed` («Vio un detalle de métricas», sensitive_read) and `StakeholderInvitation{Created,Revoked,Accepted}`
   (members). RED observed («Otra acción»), pinned count 64 → 68; 8 related files / 142 tests green; eslint 0.
+- **L58** Focused browser check of T21 + audit labels at `83b66cb1` (`/tmp/pf-review/s10d/`): all 11 items PASS, 20
+  drill-downs figure = list total, Volver to origin, no console errors, no ≥400. **S7 PASS, S10 PASS.** Low polish left
+  open (follow-ups, not blocking the merge): dark «A tiempo» legend dot 2.0:1 (label beside it), monthly summaries say «en
+  el periodo», late-bucket % compares with itself, 390 px Métricas recruiter names cut by «Sin datos suficientes»,
+  «Desempeño por reclutador» action order, dashboard «Vacantes activas» not stacked at 390 px. Backend observation: each
+  drill-down page read writes two `MetricsDetailViewed` rows (IP 127.0.0.1, agent «node»: the Next server).
