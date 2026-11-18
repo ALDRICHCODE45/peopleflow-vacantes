@@ -357,3 +357,6 @@ detail): compare with the user's references, research modern dashboard patterns,
   (full suite L56) and `backend/` equals the backend branch. Not pushed (the user pushes). After the seed v2 re-apply some
   demo figures changed (on time 14, late 6, overdue 7, pending 4, not configured 0; in pipeline 30; stalled 14). Remaining:
   backend d2c (remove the old dashboard endpoint, now unused by the frontend) and the L58 low polish.
+- **L61** Production build (`next build` from the frontend tree identical to `main`, served by `next start` on :3000 for the
+  demo): warm-up of 11 routes 0.6–2.6 s, all 200. L59 measured: one placements drill-down in production sends ONE
+  `GET /v2/me/company/metrics/placements` (dev sent two), so the double audit row is `next dev` Strict Mode only — closed.
