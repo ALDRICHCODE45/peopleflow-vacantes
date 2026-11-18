@@ -56,6 +56,7 @@ detail): compare with the user's references, research modern dashboard patterns,
 | T18 | S3, S6–S10 | Implement `/empresa/metricas/reclutadores/[id]` from artboard 10 (L48) | — |
 | T19 | S10 | Rule 14 at 390 px: tables become list rows (recruiters, detail tables, attention rows); attention tabs and period control wrap instead of clipping (L48) | — |
 | T20 | S6–S10 | Re-review fixes (L47): Volver keeps the board state, dark-mode violet contrast, y-axis tick labels, sparse «A tiempo por mes», recruiters heading wrap, figure-named summaries, organic CSV columns, tab Home/End and duplicate tab stops, KPI unit wrap | — |
+| T21 | S7, S10 | Third-review fixes (L53): recruiter-detail «Posiciones» cell as plain coverage state (L54), 390 px attention row titles, low findings | — |
 
 ## Log
 
@@ -316,3 +317,12 @@ detail): compare with the user's references, research modern dashboard patterns,
   `back` to the recruiter page; `safeBoardPath` also accepts exactly `/empresa/metricas/reclutadores/<uuid>` (from/to only).
   Unused `monthly-series.tsx` and `metric-parts.tsx` removed. Full suite: 573 files / 10392 tests passed, 2 skipped; tsc 0;
   lint 0 errors (12 pre-existing warnings). Risk item 2 (redirect guard `back`) → independent verification.
+- **L53** Third S10 review at `19b049d9` (`/tmp/pf-review/s10c/`): redirect guard `back` PASS (30 hostile values, never
+  leaves the origin, never sent to the API/export). Recruiter detail matches artboard 10. L47 fixes hold; 139 drill-downs
+  figure = list = CSV except the recruiter-detail «Posiciones» cell (lifetime `placements.covered` vs period-bound list →
+  High). Medium: 390 px attention rows cut titles to ~9 chars. Low: conversion summary without %, clipped «Tarde» badge at
+  390 px, tall stacked rows (rule 14), monthly «asignadas» drill-down without month, «periodo anterior» summaries say «en el
+  periodo», «0 de 1 entrega … llegaron», header actions order, KPI line wrap at 1440, blank hero middle and empty first
+  divider at 390, dark «Tarde» dot. S3, S5, S6, S8, S9 pass; S7, S10 fail.
+- **L54** User decision on «Posiciones»: «La celda muestra el estado, sin link (Recomendado)» — the cell stays the current
+  coverage state as plain text; period placements keep their linked «Placements» KPI.
