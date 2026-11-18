@@ -2,10 +2,12 @@ import "server-only";
 import type { z } from "zod";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import {
-  closuresSchema, complianceSchema, delaysSchema, originSchema,
+  closuresSchema, complianceSchema, delaysSchema, originSchema, pipelineSchema, applicationListSchema, candidateListSchema,
   companyAccessSchema, deliveriesSchema, errorEnvelopeSchema, placementsSchema, reassignmentPageSchema, recruiterDetailSchema,
   recruiterPageSchema, summarySchema, UUID_PATTERN, vacancyPageSchema, type MetricsErrorEnvelope,
+  deliveryListSchema, placementListSchema, reassignmentListSchema, vacancyListSchema, type DetailPage,
 } from "./model";
+import type { ListKind } from "./detail/query";
 import type { Period } from "./period";
 
 const PATH = "/v2/me/company/metrics";
@@ -51,6 +53,8 @@ export const getClosures = (token: string, query: URLSearchParams) => get(`${PAT
 export const getCompliance = (token: string, query: URLSearchParams) => get(`${PATH}/compliance`, token, complianceSchema, query);
 export const getDelays = (token: string, query: URLSearchParams) => get(`${PATH}/delays`, token, delaysSchema, query);
 export const getOrigin = (token: string, query: URLSearchParams) => get(`${PATH}/origin`, token, originSchema, query);
+/** v2 §4.4: current state; the period is validated and echoed by the API, never applied. */
+export const getPipeline = (token: string, query: URLSearchParams) => get(`${PATH}/pipeline`, token, pipelineSchema, query);
 export const listRecruiters = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/recruiters`, token, recruiterPageSchema, paged(query, RECRUITER_LIMIT, cursor));
 export const listVacancies = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/vacancies`, token, vacancyPageSchema, paged(query, LIST_LIMIT, cursor));
 export const listReassignments = (token: string, query: URLSearchParams, cursor?: string) => get(`${PATH}/reassignments`, token, reassignmentPageSchema, paged(query, LIST_LIMIT, cursor));
@@ -73,4 +77,21 @@ export async function getDeliveries(token: string, draftId: string, period: Peri
 export async function getPlacements(token: string, draftId: string, period: Period) {
   if (!UUID_PATTERN.test(draftId)) return invalidRequest;
   return get(`${PATH}/vacancies/${draftId}/placements`, token, placementsSchema, periodQuery(period));
+}
+
+/**
+ * v2 §5: one page of a detail list. `kind` picks a fixed route (never a path built from input) and the query is the
+ * page's validated one; the cursor is opaque and bound by the API to the filters, sort and order.
+ */
+export async function listDetail(token: string, kind: ListKind, query: URLSearchParams, cursor?: string): Promise<{ ok: true; data: DetailPage } | MetricsClientFailure> {
+  const params = paged(query, LIST_LIMIT, cursor);
+  switch (kind) {
+    case "deliveries": { const r = await get(`${PATH}/deliveries`, token, deliveryListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    case "vacancies": { const r = await get(`${PATH}/vacancies`, token, vacancyListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    case "placements": { const r = await get(`${PATH}/placements`, token, placementListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    case "reassignments": { const r = await get(`${PATH}/reassignments`, token, reassignmentListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    case "candidates": { const r = await get(`${PATH}/candidates`, token, candidateListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    case "applications": { const r = await get(`${PATH}/applications`, token, applicationListSchema, params); return r.ok ? { ok: true, data: { kind, page: r.data } } : r; }
+    default: return invalidRequest;
+  }
 }

@@ -1,0 +1,49 @@
+{
+  "arrangement": "grid",
+  "positions": {
+    "system": {
+      "x": 0,
+      "y": 0
+    },
+    "01-pulso-dashboard.html": {
+      "x": 1520,
+      "y": 0
+    },
+    "02-pulso-metricas.html": {
+      "x": 3040,
+      "y": 0
+    },
+    "03-historia-dashboard.html": {
+      "x": 4560,
+      "y": 0
+    },
+    "04-historia-metricas.html": {
+      "x": 0,
+      "y": 3201
+    },
+    "05-foco-dashboard.html": {
+      "x": 1520,
+      "y": 3201
+    },
+    "06-foco-metricas.html": {
+      "x": 3040,
+      "y": 3201
+    },
+    "07-metricas-combinada.html": {
+      "x": 4560,
+      "y": 3201
+    },
+    "08-detalle-indagacion.html": {
+      "x": 0,
+      "y": 6702
+    },
+    "09-dashboard-empresa.html": {
+      "x": 1520,
+      "y": 6702
+    },
+    "10-detalle-reclutador.html": {
+      "x": 3040,
+      "y": 6702
+    }
+  }
+}

@@ -22,3 +22,9 @@ it("decodes the L7 fields array", async () => {
  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "unsafe", code: "invalid_filter", fields: [{ field: "vacancy", code: "not_found" }] }), { status: 400 })));
  expect(await listCandidates({ token: "x" })).toMatchObject({ ok: false, envelope: { code: "invalid_filter", fields: [{ field: "vacancy", code: "not_found" }] } });
 });
+it("sends the added dates of «Nuevos en la base» to the list (backend d2b)", async () => {
+ const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(page))); vi.stubGlobal("fetch", fetch);
+ await listCandidates({ token: "x", filters: { added_from: "2026-10-10", added_to: "2026-11-08" } });
+ const parsed = new URL(fetch.mock.calls[0][0]);
+ expect([parsed.searchParams.get("added_from"), parsed.searchParams.get("added_to")]).toEqual(["2026-10-10", "2026-11-08"]);
+});

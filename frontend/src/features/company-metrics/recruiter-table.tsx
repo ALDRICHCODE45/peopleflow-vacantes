@@ -44,17 +44,22 @@ function placementDetail(placements: RecruiterCard["placements"]) {
   return parts.join(" · ") || null;
 }
 
+/** The figures of a card, in column order: the wide table's columns and the narrow list's rows (rule 14) read the same. */
+const FIELDS: { id: Exclude<SortKey, "name">; label: string; size: number; render: (card: RecruiterCard) => React.ReactNode }[] = [
+  { id: "assigned", label: "Asignadas", size: 150, render: card => <TwoLineCell primary={number.format(card.vacancies.assigned)} secondary={plural(card.vacancies.started_in_period, "nueva", "nuevas")} /> },
+  { id: "on_time", label: "Entregas", size: 200, render: card => <TwoLineCell primary={`${number.format(card.delivery.on_time)} a tiempo`}
+    secondary={card.delivery.on_time + card.delivery.late + card.delivery.overdue ? `${plural(card.delivery.late, "tarde", "tarde")} · ${plural(card.delivery.overdue, "vencida", "vencidas")}` : "Ninguna vencía en el periodo"} /> },
+  { id: "median", label: "Mediana a la meta", size: 160, render: card => <TwoLineCell primary={formatMedian(card.delivery.median_business_days_to_target)} missing={card.delivery.median_business_days_to_target === null} /> },
+  { id: "delivered", label: "Entregados", size: 160, render: card => <TwoLineCell primary={number.format(card.delivery.delivered_in_tramo)} /> },
+  { id: "placements", label: "Placements", size: 200, render: card => <TwoLineCell primary={number.format(placementTotal(card.placements))} secondary={placementDetail(card.placements)} /> },
+  { id: "conversion", label: "Conversión", size: 170, render: card => { const rate = formatRate(card.placements.conversion); return <TwoLineCell primary={rate.value} secondary={rate.detail} missing={rate.value === NO_SAMPLE} />; } },
+  { id: "reassignments", label: "Reasignaciones", size: 190, render: card => <TwoLineCell primary={plural(card.reassignments.received, "recibida", "recibidas")} secondary={plural(card.reassignments.lost, "perdida", "perdidas")} /> },
+  { id: "business_days", label: "Días en tramos", size: 150, render: card => <TwoLineCell primary={number.format(card.business_days_in_tramos)} /> },
+];
+
 export const recruiterColumns: RichColumnDef<RecruiterCard>[] = [
   sortable("name", "Reclutador", 240, card => <Who card={card} />, { enableHiding: false }),
-  sortable("assigned", "Asignadas", 150, card => <TwoLineCell primary={number.format(card.vacancies.assigned)} secondary={plural(card.vacancies.started_in_period, "nueva", "nuevas")} />),
-  sortable("on_time", "Entregas", 200, card => <TwoLineCell primary={`${number.format(card.delivery.on_time)} a tiempo`}
-    secondary={card.delivery.on_time + card.delivery.late + card.delivery.overdue ? `${plural(card.delivery.late, "tarde", "tarde")} · ${plural(card.delivery.overdue, "vencida", "vencidas")}` : "Ninguna vencía en el periodo"} />),
-  sortable("median", "Mediana a la meta", 160, card => <TwoLineCell primary={formatMedian(card.delivery.median_business_days_to_target)} missing={card.delivery.median_business_days_to_target === null} />),
-  sortable("delivered", "Entregados", 160, card => <TwoLineCell primary={number.format(card.delivery.delivered_in_tramo)} />),
-  sortable("placements", "Placements", 200, card => <TwoLineCell primary={number.format(placementTotal(card.placements))} secondary={placementDetail(card.placements)} />),
-  sortable("conversion", "Conversión", 170, card => { const rate = formatRate(card.placements.conversion); return <TwoLineCell primary={rate.value} secondary={rate.detail} missing={rate.value === NO_SAMPLE} />; }),
-  sortable("reassignments", "Reasignaciones", 190, card => <TwoLineCell primary={plural(card.reassignments.received, "recibida", "recibidas")} secondary={plural(card.reassignments.lost, "perdida", "perdidas")} />),
-  sortable("business_days", "Días en tramos", 150, card => <TwoLineCell primary={number.format(card.business_days_in_tramos)} />),
+  ...FIELDS.map(field => sortable(field.id, field.label, field.size, field.render)),
   { id: "open", size: 56, header: () => <span className="sr-only">Ver ficha</span>, meta: { label: "Ver ficha", align: "center" }, enablePinning: false, enableHiding: false, enableReorder: false,
     cell: ({ row }) => <OpenCard card={row.original} /> },
 ];
@@ -100,8 +105,22 @@ export function RecruiterTable({ items, href }: { items: RecruiterCard[]; href: 
       </div>
     </div>
     <SortContext.Provider value={{ sort, toggle: key => setSort(current => nextSort(current, key)), href }}>
-      <RichDataTable id="company-metrics-recruiters" columns={recruiterColumns} data={sorted} getRowId={card => card.user_id} defaultPinning={{ start: ["name"], end: ["open"] }}
-        onRowActivate={card => router.push(href(card))} emptyState={null} compactControls sortState={{ id: sort.key, direction: sort.direction }} />
+      {/* Rule 14: below `md` one stacked row per person with every column's figure; the wide table from `md`. */}
+      <ul aria-label="Reclutadores" className="flex flex-col divide-y md:hidden">
+        {sorted.map(card => <li key={card.user_id} className="flex flex-col gap-3 py-4">
+          <div className="flex items-center gap-2"><div className="min-w-0 flex-1"><Who card={card} /></div><OpenCard card={card} /></div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+            {FIELDS.map(field => <div key={field.id} className="flex min-w-0 flex-col gap-1">
+              <dt className="text-xs text-muted-foreground">{field.label}</dt>
+              <dd className="min-w-0">{field.render(card)}</dd>
+            </div>)}
+          </dl>
+        </li>)}
+      </ul>
+      <div className="hidden md:block">
+        <RichDataTable id="company-metrics-recruiters" columns={recruiterColumns} data={sorted} getRowId={card => card.user_id} defaultPinning={{ start: ["name"], end: ["open"] }}
+          onRowActivate={card => router.push(href(card))} emptyState={null} compactControls sortState={{ id: sort.key, direction: sort.direction }} />
+      </div>
     </SortContext.Provider>
     <p className="text-xs text-muted-foreground">Ordenar acomoda las filas; no asigna posiciones. «Sin datos suficientes» significa que no hubo muestra en el periodo, no un cero, y esas filas van al final. Placements: dir. = crédito directo, part. = participación, comp. = compartido.</p>
   </section>;

@@ -1,23 +1,27 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ChartNoAxesColumn, SearchX, TriangleAlert } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { StateCard } from "@/components/feedback/state-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HelpProvider } from "@/features/psychometrics/help/info-popover";
-import { loadOverviewAction, type Overview } from "./actions";
+import { loadClosuresAction, loadComplianceAction, loadDelaysAction, loadOriginAction, loadPipelineAction, loadRecruitersAction, loadSummaryAction } from "./actions";
 import { failureMessage, fieldErrors, filterIssueMessages } from "./failure";
-import { MetricsFiltersBar, type RecruiterOption, type RequesterOption } from "./metrics-filters";
+import type { RecruiterOption, RequesterOption } from "./metrics-filters";
+import { MetricsBoardHeader } from "./metrics-header";
 import { MetricsRestricted } from "./metrics-page";
-import { dayLabel, momentLabel, type MetricsFailure, type MetricsResult } from "./model";
+import { dayLabel, momentLabel, type MetricsFailure, type MetricsSummary, type RecruiterCard } from "./model";
 import { mexicoToday } from "./period";
-import { RecruiterTable } from "./recruiter-table";
-import { SummaryCards } from "./summary-cards";
+import { ClosuresSection } from "./sections/closures-section";
+import { ComplianceSection } from "./sections/compliance-section";
+import { DelaysSection } from "./sections/delays-section";
+import { OriginSection } from "./sections/origin-section";
+import { PipelineSection } from "./sections/pipeline-section";
+import { RecruitersSection } from "./sections/recruiters-section";
+import { SummaryStrip } from "./sections/summary-strip";
 import { useMetricsUrl } from "./use-metrics-url";
-import { effectivePeriod, NO_REQUESTER, serializeFilters, type MetricsFilters } from "./url-state";
-
-const noResponse: MetricsFailure = { ok: false, reason: "no_response", reference: {} };
+import { useSection } from "./use-section";
+import { effectivePeriod, NO_REQUESTER, type MetricsFilters } from "./url-state";
 
 export function MetricsHeading({ title, description, version, computedAt }: { title: string; description: ReactNode; version?: string; computedAt?: Date }) {
   return <header className="flex flex-wrap items-end justify-between gap-3">
@@ -57,59 +61,60 @@ export function filteredViewNote(filters: MetricsFilters): string {
   return `Vista filtrada · ${parts.join(" ")}`;
 }
 
-const isQuiet = ({ summary, recruiters }: Overview) => recruiters.length === 0 && summary.vacancies.assigned === 0 && summary.delivery.total === 0
-  && summary.placements.credits === 0 && summary.reassignments.total === 0 && Object.values(summary.origin).every(value => value === 0)
+const quiet = (summary: MetricsSummary) => summary.vacancies.assigned === 0 && summary.delivery.total === 0 && summary.placements.credits === 0
+  && summary.reassignments.total === 0 && Object.values(summary.origin).every(value => value === 0)
   && summary.closed_by_month.every(month => month.filled + month.cancelled + month.other + month.no_reason === 0);
 
 /** Options seen so far stay available while a filter narrows the answer, so a filter never hides its own choices. */
-function useRememberedOptions(overview: Overview | null) {
+function useRememberedOptions(summary: MetricsSummary | null, cards: RecruiterCard[] | null) {
   const recruiters = useRef(new Map<string, RecruiterOption>());
   const requesters = useRef(new Map<string, RequesterOption>());
-  if (overview) {
-    for (const card of overview.recruiters) recruiters.current.set(card.user_id, { user_id: card.user_id, name: card.name, former_member: card.former_member });
-    for (const { requester } of overview.summary.by_requester) if (requester) requesters.current.set(`${requester.kind}:${requester.id ?? NO_REQUESTER}`, requester);
-  }
+  for (const card of cards ?? []) recruiters.current.set(card.user_id, { user_id: card.user_id, name: card.name, former_member: card.former_member });
+  for (const { requester } of summary?.by_requester ?? []) if (requester) requesters.current.set(`${requester.kind}:${requester.id ?? NO_REQUESTER}`, requester);
   // Both lists keep the backend order as first seen (§3.7.11); they are never re-sorted here.
   return { recruiters: [...recruiters.current.values()], requesters: [...requesters.current.values()] };
 }
 
-/** `/empresa/metricas` (artboard 01, corrected by L8): period and filters, company summary and recruiter table. */
+/**
+ * `/empresa/metricas` (artboard 07, `design/system.md` «Dashboards and metrics»): header with period and filters, then
+ * each section loading on its own; the sections below the fold load as they approach the viewport (rule 17).
+ */
 export function MetricsWorkspace({ details }: { details?: (filters: MetricsFilters) => ReactNode }) {
   const { filters, key, update } = useMetricsUrl();
   const [today] = useState(mexicoToday);
-  const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<{ result: MetricsResult<Overview>; at: Date } | null>(null);
-  const filtersRef = useRef(filters); filtersRef.current = filters;
-  useEffect(() => {
-    let active = true;
-    setState(null);
-    void loadOverviewAction(filtersRef.current).catch(() => noResponse).then(result => { if (active) setState({ result, at: new Date() }); });
-    return () => { active = false; };
-  }, [key, attempt]);
-  const overview = state?.result.ok ? state.result.data : null;
-  const options = useRememberedOptions(overview);
+  const summary = useSection(loadSummaryAction, filters, key);
+  const closures = useSection(loadClosuresAction, filters, key, { lazy: true });
+  const compliance = useSection(loadComplianceAction, filters, key, { lazy: true });
+  const pipeline = useSection(loadPipelineAction, filters, key, { lazy: true });
+  const delays = useSection(loadDelaysAction, filters, key, { lazy: true });
+  const recruiters = useSection(loadRecruitersAction, filters, key, { lazy: true });
+  const origin = useSection(loadOriginAction, filters, key, { lazy: true });
+  const options = useRememberedOptions(summary.data, recruiters.data);
   const period = effectivePeriod(filters, today);
   const narrowed = Boolean(filters.recruiter_id || filters.requester_kind || filters.requester_id);
-  const recruiterHref = (userId: string) => {
-    const query = serializeFilters(period).toString();
-    return `/empresa/metricas/reclutadores/${userId}?${query}`;
-  };
+  const sectionProps = { filters, period };
+  const invalid = summary.failure?.reason === "invalid_filter" ? summary.failure : null;
+  const blocking = summary.failure && ["forbidden", "unauthenticated", "invalid_filter"].includes(summary.failure.reason) ? summary.failure : null;
+  const settledQuiet = summary.status === "ready" && summary.data !== null && quiet(summary.data);
 
-  return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
-    <MetricsHeading title="Métricas de la empresa" version={overview?.summary.definitions_version} computedAt={overview ? state?.at : undefined}
-      description="Rendimiento de tu empresa en el periodo elegido. Cada número tiene su definición escrita: abre el ícono de información para leerla." />
-    <MetricsFiltersBar filters={filters} today={today} recruiters={options.recruiters} requesters={options.requesters} onChange={update}
-      serverErrors={state && !state.result.ok && state.result.reason === "invalid_filter" ? fieldErrors(state.result.fields) : undefined} />
-    {narrowed && <p role="status" className="text-sm text-muted-foreground"><span aria-hidden="true" className="text-primary">● </span>{filteredViewNote(filters)}</p>}
-    {!state ? <MetricsSkeleton />
-      : !state.result.ok ? <MetricsFailureCard failure={state.result} onRetry={() => setAttempt(value => value + 1)} onReset={() => update({})} />
-      : isQuiet(state.result.data) ? narrowed
+  return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-10">
+    <MetricsBoardHeader filters={filters} today={today} asOf={summary.data?.as_of} version={summary.data?.definitions_version}
+      appliedPeriod={summary.data ? { from: summary.data.period.from, to: summary.data.period.to } : undefined}
+      recruiters={options.recruiters} requesters={options.requesters} serverErrors={invalid ? fieldErrors(invalid.fields) : undefined}
+      onChange={update} onFiltersOpen={recruiters.activate} />
+    {blocking ? <MetricsFailureCard failure={blocking} onRetry={summary.retry} onReset={() => update({})} />
+      : settledQuiet ? narrowed
         ? <StateCard icon={SearchX} tone="empty" title="Sin resultados" description="Ninguna vacante coincide con el reclutador y el cliente o área elegidos en este periodo." primaryAction={{ label: "Limpiar filtros", onClick: () => update(period) }} />
         : <StateCard icon={ChartNoAxesColumn} tone="empty" title="No hubo actividad en este periodo" description={`Entre el ${dayLabel(period.from)} y el ${dayLabel(period.to)} no se asignó, cerró ni entregó ninguna vacante publicada. Prueba con un periodo más amplio.`} primaryAction={{ label: "Ver últimos 90 días", onClick: () => update({}) }} />
-      : <HelpProvider>
-        <SummaryCards summary={state.result.data.summary} />
-        <RecruiterTable items={state.result.data.recruiters} href={card => recruiterHref(card.user_id)} />
-      </HelpProvider>}
-    {state?.result.ok && details?.(filters)}
+      : <>
+        <SummaryStrip state={summary} {...sectionProps} />
+        <ClosuresSection state={closures} {...sectionProps} />
+        <ComplianceSection state={compliance} {...sectionProps} />
+        <PipelineSection state={pipeline} {...sectionProps} />
+        <DelaysSection state={delays} {...sectionProps} />
+        <RecruitersSection state={recruiters} {...sectionProps} />
+        <OriginSection state={origin} {...sectionProps} />
+        {details?.(filters)}
+      </>}
   </DashboardPageContent>;
 }

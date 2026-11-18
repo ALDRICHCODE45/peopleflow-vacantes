@@ -55,6 +55,42 @@ export function MetricsFiltersBar({ filters, today, recruiters, requesters, show
   const shortcut = issues.length ? CUSTOM : matchingShortcut(draft, today) ?? CUSTOM;
   const shortcutChoices: Option[] = [...SHORTCUTS, { value: CUSTOM, label: "Personalizado" }];
 
+  const pristine = !filters.recruiter_id && !filters.requester_kind && !filters.requester_id
+    && JSON.stringify(effectivePeriod(filters, today)) === JSON.stringify(defaultPeriod(today)) && !issues.length;
+
+  return <Card size="sm" className="min-w-0">
+    <CardContent>
+      <section aria-label="Periodo y filtros" className="flex min-w-0 flex-col gap-3">
+        <FieldGroup className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto] [&>*]:min-w-0">
+          <Field data-invalid={issue("from") ? true : undefined}>
+            <FieldLabel htmlFor="metrics-from">Desde</FieldLabel>
+            <DatePickerField id="metrics-from" allowPast className="w-full" value={draft.from} error={issue("from")} onChange={from => changePeriod({ ...draft, from })} />
+          </Field>
+          <Field data-invalid={issue("to") ? true : undefined}>
+            <FieldLabel htmlFor="metrics-to">Hasta</FieldLabel>
+            <DatePickerField id="metrics-to" allowPast className="w-full" value={draft.to} error={issue("to")} onChange={to => changePeriod({ ...draft, to })} />
+          </Field>
+          <PickFilter id="metrics-shortcut" label="Atajo" items={shortcutChoices} value={shortcut} onChange={value => { if (value !== CUSTOM) changePeriod(shortcutPeriod(value as Shortcut, today)); }}>
+            <SelectGroup>{plainItems(shortcutChoices)}</SelectGroup>
+          </PickFilter>
+          {showRecruiter && <AudienceFields filters={filters} recruiters={recruiters} requesters={requesters} serverErrors={serverErrors} onChange={onChange} />}
+          <div className="flex items-end self-stretch">
+            <Button type="button" variant="ghost" className="min-h-10" disabled={pristine} onClick={() => onChange({})}><RotateCcw aria-hidden="true" data-icon="inline-start" />Restablecer</Button>
+          </div>
+        </FieldGroup>
+        <p className="text-xs text-muted-foreground">{issues.length
+          ? "Las métricas siguen mostrando el último periodo válido hasta que lo corrijas."
+          : `${periodDays(draft)} días, ambos incluidos · máximo 366 · hora del centro de México. La URL guarda la vista para compartirla.`}</p>
+      </section>
+    </CardContent>
+  </Card>;
+}
+
+/** Recruiter and client-or-area pickers: in the v1 bar and in the board's «Filtros» popover (rule 11). */
+export function AudienceFields({ filters, recruiters, requesters, serverErrors = {}, onChange }: {
+  filters: MetricsFilters; recruiters?: RecruiterOption[]; requesters?: RequesterOption[];
+  serverErrors?: Partial<Record<FilterControl, string>>; onChange: (next: MetricsFilters) => void;
+}) {
   const people = recruiters ?? [];
   const recruiterChoices: Option[] = [{ value: ANY, label: "Todos los reclutadores" },
     ...(filters.recruiter_id && !people.some(person => person.user_id === filters.recruiter_id) ? [{ value: filters.recruiter_id, label: "Reclutador seleccionado" }] : []),
@@ -78,40 +114,30 @@ export function MetricsFiltersBar({ filters, today, recruiters, requesters, show
     const [kind, id] = value.split(":") as ["client" | "internal_area", string];
     onChange({ ...rest, requester_kind: kind, ...(id === "*" ? {} : { requester_id: id }) });
   };
-  const pristine = !filters.recruiter_id && !filters.requester_kind && !filters.requester_id
-    && JSON.stringify(effectivePeriod(filters, today)) === JSON.stringify(defaultPeriod(today)) && !issues.length;
+  return <>
+    <PickFilter id="metrics-recruiter" label="Reclutador" error={serverErrors.recruiter} items={recruiterChoices} value={filters.recruiter_id ?? ANY} onChange={value => onChange({ ...filters, recruiter_id: value === ANY ? undefined : value })}>
+      <SelectGroup>{plainItems(recruiterChoices)}</SelectGroup>
+    </PickFilter>
+    <PickFilter id="metrics-requester" label="Cliente o área" error={serverErrors.requester} items={requesterChoices} value={requesterValue} onChange={changeRequester}>
+      <SelectGroup><SelectItem value={ANY}>Todos los clientes y áreas</SelectItem></SelectGroup>
+      {groups.map(group => <SelectGroup key={group.kind}><SelectLabel>{group.label}</SelectLabel>{plainItems(group.options)}</SelectGroup>)}
+      <SelectGroup>{plainItems(requesterChoices.filter(option => option.value === NO_REQUESTER || option.label === "Solicitante seleccionado"))}</SelectGroup>
+    </PickFilter>
+  </>;
+}
 
-  return <Card size="sm" className="min-w-0">
-    <CardContent>
-      <section aria-label="Periodo y filtros" className="flex min-w-0 flex-col gap-3">
-        <FieldGroup className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto] [&>*]:min-w-0">
-          <Field data-invalid={issue("from") ? true : undefined}>
-            <FieldLabel htmlFor="metrics-from">Desde</FieldLabel>
-            <DatePickerField id="metrics-from" allowPast className="w-full" value={draft.from} error={issue("from")} onChange={from => changePeriod({ ...draft, from })} />
-          </Field>
-          <Field data-invalid={issue("to") ? true : undefined}>
-            <FieldLabel htmlFor="metrics-to">Hasta</FieldLabel>
-            <DatePickerField id="metrics-to" allowPast className="w-full" value={draft.to} error={issue("to")} onChange={to => changePeriod({ ...draft, to })} />
-          </Field>
-          <PickFilter id="metrics-shortcut" label="Atajo" items={shortcutChoices} value={shortcut} onChange={value => { if (value !== CUSTOM) changePeriod(shortcutPeriod(value as Shortcut, today)); }}>
-            <SelectGroup>{plainItems(shortcutChoices)}</SelectGroup>
-          </PickFilter>
-          {showRecruiter && <PickFilter id="metrics-recruiter" label="Reclutador" error={serverErrors.recruiter} items={recruiterChoices} value={filters.recruiter_id ?? ANY} onChange={value => onChange({ ...filters, recruiter_id: value === ANY ? undefined : value })}>
-            <SelectGroup>{plainItems(recruiterChoices)}</SelectGroup>
-          </PickFilter>}
-          {showRecruiter && <PickFilter id="metrics-requester" label="Cliente o área" error={serverErrors.requester} items={requesterChoices} value={requesterValue} onChange={changeRequester}>
-            <SelectGroup><SelectItem value={ANY}>Todos los clientes y áreas</SelectItem></SelectGroup>
-            {groups.map(group => <SelectGroup key={group.kind}><SelectLabel>{group.label}</SelectLabel>{plainItems(group.options)}</SelectGroup>)}
-            <SelectGroup>{plainItems(requesterChoices.filter(option => option.value === NO_REQUESTER || option.label === "Solicitante seleccionado"))}</SelectGroup>
-          </PickFilter>}
-          <div className="flex items-end self-stretch">
-            <Button type="button" variant="ghost" className="min-h-10" disabled={pristine} onClick={() => onChange({})}><RotateCcw aria-hidden="true" data-icon="inline-start" />Restablecer</Button>
-          </div>
-        </FieldGroup>
-        <p className="text-xs text-muted-foreground">{issues.length
-          ? "Las métricas siguen mostrando el último periodo válido hasta que lo corrijas."
-          : `${periodDays(draft)} días, ambos incluidos · máximo 366 · hora del centro de México. La URL guarda la vista para compartirla.`}</p>
-      </section>
-    </CardContent>
-  </Card>;
+/** Chip text for an active filter (rule 11), with the names already seen; an id never shown is named generically. */
+export function audienceChips(filters: MetricsFilters, recruiters: RecruiterOption[], requesters: RequesterOption[]): { key: "recruiter" | "requester"; label: string }[] {
+  const chips: { key: "recruiter" | "requester"; label: string }[] = [];
+  if (filters.recruiter_id) {
+    const person = recruiters.find(item => item.user_id === filters.recruiter_id);
+    chips.push({ key: "recruiter", label: `Reclutador: ${person ? recruiterLabel(person) : "seleccionado"}` });
+  }
+  if (filters.requester_id === NO_REQUESTER && !filters.requester_kind) chips.push({ key: "requester", label: "Sin solicitante" });
+  else if (filters.requester_kind) {
+    const kind = filters.requester_kind === "client" ? "Cliente" : "Área";
+    const requester = filters.requester_id ? requesters.find(item => item.kind === filters.requester_kind && (item.id ?? NO_REQUESTER) === filters.requester_id) : undefined;
+    chips.push({ key: "requester", label: !filters.requester_id ? `${kind}: todos` : `${kind}: ${requester ? requesterLabel(requester) : "seleccionado"}` });
+  }
+  return chips;
 }

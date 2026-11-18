@@ -1,9 +1,14 @@
 export const repeatableKeys = ["vacancy", "country", "state", "municipality", "seniority", "years", "language"] as const;
-export const singleKeys = ["q", "origin", "active_process", "language_min_level", "education_level", "education_in_progress"] as const;
+export const singleKeys = ["q", "origin", "active_process", "language_min_level", "education_level", "education_in_progress", "added_from", "added_to"] as const;
 export type CandidateFilters = Partial<Record<typeof repeatableKeys[number], string[]> & Record<typeof singleKeys[number], string>>;
 export type CandidateQuery = { filters?: CandidateFilters; cursor?: string; limit?: number };
 export type UrlState = { filters: CandidateFilters; view: "table" | "cards"; cursor?: string };
 
+/** A real calendar day, `YYYY-MM-DD` (the added dates: Mexico City days, inclusive). */
+function validDate(value: string): boolean {
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(time) && new Date(time).toISOString().startsWith(value);
+}
 /** Preserve opaque catalog ids. The server is authoritative for filter validity. */
 export function normalizeFilters(filters: CandidateFilters): CandidateFilters {
   const result: CandidateFilters = {};
@@ -17,6 +22,10 @@ export function normalizeFilters(filters: CandidateFilters): CandidateFilters {
   }
   if (!result.language?.length) delete result.language_min_level;
   if (!result.education_level) delete result.education_in_progress;
+  // «Nuevos en la base» on the dashboard opens the base with its window's dates; a malformed date is a 400 and a
+  // reversed pair a 422 (added_to.range), so neither travels.
+  for (const name of ["added_from", "added_to"] as const) if (result[name] && !validDate(result[name]!)) delete result[name];
+  if (result.added_from && result.added_to && result.added_from > result.added_to) { delete result.added_from; delete result.added_to; }
   return result;
 }
 export function parseUrlState(params: Pick<URLSearchParams, "get" | "getAll">): UrlState {

@@ -50,6 +50,13 @@ detail): compare with the user's references, research modern dashboard patterns,
 | T12 | S3, S5 | Dashboard 09 data needs (`docs/product/company-dashboard-v2-needs.md`) sent to the backend; review its proposal | — |
 | T13 | S3, S7–S10 | Implement `/empresa/dashboard` from 09 | — |
 | T11 | S3 | Company dashboard artboard with the same rules (`09-dashboard-empresa.html`) (done, L12) | `ae0707a8` |
+| T15 | S6–S10 | S10 review fixes (L43): blank «A tiempo por mes», old «Detalle del periodo» table removed (L44), 390 px overflow (attention tabs, period control, «Cómo se calcula»), «días hábiles» on overdue badges, organic applications table, attention card empty space, applications y-axis, low findings | — |
+| T16 | S7 | «Posiciones» drill-down summary from the list's positions aggregate (L44, needs backend field) | — |
+| T17 | S3, S7, S8 | Artboard `10-detalle-reclutador.html` (recruiter detail under Métricas with the dashboard rules), open on canvas (L48) | — |
+| T18 | S3, S6–S10 | Implement `/empresa/metricas/reclutadores/[id]` from artboard 10 (L48) | — |
+| T19 | S10 | Rule 14 at 390 px: tables become list rows (recruiters, detail tables, attention rows); attention tabs and period control wrap instead of clipping (L48) | — |
+| T20 | S6–S10 | Re-review fixes (L47): Volver keeps the board state, dark-mode violet contrast, y-axis tick labels, sparse «A tiempo por mes», recruiters heading wrap, figure-named summaries, organic CSV columns, tab Home/End and duplicate tab stops, KPI unit wrap | — |
+| T21 | S7, S10 | Third-review fixes (L53): recruiter-detail «Posiciones» cell as plain coverage state (L54), 390 px attention row titles, low findings | — |
 
 ## Log
 
@@ -154,3 +161,193 @@ detail): compare with the user's references, research modern dashboard patterns,
   `headline`, `on_time_by_month`); new schemas and actions for closures, compliance, delays, origin and recruiters, each
   section loading on its own. Overdue rows decode optional `requester` + `attributed_to [person]` (backend choice, v2b).
   Merged to local main so the backend can merge v2 after the user pushes (main frontend decoded v1 with `.strict()`).
+- **L19** T10a-A2 (`73d3cd48`): `drilldown.ts` (detail URL from the figure query, period and filters; off until T10b; 0 is
+  never a link), `delta.ts` (N1 count/median/rate deltas with "lower is better"), `use-section.ts` (eager or lazy near
+  the viewport, stale data kept dimmed, late answers dropped, retry). Slice boundary: the next commit starts slice 2
+  (workspace rewrite + sections).
+- **L20** T10a-A3: board workspace rewritten for v2 — `MetricsBoardHeader` (title, scope, freshness from `as_of` +
+  applied period + definitions version, period control 30 días / 90 días / 12 meses / Personalizado, one «Filtros»
+  popover with removable chips), `MetricsSection` shell (professional title, «Cómo se calcula» popover, own skeleton,
+  failure + retry, stale numbers dimmed), section slots in `sections/*` (placeholders for B1/B2), `palette.ts`
+  (rule 9 tones), `figure.tsx` (drillable figure). New period shortcut «12 meses» = twelve calendar months up to today
+  (artboard said «Año»; twelve whole months keep twelve chart points inside the 366-day limit). Lazy sections load
+  near the viewport; «Filtros» loads the recruiter names on open. Tests: company-metrics 99 passed; typecheck 0; eslint 0.
+- **L21** Backend v2b ready (`81041985`): lists deliveries/vacancies/placements/reassignments with sort/order/limit/
+  cursor (cursor v2; a v1 cursor is 400), total, facets, applied_filters, vacancy_id; `{kind}/export` CSV (placements
+  audited per page and per export). Default order asc on title/candidate/reason, desc otherwise; a repeated value in a
+  multi filter is 422; `requester_kind` alone echoes as `requester_kind`; `held` is boolean; CSV enum cells carry API
+  codes. Strict routes only gain `requester`/`attributed_to` on `delays.overdue.top`. T10b unblocked.
+- **L22** User pushed main (tolerant decoders on origin/main). Agreed with the backend: one merge of v2 after v2c and the
+  verified board frontend. T10b writer launch refused while B1/B2 run (the `(empresa)` route glob was read as
+  overlapping); relaunch T10b when B1/B2 finish.
+- **L23** Browser review plan (explorer): real backend v2 branch on :8081 + frontend dev on :3000 + Cognito sign-in in
+  the Playwright MCP browser; no test sessions exist and the fixture API has no metrics routes. User decisions: «Tú
+  inicias sesión» (the user types the passwords) and «Empresa demo con datos» (a dev-only seed creating a separate demo
+  company with realistic metrics data, Trust People Company untouched). Seed + demo accounts requested from the backend
+  session, proposal first before touching the local DB or Cognito.
+- **L24** Demo seed approved by the user: backend dev-only Go command `backend/cmd/devseed-metrics-demo` (apply/remove,
+  refuses non-local DBs, deterministic ids, relative dates, integration test figure = list total), company «Demo
+  Métricas». The user registers nocheblanca92+demo-owner/stakeholder/recruiter@gmail.com himself through normal app
+  sign-up; `apply` then adds their memberships. Audit rows from the demo stay on `remove`. Backend builds it after v2c.
+- **L25** T10b (`759391ee`): `/empresa/metricas/detalle` per artboard 08 — per-kind query validation, title from
+  applied_filters, chips, facet status switch, sortable table (≤ 6 columns), cursor pagination, links by role (owner →
+  vacancy board, stakeholder → stays in metrics), CSV export route handler (422 too large → readable message), audit
+  catalog «Detalle de métricas exportado». Drill-down links switched on (`DETAIL_PAGE_ENABLED = true`).
+  Backend §4.4 adjustment for v2c: a top vacancy opens `candidates?vacancy_id=V&stage_kind=new,screening,screening_ok,
+  in_process,custom,retired`; applications `total` = sum of applications in the chosen channels.
+- **L26** Backend v2 complete: v2c (`f6e61e59`) adds `pipeline` (§4.4), `candidates` (audited per page, facets
+  stage_kind/stalled), `applications` (total = sum of chosen channels, facets channel), both exports, migration 00060
+  (index). No strict route changed. Backend now builds the demo seed. T10c worker launched (pipeline section between
+  Cumplimiento and Retrasos, candidates/applications detail kinds).
+- **L27** Backend dashboard contract `docs/contracts/company-dashboard-v2.md` (backend branch): sections
+  `/v2/me/company/dashboard/{summary,attention,pipeline,vacancies,recent,origin}` on the metrics engine behind the
+  recruiter gate, `window=7|30|90`, lists with the metrics §5 grammar (not audited). Frontend review approved, no
+  additions. User accepted DD1–DD6 («Acepto las 6 recomendaciones»): DD1 recruiter sees own vacancies, owner the
+  company; DD2 one «en proceso» = active, not new, not placement (also changes metrics top_vacancies.in_process before
+  the single merge); DD3 positions covered = active placement credits; DD4 dashboard lists not audited; DD5 no
+  stakeholder dashboard; DD6 due this week = today to Sunday, Mexico City.
+- **L28** Backend confirmed the DD2 query: top_vacancies opens `candidates?vacancy_id=V&stage_kind=screening,screening_ok,
+  in_process,custom,retired` (replaces L25's). Backend order: seed → DD2 metrics adjustment → d2a → d2b; d2c after the
+  frontend stops calling the old dashboard endpoint.
+- **L29** T10c: pipeline section (between Cumplimiento and Retrasos, lazy; stages with candidates, median days, stalled;
+  top vacancies opening the DD2 query) and detail kinds candidates (never links) and applications (summary uses the
+  response total). Stage labels reuse the app's pipeline words (Nuevos, Screening, Screening OK, En proceso, Placement,
+  «Columnas propias», «Columnas retiradas»). 212 tests green in company-metrics + metricas routes.
+- **L30** Full suite after T10c (`ccdf1162`): 560 files passed, 1 failed — `features/jobs/requestPath.test.ts` (3 tests):
+  the metrics CSV export broke the reviewed request-path boundary (fetch in `company-metrics/client.ts` and
+  `detail/detail-page.tsx`, route handler outside `app/api`). Fix delegated: mirror the audit export
+  (`app/api/company/metrics/[kind]/export/route.ts`, server-only `export-client.ts`, `detail/export-button.tsx`).
+  Risk: item 2 (a route handler forwarding the session token) → independent verification after the fix.
+- **L31** Backend demo seed ready (`c13cae15`, verified only against draft_test): company «Demo Métricas», 31 published
+  vacancies, deliveries 12/6/5/3/5, 20 placements (1 did not hold), 6 reassignments, applications 68/37/19/16, pipeline
+  with stalled and custom/retired, 7 recruiter cards (1 former member). Order proposed: backend migrates the local DB to
+  00060 and starts the v2 API on :8081 → frontend dev on :3000 → user registers and signs in once with each demo account
+  (no company) → backend runs `apply`.
+- **L32** Export boundary fixed (95cf6b2f): route `app/api/company/metrics/[kind]/export/route.ts`,
+  server-only `company-metrics/export-client.ts`, `detail/export-button.tsx`; old route removed; request-path guard
+  allowlists extended for the new files only. 498 focused tests green, typecheck 0. Differs from the audit export: GET
+  with a query (matches the upstream GET) instead of POST; cross-site blocked by Origin/Sec-Fetch-Site. Backend DD2
+  applied (`cd8bcaae`), API on :8081 restarted.
+- **L33** Independent verification of the export boundary: pass (no token leak, path injection, backend text echo or
+  weakened guard), with one low-severity note — a GET export relies only on Origin/Sec-Fetch-Site against cross-site
+  navigation. Hardened in `74f2617e`: the route answers only POST (like the audit export, so SameSite=Lax keeps the session
+  cookie off cross-site requests) and «Exportar CSV» is a button posting to it. 93 focused tests green, typecheck 0.
+- **L34** Full frontend suite on `feat/metrics-redesign` after the export hardening: 562 files / 10235 tests passed, 2
+  skipped; lint 0 errors (12 pre-existing warnings); typecheck 0. Waiting for the user's demo account sign-ins.
+- **L35** Backend d2a ready (`569f75f1`): `/v2/me/company/dashboard/{summary,attention,pipeline,vacancies,recent,origin}
+  ?window=7|30|90`, owner + recruiter, scope from the session; decisions in backend/docs/dashboard-v2.md (paused
+  vacancies out of the summary figures but in attention/pipeline; vacancies section lists 0-in-process too; origin
+  splits manual by origin_channel; window=7 pool counts 7 Mexico City calendar days; recent/origin include closed
+  vacancies the recruiter still holds). T13 worker launched against d2a, drill-down links off until d2b. :8081
+  restarted with d2a (no seed yet).
+- **L36** T13 worker stalled once on a large write (partial work on disk); resumed once in small writes. Backend: :8081
+  runs `569f75f1` (metrics v2 + DD2 + dashboard d2a); d2b lists will live at
+  `/v2/me/company/dashboard/lists/{candidates,deliveries,vacancies,applications}`.
+- **L37** Backend d2b ready (`5abe42b0`, :8081 runs it): dashboard lists `/v2/me/company/dashboard/lists/{candidates,
+  deliveries,vacancies,applications}` + `/export`, metrics §5 grammar, scope forced by role, not audited; every
+  drill-down link must carry the section's `window` (on/from/to validated against it); talent base accepts
+  `added_from/added_to` (drill-down of «Nuevos en la base», total = pool_added). Figure = list total tested for owner
+  and two recruiters. Pending: a frontend page for the dashboard lists (follow-up T14) before switching those links on;
+  backend d2c (remove the old endpoint) after the frontend stops calling it.
+- **L39** Backend benchmark (`221fca61`, backend/docs/metrics-benchmark.md; 300 vacancies, ~10k participations, 30 runs
+  per route): metrics summary cold p95 57 ms (budget 400), dashboard summary cold p95 236 ms (least margin: history
+  rebuild), every warm section or list page p95 ≤ 16 ms (budget 50); no nightly rollup needed. Backend metrics v2 and
+  dashboard v2 complete; only d2c (remove the old dashboard endpoint) remains.
+- **L40** T14 (`8963eaad`): `/empresa/dashboard/detalle` reads the four d2b lists with the URL window (Back keeps it),
+  shared detail parts extracted from the Métricas page (`company-metrics/detail/detail-parts.tsx`, its tests still
+  green), POST-only CSV export `app/api/company/dashboard/[kind]/export/route.ts` + server-only
+  `employer-dashboard/export-client.ts` (requestPath allowlist extended), dashboard links on, talent base reads
+  `added_from/added_to` with one removable chip. 83 files / 1073 focused tests green, typecheck 0. Risk item 2 (token
+  forwarding) → independent verification.
+- **L41** Independent verification of the dashboard export boundary (`8963eaad`): PASS on all 7 items (POST only,
+  Origin/Sec-Fetch-Site, kind allowlist, window kept, token server-side, only CSV headers, no backend text; server-only
+  adapter identical to metrics; shared POST button; requestPath additions only; talent-base dates validated; Métricas
+  detail role links unchanged). Not verified: the dashboard detail page has no client role gate of its own (relies on
+  the API 403 → access card, DD5); no live checks.
+- **L42** Full frontend suite after T14 (`f875d4ed`): 571 files / 10352 tests passed, 2 skipped; typecheck 0; lint 0
+  errors (12 pre-existing warnings). Remaining before the single merge: the browser review (S10) with the demo seed,
+  which waits for the user's three demo sign-ins.
+- **L43** S10 browser review (2026-11-17, demo seed applied by the backend, owner/stakeholder/recruiter signed in by the
+  agent, 44 drill-downs, CSV, Volver, scope, dark, 390 px; screenshots `/tmp/pf-review/s10/`): S10 fails. High: «A tiempo
+  por mes» draws nothing (isolated points, no dots, `compliance-section.tsx:127`); «Posiciones» (2 de 14) opens 8
+  vacancies (figure ≠ list). Medium: old «Detalle del periodo» table still on Métricas; 390 px overflow of the attention
+  tabs and the period control; «Venció hace 64 días» counts business days without saying so; organic applications table
+  shows Manual but the total omits it, no selected channel tab; attention card empty space (`flex-1`); applications
+  y-axis 0–4 for max ~1.6 (`allowDecimals={false}`). Low: dark hero tile near-white, clipped axis labels / «Columnas
+  pro…», grammar «Ver las 1 …», «1 de 1 entregas está», summaries saying «registros», «11 vacantes en el periodo» opens
+  «Entregas» with no chip, point CSV named after the window, recruiter access card alignment, Volver pushes history.
+  Every other figure = list total; no console errors; scope per role correct. Login lands on `/empresa/login`
+  («Ir a mi panel») by design. «Nuevos en la base» = 0 is the seed (no `company_candidates`).
+- **L44** User decisions: «Posiciones» → «Lista de vacantes, mostrando las posiciones (Recomendado)» (same list; title
+  and summary speak of positions, backend adds the positions totals to the list response; asked to the backend);
+  «Detalle del periodo» table → «Quitarla (Recomendado)».
+- **L45** Backend `812903c8`: `GET /v2/me/company/dashboard/lists/vacancies` returns a response-level
+  `positions: {covered, required}` over every filtered row (all pages, role scope, DD3); with `status=published` it equals
+  `summary.positions`; always present (0/0 when empty); export unchanged; :8081 restarted.
+- **L46** T15/T16 rest (worker): dashboard «Posiciones» page reads the list `positions` («2 de 14 posiciones cubiertas en
+  8 vacantes publicadas; 12 por cubrir.»), applications columns follow the channel filter with an «Orgánicas» tab, fitted
+  applications y-axis (`yScale`), singular grammar, figure-named summaries, point CSV names, centred recruiter access card,
+  Volver with replace, dark hero tile `.pf-kpi-hero` and tint tokens, taller closures x-axis, pipeline label column.
+  Métricas month-point CSV names unchanged. Full suite: 572 files / 10360 tests passed, 2 skipped; tsc 0; lint 0 errors
+  (12 pre-existing warnings). Assess: no independent verifier (no high-risk item).
+- **L47** S10 re-review at `3566fa80` (`/tmp/pf-review/s10b/`): L43 fixes hold (positions summary, old table gone,
+  días hábiles, organic table, dark hero, grammar, Volver history); partial: «A tiempo por mes» shows two lone dots, 390 px
+  tabs/period scroll and clip, attention card blank tail, y-axis ticks «0.3/0.8». New: High — recruiter detail
+  `/empresa/metricas/reclutadores/[id]` still v1 (rules 4, 7, 9, 11, 12, 16). Medium — Volver rebuilds the board from the
+  detail filters (recruiter_id chip «seleccionado», previous period); dark-mode violet text ≈2:1; 390 px tables scroll
+  instead of list rows (rule 14). Low — summaries not naming the figure (40% a tiempo, conversión, orgánicas), «vacantes
+  sin meta» vs «entregas», organic CSV keeps Manual, tabs lack Home/End, duplicate tab stops, «16 días / hábiles» wrap.
+  34 drill-downs: figure = list total = CSV rows; no console errors, no ≥400.
+- **L48** User decisions: recruiter detail → «Rediseñarla ahora, antes del merge (Recomendado)» (artboard 10 first, then
+  implementation); 390 px → «Sí, en esta rama (Recomendado)» (tables to list rows, tabs and period wrap).
+- **L49** Artboard 10 `10-detalle-reclutador.html` (T17) approved by the user («Aprobado, implementalo»). Figures with no
+  v2 list (function split, «nuevas en el periodo», credit split, entregados en su tramo, mediana, días en tramos) stay
+  plain text; «N de M entregados» keeps the audited sheet.
+- **L50** T19/T20 (worker): stacked rows below `md` (recruiters table and sheet, both detail tables via
+  `components/data-table/stacked-table.ts`, attention rows keep «Faltan…»), tabs and period wrap, heading actions wrap,
+  KPI unit wrap; drill-down `back` (same-origin `/empresa/metricas` only) so Volver returns to the origin board;
+  `--primary-text` token for dark-mode violet text; honest tick labels; sparse «A tiempo por mes» as labelled bars;
+  figure-named summaries; «vacantes sin meta» noun; Home/End and no duplicate tab stops. (g) organic CSV Manual column is
+  backend-built → asked to the backend. 27 related files / 259 tests + 3 CSS test files green; tsc 0; eslint 0.
+- **L51** Backend `f5e377c2`: dashboard applications export with `channel` keeps only the filtered channel columns (fixed
+  order Portal, Sitio de carreras, Manual, Desconocido; ID vacante, Vacante, Solicitante, Total always), so each row sums
+  its Total; without `channel` unchanged; metrics applications export unchanged; :8081 restarted. Closes T20 (g).
+- **L52** T18 (worker): `/empresa/metricas/reclutadores/[id]` rebuilt from artboard 10 (`recruiter-detail/{parts,sections,
+  monthly,period-control}.tsx`, 6-column stacked `VacancyList`), every count >0 drills to `/empresa/metricas/detalle` with
+  `back` to the recruiter page; `safeBoardPath` also accepts exactly `/empresa/metricas/reclutadores/<uuid>` (from/to only).
+  Unused `monthly-series.tsx` and `metric-parts.tsx` removed. Full suite: 573 files / 10392 tests passed, 2 skipped; tsc 0;
+  lint 0 errors (12 pre-existing warnings). Risk item 2 (redirect guard `back`) → independent verification.
+- **L53** Third S10 review at `19b049d9` (`/tmp/pf-review/s10c/`): redirect guard `back` PASS (30 hostile values, never
+  leaves the origin, never sent to the API/export). Recruiter detail matches artboard 10. L47 fixes hold; 139 drill-downs
+  figure = list = CSV except the recruiter-detail «Posiciones» cell (lifetime `placements.covered` vs period-bound list →
+  High). Medium: 390 px attention rows cut titles to ~9 chars. Low: conversion summary without %, clipped «Tarde» badge at
+  390 px, tall stacked rows (rule 14), monthly «asignadas» drill-down without month, «periodo anterior» summaries say «en el
+  periodo», «0 de 1 entrega … llegaron», header actions order, KPI line wrap at 1440, blank hero middle and empty first
+  divider at 390, dark «Tarde» dot. S3, S5, S6, S8, S9 pass; S7, S10 fail.
+- **L54** User decision on «Posiciones»: «La celda muestra el estado, sin link (Recomendado)» — the cell stays the current
+  coverage state as plain text; period placements keep their linked «Placements» KPI.
+- **L55** Demo diagnosis (Presentation request, read-only, `/tmp/pf-review/demo-diag/`): only Métricas demos well; the
+  seed writes `schema_version: 1` drafts, so vacancies/pipeline/config 404 and dashboard pipeline links break. Backend
+  confirmed it as a seed defect (backend T13, L23 there): seed moves to valid v2 drafts and `remove` also drops the
+  `company_sites` row the editor GET creates; metric figures unchanged; same branch, before the merge. Frontend gap found:
+  audit log shows `MetricsDetailViewed` without a Spanish label. The frontend dev server hit a Node heap OOM after ~4 h
+  (restarted); the first T21 suite run aborted before running any test (rerun).
+- **L56** T21 (worker): «Posiciones» as plain coverage state (L54); 390 px attention rows stack title/«Faltan»/badge (2-line
+  clamp); conversion summary «N de M … — X %» (extra closed-vacancy request); month and «periodo anterior» wording from
+  `back`; singular verb; compact 390 px rows on the recruiter page and Métricas recruiters; `helpFirst` on the recruiter
+  vacancies section; KPI line breaks only between parts; sparse sparkline hidden; first stacked row without top border;
+  `--pf-tone-late` for dark mode. Full suite (rerun): 574 files / 10404 tests passed, 2 skipped; tsc 0; lint 0 errors.
+- **L57** Audit log labels: the frontend Annex lacked 4 backend catalog types (backend `catalog.go`, 68 types):
+  `MetricsDetailViewed` («Vio un detalle de métricas», sensitive_read) and `StakeholderInvitation{Created,Revoked,Accepted}`
+  (members). RED observed («Otra acción»), pinned count 64 → 68; 8 related files / 142 tests green; eslint 0.
+- **L58** Focused browser check of T21 + audit labels at `83b66cb1` (`/tmp/pf-review/s10d/`): all 11 items PASS, 20
+  drill-downs figure = list total, Volver to origin, no console errors, no ≥400. **S7 PASS, S10 PASS.** Low polish left
+  open (follow-ups, not blocking the merge): dark «A tiempo» legend dot 2.0:1 (label beside it), monthly summaries say «en
+  el periodo», late-bucket % compares with itself, 390 px Métricas recruiter names cut by «Sin datos suficientes»,
+  «Desempeño por reclutador» action order, dashboard «Vacantes activas» not stacked at 390 px. Backend observation: each
+  drill-down page read writes two `MetricsDetailViewed` rows (IP 127.0.0.1, agent «node»: the Next server).
+- **L59** Double `MetricsDetailViewed` rows per drill-down: backend log shows two identical GETs per page. Likely `next dev`
+  Strict Mode double-running the client effect in `useCursorPages` (`detail-parts.tsx:34`; the first result is discarded by
+  `active` but the request is sent). To measure on the production build before the demo; fix if it also doubles there.
+  Follow-up: confirm the server-side client forwards `X-PF-Proxy-Secret` + client IP/User-Agent when `AUDIT_PROXY_SECRET`
+  is set (audit-log-v1; mandatory in production).

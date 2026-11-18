@@ -70,6 +70,8 @@ const ANNEX: readonly (readonly [string, string, string])[] = [
   ["ParticipationViewed", "sensitive_read", "Vio un candidato de la vacante"],
   ["ParticipationCVDownloaded", "sensitive_read", "Inició la descarga de un CV de la vacante"],
   ["PsychometricResultViewed", "sensitive_read", "Vio un resultado psicométrico"],
+  ["MetricsDetailViewed", "sensitive_read", "Vio un detalle de métricas"],
+  ["MetricsDetailExported", "sensitive_read", "Detalle de métricas exportado"],
   ["CandidateAccountCreated", "candidate", "Creó su cuenta de candidato"],
   ["CompanyCandidateEdited", "candidate", "Editó los datos de un candidato"],
   ["CompanyCandidateCVCorrected", "candidate", "Corrigió el CV de un candidato"],
@@ -124,6 +126,9 @@ const ANNEX: readonly (readonly [string, string, string])[] = [
   ["CompanyMemberAdded", "members", "Agregó a un miembro"],
   ["CompanyMemberRoleChanged", "members", "Cambió el rol de un miembro"],
   ["CompanyMemberOffboarded", "members", "Dio de baja a un miembro"],
+  ["StakeholderInvitationCreated", "members", "Invitó a un stakeholder"],
+  ["StakeholderInvitationRevoked", "members", "Revocó una invitación de stakeholder"],
+  ["StakeholderInvitationAccepted", "members", "Aceptó una invitación de stakeholder"],
   ["AuditLogExported", "audit", "Exportó la auditoría"],
 ];
 const EVENT_LABELS = new Map(ANNEX.map(([type, , label]) => [type, label]));

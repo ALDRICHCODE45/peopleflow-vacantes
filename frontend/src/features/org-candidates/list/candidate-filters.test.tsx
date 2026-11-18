@@ -80,3 +80,13 @@ it("labels the municipality filter group like its sibling filters before a state
  expect(within(group).getByRole("checkbox", { name: "Sin dato de municipio" })).toBeTruthy();
  await act(async () => {});
 });
+it("shows the added dates as one removable chip that removes both", async () => {
+ const change = vi.fn(); const user = userEvent.setup();
+ render(<CandidateFiltersBar filters={{ added_from: "2026-10-10", added_to: "2026-11-08", origin: "manual" }} onChange={change} onClear={vi.fn()} languages={languages} />);
+ expect(screen.getByRole("button", { name: /^Filtros/ }).textContent).toBe("Filtros2");
+ await user.click(screen.getByRole("button", { name: "Quitar filtro Agregados a la base: 10 oct 2026 – 8 nov 2026" }));
+ expect(change).toHaveBeenLastCalledWith({ added_from: undefined, added_to: undefined });
+ cleanup();
+ render(<CandidateFiltersBar filters={{ added_from: "2026-11-08" }} onChange={vi.fn()} onClear={vi.fn()} languages={languages} />);
+ expect(screen.getByRole("button", { name: "Quitar filtro Agregados a la base: desde 8 nov 2026" })).toBeTruthy();
+});

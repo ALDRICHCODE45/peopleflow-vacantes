@@ -31,3 +31,14 @@ it("serializes repeatable countries and the independent active-process filter, a
 it("defaults to table and ignores unrelated URL parameters", () => {
  expect(parseUrlState(new URLSearchParams("view=bad&secret=x"))).toEqual({ view: "table", filters: {} });
 });
+it("reads the dashboard's added dates («Nuevos en la base») and sends them to the list, dropping malformed or reversed ones", () => {
+ const state = parseUrlState(new URLSearchParams("added_from=2026-10-10&added_to=2026-11-08&cursor=old"));
+ expect(state.filters).toEqual({ added_from: "2026-10-10", added_to: "2026-11-08" });
+ expect(serializeUrlState(state).toString()).toBe("added_from=2026-10-10&added_to=2026-11-08&cursor=old");
+ expect(toListQuery(state).filters).toEqual({ added_from: "2026-10-10", added_to: "2026-11-08" });
+ expect(parseUrlState(new URLSearchParams("added_from=2026-11-08")).filters).toEqual({ added_from: "2026-11-08" });
+ expect(parseUrlState(new URLSearchParams("added_from=2026-13-40&added_to=yesterday")).filters).toEqual({});
+ // The backend answers from > to with 422 added_to.range; the pair is dropped instead.
+ expect(parseUrlState(new URLSearchParams("added_from=2026-11-08&added_to=2026-10-10")).filters).toEqual({});
+ expect(changeFilters(state, { added_from: undefined, added_to: undefined }).filters).toEqual({});
+});

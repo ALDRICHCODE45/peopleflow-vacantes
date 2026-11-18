@@ -65,6 +65,13 @@
       "tradeoff": "Día a día del reclutador con las reglas de 07: «Necesita atención» protagonista, pipeline por etapa, vacantes y candidatos, postulaciones al final",
       "width": 1440,
       "height": 2240
+    },
+    {
+      "file": "10-detalle-reclutador.html",
+      "title": "10 · Detalle de reclutador (Métricas)",
+      "tradeoff": "Ficha de una persona con las reglas de 07: 4 KPIs, entregas y placements, carga de trabajo, evolución mensual y vacantes (≤ 6 columnas); ayuda solo en «Cómo se calcula», cada cifra abre su detalle; incluye estados de carga y 390 px",
+      "width": 1440,
+      "height": 2414
     }
   ]
 }

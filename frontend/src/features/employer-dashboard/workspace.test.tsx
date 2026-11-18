@@ -1,85 +1,96 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { DashboardSkeleton, DashboardWorkspace } from "./workspace";
-import type { Dashboard } from "./model";
-import { dashboard as data, publishedVacancy, vacancyId } from "./test-fixtures";
-
-const mocks = vi.hoisted(() => ({ load: vi.fn(), drafts: vi.fn(), retry: vi.fn() }));
-vi.mock("./actions", () => ({ getDashboardAction: mocks.load }));
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/components/ui/popover", async () => (await import("./test-utils")).popoverMock());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("@/features/employer-vacancies/use-portfolio-drafts", () => ({ usePortfolioDrafts: mocks.drafts }));
-vi.mock("@/components/company-dashboard/chart-area-interactive", () => ({
-  ChartAreaInteractive: ({ data }: { data: Dashboard["origin_by_day"] }) => <div>Orgánicas {data.at(-1)?.organic} Manuales {data.at(-1)?.manual}</div>,
+const actions = vi.hoisted(() => ({
+  loadSummaryAction: vi.fn(), loadAttentionAction: vi.fn(), loadPipelineAction: vi.fn(),
+  loadVacanciesAction: vi.fn(), loadRecentAction: vi.fn(), loadOriginAction: vi.fn(),
 }));
-const drafts = { pending: false, items: [publishedVacancy], failure: null, capped: false, retry: mocks.retry };
+vi.mock("./actions", () => actions);
+import { IdentityContext } from "@/features/identity/identity-session";
+import { attention, emptyAttention, emptySummary, origin, pipeline, recent, summary, vacancies } from "./test-fixtures";
+import { DashboardWorkspace } from "./workspace";
+
+const ok = <T,>(data: T) => Promise.resolve({ ok: true as const, data });
+const identity = { status: "ready" as const, email: "m@x.mx", retry() {}, update() {}, result: { ok: true, data: { role: "recruiter", user: { id: "u", email: "m@x.mx", full_name: "Mariana Torres" } } } } as never;
+const show = () => render(<IdentityContext.Provider value={identity}><DashboardWorkspace /></IdentityContext.Provider>);
+
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
-  vi.stubGlobal("innerWidth", 1280);
-  mocks.load.mockResolvedValue({ ok: true, data });
-  mocks.drafts.mockReturnValue(drafts);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-08T16:50:00Z"));
+  window.history.replaceState(null, "", "/empresa/dashboard");
+  actions.loadSummaryAction.mockImplementation((window = 30) => ok(summary(window)));
+  actions.loadAttentionAction.mockImplementation(() => ok(attention()));
+  actions.loadPipelineAction.mockImplementation(() => ok(pipeline()));
+  actions.loadVacanciesAction.mockImplementation(() => ok(vacancies()));
+  actions.loadRecentAction.mockImplementation(() => ok(recent()));
+  actions.loadOriginAction.mockImplementation((window = 30) => ok(origin(window)));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-it("keeps the restored KPI header/action/footer anatomy while loading", () => {
-  render(<DashboardSkeleton />);
-  const cards = [...document.querySelectorAll('[data-pf-kpi-cards] [data-slot="card"]')];
-  expect(cards).toHaveLength(4);
-  for (const card of cards) for (const slot of ["card-description", "card-title", "card-action", "card-footer"]) expect(card.querySelector(`[data-slot='${slot}']`)).not.toBeNull();
+it("greets by Mexico City time with the session's first name, then shows scope, freshness and the sections in artboard order", async () => {
+  show();
+  expect(screen.getByRole("heading", { level: 2, name: "Buenos días, Mariana" })).toBeInTheDocument();
+  expect(await screen.findByText("Toda la empresa")).toBeInTheDocument();
+  expect(screen.getByText("Actualizado hoy 10:42 · 10 oct 2026 – 8 nov 2026")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Crear vacante" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+  const sections = screen.getAllByRole("region").map(region => region.getAttribute("aria-labelledby") && within(region).getAllByRole("heading", { level: 2 })[0].textContent);
+  expect(sections).toEqual(["Resumen", "Seguimiento", "Vacantes y candidatos", "Postulaciones"]);
+  await screen.findAllByText("143");
 });
-it("shows loading placeholders before the action resolves", () => {
-  mocks.load.mockReturnValue(new Promise(() => {}));
-  render(<DashboardWorkspace />);
-  expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Cargando dashboard");
-  expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(8);
+
+it("never calls the old aggregate dashboard: one action per section, the period only on window-bound sections", async () => {
+  show();
+  await screen.findAllByText("143");
+  expect(actions.loadSummaryAction).toHaveBeenCalledWith(30);
+  expect(actions.loadAttentionAction).toHaveBeenCalledWith();
+  expect(actions.loadPipelineAction).toHaveBeenCalledWith();
 });
-it("keeps the complete layout loading until draft-list data is available", async () => {
-  mocks.drafts.mockReturnValue({ ...drafts, pending: true });
-  render(<DashboardWorkspace />);
-  expect(await screen.findByRole("status")).toHaveAttribute("aria-label", "Cargando dashboard");
-  expect(screen.queryByText("3/5")).toBeNull();
+
+it("keeps the period in the URL and reloads only window-bound sections", async () => {
+  show();
+  await screen.findAllByText("143");
+  await userEvent.click(screen.getByRole("button", { name: "90 días" }));
+  expect(window.location.search).toBe("?window=90");
+  expect(screen.getByRole("button", { name: "90 días" })).toHaveAttribute("aria-pressed", "true");
+  await waitFor(() => expect(actions.loadSummaryAction).toHaveBeenLastCalledWith(90));
+  expect(actions.loadAttentionAction).toHaveBeenCalledTimes(1);
 });
-it("renders endpoint values, sources, recent links, absolute Mexico dates and active rows", async () => {
-  render(<DashboardWorkspace />);
-  expect(await screen.findByText("3/5")).toBeInTheDocument();
-  expect(screen.getByText("Orgánicas 4 Manuales 2")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Ana Real" })).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/pipeline`);
-  expect(screen.getAllByText(/23 oct 2026/)).toHaveLength(2);
-  expect(screen.getByRole("link", { name: "Ver pipeline de Plataforma real" })).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/pipeline`);
-  expect(screen.getByText("5 candidatos en proceso")).toBeInTheDocument();
-  expect(screen.queryByText("Directas")).toBeNull();
+
+it("reads the scope of a recruiter", async () => {
+  actions.loadSummaryAction.mockImplementation(() => ok({ ...summary(), scope: "own_vacancies" }));
+  show();
+  expect(await screen.findByText("Tus vacantes asignadas")).toBeInTheDocument();
 });
-it("shows honest empty states", async () => {
-  mocks.load.mockResolvedValue({ ok: true, data: { ...data, recent: [] } });
-  mocks.drafts.mockReturnValue({ ...drafts, items: [] });
-  render(<DashboardWorkspace />);
-  expect(await screen.findByText("Sin candidatos")).toBeInTheDocument();
-  expect(screen.getByText("Todavía no hay vacantes activas")).toBeInTheDocument();
+
+it.each([
+  ["unauthenticated", "Tu sesión expiró", "Iniciar sesión"],
+  ["forbidden", "No tienes acceso al dashboard", null],
+] as const)("replaces the board with the %s card", async (reason, title, link) => {
+  actions.loadAttentionAction.mockImplementation(() => Promise.resolve({ ok: false, reason, reference: {} }));
+  show();
+  expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Resumen" })).toBeNull();
+  if (link) expect(screen.getByRole("link", { name: link })).toHaveAttribute("href", "/empresa/login");
 });
-it("retries both reads only after an explicit request", async () => {
-  mocks.load.mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
-  render(<DashboardWorkspace />);
-  fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
-  expect(await screen.findByText("3/5")).toBeInTheDocument();
-  expect(mocks.load).toHaveBeenCalledTimes(2);
-  expect(mocks.retry).toHaveBeenCalledTimes(1);
+
+it("retries only the failed section", async () => {
+  actions.loadPipelineAction.mockImplementationOnce(() => Promise.resolve({ ok: false, reason: "server_error", reference: {} }));
+  show();
+  await userEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
+  await waitFor(() => expect(actions.loadPipelineAction).toHaveBeenCalledTimes(2));
+  expect(actions.loadSummaryAction).toHaveBeenCalledTimes(1);
 });
-it.each(["unauthenticated", "forbidden", "not_found"])("renders the %s gate without data", async reason => {
-  mocks.load.mockResolvedValue({ ok: false, reason, reference: {} });
-  render(<DashboardWorkspace />);
-  expect(await screen.findByRole("alert")).toBeInTheDocument();
-  expect(screen.queryByText("3/5")).toBeNull();
-  if (reason === "unauthenticated") expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/empresa/login");
-});
-it("does not imply a failed vacancy read is an empty company", async () => {
-  mocks.drafts.mockReturnValue({ ...drafts, failure: { ok: false, reason: "no_response", reference: {} } });
-  render(<DashboardWorkspace />);
-  expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el dashboard");
-  expect(screen.queryByText("Todavía no hay vacantes activas")).toBeNull();
-});
-it("reports the existing list cap rather than implying a complete active panel", async () => {
-  mocks.drafts.mockReturnValue({ ...drafts, capped: true });
-  render(<DashboardWorkspace />);
-  expect(await screen.findByText(/Se muestran las primeras 500 vacantes/)).toHaveAttribute("role", "status");
+
+it("shows the first-visit empty state for a company without vacancies", async () => {
+  actions.loadSummaryAction.mockImplementation(() => ok(emptySummary()));
+  actions.loadAttentionAction.mockImplementation(() => ok(emptyAttention()));
+  actions.loadPipelineAction.mockImplementation(() => ok(pipeline({ stages: pipeline().stages.map(stage => ({ ...stage, candidates: 0, stalled: 0 })) })));
+  show();
+  expect(await screen.findByRole("heading", { name: "Todavía no hay vacantes activas" })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Resumen" })).toBeNull();
+  expect(screen.getAllByRole("link", { name: "Crear vacante" }).length).toBeGreaterThan(0);
 });

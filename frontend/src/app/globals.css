@@ -107,6 +107,7 @@
     --color-secondary: var(--secondary);
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
+    --color-primary-text: var(--primary-text);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -524,6 +525,46 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
     background: var(--popover);
     border-radius: var(--radius-xl);
     box-shadow: 0 0 0 1px var(--border);
+  }
+}
+
+/* Dashboards (`design/system.md` rules 6 and 9). Light tints mix toward the card; in dark mode the card is
+   near-black and `--primary` is deep, so they mix toward a mid grey instead and stay visible on the card and the
+   `bg-muted` track. «Sin meta» / «Por cubrir» gets the same treatment over `--border`. */
+:root {
+  --pf-tint-base: var(--card);
+  --pf-tone-none: var(--border);
+  /* «Tarde» (rule 9): a light violet. Dark --primary is a deep fill, so dark mode mixes the brand strong tone instead
+     and the dot or segment stays visible on the near-black card, still apart from «A tiempo». */
+  --pf-tone-late: color-mix(in oklab, var(--primary) 45%, var(--pf-tint-base));
+  /* Violet text (`text-primary-text`): links, breadcrumbs, the selected tab or period. Light keeps --primary; dark
+     --primary is a deep button fill (~2:1 on the near-black card), so text takes the brand strong tone (~6.6:1). */
+  --primary-text: var(--primary);
+}
+.dark {
+  --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
+  --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
+  --pf-tone-late: color-mix(in oklab, var(--brand-decorative-strong) 70%, var(--card));
+  --primary-text: var(--brand-decorative-strong);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
+    --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
+    --pf-tone-late: color-mix(in oklab, var(--brand-decorative-strong) 70%, var(--card));
+    --primary-text: var(--brand-decorative-strong);
+  }
+}
+/* The hero KPI tile is inverted (`bg-foreground text-background`). In dark mode that is a near-white block, so the
+   tile swaps its two tokens: a dark violet surface with light text, dark on dark like the rest of the board. */
+.dark .pf-kpi-hero {
+  --foreground: color-mix(in oklab, var(--primary) 30%, var(--card));
+  --background: var(--card-foreground);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .pf-kpi-hero {
+    --foreground: color-mix(in oklab, var(--primary) 30%, var(--card));
+    --background: var(--card-foreground);
   }
 }
 

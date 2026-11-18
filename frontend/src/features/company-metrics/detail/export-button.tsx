@@ -1,0 +1,60 @@
+"use client";
+import { useEffect, useState } from "react";
+import { CircleAlert, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { saveBlob } from "@/features/audit-log/download";
+import type { DetailState } from "./query";
+
+const FAILED = "No pudimos exportar los registros. Inténtalo de nuevo.";
+const filename = (disposition: string | null, fallback: string) => {
+  const name = (disposition && /filename="?([^";]*)"?/i.exec(disposition)?.[1]) || "";
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$/.test(name) ? name : fallback;
+};
+
+async function errorOf(response: Response): Promise<string> {
+  try {
+    const { message } = ((await response.json()) ?? {}) as Record<string, unknown>;
+    if (typeof message === "string") return message;
+  } catch { /* A body that is not JSON says nothing readable. */ }
+  return response.status === 401 ? "Tu sesión expiró. Inicia sesión de nuevo para exportar." : FAILED;
+}
+
+/**
+ * «Exportar CSV» (v2 §8): a POST to the same-origin route with the list's validated query (POST, as the audit export). Nothing is downloaded unless
+ * the route answers 200, so a refused export (more than 50,000 rows, an expired session) explains itself next to it.
+ */
+export function ExportDetailButton({ state }: { state: DetailState }) {
+  return <ExportCsvButton href={`/api/company/metrics/${state.kind}/export?${new URLSearchParams(state.params)}`} fallbackFile="metricas.csv" />;
+}
+
+/** A same-origin export route of the company detail pages; never an absolute URL. */
+export type ExportHref = `/api/company/${string}/export?${string}`;
+/**
+ * The button behind every «Exportar CSV» of a detail page: POST to its fixed same-origin route, download only on 200.
+ * `file` overrides the backend's name when the list covers less than the name says (a chart point inside the window).
+ */
+export function ExportCsvButton({ href, fallbackFile, file }: { href: ExportHref; fallbackFile: string; file?: string }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // A message about previous filters would mislead once they change.
+  useEffect(() => setError(null), [href]);
+
+  async function run() {
+    if (pending) return;
+    setPending(true); setError(null);
+    try {
+      const response = await fetch(href, { method: "POST", credentials: "same-origin" });
+      if (!response.ok) { setError(await errorOf(response)); return; }
+      saveBlob(await response.blob(), file ?? filename(response.headers.get("content-disposition"), fallbackFile));
+    } catch { setError(FAILED); }
+    finally { setPending(false); }
+  }
+
+  return <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
+    <Button type="button" variant="outline" onClick={() => void run()} aria-busy={pending || undefined} className="min-h-10 gap-2 px-4">
+      {pending ? <Spinner aria-hidden="true" /> : <Download aria-hidden="true" />}Exportar CSV
+    </Button>
+    {error && <p role="alert" className="flex max-w-md items-center gap-2 text-sm text-status-danger sm:text-right"><CircleAlert aria-hidden="true" className="size-4 shrink-0" />{error}</p>}
+  </div>;
+}

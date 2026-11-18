@@ -2,13 +2,15 @@
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import {
-  getClosures, getCompanyAccess, getCompliance, getDelays, getDeliveries, getOrigin, getPlacements, getRecruiter, getSummary, listReassignments,
+  getClosures, getCompanyAccess, getCompliance, getDelays, getDeliveries, getOrigin, getPipeline, getPlacements, getRecruiter, getSummary, listReassignments,
   listRecruiters, listVacancies, type MetricsClientFailure,
+  invalidRequest, listDetail,
 } from "./client";
+import { detailApiQuery, isListKind, parseDetail } from "./detail/query";
 import { toMetricsFailure } from "./failure";
 import {
-  metricsAllowed, type ClosuresSection, type ComplianceSection, type DelaysSection, type OriginSection, type DeliveriesDetail, type MetricsAccess, type MetricsFailure, type MetricsResult, type MetricsSummary,
-  type PlacementsDetail, type ReassignmentPage, type RecruiterCard, type RecruiterDetail, type VacancyPage,
+  metricsAllowed, type ClosuresSection, type ComplianceSection, type DelaysSection, type OriginSection, type PipelineSection, type DeliveriesDetail, type MetricsAccess, type MetricsFailure, type MetricsResult, type MetricsSummary,
+  type DetailPage, type PlacementsDetail, type ReassignmentPage, type RecruiterCard, type RecruiterDetail, type VacancyPage,
 } from "./model";
 import { mexicoToday } from "./period";
 import { apiQuery, effectivePeriod, type MetricsFilters } from "./url-state";
@@ -71,6 +73,7 @@ const section = <T>(read: SectionRead<T>) => (filters: MetricsFilters): Promise<
 export async function loadSummaryAction(filters: MetricsFilters): Promise<MetricsResult<MetricsSummary>> { return section(getSummary)(filters); }
 export async function loadClosuresAction(filters: MetricsFilters): Promise<MetricsResult<ClosuresSection>> { return section(getClosures)(filters); }
 export async function loadComplianceAction(filters: MetricsFilters): Promise<MetricsResult<ComplianceSection>> { return section(getCompliance)(filters); }
+export async function loadPipelineAction(filters: MetricsFilters): Promise<MetricsResult<PipelineSection>> { return section(getPipeline)(filters); }
 export async function loadDelaysAction(filters: MetricsFilters): Promise<MetricsResult<DelaysSection>> { return section(getDelays)(filters); }
 export async function loadOriginAction(filters: MetricsFilters): Promise<MetricsResult<OriginSection>> { return section(getOrigin)(filters); }
 export async function loadRecruitersAction(filters: MetricsFilters): Promise<MetricsResult<RecruiterCard[]>> {
@@ -113,5 +116,22 @@ export async function loadAuditedDetailAction({ report, draftId, period }: { rep
     }
     const result = await getPlacements(token, draftId, applied);
     return result.ok ? { ok: true, data: { report, items: result.data.items } } : toMetricsFailure(result);
+  });
+}
+
+/** Opaque cursors are short; anything longer than this never travels. */
+const MAX_CURSOR_LENGTH = 2048;
+/**
+ * v2 §5: one page of the detail list. The page's query is validated again here (per kind, unknown keys dropped), so
+ * only a well-formed query reaches the API; an unknown kind answers not found without a request.
+ */
+export async function loadDetailAction({ kind, query, cursor }: { kind: string; query: Record<string, string>; cursor?: string }): Promise<MetricsResult<DetailPage>> {
+  return withToken(async token => {
+    let state: ReturnType<typeof parseDetail> = null;
+    try { state = parseDetail(new URLSearchParams({ ...query, kind })); } catch { state = null; }
+    const validCursor = cursor === undefined || (typeof cursor === "string" && cursor.length > 0 && cursor.length <= MAX_CURSOR_LENGTH);
+    if (!state || !isListKind(state.kind) || !validCursor) return toMetricsFailure(invalidRequest);
+    const result = await listDetail(token, state.kind, detailApiQuery(state, mexicoToday()), cursor);
+    return result.ok ? result : toMetricsFailure(result);
   });
 }

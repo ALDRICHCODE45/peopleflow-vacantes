@@ -16,15 +16,23 @@ export const addDays = (value: string, days: number) => new Date(dayTime(value) 
 /** Days in the period, both ends included. */
 export const periodDays = ({ from, to }: Period) => Math.round((dayTime(to) - dayTime(from)) / DAY_MS) + 1;
 
+const monthsBefore = (month: string, count: number) => {
+  const [year, index] = month.split("-").map(Number);
+  const total = year * 12 + index - 1 - count;
+  return `${Math.floor(total / 12)}-${String(total % 12 + 1).padStart(2, "0")}`;
+};
 export const defaultPeriod = (today: string): Period => ({ from: addDays(today, 1 - DEFAULT_PERIOD_DAYS), to: today });
 export const SHORTCUTS = [
   { value: "last_30", label: "Últimos 30 días" },
   { value: "last_90", label: "Últimos 90 días" },
   { value: "this_year", label: "Este año" },
+  { value: "last_12_months", label: "Últimos 12 meses" },
 ] as const;
 export type Shortcut = (typeof SHORTCUTS)[number]["value"];
 export function shortcutPeriod(shortcut: Shortcut, today: string): Period {
   if (shortcut === "this_year") return { from: `${today.slice(0, 4)}-01-01`, to: today };
+  // Twelve whole calendar months up to today's, so the monthly charts get twelve points inside the 366-day limit.
+  if (shortcut === "last_12_months") return { from: `${monthsBefore(today.slice(0, 7), 11)}-01`, to: today };
   return { from: addDays(today, shortcut === "last_30" ? -29 : 1 - DEFAULT_PERIOD_DAYS), to: today };
 }
 export const matchingShortcut = (period: Period, today: string) => SHORTCUTS.find(item => {

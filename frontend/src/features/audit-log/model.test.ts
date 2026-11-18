@@ -62,8 +62,18 @@ describe("labels (contract Annex)", () => {
     expect(eventLabel("JobDraftCreated")).toBe("Creó una vacante");
     expect(eventLabel("CompanyCandidateEdited")).toBe("Editó los datos de un candidato");
     expect(eventLabel("VacancyTeamCreated")).toBe("Creó el equipo de una vacante");
-    expect(KNOWN_EVENT_TYPES).toHaveLength(63);
-    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(63);
+    // Stakeholder metrics v2 §6: an export of a metrics detail list is a sensitive read.
+    expect(eventLabel("MetricsDetailExported")).toBe("Detalle de métricas exportado");
+    // A page read of a metrics detail list with candidate names (v1 §3.5, v2 §6) and the stakeholder invitations.
+    expect(eventLabel("MetricsDetailViewed")).toBe("Vio un detalle de métricas");
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "MetricsDetailViewed", category: "sensitive_read" });
+    expect(eventLabel("StakeholderInvitationCreated")).toBe("Invitó a un stakeholder");
+    expect(eventLabel("StakeholderInvitationRevoked")).toBe("Revocó una invitación de stakeholder");
+    expect(eventLabel("StakeholderInvitationAccepted")).toBe("Aceptó una invitación de stakeholder");
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "StakeholderInvitationAccepted", category: "members" });
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "MetricsDetailExported", category: "sensitive_read" });
+    expect(KNOWN_EVENT_TYPES).toHaveLength(68);
+    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(68);
     expect(KNOWN_EVENT_TYPES.filter(type => eventLabel(type.event_type) === UNKNOWN_EVENT_LABEL)).toEqual([]);
   });
 
