@@ -55,6 +55,14 @@ describe("Candidatos recientes", () => {
     expect(within(second).getByText("Screening")).toHaveClass("stage-badge", "stage-neutral");
   });
 
+  it("shows the snapshot title next to the name, and nothing when it is null (T13)", () => {
+    show();
+    const [first, second] = within(card("Candidatos recientes")).getAllByRole("listitem");
+    expect(within(first).getByText("Ingeniera")).toHaveAttribute("data-candidate-title");
+    expect(within(first).getByText("Ingeniera")).toHaveClass("truncate", "text-muted-foreground");
+    expect(second.querySelector("[data-candidate-title]")).toBeNull();
+  });
+
   it("has its own empty state", () => {
     show({ recent: ready(recent({ recent: [] })) });
     expect(screen.getByRole("heading", { name: "Sin candidatos" })).toBeInTheDocument();

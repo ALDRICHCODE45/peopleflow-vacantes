@@ -97,7 +97,11 @@ function RecentCandidates({ rows, now }: { rows: RecentSection["recent"]; now: D
             <Avatar className="size-8"><AvatarFallback className="bg-secondary text-xs font-medium text-foreground">{initials(name)}</AvatarFallback></Avatar>
             <div className="min-w-0">
               {/* As the current dashboard: the name opens the vacancy board where the person is. */}
-              <Link href={vacancyPipelineHref(row.vacancy.id)} className="block truncate rounded-sm font-medium outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring">{name}</Link>
+              {/* The title (application snapshot, T13) shares the name line, so the row keeps its height; null shows nothing. */}
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <Link href={vacancyPipelineHref(row.vacancy.id)} className="block min-w-0 shrink truncate rounded-sm font-medium outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring">{name}</Link>
+                {row.candidate.professional_title?.trim() && <span data-candidate-title className="min-w-0 shrink-[2] truncate text-xs text-muted-foreground">{row.candidate.professional_title.trim()}</span>}
+              </div>
               <span className="block truncate text-xs text-muted-foreground">{vacancy} · {row.added_by ? `Agregado por ${row.added_by.name}` : "Postulación"}</span>
             </div>
             <Badge className={cn("stage-badge h-[22px]", stageTone(row.stage.kind))}>{row.stage.name}</Badge>

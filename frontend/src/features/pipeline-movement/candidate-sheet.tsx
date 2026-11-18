@@ -111,6 +111,8 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
     <SheetHeader className={cn("gap-4", expanded && "hidden")}>
       <div className="flex items-center gap-3"><Avatar className="size-12 shrink-0"><AvatarFallback className="bg-secondary text-lg text-muted-foreground">{initials(detail.candidate.full_name)}</AvatarFallback></Avatar>
         <div className="flex min-w-0 flex-col gap-1.5"><div className="flex min-w-0 flex-wrap items-center gap-2"><SheetTitle ref={titleRef} tabIndex={-1} title={detail.candidate.full_name} className="min-w-0 break-words text-lg font-semibold outline-none">{detail.candidate.full_name}</SheetTitle>{detail.corrected_fields.includes("full_name") && <Badge variant="accent">Corregido</Badge>}</div>
+          {/* Title frozen at application (T13); a null title shows nothing. */}
+          {detail.profile.professional_title && <p data-candidate-title className="break-words text-sm text-muted-foreground">{detail.profile.professional_title}</p>}
           {stage && <Badge variant="neutral" dot className={cn("stage-badge max-w-full", stageClass(stage.kind))}><span className="truncate">{stage.name}</span></Badge>}
         </div>
       </div>
