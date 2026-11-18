@@ -231,3 +231,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   ≥400. Fixed the medium finding: the dashboard profile tile said «Las empresas ven todo tu perfil» → «Lo que ven las
   empresas está completo», chip «Educación» → «Nivel de estudios». Open low items: Apache-2.0 notice stripped by
   minification (add a third-party notice), title truncated on 284 px cards, no cMap/standard fonts (fallback rendering).
+- **L33** Full suite after T12–T13: 581 files passed, 1 failed — `requestPath.test.ts` guard (fetch only in registered same-origin adapters) caught the new `cvs/pdf-page.ts` fetch. Fixed: the preview now fetches the fixed `/api/candidate/cvs/${encodeURIComponent(id)}/file` with `redirect: "error"`, registered in the guard list with a reason, plus a dedicated guard test (47 related tests green, tsc/eslint 0). Full suite rerun.
