@@ -60,7 +60,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T11 | S5, S10 | (done, L20) Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
 | T12a | S10 | (done, L27) Implement `design/candidate-cvs-profile/03-cvs-vista-previa.html` on `/candidato/cvs` (L21); preview slot pluggable | — |
 | T12b | S10 | Real first-page preview for PDFs (source to decide: pdf.js vs backend inline/thumbnail) | — |
-| T13 | S10 | Employer side: accept and show `professional_title` from the application snapshot (board card, candidate sheet, talent base, dashboard recent, manual intake) before the backend merges (L29) | — |
+| T13 | S10 | (done, L31) Employer side: accept and show `professional_title` from the application snapshot (board card, candidate sheet, talent base, dashboard recent, manual intake) before the backend merges (L29) | — |
 | T12c | S10 | (done, L28) Implement the chosen Perfil artboard (after the user's choice) | — |
 
 ## Log
@@ -216,3 +216,9 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   written after the first draft (RED observed only for completeness and visibility).
 - **L29** Backend `feat/snapshot-professional-title` (bb9e10bc migration 00061 constraint, ec4c7777 behaviour; not merged): board card/detail `profile.professional_title` (+ `original.professional_title`), talent base `professional_title` from the latest snapshot, dashboard `recent[].candidate.professional_title` from the snapshot, manual 201 includes it. The frontend board `profileSchema` is `.strict()` → the new key would break decoding; backend asked not to merge until the frontend accepts and shows it (T13), then merge together.
 - **L30** Backend `feat/snapshot-professional-title` independently verified PASS (HEAD 2f278ffa). Deploy note: migration 00061 must run before the new code (otherwise applying fails on the old constraint). Plan: frontend schemas accept the key present or absent → backend applies 00061 locally and runs its branch on :8081 → end-to-end browser check → joint merge into local main together with this branch, once the user approves it.
+- **L31** T13 (worker; related 123 files / 2163 tests green, tsc/eslint 0): new strict `boardProfileSchema` with optional +
+  nullable `professional_title` (board, detail, manual 201); the talent-base `profileSchema` unchanged and still rejects
+  it. Title shown on the pipeline card (name clamps to 1 line so the card keeps its height), the sheet header and the
+  dashboard «Candidatos recientes»; the talent base already showed it. Findings for the backend: `original.professional_title`
+  already existed on main (only its value changes); move/discard responses do NOT carry the profile
+  (`board/filter_data.go:51`).
