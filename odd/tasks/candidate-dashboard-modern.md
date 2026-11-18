@@ -188,3 +188,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 - **L21** User chose CVs «03 · Biblioteca con vista previa» on the canvas (handoff request). Handoff started (T12a). The
   real PDF preview needs a source decision (T12b); the layout ships with a pluggable preview slot that shows honest file
   metadata, never fake document content. Perfil choice still pending.
+- **L22** User decisions: CV preview → «pdf.js en el frontend (Recomendado)» (T12b; new dependency, loaded only on
+  /candidato/cvs → risk item 5, independent verification); Perfil → «04 · Así te ven las empresas (Recomendado)» (T12c;
+  «Lo ven las empresas / Solo tú» to be confirmed by the backend); completeness → «10 datos en los dos lados
+  (Recomendado)» (LinkedIn and portfolio optional on the dashboard too).
