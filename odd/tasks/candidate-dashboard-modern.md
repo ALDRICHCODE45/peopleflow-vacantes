@@ -26,7 +26,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
-| T1 | S2, S4 | Browser audit of `/candidato/*` with Valeria's demo data at 1440 and 390 px, plus the cause of the donut stutter (verify, background) | — |
+| T1 | S2, S4 | Browser audit of `/candidato/*` with Valeria's demo data at 1440 and 390 px, plus the cause of the donut stutter (verify, background) (done, L4) | — |
 | T2 | S1, S3, S5 | Research modern candidate and personal dashboards and chart patterns; write `design/candidate-dashboard-modern/research.md` (explore, background) (done, L3) | — |
 | T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas | — |
 | T4 | S1–S4 | Implement the artboard the user chooses (after approval) | — |
@@ -61,3 +61,13 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   Three directions: A «Tu siguiente paso» (one action hero + rings + segmented status bar + 12-week dot strip), B «Bento
   personal» (hero figure + tiles + pending chips), C «Bitácora viva» (timeline protagonist + side summary). Chart rule:
   no chart under 5 records; rings only for part-of-whole with a goal; one animation on mount, ease-out 200–400 ms.
+- **L4** Browser audit (`/tmp/pf-audit-candidate/`). S2 cause confirmed: `candidate/dashboard/assessments.tsx:20` ticks
+  `setInterval(…, 1000)` and `:23-25` calls `onResult` with a new object each second; `workspace.tsx:62` re-renders the
+  whole workspace → `DashboardCharts` → Recharts `<Pie>` gets a new animation id per render (`Pie.js:468`) and restarts
+  (400 ms begin + 1500 ms ease-in), so the ring draws in steps over ~6–7 s (539 renders in 9 s). With the ticks disabled
+  it draws in 1.44 s with no pauses. Fix: call `onResult` only when eligible ids change (one `setTimeout` to the next
+  `expires_at`), stable `useSource` object, memoized chart data, `React.memo`. Bars restart the same way. 390 px: no page
+  scroll, but clipped content: application title in `candidate-applications/inbox.tsx:32` (`ItemTitle` `w-fit`), filter
+  toggle group in `applications-workspace.tsx:111` (hidden «Cerradas»), profile tabs `profile-workspace.tsx:31,256`, job
+  section nav `PublicJobDetailView.tsx:64` without fade, CV file name cut `cv-workspace.tsx:42`, settings switches stacked
+  under text, ~80 px gap in guardadas. Copy bugs: «excluye las 1», «1 aún esperan».
