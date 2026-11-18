@@ -57,7 +57,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T8 | S8, S9 | (done, L17) Update `design/system.md`: candidate workspace patterns from artboards 04 and saved 02, and the dark surface rule | — |
 | T9 | S7, S9 | (done, L17) Alignment proposals for Postulaciones, CVs and Perfil in `design/candidate-align/`, each comparable with the current screen, on the canvas | — |
 | T10 | S7 | (done, L19) Implement the approved alignment of Postulaciones (`design/candidate-align/01-postulaciones.html`), plus the «En proceso» chip colour drift on the dashboard (L17) | — |
-| T11 | S5, S10 | Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
+| T11 | S5, S10 | (done, L20) Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
 | T12 | S10 | Implement the chosen CVs and Perfil directions (after approval) | — |
 
 ## Log
@@ -175,3 +175,11 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   «Postulada hoy», first-use card with «Ver vacantes guardadas»); the dashboard «En proceso» chip now uses the canonical
   amber mapping. Full suite 577 files / 10451 tests passed (2 skipped), tsc 0, lint 0 errors. Rebuilt :3000; browser at
   1440, 1024, 390 and dark: no overflow, no errors or ≥400, layout matches the artboard (`/tmp/pf-pa/*.png`).
+- **L20** T11 (worker, isolated worktree, merged `c1893018`): `design/candidate-cvs-profile/` with research.md (8
+  principles) and six artboards: CVs 01 galería con miniaturas, 02 versión actual e historial, 03 biblioteca con vista
+  previa; Perfil 04 así te ven las empresas (edit in place + rail), 05 una sola página (sticky rail, ~3,400 px), 06
+  secciones como tarjetas (bento + focused sheet). Every current field, action, validation and retention rule kept; no
+  dark surface. 96 overflow runs and 108 interaction checks pass. Data gaps: first-page thumbnails/inline PDF preview need
+  pdf.js, a thumbnail endpoint or an inline download; no per-application CV usage (no `cv_id` in applications); no «CV
+  principal» field; «Lo ven / Solo tú» inferred from the employer schema (backend to confirm); no work-history list; two
+  completeness models (editor 10 vs dashboard 12).
