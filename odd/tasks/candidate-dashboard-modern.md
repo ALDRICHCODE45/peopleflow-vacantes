@@ -29,8 +29,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T1 | S2, S4 | Browser audit of `/candidato/*` with Valeria's demo data at 1440 and 390 px, plus the cause of the donut stutter (verify, background) (done, L4) | — |
 | T2 | S1, S3, S5 | Research modern candidate and personal dashboards and chart patterns; write `design/candidate-dashboard-modern/research.md` (explore, background) (done, L3) | — |
 | T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas (done, L5) | — |
-| T4 | S1–S3 | Implement artboard `04-bento-con-siguiente-paso.html` on `/candidato/dashboard` (L8): next-step card, bento tiles, charts by threshold, saved vacancies read, fix the 1 s assessment ticker re-render (L4) | — |
-| T5 | S4 | Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
+| T4 | S1–S3 | (done, L9–L11) Implement artboard `04-bento-con-siguiente-paso.html` on `/candidato/dashboard` (L8): next-step card, bento tiles, charts by threshold, saved vacancies read, fix the 1 s assessment ticker re-render (L4) | — |
+| T5 | S4 | (done, L9) Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
 
 ## Log
 
@@ -104,3 +104,10 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   mucho.» Added to the running polish worker: thin brand ring, a check icon when complete, the profile sections companies
   see (real data), missing items as chips when incomplete, «Ver perfil»/«Completar perfil» link, same height as the
   neighbouring tiles, no empty band.
+- **L11** Polish `00381bb6` (worker, 31 overview tests, related 59 green, tsc/eslint 0): Perfil tile redesigned (56 px
+  violet ring, check when complete, chips of the sections companies see, «Te falta poco» + missing chips when
+  incomplete, «Ver perfil»/«Completar perfil»), «Hola, Valeria», «El mismo día» 32 px, single entrance (skeletons do not
+  animate; content after 600 ms fades 150 ms), tighter hero legend. Card radius kept at 24 px: system.md sets none and the
+  shared card uses 24 px, the artboard's 14 px is the odd one out. Rebuilt :3000 and measured: greeting «Hola, Valeria»,
+  figure 32 px/600, hero legend on one line at 390 (3 items at the same y), Perfil tile 348×212 at 1440 and 358×196 at
+  390, screenshots `/tmp/pf-polish/after-perfil-*.png` checked by eye.
