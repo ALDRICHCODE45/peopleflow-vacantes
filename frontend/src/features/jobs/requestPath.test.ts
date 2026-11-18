@@ -31,6 +31,8 @@ describe("single application-facing request path", () => {
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
+      // First-page CV preview (pdf.js): fixed same-origin CV file route, no redirects.
+      "features/candidate/cvs/pdf-page.ts",
       "features/company-metrics/detail/export-button.tsx",
       "features/company-metrics/export-client.ts",
       "features/company-site/api/file-client.ts",
@@ -54,6 +56,15 @@ describe("single application-facing request path", () => {
       "features/vacancy-checklist/client.ts",
       "lib/api/requestJson.ts",
     ]);
+  });
+
+  it("reads the CV preview only from the fixed same-origin CV file route, without following redirects", () => {
+    const preview = source(join(SRC, "features/candidate/cvs/pdf-page.ts"));
+    expect(preview.match(/\bfetch\(/g) ?? []).toHaveLength(1);
+    const call = preview.slice(preview.indexOf("fetch("), preview.indexOf("signal });") + "signal });".length);
+    expect(call).toContain("fetch(`/api/candidate/cvs/${encodeURIComponent(cv.id)}/file`,");
+    expect(call).toContain('credentials: "same-origin"');
+    expect(call).toContain('redirect: "error"');
   });
 
   it("lets the browser read the public geo catalog only through its same-origin routes, without credentials", () => {

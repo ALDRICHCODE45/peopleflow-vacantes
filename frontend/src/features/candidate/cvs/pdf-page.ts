@@ -1,4 +1,4 @@
-import { cvRowActions, HARD_MAX_BYTES, type Cv } from "@/features/candidate-cvs/model";
+import { HARD_MAX_BYTES, type Cv } from "@/features/candidate-cvs/model";
 
 /**
  * Page 1 of a PDF CV, drawn by pdf.js into an off-screen canvas (T12b). Client only: pdf.js is imported on demand, so it
@@ -68,8 +68,8 @@ function throwIfAborted(signal: AbortSignal) { if (signal.aborted) throw new Pre
 async function renderFirstPage(cv: FirstPageDocument, signal: AbortSignal): Promise<HTMLCanvasElement> {
   // The upload rule (5 MB) bounds what the preview will ever download and hand to pdf.js.
   if (cv.size > HARD_MAX_BYTES) throw new PreviewUnavailable("too_large");
-  const [download] = cvRowActions(cv);
-  const response = await fetch(download.href, { credentials: "same-origin", cache: "no-store", signal });
+  // Fixed same-origin CV file route only (the guarded server boundary); redirects are refused.
+  const response = await fetch(`/api/candidate/cvs/${encodeURIComponent(cv.id)}/file`, { credentials: "same-origin", cache: "no-store", redirect: "error", signal });
   throwIfAborted(signal);
   if (!response.ok) throw new PreviewUnavailable("download");
   if (!(response.headers.get("content-type") ?? "").toLowerCase().startsWith("application/pdf")) throw new PreviewUnavailable("not_pdf");
