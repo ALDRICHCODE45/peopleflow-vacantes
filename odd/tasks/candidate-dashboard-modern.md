@@ -58,7 +58,9 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T9 | S7, S9 | (done, L17) Alignment proposals for Postulaciones, CVs and Perfil in `design/candidate-align/`, each comparable with the current screen, on the canvas | — |
 | T10 | S7 | (done, L19) Implement the approved alignment of Postulaciones (`design/candidate-align/01-postulaciones.html`), plus the «En proceso» chip colour drift on the dashboard (L17) | — |
 | T11 | S5, S10 | (done, L20) Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
-| T12 | S10 | Implement the chosen CVs and Perfil directions (after approval) | — |
+| T12a | S10 | Implement `design/candidate-cvs-profile/03-cvs-vista-previa.html` on `/candidato/cvs` (L21); preview slot pluggable | — |
+| T12b | S10 | Real first-page preview for PDFs (source to decide: pdf.js vs backend inline/thumbnail) | — |
+| T12c | S10 | Implement the chosen Perfil artboard (after the user's choice) | — |
 
 ## Log
 
@@ -183,3 +185,6 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   pdf.js, a thumbnail endpoint or an inline download; no per-application CV usage (no `cv_id` in applications); no «CV
   principal» field; «Lo ven / Solo tú» inferred from the employer schema (backend to confirm); no work-history list; two
   completeness models (editor 10 vs dashboard 12).
+- **L21** User chose CVs «03 · Biblioteca con vista previa» on the canvas (handoff request). Handoff started (T12a). The
+  real PDF preview needs a source decision (T12b); the layout ships with a pluggable preview slot that shows honest file
+  metadata, never fake document content. Perfil choice still pending.
