@@ -136,7 +136,8 @@ function CandidateSavedJobs({ identity }: { identity: Identity }) {
       </div>
       {list.data && <p className="text-sm font-medium tabular-nums">{plural(list.data.total, "guardada", "guardadas")} · {pending.length} por postularte</p>}
     </header>
-    <ActionBar status={!confirm ? status : null}>{null}</ActionBar>
+    {/* Mounted only with a result: an empty reserved slot (min-h-10) plus two gap-5 left ~80px above the groups. */}
+    {status && !confirm && <ActionBar status={status}>{null}</ActionBar>}
     {!list.data ? list.isPending ? <LoadingSavedJobs /> : <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar tus vacantes guardadas" description="Tus guardadas no cambiaron. Vuelve a consultar para verlas." primaryAction={{ label: list.isFetching ? "Cargando…" : "Reintentar", disabled: list.isFetching, onClick: () => void list.refetch() }} />
       : items.length === 0 ? <StateCard icon={Bookmark} tone="empty" title="Todavía no tienes vacantes guardadas" description="Guarda las vacantes que te interesen para postularte cuando estés listo o lista." primaryAction={{ label: "Explorar vacantes", href: "/vacantes" }} />
         : <div className="grid gap-7">

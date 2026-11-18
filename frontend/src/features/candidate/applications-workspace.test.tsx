@@ -204,3 +204,15 @@ it("keeps «Cerrada» and its message for a discarded application of a closed va
   expect(screen.queryByText("Vacante cerrada")).toBeNull();
   expect(screen.getByText("Gracias")).toBeVisible();
 });
+it("shows all four filters with their counts in a 2×2 grid below sm instead of a clipped scroller at 390 px", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [page.items[0], linked], next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const group = await screen.findByRole("group", { name: "Filtrar postulaciones" });
+  // Below sm the segmented track becomes a two-column grid; sm and up keep the original single row.
+  expect(group).toHaveClass("max-sm:grid", "max-sm:w-full", "max-sm:grid-cols-2", "max-sm:h-auto!");
+  // No horizontal scroller around it, so «Cerradas» can no longer sit off-screen.
+  expect(group.parentElement).not.toHaveClass("overflow-x-auto");
+  const filters = within(group).getAllByRole("button");
+  expect(filters.map(filter => filter.textContent)).toEqual(["Todas2", "Por atender0", "En proceso0", "Cerradas1"]);
+  for (const filter of filters) expect(filter).toHaveClass("max-sm:h-9!");
+});

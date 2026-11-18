@@ -28,7 +28,7 @@ import type { ProfileSaveOutcome } from "./profile-save";
 import { profileFieldIssues, sortProfileIssues } from "./profile-field-errors";
 
 const CATEGORIES = [{ value: "personal", label: "Personal" }, { value: "experience", label: "Experiencia" }, { value: "education", label: "Educación" }, { value: "compensation", label: "Compensación" }, { value: "languages", label: "Idiomas" }] as const;
-const TAB_LIST = "max-w-full justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-md:pr-12 max-md:[mask-image:linear-gradient(to_right,black_80%,transparent)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+const TAB_LIST = "max-w-full justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-md:h-auto! max-md:flex-wrap max-md:gap-y-2 max-md:pb-1.5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 // Preserve the validated main layout while the editor loads and saves real data.
 const HERO = "border-b border-border/60 gap-y-4 has-data-[slot=card-action]:grid-cols-1 md:has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)_18rem]";
 const IDENTITY = "grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1 md:gap-x-5";
@@ -253,7 +253,7 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
       <CardContent>
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as ProfileCategory)} className={CARD_CONTENT}>
           <div className="flex min-w-0 flex-col gap-1">
-            <TabsList variant="line" aria-label="Secciones del perfil" tabIndex={0} className={TAB_LIST}>{CATEGORIES.map(item => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}</TabsList>
+            <TabsList variant="line" aria-label="Secciones del perfil" tabIndex={0} className={TAB_LIST}>{CATEGORIES.map(item => <TabsTrigger key={item.value} value={item.value} className="max-md:h-8 max-md:flex-none">{item.label}</TabsTrigger>)}</TabsList>
           </div>
           <TabsContent value={activeTab}>
             <fieldset disabled={pending || uncertain} className="min-w-0">

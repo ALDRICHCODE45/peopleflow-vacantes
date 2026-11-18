@@ -14,11 +14,56 @@
 }
 
 /* Public vacancy detail: real anchor navigation, not a tab panel/disclosure. */
+/* Section tabs scroll sideways on phones. A scroll-linked mask fades only the edge
+   that hides tabs (none while everything fits, since the timeline is then inactive);
+   the second mask layer keeps the 1px base rule unfaded. */
+@property --pf-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --pf-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes pf-scroll-edge-fade {
+  0% { --pf-fade-start: 0px; --pf-fade-end: 48px; }
+  12% { --pf-fade-start: 48px; }
+  88% { --pf-fade-end: 48px; }
+  100% { --pf-fade-start: 48px; --pf-fade-end: 0px; }
+}
 .pf-job-section-nav {
   display: flex;
   gap: 28px;
   overflow-x: auto;
   border-bottom: 1px solid var(--border);
+  mask-image: linear-gradient(to right, transparent, #000 var(--pf-fade-start), #000 calc(100% - var(--pf-fade-end)), transparent), linear-gradient(#000, #000);
+  mask-size: 100% 100%, 100% 1px;
+  mask-position: 0 0, 0 100%;
+  mask-repeat: no-repeat;
+}
+/* Only with scroll timelines: elsewhere a 0s fill-both animation would pin the end
+   keyframe (a permanent left fade). Scroll-linked, not motion, so the global
+   reduced-motion duration override is undone for it. */
+@supports (animation-timeline: scroll()) {
+  .pf-job-section-nav {
+    animation: pf-scroll-edge-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pf-job-section-nav {
+      animation-duration: auto !important;
+    }
+  }
+}
+/* Without scroll timelines: a static right fade, with end padding so the last tab
+   can scroll clear of it and a nav that fits never has a label under the fade. */
+@supports not (animation-timeline: scroll()) {
+  .pf-job-section-nav {
+    padding-inline-end: 48px;
+    --pf-fade-end: 48px;
+  }
 }
 .pf-job-section-nav a {
   display: flex;
