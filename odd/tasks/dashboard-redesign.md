@@ -351,3 +351,9 @@ detail): compare with the user's references, research modern dashboard patterns,
   `active` but the request is sent). To measure on the production build before the demo; fix if it also doubles there.
   Follow-up: confirm the server-side client forwards `X-PF-Proxy-Secret` + client IP/User-Agent when `AUDIT_PROXY_SECRET`
   is set (audit-log-v1; mandatory in production).
+- **L60** Single merge into local `main` (2026-11-17): `886fd921` merges backend `feat/stakeholder-metrics-v2-backend` @
+  `f6d0cf1c` (metrics v2, dashboard v2 d2a/d2b, positions aggregate, organic export columns, seed v2 T13), then `aa019385`
+  merges `feat/metrics-redesign` @ the L59 docs commit. Both clean; the merged `frontend/` tree equals the tested branch
+  (full suite L56) and `backend/` equals the backend branch. Not pushed (the user pushes). After the seed v2 re-apply some
+  demo figures changed (on time 14, late 6, overdue 7, pending 4, not configured 0; in pipeline 30; stalled 14). Remaining:
+  backend d2c (remove the old dashboard endpoint, now unused by the frontend) and the L58 low polish.
