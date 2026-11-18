@@ -60,7 +60,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T11 | S5, S10 | (done, L20) Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
 | T12a | S10 | (done, L27) Implement `design/candidate-cvs-profile/03-cvs-vista-previa.html` on `/candidato/cvs` (L21); preview slot pluggable | — |
 | T12b | S10 | Real first-page preview for PDFs (source to decide: pdf.js vs backend inline/thumbnail) | — |
-| T12c | S10 | Implement the chosen Perfil artboard (after the user's choice) | — |
+| T12c | S10 | (done, L28) Implement the chosen Perfil artboard (after the user's choice) | — |
 
 ## Log
 
@@ -206,3 +206,10 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   focus to the next row after delete, one entrance. Accepted deviations: panel from 1280 px (same breakpoint as saved
   vacancies; the sidebar takes the space at 900), empty copy no longer promises a page preview, spinner instead of a
   percentage (no upload progress events), «En uso» label, short row date.
+- **L28** T12c `d5594931`, merged `b59c4e38` (worker; related 134 green, tsc/eslint 0): `/candidato/perfil` as artboard 04
+  with the confirmed visibility map `profile/visibility.ts` (title company-visible), a ficha showing only company data,
+  in-place section editing, the fixed «Cambios sin guardar» bar, the rail with «n de 10 datos clave» and «Qué recibe la
+  empresa» (built from the map, with the copy-at-application line). Shared `profile-completeness.ts` (10 items; LinkedIn,
+  portfolio and seniority do not count) used by the editor and the dashboard. Worker choices: education status «Solo tú»;
+  highest level includes «En curso»; ficha facts line; «Qué recibe la empresa» kept at 390. TDD partial: screen tests
+  written after the first draft (RED observed only for completeness and visibility).
