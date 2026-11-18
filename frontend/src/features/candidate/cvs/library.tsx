@@ -14,6 +14,7 @@ import { InfoPopover } from "@/features/psychometrics/help/info-popover";
 import { CARD } from "../saved/queue";
 import saved from "../saved/saved.module.css";
 import { CvPreview } from "./cv-preview";
+import { pdfPageRenderer } from "./pdf-preview";
 import { formatName, formatSize, formatWord, isPdf, LONG_DATE, maxMegabytes, SHORT_DATE } from "./format";
 
 export const PREVIEW_ID = "cv-preview";
@@ -112,7 +113,7 @@ export function CvPreviewPanel({ cv, index, total, limits, motion, onEdit }: { c
     {/* The page sits beside the facts once the panel is wide enough (about 1440 px screens), above them before. */}
     <div className="@container/cv-panel">
       <div className="grid gap-6 @xl/cv-panel:grid-cols-[minmax(0,1fr)_240px]">
-        <div data-pf-cv-stage className="grid place-items-center rounded-[18px] bg-muted p-7 @xl/cv-panel:min-h-110"><CvPreview cv={cv} className="max-w-80" /></div>
+        <div data-pf-cv-stage className="grid place-items-center rounded-[18px] bg-muted p-7 @xl/cv-panel:min-h-110"><CvPreview cv={cv} renderPage={pdfPageRenderer(cv, "panel")} className="max-w-80" /></div>
         <div className="flex flex-col gap-5">
           <Facts cv={cv} limits={limits} />
           <UseNote cv={cv} />
@@ -127,7 +128,7 @@ export function CvPreviewPanel({ cv, index, total, limits, motion, onEdit }: { c
 export function CvInlineDetail({ cv, limits, onEdit }: { cv: Cv; limits: CvLimits; onEdit: (mode: EditMode) => void }) {
   const [, rename, remove] = cvRowActions(cv);
   return <div className="grid grid-cols-[104px_minmax(0,1fr)] items-start gap-3.5">
-    <CvPreview cv={cv} size="compact" />
+    <CvPreview cv={cv} size="compact" renderPage={pdfPageRenderer(cv, "compact")} />
     <Facts cv={cv} limits={limits} />
     <DownloadLink cv={cv} className="col-span-2 min-h-11 w-full" />
     <div className="col-span-2 -mt-1.5 grid grid-cols-2 gap-2">

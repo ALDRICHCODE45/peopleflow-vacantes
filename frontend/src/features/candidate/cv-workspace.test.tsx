@@ -7,8 +7,11 @@ vi.mock("@/features/candidate-cvs/actions", () => ({ loadCvsAction: vi.fn(), ren
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 // Base UI menu positioning cannot settle in jsdom; the shared deterministic double keeps the same roles.
 vi.mock("@/components/ui/dropdown-menu", async () => (await import("@/components/data-table/test-menu")).menuDouble);
+// The pdf.js first page has its own suite (cvs/pdf-first-page.test.tsx); here the loader only records which CVs ask for it.
+vi.mock("@/features/candidate/cvs/pdf-page", () => ({ loadFirstPage: vi.fn(), peekFirstPage: vi.fn(), clearFirstPageCache: vi.fn() }));
 import { deleteCvAction, loadCvsAction, renameCvAction } from "@/features/candidate-cvs/actions";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { loadFirstPage } from "@/features/candidate/cvs/pdf-page";
 import type { Cv } from "@/features/candidate-cvs/model";
 import { cv, library } from "@/features/candidate-cvs/test-fixtures";
 import { CvWorkspace } from "./cv-workspace";
@@ -31,6 +34,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); vi.mocked(notifyActionResult).mockReset();
   vi.mocked(loadCvsAction).mockReset().mockResolvedValue({ ok: true, data: library });
   vi.mocked(renameCvAction).mockReset(); vi.mocked(deleteCvAction).mockReset();
+  vi.mocked(loadFirstPage).mockReset().mockImplementation(() => ({ promise: new Promise<never>(() => {}), release: vi.fn() }));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -99,7 +103,11 @@ describe("selection and preview panel", () => {
     expect(within(preview).getByText("PDF · 340 KB · documento 1 de 2")).toBeVisible();
     expect(within(preview).getByRole("link", { name: `Descargar ${cv.name}` })).toHaveAttribute("href", `/api/candidate/cvs/${cv.id}/file`);
     expect(within(preview).getByRole("button", { name: `Acciones de ${cv.name}` })).toHaveAttribute("aria-haspopup", "menu");
-    expect(within(preview).getByRole("figure", { name: `Vista previa de ${cv.name}` })).toHaveTextContent("Vista previa próximamente");
+    // A PDF shows its real first page (an A4 skeleton until pdf.js draws it), loaded for this CV only.
+    const page = within(preview).getByRole("figure", { name: `Vista previa de ${cv.name}` });
+    expect(page).toHaveAttribute("data-state", "page");
+    await waitFor(() => expect(vi.mocked(loadFirstPage)).toHaveBeenCalledWith({ id: cv.id, size: cv.size }));
+    expect(page.querySelector("[data-pf-pdf-state=loading]")).not.toBeNull();
     const facts = Array.from(preview.querySelectorAll("dl > div")).map(node => [node.querySelector("dt")!.textContent, node.querySelector("dd")!.textContent]);
     expect(facts).toEqual([["Formato", "PDF"], ["Tamaño", "340 KB de 5 MB"], ["Subido", "10 de marzo de 2026"], ["Uso", "En uso"]]);
     expect(within(preview).getByText(/^Enviaste este CV en al menos una postulación\. Cada postulación guarda su copia/)).toBeVisible();
@@ -125,6 +133,9 @@ describe("selection and preview panel", () => {
     withItems(word); await ready();
     const preview = panel();
     expect(within(preview).getByRole("figure", { name: `Vista previa de ${word.name}` })).toHaveTextContent("Sin vista previa en el navegador. Descárgalo para verlo.");
+    expect(within(preview).getByRole("figure", { name: `Vista previa de ${word.name}` })).toHaveAttribute("data-state", "placeholder");
+    await new Promise(done => setTimeout(done, 20));
+    expect(vi.mocked(loadFirstPage)).not.toHaveBeenCalled();
     const facts = Array.from(preview.querySelectorAll("dl > div")).map(node => node.querySelector("dd")!.textContent);
     expect(facts).toEqual(["Word (.docx)", "92 KB de 5 MB", "1 de febrero de 2026", "Sin enviar todavía"]);
     expect(within(preview).getByText(/^Al postularte eliges cuál de tus CVs enviar/)).toBeVisible();
@@ -151,7 +162,8 @@ describe("narrow screens", () => {
     expect(row(cv.name)).toHaveAttribute("aria-expanded", "true");
     expect(row(cv.name)).not.toHaveAttribute("aria-current");
     const detail = document.getElementById(row(cv.name).getAttribute("aria-controls")!)!;
-    expect(within(detail).getByRole("figure", { name: `Vista previa de ${cv.name}` })).toHaveTextContent("Vista previa próximamente");
+    expect(within(detail).getByRole("figure", { name: `Vista previa de ${cv.name}` })).toHaveAttribute("data-state", "page");
+    await waitFor(() => expect(vi.mocked(loadFirstPage)).toHaveBeenCalledWith({ id: cv.id, size: cv.size }));
     expect(within(detail).getByRole("link", { name: `Descargar ${cv.name}` })).toHaveClass("min-h-11");
     expect(within(detail).getByRole("button", { name: "Renombrar" })).toHaveClass("min-h-11");
     expect(within(detail).getByRole("button", { name: "Eliminar" })).toHaveClass("min-h-11");
