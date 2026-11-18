@@ -192,3 +192,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   /candidato/cvs → risk item 5, independent verification); Perfil → «04 · Así te ven las empresas (Recomendado)» (T12c;
   «Lo ven las empresas / Solo tú» to be confirmed by the backend); completeness → «10 datos en los dos lados
   (Recomendado)» (LinkedIn and portfolio optional on the dashboard too).
+- **L23** Perfil 04 handoff started (T12c), in an isolated worktree `feat/candidate-profile` because T12a is writing in this one; visibility labels live in one map to adjust after the backend's answer.
