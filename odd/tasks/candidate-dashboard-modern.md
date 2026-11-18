@@ -37,7 +37,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T4 | S1–S3 | (done, L9–L11) Implement artboard `04-bento-con-siguiente-paso.html` on `/candidato/dashboard` (L8): next-step card, bento tiles, charts by threshold, saved vacancies read, fix the 1 s assessment ticker re-render (L4) | — |
 | T5 | S4 | (done, L9) Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
 | T6 | S5, S6 | 2–3 proposal artboards for «Vacantes guardadas» in `design/candidate-saved-modern/`, desktop and 390 px, on the canvas (done, L13) | — |
-| T7 | S4, S6 | Implement `design/candidate-saved-modern/02-postulate-primero.html` on `/candidato/guardadas` (L14) | — |
+| T7 | S4, S6 | (done, L15) Implement `design/candidate-saved-modern/02-postulate-primero.html` on `/candidato/guardadas` (L14) | `00f962fd` |
 
 ## Log
 
@@ -129,3 +129,10 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   checks pass, Quitar + Deshacer works, motion once with reduced motion respected. Data gaps: application status needs a
   join with the candidate applications by id; no closing date, so no «cierra pronto»; no «similares» data.
 - **L14** User chose «02 · Postúlate primero»: «Me gusta mas la segunda hermano, vamos por esa.» Handoff started (T7).
+- **L15** T7 `00f962fd` (worker: 27 workspace tests, related 53 green, tsc/eslint 0). Saved vacancies as artboard 02:
+  sort Sugerido/Salario/Recientes with real reasons (bruto ranked before neto, never compared as equal), dark sticky
+  preview ≥1280 px, rows expand in place below, application status joined from the candidate applications, Quitar +
+  Deshacer with focus moving on, collapsed «Ya no disponibles», empty and loading states, one entrance. Full suite 577
+  files / 10441 tests passed (2 skipped), tsc 0, lint 0 errors. Rebuilt :3000 and checked in the browser at 1440, 390 and
+  dark: no overflow, no console errors or ≥400, the joined status «Enviada» shows, the preview and the expanded row match
+  the artboard (`/tmp/pf-sv/*.png`).
