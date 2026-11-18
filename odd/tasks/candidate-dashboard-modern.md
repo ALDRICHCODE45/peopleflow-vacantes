@@ -29,8 +29,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T1 | S2, S4 | Browser audit of `/candidato/*` with Valeria's demo data at 1440 and 390 px, plus the cause of the donut stutter (verify, background) (done, L4) | — |
 | T2 | S1, S3, S5 | Research modern candidate and personal dashboards and chart patterns; write `design/candidate-dashboard-modern/research.md` (explore, background) (done, L3) | — |
 | T3 | S1–S5 | 2–3 proposal artboards in `design/candidate-dashboard-modern/`, desktop and 390 px, opened on the canvas (done, L5) | — |
-| T4 | S1–S4 | Implement the artboard the user chooses (after approval) | — |
-| T5 | S4 | Fix the mobile overflows the audit finds on the other candidate screens (after approval) | — |
+| T4 | S1–S3 | Implement artboard `04-bento-con-siguiente-paso.html` on `/candidato/dashboard` (L8): next-step card, bento tiles, charts by threshold, saved vacancies read, fix the 1 s assessment ticker re-render (L4) | — |
+| T5 | S4 | Mobile fixes from L4: application titles and filter group, profile tabs, job section nav fade, CV file name, settings switches, guardadas gap, copy bugs | — |
 
 ## Log
 
@@ -87,3 +87,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   saved vacancies, «+N más» popover, tinted card without alert styling); «Sin pendientes» hides it and the bento moves up.
   Validated: 32 toggle combinations at 1440 and 390 without overflow, popover focus return, reduced motion. Screenshots
   `/tmp/pf-design-cd/d-*.png`. Open question: saved vacancies count as pending, so the card almost always shows.
+- **L8** User approved artboard 04: «si hermano, me gusta, adelante con los siguientes pasos.» Saved vacancies not
+  applied to do NOT count as a pending step (my recommendation, which the user's go-ahead accepted): the «Siguiente
+  paso» card shows only for an assessment about to expire, an unread message or an incomplete profile; saved vacancies
+  keep their bento tile. Handoff started on the canvas. T4 and T5 run as two parallel writers with disjoint surfaces.
