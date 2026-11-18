@@ -1,25 +1,46 @@
 package application
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// Service answers the §3 routes. Every number is computed on request (§3.6).
+// Service answers the metrics routes from shared snapshots (v2 §2): one load
+// per company and period, filtered in Go per request.
 type Service struct {
-	store    Store
-	calendar Calendar
-	now      func() time.Time
+	store     Store
+	calendar  Calendar
+	now       func() time.Time
+	snapshots *snapshots
+	// pipelines caches the pipeline snapshot per company (v2 §2).
+	pipelines *cache[uuid.UUID, *PipelineData]
+	// histories caches the company dashboard's history snapshot per company
+	// (company-dashboard-v2 §4); pools the pool additions per window.
+	histories  *cache[uuid.UUID, *HistoryData]
+	pools      *cache[poolKey, [2]int]
+	talentBase *TalentBase
+	// exportLimit bounds a CSV export (ExportLimit; WithExportLimit in tests).
+	exportLimit int
 }
 
 // NewService needs the fulfillment business-day calendar; now is the clock of
-// overdue/pending and of open tramos.
+// the snapshots' as_of (overdue/pending, open tramos) and of their TTL.
 func NewService(store Store, calendar Calendar, now func() time.Time) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{store: store, calendar: calendar, now: now}
+	s := &Service{store: store, calendar: calendar, now: now, exportLimit: ExportLimit}
+	load := func(ctx context.Context, company uuid.UUID, p Period) (*Dataset, error) {
+		return store.Load(ctx, company, Scope{Period: p})
+	}
+	clock := func() time.Time { return s.now() }
+	s.snapshots = newSnapshots(load, clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	s.pipelines = newCache[uuid.UUID, *PipelineData](clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	s.histories = newCache[uuid.UUID, *HistoryData](clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	s.pools = newCache[poolKey, [2]int](clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
+	return s
 }
 
 // WithClock replaces the clock (tests only).
@@ -28,13 +49,54 @@ func (s *Service) WithClock(now func() time.Time) *Service {
 	return s
 }
 
-// header is the part every response shares (§3.0).
+// header is the part every response shares (v2 §3).
 type header struct {
 	DefinitionsVersion string     `json:"definitions_version"`
 	Period             PeriodJSON `json:"period"`
+	AsOf               time.Time  `json:"as_of"`
 }
 
-func newHeader(p Period) header { return header{DefinitionsVersion, p.JSON()} }
+// newHeader echoes the period and the snapshot's load instant, in UTC to the
+// second.
+func newHeader(p Period, asOf time.Time) header {
+	return header{DefinitionsVersion, p.JSON(), asOf.UTC().Truncate(time.Second)}
+}
+
+// view is a snapshot narrowed by the request's filters; all is the whole
+// snapshot (applied_filters names people and vacancies from it).
+type view struct {
+	data *Dataset
+	all  *Dataset
+	asOf time.Time
+}
+
+// view loads (or reuses) the period's snapshot and applies the requester
+// filter and, when recruiter is set, keeps the vacancies where that user has a
+// tramo overlapping the period: the loader's scope rules, in Go.
+func (s *Service) view(ctx context.Context, company uuid.UUID, p Period, requester RequesterFilter, recruiter *uuid.UUID) (view, error) {
+	snap, err := s.snapshots.get(ctx, company, p)
+	if err != nil {
+		return view{}, err
+	}
+	return view{snap.Data.narrow(p, requester, recruiter), snap.Data, snap.AsOf}, nil
+}
+
+// views loads the period and its previous period in parallel (v2 §4.1), so the
+// latency is the slower load, not the sum.
+func (s *Service) views(ctx context.Context, company uuid.UUID, p Period, q Query) (current, previous view, err error) {
+	var prevErr error
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		previous, prevErr = s.view(ctx, company, p.Previous(), q.Requester, q.RecruiterID)
+	}()
+	current, err = s.view(ctx, company, p, q.Requester, q.RecruiterID)
+	<-done
+	if err == nil {
+		err = prevErr
+	}
+	return current, previous, err
+}
 
 // prepare parses the query and builds its period.
 func prepare(raw string, route Route) (Query, Period, error) {

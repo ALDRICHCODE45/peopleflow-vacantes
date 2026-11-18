@@ -100,6 +100,8 @@ func TestCatalogPreRegistersSlice2aTypes(t *testing.T) {
 		EventCompanyMemberAdded:               {CategoryMembers, []string{"member_user_id", "role"}},
 		EventCompanyMemberRoleChanged:         {CategoryMembers, []string{"from_role", "member_user_id", "to_role"}},
 		EventAuditLogExported:                 {CategoryAudit, []string{"filters", "row_count"}},
+		// stakeholder-metrics-v2 §6: exports of audited metrics lists.
+		EventMetricsDetailExported: {CategorySensitiveRead, []string{"filters", "report", "row_count", "vacancy_id"}},
 	}
 	for eventType, w := range want {
 		spec, ok := LookupEvent(eventType)

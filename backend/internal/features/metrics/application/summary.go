@@ -5,20 +5,50 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-// Summary is the company view (§3.1).
+// Summary is the company view (§3.1) plus the v2 header strip (v2 §4.1).
 type Summary struct {
 	header
-	Vacancies     SummaryVacancies `json:"vacancies"`
-	Delivery      SummaryDelivery  `json:"delivery"`
-	Placements    SummaryPlacement `json:"placements"`
-	Origin        Origin           `json:"origin"`
-	ClosedByMonth []ClosedMonth    `json:"closed_by_month"`
-	Reassignments SummaryReassigns `json:"reassignments"`
-	ByRequester   []RequesterGroup `json:"by_requester"`
+	Vacancies      SummaryVacancies `json:"vacancies"`
+	Delivery       SummaryDelivery  `json:"delivery"`
+	Placements     SummaryPlacement `json:"placements"`
+	Origin         Origin           `json:"origin"`
+	ClosedByMonth  []ClosedMonth    `json:"closed_by_month"`
+	Reassignments  SummaryReassigns `json:"reassignments"`
+	ByRequester    []RequesterGroup `json:"by_requester"`
+	PreviousPeriod PeriodRange      `json:"previous_period"`
+	Headline       Headline         `json:"headline"`
+	OnTimeByMonth  []MonthRate      `json:"on_time_by_month"`
+}
+
+// PeriodRange is a period without its time zone (the previous period).
+type PeriodRange struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// Delta is a headline figure for the period and its previous period (N1).
+type Delta[T any] struct {
+	Current  T `json:"current"`
+	Previous T `json:"previous"`
+}
+
+type Headline struct {
+	OnTimeRate                Delta[Rate]     `json:"on_time_rate"`
+	Assigned                  Delta[int]      `json:"assigned"`
+	MedianBusinessDaysToClose Delta[*float64] `json:"median_business_days_to_close"`
+	Placements                Delta[int]      `json:"placements"`
+	Reassignments             Delta[int]      `json:"reassignments"`
+}
+
+// MonthRate is one point of the on-time series (N2).
+type MonthRate struct {
+	Month string `json:"month"`
+	Rate  Rate   `json:"rate"`
 }
 
 type ClosedCounts struct {
@@ -106,27 +136,71 @@ type RequesterGroup struct {
 	Filled    int        `json:"filled"`
 }
 
-// Summary computes §3.1 for the vacancies in scope.
+// Summary computes §3.1 and the v2 strip for the vacancies in scope; the
+// previous period loads in parallel with the same filters.
 func (s *Service) Summary(ctx context.Context, company uuid.UUID, raw string) (*Summary, error) {
 	q, p, err := prepare(raw, RouteSummary)
 	if err != nil {
 		return nil, err
 	}
-	data, err := s.store.Load(ctx, company, Scope{Period: p, Requester: q.Requester, Recruiter: q.RecruiterID})
+	cur, prev, err := s.views(ctx, company, p, q)
 	if err != nil {
 		return nil, err
 	}
-	return s.summarize(data, p), nil
+	out := s.summarize(cur.data, p, cur.asOf)
+	pp := p.Previous()
+	before := s.summarize(prev.data, pp, prev.asOf)
+	out.PreviousPeriod = PeriodRange{pp.From, pp.To}
+	out.Headline = Headline{
+		OnTimeRate:                Delta[Rate]{out.Delivery.OnTimeRate, before.Delivery.OnTimeRate},
+		Assigned:                  Delta[int]{out.Vacancies.Assigned, before.Vacancies.Assigned},
+		MedianBusinessDaysToClose: Delta[*float64]{out.Vacancies.MedianBusinessDaysToClose, before.Vacancies.MedianBusinessDaysToClose},
+		Placements:                Delta[int]{out.Placements.Credits, before.Placements.Credits},
+		Reassignments:             Delta[int]{out.Reassignments.Total, before.Reassignments.Total},
+	}
+	out.OnTimeByMonth = s.onTimeByMonth(cur.data, p, cur.asOf)
+	return out, nil
 }
 
-func (s *Service) summarize(data *Dataset, p Period) *Summary {
-	now := s.now()
-	out := &Summary{header: newHeader(p), ClosedByMonth: []ClosedMonth{}, ByRequester: []RequesterGroup{}}
-	months := p.Months()
-	byMonth := make([]ClosedMonth, len(months))
-	for i, m := range months {
-		byMonth[i].Month = m.Key
+// lastClose is the vacancy's last close in [from, to), if any (v2 V1: a
+// vacancy counts once, by the reason of its last close).
+func (v *Vacancy) lastClose(from, to time.Time) (Close, bool) {
+	closes := v.closesIn(from, to)
+	if len(closes) == 0 {
+		return Close{}, false
 	}
+	return closes[len(closes)-1], true
+}
+
+// filledClose is the first filled close in the period of a vacancy whose last
+// close in the period is filled: the close time to close and the closing
+// target are judged at (v2 V1).
+func (v *Vacancy) filledClose(p Period) (Close, bool) {
+	if last, ok := v.lastClose(p.Start, p.End); !ok || reasonKey(last.Reason) != "filled" {
+		return Close{}, false
+	}
+	for _, c := range v.closesIn(p.Start, p.End) {
+		if reasonKey(c.Reason) == "filled" {
+			return c, true
+		}
+	}
+	return Close{}, false
+}
+
+// judge counts a filled close against the closing target in effect.
+func (t *ClosingTarget) judge(c Close) {
+	switch {
+	case c.Target == nil:
+		t.NoTarget++
+	case LocalDate(c.At) <= *c.Target:
+		t.OnTime++
+	default:
+		t.Late++
+	}
+}
+
+func (s *Service) summarize(data *Dataset, p Period, now time.Time) *Summary {
+	out := &Summary{header: newHeader(p, now), ClosedByMonth: []ClosedMonth{}, ByRequester: []RequesterGroup{}, OnTimeByMonth: []MonthRate{}}
 	groups := map[string]*RequesterGroup{}
 	group := func(v *Vacancy) *RequesterGroup {
 		key := ""
@@ -148,40 +222,20 @@ func (s *Service) summarize(data *Dataset, p Period) *Summary {
 			out.Vacancies.Assigned++
 			group(v).Vacancies++
 		}
-		// 2.2 / 2.4: every close in the period counts (close → reopen → close).
-		closes := v.closesIn(p.Start, p.End)
-		for _, c := range closes {
-			out.Vacancies.Closed.add(c.Reason)
-			if reasonKey(c.Reason) != "filled" {
-				continue
-			}
-			group(v).Filled++
-			toClose = append(toClose, s.calendar.BetweenInstants(v.PublishedAt, c.At))
-			switch {
-			case c.Target == nil:
-				out.Vacancies.ClosingTarget.NoTarget++
-			case LocalDate(c.At) <= *c.Target:
-				out.Vacancies.ClosingTarget.OnTime++
-			default:
-				out.Vacancies.ClosingTarget.Late++
-			}
-		}
-		// 2.4 vacancy outcome: coverage of the vacancies closed in the period.
-		if len(closes) > 0 {
+		// 2.2 / 2.4 (v2 V1): distinct vacancies by their last close in the
+		// period; filled ones measured at their first filled close.
+		if last, ok := v.lastClose(p.Start, p.End); ok {
+			out.Vacancies.Closed.add(last.Reason)
+			// 2.4 vacancy outcome: coverage of the vacancies closed in the period.
 			out.Placements.PositionsCovered += v.activeCredits()
 			if v.Headcount != nil {
 				out.Placements.PositionsRequired += *v.Headcount
 			}
 		}
-		// 2.6: distinct vacancies per month and reason (D10).
-		for i, m := range months {
-			seen := map[string]bool{}
-			for _, c := range v.closesIn(m.Start, m.End) {
-				if k := reasonKey(c.Reason); !seen[k] {
-					seen[k] = true
-					byMonth[i].add(c.Reason)
-				}
-			}
+		if c, ok := v.filledClose(p); ok {
+			group(v).Filled++
+			toClose = append(toClose, s.calendar.BetweenInstants(v.PublishedAt, c.At))
+			out.Vacancies.ClosingTarget.judge(c)
 		}
 		// 2.3: enters by commitment date (D12) or by assignment (P1).
 		if v.inDeliveryPeriod(p) {
@@ -213,11 +267,7 @@ func (s *Service) summarize(data *Dataset, p Period) *Summary {
 				}
 			}
 		}
-		// 2.5: participations created in the period.
-		out.Origin.Portal += v.Origin["portal"]
-		out.Origin.CareersSite += v.Origin["careers_site"]
-		out.Origin.Manual += v.Origin["manual"]
-		out.Origin.Unknown += v.Origin["unknown"]
+		out.Origin.add(v.Origin)
 		// 2.9: reassignments performed in the period.
 		for _, r := range v.Reassigns {
 			if p.Contains(r.At) {
@@ -233,12 +283,23 @@ func (s *Service) summarize(data *Dataset, p Period) *Summary {
 	d.ConfiguredRate = NewRate(d.Configured, d.Total)
 	d.MedianBusinessDaysToTarget = Median(toTarget)
 	out.Vacancies.MedianBusinessDaysToClose = Median(toClose)
-	out.ClosedByMonth = byMonth
+	// 2.6: distinct vacancies per month by their last close that month.
+	for _, m := range closedByMonth(data, p) {
+		out.ClosedByMonth = append(out.ClosedByMonth, ClosedMonth{m.Month, m.ClosedCounts})
+	}
 	for _, g := range groups {
 		out.ByRequester = append(out.ByRequester, *g)
 	}
 	slices.SortFunc(out.ByRequester, compareGroups)
 	return out
+}
+
+// 2.5: participations created in the period, by channel.
+func (o *Origin) add(byChannel map[string]int) {
+	o.Portal += byChannel["portal"]
+	o.CareersSite += byChannel["careers_site"]
+	o.Manual += byChannel["manual"]
+	o.Unknown += byChannel["unknown"]
 }
 
 func (b *ByReason) add(reason string) {

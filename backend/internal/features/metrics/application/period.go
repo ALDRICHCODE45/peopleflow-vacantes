@@ -47,6 +47,15 @@ func NewPeriod(from, to string) (Period, error) {
 	return Period{From: from, To: to, Start: f, End: t.AddDate(0, 0, 1)}, nil
 }
 
+// Previous is the same number of days immediately before the period
+// ([from − n, from − 1], n = to − from + 1; v2 §3.1 V2).
+func (p Period) Previous() Period {
+	days := int(civilDate(p.To).Sub(civilDate(p.From)).Hours()/24) + 1
+	start := civilDate(p.From)
+	prev, _ := NewPeriod(start.AddDate(0, 0, -days).Format(time.DateOnly), start.AddDate(0, 0, -1).Format(time.DateOnly))
+	return prev
+}
+
 func (p Period) JSON() PeriodJSON { return PeriodJSON{p.From, p.To, TimeZone} }
 
 // Contains reports whether an instant's local date falls in the period.

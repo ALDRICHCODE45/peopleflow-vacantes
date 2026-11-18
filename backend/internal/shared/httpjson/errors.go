@@ -123,6 +123,9 @@ func Resolve(code Code) Definition {
 		if def, ok := resolveAuditError(code); ok {
 			return def
 		}
+		if def, ok := resolveMetricsError(code); ok {
+			return def
+		}
 		if def, ok := resolveRateLimitError(code); ok {
 			return def
 		}

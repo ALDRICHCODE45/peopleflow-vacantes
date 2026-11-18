@@ -25,15 +25,16 @@ import (
 type StagesFrom func(draft uuid.UUID, config []byte, cutoff uuid.UUID) ([]uuid.UUID, error)
 
 type Store struct {
-	pool   *pgxpool.Pool
-	audit  auditrepositories.AuditEventRepository
-	stages StagesFrom
+	pool     *pgxpool.Pool
+	audit    auditrepositories.AuditEventRepository
+	stages   StagesFrom
+	pipeline PipelineFrom
 }
 
 var _ app.Store = (*Store)(nil)
 
-func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository, stages StagesFrom) *Store {
-	return &Store{pool: pool, audit: audit, stages: stages}
+func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository, stages StagesFrom, pipeline PipelineFrom) *Store {
+	return &Store{pool: pool, audit: audit, stages: stages, pipeline: pipeline}
 }
 
 type querier interface {
@@ -291,9 +292,10 @@ func loadCloses(ctx context.Context, q querier, ids []uuid.UUID, byID map[uuid.U
 }
 
 func loadCredits(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]*app.Vacancy, people map[uuid.UUID]bool) error {
-	rows, err := q.Query(ctx, `SELECT pc.process_id, pc.id, pc.hired_at, pc.status,
+	rows, err := q.Query(ctx, `SELECT pc.process_id, pc.id, pc.hired_at, pc.status, COALESCE(cc.id, u.id), `+candidateName+`,
  COALESCE((SELECT jsonb_agg(jsonb_build_object('user_id',r.user_id,'kind',r.kind) ORDER BY r.user_id) FROM placement_credit_recipients r WHERE r.credit_id=pc.id),'[]'::jsonb)
- FROM placement_credits pc WHERE pc.process_id=ANY($1) AND pc.company_id=$2 AND pc.status IN ('active','did_not_hold')
+ FROM placement_credits pc JOIN process_participations p ON p.id=pc.participation_id`+candidateJoins+`
+ WHERE pc.process_id=ANY($1) AND pc.company_id=$2 AND pc.status IN ('active','did_not_hold')
  ORDER BY pc.hired_at, pc.id`, ids, company)
 	if err != nil {
 		return fmt.Errorf("metrics credits: %w", err)
@@ -303,7 +305,7 @@ func loadCredits(ctx context.Context, q querier, company uuid.UUID, ids []uuid.U
 		var c app.Credit
 		var draft uuid.UUID
 		var raw []byte
-		if err := rows.Scan(&draft, &c.ID, &c.HiredAt, &c.Status, &raw); err != nil {
+		if err := rows.Scan(&draft, &c.ID, &c.HiredAt, &c.Status, &c.Candidate.ID, &c.Candidate.FullName, &raw); err != nil {
 			return err
 		}
 		var recipients []struct {

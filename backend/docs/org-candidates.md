@@ -110,8 +110,10 @@ server-side over the whole pool. `none` selects missing values («Sin dato»).
 | `years` | repeatable `0_1`, `1_3`, `3_5`, `5_plus`, `none` (decimal-aware `[0,1)`…`[5,∞)`) |
 | `language` + `language_min_level` | repeatable code (or `none`); optional level `A1`…`C2`, `native` (lowercase, same literals as profiles) applied to the selected codes |
 | `education_level` + `education_in_progress` | one minimum level; `education_in_progress=true` also matches `in_progress ≥ level` |
+| `added_from` | one `YYYY-MM-DD`, Mexico City local day, inclusive: candidates added to the pool on or after that day (same added rule as `added_last_7_days`: manual record creation or first organic application) |
+| `added_to` | one `YYYY-MM-DD`, inclusive; `added_from` after `added_to` is `{field:"added_to", code:"range"}` (company dashboard v2 «Nuevos en la base» drill-down) |
 
-Errors: 400 `{"error":"…","code":"invalid_filter","fields":[{"field":"years","code":"invalid"}]}` — the shared validation-style `fields` array (same item shape as `validation_error`), one entry per offending key, sorted by key; field codes are `unknown`, `invalid`, `duplicate`, `required`, `not_found` (unknown key, bad value, duplicate
+Errors: 400 `{"error":"…","code":"invalid_filter","fields":[{"field":"years","code":"invalid"}]}` — the shared validation-style `fields` array (same item shape as `validation_error`), one entry per offending key, sorted by key; field codes are `unknown`, `invalid`, `duplicate`, `required`, `not_found`, `range` (unknown key, bad value, duplicate
 one-valued key, `language_min_level` without `language`, `education_in_progress`
 without `education_level`); a `vacancy` that does not exist in the company is
 `{field:"vacancy", code:"not_found"}`; 400 `invalid_cursor`. No facet counts in v1:

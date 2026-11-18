@@ -258,17 +258,54 @@ func newRouter(d routerDeps) chi.Router {
 		r.Delete("/v2/me/company/stakeholder-invitations/{id}", d.stakeholderInvitationHandler.Revoke)
 	})
 
-	// Company metrics (stakeholder-metrics-v1 §3): owners and stakeholders
-	// read; detail reads with candidate names audit themselves.
+	// Company metrics (stakeholder-metrics-v1 §3, v2 §4 sections, §5 lists,
+	// §8 exports): owners and stakeholders read; detail reads and exports with
+	// candidate names audit themselves.
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireMetricsViewer)
 		r.Get("/v2/me/company/metrics/summary", d.metricsHandler.Summary)
+		r.Get("/v2/me/company/metrics/closures", d.metricsHandler.Closures)
+		r.Get("/v2/me/company/metrics/compliance", d.metricsHandler.Compliance)
+		r.Get("/v2/me/company/metrics/delays", d.metricsHandler.Delays)
+		r.Get("/v2/me/company/metrics/origin", d.metricsHandler.Origin)
 		r.Get("/v2/me/company/metrics/recruiters", d.metricsHandler.Recruiters)
 		r.Get("/v2/me/company/metrics/recruiters/{userId}", d.metricsHandler.Recruiter)
 		r.Get("/v2/me/company/metrics/vacancies", d.metricsHandler.Vacancies)
 		r.Get("/v2/me/company/metrics/reassignments", d.metricsHandler.Reassignments)
 		r.Get("/v2/me/company/metrics/vacancies/{draftId}/deliveries", d.metricsHandler.Deliveries)
 		r.Get("/v2/me/company/metrics/vacancies/{draftId}/placements", d.metricsHandler.Placements)
+		r.Get("/v2/me/company/metrics/deliveries", d.metricsHandler.DeliveryList)
+		r.Get("/v2/me/company/metrics/placements", d.metricsHandler.PlacementList)
+		r.Get("/v2/me/company/metrics/deliveries/export", d.metricsHandler.Export("deliveries"))
+		r.Get("/v2/me/company/metrics/vacancies/export", d.metricsHandler.Export("vacancies"))
+		r.Get("/v2/me/company/metrics/placements/export", d.metricsHandler.Export("placements"))
+		r.Get("/v2/me/company/metrics/reassignments/export", d.metricsHandler.Export("reassignments"))
+		r.Get("/v2/me/company/metrics/pipeline", d.metricsHandler.Pipeline)
+		r.Get("/v2/me/company/metrics/candidates", d.metricsHandler.CandidateList)
+		r.Get("/v2/me/company/metrics/applications", d.metricsHandler.ApplicationList)
+		r.Get("/v2/me/company/metrics/candidates/export", d.metricsHandler.Export("candidates"))
+		r.Get("/v2/me/company/metrics/applications/export", d.metricsHandler.Export("applications"))
+	})
+
+	// Company dashboard v2 sections (company-dashboard-v2 §3): owners and
+	// recruiters, served by the metrics engine; the scope follows the role.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Get("/v2/me/company/dashboard/summary", d.metricsHandler.DashboardSummary)
+		r.Get("/v2/me/company/dashboard/attention", d.metricsHandler.DashboardAttention)
+		r.Get("/v2/me/company/dashboard/pipeline", d.metricsHandler.DashboardPipeline)
+		r.Get("/v2/me/company/dashboard/vacancies", d.metricsHandler.DashboardVacancies)
+		r.Get("/v2/me/company/dashboard/recent", d.metricsHandler.DashboardRecent)
+		r.Get("/v2/me/company/dashboard/origin", d.metricsHandler.DashboardOrigin)
+		// Lists (§5) under /lists/: /dashboard/vacancies is the §3.4 section.
+		r.Get("/v2/me/company/dashboard/lists/candidates", d.metricsHandler.DashboardCandidateList)
+		r.Get("/v2/me/company/dashboard/lists/deliveries", d.metricsHandler.DashboardDeliveryList)
+		r.Get("/v2/me/company/dashboard/lists/vacancies", d.metricsHandler.DashboardVacancyList)
+		r.Get("/v2/me/company/dashboard/lists/applications", d.metricsHandler.DashboardApplicationList)
+		r.Get("/v2/me/company/dashboard/lists/candidates/export", d.metricsHandler.DashboardExport("candidates"))
+		r.Get("/v2/me/company/dashboard/lists/deliveries/export", d.metricsHandler.DashboardExport("deliveries"))
+		r.Get("/v2/me/company/dashboard/lists/vacancies/export", d.metricsHandler.DashboardExport("vacancies"))
+		r.Get("/v2/me/company/dashboard/lists/applications/export", d.metricsHandler.DashboardExport("applications"))
 	})
 
 	r.Group(func(r chi.Router) {
