@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boardPath, DETAIL_PATH, drilldownHref, safeBoardPath, type Drilldown } from "./drilldown";
+import { boardPath, DETAIL_PATH, drilldownHref, recruiterPath, safeBoardPath, type Drilldown } from "./drilldown";
 
 const period = { from: "2026-08-01", to: "2026-10-31" };
 const late: Drilldown = { kind: "deliveries", params: { result: "late" } };
@@ -42,6 +42,13 @@ describe("drilldown links (rule 16: every figure opens its records)", () => {
     expect(new URL(previous!, "https://app.test").searchParams.get("back")).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");
     expect(boardPath({})).toBe("/empresa/metricas");
   });
+
+  it("carries an explicit «back» (a recruiter page) instead of the board when the figure is opened from there", () => {
+    const back = recruiterPath("10000000-0000-4000-8000-000000000001", period);
+    expect(back).toBe("/empresa/metricas/reclutadores/10000000-0000-4000-8000-000000000001?from=2026-08-01&to=2026-10-31");
+    const href = drilldownHref({ kind: "placements", params: { recipient: "10000000-0000-4000-8000-000000000001" } }, period, { back });
+    expect(new URL(href!, "https://app.test").searchParams.get("back")).toBe(back);
+  });
 });
 
 describe("back to the board (only a same-origin /empresa/metricas path)", () => {
@@ -49,6 +56,26 @@ describe("back to the board (only a same-origin /empresa/metricas path)", () => 
     expect(safeBoardPath("/empresa/metricas?from=2026-08-01&to=2026-10-31")).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");
     expect(safeBoardPath("/empresa/metricas")).toBe("/empresa/metricas");
     expect(safeBoardPath("/empresa/metricas?recruiter_id=nope&from=2026-08-01&token=x")).toBe("/empresa/metricas?from=2026-08-01");
+  });
+
+  it("accepts exactly a recruiter page under Métricas, keeping only its window", () => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    expect(safeBoardPath(`/empresa/metricas/reclutadores/${id}?from=2026-08-01&to=2026-10-31`)).toBe(`/empresa/metricas/reclutadores/${id}?from=2026-08-01&to=2026-10-31`);
+    expect(safeBoardPath(`/empresa/metricas/reclutadores/${id}`)).toBe(`/empresa/metricas/reclutadores/${id}`);
+    expect(safeBoardPath(`/empresa/metricas/reclutadores/${id}?to=2026-10-31&recruiter_id=${id}&requester_id=none&from=2026-08-01&token=x#frag`))
+      .toBe(`/empresa/metricas/reclutadores/${id}?from=2026-08-01&to=2026-10-31`);
+    expect(safeBoardPath(`/empresa/metricas/reclutadores/${id}?from=nope`)).toBe(`/empresa/metricas/reclutadores/${id}`);
+  });
+
+  it("rejects every other recruiter-like path", () => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    for (const value of ["/empresa/metricas/reclutadores", "/empresa/metricas/reclutadores/", "/empresa/metricas/reclutadores/not-a-uuid",
+      `/empresa/metricas/reclutadores/${id}/extra`, `/empresa/metricas/reclutadores/${id}/`, `/empresa/metricas/reclutadores/${id}x`,
+      `/empresa/metricas/reclutadores/${id}/../../../vacantes`, `/empresa/metricas/reclutadores/%2e%2e/${id}`, `/empresa/metricas/reclutadores/${id}%2Fextra`,
+      `https://evil.test/empresa/metricas/reclutadores/${id}`, `//evil.test/empresa/metricas/reclutadores/${id}`, `/empresa/metricas/reclutadoresx/${id}`,
+      `/empresa/metricas/detalle/reclutadores/${id}`, `/empresa/metricas/reclutadores\\${id}`]) {
+      expect(safeBoardPath(value), value).toBeNull();
+    }
   });
 
   it("rejects anything else: other origins, protocol-relative, other paths, the detail page, scripts", () => {

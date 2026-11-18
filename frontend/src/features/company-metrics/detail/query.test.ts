@@ -89,6 +89,16 @@ describe("detail query (the board's drill-down URL, validated per kind)", () => 
     expect(detailApiQuery(state, "2026-11-07").has("back")).toBe(false);
   });
 
+  it("returns to the recruiter page a figure was opened from, with its window only", () => {
+    const back = encodeURIComponent(`/empresa/metricas/reclutadores/${marianaId}?from=2026-08-01&to=2026-10-31&recruiter_id=${marianaId}`);
+    const state = parse(`kind=placements&${period}&recipient=${marianaId}&back=${back}`)!;
+    expect(state.params).toEqual({ from: "2026-08-01", to: "2026-10-31", recipient: marianaId });
+    expect(boardHref(state)).toBe(`/empresa/metricas/reclutadores/${marianaId}?${period}`);
+    expect(boardHref(withParams(state, { held: "true" }))).toBe(`/empresa/metricas/reclutadores/${marianaId}?${period}`);
+    expect(detailApiQuery(state, "2026-11-07").has("back")).toBe(false);
+    expect(parse(`kind=placements&${period}&back=${encodeURIComponent("/empresa/metricas/reclutadores/nope")}`)!.back).toBeUndefined();
+  });
+
   it("ignores a «back» that is not the board and rebuilds it from the filters", () => {
     const state = parse(`kind=deliveries&${period}&back=${encodeURIComponent("https://evil.test/empresa/metricas")}`)!;
     expect(state.back).toBeUndefined();

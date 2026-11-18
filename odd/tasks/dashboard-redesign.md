@@ -308,3 +308,11 @@ detail): compare with the user's references, research modern dashboard patterns,
   `--primary-text` token for dark-mode violet text; honest tick labels; sparse «A tiempo por mes» as labelled bars;
   figure-named summaries; «vacantes sin meta» noun; Home/End and no duplicate tab stops. (g) organic CSV Manual column is
   backend-built → asked to the backend. 27 related files / 259 tests + 3 CSS test files green; tsc 0; eslint 0.
+- **L51** Backend `f5e377c2`: dashboard applications export with `channel` keeps only the filtered channel columns (fixed
+  order Portal, Sitio de carreras, Manual, Desconocido; ID vacante, Vacante, Solicitante, Total always), so each row sums
+  its Total; without `channel` unchanged; metrics applications export unchanged; :8081 restarted. Closes T20 (g).
+- **L52** T18 (worker): `/empresa/metricas/reclutadores/[id]` rebuilt from artboard 10 (`recruiter-detail/{parts,sections,
+  monthly,period-control}.tsx`, 6-column stacked `VacancyList`), every count >0 drills to `/empresa/metricas/detalle` with
+  `back` to the recruiter page; `safeBoardPath` also accepts exactly `/empresa/metricas/reclutadores/<uuid>` (from/to only).
+  Unused `monthly-series.tsx` and `metric-parts.tsx` removed. Full suite: 573 files / 10392 tests passed, 2 skipped; tsc 0;
+  lint 0 errors (12 pre-existing warnings). Risk item 2 (redirect guard `back`) → independent verification.

@@ -25,24 +25,47 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+// The page hands the list its drill-down: here a stand-in that marks the query, null for a 0 (as `drilldownHref`).
+const drill = (target: { kind: string; params: Record<string, string> }, count: number) => count === 0 ? null : `/detalle?${new URLSearchParams({ kind: target.kind, ...target.params })}`;
+const show = (filters: Parameters<typeof VacancyList>[0]["filters"] = {}) =>
+  render(<VacancyList filters={filters} person="Mariana Torres" drill={drill} vacancyHref={row => `/empresa/vacantes/${row.draft_id}/pipeline`} />);
+
 describe("detail lists", () => {
-  it("lists the period's vacancies without personal data, with the delivery against its renegotiated date", async () => {
-    render(<VacancyList filters={{ recruiter_id: marianaId }} />);
-    expect(await screen.findByText("Supervisor de Producción")).toBeInTheDocument();
+  it("lists the period's vacancies in six columns, without personal data, with the delivery in the rule 9 palette", async () => {
+    show({ recruiter_id: marianaId });
+    const table = await screen.findByRole("table", { name: "Vacantes asignadas a Mariana Torres en el periodo" });
     expect(vacancies).toHaveBeenCalledWith({ filters: { recruiter_id: marianaId } });
+    expect(within(table).getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(["Vacante", "Responsable actual", "Entrega", "Cierre", "Posiciones", "Reasignaciones"]);
+    expect(screen.getByRole("link", { name: "Abrir vacante Supervisor de Producción" })).toHaveAttribute("href", `/empresa/vacantes/${draftId}/pipeline`);
     expect(screen.getByText("Grupo Bimbo · Cliente")).toBeInTheDocument();
     expect(screen.getByText("Tarde · 2 días hábiles")).toBeInTheDocument();
-    expect(screen.getByText("7 de 6 · compromiso 26 ago 2026 (antes 19 ago 2026)")).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent === "7 de 6 entregados · compromiso 26 ago 2026")).toBeInTheDocument();
     expect(screen.getByText("Cubierta")).toBeInTheDocument();
-    expect(screen.getByText("2 de 2")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Acciones de Supervisor de Producción" })).toHaveAttribute("aria-haspopup", "menu");
+    expect(screen.getByRole("link", { name: "2 de 2 posiciones: ver los placements de Supervisor de Producción" })).toHaveAttribute("href", `/detalle?kind=placements&vacancy_id=${draftId}`);
+    expect(screen.getByRole("link", { name: "Ver la 1 reasignación de Supervisor de Producción" })).toHaveAttribute("href", `/detalle?kind=reassignments&vacancy_id=${draftId}`);
+    expect(screen.queryByRole("button", { name: /^Acciones de|Columnas/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/sin datos personales/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a 0 as plain text: no delivered button, no positions or reassignments link", async () => {
+    vacancies.mockResolvedValue({ ok: true, data: vacancyPage([vacancyRow({
+      delivery: { ...vacancyRow().delivery, result: "pending", delivered: 0, target: 4, business_days_late: null, commitment_date: "2026-12-05" },
+      placements: { covered: 0, required: 1 }, reassignments: 0,
+    })]) });
+    show();
+    await screen.findByText("Supervisor de Producción");
+    expect(screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent === "0 de 4 entregados · compromiso 5 dic 2026")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /candidatos? entregados?/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link").map(link => link.getAttribute("aria-label"))).toEqual(["Abrir vacante Supervisor de Producción"]);
+    expect(screen.getByText("Pendiente")).toBeInTheDocument();
+    expect(screen.getByText("0 de 1")).toBeInTheDocument();
   });
 
   it("appends the next page with «Cargar más» and keeps the shown rows while it loads", async () => {
     const second = vacancyRow({ draft_id: "30000000-0000-4000-8000-000000000002", title: "Contador General", closes: [], requester: null, responsible: null,
       delivery: { ...vacancyRow().delivery, result: "on_time", business_days_late: null } });
     vacancies.mockResolvedValueOnce({ ok: true, data: vacancyPage([vacancyRow()], "c2" ) }).mockResolvedValueOnce({ ok: true, data: vacancyPage([second]) });
-    render(<VacancyList filters={{}} />);
+    show();
     await userEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
     expect(await screen.findByText("Contador General")).toBeInTheDocument();
     expect(screen.getByText("Supervisor de Producción")).toBeInTheDocument();
@@ -56,17 +79,18 @@ describe("detail lists", () => {
 
   it("restarts from the first page when the cursor went stale", async () => {
     vacancies.mockResolvedValueOnce({ ok: true, data: vacancyPage([vacancyRow()], "old") }).mockResolvedValueOnce(failure("invalid_cursor"));
-    render(<VacancyList filters={{}} />);
+    show();
     await userEvent.click(await screen.findByRole("button", { name: "Cargar más" }));
     expect(await screen.findByText("La lista se actualizó. Volvimos a la primera página.")).toBeInTheDocument();
     expect(vacancies).toHaveBeenCalledTimes(3);
   });
 
-  // Opening the row menu over the full table takes jsdom tens of seconds, so the thread is checked at the sheet's props.
-  it("hands the audited detail the list's applied period only", async () => {
-    render(<VacancyList filters={{ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId }} />);
+  it("opens the audited sheet from «N de M entregados» with the list's applied period only", async () => {
+    show({ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId });
     await screen.findByText("Supervisor de Producción");
     expect(vi.mocked(AuditedDetailSheet).mock.lastCall?.[0]).toMatchObject({ target: null, period: { from: "2026-08-01", to: "2026-10-31" } });
+    await userEvent.click(screen.getByRole("button", { name: "Ver los 7 candidatos entregados de Supervisor de Producción" }));
+    await waitFor(() => expect(vi.mocked(AuditedDetailSheet).mock.lastCall?.[0].target).toMatchObject({ report: "deliveries", vacancy: { draft_id: draftId } }));
   });
 });
 
