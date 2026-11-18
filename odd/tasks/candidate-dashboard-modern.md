@@ -58,7 +58,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T9 | S7, S9 | (done, L17) Alignment proposals for Postulaciones, CVs and Perfil in `design/candidate-align/`, each comparable with the current screen, on the canvas | — |
 | T10 | S7 | (done, L19) Implement the approved alignment of Postulaciones (`design/candidate-align/01-postulaciones.html`), plus the «En proceso» chip colour drift on the dashboard (L17) | — |
 | T11 | S5, S10 | (done, L20) Full-redesign proposals for «Mis CVs» and «Perfil» in `design/candidate-cvs-profile/`, 2–3 directions each, on the canvas | — |
-| T12a | S10 | Implement `design/candidate-cvs-profile/03-cvs-vista-previa.html` on `/candidato/cvs` (L21); preview slot pluggable | — |
+| T12a | S10 | (done, L27) Implement `design/candidate-cvs-profile/03-cvs-vista-previa.html` on `/candidato/cvs` (L21); preview slot pluggable | — |
 | T12b | S10 | Real first-page preview for PDFs (source to decide: pdf.js vs backend inline/thumbnail) | — |
 | T12c | S10 | Implement the chosen Perfil artboard (after the user's choice) | — |
 
@@ -201,3 +201,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   Perfil worker was steered to this map, with the ficha showing only company-visible data and the snapshot note.
 - **L25** User: título profesional → «Que lo vean las empresas (Recomendado)». Asked the backend to add `professional_title` to the application snapshot and expose it in the pipeline detail and talent base; the profile map keeps it as company-visible.
 - **L26** Backend started `feat/snapshot-professional-title` (from main): `professional_title` frozen in the application snapshot; pipeline detail `profile.professional_title`; talent base `professional_title` (company correction still wins); «recent» reads the snapshot; old applications → null, no backfill. Frontend follow-up: show the title in the employer pipeline candidate sheet once the backend commit lands.
+- **L27** T12a (worker; related 67 green, tsc/eslint 0): `/candidato/cvs` as artboard 03 with `cvs/library.tsx`, the
+  pluggable `CvPreview` (`src` | `renderPage`, honest placeholder otherwise), arrow-key selection, page-wide drop overlay,
+  focus to the next row after delete, one entrance. Accepted deviations: panel from 1280 px (same breakpoint as saved
+  vacancies; the sidebar takes the space at 900), empty copy no longer promises a page preview, spinner instead of a
+  percentage (no upload progress events), «En uso» label, short row date.
