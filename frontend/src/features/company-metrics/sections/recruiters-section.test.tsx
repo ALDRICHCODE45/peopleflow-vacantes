@@ -102,6 +102,28 @@ describe("Desempeño por reclutador (artboard 07)", () => {
     expect(within(onTime).getByText("Sin datos suficientes")).toHaveClass("max-md:max-w-20", "max-md:block");
   });
 
+  it("lets the name actually wrap at 390 px: the cells inherit `nowrap` from TableCell, so the name cell and the no-sample label reset it, and the figure column keeps its content width (rule 14)", () => {
+    show();
+    const row = rows()[3];
+    const [name, , onTime, , , chevron] = within(row).getAllByRole("cell");
+    // Without the reset the name stays on one line and runs under the figure beside it.
+    expect(name).toHaveClass("max-md:min-w-0", "max-md:whitespace-normal");
+    expect(within(name).getByRole("link", { name: "Fernanda Ortiz" }).parentElement).toHaveClass("min-w-0", "max-md:break-words");
+    expect(within(onTime).getByText("Sin datos suficientes")).toHaveClass("max-md:whitespace-normal");
+    // Name column takes the leftover space and may shrink; the figure and chevron columns are content-sized.
+    expect(row).toHaveClass("max-md:grid-cols-[minmax(0,1fr)_auto_40px]");
+    expect(onTime).not.toHaveClass("max-md:whitespace-normal");
+    expect(chevron).toHaveClass("max-md:col-start-3");
+  });
+
+  it("keeps «N% a tiempo» on one line on a narrow row, so a long name wraps instead of the figure (rule 14)", () => {
+    show();
+    const [, , onTime] = within(rows()[0]).getAllByRole("cell");
+    expect(onTime).not.toHaveClass("max-md:whitespace-normal");
+    expect(onTime.firstElementChild).toHaveClass("inline-flex");
+    expect(within(onTime).getByText("a tiempo")).toBeInTheDocument();
+  });
+
   it("turns each row into a stacked list row on a narrow screen, every figure named by its column (rule 14)", () => {
     show();
     const table = screen.getByRole("table");
