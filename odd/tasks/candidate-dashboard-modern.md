@@ -251,3 +251,8 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   `/tmp/pf-design-ptabs/`. Removed noise vs the rejected 04: 10 chips, per-section tags, the big «Qué recibe» card,
   paragraphs, always-on header buttons, per-field «Editado» pills, level dots.
 - **L37** User chose «01 · Identidad a la izquierda y pestañas» on the canvas (handoff request). Handoff started (T15); it replaces the one-page Perfil 04 implementation and reuses its visibility map and shared completeness.
+- **L38** T15 `dee65e8c` (worker; related 108 + neighbouring 172 tests green, tsc/eslint 0): tabbed Perfil from artboard 01
+  (`profile/identity-card.tsx`, `profile/tabs.tsx`, save bar only with changes or a new profile, read-only tabs until
+  «Editar», locks only on private labels, next-missing link, «¿Qué ve una empresa?» popover from the map). Removed the
+  ficha, rail, per-section tags, 10-chip checklist, level dots and the unused `highestLevel`. TDD: workspace tests RED
+  42/46 against the old UI; the identity-card tests written after the code. Full suite running.
