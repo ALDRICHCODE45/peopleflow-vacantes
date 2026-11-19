@@ -76,8 +76,8 @@ func TestBoardCorrectionsFlow(t *testing.T) {
 				t.Fatal(initialItem)
 			}
 			// Like E3, original downloads work even before a correction.
-			boardCorrectionFile(t, f, path+"/cv", "%PDF-original", "original.pdf.pdf", "application/pdf")
-			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf.pdf", "application/pdf")
+			boardCorrectionFile(t, f, path+"/cv", "%PDF-original", "original.pdf", "application/pdf")
+			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf", "application/pdf")
 			// The ordinary recruiter can edit the pool, but board reads stay owner-or-active-tramo scoped.
 			for _, suffix := range []string{"", "/cv", "/cv/original"} {
 				for _, actor := range []draftFlowActor{f.recruiter, f.foreign} {
@@ -186,7 +186,7 @@ func TestBoardCorrectionsFlow(t *testing.T) {
 			}
 			editJSONEqual(t, detail["original_cv"], cvParticipation(t, upload, f.pid)["original_cv"])
 			boardCorrectionFile(t, f, path+"/cv", string(docx), "corrected.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf.pdf", "application/pdf")
+			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf", "application/pdf")
 			boardCorrectionMutations(t, f, base, path)
 			boardCorrectionReuse(t, f, kind)
 			if foreignBase != "" {
@@ -247,7 +247,7 @@ func TestBoardCorrectionsCVOnly(t *testing.T) {
 				t.Fatal(detail)
 			}
 			boardCorrectionFile(t, f, path+"/cv", "%PDF-corrected", "cv-only.pdf", "application/pdf")
-			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf.pdf", "application/pdf")
+			boardCorrectionFile(t, f, path+"/cv/original", "%PDF-original", "original.pdf", "application/pdf")
 		})
 	}
 }

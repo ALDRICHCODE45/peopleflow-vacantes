@@ -53,7 +53,10 @@ bounded (1,024 entries; required markers must be nonempty, unencrypted and at mo
 Errors use only `{error,code}`. JSON rename bodies also have the existing 1 MiB
 transport budget (`413 payload_too_large`). Downloads use stored MIME,
 `Content-Disposition: attachment`, `Content-Length` and `X-Content-Type-Options:
-nosniff`; no static file-serving route exists.
+nosniff`; no static file-serving route exists. The attachment filename is the label
+plus the MIME extension (`.pdf`/`.docx`) only when the label does not already end
+with it (case-insensitive): `CV Ana` → `CV Ana.pdf`, `CV Ana.pdf` → `CV Ana.pdf`,
+`cv.PDF` → `cv.PDF`, never `.pdf.pdf`. The stored label is unchanged.
 
 ## Storage and operations
 

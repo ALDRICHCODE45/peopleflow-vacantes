@@ -172,9 +172,9 @@ Mutation responses also carry effective candidate/current-CV metadata and
 `corrected_fields`, but retain the existing profile/screening/contact exclusions.
 Manual 201 retains byte equality with the effective GET item; replays stay frozen.
 Corrected-current CV downloads do not double an existing MIME suffix (including
-uppercase `.PDF`/`.DOCX`). For compatibility, non-corrected/current and original
-board downloads retain legacy extension appending byte-for-byte, including
-already-suffixed original filenames. Pool downloads deduplicate the suffix on
+uppercase `.PDF`/`.DOCX`). Since fix/cv-download-filename the same rule covers
+non-corrected/current and original board downloads too (an uploaded `CV.pdf` is
+sent as `CV.pdf`, not `CV.pdf.pdf`). Pool downloads deduplicate the suffix on
 both current and original routes; stored filenames and metadata are unchanged.
 
 History entries are exactly `{kind, from_stage_id, to_stage_id, hire, departure,
