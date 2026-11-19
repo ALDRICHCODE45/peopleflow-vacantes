@@ -70,7 +70,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T13 | S10 | (done, L31) Employer side: accept and show `professional_title` from the application snapshot (board card, candidate sheet, talent base, dashboard recent, manual intake) before the backend merges (L29) | — |
 | T12c | S10 | (done, L28) Implement the chosen Perfil artboard (after the user's choice) | — |
 | T14 | S5, S11 | (done, L36) 2 proposal artboards for a tabbed Perfil in `design/candidate-profile-tabs/`, on the canvas | — |
-| T15 | S11 | Implement the chosen tabbed Perfil (after approval), keeping visibility, completeness and every field | — |
+| T15 | S11 | Implement `design/candidate-profile-tabs/01-identidad-y-pestanas.html` (L37), keeping visibility, completeness and every field | — |
 
 ## Log
 
@@ -250,3 +250,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   contextual aside per tab, no locks on fields). Both keep every field and flow; 234/234 headless checks pass; screenshots
   `/tmp/pf-design-ptabs/`. Removed noise vs the rejected 04: 10 chips, per-section tags, the big «Qué recibe» card,
   paragraphs, always-on header buttons, per-field «Editado» pills, level dots.
+- **L37** User chose «01 · Identidad a la izquierda y pestañas» on the canvas (handoff request). Handoff started (T15); it replaces the one-page Perfil 04 implementation and reuses its visibility map and shared completeness.
