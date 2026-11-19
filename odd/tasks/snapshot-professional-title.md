@@ -17,7 +17,7 @@ Branch feat/snapshot-professional-title (from main 4771d3fe). Backend only; the 
 
 - [x] T1 (S1, S2) Snapshot key, board/pipeline detail, talent base list/detail, dashboard recent, contract, tests — worker; commits: migration 00061, then behavior.
 - [x] T2 Independent verification (Risk: item 1, schema constraint migration 00061) — PASS (L5).
-- [ ] T3 Merge into local main together with the frontend schemas branch (frontend asked to wait, L6).
+- [x] T3 Merge into local main together with the frontend schemas branch (frontend asked to wait, L6) — merged 15120854 with the frontend 2f0b7699 (L7).
 
 ## Log
 
@@ -50,3 +50,4 @@ Branch feat/snapshot-professional-title (from main 4771d3fe). Backend only; the 
   tenga los schemas del frontend aceptando y mostrando el campo … mergeamos los dos juntos». New keys sent:
   board item `profile.professional_title`, board detail `original.professional_title`, talent base detail
   `original.professional_title`.
+- **L7** 2026-11-18: merged into local main by the frontend session (15120854, frontend 2f0b7699, docs c6eda309); not pushed.

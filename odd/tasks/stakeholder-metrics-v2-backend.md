@@ -36,7 +36,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired` — commit: DD2 commit.
 - [x] T10 (S3, L5, L13, L14) Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin — commit: d2a commit.
 - [x] T11 (S1, S3, S5, L17) Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role — commit: d2b commit.
-- [x] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it — branch feat/remove-legacy-dashboard (L26), not merged.
+- [x] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it — branch feat/remove-legacy-dashboard (L26), merged into local main d8a0ca33 (L27).
 - [x] T13 (L10, L11, L23) Demo seed operable: vacancy drafts readable by the v2 draft routes (list, board, checklist, publication, draft), dashboard «Abrir pipeline» links work; remove copes with rows the app creates for the demo company (company_sites) — commit: T13 commit.
 - [x] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms) — commit: benchmark commit.
 
@@ -186,3 +186,4 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   sections and 4 lists at 200. Checks: build, vet (+integration tag), unit jobs/metrics/db/cmd/api ok, cmd/api
   integration (test DB only) ok, archguard only the old docker/minio violation. Follow-up for the frontend:
   components/company-dashboard/section-cards.tsx is dead code still using the legacy shape.
+- **L27** 2026-11-19: user: «Tu encargate del merge de las ramas que hayas hecho tu por favor, no de las del frontend». Merged d8a0ca33 (with fix/cv-download-filename 39ffba6a); no frontend caller of the base route in main. Full `make test` exposed a pre-existing failure (since d2a, reproduced on c6eda309): TestEventVocabularyIsClosed flagged the dashboard `scope: "company"` literal (metrics/application/dashboard.go). Fixed with an exact file+value exemption (3d63c67b, probe in another file still fails the guard), merged; `make test` exit 0. Not pushed.
