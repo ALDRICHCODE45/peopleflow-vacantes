@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import { boardSchema, detailSchema, moveSchema, participationSchema, profileSchema } from "./model";
 import { board, detail, item, moved } from "./test-fixtures";
 import { MovementBoard } from "./board";
+import { candidateHint } from "./pipeline-presentation";
 import { CandidateSheet } from "./candidate-sheet";
 import { loadBoardAction, loadHistoryAction, loadParticipationAction } from "./actions";
 import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
@@ -71,6 +72,15 @@ describe("title on the company side", () => {
     expect(open).toHaveAccessibleDescription("Backend Engineer");
     // One-line name + one-line title stay inside the 40 px name button: the card does not grow.
     expect(within(open).getByText("Ana Pérez")).toHaveClass("line-clamp-1");
+  });
+  it("a truncated title stays readable: the full title in a title attribute and in the name hint", async () => {
+    const long = "Ingeniera de Plataforma y Confiabilidad de Sitios Senior";
+    vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: boardWith(long) });
+    render(<MovementBoard vacancyId={vacancyId} />);
+    const open = await screen.findByRole("button", { name: "Ver detalle de Ana Pérez" });
+    expect(within(open).getByText(long)).toHaveAttribute("title", long);
+    expect(candidateHint("Ana Pérez", long)).toBe(`Ana Pérez · ${long}`);
+    expect(candidateHint("Ana Pérez", null)).toBe("Ana Pérez");
   });
   it.each([null, undefined])("the board card shows nothing for a %s title", async title => {
     vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: boardWith(title) });

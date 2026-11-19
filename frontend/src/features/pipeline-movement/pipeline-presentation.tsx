@@ -5,6 +5,10 @@ import type { Board } from "./model";
 export function Hint({ text, children }: { text: string; children: ReactElement<{ id?: string }> }) {
   return <Tooltip><TooltipTrigger id={children.props.id} render={children} /><TooltipContent>{text}</TooltipContent></Tooltip>;
 }
+/** The name button's hover hint: «Nombre · Título» when there is a title, so a truncated title is still readable. */
+export function candidateHint(name: string, title: string | null): string {
+  return title ? `${name} · ${title}` : name;
+}
 export function initials(name: string) {
   return name.trim().split(/\s+/u).slice(0, 2).map(part => Array.from(part)[0]).join("");
 }

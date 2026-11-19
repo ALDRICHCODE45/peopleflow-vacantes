@@ -56,3 +56,11 @@ it("shows «Sin dato» on both tiles and no skills or title badge for an empty d
   expect(screen.queryByRole("list", { name: "Habilidades" })).not.toBeInTheDocument();
   expect(document.querySelector('[data-slot="badge"]')).toBeNull();
 });
+
+it("keeps «Semi-senior» whole in the Experiencia tile; it may wrap only between the years and the level", () => {
+  show({ ...full, yearsOfExperience: "6", seniority: "semi_senior" });
+  const level = screen.getByText("Semi-senior");
+  expect(level).toHaveClass("whitespace-nowrap");
+  expect(screen.getByText("6 años ·")).toHaveClass("whitespace-nowrap");
+  expect(level.parentElement).toHaveTextContent("6 años · Semi-senior");
+});

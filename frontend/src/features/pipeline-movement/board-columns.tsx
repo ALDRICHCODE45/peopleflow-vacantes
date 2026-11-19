@@ -19,7 +19,7 @@ import type { Notice } from "./board-feedback";
 import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
 import { isInProcess, substateName } from "./substates";
-import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
+import { candidateHint, filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
 import type { BoardColumnOrder } from "./use-board-column-order";
 import { ColumnOrderControls } from "./column-order-controls";
@@ -54,9 +54,9 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     <CardHeader className="items-center gap-2 px-0">
       <div className="flex min-w-0 items-center gap-2">
         <Avatar className="size-8 shrink-0"><AvatarFallback className="bg-secondary text-xs font-medium text-muted-foreground">{initials(item.candidate.full_name)}</AvatarFallback></Avatar>
-        <CardTitle className="min-w-0 text-sm font-medium"><Hint text={item.candidate.full_name}><Button type="button" variant="ghost" className="h-auto min-h-10 w-full justify-start whitespace-normal p-0 text-left text-sm font-medium hover:bg-transparent"
+        <CardTitle className="min-w-0 text-sm font-medium"><Hint text={candidateHint(item.candidate.full_name, professionalTitle)}><Button type="button" variant="ghost" className="h-auto min-h-10 w-full justify-start whitespace-normal p-0 text-left text-sm font-medium hover:bg-transparent"
           id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} aria-describedby={titleId} onClick={() => onDetail(item.id)}><span className="flex min-w-0 flex-col"><span className={cn("break-words leading-5", professionalTitle ? "line-clamp-1" : "line-clamp-2")}>{item.candidate.full_name}</span>
-            {professionalTitle && <span id={titleId} data-candidate-title className="truncate text-xs font-normal leading-4 text-muted-foreground">{professionalTitle}</span>}</span></Button></Hint></CardTitle>
+            {professionalTitle && <span id={titleId} data-candidate-title title={professionalTitle} className="truncate text-xs font-normal leading-4 text-muted-foreground">{professionalTitle}</span>}</span></Button></Hint></CardTitle>
       </div>
       <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>

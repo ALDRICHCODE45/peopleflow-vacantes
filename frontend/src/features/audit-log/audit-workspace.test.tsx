@@ -210,6 +210,17 @@ describe("rows", () => {
     expect(within(goneVacancy).getByText("Vacante eliminada")).toBeInTheDocument();
   });
 
+  it("shows no «Ex miembro» for a candidate who applied (never a member of the company)", async () => {
+    list.mockResolvedValue({ ok: true, data: auditPage([
+      auditEvent({ id: "50000000-0000-4000-8000-000000000021", event_type: "VacancyApplicationSubmitted", category: "candidate", actor: { type: "user", user_id: luisId, name: "Marta Ruiz", email: "marta@correo.mx", is_current_member: false } }),
+    ]) });
+    render(<AuditWorkspace />);
+    await screen.findByRole("table");
+    const [applied] = rowsOf();
+    expect(within(applied).getByText("Marta Ruiz")).toBeInTheDocument();
+    expect(within(applied).queryByText("Ex miembro")).not.toBeInTheDocument();
+  });
+
   it("labels an event type it has never seen generically instead of crashing", async () => {
     list.mockResolvedValue({ ok: true, data: auditPage([auditEvent({ event_type: "SomethingNew", category: "brand_new" })]) });
     render(<AuditWorkspace />);

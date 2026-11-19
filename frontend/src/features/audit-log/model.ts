@@ -150,9 +150,18 @@ export function formatOccurredAt(iso: string): string {
   return Number.isNaN(date.getTime()) ? "—" : momentFormat.format(date);
 }
 
-export function describeActor(actor: AuditActorRef): { name: string; email: string | null; former: boolean; system: boolean } {
+/**
+ * Events a candidate performs on their own behalf. The actor payload has no kind or role (contract §8.1), and
+ * `is_current_member` is false for a candidate, who was never a member: these never read «Ex miembro». Not the whole
+ * `candidate` category, since members also act there (CompanyCandidateEdited, VacancyCandidateAddedManually…) and a
+ * former member must still be named as one.
+ */
+const CANDIDATE_SELF_EVENTS = new Set(["CandidateAccountCreated", "VacancyApplicationSubmitted", "ApplicationSubmitted", "PsychometricConsentGiven", "PsychometricAssessmentFinished"]);
+
+export function describeActor(actor: AuditActorRef, eventType?: string): { name: string; email: string | null; former: boolean; system: boolean } {
   if (actor.type === "system") return { name: "Sistema", email: null, former: false, system: true };
-  return { name: actor.name ?? "Usuario eliminado", email: actor.email, former: !actor.is_current_member, system: false };
+  const candidate = eventType !== undefined && CANDIDATE_SELF_EVENTS.has(eventType);
+  return { name: actor.name ?? "Usuario eliminado", email: actor.email, former: !actor.is_current_member && !candidate, system: false };
 }
 
 const BROWSERS: readonly (readonly [RegExp, string])[] = [

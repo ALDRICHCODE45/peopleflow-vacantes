@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useId, useRef, useState, type CSSProperties } from "react";
 import { BriefcaseBusiness, Check, Eye, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,7 +83,8 @@ export function IdentityCard({ fullName, draft, baseline, completeness, onGoto }
   const more = useRef<HTMLButtonElement>(null);
   const initials = fullName.split(/\s+/u).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase();
   const title = draft.professionalTitle.trim();
-  const experience = [yearsText(draft.yearsOfExperience), draft.seniority ? SENIORITY_LABELS[draft.seniority] : ""].filter(Boolean).join(" · ");
+  // Each part stays whole («Semi-senior» never breaks at its hyphen); the line may wrap only after «·».
+  const experience = [yearsText(draft.yearsOfExperience), draft.seniority ? SENIORITY_LABELS[draft.seniority] : ""].filter(Boolean);
   const skills = skillList(draft.skills);
   const hidden = skills.length - SKILLS_SHOWN;
   return <article aria-labelledby={nameId} data-pf-profile-identity="" style={{ "--d": 1 } as CSSProperties}
@@ -97,7 +98,7 @@ export function IdentityCard({ fullName, draft, baseline, completeness, onGoto }
         <li className={TILE}><span className={TILE_LABEL}><MapPin aria-hidden="true" className="size-3.5" />Ubicación</span>
           {draft.location.country === null ? <span className="mt-1 block text-muted-foreground">Sin dato</span> : <span className="mt-1 block font-medium [overflow-wrap:anywhere]"><LocationText draft={draft} baseline={baseline} /></span>}</li>
         <li className={TILE}><span className={TILE_LABEL}><BriefcaseBusiness aria-hidden="true" className="size-3.5" />Experiencia</span>
-          {experience ? <span className="mt-1 block font-medium [overflow-wrap:anywhere]">{experience}</span> : <span className="mt-1 block text-muted-foreground">Sin dato</span>}</li>
+          {experience.length ? <span className="mt-1 block font-medium [overflow-wrap:anywhere]">{experience.map((part, index) => <Fragment key={part}>{index > 0 && " "}<span className="whitespace-nowrap">{index < experience.length - 1 ? `${part} ·` : part}</span></Fragment>)}</span> : <span className="mt-1 block text-muted-foreground">Sin dato</span>}</li>
       </ul>
       {skills.length > 0 && <div data-pf-profile-skills="" className="col-span-2 mt-5 max-sm:hidden sm:w-full">
         <p id={skillsId} className="mb-2 text-xs font-medium text-muted-foreground">Habilidades</p>
