@@ -23,6 +23,7 @@ worktree so the demo build on :3000 and `main` stay untouched until the user app
 | T1 | S1 | Métricas and company dashboard polish (worker) | `fe7ed6db` |
 | T2 | S2, S3 | Candidate polish and the pdf.js license notice (worker) | `f7414012` |
 | T3 | S4 | Backend fixes the double extension on its own branch (backend session) | backend `fix/cv-download-filename` 112699b5 |
+| T5 | S1 | Browser-check fixes: company board monthly drill-down summaries name the month (`commitment_month`, `closed_month`); recruiter rows wrap long names at 390 px (`TableCell` nowrap) | `d818c52c`, `21ec9d70` |
 | T4 | — | Remove the dead legacy `components/company-dashboard/section-cards.tsx` (backend finding while removing the old endpoint) | `6d38d254` |
 
 ## Log
@@ -46,3 +47,4 @@ worktree so the demo build on :3000 and `main` stay untouched until the user app
   download), `feat/remove-legacy-dashboard` @ 7037525f (old GET /v2/me/company/dashboard removed, 404). T4 `6d38d254` removes
   the dead `section-cards.tsx` and its test row; tsc 0, card-composition 7/7.
 - **L5** Full suite on `fix/post-demo-polish`: 582 files / 10521 tests passed (2 skipped), tsc 0, lint 0 errors (12 pre-existing warnings). Pending: browser check at 390 and dark on a separate build (not :3000), then the user's review after the meeting.
+- **L6** User (2026-11-19): «Seguimos con lo que recomiendes … coordinate con el backend … tu en el frontend, el otro agente en el backend». Backend merged its two branches into main (39ffba6a, d8a0ca33) and left main to the frontend session. Browser check on a production build of this branch (:3000 against the v2 API on :8080, owner and candidate logged in), 1440/390 × light/dark: dashboard, Métricas, Auditoría and Perfil have no overflow, console errors or ≥400; «Semi-senior» on one line; no «Ex miembro»; «Cómo se calcula» first; dark «A tiempo» dot oklch(0.7 0.14 293) on rgb(21,18,31). Two failures fixed (T5): monthly drill-downs from the company board still said «en el periodo» (`d818c52c`, TDD), and long recruiter names overlapped the figure at 390 because `TableCell` is `whitespace-nowrap` (`21ec9d70`, worker, TDD); both re-checked in the browser after a rebuild. Not checkable with the demo data: full titles on pipeline cards (no candidate has a professional title; unit tests only). Screenshots `/tmp/pf-check/`.
