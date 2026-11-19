@@ -208,6 +208,15 @@ const featuresRootFromEntities = "../../.."
 // usage — every caller references the constants, never the literal — but
 // the AST walk stays focused on the company additions to keep the
 // regression signal tight.)
+// emitGuardExemptions lists, by features-relative file and value, literals
+// that share text with an audit vocabulary entry but are not audit events.
+// Keep it exact: one file, one value, one reason.
+var emitGuardExemptions = map[string]bool{
+	// Company dashboard v2 response field `scope: "company" | "own_vacancies"`
+	// (docs/contracts/company-dashboard-v2.md), not the audit entity type.
+	"metrics/application/dashboard.go\x00company": true,
+}
+
 func eventTypeEmitLiteralsOutsideEntities(t *testing.T) []string {
 	t.Helper()
 	entitiesDir := filepath.Join(featuresRootFromEntities, "audit_events", "domain", "entities")
@@ -249,6 +258,9 @@ func eventTypeEmitLiteralsOutsideEntities(t *testing.T) []string {
 				return true
 			}
 			if value == "CompanyUpdated" || value == "CompanyDeleted" || value == "company" || value == "CompanySitePublished" || value == "CompanySiteUnpublished" || value == "company_site" {
+				if rel, rerr := filepath.Rel(featuresRootFromEntities, path); rerr == nil && emitGuardExemptions[filepath.ToSlash(rel)+"\x00"+value] {
+					return true
+				}
 				violations = append(violations, fset.Position(lit.Pos()).String())
 			}
 			return true
