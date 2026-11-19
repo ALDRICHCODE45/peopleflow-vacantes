@@ -43,6 +43,9 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   const error = notice && notice.tone !== "success" ? notice : undefined;
   const statusId = error ? `move-status-${item.id}` : undefined;
   const FileIcon = filePresentation(item.cv.name) === "pdf" ? FileText : FileType2;
+  // Frozen at application (T13). With a title the name keeps one line, so both still fit the 40 px name button.
+  const professionalTitle = item.profile.professional_title || null;
+  const titleId = professionalTitle ? `candidate-title-${item.id}` : undefined;
   return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55")}
     onClick={event => {
       if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu'],[role='checkbox']")) return;
@@ -52,7 +55,8 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
       <div className="flex min-w-0 items-center gap-2">
         <Avatar className="size-8 shrink-0"><AvatarFallback className="bg-secondary text-xs font-medium text-muted-foreground">{initials(item.candidate.full_name)}</AvatarFallback></Avatar>
         <CardTitle className="min-w-0 text-sm font-medium"><Hint text={item.candidate.full_name}><Button type="button" variant="ghost" className="h-auto min-h-10 w-full justify-start whitespace-normal p-0 text-left text-sm font-medium hover:bg-transparent"
-          id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} onClick={() => onDetail(item.id)}><span className="line-clamp-2 break-words leading-5">{item.candidate.full_name}</span></Button></Hint></CardTitle>
+          id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} aria-describedby={titleId} onClick={() => onDetail(item.id)}><span className="flex min-w-0 flex-col"><span className={cn("break-words leading-5", professionalTitle ? "line-clamp-1" : "line-clamp-2")}>{item.candidate.full_name}</span>
+            {professionalTitle && <span id={titleId} data-candidate-title className="truncate text-xs font-normal leading-4 text-muted-foreground">{professionalTitle}</span>}</span></Button></Hint></CardTitle>
       </div>
       <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>

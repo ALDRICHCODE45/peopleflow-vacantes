@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CircleAlert } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,7 +10,8 @@ import Link from "next/link";
 
 export type ReadResult<T> = { ok: true; data: T } | { ok: false; reason: string; reference: { code?: string } };
 export type Source<T> = { result?: ReadResult<T>; retry: () => void };
-/** Independent read lifetimes: one source's failure/retry never reloads another. */
+/** Independent read lifetimes: one source's failure/retry never reloads another. The returned object keeps its
+ * identity until the result changes, so memoized dashboard parts skip renders caused by other sources. */
 export function useSource<T>(load: () => Promise<ReadResult<T>>): Source<T> {
   const [result, setResult] = useState<ReadResult<T>>();
   const [attempt, setAttempt] = useState(0);
@@ -19,7 +20,8 @@ export function useSource<T>(load: () => Promise<ReadResult<T>>): Source<T> {
     void load().catch(() => ({ ok: false, reason: "no_response", reference: {} }) as const).then(value => { if (active) setResult(value); });
     return () => { active = false; };
   }, [load, attempt]);
-  return { result, retry: () => { setResult(undefined); setAttempt(value => value + 1); } };
+  const retry = useCallback(() => { setResult(undefined); setAttempt(value => value + 1); }, []);
+  return useMemo(() => ({ result, retry }), [result, retry]);
 }
 export function SourceLoading({ label, compact = false }: { label: string; compact?: boolean }) {
   return <div aria-busy="true" aria-label={label} className="grid gap-3">

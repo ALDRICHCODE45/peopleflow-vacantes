@@ -10,7 +10,30 @@ import { ProfileWorkspace } from "./profile-workspace";
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "./prototype-candidate";
 import { profileToDraft, parseProfileDraft } from "./profile-draft";
 import { profileToWrite } from "./profile-adapter";
+import { PROFILE_VISIBILITY } from "./profile/visibility";
 const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), notify: vi.fn() }));
+// Base UI's positioner keeps jsdom busy while a popover is open; a light stand-in keeps the same parts and roles.
+vi.mock("@/components/ui/popover", async () => {
+  const React = await import("react");
+  const Open = React.createContext<{ open: boolean; toggle: () => void; titleId: string }>({ open: false, toggle: () => {}, titleId: "" });
+  return {
+    Popover: ({ children }: { children: ReactNode }) => {
+      const [open, setOpen] = React.useState(false);
+      const titleId = React.useId();
+      return <Open.Provider value={{ open, toggle: () => setOpen(value => !value), titleId }}>{children}</Open.Provider>;
+    },
+    PopoverTrigger: ({ render: element, children }: { render: React.ReactElement<Record<string, unknown>>; children: ReactNode }) => {
+      const { open, toggle } = React.useContext(Open);
+      return React.cloneElement(element, { "aria-expanded": open, "aria-haspopup": "dialog", onClick: toggle }, children);
+    },
+    PopoverContent: ({ children }: { children: ReactNode }) => {
+      const { open, titleId } = React.useContext(Open);
+      return open ? <div role="dialog" data-open="" aria-labelledby={titleId}>{children}</div> : null;
+    },
+    PopoverTitle: ({ children }: { children: ReactNode }) => <h2 id={React.useContext(Open).titleId}>{children}</h2>,
+    PopoverDescription: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  };
+});
 vi.mock("./profile-actions", () => ({ loadProfileAction: mocks.load, saveProfileAction: mocks.save }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: mocks.notify, dismissActionResult: vi.fn() }));
 vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ status: "ready", result: { ok: true, data: { role: "candidate", user: { id: "6f1a3c2e-9b4d-4e7a-8c2f-5d3b1a9e7f04", email: "ximena.barrera@correo.mx", full_name: "Ximena Barrera" } } } }) }));
@@ -21,42 +44,71 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "es", name: "Español" }, { code: "en", name: "Inglés" }, { code: "fr", name: "Francés" }] }, retry: vi.fn() }) }));
 const valid = parseProfileDraft(profileToDraft(CANDIDATE_PROFILE), CANDIDATE_PROFILE);
 if (!valid.ok) throw new Error("Invalid fixture");
-const wire = { ...profileToWrite(valid.profile), user_id: CANDIDATE_IDENTITY.userId, location: CANDIDATE_PROFILE.location, created_at: CANDIDATE_PROFILE.createdAt, updated_at: CANDIDATE_PROFILE.updatedAt };
+const wire = { ...profileToWrite(valid.profile), user_id: CANDIDATE_IDENTITY.userId, location: CANDIDATE_PROFILE.location, created_at: CANDIDATE_PROFILE.createdAt, updated_at: "2026-11-12T12:00:00Z" };
 const loaded = { ok: true, data: { profile: wire, languages: { languages: CANDIDATE_PROFILE.languages } } };
-const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }));
-const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
+const emptyWire = Object.fromEntries(Object.keys(profileToWrite(valid.profile)).map(key => [key, key === "skills" || key === "education" ? [] : key === "salary_currency" ? "MXN" : null]));
+const COMPANY_LINE = "Nombre, correo, teléfono, ubicación, título profesional, años de experiencia, seniority, tu nivel de estudios más alto, habilidades e idiomas.";
+const COPY_LINE = "Recibe una copia de estos datos al momento de postularte; si después editas tu perfil, esa copia no cambia (salvo tu teléfono).";
+
+const header = () => screen.getByRole("heading", { level: 2, name: "Tu perfil" }).closest("header") as HTMLElement;
+const identity = () => screen.getByRole("article", { name: "Ximena Barrera" });
+const tab = (name: string) => screen.getByRole("tab", { name: new RegExp(`^${name}`) });
+const panel = () => screen.getByRole("tabpanel");
+const bar = () => screen.queryByRole("region", { name: /^(Cambios sin guardar|Crear tu perfil)$/ });
+const show = (name: string) => fireEvent.click(tab(name));
+/** Opens a tab and, unless it is already in edit mode, presses its «Editar». */
+function edit(name: string) {
+  show(name);
+  const button = within(panel()).queryByRole("button", { name: `Editar ${name}` });
+  if (button) fireEvent.click(button);
+}
+const change = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 async function selectDial(dial: string) {
   const name = dial === "+52" ? "México" : "Estados Unidos";
   change("Lada de país", name);
   fireEvent.click(await screen.findByRole("option", { name: `${name} ${dial}` }));
 }
-const save = () => fireEvent.click(screen.getByRole("button", { name: "Guardar perfil" }));
-async function ready() { const view = render(<ProfileWorkspace />); await screen.findByRole("button", { name: "Guardar perfil" }); return view; }
+const saveButton = () => within(bar()!).getByRole("button", { name: /^(Guardar perfil|Guardando…)$/ });
+const save = () => fireEvent.click(within(bar()!).getByRole("button", { name: "Guardar perfil" }));
+const restore = () => fireEvent.click(within(bar()!).getByRole("button", { name: "Restaurar copia original" }));
+/** Closes «¿Qué ve una empresa?» through its trigger. */
+function closeWho() {
+  fireEvent.click(within(identity()).getByRole("button", { name: "¿Qué ve una empresa?" }));
+  expect(document.querySelector('[role="dialog"][data-open]')).toBeNull();
+}
+const locks = () => Array.from(panel().querySelectorAll("[data-pf-profile-lock]")).map(node => node.getAttribute("data-pf-profile-lock"));
+async function ready() { const view = render(<ProfileWorkspace />); await screen.findByRole("heading", { level: 2, name: "Tu perfil" }); return view; }
 beforeEach(() => { vi.resetAllMocks(); mocks.load.mockResolvedValue(loaded); mocks.save.mockResolvedValue({ kind: "saved", profile: { ...wire, phone: "+525512345678" } }); });
 afterEach(cleanup);
+
 describe("S3 profile phone saves", () => {
   it.each([["+52", "5512345678", "+525512345678"], ["+1", "2125551234", "+12125551234"]])("sends %s with ten national digits as E.164", async (dial, phone, expected) => {
-    await ready(); await selectDial(dial); change("Teléfono", phone); save();
+    await ready(); edit("Personal"); await selectDial(dial); change("Teléfono", phone); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0].profile.phone).toBe(expected);
   });
-  it.each([["+52", "123", "Escribe los 10 dígitos del teléfono en México."], ["+1", "abc", "Escribe una lada y un número válidos, de 8 a 15 dígitos en total."]])("rejects invalid %s and focuses phone from another tab", async (dial, phone, message) => {
-    await ready(); await selectDial(dial); change("Teléfono", phone); tab("Educación"); save();
+  it.each([["+52", "123", "Escribe los 10 dígitos del teléfono en México."], ["+1", "abc", "Escribe una lada y un número válidos, de 8 a 15 dígitos en total."]])("rejects invalid %s and jumps back to Personal to focus the phone from another tab", async (dial, phone, message) => {
+    await ready(); edit("Personal"); await selectDial(dial); change("Teléfono", phone); edit("Educación");
+    expect(screen.queryByLabelText("Teléfono")).not.toBeInTheDocument();
+    save();
     await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
+    expect(tab("Personal")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByLabelText("Teléfono")).toHaveAccessibleDescription(expect.stringContaining(message));
     expect(mocks.save).not.toHaveBeenCalled();
   });
   it("clears legacy text to null even though the original baseline is invalid", async () => {
     mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, phone: "texto heredado" } } });
-    await ready(); change("Teléfono", ""); save();
+    await ready(); edit("Personal"); change("Teléfono", ""); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0].profile.phone).toBeNull();
   });
   it("loads an unreadable legacy phone verbatim, rejects it, and lets the user correct it", async () => {
     mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, phone: "llamar por la tarde" } } });
-    await ready(); expect(screen.getByLabelText("Teléfono")).toHaveValue("llamar por la tarde");
-    tab("Experiencia"); change("Título profesional", "Nuevo título"); save();
+    await ready();
+    expect(within(panel()).getByText("llamar por la tarde")).toBeVisible();
+    edit("Experiencia"); change("Título profesional", "Nuevo título"); save();
     await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("llamar por la tarde");
     expect(mocks.save).not.toHaveBeenCalled();
     await selectDial("+52"); change("Teléfono", "55 1234 5678"); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
@@ -64,133 +116,347 @@ describe("S3 profile phone saves", () => {
   });
   it("loads a legacy ten-digit phone under the visible +52 dial so other edits still save", async () => {
     mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, phone: "55 1234 5678" } } });
-    await ready();
+    await ready(); edit("Personal");
     expect(screen.getByLabelText("Lada de país")).toHaveValue("México +52");
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
-    tab("Experiencia"); change("Título profesional", "Nuevo título"); save();
+    edit("Experiencia"); change("Título profesional", "Nuevo título"); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0].profile.phone).toBe("+525512345678");
   });
   it.each([["+52", "Escribe los 10 dígitos del teléfono en México."], ["+1", "Escribe una lada y un número válidos, de 8 a 15 dígitos en total."]])("maps backend phone invalid with the %s message and focus", async (dial, message) => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400 }, fields: [{ field: "phone", code: "invalid" }] } });
-    await ready(); await selectDial(dial); change("Teléfono", "2125551234"); tab("Educación"); save();
+    await ready(); edit("Personal"); await selectDial(dial); change("Teléfono", "2125551234"); edit("Educación"); save();
     await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
     expect(screen.getByLabelText("Teléfono")).toHaveAccessibleDescription(expect.stringContaining(message));
   });
 });
 
-describe("live candidate profile", () => {
-  it("groups identity before icon metadata and leaves only progress in the right column", async () => {
-    const { container } = await ready();
-    const hero = container.querySelector('[data-pf-profile-identity]')!;
-    const title = hero.querySelector('[data-slot="card-title"]')!;
-    expect(within(title as HTMLElement).getByRole("heading", { name: CANDIDATE_IDENTITY.fullName })).toHaveAttribute("id", "pf-profile-identity-heading");
-    expect(title).toHaveTextContent(CANDIDATE_PROFILE.professionalTitle!);
-    const meta = hero.querySelector('[data-slot="card-description"]')!;
-    expect(meta).toHaveTextContent(`Trabaja en ${CANDIDATE_PROFILE.currentCompany}`);
-    expect(meta.querySelectorAll("svg")).toHaveLength(3);
-    expect(hero.textContent!.indexOf(CANDIDATE_PROFILE.professionalTitle!)).toBeLessThan(hero.textContent!.indexOf(CANDIDATE_IDENTITY.email));
-    const progress = hero.querySelector('[data-slot="card-action"]')!;
-    expect(progress).toHaveTextContent("Avance del perfil");
-    expect(progress).not.toHaveTextContent(CANDIDATE_PROFILE.professionalTitle!);
-    expect(hero.querySelector('[data-slot="avatar"]')).toHaveClass("size-14", "md:size-20");
-    expect(title).toHaveClass("min-w-0", "grid-cols-[auto_minmax(0,1fr)]");
-    expect(meta).toHaveClass("flex-wrap", "md:pl-25");
-  });
-  it("omits missing metadata and offers a title shortcut that switches and focuses", async () => {
-    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, professional_title: null, current_company: null, location: null } } });
-    const { container } = await ready();
-    expect(container).not.toHaveTextContent(/sin definir/i);
-    expect(screen.queryByText(/Trabaja en/)).not.toBeInTheDocument();
-    const addTitle = screen.getByRole("button", { name: "Agrega tu título profesional" });
-    // Aligned with the name column at every width, with no link padding pushing it inward.
-    expect(addTitle).toHaveClass("col-start-2", "px-0", "has-data-[icon=inline-start]:pl-0");
-    expect(addTitle).not.toHaveClass("col-span-2");
-    fireEvent.click(addTitle);
-    expect(screen.getByRole("tab", { name: "Experiencia" })).toHaveAttribute("aria-selected", "true");
-    await waitFor(() => expect(screen.getByLabelText("Título profesional")).toHaveFocus());
-    change("Título profesional", "Diseñadora");
-    expect(container.querySelector('[data-pf-profile-headline]')).toHaveTextContent("Diseñadora");
-  });
-  it("keeps personal data together outside the location card", async () => {
+describe("artboard 01 «Identidad a la izquierda y pestañas»", () => {
+  it("heads the page with «Tu perfil» and the update date only: no page buttons and no save bar without changes", async () => {
     await ready();
-    const contact = screen.getByRole("group", { name: "Contacto" });
-    for (const label of ["Teléfono", "Fecha de nacimiento", "Perfil de LinkedIn", "Portafolio o sitio web"]) expect(within(contact).getByLabelText(label)).toBeInTheDocument();
+    expect(within(header()).getByText("Actualizado el 12 de noviembre de 2026")).toBeVisible();
+    expect(within(header()).queryAllByRole("button")).toHaveLength(0);
+    expect(bar()).toBeNull();
+    expect(screen.queryByRole("button", { name: "Guardar perfil" })).not.toBeInTheDocument();
   });
-  it("focuses birth date before LinkedIn errors in the new visual order", async () => {
-    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: {}, fields: [{ field: "linkedin_url", code: "invalid" }, { field: "birth_date", code: "invalid" }] } });
-    await ready(); change("Teléfono", "5512345678"); save();
-    await waitFor(() => expect(screen.getByLabelText("Fecha de nacimiento")).toHaveFocus());
-  });
-  it("associates eligibility help with País", async () => {
+
+  it("shows the identity card: initials, name, title badge, Ubicación and Experiencia tiles, skills and the completeness meter", async () => {
     await ready();
+    const card = identity();
+    expect(within(card).getByText("XB")).toBeInTheDocument();
+    expect(within(card).getByRole("heading", { level: 3, name: "Ximena Barrera" })).toBeVisible();
+    expect(within(card).getByText("Desarrolladora Frontend Senior")).toHaveAttribute("data-slot", "badge");
+    const tiles = within(card).getByRole("list", { name: "Datos principales" });
+    expect(within(tiles).getAllByRole("listitem").map(item => item.textContent)).toEqual(["UbicaciónCiudad de México", "Experiencia9 años · Senior"]);
+    expect(within(within(card).getByRole("list", { name: "Habilidades" })).getAllByRole("listitem").map(item => item.textContent)).toEqual(["react", "typescript", "node.js", "design systems"]);
+    expect(within(card).queryByRole("button", { name: /más$/ })).not.toBeInTheDocument();
+    expect(within(card).getByRole("img", { name: "Perfil completo al 100 %" })).toBeInTheDocument();
+    expect(within(card).getByText("10 de 10")).toBeVisible();
+    expect(within(card).getByText("Perfil completo")).toBeVisible();
+    // Private facts never sit on the identity card.
+    for (const secret of ["Ámbar Studio", "linkedin", "ximenabarrera.dev", "1994", "62,000", "75,000"]) expect(card).not.toHaveTextContent(secret);
+  });
+
+  it("shows six skills, expands «+N más» in place, and hides the skills in the compact 390 px card", async () => {
+    const skills = ["react", "typescript", "node.js", "design systems", "css", "testing", "a11y", "graphql", "figma"];
+    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, profile: { ...wire, skills } } });
+    await ready();
+    const list = () => within(identity()).getByRole("list", { name: "Habilidades" });
+    expect(within(list()).getAllByRole("listitem").filter(item => !item.querySelector("button")).map(item => item.textContent)).toEqual(skills.slice(0, 6));
+    const more = within(list()).getByRole("button", { name: "+3 más" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    expect(within(list()).getAllByRole("listitem").filter(item => !item.querySelector("button")).map(item => item.textContent)).toEqual(skills);
+    expect(within(list()).getByRole("button", { name: "Ver menos" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(list()).getByRole("button", { name: "Ver menos" })).toHaveFocus();
+    expect(identity().querySelector("[data-pf-profile-skills]")).toHaveClass("max-sm:hidden");
+  });
+
+  it("offers five tabs with one tab stop, Left/Right with wrap and Home/End", async () => {
+    await ready();
+    const list = screen.getByRole("tablist", { name: "Secciones del perfil" });
+    expect(within(list).getAllByRole("tab").map(node => node.textContent)).toEqual(["Personal", "Experiencia", "Educación", "Compensación (solo tú)", "Idiomas"]);
+    const stops = () => within(list).getAllByRole("tab").map(node => node.tabIndex);
+    expect(stops()).toEqual([0, -1, -1, -1, -1]);
+    expect(tab("Personal")).toHaveAttribute("aria-selected", "true");
+    expect(panel()).toHaveAttribute("aria-labelledby", tab("Personal").id);
+    fireEvent.keyDown(tab("Personal"), { key: "ArrowRight" });
+    expect(tab("Experiencia")).toHaveAttribute("aria-selected", "true");
+    expect(tab("Experiencia")).toHaveFocus();
+    expect(stops()).toEqual([-1, 0, -1, -1, -1]);
+    expect(panel()).toHaveAttribute("aria-labelledby", tab("Experiencia").id);
+    fireEvent.keyDown(tab("Experiencia"), { key: "ArrowLeft" });
+    fireEvent.keyDown(tab("Personal"), { key: "ArrowLeft" });
+    expect(tab("Idiomas")).toHaveFocus();
+    expect(tab("Idiomas")).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(tab("Idiomas"), { key: "ArrowRight" });
+    expect(tab("Personal")).toHaveFocus();
+    fireEvent.keyDown(tab("Personal"), { key: "End" });
+    expect(tab("Idiomas")).toHaveFocus();
+    fireEvent.keyDown(tab("Idiomas"), { key: "Home" });
+    expect(tab("Personal")).toHaveFocus();
+    expect(tab("Personal")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("reads each tab like the artboard, with no level dots", async () => {
+    await ready();
+    for (const text of ["+52 55 4821 7790", "18 de junio de 1994", "Ciudad de México", "ximena.barrera@correo.mx", "linkedin.com/in/ximena-barrera", "ximenabarrera.dev"]) expect(within(panel()).getByText(text)).toBeVisible();
+    show("Experiencia");
+    for (const text of ["Desarrolladora Frontend Senior", "Ámbar Studio", "9 años", "Senior", CANDIDATE_PROFILE.summary!]) expect(within(panel()).getByText(text)).toBeVisible();
+    show("Educación");
+    expect(within(panel()).getByText("Licenciatura o Ingeniería")).toBeVisible();
+    expect(within(panel()).getByText("Ingeniería en Sistemas Computacionales · Concluido")).toBeVisible();
+    expect(within(within(panel()).getByRole("list", { name: "Tus habilidades" })).getAllByRole("listitem").map(item => item.textContent)).toEqual(["react", "typescript", "node.js", "design systems"]);
+    show("Compensación");
+    for (const text of ["$62,000 MXN", "$48,000 MXN", "$75,000 MXN", "MXN", "Mensual"]) expect(within(panel()).getByText(text)).toBeVisible();
+    show("Idiomas");
+    expect(within(within(panel()).getByRole("list", { name: "Tus idiomas" })).getAllByRole("listitem").map(item => item.textContent)).toEqual(["EspañolC2 · Dominio", "InglésB2 · Intermedio alto"]);
+    expect(document.querySelector("[data-pf-profile-level-dots]")).toBeNull();
+  });
+
+  it("is read-only until «Editar»; edit mode tints the panel and shows «Listo», plus «Descartar cambios» only with changes", async () => {
+    await ready();
+    expect(screen.queryByLabelText("Teléfono")).not.toBeInTheDocument();
+    expect(panel()).not.toHaveAttribute("data-editing");
+    fireEvent.click(within(panel()).getByRole("button", { name: "Editar Personal" }));
+    expect(panel()).toHaveAttribute("data-editing", "true");
+    await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
+    expect(within(panel()).getByRole("button", { name: "Listo" })).toBeVisible();
+    expect(within(panel()).queryByRole("button", { name: /^Descartar cambios/ })).not.toBeInTheDocument();
+    change("Teléfono", "5512345678");
+    expect(within(panel()).getByRole("button", { name: "Descartar cambios de personal" })).toHaveTextContent("Descartar cambios");
+    fireEvent.click(within(panel()).getByRole("button", { name: "Listo" }));
+    expect(screen.queryByLabelText("Teléfono")).not.toBeInTheDocument();
+    expect(within(panel()).getByText("+52 55 1234 5678")).toBeVisible();
+    await waitFor(() => expect(within(panel()).getByRole("button", { name: "Editar Personal" })).toHaveFocus());
+    // Switching tabs leaves edit mode; the draft is kept.
+    edit("Experiencia");
+    show("Compensación");
+    expect(screen.queryByLabelText("Título profesional")).not.toBeInTheDocument();
+    expect(within(panel()).getByRole("button", { name: "Editar Compensación" })).toBeVisible();
+  });
+
+  it("marks changed tabs with a dot and shows the save bar only while something changed", async () => {
+    await ready();
+    expect(bar()).toBeNull();
+    edit("Experiencia"); change("Título profesional", "Nuevo título");
+    expect(tab("Experiencia")).toHaveAccessibleName("Experiencia (cambios sin guardar)");
+    expect(tab("Personal")).toHaveAccessibleName("Personal");
+    const region = bar()!;
+    expect(region).toHaveAccessibleName("Cambios sin guardar");
+    expect(within(region).getByText("Cambios sin guardar")).toBeVisible();
+    expect(within(region).getByText("En Experiencia")).toBeVisible();
+    expect(within(region).getAllByRole("button").map(button => button.textContent)).toEqual(["Restaurar copia original", "Guardar perfil"]);
+    edit("Compensación"); change("Salario esperado", "80000");
+    expect(within(bar()!).getByText("En Experiencia y Compensación")).toBeVisible();
+    restore();
+    expect(screen.getByText("Restauramos la copia original en esta vista.")).toBeInTheDocument();
+    expect(bar()).toBeNull();
+    expect(tab("Experiencia")).toHaveAccessibleName("Experiencia");
+  });
+
+  it("discards only the current tab's changes", async () => {
+    await ready();
+    edit("Personal"); change("Teléfono", "5512345678");
+    edit("Experiencia"); change("Título profesional", "Nuevo título");
+    fireEvent.click(within(panel()).getByRole("button", { name: "Descartar cambios de experiencia" }));
+    expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
+    expect(within(panel()).queryByRole("button", { name: /^Descartar cambios/ })).not.toBeInTheDocument();
+    expect(tab("Experiencia")).toHaveAccessibleName("Experiencia");
+    expect(tab("Personal")).toHaveAccessibleName("Personal (cambios sin guardar)");
+    show("Personal");
+    expect(within(panel()).getByText("+52 55 1234 5678")).toBeVisible();
+  });
+
+  it("links only the NEXT missing item, opening its tab in edit mode and focusing the field", async () => {
+    mocks.load.mockResolvedValue({ ...loaded, data: { profile: { ...wire, phone: null, current_company: null, location: null }, languages: { languages: [] } } });
+    await ready();
+    const card = identity();
+    expect(within(card).getByRole("img", { name: "Perfil completo al 60 %" })).toBeInTheDocument();
+    expect(within(card).getByText("6 de 10")).toBeVisible();
+    const meter = card.querySelector("[data-pf-profile-meter]") as HTMLElement;
+    expect(within(meter).getAllByRole("button").map(button => button.textContent)).toEqual(["Agrega tu empresa actual"]);
+    fireEvent.click(within(meter).getByRole("button", { name: "Agrega tu empresa actual" }));
+    expect(tab("Experiencia")).toHaveAttribute("aria-selected", "true");
+    expect(panel()).toHaveAttribute("data-editing", "true");
+    await waitFor(() => expect(screen.getByLabelText(/^Empresa actual o última/)).toHaveFocus());
+    // The live draft counts: the meter moves on before saving.
+    change(/^Empresa actual o última/, "Ámbar Studio");
+    expect(within(identity()).getByText("7 de 10")).toBeVisible();
+    fireEvent.click(within(identity()).getByRole("button", { name: "Agrega tu teléfono" }));
+    expect(tab("Personal")).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
+    change("Teléfono", "5512345678");
+    fireEvent.click(within(identity()).getByRole("button", { name: "Agrega tu ubicación" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "País" })).toHaveFocus());
+  });
+
+  it("lands on «Agregar idioma» when languages are the next missing item", async () => {
+    mocks.load.mockResolvedValue({ ...loaded, data: { ...loaded.data, languages: { languages: [] } } });
+    await ready();
+    fireEvent.click(within(identity()).getByRole("button", { name: "Agrega tus idiomas" }));
+    expect(tab("Idiomas")).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Agregar idioma" })).toHaveFocus());
+  });
+
+  it("jumps to the tab of a validation error on save, opens edit mode and focuses the field with its message", async () => {
+    await ready();
+    edit("Personal"); change(/^Perfil de LinkedIn/, "not-url");
+    edit("Compensación"); change("Moneda", "");
+    save();
+    expect(tab("Personal")).toHaveAttribute("aria-selected", "true");
+    expect(panel()).toHaveAttribute("data-editing", "true");
+    await waitFor(() => expect(screen.getByLabelText(/^Perfil de LinkedIn/)).toHaveFocus());
+    expect(screen.getByLabelText(/^Perfil de LinkedIn/)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText(/^Perfil de LinkedIn/)).toHaveAccessibleDescription(expect.stringContaining("La URL de LinkedIn no es una URL válida."));
+    expect(screen.getByText("Revisa los datos marcados")).toBeInTheDocument();
+    expect(tab("Compensación")).toHaveAccessibleName("Compensación (solo tú) (revisa los datos)");
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("builds «¿Qué ve una empresa?» from the visibility map, with the copy-at-application line", async () => {
+    await ready();
+    fireEvent.click(within(identity()).getByRole("button", { name: "¿Qué ve una empresa?" }));
+    const pop = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(pop).toHaveAccessibleName("¿Qué ve una empresa?");
+    expect(within(pop).getByText(COMPANY_LINE)).toBeInTheDocument();
+    expect(within(pop).getByText("Y el CV que elijas al postularte.")).toBeInTheDocument();
+    expect(within(pop).getByText(COPY_LINE)).toBeInTheDocument();
+    closeWho();
+  });
+
+  it("drops the professional title from the popover and locks it when its single map entry flips to private", async () => {
+    const original = PROFILE_VISIBILITY.professionalTitle;
+    try {
+      PROFILE_VISIBILITY.professionalTitle = "private";
+      await ready();
+      fireEvent.click(within(identity()).getByRole("button", { name: "¿Qué ve una empresa?" }));
+      const pop = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      expect(pop).toHaveAccessibleName("¿Qué ve una empresa?");
+      expect(pop).not.toHaveTextContent("título profesional");
+      expect(pop).toHaveTextContent("Nombre, correo, teléfono, ubicación, años de experiencia");
+      closeWho();
+      show("Experiencia");
+      expect(locks()).toEqual(["professionalTitle", "currentCompany", "summary"]);
+    } finally { PROFILE_VISIBILITY.professionalTitle = original; }
+  });
+
+  it("puts locks only on private labels, one line per tab with private data, and none on Idiomas", async () => {
+    await ready();
+    const line = "Solo tú · la empresa no lo recibe";
+    expect(within(panel()).getByText(line, { exact: false }).closest("p")).toHaveTextContent(line);
+    expect(locks()).toEqual(["birthDate", "linkedinUrl", "portfolioUrl"]);
+    expect(within(panel()).getByText("Fecha de nacimiento").closest("dt")).toHaveTextContent("Fecha de nacimiento (solo tú)");
+    expect(within(panel()).getByText("Teléfono").closest("dt")).toHaveTextContent(/^Teléfono$/);
+    show("Experiencia");
+    expect(within(panel()).getByText(line, { exact: false }).closest("p")).toHaveTextContent(line);
+    expect(locks()).toEqual(["currentCompany", "summary"]);
+    show("Educación");
+    expect(within(panel()).getByText(line, { exact: false }).closest("p")).toHaveTextContent(line);
+    expect(locks()).toEqual(["educationDetails"]);
+    show("Compensación");
+    expect(within(panel()).getByText("Solo tú ves esta pestaña")).toBeVisible();
+    expect(within(panel()).queryByText(line, { exact: false })).not.toBeInTheDocument();
+    expect(locks()).toEqual([]);
+    show("Idiomas");
+    expect(within(panel()).queryByText(/Solo tú/)).not.toBeInTheDocument();
+    expect(locks()).toEqual([]);
+    // Edit mode keeps the locks on the private labels only.
+    edit("Personal");
+    expect(screen.getByLabelText("Perfil de LinkedIn (solo tú)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Teléfono")).toBeInTheDocument();
+    expect(locks()).toEqual(["birthDate", "linkedinUrl", "portfolioUrl"]);
+    edit("Educación");
+    expect(locks()).toEqual(["educationDetails"]);
+  });
+
+  it("keeps one form, novalidate, and every field in its tab", async () => {
+    const { container } = await ready();
+    expect(container.querySelectorAll("form")).toHaveLength(1);
+    expect(container.querySelector("form")).toHaveAttribute("novalidate");
+    const expected = [
+      ["Personal", ["dial", "phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"]],
+      ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"]],
+      ["Educación", ["education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "skills"]],
+      ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],
+      ["Idiomas", ["languages.0.code", "languages.0.level", "languages.1.code", "languages.1.level"]],
+    ] as const;
+    for (const [name, fields] of expected) {
+      edit(name);
+      expect(Array.from(panel().querySelectorAll("[data-pf-profile-field]")).map(node => node.getAttribute("data-pf-profile-field"))).toEqual(fields);
+    }
+    edit("Personal");
     const country = screen.getByRole("combobox", { name: "País" });
     const help = screen.getByText("Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.");
-    expect(country.closest('[data-slot="field"]')).toContainElement(help);
     expect(country).toHaveAccessibleDescription(help.textContent!);
+    expect(screen.queryByLabelText("Código postal")).not.toBeInTheDocument();
+    expect(within(panel()).getByRole("group", { name: "Contacto" })).toContainElement(screen.getByLabelText(/^Fecha de nacimiento/));
   });
-  it("offers a right-aligned destructive remove action", async () => {
-    await ready();
+
+  it("offers «Quitar» for the location inside the Ubicación group", async () => {
+    await ready(); edit("Personal");
     const remove = screen.getByRole("button", { name: "Quitar ubicación" });
     expect(remove).toHaveTextContent(/^Quitar$/);
     expect(remove).toHaveClass("text-destructive");
-    expect(remove.querySelector("svg.lucide-trash-2")).not.toBeNull();
-    // The remove action sits in the «Ubicación» card header, not on its own row above País.
-    expect(remove.closest('[data-slot="card-header"]')).toHaveTextContent("Ubicación");
-    // The 40px target does not make this header taller than «Contacto».
-    expect(remove.closest('[data-slot="card-action"]')).toHaveClass("row-span-1", "-my-2");
-  });
-  it("signals mobile tab overflow with an edge fade, without a native scrollbar or hint text", async () => {
-    await ready();
-    const tabs = screen.getByRole("tablist");
-    expect(tabs).toHaveClass("[scrollbar-width:none]");
-    expect(tabs.className).toMatch(/mask-image/);
-    // Room past the last tab so «Idiomas» leaves the fade once scrolled to the end.
-    expect(tabs).toHaveClass("max-md:pr-12");
-    expect(screen.queryByText(/Desliza para ver más secciones/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("group", { name: "Ubicación" })[0]).toContainElement(remove);
   });
 
-  it("loads a form-shaped skeleton without fixture data, then the server profile", async () => {
+  it("loads a page-shaped skeleton without fixture data, then the server profile", async () => {
     let resolve!: (value: unknown) => void; mocks.load.mockReturnValue(new Promise(r => { resolve = r; }));
-    const { container } = render(<ProfileWorkspace />);
+    render(<ProfileWorkspace />);
     expect(screen.getByRole("status")).toHaveTextContent("Cargando perfil");
-    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(3);
-    const cardSlots = () => Array.from(container.querySelectorAll('[data-slot^="card"]')).map(node => node.getAttribute("data-slot"));
-    const loadingSlots = cardSlots();
-    const loadingHero = container.querySelector('[data-pf-profile-identity]')!.className;
     expect(screen.queryByText(CANDIDATE_IDENTITY.fullName)).not.toBeInTheDocument();
     await act(async () => resolve(loaded));
-    expect(cardSlots()).toEqual(loadingSlots);
-    expect(container.querySelector('[data-pf-profile-identity]')).toHaveClass(loadingHero);
+    expect(within(panel()).getByText("+52 55 4821 7790")).toBeVisible();
+    edit("Personal");
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
     expect(screen.getByLabelText("Lada de país")).toHaveValue("México +52");
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    expect(bar()).toBeNull();
     expect(mocks.notify).not.toHaveBeenCalled();
   });
-  it("opens an empty editor for a missing profile and creates it even with only language changes", async () => {
+
+  it("opens a new profile with «Agregar …» placeholders and the «se crea al guardar» bar, creates it on save and then saves normally", async () => {
     mocks.load.mockResolvedValue({ ok: true, data: { profile: null, languages: { languages: [{ code: "en", level: "B2" }] } } });
-    const empty = Object.fromEntries(Object.keys(profileToWrite(valid.profile)).map(key => [key, key === "skills" || key === "education" ? [] : key === "salary_currency" ? "MXN" : null]));
-    const created = { ...wire, ...empty };
+    const created = { ...wire, ...emptyWire };
     mocks.save.mockResolvedValueOnce({ kind: "saved", profile: created, languages: { languages: [] } });
     await ready();
-    expect(screen.getByText("Completa tu perfil para postularte más rápido. Se crea al guardar por primera vez.")).toBeInTheDocument();
-    expect(screen.queryByText("Todavía no tienes perfil")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Teléfono")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
-    tab("Compensación"); expect(screen.getByLabelText("Moneda")).toHaveValue("MXN");
-    tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 1" })); save();
+    expect(within(header()).getByText("Se crea al guardar por primera vez")).toBeVisible();
+    expect(within(identity()).getByText("1 de 10")).toBeVisible();
+    expect(within(identity()).getByRole("button", { name: "Agrega tu título profesional" })).toBeVisible();
+    expect(within(identity()).getAllByText("Sin dato")).toHaveLength(2);
+    for (const [name, action] of [["Experiencia", "Agregar experiencia"], ["Educación", "Agregar estudio"], ["Compensación", "Agregar compensación"]]) {
+      show(name); expect(within(panel()).getByRole("button", { name: action })).toBeVisible();
+    }
+    const create = screen.getByRole("region", { name: "Crear tu perfil" });
+    expect(within(create).getByText("Tu perfil todavía no existe")).toBeVisible();
+    expect(within(create).getByText("Se crea al guardar, aunque falten datos.")).toBeVisible();
+    expect(saveButton()).toBeEnabled();
+    show("Educación");
+    fireEvent.click(within(panel()).getByRole("button", { name: "Agregar estudio" }));
+    expect(panel()).toHaveAttribute("data-editing", "true");
+    await waitFor(() => expect(within(panel()).getByRole("button", { name: "Agregar estudio" })).toHaveFocus());
+    edit("Compensación"); expect(screen.getByLabelText("Moneda")).toHaveValue("MXN");
+    edit("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 1" }));
+    expect(within(screen.getByRole("region", { name: "Cambios sin guardar" })).getByText("Se crea al guardar, aunque falten datos.")).toBeVisible();
+    save();
     await screen.findByText("Perfil creado.");
-    expect(mocks.save).toHaveBeenCalledWith({ profile: empty, languages: { languages: [] } });
+    expect(mocks.save).toHaveBeenCalledWith({ profile: emptyWire, languages: { languages: [] } });
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil creado." }));
-    expect(screen.queryByText(/Se crea al guardar por primera vez/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    expect(screen.queryByText(/se crea al guardar/i)).not.toBeInTheDocument();
+    expect(bar()).toBeNull();
     mocks.save.mockResolvedValueOnce({ kind: "saved", profile: { ...created, phone: "+525512345678" } });
-    tab("Personal"); change("Teléfono", "5512345678"); save();
+    edit("Personal"); change("Teléfono", "5512345678"); save();
     await screen.findByText("Perfil guardado.");
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil guardado." }));
-    expect(mocks.save.mock.calls[1][0]).toEqual({ profile: { ...empty, phone: "+525512345678" } });
+    expect(mocks.save.mock.calls[1][0]).toEqual({ profile: { ...emptyWire, phone: "+525512345678" } });
   });
-  it.each(["unauthenticated", "no_response", "forbidden"])("keeps the error Empty for %s", async reason => {
+
+  it("raises toasts above the save bar", async () => {
+    await ready(); edit("Personal"); change("Teléfono", "5512345678");
+    expect(bar()).toHaveAttribute("data-pf-draft-save-bar");
+  });
+
+  it.each(["unauthenticated", "no_response", "forbidden"])("keeps the load error for %s", async reason => {
     mocks.load.mockResolvedValue({ ok: false, reason, reference: {} });
     const { container } = render(<ProfileWorkspace />);
     expect(await screen.findByText("No pudimos cargar tu perfil")).toBeInTheDocument();
@@ -204,85 +470,51 @@ describe("live candidate profile", () => {
     mocks.load.mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
     render(<ProfileWorkspace />);
     fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
-    await screen.findByRole("button", { name: "Guardar perfil" });
+    await screen.findByRole("heading", { level: 2, name: "Tu perfil" });
     expect(mocks.load).toHaveBeenCalledTimes(2); expect(mocks.save).not.toHaveBeenCalled();
   });
-  it("keeps native cards, five tabs, one form, meaningful headings and optional geo helper", async () => {
-    const { container } = await ready();
-    expect(container.querySelectorAll("form")).toHaveLength(1);
-    expect(container.querySelector("form")).toHaveAttribute("novalidate");
-    expect(screen.getAllByRole("tab").map(node => node.textContent)).toEqual(["Personal", "Experiencia", "Educación", "Compensación", "Idiomas"]);
-    expect(screen.getByRole("heading", { name: CANDIDATE_IDENTITY.fullName })).toBeInTheDocument();
-    expect(screen.getByText("Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Código postal")).not.toBeInTheDocument();
-    expect(container.querySelector('[data-pf-profile-context]')).toHaveTextContent(wire.location!.label);
-    expect(screen.queryByLabelText("Ciudad de residencia")).not.toBeInTheDocument();
-    expect(container.querySelector('[data-pf-profile-card] > [data-slot="card-header"] > [data-slot="card-action"]')).not.toBeNull();
-  });
-  it("preserves main's toolbar, hero tokens and line tabs", async () => {
-    const { container } = await ready();
-    const toolbar = container.querySelector('[data-pf-profile-toolbar]')!;
-    expect(toolbar).toHaveClass("sm:flex-row", "sm:justify-between", "px-1");
-    expect(Array.from(toolbar.querySelectorAll("button")).map(node => node.textContent)).toEqual(["Guardar perfil", "Restaurar copia original"]);
-    expect(container.querySelector('[data-pf-profile-status]')).toHaveTextContent("Sin cambios pendientes");
-    expect(container.querySelector('[data-pf-profile-card]')).toHaveClass("border-border/70", "ring-border/60");
-    expect(container.querySelector('[data-pf-profile-identity]')).toHaveClass("border-border/60");
-    expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("ring-primary/25", "ring-offset-2");
-    // Dark mode: primary-tone initials on a primary tint are illegible, so the dark theme lifts them.
-    expect(container.querySelector('[data-slot="avatar-fallback"]')).toHaveClass("text-primary", "dark:bg-primary/25", "dark:text-foreground");
-    expect(screen.getByRole("heading", { name: CANDIDATE_IDENTITY.fullName })).toHaveClass("font-heading", "text-foreground");
-    expect(container.querySelector('[data-slot="tabs-list"]')).toHaveAttribute("data-variant", "line");
-    expect(container.querySelector('[data-pf-profile-completeness-value]')).toHaveTextContent("10 de 10 datos clave");
-    const expected = [
-      ["Personal", ["dial", "phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"]],
-      ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"]],
-      ["Educación", ["education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "skills"]],
-      ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],
-      ["Idiomas", ["languages.0.code", "languages.0.level", "languages.1.code", "languages.1.level"]],
-    ] as const;
-    for (const [name, fields] of expected) {
-      tab(name);
-      expect(Array.from(container.querySelectorAll('[data-pf-profile-field]')).map(node => node.getAttribute("data-pf-profile-field"))).toEqual(fields);
-      expect(container.querySelectorAll('[data-pf-profile-section-card]')).toHaveLength(name === "Idiomas" ? 1 : 2);
-    }
-  });
+});
+
+describe("save flows", () => {
   it("sends a complete replacement for one changed field, not a patch, and confirms the new baseline", async () => {
-    await ready(); change("Teléfono", "5512345678"); save();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0]).toEqual({ profile: { ...profileToWrite(valid.profile), phone: "+525512345678" } });
     await screen.findByText("Perfil guardado.");
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    expect(bar()).toBeNull();
+    expect(panel()).not.toHaveAttribute("data-editing");
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil guardado." }));
   });
   it("clears optional location with null and does not silently reinstate MX", async () => {
-    await ready(); fireEvent.click(screen.getByRole("button", { name: "Quitar ubicación" })); save();
+    await ready(); edit("Personal"); fireEvent.click(screen.getByRole("button", { name: "Quitar ubicación" })); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalled());
     expect(mocks.save.mock.calls[0][0].profile.location).toBeNull();
   });
-  it("retains edits across tabs and reset restores the confirmed baseline", async () => {
-    await ready(); change("Teléfono", "5512345678"); tab("Experiencia"); change("Título profesional", "Nuevo título"); tab("Personal");
+  it("retains edits across tabs and Restaurar restores the confirmed baseline", async () => {
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); edit("Experiencia"); change("Título profesional", "Nuevo título"); edit("Personal");
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
-    fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
+    restore();
     expect(screen.getByText("Restauramos la copia original en esta vista.")).toBeInTheDocument();
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
-    tab("Experiencia"); expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
+    edit("Experiencia"); expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
     expect(mocks.save).not.toHaveBeenCalled();
   });
-  it("validates all tabs and focuses the first error without a write", async () => {
-    await ready(); change("Perfil de LinkedIn", "not-url"); tab("Compensación"); change("Moneda", ""); save();
-    expect(await screen.findByLabelText("Perfil de LinkedIn")).toHaveFocus();
-    expect(screen.getByLabelText("Perfil de LinkedIn")).toHaveAttribute("aria-invalid", "true");
-    expect(mocks.save).not.toHaveBeenCalled();
+  it("focuses birth date before LinkedIn errors in the visual order", async () => {
+    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: {}, fields: [{ field: "linkedin_url", code: "invalid" }, { field: "birth_date", code: "invalid" }] } });
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
+    await waitFor(() => expect(screen.getByLabelText(/^Fecha de nacimiento/)).toHaveFocus());
   });
   it("rejects a language with empty code and level before writing either block", async () => {
-    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); save();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); edit("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); save();
+    await waitFor(() => expect(screen.getByLabelText("Idioma 3")).toHaveFocus());
     expect(screen.getByLabelText("Nivel del idioma 3")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText("Idioma 3")).toHaveFocus(); expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.save).not.toHaveBeenCalled();
   });
   it("locks controls and double submissions during a write", async () => {
     let resolve!: (value: unknown) => void; mocks.save.mockReturnValue(new Promise(r => { resolve = r; }));
-    await ready(); change("Teléfono", "5512345678"); save();
-    expect(screen.getByRole("button", { name: "Guardando…" })).toBeDisabled();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
+    expect(within(bar()!).getByRole("button", { name: "Guardando…" })).toBeDisabled();
+    expect(within(bar()!).getByText("Guardando tu perfil…")).toBeVisible();
     expect(screen.getByLabelText("Teléfono")).toBeDisabled();
     expect(screen.getByLabelText("Lada de país")).toBeDisabled();
     await act(async () => resolve({ kind: "saved", profile: { ...wire, phone: "+525512345678" } }));
@@ -291,10 +523,12 @@ describe("live candidate profile", () => {
   it("keeps only language edits dirty after partial success and retries only that block", async () => {
     const languages = { languages: [CANDIDATE_PROFILE.languages[0]] };
     mocks.save.mockResolvedValueOnce({ kind: "partial", profile: { ...wire, phone: "+525512345678" }, failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } }).mockResolvedValueOnce({ kind: "saved", languages });
-    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); edit("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("Guardamos tu perfil, pero no los idiomas. Revisa y vuelve a guardar.");
     expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
+    expect(within(bar()!).getByText("En Idiomas")).toBeVisible();
+    expect(tab("Personal")).toHaveAccessibleName("Personal");
+    expect(saveButton()).toBeEnabled();
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "warning" }));
     save(); await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
     expect(mocks.save.mock.calls[1][0]).toEqual({ languages });
@@ -303,82 +537,74 @@ describe("live candidate profile", () => {
   it("saves language-only changes without sending a profile replacement", async () => {
     const languages = { languages: [CANDIDATE_PROFILE.languages[0]] };
     mocks.save.mockResolvedValue({ kind: "saved", languages });
-    await ready(); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
+    await ready(); edit("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("Perfil guardado.");
     expect(mocks.save.mock.calls[0][0]).toEqual({ languages });
-    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    expect(within(within(panel()).getByRole("list", { name: "Tus idiomas" })).getAllByRole("listitem")).toHaveLength(1);
+    expect(bar()).toBeNull();
   });
   it("preserves both edited blocks after a definite profile failure", async () => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } });
-    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); edit("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No se guardó el perfil");
     expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
-    tab("Personal"); expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
-    fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
+    edit("Personal"); expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
+    restore();
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5548217790");
-    tab("Idiomas"); expect(screen.getByLabelText("Idioma 2")).toHaveValue("Inglés");
+    edit("Idiomas"); expect(screen.getByLabelText("Idioma 2")).toHaveValue("Inglés");
     expect(mocks.save).toHaveBeenCalledTimes(1);
+  });
+  it("says the session expired when the save is unauthenticated", async () => {
+    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "unauthenticated", reference: {} } });
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
+    await screen.findByText("Tu sesión expiró");
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
   });
   it("reconciles uncertain language writes without discarding rows that were not saved", async () => {
     mocks.save.mockResolvedValue({ kind: "uncertain", part: "languages", profile: { ...wire, phone: "+525512345678" }, failure: { ok: false, reason: "no_response", reference: {} } });
-    await ready(); change("Teléfono", "5512345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); edit("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No pudimos confirmar si se guardó");
     mocks.load.mockResolvedValue({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "+525512345678" } } });
-    fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
+    fireEvent.click(within(bar()!).getByRole("button", { name: "Comprobar" }));
     await screen.findByText("Perfil comprobado.");
     expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
+    expect(saveButton()).toBeEnabled();
     mocks.save.mockResolvedValue({ kind: "saved", languages: { languages: [CANDIDATE_PROFILE.languages[0]] } });
     save(); await screen.findByText("Perfil guardado.");
     expect(mocks.save.mock.calls[1][0]).not.toHaveProperty("profile");
   });
-  it("renders shared level errors, preserves dirty fields and never marks a failed profile saved", async () => {
+  it("renders shared location errors, preserves dirty fields and never marks a failed profile saved", async () => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_location", reference: { status: 422 }, locationIssues: [{ field: "state", reason: "unknown" }] } });
-    await ready(); change("Teléfono", "5512345678"); save();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
     await screen.findByText("Elige una opción de la lista.");
     expect(screen.getByLabelText("Estado")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
+    expect(saveButton()).toBeEnabled();
   });
-  it("uncertain writes require read-only Comprobar, preserving edits and keeping write lock on read failure", async () => {
+  it("uncertain writes require read-only Comprobar, preserving edits and keeping the write lock on read failure", async () => {
     mocks.save.mockResolvedValue({ kind: "uncertain", part: "profile", failure: { ok: false, reason: "no_response", reference: {} } });
-    await ready(); change("Teléfono", "5512345678"); save();
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
     await screen.findByText("No pudimos confirmar si se guardó");
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    expect(saveButton()).toBeDisabled();
+    expect(within(bar()!).getByRole("button", { name: "Comprobar" })).toBeEnabled();
     mocks.load.mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
-    fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
+    fireEvent.click(within(bar()!).getByRole("button", { name: "Comprobar" }));
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    expect(saveButton()).toBeDisabled();
     mocks.load.mockResolvedValueOnce({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "+525512345678" } } });
-    fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
+    fireEvent.click(within(bar()!).getByRole("button", { name: "Comprobar" }));
     await screen.findByText("Perfil comprobado.");
     expect(screen.getByLabelText("Teléfono")).toHaveValue("5512345678");
-    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    expect(bar()).toBeNull();
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
-});
-
-it("maps bracketed server paths and focuses the first invalid field in visual order", async () => {
-  mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400, code: "validation_error" }, fields: [{ field: "education[0].status", code: "invalid" }, { field: "years_of_experience", code: "invalid" }] } });
-  await ready(); change("Teléfono", "5512345678"); save();
-  expect(await screen.findByLabelText("Años de experiencia")).toHaveFocus();
-  expect(screen.getByLabelText("Años de experiencia")).toHaveAttribute("aria-invalid", "true");
-  tab("Educación"); expect(screen.getByLabelText("Estatus")).toHaveAttribute("aria-invalid", "true");
-});
-
-it("lets the section tabs scroll sideways only (no 1px vertical scrollbar next to «Idiomas»)", async () => {
-  // Seen in Chromium: overflow-auto plus a 33px row in a 32px list drew a vertical scroll control.
-  await ready();
-  const list = screen.getByRole("tablist");
-  expect(list).toHaveClass("overflow-x-auto", "overflow-y-hidden");
-  expect(list).not.toHaveClass("overflow-auto");
-});
-
-it("does not repeat the «Ubicación» card title as a visible location legend", async () => {
-  // Seen in Chromium: the card «Ubicación» showed a second visible «Ubicación» heading inside.
-  await ready();
-  const legends = screen.getAllByRole("group", { name: "Ubicación" }).map(group => group.querySelector(":scope > legend"));
-  expect(legends.length).toBeGreaterThan(1);
-  for (const legend of legends) expect(legend).toHaveClass("sr-only");
+  it("maps bracketed server paths and focuses the first invalid field in visual order", async () => {
+    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400, code: "validation_error" }, fields: [{ field: "education[0].status", code: "invalid" }, { field: "years_of_experience", code: "invalid" }] } });
+    await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
+    expect(await screen.findByLabelText("Años de experiencia")).toHaveFocus();
+    expect(tab("Experiencia")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Años de experiencia")).toHaveAttribute("aria-invalid", "true");
+    expect(tab("Educación")).toHaveAccessibleName("Educación (revisa los datos)");
+    edit("Educación"); expect(screen.getByLabelText("Estatus")).toHaveAttribute("aria-invalid", "true");
+  });
 });

@@ -73,42 +73,39 @@ describe("S3 and S4 profile field guidance", () => {
     const { container } = renderFields({ issues: [{ path: "skills", message: "Puedes registrar hasta 60 habilidades." }] });
     const skills = screen.getByLabelText("Habilidades");
     expect(container.querySelector('label[for="profile-skills"]')).toHaveClass("sr-only");
-    expect(screen.getByRole("heading", { name: "Habilidades", hidden: true })).not.toHaveClass("sr-only");
+    const subhead = container.querySelector('[data-pf-profile-group="skills"] [data-pf-profile-subhead]');
+    expect(subhead).toHaveTextContent("Habilidades");
+    expect(subhead).not.toHaveClass("sr-only");
     const help = screen.getByText("Separa cada habilidad con una coma o un salto de línea. Ejemplo: React, SQL, Atención a clientes. Máximo 60 habilidades, de 60 caracteres cada una.");
     expect(skills).toHaveAccessibleDescription(`${help.textContent} Puedes registrar hasta 60 habilidades.`);
   });
 });
 
 describe("profile form fields inventory", () => {
-  it("keeps section cards content-sized and long-form fields within a reading measure", () => {
+  it("stacks the groups in one column and keeps long-form fields within a reading measure", () => {
     const { container } = renderFields();
-    expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("items-start");
+    expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("flex", "flex-col", "gap-6");
     for (const label of ["Resumen profesional", "Habilidades"]) {
       expect(screen.getByLabelText(label).closest('[data-slot="input-group"]')).toHaveClass("max-w-prose");
     }
   });
-  it("uses native compact card spacing, a closing add action and fieldsets for language rows", () => {
+  it("renders no card inside the editing section, a closing add action and fieldsets for language rows", () => {
     const { container } = renderFields();
-    for (const card of container.querySelectorAll('[data-pf-profile-section-card]')) {
-      expect(card.className.split(/\s+/u)).not.toEqual(expect.arrayContaining(["py-0", "gap-0"]));
-      expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).not.toBeNull();
-    }
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Agregar idioma" }).closest('[data-pf-profile-group="languages"]')).not.toBeNull();
     for (const row of container.querySelectorAll('[data-pf-profile-language-row]')) {
       expect(row).toHaveAttribute("data-slot", "field-set");
       expect(row.className).not.toMatch(/rounded|bg-muted|border-border/u);
     }
   });
-  it("renders the nine section groups that the five tabs distribute without a native control", () => {
+  it("renders the nine groups that the five sections distribute without a native control", () => {
     const { container, onChange } = renderFields();
     expect(onChange).not.toHaveBeenCalled();
     const groups = Array.from(container.querySelectorAll("[data-pf-profile-group]"));
     expect(groups.map((group) => group.getAttribute("data-pf-profile-group"))).toEqual(GROUPS.map(([slug]) => slug));
     const rendered = Array.from(container.querySelectorAll("[data-pf-profile-field]")).map((node) => node.getAttribute("data-pf-profile-field") as string);
     expect([...rendered].sort()).toEqual([...SCALARS, "location", "education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "languages.0.code", "languages.0.level", "languages.1.code", "languages.1.level"].sort());
-    const sectionCards = Array.from(container.querySelectorAll("[data-pf-profile-section-card]"));
-    expect(sectionCards).toHaveLength(9);
-    expect(sectionCards.every((card) => card.getAttribute("data-slot") === "card")).toBe(true);
+    expect(container.querySelectorAll("[data-pf-profile-subhead]")).toHaveLength(9);
     expect(container.querySelectorAll("select")).toHaveLength(0);
   });
 
@@ -139,7 +136,7 @@ describe("profile form fields inventory", () => {
     expect(input(container, "expectedSalary")).toHaveValue(75000);
     for (const path of ["summary", "skills"] as const) {
       const node = field(container, path);
-      expect([node.tagName, node.getAttribute("aria-describedby")], path).toEqual(["TEXTAREA", path === "skills" ? "profile-skills-help" : null]);
+      expect([node.tagName, node.getAttribute("aria-describedby")], path).toEqual(["TEXTAREA", path === "skills" ? "profile-skills-help" : "profile-summary-count"]);
       expect(node).toHaveValue(current[path]);
     }
     expect(field(container, "summary")).toHaveAttribute("maxlength", "2000");
@@ -269,32 +266,25 @@ describe("profile form fields error wiring", () => {
     const { container } = renderFields({ issues: [] });
     expect(container.querySelectorAll('[id$="-error"]')).toHaveLength(0);
     expect(container.querySelectorAll('[aria-invalid="true"]')).toHaveLength(0);
-    expect(field(container, "summary").getAttribute("aria-describedby")).toBeNull();
+    expect(field(container, "summary").getAttribute("aria-describedby")).toBe("profile-summary-count");
   });
 });
 
 describe("profile form fields composition", () => {
-  it("frames the fields in nine quiet cards without heading chips or section blurbs", () => {
+  it("frames the fields in nine quiet groups without cards, heading chips or section blurbs", () => {
     const { container } = renderFields();
     const sections = Array.from(container.querySelectorAll("[data-pf-profile-group]"));
     expect(sections).toHaveLength(9);
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
     expect(container.querySelectorAll("[data-pf-profile-section-icon]")).toHaveLength(0);
     expect(container.querySelectorAll("[data-pf-profile-section-hint]")).toHaveLength(0);
     expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(3);
     for (const label of container.querySelectorAll('[data-slot="field-label"]')) expect(label.querySelector("svg")).toBeNull();
     expect(SOURCE).not.toMatch(/PhoneIcon|Link2Icon|Globe2Icon|CalendarDaysIcon|MapPinnedIcon|EarthIcon|BadgeCheckIcon|Building2Icon|AwardIcon|ScrollTextIcon|GraduationCapIcon|BookOpenIcon|SparklesIcon|BanknoteIcon|CoinsIcon|HashIcon|WalletIcon|CalendarClockIcon|LanguagesIcon/u);
     expect(SOURCE).not.toContain("blurb");
+    expect(SOURCE).not.toMatch(/<Card|ui\/card/u);
     expect(SOURCE).toContain("LanguageListEditor");
     expect(SOURCE).toContain("EducationFields");
-    // Every section Card shares one neutral ring: no accent/neutral split and no hover paint.
-    const sectionCards = Array.from(container.querySelectorAll("[data-pf-profile-section-card]"));
-    expect(sectionCards).toHaveLength(9);
-    for (const card of sectionCards) {
-      expect(card.className).toContain("ring-border/70");
-      expect(card.className).not.toContain("ring-primary");
-      expect(card.className).not.toContain("hover:ring");
-    }
-    expect(SOURCE).not.toMatch(/CARD_ACCENT|CARD_NEUTRAL/u);
     expect(SOURCE).not.toContain("hover:ring");
     expect(SOURCE).not.toContain("ring-primary");
     expect(sections.map((node) => [node.getAttribute("data-pf-profile-group"), node.querySelector("legend")?.textContent])).toEqual(GROUPS.map(([slug, legend]) => [slug, legend]));
@@ -305,33 +295,24 @@ describe("profile form fields composition", () => {
     expect(container.querySelectorAll("[data-pf-profile-fields-grid] [class*='col-span-']").length).toBeGreaterThanOrEqual(6);
   });
 
-  it("titles each section Card through CardHeader and CardTitle while the group legend stays sr-only", () => {
+  it("titles each group with a visible sub-heading while the group legend stays sr-only", () => {
     const { container } = renderFields();
-    const cards = Array.from(container.querySelectorAll("[data-pf-profile-section-card]")) as HTMLElement[];
-    expect(cards).toHaveLength(9);
-    const titles = cards.map((card) => {
-      const header = card.querySelector("[data-slot='card-header']") as HTMLElement | null;
-      expect(header, "every section Card needs its own CardHeader").not.toBeNull();
-      // Normal shadcn header rhythm: no zeroed or edge-flush spacing override.
-      expect(classes(header)).not.toContain("mb-0");
-      expect(classes(header)).not.toMatch(/(?:^|\s)(?:m[xytblr]?-0|p[xytblr]?-0)(?:\s|$)/u);
-      const legend = card.querySelector("[data-slot='field-legend']") as HTMLElement | null;
-      expect(legend, "every FieldSet keeps its accessible group legend").not.toBeNull();
-      expect(classes(legend)).toContain("sr-only");
-      const title = header?.querySelector("[data-slot='card-title']") as HTMLElement | null;
-      expect(title, "every section Card needs a visible CardTitle").not.toBeNull();
-      expect(classes(title)).not.toContain("sr-only");
-      return title?.textContent?.trim() ?? "";
-    });
-    expect(titles).toEqual(GROUPS.map(([, legend]) => legend));
-    const headers = Array.from(container.querySelectorAll("[data-slot='card-header']"));
-    expect(headers).toHaveLength(9);
-    expect(container.querySelectorAll("[data-slot='card-title']")).toHaveLength(9);
-    expect(container.querySelectorAll("[data-slot='card-description']")).toHaveLength(0);
-    for (const header of headers) expect(header.querySelector("svg")).toBeNull();
+    const subheads = Array.from(container.querySelectorAll("[data-pf-profile-subhead]"));
+    expect(subheads.map((node) => node.textContent)).toEqual(GROUPS.map(([, legend]) => legend));
+    for (const node of subheads) {
+      expect(node).toHaveAttribute("aria-hidden", "true");
+      expect(classes(node)).not.toContain("sr-only");
+    }
     for (const legend of container.querySelectorAll("[data-pf-profile-group] > [data-slot='field-legend']")) expect(classes(legend)).toContain("sr-only");
-    expect(SOURCE).toContain("CardHeader");
-    expect(SOURCE).toContain("CardTitle");
+    expect(container.querySelectorAll("[data-slot='card-header']")).toHaveLength(0);
+  });
+
+  it("counts the summary against its 2000-character limit as the candidate types", () => {
+    const { container, rerender, onChange } = renderFields({ draft: draft({ summary: "Hola" }) });
+    expect(container.querySelector("#profile-summary-count")).toHaveTextContent("4 / 2000 caracteres");
+    expect(field(container, "summary")).toHaveAttribute("maxlength", "2000");
+    rerender(<ProfileFormFields draft={draft({ summary: "x".repeat(2000) })} issues={[]} onChange={onChange} />);
+    expect(container.querySelector("#profile-summary-count")).toHaveTextContent("2000 / 2000 caracteres");
   });
 
   it("keeps contextual adornments on the numeric fields without helper lines", () => {
@@ -358,7 +339,7 @@ describe("profile form fields composition", () => {
     expect(container.querySelectorAll('[data-slot="input-group"]')).toHaveLength(SCALARS.length + 3);
     expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-slot="badge"]')).toHaveLength(0);
-    expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("grid-cols-1", "xl:grid-cols-2");
+    expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("flex-col");
     expect(container.querySelectorAll("[data-pf-profile-divider]")).toHaveLength(0);
     expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(2 + draft().languages.length + 2 * draft().education.length);
     for (const trigger of container.querySelectorAll('[data-slot="select-trigger"]')) expect(trigger.querySelector('[data-slot="select-value"]')).not.toBeNull();
@@ -405,7 +386,7 @@ describe("profile form fields contract", () => {
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
     expect(container.querySelectorAll('[role="group"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('[type="submit"], [type="reset"]')).toHaveLength(0);
-    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/forms/dial-code-field", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/features/candidate/education-fields", "@/features/geo/model", "@/features/geo/optional-location-field", "@/features/languages/language-field"]);
+    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/forms/dial-code-field", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/features/candidate/education-fields", "@/features/geo/model", "@/features/geo/optional-location-field", "@/features/languages/language-field"]);
     expect(SOURCE).toMatch(/^"use client";/u);
     for (const forbidden of ["email", "fullName", "userId", "createdAt", "updatedAt", "cv", "auth", "password", "useState", "useReducer", "useEffect", "useRef", "<form", "onSubmit", "submit", "reset", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.", "document.", "window.", "useRouter", "next/navigation", "setTimeout", "setInterval", "Math.random", "Date.now", "prototype-", "profile-draft.test", "parseProfileDraft", "safeParse", "validate"]) {
       expect(SOURCE, `profile-form-fields.tsx must not declare ${forbidden}`).not.toContain(forbidden);

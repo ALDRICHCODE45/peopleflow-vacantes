@@ -40,8 +40,11 @@ export const profileSchema = z.object({
   education: z.object({ highest_completed: z.enum(EDUCATION_LEVELS).nullable(), in_progress: z.enum(EDUCATION_LEVELS).nullable() }).strict(),
   languages: z.array(candidateLanguageSchema).max(10).refine(items => new Set(items.map(item => item.code)).size === items.length),
 }).strict();
+// Board items (cards, detail, manual 201) add the title frozen at application; the talent base keeps
+// it top-level, so `profileSchema` stays without it. Optional until the backend merges (L29); null for old copies.
+export const boardProfileSchema = profileSchema.extend({ professional_title: z.string().max(120).nullable().optional() }).strict();
 export const participationSchema = mutationParticipationSchema.extend({
-  profile: profileSchema,
+  profile: boardProfileSchema,
   screening_answers: z.array(z.object({ question_id: uuidSchema, option_id: uuidSchema }).strict()),
 }).strict();
 export const coverageSchema = z.object({ covered: count, required: z.number().int().positive().safe().nullable(), full_coverage_reached_at: timestamp.nullable() }).strict();

@@ -7,6 +7,7 @@ vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAc
 vi.mock("@/features/candidate-cvs/actions", () => ({ loadCvsAction: vi.fn(async () => ({ ok: true, data: { items: [], limits: { max_cvs: 7 } } })) }));
 vi.mock("@/features/candidate/profile-actions", () => ({ loadProfileAction: vi.fn(async () => ({ ok: true, data: { profile: null, languages: { languages: [] } } })) }));
 vi.mock("@/features/psychometrics/workspace/load", () => ({ loadWorkspaceAssessmentsAction: vi.fn(async () => ({ ok: true, data: { items: [] } })) }));
+vi.mock("@/features/saved-vacancies/actions", () => ({ loadSavedJobsAction: vi.fn(async () => ({ ok: true, data: { items: [], total: 0, limit: 200 } })) }));
 import Page, { metadata } from "./page";
 it("renders the real empty account, never imports prototype modules, and keeps the route header", async () => {
   const source = readFileSync("src/app/(candidato)/candidato/dashboard/page.tsx", "utf8");
@@ -15,7 +16,8 @@ it("renders the real empty account, never imports prototype modules, and keeps t
   render(await Page());
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   expect(await screen.findByText("de 7")).toBeVisible();
-  expect(screen.getByRole("region", { name: "CVs" })).toHaveTextContent("0 de 7");
+  expect(screen.getByRole("article", { name: "CVs" })).toHaveTextContent("0 de 7");
+  expect(await screen.findByRole("heading", { name: "Aquí empieza tu búsqueda" })).toBeVisible();
   expect(screen.queryByText(/Ximena|Acme|Contratada|Rechazada/)).toBeNull();
   cleanup();
 });

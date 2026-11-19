@@ -6,7 +6,6 @@ import { OptionalLocationField, RemoveLocationButton } from "@/features/geo/opti
 import { locationReadToValue } from "@/features/geo/model";
 import { locationErrorMessages, type LocationIssue } from "@/features/geo/model";
 
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { DialCodeField } from "@/components/forms/dial-code-field";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -21,7 +20,8 @@ import type { CandidateProfileDraft, ProfileDraftIssue } from "./profile-draft";
  * new draft through `onChange` on every edit: no state, form, submission,
  * validation, fixture, network, storage, router, timer, or randomness lives here.
  * The optional-location helper explains eligibility without making location required.
- * The workspace owns persistence, pending state and confirmed baselines.
+ * The workspace owns persistence, pending state and confirmed baselines. Groups render as plain fieldsets with a
+ * quiet sub-heading: the workspace places them inside its tinted in-place section, never a card inside a card.
  */
 export const PROFILE_CATEGORIES = ["personal", "experience", "education", "compensation", "languages"] as const;
 export type ProfileCategory = (typeof PROFILE_CATEGORIES)[number];
@@ -32,6 +32,8 @@ export type ProfileFormFieldsProps = Readonly<{
   onChange: (next: CandidateProfileDraft) => void;
   category?: ProfileCategory;
   disabled?: boolean;
+  /** The lock the workspace places after a private label (`educationDetails` for the study details); null otherwise. */
+  privateMark?: (path: string) => React.ReactNode;
 }>;
 
 /** Every draft key a scalar control owns; languages render as indexed rows. */
@@ -47,6 +49,8 @@ type ScalarSpec = Readonly<{
 }>;
 type Section = Readonly<{ slug: string; legend: string; category: ProfileCategory; grid: string; fields: readonly ScalarSpec[] }>;
 
+/** The summary limit, shown as a live «n / 2000» counter under the field. */
+export const SUMMARY_MAX_LENGTH = 2000;
 /** Blank first option of the three closed-vocabulary selects and of a language level. */
 const BLANK = "Sin especificar";
 const optionsOf = <T extends string>(values: readonly T[], labels: Readonly<Record<T, string>>): readonly Option[] =>
@@ -78,7 +82,7 @@ const SECTIONS: readonly Section[] = [
     { path: "seniority", label: "Seniority", options: optionsOf(SENIORITIES, SENIORITY_LABELS), span: "sm:col-span-6" },
   ] },
   { slug: "trajectory", legend: "Trayectoria", category: "experience", grid: "grid grid-cols-1 gap-4 sm:grid-cols-1", fields: [
-    { path: "summary", label: "Resumen profesional", multiline: true, maxLength: 2000 },
+    { path: "summary", label: "Resumen profesional", multiline: true, maxLength: SUMMARY_MAX_LENGTH },
   ] },
   { slug: "education", legend: "Formación académica", category: "education", grid: "grid grid-cols-1 gap-4 sm:grid-cols-5", fields: [
 
@@ -102,25 +106,31 @@ const TARGET = "min-h-10";
 const FRAME = "min-h-10 transition-[color,box-shadow] duration-200 motion-reduce:transition-none";
 /** Full-width Select trigger: 40px target, visible focus and the primitive's token-only paint. */
 const SELECT_TRIGGER = `${TARGET} w-full motion-reduce:transition-none`;
-const SECTION_CARD = "shadow-none ring-border/70";
-const SECTION = "gap-4";
-const SECTION_HEADER = "border-b";
-const SECTION_CONTENT = "flex flex-col gap-4";
+const SECTION = "min-w-0 gap-3";
 const LEGEND = "sr-only";
+/** The group's visible sub-heading (artboard 04 `.sub`); the sr-only legend names the fieldset. */
+const SUBHEAD_ROW = "flex min-h-10 items-center justify-between gap-3";
+const SUBHEAD = "text-[13px] leading-[18px] font-semibold tracking-[0.02em] text-muted-foreground";
+const SUMMARY_MAX = SUMMARY_MAX_LENGTH;
+
+function GroupHead({ legend, action }: Readonly<{ legend: string; action?: React.ReactNode }>) {
+  return <div className={SUBHEAD_ROW}><p aria-hidden="true" data-pf-profile-subhead="" className={SUBHEAD}>{legend}</p>{action}</div>;
+}
 
 /** One labelled control: schema-aligned frame, optional adornment and error-only aria wiring. */
-function ScalarField({ spec, draft, error, onChange, describedBy }: Readonly<{ spec: ScalarSpec; draft: CandidateProfileDraft; error: string | null; onChange: (value: string) => void; describedBy?: string }>) {
+function ScalarField({ spec, draft, error, onChange, describedBy, mark }: Readonly<{ spec: ScalarSpec; draft: CandidateProfileDraft; error: string | null; onChange: (value: string) => void; describedBy?: string; mark?: React.ReactNode }>) {
   const id = `profile-${spec.path}`;
   const invalid = error === null ? undefined : true;
   const value = draft[spec.path];
   const items = spec.options === undefined ? null : toSelectItems(spec.options);
   const handle = (event: { readonly target: { readonly value: string } }): void => onChange(event.target.value);
-  const description = [describedBy, spec.description ? `${id}-help` : null, error === null ? null : `${id}-error`].filter(Boolean).join(" ") || undefined;
+  const counted = spec.path === "summary";
+  const description = [describedBy, spec.description ? `${id}-help` : null, counted ? `${id}-count` : null, error === null ? null : `${id}-error`].filter(Boolean).join(" ") || undefined;
   const aria = { id, "data-pf-profile-field": spec.path, "aria-invalid": invalid, "aria-describedby": description };
   const isBirthDate = spec.path === "birthDate";
   return (
     <Field data-invalid={invalid} className={spec.span}>
-      <FieldLabel htmlFor={id} className={spec.hideLabel ? "sr-only" : undefined}>{spec.label}</FieldLabel>
+      <FieldLabel htmlFor={id} className={spec.hideLabel ? "sr-only" : undefined}>{spec.label}{mark}</FieldLabel>
       {isBirthDate
         ? <DatePickerField id={id} value={value} onChange={onChange} allowPast error={error ?? undefined} data-pf-profile-field="birthDate" className="w-full" />
         : items === null
@@ -139,72 +149,61 @@ function ScalarField({ spec, draft, error, onChange, describedBy }: Readonly<{ s
             </SelectContent>
           </Select>}
       {spec.description && <FieldDescription id={`${id}-help`}>{spec.description}</FieldDescription>}
+      {counted && <p id={`${id}-count`} data-pf-profile-counter="" className="max-w-prose text-right text-xs text-muted-foreground tabular-nums">{value.length} / {SUMMARY_MAX}<span className="sr-only"> caracteres</span></p>}
       {spec.path === "yearsOfExperience" && <FieldDescription>Puedes usar decimales, por ejemplo 1.5.</FieldDescription>}
       {error === null || isBirthDate ? null : <FieldError id={`${id}-error`}>{error}</FieldError>}
     </Field>
   );
 }
 
-/** One scalar section: a quiet Card whose native header titles the sr-only fieldset legend. */
-function ScalarSection({ section, draft, errorFor, onChange, location, headerAction }: Readonly<{ section: Section; draft: CandidateProfileDraft; errorFor: (path: string) => string | null; onChange: (path: ScalarPath, value: string) => void; location?: React.ReactNode; headerAction?: React.ReactNode }>) {
+/** One scalar group: an sr-only legend, a quiet visible sub-heading with its optional action, then the field grid. */
+function ScalarSection({ section, draft, errorFor, onChange, location, headerAction, privateMark }: Readonly<{ section: Section; draft: CandidateProfileDraft; errorFor: (path: string) => string | null; onChange: (path: ScalarPath, value: string) => void; location?: React.ReactNode; headerAction?: React.ReactNode; privateMark?: (path: string) => React.ReactNode }>) {
   return (
-    <Card size="sm" data-pf-profile-section-card="" className={SECTION_CARD}>
-      <CardHeader className={SECTION_HEADER}>
-        <CardTitle aria-hidden="true"><h3>{section.legend}</h3></CardTitle>
-        {headerAction && <CardAction className="row-span-1 -my-2">{headerAction}</CardAction>}
-      </CardHeader>
-      <CardContent className={SECTION_CONTENT}>
         <FieldSet data-pf-profile-group={section.slug} className={SECTION}>
           <FieldLegend className={LEGEND}>{section.legend}</FieldLegend>
+          <GroupHead legend={section.legend} action={headerAction} />
           <FieldGroup data-pf-profile-fields-grid="" className={section.grid}>
             {section.fields.map((spec) => spec.path === "phone" ? (
               <FieldGroup key={spec.path} className={spec.span}>
                 <div data-pf-profile-phone="" className="grid grid-cols-1 gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]">
                   <DialCodeField id="profile-dial" data-pf-profile-field="dial" value={draft.dial} aria-describedby="profile-phone-help" onChange={value => onChange("dial", value)} />
-                  <ScalarField spec={{ ...spec, span: undefined }} draft={draft} error={errorFor("phone")} describedBy="profile-phone-help" onChange={value => onChange("phone", value)} />
+                  <ScalarField spec={{ ...spec, span: undefined }} draft={draft} error={errorFor("phone")} describedBy="profile-phone-help" mark={privateMark?.("phone")} onChange={value => onChange("phone", value)} />
                 </div>
                 <FieldDescription id="profile-phone-help">México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.</FieldDescription>
               </FieldGroup>
             ) : (
-              <ScalarField key={spec.path} spec={spec} draft={draft} error={errorFor(spec.path)} onChange={(value) => onChange(spec.path, value)} />
+              <ScalarField key={spec.path} spec={spec} draft={draft} error={errorFor(spec.path)} mark={privateMark?.(spec.path)} onChange={(value) => onChange(spec.path, value)} />
             ))}
             {section.slug === "location" && location}
           </FieldGroup>
         </FieldSet>
-      </CardContent>
-    </Card>
   );
 }
 
 /** The controlled field editor: every rendered value and message comes from props. */
-export function ProfileFormFields({ draft, issues, onChange, category, disabled }: ProfileFormFieldsProps) {
+export function ProfileFormFields({ draft, issues, onChange, category, disabled, privateMark }: ProfileFormFieldsProps) {
   const byPath = new Map<string, string>();
   for (const issue of issues) if (!byPath.has(issue.path)) byPath.set(issue.path, issue.message);
   const errorFor = (path: string): string | null => byPath.get(path) ?? null;
 
   /** Immutable scalar edit: a shallow clone carrying the one changed key. */
   const updateScalar = (path: ScalarPath, value: string): void => { onChange({ ...draft, [path]: value }); };
-  const languagesCard = (
-    <Card size="sm" data-pf-profile-section-card="" className={`${SECTION_CARD} xl:col-span-2`}>
-      <CardHeader className={SECTION_HEADER}>
-        <CardTitle aria-hidden="true"><h3>{"Idiomas"}</h3></CardTitle>
-      </CardHeader>
-      <CardContent className={SECTION_CONTENT}>
-        <FieldSet data-pf-profile-group="languages" className={SECTION}>
-          <FieldLegend className={LEGEND}>Idiomas</FieldLegend>
-          <LanguageListEditor value={draft.languages} onChange={languages => onChange({ ...draft, languages })} issues={issues} disabled={disabled} />
-        </FieldSet>
-      </CardContent>
-    </Card>
+  const languagesGroup = (
+    <FieldSet data-pf-profile-group="languages" className={SECTION}>
+      <FieldLegend className={LEGEND}>Idiomas</FieldLegend>
+      <GroupHead legend="Idiomas" />
+      <LanguageListEditor value={draft.languages} onChange={languages => onChange({ ...draft, languages })} issues={issues} disabled={disabled} />
+    </FieldSet>
   );
   const sections = category === undefined ? SECTIONS : SECTIONS.filter((section) => section.category === category);
   const withLanguages = category === undefined || category === "languages";
+  const detailsMark = privateMark?.("educationDetails");
   return (
-    <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-      {sections.map((section) => section.slug === "education" ? <EducationFields key={section.slug} value={draft.education} onChange={education => onChange({ ...draft, education })} issues={issues} disabled={disabled} /> : (
-        <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} headerAction={section.slug === "location" && draft.location.country !== null ? <RemoveLocationButton disabled={disabled} onRemove={() => onChange({ ...draft, location: locationReadToValue(null) })} /> : undefined} location={<div className="sm:col-span-2" data-pf-profile-field="location"><OptionalLocationField inlineRemove={false} value={draft.location} onChange={location => onChange({ ...draft, location })} depth="municipality" postalCode={false} label="Ubicación" hideLegend countryDescription="Opcional. Algunas vacantes solo aceptan postulantes de ciertos países." disabled={disabled} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9) as LocationIssue["field"], reason: (Object.keys(locationErrorMessages) as LocationIssue["reason"][]).find(reason => locationErrorMessages[reason] === issue.message) ?? "unknown" }))} /></div>} />
+    <FieldGroup data-pf-profile-fields="" className="flex min-w-0 flex-col gap-6">
+      {sections.map((section) => section.slug === "education" ? <div key={section.slug} className="flex min-w-0 flex-col gap-3"><GroupHead legend={section.legend} action={detailsMark ? <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">Detalles de cada estudio{detailsMark}</span> : undefined} /><EducationFields embedded value={draft.education} onChange={education => onChange({ ...draft, education })} issues={issues} disabled={disabled} /></div> : (
+        <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} privateMark={privateMark} headerAction={section.slug === "location" && draft.location.country !== null ? <RemoveLocationButton disabled={disabled} onRemove={() => onChange({ ...draft, location: locationReadToValue(null) })} /> : undefined} location={<div className="sm:col-span-2" data-pf-profile-field="location"><OptionalLocationField inlineRemove={false} value={draft.location} onChange={location => onChange({ ...draft, location })} depth="municipality" postalCode={false} label="Ubicación" hideLegend countryDescription="Opcional. Algunas vacantes solo aceptan postulantes de ciertos países." disabled={disabled} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9) as LocationIssue["field"], reason: (Object.keys(locationErrorMessages) as LocationIssue["reason"][]).find(reason => locationErrorMessages[reason] === issue.message) ?? "unknown" }))} /></div>} />
       ))}
-      {withLanguages ? languagesCard : null}
+      {withLanguages ? languagesGroup : null}
     </FieldGroup>
   );
 }

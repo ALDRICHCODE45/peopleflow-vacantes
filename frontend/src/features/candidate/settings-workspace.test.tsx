@@ -55,7 +55,24 @@ it("wraps every settings section heading in the native card-title slot", () => {
     expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-description"]')).toHaveClass("max-w-prose");
     for (const description of card.querySelectorAll('[data-slot="item-description"]')) expect(description).toHaveClass("max-w-prose", "line-clamp-none");
     for (const title of card.querySelectorAll('[data-slot="item-title"]')) expect(title).toHaveClass("line-clamp-none", "break-words");
-    for (const actions of card.querySelectorAll('[data-slot="item-actions"]')) expect(actions).toHaveClass("justify-start", "sm:justify-end");
+    // Wide controls (Select, Button) drop below the copy on phones; switches never do.
+    for (const actions of card.querySelectorAll('[data-slot="item-actions"]')) {
+      if (actions.querySelector('[role="switch"]')) continue;
+      expect(actions).toHaveClass("w-full", "justify-start", "sm:w-auto", "sm:justify-end");
+    }
+  }
+});
+
+it("keeps every switch beside its copy, right-aligned, while the copy takes the remaining width at 390 px", () => {
+  render(<SettingsWorkspace />);
+  const switches = screen.getAllByRole("switch");
+  expect(switches).toHaveLength(5);
+  for (const control of switches) {
+    const actions = control.closest('[data-slot="item-actions"]')!;
+    // No full-width actions slot, so the wrapping Item row keeps media, copy and switch on one line.
+    expect(actions).toHaveClass("shrink-0", "justify-end");
+    expect(actions).not.toHaveClass("w-full");
+    expect(actions.closest('[data-slot="item"]')!.querySelector('[data-slot="item-content"]')).toHaveClass("min-w-0", "flex-1");
   }
 });
 

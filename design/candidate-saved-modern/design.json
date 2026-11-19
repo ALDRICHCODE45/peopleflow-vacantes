@@ -1,0 +1,28 @@
+{
+  "title": "Vacantes guardadas · moderno",
+  "brief": "Rediseño de /candidato/guardadas con la misma calidad que el dashboard aprobado (artboard 04-bento-con-siguiente-paso): mismo shell del candidato, tokens, tintes, lenguaje de hero oscuro y estilo de tiles. Tres direcciones con los datos de Valeria Mendoza (Supervisor(a) de Almacén y Analista de Nómina por postularte, Residente de Obra Civil ya postulada «Enviada», las tres guardadas hoy). Solo usa datos que existen: snapshot de la vacante (título, empresa, ubicación, modalidad, salario, publicación), saved_at, disponibilidad y la postulación; el estado de la postulación se cruza con la lista de postulaciones. Cada artboard tiene los controles «Con más guardadas» (9 de varias empresas, una ya no disponible), «Sin guardadas», «Ver estado de carga» y «Ver a 390 px», y las acciones Postularme, Ver vacante, Quitar con Deshacer y Ver postulación.",
+  "feature": "odd/tasks/candidate-dashboard-modern.md",
+  "artboards": [
+    {
+      "file": "01-shortlist.html",
+      "title": "01 · Tu shortlist",
+      "tradeoff": "Bento arriba (hero oscuro «2 vacantes esperan tu postulación» con los logos de las empresas + tiles «Ya te postulaste» y «Siguen abiertas») y un tablero de tarjetas ricas en 3 columnas con chips de salario, ubicación y modalidad, «Postularme» como acción principal y una banda de estado en las postuladas. Es la más vistosa y la más cercana al dashboard, pero ocupa más alto por vacante: con muchas guardadas hay que hacer scroll para comparar y el salario no queda alineado entre tarjetas",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "02-postulate-primero.html",
+      "title": "02 · Postúlate primero",
+      "tradeoff": "Una cola numerada «Postúlate primero» con la razón de cada lugar (días publicada, salario o fecha en que la guardaste, según el orden elegido) y una vista previa oscura fija a la derecha con salario, datos y acciones; a 390 px la fila elegida se despliega en su lugar. Es la más rápida para decidir qué hacer ahora y la que mejor escala a muchas guardadas, pero las acciones viven en la vista previa (un clic más) y el orden «Sugerido» es una regla simple (más días publicada), no una predicción de cierre",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-compara-y-decide.html",
+      "title": "03 · Compara y decide",
+      "tradeoff": "Un tablero oscuro lado a lado con hasta 3 vacantes por postularte (2 a 390 px): salario como rango sobre la misma escala (neto rayado, «Bruto y neto no se comparan directo»), modalidad, ubicación y fechas, con filas iguales fusionadas y una frase que dice en qué cambian. «Ya te postulaste» y «Ya no disponibles» quedan plegadas abajo. Es la mejor para elegir entre opciones parecidas, pero con más de 3 pide elegir cuáles comparar y deja menos visibles las que ya postulaste",
+      "width": 1440,
+      "height": 1110
+    }
+  ]
+}

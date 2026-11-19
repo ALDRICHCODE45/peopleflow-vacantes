@@ -1,106 +1,177 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, ClipboardList, Files, UserRound, type LucideIcon } from "lucide-react";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, BriefcaseBusiness, Check, Files, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { SectionEmpty } from "@/components/feedback/state-card";
-import { ApplicationMessage } from "@/features/candidate/application-message";
+import { CARD } from "@/features/company-metrics/sections/summary-strip";
 import { profileFromWire } from "@/features/candidate/profile-adapter";
-import { missingProfileText, profileCompleteness } from "@/features/candidate/profile-completeness";
+import { profileCompleteness, type Completeness } from "@/features/candidate/profile-completeness";
+import type { CandidateProfile } from "@/features/candidate/model";
 import type { ProfileLanguages, ProfileRead } from "@/features/candidate/profile-api";
 import type { ApplicationsPage } from "@/features/candidate-applications/model";
 import type { CvLibrary } from "@/features/candidate-cvs/model";
-import type { AccountAssessments } from "@/features/psychometrics/model";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
+import type { AccountAssessment } from "@/features/psychometrics/model";
+import type { SavedJobs } from "@/features/saved-vacancies/model";
+import type { AssessmentResult } from "@/features/candidate/dashboard/assessments";
+import { ApplicationsBento, CONTEXT, FOOT_LINK, INLINE_LINK, Ring, SavedTile, Tile, UNIT, VALUE } from "@/features/candidate/dashboard/charts";
+import { relativeTime } from "@/features/candidate/dashboard/format";
+import { dashboardInsights, isUnread, nextSteps, type Application } from "@/features/candidate/dashboard/insights";
+import { NextStep, NextStepSkeleton } from "@/features/candidate/dashboard/next-step";
+import { EntranceClock } from "@/features/candidate/dashboard/entrance";
 import { SourceError, SourceLoading, useSource, type Source } from "@/features/candidate/dashboard/source";
-import { isUnread, type Application } from "@/features/candidate/dashboard/insights";
-import { DashboardCharts, ApplicationStatus } from "@/features/candidate/dashboard/charts";
+import { applicationBadge } from "@/features/candidate/saved/application-status";
 import { loadApplicationsAction, markMessageReadAction } from "@/features/candidate-applications/actions";
 import { loadCvsAction } from "@/features/candidate-cvs/actions";
 import { loadProfileAction } from "@/features/candidate/profile-actions";
-const loadApplications = () => loadApplicationsAction({ limit: 50 });
-export type CandidateDashboardOverviewProps = { assessments: Source<AccountAssessments>; onFirstVisit: (first: boolean) => void; fullName?: string };
-const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const quietLink = buttonVariants({ variant: "ghost", size: "sm", className: "min-h-10" });
-const date = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-const labels = { submitted: "Enviada", in_process: "En proceso", closed: "Cerrada" } as const;
-const variants = { submitted: "info", in_process: "accent", closed: "neutral" } as const;
+import { loadSavedJobsAction } from "@/features/saved-vacancies/actions";
+import { cn } from "@/lib/utils";
 
-function Metric<T>({ label, icon: Icon, source, loadingLabel, errorLabel, value, children, href, action }: {
-  label: string; icon: LucideIcon; source: Source<T>; loadingLabel: string; errorLabel: string; value?: ReactNode; children?: ReactNode; href: string; action: string;
-}) {
-  return <Card size="sm" role="region" aria-label={label} aria-busy={!source.result} className="min-w-0">
-    <CardHeader className="h-24 sm:h-16"><CardTitle><h2 className="flex flex-col gap-2 text-sm font-medium sm:flex-row sm:items-center"><span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-foreground"><Icon className="size-5" /></span>{label}</h2></CardTitle></CardHeader>
-    <CardContent className="flex flex-1 flex-col gap-2">
-      {!source.result ? <><Skeleton aria-hidden="true" className="h-9 w-16" /><SourceLoading label={loadingLabel} compact /></> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label={errorLabel} /> : <><Link href={href} aria-label={action} className="inline-flex min-h-10 items-baseline gap-1 self-start rounded-sm text-3xl font-semibold tracking-tight tabular-nums hover:underline focus-visible:outline-2 focus-visible:outline-ring">{value}</Link><div className="min-h-9 text-xs text-muted-foreground">{children}</div></>}
-    </CardContent>
-  </Card>;
+const loadApplications = () => loadApplicationsAction({ limit: 50 });
+type Profile = { profile: ProfileRead | null; languages: ProfileLanguages };
+export type CandidateDashboardOverviewProps = { assessments: AssessmentResult };
+const RECENT = 5;
+/** The canonical status words and paint, shared with the inbox and Guardadas (design/system.md, candidate 6). */
+function StatusBadge({ item }: { item: Application }) {
+  const { label, variant } = applicationBadge(item);
+  return <Badge variant={variant} dot>{label}</Badge>;
 }
-export function CandidateDashboardOverview({ assessments, onFirstVisit, fullName }: CandidateDashboardOverviewProps) {
+// Confirmed reads are scoped to the exact visible revision, never a replacement message.
+const revision = (item: Application) => `${item.id}:${item.updated_at}`;
+const changed = (item: Application) => Date.parse(item.updated_at ?? item.applied_at);
+
+/** «Postulaciones recientes»: the five latest changes, with their status badge and what is pending on each. */
+const RecentApplications = memo(function RecentApplications({ source, items, assessments }: { source: Source<ApplicationsPage>; items?: Application[]; assessments?: AccountAssessment[] }) {
+  const id = useId();
+  const now = new Date();
+  const recent = items ? [...items].sort((a, b) => changed(b) - changed(a)).slice(0, RECENT) : [];
+  const evaluation = new Map(assessments?.flatMap(item => item.application_id ? [[item.application_id, item] as const] : []));
+  const all = items && !(source.result?.ok && source.result.data.next_cursor) && items.length > RECENT ? `Ver las ${items.length}` : "Ver todas";
+  return <section aria-labelledby={id} className={cn(CARD, "col-span-2 gap-2 p-4 pb-2 sm:p-6 xl:col-span-8 xl:row-span-2")}>
+    <div className="flex min-h-6 items-center justify-between gap-3">
+      <h3 id={id} className="text-[15px] leading-[22px] font-semibold">Postulaciones recientes</h3>
+      <Link className={buttonVariants({ variant: "ghost", className: "-my-2.5 -mr-3 min-h-10 text-muted-foreground" })} href="/candidato/postulaciones">{all}<ArrowRight aria-hidden="true" data-icon="inline-end" /></Link>
+    </div>
+    {!source.result ? <SourceLoading label="Cargando postulaciones" /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="las postulaciones" /> : !recent.length
+      ? <SectionEmpty tone="empty" icon={BriefcaseBusiness} title="Tu primera postulación va aquí" description="Explora vacantes y envía tu CV. Aquí verás cambios de estado y mensajes de las empresas." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} />
+      : <ol aria-label="Ordenadas por su último cambio" className="divide-y">{recent.map(item => {
+        const unread = isUnread(item);
+        const pending = evaluation.get(item.id);
+        return <li key={item.id} id={`application-${item.id}`} className="grid min-h-15 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 font-medium">
+              {unread && <span role="img" aria-label="Mensaje sin leer" className="size-2 shrink-0 rounded-full bg-primary-text" />}
+              <Link className="min-w-0 break-words underline-offset-3 hover:underline sm:truncate" href="/candidato/postulaciones">{item.vacancy.title}</Link>
+            </p>
+            <p className="text-xs break-words text-muted-foreground sm:truncate">{item.company.name}{unread ? " · 1 mensaje nuevo" : ""}{pending ? ` · Evaluación ${pending.answered_count}/${pending.total_count}` : ""}</p>
+          </div>
+          <StatusBadge item={item} />
+          <time dateTime={item.updated_at ?? item.applied_at} className="hidden min-w-18 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:block">{relativeTime(item.updated_at ?? item.applied_at, now)}</time>
+        </li>;
+      })}</ol>}
+  </section>;
+});
+
+const CHIP = "inline-flex h-5 items-center gap-1 rounded-full px-2 text-[11px] leading-4 font-medium whitespace-nowrap";
+const MISSING_CHIPS = 3;
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+/** What companies see, only from sections with real data (profile read + CV library). */
+function profileSections(profile: CandidateProfile | null, cvs?: number): string[] {
+  if (!profile) return [];
+  return [
+    [profile.seniority !== null || profile.yearsOfExperience !== null, "Experiencia"],
+    [profile.education.length > 0, "Nivel de estudios"],
+    [profile.languages.length > 0, "Idiomas"],
+    [!!cvs, "CV"],
+  ].flatMap(([shown, label]) => shown ? [label as string] : []);
+}
+
+/** «Perfil»: a thin brand ring (check when complete, % when not), then what companies see or what is missing. */
+const ProfileTile = memo(function ProfileTile({ source, completeness, sections }: { source: Source<Profile>; completeness?: Completeness; sections: string[] }) {
+  const percentage = completeness?.percentage ?? 0;
+  const complete = percentage === 100;
+  const missing = completeness?.missing ?? [];
+  const chips = complete ? sections : [...missing.slice(0, MISSING_CHIPS).map(capitalize), ...missing.length > MISSING_CHIPS ? [`+${missing.length - MISSING_CHIPS} más`] : []];
+  return <Tile title="Perfil" icon={UserRound} order={3} ready={source.result !== undefined}>
+    {!source.result ? <SourceLoading label="Cargando perfil" compact /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="tu perfil" /> : completeness && <>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2">
+        <div className="row-span-2 self-start"><Ring value={percentage} total={100} size={56} stroke={5} brand label={`Perfil completo al ${percentage} %`}>
+          {complete ? <Check data-profile-check className="size-5 text-primary-text" strokeWidth={2.5} /> : <b className="text-[13px] font-semibold tracking-tight tabular-nums">{percentage}%</b>}
+        </Ring></div>
+        <div className="min-w-0">
+          <p className="font-semibold">{complete ? "Perfil completo" : percentage >= 50 ? "Te falta poco" : "Completa tu perfil"}</p>
+          <p className={CONTEXT}>{complete ? "Lo que ven las empresas está completo" : `${completeness.completed} de ${completeness.total} datos completos`}</p>
+        </div>
+        {chips.length > 0 && <ul aria-label={complete ? "Lo que ven las empresas" : "Datos que faltan"} className="col-start-2 flex flex-wrap gap-1">
+          {chips.map(chip => <li key={chip} className={cn(CHIP, complete ? "bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))] text-foreground ring-1 ring-primary/15" : "border border-dashed border-border text-muted-foreground")}>
+            {complete && <Check aria-hidden="true" className="size-3 shrink-0 text-primary-text" strokeWidth={3} />}{chip}
+          </li>)}
+        </ul>}
+      </div>
+      <Link href="/candidato/perfil" className={FOOT_LINK}>{complete ? "Ver perfil" : "Completar perfil"}</Link>
+    </>}
+  </Tile>;
+});
+
+const CvTile = memo(function CvTile({ source }: { source: Source<CvLibrary> }) {
+  const data = source.result?.ok ? source.result.data : undefined;
+  return <Tile title="CVs" icon={Files} order={4} ready={source.result !== undefined}>
+    {!source.result ? <SourceLoading label="Cargando CVs" compact /> : !source.result.ok ? <SourceError failure={source.result} retry={source.retry} label="tus CVs" /> : data && <div>
+      <p className={VALUE}>{data.items.length} <small className={UNIT}>de {data.limits.max_cvs}</small></p>
+      <p className={CONTEXT}>{data.items.length === 0 ? <>Aún no subes un CV · <Link className={INLINE_LINK} href="/candidato/cvs">Subir CV</Link></>
+        : data.items.length >= data.limits.max_cvs ? <>Biblioteca llena · <Link className={INLINE_LINK} href="/candidato/cvs">Ir a mis CVs</Link></>
+        : <>{data.items.filter(cv => cv.in_use).length} en uso · <Link className={INLINE_LINK} href="/candidato/cvs">Subir otro</Link></>}</p>
+    </div>}
+  </Tile>;
+});
+
+/**
+ * Artboard 04 «Bento con siguiente paso»: «Siguiente paso», then a 12-column bento (hero «Este mes», four tiles,
+ * recent applications, profile ring and CVs). Each read is independent; derived figures and the props of the memoized
+ * parts keep their identity until their own source changes, so nothing re-renders or re-animates on unrelated updates.
+ */
+export function CandidateDashboardOverview({ assessments }: CandidateDashboardOverviewProps) {
   const applications = useSource<ApplicationsPage>(loadApplications);
   const cvs = useSource<CvLibrary>(loadCvsAction);
-  const profile = useSource<{ profile: ProfileRead | null; languages: ProfileLanguages }>(loadProfileAction);
-  // Confirmed reads are scoped to the exact visible revision, never a replacement message.
-  const [read, setRead] = useState<Set<string>>(() => new Set());
+  const profile = useSource<Profile>(loadProfileAction);
+  const saved = useSource<SavedJobs>(loadSavedJobsAction);
+  const [read, setRead] = useState<ReadonlySet<string>>(() => new Set());
   const attempted = useRef(new Set<string>());
   const original = applications.result?.ok ? applications.result.data : undefined;
-  const revision = (item: Application) => `${item.id}:${item.updated_at}`;
-  const appData = original ? { ...original, items: original.items.map(item => read.has(revision(item)) ? { ...item, message_read_at: item.updated_at } : item) } : undefined;
-  const cvData = cvs.result?.ok ? cvs.result.data : undefined;
+  const items = useMemo(() => original?.items.map(item => read.has(revision(item)) ? { ...item, message_read_at: item.updated_at } : item), [original, read]);
+  const insights = useMemo(() => original ? dashboardInsights(original.items) : undefined, [original]);
   const profileData = profile.result?.ok ? profile.result.data : undefined;
-  const completeness = profileData ? profileCompleteness(profileData.profile ? profileFromWire(profileData.profile, profileData.languages) : null) : undefined;
-  const firstVisit = !!(appData && appData.items.length === 0 && cvData && cvData.items.length === 0);
-  useEffect(() => { onFirstVisit(firstVisit); }, [firstVisit, onFirstVisit]);
-  const sent = appData?.items.filter(item => item.status === "submitted").length ?? 0;
-  const process = appData?.items.filter(item => item.status === "in_process").length ?? 0;
-  const pending = assessments.result?.ok ? assessments.result.data.items.length : undefined;
-  const unread = appData?.items.filter(isUnread) ?? [];
-  const total = pending !== undefined && appData ? pending + unread.length : undefined;
-  const next = assessments.result?.ok ? [...assessments.result.data.items].sort((a, b) => Date.parse(a.expires_at) - Date.parse(b.expires_at))[0] : undefined;
-  const recent = appData ? [...appData.items].sort((a, b) => Date.parse(b.updated_at ?? b.applied_at) - Date.parse(a.updated_at ?? a.applied_at)) : [];
-  async function opened(item: Application) {
+  const candidate = useMemo(() => profileData?.profile ? profileFromWire(profileData.profile, profileData.languages) : null, [profileData]);
+  // The ten key data points shared with /candidato/perfil (profile-completeness.ts): the tile and «Siguiente paso».
+  const completeness = useMemo(() => profileData ? profileCompleteness(candidate) : undefined, [profileData, candidate]);
+  const cvCount = cvs.result?.ok ? cvs.result.data.items.length : undefined;
+  const sections = useMemo(() => profileSections(candidate, cvCount), [candidate, cvCount]);
+  const eligible = assessments?.ok ? assessments.data.items : undefined;
+  const steps = useMemo(() => nextSteps({ assessments: eligible, applications: items, profile: completeness }), [eligible, items, completeness]);
+  // A failed source contributes nothing; the card waits until each pending source answered, so it never jumps.
+  const settled = assessments !== undefined && applications.result !== undefined && profile.result !== undefined;
+  const retryApplications = applications.retry;
+  const onRead = useCallback((item: Application) => {
     const token = revision(item);
     if (!isUnread(item) || !item.updated_at || attempted.current.has(token)) return;
     attempted.current.add(token);
-    try {
-      const result = await markMessageReadAction(item.id, { updated_at: item.updated_at });
+    void markMessageReadAction(item.id, { updated_at: item.updated_at }).then(result => {
       if (result.ok) setRead(previous => new Set(previous).add(token));
-      else if (result.reference.status === 409 && result.reference.code === "message_changed") applications.retry();
-    } catch { /* A read acknowledgment must never interrupt reading or retry itself. */ }
-  }
-  const message = (item: Application) => <ApplicationMessage key={revision(item)} showUnread={isUnread(item)} onOpen={() => { void opened(item); }} triggerLabel="Leer mensaje" message={{ applicationId: item.id, sender: item.company.name, subject: "Mensaje de la empresa", body: item.message!.split(/\r?\n/u) }} />;
-  return <>
-    {assessments.result?.ok && <Card size="sm" role="region" aria-label="Pendientes" id="dashboard-attention" className="border-l-3 border-l-primary">
-      <CardHeader><CardTitle><h2>Pendientes</h2></CardTitle><CardDescription>El siguiente paso de tu búsqueda.</CardDescription><CardAction>{total !== undefined && <Badge variant="accent">{total ? `${total} por responder` : "Todo al día"}</Badge>}</CardAction></CardHeader>
-      <CardContent className="grid gap-3">
-        {!assessments.result ? <SourceLoading label="Cargando evaluaciones" /> : !assessments.result.ok ? <SourceError failure={assessments.result} retry={assessments.retry} label="las evaluaciones" /> : next ? <Item><ItemMedia variant="icon"><ClipboardList aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle className="line-clamp-none break-words">Evaluación · {next.vacancy.title}</ItemTitle><ItemDescription className="line-clamp-none break-words">{next.company.name} · Disponible hasta el {new Date(next.expires_at).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}</ItemDescription></ItemContent><ItemActions><Link className={buttonVariants()} href={`/candidato/evaluaciones/${next.id}`}>Revisar pendiente<ArrowRight aria-hidden="true" /></Link></ItemActions></Item> : total === 0 ? <div><h3 className="font-medium">{firstVisit ? "Aquí aparecerán tus pendientes" : "Todo al día"}</h3><p className="text-xs text-muted-foreground">{firstVisit ? "Cuando una empresa te invite, encontrarás aquí tu siguiente paso." : "No tienes evaluaciones ni mensajes por responder. Tu búsqueda sigue avanzando."}</p></div> : null}
-        {unread[0] && <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-medium">Mensaje · {unread[0].vacancy.title}</h3><p className="text-xs text-muted-foreground">{unread[0].company.name}</p></div><Link className={quietLink} href={`#application-${unread[0].id}`}>Revisar mensaje<ArrowRight aria-hidden="true" /></Link></div>}
-      </CardContent>
-    </Card>}
-    <header className="flex flex-col gap-1"><h2 className="text-2xl font-semibold tracking-tight">{fullName ? `Hola, ${fullName}` : "Tu búsqueda de empleo"}</h2><p className="text-sm text-muted-foreground">{firstVisit ? "Prepara tu perfil y tu primer CV para empezar tu búsqueda." : total === 0 ? "Estás al día. Puedes seguir tus postulaciones o explorar nuevas vacantes." : appData ? `${count(sent + process, "postulación activa", "postulaciones activas")} y tres formas de entender cómo va tu búsqueda.` : "Sigue tus postulaciones y encuentra tu próximo paso."}</p></header>
-    <section aria-label="Resumen de tu búsqueda" className="grid min-w-0 grid-cols-2 gap-4 min-[850px]:grid-cols-4">
-      <Metric label="Por atender" icon={ClipboardList} source={assessments} loadingLabel="Cargando evaluaciones" errorLabel="las evaluaciones" value={total === undefined ? "—" : total} href="#dashboard-attention" action="Ver pendientes"><p>{pending !== undefined && count(pending, "evaluación por responder", "evaluaciones por responder")} · {appData ? count(unread.length, "mensaje sin leer", "mensajes sin leer") : "Mensajes por consultar"}</p></Metric>
-      <Metric label="Postulaciones activas" icon={BriefcaseBusiness} source={applications} loadingLabel="Cargando postulaciones" errorLabel="las postulaciones" value={sent + process} href={firstVisit ? "/vacantes" : "/candidato/postulaciones"} action={firstVisit ? "Explorar vacantes" : "Ver postulaciones"}><p>{appData?.items.length === 0 ? "Aún no has enviado postulaciones." : `${count(sent, "enviada", "enviadas")} · ${count(process, "en proceso", "en proceso")}`}</p></Metric>
-      <Metric label="Perfil" icon={UserRound} source={profile} loadingLabel="Cargando perfil" errorLabel="tu perfil" value={`${completeness?.percentage}%`} href="/candidato/perfil" action={completeness?.percentage === 100 ? "Ver perfil" : "Completar perfil"}><p>{completeness?.missing.length ? `Te falta: ${missingProfileText(completeness.missing)}` : "Tu perfil está completo."}</p></Metric>
-      <Metric label="CVs" icon={Files} source={cvs} loadingLabel="Cargando CVs" errorLabel="tus CVs" value={<>{cvData?.items.length} <small className="text-base font-normal text-muted-foreground">de {cvData?.limits.max_cvs}</small></>} href="/candidato/cvs" action={cvData?.items.length === 0 ? "Subir CV" : "Ir a mis CVs"}><p>{count(cvData?.items.filter(cv => cv.in_use).length ?? 0, "enviado en postulaciones", "enviados en postulaciones")}</p></Metric>
-    </section>
-    {appData?.next_cursor && <p role="note" className="text-xs text-muted-foreground">Resumen de las últimas {appData.items.length} postulaciones. Consulta todas en Postulaciones.</p>}
-    <DashboardCharts source={applications} />
-    <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_19rem]">
-      <Card size="sm" role="region" aria-label="Postulaciones recientes">
-        <CardHeader className="border-b"><CardTitle><h2>Postulaciones recientes</h2></CardTitle><CardDescription>Ordenadas por su último cambio de estado.</CardDescription><CardAction><Link className={quietLink} href="/candidato/postulaciones">Ver todas<ArrowRight aria-hidden="true" /></Link></CardAction></CardHeader>
-        <CardContent>
-          {!applications.result ? <SourceLoading label="Cargando postulaciones" /> : !applications.result.ok ? <SourceError failure={applications.result} retry={applications.retry} label="las postulaciones" /> : recent.length === 0 ? <SectionEmpty tone="empty" icon={BriefcaseBusiness} title="Tu primera postulación va aquí" description="Explora vacantes y envía tu CV. Aquí verás cambios de estado y mensajes de las empresas." primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} /> : <ol aria-label="Bitácora de postulaciones" className="divide-y">{recent.map(item => <li key={item.id} id={`application-${item.id}`} className="flex flex-wrap items-center gap-3 py-4">
-            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-foreground"><BriefcaseBusiness className="size-5" /></span>
-            <div className="min-w-0 basis-44 flex-1"><h3 className="break-words text-sm font-medium"><Link className="hover:underline" href="/candidato/postulaciones">{item.vacancy.title}</Link></h3><p className="break-words text-xs text-muted-foreground">{item.company.name}</p><div className="mt-1 flex flex-wrap items-center gap-2"><Badge variant={variants[item.status]} dot>{labels[item.status]}</Badge><p className="text-xs text-muted-foreground">{item.updated_at ? "Actualizada el " : "Postulaste el "}<time dateTime={item.updated_at ?? item.applied_at}>{date.format(new Date(item.updated_at ?? item.applied_at))}</time></p></div></div>
-            {item.status === "closed" && item.message !== null ? message(item) : <Link className={quietLink} href="/candidato/postulaciones">Ver postulación<ArrowRight aria-hidden="true" /></Link>}
-          </li>)}</ol>}
-        </CardContent>
-      </Card>
-      <ApplicationStatus source={applications} />
+      else if (result.reference.status === 409 && result.reference.code === "message_changed") retryApplications();
+    }, () => { /* A read acknowledgment must never interrupt reading or retry itself. */ });
+  }, [retryApplications]);
+  return <EntranceClock><div className="flex min-w-0 flex-col gap-3 sm:gap-6">
+    {settled ? <NextStep steps={steps} onRead={onRead} /> : assessments && <NextStepSkeleton label="Cargando siguiente paso" />}
+    {original?.next_cursor && <p role="note" className="text-xs text-muted-foreground">Resumen de las últimas {original.items.length} postulaciones. Consulta todas en Postulaciones.</p>}
+    <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-6 xl:auto-rows-[minmax(176px,auto)] xl:grid-cols-12">
+      <ApplicationsBento source={applications} insights={insights} />
+      <SavedTile source={saved} />
+      <RecentApplications source={applications} items={items} assessments={eligible} />
+      <div className="col-span-2 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 xl:col-span-4 xl:row-span-2 xl:grid-cols-1">
+        <ProfileTile source={profile} completeness={completeness} sections={sections} />
+        <CvTile source={cvs} />
+      </div>
     </div>
-  </>;
+  </div></EntranceClock>;
 }

@@ -65,76 +65,113 @@ it("leaves unread mobile rows untouched until their detail is opened", async () 
   await screen.findByRole("dialog");
   await waitFor(() => expect(markMessageReadAction).toHaveBeenCalledExactlyOnceWith(linkedId, { updated_at: linked.updated_at }));
 });
-it("orders compact identity, status and dated detail without duplicating vacancy actions", async () => {
+const valeria = [
+  { ...page.items[0], id: "a4", status: "closed" as const, message: "Gracias por tu interés", message_read_at: null, updated_at: "2026-11-18T18:30:00Z", vacancy: { ...page.items[0].vacancy, title: "Desarrollador(a) Backend Go" } },
+  { ...page.items[0], id: "a3", status: "in_process" as const, vacancy: { ...page.items[0].vacancy, title: "Ejecutivo(a) de Ventas Institucionales" } },
+  { ...page.items[0], id: "a2", status: "in_process" as const, vacancy: { ...page.items[0].vacancy, title: "Químico(a) Farmacéutico(a) Responsable Sanitario" } },
+  { ...page.items[0], id: "a1", vacancy: { ...page.items[0].vacancy, title: "Residente de Obra Civil" } },
+];
+const summary = () => screen.getByText((_, node) => node?.tagName === "P" && node.hasAttribute("data-pf-applications-summary"));
+it("states the counts under the title: total, in process and closed", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: valeria, next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  await screen.findByRole("link", { name: "Residente de Obra Civil" });
+  expect(screen.getByRole("heading", { level: 2, name: "Mis postulaciones" })).toBeVisible();
+  expect(summary()).toHaveTextContent(/^4 postulaciones · 2 en proceso · 1 cerrada$/);
+  expect(screen.queryByText("Sigue tus procesos y encuentra lo que necesita tu atención.")).toBeNull();
+});
+it("uses singular and plural words in the counts line", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
   render(<ApplicationsWorkspace />);
-  const title = await screen.findByRole("link", { name: "Backend Go" });
-  const row = title.closest('[data-pf-application-row]')!;
-  expect(row.querySelector("h3")).toContainElement(title);
-  expect(row).toHaveTextContent("Acme");
-  expect(row.querySelector('[data-slot="badge"]')).toHaveTextContent("Enviada");
-  expect(row.querySelector('[data-slot="avatar"]')).not.toBeNull();
-  expect(title).not.toHaveClass("hover:underline");
-  const detail = screen.getByRole("complementary", { name: "Detalle de postulación" });
-  expect(within(detail).getByText("Postulaste")).toBeVisible();
-  // Open applications carry no filler line: the status chip already states it.
-  expect(within(detail).queryByText("Tu postulación fue enviada.")).toBeNull();
-  expect(detail.querySelector("time")).toHaveAttribute("datetime", page.items[0].applied_at);
-  expect(detail.querySelectorAll("time")).toHaveLength(1);
-  const footer = detail.querySelector('[data-slot="card-footer"]')!;
-  expect(footer.querySelector("time")).toBeNull();
+  await screen.findByRole("link", { name: "Backend Go" });
+  expect(summary()).toHaveTextContent(/^1 postulación · 0 en proceso · 0 cerradas$/);
+});
+it("lists the applications in a «Tus postulaciones» section card with a count and a caption", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: valeria, next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const section = await screen.findByRole("region", { name: "Tus postulaciones 4" });
+  expect(within(section).getByText("Solo ves el estado de tu postulación, no las etapas internas de la empresa.")).toBeVisible();
+  expect(within(within(section).getByRole("list", { name: "Mis postulaciones" })).getAllByRole("listitem")).toHaveLength(4);
+  await userEvent.setup().click(screen.getByRole("button", { name: "En proceso 2" }));
+  expect(screen.getByRole("region", { name: "En proceso 2" })).toBeVisible();
+});
+it("marks the selected row with the tint and the left bar, never the outline ring", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: valeria, next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const first = await screen.findByRole("link", { name: "Desarrollador(a) Backend Go" });
+  const other = screen.getByRole("link", { name: "Residente de Obra Civil" });
+  expect(first).toHaveAttribute("aria-current", "true");
+  expect(other).not.toHaveAttribute("aria-current");
+  const row = (link: HTMLElement) => link.closest("[data-pf-application-row]")!;
+  expect(row(first)).toHaveClass("bg-primary/7", "before:bg-primary", "before:w-[3px]");
+  expect(row(first)).not.toHaveClass("ring-1", "ring-primary/40", "border");
+  expect(row(other)).not.toHaveClass("bg-primary/7");
+  await userEvent.setup().click(other);
+  expect(other).toHaveAttribute("aria-current", "true");
+  expect(row(other)).toHaveClass("bg-primary/7");
+  expect(first).not.toHaveAttribute("aria-current");
+  expect(row(first)).not.toHaveClass("bg-primary/7");
+});
+it("reads «Postulada hoy» for today and «hace N días» after", async () => {
+  const today = new Date(Date.now() - 60_000).toISOString();
+  const older = new Date(Date.now() - 3 * 86_400_000 - 60_000).toISOString();
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [{ ...page.items[0], applied_at: today }, { ...valeria[3], applied_at: older }], next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const list = await screen.findByRole("list", { name: "Mis postulaciones" });
+  expect(within(list).getByText("Acme · Postulada hoy")).toBeVisible();
+  expect(within(list).getByText("Acme · Postulada hace 3 días")).toBeVisible();
+  expect(list).not.toHaveTextContent("hace 0 días");
+});
+it("flags a company message on its row: «Mensaje nuevo» until it is viewed, then «Mensaje de la empresa»", async () => {
+  const unread = { ...valeria[0], id: "unread" };
+  const read = { ...valeria[0], id: "read", message_read_at: "2026-11-18T19:00:00Z", vacancy: { ...valeria[0].vacancy, title: "Analista" } };
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [valeria[3], unread, read], next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const row = (name: string) => screen.getByRole("link", { name }).closest("[data-pf-application-row]") as HTMLElement;
+  await screen.findByRole("link", { name: "Residente de Obra Civil" });
+  expect(within(row("Desarrollador(a) Backend Go")).getByText("Mensaje nuevo")).toBeVisible();
+  expect(within(row("Analista")).getByText("Mensaje de la empresa")).toBeVisible();
+  expect(within(row("Residente de Obra Civil")).queryByText(/Mensaje/)).toBeNull();
+  await userEvent.setup().click(screen.getByRole("link", { name: "Desarrollador(a) Backend Go" }));
+  expect(within(row("Desarrollador(a) Backend Go")).queryByText("Mensaje nuevo")).toBeNull();
+  expect(within(row("Desarrollador(a) Backend Go")).getByText("Mensaje de la empresa")).toBeVisible();
+});
+it("orders the light detail: logo, status, activity, message and «Ver vacante», without a dark surface", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: valeria, next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const detail = await screen.findByRole("complementary", { name: "Detalle de postulación" });
+  expect(detail).not.toHaveClass("pf-kpi-hero", "bg-foreground");
+  expect(detail.querySelector('[data-slot="avatar"]')).toHaveClass("size-16");
+  expect(within(detail).getByRole("heading", { name: "Desarrollador(a) Backend Go" })).toBeVisible();
+  expect(within(detail).getByText("Cerrada")).toHaveAttribute("data-variant", "neutral");
+  expect(within(detail).getByRole("heading", { name: "Actividad del proceso" })).toBeVisible();
+  expect(within(detail).getByText("Postulaste").parentElement?.querySelector("time")).toHaveAttribute("datetime", valeria[0].applied_at);
+  expect(within(detail).getByRole("heading", { name: "Mensaje de la empresa" })).toBeVisible();
+  expect(within(detail).getByText("Gracias por tu interés")).toBeVisible();
+  expect(within(detail).getByRole("link", { name: "Ver vacante" })).toHaveAttribute("href", `/vacantes/${id}`);
+  const row = screen.getByRole("link", { name: "Residente de Obra Civil" }).closest("[data-pf-application-row]")!;
+  expect(row.querySelector('[data-slot="avatar"]')).toHaveClass("size-12");
   expect(row.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
-  const link = within(footer as HTMLElement).getByRole("link", { name: "Ver vacante" });
-  expect(link).toHaveAttribute("href", `/vacantes/${id}`);
-  expect(link).toHaveClass("border-border");
-  expect(link).not.toHaveClass("border-transparent");
-  expect(detail.querySelector('[data-slot="card-header"]')).toHaveClass("border-b");
-  expect(footer).toHaveClass("border-t");
+  expect(within(row as HTMLElement).getByText("Enviada")).toHaveAttribute("data-variant", "info");
 });
 it("shows a structural skeleton during the real initial read", () => {
   vi.mocked(loadApplicationsAction).mockReturnValue(new Promise(() => {}));
   const { container } = render(<ApplicationsWorkspace />);
   expect(screen.getByText("Cargando postulaciones")).toBeInTheDocument();
-  expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
-  const placeholders = container.querySelectorAll('[data-slot="item"]');
-  expect(placeholders).toHaveLength(3);
-  for (const card of placeholders) {
-    expect(card).toHaveAttribute("data-size", "default");
-    expect(card.querySelector('[data-slot="item-content"]')).not.toBeNull();
-    expect(card).toHaveAttribute("aria-hidden", "true");
-  }
-  expect(container.querySelector('[data-pf-applications-loading-search]')).not.toBeNull();
+  expect(screen.getByRole("heading", { level: 2, name: "Mis postulaciones" })).toBeVisible();
+  expect(container.querySelectorAll("[data-pf-applications-loading-row]")).toHaveLength(4);
+  expect(container.querySelector("[data-pf-applications-loading-summary]")).not.toBeNull();
+  expect(screen.queryByText(/0 postulaciones/)).toBeNull();
 });
-it("mirrors the loaded inbox slots and responsive row layout in the initial skeleton", async () => {
-  vi.mocked(loadApplicationsAction).mockReturnValue(new Promise(() => {}));
-  const loading = render(<ApplicationsWorkspace />);
-  const skeleton = loading.container.querySelector('[data-slot="item"]')!;
-  const sequence = (card: Element) => [...card.querySelectorAll('[data-slot^="item-"]')].map(node => node.getAttribute("data-slot"));
-  const expected = sequence(skeleton);
-  const grid = skeleton.closest("ul")!.className;
-  const layout = skeleton.querySelector('[data-slot="item-content"]')!.className;
-  loading.unmount();
-  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
-  const loaded = render(<ApplicationsWorkspace />);
-  await screen.findByRole("link", { name: "Backend Go" });
-  const card = loaded.container.querySelector('[data-pf-application-row]')!;
-  expect(sequence(card)).toEqual(expected);
-  expect(card.closest("ul")).toHaveAttribute("class", grid);
-  expect(card.querySelector('[data-slot="item-content"]')).toHaveAttribute("class", layout);
-});
-it("makes the empty state's next step prominent, readable and mobile-width", async () => {
+it("invites a first application with links to vacancies and to saved vacancies", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } });
   render(<ApplicationsWorkspace />);
-  const title = await screen.findByText("Todavía no te postulaste a ninguna vacante");
-  expect(title).toHaveClass("text-xl", "font-semibold");
-  expect(title.closest('[data-slot="card"]')?.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
-  expect(title.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
-  expect(screen.getByRole("link", { name: "Explorar vacantes" })).toHaveClass("bg-primary", "w-full", "sm:w-auto");
-  expect(screen.getByText("Tus postulaciones aparecerán aquí cuando envíes una. Mientras tanto, explora las vacantes disponibles.")).toBeVisible();
-});
-it("shows the empty state with a vacancy link", async () => {
-  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } }); render(<ApplicationsWorkspace />);
-  expect(await screen.findByText("Todavía no te postulaste a ninguna vacante")).toBeVisible(); expect(screen.getByRole("link", { name: "Explorar vacantes" })).toHaveAttribute("href", "/vacantes");
+  const card = await screen.findByRole("region", { name: "Todavía no te postulas a ninguna vacante" });
+  expect(screen.getByText("Aún no te postulas a ninguna vacante.")).toBeVisible();
+  expect(within(card).getByText("Tu seguimiento")).toBeVisible();
+  expect(within(card).getByRole("link", { name: "Explorar vacantes" })).toHaveAttribute("href", "/vacantes");
+  expect(within(card).getByRole("link", { name: "Ver vacantes guardadas" })).toHaveAttribute("href", "/candidato/guardadas");
+  expect(screen.queryByRole("group", { name: "Filtrar postulaciones" })).toBeNull();
 });
 it("shows initial failures in a recovery card", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
@@ -151,7 +188,7 @@ it("retains an error and retries only explicitly", async () => {
 it("shows only contract facts and status, then appends the next page", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: true, data: { items: [{ ...page.items[0], id, vacancy: { id, title: "Frontend", state: "open" as const } }], next_cursor: null } });
   const { container } = render(<ApplicationsWorkspace />); expect((await screen.findAllByText("Acme"))[0]).toBeVisible(); expect(screen.getByText("16 de octubre de 2026")).toBeVisible();
-  const badge = screen.getByText("Enviada"); expect(badge).toHaveAttribute("data-variant", "info"); expect(badge).toHaveAttribute("data-dot");
+  const badge = within(screen.getByRole("list", { name: "Mis postulaciones" })).getByText("Enviada"); expect(badge).toHaveAttribute("data-variant", "info"); expect(badge).toHaveAttribute("data-dot");
   await userEvent.setup().click(screen.getByRole("button", { name: "Cargar más" })); expect(loadApplicationsAction).toHaveBeenLastCalledWith({ cursor: "opaque" }); expect(await screen.findByRole("link", { name: "Frontend" })).toBeVisible(); expect(screen.getByRole("link", { name: "Backend Go" })).toBeVisible();
   expect(container).not.toHaveTextContent(/En revisión|Contratada|Rechazada|Carta de presentación|Fuente/); expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();
 });
@@ -168,18 +205,19 @@ it("shows En proceso for moved applications without revealing their internal sta
 it("shows Cerrada and the candidate message as plain text, not internal reasons", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "closed", message: "<b>Gracias</b>\nSigue buscando" }] } });
   const { container } = render(<ApplicationsWorkspace />);
-  expect(await screen.findByText("Cerrada")).toBeVisible();
+  const detail = await screen.findByRole("complementary", { name: "Detalle de postulación" });
+  expect(within(detail).getByText("Cerrada")).toBeVisible();
   expect(screen.getByText(/<b>Gracias<\/b>/)).toBeVisible();
   expect(container.querySelector("b")).toBeNull();
   expect(container).not.toHaveTextContent("Perfil no adecuado");
   expect(screen.getByText("El proceso de tu postulación finalizó.")).toBeVisible();
-  expect(screen.getByText("Mensaje de la empresa")).toBeVisible();
-  expect(container.querySelector('[data-pf-application-message] p:last-child')).toHaveClass("whitespace-pre-wrap", "text-muted-foreground");
+  expect(within(detail).getByRole("heading", { name: "Mensaje de la empresa" })).toBeVisible();
+  expect(container.querySelector('[data-pf-application-message] p:last-child')).toHaveClass("whitespace-pre-wrap", "break-words");
 });
 it("keeps the facts and vacancy footer when closed without a message, without an empty message block", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "closed", message: null }] } });
   const { container } = render(<ApplicationsWorkspace />);
-  expect(await screen.findByText("Cerrada")).toHaveAttribute("data-variant", "neutral");
+  expect(within(await screen.findByRole("list", { name: "Mis postulaciones" })).getByText("Cerrada")).toHaveAttribute("data-variant", "neutral");
   expect(screen.getByRole("link", { name: "Ver vacante" })).toHaveAttribute("href", `/vacantes/${id}`);
   expect(screen.getByText("Postulaste")).toBeVisible();
   expect(screen.getByText("El proceso de tu postulación finalizó.")).toBeVisible();
@@ -193,14 +231,26 @@ it("preserves loaded rows and the same cursor when loading more fails", async ()
 it("shows «Vacante cerrada» when the company finished the process of an active application", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "in_process", vacancy: { ...page.items[0].vacancy, state: "closed" } }] } });
   render(<ApplicationsWorkspace />);
-  expect(await screen.findByText("Vacante cerrada")).toHaveAttribute("data-variant", "neutral");
+  expect(within(await screen.findByRole("list", { name: "Mis postulaciones" })).getByText("Vacante cerrada")).toHaveAttribute("data-variant", "neutral");
   expect(within(screen.getByRole("list", { name: "Mis postulaciones" })).queryByText("En proceso")).toBeNull();
   expect(screen.getByText("La empresa cerró esta vacante y finalizó el proceso.")).toBeVisible();
 });
 it("keeps «Cerrada» and its message for a discarded application of a closed vacancy", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "closed", message: "Gracias", vacancy: { ...page.items[0].vacancy, state: "closed" } }] } });
   render(<ApplicationsWorkspace />);
-  expect(await screen.findByText("Cerrada")).toBeVisible();
+  expect(within(await screen.findByRole("list", { name: "Mis postulaciones" })).getByText("Cerrada")).toBeVisible();
   expect(screen.queryByText("Vacante cerrada")).toBeNull();
   expect(screen.getByText("Gracias")).toBeVisible();
+});
+it("shows all four filters with their counts in a 2×2 grid below sm instead of a clipped scroller at 390 px", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [page.items[0], linked], next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const group = await screen.findByRole("group", { name: "Filtrar postulaciones" });
+  // Below sm the segmented track becomes a two-column grid; sm and up keep the original single row.
+  expect(group).toHaveClass("max-sm:grid", "max-sm:w-full", "max-sm:grid-cols-2", "max-sm:h-auto!");
+  // No horizontal scroller around it, so «Cerradas» can no longer sit off-screen.
+  expect(group.parentElement).not.toHaveClass("overflow-x-auto");
+  const filters = within(group).getAllByRole("button");
+  expect(filters.map(filter => filter.textContent)).toEqual(["Todas2", "Por atender0", "En proceso0", "Cerradas1"]);
+  for (const filter of filters) expect(filter).toHaveClass("max-sm:h-9!");
 });
