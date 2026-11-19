@@ -41,7 +41,8 @@ func OrganicETag(company, id uuid.UUID, version int64) string {
 }
 
 // OrganicValues converts the uncorrected public projection to edit/history
-// shapes. The snapshot has no full study list or professional/link attributes.
+// shapes. The snapshot has no full study list, current company or links; the
+// professional title is the latest snapshot's (null for legacy copies).
 func OrganicValues(o *Original) map[string]json.RawMessage {
 	var location any
 	if l := o.Profile.Location; l != nil {
@@ -54,7 +55,7 @@ func OrganicValues(o *Original) map[string]json.RawMessage {
 		}
 		location = map[string]any{"country": l.Country.ID, "state": state, "municipality": municipality, "postal_code": l.PostalCode}
 	}
-	values := map[string]any{"full_name": o.FullName, "email": o.Contact.Email, "phone": o.Contact.Phone, "location": location, "professional_title": nil, "current_company": nil, "seniority": o.Profile.Seniority, "years_of_experience": o.Profile.YearsOfExperience, "education": nil, "languages": o.Profile.Languages, "skills": o.Profile.Skills, "linkedin_url": nil, "portfolio_url": nil}
+	values := map[string]any{"full_name": o.FullName, "email": o.Contact.Email, "phone": o.Contact.Phone, "location": location, "professional_title": o.ProfessionalTitle, "current_company": nil, "seniority": o.Profile.Seniority, "years_of_experience": o.Profile.YearsOfExperience, "education": nil, "languages": o.Profile.Languages, "skills": o.Profile.Skills, "linkedin_url": nil, "portfolio_url": nil}
 	out := map[string]json.RawMessage{}
 	for key, value := range values {
 		out[key], _ = json.Marshal(value)

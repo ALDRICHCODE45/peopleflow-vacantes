@@ -32,8 +32,9 @@ The list, summary, contacts export, detail and participation-CV routes are wired
 
 ## Profile source
 
-The six-key `profile` is the board's exact shape
-([board-filter-data.md](board-filter-data.md)).
+The six-key `profile` is the board's shape
+([board-filter-data.md](board-filter-data.md)) without `professional_title`, which
+the pool returns top-level instead.
 
 - manual → read live from the company record (as the board does);
 - organic → the **frozen snapshot of the candidate's most recent participation
@@ -76,9 +77,13 @@ The six-key `profile` is the board's exact shape
   is not finished** (`process` null or `active`). A participation in a finished
   process stays in `total` but is never active.
 - `professional_title` / `current_company`: string or null, from the profile source
-  below. Manual records read them live; the organic snapshot does not store them,
-  so they are **always null for uncorrected organic** candidates. E2 shows the
-  company's corrections when present.
+  above. Manual records read them live. For organic candidates
+  `professional_title` is the title frozen in the **latest participation's
+  snapshot** (taken at application; never the live profile); snapshots taken before
+  migration 00061 have none, so it is null for those. The organic snapshot does not
+  store `current_company`, so that one is **always null for uncorrected organic**
+  candidates. E2 shows the company's corrections when present (they win, including
+  an explicit null).
 - `vacancy.lifecycle` = the vacancy's lifecycle pair, as in the vacancy lifecycle API:
   `publication` null (never published) | `published` | `paused` | `closed`, and
   `process` null | `active` | `finished`.

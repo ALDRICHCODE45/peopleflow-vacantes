@@ -175,18 +175,20 @@ func loadTracks(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UU
 }
 
 // loadRecent reads each vacancy's 5 newest participations with the fields of
-// GET /v2/me/company/dashboard's recent rows (same name and title rules).
+// GET /v2/me/company/dashboard's recent rows (same name rule). The organic
+// title is the participation snapshot's, like the board (the legacy endpoint
+// still reads the live profile until it is removed); corrections win and
+// manual intakes use the company record.
 func loadRecent(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]*app.HistoryVacancy) error {
 	rows, err := q.Query(ctx, `SELECT v.id, r.* FROM unnest($1::uuid[]) v(id) CROSS JOIN LATERAL (
  SELECT p.id, CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END,
  COALESCE(p.company_candidate_id,p.candidate_id),
  COALESCE(CASE WHEN o.corrections ? 'full_name' THEN o.corrections->>'full_name' ELSE COALESCE(cc.full_name,u.full_name) END,''),
  CASE WHEN o.corrections ? 'professional_title' THEN o.corrections->>'professional_title'
- ELSE CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.professional_title ELSE cp.professional_title END END,
+ ELSE CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.professional_title ELSE p.profile_snapshot->>'professional_title' END END,
  p.stage_id, p.source, p.created_at, ad.id, COALESCE(ad.full_name,'')
  FROM process_participations p
  LEFT JOIN users u ON u.id=p.candidate_id
- LEFT JOIN candidate_profiles cp ON cp.user_id=p.candidate_id
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=$2
  LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id=p.candidate_id AND o.company_id=$2
  LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'

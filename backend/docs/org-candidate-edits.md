@@ -67,7 +67,9 @@ Detail gains:
 
 - All existing top-level values become the **effective** values (correction applied).
 - `original` (organic only; null for manual) = the uncorrected values: account name/email,
-  profile phone, the latest-participation snapshot. `corrected_fields` lists organic
+  profile phone, the latest-participation snapshot (including
+  `original.professional_title`: that snapshot's frozen title, null for copies taken
+  before migration 00061). `corrected_fields` lists organic
   fields with a correction; always `[]` for manual.
 - New top-level `skills`, `linkedin_url`, `portfolio_url` are added to the detail
   (the six-key `profile.skills` stays as is).
@@ -82,8 +84,11 @@ Detail gains:
 - `languages` and `location` are already complete in `profile` (effective) and
   `original.profile` (organic); no extra keys.
 - List items show effective values; filters and `q` match effective values.
-- Organic `professional_title`/`current_company` are no longer always null: they are
-  the correction, if any.
+- Organic `professional_title` is the correction if any, otherwise the latest
+  snapshot's frozen title (null for legacy copies); `current_company` is the
+  correction if any, otherwise null. The uncorrected title is the edit/history
+  baseline: setting it to the snapshot value is a no-op, a correction's history
+  `from` is the snapshot value and a reset returns to it.
 
 ## History
 

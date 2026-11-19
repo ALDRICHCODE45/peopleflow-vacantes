@@ -16,11 +16,20 @@ Routes start at `/v2/me/company/job-drafts/{vacancyId}`.
 - Board items and `GET …/participations/{id}` include `screening_answers:
   [{question_id,option_id}]`: choice identifiers only, in frozen answer order,
   classified by frozen questions. Open text stays in authorized detail's `screening`.
-- Both reads include exactly this six-key `profile` (no `education_level`):
+- Both reads include exactly this `profile`: the six filter keys plus
+  `professional_title` (no `education_level`):
 
 ```json
-{"location":null,"skills":["Go"],"years_of_experience":"1.5","seniority":"junior","education":{"highest_completed":"bachelor","in_progress":"master"},"languages":[{"code":"en","level":"B2"}]}
+{"location":null,"professional_title":"Backend Engineer","skills":["Go"],"years_of_experience":"1.5","seniority":"junior","education":{"highest_completed":"bachelor","in_progress":"master"},"languages":[{"code":"en","level":"B2"}]}
 ```
+
+`professional_title` is a string (≤120 characters) or null. Organic participations
+read the title **frozen at application time** (later profile edits never change it);
+copies taken before migration 00061 have no stored title and read null, never the
+live profile. A company correction of `professional_title` wins (an explicit null
+correction clears it). Manual intakes read their company record live. It is not a
+filter dimension. The talent base keeps this value as its top-level
+`professional_title` instead of inside `profile`.
 
 `years_of_experience` is a decimal string or null, normalized without a zero
 fraction (`"3.0"` → `"3"`), never an integer. Seniority is a shared literal or null.
@@ -56,19 +65,22 @@ no phone, email, birth date, salary or other private profile fields.
 SQL NULL snapshots and missing profiles read as:
 
 ```json
-{"location":null,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]}
+{"location":null,"professional_title":null,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]}
 ```
 
 ## Storage and migration
 
 Organic apply reads the harmonized profile inside its transaction, **after replay**
 and before the country gate. It stores location codes `{country,state,municipality}`
-or null, skills in their existing order (including duplicates), decimal years,
-seniority, completed/ongoing education summary, and languages. Snapshot, participation,
+or null, the professional title (string or null; profiles do not bound it
+server-side, so a longer value keeps its first 120 characters), skills in their
+existing order (including duplicates), decimal years, seniority, completed/ongoing
+education summary, and languages. Snapshot, participation,
 intake, audit, delivery and idempotency commit together. Rejections write none.
 Profile edits/replays never update organic snapshots. See [apply gate](geo-apply.md).
 
-Manual creation and reuse freeze the same six-key shape from the selected record;
+Manual creation and reuse freeze the same shape (six keys plus `professional_title`)
+from the selected record;
 board/detail still read company candidates live. Reused organic identities retain
 an immutable snapshot. Initial manual 201 item bytes match the GET board item;
 replay bodies remain frozen.
@@ -81,7 +93,12 @@ the current profile-write range are preserved, not discarded. JSONB cannot store
 an actual escaped NUL; literal backslash-u0000 text is preserved without JSON-text
 reparsing or masking. The exact six-key CHECK retains the geography/skills checks.
 
-Down refuses fractional years, non-legacy completed education levels, ongoing study,
+00061 (constraint only, no backfill or rewrite) lets the CHECK accept an optional
+`professional_title`: absent (every earlier copy), null, or a string of at most 120
+characters; any other key is still rejected. Its Down locks the table and refuses
+while any row stores the key, otherwise it restores the exact 00043 CHECK.
+
+00043 Down refuses fractional years, non-legacy completed education levels, ongoing study,
 non-null seniority or non-empty languages. Representable rows regain the exact four-key
 00033 shape and CHECK. The v1 recruiter list is **unchanged**: years still truncate
 to integers there only.
@@ -109,8 +126,16 @@ Removed screening identities match no current option; missing answers use `none`
 
 ## Test map and validation boundary
 
-- `TestProfileSnapshotNormalization`, `TestGeoSnapshotMissingProfileWire`: exact
-  six-key shape, decimal years, language order/copy isolation, normalized empty arrays.
+- `TestProfileSnapshotNormalization`, `TestGeoSnapshotMissingProfileWire`,
+  `TestProfileSnapshotNullProfessionalTitle`, `TestProfileSnapshotTitleCappedAt120Characters`:
+  exact snapshot shape, decimal years, language order/copy isolation, normalized
+  empty arrays, explicit null and capped title.
+- `TestProfessionalTitleSnapshotBoardCardAndDetail` (DB): apply freezes the title;
+  later profile edits do not change board card/detail; corrections (also null) win
+  with `original.professional_title` keeping the copy; legacy copies read null.
+- `TestMigration00061OptionalProfessionalTitleAndGuardedDown` (migration DB): no
+  rewrite, absent/null/≤120 accepted, longer/non-string/unknown keys rejected,
+  guarded Down restores the exact 00043 CHECK.
 - `TestManualHarmonizedEducation`: new levels, completed versus ongoing/paused/incomplete.
 - `TestFilterDataOnlyOnBoardAndDetailNotMutations`: read-only privacy allowlist.
 - `TestFilterDataApplySnapshotNormalizationAndReplay` (DB): harmonized profile copy,

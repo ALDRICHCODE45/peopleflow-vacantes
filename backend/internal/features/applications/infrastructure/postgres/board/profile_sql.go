@@ -1,10 +1,12 @@
 package board
 
-// These projections deliberately use the same six-key snapshot contract for
-// frozen intake copies and the live manual profile on board/detail reads.
+// These projections deliberately use the same snapshot contract (six keys plus
+// professional_title) for frozen intake copies and the live manual profile on
+// board/detail reads. Organic titles are cut to the 120 characters the snapshot
+// constraint allows (profiles do not bound them server-side).
 const manualProfileSQL = `jsonb_build_object(
  'location',jsonb_build_object('country',cc.country_code,'state',cc.state_code,'municipality',cc.municipality_code),
- 'skills',cc.skills,'years_of_experience',trim_scale(cc.years_of_experience)::text,'seniority',cc.seniority,
+ 'professional_title',cc.professional_title,'skills',cc.skills,'years_of_experience',trim_scale(cc.years_of_experience)::text,'seniority',cc.seniority,
  'education',jsonb_build_object('highest_completed',
    (SELECT level FROM company_candidate_educations e WHERE e.company_candidate_id=cc.id AND e.status='completed'
     ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e.level) DESC,e.position,e.id LIMIT 1),
@@ -14,7 +16,7 @@ const manualProfileSQL = `jsonb_build_object(
 
 const organicProfileSQL = `jsonb_build_object(
  'location',CASE WHEN cp.country_code IS NULL THEN NULL ELSE jsonb_build_object('country',cp.country_code,'state',cp.state_code,'municipality',cp.municipality_code) END,
- 'skills',COALESCE(cp.skills,'{}'::text[]),'years_of_experience',trim_scale(cp.years_of_experience)::text,'seniority',cp.seniority,
+ 'professional_title',left(cp.professional_title,120),'skills',COALESCE(cp.skills,'{}'::text[]),'years_of_experience',trim_scale(cp.years_of_experience)::text,'seniority',cp.seniority,
  'education',jsonb_build_object('highest_completed',
    (SELECT level FROM candidate_educations e WHERE e.user_id=cp.user_id AND e.status='completed'
     ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e.level) DESC,e.position,e.id LIMIT 1),

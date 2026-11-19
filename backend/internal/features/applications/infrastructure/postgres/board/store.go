@@ -146,7 +146,7 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 	if err := json.Unmarshal(corrections, &i.CorrectedFields); err != nil {
 		return i, 0, err
 	}
-	i.Profile = app.Profile{Skills: []string{}, Languages: []intake.SnapshotLanguage{}}
+	i.Profile = app.ItemProfile{Profile: app.Profile{Skills: []string{}, Languages: []intake.SnapshotLanguage{}}}
 	if profile != nil {
 		if err := json.Unmarshal(profile, &i.Profile); err != nil {
 			return i, 0, err
@@ -459,7 +459,7 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 		if readErr != nil {
 			return out, readErr
 		}
-		out.Original, err = json.Marshal(poolapp.Original{FullName: original.Candidate.FullName, Profile: original.Profile, Contact: contact})
+		out.Original, err = json.Marshal(poolapp.Original{FullName: original.Candidate.FullName, ProfessionalTitle: original.Profile.ProfessionalTitle, Profile: original.Profile.Profile, Contact: contact})
 		if err != nil {
 			return out, err
 		}

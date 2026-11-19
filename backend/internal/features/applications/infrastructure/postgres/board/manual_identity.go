@@ -40,7 +40,7 @@ func manualIdentity(ctx context.Context, tx pgx.Tx, company, actor, process uuid
 			spoken = append(spoken, intake.SnapshotLanguage{Code: l.Code, Level: l.Level})
 		}
 		slices.SortFunc(spoken, func(a, b intake.SnapshotLanguage) int { return strings.Compare(a.Code, b.Code) })
-		profile, err := json.Marshal(intake.SnapshotProfile(&intake.SnapshotLocation{Country: c.Residence.Country, State: manualNullable(c.Residence.State), Municipality: manualNullable(c.Residence.Municipality)}, c.Skills, c.YearsOfExperience, c.Seniority, manualEducation(c.Education), spoken))
+		profile, err := json.Marshal(intake.SnapshotProfile(&intake.SnapshotLocation{Country: c.Residence.Country, State: manualNullable(c.Residence.State), Municipality: manualNullable(c.Residence.Municipality)}, c.ProfessionalTitle, c.Skills, c.YearsOfExperience, c.Seniority, manualEducation(c.Education), spoken))
 		return uuid.New(), profile, err
 	}
 	identity := r.Existing.ID

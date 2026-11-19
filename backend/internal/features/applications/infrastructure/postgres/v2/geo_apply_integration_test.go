@@ -223,7 +223,7 @@ func TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire(t *testing.T) {
 			if err = m.pool.QueryRow(ctx, `SELECT profile_snapshot FROM process_participations WHERE id=$1`, submitted.ID).Scan(&snapshot); err != nil {
 				t.Fatal(err)
 			}
-			stored := movementKeys(t, movementObject(t, snapshot), "location", "skills", "years_of_experience", "seniority", "education", "languages")
+			stored := movementKeys(t, movementObject(t, snapshot), "location", "professional_title", "skills", "years_of_experience", "seniority", "education", "languages")
 			wantCodes := map[string]any{"country": tc.country, "state": tc.state, "municipality": tc.municipality}
 			if !reflect.DeepEqual(stored["location"], wantCodes) {
 				t.Fatal(stored)
@@ -249,7 +249,7 @@ func TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire(t *testing.T) {
 			if tc.municipality != nil {
 				wantLocation["municipality"] = map[string]any{"id": tc.municipality, "name": "Guadalajara"}
 			}
-			want := map[string]any{"location": wantLocation, "skills": []any{"Go", "SQL", "Go"}, "years_of_experience": "0", "seniority": nil, "education": map[string]any{"highest_completed": "master", "in_progress": nil}, "languages": []any{}}
+			want := map[string]any{"location": wantLocation, "professional_title": nil, "skills": []any{"Go", "SQL", "Go"}, "years_of_experience": "0", "seniority": nil, "education": map[string]any{"highest_completed": "master", "in_progress": nil}, "languages": []any{}}
 			detail := movementRequest(t, m, "GET", m.vacancy, submitted.ID, "", "", "")
 			if detail.Code != 200 {
 				t.Fatal(detail.Code, detail.Body.String())

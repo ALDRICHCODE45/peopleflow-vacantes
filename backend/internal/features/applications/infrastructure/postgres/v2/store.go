@@ -117,16 +117,16 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	}
 	// Read the current profile once, after replay and before screening/CV/duplicate
 	// checks. The same row supplies both the gate and the immutable snapshot.
-	var country, state, municipality, years, seniority *string
+	var country, state, municipality, years, seniority, title *string
 	var skills []string
 	var education app.SnapshotEducation
 	var spoken []app.SnapshotLanguage
 	var languageJSON []byte
-	err = tx.QueryRow(ctx, `SELECT country_code,state_code,municipality_code,skills,trim_scale(years_of_experience)::text,seniority,
+	err = tx.QueryRow(ctx, `SELECT country_code,state_code,municipality_code,professional_title,skills,trim_scale(years_of_experience)::text,seniority,
  (SELECT level FROM candidate_educations e WHERE e.user_id=cp.user_id AND e.status='completed' ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e.level) DESC,e.position,e.id LIMIT 1),
  (SELECT level FROM candidate_educations e WHERE e.user_id=cp.user_id AND e.status='in_progress' ORDER BY array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd'],e.level) DESC,e.position,e.id LIMIT 1),
  COALESCE((SELECT jsonb_agg(jsonb_build_object('code',l.code,'level',l.level) ORDER BY l.code) FROM candidate_languages l WHERE l.user_id=cp.user_id),'[]'::jsonb)
- FROM candidate_profiles cp WHERE user_id=$1 FOR SHARE`, candidate).Scan(&country, &state, &municipality, &skills, &years, &seniority, &education.HighestCompleted, &education.InProgress, &languageJSON)
+ FROM candidate_profiles cp WHERE user_id=$1 FOR SHARE`, candidate).Scan(&country, &state, &municipality, &title, &skills, &years, &seniority, &education.HighestCompleted, &education.InProgress, &languageJSON)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, err
 	}
@@ -175,7 +175,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	if err != nil {
 		return app.Result{}, err
 	}
-	profile, err := json.Marshal(app.SnapshotProfile(location, skills, years, seniority, education, spoken))
+	profile, err := json.Marshal(app.SnapshotProfile(location, title, skills, years, seniority, education, spoken))
 	if err != nil {
 		return app.Result{}, err
 	}

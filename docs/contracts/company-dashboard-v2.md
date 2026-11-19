@@ -140,6 +140,10 @@ it).
 
 - `recent`: the 5 newest participations in scope (today's `recent` shape, unchanged fields). Each row links to the
   candidate and the vacancy as today.
+  `candidate.professional_title` (string or null) is the title frozen in the participation's application-time
+  snapshot, like every other profile field the company sees on the board; copies taken before the snapshot stored
+  it read null. A company correction wins (an explicit null too); manual intakes use the company record. The
+  legacy `GET /v2/me/company/dashboard` still reads the live profile title until it is removed.
 - `origin`: `{ "by_day": [ { "date", "organic", "manual" } ] }`, one point per day of the window (organic = portal,
   careers site and unknown channels; manual = manual), participations in scope. A day opens
   `dashboard/lists/applications?from=D&to=D`.

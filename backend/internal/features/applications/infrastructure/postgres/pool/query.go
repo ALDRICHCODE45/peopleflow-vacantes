@@ -16,6 +16,8 @@ const manualProfileSQL = `jsonb_build_object(
 const emptyProfileSQL = candidateview.EmptyProfileSQL
 
 // The identity set and snapshot choice are company-scoped before filtering.
+// Organic titles come from the latest participation's snapshot (null for copies
+// taken before the key existed), never from the live candidate profile.
 // source does not determine identity kind, and discarded rows are not removed.
 var poolSQL = `WITH participations AS MATERIALIZED (
  SELECT p.id,p.process_id,p.stage_id,p.created_at,p.discarded_at,p.profile_snapshot,
@@ -35,7 +37,9 @@ var poolSQL = `WITH participations AS MATERIALIZED (
  SELECT 'organic',u.id,u.full_name,u.email,NULL::text,NULL::text,NULL::timestamptz,NULL::text,NULL::jsonb
  FROM users u WHERE EXISTS(SELECT 1 FROM participations p WHERE p.kind='organic' AND p.person_id=u.id)
 ), uncorrected AS (
- SELECT i.kind,i.id,i.full_name,i.email,i.professional_title,i.current_company,i.postal_code,
+ SELECT i.kind,i.id,i.full_name,i.email,
+ CASE WHEN i.kind='manual' THEN i.professional_title ELSE last.profile_snapshot->>'professional_title' END AS professional_title,
+ i.current_company,i.postal_code,
  CASE WHEN i.kind='manual' THEN i.manual_profile ELSE COALESCE(last.profile_snapshot,` + emptyProfileSQL + `) END AS profile,
  COALESCE(last.created_at,i.created_at) AS last_activity_at,
  CASE WHEN i.kind='manual' THEN i.created_at ELSE c.first_applied_at END AS created_at,
@@ -51,7 +55,7 @@ var poolSQL = `WITH participations AS MATERIALIZED (
  CASE WHEN o.corrections ? 'current_company' THEN o.corrections->>'current_company' ELSE b.current_company END AS current_company,
  CASE WHEN o.corrections ? 'location' THEN o.corrections#>>'{location,postal_code}' ELSE b.postal_code END AS postal_code,
  ` + candidateview.EffectiveProfileSQL("b.profile") + ` AS profile,
- b.full_name AS original_full_name,b.profile AS original_profile,
+ b.full_name AS original_full_name,b.professional_title AS original_professional_title,b.profile AS original_profile,
  ARRAY(SELECT key FROM jsonb_object_keys(COALESCE(o.corrections,'{}'::jsonb)) key ORDER BY key) AS corrected_fields,
  b.last_activity_at,b.created_at,b.total,b.active,b.process_id,b.stage_id,b.discarded_at,b.applied_at
  FROM uncorrected b LEFT JOIN company_candidate_corrections o ON b.kind='organic' AND o.company_id=$1 AND o.user_id=b.id
