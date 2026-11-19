@@ -174,3 +174,6 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
   deliveries on_time 14, late 6, overdue 7, pending 4, not_configured 0; stage retired 0; DevOps in_process 4→3;
   stalled 14. RED observed (list 0 drafts; FK on remove); 46 `^TestMetricsDemo|^TestDashboard|^TestMetrics` green.
   Still absent: CV files, public projection of demo vacancies.
+- **L25** 2026-11-18, frontend session: «d2c, o sea borrar el GET viejo del dashboard: main ya no lo usa. Si lo hacés,
+  también en una rama aparte, sin mergear.» T12 resumes on branch feat/remove-legacy-dashboard (from main c6eda309),
+  not merged until the user reviews it.
