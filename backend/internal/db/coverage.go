@@ -27,12 +27,3 @@ func ReadPlacementCoverage(ctx context.Context, tx pgx.Tx, id uuid.UUID, placeme
 	}
 	return covered, reached, err
 }
-
-// ReadPlacementCoverageTotal sums the same board coverage for paired process
-// and semantic placement-stage identities without per-vacancy round trips.
-func ReadPlacementCoverageTotal(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, placements []string) (int64, error) {
-	var covered int64
-	err := tx.QueryRow(ctx, `SELECT COALESCE(sum((SELECT count(*) `+placementCoverageRows+`)),0)::bigint
- FROM unnest($1::uuid[],$2::uuid[]) AS scope(id,placement)`, ids, placements).Scan(&covered)
-	return covered, err
-}

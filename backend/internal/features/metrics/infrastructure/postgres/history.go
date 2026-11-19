@@ -174,11 +174,10 @@ func loadTracks(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UU
 	return rows.Err()
 }
 
-// loadRecent reads each vacancy's 5 newest participations with the fields of
-// GET /v2/me/company/dashboard's recent rows (same name rule). The organic
-// title is the participation snapshot's, like the board (the legacy endpoint
-// still reads the live profile until it is removed); corrections win and
-// manual intakes use the company record.
+// loadRecent reads each vacancy's 5 newest participations with the recent-row
+// fields (same name rule as the removed legacy dashboard). The organic title
+// is the participation snapshot's, like the board; corrections win and manual
+// intakes use the company record.
 func loadRecent(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]*app.HistoryVacancy) error {
 	rows, err := q.Query(ctx, `SELECT v.id, r.* FROM unnest($1::uuid[]) v(id) CROSS JOIN LATERAL (
  SELECT p.id, CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END,

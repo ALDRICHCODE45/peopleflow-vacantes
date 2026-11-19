@@ -73,7 +73,7 @@ func TestStakeholderGate_RejectsRecruiterAndOwnerRoutes(t *testing.T) {
 		{"POST", "/me/company/requesters", `{"kind":"client","name":"Acme"}`},
 		{"GET", "/v2/me/company/job-drafts", ""},
 		{"POST", "/v2/me/company/job-drafts", `{"fields":{}}`},
-		{"GET", "/v2/me/company/dashboard", ""},
+		{"GET", "/v2/me/company/dashboard/summary", ""},
 		{"GET", "/v2/me/vacancy-assignments/history", ""},
 		{"GET", "/v2/me/company/job-drafts/" + draft, ""},
 		{"PATCH", "/v2/me/company/job-drafts/" + draft, `{"fields":{}}`},

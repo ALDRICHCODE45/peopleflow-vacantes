@@ -52,7 +52,6 @@ import (
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
-	dashboardapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dashboard"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
@@ -402,7 +401,6 @@ func run() error {
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
 		teamHandler:        jobshttp.NewTeamHandler(draftStore),
 		offboardHandler:    jobshttp.NewOffboardHandler(draftStore),
-		dashboardHandler:   jobshttp.NewDashboardHandler(dashboardapp.NewService(draftstore.NewDashboardStore(draftStore, dashboardPoolAdded), time.Now)),
 		pipelineHandler:    pipelineHandler,
 		substatesHandler:   substatesHandler,
 		deliveryHandler:    deliveryHandler,
