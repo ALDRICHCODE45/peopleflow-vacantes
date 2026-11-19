@@ -51,7 +51,7 @@ export function RecruitersSection({ state, filters, period }: SectionProps<Recru
   const [open, setOpen] = useState(false);
   const items = state.data ?? [];
   const href: Href = (target, count) => drilldownHref(target, { ...filters, ...period } satisfies MetricsFilters, { count });
-  return <MetricsSection title="Desempeño por reclutador" state={state}
+  return <MetricsSection title="Desempeño por reclutador" state={state} helpFirst
     help={{ title: "Cómo se calcula por reclutador", body: <dl className="flex flex-col gap-3">
       {HELP.map(([term, text]) => <div key={term} className="flex flex-col gap-1"><dt className="font-medium text-foreground">{term}</dt><dd>{text}</dd></div>)}
     </dl> }}
@@ -112,7 +112,8 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
     <TableCell className="h-14 pr-3 pl-0 max-md:col-start-1 max-md:row-start-1 max-md:block max-md:h-auto max-md:min-w-0 max-md:p-0">
       <div className="flex min-w-0 items-center gap-3">
         <span aria-hidden="true" className={cn("grid size-8 shrink-0 place-items-center rounded-full text-xs font-medium", accentAvatar)}>{initials(name)}</span>
-        <span className="min-w-0 truncate">
+        {/* Rule 14: below `md` the name wraps rather than give way to the figure beside it. */}
+        <span className="min-w-0 md:truncate max-md:break-words">
           <Link href={detail} className="rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring">{name}</Link>
           {card.former_member && <span className="text-muted-foreground"> (Ex miembro)</span>}
         </span>
@@ -123,7 +124,7 @@ function RecruiterRow({ card, detail, href }: { card: RecruiterCard; detail: str
         label={`Ver ${card.vacancies.assigned === 1 ? "la 1 vacante asignada" : `las ${number.format(card.vacancies.assigned)} vacantes asignadas`} a ${name}`}>{number.format(card.vacancies.assigned)}</Figure>
     </TableCell>
     <TableCell data-label="Entregas a tiempo" className="h-14 px-3 text-right tabular-nums max-md:col-start-2 max-md:row-start-1 max-md:block max-md:h-auto max-md:p-0">
-      {onTime.value === null ? <span className="text-muted-foreground max-md:text-xs">{NO_SAMPLE}</span>
+      {onTime.value === null ? <span className="text-muted-foreground max-md:block max-md:max-w-20 max-md:text-xs max-md:leading-4">{NO_SAMPLE}</span>
         : <span className="inline-flex items-center justify-end gap-3 max-md:gap-1">
           <span aria-hidden="true" className="h-2 w-28 overflow-hidden rounded-full bg-muted max-md:hidden">
             <span className="block h-full rounded-full" style={{ width: `${onTime.value * 100}%`, background: "color-mix(in oklab, var(--primary) 60%, var(--pf-tint-base))" }} />

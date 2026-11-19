@@ -85,6 +85,23 @@ describe("Desempeño por reclutador (artboard 07)", () => {
     expect(screen.getByRole("button", { name: "Ver tabla completa" }).parentElement).toHaveClass("ml-auto");
   });
 
+  it("puts «Cómo se calcula» first in the header actions, as the other sections", () => {
+    show();
+    const heading = screen.getByRole("heading", { level: 2, name: "Desempeño por reclutador" });
+    const actions = heading.nextElementSibling as HTMLElement;
+    expect(within(actions).getAllByRole("button").map(button => button.textContent)).toEqual(["Cómo se calcula", "Ver tabla completa"]);
+  });
+
+  it("gives the name priority on a narrow row: it wraps, and «Sin datos suficientes» wraps in a narrow column (rule 14)", () => {
+    show();
+    const fernandaRow = rows()[3];
+    const [name, , onTime] = within(fernandaRow).getAllByRole("cell");
+    const nameLine = within(name).getByRole("link", { name: "Fernanda Ortiz" }).parentElement!;
+    expect(nameLine).toHaveClass("max-md:break-words");
+    expect(nameLine).not.toHaveClass("truncate");
+    expect(within(onTime).getByText("Sin datos suficientes")).toHaveClass("max-md:max-w-20", "max-md:block");
+  });
+
   it("turns each row into a stacked list row on a narrow screen, every figure named by its column (rule 14)", () => {
     show();
     const table = screen.getByRole("table");

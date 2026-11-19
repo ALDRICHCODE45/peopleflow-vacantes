@@ -4,7 +4,8 @@
  * (globals.css: the card in light mode, a mid grey in dark mode) so they stay visible on a near-black card.
  */
 export const DELIVERY_TONE = {
-  on_time: "var(--primary)",
+  // globals.css: --primary in light; in dark mode the brand strong tone, since dark --primary is ~2:1 on the card.
+  on_time: "var(--pf-tone-on-time)",
   // globals.css: light violet over the card; in dark mode a brand-strong tint, since dark --primary is a deep fill.
   late: "var(--pf-tone-late)",
   pending: "color-mix(in oklab, var(--muted-foreground) 35%, var(--card))",

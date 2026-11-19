@@ -207,8 +207,11 @@ function figureNoun({ kind, params }: DetailState): Noun {
     case "deliveries": return ["entrega", "entregas"];
   }
 }
-/** `previous`: opened from «vs periodo anterior» (`windowContext`); `closedTotal`: the conversion's closed vacancies. */
-export type SummaryContext = { previous?: boolean; closedTotal?: number | null };
+/**
+ * `previous`: opened from «vs periodo anterior»; `month`: one month of a recruiter page's window (both from
+ * `windowContext`); `closedTotal`: the conversion's closed vacancies.
+ */
+export type SummaryContext = { previous?: boolean; month?: string | null; closedTotal?: number | null };
 /** A conversion figure: closed vacancies with a placement credited to the person (its universe drops `credited_to`). */
 export const isConversion = ({ kind, params }: DetailState) => kind === "vacancies" && Boolean(params.credited_to) && closedScope(params);
 /**
@@ -218,10 +221,18 @@ export const isConversion = ({ kind, params }: DetailState) => kind === "vacanci
  * board's rate it opens from; candidates are counted today (current state); applications by their sum in the chosen
  * channels, never by the rows; a conversion as «N de M vacantes cerradas … tuvieron placement — X %» once its closed
  * vacancies are counted; otherwise the count named after its figure («29 vacantes asignadas en el periodo.»). A figure
- * from «vs periodo anterior» says «en el periodo anterior».
+ * from «vs periodo anterior» says «en el periodo anterior», one from a monthly bar names its month («en septiembre
+ * 2026»). A late bucket is counted on its own («1 entrega llegó con hasta 2 días hábiles de retraso»): its facets hold
+ * only the bucket, so a share would compare it with itself.
  */
 export function summaryLine(state: DetailState, data: DetailPage, context: SummaryContext = {}): SummaryPart[] {
-  const where = context.previous ? "en el periodo anterior" : "en el periodo";
+  const where = context.previous ? "en el periodo anterior" : context.month ? `en ${monthName(context.month)}` : "en el periodo";
+  const bucket = LATE_BUCKET_LABEL[state.params.late_bucket ?? ""];
+  if (data.kind === "deliveries" && bucket && (!state.params.result || state.params.result === "late")) {
+    const count = data.page.total;
+    const person = subjectPerson(state, data.page.applied_filters);
+    return [[plural(count, "entrega", "entregas"), true], [`${person ? ` de ${person}` : ""} ${count === 1 ? "llegó" : "llegaron"} con ${bucket} de retraso ${where}.`, false]];
+  }
   const universe = data.kind === "deliveries" && isUniverse(state.params) && !state.params.late_bucket;
   const result = universe ? "on_time" : single(state.params.result);
   if (data.kind === "deliveries" && result && VERB[result]) {

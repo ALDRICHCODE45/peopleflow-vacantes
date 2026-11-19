@@ -34,6 +34,22 @@ describe("Vacantes activas", () => {
     expect(Object.fromEntries(new URL(href, "https://app.test").searchParams)).toEqual({ kind: "candidates", window: "30", vacancy_id: vacancyId, in_process: "true" });
   });
 
+  it("stacks each vacancy as a list row on a narrow screen: the whole title, the in-process figure and a chevron (rule 14)", () => {
+    show({ drill: drillFor(30, true) });
+    const active = card("Vacantes activas");
+    const first = within(active).getAllByRole("listitem")[0];
+    const title = within(first).getByRole("link", { name: "Abrir el pipeline de Analista de crédito Sr." });
+    // The title wraps instead of being cut, and its link covers the row so the chevron opens it too.
+    expect(title).toHaveClass("max-sm:whitespace-normal", "max-sm:break-words", "max-sm:after:absolute", "max-sm:after:inset-0");
+    expect(first).toHaveClass("relative");
+    expect(within(first).getByText("en proceso")).toHaveClass("sm:hidden");
+    expect(within(first).getByText("de 3", { exact: false }).closest("span")).toHaveClass("max-sm:hidden");
+    expect(first.querySelector("svg[aria-hidden='true'].lucide-chevron-right")).toHaveClass("sm:hidden");
+    // The figure stays its own link above the row's.
+    expect(within(first).getByRole("link", { name: "Ver los 14 candidatos en proceso de Analista de crédito Sr." })).toHaveClass("relative", "z-10");
+    expect(active.querySelector("[aria-hidden='true'].text-xs")).toHaveClass("max-sm:hidden");
+  });
+
   it("keeps the current first-visit copy when there are no published vacancies", () => {
     show({ vacancies: ready(vacancies({ top: [] })) });
     expect(screen.getByRole("heading", { name: "Todavía no hay vacantes activas" })).toBeInTheDocument();

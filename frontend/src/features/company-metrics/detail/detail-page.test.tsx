@@ -128,6 +128,7 @@ describe("metrics detail page (artboard 08)", () => {
     load.mockResolvedValue(ok({ kind: "vacancies", page: vacancyList({ total: 6, applied_filters: { scope: "assigned", recruiter: jorge } }) }));
     render(<MetricsDetailPage />);
     expect(await screen.findByRole("heading", { level: 2, name: "Vacantes asignadas · Jorge Paredes · septiembre 2026" })).toBeInTheDocument();
+    expect(await summaryText("6 vacantes asignadas a Jorge Paredes en septiembre 2026.")).toBeInTheDocument();
   });
 
   it("switches status from the facet counts and rewrites the URL filter", async () => {

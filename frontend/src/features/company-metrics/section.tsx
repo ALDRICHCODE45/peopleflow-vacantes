@@ -13,7 +13,7 @@ import type { SectionState } from "./use-section";
  * One board section (`design/system.md` rules 1, 7, 15, 17): a short professional title, one «Cómo se calcula» trigger
  * with the definitions (never shown by default), its own skeleton, failure and retry; while new filters load, the last
  * numbers stay visible and dimmed so nothing jumps. `helpFirst` puts «Cómo se calcula» before the actions, as the
- * recruiter page's artboard 10 does; the board keeps its actions first.
+ * recruiter page's artboard 10 does and every section with actions now follows.
  */
 export function MetricsSection<T>({ title, help, state, skeleton, actions, helpFirst = false, children }: {
   title: string;
