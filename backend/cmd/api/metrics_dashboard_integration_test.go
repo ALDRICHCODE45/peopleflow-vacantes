@@ -308,10 +308,10 @@ func TestDashboardV2_RecentAndOrigin(t *testing.T) {
 	}
 }
 
-// The 7-day pool_added equals the old dashboard's pool_added_last_7_days on
-// the same data when no addition sits between the rolling now()-7 days and
-// the local-day boundary (dashboard-v2.md documents the difference).
-func TestDashboardV2_PoolAddedMatchesOldDashboard(t *testing.T) {
+// The 7-day pool_added counts additions of the last 7 local days on the real
+// clock (it used to be pinned to the removed legacy dashboard's rolling
+// pool_added_last_7_days; dashboard-v2.md documents the difference).
+func TestDashboardV2_PoolAddedLastSevenDays(t *testing.T) {
 	h := newDraftFlowHarness(t)
 	f := newMXFixture(t, h)
 	now := time.Now()
@@ -321,20 +321,8 @@ func TestDashboardV2_PoolAddedMatchesOldDashboard(t *testing.T) {
 	f.apply(v, stage, "Hace una hora", "portal", now.Add(-time.Hour))
 	f.apply(v, stage, "Hace dos días", "portal", now.Add(-48*time.Hour))
 	f.apply(v, stage, "Hace diez días", "portal", now.Add(-240*time.Hour))
-	// The old route's pool figure, through the function it composes (the
-	// integration harness does not wire the old dashboard handler).
-	tx, err := h.pool.Begin(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback(t.Context())
-	old, err := dashboardPoolAdded(t.Context(), tx, f.company.companyID, f.ownerID)
-	if err != nil || old == nil {
-		t.Fatalf("%v %v", old, err)
-	}
 	summary := draftFlowObject(t, h.do(t, "GET", "/v2/me/company/dashboard/summary?window=7", "", f.owner.token, nil).body)
-	current := summary["pool_added"].(map[string]any)["current"]
-	if *old != 2 || current != float64(*old) {
-		t.Fatalf("old %v, new %v", *old, current)
+	if current := summary["pool_added"].(map[string]any)["current"]; current != float64(2) {
+		t.Fatalf("pool_added.current %v", current)
 	}
 }

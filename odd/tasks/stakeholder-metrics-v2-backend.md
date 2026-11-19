@@ -36,7 +36,7 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - [x] T9 Metrics DD2 alignment: §4.4 `top_vacancies.in_process` excludes `new` too; drill-down `stage_kind=screening,screening_ok,in_process,custom,retired` — commit: DD2 commit.
 - [x] T10 (S3, L5, L13, L14) Slice d2a (company dashboard): history snapshot, scope filter, DD3, summary, attention, pipeline, vacancies, recent, origin — commit: d2a commit.
 - [x] T11 (S1, S3, S5, L17) Slice d2b: dashboard lists and exports, talent-base added_from/added_to, figure = total per role — commit: d2b commit.
-- [ ] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it — deferred (L20): separate branch after the frontend merge reaches main.
+- [x] T12 Slice d2c: remove `GET /v2/me/company/dashboard` once the frontend no longer calls it — branch feat/remove-legacy-dashboard (L26), not merged.
 - [x] T13 (L10, L11, L23) Demo seed operable: vacancy drafts readable by the v2 draft routes (list, board, checklist, publication, draft), dashboard «Abrir pipeline» links work; remove copes with rows the app creates for the demo company (company_sites) — commit: T13 commit.
 - [x] T6 (S3) Seeded benchmark of the §2 budgets (cold summary p95 ≤ 400 ms, warm ≤ 50 ms) — commit: benchmark commit.
 
@@ -177,3 +177,12 @@ Backend side of the `/empresa/metricas` redesign (frontend `odd/tasks/dashboard-
 - **L25** 2026-11-18, frontend session: «d2c, o sea borrar el GET viejo del dashboard: main ya no lo usa. Si lo hacés,
   también en una rama aparte, sin mergear.» T12 resumes on branch feat/remove-legacy-dashboard (from main c6eda309),
   not merged until the user reviews it.
+- **L26** T12 by a worker + parent: route, wiring (router.go, main.go), handler, application service, draftstore store,
+  cmd/api dashboardPoolAdded and their tests removed (6 files deleted by the parent); now-unused
+  db.ReadPlacementCoverageTotal removed; two metrics comments no longer name the route; route topology pin, stakeholder
+  gate row and pool_added test rewritten without the old route. Grep: no backend or frontend/src consumer of the bare
+  route (frontend uses only /dashboard/{section}, /dashboard/lists/…). Contracts mark it removed (history kept). RED:
+  TestDashboard_LegacyRouteRemoved failed before (500/401), now 404 for owner, recruiter and anonymous with the 6
+  sections and 4 lists at 200. Checks: build, vet (+integration tag), unit jobs/metrics/db/cmd/api ok, cmd/api
+  integration (test DB only) ok, archguard only the old docker/minio violation. Follow-up for the frontend:
+  components/company-dashboard/section-cards.tsx is dead code still using the legacy shape.

@@ -47,7 +47,8 @@ The system is not in production and all data is disposable: migrations may backf
   current value only, no history; catalog `job_draft_requesters(kind internal_area | client)`.
 - Existing reads: `GET /v2/me/vacancy-assignments/history` («Mi rendimiento», own tramos with `deadline_result`,
   `delivered_in_tramo`, placements by kind; it reads `fulfilled_at`, so it inherits the defect) and
-  `GET /v2/me/company/dashboard` (`origin_by_day` organic/manual over 90 days). Product rule: «Mi rendimiento» uses the
+  `GET /v2/me/company/dashboard` (`origin_by_day` organic/manual over 90 days; removed 2026-11-18, replaced by
+  `GET /v2/me/company/dashboard/origin`, company-dashboard-v2). Product rule: «Mi rendimiento» uses the
   same definitions as the stakeholder view (`docs/product/asignacion-de-vacantes.md`).
 - Audit (`audit-log-v1.md`): catalog-validated events, one row per sensitive read in the read's transaction,
   sessions for any member, owner-only audit screen (D5: the stakeholder sees metrics, not the audit). Time zone for
@@ -253,7 +254,8 @@ Per vacancy with a delivery configuration:
   - It is analytics, not security: the channel is self-reported by the client.
   - Field name `channel`, optional (F7): the careers site sends `careers_site`, `/vacantes` sends `portal`.
 - **Historical rows:** organic → `unknown` («portal o sitio, sin distinguir»), manual → `manual` (D9).
-- The dashboard's `origin_by_day` keeps organic/manual.
+- The dashboard's `origin_by_day` keeps organic/manual (legacy route, removed 2026-11-18; its successor
+  `…/dashboard/origin` keeps the same split).
 
 ### 2.6 Vacantes cerradas por mes — ✅
 

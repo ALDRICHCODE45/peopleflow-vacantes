@@ -6,6 +6,10 @@ artboard `design/dashboard-redesign/09-dashboard-empresa.html`. Builds on `stake
 grammar, pipeline rules, DV1) and replaces `GET /v2/me/company/dashboard` (`backend/docs/dashboard.md`) once the
 frontend moves. Backend tracking: `odd/tasks/stakeholder-metrics-v2-backend.md` T7.
 
+**2026-11-18, slice d2c:** the legacy `GET /v2/me/company/dashboard` is **removed** (the router answers 404); the
+frontend on `main` only calls the `…/dashboard/…` sections and lists. §1 and the other mentions of the legacy route
+below are kept as history of what this contract replaced.
+
 User (verbatim, for both sessions): «se lo tomen con calma, no hay prisa, hay tiempo, si hay que redisenar algo, si
 hay que cambiar algo, adelante, no hay tema, pero algo que si quiero es que se haga bien, quiero tener buena
 performance en el cargado de la data, tecnicas de lazy loading o tecnicas para merjorar la ux del usuario».
@@ -23,9 +27,11 @@ performance en el cargado de la data, tecnicas de lazy loading o tecnicas para m
 4. **New data:** deltas vs the previous window, daily series of candidates in process, «Necesita atención» (overdue,
    due this week, stalled), pipeline per stage, positions per vacancy.
 5. The current `GET /v2/me/company/dashboard` stays unchanged until the frontend switches, then is removed in a later
-   slice.
+   slice (removed in d2c, 2026-11-18).
 
 ## 1. What exists today (facts)
+
+History: this is the legacy route as of the agreement (2026-11-08); it was removed in slice d2c (2026-11-18).
 
 - `GET /v2/me/company/dashboard`, gate `requireRecruiter` (owner and recruiter; stakeholder 403). Six fields:
   `published_vacancies`, `in_process`, `pool_added_last_7_days` (null without talent-base access), `positions`
@@ -143,7 +149,7 @@ it).
   `candidate.professional_title` (string or null) is the title frozen in the participation's application-time
   snapshot, like every other profile field the company sees on the board; copies taken before the snapshot stored
   it read null. A company correction wins (an explicit null too); manual intakes use the company record. The
-  legacy `GET /v2/me/company/dashboard` still reads the live profile title until it is removed.
+  legacy `GET /v2/me/company/dashboard` read the live profile title until it was removed (d2c, 2026-11-18).
 - `origin`: `{ "by_day": [ { "date", "organic", "manual" } ] }`, one point per day of the window (organic = portal,
   careers site and unknown channels; manual = manual), participations in scope. A day opens
   `dashboard/lists/applications?from=D&to=D`.
@@ -197,7 +203,8 @@ Same grammar as metrics §5; scope forced by role; period = the window unless st
 1. **d2a:** history snapshot, scope filter, DD2/DD3 alignment in metrics, `summary`, `attention`, `pipeline`,
    `vacancies` section, `recent`, `origin`.
 2. **d2b:** dashboard lists and exports, talent-base `added_from/added_to`, figure = total tests per role.
-3. **d2c:** remove `GET /v2/me/company/dashboard` once the frontend no longer calls it.
+3. **d2c:** remove `GET /v2/me/company/dashboard` once the frontend no longer calls it. Done 2026-11-18 (route,
+   handler, service and store removed; the route answers 404).
 
 ## Decisions (approved 2026-11-08, all as recommended)
 

@@ -62,8 +62,8 @@ type StageMove struct {
 	At      time.Time `json:"at"`
 }
 
-// RecentRow is one participation of the recent section (§3.5), the shape of
-// GET /v2/me/company/dashboard's recent rows. The store fills the stage id;
+// RecentRow is one participation of the recent section (§3.5), the shape the
+// removed legacy dashboard used for its recent rows. The store fills the stage id;
 // the name and kind come from the vacancy's current configuration.
 type RecentRow struct {
 	ParticipationID uuid.UUID       `json:"participation_id"`

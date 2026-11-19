@@ -1,5 +1,12 @@
 # Employer dashboard API (v2)
 
+> **Removed 2026-11-18** (company-dashboard-v2 slice d2c, `odd/tasks/stakeholder-metrics-v2-backend.md`
+> T12): `GET /v2/me/company/dashboard` is no longer registered and answers 404. Its handler
+> (`jobs/infrastructure/http/dashboardHandler.go`), service (`jobs/application/dashboard`) and store
+> (`draftstore/dashboard.go`) are gone. The sections and lists that replace it are documented in
+> [dashboard-v2.md](dashboard-v2.md). This page is kept as the history of the removed route; the
+> validation commands below no longer apply.
+
 Read-only aggregate for the employer dashboard. Feature record:
 `odd/tasks/employer-real-data.md`, S1a–S1d.
 

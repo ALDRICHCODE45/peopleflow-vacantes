@@ -5,7 +5,8 @@ implements the six sections (§3); slice d2b the lists and exports (§5) and the
 talent base `added_from` / `added_to` filter.
 The contract is authoritative; this page records how the code reads the points
 it leaves open. The old `GET /v2/me/company/dashboard` ([dashboard.md](dashboard.md))
-is unchanged until the frontend moves (slice d2c removes it).
+was removed in slice d2c (2026-11-18): the router answers 404 and only these sections
+and lists remain.
 
 Code: the metrics feature (`internal/features/metrics/`), same engine as
 [metrics.md](metrics.md):
@@ -139,8 +140,8 @@ Each figure then adds its own state rule:
   participation's application-time snapshot (like the board), not the live
   candidate profile; snapshots taken before migration 00061 read null; company
   corrections (including explicit null) win; manual intakes read their company
-  record. The legacy `GET /v2/me/company/dashboard` still reads the live profile
-  until it is removed (T12 of stakeholder-metrics-v2-backend). Stage
+  record. The legacy `GET /v2/me/company/dashboard` read the live profile until
+  it was removed (T12 of stakeholder-metrics-v2-backend, 2026-11-18). Stage
   names and kinds come from the current configuration: the exit stage is kind
   `discarded`, a retired stage keeps its configured kind. Newest first, ties by
   participation id descending. Unlike today's (10 rows, schema-2 drafts) it has
