@@ -21,8 +21,9 @@ worktree so the demo build on :3000 and `main` stay untouched until the user app
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
 | T1 | S1 | Métricas and company dashboard polish (worker) | `fe7ed6db` |
-| T2 | S2, S3 | Candidate polish and the pdf.js license notice (worker) | — |
-| T3 | S4 | Backend fixes the double extension on its own branch (backend session) | — |
+| T2 | S2, S3 | Candidate polish and the pdf.js license notice (worker) | `f7414012` |
+| T3 | S4 | Backend fixes the double extension on its own branch (backend session) | backend `fix/cv-download-filename` 112699b5 |
+| T4 | — | Remove the dead legacy `components/company-dashboard/section-cards.tsx` (backend finding while removing the old endpoint) | `6d38d254` |
 
 ## Log
 
@@ -35,3 +36,12 @@ worktree so the demo build on :3000 and `main` stay untouched until the user app
   wrap; «Cómo se calcula» first; dashboard «Vacantes activas» stacked below `sm`. Related tests 341/341, tsc and eslint
   clean; not browser-checked (screenshots under `/tmp/pf-review/s10d/` are gone). `design/system.md` does not list the
   new token yet.
+- **L3** T2 `f7414012` (worker; related 57 files / 870 tests, tsc/eslint 0): Experiencia tile keeps «Semi-senior» whole; narrow
+  pipeline cards expose the full title (`title` and the name hint «Nombre · Título»); audit log no longer shows «Ex miembro»
+  for candidate self-events (CandidateAccountCreated, VacancyApplicationSubmitted, ApplicationSubmitted,
+  PsychometricConsentGiven, PsychometricAssessmentFinished) because the actor payload has no kind — the «Persona» filter
+  still says «(ex miembro)»; `frontend/THIRD_PARTY_NOTICES.md` and `/third-party-notices.txt` (pdfjs-dist 6.5.438,
+  Apache-2.0, «Copyright 2024 Mozilla Foundation»), no footer link yet.
+- **L4** Backend branches ready, not merged or deployed: `fix/cv-download-filename` @ 112699b5 (single «.pdf» in every CV
+  download), `feat/remove-legacy-dashboard` @ 7037525f (old GET /v2/me/company/dashboard removed, 404). T4 `6d38d254` removes
+  the dead `section-cards.tsx` and its test row; tsc 0, card-composition 7/7.
