@@ -1,0 +1,21 @@
+{
+  "title": "Perfil en pestañas",
+  "brief": "Perfil del candidato (/candidato/perfil) otra vez en pestañas, mejorado y con mucho menos en pantalla a la vez (S11, L35). El usuario rechazó la página única de Perfil 04 porque tenía demasiada información y demasiado texto, y la tarjeta de avance con 10 chips. Las referencias externas son solo inspiración: una tarjeta de identidad con banner, insignia de puesto, chips y mosaicos. No hay superficie oscura: la tarjeta es clara con un banner de tinte de marca. Se conservan todos los campos de hoy con sus límites y mensajes de validación: Personal, Experiencia, Educación, Compensación e Idiomas. También se conservan Guardar perfil, Restaurar copia original y crear el perfil en el primer guardado, el mapa de visibilidad confirmado por el backend (profile/visibility.ts, L24/L25) y los 10 datos clave compartidos con el dashboard (profile-completeness.ts). El avance es un anillo con «n de 10» y una sola línea: solo el siguiente dato que falta, como enlace. Datos de demostración de Valeria Mendoza. Controles del artboard: «Perfil incompleto (7 de 10)», «Con cambios sin guardar», «Perfil nuevo», «Ver estado de carga» y «Ver a 390 px». A 390 px las pestañas son un control segmentado con desplazamiento horizontal y bordes difuminados.",
+  "feature": "odd/tasks/candidate-dashboard-modern.md",
+  "artboards": [
+    {
+      "file": "01-identidad-y-pestanas.html",
+      "title": "01 · Identidad a la izquierda y pestañas",
+      "tradeoff": "La tarjeta de identidad fija a la izquierda muestra a la persona como la ve una empresa: nombre, título, ubicación, experiencia, habilidades y avance. El enlace «¿Qué ve una empresa?» abre una ventana pequeña. A la derecha, cada pestaña se lee tranquila hasta que pulsas «Editar». Un candado marca solo los datos privados y la leyenda aparece una vez. Es la versión más calmada y la más cercana a las referencias. Editar cuesta un clic más por pestaña, y la tarjeta repite datos que también están en las pestañas. A 390 px la tarjeta se compacta y oculta las habilidades, que siguen en Educación.",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "02-pestanas-como-estructura.html",
+      "title": "02 · Pestañas como estructura",
+      "tradeoff": "Un encabezado delgado con avatar, nombre, título y avance, y las pestañas debajo. Cada pestaña muestra sus campos siempre editables y, al lado, una nota breve de qué recibe una empresa de esa pestaña. En Compensación la nota dice «Solo tú ves esta sección». Es lo más rápido para llenar o corregir: no hay modo de lectura ni botón «Editar», y la privacidad se explica en contexto, sin candados en los campos. A cambio, siempre hay controles a la vista, así que se siente más como un formulario que como un perfil, y falta un resumen de la persona.",
+      "width": 1440,
+      "height": 1000
+    }
+  ]
+}
