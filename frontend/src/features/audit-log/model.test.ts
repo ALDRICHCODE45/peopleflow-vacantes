@@ -105,6 +105,16 @@ describe("presentation helpers", () => {
     expect(describeActor({ type: "user", user_id: "u", name: "Luis", email: null, is_current_member: false }).former).toBe(true);
   });
 
+  it("never calls a candidate acting on their own behalf «Ex miembro»; a former member editing a candidate still is one", () => {
+    const outsider = { type: "user", user_id: "u", name: "María", email: null, is_current_member: false } as const;
+    for (const type of ["CandidateAccountCreated", "VacancyApplicationSubmitted", "ApplicationSubmitted", "PsychometricConsentGiven", "PsychometricAssessmentFinished"]) {
+      expect(describeActor(outsider, type).former).toBe(false);
+    }
+    for (const type of ["CompanyCandidateEdited", "VacancyCandidateAddedManually", "ParticipationMoved", "SomethingNew"]) {
+      expect(describeActor(outsider, type).former).toBe(true);
+    }
+  });
+
   it("summarises the browser and keeps null honest", () => {
     expect(describeBrowser(auditEvent().user_agent)).toBe("Safari · macOS");
     expect(describeBrowser("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 Edg/120.0")).toBe("Edge · Windows");

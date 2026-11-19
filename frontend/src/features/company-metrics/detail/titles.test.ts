@@ -79,6 +79,31 @@ describe("detail titles (rule 16: the title names the figure)", () => {
     expect(windowContext(state(`kind=vacancies&scope=assigned&from=2026-09-02&to=2026-09-30&back=${page}`), today)).toEqual({ previous: false, month: null });
   });
 
+  it("names the month of a monthly figure in the summary instead of «en el periodo»", () => {
+    const diego = { ...jorge, user_id: marianaId, name: "Diego Navarro" };
+    const assigned = { kind: "vacancies" as const, page: vacancyList({ total: 6, applied_filters: { recruiter: diego } }) };
+    expect(text(summaryLine(state(`kind=vacancies&scope=assigned&recruiter_id=${marianaId}`), assigned, { month: "2026-09" })))
+      .toBe("6 vacantes asignadas a Diego Navarro en septiembre 2026.");
+    expect(text(summaryLine(state("kind=placements"), { kind: "placements", page: placementList({ total: 1 }) }, { month: "2026-11" }))).toBe("1 placement en noviembre 2026.");
+  });
+
+  it("names the month of a company board monthly bar (commitment_month, closed_month) in the summary", () => {
+    const deliveries = { kind: "deliveries" as const, page: deliveryList({ total: 2, facets: { result: { on_time: 0, late: 0, overdue: 2, pending: 0, not_configured: 0 } } }) };
+    const commitment = text(summaryLine(state("kind=deliveries&result=on_time%2Clate%2Coverdue&commitment_month=2026-11"), deliveries));
+    expect(commitment).toContain("llegaron a tiempo en noviembre 2026 — ");
+    expect(commitment).not.toContain("en el periodo");
+    const closed = text(summaryLine(state("kind=vacancies&scope=closed&closed_month=2026-08"), { kind: "vacancies", page: vacancyList({ total: 3 }) }));
+    expect(closed).toMatch(/ en agosto 2026\.$/);
+  });
+
+  it("counts a late bucket without comparing it with itself", () => {
+    const bucket = { kind: "deliveries" as const, page: deliveryList({ total: 1, facets: { result: { on_time: 0, late: 1, overdue: 0, pending: 0, not_configured: 0 } }, applied_filters: { result: ["late"] } }) };
+    expect(text(summaryLine(state("kind=deliveries&result=late&late_bucket=up_to_2"), bucket))).toBe("1 entrega llegó con hasta 2 días hábiles de retraso en el periodo.");
+    const three = { kind: "deliveries" as const, page: deliveryList({ total: 3, facets: { result: { on_time: 0, late: 3, overdue: 0, pending: 0, not_configured: 0 } }, applied_filters: { attributed_to: jorge, result: ["late"] } }) };
+    expect(text(summaryLine(state(`kind=deliveries&result=late&late_bucket=over_5&attributed_to=${jorgeId}`), three)))
+      .toBe("3 entregas de Jorge Paredes llegaron con más de 5 días hábiles de retraso en el periodo.");
+  });
+
   it("names the month of a monthly figure in the title", () => {
     const mariana = { ...jorge, user_id: marianaId, name: "Mariana Torres" };
     expect(detailTitle(state(`kind=vacancies&scope=assigned&recruiter_id=${marianaId}`), { recruiter: mariana }, { previous: false, month: "2026-09" }))

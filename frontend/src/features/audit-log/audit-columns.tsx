@@ -16,8 +16,8 @@ function When({ event }: { event: AuditEvent }) {
   return <time dateTime={event.occurred_at} title="Hora de la Ciudad de México"><TwoLineCell primary={dayFormat.format(date)} secondary={timeFormat.format(date)} /></time>;
 }
 
-function Who({ actor }: { actor: AuditEvent["actor"] }) {
-  const who = describeActor(actor);
+function Who({ actor, eventType }: { actor: AuditEvent["actor"]; eventType: string }) {
+  const who = describeActor(actor, eventType);
   return <div className="flex min-w-0 items-center gap-3">
     <Avatar className="size-10 shrink-0"><AvatarFallback className={accentAvatar}>{initials(who.name)}</AvatarFallback></Avatar>
     <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
@@ -46,7 +46,7 @@ function Origin({ event }: { event: AuditEvent }) {
 /** Same column anatomy as the talent base: identity column pinned first, muted secondary lines, semantic badges. */
 export const auditColumns: RichColumnDef<AuditEvent>[] = [
   { id: "when", size: 150, meta: { label: "Cuándo" }, enableHiding: false, cell: ({ row }) => <When event={row.original} /> },
-  { id: "actor", size: 240, meta: { label: "Quién" }, enableHiding: false, cell: ({ row }) => <Who actor={row.original.actor} /> },
+  { id: "actor", size: 240, meta: { label: "Quién" }, enableHiding: false, cell: ({ row }) => <Who actor={row.original.actor} eventType={row.original.event_type} /> },
   { id: "action", size: 220, meta: { label: "Acción" }, enableHiding: false, cell: ({ row }) => <Action event={row.original} /> },
   { id: "entity", size: 180, meta: { label: "Sobre" }, cell: ({ row }) => row.original.entity.label
     ? <TruncatedText text={row.original.entity.label} className="text-sm font-medium text-foreground" />

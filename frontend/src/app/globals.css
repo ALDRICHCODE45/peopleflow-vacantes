@@ -582,6 +582,9 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
   /* «Tarde» (rule 9): a light violet. Dark --primary is a deep fill, so dark mode mixes the brand strong tone instead
      and the dot or segment stays visible on the near-black card, still apart from «A tiempo». */
   --pf-tone-late: color-mix(in oklab, var(--primary) 45%, var(--pf-tint-base));
+  /* «A tiempo» (rule 9): --primary. Dark --primary is a deep fill (~2:1 on the near-black card), so dark mode takes
+     the brand strong tone (~6.6:1) and the dot or segment keeps 3:1, still apart from the dimmer «Tarde». */
+  --pf-tone-on-time: var(--primary);
   /* Violet text (`text-primary-text`): links, breadcrumbs, the selected tab or period. Light keeps --primary; dark
      --primary is a deep button fill (~2:1 on the near-black card), so text takes the brand strong tone (~6.6:1). */
   --primary-text: var(--primary);
@@ -590,6 +593,7 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
   --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
   --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
   --pf-tone-late: color-mix(in oklab, var(--brand-decorative-strong) 70%, var(--card));
+  --pf-tone-on-time: var(--brand-decorative-strong);
   --primary-text: var(--brand-decorative-strong);
 }
 @media (prefers-color-scheme: dark) {
@@ -597,6 +601,7 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
     --pf-tint-base: color-mix(in oklab, var(--foreground) 40%, var(--card));
     --pf-tone-none: color-mix(in oklab, var(--muted-foreground) 28%, var(--card));
     --pf-tone-late: color-mix(in oklab, var(--brand-decorative-strong) 70%, var(--card));
+    --pf-tone-on-time: var(--brand-decorative-strong);
     --primary-text: var(--brand-decorative-strong);
   }
 }

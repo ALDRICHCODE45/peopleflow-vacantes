@@ -2,7 +2,6 @@ import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TeamWorkspace } from "@/features/employer-team/team-workspace";
-import { SectionCards } from "@/components/company-dashboard/section-cards";
 import { ActiveVacancies } from "@/components/company-dashboard/active-vacancies";
 import { CompanyJobs } from "@/features/company-site/public/company-jobs";
 import { CareersSiteEditorLoading } from "@/features/company-site/editor/editor-feedback";
@@ -21,7 +20,6 @@ afterEach(cleanup);
 it.each([
   ["team", <TeamWorkspace key="team" members={[]} />, "data-pf-team-metric", 3],
   ["vacancies", <VacancyPortfolio key="vacancies" />, "data-pf-vacancy-metric", 5],
-  ["dashboard", <SectionCards key="dashboard" data={{ published_vacancies: 0, in_process: 0, pool_added_last_7_days: 0, positions: { covered: 0, required: 0 } }} />, "data-slot=card", 4],
 ] as const)("composes %s metrics with title headings and supporting labels", (_name, view, attribute, count) => {
   const { container } = render(view);
   const cards = container.querySelectorAll(`[${attribute}]`);

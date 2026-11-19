@@ -120,7 +120,7 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
         : !list.data
           ? <DetailSkeleton state={state} />
           : <div className={cn("flex min-w-0 flex-col gap-5 transition-opacity motion-reduce:transition-none", list.stale && "opacity-60")}>
-            <p className="text-base" aria-live="polite">{summaryLine(state, list.data, { previous: context.previous, closedTotal }).map(([text, bold], index) => bold ? <b key={index} className="font-semibold tabular-nums">{text}</b> : text)}</p>
+            <p className="text-base" aria-live="polite">{summaryLine(state, list.data, { previous: context.previous, month: context.month, closedTotal }).map(([text, bold], index) => bold ? <b key={index} className="font-semibold tabular-nums">{text}</b> : text)}</p>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <StatusSwitch state={state} data={list.data} onChange={value => go(withParams(state, { [facetParam]: value }))} />
               {list.data.kind === "candidates" && <StalledToggle pressed={state.params.stalled === "true"} count={list.data.page.facets.stalled}

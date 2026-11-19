@@ -44,6 +44,7 @@ Derived tokens for rules 6 and 9 and for violet text. Light values below; dark v
 |---|---|---|
 | `--primary-text` | `var(--primary)` | violet text (`text-primary-text`): links, breadcrumbs, selected tab or period |
 | `--pf-tint-base` | `var(--card)` | base that light tints mix toward |
+| `--pf-tone-on-time` | `var(--primary)` | «A tiempo» segment and dot (rule 9) |
 | `--pf-tone-late` | `color-mix(in oklab, var(--primary) 45%, var(--pf-tint-base))` | «Tarde» segment and dot (rule 9) |
 | `--pf-tone-none` | `var(--border)` | «Sin meta» / «Por cubrir» segment (rule 9) |
 
@@ -93,6 +94,7 @@ with `rounded-3xl`, `ring-1 ring-primary/15`, `shadow-md` (`components/dashboard
 | `--pf-grid-dot-alpha` | `0.11` |
 | `--primary-text` | `var(--brand-decorative-strong)` |
 | `--pf-tint-base` | `color-mix(in oklab, var(--foreground) 40%, var(--card))` |
+| `--pf-tone-on-time` | `var(--brand-decorative-strong)` (≥ 3:1 on the dark card) |
 | `--pf-tone-late` | `color-mix(in oklab, var(--brand-decorative-strong) 70%, var(--card))` |
 | `--pf-tone-none` | `color-mix(in oklab, var(--muted-foreground) 28%, var(--card))` |
 
