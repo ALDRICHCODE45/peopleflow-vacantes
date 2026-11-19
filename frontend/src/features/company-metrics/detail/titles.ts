@@ -226,7 +226,9 @@ export const isConversion = ({ kind, params }: DetailState) => kind === "vacanci
  * only the bucket, so a share would compare it with itself.
  */
 export function summaryLine(state: DetailState, data: DetailPage, context: SummaryContext = {}): SummaryPart[] {
-  const where = context.previous ? "en el periodo anterior" : context.month ? `en ${monthName(context.month)}` : "en el periodo";
+  // A monthly bar names its month: a recruiter page's bar by its window, a company board bar by its month filter.
+  const month = context.month ?? state.params.commitment_month ?? state.params.closed_month;
+  const where = context.previous ? "en el periodo anterior" : month ? `en ${monthName(month)}` : "en el periodo";
   const bucket = LATE_BUCKET_LABEL[state.params.late_bucket ?? ""];
   if (data.kind === "deliveries" && bucket && (!state.params.result || state.params.result === "late")) {
     const count = data.page.total;
