@@ -1,15 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Check, CircleAlert, Info, Pencil, Save, Undo2 } from "lucide-react";
+import { Check, CircleAlert, Lock, Pencil, Save, Undo2 } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StateCard } from "@/components/feedback/state-card";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
-import { CARD } from "@/features/company-metrics/sections/summary-strip";
 import { useIdentity } from "@/features/identity/identity-session";
 import { locationErrorMessages } from "@/features/geo/model";
 import { cn } from "@/lib/utils";
@@ -22,21 +20,21 @@ import type { ProfileFailure, ProfileLanguages, ProfileRead } from "./profile-ap
 import type { ProfileSaveOutcome } from "./profile-save";
 import { profileFieldIssues, sortProfileIssues } from "./profile-field-errors";
 import { draftCompleteness, type KeyDataKey } from "./profile-completeness";
-import { ProfileFicha } from "./profile/ficha";
 import { updatedText } from "./profile/format";
-import { LAYOUT, MAIN, RAIL, RAIL_FIRST } from "./profile/layout";
-import { CompanyReceivesCard, CompletenessCard } from "./profile/rail";
+import { IdentityCard } from "./profile/identity-card";
+import { ASIDE, LAYOUT, TAB_CARD } from "./profile/layout";
 import { SaveBar } from "./profile/save-bar";
-import { categoryOf, changedSections, discardSection, PROFILE_SECTIONS, sectionTitle } from "./profile/sections";
-import { SectionRead, VisibilityTag } from "./profile/section-read";
+import { categoryOf, changedTabs, discardTab, PROFILE_TABS, tabTitle } from "./profile/sections";
+import { lockedIn, PrivateMark, TabRead } from "./profile/section-read";
 import { ProfileSkeleton } from "./profile/skeleton";
+import { PANEL_ID, ProfileTabs, tabId } from "./profile/tabs";
+import { PROFILE_VISIBILITY, sectionVisibility, type VisibilityField } from "./profile/visibility";
 import styles from "./profile/profile.module.css";
-
 
 const PARTIAL = "Guardamos tu perfil, pero no los idiomas. Revisa y vuelve a guardar.";
 const UNCERTAIN = "No pudimos confirmar si se guardó";
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-/** The control that receives focus for an issue path, in whichever section owns it. */
+/** The control that receives focus for an issue path, in whichever tab owns it. */
 function focusSelector(path: string) {
   if (path.startsWith("location.")) return '[data-pf-profile-field="location"] [aria-invalid="true"]';
   if (path === "languages") return "[data-pf-profile-language-add]";
@@ -58,13 +56,16 @@ function gotoSelectors(key: KeyDataKey, draft: CandidateProfileDraft): string[] 
   }
   return [`[data-pf-profile-field="${key}"]`];
 }
-/** A read placeholder («Agregar estudio», «Agregar idioma») lands on the add action of an empty list. */
-function addSelectors(section: ProfileCategory, draft: CandidateProfileDraft): readonly string[] {
-  if (section === "education" && !draft.education.length) return ['[data-pf-profile-group="education"] button'];
-  if (section === "languages" && !draft.languages.length) return ["[data-pf-profile-language-add]"];
-  return firstControl(section);
+/** Where «Editar» lands in each tab: the artboard's first field, or the add action of an empty list. */
+function editSelectors(tab: ProfileCategory, draft: CandidateProfileDraft): readonly string[] {
+  if (tab === "education") return draft.education.length ? ['[data-pf-profile-field="education.0.level"]'] : ['[data-pf-profile-group="education"] button'];
+  if (tab === "languages") return draft.languages.length ? ['[data-pf-profile-field="languages.0.code"]'] : ["[data-pf-profile-language-add]"];
+  const first = { personal: "phone", experience: "professionalTitle", compensation: "currentSalaryGross" }[tab];
+  return [`[data-pf-profile-field="${first}"]`, `#${PANEL_ID} [data-pf-profile-field]`];
 }
-const firstControl = (section: ProfileCategory) => [`[data-pf-profile-section="${section}"] [data-pf-profile-section-form] [data-pf-profile-field]`, `[data-pf-profile-section="${section}"] [data-pf-profile-section-form] button`];
+const EDIT_BUTTON = ["[data-pf-profile-edit]"];
+const TITLE = ["[data-pf-profile-title]"];
+const isVisibilityField = (path: string): path is VisibilityField => path in PROFILE_VISIBILITY;
 
 /** Identity comes from the existing authenticated boundary, never a prototype. */
 export function ProfileWorkspace() {
@@ -103,16 +104,18 @@ function ProfileLoader({ identity }: { identity: CandidateIdentity }) {
 }
 
 /**
- * Artboard 04 «Así te ven las empresas»: the ficha a company receives, the five sections edited in place (one at a
- * time), the completeness rail and a fixed «Cambios sin guardar» bar. One form and one save write the whole profile;
- * validation, focus-first-error, the save outcomes and Comprobar are unchanged from the tabbed editor.
+ * Artboard 01 «Identidad a la izquierda y pestañas»: a sticky light identity card with the completeness meter and
+ * «¿Qué ve una empresa?» on the left, and one card with five tabs on the right, each read-only until «Editar». One
+ * form and one save write the whole profile; the save bar shows only with changes (or for a new profile). Validation,
+ * focus-first-error, the save outcomes, Restaurar and Comprobar are unchanged from the previous editor.
  */
 function ProfileEditor({ identity, initial, initiallyNew }: { identity: CandidateIdentity; initial: ProfileBaseline; initiallyNew: boolean }) {
   const [baseline, setBaseline] = React.useState(initial);
   const [isNew, setIsNew] = React.useState(initiallyNew);
   const [draft, setDraft] = React.useState(() => profileToDraft(initial));
   const [issues, setIssues] = React.useState<readonly ProfileDraftIssue[]>([]);
-  const [editing, setEditing] = React.useState<ProfileCategory | null>(null);
+  const [tab, setTab] = React.useState<ProfileCategory>("personal");
+  const [editing, setEditing] = React.useState(false);
   const [focus, setFocus] = React.useState<{ selectors: readonly string[] } | null>(null);
   const [status, setStatus] = React.useState<{ text: string; tone: "success" | "error" | "warning" | "info" } | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -121,8 +124,10 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
   const form = React.useRef<HTMLFormElement>(null);
   const baseDraft = profileToDraft(baseline);
   const dirty = !equal(draft, baseDraft);
-  const changed = changedSections(draft, baseDraft);
+  const changed = changedTabs(draft, baseDraft);
+  const flagged = [...new Set(issues.map(issue => categoryOf(issue.path)))];
   const completeness = draftCompleteness(draft);
+  const audience = sectionVisibility(tab);
   React.useEffect(() => {
     if (!focus) return;
     for (const selector of focus.selectors) {
@@ -130,8 +135,12 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
       if (target) { target.focus(); return; }
     }
   }, [focus]);
-  function open(section: ProfileCategory, selectors: readonly string[] = firstControl(section)) {
-    setEditing(section); setFocus({ selectors });
+  /** Opens `next` in edit mode and focuses the first matching control. */
+  function open(next: ProfileCategory, selectors: readonly string[] = editSelectors(next, draft)) {
+    setTab(next); setEditing(true); setFocus({ selectors });
+  }
+  function select(next: ProfileCategory) {
+    if (next !== tab) { setTab(next); setEditing(false); }
   }
   function markIssues(next: readonly ProfileDraftIssue[]) {
     const ordered = sortProfileIssues(next);
@@ -167,7 +176,7 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
     catch { outcome = { kind: "uncertain", part: "profile", failure: { ok: false, reason: "no_response", reference: {} } }; }
     busy.current = false; setPending(false);
     adopt(outcome);
-    if (outcome.kind === "saved") announce(isNew ? "Perfil creado." : "Perfil guardado.", "success");
+    if (outcome.kind === "saved") { setEditing(false); setFocus({ selectors: EDIT_BUTTON }); announce(isNew ? "Perfil creado." : "Perfil guardado.", "success"); }
     else if (outcome.kind === "partial") {
       if (outcome.failure.fields) markIssues(profileFieldIssues(outcome.failure.fields, draft.dial));
       announce(PARTIAL, "warning", outcome.failure);
@@ -190,74 +199,63 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
       setIsNew(result.data.profile === null);
       // Re-read baselines only. Never discard outstanding user edits or resend.
       setBaseline(next); setUncertain(false); setIssues([]); announce("Perfil comprobado.", "info");
+      // With nothing left to save the bar (and the focused Comprobar) goes away: focus the page title.
+      if (equal(draft, profileToDraft(next))) setFocus({ selectors: TITLE });
     } catch { announce(UNCERTAIN, "error"); }
     finally { busy.current = false; setPending(false); }
   }
-  function restore() { setDraft(baseDraft); setIssues([]); setFocus(null); setStatus({ text: "Restauramos la copia original en esta vista.", tone: "info" }); }
-  function discard(section: ProfileCategory) {
-    setDraft(current => discardSection(current, baseDraft, section));
-    setIssues(current => current.filter(issue => categoryOf(issue.path) !== section)); setStatus(null);
-    setFocus({ selectors: firstControl(section) });
+  function restore() { setDraft(baseDraft); setIssues([]); setFocus({ selectors: TITLE }); setStatus({ text: "Restauramos la copia original en esta vista.", tone: "info" }); }
+  function discard() {
+    setDraft(current => discardTab(current, baseDraft, tab));
+    setIssues(current => current.filter(issue => categoryOf(issue.path) !== tab)); setStatus(null);
+    setFocus({ selectors: editSelectors(tab, draft) });
   }
-  function close(section: ProfileCategory) { setEditing(null); setFocus({ selectors: [`[data-pf-profile-edit="${section}"]`] }); }
+  function done() { setEditing(false); setFocus({ selectors: EDIT_BUTTON }); }
+  const privateMark = (path: string) => isVisibilityField(path) && lockedIn(tab, path) ? <PrivateMark field={path} /> : null;
   const describedBy = status ? "profile-action-status" : undefined;
-  const actions = (large: boolean) => <>
-    <Button type="button" variant="outline" data-pf-profile-reset className={cn("transition-colors duration-200 motion-reduce:transition-none", large ? "min-h-11" : "min-h-10")} disabled={!dirty || pending || uncertain} onClick={restore}><Undo2 data-icon="inline-start" aria-hidden="true" />Restaurar copia original</Button>
-    <Button type="submit" data-pf-profile-review variant={uncertain ? "outline" : "default"} className={cn("transition-colors duration-200 motion-reduce:transition-none", large ? "min-h-11" : "min-h-10")} disabled={(!isNew && !dirty) || pending || uncertain} aria-busy={pending} aria-describedby={describedBy}>{pending && !uncertain ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Save data-icon="inline-start" aria-hidden="true" />}{pending && !uncertain ? "Guardando…" : "Guardar perfil"}</Button>
-    {uncertain && <Button type="button" className={large ? "min-h-11" : "min-h-10"} disabled={pending} aria-busy={pending} onClick={reconcile}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Comprobando…" : "Comprobar"}</Button>}
-  </>;
+  const title = tabTitle(tab);
+  const tabChanged = changed.includes(tab);
   const updated = updatedText(baseline.updatedAt);
   return <DashboardPageContent data-pf-profile-workspace width="screen-2xl"><form ref={form} noValidate data-pf-profile-form onSubmit={submit} className="flex min-w-0 flex-col gap-6">
-    <header data-pf-profile-header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-      <div className="min-w-0">
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-[28px] sm:leading-9">Tu perfil</h2>
-        <p role="status" aria-live="polite" data-pf-profile-status className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] text-muted-foreground tabular-nums sm:text-sm">
-          <Badge variant={dirty ? "review" : "neutral"} dot={dirty} data-pf-profile-dirty>{dirty ? "Cambios pendientes" : "Sin cambios pendientes"}</Badge>
-          {isNew ? <span>Se crea al guardar por primera vez</span> : updated && <span data-pf-profile-updated>Actualizado el {updated}</span>}
-        </p>
-      </div>
-      <div data-pf-profile-actions className="flex flex-wrap items-center gap-2 max-sm:hidden">{actions(true)}</div>
+    <header data-pf-profile-header className="flex min-w-0 flex-col gap-1">
+      <h2 data-pf-profile-title tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none sm:text-[28px] sm:leading-9">Tu perfil</h2>
+      <p data-pf-profile-updated className="text-[13px] text-muted-foreground tabular-nums sm:text-sm">{isNew ? "Se crea al guardar por primera vez" : updated && `Actualizado el ${updated}`}</p>
     </header>
     {status && <ActionStatus id="profile-action-status" tone={status.tone} text={status.text} />}
-    {isNew && <div data-pf-profile-new className={cn(CARD, "flex-row items-start gap-3 bg-[color-mix(in_oklab,var(--primary)_5%,var(--card))] px-5 py-4 ring-primary/15")}>
-      <Info aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary-text" />
-      <p><b className="font-semibold">Completa tu perfil para postularte más rápido.</b> <span className="text-muted-foreground">Empieza por cualquier sección; tu perfil se crea al guardar por primera vez.</span></p>
-    </div>}
     <div className={LAYOUT}>
-      <div className={MAIN}>
-        <ProfileFicha fullName={identity.fullName} email={identity.email} draft={draft} baseline={baseline} onEdit={(section, path) => open(section, [focusSelector(path)])} />
-        {PROFILE_SECTIONS.map(({ key, title }, index) => {
-          const isEditing = editing === key;
-          const sectionChanged = changed.includes(key);
-          const flagged = !isEditing && issues.some(issue => categoryOf(issue.path) === key);
-          return <section key={key} aria-labelledby={`pf-section-${key}`} data-pf-profile-section={key} data-editing={isEditing || undefined} style={{ "--d": Math.min(index + 2, 4) } as React.CSSProperties}
-            className={cn(CARD, "gap-4 p-4 transition-colors duration-150 motion-reduce:transition-none sm:px-7 sm:py-6", styles.rise, isEditing && styles.editing)}>
-            <div className="flex min-h-10 flex-wrap items-center gap-x-3.5 gap-y-1.5">
-              <h3 id={`pf-section-${key}`} className="text-[17px] leading-[26px] font-semibold sm:text-lg sm:leading-7">{title}</h3>
-              {sectionChanged && <Badge variant="review" dot>Sin guardar</Badge>}
-              {flagged && <Badge variant="danger" dot>Revisa los datos</Badge>}
-              <span className="max-sm:order-last max-sm:basis-full"><VisibilityTag section={key} /></span>
-              <span aria-hidden="true" className="flex-1" />
-              {!isEditing && <Button type="button" variant="ghost" data-pf-profile-edit={key} aria-label={`Editar ${title}`} className="-my-1 min-h-10" onClick={() => open(key)}><Pencil data-icon="inline-start" aria-hidden="true" />Editar</Button>}
+      <div className={ASIDE}>
+        <IdentityCard fullName={identity.fullName} draft={draft} baseline={baseline} completeness={completeness} onGoto={key => open(categoryOf(key), gotoSelectors(key, draft))} />
+      </div>
+      <section aria-label="Datos de tu perfil" data-pf-profile-tabs="" style={{ "--d": 2 } as React.CSSProperties} className={cn(TAB_CARD, styles.rise)}>
+        <div className="p-3 sm:border-b sm:border-border sm:px-3.5 sm:pt-1 sm:pb-0">
+          <ProfileTabs active={tab} onSelect={select} changed={changed} flagged={flagged} privateTabs={PROFILE_TABS.filter(({ key }) => sectionVisibility(key) === "private").map(({ key }) => key)} />
+        </div>
+        <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(tab)} data-editing={editing || undefined}
+          className={cn("min-w-0 rounded-b-[min(var(--radius-4xl),24px)] px-4 pt-1 pb-5 transition-colors duration-150 motion-reduce:transition-none sm:px-7 sm:pt-5 sm:pb-7", editing && styles.editing)}>
+          <h3 className="sr-only">{title}</h3>
+          <div className="mb-3 flex min-h-10 flex-wrap items-center gap-x-3 gap-y-2 sm:mb-4">
+            {audience === "private" && <p className="inline-flex items-center gap-1.5 text-[13px] leading-[18px] text-muted-foreground"><Lock aria-hidden="true" className="size-3.5" />Solo tú ves esta pestaña</p>}
+            {audience === "mixed" && <p className="inline-flex items-center gap-1.5 text-[13px] leading-[18px] text-muted-foreground"><Lock aria-hidden="true" className="size-3.5" /><span>Solo tú · la empresa no lo recibe</span></p>}
+            <span aria-hidden="true" className="flex-1 max-sm:hidden" />
+            <div className="flex flex-wrap gap-2 max-sm:w-full">
+              {editing ? <>
+                {tabChanged && <Button type="button" variant="ghost" className="min-h-10 max-sm:min-h-11 max-sm:flex-1" disabled={pending || uncertain} aria-label={`Descartar cambios de ${title.toLowerCase()}`} onClick={discard}>Descartar cambios</Button>}
+                <Button type="button" variant="outline" className="min-h-10 max-sm:min-h-11 max-sm:flex-1" onClick={done}><Check data-icon="inline-start" aria-hidden="true" />Listo</Button>
+              </> : <Button type="button" variant="outline" data-pf-profile-edit={tab} aria-label={`Editar ${title}`} className="min-h-10 max-sm:min-h-11 max-sm:flex-1" onClick={() => open(tab)}><Pencil data-icon="inline-start" aria-hidden="true" />Editar</Button>}
             </div>
-            {isEditing ? <div data-pf-profile-section-form className="flex min-w-0 flex-col gap-6">
-              <fieldset disabled={pending || uncertain} className="min-w-0">
-                <ProfileFormFields draft={draft} issues={issues} onChange={next => { if (!busy.current && !uncertain) { setDraft(next); setIssues([]); setStatus(null); } }} category={key} disabled={pending || uncertain} />
-              </fieldset>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <p className="min-w-50 flex-1 text-xs text-muted-foreground">Los cambios se guardan al pulsar «Guardar perfil».</p>
-                <Button type="button" variant="ghost" className="min-h-10 max-sm:min-h-11 max-sm:w-full" disabled={!sectionChanged || pending || uncertain} onClick={() => discard(key)}>Descartar cambios de {title.toLowerCase()}</Button>
-                <Button type="button" variant="outline" className="min-h-10 max-sm:min-h-11 max-sm:w-full" onClick={() => close(key)}><Check data-icon="inline-start" aria-hidden="true" />Listo</Button>
-              </div>
-            </div> : <div className="flex min-w-0 flex-col gap-4"><SectionRead section={key} draft={draft} baseline={baseline} email={identity.email} onAdd={() => open(key, addSelectors(key, draft))} /></div>}
-          </section>;
-        })}
-      </div>
-      <div data-pf-profile-rail className={RAIL}>
-        <CompletenessCard completeness={completeness} className={completeness.completed < completeness.total ? RAIL_FIRST : undefined} onGoto={key => open(categoryOf(key), gotoSelectors(key, draft))} />
-        <CompanyReceivesCard />
-      </div>
+          </div>
+          {editing
+            ? <fieldset disabled={pending || uncertain} className="min-w-0">
+              <ProfileFormFields draft={draft} issues={issues} onChange={next => { if (!busy.current && !uncertain) { setDraft(next); setIssues([]); setStatus(null); } }} category={tab} disabled={pending || uncertain} privateMark={privateMark} />
+            </fieldset>
+            : <div className="flex min-w-0 flex-col gap-7"><TabRead tab={tab} draft={draft} baseline={baseline} email={identity.email} onAdd={() => open(tab)} /></div>}
+        </div>
+      </section>
     </div>
-    {(dirty || isNew || pending || uncertain) && <SaveBar changed={changed.map(sectionTitle)} isNew={isNew} pending={pending} uncertain={uncertain}>{actions(false)}</SaveBar>}
+    {(dirty || isNew || pending || uncertain) && <SaveBar changed={changed.map(tabTitle)} isNew={isNew} pending={pending} uncertain={uncertain}>
+      {dirty && <Button type="button" variant="outline" data-pf-profile-reset className="min-h-10 transition-colors duration-200 motion-reduce:transition-none" disabled={pending || uncertain} onClick={restore}><Undo2 data-icon="inline-start" aria-hidden="true" />Restaurar copia original</Button>}
+      <Button type="submit" data-pf-profile-review variant={uncertain ? "outline" : "default"} className="min-h-10 transition-colors duration-200 motion-reduce:transition-none" disabled={(!isNew && !dirty) || pending || uncertain} aria-busy={pending} aria-describedby={describedBy}>{pending && !uncertain ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Save data-icon="inline-start" aria-hidden="true" />}{pending && !uncertain ? "Guardando…" : "Guardar perfil"}</Button>
+      {uncertain && <Button type="button" className="min-h-10" disabled={pending} aria-busy={pending} onClick={reconcile}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Comprobando…" : "Comprobar"}</Button>}
+    </SaveBar>}
   </form></DashboardPageContent>;
 }

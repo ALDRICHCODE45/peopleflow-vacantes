@@ -1,37 +1,32 @@
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CARD } from "@/features/company-metrics/sections/summary-strip";
 import { cn } from "@/lib/utils";
-import { LAYOUT, MAIN, RAIL } from "./layout";
+import { ASIDE, LAYOUT, TAB_CARD } from "./layout";
 
 /** Same footprint as the loaded page, card by card («Espacio del candidato» 9): pulses, never plays the entrance. */
 export function ProfileSkeleton() {
   return <DashboardPageContent data-pf-profile-workspace width="screen-2xl">
     <div aria-busy="true" className="flex flex-col gap-6">
       <span role="status" className="sr-only">Cargando perfil</span>
-      <div aria-hidden="true" data-pf-profile-skeleton-header="" className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div className="flex flex-col gap-2.5"><Skeleton className="h-8 w-44" /><Skeleton className="h-3.5 w-72 max-w-full" /></div>
-        <div className="flex gap-2 max-sm:hidden"><Skeleton className="h-11 w-56" /><Skeleton className="h-11 w-40" /></div>
-      </div>
+      <div aria-hidden="true" className="flex flex-col gap-2.5"><Skeleton className="h-8 w-44" /><Skeleton className="h-3.5 w-56 max-w-full" /></div>
       <div aria-hidden="true" className={LAYOUT}>
-        <div className={MAIN}>
-          <div className={cn(CARD, "gap-4 px-4 py-5 sm:px-9 sm:py-8")}>
-            <Skeleton className="h-3.5 w-72 max-w-full" />
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-5 gap-y-2">
-              <Skeleton className="row-span-3 size-14 rounded-[18px] sm:size-20 sm:rounded-3xl" />
-              <Skeleton className="h-7 w-64 max-w-full" /><Skeleton className="h-4 w-48 max-w-full" /><Skeleton className="h-3.5 w-72 max-w-full" />
+        <div className={ASIDE}>
+          <div className={cn(TAB_CARD, "overflow-hidden")}>
+            <Skeleton className="h-12 rounded-none sm:h-[88px]" />
+            <div className="flex flex-col gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
+              <Skeleton className="-mt-5 size-14 rounded-[18px] ring-4 ring-card sm:-mt-9 sm:size-[72px] sm:rounded-[22px]" />
+              <Skeleton className="h-6 w-3/5" /><Skeleton className="h-5 w-2/5" />
+              <div className="grid grid-cols-2 gap-2"><Skeleton className="h-14 rounded-xl" /><Skeleton className="h-14 rounded-xl" /></div>
+              <div className="flex flex-wrap gap-1.5 max-sm:hidden">{["w-16", "w-14", "w-20", "w-18"].map(width => <Skeleton key={width} className={cn("h-6 rounded-full", width)} />)}</div>
             </div>
-            <div className="flex gap-2"><Skeleton className="h-9 w-52 rounded-full" /><Skeleton className="h-9 w-40 rounded-full" /></div>
+            <div className="flex items-center gap-3 border-t border-border px-4 py-3.5 sm:px-5"><Skeleton className="size-10 rounded-full" /><Skeleton className="h-8 w-40" /></div>
           </div>
-          {[0, 1, 2].map(index => <div key={index} className={cn(CARD, "gap-4 p-4 sm:p-6")}>
-            <Skeleton className="h-5 w-44" />
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3.5 xl:grid-cols-4">{[0, 1, 2, 3].map(cell => <Skeleton key={cell} className="h-9" />)}</div>
-          </div>)}
         </div>
-        <div className={RAIL}>
-          <div className={cn(CARD, "gap-4 p-4 sm:p-5")}>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3.5"><Skeleton className="size-14 rounded-full" /><Skeleton className="h-8" /></div>
-            <Skeleton className="h-16" />
+        <div className={TAB_CARD}>
+          <div className="flex gap-6 overflow-hidden border-b border-border px-6 pt-4 pb-3.5 max-sm:border-b-0 max-sm:px-3">{["w-16", "w-20", "w-20", "w-24", "w-14"].map(width => <Skeleton key={width} className={cn("h-4 shrink-0", width)} />)}</div>
+          <div className="flex flex-col gap-5 p-4 sm:px-7 sm:pt-5 sm:pb-7">
+            <div className="flex items-center justify-between gap-3"><Skeleton className="h-3.5 w-52" /><Skeleton className="h-10 w-24" /></div>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-5 min-[480px]:grid-cols-2">{[0, 1, 2, 3, 4, 5].map(cell => <div key={cell} className="flex flex-col gap-2"><Skeleton className="h-3 w-2/5" /><Skeleton className="h-4 w-3/5" /></div>)}</div>
           </div>
         </div>
       </div>

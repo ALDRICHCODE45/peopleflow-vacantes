@@ -1,33 +1,76 @@
-/* «Tu perfil» (artboard design/candidate-cvs-profile/04-perfil-como-te-ven.html). No dark surface on Perfil
-   (design/system.md, «Superficie oscura»): the ficha and the editing section use the light violet tint of the
-   candidate space. Motion follows «Espacio del candidato» 10: one entrance when the loaded editor mounts, 320 ms
-   ease-out, 40 ms stagger, transform and opacity only, nothing under prefers-reduced-motion. Opening, closing or
-   saving a section keeps the same elements, so the entrance never replays. */
+/* «Tu perfil» (artboard design/candidate-profile-tabs/01-identidad-y-pestanas.html). No dark surface on Perfil
+   (design/system.md, «Superficie oscura»): the identity card and the panel in edit mode use the light violet tint of
+   the candidate space. Motion follows «Espacio del candidato» 10: one entrance when the loaded editor mounts, 320 ms
+   ease-out, 40 ms stagger, transform and opacity only, nothing under prefers-reduced-motion. Switching tabs,
+   editing or saving keeps the same two cards, so the entrance never replays. */
 
-/* Ficha: the tinted card head with a soft corner wash. */
-.ficha {
-  background: radial-gradient(520px 180px at 100% 0%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 70%),
-    linear-gradient(180deg, color-mix(in oklab, var(--primary) 5%, var(--card)), var(--card));
+/* Identity card: the brand-tinted banner and the avatar that overlaps it. */
+.banner {
+  background: radial-gradient(220px 120px at 88% -10%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 70%),
+    linear-gradient(135deg, color-mix(in oklab, var(--primary) 13%, var(--card)), color-mix(in oklab, var(--primary) 5%, var(--card)));
 }
-:global(.dark) .ficha {
-  background: radial-gradient(520px 180px at 100% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%),
-    linear-gradient(180deg, color-mix(in oklab, var(--primary) 11%, var(--card)), var(--card));
+:global(.dark) .banner {
+  background: radial-gradient(220px 120px at 88% -10%, color-mix(in oklab, var(--primary) 24%, transparent), transparent 70%),
+    linear-gradient(135deg, color-mix(in oklab, var(--primary) 20%, var(--card)), color-mix(in oklab, var(--primary) 9%, var(--card)));
+}
+.avatar {
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+  box-shadow: 0 0 0 4px var(--card), inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent);
 }
 
-/* A section being edited turns into a tinted panel with a 3 px brand edge. */
-.editing {
-  background: color-mix(in oklab, var(--primary) 5%, var(--card));
-  box-shadow: inset 3px 0 0 var(--primary), 0 0 0 1px color-mix(in srgb, var(--primary) 15%, var(--border));
+/* Tabs: underline tabs from 640 px; below, a horizontally scrollable segmented control with edge fades. */
+.scroller { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.scroller::-webkit-scrollbar { display: none; }
+.tab { min-height: 48px; padding: 0 14px; border-radius: 10px; }
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 14px 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--primary);
 }
+.fades::before,
+.fades::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 32px;
+  pointer-events: none;
+  opacity: 0;
+}
+.fades::before { left: 0; background: linear-gradient(90deg, var(--card) 30%, transparent); }
+.fades::after { right: 0; background: linear-gradient(270deg, var(--card) 30%, transparent); }
+.fades[data-start]::before,
+.fades[data-end]::after { opacity: 1; }
+@media (max-width: 639.98px) {
+  .tablist { padding: 4px; border-radius: 14px; background: var(--muted); }
+  .tab { min-height: 36px; padding: 0 12px; border-radius: 10px; }
+  .tab[aria-selected="true"] { background: var(--card); box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 10%, transparent); }
+  .tab[aria-selected="true"]::after { display: none; }
+}
+
+/* Panel in edit mode: the light tint, with controls on the card colour so they read as fields. */
+.editing { background: color-mix(in oklab, var(--primary) 5%, var(--card)); }
 :global(.dark) .editing { background: color-mix(in oklab, var(--primary) 11%, var(--card)); }
 
-/* «Cambios sin guardar»: a floating bar with a brand-tinted ring. */
+/* Save bar: a floating bar with a brand-tinted ring. */
 .bar {
   box-shadow: 0 12px 32px -8px color-mix(in srgb, var(--foreground) 22%, transparent),
     0 0 0 1px color-mix(in srgb, var(--primary) 22%, var(--border));
 }
+/* Toasts sit above the save bar: globals.css lifts them 6.5rem for any draft save bar; at 390 px this bar wraps its
+   buttons to a second row, so it needs more room. */
+@media (max-width: 639.98px) {
+  :global(body):has(.bar) :global([data-pf-toaster] [data-sileo-viewport][data-position]) {
+    bottom: var(--pf-toast-bottom, calc(env(safe-area-inset-bottom, 0px) + 9.5rem));
+  }
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .rise { animation: rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--d, 0) * 40ms); }
+  .tab::after, .tab { transition: color 150ms ease, background-color 150ms ease; }
 }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
