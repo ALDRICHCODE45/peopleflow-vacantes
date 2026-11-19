@@ -54,7 +54,7 @@ func TestCVDownloadAttachmentNames(t *testing.T) {
 				t.Run(download, func(t *testing.T) {
 					for _, format := range []struct{ extension, typ string }{{".pdf", "application/pdf"}, {".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}} {
 						t.Run(format.extension, func(t *testing.T) {
-							for _, name := range []string{"cv", "CV-Flores-Corregido" + format.extension, "CV-Flores-Corregido" + strings.ToUpper(format.extension)} {
+							for _, name := range []string{"cv", "CV Ana", "CV Ana" + format.extension, "CV-Flores-Corregido" + format.extension, "CV-Flores-Corregido" + strings.ToUpper(format.extension)} {
 								t.Run(name, func(t *testing.T) {
 									var handler http.Handler
 									var path string
@@ -73,9 +73,9 @@ func TestCVDownloadAttachmentNames(t *testing.T) {
 									w := doRouteRequest(t, handler, "GET", path, "", headers)
 									assertDraftRouteNoStore(t, w)
 									want := name + format.extension
-									// Preserve the board's original/non-corrected naming byte-for-byte, even
-									// for suffixed names. Only company-corrected board downloads deduplicate.
-									if (surface == "pool" || download == "corrected") && strings.HasSuffix(strings.ToLower(name), format.extension) {
+									// Every surface and route sends exactly one extension: an existing
+									// case-insensitive MIME suffix is kept, otherwise it is appended.
+									if strings.HasSuffix(strings.ToLower(name), format.extension) {
 										want = name
 									}
 									if w.Code != 200 || w.Header().Get("Content-Disposition") != mime.FormatMediaType("attachment", map[string]string{"filename": want}) || w.Header().Get("Content-Type") != format.typ || w.Header().Get("Content-Length") != "6" || w.Header().Get("X-Content-Type-Options") != "nosniff" || w.Body.String() != "%PDF-x" {

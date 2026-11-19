@@ -199,12 +199,9 @@ func (h *Handler) file(w http.ResponseWriter, r *http.Request, original bool) {
 	if out.ContentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
 		extension = ".docx"
 	}
-	// Keep legacy board names byte-identical for candidate/manual-intake CVs
-	// and the original route. Only company corrections need suffix deduplication.
-	filename := out.Name + extension
-	if out.CompanyCorrected && !original {
-		filename = httpjson.AttachmentFilename(out.Name, extension)
-	}
+	// Stored names often already carry the extension (uploads default the name
+	// to the file name), so every board CV download deduplicates the suffix.
+	filename := httpjson.AttachmentFilename(out.Name, extension)
 	w.Header().Set("Content-Type", out.ContentType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	w.Header().Set("Content-Length", strconv.FormatInt(out.Size, 10))

@@ -124,6 +124,30 @@ func TestLibraryHTTPExactShapesAndAttachment(t *testing.T) {
 		}
 	}
 }
+func TestLibraryFileAttachmentNameHasOneExtension(t *testing.T) {
+	for _, tc := range []struct{ name, typ, want string }{
+		{"CV Ana.pdf", app.PDF, "CV Ana.pdf"},
+		{"CV Ana", app.PDF, "CV Ana.pdf"},
+		{"cv.PDF", app.PDF, "cv.PDF"},
+		{"CV Ana.docx", app.DOCX, "CV Ana.docx"},
+		{"CV Ana", app.DOCX, "CV Ana.docx"},
+		{"cv.DOCX", app.DOCX, "cv.DOCX"},
+		{"CV Ana.pdf", app.DOCX, "CV Ana.pdf.docx"},
+		{"Currículum Peña.pdf", app.PDF, "Currículum Peña.pdf"},
+	} {
+		t.Run(tc.name+"→"+tc.want, func(t *testing.T) {
+			s := &libraryStub{cv: app.CV{ID: uuid.New(), Name: tc.name, Size: 6, ContentType: tc.typ}}
+			r := chi.NewRouter()
+			r.Get("/v2/me/cvs/{id}/file", NewHandler(s, draftjson.Decode).File)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest("GET", "/v2/me/cvs/"+s.cv.ID.String()+"/file", nil))
+			_, params, err := mime.ParseMediaType(w.Header().Get("Content-Disposition"))
+			if w.Code != 200 || err != nil || params["filename"] != tc.want || w.Header().Get("Content-Disposition") != mime.FormatMediaType("attachment", map[string]string{"filename": tc.want}) || w.Header().Get("Content-Type") != tc.typ {
+				t.Fatalf("status=%d disposition=%q err=%v want=%q", w.Code, w.Header().Get("Content-Disposition"), err, tc.want)
+			}
+		})
+	}
+}
 func TestUploadLibraryFullIsConflict(t *testing.T) {
 	f := &fakeLibrary{err: app.ErrLibraryFull}
 	w := httptest.NewRecorder()

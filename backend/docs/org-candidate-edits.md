@@ -175,8 +175,9 @@ shares a pointer-independent projector. Manual records remain live.
   gains `original_cv`; its two-key shape is shared with the pool. Downloads keep
   MIME, length, nosniff and no-store behavior. Corrected-current board filenames
   retain an existing `.pdf`/`.docx` suffix case-insensitively. Non-corrected and
-  original board downloads deliberately retain legacy extension appending, even
-  for already-suffixed names; no filename or stored metadata is rewritten.
+  original board downloads originally kept legacy extension appending; since
+  fix/cv-download-filename they follow the same rule (no `.pdf.pdf`). No filename
+  or stored metadata is rewritten.
 - Owner-or-principal checks run before CV lookup/storage, for both downloads.
   No snapshots, candidate accounts/profiles or original CV references are written.
 
@@ -346,8 +347,8 @@ edit history through a clean Down/Up round trip.
 
 QA filename regression: observed RED in 16 of 36 HTTP filename cases; all 36
 now pass, covering pool/board current/original, PDF/DOCX, suffix case and plain
-names. Board original/non-corrected filename bytes remain pinned to the legacy
-rule. DB flow attachment expectations now reflect the corrected naming policy.
+names. Board original/non-corrected filenames were then pinned to the legacy
+rule; fix/cv-download-filename moved them to the deduplicating rule. DB flow attachment expectations now reflect the corrected naming policy.
 
 Observed RED: five absent-route/no-store HTTP checks and missing migration
 00046. GREEN: those six checks; manual/organic HTTP validation/composition,
