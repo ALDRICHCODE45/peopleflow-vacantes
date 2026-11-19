@@ -45,3 +45,4 @@ worktree so the demo build on :3000 and `main` stay untouched until the user app
 - **L4** Backend branches ready, not merged or deployed: `fix/cv-download-filename` @ 112699b5 (single «.pdf» in every CV
   download), `feat/remove-legacy-dashboard` @ 7037525f (old GET /v2/me/company/dashboard removed, 404). T4 `6d38d254` removes
   the dead `section-cards.tsx` and its test row; tsc 0, card-composition 7/7.
+- **L5** Full suite on `fix/post-demo-polish`: 582 files / 10521 tests passed (2 skipped), tsc 0, lint 0 errors (12 pre-existing warnings). Pending: browser check at 390 and dark on a separate build (not :3000), then the user's review after the meeting.
