@@ -70,7 +70,7 @@ the audit, the research, the proposal artboards and, after the user chooses one,
 | T13 | S10 | (done, L31) Employer side: accept and show `professional_title` from the application snapshot (board card, candidate sheet, talent base, dashboard recent, manual intake) before the backend merges (L29) | — |
 | T12c | S10 | (done, L28) Implement the chosen Perfil artboard (after the user's choice) | — |
 | T14 | S5, S11 | (done, L36) 2 proposal artboards for a tabbed Perfil in `design/candidate-profile-tabs/`, on the canvas | — |
-| T15 | S11 | Implement `design/candidate-profile-tabs/01-identidad-y-pestanas.html` (L37), keeping visibility, completeness and every field | — |
+| T15 | S11 | (done, L38–L39) Implement `design/candidate-profile-tabs/01-identidad-y-pestanas.html` (L37), keeping visibility, completeness and every field | — |
 
 ## Log
 
@@ -256,3 +256,4 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   «Editar», locks only on private labels, next-missing link, «¿Qué ve una empresa?» popover from the map). Removed the
   ficha, rail, per-section tags, 10-chip checklist, level dots and the unused `highestLevel`. TDD: workspace tests RED
   42/46 against the old UI; the identity-card tests written after the code. Full suite running.
+- **L39** Full suite after T15: 583 files / 10518 tests passed (2 skipped), tsc 0, lint 0 errors. Rebuilt :3000 and checked `/candidato/perfil` at 1440, 390 and dark: no overflow, no console errors or ≥400; edit → save bar appears, Descartar → it goes away; the «¿Qué ve una empresa?» popover opens with the map text and the copy line (`/tmp/pf-pt/*.png`). Low polish: the Experiencia tile breaks «Semi-senior» at the hyphen.
