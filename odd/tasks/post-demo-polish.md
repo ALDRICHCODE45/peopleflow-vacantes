@@ -20,7 +20,7 @@ worktree so the demo build on :3000 and `main` stay untouched until the user app
 
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
-| T1 | S1 | Métricas and company dashboard polish (worker) | — |
+| T1 | S1 | Métricas and company dashboard polish (worker) | `fe7ed6db` |
 | T2 | S2, S3 | Candidate polish and the pdf.js license notice (worker) | — |
 | T3 | S4 | Backend fixes the double extension on its own branch (backend session) | — |
 
@@ -30,3 +30,8 @@ worktree so the demo build on :3000 and `main` stay untouched until the user app
   parece que nada, pero no se tu. si no falta nada, hay que retomar lo que estabamos haciendo antes del plan de la
   reunion hermano.» Nothing is missing for the meeting (main merged, demo data reset, :3000 warm). Resuming the open
   follow-ups on a separate branch; nothing reaches :3000 or main without the user's approval.
+- **L2** T1 done at `fe7ed6db` (S1, all six items): dark «A tiempo» token `--pf-tone-on-time` (brand strong, ≥ 3:1;
+  light stays `--primary`); monthly summaries name the month; late buckets counted without a %; narrow recruiter names
+  wrap; «Cómo se calcula» first; dashboard «Vacantes activas» stacked below `sm`. Related tests 341/341, tsc and eslint
+  clean; not browser-checked (screenshots under `/tmp/pf-review/s10d/` are gone). `design/system.md` does not list the
+  new token yet.
