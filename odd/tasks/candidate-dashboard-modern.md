@@ -257,3 +257,9 @@ the audit, the research, the proposal artboards and, after the user chooses one,
   ficha, rail, per-section tags, 10-chip checklist, level dots and the unused `highestLevel`. TDD: workspace tests RED
   42/46 against the old UI; the identity-card tests written after the code. Full suite running.
 - **L39** Full suite after T15: 583 files / 10518 tests passed (2 skipped), tsc 0, lint 0 errors. Rebuilt :3000 and checked `/candidato/perfil` at 1440, 390 and dark: no overflow, no console errors or ≥400; edit → save bar appears, Descartar → it goes away; the «¿Qué ve una empresa?» popover opens with the map text and the copy line (`/tmp/pf-pt/*.png`). Low polish: the Experiencia tile breaks «Semi-senior» at the hyphen.
+- **L40** User approved («Si hermano. adelante.»). Joint merge into local `main`: `15120854` merges backend
+  `feat/snapshot-professional-title` @ `2f278ffa`, then `2f0b7699` merges `feat/candidate-dashboard-redesign` @ `9827d969`.
+  Both clean; the merged `frontend/` equals the tested branch (full suite L39) and `backend/` equals the verified backend
+  branch. Not pushed (the user pushes). Deploy order: migration 00061 before the new backend code. Open follow-ups:
+  «Semi-senior» tile wrap, Apache-2.0 third-party notice for pdf.js, title truncation on narrow cards, «Ex miembro» for
+  candidates in the audit log, «.pdf.pdf» download name (backend), L58 polish.
