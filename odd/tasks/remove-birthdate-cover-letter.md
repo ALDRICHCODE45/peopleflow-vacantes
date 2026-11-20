@@ -12,7 +12,7 @@ Closes the two partial 2 Oct agreements (`odd/discovery/recruitment-business-rul
   without `birth_date` keeps working. Manual intake keeps rejecting it.
 - **S2** «Quitar la carta de presentación» (status: «Ya no se pide en pantalla (falta limpieza interna)»): no
   `coverLetter` in the frontend models, fixtures or tests; the guard tests that assert its absence stay.
-- **S3** Backend (backend session): GET `/me/profile` stops returning `birth_date`; PUT accepts and ignores the key
+- **S3** Backend (backend session; specs in `odd/tasks/remove-birthdate-cover-letter-backend.md` on its branch): GET `/me/profile` stops returning `birth_date`; PUT accepts and ignores the key
   during the transition; `cover_letter` leaves the legacy application routes; a separate migration drops
   `candidate_profiles.birth_date` and `applications.cover_letter` (user decision L2, backup before the production deploy).
 
@@ -20,7 +20,7 @@ Closes the two partial 2 Oct agreements (`odd/discovery/recruitment-business-rul
 
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
-| T1 | S1, S2 | Frontend: remove birth date from Perfil (form, read view, visibility map, draft, adapter, schemas, errors) and cover letter from the prototype portfolio model, with tests (worker) | |
+| T1 | S1, S2 | Frontend: remove birth date from Perfil (form, read view, visibility map, draft, adapter, schemas, errors) and cover letter from the prototype portfolio model, with tests (worker) | `807bc300` |
 | T2 | S3 | Backend code + DROP migration on its own branch (backend session) | |
 | T3 | S1–S3 | Joint local merge into main after both suites and a browser check of Perfil | |
 
@@ -33,3 +33,7 @@ Closes the two partial 2 Oct agreements (`odd/discovery/recruitment-business-rul
   does not call (grep: no `/me/applications` or non-v2 `/jobs/{id}/applications`).
 - **L2** User decision: birth date «Borrar la columna con una migración (Recomendado)»; cover letter «Borrar la columna
   con una migración (Recomendado)».
+- **L3** T1 `807bc300` (worker, TDD: RED 14 tests in 8 files, GREEN related 261 files / 4905 tests, tsc and eslint clean):
+  PUT body without `birth_date` (write schema rejects it), read schema tolerates it during the transition
+  (`profile-api.ts:32`), form field, read fact, visibility entry and copy removed, unused `dateText` deleted; cover letter
+  out of the prototype portfolio model. Backend swaps :8080 to its branch API in the same step as migration 00062.
