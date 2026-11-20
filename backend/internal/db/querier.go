@@ -182,7 +182,12 @@ type Querier interface {
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
 	// ErrNotAMember.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
+	// Publication status and the reason of the latest close event (empty when never
+	// closed or closed without reason): the inputs of the closed-covered predicate.
+	GetProcessCloseState(ctx context.Context, arg GetProcessCloseStateParams) (GetProcessCloseStateRow, error)
 	GetPublishedScreeningSource(ctx context.Context, id uuid.UUID) ([]byte, error)
+	// The replacement started from `process_id`, if any.
+	GetReplacementSuccessor(ctx context.Context, arg GetReplacementSuccessorParams) (uuid.UUID, error)
 	// The accept holds this row lock until commit, so two accepts of one token
 	// yield one member.
 	GetStakeholderInvitationByTokenForUpdate(ctx context.Context, tokenSha256 []byte) (GetStakeholderInvitationByTokenForUpdateRow, error)
@@ -249,6 +254,13 @@ type Querier interface {
 	// Hard cap 100 (no pagination in this slice).
 	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
 	ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error)
+	// The whole chain of the logical vacancy `process_id` belongs to: the root first
+	// (sequence 0, it has no vacancy_replacements row), then the replacements by
+	// sequence. Empty when the process does not exist in the company.
+	ListReplacementChain(ctx context.Context, arg ListReplacementChainParams) ([]ListReplacementChainRow, error)
+	// Fallen credits (did_not_hold) of any process of the chain rooted at `root_process_id`
+	// that no replacement has taken yet.
+	ListStartableReplacementCredits(ctx context.Context, arg ListStartableReplacementCreditsParams) ([]ListStartableReplacementCreditsRow, error)
 	// Serialize membership mutations on a stable parent row. The adapter MUST
 	// execute this in the same READ COMMITTED transaction as the target lookup,
 	// owner count, and mutation; subsequent statements see the previous commit.

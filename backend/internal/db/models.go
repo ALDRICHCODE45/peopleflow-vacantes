@@ -506,30 +506,31 @@ type ProcessDeliveryFulfillment struct {
 }
 
 type ProcessParticipation struct {
-	ID                     uuid.UUID          `json:"id"`
-	ProcessID              uuid.UUID          `json:"process_id"`
-	CandidateID            pgtype.UUID        `json:"candidate_id"`
-	StageID                uuid.UUID          `json:"stage_id"`
-	CvVersionID            pgtype.UUID        `json:"cv_version_id"`
-	QuestionsSnapshot      []byte             `json:"questions_snapshot"`
-	AnswersSnapshot        []byte             `json:"answers_snapshot"`
-	Source                 string             `json:"source"`
-	CreatedAt              pgtype.Timestamptz `json:"created_at"`
-	Version                int64              `json:"version"`
-	PreviousStageID        pgtype.UUID        `json:"previous_stage_id"`
-	ReasonGroup            pgtype.Text        `json:"reason_group"`
-	ReasonCode             pgtype.Text        `json:"reason_code"`
-	Comment                pgtype.Text        `json:"comment"`
-	CandidateMessage       pgtype.Text        `json:"candidate_message"`
-	DiscardedAt            pgtype.Timestamptz `json:"discarded_at"`
-	SubstateID             pgtype.UUID        `json:"substate_id"`
-	ProfileSnapshot        []byte             `json:"profile_snapshot"`
-	CompanyCandidateID     pgtype.UUID        `json:"company_candidate_id"`
-	CompanyCandidateCvID   pgtype.UUID        `json:"company_candidate_cv_id"`
-	AddedBy                pgtype.UUID        `json:"added_by"`
-	CorrectedCompanyCvID   pgtype.UUID        `json:"corrected_company_cv_id"`
-	CandidateMessageReadAt pgtype.Timestamptz `json:"candidate_message_read_at"`
-	OriginChannel          string             `json:"origin_channel"`
+	ID                         uuid.UUID          `json:"id"`
+	ProcessID                  uuid.UUID          `json:"process_id"`
+	CandidateID                pgtype.UUID        `json:"candidate_id"`
+	StageID                    uuid.UUID          `json:"stage_id"`
+	CvVersionID                pgtype.UUID        `json:"cv_version_id"`
+	QuestionsSnapshot          []byte             `json:"questions_snapshot"`
+	AnswersSnapshot            []byte             `json:"answers_snapshot"`
+	Source                     string             `json:"source"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	Version                    int64              `json:"version"`
+	PreviousStageID            pgtype.UUID        `json:"previous_stage_id"`
+	ReasonGroup                pgtype.Text        `json:"reason_group"`
+	ReasonCode                 pgtype.Text        `json:"reason_code"`
+	Comment                    pgtype.Text        `json:"comment"`
+	CandidateMessage           pgtype.Text        `json:"candidate_message"`
+	DiscardedAt                pgtype.Timestamptz `json:"discarded_at"`
+	SubstateID                 pgtype.UUID        `json:"substate_id"`
+	ProfileSnapshot            []byte             `json:"profile_snapshot"`
+	CompanyCandidateID         pgtype.UUID        `json:"company_candidate_id"`
+	CompanyCandidateCvID       pgtype.UUID        `json:"company_candidate_cv_id"`
+	AddedBy                    pgtype.UUID        `json:"added_by"`
+	CorrectedCompanyCvID       pgtype.UUID        `json:"corrected_company_cv_id"`
+	CandidateMessageReadAt     pgtype.Timestamptz `json:"candidate_message_read_at"`
+	OriginChannel              string             `json:"origin_channel"`
+	CarriedFromParticipationID pgtype.UUID        `json:"carried_from_participation_id"`
 }
 
 type ProfileLanguageName struct {
@@ -769,6 +770,22 @@ type VacancyReassignment struct {
 	PerformedBy         uuid.UUID          `json:"performed_by"`
 	PerformedAt         pgtype.Timestamptz `json:"performed_at"`
 	StateSnapshot       []byte             `json:"state_snapshot"`
+}
+
+type VacancyReplacement struct {
+	ProcessID       uuid.UUID          `json:"process_id"`
+	CompanyID       uuid.UUID          `json:"company_id"`
+	SourceProcessID uuid.UUID          `json:"source_process_id"`
+	RootProcessID   uuid.UUID          `json:"root_process_id"`
+	Sequence        int32              `json:"sequence"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	StartedBy       uuid.UUID          `json:"started_by"`
+	TargetQuantity  int32              `json:"target_quantity"`
+}
+
+type VacancyReplacementCredit struct {
+	ReplacementProcessID uuid.UUID `json:"replacement_process_id"`
+	PlacementCreditID    uuid.UUID `json:"placement_credit_id"`
 }
 
 type VacancyTeam struct {
