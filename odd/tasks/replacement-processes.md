@@ -31,7 +31,7 @@ writes it; frontend reviews before implementation).
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
 | T1 | S1–S7 | Review the backend contract `replacement-processes-v1.md` against S1–S7 | backend `e715a257` (accepted) |
-| T3a | S1–S7 | Deployment step 1: new lifecycle/list/VacancyRef keys optional in every strict schema + decoders for the new error envelopes (contract «Deployment order») | |
+| T3a | S1–S7 | Deployment step 1: new lifecycle/list/VacancyRef keys optional in every strict schema + decoders for the new error envelopes (contract «Deployment order») | `4398018a` |
 | T2 | S1, S4, S5 | (done, L7) Design proposals (gentle-design): «Iniciar reemplazo» flow with hires to replace, resumed candidates with start stage, private/publish | |
 | T3 | S2, S3, S6 | Lifecycle and board: reopen guard, late «No se sostuvo» on a finished board, «Reemplazo» badge and original ↔ replacement link (portfolio, board header, list) | |
 | T4 | S1, S4, S5 | Start-replacement flow implementation from artboard `04-tarjeta-y-dialogo.html` (card «⋯» menu + 3-step dialog) | |
@@ -65,3 +65,9 @@ writes it; frontend reviews before implementation).
   replacement_already_active.
 - **L7** User approved `design/replacement-processes/04-tarjeta-y-dialogo.html` (verbatim): «si esta bien, hermano,
   aprovado.» Handoff started for T3/T4 from that artboard.
+- **L8** T3a `4398018a` (worker, TDD: RED 20 tests + missing module, GREEN 254; related 226 files / 4798 tests; tsc and
+  eslint clean): shared `lifecycleSchema` gains the ten optional keys (all lifecycle clients inherit them), draft-list row,
+  metrics top_vacancies/overdue.top vacancy and dashboard vacancyRef gain optional keys, discard response may carry
+  `lifecycle`; new `vacancy-lifecycle/replacement-errors.ts` decodes the five 409s, three 422s and `validation_error`
+  with `fields[]`; reopen guards mapped to copy. Risk: item 3 (shared publication/movement error envelopes and
+  `jobs/drafts/api/client-v2.ts`) → full suite before merge. Non-strict metrics list VacancyRefs left for T5.
