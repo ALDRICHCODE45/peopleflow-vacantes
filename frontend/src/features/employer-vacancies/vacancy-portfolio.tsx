@@ -24,6 +24,7 @@ import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-
 import { ReplacementTags } from "@/features/vacancy-lifecycle/ui/replacement-badges";
 import { useStartReplacementRequest } from "./use-start-replacement-request";
 import { PublishDialog } from "./publication/publish-dialog";
+import { PortfolioStartReplacement } from "./portfolio-start-replacement";
 import { portfolioRowActions } from "./model";
 import { DRAFT_LIST_MESSAGES, usePortfolioDrafts } from "./use-portfolio-drafts";
 import { plural } from "./plural";
@@ -162,8 +163,7 @@ export function VacancyPortfolio() {
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<StatusFilter>("all");
   const drafts = usePortfolioDrafts();
-  // WIRING POINT (replacement-processes T4): the «Acciones» menu of a closed-covered row lands in `startReplacement.open(draftId)`.
-  // The parent renders <StartReplacementDialog draftId={startReplacement.request.draftId} open={!!startReplacement.request} onOpenChange={open => { if (!open) startReplacement.close(); }} onStarted={…} /> here.
+  // The «Acciones» menu of a row lands in `startReplacement.open(draftId)`; the list has no board, so the entry reads the source stages first.
   const startReplacement = useStartReplacementRequest();
   const draftCount = drafts.items.filter(item => item.status === "draft").length;
   const counts: Readonly<Record<StatusFilter, number>> = {
@@ -243,6 +243,8 @@ export function VacancyPortfolio() {
           </Card>
         </TabsContent>
       </Tabs>
+      {startReplacement.request && <PortfolioStartReplacement key={startReplacement.request.draftId} draftId={startReplacement.request.draftId}
+        title={drafts.items.find(item => item.id === startReplacement.request?.draftId)?.title || "Sin título"} onClose={startReplacement.close} />}
     </div>
   );
 }

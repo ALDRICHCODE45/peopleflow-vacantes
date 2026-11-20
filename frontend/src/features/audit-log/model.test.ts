@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   actorsSchema, auditEventPageSchema, auditTypesSchema, auditVacanciesSchema, describeActor, describeBrowser, errorEnvelopeSchema, vacancyTitleLabel,
-  eventLabel, exportErrorMessage, parseExportBody, exportRangeError, formatOccurredAt, KNOWN_EVENT_TYPES, listFailureMessage, UNKNOWN_EVENT_LABEL,
+  eventLabel, exportErrorMessage, parseExportBody, exportRangeError, formatOccurredAt, isKnownEventType, KNOWN_EVENT_TYPES, listFailureMessage, UNKNOWN_EVENT_LABEL,
 } from "./model";
 import { auditActors, auditEvent, auditPage, auditTypes, auditVacancies } from "./test-fixtures";
 
@@ -72,9 +72,18 @@ describe("labels (contract Annex)", () => {
     expect(eventLabel("StakeholderInvitationAccepted")).toBe("Aceptó una invitación de stakeholder");
     expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "StakeholderInvitationAccepted", category: "members" });
     expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "MetricsDetailExported", category: "sensitive_read" });
-    expect(KNOWN_EVENT_TYPES).toHaveLength(68);
-    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(68);
+    expect(KNOWN_EVENT_TYPES).toHaveLength(70);
+    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(70);
     expect(KNOWN_EVENT_TYPES.filter(type => eventLabel(type.event_type) === UNKNOWN_EVENT_LABEL)).toEqual([]);
+  });
+
+  it("labels the replacement events (replacement-processes-v1 «Audit events») in their contract categories", () => {
+    expect(eventLabel("VacancyReplacementStarted")).toBe("Inició un reemplazo");
+    expect(eventLabel("VacancyCandidateCarried")).toBe("Retomó a un candidato en un reemplazo");
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "VacancyReplacementStarted", category: "vacancy" });
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "VacancyCandidateCarried", category: "candidate" });
+    expect(isKnownEventType("VacancyReplacementStarted")).toBe(true);
+    expect(isKnownEventType("VacancyCandidateCarried")).toBe(true);
   });
 
   it("gives an unknown type a generic label instead of crashing, including prototype keys", () => {

@@ -13,7 +13,7 @@ import { Hint } from "./pipeline-presentation";
 import { plural } from "@/features/employer-vacancies/plural";
 import { ManualIntakeSheet } from "@/features/manual-intake/sheet";
 import { loadParticipationAction } from "./actions";
-import type { Participation } from "./model";
+import type { Board, Participation } from "./model";
 import { isBackwardMove } from "./helpers";
 import { BoardDelivery } from "./board-delivery";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
@@ -42,6 +42,8 @@ type Props = {
   vacancyId: string; vacancyTitle?: string; publishedAt?: string | null; onLifecycleChange?: (lifecycle: Lifecycle) => void;
   /** Opens the start-replacement flow (S1/S2): from a card's «Iniciar reemplazo» with that hire's credit, or from «Acciones» without one. Absent ⇒ no entry point. */
   onStartReplacement?: (creditId?: string) => void;
+  /** The authoritative board after every read and confirmed write: the screen owner derives what the start-replacement dialog needs (source stages, hires still placed). */
+  onBoardChange?: (board: Board) => void;
 };
 export function MovementBoard(props: Props) {
   return <BoardSession key={props.vacancyId} {...props} />;
@@ -50,7 +52,7 @@ function BoardSession(props: Props) {
   const state = useMovementBoard(props.vacancyId);
   return <InvitationsProvider vacancyId={props.vacancyId} movementKey={state.board?.participations.map(item => `${item.id}:${item.stage_id}:${item.moved_at}`).join("|")}><ChecklistProvider vacancyId={props.vacancyId} readOnly={state.board?.lifecycle.process === "finished"}><BoardContent {...props} state={state} /></ChecklistProvider></InvitationsProvider>;
 }
-function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange, onStartReplacement, state }: Props & { state: ReturnType<typeof useMovementBoard> }) {
+function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange, onStartReplacement, onBoardChange, state }: Props & { state: ReturnType<typeof useMovementBoard> }) {
   const checklist = useBoardChecklist()!;
   const [bestFit, setBestFit] = useState(false);
   const [sortNotice, setSortNotice] = useState("");
@@ -62,6 +64,7 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
   const [externalItem, setExternalItem] = useState<Participation | null>(null);
   const { board, confirmation, pending, stale } = state;
   useEffect(() => { if (board) onLifecycleChange?.(board.lifecycle); }, [board?.lifecycle, onLifecycleChange]);
+  useEffect(() => { if (board) onBoardChange?.(board); }, [board, onBoardChange]);
   const readOnly = board?.lifecycle.process === "finished";
   const creditOf = useDepartureCredits(vacancyId, board);
   const dimensions = board ? boardFilterDimensions(board, languages.data?.items, checklist.checklist?.criteria, checklist.marks) : [];

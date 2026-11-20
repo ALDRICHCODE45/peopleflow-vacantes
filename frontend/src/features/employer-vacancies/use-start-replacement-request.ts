@@ -6,8 +6,8 @@ export type StartReplacementRequest = { draftId: string; creditId?: string };
 
 /**
  * Remembers which draft (and, from a card, which unsustained hire) asked to start a replacement.
- * It only holds the request: the start-replacement dialog (features/vacancy-replacement) consumes `request`
- * at the WIRING POINT of each screen that uses this hook, and calls `close` when it closes.
+ * It only holds the request: each screen that uses this hook mounts the start-replacement dialog
+ * (features/vacancy-replacement, through `StartReplacementHost`) while `request` exists, and calls `close` when it closes.
  */
 export function useStartReplacementRequest() {
   const [request, setRequest] = useState<StartReplacementRequest | null>(null);

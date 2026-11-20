@@ -17,11 +17,14 @@ import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publ
 import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publication-client";
 import { PublishButton } from "./publication/publish-dialog";
 import { MovementBoard } from "@/features/pipeline-movement/board";
+import type { Board } from "@/features/pipeline-movement/model";
 import { cn } from "@/lib/utils";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 import { ReplacementBadges } from "@/features/vacancy-lifecycle/ui/replacement-badges";
 import { useStartReplacementRequest } from "./use-start-replacement-request";
+import { replacementSource, type ReplacementSource } from "./replacement-source";
+import { StartReplacementHost } from "./start-replacement-host";
 
 /** Reads readiness alongside the draft; published processes load their real board independently. */
 export function DraftPipelineState({ draftId }: { draftId: string }) {
@@ -30,10 +33,11 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
   const [boardLifecycle, setBoardLifecycle] = useState<{ id: string; value: Lifecycle }>();
   const onLifecycleChange = useCallback((value: Lifecycle) => setBoardLifecycle({ id: draftId, value }), [draftId]);
   const result = loaded?.id === draftId ? loaded.result : null;
-  // WIRING POINT (replacement-processes T4): «Iniciar reemplazo» (card «⋯» menu and «Acciones») lands in `startReplacement.open(draftId, creditId?)`.
-  // The parent renders <StartReplacementDialog draftId={draftId} open={startReplacement.request?.draftId === draftId} onOpenChange={open => { if (!open) startReplacement.close(); }}
-  //   preselectedCreditId={startReplacement.request?.creditId} onStarted={newDraftId => …navigate to its pipeline…} /> next to <MovementBoard> below.
+  // «Iniciar reemplazo» (card «⋯» menu with its credit, header «Acciones» without one) lands in `startReplacement.open(draftId, creditId?)`.
+  // The dialog needs the SOURCE board's stages and hires still in Placement, so the board reports what it loaded.
   const startReplacement = useStartReplacementRequest();
+  const [source, setSource] = useState<{ id: string; value: ReplacementSource }>();
+  const onBoardChange = useCallback((board: Board) => setSource({ id: draftId, value: replacementSource(board) }), [draftId]);
   useEffect(() => {
     let current = true;
     async function load() {
@@ -83,7 +87,10 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
               <Skeleton aria-hidden="true" className="h-10 w-40" />
             </>
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
-            <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} />
+            <>
+              <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} onBoardChange={onBoardChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} />
+              {startReplacement.request?.draftId === draftId && source?.id === draftId && <StartReplacementHost key={draftId} draftId={draftId} title={title} creditId={startReplacement.request.creditId} source={source.value} onClose={startReplacement.close} />}
+            </>
           ) : (
             <>
               <DraftPipelineCard
