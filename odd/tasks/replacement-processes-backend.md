@@ -35,8 +35,16 @@ Contract: `docs/contracts/replacement-processes-v1.md` (draft first, reviewed by
 
 ## Tasks
 
-- [ ] T1 (S1-S10) Contract draft `docs/contracts/replacement-processes-v1.md`; frontend review — worker + parent.
-- [ ] T2+ Implementation slices — defined after the contract is agreed.
+- [x] T1 (S1-S10) Contract `docs/contracts/replacement-processes-v1.md` — 5db541ad, cfb4c49a, e715a257; closed by the frontend review (L9).
+- [ ] T2 R1 Migration 00063 + chain primitives (S1, S8) — worker. Risk: item 1.
+- [ ] T3 R2 Lifecycle read side + reopen guards + list keys/filter (S6, S8, S10) — after frontend deploy step 1.
+- [ ] T4 R3a Start: clone + process + links + finish source (S1-S3, S8).
+- [ ] T5 R3b Carried candidates (S5).
+- [ ] T6 R3c Private/public (S4).
+- [ ] T7 R4 GET replacements (S10).
+- [ ] T8 R5 Departure on finished (S7).
+- [ ] T9 R6a/R6b Metrics + dashboard (S9).
+- [ ] T10 Independent verify (Risk items 1, 3).
 
 ## Log
 
@@ -79,3 +87,4 @@ Contract: `docs/contracts/replacement-processes-v1.md` (draft first, reviewed by
   S#; NOT remapped as requested (D2/D3=S1, D4=S5, D5=S4, …) because that mapping contradicts S1-S9 above (S4 is publication, S5 candidates); a sentence now states the
   column's meaning. (13) Audit labels are the frontend's. Slices updated (R2 ~400, R3a ~450, R4 ~350, R5 ~250, R6 two slices, R7 folded into R6b).
 - **L8** Backend session accepts A7 (a process with a successor cannot be reopened, 409 reopen_superseded) and confirms D14/D15/D16 implement «uno solo activo por vacante lógica» (start finishes a closed-active source atomically; only the latest process starts or reopens; late departures still allowed on finished). Point 12: the frontend mapping used its own S# numbering; the Spec column keeps this doc S#. Contract ready for the frontend to close.
+- **L9** Frontend review closed on e715a257: «Contrato e715a257 revisado y cerrado de mi lado. OK con D14, D15, D16 y A7». Frontend starts deployment step 1 on feat/replacement-processes; R2 waits for its hash. UI (user): action from the hired candidate's kanban card menu «No se sostuvo…» then «Iniciar reemplazo», 3-step dialog; no contract change.
