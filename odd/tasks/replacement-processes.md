@@ -86,3 +86,11 @@ writes it; frontend reviews before implementation).
   badges in detail, top_vacancies and overdue rows. Backend agreed: startable_credits carries participation_id, hired_at
   and candidate; chain items carry title and sequence (R4); late-departure discard reason stays from the existing catalog.
   Dashboard rows' `kind` not shown (no filter in v1).
+- **L11** Browser check (verifier) on :3000 `e15ae6e5` against backend `1e4749ba` with 00063 on dev, owner of Altavista,
+  original `01a1f21e-22dc-7e85-9b05-8912c1010e7a` → replacement `01a1fa51-419a-7ead-b589-a5f133b80f4f`: S1, S2, S3, S4,
+  S5 (dialog), audit labels pass; no console errors, no ≥400 from the browser, no overflow. S6 FAIL: a private
+  replacement opens the draft screen (board gated on the publication read, which says draft for private replacements per
+  D4). S7 pending backend at that time (422 invalid_filter; R6 since committed). UI defects vs artboard: no publish-later,
+  list row «Publicada» next to «Privada», dialog footer and step 2 layout at 390/1440, confirmation layout, disabled «⋯»
+  instead of state 11, header title truncation at 390. Fixes delegated. Backlog: dashboard participation charts still
+  count carried participations (backend, out of scope); confirm whether the departed hire should be carryable.
