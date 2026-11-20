@@ -57,6 +57,13 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
     return () => { current = false; };
   }, [draftId, attempt]);
   const retry = () => { setLoaded(null); setAttempt(value => value + 1); };
+  // Publishing a private replacement creates its listing: the publication read now has the listing's own date, which the board header shows beside «Proceso iniciado».
+  const refreshPublication = useCallback(async () => {
+    try {
+      const publication = await loadDraftPublicationAction(draftId);
+      if (publication.ok) setLoaded(current => current?.id === draftId && current.result.ok ? { ...current, publication: publication.publication } : current);
+    } catch { /* The date line stays as it was; the next load fixes it. */ }
+  }, [draftId]);
   // Contract D4: a private replacement reads «draft» on `GET V/publication` while its lifecycle is published + private, with a process. The lifecycle
   // decides: only a draft that never published (no publication axis) keeps the draft screen.
   const seedLifecycle = result?.ok ? result.seed.lifecycle : undefined;
@@ -101,7 +108,7 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
             <>
               <MovementBoard key={boardAttempt} vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} onBoardChange={onBoardChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} onPublish={() => setPublishOpen(true)} />
-              {publishOpen && <PublishDialog draftId={draftId} open onOpenChange={setPublishOpen} onPublished={() => setBoardAttempt(value => value + 1)} />}
+              {publishOpen && <PublishDialog draftId={draftId} open onOpenChange={setPublishOpen} onPublished={() => { setBoardAttempt(value => value + 1); void refreshPublication(); }} />}
               {startReplacement.request?.draftId === draftId && source?.id === draftId && <StartReplacementHost key={draftId} draftId={draftId} title={title} creditId={startReplacement.request.creditId} source={source.value} onClose={startReplacement.close} />}
             </>
           ) : (

@@ -239,6 +239,25 @@ it("S5: «Acciones» of a private replacement offers «Publicar»; publishing se
   await waitFor(() => expect(screen.queryByText("Privada · sin publicar")).not.toBeInTheDocument());
   expect(vi.mocked(loadBoardAction).mock.calls.length).toBeGreaterThanOrEqual(2);
 });
+it("S5/S6: after publishing, the board keeps «Proceso iniciado el <inicio>» and adds «Publicada el <fecha de publicación>»", async () => {
+  const publishedAt = "2026-11-21T12:00:00Z";
+  vi.mocked(publishDraftAction).mockResolvedValue({ ok: true, publication: { id: read.id, status: "published", publishedAt } });
+  const priv = boardFixture(); priv.lifecycle = privateLifecycle;
+  const board = boardFixture(); board.lifecycle = publicLifecycle;
+  await mountPrivate([priv, board]);
+  expect(screen.getByText(/Proceso iniciado el/)).toHaveTextContent("19 nov 2026");
+  // `GET V/publication` answers «draft» until the projection exists, then the projection's own time.
+  vi.mocked(loadDraftPublicationAction).mockImplementation(async () => vi.mocked(publishDraftAction).mock.calls.length
+    ? { ok: true, publication: { status: "published", publishedAt, missing: [] } } : { ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
+  fireEvent.click(await screen.findByRole("button", { name: `Acciones de ${read.fields.title}` }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Publicar" }));
+  const confirm = await screen.findByRole("alertdialog", { name: `¿Publicar ${read.fields.title}?` });
+  fireEvent.click(within(confirm).getByRole("button", { name: "Publicar vacante" }));
+  // While the board re-reads (no board yet) the header falls back to the publication date alone, so wait for the board's own lines.
+  await waitFor(() => expect(screen.getByText(/Proceso iniciado el/)).toHaveTextContent("Proceso iniciado el 19 nov 2026"));
+  expect(screen.getByText(/Publicada el/)).toHaveTextContent("Publicada el 21 nov 2026");
+  expect(screen.queryByText("Privada · sin publicar")).not.toBeInTheDocument();
+});
 it("S5: a public replacement's «Acciones» (lifecycle without «publish») never lists «Publicar»", async () => {
   await mountPrivate();
   vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: publicLifecycle });
