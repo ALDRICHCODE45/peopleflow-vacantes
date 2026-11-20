@@ -877,3 +877,12 @@ Frontend review applied in Log L7: the 13 points are folded into this document (
 normative metrics table, the `root_process_id` list filter, the informative-vs-decoded response keys, the `Spec` column note and the audit-label
 ownership). Pending: the frontend's step 1 of §«Deployment order», confirmation of A7, and the user's confirmation that the finish-on-start rule (D15)
 and the latest-only rule (D14) match what they meant by «uno solo por vacante lógica»; implementation slices start only after that.
+
+## R5 implementation notes
+
+- The finished-process exception lives in `beginMutationState` (applications board store); only discard uses it. The
+  finished check runs after the locked participation read and before the ETag check, so a stale tag on a finished board
+  still answers 409 `process_finished`, and an unknown participation on discard answers 404 (A4).
+- Recover on a finished process stays 409 `process_finished`, even for an unknown participation (A4 is discard-only).
+- The discard response `lifecycle` key is produced through the existing `VacancyContext.Lifecycle` port, read after the
+  credit change in the same transaction, on every placement departure (open, closed-active and finished processes).
