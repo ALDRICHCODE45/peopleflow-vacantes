@@ -175,6 +175,7 @@ describe("startReplacementAction error codes → Mexican Spanish copy", () => {
     ["not_in_chain", "Esta persona ya no está en el proceso de esta vacante."],
     ["currently_placed", "Esta persona sigue en Placement; no se puede retomar."],
     ["duplicate", "Esta persona está repetida en la lista."],
+    ["departed_hire", "Esta persona no se sostuvo en el puesto que se reemplaza; no se puede retomar. Si vuelve, agrégala como candidato nuevo."],
   ] as const)("maps carried_candidate_invalid %s", async (reason, message) => {
     fail(422, { code: "carried_candidate_invalid", data: { candidates: [{ index: 0, reason }] } });
     expect(await run()).toMatchObject({ ok: false, reason: "carried_candidate_invalid", reload: true, candidates: [{ index: 0, message }] });

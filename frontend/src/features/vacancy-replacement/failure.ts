@@ -60,6 +60,7 @@ const candidateReasons = {
   not_in_chain: "Esta persona ya no está en el proceso de esta vacante.",
   currently_placed: "Esta persona sigue en Placement; no se puede retomar.",
   duplicate: "Esta persona está repetida en la lista.",
+  departed_hire: "Esta persona no se sostuvo en el puesto que se reemplaza; no se puede retomar. Si vuelve, agrégala como candidato nuevo.",
 } as const;
 const stageReasons = {
   stage_not_found: "Esa etapa ya no existe en la vacante original. Elige otra.",

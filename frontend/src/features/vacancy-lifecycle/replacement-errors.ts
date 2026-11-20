@@ -31,7 +31,7 @@ export const replacementConflictSchema = z.discriminatedUnion("code", [
 export type ReplacementConflict = z.infer<typeof replacementConflictSchema>;
 
 export const replacementCreditReasonSchema = z.enum(["not_in_chain", "not_did_not_hold", "already_replaced"]);
-export const carriedCandidateReasonSchema = z.enum(["not_in_chain", "currently_placed", "duplicate"]);
+export const carriedCandidateReasonSchema = z.enum(["not_in_chain", "currently_placed", "duplicate", "departed_hire"]);
 export const carriedStageReasonSchema = z.enum(["stage_not_found", "stage_is_placement", "stage_is_exit"]);
 const itemIndex = z.number().int().nonnegative();
 
