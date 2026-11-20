@@ -47,20 +47,14 @@ func TestBuildSubmittedMetadata_NilSource(t *testing.T) {
 // TestBuildSubmittedMetadata_NeverCoverLetterOrCandidateID pins the PII-free
 // invariant structurally: whatever the builders produce, the key set MUST be a
 // subset of the closed metadata vocabulary {job_id, source, from_status,
-// to_status}. cover_letter, candidate_id, or any other PII key can never leak
+// to_status}, and the keys cover_letter and candidate_id MUST never appear. The
+// cover letter field itself is gone from the model (S2), but the audit guard
+// stays so a re-introduced free-text or candidate-identifying key cannot leak
 // into the audit metadata through these builders (D7 — the builders are the
 // only place metadata keys are assembled).
 func TestBuildSubmittedMetadata_NeverCoverLetterOrCandidateID(t *testing.T) {
 	jobID := uuid.MustParse("018e0000-0000-7000-8000-000000000111")
 	src := valueobjects.LinkedIn
-	coverLetter := "I am a great fit"
-	candidateID := uuid.MustParse("018e0000-0000-7000-8000-000000000222")
-
-	// Exercise the builders with inputs that COULD smuggle PII if the builder
-	// signature ever grew to accept them — today only jobID/source reach them.
-	got := buildSubmittedMetadata(jobID, &src)
-	_ = coverLetter
-	_ = candidateID
 
 	allowed := map[string]bool{
 		"job_id":      true,
@@ -68,9 +62,18 @@ func TestBuildSubmittedMetadata_NeverCoverLetterOrCandidateID(t *testing.T) {
 		"from_status": true,
 		"to_status":   true,
 	}
-	for key := range got {
-		if !allowed[key] {
-			t.Errorf("metadata key %q is outside the closed PII-free vocabulary {job_id, source, from_status, to_status}", key)
+	for name, got := range map[string]map[string]string{
+		"submitted with source":    buildSubmittedMetadata(jobID, &src),
+		"submitted without source": buildSubmittedMetadata(jobID, nil),
+		"transitioned":             buildTransitionedMetadata(jobID, valueobjects.Submitted, valueobjects.InReview),
+	} {
+		for key := range got {
+			if !allowed[key] {
+				t.Errorf("%s: metadata key %q is outside the closed PII-free vocabulary {job_id, source, from_status, to_status}", name, key)
+			}
+			if key == "cover_letter" || key == "candidate_id" {
+				t.Errorf("%s: forbidden audit key %q present", name, key)
+			}
 		}
 	}
 }

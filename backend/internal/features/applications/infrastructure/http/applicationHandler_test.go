@@ -97,10 +97,6 @@ func (s *handlerStubRepo) Create(ctx context.Context, p applicationsrepositories
 		v := *p.Source
 		app.Source = &v
 	}
-	if p.CoverLetter != nil {
-		v := *p.CoverLetter
-		app.CoverLetter = &v
-	}
 	return app, nil
 }
 
@@ -304,21 +300,97 @@ func TestApplyToJob_UnknownSub401(t *testing.T) {
 	}
 }
 
-func TestApplyToJob_CoverLetterEmpty400(t *testing.T) {
-	h := newHarness()
-	h.userRepo.getByCognitoSubUser = &identityentities.User{ID: uuid.New()}
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/jobs/"+uuid.New().String()+"/applications",
-		strings.NewReader(`{"cover_letter":"   "}`))
-	req = withClaims(req, "sub-1")
-	h.router.ServeHTTP(w, req)
+// TestLegacyRoutes_CoverLetterRemoved pins S2: cover_letter was removed from
+// the legacy application routes. The apply decoder is lax, so a client that
+// still sends it (any value, even ones that used to be a 400) is ignored, and
+// no route's response carries the key any more.
+func TestLegacyRoutes_CoverLetterRemoved(t *testing.T) {
+	assertNoCoverLetter := func(t *testing.T, route string, w *httptest.ResponseRecorder, want int) {
+		t.Helper()
+		if w.Code != want {
+			t.Fatalf("%s: want %d, got %d (body %s)", route, want, w.Code, w.Body.String())
+		}
+		if strings.Contains(w.Body.String(), "cover_letter") {
+			t.Errorf("%s: response MUST NOT carry cover_letter, got %s", route, w.Body.String())
+		}
+	}
+	recruiter := identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()}
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("want 400, got %d (body %s)", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "cover_letter") {
-		t.Errorf("want body to mention cover_letter, got %s", w.Body.String())
-	}
+	t.Run("POST apply ignores a sent cover_letter", func(t *testing.T) {
+		for _, body := range []string{
+			`{"cover_letter":"Hola, me interesa"}`,
+			`{"cover_letter":"   "}`,
+			`{"cover_letter":"` + strings.Repeat("x", 2001) + `"}`,
+			`{"cover_letter":null,"source":"linkedin"}`,
+		} {
+			h := newHarness()
+			h.userRepo.getByCognitoSubUser = &identityentities.User{ID: uuid.New()}
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest("POST", "/jobs/"+uuid.New().String()+"/applications", strings.NewReader(body))
+			req = withClaims(req, "sub-1")
+			h.router.ServeHTTP(w, req)
+			assertNoCoverLetter(t, "POST apply", w, http.StatusCreated)
+		}
+	})
+
+	t.Run("PATCH transition", func(t *testing.T) {
+		h := newHarness()
+		h.repo.getByIDApp = &applicationsentities.ApplicationWithCandidate{
+			Application: applicationsentities.Application{Status: applicationsvalueobjects.Submitted},
+		}
+		h.repo.transitionApp = &applicationsentities.Application{
+			ID: uuid.New(), JobID: uuid.New(), CandidateID: uuid.New(),
+			Status: applicationsvalueobjects.InReview, CreatedAt: fixedTime(), UpdatedAt: fixedTime(),
+		}
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
+			strings.NewReader(`{"status":"in_review","cover_letter":"hi"}`))
+		req = withCompanyContext(req, recruiter)
+		h.router.ServeHTTP(w, req)
+		assertNoCoverLetter(t, "PATCH transition", w, http.StatusOK)
+	})
+
+	t.Run("GET job applications list and detail", func(t *testing.T) {
+		h := newHarness()
+		item := applicationsentities.ApplicationWithCandidate{
+			Application: applicationsentities.Application{
+				ID: uuid.New(), JobID: uuid.New(), CandidateID: uuid.New(),
+				Status: applicationsvalueobjects.InReview, CreatedAt: fixedTime(), UpdatedAt: fixedTime(),
+			},
+			Candidate: applicationsentities.CandidateSnippet{UserID: uuid.New(), FullName: "Alice"},
+		}
+		h.repo.listByJobApps = []applicationsentities.ApplicationWithCandidate{item}
+		h.repo.getByIDApp = &item
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications", nil)
+		req = withCompanyContext(req, recruiter)
+		h.router.ServeHTTP(w, req)
+		assertNoCoverLetter(t, "GET list", w, http.StatusOK)
+
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String(), nil)
+		req = withCompanyContext(req, recruiter)
+		h.router.ServeHTTP(w, req)
+		assertNoCoverLetter(t, "GET detail", w, http.StatusOK)
+	})
+
+	t.Run("GET me applications", func(t *testing.T) {
+		h := newHarness()
+		candidateID := uuid.New()
+		h.userRepo.getByCognitoSubUser = &identityentities.User{ID: candidateID}
+		h.repo.listByCandidateApps = []applicationsentities.MyApplication{{
+			Application: applicationsentities.Application{
+				ID: uuid.New(), JobID: uuid.New(), CandidateID: candidateID,
+				Status: applicationsvalueobjects.InReview, CreatedAt: fixedTime(), UpdatedAt: fixedTime(),
+			},
+			Job: applicationsentities.JobSummary{ID: uuid.New(), Title: "Backend", CompanyID: uuid.New(), CompanyName: "Acme"},
+		}}
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/me/applications", nil)
+		req = withClaims(req, "sub-1")
+		h.router.ServeHTTP(w, req)
+		assertNoCoverLetter(t, "GET me", w, http.StatusOK)
+	})
 }
 
 func TestApplyToJob_UnknownSource400(t *testing.T) {
@@ -1137,8 +1209,6 @@ func TestClassifyApplicationError_CatalogDefinition(t *testing.T) {
 		{"JobNotApplicable_notFound", applicationsentities.ErrJobNotApplicable, httpjson.CodeNotFound, http.StatusNotFound, "job not applicable"},
 		{"AlreadyApplied_alreadyExists", applicationsentities.ErrAlreadyApplied, httpjson.CodeAlreadyExists, http.StatusConflict, "already applied"},
 		{"StatusRequired_invalidRequest", applicationsentities.ErrStatusRequired, httpjson.CodeInvalidRequest, http.StatusBadRequest, "status is required"},
-		{"CoverLetterEmpty_invalidRequest", applicationsentities.ErrCoverLetterEmpty, httpjson.CodeInvalidRequest, http.StatusBadRequest, "cover_letter must not be empty"},
-		{"CoverLetterTooLong_invalidRequest", applicationsentities.ErrCoverLetterTooLong, httpjson.CodeInvalidRequest, http.StatusBadRequest, "cover_letter must be at most 2000 characters"},
 		{"InvalidSource_invalidRequest", applicationsvalueobjects.ErrInvalidSource, httpjson.CodeInvalidRequest, http.StatusBadRequest, "invalid source"},
 		{"InvalidApplicationReference_invalidRequest", applicationsentities.ErrInvalidApplicationReference, httpjson.CodeInvalidRequest, http.StatusBadRequest, "invalid application reference"},
 		{"InvalidStatusTransition_directSentinel", applicationsvalueobjects.ErrInvalidStatusTransition, httpjson.CodeInvalidStatusTransition, http.StatusBadRequest, "invalid status transition"},
@@ -1173,7 +1243,7 @@ func TestClassifyApplicationError_WrappedSentinals(t *testing.T) {
 		{"ApplicationNotFound_wrapped", fmt.Errorf("repository failed: %w", applicationsentities.ErrApplicationNotFound), httpjson.CodeNotFound, "application not found"},
 		{"JobNotApplicable_wrapped", fmt.Errorf("service: %w", applicationsentities.ErrJobNotApplicable), httpjson.CodeNotFound, "job not applicable"},
 		{"AlreadyApplied_wrapped", fmt.Errorf("db error: %w", applicationsentities.ErrAlreadyApplied), httpjson.CodeAlreadyExists, "already applied"},
-		{"CoverLetterEmpty_wrapped", fmt.Errorf("validation: %w", applicationsentities.ErrCoverLetterEmpty), httpjson.CodeInvalidRequest, "cover_letter must not be empty"},
+		{"InvalidApplicationReference_wrapped", fmt.Errorf("validation: %w", applicationsentities.ErrInvalidApplicationReference), httpjson.CodeInvalidRequest, "invalid application reference"},
 		{"InvalidSource_wrapped", fmt.Errorf("handler: %w", applicationsvalueobjects.ErrInvalidSource), httpjson.CodeInvalidRequest, "invalid source"},
 		{"InvalidStatusTransition_wrappedMatrixCollapses", fmt.Errorf("transition rejected: %w", applicationsvalueobjects.ErrInvalidStatusTransition), httpjson.CodeInvalidStatusTransition, "invalid status transition"},
 		{"InvalidStatusTransition_preservesWrappedDetail", fmt.Errorf("%w: submitted -> rejected", applicationsvalueobjects.ErrInvalidStatusTransition), httpjson.CodeInvalidStatusTransition, "invalid status transition: submitted -> rejected"},
@@ -1208,13 +1278,13 @@ func TestTriangulation_NotFoundMessagesDiffer(t *testing.T) {
 // triangulation: invalid_request code shared by multiple sentinels with different messages
 func TestTriangulation_InvalidRequestMessagesDiffer(t *testing.T) {
 	defStatus := classifyApplicationError(applicationsentities.ErrStatusRequired)
-	defCover := classifyApplicationError(applicationsentities.ErrCoverLetterEmpty)
+	defRef := classifyApplicationError(applicationsentities.ErrInvalidApplicationReference)
 	defSource := classifyApplicationError(applicationsvalueobjects.ErrInvalidSource)
-	if defStatus.Code != httpjson.CodeInvalidRequest || defCover.Code != httpjson.CodeInvalidRequest || defSource.Code != httpjson.CodeInvalidRequest {
-		t.Errorf("codes: want invalid_request, got %q, %q, %q", defStatus.Code, defCover.Code, defSource.Code)
+	if defStatus.Code != httpjson.CodeInvalidRequest || defRef.Code != httpjson.CodeInvalidRequest || defSource.Code != httpjson.CodeInvalidRequest {
+		t.Errorf("codes: want invalid_request, got %q, %q, %q", defStatus.Code, defRef.Code, defSource.Code)
 	}
-	if defStatus.Message != "status is required" || defCover.Message != "cover_letter must not be empty" || defSource.Message != "invalid source" || defStatus.Message == defCover.Message || defCover.Message == defSource.Message || defStatus.Message == defSource.Message {
-		t.Errorf("messages: got %q, %q, %q", defStatus.Message, defCover.Message, defSource.Message)
+	if defStatus.Message != "status is required" || defRef.Message != "invalid application reference" || defSource.Message != "invalid source" || defStatus.Message == defRef.Message || defRef.Message == defSource.Message || defStatus.Message == defSource.Message {
+		t.Errorf("messages: got %q, %q, %q", defStatus.Message, defRef.Message, defSource.Message)
 	}
 }
 

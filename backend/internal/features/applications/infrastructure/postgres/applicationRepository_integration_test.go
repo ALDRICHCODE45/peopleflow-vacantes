@@ -864,10 +864,10 @@ func TestTransition_AuditFailureRollsBackStatus(t *testing.T) {
 // TestCreate_PublishedActiveJobSuccess — spec scenario S20 (+ S24/S26).
 // A published job from an active company accepts an application: the
 // returned entity carries status='submitted', the server id and timestamps,
-// and the optional source/cover_letter round-trip through the wire→SQL→
-// entity path. Part A (nil optionals) proves absent source/cover_letter are
-// stored as SQL NULL (S24/S26); Part B (present optionals) proves the stored
-// values surface back (S20).
+// and the optional source round-trips through the wire→SQL→entity path.
+// Part A (nil optionals) proves an absent source is stored as SQL NULL
+// (S24/S26); Part B (present optionals) proves the stored value surfaces
+// back (S20).
 func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
@@ -897,24 +897,21 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	if gotA.Source != nil {
 		t.Errorf("Source: want nil (absent on the wire), got %v", *gotA.Source)
 	}
-	if gotA.CoverLetter != nil {
-		t.Errorf("CoverLetter: want nil (absent on the wire), got %q", *gotA.CoverLetter)
-	}
 	if gotA.CreatedAt.IsZero() || gotA.UpdatedAt.IsZero() {
 		t.Errorf("timestamps: want server-supplied non-zero, got created=%v updated=%v",
 			gotA.CreatedAt, gotA.UpdatedAt)
 	}
 
 	// Raw SQL round-trip: the persisted row is exactly what the adapter
-	// returned — NULL source/cover_letter, DB-default status, and the
+	// returned — NULL source, DB-default status, and the
 	// reserved columns stay NULL (S45 / D11).
 	var status string
-	var dbSource, dbCover, dbCVKey *string
+	var dbSource, dbCVKey *string
 	var dbAnonymizedAt *time.Time
 	if err := f.pool.QueryRow(ctx,
-		`SELECT status, source, cover_letter, cv_s3_key, anonymized_at
+		`SELECT status, source, cv_s3_key, anonymized_at
 		 FROM applications WHERE id = $1`, appIDA,
-	).Scan(&status, &dbSource, &dbCover, &dbCVKey, &dbAnonymizedAt); err != nil {
+	).Scan(&status, &dbSource, &dbCVKey, &dbAnonymizedAt); err != nil {
 		t.Fatalf("raw read (part A): %v", err)
 	}
 	if status != "submitted" {
@@ -923,9 +920,6 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	if dbSource != nil {
 		t.Errorf("raw source: want NULL, got %q", *dbSource)
 	}
-	if dbCover != nil {
-		t.Errorf("raw cover_letter: want NULL, got %q", *dbCover)
-	}
 	if dbCVKey != nil || dbAnonymizedAt != nil {
 		t.Errorf("raw reserved columns: cv_s3_key=%v anonymized_at=%v, want both NULL", dbCVKey, dbAnonymizedAt)
 	}
@@ -933,14 +927,12 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	// Part B — present optionals → stored + surfaced (S20).
 	src := applicationsvalueobjects.Referral
 	srcStr := "referral"
-	cover := "I am a great fit for this role."
 	appIDB := uuid.New()
 	gotB, err := f.repo.Create(ctx, repositories.CreateParams{
 		ID:          appIDB,
 		JobID:       f.jobPublished2,
 		CandidateID: f.userC1,
 		Source:      &src,
-		CoverLetter: &cover,
 	}, submittedAuditEvent(uuid.New(), appIDB, f.userC1, f.jobPublished2, &srcStr))
 	if err != nil {
 		t.Fatalf("Create(with optionals): %v", err)
@@ -952,21 +944,15 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	if gotB.Source == nil || *gotB.Source != applicationsvalueobjects.Referral {
 		t.Errorf("Source: want Referral, got %v", gotB.Source)
 	}
-	if gotB.CoverLetter == nil || *gotB.CoverLetter != cover {
-		t.Errorf("CoverLetter: want %q, got %v", cover, gotB.CoverLetter)
-	}
 
-	var dbSourceB, dbCoverB *string
+	var dbSourceB *string
 	if err := f.pool.QueryRow(ctx,
-		`SELECT source, cover_letter FROM applications WHERE id = $1`, appIDB,
-	).Scan(&dbSourceB, &dbCoverB); err != nil {
+		`SELECT source FROM applications WHERE id = $1`, appIDB,
+	).Scan(&dbSourceB); err != nil {
 		t.Fatalf("raw read (part B): %v", err)
 	}
 	if dbSourceB == nil || *dbSourceB != "referral" {
 		t.Errorf("raw source: want referral, got %v", dbSourceB)
-	}
-	if dbCoverB == nil || *dbCoverB != cover {
-		t.Errorf("raw cover_letter: want %q, got %v", cover, dbCoverB)
 	}
 }
 

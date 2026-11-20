@@ -2,8 +2,6 @@ package usecases
 
 import (
 	"context"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
@@ -12,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// sentinelCoverLetterEmpty / sentinelCoverLetterTooLong / sentinelJobNotApplicable /
+// sentinelJobNotApplicable /
 // sentinelAlreadyApplied / sentinelStatusRequired / sentinelApplicationNotFound /
 // sentinelInvalidStatusTransition / sentinelInvalidSource are package-local
 // aliases for the entity / valueobject sentinels used by the use-case tests.
@@ -20,8 +18,6 @@ import (
 // file) keeps the test file's import graph minimal — the test files
 // reference these names without importing entities/valueobjects directly.
 var (
-	sentinelCoverLetterEmpty        = entities.ErrCoverLetterEmpty
-	sentinelCoverLetterTooLong      = entities.ErrCoverLetterTooLong
 	sentinelJobNotApplicable        = entities.ErrJobNotApplicable
 	sentinelAlreadyApplied          = entities.ErrAlreadyApplied
 	sentinelStatusRequired          = entities.ErrStatusRequired
@@ -62,19 +58,16 @@ func entities_ErrStatusRequired() error { return entities.ErrStatusRequired }
 func valueobjects_ErrInvalidStatusTransition() error { return valueobjects.ErrInvalidStatusTransition }
 
 // ApplyJob is the candidate-facing write path: resolve cognitoSub → users.id,
-// validate the optional cover_letter + source, then hand a CreateParams
+// validate the optional source, then hand a CreateParams
 // (with a fresh UUID v7) to the repository. The repository's atomic SQL
 // gate enforces the eligibility predicate (published + deleted_at IS NULL
 // + active company).
 //
 // Validation order (design D8):
 //  1. Resolve identity → ErrUnknownSubject (401) on miss.
-//  2. Normalize cover_letter: trim; empty-after-trim → ErrCoverLetterEmpty;
-//     > 2000 runes (utf8.RuneCountInString) → ErrCoverLetterTooLong.
-//     nil cover_letter is allowed and stored as SQL NULL.
-//  3. Parse source: nil is allowed (stored as SQL NULL); unknown →
+//  2. Parse source: nil is allowed (stored as SQL NULL); unknown →
 //     ErrInvalidSource.
-//  4. Create with a fresh UUID v7 — the row is born with the DB's
+//  3. Create with a fresh UUID v7 — the row is born with the DB's
 //     DEFAULT 'submitted' status (CreateApplication SQL never inserts
 //     status; design D1).
 //
@@ -88,11 +81,6 @@ func (s *ApplicationService) ApplyJob(
 	in dtos.ApplyRequestDto,
 ) (*entities.Application, error) {
 	candidateID, err := s.resolveUserID(ctx, cognitoSub)
-	if err != nil {
-		return nil, err
-	}
-
-	cover, err := normalizeCoverLetter(in.CoverLetter)
 	if err != nil {
 		return nil, err
 	}
@@ -123,32 +111,7 @@ func (s *ApplicationService) ApplyJob(
 		JobID:       jobID,
 		CandidateID: candidateID,
 		Source:      source,
-		CoverLetter: cover,
 	}, event)
-}
-
-// normalizeCoverLetter trims the input cover_letter and applies the
-// 2000-rune length bound. The bound is a rune count (the spec uses
-// "characters"), so utf8.RuneCountInString is the right tool — len()
-// would measure bytes and undercount multi-byte glyphs.
-//
-//   - nil           → nil, nil (absent on the wire; SQL NULL).
-//   - empty after trim → nil, ErrCoverLetterEmpty.
-//   - > 2000 runes  → nil, ErrCoverLetterTooLong.
-//   - 1..2000 runes → &trimmed, nil (stored trimmed).
-func normalizeCoverLetter(in *string) (*string, error) {
-	if in == nil {
-		return nil, nil
-	}
-	trimmed := strings.TrimSpace(*in)
-	if trimmed == "" {
-		return nil, entities.ErrCoverLetterEmpty
-	}
-	if utf8.RuneCountInString(trimmed) > 2000 {
-		return nil, entities.ErrCoverLetterTooLong
-	}
-	out := trimmed
-	return &out, nil
 }
 
 // normalizeSource parses an optional source pointer through the VO codec.

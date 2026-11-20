@@ -98,10 +98,6 @@ func (s *stubApplicationRepo) Create(ctx context.Context, p repositories.CreateP
 		v := *p.Source
 		row.Source = &v
 	}
-	if p.CoverLetter != nil {
-		v := *p.CoverLetter
-		row.CoverLetter = &v
-	}
 	return row, nil
 }
 

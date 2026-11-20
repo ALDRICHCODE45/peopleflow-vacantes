@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"strings"
 	"testing"
 
 	applicationsvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
@@ -38,7 +37,7 @@ func makeUserStub(t *testing.T, repo *stubUserRepo, cognitoSub string, candidate
 // --- TestApplyJob_Success -----------------------------------------------
 
 // TestApplyJob_Success proves the happy path: resolve sub → candidateID,
-// trim cover_letter, parse source, call repo.Create with v7 id, return
+// parse source, call repo.Create with v7 id, return
 // the application (with status='submitted').
 func TestApplyJob_Success(t *testing.T) {
 	repo := &stubApplicationRepo{}
@@ -48,10 +47,9 @@ func TestApplyJob_Success(t *testing.T) {
 
 	jobID := makeJobID()
 	source := "linkedin"
-	cover := "  Hello team!  "
 	svc := NewApplicationService(repo, userRepo)
 
-	got, err := svc.ApplyJob(context.Background(), "sub-1", jobID, applyJobDto(&source, &cover))
+	got, err := svc.ApplyJob(context.Background(), "sub-1", jobID, applyJobDto(&source))
 	if err != nil {
 		t.Fatalf("ApplyJob: unexpected err %v", err)
 	}
@@ -75,9 +73,6 @@ func TestApplyJob_Success(t *testing.T) {
 	}
 	if repo.lastCreate.Source == nil || *repo.lastCreate.Source != applicationsvalueobjects.LinkedIn {
 		t.Errorf("CreateParams.Source: want linkedin, got %v", repo.lastCreate.Source)
-	}
-	if repo.lastCreate.CoverLetter == nil || *repo.lastCreate.CoverLetter != "Hello team!" {
-		t.Errorf("CreateParams.CoverLetter: want trimmed %q, got %v", "Hello team!", repo.lastCreate.CoverLetter)
 	}
 	// UUID v7 — version nibble = 7.
 	if got.ID.Version() != 7 {
@@ -104,7 +99,7 @@ func TestApplyJob_PassesSubmittedEvent(t *testing.T) {
 	source := "linkedin"
 	svc := NewApplicationService(repo, userRepo)
 
-	got, err := svc.ApplyJob(context.Background(), "sub-1", jobID, applyJobDto(&source, nil))
+	got, err := svc.ApplyJob(context.Background(), "sub-1", jobID, applyJobDto(&source))
 	if err != nil {
 		t.Fatalf("ApplyJob: unexpected err %v", err)
 	}
@@ -152,7 +147,7 @@ func TestApplyJob_UnknownSubReturnsUnknownSubject(t *testing.T) {
 	userRepo := &stubUserRepo{getByCognitoSubErr: identityentities.ErrUserNotFound}
 
 	svc := NewApplicationService(repo, userRepo)
-	got, err := svc.ApplyJob(context.Background(), "sub-unknown", makeJobID(), applyJobDto(nil, nil))
+	got, err := svc.ApplyJob(context.Background(), "sub-unknown", makeJobID(), applyJobDto(nil))
 	if !errors.Is(err, ErrUnknownSubject) {
 		t.Errorf("want ErrUnknownSubject, got %v", err)
 	}
@@ -161,71 +156,6 @@ func TestApplyJob_UnknownSubReturnsUnknownSubject(t *testing.T) {
 	}
 	if repo.createCalls != 0 {
 		t.Errorf("Create MUST NOT be called on unknown sub; got %d calls", repo.createCalls)
-	}
-}
-
-// --- TestApplyJob_CoverLetterEmpty / _TooLong / _Exactly2000 --------------
-
-// TestApplyJob_CoverLetterEmpty: whitespace-only cover_letter → ErrCoverLetterEmpty.
-func TestApplyJob_CoverLetterEmpty(t *testing.T) {
-	repo := &stubApplicationRepo{}
-	userRepo := &stubUserRepo{}
-	makeUserStub(t, userRepo, "sub-1", makeCandidateID())
-	svc := NewApplicationService(repo, userRepo)
-
-	cover := "   "
-	got, err := svc.ApplyJob(context.Background(), "sub-1", makeJobID(), applyJobDto(nil, &cover))
-	if !errors.Is(err, entities_ErrCoverLetterEmpty()) {
-		t.Errorf("want ErrCoverLetterEmpty, got %v", err)
-	}
-	if got != nil {
-		t.Errorf("want nil application, got %v", got)
-	}
-	if repo.createCalls != 0 {
-		t.Errorf("Create MUST NOT be called on empty cover_letter; got %d calls", repo.createCalls)
-	}
-}
-
-// TestApplyJob_CoverLetterTooLong: 2001-char cover_letter → ErrCoverLetterTooLong.
-func TestApplyJob_CoverLetterTooLong(t *testing.T) {
-	repo := &stubApplicationRepo{}
-	userRepo := &stubUserRepo{}
-	makeUserStub(t, userRepo, "sub-1", makeCandidateID())
-	svc := NewApplicationService(repo, userRepo)
-
-	cover := strings.Repeat("a", 2001)
-	got, err := svc.ApplyJob(context.Background(), "sub-1", makeJobID(), applyJobDto(nil, &cover))
-	if !errors.Is(err, entities_ErrCoverLetterTooLong()) {
-		t.Errorf("want ErrCoverLetterTooLong, got %v", err)
-	}
-	if got != nil {
-		t.Errorf("want nil application, got %v", got)
-	}
-	if repo.createCalls != 0 {
-		t.Errorf("Create MUST NOT be called on too-long cover_letter; got %d calls", repo.createCalls)
-	}
-}
-
-// TestApplyJob_CoverLetterExactly2000: boundary inclusive — accepted.
-func TestApplyJob_CoverLetterExactly2000(t *testing.T) {
-	repo := &stubApplicationRepo{}
-	userRepo := &stubUserRepo{}
-	makeUserStub(t, userRepo, "sub-1", makeCandidateID())
-	svc := NewApplicationService(repo, userRepo)
-
-	cover := strings.Repeat("a", 2000)
-	got, err := svc.ApplyJob(context.Background(), "sub-1", makeJobID(), applyJobDto(nil, &cover))
-	if err != nil {
-		t.Fatalf("ApplyJob: unexpected err at 2000-char boundary %v", err)
-	}
-	if got == nil {
-		t.Fatal("want non-nil application")
-	}
-	if repo.createCalls != 1 {
-		t.Errorf("Create calls: want 1 at boundary, got %d", repo.createCalls)
-	}
-	if repo.lastCreate.CoverLetter == nil || len(*repo.lastCreate.CoverLetter) != 2000 {
-		t.Errorf("CreateParams.CoverLetter: want 2000 chars stored, got %v", repo.lastCreate.CoverLetter)
 	}
 }
 
@@ -239,7 +169,7 @@ func TestApplyJob_UnknownSource(t *testing.T) {
 	svc := NewApplicationService(repo, userRepo)
 
 	source := "newspaper"
-	got, err := svc.ApplyJob(context.Background(), "sub-1", makeJobID(), applyJobDto(&source, nil))
+	got, err := svc.ApplyJob(context.Background(), "sub-1", makeJobID(), applyJobDto(&source))
 	if !errors.Is(err, valueobjects_ErrInvalidSource()) {
 		t.Errorf("want ErrInvalidSource, got %v", err)
 	}
@@ -269,7 +199,7 @@ func TestApplyJob_CreateErrorsPropagate(t *testing.T) {
 			makeUserStub(t, userRepo, "sub-1", makeCandidateID())
 			svc := NewApplicationService(repo, userRepo)
 
-			got, err := svc.ApplyJob(context.Background(), "sub-1", makeJobID(), applyJobDto(nil, nil))
+			got, err := svc.ApplyJob(context.Background(), "sub-1", makeJobID(), applyJobDto(nil))
 			if !errors.Is(err, c.err) {
 				t.Errorf("want errors.Is(., %v), got %v", c.err, err)
 			}
@@ -284,19 +214,16 @@ func TestApplyJob_CreateErrorsPropagate(t *testing.T) {
 
 // applyJobDto is a tiny builder for ApplyRequestDto. Implemented in
 // applyToJob.go to keep this file import-graph-clean.
-func applyJobDto(source *string, cover *string) applyJobDtoType {
-	return applyJobDtoType{Source: source, CoverLetter: cover}
+func applyJobDto(source *string) applyJobDtoType {
+	return applyJobDtoType{Source: source}
 }
 
-// entities_ErrCoverLetterEmpty / _ErrCoverLetterTooLong / _ErrJobNotApplicable /
-// _ErrAlreadyApplied resolve to the entities package sentinels via package-
+// entities_ErrJobNotApplicable / _ErrAlreadyApplied resolve to the entities package sentinels via package-
 // level function references (defined in the use-case files so the test
 // file does not import the entities package directly — the entities
 // package imports valueobjects, so we keep the test imports minimal).
-func entities_ErrCoverLetterEmpty() error   { return sentinelCoverLetterEmpty }
-func entities_ErrCoverLetterTooLong() error { return sentinelCoverLetterTooLong }
-func entities_ErrJobNotApplicable() error   { return sentinelJobNotApplicable }
-func entities_ErrAlreadyApplied() error     { return sentinelAlreadyApplied }
+func entities_ErrJobNotApplicable() error { return sentinelJobNotApplicable }
+func entities_ErrAlreadyApplied() error   { return sentinelAlreadyApplied }
 
 // valueobjects_ErrInvalidSource resolves to the valueobjects package sentinel.
 func valueobjects_ErrInvalidSource() error { return sentinelInvalidSource }

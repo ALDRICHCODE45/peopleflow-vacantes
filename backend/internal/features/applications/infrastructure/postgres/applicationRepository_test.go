@@ -201,15 +201,15 @@ func TestMapGetError(t *testing.T) {
 // --- TestBuildCreateApplicationParams ------------------------------------
 
 // TestBuildCreateApplicationParams pins the D1 pgtype marshaling:
-//   - nil *source / *cover_letter → invalid pgtypes (SQL NULL)
-//   - non-nil → valid pgtypes with the canonical String()
+//   - nil *source → invalid pgtype (SQL NULL)
+//   - non-nil → valid pgtype with the canonical String()
 func TestBuildCreateApplicationParams(t *testing.T) {
 	id := uuid.MustParse("018e0000-0000-7000-8000-000000000111")
 	jobID := uuid.MustParse("018e0000-0000-7000-8000-000000000112")
 	candidateID := uuid.MustParse("018e0000-0000-7000-8000-000000000113")
 
-	t.Run("all optionals absent → invalid pgtypes", func(t *testing.T) {
-		got := buildCreateApplicationParams(id, jobID, candidateID, nil, nil)
+	t.Run("source absent → invalid pgtype", func(t *testing.T) {
+		got := buildCreateApplicationParams(id, jobID, candidateID, nil)
 		if got.ID != id {
 			t.Errorf("ID: want %v, got %v", id, got.ID)
 		}
@@ -222,20 +222,13 @@ func TestBuildCreateApplicationParams(t *testing.T) {
 		if got.Source.Valid {
 			t.Errorf("Source: want invalid, got %+v", got.Source)
 		}
-		if got.CoverLetter.Valid {
-			t.Errorf("CoverLetter: want invalid, got %+v", got.CoverLetter)
-		}
 	})
 
-	t.Run("all optionals present → valid pgtypes", func(t *testing.T) {
+	t.Run("source present → valid pgtype", func(t *testing.T) {
 		src := applicationsvalueobjects.LinkedIn
-		cover := "Hi team!"
-		got := buildCreateApplicationParams(id, jobID, candidateID, &src, &cover)
+		got := buildCreateApplicationParams(id, jobID, candidateID, &src)
 		if !got.Source.Valid || got.Source.String != "linkedin" {
 			t.Errorf("Source: want valid+linkedin, got %+v", got.Source)
-		}
-		if !got.CoverLetter.Valid || got.CoverLetter.String != "Hi team!" {
-			t.Errorf("CoverLetter: want valid+%q, got %+v", "Hi team!", got.CoverLetter)
 		}
 	})
 }
@@ -286,7 +279,6 @@ func TestToApplicationEntity(t *testing.T) {
 			CandidateID: candidateID,
 			Status:      "submitted",
 			Source:      pgtype.Text{String: "linkedin", Valid: true},
-			CoverLetter: pgtype.Text{String: "Hi", Valid: true},
 			CreatedAt:   pgtype.Timestamptz{Time: pub, Valid: true},
 			UpdatedAt:   pgtype.Timestamptz{Time: pub, Valid: true},
 		}
@@ -309,22 +301,18 @@ func TestToApplicationEntity(t *testing.T) {
 		if got.Source == nil || *got.Source != applicationsvalueobjects.LinkedIn {
 			t.Errorf("Source: want LinkedIn, got %v", got.Source)
 		}
-		if got.CoverLetter == nil || *got.CoverLetter != "Hi" {
-			t.Errorf("CoverLetter: want %q, got %v", "Hi", got.CoverLetter)
-		}
 		if !got.CreatedAt.Equal(pub) {
 			t.Errorf("CreatedAt: want %v, got %v", pub, got.CreatedAt)
 		}
 	})
 
-	t.Run("optionals absent → nil pointers", func(t *testing.T) {
+	t.Run("source absent → nil pointer", func(t *testing.T) {
 		row := db.CreateApplicationRow{
 			ID:          id,
 			JobID:       jobID,
 			CandidateID: candidateID,
 			Status:      "submitted",
 			Source:      pgtype.Text{Valid: false},
-			CoverLetter: pgtype.Text{Valid: false},
 			CreatedAt:   pgtype.Timestamptz{Time: pub, Valid: true},
 			UpdatedAt:   pgtype.Timestamptz{Time: pub, Valid: true},
 		}
@@ -334,9 +322,6 @@ func TestToApplicationEntity(t *testing.T) {
 		}
 		if got.Source != nil {
 			t.Errorf("Source: want nil, got %v", *got.Source)
-		}
-		if got.CoverLetter != nil {
-			t.Errorf("CoverLetter: want nil, got %v", *got.CoverLetter)
 		}
 	})
 

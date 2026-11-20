@@ -102,7 +102,7 @@ func (r *ApplicationRepository) Create(
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	row, err := db.New(tx).CreateApplication(ctx, buildCreateApplicationParams(
-		p.ID, p.JobID, p.CandidateID, p.Source, p.CoverLetter,
+		p.ID, p.JobID, p.CandidateID, p.Source,
 	))
 	if err != nil {
 		return nil, mapCreateError(err) // gate miss / duplicate / FK / CHECK → 404/409/400, no event
@@ -264,22 +264,20 @@ func (r *ApplicationRepository) Transition(
 // sqlc `CreateApplicationParams` struct. The arg order is pinned by the
 // SQL first-textual-appearance order:
 //
-//	id, job_id, candidate_id, source, cover_letter
+//	id, job_id, candidate_id, source
 //
-// sqlc.narg columns (source / cover_letter) are pgtype.Text: nil pointer
-// → invalid pgtype (SQL NULL); non-nil pointer → valid pgtype carrying
-// the canonical String() form.
+// The sqlc.narg column source is a pgtype.Text: nil pointer → invalid
+// pgtype (SQL NULL); non-nil pointer → valid pgtype carrying the canonical
+// String() form.
 func buildCreateApplicationParams(
 	id, jobID, candidateID uuid.UUID,
 	source *applicationsvalueobjects.ApplicationSource,
-	coverLetter *string,
 ) db.CreateApplicationParams {
 	return db.CreateApplicationParams{
 		ID:          id,
 		JobID:       jobID,
 		CandidateID: candidateID,
 		Source:      sourcePtrToText(source),
-		CoverLetter: stringPtrToText(coverLetter),
 	}
 }
 
@@ -314,30 +312,21 @@ func sourcePtrToText(s *applicationsvalueobjects.ApplicationSource) pgtype.Text 
 	return pgtype.Text{String: s.String(), Valid: true}
 }
 
-// stringPtrToText folds a `*string` into a `pgtype.Text`. nil → invalid
-// (SQL NULL); non-nil → valid carrying the trimmed value.
-func stringPtrToText(s *string) pgtype.Text {
-	if s == nil {
-		return pgtype.Text{}
-	}
-	return pgtype.Text{String: *s, Valid: true}
-}
-
 // --- mappers -------------------------------------------------------------
 
 // toApplication rebuilds a domain Application from a sqlc row.
 // CreateApplicationRow and TransitionStatusRow have the same column list
-// (the eight application columns), so they share this mapper.
+// (the seven application columns), so they share this mapper.
 //
 // VOs are reconstructed via Parse* so an unrecognized DB value (which
 // would only happen if someone bypassed the CHECK constraint) FAILS LOUD
 // rather than silently zeroing — a corrupted row never reaches the wire.
-// Optional DB columns (Source, CoverLetter) translate to pointers through
-// the pgtype `Valid` flag.
+// The optional DB column Source translates to a pointer through the pgtype
+// `Valid` flag.
 func toApplication(row db.CreateApplicationRow) (entities.Application, error) {
 	return toApplicationFromFields(
 		row.ID, row.JobID, row.CandidateID, row.Status,
-		row.Source, row.CoverLetter,
+		row.Source,
 		row.CreatedAt, row.UpdatedAt,
 	)
 }
@@ -347,7 +336,7 @@ func toApplication(row db.CreateApplicationRow) (entities.Application, error) {
 func toApplicationFromTransitionRow(row db.TransitionStatusRow) (entities.Application, error) {
 	return toApplicationFromFields(
 		row.ID, row.JobID, row.CandidateID, row.Status,
-		row.Source, row.CoverLetter,
+		row.Source,
 		row.CreatedAt, row.UpdatedAt,
 	)
 }
@@ -358,7 +347,6 @@ func toApplicationFromFields(
 	id, jobID, candidateID uuid.UUID,
 	status string,
 	source pgtype.Text,
-	coverLetter pgtype.Text,
 	createdAt, updatedAt pgtype.Timestamptz,
 ) (entities.Application, error) {
 	st, err := applicationsvalueobjects.ParseApplicationStatus(status)
@@ -392,10 +380,6 @@ func toApplicationFromFields(
 		}
 		app.Source = &v
 	}
-	if coverLetter.Valid {
-		v := coverLetter.String
-		app.CoverLetter = &v
-	}
 	return app, nil
 }
 
@@ -410,7 +394,7 @@ func toApplicationFromFields(
 func toApplicationWithCandidate(row db.GetApplicationByIDRow) (entities.ApplicationWithCandidate, error) {
 	return toApplicationWithCandidateFromFields(
 		row.ID, row.JobID, row.CandidateID, row.Status,
-		row.Source, row.CoverLetter,
+		row.Source,
 		row.CreatedAt, row.UpdatedAt,
 		row.CandidateID, row.CandidateFullName,
 		row.CandidateProfessionalTitle, row.CandidateYearsOfExperience,
@@ -422,7 +406,7 @@ func toApplicationWithCandidate(row db.GetApplicationByIDRow) (entities.Applicat
 func toApplicationWithCandidateFromListByJobRow(row db.ListApplicationsByJobRow) (entities.ApplicationWithCandidate, error) {
 	return toApplicationWithCandidateFromFields(
 		row.ID, row.JobID, row.CandidateID, row.Status,
-		row.Source, row.CoverLetter,
+		row.Source,
 		row.CreatedAt, row.UpdatedAt,
 		row.CandidateID, row.CandidateFullName,
 		row.CandidateProfessionalTitle, row.CandidateYearsOfExperience,
@@ -434,7 +418,6 @@ func toApplicationWithCandidateFromFields(
 	id, jobID, candidateID uuid.UUID,
 	status string,
 	source pgtype.Text,
-	coverLetter pgtype.Text,
 	createdAt, updatedAt pgtype.Timestamptz,
 	snippetUserID uuid.UUID,
 	snippetFullName string,
@@ -443,7 +426,7 @@ func toApplicationWithCandidateFromFields(
 ) (entities.ApplicationWithCandidate, error) {
 	app, err := toApplicationFromFields(
 		id, jobID, candidateID, status,
-		source, coverLetter,
+		source,
 		createdAt, updatedAt,
 	)
 	if err != nil {
@@ -478,7 +461,7 @@ func toApplicationWithCandidateFromFields(
 func toMyApplication(row db.ListMyApplicationsRow) (entities.MyApplication, error) {
 	app, err := toApplicationFromFields(
 		row.ID, row.JobID, row.CandidateID, row.Status,
-		row.Source, row.CoverLetter,
+		row.Source,
 		row.CreatedAt, row.UpdatedAt,
 	)
 	if err != nil {
