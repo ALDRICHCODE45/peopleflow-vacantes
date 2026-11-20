@@ -36,7 +36,7 @@ Contract: `docs/contracts/replacement-processes-v1.md` (draft first, reviewed by
 ## Tasks
 
 - [x] T1 (S1-S10) Contract `docs/contracts/replacement-processes-v1.md` — 5db541ad, cfb4c49a, e715a257; closed by the frontend review (L9).
-- [x] T2 R1 Migration 00063 + chain primitives (S1, S8) — commit `feat(replacements): migration 00063 and chain primitives (R1)` (hash in the git log: a commit cannot cite its own). Risk: item 1.
+- [x] T2 R1 Migration 00063 + chain primitives (S1, S8) — commit 0a4b923b. Risk: item 1.
 - [ ] T3 R2 Lifecycle read side + reopen guards + list keys/filter (S6, S8, S10) — after frontend deploy step 1.
 - [ ] T4 R3a Start: clone + process + links + finish source (S1-S3, S8).
 - [ ] T5 R3b Carried candidates (S5).
