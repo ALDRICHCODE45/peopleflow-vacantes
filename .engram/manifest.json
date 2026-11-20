@@ -360,6 +360,14 @@
       "sessions": 233,
       "memories": 24,
       "prompts": 0
+    },
+    {
+      "id": "a9c2c1a1",
+      "created_by": "aldrich_coder45",
+      "created_at": "2026-11-20T03:31:58.239014827Z",
+      "sessions": 13,
+      "memories": 5,
+      "prompts": 0
     }
   ]
 }
