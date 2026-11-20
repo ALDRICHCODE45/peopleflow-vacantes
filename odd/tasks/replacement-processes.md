@@ -49,3 +49,8 @@ writes it; frontend reviews before implementation).
   entrar directo a Placement (rec.)». Frontend block: «Si cerró cubierta: reemplazo, no reabrir (Recomendado)»; «Con el
   proceso cerrado, solo «No se sostuvo» (Recomendado)»; «En cualquier etapa menos Placement (Recomendado)»; «Mismos
   estados con insignia «Reemplazo» (Recomendado)»; «Una vacante lógica, reemplazo separado (Recomendado)».
+- **L4** T2 (worker): `design/replacement-processes/` with `01-dialogo-en-pasos.html` (3-step dialog from «Acciones»),
+  `02-pagina-de-configuracion.html` (full page, board alert, sticky summary), `03-hoja-lateral.html` (side sheet, header
+  CTA); desktop 1440 + 390, light/dark; no overflow, axe 0 violations. Contract review (T1): 13 observations sent to the
+  backend (carry-candidates read, deployment order for strict schemas, source must be finished, only the latest closed
+  process offers the start, reopen hidden while a replacement is active, publish readiness, error fields, root filter).

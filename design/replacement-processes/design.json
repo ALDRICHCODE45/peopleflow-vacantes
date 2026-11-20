@@ -1,0 +1,28 @@
+{
+  "title": "Procesos de reemplazo vinculados a la vacante original",
+  "brief": "T2 · Propuestas del flujo «Iniciar reemplazo» del lado empleador: baja tardía «No se sostuvo», bajas a reemplazar, condiciones, candidatos retomados con etapa inicial, privado/publicar y el resultado (insignia «Reemplazo» y vínculo original ↔ reemplazo). Tres direcciones estructurales, cada una en escritorio 1440 y móvil 390 en el mismo archivo, con muestra en oscuro. Español de México, datos ilustrativos, acciones inertes y tokens de design/system.md. Ninguna dirección está elegida todavía.",
+  "feature": "odd/tasks/replacement-processes.md",
+  "artboards": [
+    {
+      "file": "01-dialogo-en-pasos.html",
+      "title": "01 · Diálogo en pasos · S1–S6",
+      "tradeoff": "Flujo lineal y familiar, con un solo punto de entrada; los candidatos quedan en el último paso y no se ven a la vez que las condiciones.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-pagina-de-configuracion.html",
+      "title": "02 · Página de configuración · S1–S6",
+      "tradeoff": "Da espacio para comparar candidatos y ver el resultado antes de confirmar; implica salir del tablero y una ruta nueva.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-hoja-lateral.html",
+      "title": "03 · Hoja lateral · S1–S6",
+      "tradeoff": "Conserva el contexto y es compacta, pero el selector de candidatos queda a un toque de distancia y el espacio para comparar es menor.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}
