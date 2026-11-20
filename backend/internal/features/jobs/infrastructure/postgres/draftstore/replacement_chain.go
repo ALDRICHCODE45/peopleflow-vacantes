@@ -22,6 +22,8 @@ type chainProcess struct {
 	Sequence      int32
 	Status        string
 	ProcessStatus string
+	// Source is the process the replacement was started from; uuid.Nil for the original.
+	Source uuid.UUID
 }
 
 // replacementChain is the logical vacancy: Root is the original process and
@@ -65,9 +67,21 @@ func readReplacementChain(ctx context.Context, q db.DBTX, company, process uuid.
 	}
 	chain := replacementChain{Root: rows[0].RootProcessID, Processes: make([]chainProcess, len(rows))}
 	for i, row := range rows {
-		chain.Processes[i] = chainProcess{ID: row.ProcessID, Sequence: row.Sequence, Status: row.Status, ProcessStatus: row.ProcessStatus}
+		chain.Processes[i] = chainProcess{ID: row.ProcessID, Sequence: row.Sequence, Status: row.Status, ProcessStatus: row.ProcessStatus, Source: row.SourceProcessID.Bytes}
 	}
 	return chain, true, nil
+}
+
+// successor is the replacement started from `process` (A7), with the highest
+// sequence when several were; uuid.Nil when there is none.
+func (c replacementChain) successor(process uuid.UUID) uuid.UUID {
+	var found chainProcess
+	for _, p := range c.Processes {
+		if p.Source == process && p.Sequence > found.Sequence {
+			found = p
+		}
+	}
+	return found.ID
 }
 
 // readReplacementSuccessor is the replacement started from `process`, if any (A7).

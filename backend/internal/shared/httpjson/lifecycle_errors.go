@@ -29,11 +29,14 @@ func resolveLifecycleError(code Code) (Definition, bool) {
 	return Definition{}, false
 }
 
-// WriteLifecycleError is the sole envelope writer for lifecycle conflicts.
-// Other catalog codes cannot acquire lifecycle data through this seam.
+// WriteLifecycleError is the sole envelope writer for lifecycle conflicts,
+// including the replacement family (replacement_errors.go). Other catalog codes
+// cannot acquire lifecycle data through this seam.
 func WriteLifecycleError(w http.ResponseWriter, def Definition, data any) {
 	def = normalizeDefinition(def)
-	if _, ok := resolveLifecycleError(def.Code); !ok {
+	_, lifecycle := resolveLifecycleError(def.Code)
+	_, replacement := resolveReplacementError(def.Code)
+	if !lifecycle && !replacement {
 		WriteCatalogError(w, def)
 		return
 	}

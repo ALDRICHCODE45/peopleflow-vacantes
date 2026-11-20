@@ -37,9 +37,12 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	// aggregation is restricted to those IDs, in this same SQL statement/snapshot.
 	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields,
  d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at, p.paused_at, p.closed_at, p.process_finished_at,
- c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note, ` + teamSummarySQL + ` AS team
+ c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note, ` + teamSummarySQL + ` AS team,
+ COALESCE(vr.root_process_id, d.id) AS root_process_id, vr.sequence, vr.source_process_id, pp.id IS NOT NULL AS has_projection
  FROM job_drafts d
  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
+ LEFT JOIN vacancy_replacements vr ON vr.process_id = d.id AND vr.company_id = d.company_id
+ LEFT JOIN vacancy_public_projections pp ON pp.id = d.id
  LEFT JOIN job_draft_pipeline_configs c ON c.draft_id = d.id
  LEFT JOIN LATERAL (
   SELECT reason, reason_note FROM vacancy_lifecycle_events
@@ -82,12 +85,15 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 		document, pipeline, counts, team []byte
 		pipelineVersion                  *int64
 		requesterName                    *string
+		sequence                         *int32
+		source                           *uuid.UUID
+		hasProjection                    bool
 	}
 	projections := make([]projection, 0, req.Limit+1)
 	for rows.Next() {
 		var item draftlist.Item
 		var p projection
-		if err := rows.Scan(&item.ID, &p.document, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.team, &p.counts, &p.requesterName); err != nil {
+		if err := rows.Scan(&item.ID, &p.document, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.team, &item.RootProcessID, &p.sequence, &p.source, &p.hasProjection, &p.counts, &p.requesterName); err != nil {
 			rows.Close()
 			return draftlist.Page{}, fmt.Errorf("scan list v2 draft: %w", err)
 		}
@@ -119,6 +125,18 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 			return draftlist.Page{}, fmt.Errorf("decode list team: %w", err)
 		}
 		p := projections[i]
+		page.Items[i].Kind = "original"
+		if p.sequence != nil {
+			seq := int(*p.sequence)
+			page.Items[i].Kind, page.Items[i].Sequence, page.Items[i].ReplacementOf = "replacement", &seq, p.source
+		}
+		if page.Items[i].Process != nil {
+			visibility := "private"
+			if p.hasProjection {
+				visibility = "public"
+			}
+			page.Items[i].Visibility = &visibility
+		}
 		document := p.document
 		if page.Items[i].Process != nil {
 			config := pipelineconfig.Defaults(page.Items[i].ID)

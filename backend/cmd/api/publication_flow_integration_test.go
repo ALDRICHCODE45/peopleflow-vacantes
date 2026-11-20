@@ -105,6 +105,7 @@ func TestPublicationFlowReadyPublishReplayVersionsAuditAndList(t *testing.T) {
 	items[0].(map[string]any)["status"] = "published"
 	items[0].(map[string]any)["process"] = "active"
 	items[0].(map[string]any)["published_at"] = obj["publishedAt"]
+	items[0].(map[string]any)["visibility"] = "public"
 	stages := []any{}
 	for _, stage := range pipelineconfig.Defaults(uuid.MustParse(id)).Stages {
 		stages = append(stages, map[string]any{"id": stage.ID, "kind": stage.Kind, "name": stage.Name, "count": float64(0)})

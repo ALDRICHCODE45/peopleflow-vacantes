@@ -256,7 +256,8 @@ type Querier interface {
 	ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error)
 	// The whole chain of the logical vacancy `process_id` belongs to: the root first
 	// (sequence 0, it has no vacancy_replacements row), then the replacements by
-	// sequence. Empty when the process does not exist in the company.
+	// sequence. source_process_id is NULL for the root. Empty when the process does
+	// not exist in the company.
 	ListReplacementChain(ctx context.Context, arg ListReplacementChainParams) ([]ListReplacementChainRow, error)
 	// Fallen credits (did_not_hold) of any process of the chain rooted at `root_process_id`
 	// that no replacement has taken yet.

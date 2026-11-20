@@ -38,8 +38,14 @@ func assertPublicationResourceUnchanged(t *testing.T, before, after drafts.Resul
 		initial := lifecycleViewOf(t, drafts.Result{Body: mustCanonical(t, envelopeOf(t, before.Body)["lifecycle"])})
 		current := lifecycleViewOf(t, drafts.Result{Body: mustCanonical(t, envelopeOf(t, after.Body)["lifecycle"])})
 		publication, process, at := "published", "active", fixedDeliveryClock().UTC().Format(timestampLayout)
-		wantBefore := lifecycle.View{Version: "0", AllowedActions: []string{"publish"}}
-		wantAfter := lifecycle.View{Publication: &publication, Process: &process, Version: "1", PublishedAt: &at, AllowedActions: []string{"pause", "close"}}
+		// The replacement keys of an original that never had a chain: rooted at itself, not startable.
+		notClosed, public := lifecycle.BlockerSourceNotClosed, "public"
+		wantBefore := lifecycle.View{Version: "0", AllowedActions: []string{"publish"}, Kind: "original", RootProcessID: initial.RootProcessID, StartReplacementBlocker: &notClosed}
+		wantAfter := lifecycle.View{Publication: &publication, Process: &process, Version: "1", PublishedAt: &at, AllowedActions: []string{"pause", "close"},
+			Kind: "original", RootProcessID: current.RootProcessID, Visibility: &public, StartReplacementBlocker: &notClosed}
+		if _, err := uuid.Parse(initial.RootProcessID); err != nil || initial.RootProcessID != current.RootProcessID {
+			t.Fatalf("root_process_id before=%q after=%q", initial.RootProcessID, current.RootProcessID)
+		}
 		if !reflect.DeepEqual(initial, wantBefore) || !reflect.DeepEqual(current, wantAfter) {
 			t.Fatalf("publication lifecycle: before=%+v after=%+v", initial, current)
 		}
@@ -72,7 +78,7 @@ func TestLifecycleEffectsConfigurationAndEmbeddedViews(t *testing.T) {
 					t.Fatal("embedded view drift", err, string(result.Body))
 				}
 				var keys map[string]any
-				if err = json.Unmarshal(root["lifecycle"], &keys); err != nil || len(keys) != 10 {
+				if err = json.Unmarshal(root["lifecycle"], &keys); err != nil || len(keys) != 20 {
 					t.Fatal("lifecycle wire keys", keys, err)
 				}
 			}

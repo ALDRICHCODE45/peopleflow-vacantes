@@ -65,6 +65,11 @@ type draftListItem struct {
 	Candidates        *draftListCandidates `json:"candidates"`
 	CreatedAt         string               `json:"created_at"`
 	UpdatedAt         string               `json:"updated_at"`
+	Kind              string               `json:"kind"`
+	Sequence          *int                 `json:"sequence"`
+	ReplacementOf     *string              `json:"replacement_of"`
+	RootProcessID     string               `json:"root_process_id"`
+	Visibility        *string              `json:"visibility"`
 }
 
 type draftListPage struct {
@@ -126,6 +131,14 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 		ProcessFinishedAt: draftListTimestamp(item.ProcessFinishedAt),
 		CreatedAt:         item.CreatedAt.UTC().Format(draftListTimestampLayout),
 		UpdatedAt:         item.UpdatedAt.UTC().Format(draftListTimestampLayout),
+		Kind:              item.Kind,
+		Sequence:          item.Sequence,
+		RootProcessID:     item.RootProcessID.String(),
+		Visibility:        item.Visibility,
+	}
+	if item.ReplacementOf != nil {
+		source := item.ReplacementOf.String()
+		out.ReplacementOf = &source
 	}
 	if item.Candidates != nil {
 		c := item.Candidates

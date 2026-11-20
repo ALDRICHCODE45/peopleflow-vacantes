@@ -69,7 +69,7 @@ WITH root AS (
     WHERE p.id = $2 AND p.company_id = $1
 )
 SELECT p.id AS process_id, root.id AS root_process_id, COALESCE(r.sequence, 0)::int AS sequence,
-    p.status, p.process_status
+    p.status, p.process_status, r.source_process_id
 FROM root
 JOIN vacancy_processes p ON p.company_id = $1
 LEFT JOIN vacancy_replacements r ON r.process_id = p.id
@@ -83,16 +83,18 @@ type ListReplacementChainParams struct {
 }
 
 type ListReplacementChainRow struct {
-	ProcessID     uuid.UUID `json:"process_id"`
-	RootProcessID uuid.UUID `json:"root_process_id"`
-	Sequence      int32     `json:"sequence"`
-	Status        string    `json:"status"`
-	ProcessStatus string    `json:"process_status"`
+	ProcessID       uuid.UUID   `json:"process_id"`
+	RootProcessID   uuid.UUID   `json:"root_process_id"`
+	Sequence        int32       `json:"sequence"`
+	Status          string      `json:"status"`
+	ProcessStatus   string      `json:"process_status"`
+	SourceProcessID pgtype.UUID `json:"source_process_id"`
 }
 
 // The whole chain of the logical vacancy `process_id` belongs to: the root first
 // (sequence 0, it has no vacancy_replacements row), then the replacements by
-// sequence. Empty when the process does not exist in the company.
+// sequence. source_process_id is NULL for the root. Empty when the process does
+// not exist in the company.
 func (q *Queries) ListReplacementChain(ctx context.Context, arg ListReplacementChainParams) ([]ListReplacementChainRow, error) {
 	rows, err := q.db.Query(ctx, listReplacementChain, arg.CompanyID, arg.ProcessID)
 	if err != nil {
@@ -108,6 +110,7 @@ func (q *Queries) ListReplacementChain(ctx context.Context, arg ListReplacementC
 			&i.Sequence,
 			&i.Status,
 			&i.ProcessStatus,
+			&i.SourceProcessID,
 		); err != nil {
 			return nil, err
 		}

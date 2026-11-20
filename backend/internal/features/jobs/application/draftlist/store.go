@@ -60,6 +60,15 @@ type Item struct {
 	Candidates        *Candidates // nil exactly when the draft has never been published
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+
+	// Replacement keys (docs/contracts/replacement-processes-v1.md, «Draft list»).
+	// Sequence and ReplacementOf are nil for an original, whose root is its own
+	// id; Visibility is nil for a draft that never published.
+	Kind          string
+	Sequence      *int
+	ReplacementOf *uuid.UUID
+	RootProcessID uuid.UUID
+	Visibility    *string
 }
 
 // Page is one list page. NextCursor is empty on the last page.

@@ -1,7 +1,8 @@
 -- name: ListReplacementChain :many
 -- The whole chain of the logical vacancy `process_id` belongs to: the root first
 -- (sequence 0, it has no vacancy_replacements row), then the replacements by
--- sequence. Empty when the process does not exist in the company.
+-- sequence. source_process_id is NULL for the root. Empty when the process does
+-- not exist in the company.
 WITH root AS (
     SELECT COALESCE(r.root_process_id, p.id)::uuid AS id
     FROM vacancy_processes p
@@ -9,7 +10,7 @@ WITH root AS (
     WHERE p.id = @process_id AND p.company_id = @company_id
 )
 SELECT p.id AS process_id, root.id AS root_process_id, COALESCE(r.sequence, 0)::int AS sequence,
-    p.status, p.process_status
+    p.status, p.process_status, r.source_process_id
 FROM root
 JOIN vacancy_processes p ON p.company_id = @company_id
 LEFT JOIN vacancy_replacements r ON r.process_id = p.id

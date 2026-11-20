@@ -61,3 +61,21 @@ func TestClosedCoveredNeedsClosedAndFilledReason(t *testing.T) {
 		}
 	}
 }
+
+func TestReplacementChainSuccessorFollowsTheSourceLink(t *testing.T) {
+	root, first, second, third := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	chain := chainOf(
+		chainProcess{ID: root},
+		chainProcess{ID: first, Sequence: 1, Source: root},
+		chainProcess{ID: second, Sequence: 2, Source: first},
+		chainProcess{ID: third, Sequence: 3, Source: root}, // two replacements started from the root: the later one wins
+	)
+	for process, want := range map[uuid.UUID]uuid.UUID{root: third, first: second, second: uuid.Nil, third: uuid.Nil} {
+		if got := chain.successor(process); got != want {
+			t.Errorf("successor(%s) = %s, want %s", process, got, want)
+		}
+	}
+	if got := chainOf(chainProcess{ID: root}).successor(root); got != uuid.Nil {
+		t.Fatalf("a lone original has no successor: %s", got)
+	}
+}

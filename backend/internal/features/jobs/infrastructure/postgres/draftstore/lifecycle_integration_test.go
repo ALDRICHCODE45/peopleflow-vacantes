@@ -106,6 +106,15 @@ func TestLifecycleDBEveryTransitionAndRejectionAtomic(t *testing.T) {
 						}
 					}
 					want, errWant := lifecycle.Transition(view, test.action, choice, fixedDeliveryClock())
+					// The pure transition only moves the axes. The replacement keys are
+					// derived from the chain after the write; GET below pins that they
+					// are the committed ones, and the replacement tests pin their values.
+					if err == nil {
+						got0 := lifecycleViewOf(t, got)
+						want.Visibility, want.Kind, want.Sequence, want.ReplacementOf, want.RootProcessID = got0.Visibility, got0.Kind, got0.Sequence, got0.ReplacementOf, got0.RootProcessID
+						want.ClosedCovered, want.CanStartReplacement, want.StartReplacementBlocker = got0.ClosedCovered, got0.CanStartReplacement, got0.StartReplacementBlocker
+						want.StartableCreditsCount, want.ActiveReplacementID = got0.StartableCreditsCount, got0.ActiveReplacementID
+					}
 					metadataKeys := 3
 					if test.action == "close" {
 						reason := "cancelled"
