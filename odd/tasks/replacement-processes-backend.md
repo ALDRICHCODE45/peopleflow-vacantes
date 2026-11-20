@@ -63,3 +63,18 @@ Contract: `docs/contracts/replacement-processes-v1.md` (draft first, reviewed by
   any process of the chain, A6 closed covered = latest close reason `filled`. Open question Q1: dashboard counts of a private
   active replacement.
 - **L6** User answers (asked by the backend session): Q1 «Sí, cuenta como vacante activa (recomendado)»; A1 «No, bloqueado mientras haya uno activo (recomendado)»; A3 «Sí, cuenta como entrega, igual que una carga manual (rec.)». A2/A4/A5/A6 accepted by the backend as technical. Next: frontend review of the contract.
+- **L7** 2026-11-19, backend worker: frontend review applied to `docs/contracts/replacement-processes-v1.md` (still DRAFT, T1 not done). The 13 points:
+  (1) `GET V/replacements` gains `carry_candidates[]` {candidate{kind,id,full_name}, process_id, participation_id, stage{kind,name}, discarded, eligible, reason?},
+  most-recent-participation rule, currently placed excluded; POST `stage_id` is chosen among the SOURCE process stages, the previous stage is shown by name only.
+  (2) New «Deployment order» section (frontend optional keys + new-409 decoders → backend R2/R6 emit → frontend required; local merge after or together) and an
+  explicit list of every `VacancyRef` carrier that gains `kind`/`root_draft_id`/`sequence` (metrics lists, `pipeline.top_vacancies`, `delays.overdue.top`,
+  dashboard rows; `overdue.top` disambiguated from the dashboard `attention.deliveries.top`). (3) Start from a closed-active source finishes it atomically
+  (`finish_process` event + `VacancyProcessFinished` `cause = replacement_started`); a finished source is accepted (D2, D15, errors, audit). (4) Only the latest
+  process of the chain can start (D14), `replacement_source_not_latest`. (5) `allowed_actions` drops `reopen` also when `active_replacement_id` is another process
+  (and, new A7 to confirm, when the process has a successor: `reopen_superseded`). (6) The departure discard returns an optional `lifecycle` object on placement
+  departures. (7) Errors: one `replacement_source_not_closed` entry with `data.lifecycle`; `replacement_already_active` with `data.lifecycle`;
+  `target_quantity` below the credit count → 400 `validation_error` with `fields[]`. (8) `publish_ready` + `missing[]` in `start_replacement`. (9) The vacancy-level vs
+  process-level table is NORMATIVE; `process_kind` absent = all, invalid → `invalid_filter`. (10) `root_process_id` filter on the draft list (cursor-bound).
+  (11) `stage_map` and `carried[].stage_id` are informative; the frontend decodes `{id, kind, lifecycle}` + headers. (12) The «Spec» column cites the feature doc's
+  S#; NOT remapped as requested (D2/D3=S1, D4=S5, D5=S4, …) because that mapping contradicts S1-S9 above (S4 is publication, S5 candidates); a sentence now states the
+  column's meaning. (13) Audit labels are the frontend's. Slices updated (R2 ~400, R3a ~450, R4 ~350, R5 ~250, R6 two slices, R7 folded into R6b).
