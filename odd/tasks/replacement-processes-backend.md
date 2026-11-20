@@ -62,3 +62,4 @@ Contract: `docs/contracts/replacement-processes-v1.md` (draft first, reviewed by
   participation on a finished process answers 404 on discard, A5 «assigned» counts a root if the recruiter has a tramo on
   any process of the chain, A6 closed covered = latest close reason `filled`. Open question Q1: dashboard counts of a private
   active replacement.
+- **L6** User answers (asked by the backend session): Q1 «Sí, cuenta como vacante activa (recomendado)»; A1 «No, bloqueado mientras haya uno activo (recomendado)»; A3 «Sí, cuenta como entrega, igual que una carga manual (rec.)». A2/A4/A5/A6 accepted by the backend as technical. Next: frontend review of the contract.

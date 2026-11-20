@@ -628,5 +628,7 @@ quotas.
 
 ## Decisions status
 
-Nothing here is approved yet. Review by the frontend session first; the user decides Q1 and confirms A1–A6 when the draft
-is accepted. Implementation slices start only after that.
+User answers (2026-11-19): Q1 «Sí, cuenta como vacante activa (recomendado)» — a private active replacement counts in
+«published vacancies» (logical vacancy still once). A1 «No, bloqueado mientras haya uno activo (recomendado)». A3 «Sí,
+cuenta como entrega, igual que una carga manual (rec.)». A2, A4, A5, A6 are technical and accepted by the backend session.
+Pending: review by the frontend session; implementation slices start only after that.
