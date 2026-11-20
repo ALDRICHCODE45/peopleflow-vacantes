@@ -81,6 +81,13 @@ export const recruiterDetailSchema = z.object({
  * Names confirmed by the backend (M1–M4): `responsible`, `closes[].reason` (null for legacy closes),
  * `delivered_by` (null for an organic application landing in the cutoff stage), `recipients[{ person, kind }]`.
  */
+/**
+ * replacement-processes-v1 «Metrics» (R6b): the flat `vacancies` rows (roots only) carry `replacements` — how many the logical
+ * vacancy started and the one still active — and the per-vacancy detail reads carry `process` beside `draft_id`. Both stay
+ * OPTIONAL (an old backend sends neither); a detail asked with another `process_kind` answers `items: []`.
+ */
+const replacementsSummarySchema = z.object({ count, active_draft_id: text.nullable() });
+const detailProcessSchema = z.object({ kind: processKindSchema, root_draft_id: text, sequence: z.number().int().positive().nullable() });
 export const deliveryResultSchema = z.enum(["on_time", "late", "overdue", "pending", "not_configured"]);
 export const vacancyRowSchema = z.object({
   draft_id: text, title: z.string().nullable(), requester: requesterSchema, responsible: personSchema.nullable(),
@@ -94,6 +101,7 @@ export const vacancyRowSchema = z.object({
   }),
   placements: z.object({ covered: count, required: count }),
   reassignments: count,
+  replacements: replacementsSummarySchema.optional(),
 });
 export const vacancyPageSchema = z.object({ ...envelope, items: z.array(vacancyRowSchema).max(100), next_cursor: z.string().nullable() });
 /**
@@ -110,8 +118,9 @@ export const reassignmentRowSchema = z.object({
 export const reassignmentPageSchema = z.object({ ...envelope, items: z.array(reassignmentRowSchema).max(100), next_cursor: z.string().nullable() });
 /** The candidate with the company's name correction applied (§3.7.9). */
 const candidateSchema = z.object({ id: text, full_name: z.string() });
-export const deliveriesSchema = z.object({ items: z.array(z.object({ candidate: candidateSchema, reached_at: timestamp, delivered_by: personSchema.nullable() })) });
+export const deliveriesSchema = z.object({ process: detailProcessSchema.optional(), items: z.array(z.object({ candidate: candidateSchema, reached_at: timestamp, delivered_by: personSchema.nullable() })) });
 export const placementsSchema = z.object({
+  process: detailProcessSchema.optional(),
   items: z.array(z.object({
     // Voided credits never appear (M3).
     candidate: candidateSchema, hired_at: timestamp, status: z.enum(["active", "did_not_hold"]),
@@ -202,6 +211,7 @@ export const vacancyListRowSchema = z.object({
   draft_id: text, title: z.string().nullable(), requester: requesterSchema, responsible: personSchema.nullable(), opened_at: timestamp.nullable(),
   last_close: z.object({ date: day, reason: z.enum(["filled", "cancelled", "other"]).nullable() }).nullable(),
   business_days_to_close: count.nullable(), closing_target: z.enum(["on_time", "late", "no_target"]).nullable(),
+  replacements: replacementsSummarySchema.optional(),
 });
 export const placementListRowSchema = z.object({
   credit_id: text, candidate: candidateSchema, vacancy: vacancyRefSchema, requester: requesterSchema,

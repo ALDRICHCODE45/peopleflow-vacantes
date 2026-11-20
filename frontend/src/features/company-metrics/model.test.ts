@@ -9,7 +9,7 @@ import { deliveryListSchema, placementListSchema, reassignmentListSchema, vacanc
 import { deliveryList, placementList, reassignmentList, vacancyList } from "./test-fixtures";
 import { applicationListSchema, candidateListSchema, pipelineSchema, STAGE_KIND_LABEL } from "./model";
 import { applicationList, candidateList, pipeline } from "./test-fixtures";
-import { card, carlos, clientId, deliveries, fernanda, placements, recruiterDetail, recruiterPage, summary, vacancyPage, vacancyRow } from "./test-fixtures";
+import { card, carlos, clientId, draftId, deliveries, fernanda, placements, recruiterDetail, recruiterPage, summary, vacancyPage, vacancyRow } from "./test-fixtures";
 
 describe("contract decoding", () => {
   it("accepts the §3.1 summary and rejects drift instead of rendering it", () => {
@@ -247,5 +247,46 @@ describe("replacement keys on the non-strict list vacancy refs and the process_k
   it("ignores facets.process_kind instead of failing on it", () => {
     const page = { ...deliveryList(), facets: { ...deliveryList().facets, process_kind: { original: 3, replacement: 1 } } };
     expect(() => deliveryListSchema.parse(page)).not.toThrow();
+  });
+});
+
+describe("R6 keys: vacancies `replacements`, detail `process`, and the empty detail of another process_kind", () => {
+  const root = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+  const replacements = { count: 2, active_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f" };
+  const noActive = { count: 0, active_draft_id: null };
+  const processes = [{ kind: "original", root_draft_id: root, sequence: null }, { kind: "replacement", root_draft_id: root, sequence: 1 }];
+
+  it.each([replacements, noActive])("keeps `replacements` on the flat vacancies rows (list and v1 page) with %j", extra => {
+    const list = vacancyList(); const page = vacancyPage();
+    expect(vacancyListSchema.parse({ ...list, items: list.items.map(row => ({ ...row, replacements: extra })) }).items[0].replacements).toEqual(extra);
+    expect(vacancyPageSchema.parse({ ...page, items: page.items.map(row => ({ ...row, replacements: extra })) }).items[0].replacements).toEqual(extra);
+  });
+
+  it("parses the vacancies rows without `replacements` exactly as before", () => {
+    expect(vacancyListSchema.parse(vacancyList())).toEqual(vacancyList());
+    expect(vacancyListSchema.parse(vacancyList()).items[0]).not.toHaveProperty("replacements");
+    expect(vacancyPageSchema.parse(vacancyPage())).toEqual(vacancyPage());
+  });
+
+  it.each([{ count: -1, active_draft_id: null }, { count: 1.5, active_draft_id: null }, { count: 1 }, { count: 1, active_draft_id: 7 }])("rejects bad `replacements` %j", bad => {
+    const list = vacancyList();
+    expect(vacancyListSchema.safeParse({ ...list, items: list.items.map(row => ({ ...row, replacements: bad })) }).success).toBe(false);
+  });
+
+  it.each(processes)("keeps the header `process` on the per-vacancy deliveries and placements with %j", process => {
+    expect(deliveriesSchema.parse({ ...deliveries(), draft_id: draftId, process }).process).toEqual(process);
+    expect(placementsSchema.parse({ ...placements(), draft_id: draftId, process }).process).toEqual(process);
+  });
+
+  it("parses the detail without `process` exactly as before and accepts the empty items of another process_kind", () => {
+    expect(deliveriesSchema.parse(deliveries())).toEqual(deliveries());
+    expect(deliveriesSchema.parse(deliveries())).not.toHaveProperty("process");
+    expect(deliveriesSchema.parse({ draft_id: draftId, process: processes[1], items: [] }).items).toEqual([]);
+    expect(placementsSchema.parse({ draft_id: draftId, process: processes[0], items: [] }).items).toEqual([]);
+  });
+
+  it.each([{ kind: "clone" }, { sequence: 0 }, { sequence: "1" }, { root_draft_id: null }])("rejects a bad detail `process` %j", patch => {
+    expect(deliveriesSchema.safeParse({ ...deliveries(), process: { ...processes[1], ...patch } }).success).toBe(false);
+    expect(placementsSchema.safeParse({ ...placements(), process: { ...processes[1], ...patch } }).success).toBe(false);
   });
 });
