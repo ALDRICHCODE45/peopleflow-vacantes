@@ -20,6 +20,8 @@ import { MovementBoard } from "@/features/pipeline-movement/board";
 import { cn } from "@/lib/utils";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
+import { ReplacementBadges } from "@/features/vacancy-lifecycle/ui/replacement-badges";
+import { useStartReplacementRequest } from "./use-start-replacement-request";
 
 /** Reads readiness alongside the draft; published processes load their real board independently. */
 export function DraftPipelineState({ draftId }: { draftId: string }) {
@@ -28,6 +30,10 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
   const [boardLifecycle, setBoardLifecycle] = useState<{ id: string; value: Lifecycle }>();
   const onLifecycleChange = useCallback((value: Lifecycle) => setBoardLifecycle({ id: draftId, value }), [draftId]);
   const result = loaded?.id === draftId ? loaded.result : null;
+  // WIRING POINT (replacement-processes T4): «Iniciar reemplazo» (card «⋯» menu and «Acciones») lands in `startReplacement.open(draftId, creditId?)`.
+  // The parent renders <StartReplacementDialog draftId={draftId} open={startReplacement.request?.draftId === draftId} onOpenChange={open => { if (!open) startReplacement.close(); }}
+  //   preselectedCreditId={startReplacement.request?.creditId} onStarted={newDraftId => …navigate to its pipeline…} /> next to <MovementBoard> below.
+  const startReplacement = useStartReplacementRequest();
   useEffect(() => {
     let current = true;
     async function load() {
@@ -53,7 +59,7 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
     // The inset shell has 8px above and below it on desktop. Only the live
     // board owns a viewport frame; drafts and mobile retain page scrolling.
     <div className={cn("flex min-h-0 flex-1 flex-col", published && "md:h-[calc(100dvh-1rem)] md:flex-none md:overflow-hidden")} aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <Badge variant={status.variant} dot>{status.label}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <><Badge variant={status.variant} dot>{status.label}</Badge>{lifecycle && <ReplacementBadges lifecycle={lifecycle} />}</> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex min-h-0 flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="min-h-0 flex-1 gap-5 md:gap-6">
           {!published && <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
@@ -77,7 +83,7 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
               <Skeleton aria-hidden="true" className="h-10 w-40" />
             </>
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
-            <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} />
+            <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} />
           ) : (
             <>
               <DraftPipelineCard

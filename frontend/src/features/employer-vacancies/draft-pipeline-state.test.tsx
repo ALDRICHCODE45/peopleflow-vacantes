@@ -127,3 +127,12 @@ it("ignores stale results when the id changes", async () => {
   await act(async () => resolve(success));
   expect(screen.queryByText("Esta vacante todavía no tiene pipeline")).not.toBeInTheDocument();
 });
+it("S6: the header of a replacement carries «Reemplazo» and «Privada» next to its state", async () => {
+  const lifecycle = { ...success.seed.lifecycle, publication: "published" as const, process: "active" as const, kind: "replacement" as const, replacement_of: "223e4567-e89b-42d3-a456-426614174000", visibility: "private" as const };
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle } });
+  render(<DraftPipelineState draftId={read.id} />);
+  const header = (await screen.findByRole("heading", { level: 1 })).closest("header") as HTMLElement;
+  expect(within(header).getByText("Activa")).toBeVisible();
+  expect(within(header).getByText("Reemplazo")).toHaveAttribute("data-slot", "badge");
+  expect(within(header).getByText("Privada")).toHaveAttribute("data-slot", "badge");
+});

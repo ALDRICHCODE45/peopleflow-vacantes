@@ -134,3 +134,10 @@ it("copy follows candidate identity, renamed stages and the discard catalog, nev
   await act(async () => result.current.confirmDisposition({ reason: { group: "candidate", key: "accepted_other_offer" }, comment: "Solo para la empresa" }));
   toast("Descartaste a Alex Rivera", "Motivo: Aceptó otra oferta. Puedes recuperar su postulación desde Descartados.");
 });
+it("a late departure announces the coverage and that the original result is untouched", async () => {
+  const { boardSuccessCopy } = await import("./board-toast-copy");
+  const board = boardFixture(); board.participations[0].stage_id = "hire";
+  const item = board.participations[0];
+  const move = { ...item, stage_id: "exit", coverage: { covered: 1, required: 2, full_coverage_reached_at: null }, delivery: board.delivery } as Move;
+  expect(boardSuccessCopy(board, item, { kind: "departure" }, move)).toEqual({ title: "Ana Pérez quedó como «No se sostuvo»", description: "Se liberó una plaza: 1 de 2 cubiertas. El resultado original del proceso no cambia." });
+});
