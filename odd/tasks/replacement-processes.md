@@ -33,8 +33,8 @@ writes it; frontend reviews before implementation).
 | T1 | S1–S7 | Review the backend contract `replacement-processes-v1.md` against S1–S7 | backend `e715a257` (accepted) |
 | T3a | S1–S7 | Deployment step 1: new lifecycle/list/VacancyRef keys optional in every strict schema + decoders for the new error envelopes (contract «Deployment order») | `4398018a` |
 | T2 | S1, S4, S5 | (done, L7) Design proposals (gentle-design): «Iniciar reemplazo» flow with hires to replace, resumed candidates with start stage, private/publish | |
-| T3 | S2, S3, S6 | Lifecycle and board: reopen guard, late «No se sostuvo» on a finished board, «Reemplazo» badge and original ↔ replacement link (portfolio, board header, list) | |
-| T4 | S1, S4, S5 | Start-replacement flow implementation from artboard `04-tarjeta-y-dialogo.html` (card «⋯» menu + 3-step dialog) | |
+| T3 | S2, S3, S6 | (`92d2a564`) Lifecycle and board: reopen guard, late «No se sostuvo» on a finished board, «Reemplazo» badge and original ↔ replacement link (portfolio, board header, list) | |
+| T4 | S1, S4, S5 | Start-replacement flow implementation from artboard `04-tarjeta-y-dialogo.html` (card «⋯» menu + 3-step dialog) | `c3fae6d7` (dialog), wiring pending |
 | T5 | S7 | Métricas and dashboard: «Originales / Reemplazos» filter and badges | |
 | T6 | S1–S7 | Browser check against the backend branch, full suite, local merge | |
 
@@ -71,3 +71,10 @@ writes it; frontend reviews before implementation).
   `lifecycle`; new `vacancy-lifecycle/replacement-errors.ts` decodes the five 409s, three 422s and `validation_error`
   with `fields[]`; reopen guards mapped to copy. Risk: item 3 (shared publication/movement error envelopes and
   `jobs/drafts/api/client-v2.ts`) → full suite before merge. Non-strict metrics list VacancyRefs left for T5.
+- **L9** T4 `c3fae6d7` (worker, TDD: RED missing modules, GREEN 98): `features/vacancy-replacement/` (GET/POST client,
+  actions, error copy, 3-step dialog; responsible defaults to the caller per contract D13; caller passes source stages and
+  still-placed hires). T3 `92d2a564` (worker, TDD: RED 23 tests / 10 files, GREEN related 51 files / 804 tests): card «⋯»
+  late «No se sostuvo» via discard on a finished board (departed card shows in Descartados per contract, badge «No se
+  sostuvo»), «Iniciar reemplazo» on the card and in «Acciones», badges + link bar, portfolio «N reemplazos» groups via
+  `root_process_id`; old backend = today's UI. Asked backend for credit status on board items, the late-departure
+  discard reason, and names in the link bar. Wiring + audit labels delegated.
