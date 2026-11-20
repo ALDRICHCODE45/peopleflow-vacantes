@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -77,9 +78,11 @@ type draftListPage struct {
 	NextCursor *string         `json:"next_cursor"`
 }
 
-// ListDrafts serves GET /v2/me/company/job-drafts?limit=&cursor=. Each
-// parameter appears at most once; unknown parameters are ignored, but a query
-// string that does not parse is rejected.
+// ListDrafts serves GET /v2/me/company/job-drafts?limit=&cursor=&root_process_id=.
+// Each parameter appears at most once; unknown parameters are ignored, but a
+// query string that does not parse is rejected. A cursor issued for another
+// root_process_id filter answers invalid_cursor; every other bad input
+// invalid_request.
 func (h *DraftListHandler) ListDrafts(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -93,6 +96,10 @@ func (h *DraftListHandler) ListDrafts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req, err := parseDraftListRequest(values, draftlist.Scope{CompanyID: cc.CompanyID, ActorID: cc.UserID})
+	if errors.Is(err, draftlist.ErrCursorFilter) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidCursor))
+		return
+	}
 	if err != nil {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
@@ -161,7 +168,8 @@ func draftListTimestamp(at *time.Time) *string {
 	return &value
 }
 
-// parseDraftListRequest validates limit and cursor against the session scope.
+// parseDraftListRequest validates limit, root_process_id and cursor against the
+// session scope. The cursor is checked last: it is bound to the filter.
 func parseDraftListRequest(values url.Values, scope draftlist.Scope) (draftlist.Request, error) {
 	single := func(key string) (string, bool, error) {
 		v, present := values[key]
@@ -183,6 +191,19 @@ func parseDraftListRequest(values url.Values, scope draftlist.Scope) (draftlist.
 		return draftlist.Request{}, err
 	}
 	req := draftlist.Request{Limit: limit}
+
+	rawRoot, present, err := single("root_process_id")
+	if err != nil {
+		return draftlist.Request{}, err
+	}
+	if present {
+		root, err := draftlist.ParseRootProcessID(rawRoot)
+		if err != nil {
+			return draftlist.Request{}, err
+		}
+		req.RootProcessID = &root
+		scope.RootProcessID = &root
+	}
 
 	token, present, err := single("cursor")
 	if err != nil {

@@ -12,6 +12,9 @@ import (
 type Request struct {
 	Limit int
 	After *Cursor
+	// RootProcessID keeps only the drafts of that logical vacancy: the original
+	// (whose root is its own id) and its replacements. Nil means no filter.
+	RootProcessID *uuid.UUID
 }
 
 // Requester is the draft requester reference. ID is nil when the draft names

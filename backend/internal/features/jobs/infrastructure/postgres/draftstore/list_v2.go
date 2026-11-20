@@ -53,9 +53,14 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	// Same rule as authorized(): the owner sees every draft, others only
 	// drafts on whose team they hold an active tramo.
 	args := []any{companyID, auth.role == roleOwner, actorID}
+	if req.RootProcessID != nil {
+		// The logical vacancy: the original (root = its own id) and every replacement.
+		args = append(args, *req.RootProcessID)
+		query += fmt.Sprintf(` AND COALESCE(vr.root_process_id, d.id) = $%d::uuid`, len(args))
+	}
 	if req.After != nil {
-		query += ` AND (d.updated_at, d.id) < ($4::timestamptz, $5::uuid)`
 		args = append(args, req.After.LastUpdatedAt, req.After.LastID)
+		query += fmt.Sprintf(` AND (d.updated_at, d.id) < ($%d::timestamptz, $%d::uuid)`, len(args)-1, len(args))
 	}
 	query += fmt.Sprintf(` ORDER BY d.updated_at DESC, d.id DESC LIMIT %d),
  stage_counts AS (
@@ -110,7 +115,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 		page.Items = items[:req.Limit]
 		last := page.Items[req.Limit-1]
 		page.NextCursor, err = draftlist.EncodeCursor(draftlist.Cursor{
-			CompanyID: companyID, ActorID: actorID, LastUpdatedAt: last.UpdatedAt, LastID: last.ID,
+			CompanyID: companyID, ActorID: actorID, LastUpdatedAt: last.UpdatedAt, LastID: last.ID, RootProcessID: req.RootProcessID,
 		})
 		if err != nil {
 			return draftlist.Page{}, fmt.Errorf("encode list v2 cursor: %w", err)
