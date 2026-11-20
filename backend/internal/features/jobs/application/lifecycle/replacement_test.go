@@ -40,6 +40,27 @@ func TestApplyReplacementDerivesTheKeysOfEachProcessOfAChain(t *testing.T) {
 			want:  View{Kind: "original", Visibility: vis("public"), RootProcessID: root.String(), StartReplacementBlocker: blocker(BlockerSourceNotClosed), AllowedActions: []string{"pause", "close"}},
 		},
 		{
+			name:  "an open private replacement can be published later",
+			view:  view("published", "active"),
+			facts: ReplacementFacts{ProcessID: first, RootID: root, Sequence: 1, SourceID: root, LatestID: first, ActiveID: first, Published: true},
+			want: View{Kind: "replacement", Sequence: seq(1), ReplacementOf: str(root), Visibility: vis("private"), RootProcessID: root.String(), StartReplacementBlocker: blocker(BlockerSourceNotClosed),
+				ActiveReplacementID: str(first), AllowedActions: []string{"pause", "close", "publish"}},
+		},
+		{
+			name:  "a paused private replacement can be published later",
+			view:  view("paused", "active"),
+			facts: ReplacementFacts{ProcessID: first, RootID: root, Sequence: 1, SourceID: root, LatestID: first, ActiveID: first, Published: true},
+			want: View{Kind: "replacement", Sequence: seq(1), ReplacementOf: str(root), Visibility: vis("private"), RootProcessID: root.String(), StartReplacementBlocker: blocker(BlockerSourceNotClosed),
+				ActiveReplacementID: str(first), AllowedActions: []string{"resume", "close", "publish"}},
+		},
+		{
+			name:  "a public replacement has nothing left to publish",
+			view:  view("published", "active"),
+			facts: ReplacementFacts{ProcessID: first, RootID: root, Sequence: 1, SourceID: root, LatestID: first, ActiveID: first, Published: true, HasProjection: true},
+			want: View{Kind: "replacement", Sequence: seq(1), ReplacementOf: str(root), Visibility: vis("public"), RootProcessID: root.String(), StartReplacementBlocker: blocker(BlockerSourceNotClosed),
+				ActiveReplacementID: str(first), AllowedActions: []string{"pause", "close"}},
+		},
+		{
 			name:  "closed covered with a fallen credit starts, and cannot reopen",
 			view:  closed("finished"),
 			facts: ReplacementFacts{ProcessID: root, RootID: root, LatestID: root, Published: true, HasProjection: true, ClosedCovered: true, StartableCredits: 2},

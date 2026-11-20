@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publication"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 )
@@ -67,11 +68,15 @@ func (h *PublicationHandler) publish(w http.ResponseWriter, r *http.Request) {
 }
 func writePublicationError(w http.ResponseWriter, err error) {
 	var incomplete *publication.Incomplete
+	var invalid *lifecycle.InvalidTransition
 	switch {
 	case errors.As(err, &incomplete):
 		httpjson.WritePublicationError(w, httpjson.Resolve(httpjson.CodePublicationIncomplete), incomplete.Missing)
 	case errors.Is(err, publication.ErrAlreadyPublished):
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeAlreadyPublished))
+	case errors.As(err, &invalid):
+		// Publishing later is refused on a closed replacement like any lifecycle action.
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeLifecycleTransitionInvalid), invalid)
 	default:
 		writeDraftError(w, err)
 	}

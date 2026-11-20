@@ -64,9 +64,9 @@ func AllowedActions(v View) []string {
 	}
 	switch *v.Publication {
 	case "published":
-		return []string{"pause", "close"}
+		return withPublish(v, []string{"pause", "close"})
 	case "paused":
-		return []string{"resume", "close"}
+		return withPublish(v, []string{"resume", "close"})
 	case "closed":
 		// A logical vacancy moves on through replacements: reopen is gone when
 		// the close covered it, when another replacement is active, and when this
@@ -84,6 +84,16 @@ func AllowedActions(v View) []string {
 	default:
 		return []string{}
 	}
+}
+
+// withPublish adds `publish` for a process that is live but has no public ad: a
+// private replacement (replacement-processes-v1 «Private by default, publish
+// later»). It routes to POST V/publication, like the never-published `publish`.
+func withPublish(v View, actions []string) []string {
+	if v.Visibility != nil && *v.Visibility == "private" {
+		return append(actions, "publish")
+	}
+	return actions
 }
 
 // Transition returns a fresh view. Timestamps retain the latest occurrence of

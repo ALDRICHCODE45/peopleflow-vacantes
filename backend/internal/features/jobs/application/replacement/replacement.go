@@ -54,6 +54,9 @@ type Request struct {
 	Responsible *uuid.UUID
 	// Carried is nil when no candidate is reused.
 	Carried []CarriedCandidate
+	// Publish also publishes the new process as an ordinary public ad in the same
+	// transaction (S4); false keeps it private.
+	Publish bool
 }
 
 // Field is one rejected body field (400 validation_error `fields[]`).
@@ -138,9 +141,8 @@ func (e *CarriedStagesInvalid) Error() string { return "replacement: carried sta
 // Decode reads the start body. Shape errors (not an object, unknown key, wrong
 // type, bad ids, duplicates, a missing required key) are drafts.ErrInvalidRequest;
 // then range errors are *Invalid; a non-business commitment date is
-// deliveryconfig.ErrNonBusinessDate only when nothing else is wrong. `publish: true`
-// belongs to slice R3c: it is rejected as invalid_request instead of being silently
-// ignored. A carried candidate that is well formed is decoded as is (duplicates
+// deliveryconfig.ErrNonBusinessDate only when nothing else is wrong. `publish` is an
+// optional boolean (absent, null and false are private). A carried candidate that is well formed is decoded as is (duplicates
 // included): whether the candidate or its stage can be reused is the store's call.
 func Decode(body []byte, calendar deliveryconfig.Calendar) (Request, error) {
 	value, err := draftjson.Decode(body)
@@ -202,9 +204,11 @@ func Decode(body []byte, calendar deliveryconfig.Calendar) (Request, error) {
 		req.Responsible = &id
 	}
 	if raw := root["publish"]; raw != nil {
-		if publish, ok := raw.(bool); !ok || publish {
+		publish, ok := raw.(bool)
+		if !ok {
 			return Request{}, drafts.ErrInvalidRequest
 		}
+		req.Publish = publish
 	}
 	if raw := root["carried_candidates"]; raw != nil {
 		list, ok := raw.([]any)

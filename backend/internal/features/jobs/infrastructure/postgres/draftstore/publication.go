@@ -11,6 +11,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftversion"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publication"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
@@ -34,6 +35,8 @@ type publicationView struct {
 
 // GetPublication holds a shared draft lock to read content/configuration from
 // one coherent state. It never writes, including on never-configured drafts.
+// A draft is published when its public projection exists (readPublicationAt): a
+// private replacement has a process row and still reads as a draft.
 func (s *Store) GetPublication(ctx context.Context, companyID, actorID, id uuid.UUID) (drafts.Result, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -44,7 +47,7 @@ func (s *Store) GetPublication(ctx context.Context, companyID, actorID, id uuid.
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	at, err := readPublishedAt(ctx, tx, id)
+	at, err := readPublicationAt(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -69,7 +72,10 @@ func (s *Store) GetPublication(ctx context.Context, companyID, actorID, id uuid.
 
 // Publish follows §9.4: live gates and draft authorization, key shape, replay,
 // draft precondition, already-published, then locked readiness and atomic write.
-// Neither content nor configuration versions/timestamps are updated.
+// Neither content nor configuration versions/timestamps are updated. It inserts the
+// process row only for a draft that has none; a private replacement already has
+// one, gets just its projection, and its clock (vacancy_processes.published_at)
+// stays where the start put it.
 func (s *Store) Publish(ctx context.Context, companyID, actorID, id uuid.UUID, key string, keyPresent bool, ifMatch string, present bool, body []byte) (drafts.Result, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -117,12 +123,20 @@ func (s *Store) Publish(ctx context.Context, companyID, actorID, id uuid.UUID, k
 	if err := draftversion.Compare(draftversion.Tag{ID: id.String(), Version: record.version}, tag); err != nil {
 		return drafts.Result{}, drafts.ErrVersionConflict
 	}
-	at, err := readPublishedAt(ctx, tx, id)
+	at, err := readPublicationAt(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err
 	}
 	if at != nil {
 		return drafts.Result{}, publication.ErrAlreadyPublished
+	}
+	// A process without a public ad can only be a private replacement (or a draft
+	// that never published). Publishing later is a live-process action: a closed
+	// one answers like any invalid lifecycle transition, before the body and the
+	// readiness, as the already-published check does.
+	hasProcess, err := s.requirePublishableProcess(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
 	}
 	// For a fresh key, body validation cannot overtake the specified draft
 	// precondition/already-published order. Replay compares its payload above.
@@ -141,8 +155,10 @@ func (s *Store) Publish(ctx context.Context, companyID, actorID, id uuid.UUID, k
 	if len(missing) > 0 {
 		return drafts.Result{}, &publication.Incomplete{Missing: missing}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO vacancy_processes (id,company_id,status,published_at,published_by) VALUES ($1,$2,'published',$3,$4)`, id, companyID, now, actorID); err != nil {
-		return drafts.Result{}, fmt.Errorf("insert vacancy process: %w", err)
+	if !hasProcess {
+		if _, err := tx.Exec(ctx, `INSERT INTO vacancy_processes (id,company_id,status,published_at,published_by) VALUES ($1,$2,'published',$3,$4)`, id, companyID, now, actorID); err != nil {
+			return drafts.Result{}, fmt.Errorf("insert vacancy process: %w", err)
+		}
 	}
 	if err := writePublicProjection(ctx, tx, record, now); err != nil {
 		return drafts.Result{}, err
@@ -167,17 +183,48 @@ func (s *Store) Publish(ctx context.Context, companyID, actorID, id uuid.UUID, k
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode publication snapshot: %w", err)
 	}
-	event := newDraftEvent(actorID, companyID, audit.EventVacancyPublished, id, record.version)
-	event.Metadata["publishedAt"] = publishedAt
-	event.Metadata["snapshot"] = string(snapshotJSON)
-	if err := s.audit.Append(ctx, tx, event); err != nil {
-		return drafts.Result{}, fmt.Errorf("co-write publication audit: %w", err)
+	if err := s.appendPublished(ctx, tx, actorID, companyID, id, record.version, publishedAt, snapshotJSON); err != nil {
+		return drafts.Result{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return drafts.Result{}, fmt.Errorf("commit publication: %w", err)
 	}
 	return drafts.Result{Body: responseBody, ETag: etag}, nil
 }
+
+// appendPublished writes the VacancyPublished audit event of a publication, from
+// Publish and from a replacement started with publish: true.
+func (s *Store) appendPublished(ctx context.Context, tx pgx.Tx, actorID, companyID, id uuid.UUID, version int64, publishedAt string, snapshot []byte) error {
+	event := newDraftEvent(actorID, companyID, audit.EventVacancyPublished, id, version)
+	event.Metadata["publishedAt"] = publishedAt
+	event.Metadata["snapshot"] = string(snapshot)
+	if err := s.audit.Append(ctx, tx, event); err != nil {
+		return fmt.Errorf("co-write publication audit: %w", err)
+	}
+	return nil
+}
+
+// requirePublishableProcess reports whether the draft already has a process row
+// and refuses to publish a process that is neither published nor paused.
+func (s *Store) requirePublishableProcess(ctx context.Context, tx pgx.Tx, id uuid.UUID) (bool, error) {
+	var status string
+	err := tx.QueryRow(ctx, `SELECT status FROM vacancy_processes WHERE id=$1`, id).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read publication process: %w", err)
+	}
+	if status == "published" || status == "paused" {
+		return true, nil
+	}
+	current, _, err := readLifecycle(ctx, tx, id)
+	if err != nil {
+		return false, err
+	}
+	return false, &lifecycle.InvalidTransition{Action: "publish", Lifecycle: current}
+}
+
 func (s *Store) publicationDraft(ctx context.Context, tx pgx.Tx, companyID, actorID, id uuid.UUID, write bool) (draftRecord, error) {
 	record, _, err := s.publicationDraftAs(ctx, tx, companyID, actorID, id, write)
 	return record, err
@@ -211,6 +258,30 @@ func (s *Store) publicationDraftAs(ctx context.Context, tx pgx.Tx, companyID, ac
 	}
 	return record, auth, nil
 }
+
+// readPublicationAt is when the draft's public ad went up: the projection's
+// published_at, nil while there is no projection. It is what every publication
+// read keys on, so a private replacement (a process row, no projection) is
+// unpublished. For an original the projection and the process are written
+// together with the same instant.
+func readPublicationAt(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*time.Time, error) {
+	var at pgtype.Timestamptz
+	err := tx.QueryRow(ctx, `SELECT published_at FROM vacancy_public_projections WHERE id=$1`, id).Scan(&at)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read publication: %w", err)
+	}
+	if !at.Valid || at.InfinityModifier != pgtype.Finite {
+		return nil, errors.New("draftstore: invalid publication timestamp")
+	}
+	return &at.Time, nil
+}
+
+// readPublishedAt is the process clock (vacancy_processes.published_at): when
+// the process started, which publishing a replacement later never moves. It is
+// not a publication read.
 func readPublishedAt(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*time.Time, error) {
 	var at pgtype.Timestamptz
 	err := tx.QueryRow(ctx, `SELECT published_at FROM vacancy_processes WHERE id=$1`, id).Scan(&at)

@@ -35,6 +35,7 @@ func TestDecodeValid(t *testing.T) {
 		"target above credits":              {`{"placement_credit_ids":` + list + `,"commitment_date":"2026-12-14","target_quantity":5}`, Request{CreditIDs: ids, TargetQuantity: 5, CommitmentDate: "2026-12-14"}},
 		"null optionals":                    {`{"placement_credit_ids":` + list + `,"commitment_date":"2026-12-14","target_quantity":null,"responsible":null,"publish":null,"carried_candidates":null}`, Request{CreditIDs: ids, TargetQuantity: 2, CommitmentDate: "2026-12-14"}},
 		"explicit defaults":                 {`{"placement_credit_ids":` + list + `,"commitment_date":"2026-12-14","publish":false,"carried_candidates":[]}`, Request{CreditIDs: ids, TargetQuantity: 2, CommitmentDate: "2026-12-14"}},
+		"publish true":                      {`{"placement_credit_ids":` + list + `,"commitment_date":"2026-12-14","publish":true}`, Request{CreditIDs: ids, TargetQuantity: 2, CommitmentDate: "2026-12-14", Publish: true}},
 		"responsible":                       {`{"placement_credit_ids":` + list + `,"commitment_date":"2026-12-14","responsible":{"user_id":"` + responsible.String() + `"}}`, Request{CreditIDs: ids, TargetQuantity: 2, CommitmentDate: "2026-12-14", Responsible: &responsible}},
 		"window edges":                      {`{"placement_credit_ids":` + list + `,"commitment_date":"2026-11-20"}`, Request{CreditIDs: ids, TargetQuantity: 2, CommitmentDate: "2026-11-20"}},
 	} {
@@ -75,7 +76,7 @@ func TestDecodeShapeErrorsAreInvalidRequest(t *testing.T) {
 		"responsible bad user":   `{"placement_credit_ids":` + list + `,` + date + `,"responsible":{"user_id":"x"}}`,
 		"responsible extra key":  `{"placement_credit_ids":` + list + `,` + date + `,"responsible":{"user_id":"` + uuid.NewString() + `","x":1}}`,
 		"publish not a bool":     `{"placement_credit_ids":` + list + `,` + date + `,"publish":"yes"}`,
-		"publish true (R3c)":     `{"placement_credit_ids":` + list + `,` + date + `,"publish":true}`,
+		"publish number":         `{"placement_credit_ids":` + list + `,` + date + `,"publish":1}`,
 		"carried not a list":     `{"placement_credit_ids":` + list + `,` + date + `,"carried_candidates":{}}`,
 		"carried item empty":     `{"placement_credit_ids":` + list + `,` + date + `,"carried_candidates":[{}]}`,
 	} {

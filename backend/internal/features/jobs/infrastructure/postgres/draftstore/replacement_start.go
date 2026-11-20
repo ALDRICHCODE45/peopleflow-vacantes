@@ -12,6 +12,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publication"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/replacement"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancyteam"
 	"github.com/google/uuid"
@@ -81,8 +82,9 @@ type startedSource struct {
 // Order inside one transaction: general gates and source draft lock (as lifecycle
 // transitions), key shape, replay, the root and source process locks (§Concurrency),
 // If-Match, source closed, latest of the chain, body, credits, carried candidates,
-// responsible; then the clone, the links, the carried participations and the finish
-// of a closed-active source (D15), atomically.
+// responsible; then the clone, the links, the public projection when `publish` is set
+// (its readiness is the new draft's), the carried participations and the finish of a
+// closed-active source (D15), atomically.
 func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uuid.UUID, key string, keyPresent bool, ifMatch string, present bool, body []byte) (drafts.Result, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -202,7 +204,8 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	if err = s.createTeamFor(ctx, tx, draft, actorID, responsible); err != nil {
 		return drafts.Result{}, err
 	}
-	// A process row without a public projection is private; publishing is R3c.
+	// A process row without a public projection is private: the projection below is the
+	// only thing `publish` adds.
 	if _, err = tx.Exec(ctx, `INSERT INTO vacancy_processes (id,company_id,status,published_at,published_by) VALUES ($1,$2,'published',$3,$4)`, newID, companyID, now, actorID); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert replacement process: %w", err)
 	}
@@ -213,6 +216,26 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 		if _, err = tx.Exec(ctx, `INSERT INTO vacancy_replacement_credits (replacement_process_id,placement_credit_id) VALUES ($1,$2)`, newID, credit); err != nil {
 			return drafts.Result{}, fmt.Errorf("link replaced credit: %w", err)
 		}
+	}
+	visibility := "private"
+	var publishedSnapshot []byte
+	if req.Publish {
+		// §Start preconditions 8: the clone is what gets published, so its readiness is the
+		// one a later POST V/publication would answer. The projection carries the start instant.
+		missing, snapshot, err := publicationRequirements(ctx, tx, draft, now)
+		if err != nil {
+			return drafts.Result{}, err
+		}
+		if len(missing) > 0 {
+			return drafts.Result{}, &publication.Incomplete{Missing: missing}
+		}
+		if err = writePublicProjection(ctx, tx, draft, now); err != nil {
+			return drafts.Result{}, err
+		}
+		if publishedSnapshot, err = json.Marshal(snapshot); err != nil {
+			return drafts.Result{}, fmt.Errorf("encode publication snapshot: %w", err)
+		}
+		visibility = "public"
 	}
 	carried, err := s.insertCarried(ctx, tx, actorID, newID, now, plans)
 	if err != nil {
@@ -252,7 +275,7 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 		creditIDs[i] = credit.String()
 	}
 	response, err := json.Marshal(startedReplacement{
-		ID: newID.String(), Kind: "replacement", Sequence: sequence, ReplacementOf: id.String(), RootProcessID: chain.Root.String(), Visibility: "private",
+		ID: newID.String(), Kind: "replacement", Sequence: sequence, ReplacementOf: id.String(), RootProcessID: chain.Root.String(), Visibility: visibility,
 		StartedAt: now.Format(timestampLayout), StartedBy: person{actorID.String(), actorName}, Responsible: person{responsible.String(), responsibleName},
 		TargetQuantity: req.TargetQuantity, CommitmentDate: req.CommitmentDate, PlacementCreditIDs: creditIDs, StageMap: entries, Carried: append([]carriedParticipation{}, carried...),
 		Delivery:  delivery,
@@ -273,10 +296,15 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	started := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actorID, EventType: audit.EventVacancyReplacementStarted, EntityType: "vacancy_process", EntityID: newID, CompanyID: &companyID, VacancyID: &newID,
 		StructuredMetadata: map[string]any{
 			"company_id": companyID.String(), "vacancy_id": newID.String(), "source_process_id": id.String(), "root_process_id": chain.Root.String(), "sequence": int(sequence),
-			"target_quantity": req.TargetQuantity, "credit_ids": req.SortedCreditIDs(), "carried_count": len(carried), "visibility": "private", "responsible_user_id": responsible.String(),
+			"target_quantity": req.TargetQuantity, "credit_ids": req.SortedCreditIDs(), "carried_count": len(carried), "visibility": visibility, "responsible_user_id": responsible.String(),
 		}}
 	if err = s.audit.Append(ctx, tx, started); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write replacement audit: %w", err)
+	}
+	if req.Publish {
+		if err = s.appendPublished(ctx, tx, actorID, companyID, newID, 1, now.Format(timestampLayout), publishedSnapshot); err != nil {
+			return drafts.Result{}, err
+		}
 	}
 	if err = s.auditCarried(ctx, tx, companyID, actorID, newID, carried); err != nil {
 		return drafts.Result{}, err

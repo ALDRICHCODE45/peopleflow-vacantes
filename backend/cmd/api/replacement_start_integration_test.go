@@ -21,8 +21,9 @@ import (
 )
 
 // Replacement processes R3a (docs/contracts/replacement-processes-v1.md,
-// «POST V/replacements»): Start through the production router. publish:true (R3c)
-// is rejected in this slice; carried candidates are R3b (replacement_carry_integration_test.go).
+// «POST V/replacements»): Start through the production router. Carried candidates are
+// R3b (replacement_carry_integration_test.go); publish:true and publishing later are R3c
+// (replacement_publication_integration_test.go).
 
 func replMexicoCalendar(t *testing.T) deliveryconfig.Calendar {
 	t.Helper()
@@ -209,12 +210,13 @@ func TestReplacementStartClonesTheSourceIntoAPrivateProcess(t *testing.T) {
 	if !reflect.DeepEqual(source["lifecycle"], any(afterView)) {
 		t.Fatalf("source.lifecycle = %v, want %v", source["lifecycle"], afterView)
 	}
-	// The new process' lifecycle view is the one GET renders.
+	// The new process' lifecycle view is the one GET renders; a private replacement offers
+	// «publish» (R3c) next to the usual actions.
 	_, view := f.view(id)
 	replAssertView(t, view, map[string]any{
 		"publication": "published", "process": "active", "version": "1", "visibility": "private", "kind": "replacement", "sequence": float64(1),
 		"replacement_of": src, "root_process_id": src, "closed_covered": false, "can_start_replacement": false, "start_replacement_blocker": "source_not_closed",
-		"startable_credits_count": float64(1), "active_replacement_id": id, "allowed_actions": []any{"pause", "close"},
+		"startable_credits_count": float64(1), "active_replacement_id": id, "allowed_actions": []any{"pause", "close", "publish"},
 	})
 	if !reflect.DeepEqual(body["lifecycle"], any(view)) {
 		t.Fatalf("lifecycle = %v, want %v", body["lifecycle"], view)
@@ -680,10 +682,10 @@ func TestReplacementStartPreconditionsAndErrors(t *testing.T) {
 			"float target":        replBody(t, `,"target_quantity":2.5`, credits...),
 			"bad responsible":     replBody(t, `,"responsible":{"id":"x"}`, credits...),
 			"responsible extra":   replBody(t, `,"responsible":{"user_id":"`+f.owner.userID.String()+`","x":1}`, credits...),
-			// R3c is not implemented yet: publish:true is rejected, never silently ignored. Carried
+			// publish must be a boolean (true is R3c, replacement_publication_integration_test.go); carried
 			// candidates (R3b) are covered by replacement_carry_integration_test.go.
-			"publish true":          replBody(t, `,"publish":true`, credits...),
 			"publish string":        replBody(t, `,"publish":"no"`, credits...),
+			"publish number":        replBody(t, `,"publish":1`, credits...),
 			"carried without stage": replBody(t, `,"carried_candidates":[{"candidate":{"kind":"manual","id":"`+uuid.NewString()+`"}}]`, credits...),
 		} {
 			expect(name, f.start(root, body), 400, "invalid_request")

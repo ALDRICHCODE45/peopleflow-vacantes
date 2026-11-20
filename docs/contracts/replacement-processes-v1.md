@@ -390,9 +390,9 @@ audit events commit or roll back together (fail-closed audit, as `Append` does t
 
 **R3a implementation notes** (what the first Start slice does; the rest of the contract is unchanged):
 
-- **Not yet accepted.** `publish: true` (R3c) answers 400 `invalid_request`, never silently ignored; `publish: false` and `publish: null` are accepted. (R3a also
-  rejected a non-empty `carried_candidates`; since R3b it is accepted, see «R3b implementation notes».) The 201 carries `visibility: "private"`, and a start that
-  carries nobody answers `carried: []` and `delivery: { delivered: 0, target, fulfilled: false }`.
+- **Not yet accepted (superseded).** R3a answered 400 `invalid_request` to `publish: true` and to a non-empty `carried_candidates`; since R3b the carried list is accepted
+  (see «R3b implementation notes») and since R3c `publish: true` is accepted (see «R3c implementation notes»). `publish: false` and `publish: null` are private. A start
+  that carries nobody answers `carried: []` and `delivery: { delivered: 0, target, fulfilled: false }`.
 - **Body.** Shape errors are `invalid_request`: not an object, unknown key, `placement_credit_ids` absent / empty / above 999 / not canonical lowercase UUIDs /
   duplicated, `commitment_date` absent or not `YYYY-MM-DD`, `target_quantity` not an integer, `responsible` not exactly `{ user_id }`. Range errors are
   `validation_error` with every offending field in this order: `target_quantity` (`out_of_range` for outside 1..999, which outranks `below_credits_count`),
@@ -409,9 +409,9 @@ audit events commit or roll back together (fail-closed audit, as `Append` does t
 - **Audit.** `VacancyReplacementStarted` metadata uses numbers for `sequence`, `target_quantity`, `carried_count` and a **sorted** `credit_ids` list; the new draft
   and team emit `JobDraftCreated` / `VacancyTeamCreated`; a closed-active source emits `VacancyProcessFinished` (version = source version + 1, `publication =
   closed`, `process = finished`, `cause = replacement_started`, `replacement_process_id`; the two new keys are absent on ordinary finishes).
-- **Private by default, partially.** Start inserts the process row and never a projection. `refreshPublicProjection` now refreshes only a projection that exists
+- **Private by default.** Start inserts the process row and, unless `publish: true` (R3c), never a projection. `refreshPublicProjection` refreshes only a projection that exists
   (the contract's required fix), so saving the content of a private replacement does not publish it; the old compatibility that materialized a projection for a
-  process row without one on a save is gone. `GET V/publication`, `Publish` and the `publish` allowed action still key on the process row until R3c.
+  process row without one on a save is gone. (R3a left `GET V/publication`, `Publish` and the `publish` allowed action keyed on the process row; R3c keys them on the projection.)
 
 **R3b implementation notes** (carried candidates; the rest of the contract is unchanged):
 
@@ -445,8 +445,33 @@ audit events commit or roll back together (fail-closed audit, as `Append` does t
   touch `main.go`; until then carried candidates do not get auto-sent invitations).
 - **Candidate-facing exclusion.** Implemented for `GET /v2/me/applications` and `PUT /v2/me/applications/{id}/message-read` (carried rows are not found) and for the
   `application` of the saved-jobs list. Deliberately unchanged: the already-applied check of `POST /v2/jobs/{id}/applications` (the candidate is already in that
-  process: `UNIQUE (process_id, candidate_id)` would reject a second row anyway) and, outside this slice's reach, the public ad's `applicants` bucket
-  (`db/queries/public_jobs.sql`), the candidate's psychometric invitation list (`source = 'organic'`) and the metrics `origin` / `applications` figures (R6).
+  process: `UNIQUE (process_id, candidate_id)` would reject a second row anyway) and, outside this slice's reach, the candidate's psychometric invitation list
+  (`source = 'organic'`) and the metrics `origin` / `applications` figures (R6). (The public ad's `applicants` bucket was left out of R3b and is done in R3c.)
+
+**R3c implementation notes** (publish now or later; the rest of the contract is unchanged):
+
+- **`publish: true` on Start.** `publish` is an optional boolean (`absent`, `null` and `false` are private; any other type is 400 `invalid_request`). When true, the start
+  transaction evaluates `publicationRequirements` on the **new** draft (the clone: same content, the delivery and management configuration the start just wrote, so the
+  codes Start fills never appear) and, if anything is missing, answers 422 `publication_incomplete` with `missing` and creates nothing. Otherwise it writes the projection
+  with `published_at` = the start instant (equal to `vacancy_processes.published_at` and `vacancy_replacements.started_at`), emits the usual `VacancyPublished` (version 1,
+  `publishedAt`, `snapshot`; once) and `VacancyReplacementStarted.visibility = public`. The 201 carries `visibility: "public"` and a `lifecycle` whose `allowed_actions` has no
+  `publish`. The check runs after the clone, which is after every earlier precondition, so the order of the other errors is the contract's. The frozen idempotent response and the
+  fingerprint include `publish`, so the same key with another `publish` is 409 `idempotency_conflict`.
+- **Publish later.** `POST V/publication` on a draft without a projection: a draft that never published inserts the process row and the projection as before; a draft that has a
+  process row (a private replacement) inserts **only the projection** (`published_at` = now). The process row, its `published_at`, `lifecycle_version`, lifecycle history and the delivery
+  commitment are untouched, so the clock does not restart. Order after the draft `If-Match`: projection exists → 409 `already_published`; process `closed` → 409
+  `lifecycle_transition_invalid` (`data: { action: "publish", lifecycle }`, before body and readiness); body; readiness → 422 `publication_incomplete`; write. `published` and `paused`
+  processes can be published (a paused one stays paused, so the public ad answers 410 `vacancy_unavailable` until it resumes). Replay, ETag and the single-winner race (four concurrent publishes: one 201, three 409) are those of
+  `Publish`; `commitment_date_past` blocks publish later exactly as it blocks a first publication (the recruiter fixes the date through the delivery PUT).
+- **Reads key on the projection.** `readPublicationAt` (the projection's `published_at`) is what `GET V/publication`, `Publish` and `refreshPublicProjection` read; `readPublishedAt`
+  (the process clock) is only the published-write guard's. A private replacement reads `{"status":"draft","publishedAt":null,"missing":[…]}` without writing; once the projection exists it
+  reads `published` with the **projection's** time (what candidates see). `refreshPublicProjection` keeps the projection's `published_at` (the upsert never updates it).
+  `guardPublishedWrite` stays keyed on the process row, as since R3a: a private replacement, like any live process, cannot lose a requirement through an edit (`commitment_date_past` exempted).
+- **`allowed_actions`.** `publish` is appended last for a `published` or `paused` process whose `visibility` is `private` (`["pause","close","publish"]`, `["resume","close","publish"]`),
+  also in every transition response; never on `closed`. The lifecycle `publish` route does not exist: it is `POST V/publication`.
+- **Public numbers equal an ordinary ad's.** The public detail/list `applicants` bucket (`db/queries/public_jobs.sql`) counts only participations with
+  `carried_from_participation_id IS NULL`, so carrying candidates into a published replacement does not move it (real applicants still count). The body of a published replacement has the
+  same keys and values as an ordinary ad of the same content, and no field names a replacement.
 
 ### `GET V/replacements`
 
@@ -787,7 +812,7 @@ step 1 of §«Deployment order» precedes R2.
    annex). Over budget on purpose; split the source-finish into R3a2 (~120) if review prefers.
 4. **R3b · Carried candidates** (~350; **implemented**, see Log L14 of the feature doc and «R3b implementation notes»): participation copy, `intake` history, delivery rule change (`reachedCandidates`/`RecordDelivery`),
    `VacancyCandidateCarried`, candidate-facing exclusion, the carry error codes.
-5. **R3c · Private/public** (~300): `publish: true`, `readPublishedAt` → projection keyed, `refreshPublicProjection` fix, publish-later,
+5. **R3c · Private/public** (~300; **implemented**, see Log L15 of the feature doc and «R3c implementation notes»): `publish: true`, `readPublishedAt` → projection keyed, `refreshPublicProjection` fix, publish-later,
    `GET V/publication` for private replacements, `allowed_actions` `publish`.
 6. **R4 · `GET V/replacements`** (~350): chain list, `start_replacement` (blocker, startable credits, **`publish_ready`/`missing`**), coverage per item,
    **`carry_candidates[]`** with the most-recent-participation resolution and placed-exclusion. Split `carry_candidates` into R4b (~150) if it
