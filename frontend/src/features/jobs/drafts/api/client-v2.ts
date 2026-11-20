@@ -180,7 +180,10 @@ function decodeSaveErrorEnvelope(value: unknown): DraftV2ErrorEnvelope {
   // keeps its existing stripping behavior, including create and read failures.
   if (value !== null && typeof value === "object" &&
     (("code" in value && value.code === "publication_incomplete") || "missing" in value)) {
-    return publicationErrorEnvelopeSchema.parse(value);
+    const parsed = publicationErrorEnvelopeSchema.parse(value);
+    // A validation_error keeps the draft field-code vocabulary of this client.
+    if (parsed.code === "validation_error") return decodeErrorEnvelope(value);
+    return parsed as Exclude<typeof parsed, { code: "validation_error" }>;
   }
   return decodeErrorEnvelope(value);
 }

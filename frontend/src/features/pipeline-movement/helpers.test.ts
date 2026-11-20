@@ -29,3 +29,14 @@ it("immutably replaces the moved item, recomputes all counts, orders by stage/ti
   expect(after.coverage).toEqual(moved.coverage); expect(before.participations[0]).toEqual(item); expect(board.stages[0].count).toBe(1);
   expect(applyMoveToBoard(after, moved)).toEqual(after);
 });
+const lifecycle = { ...board.lifecycle, version: "3", kind: "original" as const, can_start_replacement: true, start_replacement_blocker: null, startable_credits_count: 1 };
+it("adopts the lifecycle a placement departure returns and never leaks it into the participation", () => {
+  const after = applyMoveToBoard(board, { ...moved, lifecycle });
+  expect(after.lifecycle).toEqual(lifecycle);
+  expect(after.participations[0]).not.toHaveProperty("lifecycle");
+});
+it("keeps the current lifecycle when the response carries none or an older one", () => {
+  expect(applyMoveToBoard(board, moved).lifecycle).toEqual(board.lifecycle);
+  const newer = { ...board, lifecycle: { ...board.lifecycle, version: "9" } };
+  expect(applyMoveToBoard(newer, { ...moved, lifecycle }).lifecycle).toEqual(newer.lifecycle);
+});

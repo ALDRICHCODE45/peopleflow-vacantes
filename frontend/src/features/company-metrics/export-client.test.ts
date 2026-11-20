@@ -30,6 +30,16 @@ it("GETs the kind's export with the query and hands back the CSV stream with its
   expect(headersOf(init).get("accept")).toBe("text/csv");
 });
 
+it("streams the CSV opaquely: the extra «Tipo de proceso» column and every cell arrive byte for byte, for any kind", async () => {
+  const body = "\uFEFFID vacante,Vacante,Tipo de proceso\r\nd1,\"Supervisor, planta\",replacement\r\n";
+  for (const kind of ["deliveries", "placements", "reassignments", "candidates", "applications", "vacancies"] as const) {
+    fetchMock.mockResolvedValueOnce(new Response(body, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="metricas-${kind}.csv"` } }));
+    const result = await exportDetail("t", kind, query());
+    if (!result.ok) throw new Error("expected ok");
+    expect([...new Uint8Array(await new Response(result.data.body).arrayBuffer())]).toEqual([...new TextEncoder().encode(body)]);
+  }
+});
+
 it("refuses a missing token, an unknown kind and a paged query before any request", async () => {
   expect(await exportDetail(" ", "deliveries", query())).toMatchObject({ ok: false, error: { kind: "missing_token" } });
   expect(await exportDetail("t", "recruiters" as never, query())).toMatchObject({ ok: false, error: { kind: "invalid_request" } });

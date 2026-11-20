@@ -166,6 +166,11 @@ it("sends the authoritative board lifecycle to the header owner", async () => {
   render(<MovementBoard vacancyId={vacancyId} onLifecycleChange={onLifecycleChange} />);
   await waitFor(() => expect(onLifecycleChange).toHaveBeenCalledWith(boardFixture().lifecycle));
 });
+it("hands the loaded board to the screen owner (start-replacement source stages and hires)", async () => {
+  const onBoardChange = vi.fn();
+  render(<MovementBoard vacancyId={vacancyId} onBoardChange={onBoardChange} />);
+  await waitFor(() => expect(onBoardChange).toHaveBeenCalledWith(boardFixture()));
+});
 it("does not suggest reopening without permission", async () => {
   const board = boardFixture(); board.lifecycle = { ...finishedLifecycle, allowed_actions: [] };
   await mount(board);

@@ -18,6 +18,9 @@ import type { Board, Participation } from "./model";
 import type { Notice } from "./board-feedback";
 import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
+import { DepartureConfirm } from "./departure-confirm";
+import { departureOffer, isActiveHire, leftPlacement, type LateActions } from "./departure";
+import { isReplacementAware } from "@/features/vacancy-lifecycle/replacement-state";
 import { isInProcess, substateName } from "./substates";
 import { candidateHint, filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
@@ -31,10 +34,12 @@ type Props = {
   onMove: (id: string, target: string) => void; onDetail: (id: string) => void;
   onDisposition: (id: string, kind: "discard" | "recover") => void;
   onSubstate?: (id: string, substateId: string | null) => void; visibleItems?: Participation[]; filtered?: boolean;
+  /** Replacement entry points (S1/S3/S6); absent for an old backend, which sends none of the lifecycle keys. */
+  late?: LateActions;
 };
 // Draggable board-card exception (§14.3): compact handle/menu anatomy owns its spacing.
-function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, onSubstate, board, suppressClick }: {
-  item: Participation; targets: Board["stages"]; disabled: boolean; pending: boolean; notice?: Notice;
+function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, onSubstate, board, suppressClick, late }: {
+  item: Participation; targets: Board["stages"]; disabled: boolean; pending: boolean; notice?: Notice; late?: LateActions;
   onMove: Props["onMove"]; onDetail: Props["onDetail"]; onDisposition: Props["onDisposition"]; onSubstate: Props["onSubstate"]; board: Board; suppressClick: RefObject<boolean>;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
@@ -43,12 +48,29 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   const error = notice && notice.tone !== "success" ? notice : undefined;
   const statusId = error ? `move-status-${item.id}` : undefined;
   const FileIcon = filePresentation(item.cv.name) === "pdf" ? FileText : FileType2;
+  // Replacement entry points: a hire in Placement can be marked «No se sostuvo» (even on a finished board);
+  // a card that left Placement with an unsustained credit carries the badge and the «Iniciar reemplazo» item.
+  const aware = !!late && isReplacementAware(board.lifecycle);
+  const finished = board.lifecycle.process === "finished";
+  const leave = aware && isActiveHire(board, item) ? () => late.onLeave(item.id) : undefined;
+  const departed = aware && leftPlacement(board, item);
+  const credit = departed ? late.creditOf(item) : undefined;
+  // A fallen credit the backend lists (R4b) keeps the badge while a replacement is active or already took it.
+  const fallen = departed ? late.fallenOf?.(item) : undefined;
+  // The credit's own `left_at` says when they left; the discard date covers a credit that comes without it.
+  const unsustained = !!credit || !!fallen;
+  const offer = departed && late?.onStartReplacement ? departureOffer(board.lifecycle, { credit, fallen, fallenKnown: late.fallenKnown }) : ({ kind: "none" } as const);
+  const start = offer.kind === "none" ? undefined : { offer, onStart: () => late?.onStartReplacement?.(credit?.id) };
+  // A finished board keeps an enabled menu only for these late actions (and then lists nothing else), while no other work is pending.
+  const lateOnly = finished && !!(leave || start);
+  const menuDisabled = lateOnly ? !!late?.lateLocked || pending : disabled;
+  const confirming = late?.confirming?.id === item.id ? late.confirming : null;
   // Frozen at application (T13). With a title the name keeps one line, so both still fit the 40 px name button.
   const professionalTitle = item.profile.professional_title || null;
   const titleId = professionalTitle ? `candidate-title-${item.id}` : undefined;
-  return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55")}
+  return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55", unsustained && "bg-status-review/5")}
     onClick={event => {
-      if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu'],[role='checkbox']")) return;
+      if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu'],[role='checkbox'],[data-slot='popover-content']")) return;
       onDetail(item.id);
     }}>
     <CardHeader className="items-center gap-2 px-0">
@@ -58,7 +80,8 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
           id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} aria-describedby={titleId} onClick={() => onDetail(item.id)}><span className="flex min-w-0 flex-col"><span className={cn("break-words leading-5", professionalTitle ? "line-clamp-1" : "line-clamp-2")}>{item.candidate.full_name}</span>
             {professionalTitle && <span id={titleId} data-candidate-title title={professionalTitle} className="truncate text-xs font-normal leading-4 text-muted-foreground">{professionalTitle}</span>}</span></Button></Hint></CardTitle>
       </div>
-      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
+      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><span className="relative flex"><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={menuDisabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} finished={lateOnly} leave={leave} start={start} />
+        {confirming && <DepartureConfirm item={item} board={board} pending={confirming.pending} onConfirm={confirming.confirm} onCancel={confirming.cancel} />}</span></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
       <ChecklistFit item={item} />
@@ -70,7 +93,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     </CardContent>
     <Separator />
     <CardFooter className="min-h-6 gap-2 px-0">
-      {item.discard ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
+      {item.discard ? unsustained ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="review" dot>No se sostuvo</Badge><p className="text-xs text-muted-foreground">se fue el <MovementDate value={credit?.leftAt ?? fallen?.leftAt ?? item.discard.discarded_at} compact /></p></div> : <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
         <Hint text={item.cv.name}><span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"><FileIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{item.cv.name}</span></span></Hint>
         {board.lifecycle.process !== "finished" && <Button type="button" variant="ghost" size="icon" className="-my-2 ml-auto size-10 shrink-0 cursor-grab touch-none text-muted-foreground opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover/candidate:opacity-100 sm:group-focus-within/candidate:opacity-100 focus-visible:opacity-100"
           ref={setActivatorNodeRef} {...attributes} {...listeners} disabled={disabled} id={`candidate-drag-${item.id}`} aria-label={`Arrastrar ${item.candidate.full_name}`} aria-describedby={statusId}><GripVertical aria-hidden="true" /></Button>}
@@ -96,7 +119,7 @@ function Column({ stage, countLabel = String(stage.count), disabled, dragging, c
     </ScrollArea>
   </section>;
 }
-export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, onSubstate, visibleItems = board.participations, filtered = false, columnOrder }: Props) {
+export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, onSubstate, visibleItems = board.participations, filtered = false, columnOrder, late }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [columnId, setColumnId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -136,7 +159,7 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
           return <Column key={stage.id} stage={stage} countLabel={countLabel} order={columnOrder} finished={board.lifecycle.process === "finished"} lifted={columnId === stage.id} insertion={overId === stage.id && canDropColumn(stage.id) ? (columnIndex(columnId!) < columnIndex(stage.id) ? "right" : "left") : null} dragging={!!active} disabled={columnId ? !canDropColumn(stage.id) : locked || !targets.some(target => target.id === stage.id)}>
             {items.length ? <ul className="flex flex-col gap-3">{items.map(item => <li key={item.id}>
               <CandidateCard item={item} board={board} onSubstate={onSubstate} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
-                pending={pending.has(item.id)} notice={notices[item.id]} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} suppressClick={suppressClick} />
+                pending={pending.has(item.id)} notice={notices[item.id]} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} suppressClick={suppressClick} late={late} />
             </li>)}</ul> : filtered ? <Empty className="rounded-lg border p-6 text-muted-foreground">
               <EmptyHeader>
                 <EmptyMedia><ListFilter aria-hidden="true" className="size-5" /></EmptyMedia>

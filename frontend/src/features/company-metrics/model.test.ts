@@ -9,7 +9,7 @@ import { deliveryListSchema, placementListSchema, reassignmentListSchema, vacanc
 import { deliveryList, placementList, reassignmentList, vacancyList } from "./test-fixtures";
 import { applicationListSchema, candidateListSchema, pipelineSchema, STAGE_KIND_LABEL } from "./model";
 import { applicationList, candidateList, pipeline } from "./test-fixtures";
-import { card, carlos, clientId, deliveries, fernanda, placements, recruiterDetail, recruiterPage, summary, vacancyPage, vacancyRow } from "./test-fixtures";
+import { card, carlos, clientId, draftId, deliveries, fernanda, placements, recruiterDetail, recruiterPage, summary, vacancyPage, vacancyRow } from "./test-fixtures";
 
 describe("contract decoding", () => {
   it("accepts the §3.1 summary and rejects drift instead of rendering it", () => {
@@ -196,5 +196,97 @@ describe("v2c pipeline and its lists (§4.4, §5.5, §5.6)", () => {
     expect(STAGE_KIND_LABEL).toEqual({
       new: "Nuevos", screening: "Screening", screening_ok: "Screening OK", in_process: "En proceso", custom: "Columnas propias", placement: "Placement", retired: "Columnas retiradas",
     });
+  });
+});
+
+describe("replacement keys on the strict vacancy refs (deployment step 1)", () => {
+  const keys = { kind: "replacement", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: 1 };
+  const original = { kind: "original", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: null };
+  const withKeys = (ref: object, extra: object) => ({ ...ref, ...extra });
+  it.each([keys, original])("parses pipeline.top_vacancies[].vacancy and delays.overdue.top[].vacancy with %j", extra => {
+    const pipe = pipeline(); const pipeWith = { ...pipe, top_vacancies: pipe.top_vacancies.map(row => ({ ...row, vacancy: withKeys(row.vacancy, extra) })) };
+    expect(pipelineSchema.parse(pipeWith)).toEqual(pipeWith);
+    const del = delays(); const delWith = { ...del, overdue: { ...del.overdue, top: del.overdue.top.map(row => ({ ...row, vacancy: withKeys(row.vacancy, extra) })) } };
+    expect(delaysSchema.parse(delWith)).toEqual(delWith);
+  });
+  it("still parses both without the keys", () => {
+    expect(pipelineSchema.parse(pipeline())).toEqual(pipeline());
+    expect(delaysSchema.parse(delays())).toEqual(delays());
+  });
+  it.each([{ kind: "clone" }, { sequence: 0 }, { sequence: "1" }, { root_draft_id: null }, { extra: true }])("rejects bad vacancy keys %j", patch => {
+    const pipe = pipeline();
+    expect(pipelineSchema.safeParse({ ...pipe, top_vacancies: pipe.top_vacancies.map(row => ({ ...row, vacancy: { ...row.vacancy, ...keys, ...patch } })) }).success).toBe(false);
+    const del = delays();
+    expect(delaysSchema.safeParse({ ...del, overdue: { ...del.overdue, top: del.overdue.top.map(row => ({ ...row, vacancy: { ...row.vacancy, ...keys, ...patch } })) } }).success).toBe(false);
+  });
+});
+
+describe("replacement keys on the non-strict list vacancy refs and the process_kind echo (T5)", () => {
+  const keys = { kind: "replacement", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: 2 };
+  const original = { kind: "original", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: null };
+  const refOf = (page: { items: { vacancy: object }[] }, extra: object) => ({ ...page, items: page.items.map(row => ({ ...row, vacancy: { ...row.vacancy, ...extra } })) });
+
+  it.each([keys, original])("keeps the keys on deliveries, placements, reassignments, candidates and applications rows with %j", extra => {
+    expect(deliveryListSchema.parse(refOf(deliveryList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(placementListSchema.parse(refOf(placementList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(reassignmentListSchema.parse(refOf(reassignmentList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(candidateListSchema.parse(refOf(candidateList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(applicationListSchema.parse(refOf(applicationList(), extra)).items[0].vacancy).toMatchObject(extra);
+  });
+
+  it("parses the old payloads without the keys exactly as before", () => {
+    expect(deliveryListSchema.parse(deliveryList()).items[0].vacancy).toEqual({ draft_id: expect.any(String), title: "Coordinador de logística" });
+    expect(reassignmentListSchema.parse(reassignmentList()).items[0].vacancy).not.toHaveProperty("kind");
+  });
+
+  it("echoes process_kind in applied_filters and tolerates its absence (old backend)", () => {
+    expect(deliveryListSchema.parse(deliveryList({ applied_filters: { process_kind: "replacement" } })).applied_filters.process_kind).toBe("replacement");
+    expect(deliveryListSchema.parse(deliveryList()).applied_filters.process_kind).toBeUndefined();
+  });
+
+  it("ignores facets.process_kind instead of failing on it", () => {
+    const page = { ...deliveryList(), facets: { ...deliveryList().facets, process_kind: { original: 3, replacement: 1 } } };
+    expect(() => deliveryListSchema.parse(page)).not.toThrow();
+  });
+});
+
+describe("R6 keys: vacancies `replacements`, detail `process`, and the empty detail of another process_kind", () => {
+  const root = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+  const replacements = { count: 2, active_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f" };
+  const noActive = { count: 0, active_draft_id: null };
+  const processes = [{ kind: "original", root_draft_id: root, sequence: null }, { kind: "replacement", root_draft_id: root, sequence: 1 }];
+
+  it.each([replacements, noActive])("keeps `replacements` on the flat vacancies rows (list and v1 page) with %j", extra => {
+    const list = vacancyList(); const page = vacancyPage();
+    expect(vacancyListSchema.parse({ ...list, items: list.items.map(row => ({ ...row, replacements: extra })) }).items[0].replacements).toEqual(extra);
+    expect(vacancyPageSchema.parse({ ...page, items: page.items.map(row => ({ ...row, replacements: extra })) }).items[0].replacements).toEqual(extra);
+  });
+
+  it("parses the vacancies rows without `replacements` exactly as before", () => {
+    expect(vacancyListSchema.parse(vacancyList())).toEqual(vacancyList());
+    expect(vacancyListSchema.parse(vacancyList()).items[0]).not.toHaveProperty("replacements");
+    expect(vacancyPageSchema.parse(vacancyPage())).toEqual(vacancyPage());
+  });
+
+  it.each([{ count: -1, active_draft_id: null }, { count: 1.5, active_draft_id: null }, { count: 1 }, { count: 1, active_draft_id: 7 }])("rejects bad `replacements` %j", bad => {
+    const list = vacancyList();
+    expect(vacancyListSchema.safeParse({ ...list, items: list.items.map(row => ({ ...row, replacements: bad })) }).success).toBe(false);
+  });
+
+  it.each(processes)("keeps the header `process` on the per-vacancy deliveries and placements with %j", process => {
+    expect(deliveriesSchema.parse({ ...deliveries(), draft_id: draftId, process }).process).toEqual(process);
+    expect(placementsSchema.parse({ ...placements(), draft_id: draftId, process }).process).toEqual(process);
+  });
+
+  it("parses the detail without `process` exactly as before and accepts the empty items of another process_kind", () => {
+    expect(deliveriesSchema.parse(deliveries())).toEqual(deliveries());
+    expect(deliveriesSchema.parse(deliveries())).not.toHaveProperty("process");
+    expect(deliveriesSchema.parse({ draft_id: draftId, process: processes[1], items: [] }).items).toEqual([]);
+    expect(placementsSchema.parse({ draft_id: draftId, process: processes[0], items: [] }).items).toEqual([]);
+  });
+
+  it.each([{ kind: "clone" }, { sequence: 0 }, { sequence: "1" }, { root_draft_id: null }])("rejects a bad detail `process` %j", patch => {
+    expect(deliveriesSchema.safeParse({ ...deliveries(), process: { ...processes[1], ...patch } }).success).toBe(false);
+    expect(placementsSchema.safeParse({ ...placements(), process: { ...processes[1], ...patch } }).success).toBe(false);
   });
 });

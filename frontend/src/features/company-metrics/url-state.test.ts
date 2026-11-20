@@ -51,6 +51,18 @@ describe("filters in the URL", () => {
     expect(parseFilters(new URLSearchParams("from=01-08-2026&to=2026-02-30&recruiter_id=nope&requester_kind=vendor&cursor=x&limit=500"))).toEqual({});
   });
 
+  it("replacement-processes-v1 «Metrics»: process_kind is one of original|replacement, absent means all, and travels with the other filters", () => {
+    const raw = `from=2026-08-01&to=2026-10-31&recruiter_id=${marianaId}&process_kind=replacement`;
+    const filters = parseFilters(new URLSearchParams(raw));
+    expect(filters).toEqual({ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId, process_kind: "replacement" });
+    expect(serializeFilters(filters).toString()).toBe(raw);
+    expect(parseFilters(new URLSearchParams("process_kind=original"))).toEqual({ process_kind: "original" });
+    // A hand-edited value never reaches the API as a guaranteed 422; «all» is the absence of the key.
+    for (const value of ["all", "Replacement", "", "replacement,original"]) expect(parseFilters(new URLSearchParams({ process_kind: value })), value).toEqual({});
+    expect(serializeFilters({ process_kind: undefined }).toString()).toBe("");
+    expect(Object.fromEntries(apiQuery({ process_kind: "original" }, "2026-11-07"))).toEqual({ from: "2026-08-10", to: "2026-11-07", process_kind: "original" });
+  });
+
   it("asks the API for the URL period, or the default one while the URL period is missing or invalid", () => {
     const today = "2026-11-07";
     expect(Object.fromEntries(apiQuery({ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId }, today))).toEqual({ from: "2026-08-01", to: "2026-10-31", recruiter_id: marianaId });
@@ -67,5 +79,12 @@ describe("422 field errors (§3.7.10)", () => {
     });
     expect(fieldErrors([{ field: "recruiter_id", code: "invalid" }])).toEqual({ recruiter: "Elige un reclutador de la lista." });
     expect(filterIssueMessages([{ field: "requester_kind", code: "required" }])).toEqual(["Cliente o área: elige si el solicitante es un cliente o un área interna."]);
+  });
+
+  it("maps a rejected process_kind (invalid, duplicate or unknown to an old backend) to the process control", () => {
+    for (const code of ["invalid", "duplicate", "unknown"]) {
+      expect(fieldErrors([{ field: "process_kind", code }])).toEqual({ process: "Elige todos los procesos, solo originales o solo reemplazos." });
+    }
+    expect(filterIssueMessages([{ field: "process_kind", code: "invalid" }])).toEqual(["Proceso: elige todos los procesos, solo originales o solo reemplazos."]);
   });
 });

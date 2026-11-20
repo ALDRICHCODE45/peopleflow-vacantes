@@ -16,9 +16,9 @@ export function leavesPlacement(board: Board, item: Participation, target: strin
 }
 /** Confirmed moves replace, never append duplicates; milestone/coverage remain server-owned. */
 export const applyMoveToBoard = applyParticipationToBoard;
-/** All four writes return the same server-owned item, coverage and delivery. */
+/** All four writes return the same server-owned item, coverage and delivery; every exit from Placement (a move out of it as much as a discard) also returns the lifecycle view, adopted here. */
 export function applyParticipationToBoard(board: Board, move: Move): Board {
-  const { coverage, delivery, ...updated } = move;
+  const { coverage, delivery, lifecycle: returned, ...updated } = move;
   const previous = board.participations.find(item => item.id === updated.id);
   // A write can only update a known item; never invent missing snapshot data.
   if (!previous) return board;
@@ -30,5 +30,7 @@ export function applyParticipationToBoard(board: Board, move: Move): Board {
   const counts = new Map<string, number>();
   for (const participation of participations) counts.set(participation.stage_id, (counts.get(participation.stage_id) ?? 0) + 1);
   // Fulfillment is immutable. An older overlapping response cannot undo it.
-  return { ...board, participations, coverage, delivery: board.delivery.state === "fulfilled" ? board.delivery : delivery, stages: board.stages.map(stage => ({ ...stage, count: counts.get(stage.id) ?? 0 })), exit: { ...board.exit, count: counts.get(board.exit.id) ?? 0 } };
+  // Derived keys (can_start_replacement…) change without bumping the version, so an equal version is current.
+  const lifecycle = returned && BigInt(returned.version) >= BigInt(board.lifecycle.version) ? returned : board.lifecycle;
+  return { ...board, lifecycle, participations, coverage, delivery: board.delivery.state === "fulfilled" ? board.delivery : delivery, stages: board.stages.map(stage => ({ ...stage, count: counts.get(stage.id) ?? 0 })), exit: { ...board.exit, count: counts.get(board.exit.id) ?? 0 } };
 }

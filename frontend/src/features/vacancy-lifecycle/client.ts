@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requestJson } from "@/lib/api/server";
 import { isValidJobId } from "@/features/jobs/jobId";
 import { publicationErrorEnvelopeSchema } from "@/features/jobs/drafts/pipeline/failure";
+import { isReplacementErrorCode, replacementErrorEnvelopeSchema, validationErrorEnvelopeSchema } from "./replacement-errors";
 import { closeBodySchema, type CloseBody, decodeLifecycleEtag, lifecycleActionSchema, lifecycleSchema, type Lifecycle } from "./model";
 
 export const conflictSchema = z.object({
@@ -18,6 +19,9 @@ export const closeCoverageErrorSchema = z.object({
 export function decodeLifecycleError(value: unknown) {
   const code = z.object({ code: z.string() }).parse(value).code;
   if (code === "close_reason_not_covered") return closeCoverageErrorSchema.parse(value);
+  // replacement-processes-v1: the five lifecycle-carrying 409s, the three 422 start rejections, and validation_error with fields[].
+  if (isReplacementErrorCode(code)) return replacementErrorEnvelopeSchema.parse(value);
+  if (code === "validation_error") return validationErrorEnvelopeSchema.parse(value);
   return code === "lifecycle_transition_invalid" || code === "process_finished"
     ? conflictSchema.parse(value) : publicationErrorEnvelopeSchema.parse(value);
 }

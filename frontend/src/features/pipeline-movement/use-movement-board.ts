@@ -12,6 +12,8 @@ import { useBoardColumnOrder } from "./use-board-column-order";
 import { isInProcess } from "./substates";
 import { boardSuccessCopy, type BoardWrite } from "./board-toast-copy";
 import { recoverySelection } from "./recovery";
+import { departureBody, isActiveHire } from "./departure";
+import { isReplacementAware } from "@/features/vacancy-lifecycle/replacement-state";
 export type Disposition = { kind: "discard" | "recover"; item: Participation; placementConfirmation: boolean; recoveryRequired?: boolean };
 
 type Confirmation = { item: Participation; target: string; placementExit: boolean; exitReason?: PlacementExitReason };
@@ -51,13 +53,16 @@ export function useMovementBoard(vacancyId: string) {
   const substateIntent = useRef<typeof substateConfirmation>(null);
   const [disposition, setDisposition] = useState<Disposition | null>(null);
   const disposing = useRef<Disposition | null>(null);
+  // Late «No se sostuvo» confirmation (S3): the one write a finished board still accepts.
+  const [departure, setDeparture] = useState<Participation | null>(null);
+  const departing = useRef<Participation | null>(null);
   const [notices, setNotices] = useState<Record<string, Notice>>({});
   const [readNotice, setReadNotice] = useState<Notice | null>(null);
   const reconcile = useRef(new Map<string, Failure>());
   // Concurrent responses have no shared coverage version: one final GET avoids
   // letting a late, older response overwrite the global coverage/milestone.
   const overlapping = useRef(false);
-  const columns = useBoardColumnOrder(vacancyId, board, board?.lifecycle.process === "finished" || stale || reading || pending.size > 0 || !!confirmation || !!disposition || !!substateConfirmation, reloadOrder);
+  const columns = useBoardColumnOrder(vacancyId, board, board?.lifecycle.process === "finished" || stale || reading || pending.size > 0 || !!confirmation || !!disposition || !!substateConfirmation || !!departure, reloadOrder);
   async function reloadOrder() {
     if (readBusy.current || locks.current.size) return false;
     readBusy.current = true; mustRead.current = true; setStale(true); setReading(true);
@@ -135,7 +140,7 @@ export function useMovementBoard(vacancyId: string) {
   }
   async function submit(item: Participation, write: BoardWrite) {
     const actionBoard = snapshot.current;
-    if (!actionBoard || actionBoard.lifecycle.process === "finished" || locks.current.has(item.id) || mustRead.current || readBusy.current) return;
+    if (!actionBoard || (actionBoard.lifecycle.process === "finished" && write.kind !== "departure") || locks.current.has(item.id) || mustRead.current || readBusy.current) return;
     if (locks.current.size) overlapping.current = true;
     locks.current.add(item.id); setPending(new Set(locks.current));
     setNotices(previous => { const next = { ...previous }; delete next[item.id]; return next; });
@@ -146,6 +151,8 @@ export function useMovementBoard(vacancyId: string) {
         ? await moveParticipationAction({ ...input, body: { to_stage_id: write.target, ...(write.placementExitReason ? { placement_exit_reason: write.placementExitReason } : {}) } })
         : write.kind === "substate"
           ? await setParticipationSubstateAction({ ...input, body: { substate_id: write.substateId } })
+        : write.kind === "departure"
+          ? await discardParticipationAction({ ...input, body: departureBody() })
         : write.kind === "discard"
           ? await discardParticipationAction({ ...input, body: write.body })
           : await recoverParticipationAction({ ...input, body: { ...(write.confirmed ? { confirm_placement_reentry: true } : {}), ...(write.target ? { to_stage_id: write.target } : {}) } });
@@ -183,11 +190,12 @@ export function useMovementBoard(vacancyId: string) {
         mustRead.current = true; setStale(true);
         reconcile.current.set(item.id, result);
       } else {
-        const title = write.kind === "substate" ? `No se guardó el subestado de ${item.candidate.full_name}` : write.kind === "move" ? `No se movió a ${item.candidate.full_name}` : write.kind === "discard" ? `No se descartó a ${item.candidate.full_name}` : `No se recuperó a ${item.candidate.full_name}`;
-        report(item.id, { tone: "error", text: write.kind === "substate" ? result.reason === "validation_error" ? "No se guardó el subestado. Elige una opción del catálogo actual." : "No se guardó el subestado. Revisa tu sesión y los permisos antes de intentar de nuevo." : write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? write.kind === "recover" ? "No se recuperó. Revisa la columna de regreso y elige una opción permitida antes de confirmar otra vez." : "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, title, result.reference);
+        const title = write.kind === "departure" ? `No se marcó a ${item.candidate.full_name} como «No se sostuvo»` : write.kind === "substate" ? `No se guardó el subestado de ${item.candidate.full_name}` : write.kind === "move" ? `No se movió a ${item.candidate.full_name}` : write.kind === "discard" ? `No se descartó a ${item.candidate.full_name}` : `No se recuperó a ${item.candidate.full_name}`;
+        report(item.id, { tone: "error", text: write.kind === "departure" ? "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." : write.kind === "substate" ? result.reason === "validation_error" ? "No se guardó el subestado. Elige una opción del catálogo actual." : "No se guardó el subestado. Revisa tu sesión y los permisos antes de intentar de nuevo." : write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? write.kind === "recover" ? "No se recuperó. Revisa la columna de regreso y elige una opción permitida antes de confirmar otra vez." : "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, title, result.reference);
       }
     }
     if (substateIntent.current?.item.id === item.id) { substateIntent.current = null; setSubstateConfirmation(null); }
+    if (departing.current?.id === item.id) { departing.current = null; setDeparture(null); }
     locks.current.delete(item.id); setPending(new Set(locks.current));
     await reconcileOnce();
   }
@@ -195,7 +203,7 @@ export function useMovementBoard(vacancyId: string) {
     if (snapshot.current?.lifecycle.process === "finished" || columns.busy || columns.confirmation) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
-    if (!current || !item || !isInProcess(current, item) || confirming.current || disposing.current || substateIntent.current || locks.current.has(id) || mustRead.current || readBusy.current) return;
+    if (!current || !item || !isInProcess(current, item) || confirming.current || disposing.current || substateIntent.current || departing.current || locks.current.has(id) || mustRead.current || readBusy.current) return;
     if (item.substate_id === substateId || (substateId !== null && !current.substates.some(substate => substate.id === substateId))) return;
     const next = { item, value: substateId }; substateIntent.current = next; setSubstateConfirmation(next);
   }
@@ -203,7 +211,7 @@ export function useMovementBoard(vacancyId: string) {
     if (snapshot.current?.lifecycle.process === "finished" || columns.busy || columns.confirmation) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
-    if (!current || !item || locks.current.has(id) || mustRead.current || readBusy.current || (confirming.current && !locks.current.has(confirming.current.item.id)) || disposing.current) return;
+    if (!current || !item || locks.current.has(id) || mustRead.current || readBusy.current || (confirming.current && !locks.current.has(confirming.current.item.id)) || disposing.current || departing.current) return;
     if (!allowedMoveTargets(current, item).some(stage => stage.id === target)) return;
     if (substateIntent.current) return;
     const next = { item, target, placementExit: leavesPlacement(current, item, target) }; confirming.current = next; setConfirmation(next);
@@ -235,7 +243,7 @@ export function useMovementBoard(vacancyId: string) {
     if (substateIntent.current) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
-    if (!current || !item || locks.current.has(id) || mustRead.current || readBusy.current || confirming.current || disposing.current) return;
+    if (!current || !item || locks.current.has(id) || mustRead.current || readBusy.current || confirming.current || disposing.current || departing.current) return;
     if (kind === "discard" ? !!item.discard || item.stage_id === current.exit.id : !item.discard || item.stage_id !== current.exit.id) return;
     const placementId = kind === "discard" ? item.stage_id : item.discard!.previous_stage_id;
     const next = { kind, item, placementConfirmation: current.stages.some(stage => stage.id === placementId && stage.kind === "placement") };
@@ -261,6 +269,23 @@ export function useMovementBoard(vacancyId: string) {
       void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation, ...(recovery.required ? { target } : {}) });
     }
   }
+  function requestDeparture(id: string) {
+    const current = snapshot.current;
+    const item = current?.participations.find(item => item.id === id);
+    // Allowed on a finished board too, but only with the replacement-aware backend (it is the one that accepts it).
+    if (!current || !item || !isReplacementAware(current.lifecycle) || !isActiveHire(current, item)) return;
+    if (columns.busy || columns.confirmation || locks.current.has(id) || mustRead.current || readBusy.current || confirming.current || disposing.current || substateIntent.current || departing.current) return;
+    departing.current = item; setDeparture(item);
+    setNotices(previous => { const next = { ...previous }; delete next[id]; return next; });
+  }
+  function closeDeparture() {
+    if (departing.current && locks.current.has(departing.current.id)) return;
+    departing.current = null; setDeparture(null);
+  }
+  function confirmDeparture() {
+    const current = departing.current;
+    if (current) void submit(current, { kind: "departure" });
+  }
   function addCandidate(value: import("@/features/manual-intake/model").IntakeResponse) {
     const current = snapshot.current;
     if (!current) return;
@@ -270,5 +295,5 @@ export function useMovementBoard(vacancyId: string) {
     // A concurrently pending card mutation has no global coverage version.
     if (locks.current.size) overlapping.current = true;
   }
-  return { addCandidate, updateLifecycle, board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, substateConfirmation, closeSubstateConfirmation, confirmSubstate, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, chooseExitReason, requestDisposition, closeDisposition, confirmDisposition };
+  return { addCandidate, updateLifecycle, board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, substateConfirmation, closeSubstateConfirmation, confirmSubstate, disposition, departure, requestDeparture, closeDeparture, confirmDeparture, retry, setSubstate, requestMove, closeConfirmation, confirmMove, chooseExitReason, requestDisposition, closeDisposition, confirmDisposition };
 }

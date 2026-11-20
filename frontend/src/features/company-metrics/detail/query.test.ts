@@ -99,6 +99,18 @@ describe("detail query (the board's drill-down URL, validated per kind)", () => 
     expect(parse(`kind=placements&${period}&back=${encodeURIComponent("/empresa/metricas/reclutadores/nope")}`)!.back).toBeUndefined();
   });
 
+  it("keeps process_kind as a board filter: validated, sent to the API, rewritable and returned to the board", () => {
+    const state = parse(`kind=placements&${period}&process_kind=replacement&held=false`)!;
+    expect(state.params).toEqual({ from: "2026-08-01", to: "2026-10-31", process_kind: "replacement", held: "false" });
+    expect(detailApiQuery(state, "2026-11-07").toString()).toBe(`${period}&process_kind=replacement&held=false`);
+    expect(boardHref(state)).toBe(`/empresa/metricas?${period}&process_kind=replacement`);
+    expect(detailHref(withParams(state, { process_kind: undefined }))).toBe(`${DETAIL_PATH}?kind=placements&${period}&held=false`);
+    expect(withParams(state, { process_kind: "original" }).params.process_kind).toBe("original");
+    expect(withParams(state, { process_kind: "clone" }).params.process_kind).toBeUndefined();
+    for (const kind of ["deliveries", "vacancies", "reassignments", "candidates", "applications"]) expect(parse(`kind=${kind}&process_kind=original`)!.params, kind).toEqual({ process_kind: "original" });
+    expect(parse("kind=deliveries&process_kind=all")!.params).toEqual({});
+  });
+
   it("ignores a «back» that is not the board and rebuilds it from the filters", () => {
     const state = parse(`kind=deliveries&${period}&back=${encodeURIComponent("https://evil.test/empresa/metricas")}`)!;
     expect(state.back).toBeUndefined();

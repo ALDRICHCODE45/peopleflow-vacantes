@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { plural } from "../plural";
 import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
 import { loadDraftDeliveryAction } from "@/features/jobs/drafts/pipeline/delivery-actions";
@@ -21,7 +22,8 @@ import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publicati
 import { formatPublicationDate, groupMissing, MISSING_GROUP_LABELS } from "@/features/jobs/drafts/pipeline/publication-model";
 
 type Props = { draftId: string; open: boolean; onOpenChange: (open: boolean) => void; onPublished: (publishedAt: string) => void; unsavedChanges?: boolean };
-type Snapshot = { etag: string; title: string; publication: DraftPublication; cutoff: string; target: number | null; commitmentDate: string | null };
+/** `later`: a private replacement being published after the fact (contract D4): its delivery clock has been running since it started and does not restart. */
+type Snapshot = { etag: string; title: string; publication: DraftPublication; cutoff: string; target: number | null; commitmentDate: string | null; later: boolean };
 type Mode = "loading" | "loaded" | "load_error" | "conflict" | "uncertain" | "rejected";
 type Notice = { tone: "error" | "info" | "success"; text: string };
 const GROUP_ICONS = { editor: FileText, solicitud: ClipboardList, entrega: Flag };
@@ -65,7 +67,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
     notifyActionResult({ key: "vacancy-publication", type: tone, title: text, description, ...(tone === "error" ? { reference: { ...reference, at: new Date().toISOString() } } : {}) });
   }
   function complete(publishedAt: string, already = false) {
-    report(already ? "info" : "success", already ? "Esta vacante ya está publicada" : "Vacante publicada", "El tiempo de entrega ya está en marcha. La publicación en el sitio llega en el siguiente paso.");
+    report(already ? "info" : "success", already ? "Esta vacante ya está publicada" : "Vacante publicada", snapshot?.later ? "El tiempo de entrega no se reinició: sigue contando desde que inició el reemplazo." : "El tiempo de entrega ya está en marcha. La publicación en el sitio llega en el siguiente paso.");
     onOpenChange(false);
     onPublished(publishedAt);
   }
@@ -89,7 +91,8 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
         }
         setSnapshot({ etag: draft.identity.etag, title: draft.seed.model.fields.title || "Sin título", publication: publication.publication,
           cutoff: pipeline.pipeline.stages.find(stage => stage.id === delivery.delivery.cutoffStageId)?.name ?? "Sin definir",
-          target: delivery.delivery.targetQuantity, commitmentDate: delivery.delivery.commitmentDate });
+          target: delivery.delivery.targetQuantity, commitmentDate: delivery.delivery.commitmentDate,
+          later: draft.seed.lifecycle.visibility === "private" && draft.seed.lifecycle.publication !== null });
         setMode("loaded");
         if (attempt > 0) {
           setNotice({ tone: "info", text: "Datos actualizados" });
@@ -159,11 +162,12 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
   const groups = missing.length ? groupMissing(missing) : [];
   const description = unsavedChanges ? "Vuelve al editor y guarda lo que cambiaste. No publicaremos una versión anterior."
     : missing.length ? `Faltan ${missing.length} ${missing.length === 1 ? "dato" : "datos"} en ${groups.length} ${groups.length === 1 ? "sección" : "secciones"}. Completa cada uno y vuelve a publicar.`
+    : snapshot?.later ? "Revisa los requisitos y confirma que la vacante sea pública. El tiempo de entrega no se reinicia."
     : "Revisa los requisitos y confirma el inicio del tiempo de entrega.";
   const title = unsavedChanges ? "Guarda los cambios antes de publicar" : missing.length ? "Te falta para publicar" : already ? "Esta vacante ya está publicada" : "Publicar vacante";
   if (!unsavedChanges && mode === "loaded" && snapshot && !already && missing.length === 0) return <ConfirmActionDialog
     open onOpenChange={open => onOpenChange(open)} onConfirm={() => void publish()} icon={Send} title={`¿Publicar ${snapshot.title}?`}
-    description="Empieza a contar el tiempo de entrega y la vacante queda activa. No se puede deshacer."
+    description={snapshot.later ? "La vacante pasa a ser pública. El tiempo de entrega no se reinicia: sigue contando desde que inició el reemplazo. No se puede deshacer." : "Empieza a contar el tiempo de entrega y la vacante queda activa. No se puede deshacer."}
     // A failed publish replaces this confirmation with the checklist/recovery view.
     // Let its heading receive focus instead of restoring the removed loading view.
     finalFocus={() => heading.current ?? true}
@@ -208,7 +212,7 @@ function PublicationSummary({ snapshot }: { snapshot: Snapshot }) {
   return <div className="max-h-[50dvh] overflow-y-auto"><ItemGroup>{[
     { icon: FileText, label: "Vacante", value: snapshot.title },
     { icon: GitBranch, label: "Columna de corte", value: snapshot.cutoff },
-    { icon: Users, label: "Objetivo de entrega", value: snapshot.target === null ? "Sin definir" : `${snapshot.target} candidatos` },
+    { icon: Users, label: "Objetivo de entrega", value: snapshot.target === null ? "Sin definir" : plural(snapshot.target, "candidato", "candidatos") },
     { icon: CalendarDays, label: "Fecha compromiso", value: snapshot.commitmentDate ? formatPublicationDate(`${snapshot.commitmentDate}T12:00:00Z`) : "Sin definir" },
   ].map(row => <Item key={row.label} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><row.icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{row.label}</ItemTitle><ItemDescription>{row.value}</ItemDescription></ItemContent></Item>)}</ItemGroup></div>;
 }

@@ -9,7 +9,7 @@ import type { FilterControl } from "./failure";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { personName, requesterLabel, type Person } from "./model";
 import { defaultPeriod, matchingShortcut, periodDays, periodIssues, shortcutPeriod, SHORTCUTS, type Period, type Shortcut } from "./period";
-import { effectivePeriod, NO_REQUESTER, type MetricsFilters } from "./url-state";
+import { effectivePeriod, isProcessKind, NO_REQUESTER, PROCESS_KIND_LABEL, type MetricsFilters } from "./url-state";
 
 type Option = { value: string; label: string };
 const ANY = "__any";
@@ -55,7 +55,7 @@ export function MetricsFiltersBar({ filters, today, recruiters, requesters, show
   const shortcut = issues.length ? CUSTOM : matchingShortcut(draft, today) ?? CUSTOM;
   const shortcutChoices: Option[] = [...SHORTCUTS, { value: CUSTOM, label: "Personalizado" }];
 
-  const pristine = !filters.recruiter_id && !filters.requester_kind && !filters.requester_id
+  const pristine = !filters.recruiter_id && !filters.requester_kind && !filters.requester_id && !filters.process_kind
     && JSON.stringify(effectivePeriod(filters, today)) === JSON.stringify(defaultPeriod(today)) && !issues.length;
 
   return <Card size="sm" className="min-w-0">
@@ -114,6 +114,7 @@ export function AudienceFields({ filters, recruiters, requesters, serverErrors =
     const [kind, id] = value.split(":") as ["client" | "internal_area", string];
     onChange({ ...rest, requester_kind: kind, ...(id === "*" ? {} : { requester_id: id }) });
   };
+  const processChoices: Option[] = [{ value: ANY, label: "Todos los procesos" }, ...(["original", "replacement"] as const).map(value => ({ value, label: PROCESS_KIND_LABEL[value] }))];
   return <>
     <PickFilter id="metrics-recruiter" label="Reclutador" error={serverErrors.recruiter} items={recruiterChoices} value={filters.recruiter_id ?? ANY} onChange={value => onChange({ ...filters, recruiter_id: value === ANY ? undefined : value })}>
       <SelectGroup>{plainItems(recruiterChoices)}</SelectGroup>
@@ -123,12 +124,17 @@ export function AudienceFields({ filters, recruiters, requesters, serverErrors =
       {groups.map(group => <SelectGroup key={group.kind}><SelectLabel>{group.label}</SelectLabel>{plainItems(group.options)}</SelectGroup>)}
       <SelectGroup>{plainItems(requesterChoices.filter(option => option.value === NO_REQUESTER || option.label === "Solicitante seleccionado"))}</SelectGroup>
     </PickFilter>
+    {/* replacement-processes-v1 «Metrics»: one logical vacancy counts once; the replacement's own figures are filtered here. */}
+    <PickFilter id="metrics-process" label="Proceso" error={serverErrors.process} items={processChoices} value={filters.process_kind ?? ANY}
+      onChange={value => onChange({ ...filters, process_kind: isProcessKind(value) ? value : undefined })}>
+      <SelectGroup>{plainItems(processChoices)}</SelectGroup>
+    </PickFilter>
   </>;
 }
 
 /** Chip text for an active filter (rule 11), with the names already seen; an id never shown is named generically. */
-export function audienceChips(filters: MetricsFilters, recruiters: RecruiterOption[], requesters: RequesterOption[]): { key: "recruiter" | "requester"; label: string }[] {
-  const chips: { key: "recruiter" | "requester"; label: string }[] = [];
+export function audienceChips(filters: MetricsFilters, recruiters: RecruiterOption[], requesters: RequesterOption[]): { key: "recruiter" | "requester" | "process"; label: string }[] {
+  const chips: { key: "recruiter" | "requester" | "process"; label: string }[] = [];
   if (filters.recruiter_id) {
     const person = recruiters.find(item => item.user_id === filters.recruiter_id);
     chips.push({ key: "recruiter", label: `Reclutador: ${person ? recruiterLabel(person) : "seleccionado"}` });
@@ -139,5 +145,6 @@ export function audienceChips(filters: MetricsFilters, recruiters: RecruiterOpti
     const requester = filters.requester_id ? requesters.find(item => item.kind === filters.requester_kind && (item.id ?? NO_REQUESTER) === filters.requester_id) : undefined;
     chips.push({ key: "requester", label: !filters.requester_id ? `${kind}: todos` : `${kind}: ${requester ? requesterLabel(requester) : "seleccionado"}` });
   }
+  if (filters.process_kind) chips.push({ key: "process", label: `Proceso: ${PROCESS_KIND_LABEL[filters.process_kind]}` });
   return chips;
 }

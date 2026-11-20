@@ -28,3 +28,8 @@ it("does not forward unknown backend code or exception details", async () => {
  vi.mocked(listDrafts).mockRejectedValue(new Error("secret"));
  expect(await listDraftsAction({})).toEqual({ ok: false, reason: "no_response", reference: {} });
 });
+it("passes the root_process_id filter through", async () => {
+ vi.mocked(listDrafts).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } });
+ await listDraftsAction({ rootProcessId: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", limit: 50 });
+ expect(listDrafts).toHaveBeenCalledWith({ token: "secret", rootProcessId: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", limit: 50 });
+});

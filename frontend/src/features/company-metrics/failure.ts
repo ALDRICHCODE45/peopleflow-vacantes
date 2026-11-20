@@ -24,13 +24,14 @@ export function toMetricsFailure({ error, envelope }: ClientFailure): MetricsFai
 }
 
 /** The toolbar control each API field belongs to. */
-export type FilterControl = "from" | "to" | "recruiter" | "requester";
-const CONTROL: Record<string, FilterControl> = { from: "from", to: "to", recruiter_id: "recruiter", requester_kind: "requester", requester_id: "requester" };
-const CONTROL_LABEL: Record<FilterControl, string> = { from: "Desde", to: "Hasta", recruiter: "Reclutador", requester: "Cliente o área" };
+export type FilterControl = "from" | "to" | "recruiter" | "requester" | "process";
+const CONTROL: Record<string, FilterControl> = { from: "from", to: "to", recruiter_id: "recruiter", requester_kind: "requester", requester_id: "requester", process_kind: "process" };
+const CONTROL_LABEL: Record<FilterControl, string> = { from: "Desde", to: "Hasta", recruiter: "Reclutador", requester: "Cliente o área", process: "Proceso" };
 /** §3.7.10 codes get their own copy; any other code asks to pick a valid value of that control. */
 function issueCopy(control: FilterControl, code: string): string {
   if ((control === "to" || control === "from") && code === "range") return "El periodo puede abarcar hasta 366 días.";
   if (control === "requester" && code === "required") return "Elige si el solicitante es un cliente o un área interna.";
+  if (control === "process") return "Elige todos los procesos, solo originales o solo reemplazos.";
   if (control === "recruiter") return "Elige un reclutador de la lista.";
   if (control === "requester") return "Elige un cliente o área de la lista.";
   return "Elige una fecha válida.";

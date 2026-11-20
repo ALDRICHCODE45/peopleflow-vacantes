@@ -16,6 +16,7 @@ import { drilldownHref, type Drilldown } from "../drilldown";
 import { Figure } from "../figure";
 import { dayLabel, formatRate, NO_SAMPLE, number, personName, placementTotal, type Rate, type RecruiterCard } from "../model";
 import type { Period } from "../period";
+import { ProcessNote } from "../process-kind";
 import { RecruiterTable } from "../recruiter-table";
 import { MetricsSection } from "../section";
 import { serializeFilters, type MetricsFilters } from "../url-state";
@@ -41,8 +42,10 @@ export function onTimeRate(card: RecruiterCard): Rate {
 export function byOnTime(items: RecruiterCard[]): RecruiterCard[] {
   return [...items].sort((a, b) => (onTimeRate(b).value ?? -1) - (onTimeRate(a).value ?? -1));
 }
-/** The existing recruiter detail route with the board period. */
-export const recruiterHref = (card: Pick<RecruiterCard, "user_id">, period: Period) => `/empresa/metricas/reclutadores/${card.user_id}?${serializeFilters(period)}`;
+/** The existing recruiter detail route with the board period and the process filter (the page reads no other filter). */
+export const recruiterHref = (card: Pick<RecruiterCard, "user_id">, scope: Period & Pick<MetricsFilters, "process_kind">) => `/empresa/metricas/reclutadores/${card.user_id}?${serializeFilters(scope)}`;
+/** «Vacantes asignadas» and «Conversión» are vacancy level (replacement-processes-v1 «Metrics»): the process filter does not change them. */
+const IGNORED_COLUMNS = "«Vacantes asignadas» y «Conversión» no cambian con el filtro de proceso.";
 
 type Href = (target: Drilldown, count: number) => string | null;
 
@@ -51,6 +54,7 @@ export function RecruitersSection({ state, filters, period }: SectionProps<Recru
   const [open, setOpen] = useState(false);
   const items = state.data ?? [];
   const href: Href = (target, count) => drilldownHref(target, { ...filters, ...period } satisfies MetricsFilters, { count });
+  const scope = { ...period, process_kind: filters.process_kind };
   return <MetricsSection title="Desempeño por reclutador" state={state} helpFirst
     help={{ title: "Cómo se calcula por reclutador", body: <dl className="flex flex-col gap-3">
       {HELP.map(([term, text]) => <div key={term} className="flex flex-col gap-1"><dt className="font-medium text-foreground">{term}</dt><dd>{text}</dd></div>)}
@@ -75,18 +79,20 @@ export function RecruitersSection({ state, filters, period }: SectionProps<Recru
               </TableRow>
             </TableHeader>
             <TableBody className="[&_tr]:border-t [&_tr]:border-b-0">
-              {byOnTime(data).slice(0, VISIBLE_ROWS).map(card => <RecruiterRow key={card.user_id} card={card} detail={recruiterHref(card, period)} href={href} />)}
+              {byOnTime(data).slice(0, VISIBLE_ROWS).map(card => <RecruiterRow key={card.user_id} card={card} detail={recruiterHref(card, scope)} href={href} />)}
             </TableBody>
           </Table>}
+        <ProcessNote filters={filters}>{IGNORED_COLUMNS}</ProcessNote>
       </Card>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent className="w-full sm:max-w-6xl">
           <SheetHeader>
             <SheetTitle>Desempeño por reclutador</SheetTitle>
             <SheetDescription>{`${dayLabel(period.from)} – ${dayLabel(period.to)}`}</SheetDescription>
+            <ProcessNote filters={filters}>{IGNORED_COLUMNS}</ProcessNote>
           </SheetHeader>
           <div className="min-h-0 overflow-y-auto px-4 pb-4">
-            <RecruiterTable items={data} href={card => recruiterHref(card, period)} />
+            <RecruiterTable items={data} href={card => recruiterHref(card, scope)} />
           </div>
         </SheetContent>
       </Sheet>

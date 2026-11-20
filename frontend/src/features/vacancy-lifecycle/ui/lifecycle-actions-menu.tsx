@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Send } from "lucide-react";
+import { ChevronDown, Replace, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ActionStatus } from "@/components/feedback/action-status";
@@ -10,9 +10,13 @@ import { getLifecycleAction } from "../actions";
 import type { CloseCoverage, Lifecycle } from "../model";
 import { LifecycleActionDialog, LIFECYCLE_ACTION_UI, type LifecycleSnapshot, type TransitionAction } from "./lifecycle-action-dialog";
 
-/** No local role/transition table: every opening gets the current actor's allowed_actions. */
-export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPublish, coverage }: {
-  coverage?: CloseCoverage; draftId: string; title: string; onChanged: (view: Lifecycle) => void; children?: ReactNode; onPublish?: () => void;
+/**
+ * No local role/transition table: every opening gets the current actor's allowed_actions.
+ * `onStartReplacement` (replacement-processes S2) opens the start-replacement flow for this draft; «Iniciar reemplazo» shows only
+ * with it and only when the fresh lifecycle says `can_start_replacement` (the backend already drops `reopen` when closed covered).
+ */
+export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPublish, onStartReplacement, coverage }: {
+  coverage?: CloseCoverage; draftId: string; title: string; onChanged: (view: Lifecycle) => void; children?: ReactNode; onPublish?: () => void; onStartReplacement?: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<LifecycleSnapshot | null>(null);
   const [selected, setSelected] = useState<TransitionAction | null>(null);
@@ -47,6 +51,7 @@ export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPu
             const ui = LIFECYCLE_ACTION_UI[action];
             return <DropdownMenuItem key={action} onClick={() => setSelected(action)}><ui.icon aria-hidden="true" />{ui.label}</DropdownMenuItem>;
           })}
+          {onStartReplacement && snapshot?.data.can_start_replacement && <DropdownMenuItem onClick={() => onStartReplacement()}><Replace aria-hidden="true" />Iniciar reemplazo</DropdownMenuItem>}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

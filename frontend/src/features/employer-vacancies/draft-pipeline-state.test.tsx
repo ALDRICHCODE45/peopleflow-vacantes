@@ -15,6 +15,8 @@ vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAct
 vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
 const read = filledDraftRead();
 const success = { ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: null, process: null } }, identity: { draftId: read.id, etag: '"etag"' } } as const;
+/** A board with the given lifecycle, for screens that open the board (the lifecycle has a process). */
+const boardWith = (lifecycle: unknown) => ({ ok: true, data: { lifecycle, screening_filters: [], retired_stages: [], delivery: { state: "pending", delivered: 0, target: 3 }, substates: [], stages: [{ id: read.id, kind: "new", name: "Entrada actual", count: 0 }], exit: { id: "exit", kind: "discarded", name: "Fuera actual", count: 0 }, coverage: { covered: 0, required: null, full_coverage_reached_at: null }, participations: [] } }) as unknown as Awaited<ReturnType<typeof loadBoardAction>>;
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(loadDraftForEditAction).mockResolvedValue(success);
@@ -78,7 +80,9 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
   expect(container.firstElementChild).not.toHaveClass("md:h-[calc(100dvh-1rem)]", "md:overflow-hidden");
 });
 it.each([["paused", "Pausada", "review"], ["closed", "Cerrada · proceso en curso", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
-  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
+  const lifecycle = { ...success.seed.lifecycle, publication, process: "active" as const };
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle } });
+  vi.mocked(loadBoardAction).mockResolvedValue(boardWith(lifecycle));
   render(<DraftPipelineState draftId={read.id} />);
   expect(await screen.findByText(label)).toHaveAttribute("data-variant", variant);
 });
@@ -126,4 +130,30 @@ it("ignores stale results when the id changes", async () => {
   await screen.findByRole("heading", { name: "No encontramos este borrador" });
   await act(async () => resolve(success));
   expect(screen.queryByText("Esta vacante todavía no tiene pipeline")).not.toBeInTheDocument();
+});
+it("S6: the header of a replacement carries «Reemplazo» and «Privada» next to its state", async () => {
+  const lifecycle = { ...success.seed.lifecycle, publication: "published" as const, process: "active" as const, kind: "replacement" as const, replacement_of: "223e4567-e89b-42d3-a456-426614174000", visibility: "private" as const };
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle } });
+  // Private replacement: the publication read says «draft» (contract D4) and the screen still opens the board from the lifecycle.
+  vi.mocked(loadBoardAction).mockResolvedValue(boardWith(lifecycle));
+  render(<DraftPipelineState draftId={read.id} />);
+  await screen.findByRole("heading", { name: "Entrada actual" });
+  const header = (await screen.findByRole("heading", { level: 1 })).closest("header") as HTMLElement;
+  expect(within(header).getByText("Activa")).toBeVisible();
+  expect(within(header).getByText("Reemplazo")).toHaveAttribute("data-slot", "badge");
+  expect(within(header).getByText("Privada")).toHaveAttribute("data-slot", "badge");
+});
+it("on a phone the state and replacement badges leave the header (it truncated the title) and wrap in a row below it", async () => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  const lifecycle = { ...success.seed.lifecycle, publication: "published" as const, process: "active" as const, kind: "replacement" as const, replacement_of: "223e4567-e89b-42d3-a456-426614174000", visibility: "private" as const };
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle } });
+  vi.mocked(loadBoardAction).mockResolvedValue(boardWith(lifecycle));
+  render(<DraftPipelineState draftId={read.id} />);
+  await screen.findByRole("heading", { name: "Entrada actual" });
+  const header = screen.getByRole("heading", { level: 1 }).closest("header") as HTMLElement;
+  expect(within(header).queryByText("Activa")).not.toBeInTheDocument();
+  expect(within(header).queryByText("Reemplazo")).not.toBeInTheDocument();
+  for (const label of ["Activa", "Reemplazo", "Privada"]) expect(screen.getByText(label)).toHaveAttribute("data-slot", "badge");
+  expect(screen.getByText("Activa").parentElement).toHaveClass("flex-wrap");
+  vi.unstubAllGlobals();
 });

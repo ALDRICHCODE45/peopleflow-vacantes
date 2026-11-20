@@ -2,7 +2,9 @@ import { substateName } from "./substates";
 import { discardReasonLabel } from "./discard-text";
 import type { Board, DiscardBody, Move, Participation, PlacementExitReason } from "./model";
 
-export type BoardWrite = { kind: "substate"; substateId: string | null } | { kind: "move"; target: string; placementExitReason?: PlacementExitReason } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean; target?: string };
+export type BoardWrite = { kind: "substate"; substateId: string | null } | { kind: "move"; target: string; placementExitReason?: PlacementExitReason } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean; target?: string }
+  /** Late «No se sostuvo»: the discard route with `placement_exit_reason=candidate_left`, allowed on a finished board (S3). */
+  | { kind: "departure" };
 
 function coveredCopy({ covered, required }: Move["coverage"]) {
   return `${covered}${required === null ? "" : ` de ${required}`} cubiertas`;
@@ -18,6 +20,7 @@ export function boardSuccessCopy(board: Board, item: Participation, write: Board
   const from = board.stages.find(stage => stage.id === item.stage_id);
   const to = board.stages.find(stage => stage.id === result.stage_id);
   const coverage = coveredCopy(result.coverage);
+  if (write.kind === "departure") return { title: `${name} quedó como «No se sostuvo»`, description: `Se liberó una plaza: ${coverage}. El resultado original del proceso no cambia.` };
   if (write.kind === "discard") {
     const freed = `se liberó una plaza: ${coverage}.`;
     const consequence = write.body.candidate_message

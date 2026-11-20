@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import { closeReasonSchema } from "@/features/vacancy-lifecycle/model";
+import { closeReasonSchema, processKindSchema } from "@/features/vacancy-lifecycle/model";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import { draftTeamSummarySchema } from "../team-summary";
 
@@ -42,6 +42,12 @@ const rowSchema = z.object({
   version: z.string().regex(/^[1-9][0-9]*$/),
   created_at: timestamp,
   updated_at: timestamp,
+  // replacement-processes-v1 «Draft list»: optional until the backend that emits them is deployed.
+  kind: processKindSchema.optional(),
+  sequence: z.number().int().positive().nullable().optional(),
+  replacement_of: uuid.nullable().optional(),
+  root_process_id: uuid.optional(),
+  visibility: z.enum(["public", "private"]).nullable().optional(),
 }).strict().refine(row => row.status === "draft" ? row.process === null :
   row.process === "active" || (row.status === "closed" && row.process === "finished"))
   .refine(row => (row.status === "draft") === (row.candidates === null));
@@ -58,19 +64,22 @@ export type ListDraftsFailure = {
   envelope?: z.infer<typeof envelopeSchema>;
 };
 export type ListDraftsResult = { ok: true; data: z.infer<typeof listSchema> } | ListDraftsFailure;
-export type DraftListQuery = { cursor?: string; limit?: number };
+/** `rootProcessId` (replacement-processes-v1 «Draft list»): only the drafts of one logical vacancy — the original and its replacements. */
+export type DraftListQuery = { cursor?: string; limit?: number; rootProcessId?: string };
 
 /** Private v2 list. Cursors remain opaque, versions remain decimal strings. */
 export async function listDrafts(input: DraftListQuery & { token: string }): Promise<ListDraftsResult> {
   if (typeof input?.token !== "string" || !input.token.trim())
     return { ok: false, error: { kind: "missing_token", retryable: false } };
   if ((input.cursor !== undefined && typeof input.cursor !== "string") ||
-      (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 50)))
+      (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 50)) ||
+      (input.rootProcessId !== undefined && !uuid.safeParse(input.rootProcessId).success))
     return { ok: false, error: { kind: "invalid_request", retryable: false } };
 
   const { serverEnv } = await import("@/lib/env/server");
   const query = new URLSearchParams({ limit: String(input.limit ?? 20) });
   if (input.cursor !== undefined) query.set("cursor", input.cursor);
+  if (input.rootProcessId !== undefined) query.set("root_process_id", input.rootProcessId);
   // Same absolute v2 path construction as api/client-v2.ts (never inherit /v1).
   const result = await requestJson(
     new URL(`/v2/me/company/job-drafts?${query}`, serverEnv.apiBaseUrl).toString(),

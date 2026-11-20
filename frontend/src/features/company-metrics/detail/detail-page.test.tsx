@@ -6,7 +6,7 @@ vi.mock("../actions", () => ({ loadMetricsAccessAction: vi.fn(), loadDetailActio
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { loadDetailAction, loadMetricsAccessAction } from "../actions";
 import type { DetailPage, MetricsResult } from "../model";
-import { applicationList, candidateList, clientId, deliveryList, deliveryListRow, draftId, jorge, jorgeId, placementList, vacancyList } from "../test-fixtures";
+import { applicationList, candidateList, clientId, deliveryList, deliveryListRow, draftId, jorge, jorgeId, placementList, reassignmentList, replacementKeys, vacancyList } from "../test-fixtures";
 import { MetricsDetailPage } from "./detail-page";
 
 const access = vi.mocked(loadMetricsAccessAction);
@@ -278,5 +278,90 @@ describe("metrics detail page (artboard 08)", () => {
     expect(screen.getByText("Vacantes 1–2")).toBeInTheDocument();
     expect(screen.queryByText(/de 154/)).not.toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Canal" })).getByRole("button", { name: "Todos 515" })).toBeInTheDocument();
+  });
+});
+
+describe("process filter and «Reemplazo» badge on the detail lists (S7)", () => {
+  const replacementRow = (title: string) => deliveryListRow({ vacancy: { draft_id: "30000000-0000-4000-8000-0000000000bb", title, ...replacementKeys } });
+
+  it("sends process_kind with the list query, shows its chip and removes only it", async () => {
+    at(`kind=placements&${period}&process_kind=replacement&held=false`);
+    load.mockResolvedValue(ok({ kind: "placements", page: placementList({ applied_filters: { process_kind: "replacement" } }) }));
+    render(<MetricsDetailPage />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Placements que no se sostuvieron · Reemplazos" })).toBeInTheDocument();
+    expect(lastCall()).toEqual({ kind: "placements", query: { from: "2026-08-01", to: "2026-10-31", process_kind: "replacement", held: "false" } });
+    const chips = screen.getByRole("list", { name: "Filtros activos" });
+    expect(within(chips).getByText("Proceso: Reemplazos")).toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Ruta" })).getByRole("link", { name: "Métricas" })).toHaveAttribute("href", `/empresa/metricas?${period}&process_kind=replacement`);
+    await userEvent.click(within(chips).getByRole("button", { name: "Quitar filtro Proceso: Reemplazos" }));
+    expect(search()).toEqual({ kind: "placements", from: "2026-08-01", to: "2026-10-31", held: "false" });
+    await waitFor(() => expect(lastCall().query).toEqual({ from: "2026-08-01", to: "2026-10-31", held: "false" }));
+  });
+
+  it("names «Originales» the same way", async () => {
+    at(`kind=deliveries&${period}&process_kind=original`);
+    render(<MetricsDetailPage />);
+    expect(await screen.findByText("Proceso: Originales")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["deliveries", () => ok({ kind: "deliveries", page: deliveryList({ items: [replacementRow("Coordinador de logística"), deliveryListRow({ vacancy: { draft_id: "30000000-0000-4000-8000-000000000003", title: "Analista de nómina", kind: "original", root_draft_id: "30000000-0000-4000-8000-000000000003", sequence: null } })] }) })],
+    ["placements", () => ok({ kind: "placements", page: placementList({ items: placementList().items.map(row => ({ ...row, vacancy: { ...row.vacancy, ...replacementKeys } })) }) })],
+    ["reassignments", () => ok({ kind: "reassignments", page: reassignmentList({ items: reassignmentList().items.map(row => ({ ...row, vacancy: { ...row.vacancy, ...replacementKeys } })) }) })],
+    ["candidates", () => ok({ kind: "candidates", page: candidateList({ items: candidateList().items.map(row => ({ ...row, vacancy: { ...row.vacancy, ...replacementKeys } })) }) })],
+    ["applications", () => ok({ kind: "applications", page: applicationList({ items: applicationList().items.map(row => ({ ...row, vacancy: { ...row.vacancy, ...replacementKeys } })) }) })],
+  ] as const)("marks a replacement's vacancy with the «Reemplazo» badge in the %s rows", async (kind, page) => {
+    at(`kind=${kind}&${period}`);
+    load.mockResolvedValue(page());
+    render(<MetricsDetailPage />);
+    const table = await screen.findByRole("table");
+    expect(within(table).getAllByText("Reemplazo").length).toBeGreaterThan(0);
+    // The vacancy link keeps its plain accessible name: the badge is beside it, not inside it.
+    for (const row of within(table).getAllByRole("row").slice(1)) {
+      const first = within(row).getAllByRole("cell")[kind === "placements" || kind === "candidates" ? 1 : 0];
+      expect(within(first).getByRole("link").textContent).not.toContain("Reemplazo");
+    }
+  });
+
+  it("badges only the replacement rows of a mixed list", async () => {
+    at(`kind=deliveries&${period}`);
+    load.mockResolvedValue(ok({ kind: "deliveries", page: deliveryList({ items: [replacementRow("Coordinador de logística"), deliveryListRow({ vacancy: { draft_id: "30000000-0000-4000-8000-000000000003", title: "Analista de nómina", kind: "original", root_draft_id: "30000000-0000-4000-8000-000000000003", sequence: null } })] }) }));
+    render(<MetricsDetailPage />);
+    await screen.findByRole("table");
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(within(rows[0]).getByText("Reemplazo")).toBeInTheDocument();
+    expect(within(rows[1]).queryByText("Reemplazo")).not.toBeInTheDocument();
+  });
+
+  it("shows no badge with an old backend's rows (no kind keys)", async () => {
+    render(<MetricsDetailPage />);
+    await screen.findByRole("table");
+    expect(screen.queryByText("Reemplazo")).not.toBeInTheDocument();
+  });
+
+  it("tells the vacancies list does not follow the process filter (roots only), and only then", async () => {
+    at(`kind=vacancies&${period}&scope=assigned&process_kind=replacement`);
+    load.mockResolvedValue(ok({ kind: "vacancies", page: vacancyList({ total: 12, applied_filters: { scope: "assigned" } }) }));
+    render(<MetricsDetailPage />);
+    expect(await screen.findByText("Esta lista no cambia con el filtro de proceso: cuenta cada vacante una sola vez.")).toBeInTheDocument();
+    cleanup();
+    at(`kind=vacancies&${period}&scope=assigned`);
+    render(<MetricsDetailPage />);
+    await screen.findByRole("table");
+    expect(screen.queryByText(/filtro de proceso/)).not.toBeInTheDocument();
+    cleanup();
+    at(`kind=placements&${period}&process_kind=replacement`);
+    load.mockResolvedValue(ok({ kind: "placements", page: placementList() }));
+    render(<MetricsDetailPage />);
+    await screen.findByRole("table");
+    expect(screen.queryByText(/filtro de proceso/)).not.toBeInTheDocument();
+  });
+
+  it("shows the standard filter error when the API rejects process_kind (old backend)", async () => {
+    at(`kind=deliveries&${period}&process_kind=replacement`);
+    load.mockResolvedValue({ ok: false, reason: "invalid_filter", reference: { status: 422 }, fields: [{ field: "process_kind", code: "unknown" }] });
+    render(<MetricsDetailPage />);
+    expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
+    expect(screen.getByText("Proceso: elige todos los procesos, solo originales o solo reemplazos.")).toBeInTheDocument();
   });
 });

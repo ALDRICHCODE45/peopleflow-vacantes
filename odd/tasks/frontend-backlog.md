@@ -21,6 +21,13 @@ prefill from CV/LinkedIn/OCC (postponed: feasibility and terms), login and cloud
 
 ## Product gaps
 
+- **Replacement processes follow-ups** (`replacement-processes.md` L12–L13, 2026-11-20): «Retomado» mark on carried
+  cards (needs `carried_from_participation_id` on board items; same optional-first deployment order); company dashboard
+  participation charts still count carried participations (backend); carry rows do not show the discard reason; the
+  dialog header has no icon tile or company name; the finished original has no «Acciones» button; the 390 breadcrumb
+  ellipsis for long titles comes from the sidebar top bar; the publish dialog plural «1 candidato» is checked only by a
+  unit test.
+
 - **«Ver todas sus vacantes» without a careers site** (`vacancy-detail-explore.md` L7): when a company has no published
   careers site, the «Sobre {Empresa}» block shows up to 3 other vacancies and no «see all» link, because `/vacantes` has
   no company filter. Adding `company` to the public search grammar is a separate decision.

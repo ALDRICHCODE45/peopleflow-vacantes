@@ -68,6 +68,7 @@ function normalize(kind: ListKind, source: Source): DetailParams {
   const board = normalizeFilters({
     from: source.get("from") ?? undefined, to: source.get("to") ?? undefined, recruiter_id: source.get("recruiter_id") ?? undefined,
     requester_kind: (source.get("requester_kind") ?? undefined) as MetricsFilters["requester_kind"], requester_id: source.get("requester_id") ?? undefined,
+    process_kind: (source.get("process_kind") ?? undefined) as MetricsFilters["process_kind"],
   });
   // Both ends or neither: a half or invalid period falls back to the default one.
   if (!board.from || !board.to || periodIssues({ from: board.from, to: board.to }).length) { delete board.from; delete board.to; }

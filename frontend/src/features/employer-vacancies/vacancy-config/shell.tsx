@@ -20,6 +20,7 @@ import { ConfigLifecycleProvider } from "./lifecycle";
 import { ProfileSkeleton } from "@/features/psychometrics/profile/loading";
 import { ChecklistSkeleton } from "@/features/vacancy-checklist/editor/loading";
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
+import { ReplacementBadges } from "@/features/vacancy-lifecycle/ui/replacement-badges";
 import { TeamSkeleton } from "@/features/vacancy-team/loading";
 import { TeamAccessEnded } from "@/features/vacancy-team/access-ended";
 
@@ -62,7 +63,7 @@ export function VacancyConfigShell({ draftId, children, teamPrototypeEnabled = f
   const status = publicationStatus(result?.ok ? result.seed.lifecycle.publication : undefined, "accent", result?.ok ? result.seed.lifecycle.process : undefined);
   return (
     <div className="flex flex-1 flex-col" aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok && publication ? <Badge variant={status.variant} dot>{status.label}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok && publication ? <><Badge variant={status.variant} dot>{status.label}</Badge><ReplacementBadges lifecycle={result.seed.lifecycle} /></> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="gap-5 md:gap-6">
           {loaded?.id === draftId && loaded.accessEnded ? <TeamAccessEnded /> : result && !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : (

@@ -34,7 +34,7 @@ import {
 } from "./actions";
 import { CompanyMetricsPage } from "./company-metrics-page";
 import type { MetricsFailure } from "./model";
-import { carlos, clientId, closures, compliance, delays, emptySummary, origin, pipeline, reassignmentPage, recruiterPage, summaryV2, vacancyPage } from "./test-fixtures";
+import { carlos, clientId, closures, compliance, delays, emptySummary, origin, pipeline, reassignmentPage, recruiterPage, replacementKeys, summaryV2, vacancyPage } from "./test-fixtures";
 
 const access = vi.mocked(loadMetricsAccessAction);
 const summary = vi.mocked(loadSummaryAction);
@@ -212,5 +212,131 @@ describe("period and filters (rule 11)", () => {
     await screen.findByText(/Actualizado/);
     await openFilters(user);
     await waitFor(() => expect(loadRecruitersAction).toHaveBeenCalled());
+  });
+});
+
+describe("process filter «Originales / Reemplazos» (S7)", () => {
+  const NOTE = "No cambia con el filtro de proceso";
+  const allSections = () => [summary, ...sectionActions];
+
+  it("offers Todos, Originales and Reemplazos in «Filtros», keeps the choice in the URL and sends it on every section", async () => {
+    const user = userEvent.setup();
+    render(<CompanyMetricsPage />);
+    await screen.findByText(/Actualizado/);
+    await openFilters(user);
+    const field = screen.getByRole("combobox", { name: "Proceso" }).closest('[data-slot="field"]') as HTMLElement;
+    expect(within(field).getAllByRole("option").map(option => option.textContent)).toEqual(["Todos los procesos", "Originales", "Reemplazos"]);
+    await pick(user, "Proceso", "Reemplazos");
+    expect(search()).toEqual({ process_kind: "replacement" });
+    for (const action of allSections()) await waitFor(() => expect(action).toHaveBeenLastCalledWith({ process_kind: "replacement" }));
+    await pick(user, "Proceso", "Originales");
+    expect(search()).toEqual({ process_kind: "original" });
+    await pick(user, "Proceso", "Todos los procesos");
+    expect(search()).toEqual({});
+    await waitFor(() => expect(summary).toHaveBeenLastCalledWith({}));
+  });
+
+  it("reads it from the URL, shows its chip and counts it in «Filtros», and the chip removes only it", async () => {
+    const user = userEvent.setup();
+    at(`?from=2026-08-01&to=2026-10-31&process_kind=replacement&recruiter_id=${carlos().user_id}`);
+    render(<CompanyMetricsPage />);
+    await waitFor(() => expect(summary).toHaveBeenCalledWith({ from: "2026-08-01", to: "2026-10-31", recruiter_id: carlos().user_id, process_kind: "replacement" }));
+    const chips = await screen.findByRole("list", { name: "Filtros activos" });
+    expect(within(chips).getByText("Proceso: Reemplazos")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filtros · 2" })).toBeInTheDocument();
+    await user.click(within(chips).getByRole("button", { name: "Quitar filtro Proceso: Reemplazos" }));
+    expect(search()).toEqual({ from: "2026-08-01", to: "2026-10-31", recruiter_id: carlos().user_id });
+  });
+
+  it("«Limpiar filtros» drops it and keeps the period", async () => {
+    at("?from=2026-08-01&to=2026-10-31&process_kind=original");
+    render(<CompanyMetricsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Limpiar filtros" }));
+    expect(search()).toEqual({ from: "2026-08-01", to: "2026-10-31" });
+  });
+
+  it("ignores a hand-edited value instead of sending a guaranteed 422", async () => {
+    at("?process_kind=everything");
+    render(<CompanyMetricsPage />);
+    await waitFor(() => expect(summary).toHaveBeenCalledWith({}));
+    expect(screen.queryByRole("list", { name: "Filtros activos" })).not.toBeInTheDocument();
+  });
+
+  it("shows the standard filter error, at its own control, when the API rejects process_kind (old backend)", async () => {
+    const user = userEvent.setup();
+    summary.mockResolvedValueOnce(failure("invalid_filter", { fields: [{ field: "process_kind", code: "unknown" }] }));
+    at("?process_kind=replacement");
+    render(<CompanyMetricsPage />);
+    expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
+    expect(screen.getByText("Proceso: elige todos los procesos, solo originales o solo reemplazos.")).toBeInTheDocument();
+    await openFilters(user);
+    expect(screen.getByText("Elige todos los procesos, solo originales o solo reemplazos.", { selector: '[data-slot="field-error"]' })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Restablecer vista" }));
+    expect(window.location.search).toBe("");
+  });
+
+  it("explains, only while the filter is on, which figures do not follow it (vacancy level, per the contract table)", async () => {
+    at("?process_kind=replacement");
+    render(<CompanyMetricsPage />);
+    await screen.findByText(/Actualizado/);
+    const article = (name: string) => screen.getByRole("article", { name });
+    await waitFor(() => expect(article("Cierres de vacantes")).toBeInTheDocument());
+    for (const name of ["Vacantes asignadas", "Mediana para cerrar", "Cierres de vacantes"]) expect(within(article(name)).getByText(NOTE), name).toBeInTheDocument();
+    // Process-level figures follow the filter, so they carry no caption.
+    for (const name of ["Entregas a tiempo", "Placements", "Reasignaciones", "Estado de entregas"]) expect(within(article(name)).queryByText(NOTE), name).not.toBeInTheDocument();
+    const target = (await screen.findByRole("heading", { name: "Meta de cierre" })).closest('[data-slot="card"]') as HTMLElement;
+    expect(within(target).getByText(NOTE)).toBeInTheDocument();
+    for (const name of ["Entregas vencidas", "Reasignaciones por motivo", "Candidatos por etapa", "Vacantes con más candidatos"]) {
+      expect(within((await screen.findByRole("heading", { name })).closest('[data-slot="card"]') as HTMLElement).queryByText(NOTE), name).not.toBeInTheDocument();
+    }
+    const recruiters = await screen.findByRole("region", { name: "Desempeño por reclutador" });
+    expect(within(recruiters).getByText("«Vacantes asignadas» y «Conversión» no cambian con el filtro de proceso.")).toBeInTheDocument();
+  });
+
+  it("shows no caption at all in the default «Todos» view", async () => {
+    render(<CompanyMetricsPage />);
+    await screen.findByText(/Actualizado/);
+    await screen.findByRole("heading", { name: "Meta de cierre" });
+    await screen.findByRole("region", { name: "Desempeño por reclutador" });
+    expect(screen.queryByText(/filtro de proceso/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the filter on the way to a recruiter's page, so their figures read the same view", async () => {
+    at("?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+    render(<CompanyMetricsPage />);
+    const recruiters = await screen.findByRole("region", { name: "Desempeño por reclutador" });
+    const links = await within(recruiters).findAllByRole("link", { name: /^Ver detalle de / });
+    expect(links.length).toBeGreaterThan(0);
+    for (const item of links) expect(item.getAttribute("href")).toMatch(/\/reclutadores\/[^?]+\?from=2026-08-01&to=2026-10-31&process_kind=replacement$/);
+  });
+
+  it("opens a figure's detail list with the filter in the URL", async () => {
+    at("?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+    render(<CompanyMetricsPage />);
+    const assigned = await screen.findByRole("article", { name: "Placements" });
+    const href = within(assigned).getAllByRole("link")[0].getAttribute("href")!;
+    const url = new URL(href, "https://app.test");
+    expect(url.searchParams.get("process_kind")).toBe("replacement");
+    expect(url.searchParams.get("back")).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+  });
+
+  describe("«Reemplazo» badge", () => {
+    const rowOf = (title: string) => screen.getByText(title).closest("li") as HTMLElement;
+    it("marks a replacement in «Vacantes con más candidatos» and «Entregas vencidas», and only that one", async () => {
+      vi.mocked(loadPipelineAction).mockResolvedValue({ ok: true, data: pipeline({ top_vacancies: pipeline().top_vacancies.map((row, index) => index === 0 ? { ...row, vacancy: { ...row.vacancy, ...replacementKeys } } : { ...row, vacancy: { ...row.vacancy, kind: "original" as const, root_draft_id: row.vacancy.draft_id, sequence: null } }) }) });
+      vi.mocked(loadDelaysAction).mockResolvedValue({ ok: true, data: delays({ overdue: { total: 3, top: delays().overdue.top.map((row, index) => index === 0 ? { ...row, vacancy: { ...row.vacancy, ...replacementKeys } } : row) } }) });
+      render(<CompanyMetricsPage />);
+      await screen.findByText("Analista de crédito Sr.");
+      expect(within(rowOf("Analista de crédito Sr.")).getByText("Reemplazo")).toBeInTheDocument();
+      expect(within(rowOf("Ejecutivo de cuenta")).getByText("Reemplazo")).toBeInTheDocument();
+      expect(screen.getAllByText("Reemplazo")).toHaveLength(2);
+    });
+
+    it("shows no badge with an old backend's payload (no kind keys)", async () => {
+      render(<CompanyMetricsPage />);
+      await screen.findByText("Analista de crédito Sr.");
+      await screen.findByText("Ejecutivo de cuenta");
+      expect(screen.queryByText("Reemplazo")).not.toBeInTheDocument();
+    });
   });
 });

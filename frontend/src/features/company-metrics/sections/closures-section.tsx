@@ -14,7 +14,9 @@ import type { Drilldown } from "../drilldown";
 import { Figure } from "../figure";
 import { monthLabel, number, plural, share, shortMonthLabel, type ClosuresSection as ClosuresSectionData } from "../model";
 import { CHART_ACCENT, CHART_GRID, CHART_MUTED, DELIVERY_TONE, type DeliveryTone } from "../palette";
+import { ProcessNote } from "../process-kind";
 import { MetricsSection } from "../section";
+import type { MetricsFilters } from "../url-state";
 import { CARD, drillFor, seeLabel, type Drill } from "./summary-strip";
 import type { SectionProps } from "./types";
 
@@ -79,13 +81,13 @@ export function ClosuresSection({ state, filters, period }: SectionProps<Closure
   const drill = drillFor(filters, period);
   return <MetricsSection title="Cierres y entregas" state={state} help={{ title: "Cómo se calculan cierres y entregas", body: <ClosuresHelp /> }} skeleton={<ClosuresSkeleton />}>
     {data => <div className="grid gap-6 lg:grid-cols-12">
-      <ClosuresCard months={data.closed_by_month} drill={drill} />
+      <ClosuresCard months={data.closed_by_month} drill={drill} filters={filters} />
       <DeliveryStatusCard status={data.delivery_status} drill={drill} />
     </div>}
   </MetricsSection>;
 }
 
-function ClosuresCard({ months, drill }: { months: ClosuresSectionData["closed_by_month"]; drill: Drill }) {
+function ClosuresCard({ months, drill, filters }: { months: ClosuresSectionData["closed_by_month"]; drill: Drill; filters: MetricsFilters }) {
   const titleId = useId();
   const [asTable, setAsTable] = useState(false);
   const closed = months.reduce((sum, month) => sum + month.closed, 0);
@@ -101,6 +103,8 @@ function ClosuresCard({ months, drill }: { months: ClosuresSectionData["closed_b
     <div className="flex items-start justify-between gap-4">
       <div>
         <h3 id={titleId} className="text-[15px] leading-[22px] font-semibold">Cierres de vacantes</h3>
+        {/* Vacancy level (replacement-processes-v1 «Metrics»): closes are the logical vacancy's own, whatever the process filter says. */}
+        <ProcessNote filters={filters} className="mt-1" />
         {!empty && <div className="mt-1.5 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <i aria-hidden="true" className="size-2 rounded-full" style={{ background: CHART_ACCENT }} /><span>Cerradas</span>

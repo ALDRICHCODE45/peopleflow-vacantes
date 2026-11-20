@@ -216,3 +216,51 @@ describe("detail lists", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("process_kind (replacement-processes-v1 «Metrics»)", () => {
+  const filters = { from: "2026-08-01", to: "2026-10-31", process_kind: "replacement" } as const;
+
+  it.each([
+    ["summary", loadSummaryAction, summaryV2], ["closures", loadClosuresAction, closures], ["compliance", loadComplianceAction, compliance],
+    ["delays", loadDelaysAction, delays], ["origin", loadOriginAction, origin], ["pipeline", loadPipelineAction, pipeline],
+  ] as const)("sends it on the %s section and omits it when the view is «Todas»", async (route, action, fixture) => {
+    fetchMock.mockResolvedValue(Response.json(fixture()));
+    await action(filters);
+    expect(call(0).url.pathname).toBe(`/v2/me/company/metrics/${route}`);
+    expect(call(0).url.search).toBe("?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+    await action({ from: "2026-08-01", to: "2026-10-31" });
+    expect(call(1).url.searchParams.has("process_kind")).toBe(false);
+  });
+
+  it("sends it on every recruiter card page, on one recruiter and on the vacancy and reassignment lists", async () => {
+    fetchMock.mockImplementation(async (url: URL | string) => Response.json(
+      new URL(String(url)).pathname.endsWith("/recruiters") ? recruiterPage([card()], new URL(String(url)).searchParams.has("cursor") ? null : "next") : new URL(String(url)).pathname.endsWith("/vacancies") ? vacancyPage()
+        : new URL(String(url)).pathname.endsWith("/reassignments") ? reassignmentPage() : recruiterDetail()));
+    await loadRecruitersAction({ process_kind: "original" });
+    await loadRecruiterAction({ userId: marianaId, filters });
+    await listVacanciesAction({ filters });
+    await listReassignmentsAction({ filters });
+    const urls = fetchMock.mock.calls.map(([url]) => new URL(String(url)));
+    expect(urls).toHaveLength(5);
+    expect(urls.map(url => url.searchParams.get("process_kind"))).toEqual(["original", "original", "replacement", "replacement", "replacement"]);
+  });
+
+  it("sends it on the detail lists, and never an invalid value", async () => {
+    fetchMock.mockResolvedValue(Response.json(placementList()));
+    await loadDetailAction({ kind: "placements", query: { ...filters, held: "false" } });
+    expect(call(0).url.search).toBe("?from=2026-08-01&to=2026-10-31&process_kind=replacement&held=false&limit=50");
+    await loadDetailAction({ kind: "placements", query: { process_kind: "everything" } });
+    expect(call(1).url.searchParams.has("process_kind")).toBe(false);
+  });
+
+  it("does not narrow the audited per-vacancy read: a draft is one process and the read is by its id", async () => {
+    fetchMock.mockResolvedValue(Response.json(deliveries()));
+    await loadAuditedDetailAction({ report: "deliveries", draftId, period: { ...filters } });
+    expect(call(0).url.searchParams.has("process_kind")).toBe(false);
+  });
+
+  it("answers an old backend's rejection as invalid_filter at the process_kind field", async () => {
+    fetchMock.mockResolvedValue(envelope(422, "invalid_filter", { fields: [{ field: "process_kind", code: "unknown" }] }));
+    expect(await loadSummaryAction(filters)).toMatchObject({ ok: false, reason: "invalid_filter", fields: [{ field: "process_kind", code: "unknown" }] });
+  });
+});

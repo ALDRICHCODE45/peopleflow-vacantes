@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, CirclePause, FilePenLine, SearchIcon, SearchX, SquareKanban, Users, CircleCheck } from "lucide-react";
+import { BriefcaseBusiness, CirclePause, ChevronDown, FilePenLine, GitFork, SearchIcon, SearchX, SquareKanban, Users, CircleCheck } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,13 +14,17 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import type { DraftListRow } from "@/features/jobs/drafts/list/client";
+import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import { cn } from "@/lib/utils";
-import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_WORK_MODE_LABELS, VACANCY_PIPELINE_STAGES } from "./model";
+import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_WORK_MODE_LABELS, VACANCY_PIPELINE_STAGES, vacancyPipelineHref } from "./model";
 import type { EmployerVacancyState, VacancyPipelineStage } from "./model";
 import { CloseReasonNote } from "@/features/vacancy-lifecycle/ui/close-reason-note";
 import { closeReasonLabel, lifecycleLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
+import { ReplacementTags } from "@/features/vacancy-lifecycle/ui/replacement-badges";
+import { useStartReplacementRequest } from "./use-start-replacement-request";
 import { PublishDialog } from "./publication/publish-dialog";
+import { PortfolioStartReplacement } from "./portfolio-start-replacement";
 import { portfolioRowActions } from "./model";
 import { DRAFT_LIST_MESSAGES, usePortfolioDrafts } from "./use-portfolio-drafts";
 import { plural } from "./plural";
@@ -47,10 +51,15 @@ function StageBreakdown({ pairs }: { pairs: string[] }) {
   return pairs.map((pair, index) => <React.Fragment key={index}>{index > 0 && " · "}<span className="inline-block whitespace-nowrap">{pair}</span></React.Fragment>);
 }
 
-function VacancyRow({ draft, onPublished, onLifecycleChanged }: { draft: DraftListRow; onPublished: (id: string, publishedAt: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void }) {
+const statusLabel = (draft: DraftListRow) => draft.status === "closed" ? `Cerrada · ${closeReasonLabel(draft.close_reason)}` : lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process });
+const statusVariant = (draft: DraftListRow) => draft.status === "draft" ? "info" : STATUS_VARIANT[draft.status === "published" ? "active" : draft.status];
+
+function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onStartReplacement, toggle }: { draft: DraftListRow; onPublished: (id: string, publishedAt: string) => void; onMadePublic: (id: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void; onStartReplacement: (id: string) => void; toggle?: React.ReactNode }) {
   const [publishOpen, setPublishOpen] = React.useState(false);
   const title = draft.title || "Sin título";
   const state = draft.status === "published" ? "active" : draft.status;
+  // A private replacement is live (published axis) without a public listing: «Publicar» stays available and no publication date is claimed (contract D4).
+  const privateLive = draft.visibility === "private" && (draft.status === "published" || draft.status === "paused");
   const candidates = draft.candidates;
   const transition = draft.status === "paused" ? { label: "Pausada el", at: draft.paused_at }
     : draft.status === "closed" ? draft.process === "finished"
@@ -66,10 +75,11 @@ function VacancyRow({ draft, onPublished, onLifecycleChanged }: { draft: DraftLi
           <p className="break-words text-[14.5px] font-semibold text-foreground">{title}</p>
           <p className={cn(META, "mt-0.5")}>{draft.team.mode === "shared" && !draft.team.responsible ? `Equipo · ${plural(draft.team.members_count, "persona", "personas")}` : <><span className="sr-only">Reclutador: </span>{draft.team.responsible?.name ?? "Usuario dado de baja"}</>}</p>
           {draft.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
+          {toggle && <div className="mt-2">{toggle}</div>}
         </div>
       </div>
       <div data-pf-vacancy-zone="conditions" className="flex min-w-0 flex-col items-start gap-2">
-        <Badge variant={state === "draft" ? "info" : STATUS_VARIANT[state]} dot>{draft.status === "closed" ? `Cerrada · ${closeReasonLabel(draft.close_reason)}` : lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process })}</Badge>
+        <div className="flex flex-wrap items-center gap-1.5"><Badge variant={state === "draft" ? "info" : STATUS_VARIANT[state]} dot>{statusLabel(draft)}</Badge><ReplacementTags kind={draft.kind} visibility={draft.visibility} /></div>
         {draft.status === "closed" && <>
           <p className={META}>{draft.process === "finished" ? "Proceso finalizado" : "Proceso en curso"}</p>
           {draft.close_reason === "other" && <CloseReasonNote note={draft.close_reason_note} />}
@@ -88,11 +98,14 @@ function VacancyRow({ draft, onPublished, onLifecycleChanged }: { draft: DraftLi
           <p className={META}>{draft.status === "draft" ? "Sin pipeline · en borrador" : candidates ? candidates.total === 0 ? "Sin candidatos todavía" : <StageBreakdown pairs={[...candidates.by_stage.map(stage => `${stage.name}: ${stage.count}`), `Descartados: ${candidates.discarded}`]} /> : null}</p>
         </div>
         <div className={META}>
-          {draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : transition.at ? <time dateTime={transition.at}>{transition.label} {formatDate(transition.at)}</time> : "Fecha no disponible"}
+          {draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : <div className="flex flex-col gap-1">
+            {draft.status === "published" && privateLive ? null : transition.at ? <time dateTime={transition.at}>{transition.label} {formatDate(transition.at)}</time> : "Fecha no disponible"}
+            {privateLive && <span>Privada · sin publicar</span>}
+          </div>}
         </div>
       </div>
       <div data-pf-vacancy-zone="action" className="flex items-center gap-1 [&>a]:w-full [&>a]:lg:w-auto [&>button]:w-full [&>button]:lg:w-auto">
-        <LifecycleActionsMenu draftId={draft.id} title={title} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" ? () => setPublishOpen(true) : undefined}>
+        <LifecycleActionsMenu draftId={draft.id} title={title} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" || privateLive ? () => setPublishOpen(true) : undefined} onStartReplacement={() => onStartReplacement(draft.id)}>
           <DropdownMenuGroup>
             {portfolioRowActions(draft.id, draft.status === "draft" ? "draft" : "published").filter(action => action.kind !== "publish").map(action => {
               const Icon = action.kind === "pipeline" ? SquareKanban : FilePenLine;
@@ -101,9 +114,44 @@ function VacancyRow({ draft, onPublished, onLifecycleChanged }: { draft: DraftLi
           </DropdownMenuGroup>
         </LifecycleActionsMenu>
       </div>
-      {draft.status === "draft" && <PublishDialog draftId={draft.id} open={publishOpen} onOpenChange={setPublishOpen} onPublished={publishedAt => onPublished(draft.id, publishedAt)} />}
+      {(draft.status === "draft" || privateLive) && <PublishDialog draftId={draft.id} open={publishOpen} onOpenChange={setPublishOpen} onPublished={publishedAt => draft.status === "draft" ? onPublished(draft.id, publishedAt) : onMadePublic(draft.id)} />}
     </li>
   );
+}
+
+/** S6: «N reemplazos» under the original. Opening it reads the drafts of that logical vacancy (`root_process_id`) and shows what was loaded meanwhile. */
+function ReplacementGroupToggle({ count, open, controls, onToggle }: { count: number; open: boolean; controls: string; onToggle: () => void }) {
+  return <button type="button" aria-expanded={open} aria-controls={open ? controls : undefined} onClick={onToggle} className="inline-flex min-h-10 items-center gap-1.5 rounded-md text-[12.5px] font-medium text-foreground outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/30">
+    <GitFork aria-hidden="true" className="size-3.5" />{plural(count, "reemplazo", "reemplazos")}<ChevronDown aria-hidden="true" className={cn("size-3.5 transition-transform motion-reduce:transition-none", open && "rotate-180")} />
+  </button>;
+}
+function ReplacementGroup({ id, root, loaded }: { id: string; root: string; loaded: DraftListRow[] }) {
+  const [state, setState] = React.useState<{ rows: DraftListRow[] | null; failed: boolean }>({ rows: null, failed: false });
+  React.useEffect(() => {
+    let current = true;
+    listDraftsAction({ rootProcessId: root, limit: 50 }).then(result => {
+      if (!current) return;
+      setState(result.ok ? { rows: result.items.filter(item => item.kind === "replacement").sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)), failed: false } : { rows: null, failed: true });
+    }).catch(() => { if (current) setState({ rows: null, failed: true }); });
+    return () => { current = false; };
+  }, [root]);
+  const rows = state.rows ?? loaded;
+  return <li id={id} data-pf-replacement-group={root} className="border-t border-border bg-muted/40 px-4 py-2 sm:px-5">
+    {state.failed && <p role="status" className={cn(META, "py-1")}>No pudimos actualizar los reemplazos.</p>}
+    <ul className="divide-y divide-border">{rows.map(draft => <li key={draft.id} className="grid grid-cols-1 gap-3 py-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-center">
+      <div className="min-w-0"><p className="flex flex-wrap items-center gap-1.5 text-[13.5px] font-semibold text-foreground"><span className="break-words">{draft.title || "Sin título"}</span><ReplacementTags kind={draft.kind} visibility={draft.visibility} /></p></div>
+      <div className="flex min-w-0 flex-col items-start gap-1"><Badge variant={statusVariant(draft)} dot>{statusLabel(draft)}</Badge>{draft.candidates && <p className={cn(META, "tabular-nums")}>{candidateSummary(draft.candidates.total, draft.candidates.in_process, draft.process === "finished")}</p>}</div>
+      <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={vacancyPipelineHref(draft.id)} />}>Ver reemplazo</Button>
+    </li>)}</ul>
+  </li>;
+}
+function VacancyGroup({ draft, replacements, ...row }: { draft: DraftListRow; replacements: DraftListRow[]; onPublished: (id: string, publishedAt: string) => void; onMadePublic: (id: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void; onStartReplacement: (id: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const panel = React.useId();
+  return <>
+    <VacancyRow draft={draft} {...row} toggle={replacements.length > 0 ? <ReplacementGroupToggle count={replacements.length} open={open} controls={panel} onToggle={() => setOpen(value => !value)} /> : undefined} />
+    {open && <ReplacementGroup id={panel} root={draft.id} loaded={replacements} />}
+  </>;
 }
 
 function DraftSkeletonRows() {
@@ -120,6 +168,8 @@ export function VacancyPortfolio() {
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<StatusFilter>("all");
   const drafts = usePortfolioDrafts();
+  // The «Acciones» menu of a row lands in `startReplacement.open(draftId)`; the list has no board, so the entry reads the source stages first.
+  const startReplacement = useStartReplacementRequest();
   const draftCount = drafts.items.filter(item => item.status === "draft").length;
   const counts: Readonly<Record<StatusFilter, number>> = {
     all: drafts.items.length,
@@ -137,6 +187,12 @@ export function VacancyPortfolio() {
   ] as const;
   const needle = normalize(query);
   const results = drafts.items.filter(draft => (status === "all" || (draft.status === "published" ? "active" : draft.status) === status) && (!needle || normalize(draft.title || "Sin título").includes(needle)));
+  // Replacements nest under their original when it is on screen; otherwise they list on their own (old backend: no kind ⇒ flat list).
+  const replacementsByRoot = new Map<string, DraftListRow[]>();
+  for (const item of drafts.items) if (item.kind === "replacement" && item.root_process_id) replacementsByRoot.set(item.root_process_id, [...(replacementsByRoot.get(item.root_process_id) ?? []), item]);
+  for (const group of replacementsByRoot.values()) group.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const originalsShown = new Set(results.filter(draft => draft.kind !== "replacement").map(draft => draft.id));
+  const topLevel = results.filter(draft => !(draft.kind === "replacement" && draft.root_process_id && originalsShown.has(draft.root_process_id)));
   const filtersActive = query.trim() !== "" || status !== "all";
   const emptyDrafts = status === "draft" && draftCount === 0 && !query.trim();
   const emptyDescription = !filtersActive
@@ -186,12 +242,14 @@ export function VacancyPortfolio() {
                 title={!filtersActive ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"} description={emptyDescription}
                 primaryAction={!filtersActive ? { label: "Crear vacante", href: "/empresa/vacantes/borradores/nuevo" } : undefined}>
                 {filtersActive && <Button type="button" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}
-              </StateCard> : <ul className="divide-y divide-border">{results.map(draft => <VacancyRow key={draft.id} draft={draft} onPublished={drafts.published} onLifecycleChanged={drafts.lifecycleChanged} />)}</ul>}
+              </StateCard> : <ul className="divide-y divide-border">{topLevel.map(draft => <VacancyGroup key={draft.id} draft={draft} replacements={draft.kind === "replacement" ? [] : replacementsByRoot.get(draft.id) ?? []} onPublished={drafts.published} onMadePublic={drafts.madePublic} onLifecycleChanged={drafts.lifecycleChanged} onStartReplacement={startReplacement.open} />)}</ul>}
               {!failure && drafts.retried && <div className="px-5"><ActionStatusSlot>{!drafts.pending && <ActionStatus id="portfolio-drafts-status" tone="success" text="Borradores cargados" />}</ActionStatusSlot></div>}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+      {startReplacement.request && <PortfolioStartReplacement key={startReplacement.request.draftId} draftId={startReplacement.request.draftId}
+        title={drafts.items.find(item => item.id === startReplacement.request?.draftId)?.title || "Sin título"} onClose={startReplacement.close} />}
     </div>
   );
 }

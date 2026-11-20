@@ -90,3 +90,39 @@ it.each([[400,"invalid_request"], [401,"unauthenticated"], [403,"forbidden"], [4
  const { listDrafts } = await import("./client"); const fetch = response({ error: "Unsafe", code }, status);
  expect(await listDrafts({ token: "x" })).toMatchObject({ ok: false, error: { status, retryable: false }, envelope: { code } }); expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+const replacementKeys = { kind: "replacement", sequence: 1, replacement_of: id, root_process_id: id, visibility: "private" };
+it.each([
+ { ...row, ...replacementKeys, status: "published", process: "active", candidates },
+ { ...row, kind: "original", sequence: null, replacement_of: null, root_process_id: id, visibility: null },
+ { ...row, kind: "original", sequence: null, replacement_of: null, root_process_id: id, visibility: "public", candidates, status: "closed", process: "finished" },
+])("accepts the replacement keys %# on a list row", async item => {
+ const { listDrafts } = await import("./client");
+ response({ items: [item], next_cursor: null });
+ expect(await listDrafts({ token: "x" })).toEqual({ ok: true, data: { items: [item], next_cursor: null } });
+});
+it("still accepts the old row without the replacement keys", async () => {
+ const { listDrafts } = await import("./client");
+ response({ items: [row], next_cursor: null });
+ expect(await listDrafts({ token: "x" })).toMatchObject({ ok: true });
+});
+it.each([{ kind: "clone" }, { sequence: 0 }, { sequence: "1" }, { replacement_of: "bad" }, { root_process_id: null }, { root_process_id: "bad" }, { visibility: "hidden" }, { extra_key: true }])("rejects bad replacement keys %j", async patch => {
+ const { listDrafts } = await import("./client");
+ response({ items: [{ ...row, ...replacementKeys, ...patch }], next_cursor: null });
+ expect(await listDrafts({ token: "x" })).toMatchObject({ ok: false });
+});
+it("sends root_process_id as a canonical UUID filter and rejects anything else without a request", async () => {
+ const { listDrafts } = await import("./client");
+ const fetch = response({ items: [], next_cursor: null });
+ expect(await listDrafts({ token: "x", rootProcessId: id, limit: 50 })).toMatchObject({ ok: true });
+ expect(String(fetch.mock.calls[0][0])).toContain(`root_process_id=${id}`);
+ fetch.mockClear();
+ expect(await listDrafts({ token: "x", rootProcessId: "not-a-uuid" })).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
+ expect(fetch).not.toHaveBeenCalled();
+});
+it("accepts the optional replacement keys on a row and still accepts rows without them", async () => {
+ const { listDrafts } = await import("./client");
+ const keys = { kind: "replacement", sequence: 1, replacement_of: id, root_process_id: id, visibility: "private" };
+ response({ items: [{ ...row, ...keys }, row], next_cursor: null });
+ expect(await listDrafts({ token: "x" })).toEqual({ ok: true, data: { items: [{ ...row, ...keys }, row], next_cursor: null } });
+});
