@@ -54,9 +54,12 @@ func (v *View) ApplyReplacement(f ReplacementFacts) {
 	v.RootProcessID = f.RootID.String()
 	v.Visibility = nil
 	if f.Published {
-		visibility := "private"
-		if f.HasProjection {
-			visibility = "public"
+		// Only a replacement can be private. An original with a process row is public
+		// whether or not its projection exists yet (a legacy or seeded row), as before
+		// replacement processes.
+		visibility := "public"
+		if f.Sequence >= 1 && !f.HasProjection {
+			visibility = "private"
 		}
 		v.Visibility = &visibility
 	}

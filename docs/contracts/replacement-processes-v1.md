@@ -34,8 +34,9 @@ before the first implementation slice.
   code `vacancy_not_published`).
 - **Public visibility is the projection row, not the process row.** The public catalog reads `vacancy_public_projections`
   joined to `vacancy_processes.status='published'` (`internal/db/public_jobs.sql.go:84-107`); candidate application
-  reads join the projection (`internal/features/applications/infrastructure/postgres/v2/store.go:57,239`). A process
-  without a projection is private.
+  reads join the projection (`internal/features/applications/infrastructure/postgres/v2/store.go:57,239`). A
+  **replacement** without a projection is private; an original with a process row is public whether or not its
+  projection exists (R3e, «R3e implementation notes»).
 - **Lifecycle read model.** `lifecycle.View {publication, process, version, published_at, paused_at, closed_at,
   process_finished_at, allowed_actions, close_reason, close_reason_note}`
   (`internal/features/jobs/application/lifecycle/lifecycle.go:16`), built by `readLifecycle`
@@ -294,6 +295,8 @@ responsible), so they keep access to what they created; an owner naming someone 
   touched: **the clock does not restart**.
 - `GET V/publication` for a private replacement answers `status: "draft"` with the readiness list, so the existing
   publish UI keeps working; once the projection exists it answers `published`.
+- **Only replacements can be private (R3e).** Everything above about «a process row without a projection» applies to
+  replacements only; an original keeps the publication semantics it had before this contract (see «R3e implementation notes»).
 - **Required fix (gotcha).** `refreshPublicProjection` (`…/draftstore/public_projection.go:44`, called from `save_v2.go:90,130`)
   upserts the projection whenever a process row exists. For a private replacement that would publish it on the first
   save. It must refresh only when a projection already exists, and `GET V/publication`/`Publish` must key on the
@@ -602,6 +605,17 @@ cannot start) and is `[]` for a draft with no process. No new error, no ETag, no
   is placed now answers `currently_placed`) and before the stage problems; `duplicate` keeps applying from the second occurrence on. Same payload shape (`data.candidates: [{ index, reason }]`,
   only offending indexes). A rejected start creates nothing.
 
+**R3e implementation notes** (T12, finding F1 of the independent verify; feature doc Log L22). Only a replacement can be private. An **original** process row with no public
+projection (the metrics demo seed, a legacy row) keeps the publication semantics it had before this contract, in every path:
+
+- **Publication read and `Publish`.** `readPublicationAt` reads the **process clock** (`vacancy_processes.published_at`) for any process that is not a replacement, so `GET V/publication`
+  answers `published` with that time and `POST V/publication` answers 409 `already_published`, as before. For a replacement it reads the projection's `published_at` (R3c, unchanged).
+- **Lifecycle.** `visibility` is `public` for every original with a process row; it is `private` only for a replacement (`sequence >= 1`) with no projection, which is also the only case that
+  gets the `publish` allowed action. Same rule in the draft list (`visibility`) and in the `GET V/replacements` item `visibility`.
+- **`refreshPublicProjection`.** A content save of an original with a process row and no projection writes the projection (with the process clock as `published_at`), as before; a
+  private replacement is still never published by a save.
+- Unchanged: replacements (every R3a-R3d behavior), `guardPublishedWrite` (process-keyed), the public API, the row shapes.
+
 ### `GET V/lifecycle` and every lifecycle view (D10)
 
 The lifecycle view (§Backend facts) gains these keys. They are **derived on read**: they never change
@@ -628,7 +642,7 @@ transition responses, the `lifecycle` key embedded in configuration responses, a
 ```
 
 - `kind`: `original | replacement`. For a draft without a process row: `original`, `root_process_id` = its own id.
-- `visibility`: `public` (projection exists) | `private` (replacement without projection) | `null` (never published). A
+- `visibility`: `public` (projection exists, or the process is an original: R3e) | `private` (replacement without projection) | `null` (never published). A
   private replacement has `publication: "published"` (the process axis, D8) and `allowed_actions` also contains
   `"publish"` while `publication` is `published` or `paused` (it routes to `POST V/publication`, as the existing
   `publish` action does).

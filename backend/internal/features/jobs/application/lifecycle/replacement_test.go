@@ -40,6 +40,18 @@ func TestApplyReplacementDerivesTheKeysOfEachProcessOfAChain(t *testing.T) {
 			want:  View{Kind: "original", Visibility: vis("public"), RootProcessID: root.String(), StartReplacementBlocker: blocker(BlockerSourceNotClosed), AllowedActions: []string{"pause", "close"}},
 		},
 		{
+			name:  "an original without a projection is public and has no publish action (only replacements are private)",
+			view:  view("published", "active"),
+			facts: ReplacementFacts{ProcessID: root, RootID: root, LatestID: root, Published: true},
+			want:  View{Kind: "original", Visibility: vis("public"), RootProcessID: root.String(), StartReplacementBlocker: blocker(BlockerSourceNotClosed), AllowedActions: []string{"pause", "close"}},
+		},
+		{
+			name:  "a paused original without a projection offers resume and close only",
+			view:  view("paused", "active"),
+			facts: ReplacementFacts{ProcessID: root, RootID: root, LatestID: root, Published: true},
+			want:  View{Kind: "original", Visibility: vis("public"), RootProcessID: root.String(), StartReplacementBlocker: blocker(BlockerSourceNotClosed), AllowedActions: []string{"resume", "close"}},
+		},
+		{
 			name:  "an open private replacement can be published later",
 			view:  view("published", "active"),
 			facts: ReplacementFacts{ProcessID: first, RootID: root, Sequence: 1, SourceID: root, LatestID: first, ActiveID: first, Published: true},

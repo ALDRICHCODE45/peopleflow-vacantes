@@ -111,15 +111,12 @@ func TestPublicProjectionPublicationSaveGuardAndRollback(t *testing.T) {
 	}
 }
 
-// A process row without a projection is private (replacement-processes-v1 «Private by
-// default»): neither a no-op nor a content save may publish it. Before the replacement
-// processes a P1 process without a projection was materialized by a save; that
-// compatibility is gone because the same shape now means «private replacement».
-func TestPublicProjectionNotMaterializedBySaveForAPrivateProcess(t *testing.T) {
+func TestPublicProjectionPublishedBeforeP2MaterializesOnNoopSave(t *testing.T) {
 	pool := requireDraftPool(t)
 	s, p, draft := readyPublication(t, pool)
 	id := draftIDOf(t, draft)
 	ctx := context.Background()
+	// Simulate a P1 process without a projection; never delete a row to do so.
 	if _, err := pool.Exec(ctx, `INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',$3,$4)`, id, p.companyID, fixedDeliveryClock(), p.ownerID); err != nil {
 		t.Fatal(err)
 	}
@@ -130,14 +127,7 @@ func TestPublicProjectionNotMaterializedBySaveForAPrivateProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.ETag != draft.ETag || snapshot != publicationSnapshot(t, pool, id) || publicProjectionSnapshot(t, pool, id) != "absent" {
-		t.Fatal("a no-op save published a private process")
-	}
-	changed, err := s.SaveV2(ctx, p.companyID, p.ownerID, id, draft.ETag, true, mustCanonical(t, map[string]any{"fields": map[string]any{"title": "Changed while private"}}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if changed.ETag == draft.ETag || publicProjectionSnapshot(t, pool, id) != "absent" {
-		t.Fatal("a content save published a private process")
+	if result.ETag != draft.ETag || snapshot != publicationSnapshot(t, pool, id) || publicProjectionSnapshot(t, pool, id) == "absent" {
+		t.Fatal("no-op save failed to materialize only projection")
 	}
 }

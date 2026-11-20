@@ -15,7 +15,7 @@ It works on **any process of the chain** and returns the same chain payload from
 
 - `root_process_id`: the original of the logical vacancy (`{id}` itself when it is the original or was never published).
 - `items`: the original first, then the replacements by `sequence`. Each has `id`, `kind`, `sequence` (**0 for the original**, 1..n),
-  `replacement_of`, `title` (the draft's, so the list needs no second request), `visibility` (`public` with a projection, else `private`),
+  `replacement_of`, `title` (the draft's, so the list needs no second request), `visibility` (`public` with a projection or for an original; `private` only for a replacement without a projection, R3e),
   `lifecycle` (`publication`, `process`, `close_reason`, `closed_at` only; ids and the rest stay on `GET V/lifecycle`),
   `started_at` (the process clock, `vacancy_processes.published_at`), `started_by`, `coverage` (`covered` = live Placement count,
   the board's definition; `required` = the process' `hiring_headcount`, null when unset), `replaced_credit_ids` (oldest hire first) and
@@ -67,3 +67,6 @@ most-recent-participation, placed-exclusion and departed-hire rules, the 1000 ca
 `cmd/api/replacement_carry_integration_test.go` (the start's carry rules, `departed_hire` among them) and
 `cmd/api/replacement_delivery_integration_test.go` (`GET V/pipeline/delivery` has no lifecycle guard: it works on a closed and on a
 finished source, feature doc L11).
+
+Only replacements can be private (R3e): an original with a process row and no projection reads as published and public, offers no `publish`
+action and is saved into a projection as before (`cmd/api/publication_original_without_projection_integration_test.go`).

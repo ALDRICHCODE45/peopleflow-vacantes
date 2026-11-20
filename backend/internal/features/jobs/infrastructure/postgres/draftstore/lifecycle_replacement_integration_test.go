@@ -52,10 +52,15 @@ func TestReadLifecycleReplacementKeys(t *testing.T) {
 		original.StartableCreditsCount != 1 || str(original.ActiveReplacementID) != first.String() || len(original.AllowedActions) != 0 {
 		t.Fatalf("original = %+v", original)
 	}
-	if original.Visibility == nil || *original.Visibility != "private" { // no projection row in this fixture
+	// No projection row in this fixture: only the replacement is private, an original
+	// with a process row is public (F1).
+	if original.Visibility == nil || *original.Visibility != "public" {
 		t.Fatalf("visibility = %s", str(original.Visibility))
 	}
 	replacement := read(first)
+	if replacement.Visibility == nil || *replacement.Visibility != "private" {
+		t.Fatalf("replacement visibility = %s", str(replacement.Visibility))
+	}
 	if replacement.Kind != "replacement" || replacement.Sequence == nil || *replacement.Sequence != 1 || str(replacement.ReplacementOf) != root.String() ||
 		replacement.RootProcessID != root.String() || replacement.ClosedCovered || !replacement.CanStartReplacement || replacement.StartReplacementBlocker != nil ||
 		replacement.StartableCreditsCount != 1 || str(replacement.ActiveReplacementID) != first.String() {

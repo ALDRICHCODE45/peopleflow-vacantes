@@ -259,21 +259,32 @@ func (s *Store) publicationDraftAs(ctx context.Context, tx pgx.Tx, companyID, ac
 	return record, auth, nil
 }
 
-// readPublicationAt is when the draft's public ad went up: the projection's
-// published_at, nil while there is no projection. It is what every publication
-// read keys on, so a private replacement (a process row, no projection) is
-// unpublished. For an original the projection and the process are written
-// together with the same instant.
+// readPublicationAt is when the draft's public ad went up, nil while it is not
+// published. Only a replacement can be private (replacement-processes-v1 «Private
+// by default»): a replacement is published when its projection exists, so a private
+// one (a process row, no projection) reads as unpublished, with the projection's
+// published_at. Every other process reads as it did before replacements: a process
+// row is a published process, at the process clock (for an original the projection
+// and the process are written with the same instant; a row without a projection is
+// a legacy or seeded one that a save materializes).
 func readPublicationAt(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*time.Time, error) {
 	var at pgtype.Timestamptz
-	err := tx.QueryRow(ctx, `SELECT published_at FROM vacancy_public_projections WHERE id=$1`, id).Scan(&at)
+	err := tx.QueryRow(ctx, `SELECT CASE WHEN r.process_id IS NULL THEN p.published_at ELSE pp.published_at END
+FROM vacancy_processes p
+LEFT JOIN vacancy_replacements r ON r.process_id = p.id
+LEFT JOIN vacancy_public_projections pp ON pp.id = p.id
+WHERE p.id=$1`, id).Scan(&at)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read publication: %w", err)
 	}
-	if !at.Valid || at.InfinityModifier != pgtype.Finite {
+	if !at.Valid {
+		// A replacement without a projection: private.
+		return nil, nil
+	}
+	if at.InfinityModifier != pgtype.Finite {
 		return nil, errors.New("draftstore: invalid publication timestamp")
 	}
 	return &at.Time, nil

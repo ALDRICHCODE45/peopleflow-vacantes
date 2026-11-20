@@ -136,9 +136,10 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 			page.Items[i].Kind, page.Items[i].Sequence, page.Items[i].ReplacementOf = "replacement", &seq, p.source
 		}
 		if page.Items[i].Process != nil {
-			visibility := "private"
-			if p.hasProjection {
-				visibility = "public"
+			// Only a replacement can be private; an original with a process row is public.
+			visibility := "public"
+			if p.sequence != nil && !p.hasProjection {
+				visibility = "private"
 			}
 			page.Items[i].Visibility = &visibility
 		}

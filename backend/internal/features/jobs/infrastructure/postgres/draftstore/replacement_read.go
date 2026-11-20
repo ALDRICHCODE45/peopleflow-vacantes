@@ -208,7 +208,7 @@ func readChainItems(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID
 	items := make([]chainItem, len(rows))
 	for i, row := range rows {
 		item := chainItem{
-			ID: row.ProcessID.String(), Kind: "original", Sequence: row.Sequence, Title: row.Title, Visibility: "private",
+			ID: row.ProcessID.String(), Kind: "original", Sequence: row.Sequence, Title: row.Title, Visibility: "public",
 			Lifecycle:         chainItemLifecycle{Publication: row.Status, Process: row.ProcessStatus, ClosedAt: formatTime(row.ClosedAt)},
 			StartedAt:         row.PublishedAt.Time.UTC().Format(timestampLayout),
 			StartedBy:         person{ID: row.StartedByID.String(), Name: row.StartedByName},
@@ -216,11 +216,11 @@ func readChainItems(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID
 			ReplacedCreditIDs: append([]string{}, replaced[row.ProcessID]...),
 			CanOpen:           row.CanOpen,
 		}
-		if row.HasProjection {
-			item.Visibility = "public"
-		}
 		if row.Sequence >= 1 {
 			item.Kind = "replacement"
+			if !row.HasProjection {
+				item.Visibility = "private" // only a replacement can be private
+			}
 			source := row.SourceProcessID.Bytes
 			text := uuid.UUID(source).String()
 			item.ReplacementOf = &text
