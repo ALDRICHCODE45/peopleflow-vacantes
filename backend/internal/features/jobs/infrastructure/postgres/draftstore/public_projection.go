@@ -41,8 +41,15 @@ func (s *Store) guardPublishedConfiguration(ctx context.Context, tx pgx.Tx, comp
 	return s.guardPublishedWrite(ctx, tx, record)
 }
 
+// refreshPublicProjection rewrites the public projection of a published draft
+// from its content. It refreshes only a projection that already exists: a process
+// row without one is a private replacement (replacement-processes-v1 «Private by
+// default»), which a content save must not publish. The upsert keeps the
+// projection's published_at, so a replacement published later keeps its own
+// publication time. An original always has both rows (Publish inserts them
+// together), so nothing changes for it.
 func refreshPublicProjection(ctx context.Context, tx pgx.Tx, record draftRecord) error {
-	at, err := readPublishedAt(ctx, tx, record.id)
+	at, err := readPublicationAt(ctx, tx, record.id)
 	if err != nil || at == nil {
 		return err
 	}

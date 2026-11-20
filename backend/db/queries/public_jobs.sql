@@ -68,7 +68,10 @@ WITH catalog AS (
                                    WHEN count(*) < 25 THEN '10_plus'
                                    WHEN count(*) < 50 THEN '25_plus'
                                    ELSE '50_plus' END
-                        FROM process_participations participation WHERE participation.process_id=p.id)
+                        -- A carried candidate (replacement-processes-v1 R3b) never applied: the ad
+                        -- counts the applications an ordinary ad of the same process would have.
+                        FROM process_participations participation
+                        WHERE participation.process_id=p.id AND participation.carried_from_participation_id IS NULL)
         ) AS body
  FROM vacancy_public_projections p
  LEFT JOIN geo_countries gc ON gc.code=p.country_code

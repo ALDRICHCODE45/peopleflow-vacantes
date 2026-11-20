@@ -108,7 +108,7 @@ const catalogSQL = `WITH catalog AS (
  LEFT JOIN geo_countries gc ON gc.code=p.country_code
  LEFT JOIN geo_states gs ON gs.country_code=p.country_code AND gs.code=p.state_code
  LEFT JOIN geo_municipalities gm ON gm.country_code=p.country_code AND gm.code=p.municipality_code
- LEFT JOIN process_participations a ON a.process_id=v.id AND a.candidate_id=s.candidate_id
+ LEFT JOIN process_participations a ON a.process_id=v.id AND a.candidate_id=s.candidate_id AND a.carried_from_participation_id IS NULL
  WHERE s.candidate_id=$1
  UNION ALL
  SELECT s.job_id,s.saved_at,

@@ -331,7 +331,7 @@ func (s *Service) buildDashCandidates(ctx context.Context, l dashListing) (dashb
 				kind, name, _ := v.Pipeline.stageOf(stage)
 				entry := t.entryAt(stage, end)
 				days := s.calendar.BetweenInstants(entry, ref)
-				add(CandidateRow{ParticipationID: t.ID, Candidate: t.Candidate, Vacancy: VacancyRef{v.ID, v.Title}, Stage: StageRef{kind, name},
+				add(CandidateRow{ParticipationID: t.ID, Candidate: t.Candidate, Vacancy: v.ref(), Stage: StageRef{kind, name},
 					BusinessDaysInStage: days, Stalled: kind != "placement" && days >= StalledThreshold, EnteredStageAt: entry.UTC()})
 			}
 		}
@@ -346,7 +346,7 @@ func (s *Service) buildDashCandidates(ctx context.Context, l dashListing) (dashb
 		}
 		h = newDashboardHeader(q.Window, pipe.snap.AsOf, l.viewer)
 		for _, r := range pipe.rows {
-			add(CandidateRow{ParticipationID: r.p.ID, Candidate: r.p.Candidate, Vacancy: VacancyRef{r.vac.ID, r.vac.Title},
+			add(CandidateRow{ParticipationID: r.p.ID, Candidate: r.p.Candidate, Vacancy: r.vac.ref(),
 				Stage: StageRef{r.kind, r.name}, BusinessDaysInStage: r.days, Stalled: r.stalled, EnteredStageAt: r.p.EnteredAt.UTC()})
 		}
 		if q.VacancyID != nil {
@@ -419,7 +419,7 @@ func (s *Service) buildDashDeliveries(ctx context.Context, l dashListing) (dashb
 			continue
 		}
 		result, late := v.DeliveryResult(snap.AsOf, s.calendar)
-		row := DeliveryListRow{Vacancy: VacancyRef{v.ID, v.Title}, Requester: v.Requester, AttributedTo: v.attributedPeople(result, people),
+		row := DeliveryListRow{Vacancy: v.ref(), Requester: v.Requester, AttributedTo: v.attributedPeople(result, people),
 			CommitmentDate: d.Commitment, OriginalCommitmentDate: d.OriginalCommitment, Renegotiations: d.Renegotiations, Result: result,
 			BusinessDaysLate: late, Delivered: v.Delivered(), Target: d.Target}
 		if state == "overdue" {
@@ -521,7 +521,7 @@ func (s *Service) buildDashVacancies(ctx context.Context, l dashListing) (dashbo
 		if q.VacancyID != nil && v.ID != *q.VacancyID {
 			continue
 		}
-		row := DashboardVacancyRow{Vacancy: VacancyRef{v.ID, v.Title}, Requester: v.Requester, Responsible: people.personPtr(v.Responsible),
+		row := DashboardVacancyRow{Vacancy: v.ref(), Requester: v.Requester, Responsible: people.personPtr(v.Responsible),
 			PublishedAt: v.PublishedAt.UTC()}
 		switch {
 		case v.publishedAt(end):
@@ -594,7 +594,7 @@ func (s *Service) buildDashApplications(ctx context.Context, l dashListing) (das
 			byChannel[channel]++
 		}
 		b.facets.Channel.add(byChannel)
-		row := ApplicationRow{Vacancy: VacancyRef{v.ID, v.Title}, Requester: v.Requester, Portal: byChannel["portal"],
+		row := ApplicationRow{Vacancy: v.ref(), Requester: v.Requester, Portal: byChannel["portal"],
 			CareersSite: byChannel["careers_site"], Manual: byChannel["manual"], Unknown: byChannel["unknown"]}
 		for _, channel := range channels {
 			if q.Channels == nil || slices.Contains(q.Channels, channel) {
@@ -619,7 +619,7 @@ func cmpOr(v, fallback string) string {
 	return v
 }
 
-var dashboardVacancyHeader = []string{"ID vacante", "Vacante", "Solicitante", "Responsable", "Estado", "Publicada", "En proceso", "Cubiertas", "Requeridas"}
+var dashboardVacancyHeader = []string{"ID vacante", "Vacante", "Solicitante", "Responsable", "Estado", "Publicada", "En proceso", "Cubiertas", "Requeridas", processKindHeader}
 
 func dashboardVacancyRecord(r DashboardVacancyRow) []string {
 	responsible := ""
@@ -627,13 +627,14 @@ func dashboardVacancyRecord(r DashboardVacancyRow) []string {
 		responsible = cellPerson(*r.Responsible)
 	}
 	return []string{r.Vacancy.DraftID.String(), r.Vacancy.Title, cellRequester(r.Requester), responsible, r.Status, cellInstant(r.PublishedAt),
-		strconv.Itoa(r.InProcess), strconv.Itoa(r.Positions.Covered), strconv.Itoa(r.Positions.Required)}
+		strconv.Itoa(r.InProcess), strconv.Itoa(r.Positions.Covered), strconv.Itoa(r.Positions.Required), r.Vacancy.Kind}
 }
 
 // dashboardApplicationColumns lists the applicationHeader columns the
 // dashboard applications CSV keeps: every column without channel, else only
 // the selected channels' columns, so each row's channel cells add up to its
-// Total (the metrics applications export keeps every column).
+// Total (the metrics applications export keeps every column); the Total and
+// process-kind columns always stay.
 func dashboardApplicationColumns(selected []string) []int {
 	keep := []int{0, 1, 2}
 	for i, channel := range channels {
@@ -641,7 +642,7 @@ func dashboardApplicationColumns(selected []string) []int {
 			keep = append(keep, 3+i)
 		}
 	}
-	return append(keep, 3+len(channels))
+	return append(keep, 3+len(channels), 4+len(channels))
 }
 
 func pick(cells []string, keep []int) []string {

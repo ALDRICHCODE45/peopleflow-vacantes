@@ -75,7 +75,7 @@ func TestMetricsSections_Figures(t *testing.T) {
 	editJSONEqual(t, s.get(s.owner, "delays?"+mxRange), mxJSON(t, header(map[string]any{
 		"closing_target": map[string]any{"on_time": 1, "late": 0, "no_target": 0},
 		"overdue": map[string]any{"total": 1, "top": []any{map[string]any{
-			"vacancy": map[string]any{"draft_id": s.v2.String(), "title": "Dos"}, "commitment_date": "2025-02-28",
+			"vacancy": mxRef(s.v2, "Dos"), "commitment_date": "2025-02-28",
 			// «Cliente sin especificar»; Ana is responsible at the end of Feb 28.
 			"requester": map[string]any{"kind": "client", "id": nil, "name": nil}, "attributed_to": []any{mxPerson(s.ana, "Ana", false)},
 			"business_days_overdue": 10, "delivered": 0, "target": 3}}},
@@ -151,7 +151,7 @@ func TestMetricsSections_EdgeCases(t *testing.T) {
 	editJSONEqual(t, compliance["on_time_by_month"], mxJSON(t, []any{map[string]any{"month": "2025-04", "rate": mxRate(0, 0, 8)}}))
 
 	row := func(title, commitment string, days int) map[string]any {
-		return map[string]any{"vacancy": map[string]any{"draft_id": overdue[title].String(), "title": title},
+		return map[string]any{"vacancy": mxRef(overdue[title], title),
 			"requester": nil, "attributed_to": []any{},
 			"commitment_date": commitment, "business_days_overdue": days, "delivered": 0, "target": 2}
 	}

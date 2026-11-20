@@ -133,6 +133,26 @@ locks, a fresh process read rejects finished with 409 `process_finished` and
 L1's draft-first transition lock order, including a concurrent finish-process.
 All guards run before writes.
 
+**One exception on a finished process (replacement processes R5, S7).** Move, recover,
+substate and manual intake keep the guard above. The discard route alone reads the
+participation first (an unknown one answers 404 `not_found`, never `process_finished`)
+and then accepts exactly one write on a finished process: discarding a participation
+that is currently in Placement (not already discarded), which is a placement departure
+and requires `placement_exit_reason` (`candidate_left` → credit `did_not_hold`,
+`moved_by_mistake` → `voided`; any valid candidate- or recruiter-side discard `reason`).
+Any other discard answers the unchanged 409 `process_finished`, before the participation
+precondition. The departure writes what every departure writes (stage, history row with
+`departure = true`, credit, `ParticipationDiscarded` + `VacancyPlacementCreditChanged`);
+coverage drops, and milestones, delivery fulfillment, the close result and the lifecycle
+history are not touched. A closed process that continues (`process_status = active`) is
+unchanged. See [replacement-processes-v1](../../docs/contracts/replacement-processes-v1.md).
+
+**Discard response on a placement departure.** The 200 body of `POST …/discard` gains the
+optional key `lifecycle` (the full lifecycle view read in the same transaction after the
+credit change, so `can_start_replacement`, `start_replacement_blocker` and
+`startable_credits_count` are final) when the participation left Placement, on any
+process state; it is absent for moves, recoveries and any other discard.
+
 One transaction updates stage/version, appends history, appends PII-free audit
 `ParticipationMoved` (actor, vacancy ID, from/to stage IDs, new version, hire and
 departure flags), and inserts any coverage milestone. Audit failure rolls back all
@@ -232,7 +252,7 @@ Errors remain exactly `{error,code}` without editor data or ETag, except
 | 409 | `stage_skip_not_allowed` | Non-adjacent forward target |
 | 409 | `placement_exit_confirmation_required` | Unconfirmed Placement departure |
 | 409 | `vacancy_not_published` | Authorized draft was never published (no process) |
-| 409 | `process_finished` | Board mutation on a finished process; current lifecycle data, no writes |
+| 409 | `process_finished` | Board mutation on a finished process (except a Placement departure through discard); current lifecycle data, no writes |
 | 409 | `stage_occupied`, `impact_confirmation_required` | Pipeline editor conflicts; see cut-7 contract |
 | 412 | `version_conflict` | Stale or foreign participation tag |
 | 413 | `payload_too_large` | Raw move body exceeds budget |
@@ -271,6 +291,8 @@ candidate status; additive catalog and documentation. The parent owns every comm
 | `TestMovementBoardOrderingAndLimit` (DB) | §12.2 stage ordering, ID tie-break, exact 1,000 boundary and 1,001 rejection |
 | `TestCandidateStatusHidesStage` | §12.6 S3 / §12.7.8 closed candidate status projection |
 | `TestMovementErrorExtension` | §12.2/§12.7 additive catalog codes/statuses |
+| `TestDepartureOnClosedAndFinishedProcess`, `TestFinishedProcessStaysReadOnlyExceptThePlacementDeparture` (DB, cmd/api) | R5/S7 the finished-process departure (both exit reasons, either discard reason, credit, coverage, untouched milestones/fulfillment/lifecycle history, audit, `lifecycle` key and `can_start_replacement`), and everything else still 409 / unknown participation 404 |
+| `TestMovedLifecycleKeyIsOptional`, `TestPipelineStageKind` | R5 the optional `lifecycle` key and the stage-kind lookup |
 | `TestMovementMigration`, `TestMigration00023MovementDefaultsAndGuardedDown` (DB for latter) | §12.3 additive schema/defaults, down refusal preserves data/schema/version, empty-of-new-data down preserves intake |
 | Existing pipeline flow and route topology tests | Coordinated cut-1 response key addition and exactly five additive routes; other registrations preserved |
 

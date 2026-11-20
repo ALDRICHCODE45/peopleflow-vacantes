@@ -182,7 +182,12 @@ type Querier interface {
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
 	// ErrNotAMember.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
+	// Publication status and the reason of the latest close event (empty when never
+	// closed or closed without reason): the inputs of the closed-covered predicate.
+	GetProcessCloseState(ctx context.Context, arg GetProcessCloseStateParams) (GetProcessCloseStateRow, error)
 	GetPublishedScreeningSource(ctx context.Context, id uuid.UUID) ([]byte, error)
+	// The replacement started from `process_id`, if any.
+	GetReplacementSuccessor(ctx context.Context, arg GetReplacementSuccessorParams) (uuid.UUID, error)
 	// The accept holds this row lock until commit, so two accepts of one token
 	// yield one member.
 	GetStakeholderInvitationByTokenForUpdate(ctx context.Context, tokenSha256 []byte) (GetStakeholderInvitationByTokenForUpdateRow, error)
@@ -241,6 +246,13 @@ type Querier interface {
 	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
 	ListCandidateEducations(ctx context.Context, userID uuid.UUID) ([]ListCandidateEducationsRow, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	// The credits each replacement of the chain took, oldest hire first.
+	ListChainReplacedCredits(ctx context.Context, arg ListChainReplacedCreditsParams) ([]VacancyReplacementCredit, error)
+	// Every fallen (did_not_hold) credit of the chain rooted at `root_process_id`, whether or
+	// not a replacement took it (replaced_by_process_id), with the hired candidate and the
+	// departure time (the same views as ListStartableCreditDetails). Voided and active credits
+	// are not fallen. Ordered by departure, then hire.
+	ListFallenCreditDetails(ctx context.Context, arg ListFallenCreditDetailsParams) ([]ListFallenCreditDetailsRow, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
 	// jobs.deleted_at on purpose: the candidate's own history persists
@@ -249,6 +261,24 @@ type Querier interface {
 	// Hard cap 100 (no pagination in this slice).
 	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
 	ListPendingStakeholderInvitations(ctx context.Context, arg ListPendingStakeholderInvitationsParams) ([]ListPendingStakeholderInvitationsRow, error)
+	// The whole chain of the logical vacancy `process_id` belongs to: the root first
+	// (sequence 0, it has no vacancy_replacements row), then the replacements by
+	// sequence. source_process_id is NULL for the root. Empty when the process does
+	// not exist in the company.
+	ListReplacementChain(ctx context.Context, arg ListReplacementChainParams) ([]ListReplacementChainRow, error)
+	// The processes of the chain rooted at `root_process_id` with what GET V/replacements
+	// lists per item: the root first (sequence 0), then the replacements by sequence.
+	// can_open is the lifecycle read rule: the owner, or an active tramo on that draft.
+	ListReplacementChainItems(ctx context.Context, arg ListReplacementChainItemsParams) ([]ListReplacementChainItemsRow, error)
+	// ListStartableReplacementCredits with the hired candidate and the departure time.
+	// The name is the board's company view: the company's correction of an organic
+	// candidate's name wins over the account's.
+	ListStartableCreditDetails(ctx context.Context, arg ListStartableCreditDetailsParams) ([]ListStartableCreditDetailsRow, error)
+	// The frozen recipients of the startable credits, by user id (as the board's credit list).
+	ListStartableCreditRecipients(ctx context.Context, arg ListStartableCreditRecipientsParams) ([]ListStartableCreditRecipientsRow, error)
+	// Fallen credits (did_not_hold) of any process of the chain rooted at `root_process_id`
+	// that no replacement has taken yet.
+	ListStartableReplacementCredits(ctx context.Context, arg ListStartableReplacementCreditsParams) ([]ListStartableReplacementCreditsRow, error)
 	// Serialize membership mutations on a stable parent row. The adapter MUST
 	// execute this in the same READ COMMITTED transaction as the target lookup,
 	// owner count, and mutation; subsequent statements see the previous commit.

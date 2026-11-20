@@ -44,6 +44,11 @@ History: this is the legacy route as of the agreement (2026-11-08); it was remov
 
 ## 2. Common rules
 
+- **Replacement processes** (`replacement-processes-v1.md`, Q1): a replacement is a process like any other here; an
+  active private one counts as a published vacancy, the logical vacancy once (its original is closed or finished).
+  Every `vacancy` object (`attention.*.top[]`, `vacancies.top[]` and the four lists' rows) is the metrics `VacancyRef`
+  and gains `kind`, `root_draft_id` and `sequence`; the lists' CSV exports gain a last `Tipo de proceso` column. No
+  `process_kind` filter in v1.
 - Prefix `GET /v2/me/company/dashboard/…`, gate `requireRecruiter` (owner, recruiter). Stakeholders keep 403: they
   have metrics (DD5).
 - Query: `window` = `7 | 30 | 90` (default 30). The window is the last `window` local days ending today

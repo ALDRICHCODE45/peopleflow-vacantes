@@ -131,6 +131,13 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 		}
 	}
 	if !allowed {
+		if action == "reopen" {
+			// The replacement rules name their own conflict; they sit at this same
+			// step, so a stale ETag (412) is still reported first.
+			if guard := current.ReopenGuard(); guard != nil {
+				return drafts.Result{}, guard
+			}
+		}
 		return drafts.Result{}, &lifecycle.InvalidTransition{Action: action, Lifecycle: current}
 	}
 	fingerprint, choice, err := lifecyclePayload(id, action, body)
@@ -197,10 +204,6 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 			return drafts.Result{}, err
 		}
 	}
-	result, err := lifecycleResult(id, next, version+1)
-	if err != nil {
-		return drafts.Result{}, err
-	}
 	if _, err = tx.Exec(ctx, `UPDATE vacancy_processes SET status=$2,process_status=$3,lifecycle_version=$4,published_at=$5::text::timestamptz,paused_at=$6::text::timestamptz,closed_at=$7::text::timestamptz,process_finished_at=$8::text::timestamptz WHERE id=$1`, id, *next.Publication, *next.Process, version+1, next.PublishedAt, next.PausedAt, next.ClosedAt, next.ProcessFinishedAt); err != nil {
 		return drafts.Result{}, fmt.Errorf("write lifecycle: %w", err)
 	}
@@ -214,6 +217,15 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO vacancy_lifecycle_events(id,process_id,lifecycle_version,action,process,actor_id,actor_name,created_at,reason,reason_note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, uuid.Must(uuid.NewV7()), id, version+1, action, process, actorID, actorName, now, reason, reasonNote); err != nil {
 		return drafts.Result{}, fmt.Errorf("write lifecycle history: %w", err)
+	}
+	// The response renders what this transaction commits: the replacement keys
+	// (closed covered, who may start) follow the new state and close reason.
+	if err = enrichLifecycle(ctx, tx, companyID, id, &next); err != nil {
+		return drafts.Result{}, err
+	}
+	result, err := lifecycleResult(id, next, version+1)
+	if err != nil {
+		return drafts.Result{}, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO job_draft_idempotency(id,company_id,actor_id,operation,idem_key,fingerprint,fingerprint_algorithm,response_body,response_etag) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, uuid.Must(uuid.NewV7()), companyID, actorID, lifecycleOperation, key, fingerprintDigest(fingerprint), FingerprintAlgorithmSHA256, result.Body, result.ETag); err != nil {
 		return drafts.Result{}, fmt.Errorf("write lifecycle idempotency: %w", err)
@@ -255,11 +267,13 @@ func readLifecycle(ctx context.Context, tx pgx.Tx, id uuid.UUID) (lifecycle.View
 	view := lifecycle.View{Version: "0"}
 	var version int64
 	var pub, process string
+	var company uuid.UUID
 	var published time.Time
 	var paused, closed, finished *time.Time
-	err := tx.QueryRow(ctx, `SELECT status,process_status,lifecycle_version,published_at,paused_at,closed_at,process_finished_at FROM vacancy_processes WHERE id=$1`, id).Scan(&pub, &process, &version, &published, &paused, &closed, &finished)
+	err := tx.QueryRow(ctx, `SELECT company_id,status,process_status,lifecycle_version,published_at,paused_at,closed_at,process_finished_at FROM vacancy_processes WHERE id=$1`, id).Scan(&company, &pub, &process, &version, &published, &paused, &closed, &finished)
 	if errors.Is(err, pgx.ErrNoRows) {
-		view.AllowedActions = lifecycle.AllowedActions(view)
+		// A draft that never published is an original without a process row.
+		view.ApplyReplacement(lifecycle.ReplacementFacts{ProcessID: id, RootID: id, LatestID: id})
 		return view, 0, nil
 	}
 	if err != nil {
@@ -285,8 +299,50 @@ func readLifecycle(ctx context.Context, tx pgx.Tx, id uuid.UUID) (lifecycle.View
 	view.PausedAt = timestamp(paused)
 	view.ClosedAt = timestamp(closed)
 	view.ProcessFinishedAt = timestamp(finished)
-	view.AllowedActions = lifecycle.AllowedActions(view)
+	if err = enrichLifecycle(ctx, tx, company, id, &view); err != nil {
+		return view, 0, err
+	}
 	return view, version, nil
+}
+
+// enrichLifecycle derives the replacement keys of a view of a process that has a
+// row, from the chain it belongs to (contract D6, D14, A1, A7), and recomputes
+// AllowedActions. The view must hold its axes and close reason; it runs on any
+// executor, so a writer that finished its own updates in the same transaction
+// renders the state it is about to commit.
+func enrichLifecycle(ctx context.Context, q db.DBTX, company, id uuid.UUID, view *lifecycle.View) error {
+	chain, found, err := readReplacementChain(ctx, q, company, id)
+	if err != nil {
+		return fmt.Errorf("read replacement chain: %w", err)
+	}
+	if !found {
+		view.ApplyReplacement(lifecycle.ReplacementFacts{ProcessID: id, RootID: id, LatestID: id, Published: true})
+		return nil
+	}
+	facts := lifecycle.ReplacementFacts{ProcessID: id, RootID: chain.Root, LatestID: chain.latest().ID, SuccessorID: chain.successor(id), Published: true}
+	for _, p := range chain.Processes {
+		if p.ID == id {
+			facts.Sequence, facts.SourceID = p.Sequence, p.Source
+		}
+	}
+	if active, ok := chain.activeReplacement(); ok {
+		facts.ActiveID = active.ID
+	}
+	closeReason := ""
+	if view.CloseReason != nil {
+		closeReason = *view.CloseReason
+	}
+	facts.ClosedCovered = view.Publication != nil && closedCovered(*view.Publication, closeReason)
+	credits, err := readStartableCredits(ctx, q, company, chain.Root)
+	if err != nil {
+		return fmt.Errorf("read startable credits: %w", err)
+	}
+	facts.StartableCredits = len(credits)
+	if err = q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM vacancy_public_projections WHERE id=$1)`, id).Scan(&facts.HasProjection); err != nil {
+		return fmt.Errorf("read public projection: %w", err)
+	}
+	view.ApplyReplacement(facts)
+	return nil
 }
 func lifecycleResult(id uuid.UUID, view lifecycle.View, version int64) (drafts.Result, error) {
 	body, err := json.Marshal(view)

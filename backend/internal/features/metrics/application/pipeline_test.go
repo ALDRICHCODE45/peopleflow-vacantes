@@ -304,7 +304,7 @@ func TestCandidates_RowsSortFacetsAndAppliedFilters(t *testing.T) {
 	}
 	// Default: most business days in stage first.
 	row := got.Items[0]
-	want := CandidateRow{ParticipationID: fx.p2, Candidate: row.Candidate, Vacancy: VacancyRef{fx.a.ID, "Analista"}, Stage: StageRef{"new", "NEW"},
+	want := CandidateRow{ParticipationID: fx.p2, Candidate: row.Candidate, Vacancy: VacancyRef{DraftID: fx.a.ID, Title: "Analista", Kind: KindOriginal, RootDraftID: fx.a.ID}, Stage: StageRef{"new", "NEW"},
 		BusinessDaysInStage: 7, Stalled: true, EnteredStageAt: at("2026-03-12T18:00:00Z")}
 	if !reflect.DeepEqual(row, want) || row.Candidate.FullName != "Pablo" || got.Items[1].ParticipationID != fx.p1 || got.Items[1].Stalled {
 		t.Fatalf("%+v", got.Items)
@@ -512,7 +512,7 @@ func TestApplications_TotalIsTheChannelSumWithFacets(t *testing.T) {
 	if got := titles(all.Items, func(r ApplicationRow) string { return r.Vacancy.Title }); !reflect.DeepEqual(got, []string{"Uno", "dos"}) {
 		t.Fatal(got)
 	}
-	if r := all.Items[0]; r != (ApplicationRow{Vacancy: VacancyRef{v1.ID, "Uno"}, Portal: 2, Manual: 1, Unknown: 1, Total: 4}) {
+	if r := all.Items[0]; r != (ApplicationRow{Vacancy: VacancyRef{DraftID: v1.ID, Title: "Uno", Kind: KindOriginal, RootDraftID: v1.ID}, Portal: 2, Manual: 1, Unknown: 1, Total: 4}) {
 		t.Fatalf("%+v", r)
 	}
 	// Each channel's origin figure is the list total for that channel.
@@ -545,7 +545,7 @@ func TestApplications_TotalIsTheChannelSumWithFacets(t *testing.T) {
 		}
 	}
 	export, err := svc.Export(context.Background(), uuid.New(), uuid.New(), "applications", q1+"&channel=careers_site")
-	if err != nil || export.Len() != 1 || !reflect.DeepEqual(export.Record(0), []string{v2.ID.String(), "dos", "Sin solicitante", "0", "3", "0", "0", "3"}) {
+	if err != nil || export.Len() != 1 || !reflect.DeepEqual(export.Record(0), []string{v2.ID.String(), "dos", "Sin solicitante", "0", "3", "0", "0", "3", "original"}) {
 		t.Fatalf("%+v %v", export, err)
 	}
 	if len(store.audits) != 0 {

@@ -90,7 +90,7 @@ func (s *Service) Recruiters(ctx context.Context, company uuid.UUID, raw string)
 	}
 	// Cards attribute across every vacancy of the requester scope; the
 	// recruiter filter picks the card, it does not narrow the vacancies.
-	v, err := s.view(ctx, company, p, q.Requester, nil)
+	v, err := s.view(ctx, company, p, q.Requester, nil, q.ProcessKind)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (s *Service) Recruiter(ctx context.Context, company, user uuid.UUID, raw st
 	if !had {
 		return nil, ErrNotFound
 	}
-	snap, err := s.view(ctx, company, p, q.Requester, nil)
+	snap, err := s.view(ctx, company, p, q.Requester, nil, q.ProcessKind)
 	if err != nil {
 		return nil, err
 	}
@@ -172,10 +172,12 @@ func (s *Service) Recruiter(ctx context.Context, company, user uuid.UUID, raw st
 	out := &RecruiterDetail{header: newHeader(p, now), Card: s.card(data, person, p, now), ByMonth: []CardMonth{}}
 	for _, m := range p.Months() {
 		cm := CardMonth{Month: m.Key}
-		for _, v := range data.Vacancies {
-			if v.assignedIn(&user, m.Start, m.End) {
+		for _, v := range data.Roots {
+			if v.assignedInChain(&user, m.Start, m.End) {
 				cm.Assigned++
 			}
+		}
+		for _, v := range data.Vacancies {
 			if result, ok := s.attributedResult(v, user, now); ok && v.Delivery.Commitment != nil && p.ContainsDate(*v.Delivery.Commitment) && strings.HasPrefix(*v.Delivery.Commitment, m.Key) {
 				switch result {
 				case "on_time":
@@ -213,12 +215,15 @@ func (s *Service) card(data *Dataset, person Person, p Period, now time.Time) Ca
 	c := Card{Person: person}
 	var toTarget []int
 	closedWithCredit := 0
-	for _, v := range data.Vacancies {
+	// The vacancy-level figures (assigned and what splits it, conversion) read
+	// the original of each logical vacancy with the tramos and functions of its
+	// whole chain and ignore process_kind (replacement-processes-v1 §«Metrics»).
+	for _, v := range data.Roots {
 		// 2.1: tramo overlap, functions held in the period, tramos started in it.
-		if v.assignedIn(&user, p.Start, p.End) {
+		if v.assignedInChain(&user, p.Start, p.End) {
 			c.Vacancies.Assigned++
 			held := map[string]bool{}
-			for _, f := range v.Functions {
+			for _, f := range v.chainFunctions() {
 				if f.UserID == user && Overlaps(f.Start, f.End, p.Start, p.End) {
 					held[f.Function] = true
 				}
@@ -228,7 +233,7 @@ func (s *Service) card(data *Dataset, person Person, p Period, now time.Time) Ca
 					*count++
 				}
 			}
-			if slices.ContainsFunc(v.Tramos, func(t Tramo) bool { return t.UserID == user && p.Contains(t.Start) }) {
+			if slices.ContainsFunc(v.chainTramos(), func(t Tramo) bool { return t.UserID == user && p.Contains(t.Start) }) {
 				c.Vacancies.StartedInPeriod++
 			}
 			// 2.4 conversion: assigned vacancies closed in the period.
@@ -241,6 +246,9 @@ func (s *Service) card(data *Dataset, person Person, p Period, now time.Time) Ca
 				}
 			}
 		}
+	}
+	// Everything else belongs to each process and honors process_kind.
+	for _, v := range data.Vacancies {
 		// 2.3: results in the delivery period attributed at their moment.
 		if v.Delivery.Configured && v.inDeliveryPeriod(p) {
 			if result, ok := s.attributedResult(v, user, now); ok {

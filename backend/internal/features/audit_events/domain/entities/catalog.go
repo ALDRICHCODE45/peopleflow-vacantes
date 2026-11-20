@@ -91,6 +91,8 @@ const (
 	EventVacancyDeliveryFulfilled              = "VacancyDeliveryFulfilled"
 	EventVacancyPlacementCredited              = "VacancyPlacementCredited"
 	EventVacancyPlacementCreditChanged         = "VacancyPlacementCreditChanged"
+	EventVacancyReplacementStarted             = "VacancyReplacementStarted"
+	EventVacancyCandidateCarried               = "VacancyCandidateCarried"
 
 	// Pipeline.
 	EventJobDraftPipelineConfigured   = "JobDraftPipelineConfigured"
@@ -178,6 +180,7 @@ var catalog = []EventSpec{
 	spec(EventCompanyCandidateEdited, CategoryCandidate, "fields"),
 	spec(EventCompanyCandidateCVCorrected, CategoryCandidate, "participation_id"),
 	spec(EventVacancyCandidateAddedManually, CategoryCandidate, "vacancy_id", "stage_id", "candidate_id", "cv_id"),
+	spec(EventVacancyCandidateCarried, CategoryCandidate, "company_id", "vacancy_id", "source_process_id", "source_participation_id", "candidate_kind", "candidate_id", "stage_id"),
 	spec(EventVacancyApplicationSubmitted, CategoryCandidate, "vacancy_id", "stage_id", "source"),
 	spec(EventApplicationSubmitted, CategoryCandidate, "job_id", "source"),
 	spec(EventApplicationTransitioned, CategoryCandidate, "job_id", "from_status", "to_status"),
@@ -201,12 +204,14 @@ var catalog = []EventSpec{
 	spec(EventVacancyPaused, CategoryVacancy, "version", "publication", "process", "reason"),
 	spec(EventVacancyResumed, CategoryVacancy, "version", "publication", "process", "reason"),
 	spec(EventVacancyClosed, CategoryVacancy, "version", "publication", "process", "reason"),
-	spec(EventVacancyProcessFinished, CategoryVacancy, "version", "publication", "process", "reason"),
+	// cause/replacement_process_id appear only when a replacement start finished the process (replacement-processes-v1 D15).
+	spec(EventVacancyProcessFinished, CategoryVacancy, "version", "publication", "process", "reason", "cause", "replacement_process_id"),
 	spec(EventVacancyReopened, CategoryVacancy, "version", "publication", "process", "reason"),
 	spec(EventVacancyCommitmentRenegotiated, CategoryVacancy, "company_id", "change_id", "previous_date", "new_date", "reason"),
 	spec(EventVacancyDeliveryFulfilled, CategoryVacancy, "vacancy_id", "snapshot"),
 	spec(EventVacancyPlacementCredited, CategoryVacancy, "company_id", "vacancy_id", "credit_id", "team_mode", "hired_by", "recipients"),
 	spec(EventVacancyPlacementCreditChanged, CategoryVacancy, "company_id", "vacancy_id", "credit_id", "from_status", "to_status", "cause"),
+	spec(EventVacancyReplacementStarted, CategoryVacancy, "company_id", "vacancy_id", "source_process_id", "root_process_id", "sequence", "target_quantity", "credit_ids", "carried_count", "visibility", "responsible_user_id"),
 
 	// pipeline
 	spec(EventJobDraftPipelineConfigured, CategoryPipeline, "version", "previous", "new", "applied_impact"),

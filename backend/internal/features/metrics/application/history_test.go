@@ -286,8 +286,8 @@ func TestDashboardVacancies_TopByInProcessWithPositions(t *testing.T) {
 	// Published now: A (p2, p3, p4 and the retired one) and B (one); C is
 	// paused, D closed.
 	want := []ActiveVacancy{
-		{Vacancy: VacancyRef{fx.a.ID, "Analista"}, InProcess: 4, Positions: Positions{1, 3}},
-		{Vacancy: VacancyRef{fx.b.ID, "Backend"}, InProcess: 1, Positions: Positions{2, 0}},
+		{Vacancy: VacancyRef{DraftID: fx.a.ID, Title: "Analista", Kind: KindOriginal, RootDraftID: fx.a.ID}, InProcess: 4, Positions: Positions{1, 3}},
+		{Vacancy: VacancyRef{DraftID: fx.b.ID, Title: "Backend", Kind: KindOriginal, RootDraftID: fx.b.ID}, InProcess: 1, Positions: Positions{2, 0}},
 	}
 	if !reflect.DeepEqual(got.Top, want) {
 		t.Fatalf("%+v", got.Top)

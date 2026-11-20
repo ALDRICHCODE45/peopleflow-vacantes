@@ -104,7 +104,9 @@ func TestGetV2_CompleteEnvelopeAndNoMutation(t *testing.T) {
 				requester["name"] = name
 			}
 			want["fields"] = fields
-			want["lifecycle"] = map[string]any{"publication": nil, "process": nil, "version": "0", "published_at": nil, "paused_at": nil, "closed_at": nil, "process_finished_at": nil, "allowed_actions": []any{"publish"}, "close_reason": nil, "close_reason_note": nil}
+			want["lifecycle"] = map[string]any{"publication": nil, "process": nil, "version": "0", "published_at": nil, "paused_at": nil, "closed_at": nil, "process_finished_at": nil, "allowed_actions": []any{"publish"}, "close_reason": nil, "close_reason_note": nil,
+				"visibility": nil, "kind": "original", "sequence": nil, "replacement_of": nil, "root_process_id": id.String(), "closed_covered": false, "can_start_replacement": false,
+				"start_replacement_blocker": "source_not_closed", "startable_credits_count": int64(0), "active_replacement_id": nil}
 			wantTag := `"jd-r2-` + id.String() + `-v1"`
 			var reader drafts.V2Reader = store
 			for _, actor := range []uuid.UUID{p.ownerID, member} {

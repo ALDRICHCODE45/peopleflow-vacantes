@@ -31,7 +31,7 @@ func TestLifecycleFlowAuthorizationOrderReplayAndL1Effects(t *testing.T) {
 	path := base + "/lifecycle"
 	read := h.do(t, "GET", path, "", owner.token, nil)
 	obj := draftFlowObject(t, read.body)
-	if read.status != 200 || len(obj) != 10 || obj["publication"] != nil || obj["process"] != nil || obj["version"] != "0" || obj["allowed_actions"].([]any)[0] != "publish" || read.header.Get("ETag") != `"vl-`+id+`-v0"` {
+	if read.status != 200 || len(obj) != 20 || obj["publication"] != nil || obj["process"] != nil || obj["version"] != "0" || obj["allowed_actions"].([]any)[0] != "publish" || read.header.Get("ETag") != `"vl-`+id+`-v0"` {
 		t.Fatalf("draft=%d %s", read.status, read.body)
 	}
 	history := h.do(t, "GET", path+"/history", "", principal.token, nil)

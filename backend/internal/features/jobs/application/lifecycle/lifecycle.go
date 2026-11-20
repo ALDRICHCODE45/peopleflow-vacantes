@@ -24,6 +24,23 @@ type View struct {
 	AllowedActions    []string `json:"allowed_actions"`
 	CloseReason       *string  `json:"close_reason"`
 	CloseReasonNote   *string  `json:"close_reason_note"`
+
+	// Replacement keys (docs/contracts/replacement-processes-v1.md, «GET V/lifecycle»).
+	// They are derived on read from the chain and never change the version.
+	Visibility              *string `json:"visibility"`
+	Kind                    string  `json:"kind"`
+	Sequence                *int    `json:"sequence"`
+	ReplacementOf           *string `json:"replacement_of"`
+	RootProcessID           string  `json:"root_process_id"`
+	ClosedCovered           bool    `json:"closed_covered"`
+	CanStartReplacement     bool    `json:"can_start_replacement"`
+	StartReplacementBlocker *string `json:"start_replacement_blocker"`
+	StartableCreditsCount   int     `json:"startable_credits_count"`
+	ActiveReplacementID     *string `json:"active_replacement_id"`
+
+	// Inputs of the reopen guards that the wire does not expose by themselves.
+	otherActive bool   // an active replacement that is not this process
+	successorID string // the replacement started from this process, if any
 }
 
 // CloseReasonNotCovered reports the same live coverage as the board.
@@ -47,17 +64,36 @@ func AllowedActions(v View) []string {
 	}
 	switch *v.Publication {
 	case "published":
-		return []string{"pause", "close"}
+		return withPublish(v, []string{"pause", "close"})
 	case "paused":
-		return []string{"resume", "close"}
+		return withPublish(v, []string{"resume", "close"})
 	case "closed":
-		if v.Process != nil && *v.Process == "active" {
+		// A logical vacancy moves on through replacements: reopen is gone when
+		// the close covered it, when another replacement is active, and when this
+		// process already has a successor (D6, A1, A7).
+		reopen := !v.reopenBlocked()
+		switch {
+		case v.Process != nil && *v.Process == "active" && reopen:
 			return []string{"finish_process", "reopen"}
+		case v.Process != nil && *v.Process == "active":
+			return []string{"finish_process"}
+		case reopen:
+			return []string{"reopen"}
 		}
-		return []string{"reopen"}
+		return []string{}
 	default:
 		return []string{}
 	}
+}
+
+// withPublish adds `publish` for a process that is live but has no public ad: a
+// private replacement (replacement-processes-v1 «Private by default, publish
+// later»). It routes to POST V/publication, like the never-published `publish`.
+func withPublish(v View, actions []string) []string {
+	if v.Visibility != nil && *v.Visibility == "private" {
+		return append(actions, "publish")
+	}
+	return actions
 }
 
 // Transition returns a fresh view. Timestamps retain the latest occurrence of

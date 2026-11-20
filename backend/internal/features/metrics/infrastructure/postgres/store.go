@@ -65,8 +65,18 @@ func requesterSQL(f app.RequesterFilter, args *[]any) string {
 
 // scopeSQL selects the company's published vacancies (D6) with any activity in
 // the period: a tramo overlapping it, a close, a commitment date, a hire, a
-// reassignment or an application in it.
+// reassignment or an application in it, and the whole chain of each of them
+// (its original and every replacement), so the vacancy-level figures and the
+// «assigned» rule see the replacements' tramos (replacement-processes-v1
+// §«Metrics»).
 func scopeSQL(scope app.Scope, args *[]any) string {
+	return `WITH hit AS (` + activitySQL(scope, args) + `),
+ roots AS (SELECT COALESCE(vr.root_process_id, h.id) AS id FROM hit h LEFT JOIN vacancy_replacements vr ON vr.process_id=h.id)
+ SELECT id FROM roots UNION SELECT vr.process_id FROM vacancy_replacements vr JOIN roots ON roots.id=vr.root_process_id WHERE vr.company_id=$1`
+}
+
+// activitySQL is the processes with activity in the period, before their chains.
+func activitySQL(scope app.Scope, args *[]any) string {
 	query := `SELECT d.id FROM job_drafts d JOIN vacancy_processes vp ON vp.id=d.id AND vp.company_id=d.company_id
  LEFT JOIN job_draft_delivery_configs c ON c.draft_id=d.id
  LEFT JOIN process_delivery_fulfillments f ON f.process_id=d.id
@@ -164,8 +174,10 @@ func loadVacancies(ctx context.Context, q querier, company uuid.UUID, ids []uuid
  (SELECT count(*) FROM vacancy_commitment_changes cc WHERE cc.draft_id=d.id),
  pc.configuration,
  (SELECT a.user_id FROM vacancy_assignment_functions fn JOIN vacancy_assignments a ON a.id=fn.assignment_id
-  WHERE fn.draft_id=d.id AND fn.ended_at IS NULL AND fn.function='responsible')
+  WHERE fn.draft_id=d.id AND fn.ended_at IS NULL AND fn.function='responsible'),
+ vr.process_id IS NOT NULL, COALESCE(vr.root_process_id, d.id), vr.sequence, vp.process_status='active'
  FROM job_drafts d JOIN vacancy_processes vp ON vp.id=d.id
+ LEFT JOIN vacancy_replacements vr ON vr.process_id=d.id
  LEFT JOIN job_draft_requesters rq ON rq.id=d.requester_id AND rq.company_id=d.company_id
  LEFT JOIN job_draft_management_configs mc ON mc.draft_id=d.id
  LEFT JOIN job_draft_delivery_configs c ON c.draft_id=d.id
@@ -183,13 +195,19 @@ func loadVacancies(ctx context.Context, q querier, company uuid.UUID, ids []uuid
 		var kind, rqName, cfgCommit, frozenCommit *string
 		var rqID, cfgCutoff, frozenCutoff *uuid.UUID
 		var headcount, cfgTarget, frozenTarget *int32
-		var fulfilled bool
+		var fulfilled, replacement bool
 		var reached *time.Time
 		var renegotiations int64
 		var pipeline []byte
+		var sequence *int32
 		if err := rows.Scan(&v.ID, &v.Title, &v.PublishedAt, &kind, &rqID, &rqName, &headcount, &cfgCutoff, &cfgTarget, &cfgCommit,
-			&fulfilled, &frozenCutoff, &frozenTarget, &frozenCommit, &reached, &v.Delivery.OriginalCommitment, &renegotiations, &pipeline, &v.Responsible); err != nil {
+			&fulfilled, &frozenCutoff, &frozenTarget, &frozenCommit, &reached, &v.Delivery.OriginalCommitment, &renegotiations, &pipeline, &v.Responsible,
+			&replacement, &v.RootID, &sequence, &v.ProcessActive); err != nil {
 			return nil, nil, err
+		}
+		v.Kind, v.Sequence = app.KindOriginal, intPtr(sequence)
+		if replacement {
+			v.Kind = app.KindReplacement
 		}
 		if kind != nil {
 			v.Requester = &app.Requester{Kind: *kind, ID: rqID, Name: rqName}
@@ -345,8 +363,10 @@ func loadReassignments(ctx context.Context, q querier, company uuid.UUID, ids []
 }
 
 func loadOrigin(ctx context.Context, q querier, ids []uuid.UUID, p app.Period, byID map[uuid.UUID]*app.Vacancy) error {
+	// A carried participation is not an application (replacement-processes-v1
+	// §«Implementation notes»): origin and applications leave it out.
 	rows, err := q.Query(ctx, `SELECT process_id, origin_channel, count(*) FROM process_participations
- WHERE process_id=ANY($1) AND created_at >= $2 AND created_at < $3 GROUP BY 1, 2`, ids, p.Start, p.End)
+ WHERE process_id=ANY($1) AND created_at >= $2 AND created_at < $3 AND carried_from_participation_id IS NULL GROUP BY 1, 2`, ids, p.Start, p.End)
 	if err != nil {
 		return fmt.Errorf("metrics origin: %w", err)
 	}
@@ -382,11 +402,14 @@ func (s *Store) loadEntries(ctx context.Context, q querier, configs map[uuid.UUI
 		}
 		beyond[draft] = stages
 	}
-	rows, err := q.Query(ctx, `SELECT p.process_id, p.id, h.created_at, h.actor_id, h.actor_kind='recruiter', h.stage_id, h.event_kind='intake' AND p.source='manual'
+	// A carried participation enters like a manual intake (A3), as delivery
+	// fulfillment counts it.
+	rows, err := q.Query(ctx, `SELECT p.process_id, p.id, h.created_at, h.actor_id, h.actor_kind='recruiter', h.stage_id,
+ h.event_kind='intake' AND (p.source='manual' OR p.carried_from_participation_id IS NOT NULL)
  FROM unnest($1::uuid[], $2::uuid[]) k(draft_id, cutoff)
  JOIN process_participations p ON p.process_id=k.draft_id
  JOIN participation_stage_history h ON h.participation_id=p.id
- WHERE h.event_kind IN ('intake','move','recovery') AND (h.stage_id=k.cutoff OR (p.source='manual' AND h.event_kind='intake'))
+ WHERE h.event_kind IN ('intake','move','recovery') AND (h.stage_id=k.cutoff OR ((p.source='manual' OR p.carried_from_participation_id IS NOT NULL) AND h.event_kind='intake'))
  ORDER BY h.created_at, p.id, h.id`, drafts, cutoffs)
 	if err != nil {
 		return nil, fmt.Errorf("metrics entries: %w", err)

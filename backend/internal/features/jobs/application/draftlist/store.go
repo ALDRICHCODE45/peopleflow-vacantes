@@ -12,6 +12,9 @@ import (
 type Request struct {
 	Limit int
 	After *Cursor
+	// RootProcessID keeps only the drafts of that logical vacancy: the original
+	// (whose root is its own id) and its replacements. Nil means no filter.
+	RootProcessID *uuid.UUID
 }
 
 // Requester is the draft requester reference. ID is nil when the draft names
@@ -60,6 +63,15 @@ type Item struct {
 	Candidates        *Candidates // nil exactly when the draft has never been published
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+
+	// Replacement keys (docs/contracts/replacement-processes-v1.md, «Draft list»).
+	// Sequence and ReplacementOf are nil for an original, whose root is its own
+	// id; Visibility is nil for a draft that never published.
+	Kind          string
+	Sequence      *int
+	ReplacementOf *uuid.UUID
+	RootProcessID uuid.UUID
+	Visibility    *string
 }
 
 // Page is one list page. NextCursor is empty on the last page.

@@ -86,9 +86,11 @@ Evaluation order inside the transaction:
    precondition or already-published checks. A different payload returns
    `409 idempotency_conflict`.
 4. Draft If-Match: missing `428`, malformed `400`, stale/foreign `412`.
-5. Existing process → `409 already_published`.
+5. Existing public projection → `409 already_published`. (A private replacement has a process row and no projection: it is
+   published later by this same route and only its projection is inserted; a closed one answers `409 lifecycle_transition_invalid`
+   with `action: publish`. See `vacancy-lifecycle.md` «Private replacements».)
 6. Atomic readiness → `422 publication_incomplete` if anything is missing.
-7. Insert process and VAC-4 public projection, frozen response/idempotency record and publication audit;
+7. Insert process (unless it exists) and VAC-4 public projection, frozen response/idempotency record and publication audit;
    commit all or nothing.
 
 Transport still bounds the body before invoking the store (1,048,576 bytes).

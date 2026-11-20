@@ -383,6 +383,7 @@ func newRouter(d routerDeps) chi.Router {
 	managementHandlers := d.managementHandler.ManagementHandlers()
 	publicationHandlers := d.publicationHandler.PublicationHandlers()
 	lifecycleHandlers := d.lifecycleHandler.LifecycleHandlers()
+	replacementHandlers := d.lifecycleHandler.ReplacementHandlers()
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
@@ -448,6 +449,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/close", lifecycleHandlers.Close)
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/finish-process", lifecycleHandlers.FinishProcess)
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/reopen", lifecycleHandlers.Reopen)
+		r.Get("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.List)
+		r.Post("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.Start)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)

@@ -23,6 +23,8 @@ type VacancyRow struct {
 	LastClose           *CloseRow `json:"last_close"`
 	BusinessDaysToClose *int      `json:"business_days_to_close"`
 	ClosingTarget       *string   `json:"closing_target"`
+	// replacements started from this logical vacancy: how many, and the active one.
+	Replacements Replacements `json:"replacements"`
 }
 
 // CloseRow is one close in the period; Reason is null for legacy closes (M2).
@@ -60,9 +62,16 @@ type ReassignmentRow struct {
 	Snapshot                  json.RawMessage `json:"snapshot"`
 }
 
+// VacancyRef names a process wherever a row carries its vacancy. Kind,
+// RootDraftID and Sequence place it in its logical vacancy
+// (replacement-processes-v1 §«Metrics»): kind original with root_draft_id its own
+// id and a null sequence, or a replacement with its root and 1-based sequence.
 type VacancyRef struct {
-	DraftID uuid.UUID `json:"draft_id"`
-	Title   string    `json:"title"`
+	DraftID     uuid.UUID `json:"draft_id"`
+	Title       string    `json:"title"`
+	Kind        string    `json:"kind"`
+	RootDraftID uuid.UUID `json:"root_draft_id"`
+	Sequence    *int      `json:"sequence"`
 }
 
 // Candidate is a delivered or placed candidate as the company sees them.
@@ -92,11 +101,13 @@ type PlacementPerson struct {
 	Kind   string `json:"kind"`
 }
 
-// Detail is a §3.5 response.
+// Detail is a §3.5 response; Process says where the process sits in its logical
+// vacancy.
 type Detail[T any] struct {
 	header
-	DraftID uuid.UUID `json:"draft_id"`
-	Items   []T       `json:"items"`
+	DraftID uuid.UUID  `json:"draft_id"`
+	Process ProcessRef `json:"process"`
+	Items   []T        `json:"items"`
 }
 
 // snapshotSummary keeps the handover state (lifecycle, delivery, placements)
@@ -121,29 +132,29 @@ func snapshotSummary(raw json.RawMessage) json.RawMessage {
 // Deliveries lists a vacancy's delivered candidates in order and records the
 // read (MetricsDetailViewed) in the same transaction.
 func (s *Service) Deliveries(ctx context.Context, company, actor, draft uuid.UUID, raw string) (*Detail[DeliveryRow], error) {
-	_, p, err := prepare(raw, RouteDetail)
+	q, p, err := prepare(raw, RouteDetail)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.store.Deliveries(ctx, company, actor, draft)
+	rows, ref, err := s.store.Deliveries(ctx, company, actor, draft, q.ProcessKind)
 	if err != nil {
 		return nil, err
 	}
-	return &Detail[DeliveryRow]{newHeader(p, s.now()), draft, rows}, nil
+	return &Detail[DeliveryRow]{newHeader(p, s.now()), draft, ref, rows}, nil
 }
 
 // Placements lists a vacancy's active and did_not_hold credits and records the
 // read (MetricsDetailViewed) in the same transaction.
 func (s *Service) Placements(ctx context.Context, company, actor, draft uuid.UUID, raw string) (*Detail[PlacementRow], error) {
-	_, p, err := prepare(raw, RouteDetail)
+	q, p, err := prepare(raw, RouteDetail)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.store.Placements(ctx, company, actor, draft)
+	rows, ref, err := s.store.Placements(ctx, company, actor, draft, q.ProcessKind)
 	if err != nil {
 		return nil, err
 	}
-	return &Detail[PlacementRow]{newHeader(p, s.now()), draft, rows}, nil
+	return &Detail[PlacementRow]{newHeader(p, s.now()), draft, ref, rows}, nil
 }
 
 // Reaches turns a vacancy's qualifying entries into its delivered candidates:

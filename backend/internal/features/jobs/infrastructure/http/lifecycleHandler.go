@@ -89,5 +89,20 @@ func writeLifecycleError(w http.ResponseWriter, err error) {
 		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeLifecycleTransitionInvalid), invalid)
 		return
 	}
+	var requiresReplacement *lifecycle.ReopenRequiresReplacement
+	if errors.As(err, &requiresReplacement) {
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeReopenRequiresReplacement), requiresReplacement)
+		return
+	}
+	var alreadyActive *lifecycle.ReplacementAlreadyActive
+	if errors.As(err, &alreadyActive) {
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeReplacementAlreadyActive), alreadyActive)
+		return
+	}
+	var superseded *lifecycle.ReopenSuperseded
+	if errors.As(err, &superseded) {
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeReopenSuperseded), superseded)
+		return
+	}
 	writePublicationError(w, err)
 }

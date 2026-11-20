@@ -84,6 +84,10 @@ values while publication is closed, null otherwise (also null for legacy closes)
 | closed / active | `["finish_process","reopen"]` |
 | closed / finished | `["reopen"]` |
 
+A **private replacement** (a process row with no public projection, `visibility: "private"`) also offers `publish` last while it is
+published or paused: `["pause","close","publish"]` and `["resume","close","publish"]`. It routes to `POST V/publication`; closed processes never
+offer it.
+
 A never-published draft returns 200, both axes null, version `"0"`, all four
 timestamps null, and `allowed_actions: ["publish"]`. Its ETag is
 `"vl-<draftId>-v0"`. Publication creates published/active at version 1.
@@ -227,3 +231,27 @@ must be run by the parent on its isolated DB; compiling them is not evidence of
 passing database behavior. Browser review: publish → pause → resume → both close
 choices → finish separately → reopen finished; try stale tabs, incomplete
 resume/reopen, principal vs other recruiter, and retained history/fulfillment.
+
+## Replacement start and the lifecycle (R3a)
+
+`POST /v2/me/company/job-drafts/{id}/replacements` (contract `docs/contracts/replacement-processes-v1.md`) is served by the lifecycle
+handler's store and shares its rules: same gates and source-draft lock, `Idempotency-Key`, and the source's lifecycle ETag as `If-Match`
+(replay answers before the ETag check). The new process is a fresh `published` / `active` row at `lifecycle_version` 1 with no lifecycle
+events. When the source is closed with `process = continue` the start finishes it in the same transaction: `lifecycle_version` + 1, a
+`finish_process` event (actor = the caller) and `VacancyProcessFinished` with `cause = replacement_started` and
+`replacement_process_id`. A source that is already finished is accepted unchanged; open, paused and never-published sources answer 409
+`replacement_source_not_closed`.
+
+## Private replacements: publish now or later (R3c)
+
+`publish: true` on `POST V/replacements` writes the public projection in the start transaction, after the process row and the clone, with the
+start instant as its `published_at` (the process clock). Readiness is the new draft's (`publicationRequirements` on the clone): a missing
+requirement answers 422 `publication_incomplete` and nothing is created. `VacancyPublished` is written as for any publication and
+`VacancyReplacementStarted.visibility` is `public`. The public ad is the source content: nothing public says «reemplazo».
+
+A private replacement is published later with the existing `POST V/publication` (same body, `Idempotency-Key`, draft `If-Match`, readiness).
+Every publication read keys on the projection (`readPublicationAt`): `GET V/publication` answers `draft` for a private replacement and
+`published` once the projection exists; a second publish is 409 `already_published`. Publish later inserts **only the projection** (its
+`published_at` is the publication time); `vacancy_processes.published_at`, `lifecycle_version`, the lifecycle history and the delivery
+commitment do not move, so the process clock never restarts. A closed process answers 409 `lifecycle_transition_invalid` (`action: publish`).
+A content save refreshes an existing projection (keeping its `published_at`) and never creates one.

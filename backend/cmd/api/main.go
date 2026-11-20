@@ -294,6 +294,8 @@ func run() error {
 	// Explicit allowlist; never log the SDK config, endpoint or credentials.
 	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
+	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.
+	draftStore.WithStageEntryHook(newPsychometricStageEntryHook(draftStore))
 	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore).WithStageEntryHook(newPsychometricStageEntryHook(draftStore)), draftjson.Decode)
 
 	// Jobs wiring: jobs repo (sqlc data layer over the same pool)

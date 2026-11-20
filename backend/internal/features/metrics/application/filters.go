@@ -98,6 +98,7 @@ type Query struct {
 	From, To       string
 	RecruiterID    *uuid.UUID
 	Requester      RequesterFilter
+	ProcessKind    string `json:",omitempty"` // original | replacement; "" = every process
 	Outcome        string
 	DeliveryResult string
 	Limit          int
@@ -171,7 +172,7 @@ var (
 
 func (r Route) allows(key string, export bool) bool {
 	switch key {
-	case "from", "to", "recruiter_id", "requester_kind", "requester_id":
+	case "from", "to", "recruiter_id", "requester_kind", "requester_id", "process_kind":
 		return true
 	case "limit", "cursor":
 		return r.paginated() && !export
@@ -294,6 +295,12 @@ func parseQuery(raw string, route Route, export bool) (Query, error) {
 		case "requester_kind":
 			if v == "client" || v == "internal_area" {
 				q.Requester.Kind = v
+			} else {
+				failures[key] = "invalid"
+			}
+		case "process_kind":
+			if v == KindOriginal || v == KindReplacement {
+				q.ProcessKind = v
 			} else {
 				failures[key] = "invalid"
 			}

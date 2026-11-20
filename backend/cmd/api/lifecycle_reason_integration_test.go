@@ -73,14 +73,10 @@ func TestLifecycleCloseReasonHTTPContract(t *testing.T) {
 	if _, err := h.pool.Exec(context.Background(), `UPDATE job_draft_management_configs SET hiring_headcount=1 WHERE draft_id=$1`, id); err != nil {
 		t.Fatal(err)
 	}
-	current = post("close", `{"process":"continue","reason":"filled","reason_note":null}`)
-	if current.status != 200 {
-		t.Fatal(current.status, string(current.body))
-	}
 	assertReads := func(reason, note any) {
 		t.Helper()
 		view := draftFlowObject(t, current.body)
-		if len(view) != 10 || view["close_reason"] != reason || view["close_reason_note"] != note {
+		if len(view) != 20 || view["close_reason"] != reason || view["close_reason_note"] != note {
 			t.Fatal("view", view)
 		}
 		for _, suffix := range []string{"", "/pipeline", "/board"} {
@@ -94,18 +90,29 @@ func TestLifecycleCloseReasonHTTPContract(t *testing.T) {
 			t.Fatal("list reason", item)
 		}
 	}
-	assertReads("filled", nil)
-	current = post("reopen", `{}`)
-	if current.status != 200 {
-		t.Fatal(current.status, string(current.body))
-	}
-	assertReads(nil, nil)
 	note := strings.Repeat("界", 200)
 	current = post("close", `{"process":"finish","reason":"other","reason_note":"  `+note+`  "}`)
 	if current.status != 200 {
 		t.Fatal(current.status, string(current.body))
 	}
 	assertReads("other", note)
+	current = post("reopen", `{}`)
+	if current.status != 200 {
+		t.Fatal(current.status, string(current.body))
+	}
+	assertReads(nil, nil)
+	current = post("close", `{"process":"continue","reason":"filled","reason_note":null}`)
+	if current.status != 200 {
+		t.Fatal(current.status, string(current.body))
+	}
+	assertReads("filled", nil)
+	// Replacement processes (S6, REO-2): a close that covered the vacancy is not reopened.
+	before := publicationFlowSnapshot(t, h, id)
+	rejected := post("reopen", `{}`)
+	draftFlowAssertCatalogError(t, rejected, 409, "reopen_requires_replacement")
+	if before != publicationFlowSnapshot(t, h, id) {
+		t.Fatal("rejected reopen wrote")
+	}
 	history := h.do(t, "GET", path+"/history", "", actor.token, nil)
 	items := draftFlowObject(t, history.body)["items"].([]any)
 	if history.status != 200 || len(items) != 3 {
@@ -116,7 +123,7 @@ func TestLifecycleCloseReasonHTTPContract(t *testing.T) {
 		if len(item) != 7 {
 			t.Fatal("history keys", item)
 		}
-		if i == 0 && (item["reason"] != "other" || item["reason_note"] != note) || i == 1 && (item["reason"] != nil || item["reason_note"] != nil) || i == 2 && (item["reason"] != "filled" || item["reason_note"] != nil) {
+		if i == 0 && (item["reason"] != "filled" || item["reason_note"] != nil) || i == 1 && (item["reason"] != nil || item["reason_note"] != nil) || i == 2 && (item["reason"] != "other" || item["reason_note"] != note) {
 			t.Fatal("history reason", item)
 		}
 	}

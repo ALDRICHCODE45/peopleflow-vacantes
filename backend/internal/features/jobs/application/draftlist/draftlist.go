@@ -31,14 +31,20 @@ const cursorVersion = 1
 // exactly six fractional digits, the precision of PostgreSQL timestamptz.
 const timestampLayout = "2006-01-02T15:04:05.000000Z"
 
-// ErrInvalidRequest marks malformed list input (limit or cursor).
+// ErrInvalidRequest marks malformed list input (limit, cursor or filter).
 var ErrInvalidRequest = errors.New("draftlist: invalid request")
+
+// ErrCursorFilter marks a well-formed cursor of this session that was issued
+// for another root_process_id filter (or for none).
+var ErrCursorFilter = errors.New("draftlist: cursor issued for another filter")
 
 // Scope is the request scope a cursor must belong to. The actor is part of it
 // because a recruiter and the owner see different draft sets.
 type Scope struct {
 	CompanyID uuid.UUID
 	ActorID   uuid.UUID
+	// RootProcessID is the request's root_process_id filter, nil when absent.
+	RootProcessID *uuid.UUID
 }
 
 // Cursor is the keyset position after the last returned draft in the order
@@ -48,6 +54,18 @@ type Cursor struct {
 	ActorID       uuid.UUID
 	LastUpdatedAt time.Time
 	LastID        uuid.UUID
+	// RootProcessID binds the cursor to the filter it was issued for; nil when
+	// the list was not filtered.
+	RootProcessID *uuid.UUID
+}
+
+// ParseRootProcessID parses the root_process_id filter: a canonical lowercase UUID.
+func ParseRootProcessID(raw string) (uuid.UUID, error) {
+	id, ok := canonicalUUID(raw)
+	if !ok {
+		return uuid.UUID{}, ErrInvalidRequest
+	}
+	return id, nil
 }
 
 // ParseLimit parses the optional page size: empty means DefaultLimit; anything
@@ -67,26 +85,32 @@ func ParseLimit(raw string) (int, error) {
 }
 
 // cursorWire is the exact JSON shape of a version-1 cursor; field order is the
-// encoded key order.
+// encoded key order. The filter key exists only on a filtered list, so every
+// cursor of an unfiltered list keeps its original five-key shape.
 type cursorWire struct {
 	Version       int    `json:"version"`
 	CompanyID     string `json:"company_id"`
 	ActorID       string `json:"actor_id"`
 	LastUpdatedAt string `json:"last_updated_at"`
 	LastID        string `json:"last_id"`
+	RootProcessID string `json:"root_process_id,omitempty"`
 }
 
 // EncodeCursor serializes c as unpadded base64url JSON. The timestamp is
 // truncated to microseconds in UTC. The cursor is not a credential: the
 // caller's session scope is always re-applied in SQL.
 func EncodeCursor(c Cursor) (string, error) {
-	raw, err := json.Marshal(cursorWire{
+	wire := cursorWire{
 		Version:       cursorVersion,
 		CompanyID:     c.CompanyID.String(),
 		ActorID:       c.ActorID.String(),
 		LastUpdatedAt: c.LastUpdatedAt.UTC().Truncate(time.Microsecond).Format(timestampLayout),
 		LastID:        c.LastID.String(),
-	})
+	}
+	if c.RootProcessID != nil {
+		wire.RootProcessID = c.RootProcessID.String()
+	}
+	raw, err := json.Marshal(wire)
 	if err != nil {
 		return "", err
 	}
@@ -115,7 +139,7 @@ func DecodeCursor(token string, scope Scope) (Cursor, error) {
 		return Cursor{}, ErrInvalidRequest
 	}
 	object, ok := doc.(map[string]any)
-	if !ok || len(object) != 5 {
+	if !ok || (len(object) != 5 && len(object) != 6) {
 		return Cursor{}, ErrInvalidRequest
 	}
 	// draftjson reads 1.0 and 1e0 as the integer 1; the raw token must be
@@ -154,7 +178,29 @@ func DecodeCursor(token string, scope Scope) (Cursor, error) {
 	if !ok {
 		return Cursor{}, ErrInvalidRequest
 	}
-	return Cursor{CompanyID: companyID, ActorID: actorID, LastUpdatedAt: updatedAt, LastID: lastID}, nil
+	cursor := Cursor{CompanyID: companyID, ActorID: actorID, LastUpdatedAt: updatedAt, LastID: lastID}
+	if len(object) == 6 {
+		raw, ok := object["root_process_id"].(string)
+		if !ok {
+			return Cursor{}, ErrInvalidRequest
+		}
+		root, ok := canonicalUUID(raw)
+		if !ok {
+			return Cursor{}, ErrInvalidRequest
+		}
+		cursor.RootProcessID = &root
+	}
+	if !sameFilter(cursor.RootProcessID, scope.RootProcessID) {
+		return Cursor{}, ErrCursorFilter
+	}
+	return cursor, nil
+}
+
+func sameFilter(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // canonicalUUID accepts only the lowercase hyphenated spelling.

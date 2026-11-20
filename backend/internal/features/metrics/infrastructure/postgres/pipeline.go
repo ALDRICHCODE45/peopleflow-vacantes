@@ -57,8 +57,10 @@ func (s *Store) loadOpenVacancies(ctx context.Context, q querier, company uuid.U
 	rows, err := q.Query(ctx, `SELECT d.id, COALESCE(convert_from(d.fields,'UTF8')::jsonb->'fields'->>'title',''),
  d.requester_kind, d.requester_id, rq.name, pc.configuration,
  (SELECT a.user_id FROM vacancy_assignment_functions fn JOIN vacancy_assignments a ON a.id=fn.assignment_id
-  WHERE fn.draft_id=d.id AND fn.ended_at IS NULL AND fn.function='responsible')
+  WHERE fn.draft_id=d.id AND fn.ended_at IS NULL AND fn.function='responsible'),
+ vr.process_id IS NOT NULL, COALESCE(vr.root_process_id, d.id), vr.sequence
  FROM job_drafts d JOIN vacancy_processes vp ON vp.id=d.id AND vp.company_id=d.company_id
+ LEFT JOIN vacancy_replacements vr ON vr.process_id=d.id
  LEFT JOIN job_draft_requesters rq ON rq.id=d.requester_id AND rq.company_id=d.company_id
  LEFT JOIN job_draft_pipeline_configs pc ON pc.draft_id=d.id
  WHERE d.company_id=$1 AND vp.status<>'closed' AND vp.process_status<>'finished'
@@ -74,8 +76,14 @@ func (s *Store) loadOpenVacancies(ctx context.Context, q querier, company uuid.U
 		var kind, rqName *string
 		var rqID *uuid.UUID
 		var config []byte
-		if err := rows.Scan(&v.ID, &v.Title, &kind, &rqID, &rqName, &config, &v.Responsible); err != nil {
+		var replacement bool
+		var sequence *int32
+		if err := rows.Scan(&v.ID, &v.Title, &kind, &rqID, &rqName, &config, &v.Responsible, &replacement, &v.RootID, &sequence); err != nil {
 			return nil, nil, err
+		}
+		v.Kind, v.Sequence = app.KindOriginal, intPtr(sequence)
+		if replacement {
+			v.Kind = app.KindReplacement
 		}
 		if kind != nil {
 			v.Requester = &app.Requester{Kind: *kind, ID: rqID, Name: rqName}

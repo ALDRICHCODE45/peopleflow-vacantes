@@ -91,7 +91,7 @@ func (s *Service) section(ctx context.Context, company uuid.UUID, raw string, ro
 	if err != nil {
 		return Period{}, view{}, err
 	}
-	v, err := s.view(ctx, company, p, q.Requester, q.RecruiterID)
+	v, err := s.view(ctx, company, p, q.Requester, q.RecruiterID, q.ProcessKind)
 	return p, v, err
 }
 
@@ -157,10 +157,13 @@ func (s *Service) Delays(ctx context.Context, company uuid.UUID, raw string) (*D
 	}
 	out := &Delays{header: newHeader(p, v.asOf), Overdue: Overdue{Top: []OverdueRow{}}}
 	var overdue []OverdueRow
-	for _, vac := range v.data.Vacancies {
+	// The closing target is vacancy-level: the original's own closes.
+	for _, vac := range v.data.Roots {
 		if c, ok := vac.filledClose(p); ok {
 			out.ClosingTarget.judge(c)
 		}
+	}
+	for _, vac := range v.data.Vacancies {
 		for _, r := range vac.Reassigns {
 			if p.Contains(r.At) {
 				out.ReassignmentsByReason.add(r.Reason)
@@ -170,7 +173,7 @@ func (s *Service) Delays(ctx context.Context, company uuid.UUID, raw string) (*D
 			continue
 		}
 		if result, _ := vac.DeliveryResult(v.asOf, s.calendar); result == "overdue" {
-			row := OverdueRow{Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester, AttributedTo: vac.attributedPeople(result, v.data),
+			row := OverdueRow{Vacancy: vac.ref(), Requester: vac.Requester, AttributedTo: vac.attributedPeople(result, v.data),
 				CommitmentDate:      *vac.Delivery.Commitment,
 				BusinessDaysOverdue: s.calendar.Between(civilDate(*vac.Delivery.Commitment), civilOf(v.asOf)), Delivered: vac.Delivered()}
 			if vac.Delivery.Target != nil {
@@ -215,7 +218,7 @@ func closedByMonth(data *Dataset, p Period) []ClosuresMonth {
 	out := make([]ClosuresMonth, len(months))
 	for i, m := range months {
 		out[i].Month = m.Key
-		for _, v := range data.Vacancies {
+		for _, v := range data.Roots {
 			if last, ok := v.lastClose(m.Start, m.End); ok {
 				out[i].Closed++
 				out[i].add(last.Reason)

@@ -138,6 +138,9 @@ func Resolve(code Code) Definition {
 		if def, ok := resolveLifecycleError(code); ok {
 			return def
 		}
+		if def, ok := resolveReplacementError(code); ok {
+			return def
+		}
 		if def, ok := resolveGeoError(code); ok {
 			return def
 		}

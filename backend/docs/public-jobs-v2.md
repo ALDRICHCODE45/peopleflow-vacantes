@@ -214,7 +214,7 @@ All enrichment keys are always present, on both list and detail:
 | `benefits_total` | Predefined + custom count | 0 |
 | `skills_preview` | First 6 skills, entered order | `[]` |
 | `skills_total` | Full skill count | 0 |
-| `applicants` | `under_10` (0–9), `10_plus` (10–24), `25_plus` (25–49), `50_plus` (50+) | null |
+| `applicants` | `under_10` (0–9), `10_plus` (10–24), `25_plus` (25–49), `50_plus` (50+); participations carried into a replacement (`carried_from_participation_id`) are not counted | null |
 | `screening_questions` | Current published questionnaire's question count, including zero | null |
 
 Before excerpt measurement, collapse every run of Unicode `White_Space` (including

@@ -349,3 +349,30 @@ func TestApplicationsAndHardDeleteCascade(t *testing.T) {
 		t.Fatal(ids, err)
 	}
 }
+
+// A candidate reused by a replacement process has a carried participation there, which is not an
+// application they made: the saved job shows none (docs/contracts/replacement-processes-v1.md,
+// «Implementation notes»), while their real application elsewhere keeps showing.
+func TestSavedJobsIgnoreCarriedParticipations(t *testing.T) {
+	f := setup(t)
+	original, replacement := f.vacancy(), f.vacancy()
+	f.save(original)
+	f.save(replacement)
+	cv, applied, carried := uuid.New(), uuid.New(), uuid.New()
+	f.exec(`INSERT INTO candidate_cv_versions(id,candidate_id,storage_key,size,content_type) VALUES($1,$2,$3,10,'application/pdf')`, cv, f.actor, hex.EncodeToString([]byte(uuid.NewString()[:32])))
+	f.exec(`INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,created_at) VALUES($1,$2,$3,$4,$5,'[]','[]','organic',now())`, applied, original, f.actor, uuid.New(), cv)
+	f.exec(`INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,created_at,carried_from_participation_id) VALUES($1,$2,$3,$4,$5,'[]','[]','organic',now(),$6)`, carried, replacement, f.actor, uuid.New(), cv, applied)
+	for _, item := range f.page().Items {
+		switch item.JobID {
+		case original:
+			if item.Application == nil || item.Application.ID != applied {
+				t.Fatalf("the real application must show: %+v", item)
+			}
+		case replacement:
+			if item.Application != nil {
+				t.Fatalf("a carried participation is not an application: %+v", item.Application)
+			}
+		}
+	}
+	f.exec(`DELETE FROM process_participations WHERE id=$1`, carried)
+}

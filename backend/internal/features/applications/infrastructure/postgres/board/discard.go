@@ -9,6 +9,7 @@ import (
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 func setRecoveryStage(item *app.Item, p app.Pipeline) error {
@@ -32,7 +33,17 @@ func (s *Store) Recover(ctx context.Context, company, actor, id, pid uuid.UUID, 
 func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uuid.UUID, tag string, present bool, body []byte, recovering bool) (app.Moved, error) {
 	// Same live authorization and fixed draft -> process -> participation lock order
 	// as moves. Preconditions are checked against the locked item, before state guards.
-	tx, p, err := s.beginMutation(ctx, company, actor, id)
+	// A finished process (S7) accepts one write only: the departure of a hire still in
+	// Placement. Recovery keeps the strict guard, so it answers before any participation read.
+	var tx pgx.Tx
+	var p app.Pipeline
+	var finished *app.ProcessFinished
+	var err error
+	if recovering {
+		tx, p, err = s.beginMutation(ctx, company, actor, id)
+	} else {
+		tx, p, finished, err = s.beginMutationState(ctx, company, actor, id)
+	}
 	if err != nil {
 		return app.Moved{}, err
 	}
@@ -40,6 +51,10 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	item, version, err := readItem(tx.QueryRow(ctx, itemSQL+`WHERE p.process_id=$1 AND p.id=$2 FOR UPDATE OF p`, id, pid))
 	if err != nil {
 		return app.Moved{}, err
+	}
+	// Before the precondition, as the strict guard always was: a stale tag on a finished board still reads 409.
+	if finished != nil && !(item.Discard == nil && p.StageKind(item.StageID) == "placement") {
+		return app.Moved{}, finished
 	}
 	if err = app.CheckIfMatch(item.ETag, tag, present); err != nil {
 		return app.Moved{}, err
@@ -176,8 +191,15 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	if err != nil {
 		return app.Moved{}, err
 	}
+	moved := app.Moved{Item: item, Coverage: next, Delivery: delivery}
+	if departure {
+		// Read after the credit change, in the same transaction, so "Iniciar reemplazo" needs no second request.
+		if moved.Lifecycle, err = s.vacancy.Lifecycle(ctx, tx, id); err != nil {
+			return app.Moved{}, err
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return app.Moved{}, err
 	}
-	return app.Moved{Item: item, Coverage: next, Delivery: delivery}, nil
+	return moved, nil
 }

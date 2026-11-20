@@ -123,7 +123,7 @@ func TestLifecycleReasonReadsReplayAndFirstPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		var view map[string]any
-		if err = json.Unmarshal(got.Body, &view); err != nil || len(view) != 10 || view["close_reason"] != reason || view["close_reason_note"] != note {
+		if err = json.Unmarshal(got.Body, &view); err != nil || len(view) != 20 || view["close_reason"] != reason || view["close_reason_note"] != note {
 			t.Fatal("view keys/values", view, err)
 		}
 		for _, read := range []func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (drafts.Result, error){s.GetV2, s.GetPipeline} {

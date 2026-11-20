@@ -329,6 +329,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `CompanyCandidateEdited` | candidate | Editó los datos de un candidato |
 | `CompanyCandidateCVCorrected` | candidate | Corrigió el CV de un candidato |
 | `VacancyCandidateAddedManually` | candidate | Agregó un candidato a una vacante |
+| `VacancyCandidateCarried` | candidate | Reutilizó a un candidato en un proceso de reemplazo |
 | `VacancyApplicationSubmitted` | candidate | Se postuló a una vacante |
 | `ApplicationSubmitted` | candidate | Envió una postulación |
 | `ApplicationTransitioned` | candidate | Cambió el estado de una postulación |
@@ -356,6 +357,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `VacancyDeliveryFulfilled` | vacancy | Cumplió la entrega de una vacante |
 | `VacancyPlacementCredited` | vacancy | Acreditó una colocación |
 | `VacancyPlacementCreditChanged` | vacancy | Cambió el estado de un crédito de colocación |
+| `VacancyReplacementStarted` | vacancy | Inició un proceso de reemplazo |
 | `JobDraftPipelineConfigured` | pipeline | Configuró las etapas de una vacante |
 | `JobDraftSubstatesConfigured` | pipeline | Configuró los subestados de una vacante |
 | `ParticipationMoved` | pipeline | Movió a un candidato de etapa |
@@ -384,7 +386,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `StakeholderInvitationAccepted` | members | Invitación de stakeholder aceptada |
 | `AuditLogExported` | audit | Exportó la auditoría |
 
-The annex lists every catalog type (63) in catalog order; a test fails when a catalog type has no row.
+The annex lists every catalog type (70) in catalog order; a test fails when a catalog type has no row.
 
 ## Decisions (approved 2026-11-04)
 
