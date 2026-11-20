@@ -23,11 +23,11 @@ vi.mock("@/features/geo/optional-location-field", () => ({ OptionalLocationField
 // Source as text, so the coupling, token and side-effect contracts stay asserted here.
 const SOURCE = readFileSync(join(process.cwd(), "src/features/candidate", "profile-form-fields.tsx"), "utf8");
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
-/** The 18 scalar draft fields in canonical group order; `languages` is the 19th. */
-const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "dial", "phone", "linkedinUrl", "portfolioUrl", "birthDate", "seniority", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
+/** The scalar draft fields in canonical group order; `languages` is the last draft field. */
+const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "dial", "phone", "linkedinUrl", "portfolioUrl", "seniority", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
 const LABELS: Readonly<Record<(typeof SCALARS)[number], string>> = {
   professionalTitle: "Título profesional", currentCompany: "Empresa actual o última", yearsOfExperience: "Años de experiencia", summary: "Resumen profesional",
-  dial: "Lada de país", phone: "Teléfono", linkedinUrl: "Perfil de LinkedIn", portfolioUrl: "Portafolio o sitio web", birthDate: "Fecha de nacimiento",
+  dial: "Lada de país", phone: "Teléfono", linkedinUrl: "Perfil de LinkedIn", portfolioUrl: "Portafolio o sitio web",
   seniority: "Seniority", skills: "Habilidades",
   currentSalaryGross: "Salario bruto actual", currentSalaryNet: "Salario neto actual", expectedSalary: "Salario esperado", salaryCurrency: "Moneda", expectedSalaryPeriod: "Periodo del salario esperado",
 };
@@ -142,18 +142,15 @@ describe("profile form fields inventory", () => {
     expect(field(container, "summary")).toHaveAttribute("maxlength", "2000");
   });
 
-  it("routes the birth date through the shared DatePickerField instead of a native date input", () => {
+  it("offers no birth date control: no date picker, no native date input, no field", () => {
     const { container } = renderFields();
     expect(container.querySelectorAll('input[type="date"]')).toHaveLength(0);
-    expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(0);
     expect(container.querySelectorAll("[data-pf-profile-hint], [id$='-hint']")).toHaveLength(0);
-    const control = container.querySelector("#profile-birthDate") as HTMLElement;
-    expect([control.tagName, control.getAttribute("aria-describedby")]).toEqual(["BUTTON", null]);
-    expect(control).toHaveTextContent("18 de junio de 1994");
-    expect(SOURCE).toContain('from "@/components/ui/date-picker-field"');
-    // Birth dates need the past-date mode; the vacancy closing date keeps its default.
-    expect(SOURCE).toMatch(/allowPast/u);
-    expect(SOURCE).not.toMatch(/type:\s*"date"|type="date"/u);
+    expect(container.querySelector("#profile-birthDate")).toBeNull();
+    expect(screen.queryByLabelText(/nacimiento/iu)).not.toBeInTheDocument();
+    expect(SOURCE).not.toContain("date-picker-field");
+    expect(SOURCE).not.toMatch(/birthDate|nacimiento|type:\s*"date"|type="date"/u);
     expect(screen.getByText("Puedes usar decimales, por ejemplo 1.5.")).toBeInTheDocument();
   });
 
@@ -236,7 +233,6 @@ describe("profile form fields error wiring", () => {
     { path: "summary", message: "El resumen debe tener como máximo 2000 caracteres." },
     { path: "languages", message: "Puedes registrar hasta 20 idiomas." },
     { path: "languages.1.level", message: "El nivel del idioma debe ser uno de A1, A2, B1, B2, C1 o C2." },
-    { path: "birthDate", message: "La fecha de nacimiento no puede estar en el futuro." },
   ];
 
   it("links only the failing controls to the first visible Spanish issue per path", () => {
@@ -248,11 +244,7 @@ describe("profile form fields error wiring", () => {
     expect(container.querySelector("#profile-phone-error")).not.toHaveTextContent("Mensaje duplicado");
     expect(input(container, "linkedinUrl")).not.toHaveAttribute("aria-invalid");
     expect(input(container, "linkedinUrl").getAttribute("aria-describedby")).toBeNull();
-    expect(container.querySelectorAll('[id$="-error"]')).toHaveLength(4);
-    // Without helper lines the adjacent error is the only described-by target.
-    const birthDate = container.querySelector("#profile-birthDate") as HTMLElement;
-    expect([birthDate.tagName, birthDate.getAttribute("aria-invalid"), birthDate.getAttribute("aria-describedby")]).toEqual(["BUTTON", "true", "profile-birthDate-error"]);
-    expect(container.querySelector("#profile-birthDate-error")).toHaveTextContent(issues[5].message);
+    expect(container.querySelectorAll('[id$="-error"]')).toHaveLength(3);
     expect(screen.getByText("Puedes registrar hasta 20 idiomas.")).toHaveAttribute("data-slot", "field-error");
     const level = screen.getByLabelText("Nivel del idioma 2");
     expect(level).toHaveAttribute("aria-invalid", "true");
@@ -329,15 +321,15 @@ describe("profile form fields composition", () => {
     expect(input(container, "expectedSalary")).toHaveValue(75000);
   });
 
-  it("keeps controls on shadcn fields and language row numbers as text, with one divider and date picker", () => {
+  it("keeps controls on shadcn fields and language row numbers as text, with one divider and no date picker", () => {
     const { container } = renderFields();
     expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(9 + draft().languages.length + draft().education.length);
     expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length + 6 * draft().education.length);
     expect(container.querySelectorAll('[data-slot="field-legend"]')).toHaveLength(9 + draft().languages.length + draft().education.length);
     expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(3);
     expect(container.querySelectorAll('[data-slot="field-label"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length + 6 * draft().education.length);
-    expect(container.querySelectorAll('[data-slot="input-group"]')).toHaveLength(SCALARS.length + 3);
-    expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="input-group"]')).toHaveLength(SCALARS.length + 4);
+    expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(0);
     expect(container.querySelectorAll('[data-slot="badge"]')).toHaveLength(0);
     expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("flex-col");
     expect(container.querySelectorAll("[data-pf-profile-divider]")).toHaveLength(0);
@@ -362,9 +354,8 @@ describe("profile form fields contract", () => {
     for (const grid of grids) expect([classes(grid).includes("grid-cols-1"), /sm:grid-cols-(?:\d+|\[[^\]]+\])/u.test(classes(grid))]).toEqual([true, true]);
     const columns = grids.map((grid) => classes(grid).match(/sm:grid-cols-(?:\d+|\[[^\]]+\])/u)?.[0] ?? "");
     expect(new Set(columns).size).toBeGreaterThanOrEqual(3);
-    // Birth date belongs beside phone in Contacto, not in the location grid.
     expect(classes(grids[1])).toContain("sm:grid-cols-2");
-    expect(input(container, "birthDate").closest('[data-pf-profile-group]')).toHaveAttribute("data-pf-profile-group", "contact");
+    expect(input(container, "phone").closest('[data-pf-profile-group]')).toHaveAttribute("data-pf-profile-group", "contact");
     for (const grid of grids) expect(classes(grid)).not.toMatch(/(?:^|\s)flex(?:\s|$)/u);
     const row = container.querySelector("[data-pf-profile-language-row]") as HTMLElement;
     const rowGrid = row.querySelector("[data-pf-profile-language-grid]") as HTMLElement;
@@ -386,7 +377,7 @@ describe("profile form fields contract", () => {
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
     expect(container.querySelectorAll('[role="group"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('[type="submit"], [type="reset"]')).toHaveLength(0);
-    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/forms/dial-code-field", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/features/candidate/education-fields", "@/features/geo/model", "@/features/geo/optional-location-field", "@/features/languages/language-field"]);
+    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/forms/dial-code-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/features/candidate/education-fields", "@/features/geo/model", "@/features/geo/optional-location-field", "@/features/languages/language-field"]);
     expect(SOURCE).toMatch(/^"use client";/u);
     for (const forbidden of ["email", "fullName", "userId", "createdAt", "updatedAt", "cv", "auth", "password", "useState", "useReducer", "useEffect", "useRef", "<form", "onSubmit", "submit", "reset", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.", "document.", "window.", "useRouter", "next/navigation", "setTimeout", "setInterval", "Math.random", "Date.now", "prototype-", "profile-draft.test", "parseProfileDraft", "safeParse", "validate"]) {
       expect(SOURCE, `profile-form-fields.tsx must not declare ${forbidden}`).not.toContain(forbidden);

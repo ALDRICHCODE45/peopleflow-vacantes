@@ -21,7 +21,6 @@ export const PROFILE_VISIBILITY = {
   educationLevel: "company",
   skills: "company",
   languages: "company",
-  birthDate: "private",
   linkedinUrl: "private",
   portfolioUrl: "private",
   currentCompany: "private",
@@ -36,7 +35,7 @@ export const PROFILE_VISIBILITY = {
 } satisfies Record<string, Audience> as Record<VisibilityField, Audience>;
 export type VisibilityField =
   | "fullName" | "email" | "phone" | "location" | "professionalTitle" | "yearsOfExperience" | "seniority" | "educationLevel"
-  | "skills" | "languages" | "birthDate" | "linkedinUrl" | "portfolioUrl" | "currentCompany" | "summary" | "educationDetails"
+  | "skills" | "languages" | "linkedinUrl" | "portfolioUrl" | "currentCompany" | "summary" | "educationDetails"
   | "currentSalaryGross" | "currentSalaryNet" | "expectedSalary" | "expectedSalaryPeriod" | "salaryCurrency";
 
 export const visibleToCompany = (field: VisibilityField): boolean => PROFILE_VISIBILITY[field] === "company";
@@ -46,7 +45,7 @@ export const SECTION_FACTS: Readonly<Record<ProfileCategory, readonly Visibility
   experience: ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"],
   education: ["educationLevel", "educationDetails", "skills"],
   languages: ["languages"],
-  personal: ["phone", "birthDate", "location", "email", "linkedinUrl", "portfolioUrl"],
+  personal: ["phone", "location", "email", "linkedinUrl", "portfolioUrl"],
   compensation: ["currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod", "salaryCurrency"],
 };
 export function sectionVisibility(section: ProfileCategory): Audience | "mixed" {
@@ -66,7 +65,6 @@ const COPY: Readonly<Record<VisibilityField, { company: string; private: string 
   educationLevel: { company: "tu nivel de estudios más alto", private: "tu nivel de estudios" },
   skills: { company: "habilidades", private: "habilidades" },
   languages: { company: "idiomas", private: "idiomas" },
-  birthDate: { company: "fecha de nacimiento", private: "tu fecha de nacimiento" },
   linkedinUrl: { company: "LinkedIn", private: "LinkedIn" },
   portfolioUrl: { company: "portafolio", private: "portafolio" },
   currentCompany: { company: "empresa actual", private: "empresa actual" },

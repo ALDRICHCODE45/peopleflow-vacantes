@@ -105,7 +105,7 @@ describe("candidate application and CV portfolio model", () => {
   it("rejects malformed application facts and extra keys", () => {
     const invalid: readonly Record<string, unknown>[] = [
       { id: "not-a-uuid" }, { jobId: "nope" }, { companyId: "nope" }, { jobTitle: "" }, { jobTitle: "  " }, { companyName: "" },
-      { coverLetter: "" }, { coverLetter: "x".repeat(2001) }, { status: "screening" }, { source: "newspaper" },
+      { status: "screening" }, { source: "newspaper" },
       { createdAt: "2026-02-20" }, { updatedAt: "2026-03-01" }, { extra: true },
     ];
     for (const [index, patch] of invalid.entries()) {
@@ -116,7 +116,7 @@ describe("candidate application and CV portfolio model", () => {
   it("mirrors strict CV metadata with no URL, upload, or generated state", () => {
     expect(Object.keys(CANDIDATE_CVS[0]).sort()).toEqual(["fileName", "id", "isPrimary", "label", "language", "sizeBytes", "updatedAt"]);
     expect(Object.keys(CANDIDATE_APPLICATIONS[0]).sort()).toEqual([
-      "companyId", "companyName", "coverLetter", "createdAt", "id", "jobId", "jobTitle", "publicJobHref", "source", "status", "updatedAt",
+      "companyId", "companyName", "createdAt", "id", "jobId", "jobTitle", "publicJobHref", "source", "status", "updatedAt",
     ]);
     const invalid: readonly Record<string, unknown>[] = [
       { id: "CV Principal" }, { label: "" }, { fileName: "cv.docx" }, { fileName: "cv" }, { language: "fr" }, { sizeBytes: 0 },

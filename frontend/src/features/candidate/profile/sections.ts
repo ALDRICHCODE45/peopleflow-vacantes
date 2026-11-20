@@ -11,7 +11,7 @@ export const PROFILE_TABS: readonly { key: ProfileCategory; title: string }[] = 
 ];
 /** The draft keys each tab owns: what «Descartar cambios» restores and what puts the dot on the tab. */
 export const TAB_DRAFT_KEYS: Readonly<Record<ProfileCategory, readonly (keyof CandidateProfileDraft)[]>> = {
-  personal: ["dial", "phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"],
+  personal: ["dial", "phone", "linkedinUrl", "portfolioUrl", "location"],
   experience: ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"],
   education: ["education", "skills"],
   compensation: ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"],

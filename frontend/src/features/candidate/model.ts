@@ -137,7 +137,6 @@ export const candidateProfileSchema = z
     yearsOfExperience: yearsOfExperienceSchema.nullable(),
     seniority: z.enum(SENIORITIES).nullable(),
     summary: z.string().trim().min(1).max(MAX_TEXT).nullable(),
-    birthDate: z.string().date().nullable(),
     location: locationReadSchema,
     education: z.array(educationSchema).max(10),
     skills: skillsSchema,

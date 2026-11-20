@@ -18,7 +18,8 @@ describe("structured candidate profile editor", () => {
     if (!parsed.ok) throw new Error("Expected valid draft");
     const body = profileToWrite(parsed.profile);
     expect(body.location).toEqual({ country: "MX", state: "01", municipality: "01001" });
-    expect(Object.keys(body).sort()).toEqual(["phone", "linkedin_url", "portfolio_url", "professional_title", "current_company", "years_of_experience", "profile_summary", "birth_date", "location", "education", "seniority", "skills", "current_salary_gross", "current_salary_net", "expected_salary", "salary_currency", "expected_salary_period"].sort());
+    expect(Object.keys(body).sort()).toEqual(["phone", "linkedin_url", "portfolio_url", "professional_title", "current_company", "years_of_experience", "profile_summary", "location", "education", "seniority", "skills", "current_salary_gross", "current_salary_net", "expected_salary", "salary_currency", "expected_salary_period"].sort());
+    expect(body).not.toHaveProperty("birth_date");
     expect(body).not.toHaveProperty("languages");
     expect(body).not.toHaveProperty("user_id");
   });
