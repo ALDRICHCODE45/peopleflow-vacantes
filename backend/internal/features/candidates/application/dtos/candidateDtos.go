@@ -24,8 +24,6 @@ type UpsertMyProfileDto struct {
 	Education         json.RawMessage
 	ProfileSummary    *string
 
-	BirthDate *string // ISO-8601 (YYYY-MM-DD); parsed by the use case.
-
 	Location *geo.LocationInput
 
 	Skills []string

@@ -533,7 +533,6 @@ func mustRebuildProfile(t *testing.T, base *entities.CandidateProfile, mutate fu
 	dup.CurrentCompany = base.CurrentCompany
 	dup.YearsOfExperience = base.YearsOfExperience
 	dup.ProfileSummary = base.ProfileSummary
-	dup.BirthDate = base.BirthDate
 	dup.Location = base.Location
 	dup.Education = append([]entities.Education(nil), base.Education...)
 	dup.Seniority = base.Seniority

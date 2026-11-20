@@ -184,10 +184,6 @@ func (r *CandidateRepository) ReplaceLanguagesByUserID(ctx context.Context, user
 // column is deliberately absent: the candidate-API write path never
 // writes it, so a preexisting reserved value survives every upsert.
 func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfileParams {
-	var birthDate pgtype.Date
-	if p.BirthDate != nil {
-		birthDate = pgtype.Date{Time: *p.BirthDate, Valid: true}
-	}
 	var country, state, municipality pgtype.Text
 	if p.Location != nil {
 		country = locationText(p.Location.Country)
@@ -203,7 +199,6 @@ func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfilePa
 		CurrentCompany:       textPtrToPgText(p.CurrentCompany),
 		YearsOfExperience:    yearsToNumeric(p.YearsOfExperience),
 		ProfileSummary:       textPtrToPgText(p.ProfileSummary),
-		BirthDate:            birthDate,
 		CountryCode:          country,
 		StateCode:            state,
 		MunicipalityCode:     municipality,
@@ -248,7 +243,6 @@ func toEntity(row db.CandidateProfile) (*entities.CandidateProfile, error) {
 		YearsOfExperience:    years,
 		Seniority:            pgTextToTextPtr(row.Seniority),
 		ProfileSummary:       pgTextToTextPtr(row.ProfileSummary),
-		BirthDate:            pgDateToTimePtr(row.BirthDate),
 		Location:             location,
 		Skills:               row.Skills,
 		CurrentSalaryGross:   int4ToIntPtr(row.CurrentSalaryGross),
@@ -333,14 +327,6 @@ func int4ToIntPtr(i pgtype.Int4) *int {
 		return nil
 	}
 	v := int(i.Int32)
-	return &v
-}
-
-func pgDateToTimePtr(d pgtype.Date) *time.Time {
-	if !d.Valid {
-		return nil
-	}
-	v := d.Time
 	return &v
 }
 
