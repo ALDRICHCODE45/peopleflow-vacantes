@@ -103,5 +103,5 @@ it("keeps the generic copy when the chain has no names for the process", () => {
 it("tints the bar so it shows in dark mode too (brand tone, not the deep --primary fill)", () => {
   const { container } = render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={named} />);
   const bar = container.querySelector("[data-pf-replacement-links] > div");
-  expect(bar).toHaveClass("dark:bg-brand-decorative-strong/10", "dark:border-brand-decorative-strong/30");
+  expect(bar).toHaveClass("dark:bg-primary-text/10", "dark:border-primary-text/30");
 });

@@ -16,7 +16,7 @@ export function BoardLifecycle({ lifecycle, publishedAt }: { lifecycle: Lifecycl
   // once public, the listing's own date (`GET V/publication`, a later moment) goes beside it. Originals have one date: their publication.
   const replacementLive = lifecycle.kind === "replacement" && lifecycle.publication === "published";
   const date = replacementLive
-    ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    ? <div className="flex flex-col gap-1">
       {valid(lifecycle.published_at) && <p className="text-xs text-muted-foreground">Proceso iniciado el <MovementDate value={lifecycle.published_at} /></p>}
       {lifecycle.visibility === "public" && valid(publishedAt) && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}
     </div>

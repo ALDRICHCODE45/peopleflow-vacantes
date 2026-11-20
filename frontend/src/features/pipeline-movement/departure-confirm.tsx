@@ -27,7 +27,7 @@ export function DepartureConfirm({ item, board, pending, onConfirm, onCancel }: 
     <div className="flex flex-col gap-0.5"><span className="text-sm font-medium">El candidato se fue</span><span className="text-xs text-muted-foreground">Renunció, no se presentó o se cayó después.</span></div>
   </div>;
   // Tinted box (artboard 04 `.note`): the effects read as information beside the option, not as loose rows. Dark mode takes the brand tone, `--primary` is too deep there.
-  const facts = <dl className="flex flex-col gap-1.5 rounded-xl bg-primary/5 p-3 text-xs dark:bg-brand-decorative-strong/10">
+  const facts = <dl className="flex flex-col gap-1.5 rounded-xl bg-primary/5 p-3 text-xs dark:bg-primary-text/10">
     <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Plazas cubiertas</dt><dd className="font-medium tabular-nums">{coverageCopy({ covered, required })} → {coverageCopy({ covered: Math.max(0, covered - 1), required })}</dd></div>
     <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Resultado original</dt><dd className="font-medium">Sin cambios</dd></div>
   </dl>;

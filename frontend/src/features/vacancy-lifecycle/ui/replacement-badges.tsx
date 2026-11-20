@@ -55,7 +55,7 @@ export function ReplacementLinkBar({ lifecycle, selfId, chain = [] }: { lifecycl
   </div>;
 }
 function LinkBar({ href, action, children }: { href?: string; action: string; children: React.ReactNode }) {
-  return <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-2.5 text-sm text-muted-foreground dark:border-brand-decorative-strong/30 dark:bg-brand-decorative-strong/10">
+  return <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-2.5 text-sm text-muted-foreground dark:border-primary-text/30 dark:bg-primary-text/10">
     {/* Dark `--primary` is a deep button fill (~2:1 on the dark card): the tint and the icon take the brand tone (system.md «Colors — dark»). */}
     <p className="flex min-w-0 items-center gap-2"><GitFork aria-hidden="true" className="size-4 shrink-0 text-primary-text" /><span>{children}</span></p>
     {href && <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={href} />}>{action}<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Button>}
