@@ -280,6 +280,7 @@ func newDraftFlowHarnessWithAudit(t *testing.T, auditRepo auditport.AuditEventRe
 
 	talentBase := talentbasepostgres.NewStore(pool, auditRepo)
 	store := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(companiespostgres.LockMemberMutation)
+	store.WithStageEntryHook(newPsychometricStageEntryHook(store))
 	draftHandler := jobshttp.NewDraftHandler(store)
 	draftV2Handler := jobshttp.NewDraftV2Handler(store, store, store)
 	jobHandler := jobshttp.NewJobHandler(jobsusecases.NewJobService(jobspostgres.NewJobRepository(queries)))
