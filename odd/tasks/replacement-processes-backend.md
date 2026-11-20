@@ -51,7 +51,7 @@ Contract: `docs/contracts/replacement-processes-v1.md` (draft first, reviewed by
 - [x] T9 R6a/R6b Metrics + dashboard (S9) — commits fd1468ca (R6a: dataset, `process_kind`, vacancy-level vs process-level) and 82ab56a8 (R6b: `VacancyRef` keys, `replacements`, `process`, exports, dashboard Q1).
 - [x] T11 R3d Exclude departed hires from carrying (S11) — commit f903517c.
 - [x] T12 R3e Originals keep pre-branch publication semantics (F1) — commit 5d039fca.
-- [ ] T10 Independent verify (Risk items 1, 3).
+- [x] T10 Independent verify (Risk items 1, 3) — S1-S11 PASS on ff33fb48 (L21); F1 fixed in T12 and re-verified PASS on c3221415 (L23).
 
 ## Log
 
