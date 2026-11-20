@@ -37,7 +37,8 @@ type carryCandidate struct {
 // readCarryCandidates returns one row per distinct candidate identity with a participation in
 // any process of the chain, from its most recent participation (created_at DESC, id DESC; the
 // kind is the identity column), without the candidates currently in Placement (not discarded
-// and in the Placement stage of their own process), by name then id, capped at
+// and in the Placement stage of their own process) and the departed hires (readDepartedHires: any
+// participation of the chain left Placement with exit reason candidate_left), by name then id, capped at
 // maxCarryCandidates. The name is the board's company view.
 func readCarryCandidates(ctx context.Context, tx pgx.Tx, companyID uuid.UUID, chain replacementChain) ([]carryCandidate, bool, error) {
 	processes := make([]uuid.UUID, len(chain.Processes))
@@ -73,7 +74,10 @@ FROM latest l JOIN chain ON chain.process_id = l.process_id
 LEFT JOIN company_candidates cc ON l.kind = 'manual' AND cc.id = l.identity AND cc.company_id = $1
 LEFT JOIN users u ON l.kind = 'organic' AND u.id = l.identity
 LEFT JOIN company_candidate_corrections o ON l.kind = 'organic' AND o.user_id = l.identity AND o.company_id = $1
-WHERE l.discarded OR l.stage_id <> chain.placement_id
+WHERE (l.discarded OR l.stage_id <> chain.placement_id)
+ AND NOT EXISTS (SELECT 1 FROM placement_credits c JOIN process_participations d ON d.id = c.participation_id AND d.process_id = c.process_id
+  WHERE c.process_id = ANY($2::uuid[]) AND c.exit_reason = 'candidate_left'
+   AND ((l.kind = 'organic' AND d.candidate_id = l.identity) OR (l.kind = 'manual' AND d.company_candidate_id = l.identity)))
 ORDER BY full_name, l.identity
 LIMIT $4`, companyID, processes, placements, maxCarryCandidates+1)
 	if err != nil {

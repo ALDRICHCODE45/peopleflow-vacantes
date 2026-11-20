@@ -237,7 +237,7 @@ The matching `allowed_actions` rule (point 5 of the review): `reopen` is absent 
 alone cannot address organic applicants, who have no company candidate, hence the pair — assumption A2.)
 
 - **Which candidates the UI offers.** `GET V/replacements` returns `carry_candidates[]` (below) resolved with exactly this «most recent
-  participation» rule, excluding candidates that are currently placed. **The POST `stage_id` is chosen among the stages of the SOURCE process**
+  participation» rule, excluding candidates that are currently placed and the **departed hires** (S11). **The POST `stage_id` is chosen among the stages of the SOURCE process**
   (`{id}`; the frontend already has them from the source's pipeline/board). The list shows the candidate's previous stage **only by `kind` and
   `name`** (never an id: that id belongs to another process of the chain).
 - **Source of truth.** The candidate must have (or have had) a participation in any process of the chain; the
@@ -258,7 +258,12 @@ alone cannot address organic applicants, who have no company candidate, hence th
   new stage ids.
 - **Not carried.** A candidate whose most recent participation is **currently in Placement** (an active hire) →
   `carried_candidate_invalid` (`currently_placed`); a duplicate candidate in the list → `duplicate`.
-  A candidate whose credit is `did_not_hold` is a valid carry («Cualquiera»).
+  A candidate whose credit was voided (`moved_by_mistake`) is a valid carry («Cualquiera»).
+- **Departed hires (S11, R3d).** User: «No, excluirla del reemplazo (Recomendado)». A candidate is a **departed hire** when **any** participation of
+  theirs in the chain has a departure from Placement with exit reason `candidate_left` (the `did_not_hold` credit's own participation included, not
+  only the most recent participation). Such a candidate is not offered in `carry_candidates[]` and cannot be carried: 422 `carried_candidate_invalid`,
+  reason `departed_hire`. A `moved_by_mistake` departure (a voided credit) does **not** make anyone departed. If the person comes back, the recruiter
+  adds them manually.
 - **Delivery.** A carried intake counts for the replacement's delivery with the manual-intake rule, for both sources
   (assumption A3): at the cutoff stage, or at a stage after it, it is a delivered candidate, and the delivery may fulfil
   inside the start request. This needs the `RecordDelivery`/`reachedCandidates` rule
@@ -381,7 +386,7 @@ Errors (new codes in **bold**, §Error codes):
 | 409 | `idempotency_conflict` | same key, different payload |
 | 412/428 | `version_conflict` / `precondition_required` | stale / missing lifecycle ETag |
 | 422 | **`replacement_credits_invalid`** | `data.credits: [{ credit_id, reason: "not_in_chain" \| "not_did_not_hold" \| "already_replaced" }]` |
-| 422 | **`carried_candidate_invalid`** | `data.candidates: [{ index, reason: "not_in_chain" \| "currently_placed" \| "duplicate" }]` |
+| 422 | **`carried_candidate_invalid`** | `data.candidates: [{ index, reason: "not_in_chain" \| "currently_placed" \| "departed_hire" \| "duplicate" }]` |
 | 422 | **`carried_stage_invalid`** | `data.candidates: [{ index, reason: "stage_not_found" \| "stage_is_placement" \| "stage_is_exit" }]` |
 | 422 | `not_company_member`, `publication_incomplete` (+ `missing`) | existing codes |
 
@@ -415,7 +420,7 @@ audit events commit or roll back together (fail-closed audit, as `Append` does t
 
 **R3b implementation notes** (carried candidates; the rest of the contract is unchanged):
 
-- **Order and codes.** `carried_candidates` is checked after the credits and before the responsible. Candidate problems (`not_in_chain`, `currently_placed`, `duplicate`)
+- **Order and codes.** `carried_candidates` is checked after the credits and before the responsible. Candidate problems (`not_in_chain`, `currently_placed`, `departed_hire` (R3d), `duplicate`)
   come first and answer 422 `carried_candidate_invalid`; only when no candidate has a problem are the stages checked (`stage_not_found`, `stage_is_placement`,
   `stage_is_exit`, 422 `carried_stage_invalid`). Both carry `data.candidates: [{ index, reason }]` with **only the offending indexes**, in request order, one reason per
   index. A repeated `{kind, id}` is `duplicate` from its second occurrence on (the first one is judged on its own merits). A rejected start creates nothing.
@@ -547,7 +552,7 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
   carry `moved_by_mistake`).
 - **`carry_candidates[]` (point 1, blocking).** One row per distinct candidate identity `{kind, id}` that has a participation in any process
   of the chain, resolved with the **most recent participation** rule (`created_at DESC, id DESC`, §Carried candidates) and **excluding
-  candidates that are currently in Placement**. Fields: `candidate {kind, id, full_name}` (the board's company name view);
+  candidates that are currently in Placement and the departed hires** (S11: any participation of the chain left Placement with exit reason `candidate_left`). Fields: `candidate {kind, id, full_name}` (the board's company name view);
   `process_id` and `participation_id` of that most recent participation (the template); `stage {kind, name}` = the stage that
   participation is in, or, when `discarded` is true, the stage it was discarded from — **by `kind` and `name` only, never an id**, because
   that id belongs to another process of the chain; `discarded` = that participation sits in the exit stage; `eligible` and optional `reason`
@@ -578,12 +583,24 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
 - **Items.** `lifecycle` is `{publication, process, close_reason, closed_at}` (`close_reason` only while closed, null otherwise); `coverage.required` is the process' `hiring_headcount` (null when unset; a replacement's
   is its `target_quantity`); `replaced_credit_ids` oldest hire first; `visibility` is `public` with a projection, else `private`.
 - **`publish_ready` / `missing[]`** are `publicationRequirements` on the **source's** content with the six Start-filled codes removed, in `publicationRequirements`' order.
-- **`carry_candidates[]`** (only when `allowed`): the most recent participation per `{kind, id}` over the whole chain, `currently_placed` rows excluded, so a voided or restored hire is a candidate like any other;
+- **`carry_candidates[]`** (only when `allowed`): the most recent participation per `{kind, id}` over the whole chain, `currently_placed` rows and (R3d) departed hires excluded, so a hire voided by mistake (`moved_by_mistake`) is a candidate like any other;
   a discarded row shows the stage it was discarded from (a retired stage keeps its kind and name). Ordered by the board's name view then id, 1000 rows maximum (`carry_candidates_truncated`).
 
 **R4b implementation notes** (`fallen_credits`, feature doc S10 frontend request): query `ListFallenCreditDetails` (`db/queries/replacements.sql`, the `ListStartableCreditDetails` joins plus a left join on
 `vacancy_replacement_credits`), assembled by `readFallenCreditViews` (`draftstore/replacement_read.go`) after `startable_credits`, from the same read snapshot. The array is filled for any chain (also when the source
 cannot start) and is `[]` for a draft with no process. No new error, no ETag, no write.
+
+**R3d implementation notes** (S11, feature doc Log L20; the rest of the contract is unchanged):
+
+- **Rule.** A candidate is a *departed hire* when any `placement_credits` row of a process of the chain, whose participation is that candidate's (kind = identity column, as in
+  the carry templates: `organic` = `candidate_id`, `manual` = `company_candidate_id`), has `exit_reason = 'candidate_left'`. The test is on the stored **exit reason**, not on the credit
+  status: an owner correction of the status (`did_not_hold` ⇄ `voided`) never changes the reason of the departure, so a `candidate_left` credit the owner voided still makes the person
+  departed, and a `moved_by_mistake` credit the owner restored to `did_not_hold` does not. It is the same condition for every participation of the person in the chain, including a
+  newer, unplaced one (someone who left, was re-added to the pipeline and is not placed now is still departed). A hire from before credits existed has no reason on file and is not departed.
+- **`GET V/replacements`.** `carry_candidates[]` filters them out in SQL (`readCarryCandidates`). They stay in `fallen_credits[]` and `startable_credits[]` (the credit is still fallen).
+- **`POST V/replacements`.** `planCarried` decides `departed_hire` (`readDepartedHires`) after `not_in_chain` and `currently_placed` for the same item (a departed hire that was hired again and
+  is placed now answers `currently_placed`) and before the stage problems; `duplicate` keeps applying from the second occurrence on. Same payload shape (`data.candidates: [{ index, reason }]`,
+  only offending indexes). A rejected start creates nothing.
 
 ### `GET V/lifecycle` and every lifecycle view (D10)
 
@@ -847,7 +864,7 @@ step 1 of §«Deployment order» precedes R2.
    `VacancyProcessFinished` `cause`)**, `validation_error` `fields[]`, `VacancyReplacementStarted`, audit catalog changes (constants, specs,
    annex). Over budget on purpose; split the source-finish into R3a2 (~120) if review prefers.
 4. **R3b · Carried candidates** (~350; **implemented**, see Log L14 of the feature doc and «R3b implementation notes»): participation copy, `intake` history, delivery rule change (`reachedCandidates`/`RecordDelivery`),
-   `VacancyCandidateCarried`, candidate-facing exclusion, the carry error codes.
+   `VacancyCandidateCarried`, candidate-facing exclusion, the carry error codes. **R3d** (S11, Log L20): departed hires (`candidate_left`) are excluded from `carry_candidates[]` and rejected with `departed_hire`.
 5. **R3c · Private/public** (~300; **implemented**, see Log L15 of the feature doc and «R3c implementation notes»): `publish: true`, `readPublishedAt` → projection keyed, `refreshPublicProjection` fix, publish-later,
    `GET V/publication` for private replacements, `allowed_actions` `publish`.
 6. **R4 · `GET V/replacements`** (~350; **implemented**, see «R4 implementation notes»): chain list, `start_replacement` (blocker, startable credits, **`publish_ready`/`missing`**), coverage per item,

@@ -113,6 +113,7 @@ const (
 	CandidateNotInChain      = "not_in_chain"
 	CandidateCurrentlyPlaced = "currently_placed"
 	CandidateDuplicate       = "duplicate"
+	CandidateDepartedHire    = "departed_hire"
 	StageNotFound            = "stage_not_found"
 	StageIsPlacement         = "stage_is_placement"
 	StageIsExit              = "stage_is_exit"

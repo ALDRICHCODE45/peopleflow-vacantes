@@ -692,3 +692,98 @@ func TestReplacementCarryRunsTheStageEntryHook(t *testing.T) {
 		t.Fatalf("hook calls = %v, want %v", hook.calls, want)
 	}
 }
+
+// departedChain is root -> first (a finished replacement) with the people of S11: who left
+// Placement because they left (candidate_left), who left it by mistake (moved_by_mistake), and
+// the shapes in between. `first` is the source a new start runs from.
+type departedChain struct {
+	root, first, credit string
+	// departedRoot left in the original, departedFirst in the replacement, departedOrganic is
+	// an organic account that left, cameBack left in the original and has a newer, unplaced
+	// participation in the replacement, byMistake and corrected left by mistake / were corrected.
+	departedRoot, departedFirst, departedOrganic, cameBack, byMistake, corrected carryPerson
+	placedAgain                                                                  carryPerson
+	cameBackNow                                                                  string
+}
+
+func (f *carryFlow) departedChain() departedChain {
+	f.t.Helper()
+	root := f.published()
+	first := f.published()
+	f.link(first, root, root, 1)
+	f.closeIt(root, "finish")
+	f.cover(root)
+	f.closeIt(first, "finish")
+	fs := replStages(first)
+	t0 := time.Now().UTC().Add(-96 * time.Hour).Truncate(time.Microsecond)
+	at := func(h int) time.Time { return t0.Add(time.Duration(h) * time.Hour) }
+	c := departedChain{root: root, first: first, credit: f.credit(first, "did_not_hold")}
+	c.departedRoot, c.departedFirst, c.departedOrganic = f.manual("Se fue en el original"), f.manual("Se fue en el reemplazo"), f.organic("Se fue organico")
+	c.cameBack, c.byMistake, c.corrected, c.placedAgain = f.manual("Volvio"), f.manual("Por error"), f.manual("Corregida"), f.manual("Contratada otra vez")
+	f.hire(root, c.departedRoot, at(0), "did_not_hold")
+	f.hire(first, c.departedFirst, at(1), "did_not_hold")
+	f.hire(root, c.departedOrganic, at(2), "did_not_hold")
+	// Left in the original; the newest participation is a plain, unplaced one in the replacement.
+	f.hire(root, c.cameBack, at(3), "did_not_hold")
+	c.cameBackNow = f.participate(first, c.cameBack, fs["screening"], at(30))
+	// moved_by_mistake voids the credit: not a departed hire.
+	f.hire(root, c.byMistake, at(4), "voided")
+	// The owner corrected a candidate_left credit to voided: the exit reason is still candidate_left.
+	_, part := f.hire(root, c.corrected, at(5), "did_not_hold")
+	f.exec(`UPDATE placement_credits SET status='voided' WHERE participation_id=$1`, part)
+	// Left, then hired again in the replacement: placed now (and departed before).
+	f.hire(root, c.placedAgain, at(6), "did_not_hold")
+	f.hire(first, c.placedAgain, at(31), "active")
+	return c
+}
+
+func TestReplacementCarryRejectsDepartedHires(t *testing.T) {
+	f := newCarryFlow(t)
+	c := f.departedChain()
+	fs := replStages(c.first)
+	clean := f.manual("Sin contratar")
+	f.participate(c.first, clean, fs["screening"], time.Now().UTC().Add(-48*time.Hour).Truncate(time.Microsecond))
+	unknown := carryPerson{kind: "organic", id: uuid.New()}
+	before := f.state()
+
+	for name, tc := range map[string]struct {
+		items []string
+		want  []any
+	}{
+		"left in the original":    {[]string{carriedItem(c.departedRoot, fs["screening"])}, []any{carryProblem(0, "departed_hire")}},
+		"left in the replacement": {[]string{carriedItem(c.departedFirst, fs["screening"])}, []any{carryProblem(0, "departed_hire")}},
+		"organic":                 {[]string{carriedItem(c.departedOrganic, fs["screening"])}, []any{carryProblem(0, "departed_hire")}},
+		// Any participation of the chain counts, not only the most recent one.
+		"came back as a plain participation":       {[]string{carriedItem(c.cameBack, fs["screening"])}, []any{carryProblem(0, "departed_hire")}},
+		"a corrected credit keeps its exit reason": {[]string{carriedItem(c.corrected, fs["screening"])}, []any{carryProblem(0, "departed_hire")}},
+		// Only the departed ones are listed; the ones that can be carried are not.
+		"mixed with carriable ones": {[]string{carriedItem(clean, fs["screening"]), carriedItem(c.departedRoot, fs["screening"]), carriedItem(c.byMistake, fs["screening"]), carriedItem(c.departedFirst, fs["new"])},
+			[]any{carryProblem(1, "departed_hire"), carryProblem(3, "departed_hire")}},
+		// Same precedence as the other candidate reasons: duplicate (from the second occurrence), not_in_chain
+		// and currently_placed are decided first; the first occurrence is judged on its own merits.
+		"precedence": {[]string{carriedItem(unknown, fs["screening"]), carriedItem(c.departedRoot, fs["screening"]), carriedItem(c.placedAgain, fs["screening"]), carriedItem(c.departedRoot, fs["new"])},
+			[]any{carryProblem(0, "not_in_chain"), carryProblem(1, "departed_hire"), carryProblem(2, "currently_placed"), carryProblem(3, "duplicate")}},
+		// A candidate problem (departed included) outranks a stage problem anywhere in the list.
+		"candidate before stage": {[]string{carriedItem(clean, fs["placement"]), carriedItem(c.departedRoot, fs["screening"])}, []any{carryProblem(1, "departed_hire")}},
+	} {
+		data := f.rejected(f.start(c.first, replBody(t, carriedJSON(tc.items...), c.credit)), 422, "carried_candidate_invalid")
+		if got := carryProblems(data); !reflect.DeepEqual(got, tc.want) {
+			t.Fatalf("%s: problems = %v, want %v", name, got, tc.want)
+		}
+		f.unchanged(before)
+	}
+}
+
+func TestReplacementCarryStillCarriesAMovedByMistakeDeparture(t *testing.T) {
+	f := newCarryFlow(t)
+	c := f.departedChain()
+	fs := replStages(c.first)
+	resp := f.start(c.first, replBody(t, carriedJSON(carriedItem(c.byMistake, fs["screening"])), c.credit))
+	if resp.status != 201 {
+		t.Fatalf("start: %d %s", resp.status, resp.body)
+	}
+	carried := draftFlowObject(t, resp.body)["carried"].([]any)
+	if len(carried) != 1 || carried[0].(map[string]any)["candidate"].(map[string]any)["id"] != c.byMistake.id.String() {
+		t.Fatalf("carried = %v", carried)
+	}
+}

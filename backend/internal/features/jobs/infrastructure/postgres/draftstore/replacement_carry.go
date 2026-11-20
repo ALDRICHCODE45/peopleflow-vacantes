@@ -84,8 +84,41 @@ ORDER BY req.kind, req.id, p.created_at DESC, p.id DESC`, processes, kinds, ids)
 	return out, rows.Err()
 }
 
+// readDepartedHires returns the requested candidates that are departed hires (feature doc S11):
+// any participation of theirs in the chain left Placement with exit reason `candidate_left`,
+// not only the most recent one. The exit reason is the one the departure stored on its credit,
+// so a `moved_by_mistake` departure (a voided credit) never counts and an owner correction of the
+// credit status does not change it. The kind is the identity column, as in readCarryTemplates.
+func readDepartedHires(ctx context.Context, tx pgx.Tx, chain replacementChain, requested []replacement.CarriedCandidate) (map[string]bool, error) {
+	processes := make([]uuid.UUID, len(chain.Processes))
+	for i, p := range chain.Processes {
+		processes[i] = p.ID
+	}
+	kinds, ids := make([]string, len(requested)), make([]uuid.UUID, len(requested))
+	for i, c := range requested {
+		kinds[i], ids[i] = c.Kind, c.ID
+	}
+	rows, err := tx.Query(ctx, `SELECT DISTINCT req.kind, req.id FROM unnest($2::text[], $3::uuid[]) AS req(kind, id)
+WHERE EXISTS (SELECT 1 FROM placement_credits c JOIN process_participations d ON d.id = c.participation_id AND d.process_id = c.process_id
+ WHERE c.process_id = ANY($1::uuid[]) AND c.exit_reason = 'candidate_left'
+  AND ((req.kind = 'organic' AND d.candidate_id = req.id) OR (req.kind = 'manual' AND d.company_candidate_id = req.id)))`, processes, kinds, ids)
+	if err != nil {
+		return nil, fmt.Errorf("read departed hires: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var c replacement.CarriedCandidate
+		if err = rows.Scan(&c.Kind, &c.ID); err != nil {
+			return nil, err
+		}
+		out[carryKey(c)] = true
+	}
+	return out, rows.Err()
+}
+
 // planCarried validates the carried candidates and maps their stages. A candidate
-// problem (not_in_chain, currently_placed, duplicate) outranks a stage problem
+// problem (not_in_chain, currently_placed, departed_hire, duplicate) outranks a stage problem
 // (stage_not_found, stage_is_placement, stage_is_exit): the first kind that has
 // any is reported, for every offending index, in request order. Nothing is
 // written. The chain read is the one the root and source process locks make
@@ -97,6 +130,10 @@ func (s *Store) planCarried(ctx context.Context, tx pgx.Tx, chain replacementCha
 		return nil, nil
 	}
 	templates, err := readCarryTemplates(ctx, tx, chain, requested)
+	if err != nil {
+		return nil, err
+	}
+	departed, err := readDepartedHires(ctx, tx, chain, requested)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +179,10 @@ func (s *Store) planCarried(ctx context.Context, tx pgx.Tx, chain replacementCha
 		}
 		if !t.discarded && t.stage == at {
 			problems = append(problems, replacement.CarriedProblem{Index: i, Reason: replacement.CandidateCurrentlyPlaced})
+			continue
+		}
+		if departed[key] {
+			problems = append(problems, replacement.CarriedProblem{Index: i, Reason: replacement.CandidateDepartedHire})
 			continue
 		}
 		found[i] = t

@@ -219,17 +219,14 @@ func TestReplacementListOfAClosedOriginal(t *testing.T) {
 		}
 	}
 
-	// carry_candidates: everyone who is not currently placed (a voided hire included: «Cualquiera»), by name;
-	// the discarded ones show the stage they left, by kind and name only; v1 lists only eligible candidates.
+	// carry_candidates: everyone who is not currently placed and did not leave (S11: Zoe and Alba, whose exit
+	// was candidate_left, are not offered; a voided hire, moved_by_mistake, is), by name; the discarded ones
+	// show the stage they left, by kind and name only; v1 lists only eligible candidates.
 	candidates := replList(t, body["carry_candidates"])
 	wantCandidates := []any{
-		map[string]any{"candidate": map[string]any{"kind": "organic", "id": alba.id.String(), "full_name": "Alba Corregida"}, "process_id": root, "participation_id": albaPart,
-			"stage": map[string]any{"kind": "placement", "name": replStageName(root, "placement")}, "discarded": true, "eligible": true},
 		map[string]any{"candidate": map[string]any{"kind": "manual", "id": mario.id.String(), "full_name": "Mario Screening"}, "process_id": root, "participation_id": marioPart,
 			"stage": map[string]any{"kind": "screening", "name": replStageName(root, "screening")}, "discarded": false, "eligible": true},
 		map[string]any{"candidate": map[string]any{"kind": "manual", "id": void.id.String(), "full_name": "Void Person"}, "process_id": root, "participation_id": voidPart,
-			"stage": map[string]any{"kind": "placement", "name": replStageName(root, "placement")}, "discarded": true, "eligible": true},
-		map[string]any{"candidate": map[string]any{"kind": "manual", "id": zoe.id.String(), "full_name": "Zoe Fallen"}, "process_id": root, "participation_id": zoePart,
 			"stage": map[string]any{"kind": "placement", "name": replStageName(root, "placement")}, "discarded": true, "eligible": true},
 	}
 	if !reflect.DeepEqual(candidates, wantCandidates) {
@@ -240,6 +237,9 @@ func TestReplacementListOfAClosedOriginal(t *testing.T) {
 func TestReplacementListServesTheSameChainFromAnyProcess(t *testing.T) {
 	f := newCarryFlow(t)
 	root, credits, _ := f.fallenChain(2)
+	// The two fallen hires left (departed, S11); one more candidate is still in the pipeline.
+	stays := f.manual("Sigue en el proceso")
+	f.participate(root, stays, replStages(root)["screening"], time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond))
 
 	// Start a replacement for the first credit; the source is finished by the start.
 	started := f.startOK(root, replBody(t, ",\"target_quantity\":2", credits[0]))
@@ -286,8 +286,8 @@ func TestReplacementListServesTheSameChainFromAnyProcess(t *testing.T) {
 	if closedItem["lifecycle"].(map[string]any)["publication"] != "closed" || closedItem["lifecycle"].(map[string]any)["close_reason"] != "cancelled" || closedItem["lifecycle"].(map[string]any)["closed_at"] == nil {
 		t.Fatalf("closed item = %v", closedItem)
 	}
-	// carry_candidates are filled for the source that may start; both fallen hires are carriable.
-	if len(replList(t, atRepl["carry_candidates"])) != 2 {
+	// carry_candidates are filled for the source that may start; the fallen hires are departed, not offered.
+	if got := replList(t, atRepl["carry_candidates"]); len(got) != 1 || replObject(t, replObject(t, got[0])["candidate"])["full_name"] != "Sigue en el proceso" {
 		t.Fatalf("carry candidates = %v", atRepl["carry_candidates"])
 	}
 
@@ -354,9 +354,10 @@ func TestReplacementListCarryCandidatesUseTheMostRecentParticipation(t *testing.
 	t0 := time.Now().UTC().Truncate(time.Microsecond).Add(-96 * time.Hour)
 	at := func(h int) time.Time { return t0.Add(time.Duration(h) * time.Hour) }
 
-	// Left Placement in the original, started over in the replacement's pipeline: the NEWER row is the template.
+	// Left Placement in the original by mistake (a voided credit: not a departed hire), started over in the
+	// replacement's pipeline: the NEWER row is the template.
 	again := f.manual("A again")
-	f.hire(root, again, at(0), "did_not_hold")
+	f.hire(root, again, at(0), "voided")
 	againNow := f.participate(repl, again, ps["new"], at(10))
 	// Discarded from in_process in the original only.
 	gone := f.organic("B gone")
@@ -372,15 +373,17 @@ func TestReplacementListCarryCandidatesUseTheMostRecentParticipation(t *testing.
 	placed := f.manual("F placed later")
 	f.participate(root, placed, rs["screening"], at(4))
 	f.hire(repl, placed, at(12), "active")
-	// A discarded hire of the replacement shows the stage it left.
+	// A hire of the replacement moved out by mistake shows the stage it left.
 	left := f.manual("G left")
-	_, leftPart := f.hire(repl, left, at(5), "did_not_hold")
+	_, leftPart := f.hire(repl, left, at(5), "voided")
+	// A departed hire (candidate_left) is not offered at all.
+	f.hire(repl, f.manual("H departed"), at(8), "did_not_hold")
 	// Two people with the same name: ordered by id.
 	twinA, twinB := f.manual("Twin"), f.manual("Twin")
 	twinAPart := f.participate(root, twinA, rs["new"], at(6))
 	twinBPart := f.participate(root, twinB, rs["new"], at(7))
 
-	// The latest process (the replacement) may start: it has startable credits (A's and G's hires).
+	// The latest process (the replacement) may start: it has startable credits (H's hire).
 	body := f.chainOK(repl)
 	replAssertTopLevel(t, body)
 	if start := replStart(t, body); start["allowed"] != true {
@@ -442,7 +445,7 @@ func TestReplacementListCarryCandidatesAreCappedAtAThousand(t *testing.T) {
 		}
 	})
 	f.exec(`INSERT INTO company_candidates(id,company_id,full_name,email,email_normalized,country_code,professional_title,created_by)
- SELECT gen_random_uuid(),$1,'Bulk '||lpad(g::text,5,'0'),'bulk-'||g||'-'||$3||'@example.test','bulk-'||g||'-'||$3||'@example.test','US','Title',$2 FROM generate_series(1,1001) g`, f.company.companyID, f.owner.userID, uuid.NewString())
+ SELECT gen_random_uuid(),$1,'Bulk '||lpad(g::text,5,'0'),'bulk-'||g||'-'||$3||'@example.test','bulk-'||g||'-'||$3||'@example.test','US','Title',$2 FROM generate_series(1,1002) g`, f.company.companyID, f.owner.userID, uuid.NewString())
 	f.exec(`INSERT INTO company_candidate_cvs(id,company_id,company_candidate_id,storage_key,size,content_type,file_name)
  SELECT gen_random_uuid(),company_id,id,replace(gen_random_uuid()::text,'-','')||replace(gen_random_uuid()::text,'-',''),6,'application/pdf','bulk.pdf' FROM company_candidates WHERE company_id=$1 AND full_name LIKE 'Bulk %'`, f.company.companyID)
 	f.exec(`INSERT INTO process_participations(id,process_id,company_candidate_id,company_candidate_cv_id,stage_id,source,added_by,profile_snapshot,questions_snapshot,answers_snapshot,origin_channel,created_at)
@@ -455,7 +458,7 @@ func TestReplacementListCarryCandidatesAreCappedAtAThousand(t *testing.T) {
 	if len(list) != 1000 || body["carry_candidates_truncated"] != true || first["full_name"] != "Bulk 00001" || last["full_name"] != "Bulk 01000" {
 		t.Fatalf("%d candidates, truncated %v, first %v, last %v", len(list), body["carry_candidates_truncated"], first, last)
 	}
-	// The fallen hire is one of the 1002 candidates; remove two so exactly 1000 remain: not truncated.
+	// The fallen hire is departed (S11) and is not among the 1002 bulk candidates; remove two so exactly 1000 remain: not truncated.
 	f.exec(`DELETE FROM process_participations WHERE company_candidate_id IN (SELECT id FROM company_candidates WHERE company_id=$1 AND full_name IN ('Bulk 00001','Bulk 00002'))`, f.company.companyID)
 	body = f.chainOK(root)
 	if list = replList(t, body["carry_candidates"]); len(list) != 1000 || body["carry_candidates_truncated"] != false {
@@ -690,5 +693,35 @@ func TestReplacementListFallenCreditsAreAlwaysPresent(t *testing.T) {
 	got := f.fallen(open)
 	if len(got) != 1 || replObject(t, got[0])["exit_reason"] != "moved_by_mistake" {
 		t.Fatalf("exit_reason = %v", got)
+	}
+}
+
+// S11: a departed hire (any participation of the chain left Placement with exit reason
+// candidate_left) is not offered; a moved_by_mistake departure does not make anyone departed.
+func TestReplacementListCarryCandidatesExcludeDepartedHires(t *testing.T) {
+	f := newCarryFlow(t)
+	c := f.departedChain()
+	fs := replStages(c.first)
+	clean := f.manual("Sin contratar")
+	f.participate(c.first, clean, fs["screening"], time.Now().UTC().Add(-48*time.Hour).Truncate(time.Microsecond))
+
+	body := f.chainOK(c.first)
+	replAssertTopLevel(t, body)
+	if start := replStart(t, body); start["allowed"] != true {
+		t.Fatalf("start block = %v", start)
+	}
+	var names []string
+	for _, v := range replList(t, body["carry_candidates"]) {
+		names = append(names, replObject(t, replObject(t, v)["candidate"])["full_name"].(string))
+	}
+	// Left in the original, left in the replacement, organic, came back unplaced, corrected credit,
+	// placed again: none. Left by mistake and never hired: listed.
+	if want := []string{"Por error", "Sin contratar"}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("carry candidates = %v, want %v", names, want)
+	}
+	// The departed hires' credits stay fallen (the board badge; the bare credit of the fixture has no
+	// participation and is not listed): only the carry list changes.
+	if got := f.fallen(c.first); len(got) != 5 {
+		t.Fatalf("fallen credits = %d, want 5 (the departed hires')", len(got))
 	}
 }

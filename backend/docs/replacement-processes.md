@@ -33,7 +33,9 @@ It works on **any process of the chain** and returns the same chain payload from
 - `carry_candidates[]` (only when `allowed`, else `[]`), `carry_candidates_truncated`: one row per distinct candidate identity
   `{kind, id}` with a participation in any process of the chain, from its **most recent participation** (`created_at DESC, id DESC`;
   the kind is the identity column, as the start resolves it), **excluding candidates currently in Placement** (not discarded and
-  in the Placement stage of their own process). Fields: `candidate {kind, id, full_name}`, `process_id` and `participation_id` of
+  in the Placement stage of their own process) **and departed hires** (R3d, S11: any participation of the chain left Placement with exit
+  reason `candidate_left`; the stored exit reason decides, so a `moved_by_mistake` departure never excludes and an owner correction of
+  the credit status changes nothing; the credit stays in `fallen_credits`). Fields: `candidate {kind, id, full_name}`, `process_id` and `participation_id` of
   that participation, `stage {kind, name}` (the stage it is in, or, when `discarded`, the one it was discarded from; never an id),
   `discarded`, `eligible` (always `true` in v1, so no `reason`). Ordered by `full_name`, then id; at most 1000, one more row is read
   to set `carry_candidates_truncated`. The POST's `stage_id` is chosen among the stages of the source, not from this row.
@@ -54,12 +56,14 @@ whole chain, as the contract says.
 
 - `draftstore/replacement_read.go`: `Store.ReadReplacements` (items, credits, readiness), over the `replacements.sql` queries
   `ListReplacementChainItems`, `ListChainReplacedCredits`, `ListStartableCreditDetails`, `ListStartableCreditRecipients`, and, for `fallen_credits`, `ListFallenCreditDetails` (`readFallenCreditViews`).
-- `draftstore/replacement_carry_read.go`: `readCarryCandidates` (raw SQL: it needs the per-process Placement stage ids as arrays).
+- `draftstore/replacement_carry_read.go`: `readCarryCandidates` (raw SQL: it needs the per-process Placement stage ids as arrays; the departed-hire predicate is the one of `readDepartedHires`).
+- `draftstore/replacement_carry.go`: `readDepartedHires` + `planCarried`: a departed hire in `carried_candidates` is 422 `carried_candidate_invalid`, reason `departed_hire` (after `not_in_chain` / `currently_placed` of the same item, before the stage problems).
 - `http/replacementHandler.go`: `ReplacementHandlers{Start, List}`, served by `LifecycleHandler.ReplacementHandlers()`.
 
 ## Pinned by tests
 
 `cmd/api/replacement_list_integration_test.go` (the payload, the chain from any process, blockers and readiness, `fallen_credits` in every status, the
-most-recent-participation and placed-exclusion rules, the 1000 cap, permissions) and
+most-recent-participation, placed-exclusion and departed-hire rules, the 1000 cap, permissions),
+`cmd/api/replacement_carry_integration_test.go` (the start's carry rules, `departed_hire` among them) and
 `cmd/api/replacement_delivery_integration_test.go` (`GET V/pipeline/delivery` has no lifecycle guard: it works on a closed and on a
 finished source, feature doc L11).
