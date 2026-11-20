@@ -31,7 +31,7 @@ func (q *Queries) DeleteCandidateLanguagesByUserID(ctx context.Context, userID u
 }
 
 const getCandidateProfileByUserID = `-- name: GetCandidateProfileByUserID :one
-SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority FROM candidate_profiles WHERE user_id=$1
+SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority FROM candidate_profiles WHERE user_id=$1
 `
 
 func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.UUID) (CandidateProfile, error) {
@@ -46,7 +46,6 @@ func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.U
 		&i.CurrentCompany,
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
-		&i.BirthDate,
 		&i.Skills,
 		&i.CurrentSalaryGross,
 		&i.CurrentSalaryNet,
@@ -241,7 +240,7 @@ ON CONFLICT (user_id) DO UPDATE SET
  current_salary_net=EXCLUDED.current_salary_net,expected_salary=EXCLUDED.expected_salary,
  salary_currency=EXCLUDED.salary_currency,expected_salary_period=EXCLUDED.expected_salary_period,
  updated_at=now()
-RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority
+RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority
 `
 
 type UpsertCandidateProfileParams struct {
@@ -295,7 +294,6 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		&i.CurrentCompany,
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
-		&i.BirthDate,
 		&i.Skills,
 		&i.CurrentSalaryGross,
 		&i.CurrentSalaryNet,

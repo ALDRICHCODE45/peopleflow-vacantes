@@ -24,8 +24,8 @@
 //   - GetByID same-company scope + D12 PII minimization: cross-company /
 //     mismatched-job / non-existent ids all surface ErrApplicationNotFound;
 //     the candidate snippet projects ONLY full_name + professional_title +
-//     years_of_experience (the fixture stores salary + birth_date and the
-//     round-trip proves they never surface); a candidate without a
+//     years_of_experience (the fixture stores a salary and the
+//     round-trip proves it never surfaces); a candidate without a
 //     candidate_profiles row renders nil snippet fields (LEFT JOIN); a
 //     soft-deleted job's application stays retrievable.
 //   - ListByJob two-step (D5): cross-company / non-existent job →
@@ -123,9 +123,9 @@ var (
 // conventions (fixed UUIDs, ON CONFLICT DO NOTHING) so the suite is
 // self-contained and does not depend on the jobs feature's seed having run.
 //
-// PII note: appUserC1's candidate_profiles row stores a real salary and
-// birth_date so the D12 PII-minimization assertion is non-vacuous — a leaky
-// adapter query WOULD return them; TestGetByID_OwnCompany proves it does not.
+// PII note: appUserC1's candidate_profiles row stores a real salary so
+// the D12 PII-minimization assertion is non-vacuous — a leaky adapter query
+// WOULD return it; TestGetByID_OwnCompany proves it does not.
 const applicationFixtureSQL = `
 INSERT INTO companies (id, name, rfc, industry_id, status) VALUES
     ('01900000-0000-7000-8000-0000000000a1', 'App Active One SA',  'APPA010101AAA', 'technology', 'active'),
@@ -211,9 +211,9 @@ INSERT INTO users (id, cognito_sub, email, full_name, user_type) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO candidate_profiles
-    (user_id, professional_title, years_of_experience, current_salary_gross, birth_date)
+    (user_id, professional_title, years_of_experience, current_salary_gross)
 VALUES
-    ('01900000-0000-7000-8000-0000000000c1', 'Senior Go Engineer', 7.9, 120000, '1990-01-01')
+    ('01900000-0000-7000-8000-0000000000c1', 'Senior Go Engineer', 7.9, 120000)
 ON CONFLICT (user_id) DO NOTHING;
 `
 
@@ -1174,7 +1174,7 @@ func TestCreate_InvalidSourceCheckViolation(t *testing.T) {
 
 // TestGetByID_OwnCompany — spec scenario S73: the owning recruiter fetches
 // the detail. Also the D12 PII pin: the fixture profile stores a real salary
-// + birth_date, and the round-trip proves the snippet carries ONLY user_id /
+// and the round-trip proves the snippet carries ONLY user_id /
 // full_name / professional_title / years_of_experience.
 func TestGetByID_OwnCompany(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
@@ -1196,25 +1196,21 @@ func TestGetByID_OwnCompany(t *testing.T) {
 		t.Errorf("timestamps: want non-zero, got created=%v updated=%v", got.CreatedAt, got.UpdatedAt)
 	}
 
-	// The PII fixture is REAL — salary + birth_date are stored on the
-	// candidate_profiles row. If the adapter query ever selected them, the
+	// The PII fixture is REAL — the salary is stored on the
+	// candidate_profiles row. If the adapter query ever selected it, the
 	// sqlc row scan would break (column-count/type drift) or the entity
-	// would have to expose them (compile-time). Probe the DB to prove the
+	// would have to expose it (compile-time). Probe the DB to prove the
 	// fixture actually contains the PII, so the absence assertion below is
 	// non-vacuous.
 	var gross *int
-	var birth *time.Time
 	if err := f.pool.QueryRow(ctx,
-		`SELECT current_salary_gross, birth_date FROM candidate_profiles WHERE user_id = $1`,
+		`SELECT current_salary_gross FROM candidate_profiles WHERE user_id = $1`,
 		f.userC1,
-	).Scan(&gross, &birth); err != nil {
+	).Scan(&gross); err != nil {
 		t.Fatalf("probe PII fixture: %v", err)
 	}
 	if gross == nil || *gross != 120000 {
 		t.Errorf("fixture precondition: salary must be stored (want 120000), got %v", gross)
-	}
-	if birth == nil {
-		t.Error("fixture precondition: birth_date must be stored")
 	}
 
 	// The snippet the adapter returned carries ONLY the four D12 fields.

@@ -18,6 +18,11 @@ omitted/null salary currency defaults to `MXN`. Reserved CV storage fields and
 server-managed identity/timestamps are not client-writable and are rejected as
 unknown request keys. PUT does not replace languages or overwrite reserved CV data.
 
+`birth_date` was removed from the profile (column dropped in migration 00062). GET
+and PUT responses no longer carry it. During the client transition PUT still accepts
+the key `birth_date` with any value (a date, `null`, even an invalid one) and ignores
+it: no 400, nothing is stored.
+
 ```json
 {"professional_title":"Backend engineer",
  "years_of_experience":"1.5","seniority":"junior",

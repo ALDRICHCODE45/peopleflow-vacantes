@@ -75,7 +75,7 @@ Regla: **lo que se filtra, se estructura; lo que se lee, va a full-text.**
 
 Basado en `docs/Estructura de Formulario de Candidato - Sistema de Reclutamiento.md`:
 
-- Se incluyen todos los campos del PRD. `birth_date` y salario actual (bruto/neto) se mantienen **por decisión de producto**, con dos condiciones: son opcionales (nullable) y el aviso de privacidad debe declararlos con finalidad explícita. (Riesgo identificado: minimización de datos LFPDPPP y discriminación por edad — decisión consciente del equipo.)
+- Se incluyen los campos del PRD, **salvo `birth_date`**: la fecha de nacimiento (y la edad) se quitó por decisión de producto (acuerdo del 2 oct 2026, PRIV-1) y la columna se eliminó en la migración 00062. El salario actual (bruto/neto) se mantiene **por decisión de producto**, con dos condiciones: es opcional (nullable) y el aviso de privacidad debe declararlo con finalidad explícita. (Riesgo identificado: minimización de datos LFPDPPP — decisión consciente del equipo.)
 - "¿Cómo se enteró de la vacante?" se movió a `applications.source`: es un dato de la aplicación, no del perfil (el mismo candidato llega a distintas vacantes por distintas fuentes).
 - Listas se modelan según su forma: idiomas con nivel → tabla hija `candidate_languages`; skills → `TEXT[]` con GIN (normalizar a lowercase en la capa Go).
 
@@ -197,7 +197,6 @@ CREATE TABLE candidate_profiles (
     current_company         TEXT,
     years_of_experience     SMALLINT,
     profile_summary         TEXT,
-    birth_date              DATE,
     city                    TEXT,
     country                 TEXT,
     education_level         TEXT
@@ -347,7 +346,6 @@ CREATE TABLE applications (
     source        TEXT
         CONSTRAINT applications_source_check
         CHECK (source IN ('referral', 'linkedin', 'job_board', 'direct', 'other')),
-    cover_letter  TEXT,
     cv_s3_key     TEXT,
     anonymized_at TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -504,6 +502,6 @@ ORDER BY a.created_at DESC;
 
 - ✅ Herramienta de migraciones decidida: **goose**, ejecutada por el ejecutable `cmd/migrate` (binario autocontenido con migraciones embebidas). `future/non-MVP`: el despliegue como ECS task one-off antes de cada deploy.
 - [ ] `future/non-MVP`: definir TTL de retención para `applications` no anonimizadas (política LFPDPPP).
-- [ ] Aviso de privacidad: debe declarar explícitamente `birth_date` y salario actual con su finalidad.
+- [ ] Aviso de privacidad: debe declarar explícitamente el salario actual con su finalidad. (`birth_date` ya no se recolecta: columna eliminada en 00062.)
 - ✅ Vocabulario cerrado de `event_type` para `audit_events`: 4 eventos entregados (`ApplicationSubmitted`, `ApplicationTransitioned`, `CompanyUpdated`, `CompanyDeleted`). `future/non-MVP`: publicar eventos de integración hacia EventBridge/SQS en la fase AWS.
 - [ ] Evaluar paginación keyset (cursor por `created_at`/`id`) en listados públicos cuando crezca el volumen.
