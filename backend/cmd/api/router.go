@@ -449,6 +449,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/close", lifecycleHandlers.Close)
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/finish-process", lifecycleHandlers.FinishProcess)
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/reopen", lifecycleHandlers.Reopen)
+		r.Get("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.List)
 		r.Post("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.Start)
 	})
 	r.Group(func(r chi.Router) {

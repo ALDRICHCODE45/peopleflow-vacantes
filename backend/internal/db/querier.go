@@ -246,6 +246,8 @@ type Querier interface {
 	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
 	ListCandidateEducations(ctx context.Context, userID uuid.UUID) ([]ListCandidateEducationsRow, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	// The credits each replacement of the chain took, oldest hire first.
+	ListChainReplacedCredits(ctx context.Context, arg ListChainReplacedCreditsParams) ([]VacancyReplacementCredit, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
 	// jobs.deleted_at on purpose: the candidate's own history persists
@@ -259,6 +261,16 @@ type Querier interface {
 	// sequence. source_process_id is NULL for the root. Empty when the process does
 	// not exist in the company.
 	ListReplacementChain(ctx context.Context, arg ListReplacementChainParams) ([]ListReplacementChainRow, error)
+	// The processes of the chain rooted at `root_process_id` with what GET V/replacements
+	// lists per item: the root first (sequence 0), then the replacements by sequence.
+	// can_open is the lifecycle read rule: the owner, or an active tramo on that draft.
+	ListReplacementChainItems(ctx context.Context, arg ListReplacementChainItemsParams) ([]ListReplacementChainItemsRow, error)
+	// ListStartableReplacementCredits with the hired candidate and the departure time.
+	// The name is the board's company view: the company's correction of an organic
+	// candidate's name wins over the account's.
+	ListStartableCreditDetails(ctx context.Context, arg ListStartableCreditDetailsParams) ([]ListStartableCreditDetailsRow, error)
+	// The frozen recipients of the startable credits, by user id (as the board's credit list).
+	ListStartableCreditRecipients(ctx context.Context, arg ListStartableCreditRecipientsParams) ([]ListStartableCreditRecipientsRow, error)
 	// Fallen credits (did_not_hold) of any process of the chain rooted at `root_process_id`
 	// that no replacement has taken yet.
 	ListStartableReplacementCredits(ctx context.Context, arg ListStartableReplacementCreditsParams) ([]ListStartableReplacementCreditsRow, error)

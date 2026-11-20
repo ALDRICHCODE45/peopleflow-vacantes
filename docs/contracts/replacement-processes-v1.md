@@ -482,7 +482,7 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
 {
   "root_process_id": "…",
   "items": [
-    { "id": "…", "kind": "original", "sequence": null, "replacement_of": null,
+    { "id": "…", "kind": "original", "sequence": 0, "replacement_of": null,
       "title": "Analista contable", "visibility": "public",
       "lifecycle": { "publication": "closed", "process": "finished", "close_reason": "filled", "closed_at": "…" },
       "started_at": "2026-09-01T15:00:00.000000Z", "started_by": { "id": "…", "name": "…" },
@@ -511,7 +511,8 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
 }
 ```
 
-- `items` ordered original first, then `sequence` ascending. `started_at` of the original is its `published_at`.
+- `items` ordered original first, then `sequence` ascending; **`sequence` of the original is `0`** and every item carries its `title` (feature doc L11:
+  the frontend lists the chain without a second request; the lifecycle view keeps ids only and its `sequence` stays `null` for an original). `started_at` of the original is its `published_at`.
   `coverage` is the live board coverage of that process. `can_open` = the caller may open that draft (owner or active
   tramo); the list itself exposes only titles, counts and lifecycle, never candidate data.
 - `start_replacement.allowed` = the source `{id}` is the **latest** process of the chain (D14) ∧ closed ∧ ≥ 1 startable credit. (The
@@ -548,6 +549,20 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
   validated by the POST, `carried_candidate_invalid` / `currently_placed`). The POST `stage_id` for a carried candidate is chosen among the
   stages of the **source** process `{id}`, not from this row. Ordered by `full_name` ascending, id ascending; at most 1000 rows
   (`carry_candidates_truncated: true` beyond that). The list is personal data of the same exposure as the board listing (not an audited read).
+
+**R4 implementation notes** (what `GET V/replacements` does; the rest of the contract is unchanged; backend page `backend/docs/replacement-processes.md`):
+
+- **Access and shape.** Same access as `GET V/lifecycle` (owner or an active tramo on `{id}`; 404 `not_found` otherwise, 403 stakeholder, 401 no session, 400 malformed id), `no-store`, **no `ETag`**
+  (derived from several resources). Same chain payload from any process of the chain; only `start_replacement` and `carry_candidates` depend on `{id}`. A draft that never published has no
+  process: `root_process_id` = its own id, `items: []`, `start_replacement.blocker = "source_not_closed"`.
+- **`start_replacement`** `allowed` / `blocker` / `active_replacement_id` are the source's own lifecycle view (`can_start_replacement`, `start_replacement_blocker`, `active_replacement_id`), so the two reads
+  cannot disagree. `startable_credits[]` carry exactly the fields above plus (L11) `participation_id`, `hired_at` and `candidate {kind, id, full_name}`; the board item is unchanged. `left_at` is the departure
+  history row's time (else the credit's `status_changed_at`, null when neither exists); `recipients[]` are the credit's frozen recipients ordered by user id.
+- **Items.** `lifecycle` is `{publication, process, close_reason, closed_at}` (`close_reason` only while closed, null otherwise); `coverage.required` is the process' `hiring_headcount` (null when unset; a replacement's
+  is its `target_quantity`); `replaced_credit_ids` oldest hire first; `visibility` is `public` with a projection, else `private`.
+- **`publish_ready` / `missing[]`** are `publicationRequirements` on the **source's** content with the six Start-filled codes removed, in `publicationRequirements`' order.
+- **`carry_candidates[]`** (only when `allowed`): the most recent participation per `{kind, id}` over the whole chain, `currently_placed` rows excluded, so a voided or restored hire is a candidate like any other;
+  a discarded row shows the stage it was discarded from (a retired stage keeps its kind and name). Ordered by the board's name view then id, 1000 rows maximum (`carry_candidates_truncated`).
 
 ### `GET V/lifecycle` and every lifecycle view (D10)
 
@@ -814,7 +829,7 @@ step 1 of §«Deployment order» precedes R2.
    `VacancyCandidateCarried`, candidate-facing exclusion, the carry error codes.
 5. **R3c · Private/public** (~300; **implemented**, see Log L15 of the feature doc and «R3c implementation notes»): `publish: true`, `readPublishedAt` → projection keyed, `refreshPublicProjection` fix, publish-later,
    `GET V/publication` for private replacements, `allowed_actions` `publish`.
-6. **R4 · `GET V/replacements`** (~350): chain list, `start_replacement` (blocker, startable credits, **`publish_ready`/`missing`**), coverage per item,
+6. **R4 · `GET V/replacements`** (~350; **implemented**, see «R4 implementation notes»): chain list, `start_replacement` (blocker, startable credits, **`publish_ready`/`missing`**), coverage per item,
    **`carry_candidates[]`** with the most-recent-participation resolution and placed-exclusion. Split `carry_candidates` into R4b (~150) if it
    exceeds the budget.
 7. **R5 · Departure on finished** (~250): the `beginMutation` exception, **the optional `lifecycle` key in the discard response on placement

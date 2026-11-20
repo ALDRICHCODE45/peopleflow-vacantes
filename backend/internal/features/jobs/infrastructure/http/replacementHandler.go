@@ -19,10 +19,10 @@ func NewReplacementHandler(store replacement.Store) *ReplacementHandler {
 	return &ReplacementHandler{store: store}
 }
 
-type ReplacementHandlers struct{ Start http.HandlerFunc }
+type ReplacementHandlers struct{ Start, List http.HandlerFunc }
 
 func (h *ReplacementHandler) ReplacementHandlers() ReplacementHandlers {
-	return ReplacementHandlers{Start: h.start}
+	return ReplacementHandlers{Start: h.start, List: h.list}
 }
 
 // ReplacementHandlers serves the replacement routes from the lifecycle handler's
@@ -35,6 +35,32 @@ func (h *LifecycleHandler) ReplacementHandlers() ReplacementHandlers {
 	}
 	store, _ := h.store.(replacement.Store)
 	return NewReplacementHandler(store).ReplacementHandlers()
+}
+
+// list is GET /v2/me/company/job-drafts/{id}/replacements: the chain of the logical
+// vacancy {id} belongs to, with the start block and the carriable candidates. The body
+// has no ETag: it is derived from several resources.
+func (h *ReplacementHandler) list(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+	id, ok := draftID(w, r)
+	if !ok {
+		return
+	}
+	if h.store == nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
+		return
+	}
+	result, err := h.store.ReadReplacements(r.Context(), cc.CompanyID, cc.UserID, id)
+	if err != nil {
+		writeLifecycleError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(result.Body)
 }
 
 // start is POST /v2/me/company/job-drafts/{id}/replacements: 201 with the new

@@ -29,9 +29,11 @@ const (
 	KindOrganic = "organic"
 )
 
-// Store starts a replacement from the source process `id`. key/ifMatch follow the
-// lifecycle transitions: Idempotency-Key and the source's lifecycle ETag.
+// Store starts a replacement from the source process `id` and reads the chain of its logical
+// vacancy. key/ifMatch follow the lifecycle transitions: Idempotency-Key and the source's
+// lifecycle ETag. ReadReplacements has GET V/lifecycle's access rule and writes nothing.
 type Store interface {
+	ReadReplacements(ctx context.Context, companyID, actorID, id uuid.UUID) (drafts.Result, error)
 	StartReplacement(ctx context.Context, companyID, actorID, id uuid.UUID, key string, keyPresent bool, ifMatch string, present bool, body []byte) (drafts.Result, error)
 }
 

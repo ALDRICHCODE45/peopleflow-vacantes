@@ -61,6 +61,41 @@ func (q *Queries) GetReplacementSuccessor(ctx context.Context, arg GetReplacemen
 	return process_id, err
 }
 
+const listChainReplacedCredits = `-- name: ListChainReplacedCredits :many
+SELECT vc.replacement_process_id, vc.placement_credit_id
+FROM vacancy_replacement_credits vc
+JOIN vacancy_replacements r ON r.process_id = vc.replacement_process_id
+JOIN placement_credits c ON c.id = vc.placement_credit_id
+WHERE r.company_id = $1 AND r.root_process_id = $2
+ORDER BY c.hired_at, c.id
+`
+
+type ListChainReplacedCreditsParams struct {
+	CompanyID     uuid.UUID `json:"company_id"`
+	RootProcessID uuid.UUID `json:"root_process_id"`
+}
+
+// The credits each replacement of the chain took, oldest hire first.
+func (q *Queries) ListChainReplacedCredits(ctx context.Context, arg ListChainReplacedCreditsParams) ([]VacancyReplacementCredit, error) {
+	rows, err := q.db.Query(ctx, listChainReplacedCredits, arg.CompanyID, arg.RootProcessID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []VacancyReplacementCredit
+	for rows.Next() {
+		var i VacancyReplacementCredit
+		if err := rows.Scan(&i.ReplacementProcessID, &i.PlacementCreditID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReplacementChain = `-- name: ListReplacementChain :many
 WITH root AS (
     SELECT COALESCE(r.root_process_id, p.id)::uuid AS id
@@ -111,6 +146,216 @@ func (q *Queries) ListReplacementChain(ctx context.Context, arg ListReplacementC
 			&i.Status,
 			&i.ProcessStatus,
 			&i.SourceProcessID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReplacementChainItems = `-- name: ListReplacementChainItems :many
+SELECT p.id AS process_id, COALESCE(r.sequence, 0)::int AS sequence, r.source_process_id,
+    COALESCE(convert_from(d.fields, 'UTF8')::jsonb->'fields'->>'title', '')::text AS title,
+    p.status, p.process_status, p.published_at, p.closed_at,
+    u.id AS started_by_id, u.full_name AS started_by_name,
+    EXISTS (SELECT 1 FROM vacancy_public_projections pp WHERE pp.id = p.id) AS has_projection,
+    COALESCE((SELECT e.reason FROM vacancy_lifecycle_events e
+     WHERE e.process_id = p.id AND e.action = 'close' AND p.status = 'closed'
+     ORDER BY e.lifecycle_version DESC LIMIT 1), '')::text AS close_reason,
+    m.hiring_headcount,
+    ($1::boolean OR EXISTS (SELECT 1 FROM vacancy_assignments a
+     WHERE a.draft_id = p.id AND a.user_id = $2 AND a.ended_at IS NULL))::boolean AS can_open
+FROM vacancy_processes p
+JOIN job_drafts d ON d.id = p.id
+JOIN users u ON u.id = p.published_by
+LEFT JOIN vacancy_replacements r ON r.process_id = p.id
+LEFT JOIN job_draft_management_configs m ON m.draft_id = p.id
+WHERE p.company_id = $3 AND (p.id = $4 OR r.root_process_id = $4)
+ORDER BY sequence, p.id
+`
+
+type ListReplacementChainItemsParams struct {
+	IsOwner       bool      `json:"is_owner"`
+	ActorID       uuid.UUID `json:"actor_id"`
+	CompanyID     uuid.UUID `json:"company_id"`
+	RootProcessID uuid.UUID `json:"root_process_id"`
+}
+
+type ListReplacementChainItemsRow struct {
+	ProcessID       uuid.UUID          `json:"process_id"`
+	Sequence        int32              `json:"sequence"`
+	SourceProcessID pgtype.UUID        `json:"source_process_id"`
+	Title           string             `json:"title"`
+	Status          string             `json:"status"`
+	ProcessStatus   string             `json:"process_status"`
+	PublishedAt     pgtype.Timestamptz `json:"published_at"`
+	ClosedAt        pgtype.Timestamptz `json:"closed_at"`
+	StartedByID     uuid.UUID          `json:"started_by_id"`
+	StartedByName   string             `json:"started_by_name"`
+	HasProjection   bool               `json:"has_projection"`
+	CloseReason     string             `json:"close_reason"`
+	HiringHeadcount pgtype.Int4        `json:"hiring_headcount"`
+	CanOpen         bool               `json:"can_open"`
+}
+
+// The processes of the chain rooted at `root_process_id` with what GET V/replacements
+// lists per item: the root first (sequence 0), then the replacements by sequence.
+// can_open is the lifecycle read rule: the owner, or an active tramo on that draft.
+func (q *Queries) ListReplacementChainItems(ctx context.Context, arg ListReplacementChainItemsParams) ([]ListReplacementChainItemsRow, error) {
+	rows, err := q.db.Query(ctx, listReplacementChainItems,
+		arg.IsOwner,
+		arg.ActorID,
+		arg.CompanyID,
+		arg.RootProcessID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReplacementChainItemsRow
+	for rows.Next() {
+		var i ListReplacementChainItemsRow
+		if err := rows.Scan(
+			&i.ProcessID,
+			&i.Sequence,
+			&i.SourceProcessID,
+			&i.Title,
+			&i.Status,
+			&i.ProcessStatus,
+			&i.PublishedAt,
+			&i.ClosedAt,
+			&i.StartedByID,
+			&i.StartedByName,
+			&i.HasProjection,
+			&i.CloseReason,
+			&i.HiringHeadcount,
+			&i.CanOpen,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStartableCreditDetails = `-- name: ListStartableCreditDetails :many
+SELECT c.id, c.process_id, c.participation_id, c.hired_at, c.exit_reason,
+    COALESCE(h.created_at, c.status_changed_at)::timestamptz AS left_at,
+    CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END::text AS candidate_kind,
+    COALESCE(p.company_candidate_id, p.candidate_id)::uuid AS candidate_id,
+    (CASE WHEN jsonb_exists(o.corrections, 'full_name') THEN o.corrections->>'full_name'
+          ELSE COALESCE(cc.full_name, cu.full_name) END)::text AS full_name
+FROM placement_credits c
+JOIN process_participations p ON p.id = c.participation_id AND p.process_id = c.process_id
+LEFT JOIN participation_stage_history h ON h.id = c.exit_history_id
+LEFT JOIN users cu ON cu.id = p.candidate_id
+LEFT JOIN company_candidates cc ON cc.id = p.company_candidate_id AND cc.company_id = c.company_id
+LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id = p.candidate_id AND o.company_id = c.company_id
+WHERE c.company_id = $1
+  AND c.status = 'did_not_hold'
+  AND (c.process_id = $2
+       OR c.process_id IN (SELECT r.process_id FROM vacancy_replacements r WHERE r.root_process_id = $2))
+  AND NOT EXISTS (SELECT 1 FROM vacancy_replacement_credits vc WHERE vc.placement_credit_id = c.id)
+ORDER BY c.hired_at, c.id
+`
+
+type ListStartableCreditDetailsParams struct {
+	CompanyID     uuid.UUID `json:"company_id"`
+	RootProcessID uuid.UUID `json:"root_process_id"`
+}
+
+type ListStartableCreditDetailsRow struct {
+	ID              uuid.UUID          `json:"id"`
+	ProcessID       uuid.UUID          `json:"process_id"`
+	ParticipationID uuid.UUID          `json:"participation_id"`
+	HiredAt         pgtype.Timestamptz `json:"hired_at"`
+	ExitReason      pgtype.Text        `json:"exit_reason"`
+	LeftAt          pgtype.Timestamptz `json:"left_at"`
+	CandidateKind   string             `json:"candidate_kind"`
+	CandidateID     uuid.UUID          `json:"candidate_id"`
+	FullName        string             `json:"full_name"`
+}
+
+// ListStartableReplacementCredits with the hired candidate and the departure time.
+// The name is the board's company view: the company's correction of an organic
+// candidate's name wins over the account's.
+func (q *Queries) ListStartableCreditDetails(ctx context.Context, arg ListStartableCreditDetailsParams) ([]ListStartableCreditDetailsRow, error) {
+	rows, err := q.db.Query(ctx, listStartableCreditDetails, arg.CompanyID, arg.RootProcessID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStartableCreditDetailsRow
+	for rows.Next() {
+		var i ListStartableCreditDetailsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProcessID,
+			&i.ParticipationID,
+			&i.HiredAt,
+			&i.ExitReason,
+			&i.LeftAt,
+			&i.CandidateKind,
+			&i.CandidateID,
+			&i.FullName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStartableCreditRecipients = `-- name: ListStartableCreditRecipients :many
+SELECT rc.credit_id, rc.user_id, u.full_name, rc.kind
+FROM placement_credit_recipients rc
+JOIN users u ON u.id = rc.user_id
+JOIN placement_credits c ON c.id = rc.credit_id
+WHERE c.company_id = $1
+  AND c.status = 'did_not_hold'
+  AND (c.process_id = $2
+       OR c.process_id IN (SELECT r.process_id FROM vacancy_replacements r WHERE r.root_process_id = $2))
+  AND NOT EXISTS (SELECT 1 FROM vacancy_replacement_credits vc WHERE vc.placement_credit_id = c.id)
+ORDER BY rc.credit_id, rc.user_id
+`
+
+type ListStartableCreditRecipientsParams struct {
+	CompanyID     uuid.UUID `json:"company_id"`
+	RootProcessID uuid.UUID `json:"root_process_id"`
+}
+
+type ListStartableCreditRecipientsRow struct {
+	CreditID uuid.UUID `json:"credit_id"`
+	UserID   uuid.UUID `json:"user_id"`
+	FullName string    `json:"full_name"`
+	Kind     string    `json:"kind"`
+}
+
+// The frozen recipients of the startable credits, by user id (as the board's credit list).
+func (q *Queries) ListStartableCreditRecipients(ctx context.Context, arg ListStartableCreditRecipientsParams) ([]ListStartableCreditRecipientsRow, error) {
+	rows, err := q.db.Query(ctx, listStartableCreditRecipients, arg.CompanyID, arg.RootProcessID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStartableCreditRecipientsRow
+	for rows.Next() {
+		var i ListStartableCreditRecipientsRow
+		if err := rows.Scan(
+			&i.CreditID,
+			&i.UserID,
+			&i.FullName,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}

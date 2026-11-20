@@ -84,6 +84,12 @@ type fakeReplacementStore struct {
 	result drafts.Result
 	err    error
 	call   startCall
+	read   uuid.UUID
+}
+
+func (f *fakeReplacementStore) ReadReplacements(_ context.Context, _, _, id uuid.UUID) (drafts.Result, error) {
+	f.read = id
+	return f.result, f.err
 }
 
 func (f *fakeReplacementStore) StartReplacement(_ context.Context, _, _, id uuid.UUID, key string, keyPresent bool, ifMatch string, present bool, body []byte) (drafts.Result, error) {
@@ -102,6 +108,24 @@ func startRouter(start http.HandlerFunc) http.Handler {
 	})
 	r.Post("/v2/me/company/job-drafts/{id}/replacements", start)
 	return r
+}
+
+func listRouter(list http.HandlerFunc) http.Handler {
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			cc := identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: uuid.New()}
+			next.ServeHTTP(w, req.WithContext(identitysecurity.ContextWithCompanyContext(req.Context(), cc)))
+		})
+	})
+	r.Get("/v2/me/company/job-drafts/{id}/replacements", list)
+	return r
+}
+
+func getList(router http.Handler, id string) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v2/me/company/job-drafts/"+id+"/replacements", nil))
+	return rec
 }
 
 func postStart(router http.Handler, id string, body string, headers map[string]string) *httptest.ResponseRecorder {
@@ -167,5 +191,61 @@ func TestLifecycleHandlerReplacementRoute(t *testing.T) {
 	rec := postStart(startRouter(NewLifecycleHandler(startingLifecycleStore{fakeReplacementStore: store}).ReplacementHandlers().Start), id.String(), `{"x":1}`, nil)
 	if rec.Code != http.StatusCreated || store.call.id != id || store.call.body != `{"x":1}` {
 		t.Fatalf("%d %+v", rec.Code, store.call)
+	}
+}
+
+func TestListHandlerWritesTheChainWithoutAnETag(t *testing.T) {
+	id := uuid.New()
+	store := &fakeReplacementStore{result: drafts.Result{Body: []byte(`{"root_process_id":"` + id.String() + `","items":[]}`)}}
+	rec := getList(listRouter(NewReplacementHandler(store).ReplacementHandlers().List), id.String())
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" || rec.Body.String() != string(store.result.Body) || store.read != id {
+		t.Fatalf("%d %v %s (read %s)", rec.Code, rec.Header(), rec.Body.String(), store.read)
+	}
+	// The body is derived from several resources: no ETag, and nothing replay-related.
+	if _, has := rec.Header()["Etag"]; has || rec.Header().Get("Idempotency-Replayed") != "" || rec.Header().Get("Location") != "" {
+		t.Fatalf("headers = %v", rec.Header())
+	}
+}
+
+func TestListHandlerFailures(t *testing.T) {
+	id := uuid.New()
+	for name, tc := range map[string]struct {
+		err    error
+		status int
+		code   string
+	}{
+		"not found":   {drafts.ErrNotFound, 404, "not_found"},
+		"forbidden":   {drafts.ErrForbidden, 403, "forbidden"},
+		"unexpected":  {errors.New("boom"), 500, "internal_error"},
+		"wrapped 404": {fmt.Errorf("read: %w", drafts.ErrNotFound), 404, "not_found"},
+	} {
+		store := &fakeReplacementStore{err: tc.err}
+		rec := getList(listRouter(NewReplacementHandler(store).ReplacementHandlers().List), id.String())
+		var body struct {
+			Code string `json:"code"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || rec.Code != tc.status || body.Code != tc.code {
+			t.Fatalf("%s: %d %s", name, rec.Code, rec.Body.String())
+		}
+	}
+	// A path id that is not a UUID never reaches the store.
+	store := &fakeReplacementStore{}
+	if rec := getList(listRouter(NewReplacementHandler(store).ReplacementHandlers().List), "not-a-uuid"); rec.Code != 400 || store.read != uuid.Nil {
+		t.Fatalf("%d (read %s)", rec.Code, store.read)
+	}
+}
+
+// The lifecycle handler serves the read from its own store; a store that cannot read
+// replacements (a route-test fake), or no handler at all, answers 500 instead of panicking.
+func TestLifecycleHandlerReplacementListRoute(t *testing.T) {
+	id := uuid.New()
+	for name, h := range map[string]*LifecycleHandler{"nil handler": nil, "store without replacements": NewLifecycleHandler(nil)} {
+		if rec := getList(listRouter(h.ReplacementHandlers().List), id.String()); rec.Code != 500 {
+			t.Fatalf("%s: %d", name, rec.Code)
+		}
+	}
+	store := &fakeReplacementStore{result: drafts.Result{Body: []byte(`{}`)}}
+	if rec := getList(listRouter(NewLifecycleHandler(startingLifecycleStore{fakeReplacementStore: store}).ReplacementHandlers().List), id.String()); rec.Code != http.StatusOK || store.read != id {
+		t.Fatalf("%d (read %s)", rec.Code, store.read)
 	}
 }
