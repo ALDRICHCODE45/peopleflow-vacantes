@@ -32,9 +32,9 @@ writes it; frontend reviews before implementation).
 | --- | --- | --- | --- |
 | T1 | S1–S7 | Review the backend contract `replacement-processes-v1.md` against S1–S7 | backend `e715a257` (accepted) |
 | T3a | S1–S7 | Deployment step 1: new lifecycle/list/VacancyRef keys optional in every strict schema + decoders for the new error envelopes (contract «Deployment order») | |
-| T2 | S1, S4, S5 | Design proposals (gentle-design): «Iniciar reemplazo» flow with hires to replace, resumed candidates with start stage, private/publish | |
+| T2 | S1, S4, S5 | (done, L7) Design proposals (gentle-design): «Iniciar reemplazo» flow with hires to replace, resumed candidates with start stage, private/publish | |
 | T3 | S2, S3, S6 | Lifecycle and board: reopen guard, late «No se sostuvo» on a finished board, «Reemplazo» badge and original ↔ replacement link (portfolio, board header, list) | |
-| T4 | S1, S4, S5 | Start-replacement flow implementation (after T2 choice) | |
+| T4 | S1, S4, S5 | Start-replacement flow implementation from artboard `04-tarjeta-y-dialogo.html` (card «⋯» menu + 3-step dialog) | |
 | T5 | S7 | Métricas and dashboard: «Originales / Reemplazos» filter and badges | |
 | T6 | S1–S7 | Browser check against the backend branch, full suite, local merge | |
 
@@ -63,3 +63,5 @@ writes it; frontend reviews before implementation).
   process starts or reopens), D15 (starting from closed-active finishes the source atomically), D16 (late departure on
   finished via discard, returns lifecycle), 409s with data.lifecycle: replacement_source_not_latest, reopen_superseded,
   replacement_already_active.
+- **L7** User approved `design/replacement-processes/04-tarjeta-y-dialogo.html` (verbatim): «si esta bien, hermano,
+  aprovado.» Handoff started for T3/T4 from that artboard.
