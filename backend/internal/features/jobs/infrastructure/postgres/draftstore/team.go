@@ -33,14 +33,20 @@ func draftAccessError(ctx context.Context, tx pgx.Tx, actor uuid.UUID, record dr
 
 // createTeam is the single transactional initializer for both draft schemas.
 func (s *Store) createTeam(ctx context.Context, tx pgx.Tx, record draftRecord, actor uuid.UUID) error {
+	return s.createTeamFor(ctx, tx, record, actor, actor)
+}
+
+// createTeamFor opens the team with `responsible` as its responsible tramo,
+// started by `actor` (they differ when an owner hands a replacement over).
+func (s *Store) createTeamFor(ctx context.Context, tx pgx.Tx, record draftRecord, actor, responsible uuid.UUID) error {
 	assignment := uuid.Must(uuid.NewV7())
 	if _, err := tx.Exec(ctx, `INSERT INTO vacancy_teams(draft_id,company_id,mode,updated_at) VALUES($1,$2,'with_responsible',$3)`, record.id, record.companyID, record.createdAt); err != nil {
 		return fmt.Errorf("create vacancy team: %w", err)
 	}
-	if err := openTeamAssignment(ctx, tx, record.id, record.companyID, actor, actor, assignment, "responsible", "creation", nil, record.createdAt); err != nil {
+	if err := openTeamAssignment(ctx, tx, record.id, record.companyID, responsible, actor, assignment, "responsible", "creation", nil, record.createdAt); err != nil {
 		return fmt.Errorf("create responsible assignment: %w", err)
 	}
-	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyTeamCreated, EntityType: "vacancy", EntityID: record.id, CompanyID: &record.companyID, VacancyID: &record.id, Metadata: map[string]string{"company_id": record.companyID.String(), "mode": "with_responsible", "responsible_user_id": actor.String(), "assignment_id": assignment.String()}}
+	event := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: audit.EventVacancyTeamCreated, EntityType: "vacancy", EntityID: record.id, CompanyID: &record.companyID, VacancyID: &record.id, Metadata: map[string]string{"company_id": record.companyID.String(), "mode": "with_responsible", "responsible_user_id": responsible.String(), "assignment_id": assignment.String()}}
 	if err := s.audit.Append(ctx, tx, event); err != nil {
 		return fmt.Errorf("co-write vacancy team create audit: %w", err)
 	}

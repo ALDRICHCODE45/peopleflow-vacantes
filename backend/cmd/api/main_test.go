@@ -1650,6 +1650,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /v2/me/company/job-drafts/{id}/lifecycle/close",
 		"Post /v2/me/company/job-drafts/{id}/lifecycle/finish-process",
 		"Post /v2/me/company/job-drafts/{id}/lifecycle/reopen",
+		"Post /v2/me/company/job-drafts/{id}/replacements",
 		"Get /v2/me/company/job-drafts/{id}/pipeline",
 		"Get /v2/me/company/job-drafts/{id}/checklist/marks",
 		"Put /v2/me/company/job-drafts/{id}/participations/{pid}/checklist-marks/{criterion_id}",

@@ -8,7 +8,8 @@ import (
 )
 
 func TestReplacementCatalogAndEnvelope(t *testing.T) {
-	if want := []Code{"reopen_requires_replacement", "replacement_already_active", "reopen_superseded"}; !reflect.DeepEqual(ReplacementErrorCodes(), want) {
+	want := []Code{"reopen_requires_replacement", "replacement_already_active", "reopen_superseded", "replacement_source_not_closed", "replacement_source_not_latest", "replacement_credits_invalid"}
+	if !reflect.DeepEqual(ReplacementErrorCodes(), want) {
 		t.Fatal(ReplacementErrorCodes())
 	}
 	ReplacementErrorCodes()[0] = "mutated"
@@ -17,7 +18,11 @@ func TestReplacementCatalogAndEnvelope(t *testing.T) {
 	}
 	for _, code := range ReplacementErrorCodes() {
 		def := Resolve(code)
-		if def.Code != code || def.Status != 409 || def.Message == "" {
+		wantStatus := 409
+		if code == CodeReplacementCreditsInvalid {
+			wantStatus = 422
+		}
+		if def.Code != code || def.Status != wantStatus || def.Message == "" {
 			t.Fatalf("%s resolves to %+v", code, def)
 		}
 		response := httptest.NewRecorder()
@@ -27,7 +32,7 @@ func TestReplacementCatalogAndEnvelope(t *testing.T) {
 			t.Fatal(err)
 		}
 		data, _ := body["data"].(map[string]any)
-		if response.Code != 409 || body["code"] != string(code) || data["lifecycle"] == nil {
+		if response.Code != wantStatus || body["code"] != string(code) || data["lifecycle"] == nil {
 			t.Fatalf("%s: %d %s", code, response.Code, response.Body)
 		}
 	}

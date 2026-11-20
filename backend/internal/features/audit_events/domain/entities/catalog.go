@@ -91,6 +91,7 @@ const (
 	EventVacancyDeliveryFulfilled              = "VacancyDeliveryFulfilled"
 	EventVacancyPlacementCredited              = "VacancyPlacementCredited"
 	EventVacancyPlacementCreditChanged         = "VacancyPlacementCreditChanged"
+	EventVacancyReplacementStarted             = "VacancyReplacementStarted"
 
 	// Pipeline.
 	EventJobDraftPipelineConfigured   = "JobDraftPipelineConfigured"
@@ -207,6 +208,7 @@ var catalog = []EventSpec{
 	spec(EventVacancyDeliveryFulfilled, CategoryVacancy, "vacancy_id", "snapshot"),
 	spec(EventVacancyPlacementCredited, CategoryVacancy, "company_id", "vacancy_id", "credit_id", "team_mode", "hired_by", "recipients"),
 	spec(EventVacancyPlacementCreditChanged, CategoryVacancy, "company_id", "vacancy_id", "credit_id", "from_status", "to_status", "cause"),
+	spec(EventVacancyReplacementStarted, CategoryVacancy, "company_id", "vacancy_id", "source_process_id", "root_process_id", "sequence", "target_quantity", "credit_ids", "carried_count", "visibility", "responsible_user_id"),
 
 	// pipeline
 	spec(EventJobDraftPipelineConfigured, CategoryPipeline, "version", "previous", "new", "applied_impact"),

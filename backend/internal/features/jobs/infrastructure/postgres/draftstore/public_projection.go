@@ -41,10 +41,22 @@ func (s *Store) guardPublishedConfiguration(ctx context.Context, tx pgx.Tx, comp
 	return s.guardPublishedWrite(ctx, tx, record)
 }
 
+// refreshPublicProjection rewrites the public projection of a published process
+// from the draft content. It refreshes only a projection that already exists: a
+// process row without one is a private replacement (replacement-processes-v1
+// «Private by default»), which a content save must not publish. Originals always
+// have both rows (Publish inserts them together), so nothing changes for them.
 func refreshPublicProjection(ctx context.Context, tx pgx.Tx, record draftRecord) error {
 	at, err := readPublishedAt(ctx, tx, record.id)
 	if err != nil || at == nil {
 		return err
+	}
+	var projected bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM vacancy_public_projections WHERE id=$1)`, record.id).Scan(&projected); err != nil {
+		return fmt.Errorf("read public projection: %w", err)
+	}
+	if !projected {
+		return nil
 	}
 	return writePublicProjection(ctx, tx, record, *at)
 }

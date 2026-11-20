@@ -195,6 +195,29 @@ func TestValidateAccepts(t *testing.T) {
 	}
 }
 
+// TestCatalogReplacementEvents pins the replacement-processes-v1 audit changes: the
+// new VacancyReplacementStarted type (vacancy category, closed key set).
+func TestCatalogReplacementEvents(t *testing.T) {
+	started, ok := LookupEvent(EventVacancyReplacementStarted)
+	wantKeys := []string{"company_id", "vacancy_id", "source_process_id", "root_process_id", "sequence", "target_quantity", "credit_ids", "carried_count", "visibility", "responsible_user_id"}
+	if !ok || EventVacancyReplacementStarted != "VacancyReplacementStarted" || started.Category != CategoryVacancy || !started.CompanyScoped || strings.Join(started.MetadataKeys, ",") != strings.Join(wantKeys, ",") {
+		t.Fatalf("VacancyReplacementStarted = %+v, %v", started, ok)
+	}
+	company, vacancy := companyID(), uuid.New()
+	for name, tc := range map[string]struct {
+		event AuditEvent
+		want  error
+	}{
+		"started, every key":    {AuditEvent{EventType: EventVacancyReplacementStarted, CompanyID: company, VacancyID: &vacancy, StructuredMetadata: map[string]any{"company_id": "c", "vacancy_id": "v", "source_process_id": "s", "root_process_id": "r", "sequence": 1, "target_quantity": 2, "credit_ids": []string{"a"}, "carried_count": 0, "visibility": "private", "responsible_user_id": "u"}}, nil},
+		"started, an extra key": {AuditEvent{EventType: EventVacancyReplacementStarted, CompanyID: company, StructuredMetadata: map[string]any{"candidate_id": "x"}}, ErrMetadataKeyNotAllowed},
+		"started, no company":   {AuditEvent{EventType: EventVacancyReplacementStarted}, ErrCompanyRequired},
+	} {
+		if err := tc.event.Validate(); !errors.Is(err, tc.want) {
+			t.Errorf("%s: %v, want %v", name, err, tc.want)
+		}
+	}
+}
+
 // TestNoEventTypeLiteralOutsideEntities: emitters use the catalog constants;
 // no production file outside this package may spell a catalog event type.
 func TestNoEventTypeLiteralOutsideEntities(t *testing.T) {

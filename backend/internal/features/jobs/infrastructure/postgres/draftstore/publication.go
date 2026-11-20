@@ -179,30 +179,37 @@ func (s *Store) Publish(ctx context.Context, companyID, actorID, id uuid.UUID, k
 	return drafts.Result{Body: responseBody, ETag: etag}, nil
 }
 func (s *Store) publicationDraft(ctx context.Context, tx pgx.Tx, companyID, actorID, id uuid.UUID, write bool) (draftRecord, error) {
+	record, _, err := s.publicationDraftAs(ctx, tx, companyID, actorID, id, write)
+	return record, err
+}
+
+// publicationDraftAs is publicationDraft that also returns the caller's live
+// membership role, for writers whose rules depend on it (replacement Start).
+func (s *Store) publicationDraftAs(ctx context.Context, tx pgx.Tx, companyID, actorID, id uuid.UUID, write bool) (draftRecord, authContext, error) {
 	auth, err := s.lockGates(ctx, tx, companyID, actorID)
 	if err != nil {
-		return draftRecord{}, err
+		return draftRecord{}, auth, err
 	}
 	if !write {
 		var locked uuid.UUID
 		if err := tx.QueryRow(ctx, `SELECT id FROM job_drafts WHERE id=$1 AND company_id=$2 FOR SHARE`, id, companyID).Scan(&locked); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return draftRecord{}, drafts.ErrNotFound
+				return draftRecord{}, auth, drafts.ErrNotFound
 			}
-			return draftRecord{}, fmt.Errorf("lock publication read: %w", err)
+			return draftRecord{}, auth, fmt.Errorf("lock publication read: %w", err)
 		}
 	}
 	record, found, err := readDraft(ctx, tx, companyID, id, write, actorID)
 	if err != nil {
-		return draftRecord{}, err
+		return draftRecord{}, auth, err
 	}
 	if !found || !authorized(auth, actorID, record) {
-		return draftRecord{}, draftAccessError(ctx, tx, actorID, record, found)
+		return draftRecord{}, auth, draftAccessError(ctx, tx, actorID, record, found)
 	}
 	if err := requireV2ReadDocument(record.fields); err != nil {
-		return draftRecord{}, err
+		return draftRecord{}, auth, err
 	}
-	return record, nil
+	return record, auth, nil
 }
 func readPublishedAt(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*time.Time, error) {
 	var at pgtype.Timestamptz
