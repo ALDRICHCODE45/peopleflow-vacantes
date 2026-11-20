@@ -75,24 +75,38 @@ func (s *Store) beginTx(ctx context.Context, company, actor, id uuid.UUID, optio
 // beginMutation reads process state only after Load acquired the draft lock
 // and begin acquired the process lock. L1 finish/reopen cannot race this read.
 func (s *Store) beginMutation(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx, app.Pipeline, error) {
+	tx, p, finished, err := s.beginMutationState(ctx, company, actor, id)
+	if err == nil && finished != nil {
+		_ = tx.Rollback(ctx)
+		return nil, app.Pipeline{}, finished
+	}
+	return tx, p, err
+}
+
+// beginMutationState is beginMutation for the one write a finished process still
+// accepts (a Placement departure, S7): it returns the open transaction together
+// with the ProcessFinished error the caller must raise, unless that exact
+// exception applies. Every other failure rolls back and is returned as usual.
+func (s *Store) beginMutationState(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx, app.Pipeline, *app.ProcessFinished, error) {
 	tx, p, err := s.begin(ctx, company, actor, id)
 	if err != nil {
-		return nil, p, err
+		return nil, p, nil, err
 	}
 	var state string
+	var finished *app.ProcessFinished
 	err = tx.QueryRow(ctx, `SELECT process_status FROM vacancy_processes WHERE id=$1`, id).Scan(&state)
 	if err == nil && state == "finished" {
 		var view json.RawMessage
 		view, err = s.vacancy.Lifecycle(ctx, tx, id)
 		if err == nil {
-			err = &app.ProcessFinished{Lifecycle: view}
+			finished = &app.ProcessFinished{Lifecycle: view}
 		}
 	}
 	if err != nil {
 		_ = tx.Rollback(ctx)
-		return nil, app.Pipeline{}, err
+		return nil, app.Pipeline{}, nil, err
 	}
-	return tx, p, nil
+	return tx, p, finished, nil
 }
 
 var itemSQL = itemProjectionSQL(true)

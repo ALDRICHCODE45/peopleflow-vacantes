@@ -69,7 +69,9 @@ func (m Moved) MarshalJSON() ([]byte, error) {
 		Discard         *Discard  `json:"discard"`
 		Coverage        Coverage  `json:"coverage"`
 		Delivery        Delivery  `json:"delivery"`
-	}{CorrectedFields: fields, SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AddedBy: m.AddedBy, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, Coverage: m.Coverage, Delivery: m.Delivery})
+		// Only on a Placement departure (replacement-processes-v1 D7).
+		Lifecycle json.RawMessage `json:"lifecycle,omitempty"`
+	}{CorrectedFields: fields, SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AddedBy: m.AddedBy, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, Coverage: m.Coverage, Delivery: m.Delivery, Lifecycle: m.Lifecycle})
 }
 
 func ChoiceFilters(form intake.Screening) []ScreeningFilter {

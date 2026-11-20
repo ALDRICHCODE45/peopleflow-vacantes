@@ -63,6 +63,16 @@ type Pipeline struct {
 	Required *int64
 }
 
+// StageKind is the kind of a progression stage of this pipeline, "" for any other id (the exit stage included).
+func (p Pipeline) StageKind(id string) string {
+	for _, stage := range p.Stages {
+		if stage.ID == id {
+			return stage.Kind
+		}
+	}
+	return ""
+}
+
 // VacancyContext holds the authoring row lock until the surrounding transaction
 // ends, sharing the same authorization and configuration rules as draft saves.
 type VacancyContext interface {
@@ -155,6 +165,8 @@ type Moved struct {
 	Delivery Delivery `json:"delivery"`
 	Item
 	Coverage Coverage `json:"coverage"`
+	// Lifecycle is the process view after a Placement departure (replacement-processes-v1 D7); absent otherwise.
+	Lifecycle json.RawMessage `json:"lifecycle,omitempty"`
 }
 type Actor struct {
 	Kind string `json:"kind"`
