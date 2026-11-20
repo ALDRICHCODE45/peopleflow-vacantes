@@ -308,3 +308,57 @@ describe("recruiter detail for a stakeholder", () => {
     expect(link(table, "Abrir vacante Supervisor de Producción")).toHaveAttribute("href", dd("deliveries", { vacancy_id: draftId }));
   });
 });
+
+describe("recruiter detail with the process filter (S7)", () => {
+  const NOTE = "No cambia con el filtro de proceso";
+  const KEPT = { ...WINDOW, process_kind: "replacement" };
+  const BACK_KEPT = `${BACK}&process_kind=replacement`;
+  beforeEach(() => at("?from=2026-08-01&to=2026-10-31&process_kind=replacement"));
+
+  it("reads it from the URL, sends it with the person's request and with their vacancy list, and says so in the header", async () => {
+    await show();
+    expect(recruiter).toHaveBeenCalledWith({ userId: U, filters: KEPT });
+    await waitFor(() => expect(listVacanciesAction).toHaveBeenCalledWith({ filters: { ...KEPT, recruiter_id: U } }));
+    expect(screen.getByText(/^Actualizado .* · 1 ago 2026 – 31 oct 2026 · Definiciones v2 · Solo reemplazos$/)).toBeInTheDocument();
+  });
+
+  it("keeps it on Back to Métricas, on the period shortcuts and on every figure's «back»", async () => {
+    const user = userEvent.setup();
+    await show();
+    expect(link(screen.getByRole("navigation", { name: "Ruta" }), "Métricas")).toHaveAttribute("href", "/empresa/metricas?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+    const href = link(card("Placements"), "Ver los 9 placements de Mariana Torres").getAttribute("href")!;
+    const url = new URL(href, "https://app.test");
+    expect(url.searchParams.get("process_kind")).toBe("replacement");
+    expect(url.searchParams.get("back")).toBe(BACK_KEPT);
+    await user.click(within(screen.getByRole("group", { name: "Periodo" })).getByRole("button", { name: "30 días" }));
+    expect(window.location.search).toBe("?from=2026-10-09&to=2026-11-07&process_kind=replacement");
+    await waitFor(() => expect(recruiter).toHaveBeenLastCalledWith({ userId: U, filters: { from: "2026-10-09", to: "2026-11-07", process_kind: "replacement" } }));
+  });
+
+  it("captions only the figures the contract table says ignore the filter (assigned and conversion), while it is on", async () => {
+    await show();
+    for (const name of ["Vacantes asignadas", "Conversión a placement", "Vacantes por función"]) expect(within(card(name)).getByText(NOTE), name).toBeInTheDocument();
+    for (const name of ["Entregas a tiempo", "Placements", "Entregas con fecha cumplida", "Placements por crédito", "Reasignaciones", "Tiempo en tramos"]) {
+      expect(within(card(name)).queryByText(NOTE), name).not.toBeInTheDocument();
+    }
+    expect(within(card("Actividad por mes")).getByText("«Vacantes asignadas» no cambia con el filtro de proceso.")).toBeInTheDocument();
+    expect(within(section("Vacantes con su participación")).getByText("Esta lista no cambia con el filtro de proceso: cuenta cada vacante una sola vez.")).toBeInTheDocument();
+  });
+
+  it("shows no caption and no filter text in the default view", async () => {
+    at("?from=2026-08-01&to=2026-10-31");
+    await show();
+    expect(screen.queryByText(/filtro de proceso/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Solo reemplazos|Solo originales/)).not.toBeInTheDocument();
+    expect(recruiter).toHaveBeenCalledWith({ userId: U, filters: WINDOW });
+  });
+
+  it("shows the standard filter error when the API rejects process_kind (old backend)", async () => {
+    recruiter.mockResolvedValue({ ok: false, reason: "invalid_filter", reference: { status: 422 }, fields: [{ field: "process_kind", code: "unknown" }] });
+    render(<RecruiterDetailPage userId={U} />);
+    expect(await screen.findByText("No pudimos aplicar los filtros")).toBeInTheDocument();
+    expect(screen.getByText("Proceso: elige todos los procesos, solo originales o solo reemplazos.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Restablecer vista" }));
+    expect(window.location.search).toBe("");
+  });
+});

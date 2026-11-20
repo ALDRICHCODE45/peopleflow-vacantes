@@ -10,7 +10,9 @@ import { drilldownHref, type Drilldown } from "../drilldown";
 import { Figure } from "../figure";
 import { number, personName, REASSIGNMENT_REASON_LABEL, requesterLabel, type DelaysSection as DelaysSectionData } from "../model";
 import { CHART_ACCENT, CHART_MUTED, DELIVERY_TONE } from "../palette";
+import { ProcessNote, VacancyWithKind } from "../process-kind";
 import { MetricsSection } from "../section";
+import type { MetricsFilters } from "../url-state";
 import type { SectionProps } from "./types";
 
 type Href = (target: Drilldown, count: number) => string | null;
@@ -27,11 +29,12 @@ const HELP = [
 ] as const;
 
 /** Card frame of artboard 07: one job per card, `p-6`, title 15/600 with one muted caption line. */
-function DelayCard({ title, caption, children }: { title: string; caption?: ReactNode; children: ReactNode }) {
+function DelayCard({ title, caption, note, children }: { title: string; caption?: ReactNode; /** A figure the process filter does not change (vacancy level). */ note?: ReactNode; children: ReactNode }) {
   return <Card className="gap-4 p-6 xl:col-span-4">
     <div className="flex flex-col gap-1">
       <h3 className="text-[15px] leading-[22px] font-semibold">{title}</h3>
       {caption && <p className="text-xs text-muted-foreground">{caption}</p>}
+      {note}
     </div>
     {children}
   </Card>;
@@ -46,7 +49,7 @@ export function DelaysSection({ state, filters, period }: SectionProps<DelaysSec
     </dl> }}
     skeleton={<DelaysSkeleton />}>
     {data => <div className="grid gap-6 xl:grid-cols-12">
-      <ClosingTarget target={data.closing_target} href={href} />
+      <ClosingTarget target={data.closing_target} href={href} filters={filters} />
       <OverdueDeliveries overdue={data.overdue} href={href} />
       <ReassignmentReasons reasons={data.reassignments_by_reason} href={href} />
     </div>}
@@ -55,7 +58,7 @@ export function DelaysSection({ state, filters, period }: SectionProps<DelaysSec
 
 const closedFilled = (closingTarget?: string): Drilldown => ({ kind: "vacancies", params: { scope: "closed", close_reason: "filled", ...(closingTarget && { closing_target: closingTarget }) } });
 
-function ClosingTarget({ target, href }: { target: DelaysSectionData["closing_target"]; href: Href }) {
+function ClosingTarget({ target, href, filters }: { target: DelaysSectionData["closing_target"]; href: Href; filters: MetricsFilters }) {
   const total = target.on_time + target.late + target.no_target;
   const segments = [
     { key: "on_time", word: "A tiempo", value: target.on_time, tone: DELIVERY_TONE.on_time, label: see(target.on_time, "vacante cubierta a tiempo", "vacantes cubiertas a tiempo") },
@@ -64,7 +67,7 @@ function ClosingTarget({ target, href }: { target: DelaysSectionData["closing_ta
   ].map(segment => ({ ...segment, href: href(closedFilled(segment.key), segment.value) }));
   const barLabel = `Meta de cierre: ${segments.map(segment => `${number.format(segment.value)} ${segment.word.toLowerCase()}`).join(", ")}`;
   const linked = segments.some(segment => segment.href);
-  return <DelayCard title="Meta de cierre" caption={total > 0 && <>De <Figure href={href(closedFilled(), total)} label={see(total, "vacante cubierta", "vacantes cubiertas")}>{number.format(total)}</Figure> vacantes cerradas</>}>
+  return <DelayCard title="Meta de cierre" note={<ProcessNote filters={filters} />} caption={total > 0 && <>De <Figure href={href(closedFilled(), total)} label={see(total, "vacante cubierta", "vacantes cubiertas")}>{number.format(total)}</Figure> vacantes cerradas</>}>
     {total === 0 ? <SectionEmpty icon={CalendarCheck} tone="empty" title="Sin vacantes cubiertas en este periodo" description="Aquí verás si cerraron antes o después de su fecha meta." />
       : <>
         <p className="flex items-baseline gap-2">
@@ -116,8 +119,10 @@ function OverdueRow({ row, href }: { row: Overdue; href: Href }) {
   const days = row.business_days_overdue;
   return <li className="flex min-h-14 items-center justify-between gap-4 py-2">
     <div className="flex min-w-0 flex-col">
-      <Figure href={href({ kind: "deliveries", params: { result: "overdue", vacancy_id: row.vacancy.draft_id } }, 1)} label={`Ver la entrega vencida de ${title}`}
-        className={cn("truncate font-medium", !row.vacancy.title?.trim() && "text-muted-foreground")}>{title}</Figure>
+      <VacancyWithKind kind={row.vacancy.kind} className="max-w-full">
+        <Figure href={href({ kind: "deliveries", params: { result: "overdue", vacancy_id: row.vacancy.draft_id } }, 1)} label={`Ver la entrega vencida de ${title}`}
+          className={cn("min-w-0 truncate font-medium", !row.vacancy.title?.trim() && "text-muted-foreground")}>{title}</Figure>
+      </VacancyWithKind>
       {meta && <span className="truncate text-xs text-muted-foreground">{meta}</span>}
     </div>
     <div className="flex shrink-0 flex-col items-end gap-1">

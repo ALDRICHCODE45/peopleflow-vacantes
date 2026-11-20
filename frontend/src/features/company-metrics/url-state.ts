@@ -1,3 +1,4 @@
+import type { ProcessKind } from "@/features/vacancy-lifecycle/model";
 import { UUID_PATTERN } from "./model";
 import { defaultPeriod, isIsoDay, periodIssues, type Period } from "./period";
 
@@ -7,9 +8,13 @@ export type MetricsFilters = {
   requester_kind?: "client" | "internal_area";
   /** A requester id, or `none`: alone «sin solicitante», with a kind that kind «sin especificar» (M6). */
   requester_id?: string;
+  /** replacement-processes-v1 «Metrics»: `original` = roots only, `replacement` = replacements only; absent = all. */
+  process_kind?: ProcessKind;
 };
 export const NO_REQUESTER = "none";
-const KEYS = ["from", "to", "recruiter_id", "requester_kind", "requester_id"] as const;
+const KEYS = ["from", "to", "recruiter_id", "requester_kind", "requester_id", "process_kind"] as const;
+export const PROCESS_KIND_LABEL: Record<ProcessKind, string> = { original: "Originales", replacement: "Reemplazos" };
+export const isProcessKind = (value: unknown): value is ProcessKind => value === "original" || value === "replacement";
 
 /** Keeps only well-formed values: a hand-edited URL never reaches the API as a guaranteed 422. */
 export function normalizeFilters(filters: MetricsFilters): MetricsFilters {
@@ -21,6 +26,7 @@ export function normalizeFilters(filters: MetricsFilters): MetricsFilters {
     result.requester_kind = filters.requester_kind;
     if (filters.requester_id === NO_REQUESTER || (filters.requester_id && UUID_PATTERN.test(filters.requester_id))) result.requester_id = filters.requester_id;
   } else if (filters.requester_id === NO_REQUESTER) result.requester_id = NO_REQUESTER;
+  if (isProcessKind(filters.process_kind)) result.process_kind = filters.process_kind;
   return result;
 }
 export function parseFilters(params: Pick<URLSearchParams, "get">): MetricsFilters {

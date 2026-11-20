@@ -12,7 +12,8 @@ import type { DetailState, ListKind } from "./query";
  * The table of each list kind (artboard 08, `design/system.md` rule 12): at most six columns, one-line cells, numbers
  * right-aligned, the vacancy (or candidate) first. `sort` is the API sort key behind the header button.
  */
-export type VacancyRef = { draft_id: string; title: string | null };
+/** `kind` arrives with replacement-processes-v1 «Metrics»; an old backend sends none and nothing is marked. */
+export type VacancyRef = { draft_id: string; title: string | null; kind?: "original" | "replacement" };
 export type CellContext = { vacancy: (ref: VacancyRef) => ReactNode };
 export type Column<R> = { id: string; header: string; sort?: string; numeric?: boolean; cell: (row: R, context: CellContext) => ReactNode };
 

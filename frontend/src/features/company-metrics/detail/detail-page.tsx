@@ -11,6 +11,7 @@ import { MetricsAccessGate } from "../metrics-page";
 import { MetricsFailureCard } from "../metrics-workspace";
 import { CHANNEL_LABEL, CLOSE_REASON_LABEL, dayLabel, momentLabel, number, REASSIGNMENT_REASON_LABEL, STAGE_KIND_LABEL, type DetailPage } from "../model";
 import { mexicoToday } from "../period";
+import { ProcessNote, VacancyWithKind } from "../process-kind";
 import { effectivePeriod } from "../url-state";
 import { detailColumns, detailTable, type VacancyRef } from "./detail-columns";
 import { DetailHeading, FacetSwitch, facetOptions, FilterChipList, Pager, RecordsSkeleton, RecordsTable, rowRange, StalledToggle, useCursorPages, type FacetOption } from "./detail-parts";
@@ -104,10 +105,10 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
   const vacancy = (ref: VacancyRef) => {
     const title = ref.title?.trim() || "Vacante sin título";
     const className = "font-medium text-primary-text underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring rounded-sm";
-    // Owner: the vacancy board. Stakeholder: the same metrics, filtered by the vacancy (v2 §7).
-    if (role === "owner") return <Link href={vacancyHref(ref)} className={className}>{title}</Link>;
+    // Owner: the vacancy board. Stakeholder: the same metrics, filtered by the vacancy (v2 §7). A replacement carries its badge beside the link.
+    if (role === "owner") return <VacancyWithKind kind={ref.kind}><Link href={vacancyHref(ref)} className={className}>{title}</Link></VacancyWithKind>;
     const href = vacancyHref(ref);
-    return <a href={href} className={className} onClick={event => { if (plainClick(event)) { event.preventDefault(); navigate(href); window.scrollTo?.({ top: 0 }); } }}>{title}</a>;
+    return <VacancyWithKind kind={ref.kind}><a href={href} className={className} onClick={event => { if (plainClick(event)) { event.preventDefault(); navigate(href); window.scrollTo?.({ top: 0 }); } }}>{title}</a></VacancyWithKind>;
   };
 
   return <>
@@ -121,6 +122,8 @@ function ListDetail({ state, role, navigate }: { state: DetailState & { kind: Li
           ? <DetailSkeleton state={state} />
           : <div className={cn("flex min-w-0 flex-col gap-5 transition-opacity motion-reduce:transition-none", list.stale && "opacity-60")}>
             <p className="text-base" aria-live="polite">{summaryLine(state, list.data, { previous: context.previous, month: context.month, closedTotal }).map(([text, bold], index) => bold ? <b key={index} className="font-semibold tabular-nums">{text}</b> : text)}</p>
+            {/* The flat vacancies list is roots only (replacement-processes-v1 «Metrics»): it never follows the process filter. */}
+            {state.kind === "vacancies" && <ProcessNote filters={state.params}>Esta lista no cambia con el filtro de proceso: cuenta cada vacante una sola vez.</ProcessNote>}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <StatusSwitch state={state} data={list.data} onChange={value => go(withParams(state, { [facetParam]: value }))} />
               {list.data.kind === "candidates" && <StalledToggle pressed={state.params.stalled === "true"} count={list.data.page.facets.stalled}

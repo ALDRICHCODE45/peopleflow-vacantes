@@ -6,12 +6,14 @@ import type { Drilldown } from "../drilldown";
 import { Figure } from "../figure";
 import { formatMedian, formatRate, NO_SAMPLE, number, placementTotal, type Rate, type RecruiterDetail } from "../model";
 import { DELIVERY_TONE } from "../palette";
+import { ProcessNote } from "../process-kind";
 import { MetricsSection } from "../section";
 import type { SectionState } from "../use-section";
 import { CardSkeleton, HelpList, INLINE_FIGURE, KPI_LINE, KPI_MISSING, KPI_VALUE, KpiCard, MetricCard, Rows, see, SplitBars, type Drill, type Who } from "./parts";
 
 export type DetailState = Pick<SectionState<RecruiterDetail>, "status" | "data" | "stale" | "failure" | "ref" | "retry">;
-type Props = { state: DetailState; drill: Drill; who: Who };
+/** `filters`: the process filter of the page; the vacancy-level figures say they ignore it (replacement-processes-v1 «Metrics»). */
+type Props = { state: DetailState; drill: Drill; who: Who; filters?: { process_kind?: string } };
 
 /** The queries behind each figure (artboard 10 `data-dd`), all accepted by `detail/query.ts`. */
 export function targets(id: string) {
@@ -39,18 +41,18 @@ const STRIP = "grid grid-cols-2 gap-6 max-md:gap-3 lg:grid-cols-12";
 const PAIR = "grid gap-6 lg:grid-cols-12";
 
 /** «Resumen»: four KPIs, one context line each, no ⓘ (rule 6). */
-export function SummarySection({ state, drill, who }: Props) {
+export function SummarySection({ state, drill, who, filters = {} }: Props) {
   return <MetricsSection title="Resumen" state={state} skeleton={<StripSkeleton />} help={{ title: "Cómo se calcula el resumen", body: <HelpList items={[
     ["Vacantes asignadas", `Vacantes publicadas al menos una vez con un tramo de ${who.first} que se cruza con el periodo. Cuenta una vez aunque haya salido y vuelto. «Nuevas» son las que empezaron en el periodo.`],
     ["Entregas a tiempo", "Entregas a tiempo entre las ya juzgadas: a tiempo, tarde y vencidas. Las pendientes todavía no cuentan."],
     ["Conversión a placement", `Vacantes con al menos un placement acreditado a ${who.first} entre las que tuvo asignadas y cerraron en el periodo. Si ninguna cerró, no hay porcentaje.`],
     ["Placements", `Contrataciones con fecha en el periodo acreditadas a ${who.first}, activas o que no se sostuvieron; las anuladas no cuentan.`],
   ]} /> }}>
-    {data => <Strip data={data} drill={drill} who={who} />}
+    {data => <Strip data={data} drill={drill} who={who} filters={filters} />}
   </MetricsSection>;
 }
 
-function Strip({ data, drill, who }: { data: RecruiterDetail; drill: Drill; who: Who }) {
+function Strip({ data, drill, who, filters }: { data: RecruiterDetail; drill: Drill; who: Who; filters: NonNullable<Props["filters"]> }) {
   const t = targets(who.id);
   const assigned = data.vacancies.assigned;
   const onTime = onTimeRate(data);
@@ -64,6 +66,7 @@ function Strip({ data, drill, who }: { data: RecruiterDetail; drill: Drill; who:
     <KpiCard label="Vacantes asignadas">
       <p className={KPI_VALUE}><Figure href={drill(t.assigned, assigned)} label={`${see(assigned, "f", "vacante asignada", "vacantes asignadas")} a ${who.name}`}>{number.format(assigned)}</Figure></p>
       <p className={KPI_LINE}>{`${number.format(data.vacancies.started_in_period)} ${data.vacancies.started_in_period === 1 ? "nueva" : "nuevas"} en el periodo`}</p>
+      <ProcessNote filters={filters} />
     </KpiCard>
     <KpiCard label="Entregas a tiempo">
       {onTime.value === null ? <p className={KPI_MISSING}>{NO_SAMPLE}</p>
@@ -78,6 +81,7 @@ function Strip({ data, drill, who }: { data: RecruiterDetail; drill: Drill; who:
           label={`${conversionText.value} de conversión: ${lower(see(conversion.numerator, "f", "vacante cerrada con placement", "vacantes cerradas con placement"))} de ${who.name}`}>{conversionText.value}</Figure></p>}
       <p className={KPI_LINE}><Figure href={drill(t.closed, conversion.denominator)} className={INLINE_FIGURE}
         label={`${conversionText.detail}: ${lower(see(conversion.denominator, "f", "vacante cerrada", "vacantes cerradas"))} de ${who.name}`}>{conversionText.detail}</Figure>{" vacantes cerradas"}</p>
+      <ProcessNote filters={filters} />
     </KpiCard>
     <KpiCard label="Placements">
       <p className={KPI_VALUE}><Figure href={drill(t.placements, placements)} label={`${see(placements, "m", "placement", "placements")} de ${who.name}`}>{number.format(placements)}</Figure></p>
@@ -172,17 +176,17 @@ function CreditCard({ data, drill, who }: { data: RecruiterDetail; drill: Drill;
 }
 
 /** «Carga de trabajo»: the role split, the reassignments and the business days in tramos. */
-export function WorkloadSection({ state, drill, who }: Props) {
+export function WorkloadSection({ state, drill, who, filters = {} }: Props) {
   return <MetricsSection title="Carga de trabajo" state={state} skeleton={<WorkloadSkeleton />} help={{ title: "Cómo se calcula la carga de trabajo", body: <HelpList items={[
     ["Vacantes por función", "Función que tuvo en cada vacante: responsable, colaborador o miembro. Una vacante puede contar en más de una función, así que la suma puede ser mayor que el total."],
     ["Reasignaciones", "Recibidas: pasó a ser responsable. Perdidas: dejó de serlo, incluidas las bajas de la empresa. Sumar o quitar colaboradores no es una reasignación."],
     ["Tiempo en tramos", "Días hábiles con un tramo en cada vacante dentro del periodo, sumados por vacante."],
   ]} /> }}>
-    {data => <Workload data={data} drill={drill} who={who} />}
+    {data => <Workload data={data} drill={drill} who={who} filters={filters} />}
   </MetricsSection>;
 }
 
-function Workload({ data, drill, who }: { data: RecruiterDetail; drill: Drill; who: Who }) {
+function Workload({ data, drill, who, filters }: { data: RecruiterDetail; drill: Drill; who: Who; filters: NonNullable<Props["filters"]> }) {
   const t = targets(who.id);
   const assigned = data.vacancies.assigned;
   const { received, lost } = data.reassignments;
@@ -191,7 +195,7 @@ function Workload({ data, drill, who }: { data: RecruiterDetail; drill: Drill; w
   const receivedLabel = `${see(received, "f", "reasignación recibida", "reasignaciones recibidas")} por ${who.name}`;
   const days = data.business_days_in_tramos;
   return <div className={PAIR}>
-    <MetricCard title="Vacantes por función" className="lg:col-span-4" caption={<>De {assignedFigure}{assignedNoun}</>}>
+    <MetricCard title="Vacantes por función" className="lg:col-span-4" caption={<>De {assignedFigure}{assignedNoun}<ProcessNote as="span" filters={filters} /></>}>
       <SplitBars total={assigned} rows={[
         { label: "Responsable", value: data.vacancies.as_responsible },
         { label: "Colaborador", value: data.vacancies.as_collaborator },

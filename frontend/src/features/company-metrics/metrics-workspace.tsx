@@ -91,7 +91,7 @@ export function MetricsWorkspace({ details }: { details?: (filters: MetricsFilte
   const origin = useSection(loadOriginAction, filters, key, { lazy: true });
   const options = useRememberedOptions(summary.data, recruiters.data);
   const period = effectivePeriod(filters, today);
-  const narrowed = Boolean(filters.recruiter_id || filters.requester_kind || filters.requester_id);
+  const narrowed = Boolean(filters.recruiter_id || filters.requester_kind || filters.requester_id || filters.process_kind);
   const sectionProps = { filters, period };
   const invalid = summary.failure?.reason === "invalid_filter" ? summary.failure : null;
   const blocking = summary.failure && ["forbidden", "unauthenticated", "invalid_filter"].includes(summary.failure.reason) ? summary.failure : null;
@@ -104,7 +104,7 @@ export function MetricsWorkspace({ details }: { details?: (filters: MetricsFilte
       onChange={update} onFiltersOpen={recruiters.activate} />
     {blocking ? <MetricsFailureCard failure={blocking} onRetry={summary.retry} onReset={() => update({})} />
       : settledQuiet ? narrowed
-        ? <StateCard icon={SearchX} tone="empty" title="Sin resultados" description="Ninguna vacante coincide con el reclutador y el cliente o área elegidos en este periodo." primaryAction={{ label: "Limpiar filtros", onClick: () => update(period) }} />
+        ? <StateCard icon={SearchX} tone="empty" title="Sin resultados" description={filters.process_kind ? "Ningún proceso coincide con los filtros elegidos en este periodo." : "Ninguna vacante coincide con el reclutador y el cliente o área elegidos en este periodo."} primaryAction={{ label: "Limpiar filtros", onClick: () => update(period) }} />
         : <StateCard icon={ChartNoAxesColumn} tone="empty" title="No hubo actividad en este periodo" description={`Entre el ${dayLabel(period.from)} y el ${dayLabel(period.to)} no se asignó, cerró ni entregó ninguna vacante publicada. Prueba con un periodo más amplio.`} primaryAction={{ label: "Ver últimos 90 días", onClick: () => update({}) }} />
       : <>
         <SummaryStrip state={summary} {...sectionProps} />

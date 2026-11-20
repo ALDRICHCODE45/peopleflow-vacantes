@@ -220,3 +220,32 @@ describe("replacement keys on the strict vacancy refs (deployment step 1)", () =
     expect(delaysSchema.safeParse({ ...del, overdue: { ...del.overdue, top: del.overdue.top.map(row => ({ ...row, vacancy: { ...row.vacancy, ...keys, ...patch } })) } }).success).toBe(false);
   });
 });
+
+describe("replacement keys on the non-strict list vacancy refs and the process_kind echo (T5)", () => {
+  const keys = { kind: "replacement", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: 2 };
+  const original = { kind: "original", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: null };
+  const refOf = (page: { items: { vacancy: object }[] }, extra: object) => ({ ...page, items: page.items.map(row => ({ ...row, vacancy: { ...row.vacancy, ...extra } })) });
+
+  it.each([keys, original])("keeps the keys on deliveries, placements, reassignments, candidates and applications rows with %j", extra => {
+    expect(deliveryListSchema.parse(refOf(deliveryList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(placementListSchema.parse(refOf(placementList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(reassignmentListSchema.parse(refOf(reassignmentList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(candidateListSchema.parse(refOf(candidateList(), extra)).items[0].vacancy).toMatchObject(extra);
+    expect(applicationListSchema.parse(refOf(applicationList(), extra)).items[0].vacancy).toMatchObject(extra);
+  });
+
+  it("parses the old payloads without the keys exactly as before", () => {
+    expect(deliveryListSchema.parse(deliveryList()).items[0].vacancy).toEqual({ draft_id: expect.any(String), title: "Coordinador de logística" });
+    expect(reassignmentListSchema.parse(reassignmentList()).items[0].vacancy).not.toHaveProperty("kind");
+  });
+
+  it("echoes process_kind in applied_filters and tolerates its absence (old backend)", () => {
+    expect(deliveryListSchema.parse(deliveryList({ applied_filters: { process_kind: "replacement" } })).applied_filters.process_kind).toBe("replacement");
+    expect(deliveryListSchema.parse(deliveryList()).applied_filters.process_kind).toBeUndefined();
+  });
+
+  it("ignores facets.process_kind instead of failing on it", () => {
+    const page = { ...deliveryList(), facets: { ...deliveryList().facets, process_kind: { original: 3, replacement: 1 } } };
+    expect(() => deliveryListSchema.parse(page)).not.toThrow();
+  });
+});

@@ -13,15 +13,15 @@ export function boardPath(filters: MetricsFilters): string {
 }
 /** One recruiter's page under Métricas. */
 export const RECRUITER_PATH = `${BOARD_PATH}/reclutadores`;
-/** A recruiter page with its window only (the page reads no other filter), as a detail page's «back». */
+/** A recruiter page with its window and the process filter (the page reads no other filter), as a detail page's «back». */
 export function recruiterPath(userId: string, filters: MetricsFilters): string {
-  const query = serializeFilters({ from: filters.from, to: filters.to }).toString();
+  const query = serializeFilters({ from: filters.from, to: filters.to, process_kind: filters.process_kind }).toString();
   return `${RECRUITER_PATH}/${userId}${query ? `?${query}` : ""}`;
 }
 /**
  * A `back` value read from a URL: only a same-origin path to the board, or exactly to one recruiter page
  * (`/empresa/metricas/reclutadores/<uuid>`), rebuilt from its normalized filters (the recruiter page keeps its window
- * only), so it can never point to another origin, another page or carry anything but that page's own query. Null
+ * and the process filter only), so it can never point to another origin, another page or carry anything but that page's own query. Null
  * otherwise.
  */
 export function safeBoardPath(value: string | null | undefined): string | null {

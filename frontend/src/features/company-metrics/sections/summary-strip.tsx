@@ -10,6 +10,7 @@ import { drilldownHref, type Drilldown } from "../drilldown";
 import { Figure } from "../figure";
 import { formatRate, monthLabel, NO_SAMPLE, number, type MetricsSummary, type MonthRate, type Rate } from "../model";
 import type { Period } from "../period";
+import { ProcessNote } from "../process-kind";
 import { MetricsSection } from "../section";
 import type { MetricsFilters } from "../url-state";
 import type { SectionProps } from "./types";
@@ -103,11 +104,11 @@ const MISSING = "text-base leading-10 font-medium text-muted-foreground";
 export function SummaryStrip({ state, filters, period }: SectionProps<MetricsSummary>) {
   const drill = drillFor(filters, period);
   return <MetricsSection title="Resumen" state={state} help={{ title: "Cómo se calcula el resumen", body: <SummaryHelp /> }} skeleton={<SummarySkeleton />}>
-    {data => <Strip data={data} drill={drill} />}
+    {data => <Strip data={data} drill={drill} filters={filters} />}
   </MetricsSection>;
 }
 
-function Strip({ data, drill }: { data: MetricsSummary; drill: Drill }) {
+function Strip({ data, drill, filters }: { data: MetricsSummary; drill: Drill; filters: MetricsFilters }) {
   const heroId = useId();
   const headline = data.headline;
   const previousPeriod = headline ? data.previous_period : undefined;
@@ -133,16 +134,18 @@ function Strip({ data, drill }: { data: MetricsSummary; drill: Drill }) {
 
   const counts = [
     { label: "Vacantes asignadas", value: assigned, target: targets.assigned, see: (count: number) => seeLabel(count, "las", "vacante asignada", "vacantes asignadas"),
-      delta: headline ? countDelta(headline.assigned) : null, previous: headline?.assigned.previous },
+      delta: headline ? countDelta(headline.assigned) : null, previous: headline?.assigned.previous, vacancyLevel: true },
     { label: "Placements", value: placements, target: targets.placements, see: (count: number) => seeLabel(count, "los", "placement", "placements"),
       delta: headline ? countDelta(headline.placements) : null, previous: headline?.placements.previous },
     { label: "Reasignaciones", value: reassignments, target: targets.reassignments, see: (count: number) => seeLabel(count, "las", "reasignación", "reasignaciones"),
       delta: headline ? countDelta(headline.reassignments, "down") : null, previous: headline?.reassignments.previous },
   ];
   const medianDelta = headline ? countDelta(headline.median_business_days_to_close, "down") : null;
-  const countCard = ({ label, value, target, see, delta, previous }: (typeof counts)[number]) => <KpiCard key={label} label={label}>
+  // Vacancy-level figures (replacement-processes-v1 «Metrics»): the logical vacancy counts once, whatever the process filter says.
+  const countCard = ({ label, value, target, see, delta, previous, vacancyLevel }: (typeof counts)[number]) => <KpiCard key={label} label={label}>
     <p className={VALUE}><Figure href={drill(target, value)} label={see(value)}>{number.format(value)}</Figure></p>
     <DeltaLine delta={delta} previous={previousLink(target, previous, see(previous ?? 0))} />
+    {vacancyLevel && <ProcessNote filters={filters} />}
   </KpiCard>;
 
   return <div className="grid grid-cols-2 gap-6 lg:grid-cols-12">
@@ -172,6 +175,7 @@ function Strip({ data, drill }: { data: MetricsSummary; drill: Drill }) {
         </p>}
       {median !== null && <DeltaLine delta={medianDelta && medianDelta.direction !== "flat" ? { ...medianDelta, label: `${medianDelta.label} días` } : medianDelta}
         previous={previousLink(targets.median, undefined, "Ver las vacantes cubiertas por días para cerrar")} />}
+      <ProcessNote filters={filters} />
     </KpiCard>
     {countCard(counts[1])}
     {countCard(counts[2])}

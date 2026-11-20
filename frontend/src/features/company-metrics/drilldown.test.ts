@@ -51,6 +51,26 @@ describe("drilldown links (rule 16: every figure opens its records)", () => {
   });
 });
 
+describe("process_kind in drill-down links", () => {
+  const id = "10000000-0000-4000-8000-000000000001";
+  it("carries the process filter into every figure's detail URL and back path", () => {
+    const filters = { from: "2026-08-01", to: "2026-10-31", process_kind: "replacement" } as const;
+    const href = new URL(drilldownHref({ kind: "placements", params: {} }, filters, { enabled: true })!, "https://app.test");
+    expect(href.searchParams.get("process_kind")).toBe("replacement");
+    expect(href.searchParams.get("back")).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+    expect(boardPath(filters)).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31&process_kind=replacement");
+  });
+
+  it("keeps the process filter on a recruiter page link and on a validated back path", () => {
+    const scope = { from: "2026-08-01", to: "2026-10-31", process_kind: "original" } as const;
+    expect(recruiterPath(id, scope)).toBe(`/empresa/metricas/reclutadores/${id}?from=2026-08-01&to=2026-10-31&process_kind=original`);
+    expect(safeBoardPath(`/empresa/metricas/reclutadores/${id}?from=2026-08-01&to=2026-10-31&process_kind=original&recruiter_id=${id}`))
+      .toBe(`/empresa/metricas/reclutadores/${id}?from=2026-08-01&to=2026-10-31&process_kind=original`);
+    expect(safeBoardPath("/empresa/metricas?process_kind=replacement")).toBe("/empresa/metricas?process_kind=replacement");
+    expect(safeBoardPath("/empresa/metricas?process_kind=nope")).toBe("/empresa/metricas");
+  });
+});
+
 describe("back to the board (only a same-origin /empresa/metricas path)", () => {
   it("keeps the board path with its filters, normalized", () => {
     expect(safeBoardPath("/empresa/metricas?from=2026-08-01&to=2026-10-31")).toBe("/empresa/metricas?from=2026-08-01&to=2026-10-31");

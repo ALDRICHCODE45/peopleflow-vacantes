@@ -96,9 +96,14 @@ export const vacancyRowSchema = z.object({
   reassignments: count,
 });
 export const vacancyPageSchema = z.object({ ...envelope, items: z.array(vacancyRowSchema).max(100), next_cursor: z.string().nullable() });
+/**
+ * replacement-processes-v1 «Metrics»: the shared Go `VacancyRef` gains these keys. They stay OPTIONAL until the backend that
+ * emits them is deployed (contract «Deployment order» step 1); `sequence` is `null` for an original.
+ */
+const replacementRefKeys = { kind: processKindSchema.optional(), root_draft_id: text.optional(), sequence: z.number().int().positive().nullable().optional() };
 export const reassignmentReasonSchema = z.enum(["workload", "recruiter_departure", "performance", "client_request", "other"]);
 export const reassignmentRowSchema = z.object({
-  id: text, performed_at: timestamp, vacancy: z.object({ draft_id: text, title: z.string().nullable() }),
+  id: text, performed_at: timestamp, vacancy: z.object({ draft_id: text, title: z.string().nullable(), ...replacementRefKeys }),
   from: personSchema.nullable(), to: personSchema, reason: reassignmentReasonSchema, note: z.string().nullable(),
   performed_by: personSchema.nullable(), outgoing_tramo_business_days: count.nullable(),
 });
@@ -125,11 +130,6 @@ export const complianceSchema = z.object({
   late_buckets: z.object({ up_to_2: count, from_3_to_5: count, over_5: count }).strict(),
   on_time_by_month: z.array(monthRateSchema),
 }).strict();
-/**
- * replacement-processes-v1 «Metrics»: the shared Go `VacancyRef` gains these keys. They stay OPTIONAL until the backend that
- * emits them is deployed (contract «Deployment order» step 1); `sequence` is `null` for an original.
- */
-const replacementRefKeys = { kind: processKindSchema.optional(), root_draft_id: text.optional(), sequence: z.number().int().positive().nullable().optional() };
 /**
  * v2 §4.5 Retrasos. `overdue.top` (N4) holds at most 4 rows, most business days overdue first; `requester` and
  * `attributed_to` (the responsible, or every member when shared) arrive with v2b, so they are optional here.
@@ -175,7 +175,7 @@ export const pipelineSchema = z.object({
  * filter, every enum value present), `applied_filters` echo the request with names resolved (null names for ids of
  * another company). Rows decode only what the page reads, like the v1 lists.
  */
-const vacancyRefSchema = z.object({ draft_id: text, title: z.string().nullable() });
+const vacancyRefSchema = z.object({ draft_id: text, title: z.string().nullable(), ...replacementRefKeys });
 const detailRequesterSchema = z.object({ kind: requesterKind, id: z.string().nullable(), name: z.string().nullable() });
 export const appliedFiltersSchema = z.object({
   recruiter: personSchema.optional(), attributed_to: personSchema.optional(), recipient: personSchema.optional(), credited_to: personSchema.optional(),
@@ -186,6 +186,8 @@ export const appliedFiltersSchema = z.object({
   result: z.array(z.string()).optional(), close_reason: z.array(z.string()).optional(), reason: z.array(z.string()).optional(),
   late_bucket: z.string().optional(), commitment_month: z.string().optional(), scope: z.string().optional(), closed_month: z.string().optional(),
   closing_target: z.string().optional(), direction: z.string().optional(), held: z.boolean().optional(),
+  // replacement-processes-v1 «Metrics»: echoed by every list; absent on an old backend and when the view is «Todos».
+  process_kind: z.string().optional(),
   stage_kind: z.array(z.string()).optional(), stalled: z.boolean().optional(), channel: z.array(z.string()).optional(),
 });
 const detailList = <R extends z.ZodTypeAny, F extends z.ZodTypeAny>(row: R, facets: F) => z.object({

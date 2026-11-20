@@ -11,6 +11,9 @@ export const fernandaId = "10000000-0000-4000-8000-000000000003";
 export const andreaId = "10000000-0000-4000-8000-000000000004";
 export const clientId = "20000000-0000-4000-8000-000000000001";
 export const draftId = "30000000-0000-4000-8000-000000000001";
+/** replacement-processes-v1 «Metrics»: the keys a VacancyRef gains; a replacement points at its root (the original). */
+export const rootDraftId = "30000000-0000-4000-8000-0000000000aa";
+export const replacementKeys = { kind: "replacement", root_draft_id: rootDraftId, sequence: 1 } as const;
 export const period = { from: "2026-08-01", to: "2026-10-31", time_zone: "America/Mexico_City" };
 
 /** `GET …/metrics/summary`, the contract §3.1 example with a dense three-month series. */

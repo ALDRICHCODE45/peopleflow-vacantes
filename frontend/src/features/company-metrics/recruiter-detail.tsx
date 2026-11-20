@@ -20,6 +20,7 @@ import { MetricsAccessGate } from "./metrics-page";
 import { MetricsFailureCard } from "./metrics-workspace";
 import { dayLabel, momentLabel, personName, type VacancyRow } from "./model";
 import { mexicoToday, type Period } from "./period";
+import { ProcessNote } from "./process-kind";
 import { MonthlySection } from "./recruiter-detail/monthly";
 import { HelpList, see, type Drill, type Who } from "./recruiter-detail/parts";
 import { PeriodControl } from "./recruiter-detail/period-control";
@@ -51,7 +52,7 @@ function useNear() {
 }
 
 /** «Vacantes con su participación»: below the fold, so its list loads when it approaches the viewport. */
-function VacanciesSection({ who, assigned, period, drill, vacancyHref }: { who: Who | null; assigned: number; period: Period; drill: Drill; vacancyHref: (row: VacancyRow) => string }) {
+function VacanciesSection({ who, assigned, period, process, drill, vacancyHref }: { who: Who | null; assigned: number; period: Period; process: Pick<MetricsFilters, "process_kind">; drill: Drill; vacancyHref: (row: VacancyRow) => string }) {
   const { near, ref } = useNear();
   const ready = near && who !== null;
   const retry = useCallback(() => {}, []);
@@ -69,7 +70,9 @@ function VacanciesSection({ who, assigned, period, drill, vacancyHref }: { who: 
       {[0, 1, 2, 3].map(index => <div key={index} className="flex h-16 items-center justify-between gap-4 border-t"><Skeleton className="h-4 w-56" /><Skeleton className="h-4 w-20" /></div>)}
     </Card>}>
     {person => <Card className="gap-4 p-6">
-      <VacancyList filters={{ ...period, recruiter_id: person.id }} person={person.name} drill={drill} vacancyHref={vacancyHref} />
+      {/* The flat vacancies list is roots only (replacement-processes-v1 «Metrics»): it never follows the process filter. */}
+      <ProcessNote filters={process}>Esta lista no cambia con el filtro de proceso: cuenta cada vacante una sola vez.</ProcessNote>
+      <VacancyList filters={{ ...period, ...process, recruiter_id: person.id }} person={person.name} drill={drill} vacancyHref={vacancyHref} />
     </Card>}
   </MetricsSection>;
 }
@@ -77,22 +80,24 @@ function VacanciesSection({ who, assigned, period, drill, vacancyHref }: { who: 
 function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role }) {
   const { filters, update } = useMetricsUrl();
   const [today] = useState(mexicoToday);
-  // The page reads the period only; the board's other filters do not narrow one person's numbers.
-  const periodFilters: MetricsFilters = { ...(filters.from ? { from: filters.from } : {}), ...(filters.to ? { to: filters.to } : {}) };
+  // The page reads the period and the process filter only; the board's other filters do not narrow one person's numbers.
+  const process = filters.process_kind ? { process_kind: filters.process_kind } : {};
+  const periodFilters: MetricsFilters = { ...(filters.from ? { from: filters.from } : {}), ...(filters.to ? { to: filters.to } : {}), ...process };
   const load = useCallback((next: MetricsFilters) => loadRecruiterAction({ userId, filters: next }), [userId]);
   const state = useSection(load, periodFilters, `${userId}?${serializeFilters(periodFilters)}`);
   const period = effectivePeriod(filters, today);
-  // Back keeps the board window only, never this person as a filter (L47); replace, so the browser's Back skips it.
-  const back = `/empresa/metricas?${serializeFilters(period)}`;
+  // Back keeps the board window and the process filter only, never this person as a filter (L47); replace, so the browser's Back skips it.
+  const scope: MetricsFilters = { ...period, ...process };
+  const back = `/empresa/metricas?${serializeFilters(scope)}`;
   const data = state.status === "failed" ? null : state.data;
   const name = data ? personName(data) : null;
   const who: Who | null = name ? { id: userId, name, first: name.split(/\s+/)[0] } : null;
   // Every figure opened from here returns to this page with its window (drill-down «back», `drilldown.ts`).
-  const here = recruiterPath(userId, period);
-  const drill: Drill = (target, count) => drilldownHref(target, period, { count, back: here });
+  const here = recruiterPath(userId, scope);
+  const drill: Drill = (target, count) => drilldownHref(target, scope, { count, back: here });
   // The role decides where a vacancy opens (v2 §7): the owner its board, a stakeholder its records inside Métricas.
   const vacancyHref = (row: VacancyRow) => role === "owner" ? `/empresa/vacantes/${row.draft_id}/pipeline`
-    : drilldownHref({ kind: "deliveries", params: { vacancy_id: row.draft_id } }, period, { back: here }) ?? here;
+    : drilldownHref({ kind: "deliveries", params: { vacancy_id: row.draft_id } }, scope, { back: here }) ?? here;
   const failure = state.status === "failed" ? state.failure : null;
 
   if (failure?.reason === "not_found") return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-6">
@@ -100,9 +105,10 @@ function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role
   </DashboardPageContent>;
 
   const shown = data ? { from: data.period.from, to: data.period.to } : period;
-  const freshness = [data?.as_of && `Actualizado ${momentLabel(data.as_of)}`, `${dayLabel(shown.from)} – ${dayLabel(shown.to)}`, data && `Definiciones ${data.definitions_version}`].filter(Boolean).join(" · ");
+  const freshness = [data?.as_of && `Actualizado ${momentLabel(data.as_of)}`, `${dayLabel(shown.from)} – ${dayLabel(shown.to)}`, data && `Definiciones ${data.definitions_version}`,
+    filters.process_kind && `Solo ${filters.process_kind === "replacement" ? "reemplazos" : "originales"}`].filter(Boolean).join(" · ");
   const periodError = failure?.reason === "invalid_filter" ? (({ from, to }) => from ?? to)(fieldErrors(failure.fields)) : undefined;
-  const sections = { state, drill, who: who ?? { id: userId, name: "", first: "" } };
+  const sections = { state, drill, who: who ?? { id: userId, name: "", first: "" }, filters: process };
 
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-10 max-md:gap-8">
     <div className="flex flex-col gap-4">
@@ -125,7 +131,7 @@ function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role
             <p className="text-xs text-muted-foreground">{freshness}</p>
           </div>
         </div>
-        <PeriodControl period={period} today={today} error={periodError} onChange={next => update(next)} />
+        <PeriodControl period={period} today={today} error={periodError} onChange={next => update({ ...next, ...process })} />
       </header>
     </div>
     {failure ? <MetricsFailureCard failure={failure} subject="la ficha" onRetry={state.retry} onReset={() => update({})} />
@@ -134,7 +140,7 @@ function RecruiterDetailWorkspace({ userId, role }: { userId: string; role: Role
         <DeliveriesSection {...sections} />
         <WorkloadSection {...sections} />
         <MonthlySection {...sections} period={period} today={today} />
-        <VacanciesSection who={who} assigned={data?.vacancies.assigned ?? 0} period={period} drill={drill} vacancyHref={vacancyHref} />
+        <VacanciesSection who={who} assigned={data?.vacancies.assigned ?? 0} period={period} process={process} drill={drill} vacancyHref={vacancyHref} />
       </>}
   </DashboardPageContent>;
 }

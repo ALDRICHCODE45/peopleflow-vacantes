@@ -9,6 +9,7 @@ import { drilldownHref, type Drilldown } from "../drilldown";
 import { Figure } from "../figure";
 import { formatMedian, number, personName, plural, requesterLabel, STAGE_KIND_LABEL, type PipelineSection as PipelineSectionData } from "../model";
 import { CHART_ACCENT } from "../palette";
+import { VacancyWithKind } from "../process-kind";
 import { MetricsSection } from "../section";
 import type { SectionProps } from "./types";
 
@@ -113,7 +114,9 @@ function TopVacancies({ vacancies, href }: { vacancies: TopVacancy[]; href: Href
           const meta = [requesterLabel(row.requester), row.responsible ? personName(row.responsible) : "Sin responsable"].join(" · ");
           return <li key={row.vacancy.draft_id} className="flex min-h-14 items-center justify-between gap-4 py-2">
             <div className="flex min-w-0 flex-col">
-              <span className={cn("truncate font-medium", !row.vacancy.title?.trim() && "text-muted-foreground")}>{title}</span>
+              <VacancyWithKind kind={row.vacancy.kind} className="max-w-full">
+                <span className={cn("min-w-0 truncate font-medium", !row.vacancy.title?.trim() && "text-muted-foreground")}>{title}</span>
+              </VacancyWithKind>
               <span className="truncate text-xs text-muted-foreground">{meta}</span>
             </div>
             <span className="shrink-0 whitespace-nowrap tabular-nums">

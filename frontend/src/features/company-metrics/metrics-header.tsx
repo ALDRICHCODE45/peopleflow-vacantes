@@ -72,7 +72,8 @@ export function MetricsBoardHeader({ filters, today, asOf, version, appliedPerio
       {chips.map(chip => <li key={chip.key} className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1 pl-3 text-sm">
         {chip.label}
         <Button type="button" variant="ghost" size="icon" className="size-8 rounded-full" aria-label={`Quitar filtro ${chip.label}`}
-          onClick={() => onChange(chip.key === "recruiter" ? { ...filters, recruiter_id: undefined } : { ...filters, requester_kind: undefined, requester_id: undefined })}>
+          onClick={() => onChange(chip.key === "recruiter" ? { ...filters, recruiter_id: undefined } : chip.key === "process" ? { ...filters, process_kind: undefined }
+            : { ...filters, requester_kind: undefined, requester_id: undefined })}>
           <X aria-hidden="true" />
         </Button>
       </li>)}

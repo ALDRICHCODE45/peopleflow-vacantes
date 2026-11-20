@@ -3,7 +3,7 @@ import {
   type AppliedFilters, type DetailPage, type Person,
 } from "../model";
 import { addDays, periodDays } from "../period";
-import { effectivePeriod, NO_REQUESTER, parseFilters } from "../url-state";
+import { effectivePeriod, isProcessKind, NO_REQUESTER, parseFilters, PROCESS_KIND_LABEL } from "../url-state";
 import { isListKind, type DetailState } from "./query";
 
 /**
@@ -128,7 +128,8 @@ export function windowContext(state: DetailState, today: string): WindowContext 
 /** «Entregas tarde · Jorge Paredes», «Vacantes cerradas · octubre 2026», «Placements · Grupo Bimbo». */
 export function detailTitle(state: DetailState, applied?: AppliedFilters, context?: WindowContext): string {
   const month = state.params.commitment_month ?? state.params.closed_month ?? context?.month;
-  const subjects = [subjectPerson(state, applied), requesterName(state, applied), vacancyTitle(state, applied), month && monthName(month)].filter(Boolean);
+  const process = isProcessKind(state.params.process_kind) ? PROCESS_KIND_LABEL[state.params.process_kind] : null;
+  const subjects = [subjectPerson(state, applied), requesterName(state, applied), vacancyTitle(state, applied), process, month && monthName(month)].filter(Boolean);
   return [figureTitle(state), ...subjects].join(" · ");
 }
 
@@ -142,6 +143,7 @@ export function filterChips(state: DetailState, applied?: AppliedFilters): Chip[
   const person = (key: PersonKey) => personName(state, applied, key) ?? LOADING_NAME;
   if (params.recruiter_id) add("recruiter_id", `Reclutador: ${person("recruiter")}`, ["recruiter_id", "direction"]);
   if (params.requester_kind || params.requester_id) add("requester", `Cliente o área: ${requesterName(state, applied) ?? LOADING_NAME}`, ["requester_kind", "requester_id"]);
+  if (isProcessKind(params.process_kind)) add("process_kind", `Proceso: ${PROCESS_KIND_LABEL[params.process_kind]}`);
   if (params.vacancy_id) add("vacancy_id", `Vacante: ${vacancyTitle(state, applied) ?? LOADING_NAME}`);
   if (params.attributed_to) add("attributed_to", `Responsable: ${person("attributed_to")}`);
   if (params.recipient) add("recipient", `Acreditado a: ${person("recipient")}`);

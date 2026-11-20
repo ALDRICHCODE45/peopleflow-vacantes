@@ -13,6 +13,7 @@ import { Figure } from "../figure";
 import { monthLabel, number, shortMonthLabel, type RecruiterDetail } from "../model";
 import { DELIVERY_TONE } from "../palette";
 import type { Period } from "../period";
+import { ProcessNote } from "../process-kind";
 import { MetricsSection } from "../section";
 import { CAPTION, CARD_TITLE, CardSkeleton, HelpList, see, type Drill, type Who } from "./parts";
 import type { DetailState } from "./sections";
@@ -93,18 +94,18 @@ function MonthBars({ title, summary, months, segments, legend }: { title: string
 }
 
 /** «Evolución mensual»: one card, three small plots (each with its own scale) and «Ver como tabla» (rule 8). */
-export function MonthlySection({ state, drill, who, period, today }: { state: DetailState; drill: Drill; who: Who; period: Period; today: string }) {
+export function MonthlySection({ state, drill, who, period, today, filters = {} }: { state: DetailState; drill: Drill; who: Who; period: Period; today: string; filters?: { process_kind?: string } }) {
   return <MetricsSection title="Evolución mensual" state={state} skeleton={<MonthlySkeleton />} help={{ title: "Cómo se calcula la evolución mensual", body: <HelpList items={[
     ["Meses del periodo", "La serie trae todos los meses del periodo, también los que quedan en cero. El primer y el último mes cuentan solo los días dentro del periodo."],
     ["Vacantes asignadas", "Una vacante cuenta en cada mes en que tuvo tramo, así que los meses no suman el total del periodo."],
     ["Entregas", "Por mes de la fecha compromiso."],
     ["Placements", "Por fecha de contratación."],
   ]} /> }}>
-    {data => <MonthlyCard months={data.by_month} drill={drill} who={who} period={period} today={today} />}
+    {data => <MonthlyCard months={data.by_month} drill={drill} who={who} period={period} today={today} filters={filters} />}
   </MetricsSection>;
 }
 
-function MonthlyCard({ months, drill, who, period, today }: { months: Month[]; drill: Drill; who: Who; period: Period; today: string }) {
+function MonthlyCard({ months, drill, who, period, today, filters }: { months: Month[]; drill: Drill; who: Who; period: Period; today: string; filters: { process_kind?: string } }) {
   const titleId = useId();
   const bodyId = useId();
   const [asTable, setAsTable] = useState(false);
@@ -113,7 +114,8 @@ function MonthlyCard({ months, drill, who, period, today }: { months: Month[]; d
   const each = (value: (month: Month) => number) => months.map(month => `${lowerMonth(month.month)} ${number.format(value(month))}`).join(", ");
   return <article aria-labelledby={titleId} className={CARD}>
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-      <div><h3 id={titleId} className={CARD_TITLE}>Actividad por mes</h3>{months.length > 0 && <p className={CAPTION}>{monthRange(months, today)}</p>}</div>
+      <div><h3 id={titleId} className={CARD_TITLE}>Actividad por mes</h3>{months.length > 0 && <p className={CAPTION}>{monthRange(months, today)}</p>}
+        <ProcessNote filters={filters} className="mt-1">«Vacantes asignadas» no cambia con el filtro de proceso.</ProcessNote></div>
       {months.length > 0 && <Button type="button" variant="ghost" className="-mt-2 min-h-10 text-muted-foreground" aria-pressed={asTable} aria-controls={bodyId} onClick={() => setAsTable(value => !value)}>
         {asTable ? "Ver como gráfica" : "Ver como tabla"}
       </Button>}
