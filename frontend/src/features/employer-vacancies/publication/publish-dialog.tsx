@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { plural } from "../plural";
 import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
 import { loadDraftDeliveryAction } from "@/features/jobs/drafts/pipeline/delivery-actions";
@@ -211,7 +212,7 @@ function PublicationSummary({ snapshot }: { snapshot: Snapshot }) {
   return <div className="max-h-[50dvh] overflow-y-auto"><ItemGroup>{[
     { icon: FileText, label: "Vacante", value: snapshot.title },
     { icon: GitBranch, label: "Columna de corte", value: snapshot.cutoff },
-    { icon: Users, label: "Objetivo de entrega", value: snapshot.target === null ? "Sin definir" : `${snapshot.target} candidatos` },
+    { icon: Users, label: "Objetivo de entrega", value: snapshot.target === null ? "Sin definir" : plural(snapshot.target, "candidato", "candidatos") },
     { icon: CalendarDays, label: "Fecha compromiso", value: snapshot.commitmentDate ? formatPublicationDate(`${snapshot.commitmentDate}T12:00:00Z`) : "Sin definir" },
   ].map(row => <Item key={row.label} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><row.icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{row.label}</ItemTitle><ItemDescription>{row.value}</ItemDescription></ItemContent></Item>)}</ItemGroup></div>;
 }

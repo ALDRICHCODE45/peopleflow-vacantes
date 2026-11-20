@@ -71,3 +71,37 @@ it("a chain that does not name the process keeps today's copy and links", () => 
   expect(screen.getByText(/reemplazo en curso/)).toBeVisible();
   expect(screen.getByRole("link", { name: /Ver reemplazo/ })).toHaveAttribute("href", `/empresa/vacantes/${replacement}/pipeline`);
 });
+
+// Departed hires (fallen credits of the chain) named in the bars.
+const named = [
+  { ...chain[0] },
+  { ...chain[1], replaces: ["Ricardo Morales García"] },
+];
+it("replacement side: «Reemplaza a <nombre> en <título de la original>»", () => {
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "replacement", replacement_of: original }} selfId={replacement} chain={named} />);
+  expect(screen.getByText("Reemplazo 1")).toBeVisible();
+  expect(screen.getByText(/Reemplaza a Ricardo Morales García en Supervisor\(a\) de Almacén\./)).toBeVisible();
+  expect(screen.queryByText(/Este proceso es el/)).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Ver original/ })).toHaveAttribute("href", `/empresa/vacantes/${original}/pipeline`);
+});
+it("original side: «Reemplazo en curso para <nombre>: Reemplazo N»", () => {
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={named} />);
+  const bar = screen.getByText(/Reemplazo en curso para Ricardo Morales García/);
+  expect(bar).toHaveTextContent("Reemplazo en curso para Ricardo Morales García: Reemplazo 1.");
+  expect(screen.getByRole("link", { name: "Ver reemplazo activo: Reemplazo 1" })).toBeVisible();
+});
+it("lists several departed hires with commas and «y»", () => {
+  const many = [chain[0], { ...chain[1], replaces: ["Ana Ruiz", "Luis Pérez", "Marta Díaz"] }];
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={many} />);
+  expect(screen.getByText(/Reemplazo en curso para Ana Ruiz, Luis Pérez y Marta Díaz/)).toBeVisible();
+});
+it("keeps the generic copy when the chain has no names for the process", () => {
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "replacement", replacement_of: original }} selfId={replacement} chain={[chain[0], { ...chain[1], replaces: [] }]} />);
+  expect(screen.getByText(/Este proceso es el/)).toBeVisible();
+  expect(screen.queryByText(/Reemplaza a/)).not.toBeInTheDocument();
+});
+it("tints the bar so it shows in dark mode too (brand tone, not the deep --primary fill)", () => {
+  const { container } = render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={named} />);
+  const bar = container.querySelector("[data-pf-replacement-links] > div");
+  expect(bar).toHaveClass("dark:bg-brand-decorative-strong/10", "dark:border-brand-decorative-strong/30");
+});

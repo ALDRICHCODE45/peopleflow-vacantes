@@ -66,6 +66,12 @@ it.each([
  expect([...content.children].map(node => node.getAttribute("data-slot"))).toEqual(["item-title", "item-description"]);
  expect(content.querySelector('[data-slot="item-description"]')).toHaveTextContent(value);
 });
+it("agrees the delivery target with its count: «1 candidato», never «1 candidatos»", async () => {
+ vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, etag: '"delivery"', delivery: { fulfilled: false, version: "1", cutoffStageId: draft.id, targetQuantity: 1, commitmentDate: "2026-11-30", limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: [] } } });
+ mount(); await screen.findByText("Lista para entrevista");
+ const description = screen.getByText("Objetivo de entrega").parentElement!.querySelector('[data-slot="item-description"]');
+ expect(description).toHaveTextContent(/^1 candidato$/);
+});
 it("keeps summary loading slots in the same official title then description order", () => {
  vi.mocked(loadDraftPublicationAction).mockReturnValue(new Promise(() => {})); mount();
  const contents = document.querySelectorAll('[data-slot="item-content"]');

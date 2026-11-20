@@ -53,6 +53,25 @@ describe("summarizeReplacements", () => {
     ]);
     expect("fallen" in summarizeReplacements(replacementsViewSchema.parse(wire))).toBe(false);
   });
+  it("names, on each process, the departed hires it replaces (chain item replaced_credit_ids × fallen credit candidate)", () => {
+    const wire = chain();
+    const withFallen = { ...wire, fallen_credits: [
+      { id: ids.creditRicardo, participation_id: ids.ricardo, process_id: ids.draft, hired_at: null, left_at: null, candidate: { kind: "manual", id: ids.ricardo, full_name: "Ricardo Morales García" }, status: "replaced", replaced_by_process_id: ids.newDraft },
+      { id: ids.creditLuis, participation_id: ids.luis, process_id: ids.draft, hired_at: null, left_at: null, candidate: { kind: "manual", id: ids.luis, full_name: "Luis Pérez" }, status: "startable" },
+    ] };
+    const { items } = summarizeReplacements(replacementsViewSchema.parse(withFallen));
+    expect(items[1]).toMatchObject({ id: ids.newDraft, replaces: ["Ricardo Morales García"] });
+    expect(items[0]).not.toHaveProperty("replaces");
+  });
+  it("leaves a process unnamed when the fallen credit has no candidate name (older backend or malformed) and never breaks the read", () => {
+    const wire = chain();
+    const noName = { ...wire, fallen_credits: [
+      { id: ids.creditRicardo, participation_id: ids.ricardo, process_id: ids.draft, hired_at: null, left_at: null, candidate: { kind: "manual", id: ids.ricardo }, status: "replaced", replaced_by_process_id: ids.newDraft },
+    ] };
+    const summary = summarizeReplacements(replacementsViewSchema.parse(noName));
+    expect(summary.items[1]).not.toHaveProperty("replaces");
+    expect(summary.fallen).toHaveLength(1);
+  });
   it("is empty for the empty shape", () => {
     expect(summarizeReplacements(replacementsViewSchema.parse(neverPublishedWire()))).toEqual({ items: [], credits: [] });
   });

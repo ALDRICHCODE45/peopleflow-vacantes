@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { useCompactViewport } from "@/features/vacancy-lifecycle/ui/use-compact-viewport";
 import type { Board, Participation } from "./model";
 
@@ -25,21 +26,22 @@ export function DepartureConfirm({ item, board, pending, onConfirm, onCancel }: 
     <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
     <div className="flex flex-col gap-0.5"><span className="text-sm font-medium">El candidato se fue</span><span className="text-xs text-muted-foreground">Renunció, no se presentó o se cayó después.</span></div>
   </div>;
-  const facts = <dl className="flex flex-col gap-1.5 text-xs">
+  // Tinted box (artboard 04 `.note`): the effects read as information beside the option, not as loose rows. Dark mode takes the brand tone, `--primary` is too deep there.
+  const facts = <dl className="flex flex-col gap-1.5 rounded-xl bg-primary/5 p-3 text-xs dark:bg-brand-decorative-strong/10">
     <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Plazas cubiertas</dt><dd className="font-medium tabular-nums">{coverageCopy({ covered, required })} → {coverageCopy({ covered: Math.max(0, covered - 1), required })}</dd></div>
     <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Resultado original</dt><dd className="font-medium">Sin cambios</dd></div>
   </dl>;
-  const cancel = <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={onCancel}>Cancelar</Button>;
-  const confirm = <Button type="button" className="min-h-10" disabled={pending} aria-busy={pending || undefined} onClick={onConfirm}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Marcando…" : "Marcar «No se sostuvo»"}</Button>;
+  const cancel = (full: boolean) => <Button type="button" variant="outline" className={cn("min-h-10", full && "w-full")} disabled={pending} onClick={onCancel}>Cancelar</Button>;
+  const confirm = (full: boolean) => <Button type="button" className={cn("min-h-10", full && "w-full")} disabled={pending} aria-busy={pending || undefined} onClick={onConfirm}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Marcando…" : "Marcar «No se sostuvo»"}</Button>;
   // The sheet and its backdrop are portalled but still bubble through React to the card, whose click opens the candidate: stop them here.
   if (compact) return <div className="contents" onClick={event => event.stopPropagation()}><Drawer open onOpenChange={open => { if (!open && !pending) onCancel(); }}>
     <DrawerContent finalFocus={finalFocus}>
-      <DrawerHeader className="gap-1 pb-3 text-left">
-        <DrawerTitle className="flex items-start gap-2 text-base"><BadgeCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{title}</DrawerTitle>
-        <DrawerDescription className="text-left">{description}</DrawerDescription>
+      <DrawerHeader className="gap-1 pb-3 text-left group-data-[swipe-axis=y]/drawer-popup:text-left">
+        <DrawerTitle className="flex items-start gap-2 text-left text-base"><BadgeCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{title}</DrawerTitle>
+        <DrawerDescription className="text-left group-data-[swipe-axis=y]/drawer-popup:text-left">{description}</DrawerDescription>
       </DrawerHeader>
       <div className="flex flex-col gap-3 px-4 pb-4">{option}{facts}</div>
-      <DrawerFooter className="flex-row justify-end gap-2">{cancel}{confirm}</DrawerFooter>
+      <DrawerFooter className="gap-2">{cancel(true)}{confirm(true)}</DrawerFooter>
     </DrawerContent>
   </Drawer></div>;
   return <Popover open onOpenChange={open => { if (!open && !pending) onCancel(); }}>
@@ -52,7 +54,7 @@ export function DepartureConfirm({ item, board, pending, onConfirm, onCancel }: 
       </PopoverHeader>
       {option}
       {facts}
-      <div className="flex justify-end gap-2">{cancel}{confirm}</div>
+      <div className="flex justify-end gap-2">{cancel(false)}{confirm(false)}</div>
     </PopoverContent>
   </Popover>;
 }

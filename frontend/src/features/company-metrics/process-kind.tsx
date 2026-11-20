@@ -17,8 +17,11 @@ export function ProcessNote({ filters, className, as: Tag = "p", children = PROC
   return <Tag className={cn("text-xs text-muted-foreground", Tag === "span" && "block", className)}>{children}</Tag>;
 }
 
-/** A vacancy's title and, only for a replacement, the shared «Reemplazo» badge; an old backend sends no `kind`, so it renders as before. */
+/**
+ * A vacancy's title and, only for a replacement, the shared «Reemplazo» badge; an old backend sends no `kind`, so it renders as before.
+ * It wraps: in a narrow (stacked) cell the badge drops to its own line instead of covering the text beside it.
+ */
 export function VacancyWithKind({ kind, className, children }: { kind?: "original" | "replacement"; className?: string; children: ReactNode }) {
   if (kind !== "replacement") return <>{children}</>;
-  return <span className={cn("inline-flex min-w-0 items-center gap-2", className)}>{children}<ReplacementTags kind={kind} /></span>;
+  return <span className={cn("inline-flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1", className)}>{children}<ReplacementTags kind={kind} /></span>;
 }

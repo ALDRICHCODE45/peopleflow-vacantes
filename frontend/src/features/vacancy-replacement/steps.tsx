@@ -93,6 +93,9 @@ export function BajasStep({ headingRef, credits, unavailable, selected, errors, 
 }
 
 export const RESPONSIBLE_ME = "me";
+/** Short field names for the readiness line (same wording as the published-vacancy save screens); the editor's own labels for these are whole sentences. */
+const SHORT_LABEL: Readonly<Record<string, string>> = { location_missing: "Ubicación", location_incomplete: "Estado y municipio", remote_scope_missing: "Países desde donde pueden postular" };
+const listOf = (items: readonly string[]) => items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
 export function ConditionsStep({ headingRef, ctx, responsible, onResponsible, targetValue, minTarget, targetError, onTarget, date, dateError, onDate, publish, onPublish, missing, errors, pending }: {
   headingRef: Ref<HTMLHeadingElement>; ctx: StartContext; responsible: string; onResponsible: (value: string) => void;
   targetValue: string; minTarget: number; targetError: string | undefined; onTarget: (value: string) => void;
@@ -104,7 +107,7 @@ export function ConditionsStep({ headingRef, ctx, responsible, onResponsible, ta
   const value = Number(targetValue);
   const days = date ? businessDaysUntil(ctx.calendar, date) : null;
   const blocked = missing !== null;
-  const labels = blocked ? groupMissing(missing).flatMap(group => group.items.map(item => item.label)) : [];
+  const labels = blocked ? [...new Set(groupMissing(missing).flatMap(group => group.items.map(item => SHORT_LABEL[item.code] ?? item.label)))] : [];
   return <div className="flex flex-col gap-4">
     <StepHeading ref={headingRef}>Condiciones del reemplazo</StepHeading>
     <Field data-invalid={!!errors.responsible || undefined}>
@@ -136,11 +139,11 @@ export function ConditionsStep({ headingRef, ctx, responsible, onResponsible, ta
       <FieldContent>
         <span id="replacement-publish-label" className="text-sm font-medium">Publicar al iniciar</span>
         <FieldDescription id="replacement-publish-help">
-          Por defecto es privado: nadie fuera de tu equipo lo ve. Si lo publicas, sale como un aviso normal, sin mencionar que es un reemplazo. Publicar después no reinicia el plazo: el reloj corre desde que inicias el reemplazo.
+          Privado por defecto: nadie fuera de tu equipo lo ve. Si lo publicas, sale como un aviso normal; publicar después no reinicia el plazo.
         </FieldDescription>
-        {blocked && <div id="replacement-publish-missing" className="text-sm text-status-review">
-          {labels.length > 0 ? <>Para publicar al iniciar falta, en la vacante original:<ul className="ml-4 list-disc">{labels.map(label => <li key={label}>{label}</li>)}</ul></> : "Para publicar al iniciar, la vacante original aún no está lista."}
-        </div>}
+        {blocked && <p id="replacement-publish-missing" className="text-sm text-status-review">
+          {labels.length > 0 ? `Para publicar al iniciar falta, en la vacante original: ${listOf(labels)}.` : "Para publicar al iniciar, la vacante original aún no está lista."}
+        </p>}
       </FieldContent>
     </Field>
   </div>;

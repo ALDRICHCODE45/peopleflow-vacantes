@@ -226,6 +226,28 @@ describe("step 2 · Condiciones", () => {
     expect(publish).toHaveAccessibleDescription(expect.stringContaining("Título"));
     expect(screen.getByText(/publicar después no reinicia el plazo/i)).toBeVisible();
   });
+  it("folds the readiness reasons into one compact line of short field labels, not a list mixing labels and sentences", async () => {
+    await toStep2(ids.creditRicardo, context({ publish_ready: false, missing: ["description_missing", "location_missing", "requester_missing"] }));
+    next();
+    const reasons = await screen.findByText(/Para publicar al iniciar falta/);
+    expect(reasons).toHaveTextContent("Descripción, Ubicación y Solicitante");
+    expect(reasons).not.toHaveTextContent(/Agrega la ubicación/);
+    expect(within(reasons.parentElement!).queryByRole("list")).not.toBeInTheDocument();
+  });
+  it("uses the short label for every location-like requirement", async () => {
+    await toStep2(ids.creditRicardo, context({ publish_ready: false, missing: ["location_incomplete", "remote_scope_missing"] }));
+    next();
+    const reasons = await screen.findByText(/Para publicar al iniciar falta/);
+    expect(reasons).toHaveTextContent("Estado y municipio");
+    expect(reasons).toHaveTextContent("Países desde donde pueden postular");
+    expect(reasons).not.toHaveTextContent(/Completa estado|Indica desde dónde/);
+  });
+  it("keeps the privacy note short", async () => {
+    await toStep2(); next();
+    const note = (await screen.findByText(/nadie fuera de tu equipo lo ve/i)).textContent ?? "";
+    expect(note.length).toBeLessThan(150);
+    expect(note).not.toMatch(/el reloj corre desde que inicias/i);
+  });
 });
 
 describe("step 3 · Candidatos", () => {

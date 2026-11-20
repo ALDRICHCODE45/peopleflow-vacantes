@@ -33,6 +33,8 @@ export type CarryCandidate = z.infer<typeof carryCandidateSchema>;
 export const fallenCreditSchema = z.object({
   id, participation_id: id, process_id: id.optional(),
   left_at: z.string().nullable().optional(),
+  /** Only the name is read (link bar: «Reemplaza a …»); a missing or malformed candidate reads as «unnamed», never as a broken read. */
+  candidate: z.object({ full_name: text }).optional().catch(undefined),
   status: z.enum(["replaced", "startable", "blocked"]),
   replaced_by_process_id: id.optional(), blocker: startReplacementBlockerSchema.optional(),
 });
@@ -70,14 +72,19 @@ export type ReplacementsView = z.infer<typeof replacementsViewSchema>;
  * The credits are only filled by the backend while `start_replacement.allowed`.
  */
 export type ChainSummary = {
-  items: { id: string; kind: "original" | "replacement"; sequence: number; title: string; canOpen: boolean }[];
+  /** `replaces`: names of the departed hires the process covers; only present when the backend sends the fallen credits with their candidate. */
+  items: { id: string; kind: "original" | "replacement"; sequence: number; title: string; canOpen: boolean; replaces?: string[] }[];
   credits: { id: string; participationId: string; hiredAt: string | null; leftAt: string | null }[];
   /** Every fallen credit of the chain by participation; `undefined` while the backend does not send them (R4b). */
   fallen?: { id: string; participationId: string; leftAt: string | null; status: FallenCredit["status"]; replacedBy: string | null }[];
 };
 export function summarizeReplacements(view: ReplacementsView): ChainSummary {
+  const nameOf = new Map((view.fallen_credits ?? []).flatMap(credit => credit.candidate ? [[credit.id, credit.candidate.full_name] as const] : []));
   return {
-    items: view.items.map(item => ({ id: item.id, kind: item.kind, sequence: item.sequence, title: item.title, canOpen: item.can_open })),
+    items: view.items.map(item => {
+      const replaces = item.replaced_credit_ids.flatMap(creditId => nameOf.get(creditId) ?? []);
+      return { id: item.id, kind: item.kind, sequence: item.sequence, title: item.title, canOpen: item.can_open, ...(replaces.length ? { replaces } : {}) };
+    }),
     credits: view.start_replacement.startable_credits.map(credit => ({ id: credit.credit_id, participationId: credit.participation_id, hiredAt: credit.hired_at, leftAt: credit.left_at })),
     ...(view.fallen_credits ? { fallen: view.fallen_credits.map(credit => ({ id: credit.id, participationId: credit.participation_id, leftAt: credit.left_at ?? null, status: credit.status, replacedBy: credit.replaced_by_process_id ?? null })) } : {}),
   };
