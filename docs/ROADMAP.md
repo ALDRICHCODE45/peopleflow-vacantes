@@ -192,16 +192,16 @@ siempre hay que tenerlas en el radar por favor.» — al entregarse se marcan �
 - 🔲 Notas en una vacante guardada, carpetas, recordatorios o alertas, compartir la lista, conteos visibles para el
   empleador y guardado desde cuentas de empresa.
 
-### Próximas tres funcionalidades (definidas 2026-11-02, no implementadas) — pendientes
+### Próximas tres funcionalidades (definidas 2026-11-02) — ✅ ENTREGADAS (1, 1b, 2 y 3 en `main`, 2026-11-03 a 2026-11-17)
 
 Fuente de producto: `docs/product/next-three-features.md` (worktree del frontend). Orden: 1) asignación de la vacante,
 1b) visibilidad de la base de talento, 2) auditoría, 3) stakeholder + métricas. Contrato de la 1:
 `docs/contracts/vacancy-team-v1.md` (acordado, decisiones Q1–Q12 del usuario).
 
-- 🔲 **1 — Asignación de la vacante** (`vacancy-team-v1.md`): migración 00054 (equipos, tramos, reasignaciones,
+- ✅ **1 — Asignación de la vacante** — ENTREGADO (2026-11-03, merge `e8ba66ed`) (`vacancy-team-v1.md`): migración 00054 (equipos, tramos, reasignaciones,
   renegociación del compromiso, crédito de placement), reemplazo del predicado owner-o-principal en `authorized`
   (`draftstore/store.go:425`) y `visibleV2Drafts` (`draftstore/list_v2.go:18`), offboarding de miembros.
-- 🔲 **1b — Visibilidad de la base de talento** (Q1): ajuste de la empresa, solo del owner y auditado: «Todos los
+- ✅ **1b — Visibilidad de la base de talento** — ENTREGADO (2026-11-03, merge `259c6e30`) (Q1): ajuste de la empresa, solo del owner y auditado: «Todos los
   reclutadores» (por defecto) o «Usuarios seleccionados». El owner y el stakeholder siempre la ven; el que no está en la
   lista sigue viendo a los candidatos de sus vacantes desde el tablero, y pierde búsqueda global, detalle fuera de una
   vacante, CV desde la base y exportación de contactos (~8 endpoints de `applications/.../pool`).
@@ -217,8 +217,19 @@ Fuente de producto: `docs/product/next-three-features.md` (worktree del frontend
   `TestPsychometricAutoManualIntake` (país «invalid»: falta el catálogo geográfico) y `TestDashboardEntriesCoverageAndBoundary`
   (FK `company_candidate_cvs_company_candidate_id_fkey`). Pasan cuando la base trae datos que dejaron otras suites. Cada
   prueba tiene que sembrar lo que necesita.
-- 🔲 **2 — Auditoría** y **3 — Stakeholder + métricas**: según el documento de producto; `company_id` en `audit_events` y
-  las métricas de «placements que no se sostuvieron» (garantías de reposición) salen de la 1.
+- ✅ **2 — Auditoría** — ENTREGADO (2026-11-04, merge `4e9a40bf`) y ✅ **3 — Stakeholder + métricas** — ENTREGADO
+  (2026-11-07, slices 3a–3c desde `70122fad`; métricas v2 + dashboard v2 2026-11-17, `886fd921`): según el documento de
+  producto; `company_id` en `audit_events` y las métricas de «placements que no se sostuvieron» (garantías de reposición)
+  salen de la 1.
+
+### Acuerdos de la reunión con socios del 2026-10-02 que siguen abiertos
+
+- ✅ Quitar fecha de nacimiento/edad del candidato y la carta de presentación — ENTREGADO (2026-11-19, backend `689da412`
+  con la migración 00062 que borra las columnas; frontend `d348896b`). Deploy: backup de la base antes de aplicar 00062.
+- 🔲 **Documentos de placement y de vacante**.
+- 🔲 **Procesos de reemplazo**.
+- 🔲 **Precarga del candidato desde CV/LinkedIn/OCC** — pospuesta.
+- 🔲 **Login/AWS** — pospuesto.
 
 ## Stack decidido (no re-discutir)
 
