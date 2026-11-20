@@ -97,7 +97,7 @@ func (s *Service) buildDeliveries(ctx context.Context, l listing) (*built[Delive
 		}
 		result, late := vac.DeliveryResult(v.asOf, s.calendar)
 		d := vac.Delivery
-		row := DeliveryListRow{Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester, AttributedTo: vac.attributedPeople(result, v.data),
+		row := DeliveryListRow{Vacancy: vac.ref(), Requester: vac.Requester, AttributedTo: vac.attributedPeople(result, v.data),
 			CommitmentDate: d.Commitment, OriginalCommitmentDate: d.OriginalCommitment, Renegotiations: d.Renegotiations, Result: result,
 			BusinessDaysLate: late, Delivered: vac.Delivered(), Target: d.Target}
 		if d.TargetReachedAt != nil {
@@ -209,7 +209,7 @@ func (s *Service) buildVacancies(ctx context.Context, l listing) (*built[Vacancy
 			continue
 		}
 		row := VacancyRow{
-			DraftID: vac.ID, Title: vac.Title, Requester: vac.Requester, Responsible: data.personPtr(vac.Responsible),
+			DraftID: vac.ID, Title: vac.Title, Requester: vac.Requester, Responsible: data.personPtr(vac.Responsible), Replacements: vac.Replacements,
 			FirstPublishedAt: vac.PublishedAt.UTC(), OpenedAt: vac.PublishedAt.UTC(), Closes: []CloseRow{},
 			Placements: Coverage{Covered: vac.activeCredits(), Required: vac.Headcount},
 		}
@@ -369,7 +369,7 @@ func (s *Service) buildPlacements(ctx context.Context, l listing) (*built[Placem
 				}
 				return cmp.Compare(x.UserID.String(), y.UserID.String())
 			})
-			row := PlacementListRow{CreditID: c.ID, Candidate: c.Candidate, Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester,
+			row := PlacementListRow{CreditID: c.ID, Candidate: c.Candidate, Vacancy: vac.ref(), Requester: vac.Requester,
 				Recipients: make([]PlacementPerson, 0, len(recipients)), Status: c.Status, HiredAt: c.HiredAt.UTC()}
 			for _, r := range recipients {
 				row.Recipients = append(row.Recipients, PlacementPerson{Person: v.data.person(r.UserID), Kind: r.Kind})
@@ -442,7 +442,7 @@ func (s *Service) buildReassignments(ctx context.Context, l listing) (*built[Rea
 			if !kindOK || !reasonOK {
 				continue
 			}
-			row := ReassignmentRow{ID: r.ID, PerformedAt: r.At.UTC(), Vacancy: VacancyRef{vac.ID, vac.Title},
+			row := ReassignmentRow{ID: r.ID, PerformedAt: r.At.UTC(), Vacancy: vac.ref(),
 				From: data.person(r.From), To: data.person(r.To), Reason: r.Reason, PerformedBy: data.person(r.By),
 				OutgoingTramoBusinessDays: s.calendar.BetweenInstants(r.FromStarted, r.At), Snapshot: snapshotSummary(r.Snapshot)}
 			// The note exists only for `other` and appears only in detail (§2.9).

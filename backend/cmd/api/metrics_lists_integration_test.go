@@ -219,7 +219,7 @@ func TestMetricsLists_DeliveriesRowsSortAndPages(t *testing.T) {
 	acme := map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}
 	body := s.get(s.owner, "deliveries?"+mxRange+"&result=late")
 	editJSONEqual(t, body["items"], mxJSON(t, []any{map[string]any{
-		"vacancy": map[string]any{"draft_id": s.v5.String(), "title": "Cinco"}, "requester": acme,
+		"vacancy": mxRef(s.v5, "Cinco"), "requester": acme,
 		"attributed_to": []any{mxPerson(s.beto, "Beto", false)}, "commitment_date": "2025-01-31", "original_commitment_date": "2025-01-31",
 		"renegotiations": 0, "target_reached_at": "2025-02-05T18:00:00Z", "result": "late", "business_days_late": 2,
 		"business_days_overdue": nil, "delivered": 1, "target": 1,
@@ -292,7 +292,7 @@ func TestMetricsLists_PlacementsAuditedPerPage(t *testing.T) {
 	delete(row, "credit_id")
 	acme := map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}
 	// Newest hire first; voided credits are not listed; the company's name.
-	editJSONEqual(t, row, mxJSON(t, map[string]any{"candidate": candidate(s.p3, "Candidata Tres"), "vacancy": map[string]any{"draft_id": s.v1.String(), "title": "Uno"},
+	editJSONEqual(t, row, mxJSON(t, map[string]any{"candidate": candidate(s.p3, "Candidata Tres"), "vacancy": mxRef(s.v1, "Uno"),
 		"requester": acme, "recipients": []any{map[string]any{"person": mxPerson(s.beto, "Beto", false), "kind": "direct"}}, "status": "did_not_hold", "hired_at": "2025-03-04T18:00:00Z"}))
 	if _, err := uuid.Parse(credit.(string)); err != nil {
 		t.Fatal(credit)
@@ -367,10 +367,10 @@ func TestMetricsLists_ExportCSV(t *testing.T) {
 		return h.do(t, "GET", "/v2/me/company/metrics/"+kind+"/export?"+mxRange+query, "", s.owner.token, nil)
 	}
 	for kind, header := range map[string][]string{
-		"deliveries":    {"ID vacante", "Vacante", "Solicitante", "Atribuida a", "Fecha compromiso", "Fecha compromiso original", "Renegociaciones", "Meta alcanzada", "Resultado", "Días hábiles de retraso", "Días hábiles vencida", "Entregados", "Meta"},
+		"deliveries":    {"ID vacante", "Vacante", "Solicitante", "Atribuida a", "Fecha compromiso", "Fecha compromiso original", "Renegociaciones", "Meta alcanzada", "Resultado", "Días hábiles de retraso", "Días hábiles vencida", "Entregados", "Meta", "Tipo de proceso"},
 		"vacancies":     {"ID vacante", "Vacante", "Solicitante", "Responsable", "Publicada", "Último cierre", "Motivo del último cierre", "Días hábiles para cerrar", "Objetivo de cierre", "Resultado de entrega", "Cubiertas", "Requeridas", "Reasignaciones"},
-		"placements":    {"ID crédito", "ID candidato", "Candidato", "ID vacante", "Vacante", "Solicitante", "Reconocidos", "Estado", "Contratado"},
-		"reassignments": {"ID reasignación", "Fecha", "ID vacante", "Vacante", "De", "A", "Motivo", "Nota", "Realizada por", "Días hábiles del tramo saliente"},
+		"placements":    {"ID crédito", "ID candidato", "Candidato", "ID vacante", "Vacante", "Solicitante", "Reconocidos", "Estado", "Contratado", "Tipo de proceso"},
+		"reassignments": {"ID reasignación", "Fecha", "ID vacante", "Vacante", "De", "A", "Motivo", "Nota", "Realizada por", "Días hábiles del tramo saliente", "Tipo de proceso"},
 	} {
 		r := export(kind, "")
 		if r.status != 200 || r.header.Get("Content-Type") != "text/csv; charset=utf-8" ||

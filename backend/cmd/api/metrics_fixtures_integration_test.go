@@ -27,6 +27,12 @@ func mxAt(value string) time.Time {
 
 func mxPtr[T any](v T) *T { return &v }
 
+// mxRef is a VacancyRef of an original process (replacement-processes-v1): its
+// own root and no sequence.
+func mxRef(id uuid.UUID, title any) map[string]any {
+	return map[string]any{"draft_id": id.String(), "title": title, "kind": "original", "root_draft_id": id.String(), "sequence": nil}
+}
+
 type mxFixture struct {
 	t       *testing.T
 	h       *draftFlowHarness

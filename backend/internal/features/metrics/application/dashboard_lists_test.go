@@ -366,8 +366,8 @@ func TestDashboardExport_RowsAndFilename(t *testing.T) {
 	// With channel only the selected channel columns stay, so each row's
 	// cells add up to its Total.
 	for raw, want := range map[string][]string{
-		"channel=portal,careers_site,unknown": {"ID vacante", "Vacante", "Solicitante", "Portal", "Sitio de carreras", "Desconocido", "Total"},
-		"channel=manual":                      {"ID vacante", "Vacante", "Solicitante", "Manual", "Total"},
+		"channel=portal,careers_site,unknown": {"ID vacante", "Vacante", "Solicitante", "Portal", "Sitio de carreras", "Desconocido", "Total", "Tipo de proceso"},
+		"channel=manual":                      {"ID vacante", "Vacante", "Solicitante", "Manual", "Total", "Tipo de proceso"},
 	} {
 		e, err := fx.svc.DashboardExport(context.Background(), fx.company, listOwner, "applications", raw)
 		if err != nil {
@@ -380,11 +380,12 @@ func TestDashboardExport_RowsAndFilename(t *testing.T) {
 		for i := 0; i < e.Len(); i++ {
 			rec := e.Record(i)
 			sum := 0
-			for _, cell := range rec[3 : len(rec)-1] {
+			// The channel cells, then Total, then the process kind.
+			for _, cell := range rec[3 : len(rec)-2] {
 				n, _ := strconv.Atoi(cell)
 				sum += n
 			}
-			if len(rec) != len(want) || strconv.Itoa(sum) != rec[len(rec)-1] {
+			if len(rec) != len(want) || strconv.Itoa(sum) != rec[len(rec)-2] {
 				t.Errorf("%s row %d: %v", raw, i, rec)
 			}
 		}

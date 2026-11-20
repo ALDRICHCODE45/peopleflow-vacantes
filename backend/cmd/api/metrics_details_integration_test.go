@@ -96,8 +96,9 @@ func TestMetricsVacancies_List(t *testing.T) {
 	h := newDraftFlowHarness(t)
 	s := newMXScenario(t, h)
 	acme := map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}
+	noReplacements := map[string]any{"count": 0, "active_draft_id": nil}
 	v1 := map[string]any{
-		"draft_id": s.v1.String(), "title": "Uno", "requester": acme, "responsible": mxPerson(s.beto, "Beto", false),
+		"replacements": noReplacements, "draft_id": s.v1.String(), "title": "Uno", "requester": acme, "responsible": mxPerson(s.beto, "Beto", false),
 		"first_published_at": "2025-01-06T16:00:00Z",
 		"closes":             []any{map[string]any{"date": "2025-02-14", "reason": "filled"}, map[string]any{"date": "2025-03-05", "reason": "filled"}},
 		"delivery": map[string]any{"result": "on_time", "target": 2, "delivered": 3, "target_reached_at": "2025-01-15T18:00:00Z",
@@ -109,7 +110,7 @@ func TestMetricsVacancies_List(t *testing.T) {
 		"business_days_to_close": 28, "closing_target": "on_time",
 	}
 	v2 := map[string]any{
-		"draft_id": s.v2.String(), "title": "Dos", "requester": map[string]any{"kind": "client", "id": nil, "name": nil},
+		"replacements": noReplacements, "draft_id": s.v2.String(), "title": "Dos", "requester": map[string]any{"kind": "client", "id": nil, "name": nil},
 		"responsible": mxPerson(s.ana, "Ana", false), "first_published_at": "2025-01-08T16:00:00Z",
 		"closes": []any{map[string]any{"date": "2025-03-10", "reason": nil}},
 		"delivery": map[string]any{"result": "overdue", "target": 3, "delivered": 0, "target_reached_at": nil,
@@ -119,7 +120,7 @@ func TestMetricsVacancies_List(t *testing.T) {
 		"business_days_to_close": nil, "closing_target": nil,
 	}
 	v3 := map[string]any{
-		"draft_id": s.v3.String(), "title": "Tres", "requester": nil, "responsible": mxPerson(s.beto, "Beto", false),
+		"replacements": noReplacements, "draft_id": s.v3.String(), "title": "Tres", "requester": nil, "responsible": mxPerson(s.beto, "Beto", false),
 		"first_published_at": "2024-12-02T16:00:00Z", "closes": []any{map[string]any{"date": "2025-01-31", "reason": "cancelled"}},
 		"opened_at": "2024-12-02T16:00:00Z", "last_close": map[string]any{"date": "2025-01-31", "reason": "cancelled"},
 		"business_days_to_close": nil, "closing_target": nil,
@@ -128,7 +129,7 @@ func TestMetricsVacancies_List(t *testing.T) {
 		"placements": map[string]any{"covered": 0, "required": nil}, "reassignments": 0,
 	}
 	v4 := map[string]any{
-		"draft_id": s.v4.String(), "title": "Cuatro", "requester": map[string]any{"kind": "internal_area", "id": s.mustRequester(s.v4), "name": "Finanzas"},
+		"replacements": noReplacements, "draft_id": s.v4.String(), "title": "Cuatro", "requester": map[string]any{"kind": "internal_area", "id": s.mustRequester(s.v4), "name": "Finanzas"},
 		"responsible": nil, "first_published_at": "2025-01-02T16:00:00Z", "closes": []any{},
 		"opened_at": "2025-01-02T16:00:00Z", "last_close": nil, "business_days_to_close": nil, "closing_target": nil,
 		"delivery": map[string]any{"result": "pending", "target": 1, "delivered": 0, "target_reached_at": nil,
@@ -136,7 +137,7 @@ func TestMetricsVacancies_List(t *testing.T) {
 		"placements": map[string]any{"covered": 0, "required": nil}, "reassignments": 0,
 	}
 	v5 := map[string]any{
-		"draft_id": s.v5.String(), "title": "Cinco", "requester": acme, "responsible": mxPerson(s.beto, "Beto", false),
+		"replacements": noReplacements, "draft_id": s.v5.String(), "title": "Cinco", "requester": acme, "responsible": mxPerson(s.beto, "Beto", false),
 		"first_published_at": "2025-01-06T16:00:00Z", "closes": []any{},
 		"opened_at": "2025-01-06T16:00:00Z", "last_close": nil, "business_days_to_close": nil, "closing_target": nil,
 		"delivery": map[string]any{"result": "late", "target": 1, "delivered": 1, "target_reached_at": "2025-02-05T18:00:00Z",
@@ -188,7 +189,7 @@ func TestMetricsReassignments_List(t *testing.T) {
 		"placements": map[string]any{"current": 0, "credited": 0},
 	}
 	row := func(id string, at string, vacancy uuid.UUID, title string, from, to map[string]any, reason string, days int) map[string]any {
-		return map[string]any{"id": id, "performed_at": at, "vacancy": map[string]any{"draft_id": vacancy.String(), "title": title},
+		return map[string]any{"id": id, "performed_at": at, "vacancy": mxRef(vacancy, title),
 			"from": from, "to": to, "reason": reason, "note": nil, "performed_by": mxPerson(s.ownerID, "Olga Owner", false),
 			"outgoing_tramo_business_days": days, "snapshot": snapshot}
 	}
@@ -236,7 +237,8 @@ func TestMetricsDetail_DeliveriesAndPlacementsAudited(t *testing.T) {
 		}
 		return map[string]any{"id": id, "full_name": name}
 	}
-	header := map[string]any{"definitions_version": "v2", "period": mxPeriod("2025-01-01", "2025-03-31"), "as_of": "2025-03-15T18:00:00Z", "draft_id": s.v1.String()}
+	header := map[string]any{"definitions_version": "v2", "period": mxPeriod("2025-01-01", "2025-03-31"), "as_of": "2025-03-15T18:00:00Z", "draft_id": s.v1.String(),
+		"process": map[string]any{"kind": "original", "root_draft_id": s.v1.String(), "sequence": nil}}
 	with := func(items []any) map[string]any {
 		out := map[string]any{"items": items}
 		for k, v := range header {

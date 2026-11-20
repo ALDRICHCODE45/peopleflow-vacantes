@@ -109,6 +109,11 @@ func (s *Service) Export(ctx context.Context, company, actor uuid.UUID, kind, ra
 	return out, nil
 }
 
+// processKindHeader is the last column of every export whose rows name a
+// process (replacement-processes-v1): its cells are the API codes original |
+// replacement.
+const processKindHeader = "Tipo de proceso"
+
 // Cell formats. Dates are ISO (YYYY-MM-DD), instants RFC 3339 in UTC.
 
 func cellInstant(at time.Time) string { return at.UTC().Format(time.RFC3339) }
@@ -167,12 +172,12 @@ func cellRequester(r *Requester) string {
 }
 
 var deliveryHeader = []string{"ID vacante", "Vacante", "Solicitante", "Atribuida a", "Fecha compromiso", "Fecha compromiso original",
-	"Renegociaciones", "Meta alcanzada", "Resultado", "Días hábiles de retraso", "Días hábiles vencida", "Entregados", "Meta"}
+	"Renegociaciones", "Meta alcanzada", "Resultado", "Días hábiles de retraso", "Días hábiles vencida", "Entregados", "Meta", processKindHeader}
 
 func deliveryRecord(r DeliveryListRow) []string {
 	return []string{r.Vacancy.DraftID.String(), r.Vacancy.Title, cellRequester(r.Requester), cellPeople(r.AttributedTo),
 		cellString(r.CommitmentDate), cellString(r.OriginalCommitmentDate), strconv.Itoa(r.Renegotiations), cellInstantPtr(r.TargetReachedAt),
-		r.Result, cellInt(r.BusinessDaysLate), cellInt(r.BusinessDaysOverdue), strconv.Itoa(r.Delivered), cellInt(r.Target)}
+		r.Result, cellInt(r.BusinessDaysLate), cellInt(r.BusinessDaysOverdue), strconv.Itoa(r.Delivered), cellInt(r.Target), r.Vacancy.Kind}
 }
 
 var vacancyHeader = []string{"ID vacante", "Vacante", "Solicitante", "Responsable", "Publicada", "Último cierre", "Motivo del último cierre",
@@ -192,7 +197,7 @@ func vacancyRecord(r VacancyRow) []string {
 		cellInt(r.Placements.Required), strconv.Itoa(r.Reassignments)}
 }
 
-var placementHeader = []string{"ID crédito", "ID candidato", "Candidato", "ID vacante", "Vacante", "Solicitante", "Reconocidos", "Estado", "Contratado"}
+var placementHeader = []string{"ID crédito", "ID candidato", "Candidato", "ID vacante", "Vacante", "Solicitante", "Reconocidos", "Estado", "Contratado", processKindHeader}
 
 func placementRecord(r PlacementListRow) []string {
 	recipients := make([]string, len(r.Recipients))
@@ -200,28 +205,28 @@ func placementRecord(r PlacementListRow) []string {
 		recipients[i] = cellPerson(p.Person) + " (" + p.Kind + ")"
 	}
 	return []string{r.CreditID.String(), r.Candidate.ID.String(), r.Candidate.FullName, r.Vacancy.DraftID.String(), r.Vacancy.Title,
-		cellRequester(r.Requester), strings.Join(recipients, "; "), r.Status, cellInstant(r.HiredAt)}
+		cellRequester(r.Requester), strings.Join(recipients, "; "), r.Status, cellInstant(r.HiredAt), r.Vacancy.Kind}
 }
 
 var reassignmentHeader = []string{"ID reasignación", "Fecha", "ID vacante", "Vacante", "De", "A", "Motivo", "Nota", "Realizada por",
-	"Días hábiles del tramo saliente"}
+	"Días hábiles del tramo saliente", processKindHeader}
 
 func reassignmentRecord(r ReassignmentRow) []string {
 	return []string{r.ID.String(), cellInstant(r.PerformedAt), r.Vacancy.DraftID.String(), r.Vacancy.Title, cellPerson(r.From), cellPerson(r.To),
-		r.Reason, cellString(r.Note), cellPerson(r.PerformedBy), strconv.Itoa(r.OutgoingTramoBusinessDays)}
+		r.Reason, cellString(r.Note), cellPerson(r.PerformedBy), strconv.Itoa(r.OutgoingTramoBusinessDays), r.Vacancy.Kind}
 }
 
 var candidateHeader = []string{"ID participación", "ID candidato", "Candidato", "ID vacante", "Vacante", "Etapa", "Nombre de etapa",
-	"Días hábiles en etapa", "Detenido", "Entró a la etapa"}
+	"Días hábiles en etapa", "Detenido", "Entró a la etapa", processKindHeader}
 
 func candidateRecord(r CandidateRow) []string {
 	return []string{r.ParticipationID.String(), r.Candidate.ID.String(), r.Candidate.FullName, r.Vacancy.DraftID.String(), r.Vacancy.Title,
-		r.Stage.Kind, r.Stage.Name, strconv.Itoa(r.BusinessDaysInStage), strconv.FormatBool(r.Stalled), cellInstant(r.EnteredStageAt)}
+		r.Stage.Kind, r.Stage.Name, strconv.Itoa(r.BusinessDaysInStage), strconv.FormatBool(r.Stalled), cellInstant(r.EnteredStageAt), r.Vacancy.Kind}
 }
 
-var applicationHeader = []string{"ID vacante", "Vacante", "Solicitante", "Portal", "Sitio de carreras", "Manual", "Desconocido", "Total"}
+var applicationHeader = []string{"ID vacante", "Vacante", "Solicitante", "Portal", "Sitio de carreras", "Manual", "Desconocido", "Total", processKindHeader}
 
 func applicationRecord(r ApplicationRow) []string {
 	return []string{r.Vacancy.DraftID.String(), r.Vacancy.Title, cellRequester(r.Requester), strconv.Itoa(r.Portal), strconv.Itoa(r.CareersSite),
-		strconv.Itoa(r.Manual), strconv.Itoa(r.Unknown), strconv.Itoa(r.Total)}
+		strconv.Itoa(r.Manual), strconv.Itoa(r.Unknown), strconv.Itoa(r.Total), r.Vacancy.Kind}
 }

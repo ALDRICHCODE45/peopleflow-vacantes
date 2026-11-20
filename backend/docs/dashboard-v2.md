@@ -130,6 +130,14 @@ Each figure then adds its own state rule:
 - **`pipeline`:** exactly metrics §4.4 `stages` (shared `stageFigures`), with
   the recruiter scope being the metrics recruiter filter (open tramo at
   `as_of`); `stalled_threshold_business_days` is 7.
+- **Replacement processes** (replacement-processes-v1, Q1): the history snapshot loads every process of the company,
+  so an active **private** replacement (a process row without a public projection) is a published vacancy like any
+  other, with its own in-process figures and positions (its `hiring_headcount` is its target). The logical vacancy
+  still counts once: its original is closed or finished by the time the replacement starts, so only one process of a
+  chain is published at any instant. Every `vacancy` object the dashboard serializes (attention rows, the
+  vacancies section and the four lists) is the metrics `VacancyRef` with `kind`, `root_draft_id` and `sequence`;
+  `recent` rows keep `{id, title}`; the lists' CSVs end with a `Tipo de proceso` column. The dashboard has no
+  `process_kind` filter in v1.
 - **`vacancies`:** the published vacancies in scope ordered by «en proceso» now,
   ties by title then id, top 5. A vacancy with 0 is still listed (it is
   active); metrics §4.4 `top_vacancies` leaves those out.

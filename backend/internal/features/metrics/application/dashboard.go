@@ -357,7 +357,7 @@ func (s *Service) DashboardAttention(ctx context.Context, company uuid.UUID, vie
 		if !v.open() || !d.Configured || d.Commitment == nil || d.TargetReachedAt != nil {
 			continue
 		}
-		row := AttentionDelivery{Vacancy: VacancyRef{v.ID, v.Title}, Requester: v.Requester, Responsible: snap.Data.people().personPtr(v.Responsible),
+		row := AttentionDelivery{Vacancy: v.ref(), Requester: v.Requester, Responsible: snap.Data.people().personPtr(v.Responsible),
 			CommitmentDate: *d.Commitment, Delivered: v.Delivered()}
 		if d.Target != nil {
 			row.Target = *d.Target
@@ -411,7 +411,7 @@ func (s *Service) DashboardAttention(ctx context.Context, company uuid.UUID, vie
 	})
 	out.Stalled.Total = len(stalled)
 	for _, r := range stalled[:min(len(stalled), DashboardTop)] {
-		out.Stalled.Top = append(out.Stalled.Top, StalledRow{ParticipationID: r.p.ID, Candidate: r.p.Candidate, Vacancy: VacancyRef{r.vac.ID, r.vac.Title},
+		out.Stalled.Top = append(out.Stalled.Top, StalledRow{ParticipationID: r.p.ID, Candidate: r.p.Candidate, Vacancy: r.vac.ref(),
 			Stage: StageRef{r.kind, r.name}, BusinessDaysInStage: r.days})
 	}
 	return out, nil
@@ -482,7 +482,7 @@ func (s *Service) DashboardVacancies(ctx context.Context, company uuid.UUID, vie
 		if !v.publishedAt(end) {
 			continue
 		}
-		row := ActiveVacancy{Vacancy: VacancyRef{v.ID, v.Title}, Requester: v.Requester, Responsible: snap.Data.people().personPtr(v.Responsible), InProcess: v.inProcessAt(end)}
+		row := ActiveVacancy{Vacancy: v.ref(), Requester: v.Requester, Responsible: snap.Data.people().personPtr(v.Responsible), InProcess: v.inProcessAt(end)}
 		row.Positions.add(v)
 		rows = append(rows, row)
 	}

@@ -196,7 +196,7 @@ func TestDashboardV2_AttentionPipelineVacancies(t *testing.T) {
 		t.Fatalf("%v", overdue)
 	}
 	row := overdue["top"].([]any)[0].(map[string]any)
-	editJSONEqual(t, row, map[string]any{"vacancy": map[string]any{"draft_id": s.a.String(), "title": "Analista"}, "requester": nil,
+	editJSONEqual(t, row, map[string]any{"vacancy": mxRef(s.a, "Analista"), "requester": nil,
 		"responsible": mxPerson(s.ana, "Ana", false), "commitment_date": "2026-03-20", "business_days_overdue": float64(2), "delivered": float64(2), "target": float64(5)})
 	due := att["due_this_week"].(map[string]any)
 	if due["total"] != float64(1) || due["top"].([]any)[0].(map[string]any)["vacancy"].(map[string]any)["title"] != "Backend" {
@@ -245,9 +245,9 @@ func TestDashboardV2_AttentionPipelineVacancies(t *testing.T) {
 
 	vac := s.dash(s.owner, "vacancies")
 	editJSONEqual(t, vac["top"], mxJSON(t, []any{
-		map[string]any{"vacancy": map[string]any{"draft_id": s.a.String(), "title": "Analista"}, "requester": nil, "responsible": mxPerson(s.ana, "Ana", false),
+		map[string]any{"vacancy": mxRef(s.a, "Analista"), "requester": nil, "responsible": mxPerson(s.ana, "Ana", false),
 			"in_process": 1, "positions": map[string]any{"covered": 1, "required": 3}},
-		map[string]any{"vacancy": map[string]any{"draft_id": s.b.String(), "title": "Backend"}, "requester": nil, "responsible": mxPerson(s.beto, "Beto", false),
+		map[string]any{"vacancy": mxRef(s.b, "Backend"), "requester": nil, "responsible": mxPerson(s.beto, "Beto", false),
 			"in_process": 1, "positions": map[string]any{"covered": 0, "required": 0}},
 	}))
 	if top := s.dash(s.betoActor, "vacancies")["top"].([]any); len(top) != 1 || top[0].(map[string]any)["vacancy"].(map[string]any)["title"] != "Backend" {

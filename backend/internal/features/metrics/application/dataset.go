@@ -203,6 +203,11 @@ func (v *Vacancy) process() ProcessRef {
 	return ProcessRef{Kind: v.kind(), RootDraftID: v.root(), Sequence: v.Sequence}
 }
 
+// ref is the vacancy as a row names it.
+func (v *Vacancy) ref() VacancyRef {
+	return VacancyRef{DraftID: v.ID, Title: v.Title, Kind: v.kind(), RootDraftID: v.root(), Sequence: v.Sequence}
+}
+
 // chainTramos are the tramos of the whole logical vacancy for an original
 // (its own when it has no replacement): the vacancy-level «assigned» rule (A5).
 func (v *Vacancy) chainTramos() []Tramo {

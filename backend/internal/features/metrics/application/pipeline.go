@@ -119,6 +119,18 @@ func (p Pipeline) stageOf(id uuid.UUID) (kind, name string, exit bool) {
 // replacement reports a replacement process.
 func (v *OpenVacancy) replacement() bool { return v.Kind == KindReplacement }
 
+// ref is the vacancy as a row names it.
+func (v *OpenVacancy) ref() VacancyRef {
+	ref := VacancyRef{DraftID: v.ID, Title: v.Title, Kind: KindOriginal, RootDraftID: v.ID, Sequence: v.Sequence}
+	if v.replacement() {
+		ref.Kind = KindReplacement
+		if v.RootID != uuid.Nil {
+			ref.RootDraftID = v.RootID
+		}
+	}
+	return ref
+}
+
 // selectedBy applies the process_kind filter ("" selects every process).
 func (v *OpenVacancy) selectedBy(kind string) bool {
 	return kind == "" || (kind == KindReplacement) == v.replacement()
@@ -250,7 +262,7 @@ func (s *Service) Pipeline(ctx context.Context, company uuid.UUID, raw string) (
 	})
 	data := v.snap.Data.names()
 	for _, vac := range top[:min(len(top), TopVacancies)] {
-		out.TopVacancies = append(out.TopVacancies, TopVacancy{Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester,
+		out.TopVacancies = append(out.TopVacancies, TopVacancy{Vacancy: vac.ref(), Requester: vac.Requester,
 			Responsible: data.personPtr(vac.Responsible), InProcess: inProcess[vac]})
 	}
 	return out, nil
@@ -380,7 +392,7 @@ func (s *Service) buildCandidates(ctx context.Context, l listing) (*built[Candid
 		if !kindOK || !stalledOK || !processOK {
 			continue
 		}
-		b.rows = append(b.rows, CandidateRow{ParticipationID: r.p.ID, Candidate: r.p.Candidate, Vacancy: VacancyRef{r.vac.ID, r.vac.Title},
+		b.rows = append(b.rows, CandidateRow{ParticipationID: r.p.ID, Candidate: r.p.Candidate, Vacancy: r.vac.ref(),
 			Stage: StageRef{r.kind, r.name}, BusinessDaysInStage: r.days, Stalled: r.stalled, EnteredStageAt: r.p.EnteredAt.UTC()})
 	}
 	if b.applied, b.owned, err = s.applied(ctx, l.company, q, v.snap.Data.names()); err != nil {
@@ -449,7 +461,7 @@ func (s *Service) buildApplications(ctx context.Context, l listing) (*built[Appl
 		if kindOK {
 			b.facets.Channel.add(vac.Origin)
 		}
-		row := ApplicationRow{Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester, Portal: vac.Origin["portal"],
+		row := ApplicationRow{Vacancy: vac.ref(), Requester: vac.Requester, Portal: vac.Origin["portal"],
 			CareersSite: vac.Origin["careers_site"], Manual: vac.Origin["manual"], Unknown: vac.Origin["unknown"]}
 		for _, channel := range channels {
 			if q.Channels == nil || slices.Contains(q.Channels, channel) {

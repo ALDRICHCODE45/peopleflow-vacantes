@@ -127,6 +127,16 @@ caller's company is ever read.
   screen's rule).
 - A requester is `{kind, id, name}`: `id` and `name` are null for «sin especificar», and
   the whole value is null for «sin solicitante».
+- **`VacancyRef`** is `{draft_id, title, kind, root_draft_id, sequence}` wherever a row names a process
+  (replacement-processes-v1 §«Metrics», R6b): `kind` is `original | replacement`, `root_draft_id` the original of
+  its logical vacancy (its own id for an original) and `sequence` the 1-based position in the chain (null for an
+  original). It is one Go type, so the three keys appear on the `deliveries`, `placements`, `reassignments`,
+  `candidates` and `applications` rows, on `pipeline.top_vacancies[].vacancy` and `delays.overdue.top[].vacancy`,
+  and on the company dashboard rows (below), and nowhere else: `applied_filters.vacancy` (`{draft_id, title}`),
+  the dashboard `recent` rows (`{id, title}`) and the flat `vacancies` rows keep their shape. The flat `vacancies`
+  rows (roots only) gain `replacements: {count, active_draft_id}` (the chain's replacements and the one whose
+  process is still active, else null). The per-vacancy detail reads (`vacancies/{id}/deliveries|placements`) gain a
+  top-level `process: {kind, root_draft_id, sequence}` next to `draft_id`.
 
 ## Detail lists (v2 §5)
 
@@ -250,6 +260,10 @@ normative table of the contract decides which one a figure reads:
 Process-level lists add `facets.process_kind = {original, replacement}`, counted with every filter but its own (the
 applications list counts applications, like its total); `applied_filters.process_kind` echoes the filter when sent.
 The dashboard lists have no `process_kind` and no such facet.
+
+The CSV exports of the process-level lists (`deliveries`, `placements`, `reassignments`, `candidates`,
+`applications`) and of the dashboard lists end with a `Tipo de proceso` column holding the API code
+(`original | replacement`), after every existing column; the `vacancies` export (roots only) keeps its columns.
 
 Two loader rules keep a carried participation (R3b) honest: `origin` and `applications` count
 `carried_from_participation_id IS NULL` only (a carry is not an application), and a carried intake at or beyond the cutoff

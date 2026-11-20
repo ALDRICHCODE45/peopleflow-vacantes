@@ -204,8 +204,8 @@ func TestMetricsPipeline_Figures(t *testing.T) {
 	// DD2: new is not in process, so A's three new candidates leave its
 	// figure (screening only) and B (custom, retired, in_process) leads.
 	editJSONEqual(t, got["top_vacancies"], mxJSON(t, []any{
-		map[string]any{"vacancy": map[string]any{"draft_id": s.b.String(), "title": "Backend"}, "requester": map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}, "responsible": nil, "in_process": 3},
-		map[string]any{"vacancy": map[string]any{"draft_id": s.a.String(), "title": "Analista"}, "requester": nil, "responsible": mxPerson(s.ana, "Ana", false), "in_process": 1},
+		map[string]any{"vacancy": mxRef(s.b, "Backend"), "requester": map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"}, "responsible": nil, "in_process": 3},
+		map[string]any{"vacancy": mxRef(s.a, "Analista"), "requester": nil, "responsible": mxPerson(s.ana, "Ana", false), "in_process": 1},
 	}))
 	// The period is echoed, never applied.
 	if other := s.get(s.owner, "pipeline?from=2020-01-01&to=2020-01-31"); mxNum(other["stages"].([]any)[0].(map[string]any)["candidates"]) != 3 {
@@ -279,7 +279,7 @@ func TestMetricsPipeline_CandidatesRowsAndAudit(t *testing.T) {
 	}
 	// The company's name view; entered at the intake.
 	editJSONEqual(t, items[1], mxJSON(t, map[string]any{"participation_id": s.p2.String(), "candidate": map[string]any{"id": candidateID, "full_name": "Paula Corregida"},
-		"vacancy": map[string]any{"draft_id": s.a.String(), "title": "Analista"}, "stage": map[string]any{"kind": "new", "name": "Nuevos"},
+		"vacancy": mxRef(s.a, "Analista"), "stage": map[string]any{"kind": "new", "name": "Nuevos"},
 		"business_days_in_stage": 1, "stalled": false, "entered_stage_at": "2026-03-23T18:00:00Z"}))
 	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"stage_kind": map[string]any{"new": 3, "screening": 1, "screening_ok": 0, "in_process": 0, "custom": 0, "placement": 1}, "stalled": 2, "process_kind": map[string]any{"original": 5, "replacement": 0}}))
 	// Recovery resets the entry; the retired row names its retired stage.
@@ -334,9 +334,9 @@ func TestMetricsPipeline_ApplicationsRows(t *testing.T) {
 		t.Fatalf("%v", body)
 	}
 	editJSONEqual(t, body["items"], mxJSON(t, []any{
-		map[string]any{"vacancy": map[string]any{"draft_id": s.b.String(), "title": "Backend"}, "requester": map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"},
+		map[string]any{"vacancy": mxRef(s.b, "Backend"), "requester": map[string]any{"kind": "client", "id": s.acme.String(), "name": "Acme"},
 			"portal": 2, "careers_site": 0, "manual": 0, "unknown": 1, "total": 3},
-		map[string]any{"vacancy": map[string]any{"draft_id": s.closed.String(), "title": "Cerrada"}, "requester": nil, "portal": 1, "careers_site": 0, "manual": 0, "unknown": 0, "total": 1},
+		map[string]any{"vacancy": mxRef(s.closed, "Cerrada"), "requester": nil, "portal": 1, "careers_site": 0, "manual": 0, "unknown": 0, "total": 1},
 	}))
 	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"channel": map[string]any{"portal": 3, "careers_site": 1, "manual": 1, "unknown": 1}, "process_kind": map[string]any{"original": 4, "replacement": 0}}))
 	editJSONEqual(t, body["applied_filters"], mxJSON(t, map[string]any{"channel": []any{"portal", "unknown"}}))
@@ -370,7 +370,7 @@ func TestMetricsPipeline_Exports(t *testing.T) {
 	}
 	draftFlowAssertNoStore(t, r)
 	rows := parseCSV(t, r.body)
-	if strings.Join(rows[0], "|") != "ID participación|ID candidato|Candidato|ID vacante|Vacante|Etapa|Nombre de etapa|Días hábiles en etapa|Detenido|Entró a la etapa" || len(rows) != 5 {
+	if strings.Join(rows[0], "|") != "ID participación|ID candidato|Candidato|ID vacante|Vacante|Etapa|Nombre de etapa|Días hábiles en etapa|Detenido|Entró a la etapa|Tipo de proceso" || len(rows) != 5 {
 		t.Fatalf("%q", rows)
 	}
 	var report string
@@ -385,7 +385,7 @@ func TestMetricsPipeline_Exports(t *testing.T) {
 	editJSONEqual(t, filters, mxJSON(t, map[string]any{"from": "2026-03-01", "to": "2026-03-31", "stalled": true, "sort": "business_days_in_stage", "order": "desc"}))
 	r = export("applications", "&channel=portal&sort=title")
 	rows = parseCSV(t, r.body)
-	if r.status != 200 || strings.Join(rows[0], "|") != "ID vacante|Vacante|Solicitante|Portal|Sitio de carreras|Manual|Desconocido|Total" || len(rows) != 3 ||
+	if r.status != 200 || strings.Join(rows[0], "|") != "ID vacante|Vacante|Solicitante|Portal|Sitio de carreras|Manual|Desconocido|Total|Tipo de proceso" || len(rows) != 3 ||
 		rows[1][1] != "Backend" || rows[1][2] != "Acme" || rows[1][7] != "2" || rows[2][2] != "Sin solicitante" {
 		t.Fatalf("%d %q", r.status, rows)
 	}

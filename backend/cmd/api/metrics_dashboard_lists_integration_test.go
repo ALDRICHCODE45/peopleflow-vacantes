@@ -207,7 +207,7 @@ func TestDashboardLists_ExportCSV(t *testing.T) {
 		}
 	}
 	rows := parseCSV(t, h.do(t, "GET", "/v2/me/company/dashboard/lists/vacancies/export?status=published&sort=title", "", s.owner.token, nil).body)
-	if strings.Join(rows[0], "|") != "ID vacante|Vacante|Solicitante|Responsable|Estado|Publicada|En proceso|Cubiertas|Requeridas" ||
+	if strings.Join(rows[0], "|") != "ID vacante|Vacante|Solicitante|Responsable|Estado|Publicada|En proceso|Cubiertas|Requeridas|Tipo de proceso" ||
 		len(rows) != 3 || rows[1][1] != "Analista" || rows[1][3] != "Ana" || rows[1][4] != "published" || rows[1][7] != "1" || rows[1][8] != "3" {
 		t.Fatalf("%q", rows)
 	}

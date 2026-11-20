@@ -905,3 +905,18 @@ and the latest-only rule (D14) match what they meant by «uno solo por vacante l
   counting them: they are operational and name participations, not applications.
 - **Existing tests changed** (facets only): the exact-wire assertions of the deliveries, placements, reassignments, candidates and
   applications `facets` gained `process_kind`.
+
+## R6b implementation notes
+
+- **`VacancyRef`** is one Go type, so `kind`, `root_draft_id` and `sequence` appear on exactly the rows the Metrics section lists, metrics and dashboard,
+  and `Detail` carries `process`; `VacancyRow` gains `replacements`. `applied_filters.vacancy`, the dashboard `recent` rows and the flat `vacancies`
+  rows (apart from `replacements`) are unchanged.
+- **Exports.** The `process_kind` column is the **last** one (header `Tipo de proceso`, cells `original | replacement`) of the `deliveries`,
+  `placements`, `reassignments`, `candidates` and `applications` exports and of the four dashboard list exports; the `vacancies` export (roots only)
+  keeps its columns. The dashboard applications CSV keeps it when it drops channel columns.
+- **Q1 needed no query change.** The history snapshot reads every `vacancy_processes` row of the company, never the projection, so an active private
+  replacement is published for the dashboard, and the logical vacancy counts once because its original is closed (a `close` event) and finished (D15)
+  before the replacement exists. Tests pin the figure, its list total and the recruiter scope.
+- **Existing tests changed** (the contract's new keys only): exact-wire `vacancy` objects of metrics and dashboard rows (`VacancyRef` literals,
+  `mxRef`), the flat vacancies rows (`replacements`), the detail header (`process`) and the CSV headers/rows (one extra column).
+

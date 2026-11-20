@@ -173,7 +173,7 @@ func (s *Service) Delays(ctx context.Context, company uuid.UUID, raw string) (*D
 			continue
 		}
 		if result, _ := vac.DeliveryResult(v.asOf, s.calendar); result == "overdue" {
-			row := OverdueRow{Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester, AttributedTo: vac.attributedPeople(result, v.data),
+			row := OverdueRow{Vacancy: vac.ref(), Requester: vac.Requester, AttributedTo: vac.attributedPeople(result, v.data),
 				CommitmentDate:      *vac.Delivery.Commitment,
 				BusinessDaysOverdue: s.calendar.Between(civilDate(*vac.Delivery.Commitment), civilOf(v.asOf)), Delivered: vac.Delivered()}
 			if vac.Delivery.Target != nil {
