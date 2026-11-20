@@ -3,7 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
-import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
+import { loadDraftPublicationAction, publishDraftAction } from "@/features/jobs/drafts/pipeline/publication-actions";
+import { loadDraftDeliveryAction } from "@/features/jobs/drafts/pipeline/delivery-actions";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
@@ -36,6 +37,7 @@ vi.mock("@/features/vacancy-replacement/start-replacement-dialog", () => ({
 vi.mock("@/features/vacancy-replacement/actions", () => ({ loadReplacementSummaryAction: vi.fn() }));
 vi.mock("@/features/pipeline-movement/actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn(), discardParticipationAction: vi.fn(), recoverParticipationAction: vi.fn(), setParticipationSubstateAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/pipeline/delivery-actions", () => ({ loadDraftDeliveryAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
 vi.mock("@/features/vacancy-lifecycle/actions", () => ({ getLifecycleAction: vi.fn(), transitionLifecycleAction: vi.fn() }));
@@ -177,4 +179,70 @@ it("closing without starting does not navigate, and the next request starts clea
   await waitFor(() => expect(screen.getAllByRole("menuitem", { name: "Iniciar reemplazo" })).toHaveLength(2));
   fireEvent.click(screen.getAllByRole("menuitem", { name: "Iniciar reemplazo" })[0]);
   expect(shown("credit")).toBe("sin preselección");
+});
+
+// S5/S6 «Private by default, publish later» (contract D4): a private replacement has publication `published` + visibility `private` in its
+// lifecycle while `GET V/publication` answers «draft». The screen decides from the lifecycle.
+const original = "223e4567-e89b-42d3-a456-426614174000";
+const privateLifecycle: Lifecycle = {
+  close_reason: null, close_reason_note: null, publication: "published", process: "active", version: "1", published_at: "2026-11-19T18:00:00Z", paused_at: null,
+  closed_at: null, process_finished_at: null, allowed_actions: ["pause", "close", "publish"],
+  kind: "replacement", sequence: 1, replacement_of: original, root_process_id: original, visibility: "private", closed_covered: false,
+  can_start_replacement: false, start_replacement_blocker: "source_not_closed", startable_credits_count: 0, active_replacement_id: null,
+};
+const publicLifecycle: Lifecycle = { ...privateLifecycle, visibility: "public", allowed_actions: ["pause", "close"] };
+async function mountPrivate(boards: Board[] = []) {
+  const board = (lifecycle: Lifecycle) => { const value = boardFixture(); value.lifecycle = lifecycle; return value; };
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: privateLifecycle }, identity: { draftId: read.id, etag: '"etag"' } });
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board(privateLifecycle) });
+  for (const next of boards) vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: next });
+  vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: true, data: { items: [], credits: [] } });
+  vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: privateLifecycle });
+  vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, etag: '"delivery"', delivery: { fulfilled: false, version: "1", cutoffStageId: "new", targetQuantity: 1, commitmentDate: "2026-11-30", limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-11-19", minDate: "2026-11-19", maxDate: "2027-11-19", nonBusinessDates: [] } } });
+  vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { retired: [], version: "1", stages: [{ id: "new", kind: "new", name: "Entrada" }], exit: { id: "exit", kind: "discarded", name: "Fuera" }, limits: { maxCustomStages: 3, nameMaxLength: 40 }, structure_locked: false } });
+  render(<DraftPipelineState draftId={read.id} />);
+  await screen.findByRole("heading", { name: "Entrada" });
+}
+it("S6: a private replacement (publication read «draft», lifecycle published + private) opens its board, not the draft screen", async () => {
+  await mountPrivate();
+  expect(screen.getByRole("region", { name: "Tablero de candidatos" })).toBeVisible();
+  expect(screen.queryByText("Esta vacante todavía no tiene pipeline")).not.toBeInTheDocument();
+  expect(screen.queryByText("Vacante en borrador")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument();
+});
+it("S6: the board says «Proceso iniciado» and «Privada · sin publicar» instead of a publication date while private", async () => {
+  await mountPrivate();
+  expect(screen.getByText(/Proceso iniciado el/)).toBeVisible();
+  expect(screen.getByText("Privada · sin publicar")).toBeVisible();
+  expect(screen.queryByText(/Publicada el/)).not.toBeInTheDocument();
+});
+it("S6: a real draft (lifecycle without a publication) keeps today's draft screen even if the publication read says published", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: null, process: null, allowed_actions: [] } }, identity: { draftId: read.id, etag: '"etag"' } });
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
+  render(<DraftPipelineState draftId={read.id} />);
+  expect(await screen.findByRole("heading", { name: "Esta vacante todavía no tiene pipeline" })).toBeVisible();
+  expect(loadBoardAction).not.toHaveBeenCalled();
+});
+it("S5: «Acciones» of a private replacement offers «Publicar»; publishing sends the usual publication request and re-reads the board", async () => {
+  const publishedAt = "2026-11-20T12:00:00Z";
+  vi.mocked(publishDraftAction).mockResolvedValue({ ok: true, publication: { id: read.id, status: "published", publishedAt } });
+  const priv = boardFixture(); priv.lifecycle = privateLifecycle;
+  const board = boardFixture(); board.lifecycle = publicLifecycle;
+  await mountPrivate([priv, board]);
+  fireEvent.click(await screen.findByRole("button", { name: `Acciones de ${read.fields.title}` }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Publicar" }));
+  const confirm = await screen.findByRole("alertdialog", { name: `¿Publicar ${read.fields.title}?` });
+  fireEvent.click(within(confirm).getByRole("button", { name: "Publicar vacante" }));
+  await waitFor(() => expect(publishDraftAction).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ draftId: read.id, ifMatch: '"etag"', body: {} })));
+  // The board is read again: it now answers public, so the screen drops «Privada · sin publicar» and the menu offers no «Publicar».
+  await waitFor(() => expect(screen.queryByText("Privada · sin publicar")).not.toBeInTheDocument());
+  expect(vi.mocked(loadBoardAction).mock.calls.length).toBeGreaterThanOrEqual(2);
+});
+it("S5: a public replacement's «Acciones» (lifecycle without «publish») never lists «Publicar»", async () => {
+  await mountPrivate();
+  vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: publicLifecycle });
+  fireEvent.click(await screen.findByRole("button", { name: `Acciones de ${read.fields.title}` }));
+  await screen.findByRole("menuitem", { name: "Pausar" });
+  expect(screen.queryByRole("menuitem", { name: "Publicar" })).not.toBeInTheDocument();
 });

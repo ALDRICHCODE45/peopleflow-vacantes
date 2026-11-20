@@ -116,7 +116,7 @@ const trigger = () => screen.getByRole("button", { name: "Acciones de Ana Pérez
 const openMenu = () => { fireEvent.click(trigger()); return screen.getByRole("menu"); };
 const names = (menu: HTMLElement) => within(menu).getAllByRole("menuitem").map(item => item.textContent);
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detailFixture() }); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 it("S3: a hire in Placement keeps a «⋯» menu with the single «No se sostuvo…» item on a finished board", async () => {
   await mount(hireBoard());
@@ -142,6 +142,33 @@ it("S3: the confirmation states the coverage before/after and that the original 
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(discardParticipationAction).not.toHaveBeenCalled();
+});
+it("S3: on desktop the confirmation keeps both actions on one row and checks the single option", async () => {
+  await mount(hireBoard());
+  fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
+  const dialog = await screen.findByRole("dialog", { name: "¿Marcar a Ana como «No se sostuvo»?" });
+  const actions = within(dialog).getByRole("button", { name: "Cancelar" }).parentElement as HTMLElement;
+  expect(actions).toContainElement(within(dialog).getByRole("button", { name: "Marcar «No se sostuvo»" }));
+  expect(actions).not.toHaveClass("flex-wrap");
+  expect(within(within(dialog).getByRole("group", { name: "Qué pasó con este placement" })).getByText("El candidato se fue").parentElement?.previousElementSibling).toHaveAttribute("aria-hidden", "true");
+});
+it("S3: at phone width the confirmation is a bottom sheet with the same facts, and confirming still marks the departure", async () => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  // jsdom has no Web Animations; the drawer only asks whether something is animating.
+  Object.defineProperty(HTMLElement.prototype, "getAnimations", { configurable: true, value: () => [] });
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: departureResponse(startable()) });
+  await mount(hireBoard());
+  fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
+  const sheet = await screen.findByRole("dialog", { name: "¿Marcar a Ana como «No se sostuvo»?" });
+  expect(sheet).toHaveAttribute("data-slot", "drawer-popup");
+  expect(sheet).toHaveTextContent("2 de 2 → 1 de 2");
+  expect(sheet).toHaveTextContent("Sin cambios");
+  fireEvent.click(within(sheet).getByRole("button", { name: "Marcar «No se sostuvo»" }));
+  await waitFor(() => expect(discardParticipationAction).toHaveBeenCalledTimes(1));
+  // Nothing behind the sheet reacted to the click: the candidate's sheet did not open.
+  expect(loadParticipationAction).not.toHaveBeenCalled();
+  delete (HTMLElement.prototype as { getAnimations?: unknown }).getAnimations;
 });
 it("S3: late departure on a finished board sends the discard body and refreshes lifecycle, coverage and the card", async () => {
   const start = vi.fn();
@@ -214,10 +241,38 @@ it("one GET V/replacements per board load resolves every departed card by partic
   fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Iniciar reemplazo" }));
   expect(start).toHaveBeenCalledExactlyOnceWith("credit-2");
 });
-it("S6: with a replacement active the contract lists no startable credit: the card offers nothing and the link bar leads to the replacement by name", async () => {
+const activeBlocked = () => life({ can_start_replacement: false, start_replacement_blocker: "replacement_active", active_replacement_id: other });
+it("S6 (artboard state 11): with a replacement active the departed card keeps its menu: «Iniciar reemplazo» disabled with the reason and a link to the active replacement", async () => {
   resolveSummary([]);
-  await mount(departedBoard(life({ can_start_replacement: false, start_replacement_blocker: "replacement_active", active_replacement_id: other })), vi.fn());
+  await mount(departedBoard(activeBlocked()), vi.fn());
   expect(await screen.findByRole("link", { name: "Ver reemplazo activo: Reemplazo 1" })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+  expect(trigger()).toBeEnabled();
+  const menu = openMenu();
+  const start = within(menu).getByRole("menuitem", { name: /Iniciar reemplazo/ });
+  expect(start).toBeDisabled();
+  expect(start).toHaveTextContent("Ya hay un reemplazo en curso. Solo puede haber uno activo por vacante.");
+  expect(within(menu).getByRole("menuitem", { name: "Ver reemplazo activo" })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+});
+it("S6: the fallen credit the backend lists keeps the «No se sostuvo» badge and its date while the replacement is active", async () => {
+  vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: true, data: { items: chainItems(), credits: [], fallen: [{ id: "credit-1", participationId: "person", leftAt, status: "blocked", replacedBy: null }] } });
+  await mount(departedBoard(activeBlocked()), vi.fn());
+  const badge = await screen.findByText("No se sostuvo", { selector: '[data-slot="badge"]' });
+  expect(badge.closest("li")).toHaveTextContent(/se fue el 17 nov/);
+  expect(within(openMenu()).getByRole("menuitem", { name: /Iniciar reemplazo/ })).toBeDisabled();
+});
+it("S6: a fallen credit a replacement already took says so and links to the replacement that took it", async () => {
+  vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: true, data: { items: chainItems(), credits: [], fallen: [{ id: "credit-1", participationId: "person", leftAt, status: "replaced", replacedBy: other }] } });
+  await mount(departedBoard(life({ can_start_replacement: false, start_replacement_blocker: "no_startable_credits" })), vi.fn());
+  await screen.findByText("No se sostuvo", { selector: '[data-slot="badge"]' });
+  const menu = openMenu();
+  expect(within(menu).getByRole("menuitem", { name: /Iniciar reemplazo/ })).toHaveTextContent("Esta baja ya tiene un reemplazo.");
+  expect(within(menu).getByRole("menuitem", { name: "Ver reemplazo activo" })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+});
+it("S6: when the backend lists fallen credits and this card is not one of them, nothing is offered", async () => {
+  vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: true, data: { items: chainItems(), credits: [], fallen: [] } });
+  await mount(departedBoard(activeBlocked()), vi.fn());
+  await waitFor(() => expect(loadReplacementSummaryAction).toHaveBeenCalledTimes(1));
+  expect(await screen.findByText("Ya no le interesa")).toBeVisible();
   expect(screen.queryByText("No se sostuvo", { selector: '[data-slot="badge"]' })).not.toBeInTheDocument();
   expect(trigger()).toBeDisabled();
 });

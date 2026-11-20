@@ -31,7 +31,7 @@ const items: DraftListRow[] = [
   { ...base, id: "paused-real", title: "Especialista DevOps", status: "paused", paused_at: "2026-03-10T15:00:00Z" },
   { ...base, id: "closed-real", title: "Analista de calidad", status: "closed", process: "finished", closed_at: "2026-03-11T15:00:00Z", process_finished_at: "2026-03-12T15:00:00Z" },
 ];
-const snapshot = (rows = items) => ({ items: rows, pending: false, failure: null, capped: false, retried: false, retry: vi.fn(), published: vi.fn(), lifecycleChanged: vi.fn() });
+const snapshot = (rows = items) => ({ items: rows, pending: false, failure: null, capped: false, retried: false, retry: vi.fn(), published: vi.fn(), madePublic: vi.fn(), lifecycleChanged: vi.fn() });
 beforeEach(() => { vi.mocked(usePortfolioDrafts).mockReturnValue(snapshot()); });
 afterEach(cleanup);
 

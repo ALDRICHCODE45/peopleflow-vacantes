@@ -54,10 +54,12 @@ function StageBreakdown({ pairs }: { pairs: string[] }) {
 const statusLabel = (draft: DraftListRow) => draft.status === "closed" ? `Cerrada · ${closeReasonLabel(draft.close_reason)}` : lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process });
 const statusVariant = (draft: DraftListRow) => draft.status === "draft" ? "info" : STATUS_VARIANT[draft.status === "published" ? "active" : draft.status];
 
-function VacancyRow({ draft, onPublished, onLifecycleChanged, onStartReplacement, toggle }: { draft: DraftListRow; onPublished: (id: string, publishedAt: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void; onStartReplacement: (id: string) => void; toggle?: React.ReactNode }) {
+function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onStartReplacement, toggle }: { draft: DraftListRow; onPublished: (id: string, publishedAt: string) => void; onMadePublic: (id: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void; onStartReplacement: (id: string) => void; toggle?: React.ReactNode }) {
   const [publishOpen, setPublishOpen] = React.useState(false);
   const title = draft.title || "Sin título";
   const state = draft.status === "published" ? "active" : draft.status;
+  // A private replacement is live (published axis) without a public listing: «Publicar» stays available and no publication date is claimed (contract D4).
+  const privateLive = draft.visibility === "private" && (draft.status === "published" || draft.status === "paused");
   const candidates = draft.candidates;
   const transition = draft.status === "paused" ? { label: "Pausada el", at: draft.paused_at }
     : draft.status === "closed" ? draft.process === "finished"
@@ -96,11 +98,14 @@ function VacancyRow({ draft, onPublished, onLifecycleChanged, onStartReplacement
           <p className={META}>{draft.status === "draft" ? "Sin pipeline · en borrador" : candidates ? candidates.total === 0 ? "Sin candidatos todavía" : <StageBreakdown pairs={[...candidates.by_stage.map(stage => `${stage.name}: ${stage.count}`), `Descartados: ${candidates.discarded}`]} /> : null}</p>
         </div>
         <div className={META}>
-          {draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : transition.at ? <time dateTime={transition.at}>{transition.label} {formatDate(transition.at)}</time> : "Fecha no disponible"}
+          {draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : <div className="flex flex-col gap-1">
+            {draft.status === "published" && privateLive ? null : transition.at ? <time dateTime={transition.at}>{transition.label} {formatDate(transition.at)}</time> : "Fecha no disponible"}
+            {privateLive && <span>Privada · sin publicar</span>}
+          </div>}
         </div>
       </div>
       <div data-pf-vacancy-zone="action" className="flex items-center gap-1 [&>a]:w-full [&>a]:lg:w-auto [&>button]:w-full [&>button]:lg:w-auto">
-        <LifecycleActionsMenu draftId={draft.id} title={title} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" ? () => setPublishOpen(true) : undefined} onStartReplacement={() => onStartReplacement(draft.id)}>
+        <LifecycleActionsMenu draftId={draft.id} title={title} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" || privateLive ? () => setPublishOpen(true) : undefined} onStartReplacement={() => onStartReplacement(draft.id)}>
           <DropdownMenuGroup>
             {portfolioRowActions(draft.id, draft.status === "draft" ? "draft" : "published").filter(action => action.kind !== "publish").map(action => {
               const Icon = action.kind === "pipeline" ? SquareKanban : FilePenLine;
@@ -109,7 +114,7 @@ function VacancyRow({ draft, onPublished, onLifecycleChanged, onStartReplacement
           </DropdownMenuGroup>
         </LifecycleActionsMenu>
       </div>
-      {draft.status === "draft" && <PublishDialog draftId={draft.id} open={publishOpen} onOpenChange={setPublishOpen} onPublished={publishedAt => onPublished(draft.id, publishedAt)} />}
+      {(draft.status === "draft" || privateLive) && <PublishDialog draftId={draft.id} open={publishOpen} onOpenChange={setPublishOpen} onPublished={publishedAt => draft.status === "draft" ? onPublished(draft.id, publishedAt) : onMadePublic(draft.id)} />}
     </li>
   );
 }
@@ -140,7 +145,7 @@ function ReplacementGroup({ id, root, loaded }: { id: string; root: string; load
     </li>)}</ul>
   </li>;
 }
-function VacancyGroup({ draft, replacements, ...row }: { draft: DraftListRow; replacements: DraftListRow[]; onPublished: (id: string, publishedAt: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void; onStartReplacement: (id: string) => void }) {
+function VacancyGroup({ draft, replacements, ...row }: { draft: DraftListRow; replacements: DraftListRow[]; onPublished: (id: string, publishedAt: string) => void; onMadePublic: (id: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void; onStartReplacement: (id: string) => void }) {
   const [open, setOpen] = React.useState(false);
   const panel = React.useId();
   return <>
@@ -237,7 +242,7 @@ export function VacancyPortfolio() {
                 title={!filtersActive ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"} description={emptyDescription}
                 primaryAction={!filtersActive ? { label: "Crear vacante", href: "/empresa/vacantes/borradores/nuevo" } : undefined}>
                 {filtersActive && <Button type="button" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}
-              </StateCard> : <ul className="divide-y divide-border">{topLevel.map(draft => <VacancyGroup key={draft.id} draft={draft} replacements={draft.kind === "replacement" ? [] : replacementsByRoot.get(draft.id) ?? []} onPublished={drafts.published} onLifecycleChanged={drafts.lifecycleChanged} onStartReplacement={startReplacement.open} />)}</ul>}
+              </StateCard> : <ul className="divide-y divide-border">{topLevel.map(draft => <VacancyGroup key={draft.id} draft={draft} replacements={draft.kind === "replacement" ? [] : replacementsByRoot.get(draft.id) ?? []} onPublished={drafts.published} onMadePublic={drafts.madePublic} onLifecycleChanged={drafts.lifecycleChanged} onStartReplacement={startReplacement.open} />)}</ul>}
               {!failure && drafts.retried && <div className="px-5"><ActionStatusSlot>{!drafts.pending && <ActionStatus id="portfolio-drafts-status" tone="success" text="Borradores cargados" />}</ActionStatusSlot></div>}
             </CardContent>
           </Card>

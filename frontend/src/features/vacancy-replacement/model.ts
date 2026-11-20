@@ -29,6 +29,15 @@ export const carryCandidateSchema = z.object({
 });
 export type CarryCandidate = z.infer<typeof carryCandidateSchema>;
 
+/** R4b: every credit that fell («did_not_hold») in the chain, whether or not it can be replaced now; the board keeps the badge from it. */
+export const fallenCreditSchema = z.object({
+  id, participation_id: id, process_id: id.optional(),
+  left_at: z.string().nullable().optional(),
+  status: z.enum(["replaced", "startable", "blocked"]),
+  replaced_by_process_id: id.optional(), blocker: startReplacementBlockerSchema.optional(),
+});
+export type FallenCredit = z.infer<typeof fallenCreditSchema>;
+
 /** `sequence` is 0 for the original and 1… for each replacement (the lifecycle view keeps `null` for an original; this list does not). */
 const chainItemSchema = z.object({
   id, kind: z.enum(["original", "replacement"]), sequence: z.number().int().nonnegative(), replacement_of: id.nullable(),
@@ -50,6 +59,8 @@ export const replacementsViewSchema = z.object({
   }),
   carry_candidates: z.array(carryCandidateSchema),
   carry_candidates_truncated: z.boolean(),
+  /** Absent before R4b (an older backend): then the board only knows the startable credits. A malformed list never breaks the start dialog: it reads as absent. */
+  fallen_credits: z.array(fallenCreditSchema).optional().catch(undefined),
 });
 export type ReplacementsView = z.infer<typeof replacementsViewSchema>;
 
@@ -61,11 +72,14 @@ export type ReplacementsView = z.infer<typeof replacementsViewSchema>;
 export type ChainSummary = {
   items: { id: string; kind: "original" | "replacement"; sequence: number; title: string; canOpen: boolean }[];
   credits: { id: string; participationId: string; hiredAt: string | null; leftAt: string | null }[];
+  /** Every fallen credit of the chain by participation; `undefined` while the backend does not send them (R4b). */
+  fallen?: { id: string; participationId: string; leftAt: string | null; status: FallenCredit["status"]; replacedBy: string | null }[];
 };
 export function summarizeReplacements(view: ReplacementsView): ChainSummary {
   return {
     items: view.items.map(item => ({ id: item.id, kind: item.kind, sequence: item.sequence, title: item.title, canOpen: item.can_open })),
     credits: view.start_replacement.startable_credits.map(credit => ({ id: credit.credit_id, participationId: credit.participation_id, hiredAt: credit.hired_at, leftAt: credit.left_at })),
+    ...(view.fallen_credits ? { fallen: view.fallen_credits.map(credit => ({ id: credit.id, participationId: credit.participation_id, leftAt: credit.left_at ?? null, status: credit.status, replacedBy: credit.replaced_by_process_id ?? null })) } : {}),
   };
 }
 export type { StartReplacementBlocker };

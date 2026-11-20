@@ -40,6 +40,23 @@ it("badges a replacement row «Reemplazo» and «Privada» when its original is 
   expect(within(row).getByText("Reemplazo")).toHaveAttribute("data-slot", "badge");
   expect(within(row).getByText("Privada")).toHaveAttribute("data-slot", "badge");
 });
+it("S5: a private replacement says «Privada · sin publicar» instead of a publication date; a public one keeps «Publicada el»", async () => {
+  list([replacement(first, 1), replacement(second, 2, { visibility: "public", published_at: "2026-11-12T12:00:00Z" })]);
+  const { container } = render(<VacancyPortfolio />); await screen.findAllByText("Supervisor de Almacén");
+  const privateRow = container.querySelector(`[data-pf-vacancy-row="${first}"]`) as HTMLElement;
+  expect(within(privateRow).getByText("Privada · sin publicar")).toBeVisible();
+  expect(privateRow).not.toHaveTextContent(/Publicada el/);
+  const publicRow = container.querySelector(`[data-pf-vacancy-row="${second}"]`) as HTMLElement;
+  expect(publicRow).toHaveTextContent("Publicada el 12 de noviembre de 2026");
+  expect(publicRow).not.toHaveTextContent("sin publicar");
+});
+it("S5: a paused private replacement keeps its pause date and also says it is unpublished", async () => {
+  list([replacement(first, 1, { status: "paused", paused_at: "2026-11-14T12:00:00Z" })]);
+  const { container } = render(<VacancyPortfolio />); await screen.findByText("Supervisor de Almacén");
+  const row = container.querySelector(`[data-pf-vacancy-row="${first}"]`) as HTMLElement;
+  expect(row).toHaveTextContent("Pausada el 14 de noviembre de 2026");
+  expect(within(row).getByText("Privada · sin publicar")).toBeVisible();
+});
 it("a public replacement has no «Privada» badge", async () => {
   list([replacement(first, 1, { visibility: "public" })]);
   render(<VacancyPortfolio />); await screen.findByText("Reemplazo");

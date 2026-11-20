@@ -189,3 +189,13 @@ it("failed reconciliation preserves uncertainty until a later explicit check", a
  expect(onPublished).toHaveBeenCalledWith(date); expect(publishDraftAction).toHaveBeenCalledTimes(1);
 });
 it("failed loading stays inline and retries only explicitly", async () => { vi.mocked(loadDraftDeliveryAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 500 } }); mount(); fireEvent.click(await screen.findByRole("button", { name: "Reintentar" })); await screen.findByText("Lista para entrevista"); expect(loadDraftDeliveryAction).toHaveBeenCalledTimes(2); });
+it("S5 publish later: a private replacement's confirmation says the delivery clock does not restart, and so does the result", async () => {
+ vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: { ...draftEditSeedFromRead(draft), lifecycle: { ...draftEditSeedFromRead(draft).lifecycle, kind: "replacement", visibility: "private" } }, identity: { draftId: draft.id, etag: '"draft-etag"' } });
+ mount();
+ const dialog = await screen.findByRole("alertdialog", { name: `¿Publicar ${draftEditSeedFromRead(draft).model.fields.title}?` });
+ expect(dialog).toHaveAccessibleDescription(/El tiempo de entrega no se reinicia: sigue contando desde que inició el reemplazo/);
+ expect(dialog).not.toHaveTextContent("Empieza a contar el tiempo de entrega");
+ await confirm();
+ await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Vacante publicada", description: expect.stringContaining("no se reinició") })));
+ expect(publishDraftAction).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: {} }));
+});

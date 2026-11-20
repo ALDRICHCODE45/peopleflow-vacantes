@@ -15,13 +15,14 @@ import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/dr
 
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publication-client";
-import { PublishButton } from "./publication/publish-dialog";
+import { PublishButton, PublishDialog } from "./publication/publish-dialog";
 import { MovementBoard } from "@/features/pipeline-movement/board";
 import type { Board } from "@/features/pipeline-movement/model";
 import { cn } from "@/lib/utils";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 import { ReplacementBadges } from "@/features/vacancy-lifecycle/ui/replacement-badges";
+import { useCompactViewport } from "@/features/vacancy-lifecycle/ui/use-compact-viewport";
 import { useStartReplacementRequest } from "./use-start-replacement-request";
 import { replacementSource, type ReplacementSource } from "./replacement-source";
 import { StartReplacementHost } from "./start-replacement-host";
@@ -30,6 +31,9 @@ import { StartReplacementHost } from "./start-replacement-host";
 export function DraftPipelineState({ draftId }: { draftId: string }) {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication?: DraftPublication } | null>(null);
+  // «Publicar» of a private replacement (S5 publish later) opens the usual dialog; a successful publication re-reads the board.
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [boardAttempt, setBoardAttempt] = useState(0);
   const [boardLifecycle, setBoardLifecycle] = useState<{ id: string; value: Lifecycle }>();
   const onLifecycleChange = useCallback((value: Lifecycle) => setBoardLifecycle({ id: draftId, value }), [draftId]);
   const result = loaded?.id === draftId ? loaded.result : null;
@@ -53,19 +57,27 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
     return () => { current = false; };
   }, [draftId, attempt]);
   const retry = () => { setLoaded(null); setAttempt(value => value + 1); };
-  const published = loaded?.id === draftId && loaded.publication?.status === "published";
-  const publishedAt = published ? loaded?.publication?.publishedAt : null;
+  // Contract D4: a private replacement reads «draft» on `GET V/publication` while its lifecycle is published + private, with a process. The lifecycle
+  // decides: only a draft that never published (no publication axis) keeps the draft screen.
+  const seedLifecycle = result?.ok ? result.seed.lifecycle : undefined;
+  const hasProcess = seedLifecycle?.publication != null && seedLifecycle.process != null;
+  const published = (loaded?.id === draftId && loaded.publication?.status === "published") || hasProcess;
+  const publishedAt = loaded?.id === draftId ? loaded.publication?.publishedAt ?? null : null;
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Pipeline";
   const lifecycle = boardLifecycle?.id === draftId ? boardLifecycle.value : result?.ok ? result.seed.lifecycle : undefined;
   const status = publicationStatus(lifecycle?.publication, "accent", lifecycle?.process);
+  // On a phone the header bar has no room for the state and replacement badges beside the title (it truncated to «Su…»): they wrap in a row below it instead.
+  const compact = useCompactViewport();
+  const badges = result?.ok ? <><Badge variant={status.variant} dot>{status.label}</Badge>{lifecycle && <ReplacementBadges lifecycle={lifecycle} />}</> : undefined;
   const configHref = `/empresa/vacantes/${draftId}/configuracion/columnas`;
   return (
     // The inset shell has 8px above and below it on desktop. Only the live
     // board owns a viewport frame; drafts and mobile retain page scrolling.
     <div className={cn("flex min-h-0 flex-1 flex-col", published && "md:h-[calc(100dvh-1rem)] md:flex-none md:overflow-hidden")} aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <><Badge variant={status.variant} dot>{status.label}</Badge>{lifecycle && <ReplacementBadges lifecycle={lifecycle} />}</> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? compact ? undefined : badges : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex min-h-0 flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="min-h-0 flex-1 gap-5 md:gap-6">
+          {compact && badges && <div className="flex shrink-0 flex-wrap items-center gap-1.5">{badges}</div>}
           {!published && <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-1.5">
               <h2 id="draft-pipeline-heading" className="font-heading text-[20px] font-semibold text-foreground">Pipeline</h2>
@@ -88,7 +100,8 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
             </>
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
             <>
-              <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} onBoardChange={onBoardChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} />
+              <MovementBoard key={boardAttempt} vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} onBoardChange={onBoardChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} onPublish={() => setPublishOpen(true)} />
+              {publishOpen && <PublishDialog draftId={draftId} open onOpenChange={setPublishOpen} onPublished={() => setBoardAttempt(value => value + 1)} />}
               {startReplacement.request?.draftId === draftId && source?.id === draftId && <StartReplacementHost key={draftId} draftId={draftId} title={title} creditId={startReplacement.request.creditId} source={source.value} onClose={startReplacement.close} />}
             </>
           ) : (

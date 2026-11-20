@@ -1,5 +1,7 @@
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { startOffer, type StartOffer } from "@/features/vacancy-lifecycle/replacement-state";
 import type { Board, DiscardBody, Participation } from "./model";
-import type { DepartureCredit } from "./use-departure-credits";
+import type { DepartureCredit, FallenDeparture } from "./use-departure-credits";
 
 /**
  * replacement-processes S1/S3. «No se sostuvo» from a card rides the existing discard route with
@@ -18,9 +20,29 @@ export const leftPlacement = (board: Board, item: Participation) => !!item.disca
 export type LateActions = {
   /** The startable «No se sostuvo» credit of a card that left Placement; `undefined` while unknown, unlisted or when the single replacement read failed. */
   creditOf: (item: Participation) => DepartureCredit | undefined;
+  /** The fallen credit of a card (startable or not) once the backend lists them (R4b); `fallenKnown` tells «not listed» from «not told». */
+  fallenOf?: (item: Participation) => FallenDeparture | undefined;
+  fallenKnown?: boolean;
   /** Stricter than the finished-board lock: a late action only waits for other pending work. */
   lateLocked: boolean;
   onLeave: (id: string) => void;
   onStartReplacement?: (creditId?: string) => void;
   confirming: { id: string; pending: boolean; confirm: () => void; cancel: () => void } | null;
 };
+
+/**
+ * What the «Iniciar reemplazo» item of a card that left Placement shows (artboard states 3 and 11). A startable credit: the lifecycle's own offer.
+ * A fallen credit the backend lists (R4b) that is not startable: the item stays, disabled, with the reason (a replacement already took it, or the
+ * lifecycle blocker). Credits not listed at all: only the lifecycle's «replacement_active» still explains itself; anything else offers nothing.
+ */
+export function departureOffer(lifecycle: Lifecycle, known: { credit?: DepartureCredit; fallen?: FallenDeparture; fallenKnown?: boolean }): StartOffer {
+  const base = startOffer(lifecycle);
+  if (base.kind === "none") return base;
+  if (known.credit) return base;
+  const blocked = base.kind === "blocked";
+  if (known.fallen) {
+    if (known.fallen.status === "replaced") return { kind: "blocked", reason: "Esta baja ya tiene un reemplazo.", activeReplacementId: known.fallen.replacedBy ?? (blocked ? base.activeReplacementId : null) };
+    return blocked ? base : { kind: "none" };
+  }
+  return !known.fallenKnown && blocked && lifecycle.start_replacement_blocker === "replacement_active" ? base : { kind: "none" };
+}

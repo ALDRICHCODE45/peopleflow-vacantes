@@ -19,8 +19,8 @@ import type { Notice } from "./board-feedback";
 import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
 import { DepartureConfirm } from "./departure-confirm";
-import { isActiveHire, leftPlacement, type LateActions } from "./departure";
-import { isReplacementAware, startOffer } from "@/features/vacancy-lifecycle/replacement-state";
+import { departureOffer, isActiveHire, leftPlacement, type LateActions } from "./departure";
+import { isReplacementAware } from "@/features/vacancy-lifecycle/replacement-state";
 import { isInProcess, substateName } from "./substates";
 import { candidateHint, filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
@@ -53,10 +53,13 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   const aware = !!late && isReplacementAware(board.lifecycle);
   const finished = board.lifecycle.process === "finished";
   const leave = aware && isActiveHire(board, item) ? () => late.onLeave(item.id) : undefined;
-  const credit = aware && leftPlacement(board, item) ? late.creditOf(item) : undefined;
+  const departed = aware && leftPlacement(board, item);
+  const credit = departed ? late.creditOf(item) : undefined;
+  // A fallen credit the backend lists (R4b) keeps the badge while a replacement is active or already took it.
+  const fallen = departed ? late.fallenOf?.(item) : undefined;
   // The credit's own `left_at` says when they left; the discard date covers a credit that comes without it.
-  const unsustained = !!credit;
-  const offer = unsustained && late?.onStartReplacement ? startOffer(board.lifecycle) : ({ kind: "none" } as const);
+  const unsustained = !!credit || !!fallen;
+  const offer = departed && late?.onStartReplacement ? departureOffer(board.lifecycle, { credit, fallen, fallenKnown: late.fallenKnown }) : ({ kind: "none" } as const);
   const start = offer.kind === "none" ? undefined : { offer, onStart: () => late?.onStartReplacement?.(credit?.id) };
   // A finished board keeps an enabled menu only for these late actions (and then lists nothing else), while no other work is pending.
   const lateOnly = finished && !!(leave || start);
@@ -65,7 +68,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   // Frozen at application (T13). With a title the name keeps one line, so both still fit the 40 px name button.
   const professionalTitle = item.profile.professional_title || null;
   const titleId = professionalTitle ? `candidate-title-${item.id}` : undefined;
-  return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55")}
+  return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55", unsustained && "bg-status-review/5")}
     onClick={event => {
       if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu'],[role='checkbox'],[data-slot='popover-content']")) return;
       onDetail(item.id);
@@ -90,7 +93,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     </CardContent>
     <Separator />
     <CardFooter className="min-h-6 gap-2 px-0">
-      {item.discard ? unsustained ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="review" dot>No se sostuvo</Badge><p className="text-xs text-muted-foreground">se fue el <MovementDate value={credit?.leftAt ?? item.discard.discarded_at} compact /></p></div> : <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
+      {item.discard ? unsustained ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="review" dot>No se sostuvo</Badge><p className="text-xs text-muted-foreground">se fue el <MovementDate value={credit?.leftAt ?? fallen?.leftAt ?? item.discard.discarded_at} compact /></p></div> : <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
         <Hint text={item.cv.name}><span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"><FileIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{item.cv.name}</span></span></Hint>
         {board.lifecycle.process !== "finished" && <Button type="button" variant="ghost" size="icon" className="-my-2 ml-auto size-10 shrink-0 cursor-grab touch-none text-muted-foreground opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover/candidate:opacity-100 sm:group-focus-within/candidate:opacity-100 focus-visible:opacity-100"
           ref={setActivatorNodeRef} {...attributes} {...listeners} disabled={disabled} id={`candidate-drag-${item.id}`} aria-label={`Arrastrar ${item.candidate.full_name}`} aria-describedby={statusId}><GripVertical aria-hidden="true" /></Button>}

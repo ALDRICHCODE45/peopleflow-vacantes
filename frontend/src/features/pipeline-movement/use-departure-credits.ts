@@ -8,6 +8,8 @@ import type { Board, Participation } from "./model";
 
 /** What the card needs of a «No se sostuvo»: the credit to start a replacement with, and when the hire left, if the backend says. */
 export type DepartureCredit = ChainSummary["credits"][number];
+/** A credit that fell, startable or not (R4b): what keeps the badge while a replacement is active. */
+export type FallenDeparture = NonNullable<ChainSummary["fallen"]>[number];
 const signature = (item: Pick<Participation, "id" | "version">) => `${item.id}:${item.version}`;
 
 /**
@@ -39,5 +41,8 @@ export function useReplacementSummary(vacancyId: string, board: Board | null) {
   // The last answer of THIS vacancy stays while a newer read is in flight, so the link bar does not flicker.
   const summary = wanted && read?.vacancyId === vacancyId ? read.summary : null;
   const creditOf = useCallback((item: Participation): DepartureCredit | undefined => summary?.credits.find(credit => credit.participationId === item.id), [summary]);
-  return { chain: summary?.items, creditOf };
+  // `undefined` = the backend does not say (older, or the read failed); a function whose answer is `undefined` = it says, and this card is not one.
+  const fallen = summary?.fallen;
+  const fallenOf = useCallback((item: Participation): FallenDeparture | undefined => fallen?.find(credit => credit.participationId === item.id), [fallen]);
+  return { chain: summary?.items, creditOf, fallenOf, fallenKnown: fallen !== undefined };
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { loadStartContextAction, startReplacementAction } from "./actions";
 import type { StartFailure } from "./failure";
@@ -193,8 +194,12 @@ function Flow({ ctx, draftId, title, stages, unavailableHires = [], preselectedC
   const header = <DialogHeader className="gap-2 pr-10">
     <DialogTitle ref={titleRef} tabIndex={-1} className="outline-none">Iniciar reemplazo</DialogTitle>
     {title && <DialogDescription>{title}</DialogDescription>}
-    <ol aria-label={`Paso ${step} de 3`} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-      {STEPS.map((label, index) => <li key={label} aria-current={step === index + 1 ? "step" : undefined} className={step === index + 1 ? "font-medium text-foreground" : undefined}>Paso {index + 1}: {label}</li>)}
+    {/* Three bars (artboard 04): the current and finished steps are filled. On a phone the label is the step's name alone so nothing wraps; «Paso N» stays in the list's name and the live status. */}
+    <ol aria-label={`Paso ${step} de 3`} className="mt-1 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+      {STEPS.map((label, index) => <li key={label} aria-current={step === index + 1 ? "step" : undefined} className={cn("flex min-w-0 flex-col gap-1.5 font-medium", step === index + 1 && "text-foreground")}>
+        <span aria-hidden="true" className={cn("h-1 rounded-full bg-border", step >= index + 1 && "bg-primary")} />
+        <span className="hidden truncate sm:inline">Paso {index + 1}: {label}</span><span className="truncate sm:hidden">{label}</span>
+      </li>)}
     </ol>
     <p role="status" className="sr-only">Paso {step} de 3: {STEPS[step - 1]}</p>
   </DialogHeader>;
@@ -217,15 +222,16 @@ function Flow({ ctx, draftId, title, stages, unavailableHires = [], preselectedC
         publish={publish} onPublish={setPublish} missing={missing} errors={errors} pending={pending} />}
       {step === 3 && <CandidatesStep headingRef={heading} candidates={candidates} truncated={view.carry_candidates_truncated} stages={startingStages(stages)} chosen={chosen} errors={errors.candidates} filter={filter} onFilter={setFilter} onToggle={toggleCandidate} onStage={chooseStage} pending={pending} />}
     </div>
-    <DialogFooter className="items-center sm:justify-between">
+    {/* Phone: the count above, then «Atrás»/«Cancelar» and the primary side by side in two equal columns. */}
+    <DialogFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-muted-foreground">{step === 1 ? countBajas(selected.size) : step === 2 ? `${selected.size} ${selected.size === 1 ? "baja" : "bajas"} · objetivo ${targetNumber > 0 ? targetNumber : minTarget}` : countCandidates(chosenOrdered.length)}</p>
-      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+      <div className="grid grid-cols-2 gap-2 sm:flex">
         {step === 1
-          ? <Button type="button" variant="outline" className="min-h-10" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          : <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => goTo((step - 1) as 1 | 2)}>Atrás</Button>}
-        {step === 1 && <Button type="button" className="min-h-10" disabled={selected.size === 0} aria-describedby={selected.size === 0 ? NO_BAJAS_HINT_ID : undefined} onClick={() => goTo(2)}>Siguiente</Button>}
-        {step === 2 && <Button type="button" className="min-h-10" disabled={pending} onClick={advanceFromConditions}>Siguiente</Button>}
-        {step === 3 && <Button type="button" className="min-h-10" disabled={pending} aria-busy={pending || undefined} onClick={() => void submit()}>{pending ? <><Spinner aria-hidden="true" data-icon="inline-start" />Iniciando…</> : "Iniciar reemplazo"}</Button>}
+          ? <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          : <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" disabled={pending} onClick={() => goTo((step - 1) as 1 | 2)}><ArrowLeft aria-hidden="true" data-icon="inline-start" />Atrás</Button>}
+        {step === 1 && <Button type="button" className="min-h-10 w-full sm:w-auto" disabled={selected.size === 0} aria-describedby={selected.size === 0 ? NO_BAJAS_HINT_ID : undefined} onClick={() => goTo(2)}>Siguiente<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>}
+        {step === 2 && <Button type="button" className="min-h-10 w-full sm:w-auto" disabled={pending} onClick={advanceFromConditions}>Siguiente<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>}
+        {step === 3 && <Button type="button" className="min-h-10 w-full sm:w-auto" disabled={pending} aria-busy={pending || undefined} onClick={() => void submit()}>{pending ? <><Spinner aria-hidden="true" data-icon="inline-start" />Iniciando…</> : "Iniciar reemplazo"}</Button>}
       </div>
     </DialogFooter>
   </>;

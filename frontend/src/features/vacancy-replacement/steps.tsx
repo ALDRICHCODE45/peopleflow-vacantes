@@ -1,7 +1,8 @@
 "use client";
 
 import { forwardRef, type ReactNode, type Ref } from "react";
-import { Minus, Plus } from "lucide-react";
+import { History, Info, Minus, Plus } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import { BusinessDateField } from "@/features/employer-vacancies/delivery-config/date-field";
 import { groupMissing } from "@/features/jobs/drafts/pipeline/publication-model";
 import { MAX_BAJAS, MAX_CARRIED, businessDaysUntil, candidateKey, startingStages, type CarryCandidate, type SourceStage, type StartContext, type StartableCredit, type UnavailableHire } from "./model";
@@ -19,6 +21,11 @@ const day = (value: string | null) => { const date = value ? new Date(value) : n
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 export const countBajas = (count: number) => plural(count, "baja elegida", "bajas elegidas");
 export const countCandidates = (count: number) => plural(count, "candidato", "candidatos");
+const initials = (name: string) => name.trim().split(/\s+/u).slice(0, 2).map(part => Array.from(part)[0]).join("").toUpperCase();
+/** The person's initials on a row (artboard 04); the name beside it already says who it is, so it is decorative. */
+const Person = ({ name }: { name: string }) => <Avatar aria-hidden="true" className="size-8 shrink-0"><AvatarFallback className="bg-secondary text-xs font-medium text-muted-foreground">{initials(name)}</AvatarFallback></Avatar>;
+/** Tinted note (artboard 04 `.note`): coverage and audit remarks read as information, not as body copy. */
+const Note = ({ icon: Icon, children }: { icon: typeof Info; children: ReactNode }) => <p className="flex items-start gap-2.5 rounded-2xl bg-primary/5 p-3 text-xs leading-4 text-foreground"><Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" /><span>{children}</span></p>;
 const itemClass = "flex min-w-0 flex-col gap-2 rounded-2xl border p-3 has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary/5";
 
 /** Every step opens with a focusable heading: the dialog moves focus to it so the change of step is announced. */
@@ -51,11 +58,12 @@ export function BajasStep({ headingRef, credits, unavailable, selected, errors, 
         return <li key={credit.credit_id} className={itemClass}>
           <Field orientation="horizontal" className="items-start">
             <Checkbox id={base} aria-labelledby={`${base}-name`} aria-describedby={`${base}-meta${errors[credit.credit_id] ? ` ${base}-error` : ""}`} checked={selected.has(credit.credit_id)} onCheckedChange={checked => onToggle(credit.credit_id, checked)} />
+            <Person name={credit.candidate.full_name} />
             <FieldContent>
               <FieldLabel htmlFor={base} id={`${base}-name`} className="font-medium">{credit.candidate.full_name}</FieldLabel>
               <span id={`${base}-meta`} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {[hired && `Placement el ${hired}`, left && `se fue el ${left}`].filter(Boolean).join(" · ")}
-                <Badge variant="danger">No se sostuvo</Badge>
+                <Badge variant="review" dot>No se sostuvo</Badge>
               </span>
               {errors[credit.credit_id] && <FieldError id={`${base}-error`}>{errors[credit.credit_id]}</FieldError>}
             </FieldContent>
@@ -67,17 +75,19 @@ export function BajasStep({ headingRef, credits, unavailable, selected, errors, 
         return <li key={hire.id} className={`${itemClass} opacity-80`}>
           <Field orientation="horizontal" className="items-start" data-disabled>
             <Checkbox id={base} disabled aria-labelledby={`${base}-name`} aria-describedby={`${base}-reason`} checked={false} />
+            <Person name={hire.name} />
             <FieldContent>
               <FieldLabel htmlFor={base} id={`${base}-name`} className="font-medium">{hire.name}</FieldLabel>
               <span id={`${base}-reason`} className="text-xs text-muted-foreground">{REASON_COPY[hire.reason]}</span>
+              {hire.reason === "still_placed" && <Badge variant="success" dot>Sigue en Placement</Badge>}
             </FieldContent>
           </Field>
         </li>;
       })}
     </ul>
-    {coverage && <p className="text-sm text-muted-foreground">
-      Cobertura actual: <b className="font-medium text-foreground">{coverage.required === null ? `${coverage.covered} plazas` : `${coverage.covered} de ${coverage.required} plazas`}</b>. Cada baja que elijas suma una plaza al objetivo del reemplazo; el proceso original no se modifica.
-    </p>}
+    {coverage && <Note icon={Info}>
+      Cobertura actual: <b className="font-medium">{coverage.required === null ? `${coverage.covered} plazas` : `${coverage.covered} de ${coverage.required} plazas`}</b>. Cada baja que elijas suma una plaza al objetivo del reemplazo; el proceso original no se modifica.
+    </Note>}
     {hint}
   </FieldSet>;
 }
@@ -106,29 +116,31 @@ export function ConditionsStep({ headingRef, ctx, responsible, onResponsible, ta
       <FieldDescription id="replacement-responsible-help">El reemplazo abre con su propio equipo: nadie del equipo original pasa automáticamente.</FieldDescription>
       {errors.responsible && <FieldError id="replacement-responsible-error">{errors.responsible}</FieldError>}
     </Field>
-    <Field data-invalid={!!targetError || undefined}>
-      <FieldLabel htmlFor="replacement-target">Objetivo</FieldLabel>
-      <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" size="icon" className="size-10" aria-label="Quitar un candidato" disabled={pending || !(value > minTarget)} onClick={() => onTarget(String(value - 1))}><Minus aria-hidden="true" /></Button>
-        <Input id="replacement-target" type="number" inputMode="numeric" min={minTarget} max={MAX_BAJAS} step={1} className="h-10 w-24 text-center" value={targetValue} disabled={pending} aria-invalid={!!targetError || undefined} aria-describedby={`replacement-target-help${targetError ? " replacement-target-error" : ""}`} onChange={event => onTarget(event.target.value)} />
-        <Button type="button" variant="outline" size="icon" className="size-10" aria-label="Agregar un candidato" disabled={pending || !(value < MAX_BAJAS)} onClick={() => onTarget(String(Number.isFinite(value) ? value + 1 : minTarget))}><Plus aria-hidden="true" /></Button>
-      </div>
-      <FieldDescription id="replacement-target-help">Candidatos a entregar. Por defecto, uno por cada baja; no puede ser menor.</FieldDescription>
-      {targetError && <FieldError id="replacement-target-error">{targetError}</FieldError>}
-    </Field>
-    <BusinessDateField id="replacement-date" label="Fecha compromiso" value={date} calendar={ctx.calendar} errorMessage={dateError} disabled={pending} onChange={onDate}
-      description={days === null ? "Día hábil en México, desde hoy y hasta dentro de un año." : `Plazo desde hoy: ${plural(days, "día hábil", "días hábiles")}.`} />
+    {/* Objetivo and Fecha compromiso share a row on desktop so the dialog fits 1440×900 without scrolling; they stack on a phone. */}
+    <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+      <Field data-invalid={!!targetError || undefined}>
+        <FieldLabel htmlFor="replacement-target">Objetivo</FieldLabel>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="icon" className="size-10" aria-label="Quitar un candidato" disabled={pending || !(value > minTarget)} onClick={() => onTarget(String(value - 1))}><Minus aria-hidden="true" /></Button>
+          <Input id="replacement-target" type="number" inputMode="numeric" min={minTarget} max={MAX_BAJAS} step={1} className="h-10 w-24 text-center" value={targetValue} disabled={pending} aria-invalid={!!targetError || undefined} aria-describedby={`replacement-target-help${targetError ? " replacement-target-error" : ""}`} onChange={event => onTarget(event.target.value)} />
+          <Button type="button" variant="outline" size="icon" className="size-10" aria-label="Agregar un candidato" disabled={pending || !(value < MAX_BAJAS)} onClick={() => onTarget(String(Number.isFinite(value) ? value + 1 : minTarget))}><Plus aria-hidden="true" /></Button>
+        </div>
+        <FieldDescription id="replacement-target-help">Candidatos a entregar. Por defecto, uno por cada baja; no puede ser menor.</FieldDescription>
+        {targetError && <FieldError id="replacement-target-error">{targetError}</FieldError>}
+      </Field>
+      <BusinessDateField id="replacement-date" label="Fecha compromiso" value={date} calendar={ctx.calendar} errorMessage={dateError} disabled={pending} onChange={onDate}
+        description={days === null ? "Día hábil en México, desde hoy y hasta dentro de un año." : `Plazo desde hoy: ${plural(days, "día hábil", "días hábiles")}.`} />
+    </div>
     <Field orientation="horizontal" className="items-start rounded-2xl border p-3" data-disabled={blocked || undefined}>
       <Switch aria-labelledby="replacement-publish-label" aria-describedby={`replacement-publish-help${blocked ? " replacement-publish-missing" : ""}`} checked={publish && !blocked} disabled={pending || blocked} onCheckedChange={onPublish} />
       <FieldContent>
         <span id="replacement-publish-label" className="text-sm font-medium">Publicar al iniciar</span>
         <FieldDescription id="replacement-publish-help">
-          Por defecto es privado: nadie fuera de tu equipo lo ve. Si lo publicas, sale como un aviso normal, sin mencionar que es un reemplazo.
+          Por defecto es privado: nadie fuera de tu equipo lo ve. Si lo publicas, sale como un aviso normal, sin mencionar que es un reemplazo. Publicar después no reinicia el plazo: el reloj corre desde que inicias el reemplazo.
         </FieldDescription>
         {blocked && <div id="replacement-publish-missing" className="text-sm text-status-review">
           {labels.length > 0 ? <>Para publicar al iniciar falta, en la vacante original:<ul className="ml-4 list-disc">{labels.map(label => <li key={label}>{label}</li>)}</ul></> : "Para publicar al iniciar, la vacante original aún no está lista."}
         </div>}
-        <p className="text-xs text-muted-foreground">Publicar después no reinicia el plazo: el reloj corre desde que inicias el reemplazo.</p>
       </FieldContent>
     </Field>
   </div>;
@@ -156,28 +168,30 @@ export function CandidatesStep({ headingRef, candidates, truncated, stages, chos
         {visible.map(item => {
           const key = candidateKey(item.candidate); const base = `replacement-candidate-${item.candidate.kind}-${item.candidate.id}`;
           const checked = key in chosen;
-          return <li key={key} className={itemClass}>
-            <Field orientation="horizontal" className="items-start">
+          // Desktop: who they are on the left, the starting stage on the right; a phone stacks them (artboard 04).
+          return <li key={key} className={cn(itemClass, "sm:flex-row sm:items-center sm:justify-between sm:gap-4")}>
+            <Field orientation="horizontal" className="min-w-0 flex-1 items-start">
               <Checkbox id={base} aria-labelledby={`${base}-name`} aria-describedby={`${base}-meta${errors[key] ? ` ${base}-error` : ""}`} checked={checked} disabled={pending || (!checked && full)} onCheckedChange={next => onToggle(item, next)} />
+              <Person name={item.candidate.full_name} />
               <FieldContent>
                 <FieldLabel htmlFor={base} id={`${base}-name`} className="font-medium">{item.candidate.full_name}</FieldLabel>
                 <span id={`${base}-meta`} className="text-xs text-muted-foreground">{item.discarded ? "Descartado" : "En proceso"} · antes: {item.stage.name}</span>
+                {errors[key] && <FieldError id={`${base}-error`}>{errors[key]}</FieldError>}
               </FieldContent>
             </Field>
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <div className="flex flex-col gap-1 sm:w-56 sm:shrink-0">
               <span id={`${base}-stage-label`} className="text-xs font-medium text-muted-foreground">Empieza en</span>
               <Select items={options} value={chosen[key] ?? null} onValueChange={next => { if (next) onStage(key, next); }}>
-                <SelectTrigger className="min-h-10 w-full sm:w-56" disabled={pending || !checked} aria-labelledby={`${base}-stage-label ${base}-name`} aria-invalid={!!errors[key] || undefined}><SelectValue placeholder="Elige una etapa" /></SelectTrigger>
+                <SelectTrigger className="min-h-10 w-full" disabled={pending || !checked} aria-labelledby={`${base}-stage-label ${base}-name`} aria-invalid={!!errors[key] || undefined}><SelectValue placeholder="Elige una etapa" /></SelectTrigger>
                 <SelectContent><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value} className="min-h-10">{option.label}</SelectItem>)}</SelectGroup></SelectContent>
               </Select>
             </div>
-            {errors[key] && <FieldError id={`${base}-error`}>{errors[key]}</FieldError>}
           </li>;
         })}
       </ul>
       {full && <p className="text-xs text-muted-foreground">Puedes retomar hasta {MAX_CARRIED} candidatos por reemplazo.</p>}
       {truncated && <p className="text-xs text-muted-foreground">Mostramos los primeros 1000 candidatos del proceso original.</p>}
     </>}
-    <p className="text-xs text-muted-foreground">Elegir candidatos queda en el historial: quién los retomó y en qué etapa empiezan. Ninguno entra directo a Placement; solo puede llegar con un movimiento posterior.</p>
+    <Note icon={History}>Elegir candidatos queda en el historial: quién los retomó y en qué etapa empiezan. Ninguno entra directo a Placement; solo puede llegar con un movimiento posterior.</Note>
   </div>;
 }

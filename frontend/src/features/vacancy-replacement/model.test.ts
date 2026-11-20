@@ -41,6 +41,18 @@ describe("summarizeReplacements", () => {
     ]);
     expect(JSON.stringify(summary)).not.toContain("Ricardo");
   });
+  it("R4b: keeps the fallen credits by participation with their status; absent (older backend) stays absent", () => {
+    const wire = chain();
+    const withFallen = { ...wire, fallen_credits: [
+      { id: ids.creditRicardo, participation_id: ids.ricardo, process_id: ids.draft, hired_at: null, left_at: "2026-11-17T16:00:00.000000Z", exit_reason: "candidate_left", candidate: { kind: "manual", id: ids.ricardo, full_name: "Ricardo Morales García" }, status: "replaced", replaced_by_process_id: ids.newDraft },
+      { id: ids.creditLuis, participation_id: ids.luis, process_id: ids.draft, hired_at: null, left_at: null, candidate: { kind: "manual", id: ids.luis, full_name: "Luis Pérez" }, status: "blocked", blocker: "replacement_active" },
+    ] };
+    expect(summarizeReplacements(replacementsViewSchema.parse(withFallen)).fallen).toEqual([
+      { id: ids.creditRicardo, participationId: ids.ricardo, leftAt: "2026-11-17T16:00:00.000000Z", status: "replaced", replacedBy: ids.newDraft },
+      { id: ids.creditLuis, participationId: ids.luis, leftAt: null, status: "blocked", replacedBy: null },
+    ]);
+    expect("fallen" in summarizeReplacements(replacementsViewSchema.parse(wire))).toBe(false);
+  });
   it("is empty for the empty shape", () => {
     expect(summarizeReplacements(replacementsViewSchema.parse(neverPublishedWire()))).toEqual({ items: [], credits: [] });
   });

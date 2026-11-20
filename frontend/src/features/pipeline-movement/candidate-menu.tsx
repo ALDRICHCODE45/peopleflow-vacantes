@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BadgeX, Ellipsis, Replace, RotateCcw, UserRound, UserRoundX } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeX, Ellipsis, Link2, Replace, RotateCcw, UserRound, UserRoundX } from "lucide-react";
 import { vacancyPipelineHref } from "@/features/employer-vacancies/model";
 import type { StartOffer } from "@/features/vacancy-lifecycle/replacement-state";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ function ReplacementItems({ leave, start, disabled }: Pick<Props, "leave" | "sta
     {start?.offer.kind === "ready" && <DropdownMenuItem className="min-h-10" disabled={disabled} onClick={start.onStart}><Replace aria-hidden="true" />Iniciar reemplazo</DropdownMenuItem>}
     {start?.offer.kind === "blocked" && <>
       <DropdownMenuItem className="h-auto min-h-10 items-start py-2" disabled><Replace aria-hidden="true" /><span className="flex min-w-0 flex-col gap-0.5">Iniciar reemplazo<span className="text-xs font-normal whitespace-normal text-muted-foreground">{start.offer.reason}</span></span></DropdownMenuItem>
-      {start.offer.activeReplacementId && <DropdownMenuItem className="min-h-10" render={<Link href={vacancyPipelineHref(start.offer.activeReplacementId)} />}><ArrowRight aria-hidden="true" />Ver reemplazo activo</DropdownMenuItem>}
+      {start.offer.activeReplacementId && <><DropdownMenuSeparator /><DropdownMenuItem className="min-h-10 text-primary" render={<Link href={vacancyPipelineHref(start.offer.activeReplacementId)} />}><Link2 aria-hidden="true" />Ver reemplazo activo</DropdownMenuItem></>}
     </>}
   </>;
 }
@@ -34,6 +34,8 @@ export function CandidateMenu({ item, targets, isBackward, disabled, pending, fu
       {pending ? <Spinner aria-label="Guardando cambio…" /> : full ? <><ArrowRight aria-hidden="true" data-icon="inline-start" />Mover a…</> : <Ellipsis aria-hidden="true" />}
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-56" onClick={event => event.stopPropagation()}>
+      {/* On a phone the menu names whose card it belongs to (artboard 04); the desktop menu hangs from the card itself. */}
+      {!full && <DropdownMenuGroup><DropdownMenuLabel className="truncate text-sm font-medium text-foreground sm:hidden">{item.candidate.full_name}</DropdownMenuLabel></DropdownMenuGroup>}
       {finished ? <DropdownMenuGroup><ReplacementItems leave={leave} start={start} disabled={disabled} /></DropdownMenuGroup> : <>
       <DropdownMenuGroup>{item.discard ? <DropdownMenuItem className="min-h-10" disabled={disabled} onClick={() => onDisposition(item.id, "recover")}><RotateCcw aria-hidden="true" />Recuperar</DropdownMenuItem> : <>
         <DropdownMenuLabel>Mover a…</DropdownMenuLabel>
