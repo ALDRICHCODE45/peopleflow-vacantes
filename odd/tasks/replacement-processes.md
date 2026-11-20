@@ -30,7 +30,8 @@ writes it; frontend reviews before implementation).
 
 | ID | Specs | Task | Commit |
 | --- | --- | --- | --- |
-| T1 | S1–S7 | Review the backend contract `replacement-processes-v1.md` against S1–S7 | |
+| T1 | S1–S7 | Review the backend contract `replacement-processes-v1.md` against S1–S7 | backend `e715a257` (accepted) |
+| T3a | S1–S7 | Deployment step 1: new lifecycle/list/VacancyRef keys optional in every strict schema + decoders for the new error envelopes (contract «Deployment order») | |
 | T2 | S1, S4, S5 | Design proposals (gentle-design): «Iniciar reemplazo» flow with hires to replace, resumed candidates with start stage, private/publish | |
 | T3 | S2, S3, S6 | Lifecycle and board: reopen guard, late «No se sostuvo» on a finished board, «Reemplazo» badge and original ↔ replacement link (portfolio, board header, list) | |
 | T4 | S1, S4, S5 | Start-replacement flow implementation (after T2 choice) | |
@@ -54,3 +55,11 @@ writes it; frontend reviews before implementation).
   CTA); desktop 1440 + 390, light/dark; no overflow, axe 0 violations. Contract review (T1): 13 observations sent to the
   backend (carry-candidates read, deployment order for strict schemas, source must be finished, only the latest closed
   process offers the start, reopen hidden while a replacement is active, publish readiness, error fields, root filter).
+- **L5** User on the artboards (verbatim): «yo creo que lo mejor seria algun tipo entre la opcion 1 y la 2, poruqe me gusta el
+  dialog de la uno y me gusta que la accion salga desde la "card" del kanban del candidato, no desde el sheet del
+  candidato.» Hybrid `04-tarjeta-y-dialogo.html` requested (card «⋯» menu → 01's dialog; 01 link bar; 02 portfolio groups).
+- **L6** Contract accepted at backend `e715a257`: carry_candidates[] (eligible only), publish_ready + missing[], deployment
+  order (frontend step 1 first), normative process_kind table, root_process_id filter on job-drafts, D14 (only the latest
+  process starts or reopens), D15 (starting from closed-active finishes the source atomically), D16 (late departure on
+  finished via discard, returns lifecycle), 409s with data.lifecycle: replacement_source_not_latest, reopen_superseded,
+  replacement_already_active.
