@@ -94,3 +94,13 @@ writes it; frontend reviews before implementation).
   list row «Publicada» next to «Privada», dialog footer and step 2 layout at 390/1440, confirmation layout, disabled «⋯»
   instead of state 11, header title truncation at 390. Fixes delegated. Backlog: dashboard participation charts still
   count carried participations (backend, out of scope); confirm whether the departed hire should be carryable.
+- **L12** Fixes `7f6024cd` (private replacement opens its board from the lifecycle, publish later from board and row,
+  «Privada · sin publicar», state-11 card menu from `fallen_credits`, dialog/confirmation/header layout) and `448deb04`
+  (`departed_hire` carry rejection, user decision «No, excluirla del reemplazo (Recomendado)», backend R3d `f903517c`).
+  Metrics keys `cacd102b`. Browser re-check on :3000 `448deb04` against backend `ff33fb48`: S1–S7 pass, audit and dark
+  pass, no console errors, no ≥400, no overflow; previous defects fixed except step 2 scrolling 20 px with a long
+  readiness list and the long-title breadcrumb ellipsis at 390. Created: replacement `01a1fa85-ed4c-7aea-865b-34237e4a3999`
+  (Contador(a) Senior); `01a1fa51…` published. Polish delegated: metrics badge wrap at 390, step 2 fit, keep «Proceso
+  iniciado el» after publishing, «1 candidato» plural, named link bars, confirmation box. Backlog: «Retomado» mark on
+  carried cards needs `carried_from_participation_id` on board items (backend + deployment order); dashboard participation
+  charts count carried participations (backend).
