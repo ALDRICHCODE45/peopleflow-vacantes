@@ -2,12 +2,16 @@ import "server-only";
 
 import { z } from "zod";
 import type { DraftPipelineFailure } from "./client";
+import { replacementErrorEnvelopeSchema, validationErrorEnvelopeSchema } from "@/features/vacancy-lifecycle/replacement-errors";
 import { processFinishedSchema, type ProcessFinishedFailure } from "./lifecycle-contract";
 
 /** A missing list is legal only for publication_incomplete, on publish or save. */
 export const publicationErrorEnvelopeSchema = z.union([
   processFinishedSchema,
   z.object({ error: z.string().min(1), code: z.literal("publication_incomplete"), missing: z.array(z.string().refine(value => value.trim().length > 0)) }).strict(),
+  // replacement-processes-v1 «Error codes»: lifecycle-carrying 409s, 422 per-item rejections, and validation_error with fields[].
+  replacementErrorEnvelopeSchema,
+  validationErrorEnvelopeSchema,
   z.object({ error: z.string().min(1), code: z.string().min(1).refine(code => code !== "publication_incomplete" && code !== "process_finished") }).strict(),
 ]);
 

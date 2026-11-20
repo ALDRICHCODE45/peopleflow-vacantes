@@ -2,6 +2,7 @@ import "server-only";
 
 import { publicationIncompleteFailure } from "@/features/jobs/drafts/pipeline/failure";
 import { closeCoverageErrorSchema, conflictSchema, type LifecycleFailure } from "./client";
+import { replacementConflictSchema } from "./replacement-errors";
 import { closeCoverageMessage, type CloseCoverage, type Lifecycle } from "./model";
 
 const messages = {
@@ -12,6 +13,11 @@ const messages = {
   not_found: "No encontramos esta vacante o ya no tienes acceso.",
   invalid_request: "No pudimos enviar la acción. Recarga la vacante y vuelve a intentarlo.",
   lifecycle_transition_invalid: "El estado de la vacante cambió. Revisa las acciones disponibles.",
+  reopen_requires_replacement: "Esta vacante se cerró cubierta. Para volver a buscar, inicia un reemplazo.",
+  reopen_superseded: "Esta vacante ya tiene un reemplazo. Reabre o trabaja en el proceso más reciente.",
+  replacement_already_active: "Ya hay un reemplazo activo para esta vacante.",
+  replacement_source_not_closed: "Esta vacante aún no está cerrada. Revisa su estado actual.",
+  replacement_source_not_latest: "Esta vacante ya tiene un proceso más reciente. Trabaja en ese proceso.",
   process_finished: "El proceso ya finalizó. Recarga la vacante para ver su estado actual.",
   version_conflict: "La vacante cambió. Recarga su estado antes de elegir otra acción.",
   precondition_required: "Recarga el estado de la vacante antes de continuar.",
@@ -37,6 +43,7 @@ export function mapLifecycleFailure(input: LifecycleFailure): LifecycleActionFai
   if (incomplete) return { ...incomplete, message: messages.publication_incomplete };
   const status = error.status;
   const conflict = conflictSchema.safeParse(envelope);
+  const replacement = replacementConflictSchema.safeParse(envelope);
   const coverage = closeCoverageErrorSchema.safeParse(envelope);
   if (status === 422 && coverage.success) return {
     ok: false, reason: "close_reason_not_covered", message: closeCoverageMessage(coverage.data.data),
@@ -52,11 +59,14 @@ export function mapLifecycleFailure(input: LifecycleFailure): LifecycleActionFai
   else if (status === 428) reason = "precondition_required";
   else if (status === 409 && envelope?.code === "responsible_required") reason = "responsible_required";
   else if (status === 409 && conflict.success) reason = conflict.data.code;
+  else if (status === 409 && replacement.success) reason = replacement.data.code;
   else if (status !== undefined && status >= 500) reason = "server_error";
   return {
     ok: false, reason, message: messages[reason],
     reference: { ...(status !== undefined ? { status } : {}), ...(envelope?.code === reason ? { code: reason } : {}) },
     ...(status === 409 && conflict.success ? { lifecycle: conflict.data.data.lifecycle } : {}),
+    // The new 409s embed the same view as the existing ones: refresh the lifecycle state from it.
+    ...(status === 409 && !conflict.success && replacement.success ? { lifecycle: replacement.data.data.lifecycle } : {}),
     ...(["version_conflict", "precondition_required"].includes(reason) ? { reload: true } : {}),
     ...(["no_response", "server_error", "unrecognized_response"].includes(reason) ? { uncertain: true } : {}),
   };

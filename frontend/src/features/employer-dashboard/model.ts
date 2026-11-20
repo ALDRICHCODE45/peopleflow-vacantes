@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { processKindSchema } from "@/features/vacancy-lifecycle/model";
 import { personSchema, requesterSchema, STAGE_KINDS } from "@/features/company-metrics/model";
 
 /**
@@ -30,7 +31,8 @@ const headerShape = {
 };
 const delta = z.object({ current: count, previous: count }).strict();
 const positions = z.object({ covered: count, required: count }).strict();
-const vacancyRef = z.object({ draft_id: uuid, title: z.string() }).strict();
+/** `kind`, `root_draft_id` and `sequence` (`null` for an original) are OPTIONAL until the backend that emits them is deployed (replacement-processes-v1 «Deployment order»). */
+const vacancyRef = z.object({ draft_id: uuid, title: z.string(), kind: processKindSchema.optional(), root_draft_id: uuid.optional(), sequence: z.number().int().positive().nullable().optional() }).strict();
 
 /** §3.1 Resumen. The series is the previous window's last day, then every window day, oldest first. */
 export const summarySchema = z.object({

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EDUCATION_LEVELS, SENIORITIES, candidateLanguageSchema, yearsOfExperienceSchema } from "@/features/candidate/model";
 import { lifecycleSchema, type Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { replacementErrorEnvelopeSchema, validationErrorEnvelopeSchema } from "@/features/vacancy-lifecycle/replacement-errors";
 import { locationReadSchema } from "@/features/geo/model";
 import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { validateDiscardText } from "./discard-text";
@@ -65,7 +66,8 @@ export const boardSchema = z.object({
     (board.stages.some(stage => stage.id === item.stage_id && stage.kind === "in_process") && board.substates.some(substate => substate.id === item.substate_id))));
 export const substateBodySchema = z.object({ substate_id: uuidSchema.nullable() }).strict();
 export const moveBodySchema = z.object({ to_stage_id: uuidSchema, placement_exit_reason: placementExitReasonSchema.optional() }).strict();
-export const moveSchema = mutationParticipationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
+/** `lifecycle` rides only on a placement departure (replacement-processes-v1 «Departure on a finished process»), so «Iniciar reemplazo» can be enabled without a second request. */
+export const moveSchema = mutationParticipationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema, lifecycle: lifecycleSchema.optional() }).strict();
 const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("single_choice"), answer: z.object({ option_id: uuidSchema, label: text }).strict() }).strict(),
@@ -109,6 +111,8 @@ export const historySchema = z.object({ items: z.array(z.discriminatedUnion("kin
 export const processFinishedSchema = z.object({ error: text, code: z.literal("process_finished"), data: z.object({ lifecycle: lifecycleSchema }).strict() }).strict();
 export const errorEnvelopeSchema = z.union([
   processFinishedSchema,
+  replacementErrorEnvelopeSchema,
+  validationErrorEnvelopeSchema,
   z.object({ error: text, code: text.refine(code => code !== "process_finished") }).strict(),
 ]);
 export type Board = z.infer<typeof boardSchema>;

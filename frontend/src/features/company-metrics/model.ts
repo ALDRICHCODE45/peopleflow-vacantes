@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { processKindSchema } from "@/features/vacancy-lifecycle/model";
 import { STAGE_KIND_LABELS } from "@/features/jobs/drafts/pipeline/editor-model";
 
 /**
@@ -125,6 +126,11 @@ export const complianceSchema = z.object({
   on_time_by_month: z.array(monthRateSchema),
 }).strict();
 /**
+ * replacement-processes-v1 «Metrics»: the shared Go `VacancyRef` gains these keys. They stay OPTIONAL until the backend that
+ * emits them is deployed (contract «Deployment order» step 1); `sequence` is `null` for an original.
+ */
+const replacementRefKeys = { kind: processKindSchema.optional(), root_draft_id: text.optional(), sequence: z.number().int().positive().nullable().optional() };
+/**
  * v2 §4.5 Retrasos. `overdue.top` (N4) holds at most 4 rows, most business days overdue first; `requester` and
  * `attributed_to` (the responsible, or every member when shared) arrive with v2b, so they are optional here.
  */
@@ -134,7 +140,7 @@ export const delaysSchema = z.object({
   overdue: z.object({
     total: count,
     top: z.array(z.object({
-      vacancy: z.object({ draft_id: text, title: z.string().nullable() }).strict(),
+      vacancy: z.object({ draft_id: text, title: z.string().nullable(), ...replacementRefKeys }).strict(),
       commitment_date: day, business_days_overdue: count, delivered: count, target: count,
       requester: requesterSchema.optional(), attributed_to: z.array(personSchema).optional(),
     }).strict()).max(4),
@@ -160,7 +166,7 @@ export const pipelineSchema = z.object({
   stalled_threshold_business_days: count,
   stages: z.array(z.object({ kind: stageKindSchema, candidates: count, median_business_days_in_stage: median, stalled: count }).strict()),
   top_vacancies: z.array(z.object({
-    vacancy: z.object({ draft_id: text, title: z.string().nullable() }).strict(), requester: requesterSchema, responsible: personSchema.nullable(), in_process: count,
+    vacancy: z.object({ draft_id: text, title: z.string().nullable(), ...replacementRefKeys }).strict(), requester: requesterSchema, responsible: personSchema.nullable(), in_process: count,
   }).strict()).max(5),
 }).strict();
 

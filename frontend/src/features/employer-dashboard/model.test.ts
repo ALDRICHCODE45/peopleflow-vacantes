@@ -58,3 +58,24 @@ describe("dashboard v2 decoders (contract §3)", () => {
     expect(vacanciesSchema.safeParse({ ...vacancies(), top: Array(6).fill(vacancies().top[0]) }).success).toBe(false);
   });
 });
+
+describe("replacement keys on the dashboard vacancy ref (deployment step 1)", () => {
+  const keys = { kind: "replacement", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: 2 };
+  const original = { kind: "original", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: null };
+  const refs = (extra: object) => {
+    const a = attention(), v = vacancies();
+    return [
+      [attentionSchema, { ...a, overdue: { ...a.overdue, top: a.overdue.top.map(row => ({ ...row, vacancy: { ...row.vacancy, ...extra } })) } }],
+      [attentionSchema, { ...a, due_this_week: { ...a.due_this_week, top: a.due_this_week.top.map(row => ({ ...row, vacancy: { ...row.vacancy, ...extra } })) } }],
+      [attentionSchema, { ...a, stalled: { ...a.stalled, top: a.stalled.top.map(row => ({ ...row, vacancy: { ...row.vacancy, ...extra } })) } }],
+      [vacanciesSchema, { ...v, top: v.top.map(row => ({ ...row, vacancy: { ...row.vacancy, ...extra } })) }],
+    ] as const;
+  };
+  it.each([keys, original])("parses every dashboard vacancyRef with %j", extra => {
+    for (const [schema, value] of refs(extra)) expect(schema.parse(value)).toEqual(value);
+  });
+  it("still parses the old payload", () => { expect(attentionSchema.parse(attention())).toEqual(attention()); expect(vacanciesSchema.parse(vacancies())).toEqual(vacancies()); });
+  it.each([{ kind: "clone" }, { sequence: 0 }, { root_draft_id: "bad" }, { extra: true }])("rejects bad keys %j", patch => {
+    for (const [schema, value] of refs({ ...keys, ...patch })) expect(schema.safeParse(value).success).toBe(false);
+  });
+});

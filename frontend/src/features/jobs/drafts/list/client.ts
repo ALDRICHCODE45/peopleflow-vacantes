@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import { closeReasonSchema } from "@/features/vacancy-lifecycle/model";
+import { closeReasonSchema, processKindSchema } from "@/features/vacancy-lifecycle/model";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 import { draftTeamSummarySchema } from "../team-summary";
 
@@ -42,6 +42,12 @@ const rowSchema = z.object({
   version: z.string().regex(/^[1-9][0-9]*$/),
   created_at: timestamp,
   updated_at: timestamp,
+  // replacement-processes-v1 «Draft list»: optional until the backend that emits them is deployed.
+  kind: processKindSchema.optional(),
+  sequence: z.number().int().positive().nullable().optional(),
+  replacement_of: uuid.nullable().optional(),
+  root_process_id: uuid.optional(),
+  visibility: z.enum(["public", "private"]).nullable().optional(),
 }).strict().refine(row => row.status === "draft" ? row.process === null :
   row.process === "active" || (row.status === "closed" && row.process === "finished"))
   .refine(row => (row.status === "draft") === (row.candidates === null));

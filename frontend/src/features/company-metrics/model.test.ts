@@ -198,3 +198,25 @@ describe("v2c pipeline and its lists (§4.4, §5.5, §5.6)", () => {
     });
   });
 });
+
+describe("replacement keys on the strict vacancy refs (deployment step 1)", () => {
+  const keys = { kind: "replacement", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: 1 };
+  const original = { kind: "original", root_draft_id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e", sequence: null };
+  const withKeys = (ref: object, extra: object) => ({ ...ref, ...extra });
+  it.each([keys, original])("parses pipeline.top_vacancies[].vacancy and delays.overdue.top[].vacancy with %j", extra => {
+    const pipe = pipeline(); const pipeWith = { ...pipe, top_vacancies: pipe.top_vacancies.map(row => ({ ...row, vacancy: withKeys(row.vacancy, extra) })) };
+    expect(pipelineSchema.parse(pipeWith)).toEqual(pipeWith);
+    const del = delays(); const delWith = { ...del, overdue: { ...del.overdue, top: del.overdue.top.map(row => ({ ...row, vacancy: withKeys(row.vacancy, extra) })) } };
+    expect(delaysSchema.parse(delWith)).toEqual(delWith);
+  });
+  it("still parses both without the keys", () => {
+    expect(pipelineSchema.parse(pipeline())).toEqual(pipeline());
+    expect(delaysSchema.parse(delays())).toEqual(delays());
+  });
+  it.each([{ kind: "clone" }, { sequence: 0 }, { sequence: "1" }, { root_draft_id: null }, { extra: true }])("rejects bad vacancy keys %j", patch => {
+    const pipe = pipeline();
+    expect(pipelineSchema.safeParse({ ...pipe, top_vacancies: pipe.top_vacancies.map(row => ({ ...row, vacancy: { ...row.vacancy, ...keys, ...patch } })) }).success).toBe(false);
+    const del = delays();
+    expect(delaysSchema.safeParse({ ...del, overdue: { ...del.overdue, top: del.overdue.top.map(row => ({ ...row, vacancy: { ...row.vacancy, ...keys, ...patch } })) } }).success).toBe(false);
+  });
+});
