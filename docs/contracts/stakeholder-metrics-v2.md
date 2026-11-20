@@ -69,6 +69,11 @@ only pays off if the pieces share the load. Hence §2.
   days, `recruiter_id`, `requester_kind`, `requester_id`), same strict parser (422 `invalid_filter`), same shape rules
   (counts never null, medians null without sample, rates `{value, numerator, denominator}`, people, requester).
 - Every response: `definitions_version: "v2"`, `period`, `as_of`.
+- **`process_kind`** (`original | replacement`, optional, one value) is a common filter of every `…/metrics/*` route since
+  replacement processes (`replacement-processes-v1.md` §«Metrics», whose vacancy-level vs process-level table is normative):
+  it filters the process-level figures and lists and is ignored by the vacancy-level ones; process-level lists add
+  `facets.process_kind` and every list echoes `applied_filters.process_kind`. Companies without replacements see no
+  other change.
 - **Drill-down rule:** each figure in §4 names the list (§5) and the exact query that reproduces it. The frontend
   builds the detail URL from the figure's query; the list's `total` equals the figure for the same snapshot.
 - **Multi-value filters** use one comma-separated parameter (`result=on_time,late`); repeating a parameter is still

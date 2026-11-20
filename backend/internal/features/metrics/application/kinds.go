@@ -31,7 +31,8 @@ type DeliveryListRow struct {
 }
 
 type DeliveryFacets struct {
-	Result DeliveryStatus `json:"result"`
+	Result      DeliveryStatus    `json:"result"`
+	ProcessKind *ProcessKindFacet `json:"process_kind,omitempty"`
 }
 
 func (d *DeliveryStatus) add(result string) {
@@ -88,8 +89,9 @@ func (s *Service) buildDeliveries(ctx context.Context, l listing) (*built[Delive
 		return nil, err
 	}
 	q := l.q
-	b := &built[DeliveryListRow, DeliveryFacets]{rows: []DeliveryListRow{}, asOf: v.asOf}
-	for _, vac := range v.data.Vacancies {
+	b := &built[DeliveryListRow, DeliveryFacets]{rows: []DeliveryListRow{}, asOf: v.asOf, facets: DeliveryFacets{ProcessKind: &ProcessKindFacet{}}}
+	// Each facet ignores only its own filter, so the loop reads every kind.
+	for _, vac := range v.every.Vacancies {
 		if !vac.inDeliveryPeriod(l.p) || (q.VacancyID != nil && vac.ID != *q.VacancyID) {
 			continue
 		}
@@ -112,8 +114,14 @@ func (s *Service) buildDeliveries(ctx context.Context, l listing) (*built[Delive
 			q.AttributedTo != nil && !slices.ContainsFunc(row.AttributedTo, func(p Person) bool { return p.UserID == *q.AttributedTo }):
 			continue
 		}
-		b.facets.Result.add(result)
-		if q.Results != nil && !slices.Contains(q.Results, result) {
+		kindOK, resultOK := vac.selectedBy(q.ProcessKind), q.Results == nil || slices.Contains(q.Results, result)
+		if kindOK {
+			b.facets.Result.add(result)
+		}
+		if resultOK {
+			b.facets.ProcessKind.add(vac, 1)
+		}
+		if !kindOK || !resultOK {
 			continue
 		}
 		b.rows = append(b.rows, row)
@@ -176,7 +184,8 @@ func (s *Service) buildVacancies(ctx context.Context, l listing) (*built[Vacancy
 	q, p, data := l.q, l.p, v.data
 	from, to := closeWindow(p, q.ClosedMonth)
 	b := &built[VacancyRow, VacancyFacets]{rows: []VacancyRow{}, asOf: v.asOf}
-	for _, vac := range data.Vacancies {
+	// Vacancy-level: the original of each logical vacancy, whatever process_kind says.
+	for _, vac := range data.Roots {
 		if q.VacancyID != nil && vac.ID != *q.VacancyID {
 			continue
 		}
@@ -290,7 +299,8 @@ type HeldFacet struct {
 }
 
 type PlacementFacets struct {
-	Held HeldFacet `json:"held"`
+	Held        HeldFacet         `json:"held"`
+	ProcessKind *ProcessKindFacet `json:"process_kind,omitempty"`
 }
 
 var placementColumns = map[string]sortColumn[PlacementListRow]{
@@ -328,8 +338,8 @@ func (s *Service) buildPlacements(ctx context.Context, l listing) (*built[Placem
 		return nil, err
 	}
 	q := l.q
-	b := &built[PlacementListRow, PlacementFacets]{rows: []PlacementListRow{}, asOf: v.asOf}
-	for _, vac := range v.data.Vacancies {
+	b := &built[PlacementListRow, PlacementFacets]{rows: []PlacementListRow{}, asOf: v.asOf, facets: PlacementFacets{ProcessKind: &ProcessKindFacet{}}}
+	for _, vac := range v.every.Vacancies {
 		if q.VacancyID != nil && vac.ID != *q.VacancyID {
 			continue
 		}
@@ -338,12 +348,18 @@ func (s *Service) buildPlacements(ctx context.Context, l listing) (*built[Placem
 				continue
 			}
 			held := c.Status == "active"
-			if held {
-				b.facets.Held.True++
-			} else {
-				b.facets.Held.False++
+			kindOK, heldOK := vac.selectedBy(q.ProcessKind), q.Held == nil || *q.Held == held
+			if kindOK {
+				if held {
+					b.facets.Held.True++
+				} else {
+					b.facets.Held.False++
+				}
 			}
-			if q.Held != nil && *q.Held != held {
+			if heldOK {
+				b.facets.ProcessKind.add(vac, 1)
+			}
+			if !kindOK || !heldOK {
 				continue
 			}
 			recipients := slices.Clone(c.Recipients)
@@ -369,7 +385,8 @@ func (s *Service) buildPlacements(ctx context.Context, l listing) (*built[Placem
 }
 
 type ReassignmentFacets struct {
-	Reason ByReason `json:"reason"`
+	Reason      ByReason          `json:"reason"`
+	ProcessKind *ProcessKindFacet `json:"process_kind,omitempty"`
 }
 
 var reassignmentColumns = map[string]sortColumn[ReassignmentRow]{
@@ -400,8 +417,8 @@ func (s *Service) buildReassignments(ctx context.Context, l listing) (*built[Rea
 		return nil, err
 	}
 	q, data := l.q, v.data
-	b := &built[ReassignmentRow, ReassignmentFacets]{rows: []ReassignmentRow{}, asOf: v.asOf}
-	for _, vac := range data.Vacancies {
+	b := &built[ReassignmentRow, ReassignmentFacets]{rows: []ReassignmentRow{}, asOf: v.asOf, facets: ReassignmentFacets{ProcessKind: &ProcessKindFacet{}}}
+	for _, vac := range v.every.Vacancies {
 		if q.VacancyID != nil && vac.ID != *q.VacancyID {
 			continue
 		}
@@ -415,8 +432,14 @@ func (s *Service) buildReassignments(ctx context.Context, l listing) (*built[Rea
 					continue
 				}
 			}
-			b.facets.Reason.add(r.Reason)
-			if q.Reasons != nil && !slices.Contains(q.Reasons, r.Reason) {
+			kindOK, reasonOK := vac.selectedBy(q.ProcessKind), q.Reasons == nil || slices.Contains(q.Reasons, r.Reason)
+			if kindOK {
+				b.facets.Reason.add(r.Reason)
+			}
+			if reasonOK {
+				b.facets.ProcessKind.add(vac, 1)
+			}
+			if !kindOK || !reasonOK {
 				continue
 			}
 			row := ReassignmentRow{ID: r.ID, PerformedAt: r.At.UTC(), Vacancy: VacancyRef{vac.ID, vac.Title},

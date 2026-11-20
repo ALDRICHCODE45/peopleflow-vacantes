@@ -886,3 +886,22 @@ and the latest-only rule (D14) match what they meant by «uno solo por vacante l
 - Recover on a finished process stays 409 `process_finished`, even for an unknown participation (A4 is discard-only).
 - The discard response `lifecycle` key is produced through the existing `VacancyContext.Lifecycle` port, read after the
   credit change in the same transaction, on every placement departure (open, closed-active and finished processes).
+
+## R6a implementation notes
+
+- **Snapshot key.** The snapshot stays keyed `(company, from, to)`. `process_kind` narrows it in Go per request, like `requester_*` and
+  `recruiter_id`, and joins the **cursor hash** (omitted when absent); a snapshot per kind would not work anyway, because the vacancy-level
+  figures read the original while `process_kind=replacement` is set. `Scope` therefore gets no `ProcessKind`: the store loads whole chains.
+- **Chain load.** `scopeSQL` adds the chain (original and every replacement) of each process with activity. `Vacancy` carries `Kind`, `RootID`,
+  `Sequence`, `ProcessActive`; an original also `Replacements {count, active_draft_id}` and the tramos and functions of its chain
+  (`Dataset.link`).
+- **Cards, beyond the table.** The recruiter card's `vacancies.*` block (`assigned`, `as_responsible`, `as_collaborator`, `as_member`,
+  `started_in_period`) and `by_month[].assigned` are vacancy-level with the chain's tramos and functions, like `assigned` and `conversion`;
+  `delivery.*`, `placements.direct|participant|shared|did_not_hold`, `reassignments.*`, `business_days_in_tramos` are process-level. The people
+  listed by `GET …/recruiters` are those with a tramo on a process the filter selects.
+- **Per-vacancy details** under another `process_kind` answer an empty `items` (still audited as viewed).
+- **Carried participations** (R3b notes, closed here): metrics `origin` and `applications` leave them out; the cutoff-entry scan treats a carried
+  intake like a manual one (A3). The dashboard's participation-based figures (`origin` by day, `lists/applications`, in-process series) keep
+  counting them: they are operational and name participations, not applications.
+- **Existing tests changed** (facets only): the exact-wire assertions of the deliveries, placements, reassignments, candidates and
+  applications `facets` gained `process_kind`.

@@ -20,28 +20,61 @@ type Scope struct {
 }
 
 // Dataset holds the facts of every vacancy in scope, whole history included,
-// and the people they name.
+// and the people they name. Loaded, Vacancies is every process of the chains
+// in scope (originals and replacements). narrow fills the two views a request
+// reads (replacement-processes-v1 §«Metrics»): Vacancies is then the
+// process-level set (every process passing the requester and recruiter
+// filters) and Roots the vacancy-level set (the original of each logical
+// vacancy, whose process_kind is ignored).
 type Dataset struct {
 	Vacancies []*Vacancy
+	Roots     []*Vacancy
 	People    map[uuid.UUID]Person
 }
 
-// Vacancy is one published vacancy and its facts.
+// Process kinds (replacement-processes-v1). A vacancy loaded without a kind is
+// an original.
+const (
+	KindOriginal    = "original"
+	KindReplacement = "replacement"
+)
+
+// Replacements summarizes the replacements started from an original's logical
+// vacancy: how many, and the one whose process is still active, if any.
+type Replacements struct {
+	Count         int        `json:"count"`
+	ActiveDraftID *uuid.UUID `json:"active_draft_id"`
+}
+
+// Vacancy is one published process and its facts. Kind, RootID and Sequence
+// place it in its logical vacancy (the zero values are an original that is its
+// own root).
 type Vacancy struct {
 	ID          uuid.UUID
 	Title       string
-	PublishedAt time.Time // first publication
-	Requester   *Requester
-	Headcount   *int
-	Responsible *uuid.UUID // the open responsible function, if any
-	Delivery    DeliveryFacts
-	Tramos      []Tramo
-	Functions   []Function
-	Closes      []Close
-	Credits     []Credit
-	Reassigns   []Reassignment
-	Origin      map[string]int // participations created in the period by origin_channel
-	Entries     []Entry        // qualifying cutoff entries, oldest first
+	PublishedAt time.Time // first publication (a replacement: its start)
+	Kind        string    // original | replacement; "" is original
+	RootID      uuid.UUID // the original of the logical vacancy; Nil is the vacancy itself
+	Sequence    *int      // position of a replacement in its chain; nil for an original
+	// ProcessActive is process_status = active.
+	ProcessActive bool
+	// Replacements, ChainTramos and ChainFunctions describe an original's
+	// whole chain; link fills them (ChainTramos and ChainFunctions only when it
+	// has replacements, else the vacancy's own apply).
+	Replacements   Replacements
+	ChainTramos    []Tramo
+	ChainFunctions []Function
+	Requester      *Requester
+	Headcount      *int
+	Responsible    *uuid.UUID // the open responsible function, if any
+	Delivery       DeliveryFacts
+	Tramos         []Tramo
+	Functions      []Function
+	Closes         []Close
+	Credits        []Credit
+	Reassigns      []Reassignment
+	Origin         map[string]int // participations created in the period by origin_channel
+	Entries        []Entry        // qualifying cutoff entries, oldest first
 }
 
 // DeliveryFacts are the delivery configuration and its frozen fulfillment.
@@ -110,13 +143,24 @@ type Entry struct {
 	ByRecruiter     bool
 }
 
+// ProcessRef places a process in its logical vacancy (the `process` of a
+// per-vacancy detail and the keys of VacancyRef).
+type ProcessRef struct {
+	Kind        string    `json:"kind"`
+	RootDraftID uuid.UUID `json:"root_draft_id"`
+	Sequence    *int      `json:"sequence"`
+}
+
 // Store loads facts; detail reads write their own audit row.
 type Store interface {
 	Load(ctx context.Context, company uuid.UUID, scope Scope) (*Dataset, error)
 	HadTramo(ctx context.Context, company, user uuid.UUID) (bool, error)
 	People(ctx context.Context, company uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]Person, error)
-	Deliveries(ctx context.Context, company, actor, draft uuid.UUID) ([]DeliveryRow, error)
-	Placements(ctx context.Context, company, actor, draft uuid.UUID) ([]PlacementRow, error)
+	// Deliveries and Placements read one process' rows (empty when its kind is
+	// not the process_kind filter, "" = any) and name where the process sits
+	// in its logical vacancy.
+	Deliveries(ctx context.Context, company, actor, draft uuid.UUID, kind string) ([]DeliveryRow, ProcessRef, error)
+	Placements(ctx context.Context, company, actor, draft uuid.UUID, kind string) ([]PlacementRow, ProcessRef, error)
 	// Names resolves the applied filters the snapshot cannot name, never
 	// across companies (v2 §5).
 	Names(ctx context.Context, company uuid.UUID, q NameQuery) (Names, error)
@@ -130,6 +174,91 @@ type Store interface {
 	// published vacancy, its publication history and the stage history of
 	// the participations not discarded before since (company-dashboard-v2 §4).
 	LoadHistory(ctx context.Context, company uuid.UUID, since time.Time) (*HistoryData, error)
+}
+
+// isReplacement reports a replacement process; an original (or a vacancy
+// loaded without a kind) is not.
+func (v *Vacancy) isReplacement() bool { return v.Kind == KindReplacement }
+
+func (v *Vacancy) kind() string {
+	if v.isReplacement() {
+		return KindReplacement
+	}
+	return KindOriginal
+}
+
+// root is the id of the logical vacancy's original.
+func (v *Vacancy) root() uuid.UUID {
+	if v.RootID != uuid.Nil {
+		return v.RootID
+	}
+	return v.ID
+}
+
+// selectedBy applies the process_kind filter ("" selects every process).
+func (v *Vacancy) selectedBy(kind string) bool { return kind == "" || v.kind() == kind }
+
+// process is where the vacancy sits in its logical vacancy.
+func (v *Vacancy) process() ProcessRef {
+	return ProcessRef{Kind: v.kind(), RootDraftID: v.root(), Sequence: v.Sequence}
+}
+
+// chainTramos are the tramos of the whole logical vacancy for an original
+// (its own when it has no replacement): the vacancy-level «assigned» rule (A5).
+func (v *Vacancy) chainTramos() []Tramo {
+	if v.ChainTramos != nil {
+		return v.ChainTramos
+	}
+	return v.Tramos
+}
+
+func (v *Vacancy) chainFunctions() []Function {
+	if v.ChainFunctions != nil {
+		return v.ChainFunctions
+	}
+	return v.Functions
+}
+
+// assignedInChain is the vacancy-level assigned: a tramo of user (any user
+// when nil) overlapping [from, to) on the original or on any replacement.
+func (v *Vacancy) assignedInChain(user *uuid.UUID, from, to time.Time) bool {
+	for _, t := range v.chainTramos() {
+		if (user == nil || t.UserID == *user) && Overlaps(t.Start, t.End, from, to) {
+			return true
+		}
+	}
+	return false
+}
+
+// link joins every original with its replacements: the count and active one,
+// and the chain's tramos and functions. The store's loader leaves the
+// vacancies unlinked; the service links each snapshot once. Linking twice is
+// harmless.
+func (d *Dataset) link() {
+	byID := make(map[uuid.UUID]*Vacancy, len(d.Vacancies))
+	for _, v := range d.Vacancies {
+		byID[v.ID] = v
+		v.Replacements, v.ChainTramos, v.ChainFunctions = Replacements{}, nil, nil
+	}
+	for _, v := range d.Vacancies {
+		if !v.isReplacement() {
+			continue
+		}
+		root := byID[v.RootID]
+		if root == nil || root == v {
+			continue
+		}
+		if root.ChainTramos == nil {
+			root.ChainTramos, root.ChainFunctions = slices.Clone(root.Tramos), slices.Clone(root.Functions)
+		}
+		root.Replacements.Count++
+		if v.ProcessActive {
+			id := v.ID
+			root.Replacements.ActiveDraftID = &id
+		}
+		root.ChainTramos = append(root.ChainTramos, v.Tramos...)
+		root.ChainFunctions = append(root.ChainFunctions, v.Functions...)
+	}
 }
 
 // reaches is the first qualifying entry of every participation, in delivery
@@ -272,13 +401,37 @@ func (d *Dataset) personPtr(id *uuid.UUID) *Person {
 	return &p
 }
 
-// narrow keeps the vacancies the request's filters select (M6 requester rule;
-// with recruiter, a tramo of that user overlapping the period). People stay
-// whole: they only name ids the kept vacancies carry.
+// narrow keeps the processes the request's filters select (M6 requester rule;
+// with recruiter, a tramo of that user overlapping the period) as Vacancies,
+// and the originals the same filters select as Roots; for a root the recruiter
+// rule looks at the tramos of its whole chain (A5). People stay whole: they
+// only name ids the kept vacancies carry. process_kind is not applied here
+// (forKind): a list counts its process_kind facet over every kind.
 func (d *Dataset) narrow(p Period, requester RequesterFilter, recruiter *uuid.UUID) *Dataset {
-	out := &Dataset{Vacancies: make([]*Vacancy, 0, len(d.Vacancies)), People: d.People}
+	out := &Dataset{Vacancies: make([]*Vacancy, 0, len(d.Vacancies)), Roots: make([]*Vacancy, 0, len(d.Vacancies)), People: d.People}
 	for _, v := range d.Vacancies {
-		if requester.selects(v.Requester) && (recruiter == nil || v.assignedIn(recruiter, p.Start, p.End)) {
+		if !requester.selects(v.Requester) {
+			continue
+		}
+		if recruiter == nil || v.assignedIn(recruiter, p.Start, p.End) {
+			out.Vacancies = append(out.Vacancies, v)
+		}
+		if !v.isReplacement() && (recruiter == nil || v.assignedInChain(recruiter, p.Start, p.End)) {
+			out.Roots = append(out.Roots, v)
+		}
+	}
+	return out
+}
+
+// forKind keeps the processes the process_kind filter selects ("" = all);
+// the roots, which ignore it, stay.
+func (d *Dataset) forKind(kind string) *Dataset {
+	if kind == "" {
+		return d
+	}
+	out := &Dataset{Vacancies: make([]*Vacancy, 0, len(d.Vacancies)), Roots: d.Roots, People: d.People}
+	for _, v := range d.Vacancies {
+		if v.selectedBy(kind) {
 			out.Vacancies = append(out.Vacancies, v)
 		}
 	}

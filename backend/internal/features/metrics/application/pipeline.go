@@ -59,6 +59,9 @@ type PipelineData struct {
 type OpenVacancy struct {
 	ID             uuid.UUID
 	Title          string
+	Kind           string    // original | replacement; "" is original
+	RootID         uuid.UUID // the original of the logical vacancy; Nil is the vacancy itself
+	Sequence       *int      // position of a replacement in its chain; nil for an original
 	Requester      *Requester
 	Responsible    *uuid.UUID // the open responsible function, if any
 	Tramos         []Tramo
@@ -113,6 +116,14 @@ func (p Pipeline) stageOf(id uuid.UUID) (kind, name string, exit bool) {
 	return "retired", "", false
 }
 
+// replacement reports a replacement process.
+func (v *OpenVacancy) replacement() bool { return v.Kind == KindReplacement }
+
+// selectedBy applies the process_kind filter ("" selects every process).
+func (v *OpenVacancy) selectedBy(kind string) bool {
+	return kind == "" || (kind == KindReplacement) == v.replacement()
+}
+
 // openTramo reports a tramo of user open at asOf.
 func (v *OpenVacancy) openTramo(user uuid.UUID, asOf time.Time) bool {
 	return openTramo(v.Tramos, user, asOf)
@@ -135,10 +146,13 @@ type staged struct {
 }
 
 // pipelineView is the pipeline snapshot narrowed by the request's common
-// filters (requester; recruiter = an open tramo at as_of) and vacancy_id.
+// filters (requester; recruiter = an open tramo at as_of), vacancy_id and
+// process_kind. every is the same without process_kind (the candidates list
+// counts its process_kind facet over every kind).
 type pipelineView struct {
-	rows []staged
-	snap *PipelineSnapshot
+	rows  []staged
+	every []staged
+	snap  *PipelineSnapshot
 }
 
 func (s *Service) pipelineView(ctx context.Context, company uuid.UUID, q Query) (pipelineView, error) {
@@ -146,7 +160,7 @@ func (s *Service) pipelineView(ctx context.Context, company uuid.UUID, q Query) 
 	if err != nil {
 		return pipelineView{}, err
 	}
-	out := pipelineView{rows: []staged{}, snap: snap}
+	out := pipelineView{rows: []staged{}, every: []staged{}, snap: snap}
 	for _, v := range snap.Data.Vacancies {
 		if !q.Requester.selects(v.Requester) || (q.RecruiterID != nil && !v.openTramo(*q.RecruiterID, snap.AsOf)) || (q.VacancyID != nil && v.ID != *q.VacancyID) {
 			continue
@@ -157,7 +171,11 @@ func (s *Service) pipelineView(ctx context.Context, company uuid.UUID, q Query) 
 				continue
 			}
 			days := s.calendar.BetweenInstants(p.EnteredAt, snap.AsOf)
-			out.rows = append(out.rows, staged{vac: v, p: p, kind: kind, name: name, days: days, stalled: kind != "placement" && days >= StalledThreshold})
+			r := staged{vac: v, p: p, kind: kind, name: name, days: days, stalled: kind != "placement" && days >= StalledThreshold}
+			out.every = append(out.every, r)
+			if v.selectedBy(q.ProcessKind) {
+				out.rows = append(out.rows, r)
+			}
 		}
 	}
 	return out, nil
@@ -295,8 +313,17 @@ func (f *StageKindFacet) add(kind string) {
 }
 
 type CandidateFacets struct {
-	StageKind StageKindFacet `json:"stage_kind"`
-	Stalled   int            `json:"stalled"`
+	StageKind   StageKindFacet    `json:"stage_kind"`
+	Stalled     int               `json:"stalled"`
+	ProcessKind *ProcessKindFacet `json:"process_kind,omitempty"`
+}
+
+func (f *ProcessKindFacet) addOpen(v *OpenVacancy) {
+	if v.replacement() {
+		f.Replacement++
+	} else {
+		f.Original++
+	}
 }
 
 var candidateColumns = map[string]sortColumn[CandidateRow]{
@@ -335,18 +362,22 @@ func (s *Service) buildCandidates(ctx context.Context, l listing) (*built[Candid
 		return nil, err
 	}
 	q := l.q
-	b := &built[CandidateRow, CandidateFacets]{rows: []CandidateRow{}, asOf: v.snap.AsOf}
-	for _, r := range v.rows {
+	b := &built[CandidateRow, CandidateFacets]{rows: []CandidateRow{}, asOf: v.snap.AsOf, facets: CandidateFacets{ProcessKind: &ProcessKindFacet{}}}
+	for _, r := range v.every {
 		kindOK := q.StageKinds == nil || slices.Contains(q.StageKinds, r.kind)
 		stalledOK := !q.Stalled || r.stalled
+		processOK := r.vac.selectedBy(q.ProcessKind)
 		// Each facet ignores only its own filter.
-		if stalledOK {
+		if stalledOK && processOK {
 			b.facets.StageKind.add(r.kind)
 		}
-		if kindOK && r.stalled {
+		if kindOK && r.stalled && processOK {
 			b.facets.Stalled++
 		}
-		if !kindOK || !stalledOK {
+		if kindOK && stalledOK {
+			b.facets.ProcessKind.addOpen(r.vac)
+		}
+		if !kindOK || !stalledOK || !processOK {
 			continue
 		}
 		b.rows = append(b.rows, CandidateRow{ParticipationID: r.p.ID, Candidate: r.p.Candidate, Vacancy: VacancyRef{r.vac.ID, r.vac.Title},
@@ -373,7 +404,8 @@ type ApplicationRow struct {
 }
 
 type ApplicationFacets struct {
-	Channel Origin `json:"channel"`
+	Channel     Origin            `json:"channel"`
+	ProcessKind *ProcessKindFacet `json:"process_kind,omitempty"`
 }
 
 var applicationColumns = map[string]sortColumn[ApplicationRow]{
@@ -407,13 +439,16 @@ func (s *Service) buildApplications(ctx context.Context, l listing) (*built[Appl
 		return nil, 0, err
 	}
 	q := l.q
-	b := &built[ApplicationRow, ApplicationFacets]{rows: []ApplicationRow{}, asOf: v.asOf}
+	b := &built[ApplicationRow, ApplicationFacets]{rows: []ApplicationRow{}, asOf: v.asOf, facets: ApplicationFacets{ProcessKind: &ProcessKindFacet{}}}
 	total := 0
-	for _, vac := range v.data.Vacancies {
+	for _, vac := range v.every.Vacancies {
 		if q.VacancyID != nil && vac.ID != *q.VacancyID {
 			continue
 		}
-		b.facets.Channel.add(vac.Origin)
+		kindOK := vac.selectedBy(q.ProcessKind)
+		if kindOK {
+			b.facets.Channel.add(vac.Origin)
+		}
 		row := ApplicationRow{Vacancy: VacancyRef{vac.ID, vac.Title}, Requester: vac.Requester, Portal: vac.Origin["portal"],
 			CareersSite: vac.Origin["careers_site"], Manual: vac.Origin["manual"], Unknown: vac.Origin["unknown"]}
 		for _, channel := range channels {
@@ -421,7 +456,8 @@ func (s *Service) buildApplications(ctx context.Context, l listing) (*built[Appl
 				row.Total += vac.Origin[channel]
 			}
 		}
-		if row.Total == 0 {
+		b.facets.ProcessKind.add(vac, row.Total)
+		if row.Total == 0 || !kindOK {
 			continue
 		}
 		total += row.Total

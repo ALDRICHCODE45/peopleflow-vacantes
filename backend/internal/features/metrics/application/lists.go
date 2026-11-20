@@ -162,7 +162,23 @@ func finish[T, F any](l listing, b *built[T, F]) (*List[T, F], error) {
 // listView loads the snapshot narrowed by the common filters; recruiter is
 // the vacancy-level recruiter filter (nil when the kind applies it per row).
 func (s *Service) listView(ctx context.Context, l listing, recruiter *uuid.UUID) (view, error) {
-	return s.view(ctx, l.company, l.p, l.q.Requester, recruiter)
+	return s.view(ctx, l.company, l.p, l.q.Requester, recruiter, l.q.ProcessKind)
+}
+
+// ProcessKindFacet counts a process-level list's rows (applications: its
+// applications) per process kind, with every filter but process_kind itself.
+// The dashboard lists have no process_kind filter and leave it out.
+type ProcessKindFacet struct {
+	Original    int `json:"original"`
+	Replacement int `json:"replacement"`
+}
+
+func (f *ProcessKindFacet) add(v *Vacancy, n int) {
+	if v.isReplacement() {
+		f.Replacement += n
+	} else {
+		f.Original += n
+	}
 }
 
 // NameQuery asks the store for the names the snapshot does not hold.
@@ -281,6 +297,9 @@ func (s *Service) applied(ctx context.Context, company uuid.UUID, q Query, all *
 	if q.Stalled {
 		out["stalled"] = true
 	}
+	if q.ProcessKind != "" {
+		out["process_kind"] = q.ProcessKind
+	}
 	return out, vacancy != nil && vacancy.Title != nil, nil
 }
 
@@ -309,6 +328,9 @@ func auditFilters(l listing) map[string]any {
 	}
 	if q.Requester.Kind != "" {
 		out["requester_kind"] = q.Requester.Kind
+	}
+	if q.ProcessKind != "" {
+		out["process_kind"] = q.ProcessKind
 	}
 	if q.Requester.None {
 		out["requester_id"] = "none"

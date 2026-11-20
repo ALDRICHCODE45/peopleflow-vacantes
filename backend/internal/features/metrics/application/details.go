@@ -121,11 +121,11 @@ func snapshotSummary(raw json.RawMessage) json.RawMessage {
 // Deliveries lists a vacancy's delivered candidates in order and records the
 // read (MetricsDetailViewed) in the same transaction.
 func (s *Service) Deliveries(ctx context.Context, company, actor, draft uuid.UUID, raw string) (*Detail[DeliveryRow], error) {
-	_, p, err := prepare(raw, RouteDetail)
+	q, p, err := prepare(raw, RouteDetail)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.store.Deliveries(ctx, company, actor, draft)
+	rows, _, err := s.store.Deliveries(ctx, company, actor, draft, q.ProcessKind)
 	if err != nil {
 		return nil, err
 	}
@@ -135,11 +135,11 @@ func (s *Service) Deliveries(ctx context.Context, company, actor, draft uuid.UUI
 // Placements lists a vacancy's active and did_not_hold credits and records the
 // read (MetricsDetailViewed) in the same transaction.
 func (s *Service) Placements(ctx context.Context, company, actor, draft uuid.UUID, raw string) (*Detail[PlacementRow], error) {
-	_, p, err := prepare(raw, RouteDetail)
+	q, p, err := prepare(raw, RouteDetail)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.store.Placements(ctx, company, actor, draft)
+	rows, _, err := s.store.Placements(ctx, company, actor, draft, q.ProcessKind)
 	if err != nil {
 		return nil, err
 	}

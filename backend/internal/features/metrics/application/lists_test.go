@@ -191,7 +191,8 @@ func TestDeliveries_FiltersFacetsAndRowShape(t *testing.T) {
 	if !reflect.DeepEqual(deliveryTitles(got.Items), []string{"beta"}) || got.Total != 1 {
 		t.Fatalf("%v %d", deliveryTitles(got.Items), got.Total)
 	}
-	if want := (DeliveryFacets{Result: DeliveryStatus{OnTime: 1, Late: 1, Overdue: 1}}); got.Facets != want {
+	// process_kind (R6a) counts the rows passing every other filter: one original.
+	if want := (DeliveryFacets{Result: DeliveryStatus{OnTime: 1, Late: 1, Overdue: 1}, ProcessKind: &ProcessKindFacet{Original: 1}}); !reflect.DeepEqual(got.Facets, want) {
 		t.Fatalf("facets %+v", got.Facets)
 	}
 	row := got.Items[0]
@@ -203,7 +204,7 @@ func TestDeliveries_FiltersFacetsAndRowShape(t *testing.T) {
 	}
 	// Facets with no filter add up to the total.
 	all := fx.list(t, "")
-	if want := (DeliveryFacets{Result: DeliveryStatus{OnTime: 1, Late: 2, Overdue: 1, Pending: 1, NotConfigured: 1}}); all.Facets != want {
+	if want := (DeliveryFacets{Result: DeliveryStatus{OnTime: 1, Late: 2, Overdue: 1, Pending: 1, NotConfigured: 1}, ProcessKind: &ProcessKindFacet{Original: 6}}); !reflect.DeepEqual(all.Facets, want) {
 		t.Fatalf("all facets %+v", all.Facets)
 	}
 	overdue := fx.list(t, "&result=overdue")
@@ -229,7 +230,7 @@ func TestDeliveries_FiltersFacetsAndRowShape(t *testing.T) {
 		}
 	}
 	// A late bucket keeps late rows only, so its facet shows only late.
-	if got := fx.list(t, "&late_bucket=up_to_2"); got.Facets != (DeliveryFacets{Result: DeliveryStatus{Late: 1}}) {
+	if got := fx.list(t, "&late_bucket=up_to_2"); !reflect.DeepEqual(got.Facets, DeliveryFacets{Result: DeliveryStatus{Late: 1}, ProcessKind: &ProcessKindFacet{Original: 1}}) {
 		t.Fatalf("bucket facets %+v", got.Facets)
 	}
 }
@@ -431,7 +432,7 @@ func TestPlacements_ListFacetsAndAuditPerPage(t *testing.T) {
 	if got.Total != 1 || got.Items[0].Candidate.FullName != "Bruno" || got.Items[0].Status != "active" {
 		t.Fatalf("%+v", got)
 	}
-	if got.Facets != (PlacementFacets{Held: HeldFacet{True: 1, False: 1}}) {
+	if !reflect.DeepEqual(got.Facets, PlacementFacets{Held: HeldFacet{True: 1, False: 1}, ProcessKind: &ProcessKindFacet{Original: 1}}) {
 		t.Fatalf("facets %+v", got.Facets)
 	}
 	// Recipients by kind (direct first), then user id.
@@ -441,7 +442,7 @@ func TestPlacements_ListFacetsAndAuditPerPage(t *testing.T) {
 	if got := list("&sort=candidate"); got.Items[0].Candidate.FullName != "ana" {
 		t.Fatalf("candidate sort %+v", got.Items)
 	}
-	if got := list("&recipient=" + w.String()); got.Total != 1 || got.Facets != (PlacementFacets{Held: HeldFacet{True: 1}}) {
+	if got := list("&recipient=" + w.String()); got.Total != 1 || !reflect.DeepEqual(got.Facets, PlacementFacets{Held: HeldFacet{True: 1}, ProcessKind: &ProcessKindFacet{Original: 1}}) {
 		t.Fatalf("recipient %+v", got)
 	}
 }
@@ -515,7 +516,7 @@ func TestReassignments_DirectionReasonFacetAndSort(t *testing.T) {
 		}
 	}
 	got := list("&reason=workload&recruiter_id=" + w.String())
-	if got.Facets != (ReassignmentFacets{Reason: ByReason{Workload: 1, Performance: 1, ClientRequest: 1}}) || got.Total != 1 {
+	if !reflect.DeepEqual(got.Facets, ReassignmentFacets{Reason: ByReason{Workload: 1, Performance: 1, ClientRequest: 1}, ProcessKind: &ProcessKindFacet{Original: 1}}) || got.Total != 1 {
 		t.Fatalf("facets %+v", got.Facets)
 	}
 }

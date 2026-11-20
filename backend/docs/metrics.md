@@ -66,6 +66,10 @@ caller's company is ever read.
   (`client` | `internal_area`), `requester_id`. A uuid needs `requester_kind`. `none` alone
   means «sin solicitante»; `requester_kind=X&requester_id=none` means «X sin especificar»;
   `requester_kind` alone means every vacancy of that kind (M6).
+- **`process_kind`** (`original | replacement`, one value, absent = every process): accepted by
+  every route, exports and per-vacancy detail reads included; anything else is
+  `process_kind: invalid`, a repeated one `duplicate`. See «Replacement processes» below for what it
+  filters and what ignores it.
 - **Lists only:** `limit` (1–100, default 50) and `cursor`. Summary and the sections
   take no list parameters. Exports take neither (`unknown`).
 - **Sortable lists** (deliveries, vacancies, placements, reassignments, candidates,
@@ -212,6 +216,44 @@ caller's company is ever read.
   written. `Service.WithExportLimit` lowers the cap in tests.
 - Errors before the first byte are normal JSON answers; a failure after the 200 aborts the
   connection (`http.ErrAbortHandler`) instead of ending a short file.
+
+## Replacement processes (`process_kind`, replacement-processes-v1 §«Metrics», R6a)
+
+A replacement is its own process (its own draft id) of the same logical vacancy; the original's result never
+changes. The loader reads, for every process with activity in the period, **its whole chain** (the original and every
+replacement), and each `Vacancy` carries `Kind` (`original | replacement`), `RootID`, `Sequence`, whether its process is
+active, and, for an original, `Replacements {count, active_draft_id}` and the tramos and functions of the whole chain
+(`Dataset.link`, run once per snapshot). The snapshot is still keyed `(company_id, from, to)`: `process_kind`, like the
+requester and the recruiter, narrows it in Go per request (`Dataset.narrow` / `forKind`), because a vacancy-level
+figure must see the original even under `process_kind=replacement`. It joins the cursor hash (omitted when absent, so
+existing cursors keep their hash).
+
+`narrow` hands every figure two sets: `Dataset.Roots` (the original of each logical vacancy, **`process_kind` ignored**)
+and `Dataset.Vacancies` (every process passing the requester and recruiter filters, narrowed by `process_kind`). The
+normative table of the contract decides which one a figure reads:
+
+- **Vacancy-level, roots only:** `summary` vacancies (`assigned`, `closed`, median, `closing_target`),
+  `by_requester`, `placements.positions_*`, `closed_by_month`, the headline `assigned` and median; `closures`
+  `closed_by_month`; `delays` `closing_target`; the `vacancies` list, its export and its `close_reason` facet; the
+  recruiter cards' `vacancies.*` (`assigned`, `as_responsible`, `as_collaborator`, `as_member`, `started_in_period`),
+  `placements.closed_assigned` and `conversion`, and `by_month[].assigned`. A root is **assigned** to a user when the
+  user has a tramo overlapping the period on the root **or on any replacement of it** (A5), so the vacancy counts once;
+  the closes, coverage, headcount and credits it reads are the root's own.
+- **Process-level, every process, filtered:** `delivery.*`, `on_time_*`, `placements.credits` / `did_not_hold`,
+  `reassignments.*`, `origin`, `closures` `delivery_status`, `compliance`, `delays` `overdue` and
+  `reassignments_by_reason`, `pipeline`, the recruiter cards' `delivery.*`, `placements.direct|participant|shared|
+  did_not_hold`, `reassignments.*` and `business_days_in_tramos` (and the people a card list names), and the lists
+  `deliveries`, `placements`, `reassignments`, `candidates`, `applications`.
+- The per-vacancy detail reads (`vacancies/{id}/deliveries|placements`) read one process: under a `process_kind` other than
+  the process' own they answer `items: []` (the read is still audited).
+
+Process-level lists add `facets.process_kind = {original, replacement}`, counted with every filter but its own (the
+applications list counts applications, like its total); `applied_filters.process_kind` echoes the filter when sent.
+The dashboard lists have no `process_kind` and no such facet.
+
+Two loader rules keep a carried participation (R3b) honest: `origin` and `applications` count
+`carried_from_participation_id IS NULL` only (a carry is not an application), and a carried intake at or beyond the cutoff
+is a delivered candidate like a manual intake (A3, the rule delivery fulfillment already uses).
 
 ## Metrics snapshot (v2 §2)
 

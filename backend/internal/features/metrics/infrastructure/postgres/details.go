@@ -21,23 +21,35 @@ const candidateJoins = ` LEFT JOIN users u ON u.id=p.candidate_id
 
 // audited runs a §3.5 read and its MetricsDetailViewed row in one read-write
 // transaction: a failed audit insert fails the read (fail-closed). A vacancy of
-// another company, or never published, is 404 and writes nothing.
-func (s *Store) audited(ctx context.Context, company, actor, draft uuid.UUID, report string, read func(pgx.Tx) error) error {
+// another company, or never published, is 404 and writes nothing. It names the
+// process in its logical vacancy; a process of another kind than the
+// process_kind filter ("" = any) reads no rows but is still audited as viewed.
+func (s *Store) audited(ctx context.Context, company, actor, draft uuid.UUID, kind, report string, read func(pgx.Tx) error) (app.ProcessRef, error) {
+	var ref app.ProcessRef
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
-		return err
+		return ref, err
 	}
 	defer tx.Rollback(ctx)
-	var found bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM job_drafts d JOIN vacancy_processes vp ON vp.id=d.id AND vp.company_id=d.company_id
- WHERE d.id=$1 AND d.company_id=$2)`, draft, company).Scan(&found); err != nil {
-		return err
+	var replacement bool
+	err = tx.QueryRow(ctx, `SELECT vr.process_id IS NOT NULL, COALESCE(vr.root_process_id, d.id), vr.sequence
+ FROM job_drafts d JOIN vacancy_processes vp ON vp.id=d.id AND vp.company_id=d.company_id
+ LEFT JOIN vacancy_replacements vr ON vr.process_id=d.id
+ WHERE d.id=$1 AND d.company_id=$2`, draft, company).Scan(&replacement, &ref.RootDraftID, &ref.Sequence)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ref, app.ErrNotFound
 	}
-	if !found {
-		return app.ErrNotFound
+	if err != nil {
+		return ref, err
 	}
-	if err := read(tx); err != nil {
-		return err
+	ref.Kind = app.KindOriginal
+	if replacement {
+		ref.Kind = app.KindReplacement
+	}
+	if kind == "" || kind == ref.Kind {
+		if err := read(tx); err != nil {
+			return ref, err
+		}
 	}
 	if err := s.audit.Append(ctx, tx, auditentities.AuditEvent{
 		ID: uuid.Must(uuid.NewV7()), ActorType: auditentities.ActorTypeUser, ActorID: &actor,
@@ -45,16 +57,16 @@ func (s *Store) audited(ctx context.Context, company, actor, draft uuid.UUID, re
 		CompanyID: &company, VacancyID: &draft,
 		Metadata: map[string]string{"report": report, "vacancy_id": draft.String()},
 	}); err != nil {
-		return err
+		return ref, err
 	}
-	return tx.Commit(ctx)
+	return ref, tx.Commit(ctx)
 }
 
 // Deliveries lists every delivered candidate in delivery order (the count never
 // goes down), with the recruiter whose entry delivered them.
-func (s *Store) Deliveries(ctx context.Context, company, actor, draft uuid.UUID) ([]app.DeliveryRow, error) {
+func (s *Store) Deliveries(ctx context.Context, company, actor, draft uuid.UUID, kind string) ([]app.DeliveryRow, app.ProcessRef, error) {
 	out := []app.DeliveryRow{}
-	err := s.audited(ctx, company, actor, draft, "deliveries", func(tx pgx.Tx) error {
+	ref, err := s.audited(ctx, company, actor, draft, kind, "deliveries", func(tx pgx.Tx) error {
 		var cutoff *uuid.UUID
 		var pipeline []byte
 		var configured bool
@@ -103,7 +115,7 @@ func (s *Store) Deliveries(ctx context.Context, company, actor, draft uuid.UUID)
 		}
 		return nil
 	})
-	return out, err
+	return out, ref, err
 }
 
 func loadCandidates(ctx context.Context, q querier, company uuid.UUID, participations []uuid.UUID) (map[uuid.UUID]app.Candidate, error) {
@@ -133,9 +145,9 @@ func loadCandidates(ctx context.Context, q querier, company uuid.UUID, participa
 
 // Placements lists the vacancy's active and did_not_hold credits, oldest hire
 // first; voided credits are not listed, as in the counts (M3).
-func (s *Store) Placements(ctx context.Context, company, actor, draft uuid.UUID) ([]app.PlacementRow, error) {
+func (s *Store) Placements(ctx context.Context, company, actor, draft uuid.UUID, kind string) ([]app.PlacementRow, app.ProcessRef, error) {
 	out := []app.PlacementRow{}
-	err := s.audited(ctx, company, actor, draft, "placements", func(tx pgx.Tx) error {
+	ref, err := s.audited(ctx, company, actor, draft, kind, "placements", func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `SELECT pc.id, COALESCE(cc.id, u.id), `+candidateName+`, pc.hired_at, pc.status
  FROM placement_credits pc JOIN process_participations p ON p.id=pc.participation_id`+candidateJoins+`
  WHERE pc.process_id=$1 AND pc.company_id=$2 AND pc.status IN ('active','did_not_hold') ORDER BY pc.hired_at, pc.id`, draft, company)
@@ -195,5 +207,5 @@ func (s *Store) Placements(ctx context.Context, company, actor, draft uuid.UUID)
 		}
 		return nil
 	})
-	return out, err
+	return out, ref, err
 }

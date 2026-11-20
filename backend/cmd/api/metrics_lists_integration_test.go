@@ -166,13 +166,13 @@ func TestMetricsLists_FacetsAndAppliedFilters(t *testing.T) {
 	h := newDraftFlowHarness(t)
 	s := newMXScenario(t, h)
 	body := s.get(s.owner, "deliveries?"+mxRange+"&result=late&requester_kind=client")
-	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"result": map[string]any{"on_time": 1, "late": 1, "overdue": 1, "pending": 0, "not_configured": 0}}))
+	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"result": map[string]any{"on_time": 1, "late": 1, "overdue": 1, "pending": 0, "not_configured": 0}, "process_kind": map[string]any{"original": 1, "replacement": 0}}))
 	if body["total"] != float64(1) {
 		t.Fatalf("total %v", body["total"])
 	}
 	editJSONEqual(t, s.get(s.owner, "vacancies?"+mxRange)["facets"], mxJSON(t, map[string]any{"close_reason": map[string]any{"filled": 1, "cancelled": 1, "other": 0, "no_reason": 1}}))
-	editJSONEqual(t, s.get(s.owner, "placements?"+mxRange+"&held=false")["facets"], mxJSON(t, map[string]any{"held": map[string]any{"true": 1, "false": 1}}))
-	editJSONEqual(t, s.get(s.owner, "reassignments?"+mxRange+"&reason=other")["facets"], mxJSON(t, map[string]any{"reason": map[string]any{"workload": 1, "recruiter_departure": 1, "performance": 0, "client_request": 0, "other": 0}}))
+	editJSONEqual(t, s.get(s.owner, "placements?"+mxRange+"&held=false")["facets"], mxJSON(t, map[string]any{"held": map[string]any{"true": 1, "false": 1}, "process_kind": map[string]any{"original": 1, "replacement": 0}}))
+	editJSONEqual(t, s.get(s.owner, "reassignments?"+mxRange+"&reason=other")["facets"], mxJSON(t, map[string]any{"reason": map[string]any{"workload": 1, "recruiter_departure": 1, "performance": 0, "client_request": 0, "other": 0}, "process_kind": map[string]any{"original": 0, "replacement": 0}}))
 
 	// Applied filters: names resolved, a former member flagged, plain filters
 	// as sent, absent keys absent.

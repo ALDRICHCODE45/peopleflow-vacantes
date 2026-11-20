@@ -59,6 +59,8 @@ func (f *mxFixture) exec(query string, args ...any) {
 func (f *mxFixture) cleanup() {
 	ctx := context.Background()
 	for _, q := range []string{
+		`DELETE FROM vacancy_replacement_credits WHERE replacement_process_id=ANY($1)`,
+		`DELETE FROM vacancy_replacements WHERE process_id=ANY($1)`,
 		`DELETE FROM placement_credits WHERE process_id=ANY($1)`,
 		`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT id FROM process_participations WHERE process_id=ANY($1))`,
 		`DELETE FROM process_participations WHERE process_id=ANY($1)`,
@@ -110,6 +112,27 @@ func (f *mxFixture) draft(title string, published *time.Time, kind *string, requ
 	if published != nil {
 		f.exec(`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',$3,$4)`, id, f.company.companyID, *published, f.ownerID)
 	}
+	return id
+}
+
+// replacement inserts a replacement process of the logical vacancy rooted at
+// root: a published process with its team (as draft) and the chain row, started
+// at started with the given sequence (replacement-processes-v1 data model).
+func (f *mxFixture) replacement(title string, root, source uuid.UUID, sequence int, started time.Time, mode string) uuid.UUID {
+	id := f.draft(title, &started, nil, nil, mode)
+	f.exec(`INSERT INTO vacancy_replacements(process_id,company_id,source_process_id,root_process_id,sequence,started_at,started_by,target_quantity) VALUES($1,$2,$3,$4,$5,$6,$7,1)`,
+		id, f.company.companyID, source, root, sequence, started, f.ownerID)
+	return id
+}
+
+// carry copies template into draft at stage as a carried participation (R3b):
+// same candidate and snapshots, one recruiter intake row, never an application.
+func (f *mxFixture) carry(draft, template, stage uuid.UUID, at time.Time) uuid.UUID {
+	id := uuid.New()
+	f.exec(`INSERT INTO process_participations(id,process_id,candidate_id,company_candidate_id,cv_version_id,company_candidate_cv_id,corrected_company_cv_id,stage_id,source,added_by,version,created_at,profile_snapshot,questions_snapshot,answers_snapshot,origin_channel,carried_from_participation_id)
+ SELECT $1,$2,candidate_id,company_candidate_id,cv_version_id,company_candidate_cv_id,corrected_company_cv_id,$3,source,added_by,1,$4,profile_snapshot,questions_snapshot,answers_snapshot,origin_channel,id
+ FROM process_participations WHERE id=$5`, id, draft, stage, at, template)
+	f.exec(`INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,event_kind,actor_kind) VALUES($1,$2,$3,$4,$5,'intake','recruiter')`, uuid.New(), id, stage, f.ownerID, at)
 	return id
 }
 

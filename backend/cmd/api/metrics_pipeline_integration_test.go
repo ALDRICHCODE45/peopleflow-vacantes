@@ -281,7 +281,7 @@ func TestMetricsPipeline_CandidatesRowsAndAudit(t *testing.T) {
 	editJSONEqual(t, items[1], mxJSON(t, map[string]any{"participation_id": s.p2.String(), "candidate": map[string]any{"id": candidateID, "full_name": "Paula Corregida"},
 		"vacancy": map[string]any{"draft_id": s.a.String(), "title": "Analista"}, "stage": map[string]any{"kind": "new", "name": "Nuevos"},
 		"business_days_in_stage": 1, "stalled": false, "entered_stage_at": "2026-03-23T18:00:00Z"}))
-	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"stage_kind": map[string]any{"new": 3, "screening": 1, "screening_ok": 0, "in_process": 0, "custom": 0, "placement": 1}, "stalled": 2}))
+	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"stage_kind": map[string]any{"new": 3, "screening": 1, "screening_ok": 0, "in_process": 0, "custom": 0, "placement": 1}, "stalled": 2, "process_kind": map[string]any{"original": 5, "replacement": 0}}))
 	// Recovery resets the entry; the retired row names its retired stage.
 	rec := s.get(s.owner, "candidates?"+mxPipelineRange+"&stage_kind=screening")["items"].([]any)[0].(map[string]any)
 	if rec["entered_stage_at"] != "2026-03-23T18:00:00Z" || rec["stalled"] != false {
@@ -338,7 +338,7 @@ func TestMetricsPipeline_ApplicationsRows(t *testing.T) {
 			"portal": 2, "careers_site": 0, "manual": 0, "unknown": 1, "total": 3},
 		map[string]any{"vacancy": map[string]any{"draft_id": s.closed.String(), "title": "Cerrada"}, "requester": nil, "portal": 1, "careers_site": 0, "manual": 0, "unknown": 0, "total": 1},
 	}))
-	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"channel": map[string]any{"portal": 3, "careers_site": 1, "manual": 1, "unknown": 1}}))
+	editJSONEqual(t, body["facets"], mxJSON(t, map[string]any{"channel": map[string]any{"portal": 3, "careers_site": 1, "manual": 1, "unknown": 1}, "process_kind": map[string]any{"original": 4, "replacement": 0}}))
 	editJSONEqual(t, body["applied_filters"], mxJSON(t, map[string]any{"channel": []any{"portal", "unknown"}}))
 	titles := func(body map[string]any) string {
 		var out []string

@@ -216,9 +216,11 @@ func (s *Service) summarize(data *Dataset, p Period, now time.Time) *Summary {
 		return groups[key]
 	}
 	var toClose, toTarget []int
-	for _, v := range data.Vacancies {
-		// 2.1 / 2.7: assigned in the period.
-		if v.assignedIn(nil, p.Start, p.End) {
+	// Vacancy-level figures read the original of each logical vacancy once and
+	// ignore process_kind (replacement-processes-v1 §«Metrics», D9).
+	for _, v := range data.Roots {
+		// 2.1 / 2.7: assigned in the period, on the original or any replacement.
+		if v.assignedInChain(nil, p.Start, p.End) {
 			out.Vacancies.Assigned++
 			group(v).Vacancies++
 		}
@@ -237,6 +239,9 @@ func (s *Service) summarize(data *Dataset, p Period, now time.Time) *Summary {
 			toClose = append(toClose, s.calendar.BetweenInstants(v.PublishedAt, c.At))
 			out.Vacancies.ClosingTarget.judge(c)
 		}
+	}
+	// Process-level figures belong to each process and honor process_kind.
+	for _, v := range data.Vacancies {
 		// 2.3: enters by commitment date (D12) or by assignment (P1).
 		if v.inDeliveryPeriod(p) {
 			result, _ := v.DeliveryResult(now, s.calendar)

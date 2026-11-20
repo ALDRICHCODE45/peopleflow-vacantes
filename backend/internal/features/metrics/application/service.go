@@ -33,7 +33,11 @@ func NewService(store Store, calendar Calendar, now func() time.Time) *Service {
 	}
 	s := &Service{store: store, calendar: calendar, now: now, exportLimit: ExportLimit}
 	load := func(ctx context.Context, company uuid.UUID, p Period) (*Dataset, error) {
-		return store.Load(ctx, company, Scope{Period: p})
+		data, err := store.Load(ctx, company, Scope{Period: p})
+		if err == nil && data != nil {
+			data.link()
+		}
+		return data, err
 	}
 	clock := func() time.Time { return s.now() }
 	s.snapshots = newSnapshots(load, clock, SnapshotTTL, SnapshotCapacity, SnapshotTimeout)
@@ -63,22 +67,29 @@ func newHeader(p Period, asOf time.Time) header {
 }
 
 // view is a snapshot narrowed by the request's filters; all is the whole
-// snapshot (applied_filters names people and vacancies from it).
+// snapshot (applied_filters names people and vacancies from it). data is also
+// narrowed by process_kind (its Roots, the vacancy-level set, ignore it); every
+// is the same narrowing without process_kind, for the facet of a list that
+// counts each kind.
 type view struct {
-	data *Dataset
-	all  *Dataset
-	asOf time.Time
+	data  *Dataset
+	every *Dataset
+	all   *Dataset
+	asOf  time.Time
 }
 
 // view loads (or reuses) the period's snapshot and applies the requester
 // filter and, when recruiter is set, keeps the vacancies where that user has a
-// tramo overlapping the period: the loader's scope rules, in Go.
-func (s *Service) view(ctx context.Context, company uuid.UUID, p Period, requester RequesterFilter, recruiter *uuid.UUID) (view, error) {
+// tramo overlapping the period: the loader's scope rules, in Go. The shared
+// snapshot is unfiltered, so process_kind, like the requester and the
+// recruiter, narrows it per request.
+func (s *Service) view(ctx context.Context, company uuid.UUID, p Period, requester RequesterFilter, recruiter *uuid.UUID, kind string) (view, error) {
 	snap, err := s.snapshots.get(ctx, company, p)
 	if err != nil {
 		return view{}, err
 	}
-	return view{snap.Data.narrow(p, requester, recruiter), snap.Data, snap.AsOf}, nil
+	every := snap.Data.narrow(p, requester, recruiter)
+	return view{every.forKind(kind), every, snap.Data, snap.AsOf}, nil
 }
 
 // views loads the period and its previous period in parallel (v2 §4.1), so the
@@ -88,9 +99,9 @@ func (s *Service) views(ctx context.Context, company uuid.UUID, p Period, q Quer
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		previous, prevErr = s.view(ctx, company, p.Previous(), q.Requester, q.RecruiterID)
+		previous, prevErr = s.view(ctx, company, p.Previous(), q.Requester, q.RecruiterID, q.ProcessKind)
 	}()
-	current, err = s.view(ctx, company, p, q.Requester, q.RecruiterID)
+	current, err = s.view(ctx, company, p, q.Requester, q.RecruiterID, q.ProcessKind)
 	<-done
 	if err == nil {
 		err = prevErr
