@@ -36,7 +36,7 @@ writes it; frontend reviews before implementation).
 | T3 | S2, S3, S6 | (`92d2a564`) Lifecycle and board: reopen guard, late «No se sostuvo» on a finished board, «Reemplazo» badge and original ↔ replacement link (portfolio, board header, list) | |
 | T4 | S1, S4, S5 | Start-replacement flow implementation from artboard `04-tarjeta-y-dialogo.html` (card «⋯» menu + 3-step dialog) | `c3fae6d7` (dialog), `99ea704b` (wiring) |
 | T5 | S7 | (`5b0060e4`) Métricas and dashboard: «Originales / Reemplazos» filter and badges | |
-| T6 | S1–S7 | Browser check against the backend branch, full suite, local merge | |
+| T6 | S1–S7 | Browser check against the backend branch, full suite, local merge | this merge |
 
 ## Log
 
@@ -104,3 +104,12 @@ writes it; frontend reviews before implementation).
   iniciado el» after publishing, «1 candidato» plural, named link bars, confirmation box. Backlog: «Retomado» mark on
   carried cards needs `carried_from_participation_id` on board items (backend + deployment order); dashboard participation
   charts count carried participations (backend).
+- **L13** Polish `8a46965a`, `9114769c`, `287186c0` (metrics badge wraps at 390; compact publish readiness so step 2 fits
+  at 1440×900; «1 candidato»; named link bars «Reemplaza a <nombre> en <título>» / «Reemplazo en curso para <nombre>»;
+  tinted departure box, bottom sheet at 390; a public replacement keeps «Proceso iniciado el» with «Publicada el»
+  stacked; dark tint via `primary-text` because `brand-decorative-strong` is not a Tailwind color). Short browser check
+  against backend `c3221415` (R3e: only replacements can be private): originals without a listing show no «Publicar» or
+  «Privada», named bars, both dates, step 2 without scroll, confirmation layout, metrics badge — pass; dark tint and the
+  1440 header re-checked after `287186c0`. «1 candidato» covered by unit test only (the private replacement misses
+  publish fields). Full suite at `9114769c`: 597 files / 10905 tests passed (2 skipped), tsc 0, lint 0 errors (12
+  pre-existing warnings); `287186c0` class-only, related 94/94. Backend branch closed at `7fd2205a`; it merges first.
