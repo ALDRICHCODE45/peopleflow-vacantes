@@ -34,8 +34,8 @@ writes it; frontend reviews before implementation).
 | T3a | S1–S7 | Deployment step 1: new lifecycle/list/VacancyRef keys optional in every strict schema + decoders for the new error envelopes (contract «Deployment order») | `4398018a` |
 | T2 | S1, S4, S5 | (done, L7) Design proposals (gentle-design): «Iniciar reemplazo» flow with hires to replace, resumed candidates with start stage, private/publish | |
 | T3 | S2, S3, S6 | (`92d2a564`) Lifecycle and board: reopen guard, late «No se sostuvo» on a finished board, «Reemplazo» badge and original ↔ replacement link (portfolio, board header, list) | |
-| T4 | S1, S4, S5 | Start-replacement flow implementation from artboard `04-tarjeta-y-dialogo.html` (card «⋯» menu + 3-step dialog) | `c3fae6d7` (dialog), wiring pending |
-| T5 | S7 | Métricas and dashboard: «Originales / Reemplazos» filter and badges | |
+| T4 | S1, S4, S5 | Start-replacement flow implementation from artboard `04-tarjeta-y-dialogo.html` (card «⋯» menu + 3-step dialog) | `c3fae6d7` (dialog), `99ea704b` (wiring) |
+| T5 | S7 | (`5b0060e4`) Métricas and dashboard: «Originales / Reemplazos» filter and badges | |
 | T6 | S1–S7 | Browser check against the backend branch, full suite, local merge | |
 
 ## Log
@@ -78,3 +78,11 @@ writes it; frontend reviews before implementation).
   sostuvo»), «Iniciar reemplazo» on the card and in «Acciones», badges + link bar, portfolio «N reemplazos» groups via
   `root_process_id`; old backend = today's UI. Asked backend for credit status on board items, the late-departure
   discard reason, and names in the link bar. Wiring + audit labels delegated.
+- **L10** Wiring `99ea704b` (worker, TDD: RED 13, GREEN related 26 files / 439 tests): card → dialog with credit
+  preselected and source stages, «Acciones» → dialog, portfolio reads the board then opens it, onStarted navigates to the
+  new pipeline; audit labels «Inició un reemplazo» / «Retomó a un candidato en un reemplazo». T5 `5b0060e4` (worker, TDD:
+  RED 38, GREEN 309; related 45 files / 636 tests): «Proceso» filter (Todos los procesos / Originales / Reemplazos) in URL,
+  every metrics request, chips and CSV; caption «No cambia con el filtro de proceso» on vacancy-level figures; «Reemplazo»
+  badges in detail, top_vacancies and overdue rows. Backend agreed: startable_credits carries participation_id, hired_at
+  and candidate; chain items carry title and sequence (R4); late-departure discard reason stays from the existing catalog.
+  Dashboard rows' `kind` not shown (no filter in v1).
