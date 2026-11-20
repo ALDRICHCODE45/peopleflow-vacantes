@@ -356,7 +356,7 @@ func TestReplacementStartClonesTheSourceIntoAPrivateProcess(t *testing.T) {
 	}
 }
 
-func TestReplacementStartChainsAndRefusesAClosedActiveSourceForNow(t *testing.T) {
+func TestReplacementStartFinishesAClosedActiveSourceAndChains(t *testing.T) {
 	f := newReplFlow(t)
 	root := f.published()
 	f.closeIt(root, "continue")
@@ -367,39 +367,59 @@ func TestReplacementStartChainsAndRefusesAClosedActiveSourceForNow(t *testing.T)
 		t.Fatalf("setup = %s", before.body)
 	}
 
-	// Finishing a closed-active source with the start is R3a2. Until then it is refused,
-	// never left active next to its replacement (one active process per logical vacancy).
-	drafts := f.companyDrafts()
 	resp := f.start(root, replBody(t, "", credit))
-	if resp.status != 409 || draftFlowCatalogCode(t, resp.body) != "lifecycle_transition_invalid" {
-		t.Fatalf("closed-active start: %d %s", resp.status, resp.body)
-	}
-	data := draftFlowObject(t, resp.body)["data"].(map[string]any)
-	if data["action"] != "start_replacement" || !reflect.DeepEqual(data["lifecycle"], any(view)) || f.replacements() != 0 || f.companyDrafts() != drafts {
-		t.Fatalf("data = %v", data)
-	}
-	if after, _ := f.view(root); after.header.Get("ETag") != before.header.Get("ETag") {
-		t.Fatal("a refused start moved the source")
-	}
-
-	if got := f.transition(root, "finish-process", `{}`); got.status != 200 {
-		t.Fatalf("finish: %d %s", got.status, got.body)
-	}
-	resp = f.start(root, replBody(t, "", credit))
 	if resp.status != 201 {
 		t.Fatalf("start: %d %s", resp.status, resp.body)
 	}
-	first := draftFlowObject(t, resp.body)["id"].(string)
+	body := draftFlowObject(t, resp.body)
+	first := body["id"].(string)
+	source := body["source"].(map[string]any)
+	if source["finished_by_start"] != true || source["id"] != root {
+		t.Fatalf("source = %v", source)
+	}
+	after, afterView := f.view(root)
+	if after.header.Get("ETag") != `"vl-`+root+`-v3"` || afterView["process"] != "finished" || afterView["process_finished_at"] == nil || !reflect.DeepEqual(afterView["allowed_actions"], []any{}) || afterView["active_replacement_id"] != first {
+		t.Fatalf("source after = %s", after.body)
+	}
+	if !reflect.DeepEqual(source["lifecycle"], any(afterView)) {
+		t.Fatalf("source.lifecycle = %v, want %v", source["lifecycle"], afterView)
+	}
+	// The lifecycle history and the audit trail say who finished it and why.
+	history := f.h.do(t, "GET", draftFlowV2Path+"/"+root+"/lifecycle/history", "", f.owner.token, nil)
+	items := draftFlowObject(t, history.body)["items"].([]any)
+	if len(items) != 2 || items[0].(map[string]any)["action"] != "finish_process" || items[0].(map[string]any)["actor"].(map[string]any)["id"] != f.owner.userID.String() {
+		t.Fatalf("history = %s", history.body)
+	}
+	if f.count(`SELECT count(*) FROM vacancy_lifecycle_events WHERE process_id=$1 AND action='finish_process' AND lifecycle_version=3 AND process IS NULL AND actor_id=$2`, root, f.owner.userID) != 1 {
+		t.Fatal("finish_process event")
+	}
+	finished := f.auditMetadata(root, "VacancyProcessFinished")
+	if !reflect.DeepEqual(finished, map[string]any{"version": "3", "publication": "closed", "process": "finished", "cause": "replacement_started", "replacement_process_id": first}) {
+		t.Fatalf("VacancyProcessFinished = %v", finished)
+	}
+	if f.count(`SELECT count(*) FROM audit_events WHERE entity_id=$1 AND event_type='VacancyProcessFinished' AND entity_type='vacancy_process' AND actor_id=$2`, root, f.owner.userID) != 1 {
+		t.Fatal("VacancyProcessFinished envelope")
+	}
+	// An ordinary finish carries neither new key.
+	other := f.published()
+	f.closeIt(other, "continue")
+	if got := f.transition(other, "finish-process", `{}`); got.status != 200 {
+		t.Fatalf("finish: %d %s", got.status, got.body)
+	}
+	if plain := f.auditMetadata(other, "VacancyProcessFinished"); plain["cause"] != nil || plain["replacement_process_id"] != nil {
+		t.Fatalf("ordinary finish metadata = %v", plain)
+	}
 
-	// A replacement of a replacement stays in the logical vacancy: same root, next sequence.
-	f.closeIt(first, "finish")
+	// A replacement of a replacement stays in the logical vacancy: same root, next sequence;
+	// its closed-active source is finished by the start as well.
+	f.closeIt(first, "continue")
 	second := f.credit(first, "did_not_hold")
 	resp = f.start(first, replBody(t, ``, second))
 	if resp.status != 201 {
 		t.Fatalf("second start: %d %s", resp.status, resp.body)
 	}
 	next := draftFlowObject(t, resp.body)
-	if next["sequence"] != float64(2) || next["replacement_of"] != first || next["root_process_id"] != root {
+	if next["sequence"] != float64(2) || next["replacement_of"] != first || next["root_process_id"] != root || next["source"].(map[string]any)["finished_by_start"] != true {
 		t.Fatalf("second = %s", resp.body)
 	}
 	_, view = f.view(first)
@@ -407,6 +427,27 @@ func TestReplacementStartChainsAndRefusesAClosedActiveSourceForNow(t *testing.T)
 	meta := f.auditMetadata(next["id"].(string), "VacancyReplacementStarted")
 	if meta["sequence"] != float64(2) || meta["root_process_id"] != root || meta["source_process_id"] != first {
 		t.Fatalf("second audit = %v", meta)
+	}
+	// Only one process of the chain is active afterwards: the newest replacement.
+	if f.count(`SELECT count(*) FROM vacancy_processes p WHERE p.process_status='active' AND (p.id=$1 OR p.id IN (SELECT process_id FROM vacancy_replacements WHERE root_process_id=$1))`, root) != 1 {
+		t.Fatal("exactly one active process per logical vacancy")
+	}
+}
+
+// A refused start must not finish the source it would have replaced.
+func TestReplacementStartRefusalDoesNotFinishTheSource(t *testing.T) {
+	f := newReplFlow(t)
+	root := f.published()
+	f.closeIt(root, "continue")
+	f.cover(root)
+	before, _ := f.view(root)
+	bad := f.credit(root, "active")
+	resp := f.start(root, replBody(t, "", bad))
+	draftFlowAssertError(t, resp, 422, "replacement_credits_invalid")
+	after, view := f.view(root)
+	if after.header.Get("ETag") != before.header.Get("ETag") || view["process"] != "active" || f.replacements() != 0 ||
+		f.count(`SELECT count(*) FROM audit_events WHERE entity_id=$1 AND event_type='VacancyProcessFinished'`, root) != 0 {
+		t.Fatalf("a refused start finished the source: %s", after.body)
 	}
 }
 
@@ -751,7 +792,7 @@ func TestReplacementStartConcurrentStartsOneWins(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		close string
-	}{{"finished source", "finish"}} {
+	}{{"finished source", "finish"}, {"closed-active source", "continue"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newReplFlow(t)
 			root := f.published()

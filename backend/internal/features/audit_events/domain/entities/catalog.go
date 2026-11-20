@@ -202,7 +202,8 @@ var catalog = []EventSpec{
 	spec(EventVacancyPaused, CategoryVacancy, "version", "publication", "process", "reason"),
 	spec(EventVacancyResumed, CategoryVacancy, "version", "publication", "process", "reason"),
 	spec(EventVacancyClosed, CategoryVacancy, "version", "publication", "process", "reason"),
-	spec(EventVacancyProcessFinished, CategoryVacancy, "version", "publication", "process", "reason"),
+	// cause/replacement_process_id appear only when a replacement start finished the process (replacement-processes-v1 D15).
+	spec(EventVacancyProcessFinished, CategoryVacancy, "version", "publication", "process", "reason", "cause", "replacement_process_id"),
 	spec(EventVacancyReopened, CategoryVacancy, "version", "publication", "process", "reason"),
 	spec(EventVacancyCommitmentRenegotiated, CategoryVacancy, "company_id", "change_id", "previous_date", "new_date", "reason"),
 	spec(EventVacancyDeliveryFulfilled, CategoryVacancy, "vacancy_id", "snapshot"),

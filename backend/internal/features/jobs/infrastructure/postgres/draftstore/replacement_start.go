@@ -80,7 +80,7 @@ type startedSource struct {
 // Order inside one transaction: general gates and source draft lock (as lifecycle
 // transitions), key shape, replay, the root and source process locks (§Concurrency),
 // If-Match, source closed, latest of the chain, body, credits, responsible; then the
-// clone and the links, atomically.
+// clone, the links and the finish of a closed-active source (D15), atomically.
 func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uuid.UUID, key string, keyPresent bool, ifMatch string, present bool, body []byte) (drafts.Result, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -147,11 +147,6 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 		}
 		return drafts.Result{}, &replacement.SourceNotLatest{LatestProcessID: latest.ID.String(), RootProcessID: chain.Root.String(), Lifecycle: current}
 	}
-	// Finishing a closed-active source with the start is R3a2: until then such a
-	// source is refused rather than left active beside its replacement (D15).
-	if current.Process != nil && *current.Process == "active" {
-		return drafts.Result{}, &lifecycle.InvalidTransition{Action: "start_replacement", Lifecycle: current}
-	}
 	calendar, err := s.deliveryCalendar()
 	if err != nil {
 		return drafts.Result{}, err
@@ -186,6 +181,7 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	now := s.clock().UTC().Truncate(time.Microsecond)
 	newID := uuid.Must(uuid.NewV7())
 	sequence := latest.Sequence + 1
+	finishSource := current.Process != nil && *current.Process == "active"
 
 	draft := draftRecord{id: newID, companyID: companyID, createdBy: actorID, principalID: responsible, status: "draft", version: 1}
 	if err = tx.QueryRow(ctx, `INSERT INTO job_drafts (id, company_id, created_by, status, version, fields, requester_kind, requester_id)
@@ -220,6 +216,12 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 		return drafts.Result{}, err
 	}
 
+	if finishSource {
+		if err = s.finishSourceForReplacement(ctx, tx, companyID, actorID, actorName, id, newID, version, now); err != nil {
+			return drafts.Result{}, err
+		}
+	}
+
 	// The responses render what this transaction commits.
 	sourceView, _, err := readLifecycle(ctx, tx, id)
 	if err != nil {
@@ -238,7 +240,7 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 		StartedAt: now.Format(timestampLayout), StartedBy: person{actorID.String(), actorName}, Responsible: person{responsible.String(), responsibleName},
 		TargetQuantity: req.TargetQuantity, CommitmentDate: req.CommitmentDate, PlacementCreditIDs: creditIDs, StageMap: entries, Carried: []struct{}{},
 		Delivery:  startedDelivery{Target: req.TargetQuantity},
-		Source:    startedSource{ID: id.String(), FinishedByStart: false, Lifecycle: sourceView},
+		Source:    startedSource{ID: id.String(), FinishedByStart: finishSource, Lifecycle: sourceView},
 		Lifecycle: newView,
 	})
 	if err != nil {
@@ -407,4 +409,26 @@ func (s *Store) cloneReplacementConfiguration(ctx context.Context, tx pgx.Tx, so
 		return nil, fmt.Errorf("clone management: %w", err)
 	}
 	return entries, nil
+}
+
+// finishSourceForReplacement is D15: the closed-active source finishes in the
+// same transaction as the start, with the lifecycle event and the audit event
+// that names the replacement.
+func (s *Store) finishSourceForReplacement(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, actorName string, source, replacementID uuid.UUID, version int64, now time.Time) error {
+	if _, err := tx.Exec(ctx, `UPDATE vacancy_processes SET process_status='finished',process_finished_at=$2,lifecycle_version=$3 WHERE id=$1`, source, now, version+1); err != nil {
+		return fmt.Errorf("finish replaced source: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO vacancy_lifecycle_events(id,process_id,lifecycle_version,action,process,actor_id,actor_name,created_at,reason,reason_note) VALUES($1,$2,$3,'finish_process',NULL,$4,$5,$6,NULL,NULL)`, uuid.Must(uuid.NewV7()), source, version+1, actorID, actorName, now); err != nil {
+		return fmt.Errorf("write finish history: %w", err)
+	}
+	event := newDraftEvent(actorID, companyID, audit.EventVacancyProcessFinished, source, version+1)
+	event.EntityType = "vacancy_process"
+	event.Metadata["publication"] = "closed"
+	event.Metadata["process"] = "finished"
+	event.Metadata["cause"] = "replacement_started"
+	event.Metadata["replacement_process_id"] = replacementID.String()
+	if err := s.audit.Append(ctx, tx, event); err != nil {
+		return fmt.Errorf("co-write replaced source audit: %w", err)
+	}
+	return nil
 }
