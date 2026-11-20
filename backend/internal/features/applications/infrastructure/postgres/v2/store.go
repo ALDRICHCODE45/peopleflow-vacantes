@@ -236,7 +236,7 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		at = q.After.At
 		id = q.After.ID
 	}
-	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,CASE WHEN vp.process_status='finished' THEN 'closed' ELSE 'open' END,c.id,c.name,p.created_at,p.stage_id,p.discarded_at IS NOT NULL,CASE WHEN p.discarded_at IS NOT NULL THEN p.candidate_message ELSE NULL END,CASE WHEN p.discarded_at IS NOT NULL AND p.candidate_message IS NOT NULL THEN p.candidate_message_read_at ELSE NULL END FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND p.source='organic' AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
+	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,CASE WHEN vp.process_status='finished' THEN 'closed' ELSE 'open' END,c.id,c.name,p.created_at,p.stage_id,p.discarded_at IS NOT NULL,CASE WHEN p.discarded_at IS NOT NULL THEN p.candidate_message ELSE NULL END,CASE WHEN p.discarded_at IS NOT NULL AND p.candidate_message IS NOT NULL THEN p.candidate_message_read_at ELSE NULL END FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND p.source='organic' AND p.carried_from_participation_id IS NULL AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
 	if err != nil {
 		return app.Page{}, err
 	}
@@ -290,7 +290,7 @@ func (s *Store) MarkMessageRead(ctx context.Context, sub string, id uuid.UUID, e
 	}
 	item := app.Item{ID: id}
 	var discarded bool
-	err = tx.QueryRow(ctx, `SELECT process_id,created_at,discarded_at IS NOT NULL,candidate_message,candidate_message_read_at FROM process_participations WHERE id=$1 AND candidate_id=$2 AND source='organic' FOR UPDATE`, id, candidate).Scan(&item.Vacancy.ID, &item.AppliedAt, &discarded, &item.Message, &item.MessageReadAt)
+	err = tx.QueryRow(ctx, `SELECT process_id,created_at,discarded_at IS NOT NULL,candidate_message,candidate_message_read_at FROM process_participations WHERE id=$1 AND candidate_id=$2 AND source='organic' AND carried_from_participation_id IS NULL FOR UPDATE`, id, candidate).Scan(&item.Vacancy.ID, &item.AppliedAt, &discarded, &item.Message, &item.MessageReadAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return app.ErrNotFound
 	}

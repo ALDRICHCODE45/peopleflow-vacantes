@@ -61,7 +61,7 @@ func reachedCandidates(ctx context.Context, tx pgx.Tx, id uuid.UUID, cutoff *str
  LEFT JOIN users u ON u.id=p.candidate_id
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
  JOIN participation_stage_history h ON h.participation_id=p.id
- WHERE p.process_id=$1 AND (h.stage_id=$2::uuid OR (p.source='manual' AND h.event_kind='intake' AND h.stage_id=ANY($3::uuid[]))) AND h.event_kind IN ('intake','move','recovery')
+ WHERE p.process_id=$1 AND (h.stage_id=$2::uuid OR ((p.source='manual' OR p.carried_from_participation_id IS NOT NULL) AND h.event_kind='intake' AND h.stage_id=ANY($3::uuid[]))) AND h.event_kind IN ('intake','move','recovery')
  GROUP BY p.id,u.id,u.full_name,cc.id,cc.full_name ORDER BY reached_at,p.id`, id, *cutoff, intakeStages)
 	if err != nil {
 		return nil, err
@@ -87,8 +87,8 @@ func completeDelivery(c deliveryconfig.Configuration) bool {
 	return c.CutoffStageID != nil && c.TargetQuantity != nil && c.CommitmentDate != nil
 }
 
-// RecordDelivery evaluates actual cutoff entries and manual intake at or beyond
-// the cutoff. It neither opens nor commits a transaction; audit failure aborts
+// RecordDelivery evaluates actual cutoff entries and manual intake (a carried
+// candidate of a replacement is an intake too, contract A3) at or beyond the cutoff. It neither opens nor commits a transaction; audit failure aborts
 // the caller too.
 func (s *Store) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, entered uuid.UUID, at time.Time) error {
 	c, _, err := readDelivery(ctx, tx, id)
@@ -104,7 +104,7 @@ func (s *Store) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, entere
 			return err
 		}
 		var intake bool
-		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM participation_stage_history h JOIN process_participations p ON p.id=h.participation_id WHERE p.process_id=$1 AND p.source='manual' AND h.event_kind='intake' AND h.actor_id=$2 AND h.stage_id=$3 AND h.created_at=$4 AND h.stage_id=ANY($5::uuid[]))`, id, actor, entered, at, stages).Scan(&intake)
+		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM participation_stage_history h JOIN process_participations p ON p.id=h.participation_id WHERE p.process_id=$1 AND (p.source='manual' OR p.carried_from_participation_id IS NOT NULL) AND h.event_kind='intake' AND h.actor_id=$2 AND h.stage_id=$3 AND h.created_at=$4 AND h.stage_id=ANY($5::uuid[]))`, id, actor, entered, at, stages).Scan(&intake)
 		if err != nil {
 			return err
 		}

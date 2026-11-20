@@ -8,7 +8,7 @@ import (
 )
 
 func TestReplacementCatalogAndEnvelope(t *testing.T) {
-	want := []Code{"reopen_requires_replacement", "replacement_already_active", "reopen_superseded", "replacement_source_not_closed", "replacement_source_not_latest", "replacement_credits_invalid"}
+	want := []Code{"reopen_requires_replacement", "replacement_already_active", "reopen_superseded", "replacement_source_not_closed", "replacement_source_not_latest", "replacement_credits_invalid", "carried_candidate_invalid", "carried_stage_invalid"}
 	if !reflect.DeepEqual(ReplacementErrorCodes(), want) {
 		t.Fatal(ReplacementErrorCodes())
 	}
@@ -19,7 +19,7 @@ func TestReplacementCatalogAndEnvelope(t *testing.T) {
 	for _, code := range ReplacementErrorCodes() {
 		def := Resolve(code)
 		wantStatus := 409
-		if code == CodeReplacementCreditsInvalid {
+		if code == CodeReplacementCreditsInvalid || code == CodeCarriedCandidateInvalid || code == CodeCarriedStageInvalid {
 			wantStatus = 422
 		}
 		if def.Code != code || def.Status != wantStatus || def.Message == "" {

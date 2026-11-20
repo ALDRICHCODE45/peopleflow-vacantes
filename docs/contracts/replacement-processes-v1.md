@@ -390,9 +390,9 @@ audit events commit or roll back together (fail-closed audit, as `Append` does t
 
 **R3a implementation notes** (what the first Start slice does; the rest of the contract is unchanged):
 
-- **Not yet accepted.** `publish: true` (R3c) and a non-empty `carried_candidates` (R3b) answer 400 `invalid_request`, never silently ignored;
-  `publish: false`, `publish: null`, `carried_candidates: []` and `null` are accepted. The 201 carries `visibility: "private"`, `carried: []` and
-  `delivery: { delivered: 0, target, fulfilled: false }`; the codes `carried_candidate_invalid` / `carried_stage_invalid` arrive with R3b.
+- **Not yet accepted.** `publish: true` (R3c) answers 400 `invalid_request`, never silently ignored; `publish: false` and `publish: null` are accepted. (R3a also
+  rejected a non-empty `carried_candidates`; since R3b it is accepted, see «R3b implementation notes».) The 201 carries `visibility: "private"`, and a start that
+  carries nobody answers `carried: []` and `delivery: { delivered: 0, target, fulfilled: false }`.
 - **Body.** Shape errors are `invalid_request`: not an object, unknown key, `placement_credit_ids` absent / empty / above 999 / not canonical lowercase UUIDs /
   duplicated, `commitment_date` absent or not `YYYY-MM-DD`, `target_quantity` not an integer, `responsible` not exactly `{ user_id }`. Range errors are
   `validation_error` with every offending field in this order: `target_quantity` (`out_of_range` for outside 1..999, which outranks `below_credits_count`),
@@ -412,6 +412,41 @@ audit events commit or roll back together (fail-closed audit, as `Append` does t
 - **Private by default, partially.** Start inserts the process row and never a projection. `refreshPublicProjection` now refreshes only a projection that exists
   (the contract's required fix), so saving the content of a private replacement does not publish it; the old compatibility that materialized a projection for a
   process row without one on a save is gone. `GET V/publication`, `Publish` and the `publish` allowed action still key on the process row until R3c.
+
+**R3b implementation notes** (carried candidates; the rest of the contract is unchanged):
+
+- **Order and codes.** `carried_candidates` is checked after the credits and before the responsible. Candidate problems (`not_in_chain`, `currently_placed`, `duplicate`)
+  come first and answer 422 `carried_candidate_invalid`; only when no candidate has a problem are the stages checked (`stage_not_found`, `stage_is_placement`,
+  `stage_is_exit`, 422 `carried_stage_invalid`). Both carry `data.candidates: [{ index, reason }]` with **only the offending indexes**, in request order, one reason per
+  index. A repeated `{kind, id}` is `duplicate` from its second occurrence on (the first one is judged on its own merits). A rejected start creates nothing.
+- **Body.** Each item is exactly `{ candidate: { kind, id }, stage_id }`; `kind` is `manual | organic`, ids are canonical lowercase UUIDs; anything else is 400
+  `invalid_request`. More than 200 items is 400 `validation_error` with `fields: [{ "field": "carried_candidates", "code": "out_of_range" }]` (listed after
+  `target_quantity` and `commitment_date`); a shape error in the list outranks it.
+- **Most recent participation.** `created_at DESC, id DESC` over every participation of the chain's processes. The kind is the identity column: `organic` matches
+  `candidate_id` (a manual intake of an organic account included), `manual` matches `company_candidate_id`. «Currently placed» = the template is not discarded and sits
+  in the Placement stage of **its own** process. A candidate carried before is the template of the next carry (the copy is the newest row).
+- **Stage.** `stage_id` must be a stage of the **source** process (the one the start runs from): built-ins by their source id, custom by their id. The same mapping as the
+  clone gives the replacement's stage; `stage_map` and `carried[].stage_id` are consistent. The replacement's own built-in ids are not accepted (`stage_not_found`).
+- **Copy.** `INSERT … SELECT` from the template: identity, `source`, `cv_version_id` / `company_candidate_cv_id` / `corrected_company_cv_id`, `profile_snapshot`,
+  `questions_snapshot`, `answers_snapshot`, `origin_channel`. `added_by` = the caller for `source = manual`, NULL for `organic`; `created_at` = `started_at`; `version = 1`;
+  never discarded, no substate, no checklist marks. One `intake` history row per carried participation (recruiter actor, `created_at` = `started_at`).
+  The template is not touched and is not locked (a participation lock after the credit locks could deadlock with a late departure); every process of the chain but
+  the source and the root is finished, and the two locked ones cannot change, so the only race is a late departure, which can only make a candidate eligible.
+- **Delivery.** `reachedCandidates` and `RecordDelivery` treat `carried_from_participation_id IS NOT NULL` like `source = 'manual'`, so a carried intake at the cutoff or
+  after it is delivered and may fulfil inside the start (`VacancyDeliveryFulfilled`, one per process). Carried candidates are accounted after all of them exist, so a
+  start whose carries reach the target fulfils once. The 201's `delivery` is read after that (`delivered` can exceed `target`: it counts every delivered candidate, the
+  fulfillment snapshot keeps exactly `target`). Nothing changes for an ordinary process: no participation of it has the column set.
+- **Audit.** `VacancyCandidateCarried` (entity `process_participation` = the new participation, category `candidate`) per candidate, after `VacancyReplacementStarted`
+  (`carried_count` = the number carried). `source_process_id` and `source_participation_id` name the **template** (where the copy came from, which can be older than the
+  replacement's source); `stage_id` is the replacement's stage; `candidate_kind` / `candidate_id` the `{kind, id}`. No `cv_id`.
+- **Stage-entry hook.** The store calls its optional `StageEntryHook` (`OnStageEntered(…, "intake")`, the port the board and the apply path use) for every carried
+  participation inside the transaction, so psychometric auto-send can follow; a hook error aborts the start. The hook is a seam (`Store.WithStageEntryHook`): **the
+  composition root (`cmd/api/main.go`) must call `draftStore.WithStageEntryHook(newPsychometricStageEntryHook(draftStore))` for it to run in production** (R3b did not
+  touch `main.go`; until then carried candidates do not get auto-sent invitations).
+- **Candidate-facing exclusion.** Implemented for `GET /v2/me/applications` and `PUT /v2/me/applications/{id}/message-read` (carried rows are not found) and for the
+  `application` of the saved-jobs list. Deliberately unchanged: the already-applied check of `POST /v2/jobs/{id}/applications` (the candidate is already in that
+  process: `UNIQUE (process_id, candidate_id)` would reject a second row anyway) and, outside this slice's reach, the public ad's `applicants` bucket
+  (`db/queries/public_jobs.sql`), the candidate's psychometric invitation list (`source = 'organic'`) and the metrics `origin` / `applications` figures (R6).
 
 ### `GET V/replacements`
 
@@ -750,7 +785,7 @@ step 1 of §«Deployment order» precedes R2.
    idempotency, ETag, latest/active/not-closed checks, concurrency (§Concurrency), **finish of a closed-active source (lifecycle event +
    `VacancyProcessFinished` `cause`)**, `validation_error` `fields[]`, `VacancyReplacementStarted`, audit catalog changes (constants, specs,
    annex). Over budget on purpose; split the source-finish into R3a2 (~120) if review prefers.
-4. **R3b · Carried candidates** (~350): participation copy, `intake` history, delivery rule change (`reachedCandidates`/`RecordDelivery`),
+4. **R3b · Carried candidates** (~350; **implemented**, see Log L14 of the feature doc and «R3b implementation notes»): participation copy, `intake` history, delivery rule change (`reachedCandidates`/`RecordDelivery`),
    `VacancyCandidateCarried`, candidate-facing exclusion, the carry error codes.
 5. **R3c · Private/public** (~300): `publish: true`, `readPublishedAt` → projection keyed, `refreshPublicProjection` fix, publish-later,
    `GET V/publication` for private replacements, `allowed_actions` `publish`.

@@ -101,6 +101,16 @@ func writeReplacementError(w http.ResponseWriter, err error) {
 		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeReplacementCreditsInvalid), credits)
 		return
 	}
+	var candidates *replacement.CarriedCandidatesInvalid
+	if errors.As(err, &candidates) {
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeCarriedCandidateInvalid), candidates)
+		return
+	}
+	var stages *replacement.CarriedStagesInvalid
+	if errors.As(err, &stages) {
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeCarriedStageInvalid), stages)
+		return
+	}
 	var rule vacancyteam.RuleError
 	if errors.As(err, &rule) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.Code(rule)))

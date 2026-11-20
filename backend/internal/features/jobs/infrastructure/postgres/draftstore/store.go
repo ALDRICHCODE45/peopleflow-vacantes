@@ -59,6 +59,21 @@ type Store struct {
 	audit               auditrepositories.AuditEventRepository
 	clock               func() time.Time
 	memberMutationGuard func(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, bool) error
+	stageEntry          StageEntryHook
+}
+
+// StageEntryHook runs when a participation enters a stage inside the caller's
+// transaction (psychometric auto-send). It is the same port the board and the
+// apply path use; it is declared here so vacancy persistence does not import a
+// sibling feature. Nil keeps the no-op behavior.
+type StageEntryHook interface {
+	OnStageEntered(ctx context.Context, tx pgx.Tx, process, participation, stage uuid.UUID, kind string) error
+}
+
+// WithStageEntryHook composes the stage-entry hook used by carried candidates.
+func (s *Store) WithStageEntryHook(h StageEntryHook) *Store {
+	s.stageEntry = h
+	return s
 }
 
 // NewStore wraps the connection pool and the stateless, tx-scoped audit port.

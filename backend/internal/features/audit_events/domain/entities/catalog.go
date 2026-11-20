@@ -92,6 +92,7 @@ const (
 	EventVacancyPlacementCredited              = "VacancyPlacementCredited"
 	EventVacancyPlacementCreditChanged         = "VacancyPlacementCreditChanged"
 	EventVacancyReplacementStarted             = "VacancyReplacementStarted"
+	EventVacancyCandidateCarried               = "VacancyCandidateCarried"
 
 	// Pipeline.
 	EventJobDraftPipelineConfigured   = "JobDraftPipelineConfigured"
@@ -179,6 +180,7 @@ var catalog = []EventSpec{
 	spec(EventCompanyCandidateEdited, CategoryCandidate, "fields"),
 	spec(EventCompanyCandidateCVCorrected, CategoryCandidate, "participation_id"),
 	spec(EventVacancyCandidateAddedManually, CategoryCandidate, "vacancy_id", "stage_id", "candidate_id", "cv_id"),
+	spec(EventVacancyCandidateCarried, CategoryCandidate, "company_id", "vacancy_id", "source_process_id", "source_participation_id", "candidate_kind", "candidate_id", "stage_id"),
 	spec(EventVacancyApplicationSubmitted, CategoryCandidate, "vacancy_id", "stage_id", "source"),
 	spec(EventApplicationSubmitted, CategoryCandidate, "job_id", "source"),
 	spec(EventApplicationTransitioned, CategoryCandidate, "job_id", "from_status", "to_status"),

@@ -44,26 +44,27 @@ type person struct {
 // startedReplacement is the 201 body, keys in the contract's order. Only id, kind,
 // lifecycle and the headers are decoded by the frontend; the rest is informative.
 type startedReplacement struct {
-	ID                 string          `json:"id"`
-	Kind               string          `json:"kind"`
-	Sequence           int32           `json:"sequence"`
-	ReplacementOf      string          `json:"replacement_of"`
-	RootProcessID      string          `json:"root_process_id"`
-	Visibility         string          `json:"visibility"`
-	StartedAt          string          `json:"started_at"`
-	StartedBy          person          `json:"started_by"`
-	Responsible        person          `json:"responsible"`
-	TargetQuantity     int             `json:"target_quantity"`
-	CommitmentDate     string          `json:"commitment_date"`
-	PlacementCreditIDs []string        `json:"placement_credit_ids"`
-	StageMap           []stageMapEntry `json:"stage_map"`
-	Carried            []struct{}      `json:"carried"`
-	Delivery           startedDelivery `json:"delivery"`
-	Source             startedSource   `json:"source"`
-	Lifecycle          lifecycle.View  `json:"lifecycle"`
+	ID                 string                 `json:"id"`
+	Kind               string                 `json:"kind"`
+	Sequence           int32                  `json:"sequence"`
+	ReplacementOf      string                 `json:"replacement_of"`
+	RootProcessID      string                 `json:"root_process_id"`
+	Visibility         string                 `json:"visibility"`
+	StartedAt          string                 `json:"started_at"`
+	StartedBy          person                 `json:"started_by"`
+	Responsible        person                 `json:"responsible"`
+	TargetQuantity     int                    `json:"target_quantity"`
+	CommitmentDate     string                 `json:"commitment_date"`
+	PlacementCreditIDs []string               `json:"placement_credit_ids"`
+	StageMap           []stageMapEntry        `json:"stage_map"`
+	Carried            []carriedParticipation `json:"carried"`
+	Delivery           startedDelivery        `json:"delivery"`
+	Source             startedSource          `json:"source"`
+	Lifecycle          lifecycle.View         `json:"lifecycle"`
 }
 
-// startedDelivery: a replacement starts with no participations, so nothing is delivered yet.
+// startedDelivery is the delivery after the carried candidates: a replacement that
+// carries nobody starts with nothing delivered.
 type startedDelivery struct {
 	Delivered int  `json:"delivered"`
 	Target    int  `json:"target"`
@@ -79,8 +80,9 @@ type startedSource struct {
 // StartReplacement implements replacement.Store (contract «POST V/replacements»).
 // Order inside one transaction: general gates and source draft lock (as lifecycle
 // transitions), key shape, replay, the root and source process locks (§Concurrency),
-// If-Match, source closed, latest of the chain, body, credits, responsible; then the
-// clone, the links and the finish of a closed-active source (D15), atomically.
+// If-Match, source closed, latest of the chain, body, credits, carried candidates,
+// responsible; then the clone, the links, the carried participations and the finish
+// of a closed-active source (D15), atomically.
 func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uuid.UUID, key string, keyPresent bool, ifMatch string, present bool, body []byte) (drafts.Result, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -158,6 +160,11 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	if err = checkReplacementCredits(ctx, tx, companyID, chain, req.CreditIDs); err != nil {
 		return drafts.Result{}, err
 	}
+	newID := uuid.Must(uuid.NewV7())
+	plans, err := s.planCarried(ctx, tx, chain, id, newID, req.Carried)
+	if err != nil {
+		return drafts.Result{}, err
+	}
 	responsible := actorID
 	if req.Responsible != nil && *req.Responsible != actorID {
 		// Handing the replacement over is an owner action (vacancy-team-v1 «Reassign the responsible»).
@@ -179,7 +186,6 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	}
 
 	now := s.clock().UTC().Truncate(time.Microsecond)
-	newID := uuid.Must(uuid.NewV7())
 	sequence := latest.Sequence + 1
 	finishSource := current.Process != nil && *current.Process == "active"
 
@@ -206,6 +212,16 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	for _, credit := range req.CreditIDs {
 		if _, err = tx.Exec(ctx, `INSERT INTO vacancy_replacement_credits (replacement_process_id,placement_credit_id) VALUES ($1,$2)`, newID, credit); err != nil {
 			return drafts.Result{}, fmt.Errorf("link replaced credit: %w", err)
+		}
+	}
+	carried, err := s.insertCarried(ctx, tx, actorID, newID, now, plans)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	delivery := startedDelivery{Target: req.TargetQuantity}
+	if len(carried) > 0 {
+		if delivery, err = s.recordCarriedDelivery(ctx, tx, actorID, newID, now, carried); err != nil {
+			return drafts.Result{}, err
 		}
 	}
 	var actorName, responsibleName string
@@ -238,8 +254,8 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	response, err := json.Marshal(startedReplacement{
 		ID: newID.String(), Kind: "replacement", Sequence: sequence, ReplacementOf: id.String(), RootProcessID: chain.Root.String(), Visibility: "private",
 		StartedAt: now.Format(timestampLayout), StartedBy: person{actorID.String(), actorName}, Responsible: person{responsible.String(), responsibleName},
-		TargetQuantity: req.TargetQuantity, CommitmentDate: req.CommitmentDate, PlacementCreditIDs: creditIDs, StageMap: entries, Carried: []struct{}{},
-		Delivery:  startedDelivery{Target: req.TargetQuantity},
+		TargetQuantity: req.TargetQuantity, CommitmentDate: req.CommitmentDate, PlacementCreditIDs: creditIDs, StageMap: entries, Carried: append([]carriedParticipation{}, carried...),
+		Delivery:  delivery,
 		Source:    startedSource{ID: id.String(), FinishedByStart: finishSource, Lifecycle: sourceView},
 		Lifecycle: newView,
 	})
@@ -257,10 +273,13 @@ func (s *Store) StartReplacement(ctx context.Context, companyID, actorID, id uui
 	started := audit.AuditEvent{ID: uuid.Must(uuid.NewV7()), ActorType: audit.ActorTypeUser, ActorID: &actorID, EventType: audit.EventVacancyReplacementStarted, EntityType: "vacancy_process", EntityID: newID, CompanyID: &companyID, VacancyID: &newID,
 		StructuredMetadata: map[string]any{
 			"company_id": companyID.String(), "vacancy_id": newID.String(), "source_process_id": id.String(), "root_process_id": chain.Root.String(), "sequence": int(sequence),
-			"target_quantity": req.TargetQuantity, "credit_ids": req.SortedCreditIDs(), "carried_count": 0, "visibility": "private", "responsible_user_id": responsible.String(),
+			"target_quantity": req.TargetQuantity, "credit_ids": req.SortedCreditIDs(), "carried_count": len(carried), "visibility": "private", "responsible_user_id": responsible.String(),
 		}}
 	if err = s.audit.Append(ctx, tx, started); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write replacement audit: %w", err)
+	}
+	if err = s.auditCarried(ctx, tx, companyID, actorID, newID, carried); err != nil {
+		return drafts.Result{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return drafts.Result{}, fmt.Errorf("commit replacement: %w", err)

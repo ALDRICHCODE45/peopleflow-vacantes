@@ -21,8 +21,8 @@ import (
 )
 
 // Replacement processes R3a (docs/contracts/replacement-processes-v1.md,
-// «POST V/replacements»): Start through the production router. Carried
-// candidates (R3b) and publish:true (R3c) are rejected in this slice.
+// «POST V/replacements»): Start through the production router. publish:true (R3c)
+// is rejected in this slice; carried candidates are R3b (replacement_carry_integration_test.go).
 
 func replMexicoCalendar(t *testing.T) deliveryconfig.Calendar {
 	t.Helper()
@@ -680,10 +680,11 @@ func TestReplacementStartPreconditionsAndErrors(t *testing.T) {
 			"float target":        replBody(t, `,"target_quantity":2.5`, credits...),
 			"bad responsible":     replBody(t, `,"responsible":{"id":"x"}`, credits...),
 			"responsible extra":   replBody(t, `,"responsible":{"user_id":"`+f.owner.userID.String()+`","x":1}`, credits...),
-			// R3c / R3b are not implemented yet: they are rejected, never silently ignored.
-			"publish true":       replBody(t, `,"publish":true`, credits...),
-			"publish string":     replBody(t, `,"publish":"no"`, credits...),
-			"carried candidates": replBody(t, `,"carried_candidates":[{"candidate":{"kind":"manual","id":"`+uuid.NewString()+`"},"stage_id":"`+uuid.NewString()+`"}]`, credits...),
+			// R3c is not implemented yet: publish:true is rejected, never silently ignored. Carried
+			// candidates (R3b) are covered by replacement_carry_integration_test.go.
+			"publish true":          replBody(t, `,"publish":true`, credits...),
+			"publish string":        replBody(t, `,"publish":"no"`, credits...),
+			"carried without stage": replBody(t, `,"carried_candidates":[{"candidate":{"kind":"manual","id":"`+uuid.NewString()+`"}}]`, credits...),
 		} {
 			expect(name, f.start(root, body), 400, "invalid_request")
 		}

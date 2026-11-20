@@ -329,6 +329,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `CompanyCandidateEdited` | candidate | Editó los datos de un candidato |
 | `CompanyCandidateCVCorrected` | candidate | Corrigió el CV de un candidato |
 | `VacancyCandidateAddedManually` | candidate | Agregó un candidato a una vacante |
+| `VacancyCandidateCarried` | candidate | Reutilizó a un candidato en un proceso de reemplazo |
 | `VacancyApplicationSubmitted` | candidate | Se postuló a una vacante |
 | `ApplicationSubmitted` | candidate | Envió una postulación |
 | `ApplicationTransitioned` | candidate | Cambió el estado de una postulación |
@@ -385,7 +386,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `StakeholderInvitationAccepted` | members | Invitación de stakeholder aceptada |
 | `AuditLogExported` | audit | Exportó la auditoría |
 
-The annex lists every catalog type (69) in catalog order; a test fails when a catalog type has no row.
+The annex lists every catalog type (70) in catalog order; a test fails when a catalog type has no row.
 
 ## Decisions (approved 2026-11-04)
 
