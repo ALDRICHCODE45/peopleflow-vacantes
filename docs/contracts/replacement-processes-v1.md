@@ -388,6 +388,31 @@ Errors (new codes in **bold**, §Error codes):
 Atomic: draft, clones, team, process, link rows, carried participations, projection (when `publish`), idempotency row and
 audit events commit or roll back together (fail-closed audit, as `Append` does today).
 
+**R3a implementation notes** (what the first Start slice does; the rest of the contract is unchanged):
+
+- **Not yet accepted.** `publish: true` (R3c) and a non-empty `carried_candidates` (R3b) answer 400 `invalid_request`, never silently ignored;
+  `publish: false`, `publish: null`, `carried_candidates: []` and `null` are accepted. The 201 carries `visibility: "private"`, `carried: []` and
+  `delivery: { delivered: 0, target, fulfilled: false }`; the codes `carried_candidate_invalid` / `carried_stage_invalid` arrive with R3b.
+- **Body.** Shape errors are `invalid_request`: not an object, unknown key, `placement_credit_ids` absent / empty / above 999 / not canonical lowercase UUIDs /
+  duplicated, `commitment_date` absent or not `YYYY-MM-DD`, `target_quantity` not an integer, `responsible` not exactly `{ user_id }`. Range errors are
+  `validation_error` with every offending field in this order: `target_quantity` (`out_of_range` for outside 1..999, which outranks `below_credits_count`),
+  then `commitment_date` (`out_of_range` outside today..today+1 year, Mexico City); `non_business_date` only when nothing else is wrong.
+- **Credits.** Reasons are decided in the order `not_in_chain` (unknown id, another company, a process outside the chain), `not_did_not_hold`, `already_replaced`;
+  `data.credits` lists only the problems, in request order, and a request with any problem creates nothing. Valid credits are row-locked first.
+- **Replay and ETag.** The replay check comes before `If-Match` (a stale ETag replays); the fingerprint is the canonical body bound to the source id, so a
+  whitespace-only change replays and any other change, or another source, is 409 `idempotency_conflict`. When two starts race on a closed-**active** source, the
+  loser can answer 412 `version_conflict` (the winner finished the source, which moved its ETag) instead of 409 `replacement_already_active`; both are the
+  contract's «stale» and «active» outcomes. On a finished source the loser is always `replacement_already_active`.
+- **Clone.** Besides the pieces in §«What is cloned», the checklist's `reminder_stage_ids` and the psychometric profile's `auto_send_stage_ids` name stages, so they
+  are carried through the stage map (a retired stage that has no counterpart is dropped, as the reads already hide it). The 201's `stage_map` lists the
+  progression stages in order, then the exit stage.
+- **Audit.** `VacancyReplacementStarted` metadata uses numbers for `sequence`, `target_quantity`, `carried_count` and a **sorted** `credit_ids` list; the new draft
+  and team emit `JobDraftCreated` / `VacancyTeamCreated`; a closed-active source emits `VacancyProcessFinished` (version = source version + 1, `publication =
+  closed`, `process = finished`, `cause = replacement_started`, `replacement_process_id`; the two new keys are absent on ordinary finishes).
+- **Private by default, partially.** Start inserts the process row and never a projection. `refreshPublicProjection` now refreshes only a projection that exists
+  (the contract's required fix), so saving the content of a private replacement does not publish it; the old compatibility that materialized a projection for a
+  process row without one on a save is gone. `GET V/publication`, `Publish` and the `publish` allowed action still key on the process row until R3c.
+
 ### `GET V/replacements`
 
 The chain of the logical vacancy `{id}` belongs to (works from the original or from any replacement). Authorization:
@@ -721,7 +746,7 @@ step 1 of §«Deployment order» precedes R2.
    without `reopen` (closed covered / other active replacement / successor), `reopen_requires_replacement`, `replacement_already_active`,
    `reopen_superseded`, draft-list keys **and the `root_process_id` filter + cursor binding**, `replacement_errors.go`. Observable with seeded rows
    before Start exists. (Grew from ~350: if it exceeds ~450, move the list filter to its own ~100-line slice R2b.)
-3. **R3a · Start: clone + process + links + finish source** (~450): `POST V/replacements` with credits, target, commitment date, responsible,
+3. **R3a · Start: clone + process + links + finish source** (~450; **implemented** as R3a + R3a2, see Log L13 of the feature doc; ~750 code lines, the source finish is the small R3a2 commit): `POST V/replacements` with credits, target, commitment date, responsible,
    idempotency, ETag, latest/active/not-closed checks, concurrency (§Concurrency), **finish of a closed-active source (lifecycle event +
    `VacancyProcessFinished` `cause`)**, `validation_error` `fields[]`, `VacancyReplacementStarted`, audit catalog changes (constants, specs,
    annex). Over budget on purpose; split the source-finish into R3a2 (~120) if review prefers.

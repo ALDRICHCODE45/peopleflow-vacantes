@@ -227,3 +227,13 @@ must be run by the parent on its isolated DB; compiling them is not evidence of
 passing database behavior. Browser review: publish → pause → resume → both close
 choices → finish separately → reopen finished; try stale tabs, incomplete
 resume/reopen, principal vs other recruiter, and retained history/fulfillment.
+
+## Replacement start and the lifecycle (R3a)
+
+`POST /v2/me/company/job-drafts/{id}/replacements` (contract `docs/contracts/replacement-processes-v1.md`) is served by the lifecycle
+handler's store and shares its rules: same gates and source-draft lock, `Idempotency-Key`, and the source's lifecycle ETag as `If-Match`
+(replay answers before the ETag check). The new process is a fresh `published` / `active` row at `lifecycle_version` 1 with no lifecycle
+events. When the source is closed with `process = continue` the start finishes it in the same transaction: `lifecycle_version` + 1, a
+`finish_process` event (actor = the caller) and `VacancyProcessFinished` with `cause = replacement_started` and
+`replacement_process_id`. A source that is already finished is accepted unchanged; open, paused and never-published sources answer 409
+`replacement_source_not_closed`.
