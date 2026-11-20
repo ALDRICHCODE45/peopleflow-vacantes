@@ -78,7 +78,7 @@ function editorBaseline(profile: ProfileRead | null, languages: ProfileLanguages
   if (profile) return profileFromWire(profile, languages);
   return {
     phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null,
-    currentCompany: null, yearsOfExperience: null, summary: null, birthDate: null,
+    currentCompany: null, yearsOfExperience: null, summary: null,
     location: null, seniority: null, education: [], skills: [],
     currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null,
     salaryCurrency: "MXN", expectedSalaryPeriod: null, languages: languages.languages,

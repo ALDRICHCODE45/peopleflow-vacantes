@@ -23,7 +23,7 @@ export type EducationDraft = { level: "" | Education["level"]; institution: stri
 /** Scalar fields are form strings; location codes and language rows stay structured. */
 export interface CandidateProfileDraft {
   dial: string; phone: string; linkedinUrl: string; portfolioUrl: string; professionalTitle: string; currentCompany: string;
-  yearsOfExperience: string; summary: string; birthDate: string; location: LocationValue;
+  yearsOfExperience: string; summary: string; location: LocationValue;
   seniority: "" | NonNullable<CandidateProfile["seniority"]>; education: readonly EducationDraft[]; skills: string;
   currentSalaryGross: string; currentSalaryNet: string; expectedSalary: string; salaryCurrency: string;
   expectedSalaryPeriod: "" | SalaryPeriod; languages: readonly CandidateLanguageDraft[];
@@ -36,7 +36,7 @@ export type ProfileDraftParseResult =
   | { ok: false; issues: readonly ProfileDraftIssue[] };
 
 /** Canonical report order, mirroring the `candidateProfileSchema` shape order. */
-const FIELD_ORDER = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "location", "seniority", "education", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod", "languages"] as const;
+const FIELD_ORDER = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "location", "seniority", "education", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod", "languages"] as const;
 /** Spanish noun phrase and integer verb per field, composed into messages. */
 const FIELDS: Readonly<Record<string, { of: string; verb?: string }>> = {
   phone: { of: "el teléfono" },
@@ -62,7 +62,7 @@ export function profileToDraft(profile: ProfileBaseline): CandidateProfileDraft 
   return {
     ...phoneToDraft(profile.phone), linkedinUrl: text(profile.linkedinUrl), portfolioUrl: text(profile.portfolioUrl),
     professionalTitle: text(profile.professionalTitle), currentCompany: text(profile.currentCompany),
-    yearsOfExperience: text(profile.yearsOfExperience), summary: text(profile.summary), birthDate: text(profile.birthDate),
+    yearsOfExperience: text(profile.yearsOfExperience), summary: text(profile.summary),
     location: locationReadToValue(profile.location), seniority: profile.seniority ?? "",
     education: profile.education.map(study => ({ ...study, institution: text(study.institution), field: text(study.field), start_year: integer(study.start_year), end_year: integer(study.end_year) })), skills: profile.skills.join(", "),
     currentSalaryGross: integer(profile.currentSalaryGross), currentSalaryNet: integer(profile.currentSalaryNet),
@@ -141,7 +141,6 @@ function schemaIssue(issue: SchemaIssue): ProfileDraftIssue {
     return { path: issue.path.join("."), message: issue.code === "custom" ? issue.message : "Selecciona una opción de la lista." };
   }
   if (root === "location") return { path: `location.${index || "country"}`, message: "Elige una opción de la lista." };
-  if (root === "birthDate") return { path: "birthDate", message: "La fecha de nacimiento no es una fecha válida (usa el formato AAAA-MM-DD)." };
   if (root === "salaryCurrency") return { path: "salaryCurrency", message: "La moneda del salario es obligatoria." };
   if (root === "education") return { path: issue.path.join("."), message: issue.code === "custom" ? issue.message : issue.path.length === 1 ? "Puedes registrar hasta 10 estudios." : ["start_year", "end_year"].includes(String(issue.path[2])) ? "Usa un año entero entre 1950 y 2100." : "Revisa este dato; elige una opción válida o usa hasta 120 caracteres." };
   if (root === "seniority") return { path: root, message: "Selecciona un nivel de experiencia válido." };
@@ -181,7 +180,7 @@ export function parseProfileDraft(draft: CandidateProfileDraft, baseline: Profil
     phone, linkedinUrl: optionalText(draft.linkedinUrl), portfolioUrl: optionalText(draft.portfolioUrl),
     professionalTitle: optionalText(draft.professionalTitle), currentCompany: optionalText(draft.currentCompany),
     yearsOfExperience: draft.yearsOfExperience === "" ? null : draft.yearsOfExperience,
-    summary: optionalText(draft.summary), birthDate: optionalText(draft.birthDate), location: locationValueToWrite(draft.location),
+    summary: optionalText(draft.summary), location: locationValueToWrite(draft.location),
     skills: splitSkills(draft.skills), seniority: draft.seniority || null,
     education: draft.education.map(study => ({ ...study, institution: optionalText(study.institution), field: optionalText(study.field), start_year: study.start_year === "" ? null : /^\d+$/.test(study.start_year) ? Number(study.start_year) : NaN, end_year: study.end_year === "" ? null : /^\d+$/.test(study.end_year) ? Number(study.end_year) : NaN })),
     currentSalaryGross: optionalInteger(draft.currentSalaryGross, "currentSalaryGross", add),

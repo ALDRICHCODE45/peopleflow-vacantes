@@ -8,15 +8,15 @@ import type { EditedProfile, CandidateLanguageDraft, CandidateProfileDraft, Prof
 
 const SOURCE = readFileSync(join(process.cwd(), "src", "features", "candidate", "profile-draft.ts"), "utf8");
 /** Every editable draft key, sorted: the form fields and nothing else. */
-const DRAFT_KEYS = ["dial", "birthDate", "location", "currentCompany", "currentSalaryGross", "currentSalaryNet", "education", "expectedSalary", "expectedSalaryPeriod", "seniority", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
+const DRAFT_KEYS = ["dial", "location", "currentCompany", "currentSalaryGross", "currentSalaryNet", "education", "expectedSalary", "expectedSalaryPeriod", "seniority", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
 /** The validated profile keys: the draft plus the two server-owned timestamps. */
 const PROFILE_KEYS = [...DRAFT_KEYS.filter(key => key !== "dial"), "createdAt", "updatedAt"].sort();
 /** Nullable profile fields a blank draft value must clear. */
-const NULLABLE_KEYS = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "location", "seniority", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod"] as const;
+const NULLABLE_KEYS = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "location", "seniority", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod"] as const;
 /** A valid profile with every nullable field unset; it also proves baseline timestamp ownership. */
 const EMPTY_PROFILE: CandidateProfile = {
   phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null, currentCompany: null, yearsOfExperience: null,
-  summary: null, birthDate: null, location: null, seniority: null, education: [], skills: [],
+  summary: null, location: null, seniority: null, education: [], skills: [],
   currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null, salaryCurrency: "MXN", expectedSalaryPeriod: null,
   languages: [], createdAt: "2020-01-02T03:04:05+00:00", updatedAt: "2021-02-03T04:05:06+00:00",
 };
@@ -88,7 +88,7 @@ describe("candidate profile draft adapter", () => {
   it("clears blank nullable fields to null and never mutates its inputs", () => {
     const blank: Partial<CandidateProfileDraft> = {
       phone: "  ", linkedinUrl: "  ", portfolioUrl: "  ", professionalTitle: "  ", currentCompany: "  ", education: [],
-      yearsOfExperience: "", summary: "  ", birthDate: "  ", location: { country: null, state: null, municipality: null, postal_code: null }, skills: "   ",
+      yearsOfExperience: "", summary: "  ", location: { country: null, state: null, municipality: null, postal_code: null }, skills: "   ",
       currentSalaryGross: "  ", currentSalaryNet: "  ", expectedSalary: "  ", languages: [],
       seniority: "",
       expectedSalaryPeriod: "  " as CandidateProfileDraft["expectedSalaryPeriod"],
@@ -152,16 +152,11 @@ describe("candidate profile draft adapter", () => {
     expect(duplicate.map((issue) => issue.path)).toEqual(["languages.1.code"]);
     expect(duplicate[0].message).toBe("Este idioma ya está agregado.");
   });
-  it("rejects bad URLs, dates, enums, and oversized text in Spanish", () => {
+  it("rejects bad URLs, enums, and oversized text in Spanish", () => {
     const badUrl = issuesOf({ linkedinUrl: "not-a-url" });
     expect(badUrl.map((issue) => issue.path)).toEqual(["linkedinUrl"]);
     expect(badUrl[0].message).toContain("URL");
     expect(issuesOf({ portfolioUrl: `https://example.com/${"a".repeat(300)}` })[0].message).toContain("300");
-    for (const date of ["18/06/1994", "1994-02-31", "1994-6-8"]) {
-      const issues = issuesOf({ birthDate: date });
-      expect(issues.map((issue) => issue.path), date).toEqual(["birthDate"]);
-      expect(issues[0].message, date).toContain("AAAA-MM-DD");
-    }
     expect(issuesOf({ education: [{ ...freshDraft().education[0], level: "vocational" as EducationLevel }] })[0].path).toBe("education.0.level");
     expect(issuesOf({ expectedSalaryPeriod: "weekly" as SalaryPeriod })[0].message).toContain("periodo");
     expect(issuesOf({ professionalTitle: "x".repeat(121) })[0].message).toContain("120");
@@ -188,7 +183,7 @@ describe("candidate profile draft adapter", () => {
   });
   it("never throws and always answers for hostile string input", () => {
     for (const value of ["", "   ", "🙂", "not-a-url", "999999999999999999999", "1e309", "\u0000", "<script>", "-0", "mxn"]) {
-      const result = parseProfileDraft(draftWith({ phone: value, linkedinUrl: value, birthDate: value, yearsOfExperience: value, salaryCurrency: value, skills: value, languages: [{ code: value, level: "C1" }] }), CANDIDATE_PROFILE);
+      const result = parseProfileDraft(draftWith({ phone: value, linkedinUrl: value, yearsOfExperience: value, salaryCurrency: value, skills: value, languages: [{ code: value, level: "C1" }] }), CANDIDATE_PROFILE);
       expect(result.ok, value).toBeTypeOf("boolean");
       if (!result.ok) expect(new Set(result.issues.map((issue) => issue.path)).size, value).toBe(result.issues.length);
     }

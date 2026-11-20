@@ -6,7 +6,6 @@ import { OptionalLocationField, RemoveLocationButton } from "@/features/geo/opti
 import { locationReadToValue } from "@/features/geo/model";
 import { locationErrorMessages, type LocationIssue } from "@/features/geo/model";
 
-import { DatePickerField } from "@/components/ui/date-picker-field";
 import { DialCodeField } from "@/components/forms/dial-code-field";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText, InputGroupTextarea } from "@/components/ui/input-group";
@@ -69,7 +68,6 @@ const currencyOf = (draft: CandidateProfileDraft): string => (draft.salaryCurren
 const SECTIONS: readonly Section[] = [
   { slug: "contact", legend: "Contacto", category: "personal", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
     { path: "phone", label: "Teléfono", type: "tel", maxLength: 30, span: "sm:col-span-2" },
-    { path: "birthDate", label: "Fecha de nacimiento" },
     { path: "linkedinUrl", label: "Perfil de LinkedIn", type: "url", maxLength: 300 },
     { path: "portfolioUrl", label: "Portafolio o sitio web", type: "url", maxLength: 300, span: "sm:col-span-2" },
   ] },
@@ -127,31 +125,28 @@ function ScalarField({ spec, draft, error, onChange, describedBy, mark }: Readon
   const counted = spec.path === "summary";
   const description = [describedBy, spec.description ? `${id}-help` : null, counted ? `${id}-count` : null, error === null ? null : `${id}-error`].filter(Boolean).join(" ") || undefined;
   const aria = { id, "data-pf-profile-field": spec.path, "aria-invalid": invalid, "aria-describedby": description };
-  const isBirthDate = spec.path === "birthDate";
   return (
     <Field data-invalid={invalid} className={spec.span}>
       <FieldLabel htmlFor={id} className={spec.hideLabel ? "sr-only" : undefined}>{spec.label}{mark}</FieldLabel>
-      {isBirthDate
-        ? <DatePickerField id={id} value={value} onChange={onChange} allowPast error={error ?? undefined} data-pf-profile-field="birthDate" className="w-full" />
-        : items === null
-          ? spec.multiline
-            ? <InputGroup className={`${FRAME} max-w-prose`}><InputGroupTextarea {...aria} value={value} className="min-h-24" maxLength={spec.maxLength} onChange={handle} /></InputGroup>
-            : <InputGroup className={FRAME}>
-              <InputGroupInput {...aria} value={value} className={TARGET} type={spec.type ?? "text"} min={spec.min} max={spec.max} step={spec.step} maxLength={spec.maxLength} onChange={handle} />
-              {spec.unit === undefined ? null : <InputGroupAddon align="inline-end"><InputGroupText>{spec.unit(draft)}</InputGroupText></InputGroupAddon>}
-            </InputGroup>
-          : <Select items={items} value={value === "" ? null : value} onValueChange={(next) => onChange(draftValueFromSelect(next))}>
-            <SelectTrigger {...aria} className={SELECT_TRIGGER}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {items.map((item) => (<SelectItem key={item.value ?? "blank"} value={item.value}>{item.label}</SelectItem>))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>}
+      {items === null
+        ? spec.multiline
+          ? <InputGroup className={`${FRAME} max-w-prose`}><InputGroupTextarea {...aria} value={value} className="min-h-24" maxLength={spec.maxLength} onChange={handle} /></InputGroup>
+          : <InputGroup className={FRAME}>
+            <InputGroupInput {...aria} value={value} className={TARGET} type={spec.type ?? "text"} min={spec.min} max={spec.max} step={spec.step} maxLength={spec.maxLength} onChange={handle} />
+            {spec.unit === undefined ? null : <InputGroupAddon align="inline-end"><InputGroupText>{spec.unit(draft)}</InputGroupText></InputGroupAddon>}
+          </InputGroup>
+        : <Select items={items} value={value === "" ? null : value} onValueChange={(next) => onChange(draftValueFromSelect(next))}>
+          <SelectTrigger {...aria} className={SELECT_TRIGGER}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {items.map((item) => (<SelectItem key={item.value ?? "blank"} value={item.value}>{item.label}</SelectItem>))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>}
       {spec.description && <FieldDescription id={`${id}-help`}>{spec.description}</FieldDescription>}
       {counted && <p id={`${id}-count`} data-pf-profile-counter="" className="max-w-prose text-right text-xs text-muted-foreground tabular-nums">{value.length} / {SUMMARY_MAX}<span className="sr-only"> caracteres</span></p>}
       {spec.path === "yearsOfExperience" && <FieldDescription>Puedes usar decimales, por ejemplo 1.5.</FieldDescription>}
-      {error === null || isBirthDate ? null : <FieldError id={`${id}-error`}>{error}</FieldError>}
+      {error === null ? null : <FieldError id={`${id}-error`}>{error}</FieldError>}
     </Field>
   );
 }

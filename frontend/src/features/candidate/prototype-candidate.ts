@@ -26,7 +26,6 @@ const PROFILE_SOURCE: CandidateProfile = {
   yearsOfExperience: "9",
   seniority: "senior",
   summary: "Frontend senior con nueve años construyendo interfaces accesibles para productos financieros y de salud.",
-  birthDate: "1994-06-18",
   location: { country: { id: "MX", name: "México" }, state: { id: "09", name: "Ciudad de México" }, municipality: null, postal_code: null, label: "Ciudad de México" },
   education: [{ level: "bachelor", institution: null, field: "Ingeniería en Sistemas Computacionales", status: "completed", start_year: null, end_year: null }],
   skills: ["react", "typescript", "node.js", "design systems"],

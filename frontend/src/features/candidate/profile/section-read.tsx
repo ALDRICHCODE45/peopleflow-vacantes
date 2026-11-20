@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { CEFR_LEVEL_LABELS, SALARY_PERIOD_LABELS, SENIORITY_LABELS } from "../model";
 import type { CandidateProfileDraft, ProfileBaseline } from "../profile-draft";
 import type { ProfileCategory } from "../profile-form-fields";
-import { dateText, levelText, moneyText, phoneText, skillList, studyDetails, urlText, yearsText } from "./format";
+import { levelText, moneyText, phoneText, skillList, studyDetails, urlText, yearsText } from "./format";
 import { sectionVisibility, visibleToCompany, type VisibilityField } from "./visibility";
 
 /**
@@ -73,7 +73,6 @@ function Languages({ draft, onAdd }: { draft: CandidateProfileDraft; onAdd: () =
 export function TabRead({ tab, draft, baseline, email, onAdd }: { tab: ProfileCategory; draft: CandidateProfileDraft; baseline: ProfileBaseline; email: string; onAdd: () => void }) {
   if (tab === "personal") return <dl className={GRID}>
     <Fact tab={tab} field="phone" label="Teléfono" value={phoneText(draft)} />
-    <Fact tab={tab} field="birthDate" label="Fecha de nacimiento" value={dateText(draft.birthDate)} />
     <Fact tab={tab} field="location" label="Ubicación" value={draft.location.country === null ? "" : <LocationText draft={draft} baseline={baseline} />} />
     <Fact tab={tab} field="email" label="Correo de tu cuenta" value={email} />
     <Fact tab={tab} field="linkedinUrl" label="Perfil de LinkedIn" value={urlText(draft.linkedinUrl)} />

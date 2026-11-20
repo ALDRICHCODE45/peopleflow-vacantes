@@ -8,7 +8,7 @@ it("holds the backend-confirmed visibility of every profile fact in one map", ()
   expect(Object.entries(PROFILE_VISIBILITY).filter(([, audience]) => audience === "company").map(([field]) => field))
     .toEqual(["fullName", "email", "phone", "location", "professionalTitle", "yearsOfExperience", "seniority", "educationLevel", "skills", "languages"]);
   expect(Object.entries(PROFILE_VISIBILITY).filter(([, audience]) => audience === "private").map(([field]) => field))
-    .toEqual(["birthDate", "linkedinUrl", "portfolioUrl", "currentCompany", "summary", "educationDetails", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod", "salaryCurrency"]);
+    .toEqual(["linkedinUrl", "portfolioUrl", "currentCompany", "summary", "educationDetails", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod", "salaryCurrency"]);
 });
 
 it("tags each section from the map", () => {
@@ -22,8 +22,9 @@ it("tags each section from the map", () => {
 it("writes «Qué recibe la empresa» from the map", () => {
   expect(companyReceives()).toEqual({
     company: "Nombre, correo, teléfono, ubicación, título profesional, años de experiencia, seniority, tu nivel de estudios más alto, habilidades e idiomas.",
-    private: "Solo tú ves tu fecha de nacimiento, LinkedIn, portafolio, empresa actual, resumen profesional, los detalles de tus estudios y tu compensación.",
+    private: "Solo tú ves LinkedIn, portafolio, empresa actual, resumen profesional, los detalles de tus estudios y tu compensación.",
   });
+  expect(companyReceives().private).not.toMatch(/nacimiento/u);
   PROFILE_VISIBILITY.professionalTitle = "private";
   expect(visibleToCompany("professionalTitle")).toBe(false);
   expect(companyReceives().company).not.toContain("título profesional");

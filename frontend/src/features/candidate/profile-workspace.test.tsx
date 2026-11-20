@@ -200,7 +200,8 @@ describe("artboard 01 «Identidad a la izquierda y pestañas»", () => {
 
   it("reads each tab like the artboard, with no level dots", async () => {
     await ready();
-    for (const text of ["+52 55 4821 7790", "18 de junio de 1994", "Ciudad de México", "ximena.barrera@correo.mx", "linkedin.com/in/ximena-barrera", "ximenabarrera.dev"]) expect(within(panel()).getByText(text)).toBeVisible();
+    for (const text of ["+52 55 4821 7790", "Ciudad de México", "ximena.barrera@correo.mx", "linkedin.com/in/ximena-barrera", "ximenabarrera.dev"]) expect(within(panel()).getByText(text)).toBeVisible();
+    expect(within(panel()).queryByText(/nacimiento/iu)).not.toBeInTheDocument();
     show("Experiencia");
     for (const text of ["Desarrolladora Frontend Senior", "Ámbar Studio", "9 años", "Senior", CANDIDATE_PROFILE.summary!]) expect(within(panel()).getByText(text)).toBeVisible();
     show("Educación");
@@ -345,8 +346,8 @@ describe("artboard 01 «Identidad a la izquierda y pestañas»", () => {
     await ready();
     const line = "Solo tú · la empresa no lo recibe";
     expect(within(panel()).getByText(line, { exact: false }).closest("p")).toHaveTextContent(line);
-    expect(locks()).toEqual(["birthDate", "linkedinUrl", "portfolioUrl"]);
-    expect(within(panel()).getByText("Fecha de nacimiento").closest("dt")).toHaveTextContent("Fecha de nacimiento (solo tú)");
+    expect(locks()).toEqual(["linkedinUrl", "portfolioUrl"]);
+    expect(within(panel()).queryByText(/nacimiento/iu)).not.toBeInTheDocument();
     expect(within(panel()).getByText("Teléfono").closest("dt")).toHaveTextContent(/^Teléfono$/);
     show("Experiencia");
     expect(within(panel()).getByText(line, { exact: false }).closest("p")).toHaveTextContent(line);
@@ -365,7 +366,7 @@ describe("artboard 01 «Identidad a la izquierda y pestañas»", () => {
     edit("Personal");
     expect(screen.getByLabelText("Perfil de LinkedIn (solo tú)")).toBeInTheDocument();
     expect(screen.getByLabelText("Teléfono")).toBeInTheDocument();
-    expect(locks()).toEqual(["birthDate", "linkedinUrl", "portfolioUrl"]);
+    expect(locks()).toEqual(["linkedinUrl", "portfolioUrl"]);
     edit("Educación");
     expect(locks()).toEqual(["educationDetails"]);
   });
@@ -375,7 +376,7 @@ describe("artboard 01 «Identidad a la izquierda y pestañas»", () => {
     expect(container.querySelectorAll("form")).toHaveLength(1);
     expect(container.querySelector("form")).toHaveAttribute("novalidate");
     const expected = [
-      ["Personal", ["dial", "phone", "birthDate", "linkedinUrl", "portfolioUrl", "location"]],
+      ["Personal", ["dial", "phone", "linkedinUrl", "portfolioUrl", "location"]],
       ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"]],
       ["Educación", ["education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "skills"]],
       ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],
@@ -390,7 +391,8 @@ describe("artboard 01 «Identidad a la izquierda y pestañas»", () => {
     const help = screen.getByText("Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.");
     expect(country).toHaveAccessibleDescription(help.textContent!);
     expect(screen.queryByLabelText("Código postal")).not.toBeInTheDocument();
-    expect(within(panel()).getByRole("group", { name: "Contacto" })).toContainElement(screen.getByLabelText(/^Fecha de nacimiento/));
+    expect(within(panel()).getByRole("group", { name: "Contacto" })).toContainElement(screen.getByLabelText("Teléfono"));
+    expect(screen.queryByLabelText(/nacimiento/iu)).not.toBeInTheDocument();
   });
 
   it("offers «Quitar» for the location inside the Ubicación group", async () => {
@@ -499,10 +501,10 @@ describe("save flows", () => {
     edit("Experiencia"); expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
     expect(mocks.save).not.toHaveBeenCalled();
   });
-  it("focuses birth date before LinkedIn errors in the visual order", async () => {
-    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: {}, fields: [{ field: "linkedin_url", code: "invalid" }, { field: "birth_date", code: "invalid" }] } });
+  it("focuses the phone before LinkedIn errors in the visual order", async () => {
+    mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: {}, fields: [{ field: "linkedin_url", code: "invalid" }, { field: "phone", code: "invalid" }] } });
     await ready(); edit("Personal"); change("Teléfono", "5512345678"); save();
-    await waitFor(() => expect(screen.getByLabelText(/^Fecha de nacimiento/)).toHaveFocus());
+    await waitFor(() => expect(screen.getByLabelText("Teléfono")).toHaveFocus());
   });
   it("rejects a language with empty code and level before writing either block", async () => {
     await ready(); edit("Personal"); change("Teléfono", "5512345678"); edit("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); save();

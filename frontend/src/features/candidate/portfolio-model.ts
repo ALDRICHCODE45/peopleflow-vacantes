@@ -19,7 +19,6 @@ export type CvLanguage = (typeof CV_LANGUAGES)[number];
 export const APPLICATION_STATUS_LABELS: Readonly<Record<ApplicationStatus, string>> = Object.freeze({ submitted: "Enviada", in_review: "En revisión", hired: "Contratada", rejected: "Rechazada" });
 export const APPLICATION_SOURCE_LABELS: Readonly<Record<ApplicationSource, string>> = Object.freeze({ referral: "Referida", linkedin: "LinkedIn", job_board: "Portal de empleo", direct: "Directa", other: "Otra" });
 export const CV_LANGUAGE_LABELS: Readonly<Record<CvLanguage, string>> = Object.freeze({ es: "Español", en: "Inglés" });
-const MAX_COVER_LETTER = 2000;
 const MAX_CV_BYTES = 10 * 1024 * 1024;
 const MAX_CVS = 20;
 const offsetAwareIsoDateTime = z.string().datetime({ offset: true });
@@ -35,7 +34,6 @@ const applicationFields = {
   companyId: z.string().uuid(),
   jobTitle: z.string().trim().min(1).max(160),
   companyName: z.string().trim().min(1).max(160),
-  coverLetter: z.string().trim().min(1).max(MAX_COVER_LETTER).nullable(),
   status: z.enum(APPLICATION_STATUSES),
   source: z.enum(APPLICATION_SOURCES),
   createdAt: offsetAwareIsoDateTime,

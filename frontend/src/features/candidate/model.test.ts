@@ -103,7 +103,7 @@ describe("candidate identity and profile model", () => {
 
   it("mirrors the self-service profile fields without the reserved CV key", () => {
     expect(Object.keys(CANDIDATE_PROFILE).sort()).toEqual([
-      "birthDate", "createdAt", "currentCompany", "currentSalaryGross", "currentSalaryNet",
+      "createdAt", "currentCompany", "currentSalaryGross", "currentSalaryNet",
       "education", "expectedSalary", "expectedSalaryPeriod", "languages", "linkedinUrl", "location",
       "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "seniority", "skills", "summary", "updatedAt",
       "yearsOfExperience",
@@ -117,7 +117,7 @@ describe("candidate identity and profile model", () => {
   it("rejects unknown vocabulary, malformed profile values, and extra keys", () => {
     const invalid = [
       { educationLevel: "vocational" }, { expectedSalaryPeriod: "weekly" },
-      { birthDate: "18/06/1994" }, { yearsOfExperience: -1 },
+      { yearsOfExperience: -1 },
       { yearsOfExperience: 4.5 }, { yearsOfExperience: 99 },
       { currentSalaryGross: -1 }, { expectedSalary: 1.5 },
       { currentSalaryNet: 999_999_999 }, { linkedinUrl: "not-a-url" },

@@ -13,11 +13,6 @@ export function phoneText(draft: CandidateProfileDraft): string {
   // A legacy free-text phone is shown verbatim until the candidate corrects it.
   return /^[\d\s]+$/u.test(phone) ? `${draft.dial} ${phone}` : phone;
 }
-/** «18 de junio de 1994» from an ISO date, with no time zone shift. */
-export function dateText(iso: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(iso.trim());
-  return match ? `${Number(match[3])} de ${MONTHS[Number(match[2]) - 1]} de ${match[1]}` : "";
-}
 /** «12 de noviembre de 2026» from a server timestamp, in local time. */
 export function updatedText(timestamp: string | null): string {
   if (!timestamp) return "";
