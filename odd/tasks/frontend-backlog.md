@@ -13,6 +13,11 @@ item — legacy catalog rows now say they take no online applications. Shipped i
 principal» landmark (axe `region`), the three full-suite flaky tests made lighter (no raised timeouts). Shipped and
 pushed 2026-11-02 (`saved-vacancies.md`, `vacancy-detail-explore.md`): saved vacancies with the visitor return, the
 `?postulacion=` deep link, and the region below the vacancy detail with the careers-site link (`site_slug`).
+Shipped 2026-11-19 in local main (`post-demo-polish.md`, `remove-birthdate-cover-letter.md`): post-demo Métricas and
+candidate polish; the two partial 2 Oct agreements «Quitar fecha de nacimiento y edad» and «Quitar la carta de
+presentación» (frontend `d348896b`, backend migration 00062 drops both columns). Still open from the 2 Oct agreements:
+placement and vacancy documents (not started), replacement processes linked to the original vacancy (not started),
+prefill from CV/LinkedIn/OCC (postponed: feasibility and terms), login and cloud on AWS (postponed to the end).
 
 ## Product gaps
 
