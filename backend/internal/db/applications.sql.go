@@ -13,13 +13,12 @@ import (
 )
 
 const createApplication = `-- name: CreateApplication :one
-INSERT INTO applications (id, job_id, candidate_id, source, cover_letter)
+INSERT INTO applications (id, job_id, candidate_id, source)
 SELECT
     $1::uuid,
     $2::uuid,
     $3::uuid,
-    $4::text,
-    $5::text
+    $4::text
 WHERE EXISTS (
     SELECT 1
     FROM jobs j
@@ -30,7 +29,7 @@ WHERE EXISTS (
       AND c.status = 'active'
       AND c.deleted_at IS NULL
 )
-RETURNING id, job_id, candidate_id, status, source, cover_letter, created_at, updated_at
+RETURNING id, job_id, candidate_id, status, source, created_at, updated_at
 `
 
 type CreateApplicationParams struct {
@@ -38,7 +37,6 @@ type CreateApplicationParams struct {
 	JobID       uuid.UUID   `json:"job_id"`
 	CandidateID uuid.UUID   `json:"candidate_id"`
 	Source      pgtype.Text `json:"source"`
-	CoverLetter pgtype.Text `json:"cover_letter"`
 }
 
 type CreateApplicationRow struct {
@@ -47,7 +45,6 @@ type CreateApplicationRow struct {
 	CandidateID uuid.UUID          `json:"candidate_id"`
 	Status      string             `json:"status"`
 	Source      pgtype.Text        `json:"source"`
-	CoverLetter pgtype.Text        `json:"cover_letter"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
@@ -76,15 +73,13 @@ type CreateApplicationRow struct {
 // NOT in the RETURNING list — the reserved columns stay NULL and never
 // reach the wire (D11).
 //
-// source / cover_letter are sqlc.narg (nullable): absent on the wire →
-// SQL NULL.
+// source is sqlc.narg (nullable): absent on the wire → SQL NULL.
 func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationParams) (CreateApplicationRow, error) {
 	row := q.db.QueryRow(ctx, createApplication,
 		arg.ID,
 		arg.JobID,
 		arg.CandidateID,
 		arg.Source,
-		arg.CoverLetter,
 	)
 	var i CreateApplicationRow
 	err := row.Scan(
@@ -93,7 +88,6 @@ func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationPa
 		&i.CandidateID,
 		&i.Status,
 		&i.Source,
-		&i.CoverLetter,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -102,7 +96,7 @@ func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationPa
 
 const getApplicationByID = `-- name: GetApplicationByID :one
 SELECT
-    a.id, a.job_id, a.candidate_id, a.status, a.source, a.cover_letter,
+    a.id, a.job_id, a.candidate_id, a.status, a.source,
     a.created_at, a.updated_at,
     u.full_name AS candidate_full_name,
     cp.professional_title AS candidate_professional_title,
@@ -128,7 +122,6 @@ type GetApplicationByIDRow struct {
 	CandidateID                uuid.UUID          `json:"candidate_id"`
 	Status                     string             `json:"status"`
 	Source                     pgtype.Text        `json:"source"`
-	CoverLetter                pgtype.Text        `json:"cover_letter"`
 	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
 	CandidateFullName          string             `json:"candidate_full_name"`
@@ -151,7 +144,6 @@ func (q *Queries) GetApplicationByID(ctx context.Context, arg GetApplicationByID
 		&i.CandidateID,
 		&i.Status,
 		&i.Source,
-		&i.CoverLetter,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CandidateFullName,
@@ -189,7 +181,7 @@ func (q *Queries) GetJobForApplicationsScope(ctx context.Context, arg GetJobForA
 
 const listApplicationsByJob = `-- name: ListApplicationsByJob :many
 SELECT
-    a.id, a.job_id, a.candidate_id, a.status, a.source, a.cover_letter,
+    a.id, a.job_id, a.candidate_id, a.status, a.source,
     a.created_at, a.updated_at,
     u.full_name AS candidate_full_name,
     cp.professional_title AS candidate_professional_title,
@@ -215,7 +207,6 @@ type ListApplicationsByJobRow struct {
 	CandidateID                uuid.UUID          `json:"candidate_id"`
 	Status                     string             `json:"status"`
 	Source                     pgtype.Text        `json:"source"`
-	CoverLetter                pgtype.Text        `json:"cover_letter"`
 	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
 	CandidateFullName          string             `json:"candidate_full_name"`
@@ -244,7 +235,6 @@ func (q *Queries) ListApplicationsByJob(ctx context.Context, arg ListApplication
 			&i.CandidateID,
 			&i.Status,
 			&i.Source,
-			&i.CoverLetter,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CandidateFullName,
@@ -263,7 +253,7 @@ func (q *Queries) ListApplicationsByJob(ctx context.Context, arg ListApplication
 
 const listMyApplications = `-- name: ListMyApplications :many
 SELECT
-    a.id, a.job_id, a.candidate_id, a.status, a.source, a.cover_letter,
+    a.id, a.job_id, a.candidate_id, a.status, a.source,
     a.created_at, a.updated_at,
     j.title AS job_title,
     c.id   AS company_id,
@@ -282,7 +272,6 @@ type ListMyApplicationsRow struct {
 	CandidateID uuid.UUID          `json:"candidate_id"`
 	Status      string             `json:"status"`
 	Source      pgtype.Text        `json:"source"`
-	CoverLetter pgtype.Text        `json:"cover_letter"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 	JobTitle    string             `json:"job_title"`
@@ -311,7 +300,6 @@ func (q *Queries) ListMyApplications(ctx context.Context, candidateID uuid.UUID)
 			&i.CandidateID,
 			&i.Status,
 			&i.Source,
-			&i.CoverLetter,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.JobTitle,
@@ -341,7 +329,7 @@ WHERE a.id        = $2::uuid
       WHERE j.id = a.job_id
         AND j.company_id = $5::uuid
   )
-RETURNING id, job_id, candidate_id, status, source, cover_letter, created_at, updated_at
+RETURNING id, job_id, candidate_id, status, source, created_at, updated_at
 `
 
 type TransitionStatusParams struct {
@@ -358,7 +346,6 @@ type TransitionStatusRow struct {
 	CandidateID uuid.UUID          `json:"candidate_id"`
 	Status      string             `json:"status"`
 	Source      pgtype.Text        `json:"source"`
-	CoverLetter pgtype.Text        `json:"cover_letter"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
@@ -387,7 +374,6 @@ func (q *Queries) TransitionStatus(ctx context.Context, arg TransitionStatusPara
 		&i.CandidateID,
 		&i.Status,
 		&i.Source,
-		&i.CoverLetter,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

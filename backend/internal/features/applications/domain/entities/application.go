@@ -29,16 +29,12 @@ import (
 //	ErrJobNotApplicable            → 404 "job not applicable"
 //	ErrAlreadyApplied              → 409 "already applied"
 //	ErrInvalidApplicationReference → 400 "invalid application reference"
-//	ErrCoverLetterEmpty            → 400 "cover_letter must not be empty"
-//	ErrCoverLetterTooLong          → 400 "cover_letter must be at most 2000 characters"
 //	ErrStatusRequired              → 400 "status is required"
 var (
 	ErrApplicationNotFound         = errors.New("application not found")
 	ErrJobNotApplicable            = errors.New("job not applicable")
 	ErrAlreadyApplied              = errors.New("already applied")
 	ErrInvalidApplicationReference = errors.New("invalid application reference")
-	ErrCoverLetterEmpty            = errors.New("cover_letter must not be empty")
-	ErrCoverLetterTooLong          = errors.New("cover_letter must be at most 2000 characters")
 	ErrStatusRequired              = errors.New("status is required")
 )
 
@@ -46,7 +42,7 @@ var (
 // every column from the `applications` table the domain layer is willing to
 // hand to a caller (the postgres adapter is the sole translator).
 //
-// Optional columns (Source, CoverLetter) surface as pointers so SQL NULL
+// The optional column Source surfaces as pointers so SQL NULL
 // is distinguishable from a real zero value. cv_s3_key and anonymized_at
 // are deliberately NOT in this struct — they are reserved columns that
 // the slice never reads or writes; surfacing them would let a future
@@ -59,8 +55,6 @@ type Application struct {
 
 	// Source is the optional closed-set classification (referral/linkedin/etc).
 	Source *valueobjects.ApplicationSource
-	// CoverLetter is the optional trimmed cover letter text (≤ 2000 runes).
-	CoverLetter *string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

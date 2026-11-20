@@ -251,8 +251,8 @@ This is the default list, not a requirement to pass through `Descartados` as a n
 
 ## 10. Privacy, visibility and the global directory
 
-- **PRIV-1.** Remove both birth date and age **entirely** from candidate profile fields (public and private), application flow and recruiter intake. Age is not an optional public field; do not collect, derive or display it as a structured field.
-- **PRIV-2.** Treatment of existing stored data and age/birth-date information embedded in uploaded CVs still requires explicit privacy design.
+- **PRIV-1.** Remove both birth date and age **entirely** from candidate profile fields (public and private), application flow and recruiter intake. Age is not an optional public field; do not collect, derive or display it as a structured field. **Done (backend):** `GET /me/profile` no longer returns `birth_date`; `PUT /me/profile` still accepts the key during the transition but ignores any value; the column `candidate_profiles.birth_date` was dropped in migration 00062.
+- **PRIV-2.** Treatment of existing stored data: decided 2026-11-19 — the `candidate_profiles.birth_date` column is **dropped** (migration 00062; take a database backup before applying it in production), and likewise the legacy `applications.cover_letter` column. Age/birth-date information embedded in uploaded CVs still requires explicit privacy design.
 - **PRIV-3.** `Global-directory visibility is disabled by default`. The candidate must explicitly activate it and can deactivate it later to stop appearing in new searches.
 - **PRIV-4.** When the candidate enables recruiter discoverability, **profile photo is the only independently optional shared profile item**. Photo is hidden from recruiting viewers by default; the candidate must explicitly choose to share it.
 - **PRIV-5.** Available email, phone and CV are shared with authorized recruiting viewers as part of the visibility choice, without separate field-level sharing toggles for them. This does not require collecting both contact methods, does not expose internal employer data, and never reinstates age/birth date.

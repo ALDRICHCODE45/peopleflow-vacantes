@@ -3,19 +3,12 @@ package usecases
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
 	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	sharedvo "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 )
-
-// ErrInvalidBirthDate is returned when birth_date does not parse as
-// YYYY-MM-DD. It wraps the raw parse error so the HTTP layer maps it to
-// 400 with a readable validation message instead of a 500.
-var ErrInvalidBirthDate = errors.New("invalid birth_date")
 
 // ProfileWriteResult carries the persisted profile and the location expanded
 // before persistence. Transports must use this prepared shape, not re-read the
@@ -95,13 +88,6 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 	profile.Education = education
 	if params.ProfileSummary != nil {
 		profile.ProfileSummary = params.ProfileSummary
-	}
-	if params.BirthDate != nil && *params.BirthDate != "" {
-		parsed, err := time.Parse("2006-01-02", *params.BirthDate)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidBirthDate, err)
-		}
-		profile.BirthDate = &parsed
 	}
 	profile.Location = params.Location.Value()
 	if params.CurrentSalaryGross != nil {

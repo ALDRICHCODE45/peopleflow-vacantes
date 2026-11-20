@@ -69,8 +69,7 @@ type Querier interface {
 	// NOT in the RETURNING list — the reserved columns stay NULL and never
 	// reach the wire (D11).
 	//
-	// source / cover_letter are sqlc.narg (nullable): absent on the wire →
-	// SQL NULL.
+	// source is sqlc.narg (nullable): absent on the wire → SQL NULL.
 	CreateApplication(ctx context.Context, arg CreateApplicationParams) (CreateApplicationRow, error)
 	// Locks the active industry before INSERT so creation and deactivation serialize.
 	// Missing or inactive industries return no row.

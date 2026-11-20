@@ -17,7 +17,6 @@ type Application struct {
 	CandidateID  uuid.UUID          `json:"candidate_id"`
 	Status       string             `json:"status"`
 	Source       pgtype.Text        `json:"source"`
-	CoverLetter  pgtype.Text        `json:"cover_letter"`
 	CvS3Key      pgtype.Text        `json:"cv_s3_key"`
 	AnonymizedAt pgtype.Timestamptz `json:"anonymized_at"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
@@ -91,7 +90,6 @@ type CandidateProfile struct {
 	CurrentCompany       pgtype.Text        `json:"current_company"`
 	YearsOfExperience    pgtype.Numeric     `json:"years_of_experience"`
 	ProfileSummary       pgtype.Text        `json:"profile_summary"`
-	BirthDate            pgtype.Date        `json:"birth_date"`
 	Skills               []string           `json:"skills"`
 	CurrentSalaryGross   pgtype.Int4        `json:"current_salary_gross"`
 	CurrentSalaryNet     pgtype.Int4        `json:"current_salary_net"`

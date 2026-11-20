@@ -330,16 +330,6 @@ func classifyApplicationError(err error) httpjson.Definition {
 			httpjson.Resolve(httpjson.CodeInvalidStatusTransition),
 			invalidStatusTransitionSafeMessage(err),
 		)
-	case errors.Is(err, applicationsentities.ErrCoverLetterEmpty):
-		return httpjson.SafeMessage(
-			httpjson.Resolve(httpjson.CodeInvalidRequest),
-			"cover_letter must not be empty",
-		)
-	case errors.Is(err, applicationsentities.ErrCoverLetterTooLong):
-		return httpjson.SafeMessage(
-			httpjson.Resolve(httpjson.CodeInvalidRequest),
-			"cover_letter must be at most 2000 characters",
-		)
 	case errors.Is(err, applicationsvalueobjects.ErrInvalidSource):
 		return httpjson.SafeMessage(
 			httpjson.Resolve(httpjson.CodeInvalidRequest),
@@ -420,7 +410,6 @@ func toApplicationResponse(a *applicationsentities.Application) dtos.Application
 		CandidateID: a.CandidateID.String(),
 		Status:      a.Status.String(),
 		Source:      applicationSourcePtrToString(a.Source),
-		CoverLetter: a.CoverLetter,
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 	}
@@ -436,7 +425,6 @@ func toApplicationListItem(a applicationsentities.ApplicationWithCandidate) dtos
 		CandidateID: a.CandidateID.String(),
 		Status:      a.Status.String(),
 		Source:      applicationSourcePtrToString(a.Source),
-		CoverLetter: a.CoverLetter,
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 		Candidate:   toCandidateSnippetDto(a.Candidate),
@@ -449,13 +437,12 @@ func toApplicationListItem(a applicationsentities.ApplicationWithCandidate) dtos
 // cross-reference.
 func toMyApplicationListItem(a applicationsentities.MyApplication) dtos.MyApplicationListItemDto {
 	return dtos.MyApplicationListItemDto{
-		ID:          a.ID.String(),
-		JobID:       a.JobID.String(),
-		Status:      a.Status.String(),
-		Source:      applicationSourcePtrToString(a.Source),
-		CoverLetter: a.CoverLetter,
-		CreatedAt:   a.CreatedAt,
-		UpdatedAt:   a.UpdatedAt,
+		ID:        a.ID.String(),
+		JobID:     a.JobID.String(),
+		Status:    a.Status.String(),
+		Source:    applicationSourcePtrToString(a.Source),
+		CreatedAt: a.CreatedAt,
+		UpdatedAt: a.UpdatedAt,
 		Job: dtos.JobSummaryDto{
 			ID:    a.Job.ID.String(),
 			Title: a.Job.Title,

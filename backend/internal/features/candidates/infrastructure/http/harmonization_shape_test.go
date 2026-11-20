@@ -39,7 +39,7 @@ func TestHarmonizedProfileExactShape(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &object); err != nil {
 		t.Fatal(err)
 	}
-	exactKeys(t, object, "user_id", "phone", "linkedin_url", "portfolio_url", "professional_title", "current_company", "years_of_experience", "profile_summary", "birth_date", "location", "seniority", "education", "skills", "current_salary_gross", "current_salary_net", "expected_salary", "salary_currency", "expected_salary_period", "created_at", "updated_at")
+	exactKeys(t, object, "user_id", "phone", "linkedin_url", "portfolio_url", "professional_title", "current_company", "years_of_experience", "profile_summary", "location", "seniority", "education", "skills", "current_salary_gross", "current_salary_net", "expected_salary", "salary_currency", "expected_salary_period", "created_at", "updated_at")
 	study := object["education"].([]any)[0].(map[string]any)
 	exactKeys(t, study, "level", "institution", "field", "status", "start_year", "end_year")
 	if object["years_of_experience"] != "2" || study["institution"] != "School" || study["field"] != "Computing" || study["end_year"] != nil {

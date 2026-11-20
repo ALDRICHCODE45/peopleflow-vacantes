@@ -79,9 +79,8 @@ type CandidateProfile struct {
 	Education         []Education
 	ProfileSummary    *string
 
-	// Personal. BirthDate is intentionally nullable per §1.9.
-	BirthDate *time.Time
-	Location  *geo.Value
+	// Personal.
+	Location *geo.Value
 
 	// Education.
 	EducationLevel *valueobjects.EducationLevel

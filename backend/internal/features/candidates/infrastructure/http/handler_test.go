@@ -747,7 +747,7 @@ func TestFieldOfStudy_RoundTrip(t *testing.T) {
 // TestUpsertProfile_FullReplacementContract pins the PUT full-replacement
 // semantics: omitted or JSON-null nullable fields persist NULL, omitted or
 // null skills become an empty list, omitted or null salary_currency
-// becomes MXN, malformed birth_date rejects before any write, and
+// becomes MXN, birth_date is accepted but ignored (removed field), and
 // server-managed fields in the body are ignored.
 func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 	userID := uuid.New()
@@ -773,8 +773,8 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 		if p.SalaryCurrency != "MXN" {
 			t.Errorf("omitted salary_currency must default to MXN, got %q", p.SalaryCurrency)
 		}
-		if p.BirthDate != nil || p.EducationLevel != nil || p.ExpectedSalaryPeriod != nil {
-			t.Error("omitted birth_date/education_level/expected_salary_period must stay unset")
+		if p.EducationLevel != nil || p.ExpectedSalaryPeriod != nil {
+			t.Error("omitted education_level/expected_salary_period must stay unset")
 		}
 	})
 
@@ -790,7 +790,7 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 		if p == nil {
 			t.Fatal("expected profile to reach the repository")
 		}
-		if p.Phone != nil || p.YearsOfExperience != nil || p.BirthDate != nil {
+		if p.Phone != nil || p.YearsOfExperience != nil {
 			t.Error("explicit-null fields must persist NULL")
 		}
 		if p.Skills == nil || len(p.Skills) != 0 {
@@ -801,13 +801,20 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 		}
 	})
 
-	t.Run("malformed birth_date rejects without write", func(t *testing.T) {
-		cRepo := &stubCandidateRepo{}
-		router := newTestRouter(newTestHandler(cRepo, uRepo))
-		rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", `{"birth_date": "not-a-date"}`, "sub-abc"))
-		assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
-		if cRepo.upserted != nil {
-			t.Error("malformed birth_date must reject before the repository is invoked")
+	t.Run("birth_date is accepted and ignored whatever its value", func(t *testing.T) {
+		for _, value := range []string{`"not-a-date"`, `"2000-01-01"`, `null`, `123`} {
+			cRepo := &stubCandidateRepo{}
+			router := newTestRouter(newTestHandler(cRepo, uRepo))
+			rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", `{"birth_date": `+value+`}`, "sub-abc"))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("birth_date %s: want 200, got %d: %s", value, rec.Code, rec.Body.String())
+			}
+			if cRepo.upserted == nil {
+				t.Fatalf("birth_date %s: profile must still reach the repository", value)
+			}
+			if strings.Contains(rec.Body.String(), "birth_date") {
+				t.Errorf("birth_date %s: response must not carry birth_date: %s", value, rec.Body.String())
+			}
 		}
 	})
 

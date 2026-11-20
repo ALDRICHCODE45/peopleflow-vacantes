@@ -19,8 +19,6 @@ func TestApplicationSentinels_Distinct(t *testing.T) {
 		"ErrJobNotApplicable":            ErrJobNotApplicable,
 		"ErrAlreadyApplied":              ErrAlreadyApplied,
 		"ErrInvalidApplicationReference": ErrInvalidApplicationReference,
-		"ErrCoverLetterEmpty":            ErrCoverLetterEmpty,
-		"ErrCoverLetterTooLong":          ErrCoverLetterTooLong,
 		"ErrStatusRequired":              ErrStatusRequired,
 	}
 

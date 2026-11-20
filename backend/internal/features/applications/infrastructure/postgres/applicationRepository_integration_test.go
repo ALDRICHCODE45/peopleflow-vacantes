@@ -24,8 +24,8 @@
 //   - GetByID same-company scope + D12 PII minimization: cross-company /
 //     mismatched-job / non-existent ids all surface ErrApplicationNotFound;
 //     the candidate snippet projects ONLY full_name + professional_title +
-//     years_of_experience (the fixture stores salary + birth_date and the
-//     round-trip proves they never surface); a candidate without a
+//     years_of_experience (the fixture stores a salary and the
+//     round-trip proves it never surfaces); a candidate without a
 //     candidate_profiles row renders nil snippet fields (LEFT JOIN); a
 //     soft-deleted job's application stays retrievable.
 //   - ListByJob two-step (D5): cross-company / non-existent job →
@@ -123,9 +123,9 @@ var (
 // conventions (fixed UUIDs, ON CONFLICT DO NOTHING) so the suite is
 // self-contained and does not depend on the jobs feature's seed having run.
 //
-// PII note: appUserC1's candidate_profiles row stores a real salary and
-// birth_date so the D12 PII-minimization assertion is non-vacuous — a leaky
-// adapter query WOULD return them; TestGetByID_OwnCompany proves it does not.
+// PII note: appUserC1's candidate_profiles row stores a real salary so
+// the D12 PII-minimization assertion is non-vacuous — a leaky adapter query
+// WOULD return it; TestGetByID_OwnCompany proves it does not.
 const applicationFixtureSQL = `
 INSERT INTO companies (id, name, rfc, industry_id, status) VALUES
     ('01900000-0000-7000-8000-0000000000a1', 'App Active One SA',  'APPA010101AAA', 'technology', 'active'),
@@ -211,9 +211,9 @@ INSERT INTO users (id, cognito_sub, email, full_name, user_type) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO candidate_profiles
-    (user_id, professional_title, years_of_experience, current_salary_gross, birth_date)
+    (user_id, professional_title, years_of_experience, current_salary_gross)
 VALUES
-    ('01900000-0000-7000-8000-0000000000c1', 'Senior Go Engineer', 7.9, 120000, '1990-01-01')
+    ('01900000-0000-7000-8000-0000000000c1', 'Senior Go Engineer', 7.9, 120000)
 ON CONFLICT (user_id) DO NOTHING;
 `
 
@@ -864,10 +864,10 @@ func TestTransition_AuditFailureRollsBackStatus(t *testing.T) {
 // TestCreate_PublishedActiveJobSuccess — spec scenario S20 (+ S24/S26).
 // A published job from an active company accepts an application: the
 // returned entity carries status='submitted', the server id and timestamps,
-// and the optional source/cover_letter round-trip through the wire→SQL→
-// entity path. Part A (nil optionals) proves absent source/cover_letter are
-// stored as SQL NULL (S24/S26); Part B (present optionals) proves the stored
-// values surface back (S20).
+// and the optional source round-trips through the wire→SQL→entity path.
+// Part A (nil optionals) proves an absent source is stored as SQL NULL
+// (S24/S26); Part B (present optionals) proves the stored value surfaces
+// back (S20).
 func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
@@ -897,24 +897,21 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	if gotA.Source != nil {
 		t.Errorf("Source: want nil (absent on the wire), got %v", *gotA.Source)
 	}
-	if gotA.CoverLetter != nil {
-		t.Errorf("CoverLetter: want nil (absent on the wire), got %q", *gotA.CoverLetter)
-	}
 	if gotA.CreatedAt.IsZero() || gotA.UpdatedAt.IsZero() {
 		t.Errorf("timestamps: want server-supplied non-zero, got created=%v updated=%v",
 			gotA.CreatedAt, gotA.UpdatedAt)
 	}
 
 	// Raw SQL round-trip: the persisted row is exactly what the adapter
-	// returned — NULL source/cover_letter, DB-default status, and the
+	// returned — NULL source, DB-default status, and the
 	// reserved columns stay NULL (S45 / D11).
 	var status string
-	var dbSource, dbCover, dbCVKey *string
+	var dbSource, dbCVKey *string
 	var dbAnonymizedAt *time.Time
 	if err := f.pool.QueryRow(ctx,
-		`SELECT status, source, cover_letter, cv_s3_key, anonymized_at
+		`SELECT status, source, cv_s3_key, anonymized_at
 		 FROM applications WHERE id = $1`, appIDA,
-	).Scan(&status, &dbSource, &dbCover, &dbCVKey, &dbAnonymizedAt); err != nil {
+	).Scan(&status, &dbSource, &dbCVKey, &dbAnonymizedAt); err != nil {
 		t.Fatalf("raw read (part A): %v", err)
 	}
 	if status != "submitted" {
@@ -923,9 +920,6 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	if dbSource != nil {
 		t.Errorf("raw source: want NULL, got %q", *dbSource)
 	}
-	if dbCover != nil {
-		t.Errorf("raw cover_letter: want NULL, got %q", *dbCover)
-	}
 	if dbCVKey != nil || dbAnonymizedAt != nil {
 		t.Errorf("raw reserved columns: cv_s3_key=%v anonymized_at=%v, want both NULL", dbCVKey, dbAnonymizedAt)
 	}
@@ -933,14 +927,12 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	// Part B — present optionals → stored + surfaced (S20).
 	src := applicationsvalueobjects.Referral
 	srcStr := "referral"
-	cover := "I am a great fit for this role."
 	appIDB := uuid.New()
 	gotB, err := f.repo.Create(ctx, repositories.CreateParams{
 		ID:          appIDB,
 		JobID:       f.jobPublished2,
 		CandidateID: f.userC1,
 		Source:      &src,
-		CoverLetter: &cover,
 	}, submittedAuditEvent(uuid.New(), appIDB, f.userC1, f.jobPublished2, &srcStr))
 	if err != nil {
 		t.Fatalf("Create(with optionals): %v", err)
@@ -952,21 +944,15 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	if gotB.Source == nil || *gotB.Source != applicationsvalueobjects.Referral {
 		t.Errorf("Source: want Referral, got %v", gotB.Source)
 	}
-	if gotB.CoverLetter == nil || *gotB.CoverLetter != cover {
-		t.Errorf("CoverLetter: want %q, got %v", cover, gotB.CoverLetter)
-	}
 
-	var dbSourceB, dbCoverB *string
+	var dbSourceB *string
 	if err := f.pool.QueryRow(ctx,
-		`SELECT source, cover_letter FROM applications WHERE id = $1`, appIDB,
-	).Scan(&dbSourceB, &dbCoverB); err != nil {
+		`SELECT source FROM applications WHERE id = $1`, appIDB,
+	).Scan(&dbSourceB); err != nil {
 		t.Fatalf("raw read (part B): %v", err)
 	}
 	if dbSourceB == nil || *dbSourceB != "referral" {
 		t.Errorf("raw source: want referral, got %v", dbSourceB)
-	}
-	if dbCoverB == nil || *dbCoverB != cover {
-		t.Errorf("raw cover_letter: want %q, got %v", cover, dbCoverB)
 	}
 }
 
@@ -1188,7 +1174,7 @@ func TestCreate_InvalidSourceCheckViolation(t *testing.T) {
 
 // TestGetByID_OwnCompany — spec scenario S73: the owning recruiter fetches
 // the detail. Also the D12 PII pin: the fixture profile stores a real salary
-// + birth_date, and the round-trip proves the snippet carries ONLY user_id /
+// and the round-trip proves the snippet carries ONLY user_id /
 // full_name / professional_title / years_of_experience.
 func TestGetByID_OwnCompany(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
@@ -1210,25 +1196,21 @@ func TestGetByID_OwnCompany(t *testing.T) {
 		t.Errorf("timestamps: want non-zero, got created=%v updated=%v", got.CreatedAt, got.UpdatedAt)
 	}
 
-	// The PII fixture is REAL — salary + birth_date are stored on the
-	// candidate_profiles row. If the adapter query ever selected them, the
+	// The PII fixture is REAL — the salary is stored on the
+	// candidate_profiles row. If the adapter query ever selected it, the
 	// sqlc row scan would break (column-count/type drift) or the entity
-	// would have to expose them (compile-time). Probe the DB to prove the
+	// would have to expose it (compile-time). Probe the DB to prove the
 	// fixture actually contains the PII, so the absence assertion below is
 	// non-vacuous.
 	var gross *int
-	var birth *time.Time
 	if err := f.pool.QueryRow(ctx,
-		`SELECT current_salary_gross, birth_date FROM candidate_profiles WHERE user_id = $1`,
+		`SELECT current_salary_gross FROM candidate_profiles WHERE user_id = $1`,
 		f.userC1,
-	).Scan(&gross, &birth); err != nil {
+	).Scan(&gross); err != nil {
 		t.Fatalf("probe PII fixture: %v", err)
 	}
 	if gross == nil || *gross != 120000 {
 		t.Errorf("fixture precondition: salary must be stored (want 120000), got %v", gross)
-	}
-	if birth == nil {
-		t.Error("fixture precondition: birth_date must be stored")
 	}
 
 	// The snippet the adapter returned carries ONLY the four D12 fields.

@@ -24,15 +24,12 @@ import (
 // uuid.NewV7) and VO parsing; the adapter maps parsed VOs to canonical
 // wire strings and optional pointers to nullable pgtypes.
 //
-// Source and CoverLetter are nil-friendly so the JSON-`null` wire case
-// stores as SQL NULL (defense-in-depth — the use case already rejects
-// empty cover_letter before this port is reached).
+// Source is nil-friendly so the JSON-`null` wire case stores as SQL NULL.
 type CreateParams struct {
 	ID          uuid.UUID
 	JobID       uuid.UUID
 	CandidateID uuid.UUID
 	Source      *valueobjects.ApplicationSource
-	CoverLetter *string
 }
 
 // ApplicationRepository is the persistence port for the applications

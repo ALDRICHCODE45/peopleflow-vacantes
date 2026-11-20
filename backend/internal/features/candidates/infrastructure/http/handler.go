@@ -95,7 +95,12 @@ type upsertProfileRequest struct {
 	Education         json.RawMessage `json:"education"`
 	ProfileSummary    *string         `json:"profile_summary"`
 
-	BirthDate *string `json:"birth_date"` // YYYY-MM-DD; parsed by the use case.
+	// IgnoredBirthDate: birth date was removed from the profile. The strict PUT
+	// decoder rejects unknown keys, so clients still sending birth_date during
+	// the transition would get a 400; the key is accepted with any value (a
+	// date, null, garbage) and discarded. It is never parsed, validated or
+	// stored. Drop this field once no client sends it.
+	IgnoredBirthDate json.RawMessage `json:"birth_date"`
 
 	Location *geo.LocationInput `json:"location"`
 
@@ -126,8 +131,7 @@ type candidateProfileResponse struct {
 	Education         []entities.Education `json:"education"`
 	ProfileSummary    *string              `json:"profile_summary,omitempty"`
 
-	BirthDate *string           `json:"birth_date,omitempty"`
-	Location  *geo.ReadLocation `json:"location"`
+	Location *geo.ReadLocation `json:"location"`
 
 	Skills []string `json:"skills,omitempty"`
 
@@ -211,7 +215,6 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		CurrentCompany:       req.CurrentCompany,
 		YearsOfExperience:    req.YearsOfExperience,
 		ProfileSummary:       req.ProfileSummary,
-		BirthDate:            req.BirthDate,
 		Location:             req.Location,
 		Seniority:            req.Seniority,
 		Education:            req.Education,
@@ -376,10 +379,6 @@ func toProfileResponse(p *entities.CandidateProfile, location *geo.ReadLocation)
 		s := p.ExpectedSalaryPeriod.String()
 		resp.ExpectedSalaryPeriod = &s
 	}
-	if p.BirthDate != nil {
-		s := p.BirthDate.Format("2006-01-02")
-		resp.BirthDate = &s
-	}
 	return resp
 }
 
@@ -419,7 +418,6 @@ func classifyCandidateError(err error) httpjson.Definition {
 	case errors.Is(err, valueobjects.ErrInvalidCefrLevel),
 		errors.Is(err, valueobjects.ErrInvalidEducationLevel),
 		errors.Is(err, valueobjects.ErrInvalidSalaryPeriod),
-		errors.Is(err, usecases.ErrInvalidBirthDate),
 		errors.Is(err, entities.ErrDuplicateLanguage),
 		errors.Is(err, entities.ErrEmptyUserIDForProfile):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), err.Error())

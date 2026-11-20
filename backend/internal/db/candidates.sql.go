@@ -31,7 +31,7 @@ func (q *Queries) DeleteCandidateLanguagesByUserID(ctx context.Context, userID u
 }
 
 const getCandidateProfileByUserID = `-- name: GetCandidateProfileByUserID :one
-SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority FROM candidate_profiles WHERE user_id=$1
+SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority FROM candidate_profiles WHERE user_id=$1
 `
 
 func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.UUID) (CandidateProfile, error) {
@@ -46,7 +46,6 @@ func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.U
 		&i.CurrentCompany,
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
-		&i.BirthDate,
 		&i.Skills,
 		&i.CurrentSalaryGross,
 		&i.CurrentSalaryNet,
@@ -224,24 +223,24 @@ func (q *Queries) SetCandidateSeniority(ctx context.Context, arg SetCandidateSen
 const upsertCandidateProfile = `-- name: UpsertCandidateProfile :one
 INSERT INTO candidate_profiles (
  user_id, phone, linkedin_url, portfolio_url, professional_title,
- current_company, years_of_experience, profile_summary, birth_date,
+ current_company, years_of_experience, profile_summary,
  country_code, state_code, municipality_code, skills,
  current_salary_gross, current_salary_net, expected_salary,
  salary_currency, expected_salary_period, created_at, updated_at
 ) VALUES (
- $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()
+ $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now(),now()
 )
 ON CONFLICT (user_id) DO UPDATE SET
  phone=EXCLUDED.phone, linkedin_url=EXCLUDED.linkedin_url,
  portfolio_url=EXCLUDED.portfolio_url, professional_title=EXCLUDED.professional_title,
  current_company=EXCLUDED.current_company, years_of_experience=EXCLUDED.years_of_experience,
- profile_summary=EXCLUDED.profile_summary, birth_date=EXCLUDED.birth_date,
+ profile_summary=EXCLUDED.profile_summary,
  country_code=EXCLUDED.country_code,state_code=EXCLUDED.state_code,municipality_code=EXCLUDED.municipality_code,
  skills=EXCLUDED.skills,current_salary_gross=EXCLUDED.current_salary_gross,
  current_salary_net=EXCLUDED.current_salary_net,expected_salary=EXCLUDED.expected_salary,
  salary_currency=EXCLUDED.salary_currency,expected_salary_period=EXCLUDED.expected_salary_period,
  updated_at=now()
-RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority
+RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority
 `
 
 type UpsertCandidateProfileParams struct {
@@ -253,7 +252,6 @@ type UpsertCandidateProfileParams struct {
 	CurrentCompany       pgtype.Text    `json:"current_company"`
 	YearsOfExperience    pgtype.Numeric `json:"years_of_experience"`
 	ProfileSummary       pgtype.Text    `json:"profile_summary"`
-	BirthDate            pgtype.Date    `json:"birth_date"`
 	CountryCode          pgtype.Text    `json:"country_code"`
 	StateCode            pgtype.Text    `json:"state_code"`
 	MunicipalityCode     pgtype.Text    `json:"municipality_code"`
@@ -276,7 +274,6 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		arg.CurrentCompany,
 		arg.YearsOfExperience,
 		arg.ProfileSummary,
-		arg.BirthDate,
 		arg.CountryCode,
 		arg.StateCode,
 		arg.MunicipalityCode,
@@ -297,7 +294,6 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		&i.CurrentCompany,
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
-		&i.BirthDate,
 		&i.Skills,
 		&i.CurrentSalaryGross,
 		&i.CurrentSalaryNet,

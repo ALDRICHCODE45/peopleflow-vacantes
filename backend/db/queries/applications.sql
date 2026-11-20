@@ -23,15 +23,13 @@
 -- NOT in the RETURNING list — the reserved columns stay NULL and never
 -- reach the wire (D11).
 --
--- source / cover_letter are sqlc.narg (nullable): absent on the wire →
--- SQL NULL.
-INSERT INTO applications (id, job_id, candidate_id, source, cover_letter)
+-- source is sqlc.narg (nullable): absent on the wire → SQL NULL.
+INSERT INTO applications (id, job_id, candidate_id, source)
 SELECT
     sqlc.arg('id')::uuid,
     sqlc.arg('job_id')::uuid,
     sqlc.arg('candidate_id')::uuid,
-    sqlc.narg('source')::text,
-    sqlc.narg('cover_letter')::text
+    sqlc.narg('source')::text
 WHERE EXISTS (
     SELECT 1
     FROM jobs j
@@ -42,7 +40,7 @@ WHERE EXISTS (
       AND c.status = 'active'
       AND c.deleted_at IS NULL
 )
-RETURNING id, job_id, candidate_id, status, source, cover_letter, created_at, updated_at;
+RETURNING id, job_id, candidate_id, status, source, created_at, updated_at;
 
 -- name: GetApplicationByID :one
 -- Recruiter detail endpoint (design D5 / spec scenario "recruiter gets
@@ -52,7 +50,7 @@ RETURNING id, job_id, candidate_id, status, source, cover_letter, created_at, up
 --
 -- 0 rows → pgx.ErrNoRows → entities.ErrApplicationNotFound (404).
 SELECT
-    a.id, a.job_id, a.candidate_id, a.status, a.source, a.cover_letter,
+    a.id, a.job_id, a.candidate_id, a.status, a.source,
     a.created_at, a.updated_at,
     u.full_name AS candidate_full_name,
     cp.professional_title AS candidate_professional_title,
@@ -73,7 +71,7 @@ WHERE a.id         = sqlc.arg('id')::uuid
 --
 -- Hard cap 100 (no pagination in this slice).
 SELECT
-    a.id, a.job_id, a.candidate_id, a.status, a.source, a.cover_letter,
+    a.id, a.job_id, a.candidate_id, a.status, a.source,
     a.created_at, a.updated_at,
     u.full_name AS candidate_full_name,
     cp.professional_title AS candidate_professional_title,
@@ -95,7 +93,7 @@ LIMIT 100;
 --
 -- Hard cap 100 (no pagination in this slice).
 SELECT
-    a.id, a.job_id, a.candidate_id, a.status, a.source, a.cover_letter,
+    a.id, a.job_id, a.candidate_id, a.status, a.source,
     a.created_at, a.updated_at,
     j.title AS job_title,
     c.id   AS company_id,
@@ -129,7 +127,7 @@ WHERE a.id        = sqlc.arg('id')::uuid
       WHERE j.id = a.job_id
         AND j.company_id = sqlc.arg('company_id')::uuid
   )
-RETURNING id, job_id, candidate_id, status, source, cover_letter, created_at, updated_at;
+RETURNING id, job_id, candidate_id, status, source, created_at, updated_at;
 
 -- name: GetJobForApplicationsScope :one
 -- Same-company scope check for the recruiter list (design D5). Reads

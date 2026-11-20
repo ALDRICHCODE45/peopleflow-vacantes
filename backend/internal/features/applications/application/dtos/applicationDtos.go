@@ -18,8 +18,7 @@ import "time"
 // ignores body fields that don't bind, so any client attempt to set them
 // is silently dropped per spec scenario "server-managed fields ignored".
 type ApplyRequestDto struct {
-	Source      *string `json:"source"`
-	CoverLetter *string `json:"cover_letter"`
+	Source *string `json:"source"`
 }
 
 // TransitionRequestDto is the body for PATCH /jobs/{jobId}/applications/{id}/transition.
@@ -31,16 +30,15 @@ type TransitionRequestDto struct {
 // (201 body) and PATCH /jobs/{jobId}/applications/{id}/transition (200 body).
 //
 // cv_s3_key and anonymized_at are deliberately absent — the columns are
-// reserved and the slice never surfaces them to clients. Source and
-// CoverLetter render as `null` when the stored value is SQL NULL (no
-// `omitempty` so the shape is stable).
+// reserved and the slice never surfaces them to clients. Source renders
+// as `null` when the stored value is SQL NULL (no `omitempty` so the shape
+// is stable). cover_letter was removed: neither accepted nor returned.
 type ApplicationResponse struct {
 	ID          string    `json:"id"`
 	JobID       string    `json:"job_id"`
 	CandidateID string    `json:"candidate_id"`
 	Status      string    `json:"status"`
 	Source      *string   `json:"source"`
-	CoverLetter *string   `json:"cover_letter"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -79,7 +77,6 @@ type ApplicationListItemDto struct {
 	CandidateID string              `json:"candidate_id"`
 	Status      string              `json:"status"`
 	Source      *string             `json:"source"`
-	CoverLetter *string             `json:"cover_letter"`
 	CreatedAt   time.Time           `json:"created_at"`
 	UpdatedAt   time.Time           `json:"updated_at"`
 	Candidate   CandidateSnippetDto `json:"candidate"`
@@ -89,14 +86,13 @@ type ApplicationListItemDto struct {
 // response. NO candidate_id field (the caller is the candidate) — only the
 // job summary carries the cross-reference.
 type MyApplicationListItemDto struct {
-	ID          string        `json:"id"`
-	JobID       string        `json:"job_id"`
-	Status      string        `json:"status"`
-	Source      *string       `json:"source"`
-	CoverLetter *string       `json:"cover_letter"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
-	Job         JobSummaryDto `json:"job"`
+	ID        string        `json:"id"`
+	JobID     string        `json:"job_id"`
+	Status    string        `json:"status"`
+	Source    *string       `json:"source"`
+	CreatedAt time.Time     `json:"created_at"`
+	UpdatedAt time.Time     `json:"updated_at"`
+	Job       JobSummaryDto `json:"job"`
 }
 
 // MyApplicationsResponse is the envelope for GET /me/applications. The slice
