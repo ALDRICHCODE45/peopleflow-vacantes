@@ -507,7 +507,13 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
       "stage": { "kind": "in_process", "name": "En proceso" },
       "discarded": true, "eligible": true }
   ],
-  "carry_candidates_truncated": false
+  "carry_candidates_truncated": false,
+  "fallen_credits": [
+    { "id": "…", "participation_id": "…", "process_id": "…",
+      "hired_at": "…", "left_at": "…", "exit_reason": "candidate_left",
+      "candidate": { "kind": "manual", "id": "…", "full_name": "Luis Pérez" },
+      "status": "replaced", "replaced_by_process_id": "…" }
+  ]
 }
 ```
 
@@ -550,6 +556,17 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
   stages of the **source** process `{id}`, not from this row. Ordered by `full_name` ascending, id ascending; at most 1000 rows
   (`carry_candidates_truncated: true` beyond that). The list is personal data of the same exposure as the board listing (not an audited read).
 
+- **`fallen_credits[]` (R4b, S10).** **Always present** (`[]` when no credit fell or the draft never published) and **independent of `start_replacement.allowed`**, so
+  the board can keep a «No se sostuvo» badge on a card while a replacement is active, the vacancy is not latest or not closed, or the credit is already replaced. One row per
+  `placement_credits.status = 'did_not_hold'` credit of the **whole chain** (voided and active credits never list; a credit a replacement took stays listed), ordered by `left_at`, then `hired_at`
+  (then id; a credit with no departure time sorts last). Fields: `id` (the credit), `participation_id`, `process_id` (the process the credit belongs to), `hired_at`, `left_at` and `exit_reason`
+  (as in `startable_credits`), `candidate {kind, id, full_name}` (the same company name view as `startable_credits`), and `status`:
+  - `"replaced"` — linked in `vacancy_replacement_credits`; adds `replaced_by_process_id`;
+  - `"startable"` — not replaced, `start_replacement.allowed` is true and the credit is in `startable_credits`;
+  - `"blocked"` — otherwise; adds `blocker`, the **`start_replacement.blocker` of `{id}`** verbatim (`replacement_active` | `not_latest` | `source_not_closed`; the contract's
+    `not_latest`, not `source_not_latest`). Like `start_replacement`, it depends on the `{id}` the request was made on.
+  `replaced_by_process_id` and `blocker` are **absent** (not `null`) when they do not apply. `startable_credits` is unchanged; `fallen_credits` is additive (a client that ignores unknown keys is unaffected).
+
 **R4 implementation notes** (what `GET V/replacements` does; the rest of the contract is unchanged; backend page `backend/docs/replacement-processes.md`):
 
 - **Access and shape.** Same access as `GET V/lifecycle` (owner or an active tramo on `{id}`; 404 `not_found` otherwise, 403 stakeholder, 401 no session, 400 malformed id), `no-store`, **no `ETag`**
@@ -563,6 +580,10 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
 - **`publish_ready` / `missing[]`** are `publicationRequirements` on the **source's** content with the six Start-filled codes removed, in `publicationRequirements`' order.
 - **`carry_candidates[]`** (only when `allowed`): the most recent participation per `{kind, id}` over the whole chain, `currently_placed` rows excluded, so a voided or restored hire is a candidate like any other;
   a discarded row shows the stage it was discarded from (a retired stage keeps its kind and name). Ordered by the board's name view then id, 1000 rows maximum (`carry_candidates_truncated`).
+
+**R4b implementation notes** (`fallen_credits`, feature doc S10 frontend request): query `ListFallenCreditDetails` (`db/queries/replacements.sql`, the `ListStartableCreditDetails` joins plus a left join on
+`vacancy_replacement_credits`), assembled by `readFallenCreditViews` (`draftstore/replacement_read.go`) after `startable_credits`, from the same read snapshot. The array is filled for any chain (also when the source
+cannot start) and is `[]` for a draft with no process. No new error, no ETag, no write.
 
 ### `GET V/lifecycle` and every lifecycle view (D10)
 

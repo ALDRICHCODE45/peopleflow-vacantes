@@ -248,6 +248,11 @@ type Querier interface {
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
 	// The credits each replacement of the chain took, oldest hire first.
 	ListChainReplacedCredits(ctx context.Context, arg ListChainReplacedCreditsParams) ([]VacancyReplacementCredit, error)
+	// Every fallen (did_not_hold) credit of the chain rooted at `root_process_id`, whether or
+	// not a replacement took it (replaced_by_process_id), with the hired candidate and the
+	// departure time (the same views as ListStartableCreditDetails). Voided and active credits
+	// are not fallen. Ordered by departure, then hire.
+	ListFallenCreditDetails(ctx context.Context, arg ListFallenCreditDetailsParams) ([]ListFallenCreditDetailsRow, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
 	// jobs.deleted_at on purpose: the candidate's own history persists

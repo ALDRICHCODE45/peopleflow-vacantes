@@ -114,3 +114,28 @@ WHERE c.company_id = @company_id
        OR c.process_id IN (SELECT r.process_id FROM vacancy_replacements r WHERE r.root_process_id = @root_process_id))
   AND NOT EXISTS (SELECT 1 FROM vacancy_replacement_credits vc WHERE vc.placement_credit_id = c.id)
 ORDER BY rc.credit_id, rc.user_id;
+
+-- name: ListFallenCreditDetails :many
+-- Every fallen (did_not_hold) credit of the chain rooted at `root_process_id`, whether or
+-- not a replacement took it (replaced_by_process_id), with the hired candidate and the
+-- departure time (the same views as ListStartableCreditDetails). Voided and active credits
+-- are not fallen. Ordered by departure, then hire.
+SELECT c.id, c.process_id, c.participation_id, c.hired_at, c.exit_reason,
+    COALESCE(h.created_at, c.status_changed_at)::timestamptz AS left_at,
+    CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END::text AS candidate_kind,
+    COALESCE(p.company_candidate_id, p.candidate_id)::uuid AS candidate_id,
+    (CASE WHEN jsonb_exists(o.corrections, 'full_name') THEN o.corrections->>'full_name'
+          ELSE COALESCE(cc.full_name, cu.full_name) END)::text AS full_name,
+    vc.replacement_process_id AS replaced_by_process_id
+FROM placement_credits c
+JOIN process_participations p ON p.id = c.participation_id AND p.process_id = c.process_id
+LEFT JOIN participation_stage_history h ON h.id = c.exit_history_id
+LEFT JOIN users cu ON cu.id = p.candidate_id
+LEFT JOIN company_candidates cc ON cc.id = p.company_candidate_id AND cc.company_id = c.company_id
+LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id = p.candidate_id AND o.company_id = c.company_id
+LEFT JOIN vacancy_replacement_credits vc ON vc.placement_credit_id = c.id
+WHERE c.company_id = @company_id
+  AND c.status = 'did_not_hold'
+  AND (c.process_id = @root_process_id
+       OR c.process_id IN (SELECT r.process_id FROM vacancy_replacements r WHERE r.root_process_id = @root_process_id))
+ORDER BY left_at, c.hired_at, c.id;

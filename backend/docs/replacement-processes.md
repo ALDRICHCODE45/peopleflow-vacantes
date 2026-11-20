@@ -38,6 +38,14 @@ It works on **any process of the chain** and returns the same chain payload from
   `discarded`, `eligible` (always `true` in v1, so no `reason`). Ordered by `full_name`, then id; at most 1000, one more row is read
   to set `carry_candidates_truncated`. The POST's `stage_id` is chosen among the stages of the source, not from this row.
 
+- `fallen_credits[]` (R4b), **always present** (`[]` when none) and independent of `start_replacement.allowed`: every `did_not_hold` credit
+  of the whole chain (voided and active never list, a replaced one stays), ordered by departure (`left_at`), then hire, then id. Each has
+  `id`, `participation_id`, `process_id`, `hired_at`, `left_at`, `exit_reason`, `candidate {kind, id, full_name}` (the same name view as
+  `startable_credits`) and `status`: `replaced` (linked in `vacancy_replacement_credits`; adds `replaced_by_process_id`), `startable`
+  (the source may start and the credit is in `startable_credits`) or `blocked` (adds `blocker`, the source's `start_replacement.blocker`
+  verbatim: `replacement_active`, `not_latest` or `source_not_closed`). The two optional keys are absent, not null, when they do not
+  apply. It lets the board keep the «No se sostuvo» badge on a card that `startable_credits` no longer lists. `startable_credits` is unchanged.
+
 Names are the board's company view: a company correction of an organic candidate's name wins over the account's. They are personal
 data of the same exposure as the board listing (not an audited read); a recruiter with a tramo on `{id}` sees the candidates of the
 whole chain, as the contract says.
@@ -45,13 +53,13 @@ whole chain, as the contract says.
 ## Code map
 
 - `draftstore/replacement_read.go`: `Store.ReadReplacements` (items, credits, readiness), over the `replacements.sql` queries
-  `ListReplacementChainItems`, `ListChainReplacedCredits`, `ListStartableCreditDetails`, `ListStartableCreditRecipients`.
+  `ListReplacementChainItems`, `ListChainReplacedCredits`, `ListStartableCreditDetails`, `ListStartableCreditRecipients`, and, for `fallen_credits`, `ListFallenCreditDetails` (`readFallenCreditViews`).
 - `draftstore/replacement_carry_read.go`: `readCarryCandidates` (raw SQL: it needs the per-process Placement stage ids as arrays).
 - `http/replacementHandler.go`: `ReplacementHandlers{Start, List}`, served by `LifecycleHandler.ReplacementHandlers()`.
 
 ## Pinned by tests
 
-`cmd/api/replacement_list_integration_test.go` (the payload, the chain from any process, blockers and readiness, the
+`cmd/api/replacement_list_integration_test.go` (the payload, the chain from any process, blockers and readiness, `fallen_credits` in every status, the
 most-recent-participation and placed-exclusion rules, the 1000 cap, permissions) and
 `cmd/api/replacement_delivery_integration_test.go` (`GET V/pipeline/delivery` has no lifecycle guard: it works on a closed and on a
 finished source, feature doc L11).

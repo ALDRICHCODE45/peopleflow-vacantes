@@ -81,12 +81,30 @@ type startBlock struct {
 	Missing             []string              `json:"missing"`
 }
 
+// fallenCreditView is a did_not_hold credit of the chain with what it is now (R4b): startable
+// (the source may start and no replacement took it), replaced (by ReplacedByProcessID) or blocked
+// (by the start_replacement blocker of the source). Unlike the startable credits it is listed
+// whatever the source may do.
+type fallenCreditView struct {
+	ID                  string         `json:"id"`
+	ParticipationID     string         `json:"participation_id"`
+	ProcessID           string         `json:"process_id"`
+	HiredAt             string         `json:"hired_at"`
+	LeftAt              *string        `json:"left_at"`
+	ExitReason          *string        `json:"exit_reason"`
+	Candidate           namedCandidate `json:"candidate"`
+	Status              string         `json:"status"`
+	ReplacedByProcessID *string        `json:"replaced_by_process_id,omitempty"`
+	Blocker             *string        `json:"blocker,omitempty"`
+}
+
 type replacementList struct {
-	RootProcessID  string           `json:"root_process_id"`
-	Items          []chainItem      `json:"items"`
-	Start          startBlock       `json:"start_replacement"`
-	Carry          []carryCandidate `json:"carry_candidates"`
-	CarryTruncated bool             `json:"carry_candidates_truncated"`
+	RootProcessID  string             `json:"root_process_id"`
+	Items          []chainItem        `json:"items"`
+	Start          startBlock         `json:"start_replacement"`
+	Carry          []carryCandidate   `json:"carry_candidates"`
+	CarryTruncated bool               `json:"carry_candidates_truncated"`
+	Fallen         []fallenCreditView `json:"fallen_credits"`
 }
 
 // startFilledCodes are the readiness codes that Start itself fills on the replacement, so
@@ -124,6 +142,7 @@ func (s *Store) ReadReplacements(ctx context.Context, companyID, actorID, id uui
 	}
 	out := replacementList{
 		RootProcessID: view.RootProcessID, Items: []chainItem{}, Carry: []carryCandidate{},
+		Fallen: []fallenCreditView{},
 		Start: startBlock{
 			Allowed: view.CanStartReplacement, Blocker: view.StartReplacementBlocker, ActiveReplacementID: view.ActiveReplacementID,
 			StartableCredits: []startableCreditView{}, Missing: []string{},
@@ -154,6 +173,11 @@ func (s *Store) ReadReplacements(ctx context.Context, companyID, actorID, id uui
 		ready := len(out.Start.Missing) == 0
 		out.Start.PublishReady = &ready
 		if out.Carry, out.CarryTruncated, err = readCarryCandidates(ctx, tx, companyID, chain); err != nil {
+			return drafts.Result{}, err
+		}
+	}
+	if found {
+		if out.Fallen, err = readFallenCreditViews(ctx, tx, companyID, chain.Root, out.Start); err != nil {
 			return drafts.Result{}, err
 		}
 	}
@@ -255,6 +279,43 @@ func readStartableCreditViews(ctx context.Context, tx pgx.Tx, companyID, root uu
 		if row.ExitReason.Valid {
 			reason := row.ExitReason.String
 			credits[i].ExitReason = &reason
+		}
+	}
+	return credits, nil
+}
+
+// readFallenCreditViews lists every did_not_hold credit of the chain rooted at `root`, ordered
+// by departure then hire. A credit a replacement took is replaced; else it is startable when
+// the source may start and the credit is one of start.StartableCredits; else it is blocked by
+// the source's blocker.
+func readFallenCreditViews(ctx context.Context, tx pgx.Tx, companyID, root uuid.UUID, start startBlock) ([]fallenCreditView, error) {
+	rows, err := db.New(tx).ListFallenCreditDetails(ctx, db.ListFallenCreditDetailsParams{CompanyID: companyID, RootProcessID: root})
+	if err != nil {
+		return nil, fmt.Errorf("list fallen credits: %w", err)
+	}
+	startable := map[string]bool{}
+	for _, c := range start.StartableCredits {
+		startable[c.CreditID] = true
+	}
+	credits := make([]fallenCreditView, len(rows))
+	for i, row := range rows {
+		credits[i] = fallenCreditView{
+			ID: row.ID.String(), ParticipationID: row.ParticipationID.String(), ProcessID: row.ProcessID.String(),
+			HiredAt: row.HiredAt.Time.UTC().Format(timestampLayout), LeftAt: formatTime(row.LeftAt),
+			Candidate: namedCandidate{Kind: row.CandidateKind, ID: row.CandidateID.String(), FullName: row.FullName},
+		}
+		if row.ExitReason.Valid {
+			reason := row.ExitReason.String
+			credits[i].ExitReason = &reason
+		}
+		switch {
+		case row.ReplacedByProcessID.Valid:
+			by := uuid.UUID(row.ReplacedByProcessID.Bytes).String()
+			credits[i].Status, credits[i].ReplacedByProcessID = "replaced", &by
+		case start.Allowed && startable[credits[i].ID]:
+			credits[i].Status = "startable"
+		default:
+			credits[i].Status, credits[i].Blocker = "blocked", start.Blocker
 		}
 	}
 	return credits, nil

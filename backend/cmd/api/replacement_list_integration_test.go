@@ -65,7 +65,7 @@ func replStart(t *testing.T, body map[string]any) map[string]any {
 // replAssertTopLevel pins the response's keys.
 func replAssertTopLevel(t *testing.T, body map[string]any) {
 	t.Helper()
-	if got, want := replSortedKeys(body), []string{"carry_candidates", "carry_candidates_truncated", "items", "root_process_id", "start_replacement"}; !reflect.DeepEqual(got, want) {
+	if got, want := replSortedKeys(body), []string{"carry_candidates", "carry_candidates_truncated", "fallen_credits", "items", "root_process_id", "start_replacement"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("keys = %v, want %v", got, want)
 	}
 	if got, want := replSortedKeys(replStart(t, body)), []string{"active_replacement_id", "allowed", "blocker", "missing", "publish_ready", "startable_credits"}; !reflect.DeepEqual(got, want) {
@@ -518,5 +518,177 @@ func TestReplacementListPermissions(t *testing.T) {
 		if replObject(t, v)["can_open"] != true {
 			t.Fatalf("owner item = %v", v)
 		}
+	}
+}
+
+// fallenWant is one `fallen_credits[]` item: left_at is the departure history row's time (an hour
+// after the hire in these fixtures unless the test moved it) and the exit reason the stored one.
+func fallenWant(credit, process, participation string, who carryPerson, name string, hired, left time.Time, status string, extra map[string]any) map[string]any {
+	want := map[string]any{
+		"id": credit, "participation_id": participation, "process_id": process,
+		"hired_at": replTime(hired), "left_at": replTime(left), "exit_reason": "candidate_left",
+		"candidate": map[string]any{"kind": who.kind, "id": who.id.String(), "full_name": name},
+		"status":    status,
+	}
+	for k, v := range extra {
+		want[k] = v
+	}
+	return want
+}
+
+// replFallen is `fallen_credits` of GET V/replacements of `id`, asserting the always-present array.
+func (f *replFlow) fallen(id string) []any {
+	f.t.Helper()
+	body := f.chainOK(id)
+	replAssertTopLevel(f.t, body)
+	return replList(f.t, body["fallen_credits"])
+}
+
+func replAssertFallen(t *testing.T, where string, got []any, want ...map[string]any) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s: fallen_credits = %v, want %d items %v", where, got, len(want), want)
+	}
+	for i, w := range want {
+		item := replObject(t, got[i])
+		if !reflect.DeepEqual(item, w) {
+			t.Fatalf("%s: fallen_credits[%d] = %#v\nwant %#v", where, i, item, w)
+		}
+	}
+}
+
+// R4b (feature doc S10, frontend request): `fallen_credits[]` lists every did_not_hold credit of the
+// whole chain, always present and independent of start_replacement.allowed, with what each one is
+// now: startable, replaced (by which process) or blocked (by the start_replacement blocker).
+func TestReplacementListFallenCreditsStatuses(t *testing.T) {
+	f := newCarryFlow(t)
+	root := f.published()
+	base := time.Now().UTC().Truncate(time.Microsecond).Add(-72 * time.Hour)
+
+	// A organic (the company corrected the name), B and C company candidates; a voided and an active hire never list.
+	alba, ben, cris := f.organic("Alba Original"), f.manual("Ben Fallen"), f.manual("Cris Fallen")
+	f.exec(`INSERT INTO company_candidate_corrections(company_id,user_id,corrections) VALUES($1,$2,'{"full_name":"Alba Corregida"}'::jsonb)`, f.company.companyID, alba.id)
+	t.Cleanup(func() { f.exec(`DELETE FROM company_candidate_corrections WHERE company_id=$1`, f.company.companyID) })
+	aCredit, aPart := f.hire(root, alba, base, "did_not_hold")
+	bCredit, bPart := f.hire(root, ben, base.Add(time.Minute), "did_not_hold")
+	cCredit, cPart := f.hire(root, cris, base.Add(2*time.Minute), "did_not_hold")
+	f.hire(root, f.manual("Void Person"), base.Add(3*time.Minute), "voided")
+	f.hire(root, f.manual("Still Hired"), base.Add(4*time.Minute), "active")
+	// Order is left_at, then hired_at: C left first, A and B left together (A hired earlier).
+	aLeft := base.Add(time.Hour)
+	cLeft := base.Add(30 * time.Minute)
+	moveLeft := func(credit string, at time.Time) {
+		f.exec(`UPDATE participation_stage_history SET created_at=$2 WHERE id=(SELECT exit_history_id FROM placement_credits WHERE id=$1)`, credit, at)
+	}
+	moveLeft(bCredit, aLeft)
+	moveLeft(cCredit, cLeft)
+	f.closeIt(root, "finish")
+	f.cover(root)
+
+	a := func(process string, status string, extra map[string]any) map[string]any {
+		return fallenWant(aCredit, process, aPart, alba, "Alba Corregida", base, aLeft, status, extra)
+	}
+	b := func(status string, extra map[string]any) map[string]any {
+		return fallenWant(bCredit, root, bPart, ben, "Ben Fallen", base.Add(time.Minute), aLeft, status, extra)
+	}
+	c := func(status string, extra map[string]any) map[string]any {
+		return fallenWant(cCredit, root, cPart, cris, "Cris Fallen", base.Add(2*time.Minute), cLeft, status, extra)
+	}
+	blocked := func(blocker string) map[string]any { return map[string]any{"blocker": blocker} }
+
+	// Startable: the source may start, so every fallen credit is startable; the exact keys, no blocker, no replaced_by.
+	got := f.fallen(root)
+	replAssertFallen(t, "closed original", got, c("startable", nil), a(root, "startable", nil), b("startable", nil))
+	if keys := replSortedKeys(replObject(t, got[0])); !reflect.DeepEqual(keys, []string{"candidate", "exit_reason", "hired_at", "id", "left_at", "participation_id", "process_id", "status"}) {
+		t.Fatalf("fallen item keys = %v", keys)
+	}
+	// startable_credits is unchanged: oldest hire first, the same three credits.
+	var startable []string
+	for _, v := range replList(t, replStart(t, f.chainOK(root))["startable_credits"]) {
+		startable = append(startable, replObject(t, v)["credit_id"].(string))
+	}
+	if !reflect.DeepEqual(startable, []string{aCredit, bCredit, cCredit}) {
+		t.Fatalf("startable_credits = %v", startable)
+	}
+
+	// Replaced: A is taken by a replacement; the others wait for it («replacement_active»), and from the
+	// replacement itself (not closed yet) the blocker is «source_not_closed».
+	repl := f.startOK(root, replBody(t, ",\"target_quantity\":1", aCredit))["id"].(string)
+	replacedBy := map[string]any{"replaced_by_process_id": repl}
+	replAssertFallen(t, "original with a replacement active", f.fallen(root),
+		c("blocked", blocked("replacement_active")), a(root, "replaced", replacedBy), b("blocked", blocked("replacement_active")))
+	replAssertFallen(t, "running replacement", f.fallen(repl),
+		c("blocked", blocked("source_not_closed")), a(root, "replaced", replacedBy), b("blocked", blocked("source_not_closed")))
+
+	// A hire of the replacement itself that left joins the list (the whole chain), after the others by left_at.
+	dina := f.manual("Dina Replacement")
+	dHired := time.Now().UTC().Truncate(time.Microsecond).Add(-2 * time.Hour)
+	dCredit, dPart := f.hire(repl, dina, dHired, "did_not_hold")
+	d := func(status string, extra map[string]any) map[string]any {
+		return fallenWant(dCredit, repl, dPart, dina, "Dina Replacement", dHired, dHired.Add(time.Hour), status, extra)
+	}
+
+	// Closed and still running, the replacement is the latest and may start: its own credit and the spare ones are startable.
+	f.closeIt(repl, "continue")
+	replAssertFallen(t, "closed replacement", f.fallen(repl),
+		c("startable", nil), a(root, "replaced", replacedBy), b("startable", nil), d("startable", nil))
+	replAssertFallen(t, "original under a closed-active replacement", f.fallen(root),
+		c("blocked", blocked("replacement_active")), a(root, "replaced", replacedBy), b("blocked", blocked("replacement_active")), d("blocked", blocked("replacement_active")))
+
+	// Finished: the original is no longer the latest («not_latest», the start_replacement blocker verbatim).
+	if got := f.transition(repl, "finish-process", `{}`); got.status != 200 {
+		t.Fatalf("finish: %d %s", got.status, got.body)
+	}
+	replAssertFallen(t, "original under a finished replacement", f.fallen(root),
+		c("blocked", blocked("not_latest")), a(root, "replaced", replacedBy), b("blocked", blocked("not_latest")), d("blocked", blocked("not_latest")))
+	replAssertFallen(t, "finished replacement", f.fallen(repl),
+		c("startable", nil), a(root, "replaced", replacedBy), b("startable", nil), d("startable", nil))
+
+	// A second replacement takes B and D: they are replaced by it, A still by the first; C stays startable from the latest.
+	second := f.startOK(repl, replBody(t, ",\"target_quantity\":2", bCredit, dCredit))["id"].(string)
+	secondBy := map[string]any{"replaced_by_process_id": second}
+	f.closeIt(second, "continue")
+	replAssertFallen(t, "second replacement closed", f.fallen(second),
+		c("startable", nil), a(root, "replaced", replacedBy), b("replaced", secondBy), d("replaced", secondBy))
+	replAssertFallen(t, "original under two replacements", f.fallen(root),
+		c("blocked", blocked("replacement_active")), a(root, "replaced", replacedBy), b("replaced", secondBy), d("replaced", secondBy))
+}
+
+// fallen_credits is always present and independent of `allowed`: it is `[]` when no credit fell,
+// and it lists the credits of a source that cannot start with the blocker that stops them.
+func TestReplacementListFallenCreditsAreAlwaysPresent(t *testing.T) {
+	f := newCarryFlow(t)
+
+	// A draft that never published has no chain.
+	replAssertFallen(t, "never published", f.fallen(f.draft()))
+	if body := f.chainOK(f.draft()); !reflect.DeepEqual(body["fallen_credits"], []any{}) {
+		t.Fatalf("fallen_credits must be [] not null: %#v", body["fallen_credits"])
+	}
+
+	// Closed with only a voided and an active hire: nothing fell.
+	none := f.published()
+	base := time.Now().UTC().Truncate(time.Microsecond).Add(-72 * time.Hour)
+	f.hire(none, f.manual("Void Person"), base, "voided")
+	f.hire(none, f.manual("Still Hired"), base.Add(time.Minute), "active")
+	f.closeIt(none, "finish")
+	replAssertNotAllowed(t, f.chainOK(none), "no_startable_credits", nil)
+	if body := f.chainOK(none); !reflect.DeepEqual(body["fallen_credits"], []any{}) {
+		t.Fatalf("fallen_credits = %#v, want []", body["fallen_credits"])
+	}
+
+	// An open source with a fallen credit: not allowed («source_not_closed»), yet the credit is listed as blocked.
+	open := f.published()
+	ana := f.manual("Ana Open")
+	credit, part := f.hire(open, ana, base, "did_not_hold")
+	body := f.chainOK(open)
+	replAssertNotAllowed(t, body, "source_not_closed", nil)
+	replAssertFallen(t, "open source", replList(t, body["fallen_credits"]),
+		fallenWant(credit, open, part, ana, "Ana Open", base, base.Add(time.Hour), "blocked", map[string]any{"blocker": "source_not_closed"}))
+
+	// A fallen credit whose departure was restored by the owner carries the stored exit reason.
+	f.exec(`UPDATE placement_credits SET exit_reason='moved_by_mistake' WHERE id=$1`, credit)
+	got := f.fallen(open)
+	if len(got) != 1 || replObject(t, got[0])["exit_reason"] != "moved_by_mistake" {
+		t.Fatalf("exit_reason = %v", got)
 	}
 }
