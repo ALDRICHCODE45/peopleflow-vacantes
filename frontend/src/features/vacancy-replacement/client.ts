@@ -33,7 +33,11 @@ const endpoint = async (draftId: string) => {
   return { url: new URL(`/v2/me/company/job-drafts/${draftId}/replacements`, serverEnv.apiBaseUrl).toString(), serverEnv };
 };
 
-/** `GET V/replacements`: the chain, the startable credits, `publish_ready`/`missing[]` and the carry candidates of `draftId`. */
+/**
+ * `GET V/replacements`: the chain, the startable credits, `publish_ready`/`missing[]` and the carry candidates of `draftId`.
+ * The backend sends NO `ETag` here (it is derived from several resources): none is read or required; the lifecycle ETag for
+ * `If-Match` comes from `GET V/lifecycle`. A draft that never published answers 200 with `items: []` and `source_not_closed`.
+ */
 export async function getReplacements(input: ReadInput): Promise<ReplacementsResult> {
   if (typeof input?.token !== "string" || !input.token.trim()) return invalid("missing_token");
   if (!isValidJobId(input.draftId)) return invalid("invalid_request");

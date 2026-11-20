@@ -37,3 +37,37 @@ it("an original with an active replacement links to it", () => {
   expect(screen.getByText(/reemplazo en curso/)).toBeVisible();
   expect(screen.getByRole("link", { name: /Ver reemplazo/ })).toHaveAttribute("href", `/empresa/vacantes/${replacement}/pipeline`);
 });
+
+// R4 chain names (the board's single GET V/replacements, shared with the link bar).
+const chain = [
+  { id: original, kind: "original" as const, sequence: 0, title: "Supervisor(a) de Almacén", canOpen: true },
+  { id: replacement, kind: "replacement" as const, sequence: 1, title: "Supervisor(a) de Almacén", canOpen: true },
+];
+it("names the replacement and its original from the chain", () => {
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "replacement", replacement_of: original }} selfId={replacement} chain={chain} />);
+  expect(screen.getByText("Reemplazo 1")).toBeVisible();
+  expect(screen.getByText(/de Supervisor\(a\) de Almacén/)).toBeVisible();
+  expect(screen.getByRole("link", { name: /Ver original/ })).toHaveAttribute("href", `/empresa/vacantes/${original}/pipeline`);
+});
+it("names the active replacement the original points to", () => {
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={chain} />);
+  const link = screen.getByRole("link", { name: "Ver reemplazo activo: Reemplazo 1" });
+  expect(link).toHaveAttribute("href", `/empresa/vacantes/${replacement}/pipeline`);
+});
+it("a second replacement points back to the replacement it replaces by name", () => {
+  const second = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d90";
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "replacement", replacement_of: replacement }} selfId={second}
+    chain={[...chain, { id: second, kind: "replacement", sequence: 2, title: "Supervisor(a) de Almacén", canOpen: true }]} />);
+  expect(screen.getByText("Reemplazo 2")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Ver Reemplazo 1" })).toHaveAttribute("href", `/empresa/vacantes/${replacement}/pipeline`);
+});
+it("without a link target the caller may not open there is only the sentence", () => {
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={[chain[0], { ...chain[1], canOpen: false }]} />);
+  expect(screen.getByText("Reemplazo 1")).toBeVisible();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
+});
+it("a chain that does not name the process keeps today's copy and links", () => {
+  render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={[chain[0]]} />);
+  expect(screen.getByText(/reemplazo en curso/)).toBeVisible();
+  expect(screen.getByRole("link", { name: /Ver reemplazo/ })).toHaveAttribute("href", `/empresa/vacantes/${replacement}/pipeline`);
+});

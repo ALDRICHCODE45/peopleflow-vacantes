@@ -3,7 +3,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { MovementBoard } from "./board";
-import { discardParticipationAction, loadBoardAction, loadParticipationAction } from "./actions";
+import { discardParticipationAction, loadBoardAction, loadParticipationAction, moveParticipationAction } from "./actions";
+import { loadReplacementSummaryAction } from "@/features/vacancy-replacement/actions";
+import type { ChainSummary } from "@/features/vacancy-replacement/model";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { getLifecycleAction } from "@/features/vacancy-lifecycle/actions";
 import { boardFixture, detailFixture, vacancyId } from "./board-fixture";
@@ -18,6 +20,7 @@ vi.mock("@/components/ui/combobox", () => ({
   ComboboxContent: () => null, ComboboxEmpty: () => null, ComboboxList: () => null, ComboboxItem: () => null, useComboboxAnchor: () => ({ current: null }),
 }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [] } }, states: { status: "success", data: { items: [] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
+vi.mock("@/features/vacancy-replacement/actions", () => ({ loadReplacementSummaryAction: vi.fn() }));
 vi.mock("@/features/vacancy-lifecycle/actions", () => ({ getLifecycleAction: vi.fn(), transitionLifecycleAction: vi.fn() }));
 vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn(), discardParticipationAction: vi.fn(), recoverParticipationAction: vi.fn(), setParticipationSubstateAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
@@ -86,13 +89,22 @@ function departedBoard(lifecycle: Lifecycle): Board {
   return board;
 }
 const startable = () => life({ can_start_replacement: true, start_replacement_blocker: null, startable_credits_count: 1 });
-const credit = { id: "credit-1", status: "did_not_hold" as const, team_mode: "shared" as const, hired_at: "2026-10-22T12:00:00Z", hired_by: { id: "recruiter", name: "Luis López" }, exit_reason: "candidate_left" as const, recipients: [] };
+/** What the board's single GET V/replacements leaves after the slim projection: the chain names and the startable credits by participation. */
+const credit = { id: "credit-1", participationId: "person", hiredAt: "2026-10-22T12:00:00Z", leftAt };
+const chainItems = (second: Partial<ChainSummary["items"][number]> = {}): ChainSummary["items"] => [
+  { id: vacancyId, kind: "original", sequence: 0, title: "Supervisor(a) de Almacén", canOpen: true },
+  { id: other, kind: "replacement", sequence: 1, title: "Supervisor(a) de Almacén", canOpen: true, ...second },
+];
 function departureResponse(lifecycle: Lifecycle): Move {
   const item = boardFixture().participations[0];
   return { ...item, stage_id: "exit", discard, moved_at: leftAt, version: "5", etag: '"next-tag"', coverage: { covered: 1, required: 2, full_coverage_reached_at: "2026-10-29T12:00:00Z" }, delivery: boardFixture().delivery, lifecycle } as Move;
 }
-function resolveCredit(status: "active" | "did_not_hold" | "voided" = "did_not_hold") {
-  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), placement_credit: { ...credit, status } } });
+function resolveSummary(credits: ChainSummary["credits"] = [credit], items: ChainSummary["items"] = chainItems()) {
+  vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: true, data: { items, credits } });
+}
+function moveResponse(lifecycle: Lifecycle): Move {
+  const item = boardFixture().participations[0];
+  return { ...item, stage_id: "screen", moved_at: leftAt, version: "5", etag: '"next-tag"', coverage: { covered: 1, required: 2, full_coverage_reached_at: "2026-10-29T12:00:00Z" }, delivery: boardFixture().delivery, lifecycle } as Move;
 }
 async function mount(board: Board, onStartReplacement?: (creditId?: string) => void) {
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
@@ -134,7 +146,7 @@ it("S3: the confirmation states the coverage before/after and that the original 
 it("S3: late departure on a finished board sends the discard body and refreshes lifecycle, coverage and the card", async () => {
   const start = vi.fn();
   vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: departureResponse(startable()) });
-  resolveCredit();
+  resolveSummary();
   vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: startable() });
   await mount(hireBoard(), start);
   fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
@@ -148,6 +160,8 @@ it("S3: late departure on a finished board sends the discard body and refreshes 
   // The card now carries the badge and the departure date, and the menu offers the start with its credit.
   const badge = await screen.findByText("No se sostuvo", { selector: '[data-slot="badge"]' });
   expect(badge.closest("li")).toHaveTextContent(/se fue el 17 nov/);
+  expect(loadReplacementSummaryAction).toHaveBeenCalledExactlyOnceWith(vacancyId);
+  expect(loadParticipationAction).not.toHaveBeenCalled();
   expect(names(openMenu())).toEqual(["Iniciar reemplazo"]);
   fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Iniciar reemplazo" }));
   expect(start).toHaveBeenCalledExactlyOnceWith("credit-1");
@@ -156,7 +170,7 @@ it("S3: late departure on a finished board sends the discard body and refreshes 
 it("S3: the header «Acciones» menu offers «Iniciar reemplazo» once the departure made it startable", async () => {
   const start = vi.fn();
   vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: departureResponse(startable()) });
-  resolveCredit();
+  resolveSummary();
   vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: startable() });
   await mount(hireBoard(), start);
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
@@ -176,31 +190,58 @@ it("S3: a failed late departure leaves the hire where it was and explains it", a
   expect(screen.queryByText("No se sostuvo", { selector: '[data-slot="badge"]' })).not.toBeInTheDocument();
 });
 it("S1: a startable departed card offers «Iniciar reemplazo» with its own credit", async () => {
-  const start = vi.fn(); resolveCredit();
+  const start = vi.fn(); resolveSummary();
   await mount(departedBoard(startable()), start);
   expect(await screen.findByText("No se sostuvo", { selector: '[data-slot="badge"]' })).toBeVisible();
   expect(names(openMenu())).toEqual(["Iniciar reemplazo"]);
   fireEvent.click(screen.getByRole("menuitem", { name: "Iniciar reemplazo" }));
   expect(start).toHaveBeenCalledExactlyOnceWith("credit-1");
 });
-it("S6 / step 11: an active replacement disables the start with the reason and links to it", async () => {
-  resolveCredit();
-  await mount(departedBoard(life({ can_start_replacement: false, start_replacement_blocker: "replacement_active", active_replacement_id: other })), vi.fn());
-  await screen.findByText("No se sostuvo", { selector: '[data-slot="badge"]' });
-  const menu = openMenu();
-  const item = within(menu).getByRole("menuitem", { name: /Iniciar reemplazo/ });
-  expect(item).toBeDisabled(); expect(item).toHaveTextContent("Ya hay un reemplazo en curso. Solo puede haber uno activo por vacante.");
-  expect(within(menu).getByRole("menuitem", { name: "Ver reemplazo activo" })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+it("one GET V/replacements per board load resolves every departed card by participation_id, with the date the backend gives", async () => {
+  const board = departedBoard(startable());
+  board.participations.push({ ...board.participations[0], id: "luis", candidate: { id: "luis-candidate", full_name: "Luis Soto", kind: "organic" } });
+  board.exit.count = 2;
+  resolveSummary([{ id: "credit-1", participationId: "person", hiredAt: "2026-10-22T12:00:00Z", leftAt: "2026-11-16T18:00:00Z" }, { id: "credit-2", participationId: "luis", hiredAt: null, leftAt: null }]);
+  const start = vi.fn();
+  await mount(board, start);
+  await waitFor(() => expect(screen.getAllByText("No se sostuvo", { selector: '[data-slot="badge"]' })).toHaveLength(2));
+  expect(loadReplacementSummaryAction).toHaveBeenCalledTimes(1);
+  expect(loadParticipationAction).not.toHaveBeenCalled();
+  // The credit's own left_at wins; without it the discard date still says when.
+  expect(screen.getByText("Ana Pérez").closest("li")).toHaveTextContent(/se fue el 16 nov/);
+  expect(screen.getByText("Luis Soto").closest("li")).toHaveTextContent(/se fue el 17 nov/);
+  fireEvent.click(screen.getByRole("button", { name: "Acciones de Luis Soto" }));
+  fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Iniciar reemplazo" }));
+  expect(start).toHaveBeenCalledExactlyOnceWith("credit-2");
 });
-it("a departure that was voided by mistake is not a «No se sostuvo»", async () => {
-  resolveCredit("voided");
+it("S6: with a replacement active the contract lists no startable credit: the card offers nothing and the link bar leads to the replacement by name", async () => {
+  resolveSummary([]);
+  await mount(departedBoard(life({ can_start_replacement: false, start_replacement_blocker: "replacement_active", active_replacement_id: other })), vi.fn());
+  expect(await screen.findByRole("link", { name: "Ver reemplazo activo: Reemplazo 1" })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+  expect(screen.queryByText("No se sostuvo", { selector: '[data-slot="badge"]' })).not.toBeInTheDocument();
+  expect(trigger()).toBeDisabled();
+});
+it("a credit the backend does not list (voided, or already replaced) shows no badge", async () => {
+  resolveSummary([]);
   await mount(departedBoard(startable()), vi.fn());
-  await waitFor(() => expect(loadParticipationAction).toHaveBeenCalled());
+  await waitFor(() => expect(loadReplacementSummaryAction).toHaveBeenCalledTimes(1));
+  expect(await screen.findByText("Ya no le interesa")).toBeVisible();
+  expect(screen.queryByText("No se sostuvo", { selector: '[data-slot="badge"]' })).not.toBeInTheDocument();
+  expect(trigger()).toBeDisabled();
+});
+it.each([
+  ["answers ok: false", () => vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: false })],
+  ["rejects", () => vi.mocked(loadReplacementSummaryAction).mockRejectedValue(new Error("network"))],
+])("when the read %s the departed card keeps today's look: no badge, no start, no crash", async (_name, fail) => {
+  fail();
+  await mount(departedBoard(startable()), vi.fn());
+  await waitFor(() => expect(loadReplacementSummaryAction).toHaveBeenCalledTimes(1));
+  expect(await screen.findByText("Ya no le interesa")).toBeVisible();
   expect(screen.queryByText("No se sostuvo", { selector: '[data-slot="badge"]' })).not.toBeInTheDocument();
   expect(trigger()).toBeDisabled();
 });
 it("without a start handler the departed card has nothing to offer on a finished board", async () => {
-  resolveCredit();
+  resolveSummary();
   await mount(departedBoard(startable()));
   await screen.findByText("No se sostuvo", { selector: '[data-slot="badge"]' });
   expect(trigger()).toBeDisabled();
@@ -215,7 +256,7 @@ it("old backend (no replacement keys): finished board stays read-only, no late a
   await mount(old, vi.fn());
   expect(trigger()).toBeDisabled();
 });
-it("old backend on an active board: no «No se sostuvo…» item and no credit lookups for departed cards", async () => {
+it("old backend on an active board: no «No se sostuvo…» item and no replacement read for departed cards", async () => {
   const old = hireBoard(); old.lifecycle = { close_reason: null, close_reason_note: null, publication: "published", process: "active", version: "1", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: [] };
   await mount(old, vi.fn());
   expect(names(openMenu())).not.toContain("No se sostuvo…");
@@ -224,6 +265,7 @@ it("old backend on an active board: no «No se sostuvo…» item and no credit l
   await mount(departed, vi.fn());
   expect(await screen.findByText("Ya no le interesa")).toBeVisible();
   expect(loadParticipationAction).not.toHaveBeenCalled();
+  expect(loadReplacementSummaryAction).not.toHaveBeenCalled();
   expect(screen.queryByText("No se sostuvo", { selector: '[data-slot="badge"]' })).not.toBeInTheDocument();
 });
 it("S6: the board header links a replacement to its original and an original to its active replacement", async () => {
@@ -232,4 +274,63 @@ it("S6: the board header links a replacement to its original and an original to 
   cleanup();
   await mount(hireBoard(life({ active_replacement_id: other })));
   expect(screen.getByRole("link", { name: /Ver reemplazo/ })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+});
+it("S6: the link bar names the processes from the same single read that resolves the cards", async () => {
+  const items: ChainSummary["items"] = [
+    { id: other, kind: "original", sequence: 0, title: "Supervisor(a) de Almacén", canOpen: true },
+    { id: vacancyId, kind: "replacement", sequence: 1, title: "Supervisor(a) de Almacén", canOpen: true },
+  ];
+  resolveSummary([credit], items);
+  const board = departedBoard(life({ kind: "replacement", sequence: 1, replacement_of: other, visibility: "private", can_start_replacement: true, start_replacement_blocker: null, startable_credits_count: 1, active_replacement_id: vacancyId }));
+  await mount(board, vi.fn());
+  expect(await screen.findByText("Reemplazo 1")).toBeVisible();
+  expect(screen.getByText(/de Supervisor\(a\) de Almacén/)).toBeVisible();
+  expect(screen.getByRole("link", { name: /Ver original/ })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+  expect(await screen.findByText("No se sostuvo", { selector: '[data-slot="badge"]' })).toBeVisible();
+  expect(loadReplacementSummaryAction).toHaveBeenCalledTimes(1);
+});
+it("S6: an original with an active replacement names it in the link bar with one request, even with nobody departed", async () => {
+  resolveSummary([]);
+  await mount(hireBoard(life({ active_replacement_id: other })));
+  expect(await screen.findByRole("link", { name: "Ver reemplazo activo: Reemplazo 1" })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+  expect(loadReplacementSummaryAction).toHaveBeenCalledExactlyOnceWith(vacancyId);
+});
+it("S6: a failed read leaves the link bar with today's unnamed copy", async () => {
+  vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: false });
+  await mount(hireBoard(life({ active_replacement_id: other })));
+  await waitFor(() => expect(loadReplacementSummaryAction).toHaveBeenCalledTimes(1));
+  expect(screen.getByText(/reemplazo en curso/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "Ver reemplazo" })).toHaveAttribute("href", `/empresa/vacantes/${other}/pipeline`);
+});
+it("a board with nothing to resolve (no departed card, no link) makes no replacement read", async () => {
+  await mount(hireBoard());
+  expect(loadReplacementSummaryAction).not.toHaveBeenCalled();
+});
+it("a move out of Placement adopts the lifecycle it returns, like a discard", async () => {
+  const closedActive = life({ process: "active", process_finished_at: null, allowed_actions: [] });
+  const returned = life({ process: "active", process_finished_at: null, allowed_actions: [], version: "3", can_start_replacement: true, start_replacement_blocker: null, startable_credits_count: 1 });
+  vi.mocked(moveParticipationAction).mockResolvedValue({ ok: true, data: moveResponse(returned) });
+  vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: returned });
+  await mount(hireBoard(closedActive), vi.fn());
+  expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
+  fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "Revisión" }));
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Mover a Ana Pérez a Revisión?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "El candidato se fue" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Mover" }));
+  await waitFor(() => expect(moveParticipationAction).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: { to_stage_id: "screen", placement_exit_reason: "candidate_left" } })));
+  fireEvent.click(await screen.findByRole("button", { name: "Acciones de la vacante" }));
+  expect(await screen.findByRole("menuitem", { name: "Iniciar reemplazo" })).toBeVisible();
+});
+it("a move that returns no lifecycle (old backend, or not leaving Placement) keeps the current one", async () => {
+  const closedActive = life({ process: "active", process_finished_at: null, allowed_actions: [] });
+  const plain = { ...moveResponse(life()), lifecycle: undefined };
+  vi.mocked(moveParticipationAction).mockResolvedValue({ ok: true, data: plain as Move });
+  await mount(hireBoard(closedActive), vi.fn());
+  fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "Revisión" }));
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Mover a Ana Pérez a Revisión?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "El candidato se fue" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Mover" }));
+  await waitFor(() => expect(moveParticipationAction).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success" })));
+  expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
 });

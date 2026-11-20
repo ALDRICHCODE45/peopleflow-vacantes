@@ -7,8 +7,9 @@ import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publ
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
-import { loadBoardAction, loadParticipationAction } from "@/features/pipeline-movement/actions";
-import { boardFixture, detailFixture } from "@/features/pipeline-movement/board-fixture";
+import { loadBoardAction } from "@/features/pipeline-movement/actions";
+import { loadReplacementSummaryAction } from "@/features/vacancy-replacement/actions";
+import { boardFixture } from "@/features/pipeline-movement/board-fixture";
 import type { Board } from "@/features/pipeline-movement/model";
 import { getLifecycleAction } from "@/features/vacancy-lifecycle/actions";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
@@ -32,6 +33,7 @@ vi.mock("@/features/vacancy-replacement/start-replacement-dialog", () => ({
     </div>
     : null,
 }));
+vi.mock("@/features/vacancy-replacement/actions", () => ({ loadReplacementSummaryAction: vi.fn() }));
 vi.mock("@/features/pipeline-movement/actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn(), discardParticipationAction: vi.fn(), recoverParticipationAction: vi.fn(), setParticipationSubstateAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
@@ -103,13 +105,14 @@ function closedBoard(): Board {
   board.stages[0].count = 0; board.stages[3].count = 1; board.exit.count = 1;
   return board;
 }
-const credit = { id: "credit-1", status: "did_not_hold" as const, team_mode: "shared" as const, hired_at: "2026-10-22T12:00:00Z", hired_by: { id: "recruiter", name: "Luis López" }, exit_reason: "candidate_left" as const, recipients: [] };
+// What the board's single GET V/replacements leaves: Ana's startable credit, resolved by her participation id.
+const credit = { id: "credit-1", participationId: "person", hiredAt: "2026-10-22T12:00:00Z", leftAt }
 
 async function mount(board: Board = closedBoard()) {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: "published", process: "active" } }, identity: { draftId: read.id, etag: '"etag"' } });
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-16T12:00:00Z", missing: [] } });
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
-  vi.mocked(loadParticipationAction).mockImplementation(async (_vacancy, participation) => ({ ok: true, data: { ...detailFixture(), placement_credit: participation === "person" ? credit : null } }));
+  vi.mocked(loadReplacementSummaryAction).mockResolvedValue({ ok: true, data: { items: [], credits: [credit] } });
   vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: startable });
   render(<DraftPipelineState draftId={read.id} />);
   await screen.findByRole("heading", { name: "Entrada" });

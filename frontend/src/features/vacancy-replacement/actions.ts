@@ -5,7 +5,7 @@ import { getLifecycle } from "@/features/vacancy-lifecycle/client";
 import { getCalendar, getCompanyMembers } from "@/features/vacancy-team/api-client";
 import { getReplacements, startReplacement, type StartInput } from "./client";
 import { mapStartFailure, type StartFailure } from "./failure";
-import type { StartContext, Started } from "./model";
+import { summarizeReplacements, type ChainSummary, type StartContext, type Started } from "./model";
 
 export type StartContextFailure = { ok: false; reason: "unauthenticated" | "forbidden" | "not_found" | "unavailable"; message: string };
 export type StartContextResult = { ok: true; data: StartContext } | StartContextFailure;
@@ -41,6 +41,21 @@ export async function loadStartContextAction(draftId: string): Promise<StartCont
     return { ok: true, data: { replacements: replacements.data, etag: lifecycle.etag, members: members.data.members, calendar: calendar.data.calendar } };
   } catch {
     return contextFailure("unavailable");
+  }
+}
+
+/**
+ * The board's single read per load (replacement-aware lifecycle only): `GET V/replacements` reduced to the chain names and the
+ * startable credits. Every failure is the same `{ ok: false }`: the board then keeps today's look (no badge, unnamed link bar).
+ */
+export async function loadReplacementSummaryAction(draftId: string): Promise<{ ok: true; data: ChainSummary } | { ok: false }> {
+  try {
+    const token = await getActionAccessToken();
+    if (!token?.trim()) return { ok: false };
+    const result = await getReplacements({ token, draftId });
+    return result.ok ? { ok: true, data: summarizeReplacements(result.data) } : { ok: false };
+  } catch {
+    return { ok: false };
   }
 }
 

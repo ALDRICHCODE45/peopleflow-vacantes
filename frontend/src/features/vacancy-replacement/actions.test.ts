@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadStartContextAction, startReplacementAction } from "./actions";
-import { calendar, etag, ids, lifecycleWire, members, replacementsWire, startedWire, uuid } from "./test-fixtures";
+import { loadReplacementSummaryAction, loadStartContextAction, startReplacementAction } from "./actions";
+import { calendar, etag, ids, lifecycleWire, members, neverPublishedWire, replacementItemWire, replacementsWire, startedWire, uuid } from "./test-fixtures";
 
 vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "https://api.example.test", apiTimeoutMs: 1000 } }));
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn(async () => "token") }));
@@ -58,6 +58,41 @@ describe("loadStartContextAction", () => {
   it("fails closed on a malformed chain view", async () => {
     route({ replacements: () => json({ root_process_id: "nope" }) });
     expect(await loadStartContextAction(ids.draft)).toMatchObject({ ok: false, reason: "unavailable" });
+  });
+});
+
+describe("loadReplacementSummaryAction (the board's single read)", () => {
+  it("is one GET V/replacements without ETag or If-Match, and keeps only the chain names and the credits", async () => {
+    const wire = replacementsWire();
+    fetchMock.mockImplementation(async () => json({ ...wire, items: [...wire.items, replacementItemWire(ids.newDraft)] }));
+    const result = await loadReplacementSummaryAction(ids.draft);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${base}/replacements`);
+    expect(init.method).toBe("GET");
+    expect(Object.fromEntries(new Headers(init.headers))).not.toHaveProperty("if-match");
+    expect(result).toMatchObject({ ok: true, data: { items: [{ id: ids.draft, sequence: 0 }, { id: ids.newDraft, sequence: 1 }], credits: [{ id: ids.creditRicardo }, { id: ids.creditLuis }] } });
+    expect(JSON.stringify(result)).not.toContain("Mauricio");
+  });
+  it("answers an empty summary for a draft that never published", async () => {
+    fetchMock.mockImplementation(async () => json(neverPublishedWire()));
+    expect(await loadReplacementSummaryAction(ids.draft)).toEqual({ ok: true, data: { items: [], credits: [] } });
+  });
+  it.each([
+    ["a 401", () => json({ error: "x", code: "unauthorized" }, 401)],
+    ["a 404", () => json({ error: "x", code: "not_found" }, 404)],
+    ["a 500", () => json({ error: "private detail", code: "x" }, 500)],
+    ["a malformed body", () => json({ root_process_id: "nope" })],
+    ["a chain item with a null sequence", () => json({ ...replacementsWire(), items: [{ ...replacementsWire().items[0], sequence: null }] })],
+  ])("fails closed on %s", async (_name, response) => {
+    fetchMock.mockImplementation(async () => response());
+    expect(await loadReplacementSummaryAction(ids.draft)).toEqual({ ok: false });
+  });
+  it("fails closed when the session is gone", async () => {
+    const { getActionAccessToken } = await import("@/lib/auth/action-session");
+    vi.mocked(getActionAccessToken).mockResolvedValueOnce(null as never);
+    expect(await loadReplacementSummaryAction(ids.draft)).toEqual({ ok: false });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

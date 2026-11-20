@@ -16,7 +16,7 @@ export function leavesPlacement(board: Board, item: Participation, target: strin
 }
 /** Confirmed moves replace, never append duplicates; milestone/coverage remain server-owned. */
 export const applyMoveToBoard = applyParticipationToBoard;
-/** All four writes return the same server-owned item, coverage and delivery; a placement departure also returns the lifecycle view. */
+/** All four writes return the same server-owned item, coverage and delivery; every exit from Placement (a move out of it as much as a discard) also returns the lifecycle view, adopted here. */
 export function applyParticipationToBoard(board: Board, move: Move): Board {
   const { coverage, delivery, lifecycle: returned, ...updated } = move;
   const previous = board.participations.find(item => item.id === updated.id);

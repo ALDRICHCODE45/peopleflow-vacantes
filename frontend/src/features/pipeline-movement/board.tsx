@@ -20,7 +20,7 @@ import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { BoardLifecycle } from "./board-lifecycle";
 import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
 import { ReplacementLinkBar } from "@/features/vacancy-lifecycle/ui/replacement-badges";
-import { useDepartureCredits } from "./use-departure-credits";
+import { useReplacementSummary } from "./use-departure-credits";
 import type { LateActions } from "./departure";
 import { BoardColumns } from "./board-columns";
 import { BoardCoverage, BoardError, BoardSkeleton, MovementDate } from "./board-states";
@@ -66,7 +66,7 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
   useEffect(() => { if (board) onLifecycleChange?.(board.lifecycle); }, [board?.lifecycle, onLifecycleChange]);
   useEffect(() => { if (board) onBoardChange?.(board); }, [board, onBoardChange]);
   const readOnly = board?.lifecycle.process === "finished";
-  const creditOf = useDepartureCredits(vacancyId, board);
+  const { chain, creditOf } = useReplacementSummary(vacancyId, board);
   const dimensions = board ? boardFilterDimensions(board, languages.data?.items, checklist.checklist?.criteria, checklist.marks) : [];
   const matchingItems = applyFilters(board?.participations ?? [], dimensions, filters);
   const visibleItems = bestFit && checklist.checklist?.criteria.length ? orderByFit(matchingItems, checklist.checklist.criteria, checklist.marks) : matchingItems;
@@ -142,7 +142,7 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
       <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{board ? <BoardLifecycle lifecycle={board.lifecycle} publishedAt={publishedAt} /> : publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
       <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto">{board && !readOnly && board.lifecycle.publication !== null && <Button id="manual-intake-open" type="button" className="min-h-10" disabled={stale || state.reading || pending.size > 0 || state.columns.busy} onClick={() => setIntake(true)}><UserPlus aria-hidden="true" data-icon="inline-start" />Agregar candidato</Button>}{board && (board.lifecycle.allowed_actions.some(action => action !== "publish") || (onStartReplacement && board.lifecycle.can_start_replacement)) && <LifecycleActionsMenu coverage={board.coverage} draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} onStartReplacement={onStartReplacement && (() => onStartReplacement())} />}{board && <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-start gap-4"><BoardCoverage coverage={board.coverage} /><Separator orientation="vertical" className="hidden sm:block" /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} finished={readOnly} /></div>}<Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
     </div>
-    {board && <ReplacementLinkBar lifecycle={board.lifecycle} selfId={vacancyId} />}
+    {board && <ReplacementLinkBar lifecycle={board.lifecycle} selfId={vacancyId} chain={chain} />}
     {readOnly && <ActionStatus id="board-process-finished" tone="info" text={`El proceso de esta vacante finalizó. El tablero está en solo lectura${board.lifecycle.allowed_actions.includes("reopen") ? "; reábrela para volver a editarlo." : "."}`} />}
     {!board && state.reading && !state.failure && <BoardSkeleton columnCount={state.columns.editor ? state.columns.editor.stages.length + 1 : undefined} />}
     {state.failure && <BoardError failure={state.failure} reading={state.reading} notice={state.readNotice} retry={() => void state.retry()} />}

@@ -40,3 +40,8 @@ export function linkedProcesses(lifecycle: Lifecycle, selfId: string) {
     activeReplacementId: active !== null && active !== selfId ? active : null,
   };
 }
+
+/** One process of the chain as the link bar needs it (`GET V/replacements`: the original is `sequence` 0). */
+export type ChainProcess = { id: string; kind: "original" | "replacement"; sequence: number; title: string; canOpen: boolean };
+/** «Reemplazo 2» for a replacement, the vacancy's title for the original. */
+export const chainLabel = (process: Pick<ChainProcess, "kind" | "sequence" | "title">): string => process.kind === "original" ? process.title : `Reemplazo ${process.sequence}`;

@@ -66,7 +66,7 @@ export const boardSchema = z.object({
     (board.stages.some(stage => stage.id === item.stage_id && stage.kind === "in_process") && board.substates.some(substate => substate.id === item.substate_id))));
 export const substateBodySchema = z.object({ substate_id: uuidSchema.nullable() }).strict();
 export const moveBodySchema = z.object({ to_stage_id: uuidSchema, placement_exit_reason: placementExitReasonSchema.optional() }).strict();
-/** `lifecycle` rides only on a placement departure (replacement-processes-v1 «Departure on a finished process»), so «Iniciar reemplazo» can be enabled without a second request. */
+/** `lifecycle` rides on every exit from Placement, by move or by discard (replacement-processes-v1 «Departure on a finished process»), so «Iniciar reemplazo» can be enabled without a second request. */
 export const moveSchema = mutationParticipationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema, lifecycle: lifecycleSchema.optional() }).strict();
 const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),

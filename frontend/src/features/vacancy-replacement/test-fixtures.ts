@@ -29,7 +29,7 @@ export const carry = (candidateId: string, name: string, stage: { kind: string; 
 export const replacementsWire = (start: object = {}, extra: object = {}) => ({
   root_process_id: ids.root,
   items: [{
-    id: ids.draft, kind: "original", sequence: null, replacement_of: null, title: "Supervisor(a) de Almacén", visibility: "public",
+    id: ids.draft, kind: "original", sequence: 0, replacement_of: null, title: "Supervisor(a) de Almacén", visibility: "public",
     lifecycle: { publication: "closed", process: "finished", close_reason: "filled", closed_at: "2026-11-03T12:00:00.000000Z" },
     started_at: "2026-09-01T15:00:00.000000Z", started_by: { id: ids.owner, name: "Sofía Ramírez" },
     coverage: { covered: 1, required: 2 }, replaced_credit_ids: [], can_open: true,
@@ -46,6 +46,19 @@ export const replacementsWire = (start: object = {}, extra: object = {}) => ({
   ],
   carry_candidates_truncated: false,
   ...extra,
+});
+/** R4 chain item of the first replacement of `ids.draft` (the original is `sequence: 0`). */
+export const replacementItemWire = (id: string, extra: object = {}) => ({
+  id, kind: "replacement", sequence: 1, replacement_of: ids.draft, title: "Supervisor(a) de Almacén", visibility: "private",
+  lifecycle: { publication: "published", process: "active", close_reason: null, closed_at: null },
+  started_at: "2026-11-19T18:00:00.000000Z", started_by: { id: ids.owner, name: "Sofía Ramírez" },
+  coverage: { covered: 0, required: 1 }, replaced_credit_ids: [ids.creditRicardo], can_open: true, ...extra,
+});
+/** What the backend answers for a draft that never published: no process, so no chain, rooted at itself. */
+export const neverPublishedWire = () => ({
+  root_process_id: ids.draft, items: [],
+  start_replacement: { allowed: false, blocker: "source_not_closed", active_replacement_id: null, startable_credits: [], publish_ready: null, missing: [] },
+  carry_candidates: [], carry_candidates_truncated: false,
 });
 export const calendar = { timeZone: "America/Mexico_City", today: "2026-11-19", minDate: "2026-11-19", maxDate: "2027-11-19", nonBusinessDates: ["2026-11-21", "2026-11-22"] };
 export const members = [

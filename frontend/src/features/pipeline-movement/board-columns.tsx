@@ -54,7 +54,8 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   const finished = board.lifecycle.process === "finished";
   const leave = aware && isActiveHire(board, item) ? () => late.onLeave(item.id) : undefined;
   const credit = aware && leftPlacement(board, item) ? late.creditOf(item) : undefined;
-  const unsustained = credit?.status === "did_not_hold";
+  // The credit's own `left_at` says when they left; the discard date covers a credit that comes without it.
+  const unsustained = !!credit;
   const offer = unsustained && late?.onStartReplacement ? startOffer(board.lifecycle) : ({ kind: "none" } as const);
   const start = offer.kind === "none" ? undefined : { offer, onStart: () => late?.onStartReplacement?.(credit?.id) };
   // A finished board keeps an enabled menu only for these late actions (and then lists nothing else), while no other work is pending.
@@ -89,7 +90,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     </CardContent>
     <Separator />
     <CardFooter className="min-h-6 gap-2 px-0">
-      {item.discard ? unsustained ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="review" dot>No se sostuvo</Badge><p className="text-xs text-muted-foreground">se fue el <MovementDate value={item.discard.discarded_at} compact /></p></div> : <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
+      {item.discard ? unsustained ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="review" dot>No se sostuvo</Badge><p className="text-xs text-muted-foreground">se fue el <MovementDate value={credit?.leftAt ?? item.discard.discarded_at} compact /></p></div> : <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
         <Hint text={item.cv.name}><span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"><FileIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{item.cv.name}</span></span></Hint>
         {board.lifecycle.process !== "finished" && <Button type="button" variant="ghost" size="icon" className="-my-2 ml-auto size-10 shrink-0 cursor-grab touch-none text-muted-foreground opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover/candidate:opacity-100 sm:group-focus-within/candidate:opacity-100 focus-visible:opacity-100"
           ref={setActivatorNodeRef} {...attributes} {...listeners} disabled={disabled} id={`candidate-drag-${item.id}`} aria-label={`Arrastrar ${item.candidate.full_name}`} aria-describedby={statusId}><GripVertical aria-hidden="true" /></Button>}

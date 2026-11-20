@@ -1,4 +1,5 @@
-import type { Board, DiscardBody, Participation, PlacementCredit } from "./model";
+import type { Board, DiscardBody, Participation } from "./model";
+import type { DepartureCredit } from "./use-departure-credits";
 
 /**
  * replacement-processes S1/S3. «No se sostuvo» from a card rides the existing discard route with
@@ -15,8 +16,8 @@ export const leftPlacement = (board: Board, item: Participation) => !!item.disca
 
 /** Everything the board hands to its cards for the replacement entry points (S1/S3/S6). */
 export type LateActions = {
-  /** `undefined` while unknown, `null` when the participation has no credit. */
-  creditOf: (item: Participation) => PlacementCredit | null | undefined;
+  /** The startable «No se sostuvo» credit of a card that left Placement; `undefined` while unknown, unlisted or when the single replacement read failed. */
+  creditOf: (item: Participation) => DepartureCredit | undefined;
   /** Stricter than the finished-board lock: a late action only waits for other pending work. */
   lateLocked: boolean;
   onLeave: (id: string) => void;

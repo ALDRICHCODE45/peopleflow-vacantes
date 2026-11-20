@@ -29,8 +29,9 @@ export const carryCandidateSchema = z.object({
 });
 export type CarryCandidate = z.infer<typeof carryCandidateSchema>;
 
+/** `sequence` is 0 for the original and 1… for each replacement (the lifecycle view keeps `null` for an original; this list does not). */
 const chainItemSchema = z.object({
-  id, kind: z.enum(["original", "replacement"]), sequence: z.number().int().positive().nullable(), replacement_of: id.nullable(),
+  id, kind: z.enum(["original", "replacement"]), sequence: z.number().int().nonnegative(), replacement_of: id.nullable(),
   title: z.string(), visibility: z.string().nullable(),
   lifecycle: z.object({ publication: z.string().nullable(), process: z.string().nullable(), close_reason: z.string().nullable().optional(), closed_at: z.string().nullable().optional() }),
   started_at: z.string().nullable(), started_by: person.nullable(),
@@ -51,6 +52,22 @@ export const replacementsViewSchema = z.object({
   carry_candidates_truncated: z.boolean(),
 });
 export type ReplacementsView = z.infer<typeof replacementsViewSchema>;
+
+/**
+ * What the board keeps of one `GET V/replacements` (it has no ETag and may carry up to 1000 carry candidates, which the board does not need):
+ * the chain names for the link bar and the startable credits to resolve the departed cards by `participation_id`.
+ * The credits are only filled by the backend while `start_replacement.allowed`.
+ */
+export type ChainSummary = {
+  items: { id: string; kind: "original" | "replacement"; sequence: number; title: string; canOpen: boolean }[];
+  credits: { id: string; participationId: string; hiredAt: string | null; leftAt: string | null }[];
+};
+export function summarizeReplacements(view: ReplacementsView): ChainSummary {
+  return {
+    items: view.items.map(item => ({ id: item.id, kind: item.kind, sequence: item.sequence, title: item.title, canOpen: item.can_open })),
+    credits: view.start_replacement.startable_credits.map(credit => ({ id: credit.credit_id, participationId: credit.participation_id, hiredAt: credit.hired_at, leftAt: credit.left_at })),
+  };
+}
 export type { StartReplacementBlocker };
 
 export const MAX_BAJAS = 999;
