@@ -102,6 +102,14 @@ it.each([
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
   if (process === "active") expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled();
 });
+it.each([["finished", true], ["active", false]] as const)("«Acciones» with nothing allowed and the start flow wired: %s process ⇒ shown %s", async (process, shown) => {
+  const board = boardFixture();
+  board.lifecycle = { ...finishedLifecycle, process, allowed_actions: [] };
+  vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board });
+  render(<MovementBoard vacancyId={vacancyId} onStartReplacement={vi.fn()} />);
+  await screen.findByRole("heading", { name: "Entrada" });
+  expect(!!screen.queryByRole("button", { name: "Acciones de la vacante" })).toBe(shown);
+});
 it("offers manual intake only for a published, active process", async () => {
   await mount();
   expect(screen.getByRole("button", { name: "Agregar candidato" })).toBeEnabled();
