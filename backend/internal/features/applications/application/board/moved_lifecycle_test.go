@@ -15,15 +15,18 @@ func TestMovedLifecycleKeyIsOptional(t *testing.T) {
 	if err != nil || json.Unmarshal(body, &absent) != nil {
 		t.Fatal(err, string(body))
 	}
-	if _, ok := absent["lifecycle"]; ok || len(absent) != 15 {
-		t.Fatal("a response without a departure must keep its 15 keys", absent)
+	if _, ok := absent["lifecycle"]; ok || len(absent) != 16 {
+		t.Fatal("a response without a departure must keep its 16 keys (15 + carried_from_participation_id)", absent)
+	}
+	if string(absent["carried_from_participation_id"]) != "null" {
+		t.Fatal("carried_from_participation_id must be present and null", absent)
 	}
 	var present map[string]json.RawMessage
 	body, err = json.Marshal(app.Moved{Lifecycle: json.RawMessage(`{"can_start_replacement":true}`)})
 	if err != nil || json.Unmarshal(body, &present) != nil {
 		t.Fatal(err, string(body))
 	}
-	if string(present["lifecycle"]) != `{"can_start_replacement":true}` || len(present) != 16 {
+	if string(present["lifecycle"]) != `{"can_start_replacement":true}` || len(present) != 17 {
 		t.Fatal(present)
 	}
 }

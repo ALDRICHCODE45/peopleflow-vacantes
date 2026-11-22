@@ -41,7 +41,7 @@ func boardCorrectionItem(t *testing.T, r draftFlowResponse, pid uuid.UUID) map[s
 }
 func boardCorrectionWire(t *testing.T, item map[string]any, detail bool) {
 	t.Helper()
-	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "profile", "screening_answers", "corrected_fields"}
+	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "profile", "screening_answers", "corrected_fields", "carried_from_participation_id"}
 	if detail {
 		keys = append(keys, "screening", "comment", "candidate_message", "contact", "original", "original_cv", "placement_credit", "can")
 	}

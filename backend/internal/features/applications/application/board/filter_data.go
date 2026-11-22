@@ -67,11 +67,13 @@ func (m Moved) MarshalJSON() ([]byte, error) {
 		CV              CV        `json:"cv"`
 		MovedAt         time.Time `json:"moved_at"`
 		Discard         *Discard  `json:"discard"`
-		Coverage        Coverage  `json:"coverage"`
-		Delivery        Delivery  `json:"delivery"`
+		// S1: the source participation of a carried row, null otherwise; always present.
+		CarriedFromParticipationID *uuid.UUID `json:"carried_from_participation_id"`
+		Coverage                   Coverage   `json:"coverage"`
+		Delivery                   Delivery   `json:"delivery"`
 		// Only on a Placement departure (replacement-processes-v1 D7).
 		Lifecycle json.RawMessage `json:"lifecycle,omitempty"`
-	}{CorrectedFields: fields, SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AddedBy: m.AddedBy, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, Coverage: m.Coverage, Delivery: m.Delivery, Lifecycle: m.Lifecycle})
+	}{CorrectedFields: fields, SubstateID: m.SubstateID, ID: m.ID, StageID: m.StageID, Version: m.Version, ETag: m.ETag, Candidate: m.Candidate, AddedBy: m.AddedBy, AppliedAt: m.AppliedAt, Source: m.Source, CV: m.CV, MovedAt: m.MovedAt, Discard: m.Item.Discard, CarriedFromParticipationID: m.CarriedFromParticipationID, Coverage: m.Coverage, Delivery: m.Delivery, Lifecycle: m.Lifecycle})
 }
 
 func ChoiceFilters(form intake.Screening) []ScreeningFilter {

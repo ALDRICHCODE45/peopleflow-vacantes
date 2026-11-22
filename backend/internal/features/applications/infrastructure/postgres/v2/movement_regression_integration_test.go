@@ -85,7 +85,7 @@ func movementKeys(t *testing.T, value any, want ...string) map[string]any {
 }
 func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	t.Helper()
-	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "corrected_fields"}
+	keys := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "corrected_fields", "carried_from_participation_id"}
 	mutation := false
 	for _, key := range extra {
 		if key == "coverage" {

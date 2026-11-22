@@ -156,7 +156,7 @@ func TestManualBoardDetailCVAndCandidateIsolation(t *testing.T) {
 			if err = json.Unmarshal(raw, &obj); err != nil {
 				t.Fatal(err)
 			}
-			want := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "profile", "screening_answers", "corrected_fields"}
+			want := []string{"id", "stage_id", "version", "etag", "candidate", "added_by", "applied_at", "source", "cv", "moved_at", "discard", "substate_id", "profile", "screening_answers", "corrected_fields", "carried_from_participation_id"}
 			if len(obj) != len(want) {
 				t.Fatal(string(raw))
 			}
