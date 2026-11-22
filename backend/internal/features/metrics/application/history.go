@@ -52,7 +52,12 @@ type Track struct {
 	Channel   string // origin_channel
 	StageID   uuid.UUID
 	Discarded bool
-	Moves     []StageMove
+	// Carried marks a participation carried into a replacement process
+	// (carried_from_participation_id set): operational figures keep counting it,
+	// but it is not a new application, so the application and origin figures
+	// skip it.
+	Carried bool
+	Moves   []StageMove
 }
 
 // StageMove is one stage history row.

@@ -549,7 +549,8 @@ type OriginDay struct {
 }
 
 // DashboardOrigin answers §3.5 origin: participations of the vacancies in
-// scope created on each day of the window, any state.
+// scope created on each day of the window, any state, except the ones carried
+// into a replacement process (not new applications).
 func (s *Service) DashboardOrigin(ctx context.Context, company uuid.UUID, viewer Viewer, raw string) (*DashboardOriginSection, error) {
 	days, err := ParseWindow(raw)
 	if err != nil {
@@ -569,7 +570,7 @@ func (s *Service) DashboardOrigin(ctx context.Context, company uuid.UUID, viewer
 		for _, p := range v.Tracks {
 			i, ok := index[LocalDate(p.CreatedAt)]
 			switch {
-			case !ok:
+			case !ok || p.Carried: // a carried participation is not an application
 			case p.Channel == "manual":
 				out.ByDay[i].Manual++
 			default:
