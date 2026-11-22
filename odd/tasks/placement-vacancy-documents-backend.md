@@ -80,3 +80,27 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
   overrides D6); Q7 «En cualquier etapa del proceso» (participation documents can be uploaded at any stage, not only
   Placement — overrides D3); Q5/Q6 «Esos límites, sin renombrar (Recomendado)» (50 per vacancy, 20 per participation,
   25 versions, no rename; antivirus decided before the first real customer, Q9). Q2, Q4, Q8 keep the recommendation.
+- **L6** 2026-11-22, frontend review (verbatim, «aprobado con cambios»): «1) Acciones por item, como en lifecycle
+  `allowed_actions` [...] Item: `allowed_actions: ("download"|"replace"|"delete")[]`; si `version_count` llega a
+  `max_versions`, que no venga replace. Link: `("download"|"unlink")[]`; un link removed o inaccessible solo trae
+  ["unlink"]. Scope: `allowed_actions: ("upload"|"link")[]`, y se mantiene `upload_blocked_reason`. 2) El GET de la lista
+  tiene que decir si se puede vincular [...] 3) El link valida Placement (D3) sobre la participación destino [...]
+  Aclarame también si «The participation list response carries `can_upload`» se refiere a la lista de documentos o al
+  payload del tablero. 4) A `links[].source` le faltan `uploaded_at`, `uploaded_by` y `version_count` [...] los 201 dejan
+  `can_upload` y `limit_reached` desactualizados: que devuelvan los flags del scope o que el contrato diga que el
+  frontend re-lee la lista. 5) La cadena de reemplazos con links explícitos y `has_newer_version` está bien, sin
+  cambios. 6) Upload: OK multipart directo [...] tope de 10_485_760 + 65_536 bytes. 7) D11, nombre por defecto: ¿se quita
+  la extensión? Propongo quitar la extensión conocida al subir y que el ícono salga de `format`. [...] 8) Descarga:
+  confirmá `filename*=UTF-8''…` (RFC 5987) para acentos y ñ. 9) D26 saca Idempotency-Key e If-Match [...] Propuesta:
+  Idempotency-Key opcional en el upload; en replace, una parte `expected_version` que devuelva 409
+  `document_version_conflict`; delete sin If-Match está bien; para link alcanza `document_already_linked`. 10) Errores:
+  (a) el archivo vacío que sea `validation_error fields[{field:"file",code:"empty"}]`, no invalid_request; (b)
+  `document_content_mismatch` con `data:{detected_format, extension}`; (c) `limits.formats: [{format, extensions[],
+  content_type}]` [...]; (d) cerrá en la tabla de errores los enums de `upload_blocked_reason` y `data.reason`. 11) Zod:
+  confirmá que `participation_id` siempre viene (null en el scope de vacante) y nunca se omite. Si después se suman .doc
+  o .xls (Q1), el enum `format` necesita que el frontend acepte los valores nuevos primero, pese a lo que dice
+  §Deployment.» Backend decision: accept all 11. Point 3 is moot after L5 Q7 (any stage; D3 eligibility removed, the
+  only participation rule left is "a participation of this process"). Point 7: strip a known extension from the name at
+  upload/replace, download name = name + extension of the stored format (fixes x.pdf.docx). Point 8: yes, RFC 5987 via
+  `mime.FormatMediaType`. Point 9: optional Idempotency-Key on upload (same semantics as drafts), `expected_version` part
+  on replace → 409 `document_version_conflict`.
