@@ -54,9 +54,17 @@ An item is exactly:
   "cv": {"id": "…", "name": "CV", "source": "candidate"}, "moved_at": "2026-10-16T18:00:00Z",
   "discard": null, "substate_id": null, "corrected_fields": [],
   "profile": {"location": null, "professional_title": null, "skills": [], "years_of_experience": null, "seniority": null, "education": {"highest_completed": null, "in_progress": null}, "languages": []},
-  "screening_answers": []
+  "screening_answers": [],
+  "carried_from_participation_id": null
 }
 ```
+
+`carried_from_participation_id` (replacement follow-ups S1) is always present: the source
+participation id (UUID string) of a row carried into a replacement
+(`replacement-processes-v1.md`, «Carried candidates»), `null` for every other row. It is on
+every item-shaped response (board list, detail, manual 201 (a replay stays frozen), and the
+move/discard/recover/substate responses, which keep their profile/screening exclusions
+but do carry this key); the manual 201 stays byte-equal to the GET item.
 
 `source` is the closed enum `organic | manual`. `added_by` is always present:
 null for organic intake, or exactly `{id,name}` for the recruiter who added a
@@ -189,7 +197,7 @@ company's corrections on account email/profile phone (manual remains live).
 Current `cv` is `{id,name,source:"candidate"|"company"}`; `original_cv` is
 `{file_name,uploaded_at}|null` (null when never corrected or no original metadata).
 Mutation responses also carry effective candidate/current-CV metadata and
-`corrected_fields`, but retain the existing profile/screening/contact exclusions.
+`corrected_fields` and `carried_from_participation_id`, but retain the existing profile/screening/contact exclusions.
 Manual 201 retains byte equality with the effective GET item; replays stay frozen.
 Corrected-current CV downloads do not double an existing MIME suffix (including
 uppercase `.PDF`/`.DOCX`). Since fix/cv-download-filename the same rule covers

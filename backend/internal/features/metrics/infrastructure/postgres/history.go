@@ -151,9 +151,12 @@ func loadActiveCredits(ctx context.Context, q querier, company uuid.UUID, ids []
 // loadTracks reads every participation that could be in process since the
 // history began or was created after it, with its intake, move, recovery and
 // discard rows (substate and not_applicable never change the stage), and the
-// company's view of the candidate's name (the dashboard candidates list).
+// company's view of the candidate's name (the dashboard candidates list). A
+// carried participation (replacement process) is flagged, not filtered: the
+// operational figures count it and the application ones skip it in the
+// application layer.
 func loadTracks(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UUID, since time.Time, byID map[uuid.UUID]*app.HistoryVacancy) error {
-	rows, err := q.Query(ctx, `SELECT p.process_id, p.id, COALESCE(cc.id, u.id), `+candidateName+`, p.created_at, p.origin_channel, p.stage_id, p.discarded_at IS NOT NULL,
+	rows, err := q.Query(ctx, `SELECT p.process_id, p.id, COALESCE(cc.id, u.id), `+candidateName+`, p.created_at, p.origin_channel, p.stage_id, p.discarded_at IS NOT NULL, p.carried_from_participation_id IS NOT NULL,
  COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',h.event_kind,'stage_id',h.stage_id,'at',h.created_at) ORDER BY h.created_at, h.id)
   FROM participation_stage_history h WHERE h.participation_id=p.id AND h.event_kind IN ('intake','move','recovery','discard')),'[]'::jsonb)
  FROM process_participations p`+candidateJoins+`
@@ -166,7 +169,7 @@ func loadTracks(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UU
 	for rows.Next() {
 		var id uuid.UUID
 		var t app.Track
-		if err := rows.Scan(&id, &t.ID, &t.Candidate.ID, &t.Candidate.FullName, &t.CreatedAt, &t.Channel, &t.StageID, &t.Discarded, &t.Moves); err != nil {
+		if err := rows.Scan(&id, &t.ID, &t.Candidate.ID, &t.Candidate.FullName, &t.CreatedAt, &t.Channel, &t.StageID, &t.Discarded, &t.Carried, &t.Moves); err != nil {
 			return err
 		}
 		byID[id].Tracks = append(byID[id].Tracks, t)
@@ -177,7 +180,8 @@ func loadTracks(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UU
 // loadRecent reads each vacancy's 5 newest participations with the recent-row
 // fields (same name rule as the removed legacy dashboard). The organic title
 // is the participation snapshot's, like the board; corrections win and manual
-// intakes use the company record.
+// intakes use the company record. A carried participation (replacement
+// process) is not a recent application: it is left out before the 5 newest.
 func loadRecent(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]*app.HistoryVacancy) error {
 	rows, err := q.Query(ctx, `SELECT v.id, r.* FROM unnest($1::uuid[]) v(id) CROSS JOIN LATERAL (
  SELECT p.id, CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END,
@@ -191,7 +195,7 @@ func loadRecent(ctx context.Context, q querier, company uuid.UUID, ids []uuid.UU
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=$2
  LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id=p.candidate_id AND o.company_id=$2
  LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'
- WHERE p.process_id=v.id ORDER BY p.created_at DESC, p.id DESC LIMIT 5) r`, ids, company)
+ WHERE p.process_id=v.id AND p.carried_from_participation_id IS NULL ORDER BY p.created_at DESC, p.id DESC LIMIT 5) r`, ids, company)
 	if err != nil {
 		return fmt.Errorf("metrics recent: %w", err)
 	}

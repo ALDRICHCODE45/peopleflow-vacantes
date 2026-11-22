@@ -95,13 +95,6 @@ type upsertProfileRequest struct {
 	Education         json.RawMessage `json:"education"`
 	ProfileSummary    *string         `json:"profile_summary"`
 
-	// IgnoredBirthDate: birth date was removed from the profile. The strict PUT
-	// decoder rejects unknown keys, so clients still sending birth_date during
-	// the transition would get a 400; the key is accepted with any value (a
-	// date, null, garbage) and discarded. It is never parsed, validated or
-	// stored. Drop this field once no client sends it.
-	IgnoredBirthDate json.RawMessage `json:"birth_date"`
-
 	Location *geo.LocationInput `json:"location"`
 
 	Skills []string `json:"skills"`

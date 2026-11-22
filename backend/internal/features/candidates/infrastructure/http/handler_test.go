@@ -747,8 +747,8 @@ func TestFieldOfStudy_RoundTrip(t *testing.T) {
 // TestUpsertProfile_FullReplacementContract pins the PUT full-replacement
 // semantics: omitted or JSON-null nullable fields persist NULL, omitted or
 // null skills become an empty list, omitted or null salary_currency
-// becomes MXN, birth_date is accepted but ignored (removed field), and
-// server-managed fields in the body are ignored.
+// becomes MXN, birth_date (removed field) is rejected like any unknown key,
+// and server-managed fields in the body are rejected.
 func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 	userID := uuid.New()
 	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
@@ -781,7 +781,7 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 	t.Run("explicit nulls behave like omission", func(t *testing.T) {
 		cRepo := &stubCandidateRepo{}
 		router := newTestRouter(newTestHandler(cRepo, uRepo))
-		body := `{"phone": null, "years_of_experience": null, "skills": null, "salary_currency": null, "birth_date": null}`
+		body := `{"phone": null, "years_of_experience": null, "skills": null, "salary_currency": null}`
 		rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
@@ -801,19 +801,14 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 		}
 	})
 
-	t.Run("birth_date is accepted and ignored whatever its value", func(t *testing.T) {
+	t.Run("birth_date is rejected as an unknown key whatever its value", func(t *testing.T) {
 		for _, value := range []string{`"not-a-date"`, `"2000-01-01"`, `null`, `123`} {
 			cRepo := &stubCandidateRepo{}
 			router := newTestRouter(newTestHandler(cRepo, uRepo))
-			rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", `{"birth_date": `+value+`}`, "sub-abc"))
-			if rec.Code != http.StatusOK {
-				t.Fatalf("birth_date %s: want 200, got %d: %s", value, rec.Code, rec.Body.String())
-			}
-			if cRepo.upserted == nil {
-				t.Fatalf("birth_date %s: profile must still reach the repository", value)
-			}
-			if strings.Contains(rec.Body.String(), "birth_date") {
-				t.Errorf("birth_date %s: response must not carry birth_date: %s", value, rec.Body.String())
+			rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", `{"phone": "+525512345678", "birth_date": `+value+`}`, "sub-abc"))
+			assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+			if cRepo.upsertCalls != 0 || cRepo.upserted != nil {
+				t.Fatalf("birth_date %s: rejected body reached persistence", value)
 			}
 		}
 	})

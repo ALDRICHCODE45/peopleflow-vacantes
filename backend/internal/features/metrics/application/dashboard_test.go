@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -185,5 +186,96 @@ func TestDashboardRecentAndOrigin_Scoped(t *testing.T) {
 	mo, _ := fx.svc.DashboardOrigin(context.Background(), fx.company, Viewer{UserID: fx.u}, "window=7")
 	if mo.ByDay[1] != (OriginDay{"2026-03-19", 0, 0}) || mo.ByDay[5] != (OriginDay{"2026-03-23", 1, 0}) {
 		t.Fatalf("recruiter %+v", mo.ByDay)
+	}
+}
+
+// A carried participation (replacement process) is not a new application:
+// the origin chart and the applications list skip it, while the operational
+// figures (in process, candidates list) keep counting it.
+func TestDashboard_CarriedParticipationIsNotAnApplication(t *testing.T) {
+	fx := newHistoryFixture()
+	ctx := context.Background()
+	owner := Viewer{UserID: uuid.New(), Owner: true}
+	origin := func(viewer Viewer) []OriginDay {
+		o, err := fx.svc.DashboardOrigin(ctx, fx.company, viewer, "window=7")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return o.ByDay
+	}
+	apps := func(viewer Viewer, raw string) *DashboardList[ApplicationRow, ApplicationFacets] {
+		out, err := fx.svc.DashboardApplicationList(ctx, fx.company, viewer, raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	inProcess := func(viewer Viewer) int {
+		v, err := fx.svc.DashboardVacancies(ctx, fx.company, viewer, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range v.Top {
+			if r.Vacancy.DraftID == fx.a.ID {
+				return r.InProcess
+			}
+		}
+		t.Fatal("Analista not listed")
+		return 0
+	}
+	recruiter := Viewer{UserID: fx.u}
+	baseOwner, baseMine := origin(owner), origin(recruiter)
+	baseApps, baseMineApps := apps(owner, "window=7&from=2026-03-18&to=2026-03-24"), apps(recruiter, "window=7&from=2026-03-18&to=2026-03-24")
+	baseInProcess := inProcess(owner)
+	baseCandidates := dashCandidates(t, fx.svc, fx.company, owner, "in_process=true&on=2026-03-24&limit=100").Total
+
+	// Two carried rows (portal and manual channels) in process on Analista, one
+	// on Cajero, and one on Diseño, a vacancy with no other participation.
+	carriedAnalista := fx.a.track([3]string{"intake", "SCREENING", "2026-03-23T18:00:00Z"})
+	carriedAnalista.Carried = true
+	manual := fx.a.track([3]string{"intake", "IN_PROCESS", "2026-03-22T18:00:00Z"})
+	manual.Carried, manual.Channel = true, "manual"
+	carriedCajero := fx.c.track([3]string{"intake", "SCREENING", "2026-03-23T18:00:00Z"})
+	carriedCajero.Carried = true
+	carriedDiseno := fx.d.track([3]string{"intake", "SCREENING", "2026-03-23T18:00:00Z"})
+	carriedDiseno.Carried = true
+
+	if got := origin(owner); !reflect.DeepEqual(got, baseOwner) {
+		t.Fatalf("owner origin counts carried rows: %+v, want %+v", got, baseOwner)
+	}
+	if got := origin(recruiter); !reflect.DeepEqual(got, baseMine) {
+		t.Fatalf("recruiter origin counts carried rows: %+v, want %+v", got, baseMine)
+	}
+	for _, c := range []struct {
+		viewer Viewer
+		base   *DashboardList[ApplicationRow, ApplicationFacets]
+	}{{owner, baseApps}, {recruiter, baseMineApps}} {
+		got := apps(c.viewer, "window=7&from=2026-03-18&to=2026-03-24")
+		if got.Total != c.base.Total || !reflect.DeepEqual(got.Items, c.base.Items) {
+			t.Fatalf("applications count carried rows: %d %+v, want %d %+v", got.Total, got.Items, c.base.Total, c.base.Items)
+		}
+	}
+	for _, r := range apps(owner, "window=7&from=2026-03-18&to=2026-03-24").Items {
+		if r.Vacancy.DraftID == fx.d.ID {
+			t.Fatalf("a vacancy with only carried rows is listed: %+v", r)
+		}
+	}
+	if manualOnly := apps(owner, "window=7&from=2026-03-22&to=2026-03-22&channel=manual"); manualOnly.Total != 0 {
+		t.Fatalf("carried manual row counted as an application: %+v", manualOnly)
+	}
+
+	if got := inProcess(owner); got != baseInProcess+2 {
+		t.Fatalf("in process = %d, want %d: carried rows keep counting", got, baseInProcess+2)
+	}
+	list := dashCandidates(t, fx.svc, fx.company, owner, "in_process=true&on=2026-03-24&limit=100")
+	if list.Total != baseCandidates+2 { // Cajero (paused) and Diseño (closed) are not published on that day
+		t.Fatalf("candidates in process = %d, want %d", list.Total, baseCandidates+2)
+	}
+	found := false
+	for _, r := range list.Items {
+		found = found || r.ParticipationID == carriedAnalista.ID
+	}
+	if !found {
+		t.Fatal("carried participation missing from the candidates list")
 	}
 }

@@ -21,16 +21,24 @@ type carryStage struct {
 	Name string `json:"name"`
 }
 
+// carryReason is a discard reason with the key names of the board item's discard.reason.
+type carryReason struct {
+	Group string `json:"group"`
+	Key   string `json:"key"`
+}
+
 // carryCandidate is a candidate's most recent participation of the chain. Stage is that
 // participation's stage by kind and name only, never an id (it belongs to another process
-// of the chain); for a discarded one, the stage it was discarded from. v1 lists only
-// eligible candidates, so Eligible is always true and there is no `reason`.
+// of the chain); for a discarded one, the stage it was discarded from. DiscardReason
+// is that participation's reason (reason_group/reason_code) when Discarded, and always serialized: null
+// otherwise. v1 lists only eligible candidates, so Eligible is always true and there is no `reason`.
 type carryCandidate struct {
 	Candidate       namedCandidate `json:"candidate"`
 	ProcessID       string         `json:"process_id"`
 	ParticipationID string         `json:"participation_id"`
 	Stage           carryStage     `json:"stage"`
 	Discarded       bool           `json:"discarded"`
+	DiscardReason   *carryReason   `json:"discard_reason"`
 	Eligible        bool           `json:"eligible"`
 }
 
@@ -61,6 +69,7 @@ func readCarryCandidates(ctx context.Context, tx pgx.Tx, companyID uuid.UUID, ch
 	rows, err := tx.Query(ctx, `WITH chain AS (SELECT c.process_id, c.placement_id FROM unnest($2::uuid[], $3::uuid[]) AS c(process_id, placement_id)),
 latest AS (
  SELECT DISTINCT ON (k.kind, k.identity) p.id, p.process_id, k.kind, k.identity, p.discarded_at IS NOT NULL AS discarded,
+  p.reason_group, p.reason_code,
   CASE WHEN p.discarded_at IS NOT NULL THEN p.previous_stage_id ELSE p.stage_id END AS shown_stage, p.stage_id
  FROM process_participations p JOIN chain ON chain.process_id = p.process_id
  CROSS JOIN LATERAL (SELECT CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END AS kind,
@@ -69,7 +78,7 @@ latest AS (
 SELECT l.kind, l.identity,
  COALESCE(CASE WHEN l.kind = 'manual' THEN cc.full_name
   WHEN jsonb_exists(o.corrections, 'full_name') THEN o.corrections->>'full_name' ELSE u.full_name END, '') AS full_name,
- l.process_id, l.id, l.shown_stage, l.discarded
+ l.process_id, l.id, l.shown_stage, l.discarded, l.reason_group, l.reason_code
 FROM latest l JOIN chain ON chain.process_id = l.process_id
 LEFT JOIN company_candidates cc ON l.kind = 'manual' AND cc.id = l.identity AND cc.company_id = $1
 LEFT JOIN users u ON l.kind = 'organic' AND u.id = l.identity
@@ -88,8 +97,12 @@ LIMIT $4`, companyID, processes, placements, maxCarryCandidates+1)
 	for rows.Next() {
 		var c carryCandidate
 		var identity, process, participation, stage uuid.UUID
-		if err = rows.Scan(&c.Candidate.Kind, &identity, &c.Candidate.FullName, &process, &participation, &stage, &c.Discarded); err != nil {
+		var group, code *string
+		if err = rows.Scan(&c.Candidate.Kind, &identity, &c.Candidate.FullName, &process, &participation, &stage, &c.Discarded, &group, &code); err != nil {
 			return nil, false, err
+		}
+		if c.Discarded && group != nil && code != nil {
+			c.DiscardReason = &carryReason{Group: *group, Key: *code}
 		}
 		c.Candidate.ID, c.ProcessID, c.ParticipationID, c.Eligible = identity.String(), process.String(), participation.String(), true
 		if c.Stage, err = namedStage(pipelines[process], stage); err != nil {

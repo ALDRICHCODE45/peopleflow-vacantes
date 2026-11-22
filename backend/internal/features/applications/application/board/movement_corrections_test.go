@@ -20,6 +20,11 @@ func TestUncorrectedBoardItemRetainsLegacyBytes(t *testing.T) {
 	legacy := bytes.Replace(raw, []byte(`"corrected_fields":[],`), nil, 1)
 	legacy = bytes.Replace(legacy, []byte(`,"source":"candidate"`), nil, 1)
 	legacy = bytes.Replace(legacy, []byte(`,"professional_title":null`), nil, 1)
+	// S1: carried_from_participation_id is the last key and always present (null for a row that was not carried).
+	if !bytes.HasSuffix(legacy, []byte(`,"carried_from_participation_id":null}`)) {
+		t.Fatalf("carried_from_participation_id must close the item as null: %s", legacy)
+	}
+	legacy = bytes.Replace(legacy, []byte(`,"carried_from_participation_id":null`), nil, 1)
 	want := `{"profile":{"location":null,"skills":[],"years_of_experience":null,"seniority":null,"education":{"highest_completed":null,"in_progress":null},"languages":[]},"screening_answers":[],"substate_id":null,"id":"00000000-0000-0000-0000-000000000000","stage_id":"stage","version":"1","etag":"\"tag\"","candidate":{"id":"00000000-0000-0000-0000-000000000000","full_name":"Original","kind":"organic"},"added_by":null,"applied_at":"0001-01-01T00:00:00Z","source":"organic","cv":{"id":"00000000-0000-0000-0000-000000000000","name":"CV"},"moved_at":"0001-01-01T00:00:00Z","discard":null}`
 	if string(legacy) != want {
 		t.Fatalf("uncorrected legacy bytes changed\ngot: %s\nwant: %s", legacy, want)
