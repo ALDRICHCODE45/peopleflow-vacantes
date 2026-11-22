@@ -221,13 +221,15 @@ func TestReplacementListOfAClosedOriginal(t *testing.T) {
 
 	// carry_candidates: everyone who is not currently placed and did not leave (S11: Zoe and Alba, whose exit
 	// was candidate_left, are not offered; a voided hire, moved_by_mistake, is), by name; the discarded ones
-	// show the stage they left, by kind and name only; v1 lists only eligible candidates.
+	// show the stage they left, by kind and name only, and their discard reason ({group,key}, null otherwise);
+	// v1 lists only eligible candidates.
 	candidates := replList(t, body["carry_candidates"])
 	wantCandidates := []any{
 		map[string]any{"candidate": map[string]any{"kind": "manual", "id": mario.id.String(), "full_name": "Mario Screening"}, "process_id": root, "participation_id": marioPart,
-			"stage": map[string]any{"kind": "screening", "name": replStageName(root, "screening")}, "discarded": false, "eligible": true},
+			"stage": map[string]any{"kind": "screening", "name": replStageName(root, "screening")}, "discarded": false, "discard_reason": nil, "eligible": true},
 		map[string]any{"candidate": map[string]any{"kind": "manual", "id": void.id.String(), "full_name": "Void Person"}, "process_id": root, "participation_id": voidPart,
-			"stage": map[string]any{"kind": "placement", "name": replStageName(root, "placement")}, "discarded": true, "eligible": true},
+			"stage": map[string]any{"kind": "placement", "name": replStageName(root, "placement")}, "discarded": true,
+			"discard_reason": map[string]any{"group": "candidate", "key": "unresponsive"}, "eligible": true},
 	}
 	if !reflect.DeepEqual(candidates, wantCandidates) {
 		t.Fatalf("carry_candidates = %#v\nwant %#v", candidates, wantCandidates)
@@ -392,17 +394,18 @@ func TestReplacementListCarryCandidatesUseTheMostRecentParticipation(t *testing.
 	type row struct {
 		kind, id, name, process, participation, stage string
 		discarded                                     bool
+		discardReason                                 any
 	}
 	var got []row
 	for _, v := range replList(t, body["carry_candidates"]) {
 		c := replObject(t, v)
 		who := replObject(t, c["candidate"])
 		stage := replObject(t, c["stage"])
-		// v1 lists only eligible candidates: no `reason` key.
-		if c["eligible"] != true || len(c) != 6 {
+		// v1 lists only eligible candidates: no `reason` key; `discard_reason` is always present.
+		if _, ok := c["discard_reason"]; c["eligible"] != true || len(c) != 7 || !ok {
 			t.Fatalf("candidate = %v", c)
 		}
-		got = append(got, row{who["kind"].(string), who["id"].(string), who["full_name"].(string), c["process_id"].(string), c["participation_id"].(string), stage["kind"].(string) + "|" + stage["name"].(string), c["discarded"].(bool)})
+		got = append(got, row{who["kind"].(string), who["id"].(string), who["full_name"].(string), c["process_id"].(string), c["participation_id"].(string), stage["kind"].(string) + "|" + stage["name"].(string), c["discarded"].(bool), c["discard_reason"]})
 	}
 	twins := []struct {
 		p    carryPerson
@@ -413,12 +416,12 @@ func TestReplacementListCarryCandidatesUseTheMostRecentParticipation(t *testing.
 	}
 	stage := func(process, kind string) string { return kind + "|" + replStageName(process, kind) }
 	want := []row{
-		{"manual", again.id.String(), "A again", repl, againNow, stage(repl, "new"), false},
-		{"organic", gone.id.String(), "B gone", root, gonePart, stage(root, "in_process"), true},
-		{"organic", moved.id.String(), "E moved", repl, movedNow, stage(repl, "screening"), false},
-		{"manual", left.id.String(), "G left", repl, leftPart, stage(repl, "placement"), true},
-		{"manual", twins[0].p.id.String(), "Twin", root, twins[0].part, stage(root, "new"), false},
-		{"manual", twins[1].p.id.String(), "Twin", root, twins[1].part, stage(root, "new"), false},
+		{"manual", again.id.String(), "A again", repl, againNow, stage(repl, "new"), false, nil},
+		{"organic", gone.id.String(), "B gone", root, gonePart, stage(root, "in_process"), true, map[string]any{"group": "candidate", "key": "unresponsive"}},
+		{"organic", moved.id.String(), "E moved", repl, movedNow, stage(repl, "screening"), false, nil},
+		{"manual", left.id.String(), "G left", repl, leftPart, stage(repl, "placement"), true, map[string]any{"group": "candidate", "key": "unresponsive"}},
+		{"manual", twins[0].p.id.String(), "Twin", root, twins[0].part, stage(root, "new"), false, nil},
+		{"manual", twins[1].p.id.String(), "Twin", root, twins[1].part, stage(root, "new"), false, nil},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("carry candidates:\n got %+v\nwant %+v", got, want)
