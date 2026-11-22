@@ -75,3 +75,8 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
   Open questions (with recommendation in the contract): Q1 legacy .doc/.xls, Q2 version retention, Q3 stakeholder on unpublished drafts, Q4 linked
   doc with unreadable source, Q5 limits, Q6 rename, Q7 uploads for never-hired participations, Q8 who schedules Reconcile, Q9 malware scanning.
   Risk: S3 `Put` of an unseekable body may need `feature/s3/manager` (new dependency, parent must authorize) — assumption A2. Next: T2 frontend review.
+- **L5** 2026-11-22, user answers to the contract's open questions: Q1 «Solo .docx y .xlsx (Recomendado)»; Q3
+  stakeholder «También de borradores» (reads documents of every vacancy of the organization, drafts included —
+  overrides D6); Q7 «En cualquier etapa del proceso» (participation documents can be uploaded at any stage, not only
+  Placement — overrides D3); Q5/Q6 «Esos límites, sin renombrar (Recomendado)» (50 per vacancy, 20 per participation,
+  25 versions, no rename; antivirus decided before the first real customer, Q9). Q2, Q4, Q8 keep the recommendation.
