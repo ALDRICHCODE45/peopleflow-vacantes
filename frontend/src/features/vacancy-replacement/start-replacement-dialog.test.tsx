@@ -88,6 +88,34 @@ describe("dialog shell and accessibility", () => {
     await toStep2();
     expect(screen.getByRole("dialog")).toHaveClass("max-sm:h-dvh", "max-sm:rounded-none", "max-sm:max-w-none");
   });
+  it("shows «<vacante> · <empresa>» under the title, with a decorative icon tile before the title block", async () => {
+    mount({ companyName: "Grupo Altavista" });
+    await step1();
+    const dialog = screen.getByRole("dialog", { name: "Iniciar reemplazo" });
+    expect(within(dialog).getByText("Supervisor(a) de Almacén · Grupo Altavista")).toBeVisible();
+    const tile = dialog.querySelector("svg.lucide-repeat")?.parentElement;
+    expect(tile).toHaveAttribute("aria-hidden", "true");
+    expect(tile).toHaveClass("size-10", "bg-primary/10", "text-primary");
+    expect(within(dialog).getByRole("heading", { name: "Iniciar reemplazo" }).closest("[data-slot=dialog-header]")).toContainElement(tile as HTMLElement);
+  });
+  it("shows the vacancy alone when the company is unknown, and the company alone without a title", async () => {
+    mount();
+    await step1();
+    expect(screen.getByText("Supervisor(a) de Almacén")).toBeVisible();
+    expect(screen.queryByText(/·/, { selector: "[data-slot=dialog-description]" })).not.toBeInTheDocument();
+    cleanup();
+    mount({ title: undefined, companyName: "Grupo Altavista" });
+    await step1();
+    expect(screen.getByText("Grupo Altavista")).toBeVisible();
+  });
+  it("keeps the tile and the meta while loading and when the chain cannot be read", async () => {
+    vi.mocked(loadStartContextAction).mockResolvedValueOnce({ ok: false, reason: "unavailable", message: "No pudimos cargar las bajas. Vuelve a intentarlo." });
+    render(<StartReplacementDialog draftId={ids.draft} title="Supervisor(a) de Almacén" companyName="Grupo Altavista" stages={sourceStages} open onOpenChange={vi.fn()} onStarted={vi.fn()} />);
+    expect(screen.getByText("Supervisor(a) de Almacén · Grupo Altavista")).toBeVisible();
+    expect(screen.getByRole("dialog").querySelector("svg.lucide-repeat")?.parentElement).toHaveAttribute("aria-hidden", "true");
+    expect(await screen.findByText("No pudimos cargar las bajas. Vuelve a intentarlo.")).toBeVisible();
+    expect(screen.getByText("Supervisor(a) de Almacén · Grupo Altavista")).toBeVisible();
+  });
   it("shows a loading state while the chain loads", async () => {
     vi.mocked(loadStartContextAction).mockReturnValue(new Promise(() => {}));
     render(<StartReplacementDialog draftId={ids.draft} title="X" stages={sourceStages} open onOpenChange={vi.fn()} onStarted={vi.fn()} />);
