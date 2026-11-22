@@ -21,6 +21,16 @@ describe("replacementsViewSchema (R4 wire)", () => {
   it("tolerates keys the contract may still add", () => {
     expect(replacementsViewSchema.safeParse({ ...chain(), future: 1 }).success).toBe(true);
   });
+  it("reads the optional discard_reason of a carry candidate; a malformed one reads as absent and never breaks the read", () => {
+    const wire = chain();
+    const [first, second, third] = wire.carry_candidates;
+    const view = replacementsViewSchema.parse({ ...wire, carry_candidates: [
+      { ...third, discard_reason: { group: "recruiter", key: "salary_expectation" } },
+      { ...second, discarded: true, discard_reason: { group: "candidate", key: "not_a_reason" } },
+      first,
+    ] });
+    expect(view.carry_candidates.map(item => item.discard_reason)).toEqual([{ group: "recruiter", key: "salary_expectation" }, undefined, undefined]);
+  });
   it.each([null, -1, 1.5, "0"])("a chain item sequence of %j is not the contract's integer ≥ 0", sequence => {
     const wire = chain();
     wire.items[0] = { ...wire.items[0], sequence } as never;

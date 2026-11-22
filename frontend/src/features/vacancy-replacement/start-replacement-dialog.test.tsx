@@ -271,6 +271,19 @@ describe("step 3 · Candidatos", () => {
     expect(screen.getByLabelText(/Empieza en Mauricio Peña Gil/)).toBeEnabled();
     expect(screen.getByText("1 candidato")).toBeVisible();
   });
+  it("names the discard reason of a discarded row when the backend sends it, and keeps the plain row without it", async () => {
+    const base = context();
+    const [mauricio, alma, karen] = base.replacements.carry_candidates;
+    const withReason = { ...base, replacements: { ...base.replacements, carry_candidates: [
+      { ...karen, discard_reason: { group: "candidate", key: "accepted_other_offer" } },
+      { ...alma, discarded: true },
+      mauricio,
+    ] } } as never;
+    await toStep3(ids.creditRicardo, withReason);
+    expect(screen.getByText("Descartado · Aceptó otra oferta · antes: Oferta")).toBeVisible();
+    expect(screen.getByText("Descartado · antes: En revisión")).toBeVisible();
+    expect(screen.getByText("En proceso · antes: Entrevista")).toBeVisible();
+  });
   it("offers the SOURCE stages and never Placement; the default is the previous stage", async () => {
     await toStep3();
     check(/Mauricio Peña Gil/); check(/Karen Ortiz Lara/);
