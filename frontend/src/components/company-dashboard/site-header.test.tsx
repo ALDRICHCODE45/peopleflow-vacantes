@@ -177,6 +177,77 @@ describe("company dashboard header route context", () => {
   });
 });
 
+describe("company dashboard header phone breadcrumb", () => {
+  beforeEach(stubBrowserApis);
+
+  const longTitle = "Contador(a) Senior de Cuentas por Pagar Corporativas";
+
+  function renderLong() {
+    renderHeaderWith({
+      title: longTitle,
+      parent: { label: "Vacantes", href: "/empresa/vacantes" },
+    });
+    return document.querySelector("header")!;
+  }
+
+  it("turns the parent crumb into a compact 40x40 back link named after the parent", () => {
+    const header = renderLong();
+    const link = within(header).getByRole("link", { name: "Vacantes" });
+
+    expect(link).toHaveAttribute("href", "/empresa/vacantes");
+    // Back arrow only below `sm`; the label stays in the accessible name.
+    const icon = link.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    expect(icon!.getAttribute("class")).toContain("sm:hidden");
+    expect(link.className).toContain("max-sm:min-h-10");
+    expect(link.className).toContain("max-sm:min-w-10");
+    expect(link.querySelector("span")!.className).toContain("max-sm:sr-only");
+  });
+
+  it("hides the slash separator at phone width", () => {
+    const header = renderLong();
+    const separator = within(header).getByText("/");
+
+    expect(separator).toHaveAttribute("aria-hidden", "true");
+    expect(separator.className).toContain("max-sm:hidden");
+  });
+
+  it("lets a long title wrap to two lines and exposes it in full", () => {
+    const header = renderLong();
+    const heading = within(header).getByRole("heading", { level: 1 });
+
+    for (const token of [
+      "max-sm:line-clamp-2",
+      "max-sm:whitespace-normal",
+      "max-sm:text-sm",
+      "max-sm:leading-tight",
+      "max-sm:min-w-0",
+    ]) {
+      expect(heading.className).toContain(token);
+    }
+    expect(heading).toHaveAttribute("title", longTitle);
+    expect(heading).toHaveTextContent(longTitle);
+  });
+
+  it("keeps the desktop crumb classes and the theme toggle reachable", () => {
+    const header = renderLong();
+    const link = within(header).getByRole("link", { name: "Vacantes" });
+    const heading = within(header).getByRole("heading", { level: 1 });
+
+    for (const token of ["truncate", "rounded-sm", "text-sm", "text-muted-foreground"]) {
+      expect(link.className.split(" ")).toContain(token);
+    }
+    for (const token of ["truncate", "text-base", "font-medium"]) {
+      expect(heading.className.split(" ")).toContain(token);
+    }
+    expect(within(header).getByText("/").className.split(" ")).toContain(
+      "text-muted-foreground",
+    );
+    expect(document.querySelectorAll("[data-pf-theme-toggle]")).toHaveLength(1);
+  });
+});
+
 describe("company dashboard header theme control", () => {
   beforeEach(stubBrowserApis);
 
