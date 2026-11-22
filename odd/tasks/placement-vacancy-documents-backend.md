@@ -30,8 +30,8 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 
 ## Tasks
 
-- T1 S1–S7 — contract draft `docs/contracts/placement-vacancy-documents-v1.md` (writer) — done (uncommitted)
-- T2 — contract agreed with the frontend session — pending
+- T1 S1–S7 — contract draft `docs/contracts/placement-vacancy-documents-v1.md` (writer) — done 377c06d8
+- T2 — contract agreed with the frontend session — contract revised (uncommitted), pending frontend final OK
 - T3+ — implementation slices from the contract's «Slices» — pending
 
 ## Log
@@ -104,3 +104,22 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
   upload/replace, download name = name + extension of the stored format (fixes x.pdf.docx). Point 8: yes, RFC 5987 via
   `mime.FormatMediaType`. Point 9: optional Idempotency-Key on upload (same semantics as drafts), `expected_version` part
   on replace → 409 `document_version_conflict`.
+- **L7** 2026-11-22, T2: contract `docs/contracts/placement-vacancy-documents-v1.md` revised for L5 and L6 (uncommitted; status «Draft — frontend
+  review applied, pending final OK»). Changes:
+  - L5: Q1 closed (only .docx/.xlsx); Q3 → D6 and the authorization matrix rewritten (stakeholder reads every vacancy of the organization, never-published
+    drafts included; `authorizedRead` needs no process row); Q7 → D3 rewritten (participation documents at any stage, only «`pid` belongs to `{id}`»;
+    `not_in_placement`, `document_upload_not_allowed` and the Placement eligibility removed, discarded participations included); Q5/Q6 closed (50/20/25, no rename);
+    Q9 recorded (antivirus before the first real customer). «Open questions» became «Decisions status» (closed answers verbatim; Q2, Q4, Q8 accepted defaults).
+  - L6 1-2: `allowed_actions` on items (`download|replace|delete`, no `replace` at max versions), links (`download|unlink`, removed/inaccessible → `unlink`) and scope
+    (`upload|link`); `upload_blocked_reason` kept (`limit_reached | null`). L6 3: `can_upload` was the document list's flag; removed (replaced by `allowed_actions`), the board gets no document keys.
+  - L6 4: `links[].source` gains `uploaded_at`, `uploaded_by`, `version_count`; every write answers with the `scope` object (`can_manage`, `allowed_actions`,
+    `upload_blocked_reason`, `limits`, `counts`): upload/replace 201 `{item, scope}`, link 201 `{link, scope}`, both deletes 200 `{scope}` (were 204).
+  - L6 6-8: request cap 10 485 760 + 65 536 stated everywhere; strip one known extension at upload/replace, download name = name + stored format extension; `Content-Disposition`
+    via `mime.FormatMediaType` (`filename*=utf-8''…` for non-ASCII, no ASCII fallback parameter).
+  - L6 9: optional `Idempotency-Key` on upload mirroring drafts (`job_draft_idempotency`, no TTL, SHA-256 fingerprint incl. file bytes, replay `Idempotency-Replayed: true`,
+    `invalid_idempotency_key` 400, `idempotency_conflict` 409); required `expected_version` part on replace → 409 `document_version_conflict` `data.current_version` (new row in the error table).
+  - L6 10-11: empty file → `validation_error` `file`/`empty`; `document_content_mismatch` `data {detected_format, extension}`; `limits.formats: [{format, extensions[], content_type}]`;
+    a «Closed enums» table (`upload_blocked_reason`, `data.reason`, `data.kind`, actions, state, format); `participation_id` always present (null for vacancy scope); Deployment note 4
+    (adding a `format` value needs the frontend to accept it first).
+  - Slices re-cut to P1-P8 (old P3 split into P3 foundations/list and P4 upload/download; P5 versions/delete; P6 participation documents shrank to ~250; P7 linking; P8 hardening).
+  Decisions taken by the backend where L5/L6 left a gap: `expected_version` is required (not optional); deletes answer 200 `{scope}`; `can_upload` dropped; no `link_blocked_reason`.
