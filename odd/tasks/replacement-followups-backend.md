@@ -29,7 +29,7 @@ L12–L13, `frontend-backlog.md`) plus the end of the birth date transition. Bra
 - T2 S2 — dashboard carried exclusion (writer) — commit: 61a9bbb1
 - T3 S3 — birth date rejected (parent inline) — commit: ff3b7888
 - T5 S4 — carry candidates discard reason (writer) — commit: f68e728d + contract docs commit after 61cf2107
-- T4 S1–S3 — docs, full suite, merge — commit: pending
+- T4 S1–S4 — docs, full suite, merge — done (merge into local main)
 
 ## Log
 
@@ -67,3 +67,9 @@ L12–L13, `frontend-backlog.md`) plus the end of the birth date transition. Bra
   registros», presented as applications). In-process, candidates list and stage counts keep them. RED (unit: 4 organic
   instead of 1; integration with the SQL reverted), GREEN; metrics unit + integration, `cmd/api` Dashboard|Metrics|
   Replacement|MX|Origin 106 PASS. `scopeSQL` untouched.
+- **L9** 2026-11-22, T4: full backend suite on the branch against a throwaway postgres:16 (`draft_test`, migrations,
+  geo `-skip-postal-codes`): `make test PKG=./...` exit 0; integration `-p 1` 117 packages ok, 2 FAIL —
+  `identity/infrastructure/postgres` (`TestUsersMigrationDownDropsTable`, legacy down migration blocked by FKs) and
+  `jobs/infrastructure/postgres` (legacy `applications`/jobs tables dropped by legacy migration tests on a shared DB).
+  Both packages are untouched by the branch and fail the same way on `main` c2fde6bd on a fresh database:
+  pre-existing, not regressions. Merged into local main; user pushes.
