@@ -513,7 +513,9 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
     { "candidate": { "kind": "manual", "id": "…", "full_name": "Marta Ruiz" },
       "process_id": "…", "participation_id": "…",
       "stage": { "kind": "in_process", "name": "En proceso" },
-      "discarded": true, "eligible": true }
+      "discarded": true,
+      "discard_reason": { "group": "candidate", "key": "unresponsive" },
+      "eligible": true }
   ],
   "carry_candidates_truncated": false,
   "fallen_credits": [
@@ -525,6 +527,8 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
 }
 ```
 
+- `carry_candidates[].discard_reason` (added 2026-11-22, `odd/tasks/replacement-followups-backend.md` S4): always present;
+  `{group, key}` with the same keys as the board item's `discard.reason` when `discarded` is true, `null` otherwise.
 - `items` ordered original first, then `sequence` ascending; **`sequence` of the original is `0`** and every item carries its `title` (feature doc L11:
   the frontend lists the chain without a second request; the lifecycle view keeps ids only and its `sequence` stays `null` for an original). `started_at` of the original is its `published_at`.
   `coverage` is the live board coverage of that process. `can_open` = the caller may open that draft (owner or active
