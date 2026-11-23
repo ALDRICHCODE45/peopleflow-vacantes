@@ -34,6 +34,9 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   tab (no Pipeline, no Configuración), with download as the only action.
 - **S12** User: stakeholder entry point «Lista de vacantes propia» → a read-only «Vacantes» list in the stakeholder menu
   leads to the vacancy's Documentos tab (needs a new backend stakeholder vacancy list).
+- **S13** Filter rule and search wording as designed in 03 (user L6): choosing a candidate sets the scope to «Candidatos»;
+  with «Vacante» the selector is disabled («No aplica a la vacante») and switching to «Vacante» clears it; the text search
+  reads «Buscar documento».
 
 ## Tasks
 
@@ -42,7 +45,11 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
 | T1 | — | Re-sync `design/system.md` (stale vs `frontend/src/app/globals.css`) | |
 | T2 | S1–S6 | Design directions `design/vacancy-documents/` (vacancy and placement together) | |
 | T2b | S8, S9 | Iterate: 03 with the candidate filter + new artboard for the tabbed pipeline header with more room | |
-| T3 | S1–S11 | Implementation slices | |
+| T3a | S9 | Vacancy tabs Pipeline / Documentos / Configuración and the pipeline header with more room (artboard 04) | |
+| T3b | S1–S7 | Documents data layer: schemas, BFF upload/download routes, actions (list, overview, upload, replace, delete, link, unlink); audit ANNEX 70 → 75 | |
+| T3c | S1–S6, S8, S10 | Documentos tab UI from artboard 03 (table, filters, upload, versions, delete, links) | |
+| T3d | S11, S12 | Stakeholder: «Vacantes» list and read-only Documentos tab (waits for backend P7c) | |
+| T3e | S1–S12 | Browser check, full suite, merge to main | |
 
 ## Log
 
@@ -87,3 +94,7 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
 - **L5** Backend: `document-overview` adds `vacancy: {id, title, publication, process, kind, visibility}` (stakeholder has no
   other vacancy read; GET draft/lifecycle/publication are recruiter-only); truncation keeps the most recent. User on the
   stakeholder entry point: «Lista de vacantes propia»; backend asked for a stakeholder vacancy list.
+- **L6** (2026-11-22) User on 03 and 04: «no quiero cambiar nada, me encanta.» Handoff: `03-expediente-tabla-unica.html` is
+  the chosen artboard (01 and 02 are alternatives); `04-pestanas-y-pipeline-con-aire.html` specifies the tabbed layout.
+  Backend status: P3 list, P4 upload/download, P5 versions/delete (pending confirmation), P7 links (`c4fcb712`) committed on
+  `feat/placement-vacancy-documents-backend`; P7b `document-overview` and P7c `stakeholder/vacancies` in progress.
