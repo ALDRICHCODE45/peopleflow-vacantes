@@ -46,6 +46,9 @@ import (
 	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
 	sitespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/postgres"
 	sitess3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/s3"
+	documentsapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
+	documentsstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/storage"
+	documentss3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/storage/s3"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
@@ -183,6 +186,13 @@ func run() error {
 		return err
 	}
 
+	documentConfig, err := runtimeconfig.LoadDocumentStorageConfig(os.Getenv)
+	if err != nil {
+		// Config errors are static messages, never the raw environment values.
+		slog.Error("document storage configuration invalid", "reason", err.Error())
+		return err
+	}
+
 	trustedProxies, err := runtimeconfig.LoadTrustedProxyCIDRs(os.Getenv)
 	if err != nil {
 		return err
@@ -293,6 +303,16 @@ func run() error {
 	}
 	// Explicit allowlist; never log the SDK config, endpoint or credentials.
 	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
+	// Placement and vacancy documents: the storage is built from DOCUMENT_* (its own root/prefix, never the CV or
+	// site-media ones) but no route uses it yet; the document routes arrive in later slices and answer 503
+	// document_storage_unavailable while it is nil.
+	documentStorage, closeDocumentStorage, err := newDocumentStorage(ctx, documentConfig)
+	if err != nil {
+		return err
+	}
+	defer closeDocumentStorage()
+	_ = documentStorage
+	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.
 	draftStore.WithStageEntryHook(newPsychometricStageEntryHook(draftStore))
@@ -471,4 +491,25 @@ func logStartupConfig(logger *slog.Logger, cfg runtimeconfig.ServerConfig, maxBo
 		"drain_timeout", cfg.DrainTimeout.String(),
 		"max_json_body_bytes", maxBodyBytes,
 	)
+}
+
+// newDocumentStorage builds the documents storage of cfg. A disabled configuration returns a nil storage and a
+// no-op closer, so the rest of the API is unaffected. Initialization errors are static: no path, bucket or SDK detail.
+func newDocumentStorage(ctx context.Context, cfg runtimeconfig.DocumentStorageConfig) (documentsapp.Storage, func(), error) {
+	switch {
+	case !cfg.Enabled():
+		return nil, func() {}, nil
+	case cfg.Mode == "s3":
+		storage, err := documentss3.New(ctx, documentss3.Options{Bucket: cfg.Bucket, Region: cfg.Region, Prefix: cfg.Prefix, Endpoint: cfg.Endpoint, ForcePathStyle: cfg.ForcePathStyle})
+		if err != nil {
+			return nil, nil, errors.New("initialize document storage")
+		}
+		return storage, func() {}, nil
+	default:
+		storage, err := documentsstorage.NewLocal(cfg.Root)
+		if err != nil {
+			return nil, nil, errors.New("initialize document storage")
+		}
+		return storage, func() { _ = storage.Close() }, nil
+	}
 }
