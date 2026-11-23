@@ -3,6 +3,7 @@ package draftstore
 import (
 	"context"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -63,4 +64,43 @@ func (s *Store) AuthorizeDocuments(ctx context.Context, tx pgx.Tx, companyID, ac
 		return DocumentAccess{}, err
 	}
 	return DocumentAccess{Role: auth.role, CanManage: authorizedManage(auth, actorID, record)}, nil
+}
+
+// documentManageDecision is the manage verdict once the caller passed the read gate and the schema gate: only
+// `authorizedManage` writes, and the one caller who reads without managing is a stakeholder, whom the contract
+// answers 403 forbidden (the recruiter ladder refuses them on every write route, so the store agrees with it).
+func documentManageDecision(auth authContext, actor uuid.UUID, record draftRecord) error {
+	if !authorizedManage(auth, actor, record) {
+		return drafts.ErrForbidden
+	}
+	return nil
+}
+
+// AuthorizeDocumentsManage authorizes actor to WRITE documents of draftID inside tx (upload, replace, delete, link).
+// It is the documents counterpart of the draft save authorization and NEVER the board's beginMutation/beginTx: it needs
+// no process row and refuses nothing for a closed or finished vacancy (S4), because it never reads the lifecycle.
+//
+// lock=false is the cheap pre-flight an upload runs before it stores a byte; lock=true takes `job_drafts … FOR UPDATE`
+// (readDraft) for the short write transaction, which serializes the write with team changes, moves and lifecycle
+// transitions, so a revoked recruiter cannot land it (D23). Failures are the draft ones: the gate errors, ErrNotFound
+// (missing, foreign, v1 or never-on-the-team), ErrTeamAccessEnded (former member) and ErrForbidden (a stakeholder).
+func (s *Store) AuthorizeDocumentsManage(ctx context.Context, tx pgx.Tx, companyID, actorID, draftID uuid.UUID, lock bool) (DocumentAccess, error) {
+	auth, err := s.lockGates(ctx, tx, companyID, actorID)
+	if err != nil {
+		return DocumentAccess{}, err
+	}
+	record, found, err := readDraft(ctx, tx, companyID, draftID, lock, actorID)
+	if err != nil {
+		return DocumentAccess{}, err
+	}
+	if !found || !authorizedRead(auth, actorID, record) {
+		return DocumentAccess{}, draftAccessError(ctx, tx, actorID, record, found)
+	}
+	if err := requireV2ReadDocument(record.fields); err != nil {
+		return DocumentAccess{}, err
+	}
+	if err := documentManageDecision(auth, actorID, record); err != nil {
+		return DocumentAccess{}, err
+	}
+	return DocumentAccess{Role: auth.role, CanManage: true}, nil
 }

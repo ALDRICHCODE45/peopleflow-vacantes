@@ -58,7 +58,7 @@ func TestListPassesTheSessionIdentityAndWritesTheList(t *testing.T) {
 		Links: []documents.Link{},
 		Scope: documents.BuildScope(documents.ScopeInput{Kind: documents.ScopeVacancy, CanManage: true, Documents: 1}),
 	}}
-	rec := serve(t, NewHandler(reader), draft.String(), &identitysecurity.CompanyContext{CompanyID: company, UserID: actor})
+	rec := serve(t, NewHandler(reader, nil), draft.String(), &identitysecurity.CompanyContext{CompanyID: company, UserID: actor})
 	if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/json" {
 		t.Fatalf("%d %s %s", rec.Code, rec.Header().Get("Content-Type"), rec.Body)
 	}
@@ -80,7 +80,7 @@ func TestListPassesTheSessionIdentityAndWritesTheList(t *testing.T) {
 // An empty scope answers `[]` for both arrays, never null: the frontend decodes arrays.
 func TestListEmptyShape(t *testing.T) {
 	reader := &fakeReader{list: documents.List{Scope: documents.BuildScope(documents.ScopeInput{Kind: documents.ScopeVacancy, CanManage: true})}}
-	rec := serve(t, NewHandler(reader), uuid.NewString(), &identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: uuid.New()})
+	rec := serve(t, NewHandler(reader, nil), uuid.NewString(), &identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: uuid.New()})
 	if rec.Code != 200 {
 		t.Fatal(rec.Code, rec.Body)
 	}
@@ -108,7 +108,7 @@ func TestListErrorMapping(t *testing.T) {
 		{"anything else", errors.New("pq: password authentication failed for user x"), 500, "internal_error"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := serve(t, NewHandler(&fakeReader{err: tc.err}), uuid.NewString(), &identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: uuid.New()})
+			rec := serve(t, NewHandler(&fakeReader{err: tc.err}, nil), uuid.NewString(), &identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: uuid.New()})
 			body := decode(t, rec)
 			if rec.Code != tc.status || body["code"] != tc.code {
 				t.Fatalf("%d %s", rec.Code, rec.Body)
@@ -124,18 +124,18 @@ func TestListErrorMapping(t *testing.T) {
 func TestListRejectsBadInputBeforeTheStore(t *testing.T) {
 	reader := &fakeReader{}
 	good := &identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: uuid.New()}
-	if rec := serve(t, NewHandler(reader), "not-a-uuid", good); rec.Code != 400 || decode(t, rec)["code"] != "invalid_request" {
+	if rec := serve(t, NewHandler(reader, nil), "not-a-uuid", good); rec.Code != 400 || decode(t, rec)["code"] != "invalid_request" {
 		t.Fatalf("bad id: %d %s", rec.Code, rec.Body)
 	}
 	// A router without the role gate in front never serves: fail closed with the generic 500.
-	if rec := serve(t, NewHandler(reader), uuid.NewString(), nil); rec.Code != 500 || decode(t, rec)["code"] != "internal_error" {
+	if rec := serve(t, NewHandler(reader, nil), uuid.NewString(), nil); rec.Code != 500 || decode(t, rec)["code"] != "internal_error" {
 		t.Fatalf("no company context: %d %s", rec.Code, rec.Body)
 	}
 	if reader.calls != 0 {
 		t.Fatalf("store reached %d times", reader.calls)
 	}
 	// A router built without the documents store answers the generic 500, never a nil dereference.
-	for _, h := range []*Handler{nil, NewHandler(nil)} {
+	for _, h := range []*Handler{nil, NewHandler(nil, nil)} {
 		if rec := serve(t, h, uuid.NewString(), good); rec.Code != 500 || decode(t, rec)["code"] != "internal_error" {
 			t.Fatalf("nil store: %d %s", rec.Code, rec.Body)
 		}

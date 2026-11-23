@@ -1,6 +1,7 @@
 // Package http serves the placement and vacancy documents routes
-// (docs/contracts/placement-vacancy-documents-v1.md, «Endpoints»). P3 serves GET V/documents; the write and download
-// routes arrive in later slices.
+// (docs/contracts/placement-vacancy-documents-v1.md, «Endpoints»). P3 serves GET V/documents; P4 adds the upload
+// (POST V/documents) and the current-version download (GET V/documents/{doc}/file); replace, delete, versions and links
+// arrive in later slices.
 package http
 
 import (
@@ -14,12 +15,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// Handler serves the documents routes over the documents store.
-type Handler struct{ reader documents.Reader }
+// Handler serves the documents routes over the documents store (reads) and the documents service (files).
+type Handler struct {
+	reader documents.Reader
+	files  documents.Files
+}
 
-// NewHandler builds the handler. A nil reader is allowed: every route then answers the generic 500 instead of
-// dereferencing it (a router assembled without the documents store fails closed).
-func NewHandler(reader documents.Reader) *Handler { return &Handler{reader: reader} }
+// NewHandler builds the handler. A nil reader or service is allowed: the routes that need it then answer the generic
+// 500 instead of dereferencing it (a router assembled without the documents store fails closed).
+func NewHandler(reader documents.Reader, files documents.Files) *Handler {
+	return &Handler{reader: reader, files: files}
+}
 
 // List is GET /v2/me/company/job-drafts/{id}/documents (read gate: owner, recruiter, stakeholder; the store re-checks).
 // It reads only the database, so it never raises document_storage_unavailable (contract «GET P/documents»).
@@ -49,12 +55,37 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, list)
 }
 
-// writeError projects the store's access sentinels onto the catalog; anything else is the generic 500 and never
-// echoes a driver or domain message.
+// writeError projects the store's and the service's failures onto the catalog; anything else is the generic 500 and
+// never echoes a driver or domain message.
 func writeError(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	var mismatch *documents.MismatchError
+	var limit *documents.LimitReachedError
+	switch {
+	case errors.As(err, &mismatch):
+		httpjson.WriteDocumentContentMismatch(w, string(mismatch.Detected), mismatch.Extension)
+		return
+	case errors.As(err, &limit):
+		httpjson.WriteDocumentLimitReached(w, limit.Kind, limit.Limit)
+		return
+	case errors.Is(err, documents.ErrTooLarge), errors.As(err, &tooLarge):
+		httpjson.WriteDocumentPayloadTooLarge(w, documents.MaxBytes)
+		return
+	case errors.Is(err, documents.ErrUnsupportedType):
+		httpjson.WriteDocumentUnsupportedType(w, documentFormats())
+		return
+	case errors.Is(err, documents.ErrEmpty):
+		httpjson.WriteValidationError(w, []httpjson.ValidationField{{Field: "file", Code: "empty"}})
+		return
+	case errors.Is(err, documents.ErrInvalidName):
+		httpjson.WriteValidationError(w, []httpjson.ValidationField{{Field: "name", Code: "invalid"}})
+		return
+	}
 	code := httpjson.CodeInternalError
 	switch {
-	case errors.Is(err, documents.ErrScopeNotFound):
+	case errors.Is(err, documents.ErrInvalidRequest):
+		code = httpjson.CodeInvalidRequest
+	case errors.Is(err, documents.ErrScopeNotFound), errors.Is(err, documents.ErrNotFound):
 		code = httpjson.CodeNotFound
 	case errors.Is(err, documents.ErrTeamAccessEnded):
 		code = httpjson.CodeTeamAccessEnded
@@ -66,6 +97,19 @@ func writeError(w http.ResponseWriter, err error) {
 		code = httpjson.CodeCompanyInactive
 	case errors.Is(err, documents.ErrCompanyNotActive):
 		code = httpjson.CodeCompanyNotActive
+	case errors.Is(err, documents.ErrIdempotencyConflict):
+		code = httpjson.CodeIdempotencyConflict
+	case errors.Is(err, documents.ErrStorageUnavailable):
+		code = httpjson.CodeDocumentStorageUnavailable
 	}
 	httpjson.WriteCatalogError(w, httpjson.Resolve(code))
+}
+
+// documentFormats is the `data.formats` of unsupported_media_type: the same descriptors as `limits.formats`.
+func documentFormats() []httpjson.DocumentFormat {
+	out := []httpjson.DocumentFormat{}
+	for _, d := range documents.Formats() {
+		out = append(out, httpjson.DocumentFormat{Format: string(d.Format), Extensions: d.Extensions, ContentType: d.ContentType})
+	}
+	return out
 }

@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/cvs"
+	"golang.org/x/text/unicode/norm"
 )
 
 // StripKnownExtension removes ONE trailing known extension (.pdf, .docx, .xlsx,
@@ -23,10 +23,10 @@ func StripKnownExtension(name string) string {
 }
 
 // NormalizeGivenName normalizes a name the user typed: known extension stripped,
-// then cvs.NormalizeName (NFC, no control characters, spaces collapsed, at most
+// then normalizeName (NFC, no control characters, spaces collapsed, at most
 // 120 runes). A name with nothing left is ErrInvalidName.
 func NormalizeGivenName(raw string) (string, error) {
-	name, err := cvs.NormalizeName(StripKnownExtension(raw))
+	name, err := normalizeName(StripKnownExtension(raw))
 	if err != nil {
 		return "", ErrInvalidName
 	}
@@ -43,12 +43,12 @@ func DefaultName(filename string) string {
 		base = base[i+1:]
 	}
 	base = StripKnownExtension(base)
-	if name, err := cvs.NormalizeName(base); err == nil {
+	if name, err := normalizeName(base); err == nil {
 		return name
 	}
 	if utf8.RuneCountInString(base) > MaxNameRunes {
 		cut := []rune(base)[:MaxNameRunes]
-		if name, err := cvs.NormalizeName(string(cut)); err == nil {
+		if name, err := normalizeName(string(cut)); err == nil {
 			return name
 		}
 	}
@@ -59,4 +59,25 @@ func DefaultName(filename string) string {
 // extension of that version's stored format, by plain concatenation (D11).
 func DownloadName(name string, format Format) string {
 	return name + format.Extension()
+}
+
+// normalizeName applies the display-label rules of the CV library (same rules as
+// cvs.NormalizeName, kept local because a feature may not import another
+// feature's application package): valid UTF-8, NFC, no control characters other
+// than white space, white space collapsed to single spaces, 1..MaxNameRunes runes.
+func normalizeName(raw string) (string, error) {
+	if !utf8.ValidString(raw) {
+		return "", ErrInvalidName
+	}
+	raw = norm.NFC.String(raw)
+	for _, r := range raw {
+		if unicode.IsControl(r) && !unicode.Is(unicode.White_Space, r) {
+			return "", ErrInvalidName
+		}
+	}
+	name := strings.Join(strings.Fields(raw), " ")
+	if name == "" || utf8.RuneCountInString(name) > MaxNameRunes {
+		return "", ErrInvalidName
+	}
+	return name, nil
 }

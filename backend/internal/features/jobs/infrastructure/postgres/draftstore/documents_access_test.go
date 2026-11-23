@@ -1,8 +1,10 @@
 package draftstore
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/google/uuid"
 )
 
@@ -39,5 +41,37 @@ func TestDocumentGate(t *testing.T) {
 				t.Error("authorized must imply authorizedRead")
 			}
 		})
+	}
+}
+
+// The manage decision (D4): after the read gate and the schema gate, a caller who can read but not manage is a
+// stakeholder (403 forbidden by the contract: the recruiter ladder refuses them on every write route). Everyone
+// else was already denied by the read gate with not_found/team_access_ended.
+func TestDocumentManageDecision(t *testing.T) {
+	actor := uuid.New()
+	for _, tc := range []struct {
+		name    string
+		role    string
+		tramo   bool
+		wantErr error
+	}{
+		{"owner", roleOwner, false, nil},
+		{"recruiter on the team", "recruiter", true, nil},
+		{"stakeholder", roleStakeholder, false, drafts.ErrForbidden},
+		{"stakeholder holding a stale tramo", roleStakeholder, true, drafts.ErrForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := documentManageDecision(authContext{role: tc.role}, actor, draftRecord{activeTeamMember: tc.tramo})
+			if !errors.Is(got, tc.wantErr) || (tc.wantErr == nil && got != nil) {
+				t.Fatalf("decision = %v, want %v", got, tc.wantErr)
+			}
+		})
+	}
+}
+
+// The idempotency operation of the upload (D26) is pinned: changing it would orphan every stored key.
+func TestDocumentUploadOperation(t *testing.T) {
+	if DocumentUploadOperation != "placement-document-upload:r1" {
+		t.Fatalf("operation = %q", DocumentUploadOperation)
 	}
 }

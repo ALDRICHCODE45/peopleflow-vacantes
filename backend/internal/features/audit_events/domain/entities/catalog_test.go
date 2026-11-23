@@ -357,14 +357,12 @@ func eventConstantValues(t *testing.T) map[string]bool {
 // entry for a type whose emitter lands in a later slice; remove it when the
 // emitter does, from then on the type must be referenced by production code.
 // The five document events are registered ahead of their emitters (placement-vacancy-documents
-// feature doc, T5/P3): the upload and download routes (P4), replace and delete (P5) and linking
-// (P7) reference them, and each slice drops its type from this map.
+// feature doc, T5/P3): the upload and download routes (P4, now emitting DocumentUploaded and
+// DocumentDownloaded), replace and delete (P5) and linking (P7) reference them, and each slice drops its type from this map.
 var pendingEmitters = map[string]bool{
-	EventDocumentUploaded:   true, // P4 POST V/documents
-	EventDocumentDownloaded: true, // P4 GET …/file (and P7 link downloads)
-	EventDocumentReplaced:   true, // P5 POST …/{doc}/versions
-	EventDocumentDeleted:    true, // P5 DELETE …/{doc} and P7 DELETE …/document-links/{link}
-	EventDocumentLinked:     true, // P7 POST …/document-links
+	EventDocumentReplaced: true, // P5 POST …/{doc}/versions
+	EventDocumentDeleted:  true, // P5 DELETE …/{doc} and P7 DELETE …/document-links/{link}
+	EventDocumentLinked:   true, // P7 POST …/document-links
 }
 
 // TestEveryCatalogTypeHasAnEmitter: a catalog type nobody references is either

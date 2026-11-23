@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -17,6 +18,27 @@ import (
 // (placement-vacancy-documents-v1, P3). The real route table and middleware order are
 // the real ones; the gates and the store are fakes. The authorization matrix against a
 // real database is documents_list_integration_test.go.
+
+type routeFiles struct {
+	preflight, downloads int
+	err                  error
+}
+
+func (f *routeFiles) PreflightUpload(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	f.preflight++
+	return f.err
+}
+func (f *routeFiles) Stage(context.Context, string, io.Reader) (documents.Staged, error) {
+	return documents.Staged{}, f.err
+}
+func (f *routeFiles) Upload(context.Context, documents.UploadCommand) (documents.UploadResult, error) {
+	return documents.UploadResult{}, f.err
+}
+func (f *routeFiles) Discard(context.Context, string) {}
+func (f *routeFiles) Download(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (documents.File, error) {
+	f.downloads++
+	return documents.File{}, f.err
+}
 
 type routeDocumentsReader struct {
 	list                documents.List
@@ -52,12 +74,17 @@ func routeDocumentReaderGate(next http.Handler) http.Handler {
 }
 
 func documentsRouteRouter(reader documents.Reader, withGate bool) http.Handler {
+	return documentsRouteRouterWithFiles(reader, nil, withGate, "never")
+}
+
+// documentsRouteRouterWithFiles also wires the file service and lets the recruiter gate admit the role named by
+// recruiterHeader ("never" refuses everyone: the documents GET must not sit behind it, or a stakeholder could never read).
+func documentsRouteRouterWithFiles(reader documents.Reader, files documents.Files, withGate bool, recruiterHeader string) http.Handler {
 	deps := routerDeps{
-		requireAuth: routeRequireAuth,
-		// The recruiter gate refuses everyone here: the documents GET must not sit behind it, or a stakeholder could never read.
-		requireRecruiter: routeRoleGate(companiesvalueobjects.RecruiterRole, "never"),
+		requireAuth:      routeRequireAuth,
+		requireRecruiter: routeRoleGate(companiesvalueobjects.RecruiterRole, recruiterHeader),
 		requireOwner:     routeRoleGate(companiesvalueobjects.OwnerRole, "never"),
-		documentHandler:  documentshttp.NewHandler(reader),
+		documentHandler:  documentshttp.NewHandler(reader, files),
 	}
 	if withGate {
 		deps.requireDocumentReader = routeDocumentReaderGate
@@ -141,5 +168,62 @@ func TestDocumentsRoutesDoNotExistUnderTheCandidatePool(t *testing.T) {
 	}
 	if reader.calls != 0 {
 		t.Fatalf("a pool route reached the documents store %d times", reader.calls)
+	}
+}
+
+var (
+	documentsUploadPath = documentsListPath
+	documentsFilePath   = documentsListPath + "/" + uuid.NewString() + "/file"
+)
+
+// The upload sits in the recruiter group (a stakeholder never reaches the service and gets the generic 403); the file
+// download sits in the read group (a stakeholder downloads). Both are NoStore, including the gate rejections.
+func TestDocumentsUploadAndFileRoutesSitBehindTheirGates(t *testing.T) {
+	files := &routeFiles{err: documents.ErrScopeNotFound}
+	router := documentsRouteRouterWithFiles(&routeDocumentsReader{}, files, true, "recruiter")
+	asRole := func(role string) map[string]string {
+		return map[string]string{"X-Test-Sub": "sub", "X-Test-Role": role}
+	}
+
+	rec := doRouteRequest(t, router, "POST", documentsUploadPath, "", asRole("stakeholder"))
+	if rec.Code != 403 || routeCatalogCode(t, rec) != "forbidden" || files.preflight != 0 {
+		t.Fatalf("stakeholder upload: %d %s preflight=%d", rec.Code, rec.Body, files.preflight)
+	}
+	assertDraftRouteNoStore(t, rec)
+	rec = doRouteRequest(t, router, "POST", documentsUploadPath, "", nil)
+	if rec.Code != 401 || routeCatalogCode(t, rec) != "unauthenticated" {
+		t.Fatalf("anonymous upload: %d %s", rec.Code, rec.Body)
+	}
+	// An admitted role reaches the service, which answers its own error.
+	rec = doRouteRequest(t, router, "POST", documentsUploadPath, "", asRole("recruiter"))
+	if rec.Code != 404 || files.preflight != 1 {
+		t.Fatalf("recruiter upload: %d %s preflight=%d", rec.Code, rec.Body, files.preflight)
+	}
+	assertDraftRouteNoStore(t, rec)
+
+	for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+		before := files.downloads
+		rec := doRouteRequest(t, router, "GET", documentsFilePath, "", asRole(role))
+		if rec.Code != 404 || files.downloads != before+1 {
+			t.Fatalf("%s download: %d %s", role, rec.Code, rec.Body)
+		}
+		assertDraftRouteNoStore(t, rec)
+	}
+	rec = doRouteRequest(t, router, "GET", documentsFilePath, "", asRole("candidate"))
+	if rec.Code != 403 || files.downloads != 3 {
+		t.Fatalf("a role outside the three: %d %s", rec.Code, rec.Body)
+	}
+	assertDraftRouteNoStore(t, rec)
+}
+
+// Without the reader gate the download is refused to everyone, like the list.
+func TestDocumentsFileRouteFailsClosedWithoutTheReaderGate(t *testing.T) {
+	files := &routeFiles{}
+	router := documentsRouteRouterWithFiles(&routeDocumentsReader{}, files, false, "recruiter")
+	for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+		rec := doRouteRequest(t, router, "GET", documentsFilePath, "", map[string]string{"X-Test-Sub": "sub", "X-Test-Role": role})
+		if rec.Code != 403 || files.downloads != 0 {
+			t.Fatalf("%s: %d %s", role, rec.Code, rec.Body)
+		}
 	}
 }

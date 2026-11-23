@@ -461,6 +461,10 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/reopen", lifecycleHandlers.Reopen)
 		r.Get("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.List)
 		r.Post("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.Start)
+		// Placement and vacancy documents, WRITE routes (placement-vacancy-documents-v1, D4): the recruiter ladder
+		// refuses a stakeholder with 403 forbidden and the store applies owner-or-active-tramo. The upload is accepted
+		// in every lifecycle state, closed and finished included (S4); it never goes through the board's mutation guard.
+		r.Post("/v2/me/company/job-drafts/{id}/documents", d.documentHandler.Upload)
 	})
 	// Placement and vacancy documents, READ routes (placement-vacancy-documents-v1, D4, D6): owners,
 	// recruiters and stakeholders pass the coarse gate and the store applies the vacancy rule (owner,
@@ -469,6 +473,7 @@ func newRouter(d routerDeps) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireDocumentReader)
 		r.Get("/v2/me/company/job-drafts/{id}/documents", d.documentHandler.List)
+		r.Get("/v2/me/company/job-drafts/{id}/documents/{doc}/file", d.documentHandler.File)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)

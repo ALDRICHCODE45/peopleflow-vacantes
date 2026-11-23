@@ -16,6 +16,7 @@ import (
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	documents "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -38,13 +39,27 @@ const (
 type docsFlow struct {
 	*replFlow
 	docs *draftFlowHarness
+	// dir and storage are set by newDocsUploadFlow (a local storage over a temp directory); both are zero when the
+	// documents storage is disabled.
+	dir     string
+	storage *docsStorage
 }
 
-// newDocsFlow builds the drafts harness plus a second server over the SAME pool and signer
-// whose router carries the documents route wired exactly as main.go wires it.
-func newDocsFlow(t *testing.T) *docsFlow {
+// newDocsFlow builds the flow with the documents storage DISABLED: the list works without it.
+func newDocsFlow(t *testing.T) *docsFlow { return newDocsFlowWith(t, nil) }
+
+// newDocsFlowWith builds the drafts harness plus a second server over the SAME pool and signer
+// whose router carries the documents routes wired exactly as main.go wires them.
+func newDocsFlowWith(t *testing.T, storage documents.Storage) *docsFlow {
 	t.Helper()
 	f := &docsFlow{replFlow: newReplFlow(t)}
+	t.Cleanup(func() { // documents created through the API, before the draft, user and company fixtures go (LIFO)
+		for _, q := range []string{`DELETE FROM placement_document_links WHERE company_id=$1`, `DELETE FROM placement_documents WHERE company_id=$1`} {
+			if _, err := f.h.pool.Exec(context.Background(), q, f.company.companyID); err != nil {
+				t.Errorf("documents fixture cleanup: %v", err)
+			}
+		}
+	})
 	h := f.h
 	queries := db.New(h.pool)
 	users := identitypostgres.NewUserRepository(queries)
@@ -55,7 +70,7 @@ func newDocsFlow(t *testing.T) *docsFlow {
 		requireRecruiter:      identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.RecruiterRole),
 		requireOwner:          identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.OwnerRole),
 		requireDocumentReader: identityhttp.RequireDocumentReader(users, members, companies),
-		documentHandler:       newDocumentHandler(h.pool, h.store, nil), // the list works with storage disabled
+		documentHandler:       newDocumentHandler(h.pool, h.store, storage),
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
@@ -245,11 +260,8 @@ func TestDocumentsList_AuthorizationMatrix(t *testing.T) {
 		draftFlowAssertError(t, f.get(f.owner.token, uuid.NewString()), 404, "not_found")
 	})
 
-	t.Run("a stakeholder never writes: no write verb exists yet and the recruiter gate refuses them", func(t *testing.T) {
-		got := f.docs.do(t, "POST", draftFlowV2Path+"/"+draft+"/documents", "", stakeholder.token, nil)
-		if got.status != 404 && got.status != 405 {
-			t.Fatalf("POST documents answered %d %s", got.status, got.body)
-		}
+	t.Run("a stakeholder never writes: the recruiter gate refuses them", func(t *testing.T) {
+		draftFlowAssertError(t, f.docs.do(t, "POST", draftFlowV2Path+"/"+draft+"/documents", "", stakeholder.token, nil), 403, "forbidden")
 	})
 }
 

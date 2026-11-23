@@ -500,9 +500,9 @@ func logStartupConfig(logger *slog.Logger, cfg runtimeconfig.ServerConfig, maxBo
 	)
 }
 
-// documentAccess adapts the draft store's vacancy authorization to the documents store's port. The documents feature cannot
-// import the jobs feature (archguard), so this composition root translates the result and the draft errors into the
-// documents sentinels the HTTP layer maps to the catalog.
+// documentAccess adapts the draft store's vacancy authorization and idempotency bookkeeping to the documents store's
+// ports. The documents feature cannot import the jobs feature (archguard), so this composition root translates the results
+// and the draft errors into the documents sentinels the HTTP layer maps to the catalog.
 type documentAccess struct{ drafts *draftstore.Store }
 
 func (a documentAccess) AuthorizeDocuments(ctx context.Context, tx pgx.Tx, companyID, actorID, draftID uuid.UUID) (documentspostgres.Access, error) {
@@ -511,6 +511,26 @@ func (a documentAccess) AuthorizeDocuments(ctx context.Context, tx pgx.Tx, compa
 		return documentspostgres.Access{}, mapDocumentAccessError(err)
 	}
 	return documentspostgres.Access{Role: access.Role, CanManage: access.CanManage}, nil
+}
+
+func (a documentAccess) AuthorizeDocumentsManage(ctx context.Context, tx pgx.Tx, companyID, actorID, draftID uuid.UUID, lock bool) (documentspostgres.Access, error) {
+	access, err := a.drafts.AuthorizeDocumentsManage(ctx, tx, companyID, actorID, draftID, lock)
+	if err != nil {
+		return documentspostgres.Access{}, mapDocumentAccessError(err)
+	}
+	return documentspostgres.Access{Role: access.Role, CanManage: access.CanManage}, nil
+}
+
+func (documentAccess) Replay(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, key string, fingerprint []byte) ([]byte, bool, error) {
+	body, found, err := draftstore.ReplayDocumentUpload(ctx, tx, companyID, actorID, key, fingerprint)
+	if errors.Is(err, drafts.ErrIdempotencyConflict) {
+		return nil, false, documentsapp.ErrIdempotencyConflict
+	}
+	return body, found, err
+}
+
+func (documentAccess) Record(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, key string, fingerprint, body []byte) error {
+	return draftstore.RecordDocumentUpload(ctx, tx, companyID, actorID, key, fingerprint, body)
 }
 
 // mapDocumentAccessError maps the draft authorization errors onto the documents sentinels; any other error (a failed
@@ -535,7 +555,9 @@ func mapDocumentAccessError(err error) error {
 
 // newDocumentHandler composes the documents routes over the pool, the draft authorization and the (possibly nil) storage.
 func newDocumentHandler(pool *pgxpool.Pool, draftStore *draftstore.Store, storage documentsapp.Storage) *documentshttp.Handler {
-	return documentshttp.NewHandler(documentspostgres.NewStore(pool, documentAccess{drafts: draftStore}, storage))
+	access := documentAccess{drafts: draftStore}
+	store := documentspostgres.NewStore(pool, access, access, auditpostgres.NewAuditEventRepository(), storage)
+	return documentshttp.NewHandler(store, documentsapp.NewService(storage, store))
 }
 
 // newDocumentStorage builds the documents storage of cfg. A disabled configuration returns a nil storage and a

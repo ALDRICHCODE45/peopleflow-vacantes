@@ -453,7 +453,7 @@ Errors:
 | 409 | **`document_limit_reached`** (`data: { kind: "documents", limit }`) | 50 / 20 documents (files + links) |
 | 409 | `idempotency_conflict` | same `Idempotency-Key`, different request |
 | 413 | `payload_too_large` (`data: { max_bytes }`) | file > 10 485 760 bytes (or body over the request cap) |
-| 415 | `unsupported_media_type` (`data: { formats }`) | extension not in the format table |
+| 415 | `unsupported_media_type` (`data: { formats }`, the same descriptors as `limits.formats`: `[{format, extensions[], content_type}]`) | extension not in the format table |
 | 403 | `forbidden` | stakeholder (route group) |
 | 503 | **`document_storage_unavailable`** | storage disabled or unreachable (nothing recorded) |
 
@@ -501,10 +501,12 @@ Cache-Control: no-store
 
 **Download file name** = the stored `name` + the extension of the **stored format of that version** (`.pdf`, `.docx`, `.xlsx`, `.jpg`, `.png`), by plain concatenation: a document uploaded as `contrato.pdf` (stored `contrato`) and replaced by a DOCX downloads as `contrato.docx`, never `contrato.pdf.docx` (D11).
 
-**`Content-Disposition` is built with `mime.FormatMediaType("attachment", {"filename": …})`** (as the CV download, `cvs/handler.go:260`). For an ASCII name it emits `filename="…"` (quoted, `"` and `\` escaped). For a name with accents or `ñ` (any non-ASCII) it emits the RFC 5987 / 2231 form
+**`Content-Disposition` is built with `mime.FormatMediaType("attachment", {"filename": …})`** (as the CV download, `cvs/handler.go:260`). For an ASCII name it emits `filename="…"` (quoted, `"` and `\` escaped) when the name is not a bare token (a space, a quote or a backslash), and the unquoted `filename=Oferta.docx` when it is one (both forms are RFC 6266 valid, and the CV download behaves the same; implemented in P4 and pinned by `documents_download_integration_test.go`). For a name with accents or `ñ` (any non-ASCII) it emits the RFC 5987 / 2231 form
 `filename*=utf-8''Informe%20a%C3%B1o%202026.pdf` **instead of** `filename=` (there is no ASCII fallback parameter; the charset token is lower-case `utf-8`, which RFC 5987 treats case-insensitively). A client or BFF must prefer `filename*` and percent-decode it as UTF-8, and pass the header through unchanged.
 
 A failure after the 200 (the connection or storage drops mid-stream) leaves a truncated body against `Content-Length` and the audit row recorded, as for CVs.
+
+**P4 notes (implemented).** `{doc}` that is not a uuid is 400 `invalid_request` (as a malformed `{id}`); a document that is not in this vacancy scope (another vacancy, another company, a participation document) is 404 `not_found`; a document whose file is **missing from storage** is 404 `not_found` (nothing recorded); storage disabled or failing is 503 `document_storage_unavailable` after the gates (nothing recorded); a failed audit append serves nothing, closes the opened stream and answers the generic 500.
 
 ### `DELETE P/documents/{doc}`
 

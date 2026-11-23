@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	auditport "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	documents "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -21,7 +22,21 @@ type Access struct {
 // (`draftstore.AuthorizeDocuments`), adapted by cmd/api because a feature may not import another feature's packages: the
 // adapter maps the draft errors onto the documents.Err* sentinels.
 type Authorizer interface {
+	// AuthorizeDocuments is the READ gate (owner, active team member, stakeholder); it takes no draft lock.
 	AuthorizeDocuments(ctx context.Context, tx pgx.Tx, companyID, actorID, draftID uuid.UUID) (Access, error)
+	// AuthorizeDocumentsManage is the WRITE gate (owner or active team member; a stakeholder is ErrForbidden). lock=true
+	// takes the draft row FOR UPDATE for the short write transaction. It never looks at the lifecycle (S4).
+	AuthorizeDocumentsManage(ctx context.Context, tx pgx.Tx, companyID, actorID, draftID uuid.UUID, lock bool) (Access, error)
+}
+
+// Idempotency is the upload's Idempotency-Key bookkeeping in `job_draft_idempotency`, with the semantics of the draft,
+// team and replacement writes (D26). Like Authorizer it is the draft store's, adapted by cmd/api.
+type Idempotency interface {
+	// Replay serializes racing requests that share key and looks it up: the frozen body of a same-fingerprint request
+	// (found), nothing (not found), or documents.ErrIdempotencyConflict for another fingerprint.
+	Replay(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, key string, fingerprint []byte) (body []byte, found bool, err error)
+	// Record freezes the 201 body under key, in the transaction that inserts the rows.
+	Record(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, key string, fingerprint, body []byte) error
 }
 
 // txBeginner is the part of *pgxpool.Pool the store needs.
@@ -29,19 +44,24 @@ type txBeginner interface {
 	BeginTx(ctx context.Context, opts pgx.TxOptions) (pgx.Tx, error)
 }
 
-// Store is the PostgreSQL adapter of the documents read side. The storage port is held for the slices that stream files
-// (P4+); the list reads only the database and works with storage disabled.
+// Store is the PostgreSQL adapter of the documents store: the read side (the list reads only the database and works with
+// storage disabled) and the write and download side (store_write.go), which moves files through the storage port.
 type Store struct {
 	pool    txBeginner
 	access  Authorizer
+	idem    Idempotency
+	audit   auditport.AuditEventRepository
 	storage documents.Storage
 }
 
-var _ documents.Reader = (*Store)(nil)
+var (
+	_ documents.Reader = (*Store)(nil)
+	_ documents.Writer = (*Store)(nil)
+)
 
 // NewStore builds the store. storage may be nil (documents storage disabled).
-func NewStore(pool txBeginner, access Authorizer, storage documents.Storage) *Store {
-	return &Store{pool: pool, access: access, storage: storage}
+func NewStore(pool txBeginner, access Authorizer, idem Idempotency, audit auditport.AuditEventRepository, storage documents.Storage) *Store {
+	return &Store{pool: pool, access: access, idem: idem, audit: audit, storage: storage}
 }
 
 // List implements documents.Reader: the file documents and the links of the vacancy scope of draftID plus the scope flags, all
@@ -58,7 +78,7 @@ func (s *Store) List(ctx context.Context, companyID, actorID, draftID uuid.UUID)
 	if err != nil {
 		return documents.List{}, err
 	}
-	items, err := listItems(ctx, tx, companyID, draftID, access.CanManage)
+	items, err := queryItems(ctx, tx, companyID, draftID, nil, access.CanManage)
 	if err != nil {
 		return documents.List{}, err
 	}
@@ -80,7 +100,9 @@ func (s *Store) List(ctx context.Context, companyID, actorID, draftID uuid.UUID)
 	}, nil
 }
 
-func listItems(ctx context.Context, tx pgx.Tx, companyID, draftID uuid.UUID, canManage bool) ([]documents.Item, error) {
+// queryItems reads the vacancy-scope documents of draftID with their current version, every one of them or, when docID is
+// set, just that one. The company and draft equality scope it, so a foreign document is never described.
+func queryItems(ctx context.Context, tx pgx.Tx, companyID, draftID uuid.UUID, docID *uuid.UUID, canManage bool) ([]documents.Item, error) {
 	rows, err := tx.Query(ctx, `
 SELECT d.id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
        v.version, v.content_type, v.size, v.uploaded_at, v.uploaded_by::text, uu.full_name,
@@ -90,8 +112,8 @@ SELECT d.id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
                  WHERE document_id = d.id ORDER BY version DESC LIMIT 1) v ON true
   JOIN users cu ON cu.id = d.created_by
   JOIN users uu ON uu.id = v.uploaded_by
- WHERE d.company_id = $1 AND d.draft_id = $2 AND d.participation_id IS NULL
- ORDER BY v.uploaded_at DESC, d.id DESC`, companyID, draftID)
+ WHERE d.company_id = $1 AND d.draft_id = $2 AND d.participation_id IS NULL AND ($3::uuid IS NULL OR d.id = $3)
+ ORDER BY v.uploaded_at DESC, d.id DESC`, companyID, draftID, docID)
 	if err != nil {
 		return nil, fmt.Errorf("list documents: %w", err)
 	}

@@ -22,7 +22,7 @@ const (
 	HeadSize   = 16
 	TailWindow = 2 << 20
 
-	// MaxNameRunes is the display name limit (cvs.NormalizeName).
+	// MaxNameRunes is the display name limit (same as the CV library).
 	MaxNameRunes = 120
 	// FallbackName names a document whose file name leaves nothing once the extension is removed (D11).
 	FallbackName = "Documento"
