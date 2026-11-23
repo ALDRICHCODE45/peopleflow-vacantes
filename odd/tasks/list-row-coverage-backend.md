@@ -14,8 +14,8 @@ optional and nullable, may ship first).
 
 ## Tasks
 
-- T1 S1-S2 — list row coverage (writer) — commit: pending
-- T2 — suite, merge, notify frontend — pending
+- T1 S1-S2 — list row coverage (writer) — commit: ffd7426e
+- T2 — suite, merge, notify frontend — done (merged into local main)
 
 ## Log
 
@@ -26,3 +26,13 @@ optional and nullable, may ship first).
   la lista de borradores/vacantes (GET de la lista; rowSchema en frontend jobs/drafts/list/client.ts) no traen
   cobertura. Pedido aditivo: `coverage: { covered: int ≥0, required: int ≥1 | null }` en cada fila, `null` en
   borradores, con la misma semántica en vivo que board.coverage.»
+- **L3** 2026-11-22, writer T1 (S1-S2): every row of `GET /v2/me/company/job-drafts` carries `coverage`
+  `{ "covered": int, "required": int|null } | null` (key right after `candidates`), `null` without a process. `covered` = participations
+  in the current Placement stage (first `placement` stage of the page's pipeline, board's rule), `required` = `hiring_headcount`
+  (null if unset): computed inside the single page statement (left join `job_draft_management_configs`, per-stage totals reused from
+  `candidate_counts`), no per-row query. RED: integration test `TestDraftListCoverageFlow_RowsFollowTheBoardLive` failed on the missing key;
+  GREEN after the change, including departure after close (covered 1 → 0 like the board). Rows now have 24 keys.
+- **L4** 2026-11-22, parent: committed ffd7426e. Jobs unit packages ok; integration ok except
+  `TestJobsMigrationDownDropsTable` (legacy migration 00007, pre-existing on main, also seen in
+  replacement-processes-backend L13/L14 and replacement-followups L9). `cmd/api` DraftList|ListFlow|ReplacementList|
+  DraftFlow|Departure ok. Merged into local main; :8080 restarted from main.
