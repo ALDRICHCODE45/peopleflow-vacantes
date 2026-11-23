@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_WORK_MODE_LABELS, VACANCY_PIPELINE_STAGES, vacancyPipelineHref } from "./model";
 import type { EmployerVacancyState, VacancyPipelineStage } from "./model";
 import { CloseReasonNote } from "@/features/vacancy-lifecycle/ui/close-reason-note";
-import { closeReasonLabel, lifecycleLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { closeResultLabel, lifecycleLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
 import { ReplacementTags } from "@/features/vacancy-lifecycle/ui/replacement-badges";
 import { useStartReplacementRequest } from "./use-start-replacement-request";
@@ -51,7 +51,7 @@ function StageBreakdown({ pairs }: { pairs: string[] }) {
   return pairs.map((pair, index) => <React.Fragment key={index}>{index > 0 && " · "}<span className="inline-block whitespace-nowrap">{pair}</span></React.Fragment>);
 }
 
-const statusLabel = (draft: DraftListRow) => draft.status === "closed" ? `Cerrada · ${closeReasonLabel(draft.close_reason)}` : lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process });
+const statusLabel = (draft: DraftListRow) => draft.status === "closed" ? `Cerrada · ${closeResultLabel(draft.close_reason, draft.coverage ?? undefined)}` : lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process });
 const statusVariant = (draft: DraftListRow) => draft.status === "draft" ? "info" : STATUS_VARIANT[draft.status === "published" ? "active" : draft.status];
 
 function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onStartReplacement, toggle }: { draft: DraftListRow; onPublished: (id: string, publishedAt: string) => void; onMadePublic: (id: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void; onStartReplacement: (id: string) => void; toggle?: React.ReactNode }) {
