@@ -468,6 +468,12 @@ func newRouter(d routerDeps) chi.Router {
 		// Replace (a new version, expected_version required) and delete are manage operations too, allowed after closure (S4).
 		r.Post("/v2/me/company/job-drafts/{id}/documents/{doc}/versions", d.documentHandler.Replace)
 		r.Delete("/v2/me/company/job-drafts/{id}/documents/{doc}", d.documentHandler.Delete)
+		// Participation documents (P6, D3, D5): the same handlers and the same gate; the `{pid}` URL parameter makes the scope a
+		// participation, whose only rule is «pid belongs to {id}» (no stage check, discarded included). Pool access
+		// (/v2/me/company/candidates/*) grants nothing and has no route.
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/documents", d.documentHandler.Upload)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions", d.documentHandler.Replace)
+		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}", d.documentHandler.Delete)
 	})
 	// Placement and vacancy documents, READ routes (placement-vacancy-documents-v1, D4, D6): owners,
 	// recruiters and stakeholders pass the coarse gate and the store applies the vacancy rule (owner,
@@ -479,6 +485,10 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/documents/{doc}/file", d.documentHandler.File)
 		r.Get("/v2/me/company/job-drafts/{id}/documents/{doc}/versions", d.documentHandler.Versions)
 		r.Get("/v2/me/company/job-drafts/{id}/documents/{doc}/versions/{n}/file", d.documentHandler.FileVersion)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents", d.documentHandler.List)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/file", d.documentHandler.File)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions", d.documentHandler.Versions)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions/{n}/file", d.documentHandler.FileVersion)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)

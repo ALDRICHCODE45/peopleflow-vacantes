@@ -64,52 +64,53 @@ func NewStore(pool txBeginner, access Authorizer, idem Idempotency, audit auditp
 	return &Store{pool: pool, access: access, idem: idem, audit: audit, storage: storage}
 }
 
-// List implements documents.Reader: the file documents and the links of the vacancy scope of draftID plus the scope flags, all
-// from one REPEATABLE READ snapshot taken after the authorization, so the counts always match the arrays. It needs no process
-// row and takes no draft lock.
-func (s *Store) List(ctx context.Context, companyID, actorID, draftID uuid.UUID) (documents.List, error) {
+// List implements documents.Reader: the file documents and the links of the scope of target plus the scope flags, all
+// from one REPEATABLE READ snapshot taken after the authorization, so the counts always match the arrays. It takes no draft
+// lock. A vacancy scope needs no process row; a participation scope needs the participation to belong to the draft.
+func (s *Store) List(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target) (documents.List, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return documents.List{}, fmt.Errorf("begin documents list tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	access, err := s.access.AuthorizeDocuments(ctx, tx, companyID, actorID, draftID)
+	access, err := s.access.AuthorizeDocuments(ctx, tx, companyID, actorID, target.DraftID)
 	if err != nil {
 		return documents.List{}, err
 	}
-	items, err := queryItems(ctx, tx, companyID, draftID, nil, access.CanManage)
+	// The scope must exist whoever asks (a wrong `pid` is 404 for a stakeholder too); the link flag only matters to a manager.
+	canLink, err := scopeCanReceiveLinks(ctx, tx, companyID, target)
 	if err != nil {
 		return documents.List{}, err
 	}
-	links, err := listLinks(ctx, tx, companyID, actorID, draftID, access)
+	items, err := queryItems(ctx, tx, companyID, target, nil, access.CanManage)
 	if err != nil {
 		return documents.List{}, err
 	}
-	canLink := false
-	if access.CanManage {
-		// A vacancy-level link is only possible on a replacement process (D17).
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vacancy_replacements WHERE process_id=$1 AND company_id=$2)`, draftID, companyID).Scan(&canLink); err != nil {
-			return documents.List{}, fmt.Errorf("read replacement flag: %w", err)
-		}
+	links, err := listLinks(ctx, tx, companyID, actorID, target, access)
+	if err != nil {
+		return documents.List{}, err
 	}
 	return documents.List{
 		Items: items,
 		Links: links,
-		Scope: documents.BuildScope(documents.ScopeInput{Kind: documents.ScopeVacancy, CanManage: access.CanManage, CanReceiveLinks: canLink, Documents: len(items), Links: len(links)}),
+		Scope: documents.BuildScope(documents.ScopeInput{Kind: target.Kind(), CanManage: access.CanManage, CanReceiveLinks: canLink, Documents: len(items), Links: len(links)}),
 	}, nil
 }
 
-// Versions implements documents.Reader: every version of a vacancy document, newest first, after the read gate. It reads only
+// Versions implements documents.Reader: every version of a document of the scope, newest first, after the read gate. It reads only
 // the database (the list of versions works with storage disabled) and writes no audit row: no content leaves.
-func (s *Store) Versions(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (documents.VersionList, error) {
+func (s *Store) Versions(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target, docID uuid.UUID) (documents.VersionList, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return documents.VersionList{}, fmt.Errorf("begin document versions tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := s.access.AuthorizeDocuments(ctx, tx, companyID, actorID, draftID); err != nil {
+	if _, err := s.access.AuthorizeDocuments(ctx, tx, companyID, actorID, target.DraftID); err != nil {
+		return documents.VersionList{}, err
+	}
+	if _, err := scopeCanReceiveLinks(ctx, tx, companyID, target); err != nil {
 		return documents.VersionList{}, err
 	}
 	// One statement: the name and the versions come from the same snapshot. The company, draft and scope equalities keep a
@@ -119,8 +120,8 @@ SELECT d.name, v.version, v.content_type, v.size, v.uploaded_at, v.uploaded_by::
   FROM placement_documents d
   JOIN placement_document_versions v ON v.document_id = d.id
   JOIN users u ON u.id = v.uploaded_by
- WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NULL
- ORDER BY v.version DESC`, docID, companyID, draftID)
+ WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NOT DISTINCT FROM $4::uuid
+ ORDER BY v.version DESC`, docID, companyID, target.DraftID, target.ParticipationID)
 	if err != nil {
 		return documents.VersionList{}, fmt.Errorf("list document versions: %w", err)
 	}
@@ -151,11 +152,13 @@ SELECT d.name, v.version, v.content_type, v.size, v.uploaded_at, v.uploaded_by::
 	return list, nil
 }
 
-// queryItems reads the vacancy-scope documents of draftID with their current version, every one of them or, when docID is
-// set, just that one. The company and draft equality scope it, so a foreign document is never described.
-func queryItems(ctx context.Context, tx pgx.Tx, companyID, draftID uuid.UUID, docID *uuid.UUID, canManage bool) ([]documents.Item, error) {
+// queryItems reads the documents of the scope of target with their current version, every one of them or, when docID is
+// set, just that one. The company, draft and participation equalities scope it (`IS NOT DISTINCT FROM`: a vacancy scope
+// matches only NULL, a participation scope only its own id), so a foreign document is never described and the two scopes
+// never show each other's documents.
+func queryItems(ctx context.Context, tx pgx.Tx, companyID uuid.UUID, target documents.Target, docID *uuid.UUID, canManage bool) ([]documents.Item, error) {
 	rows, err := tx.Query(ctx, `
-SELECT d.id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
+SELECT d.id::text, d.participation_id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
        v.version, v.content_type, v.size, v.uploaded_at, v.uploaded_by::text, uu.full_name,
        (SELECT count(*) FROM placement_document_versions x WHERE x.document_id = d.id)
   FROM placement_documents d
@@ -163,8 +166,8 @@ SELECT d.id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
                  WHERE document_id = d.id ORDER BY version DESC LIMIT 1) v ON true
   JOIN users cu ON cu.id = d.created_by
   JOIN users uu ON uu.id = v.uploaded_by
- WHERE d.company_id = $1 AND d.draft_id = $2 AND d.participation_id IS NULL AND ($3::uuid IS NULL OR d.id = $3)
- ORDER BY v.uploaded_at DESC, d.id DESC`, companyID, draftID, docID)
+ WHERE d.company_id = $1 AND d.draft_id = $2 AND d.participation_id IS NOT DISTINCT FROM $4::uuid AND ($3::uuid IS NULL OR d.id = $3)
+ ORDER BY v.uploaded_at DESC, d.id DESC`, companyID, target.DraftID, docID, target.ParticipationID)
 	if err != nil {
 		return nil, fmt.Errorf("list documents: %w", err)
 	}
@@ -172,7 +175,7 @@ SELECT d.id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
 	items := []documents.Item{}
 	for rows.Next() {
 		var r itemRow
-		if err := rows.Scan(&r.id, &r.name, &r.createdAt, &r.createdBy.ID, &r.createdBy.Name,
+		if err := rows.Scan(&r.id, &r.participationID, &r.name, &r.createdAt, &r.createdBy.ID, &r.createdBy.Name,
 			&r.version, &r.contentType, &r.size, &r.uploadedAt, &r.uploadedBy.ID, &r.uploadedBy.Name, &r.versionCount); err != nil {
 			return nil, fmt.Errorf("scan document: %w", err)
 		}
@@ -188,10 +191,10 @@ SELECT d.id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
 	return items, nil
 }
 
-// listLinks reads the vacancy-level links of draftID. The source is resolved through the pinned version; a source the caller
+// listLinks reads the links of the scope of target. The source is resolved through the pinned version; a source the caller
 // may not read (owner or stakeholder of the company, or an active member of the source vacancy's team: D18) is reported as
 // inaccessible without its data. The company equality on every join keeps a foreign row from ever being described.
-func listLinks(ctx context.Context, tx pgx.Tx, companyID, actorID, draftID uuid.UUID, access Access) ([]documents.Link, error) {
+func listLinks(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, target documents.Target, access Access) ([]documents.Link, error) {
 	sees := access.Role == "owner" || access.Role == "stakeholder"
 	rows, err := tx.Query(ctx, `
 SELECT l.id::text, l.linked_at, l.linked_by::text, lu.full_name,
@@ -207,8 +210,8 @@ SELECT l.id::text, l.linked_at, l.linked_by::text, lu.full_name,
   LEFT JOIN placement_document_versions sv ON sv.id = l.source_version_id AND sv.document_id = sd.id
   LEFT JOIN users su ON su.id = sv.uploaded_by
   LEFT JOIN vacancy_replacements r ON r.process_id = sd.draft_id
- WHERE l.company_id = $1 AND l.draft_id = $2 AND l.participation_id IS NULL
- ORDER BY l.linked_at DESC, l.id DESC`, companyID, draftID, sees, actorID)
+ WHERE l.company_id = $1 AND l.draft_id = $2 AND l.participation_id IS NOT DISTINCT FROM $5::uuid
+ ORDER BY l.linked_at DESC, l.id DESC`, companyID, target.DraftID, sees, actorID, target.ParticipationID)
 	if err != nil {
 		return nil, fmt.Errorf("list document links: %w", err)
 	}

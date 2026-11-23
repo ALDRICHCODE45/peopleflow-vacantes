@@ -19,22 +19,24 @@ type fakeReader struct {
 	list              documents.List
 	err               error
 	company, actor, v uuid.UUID
-	calls             int
+	// target is the scope the handler asked for (P6: the `{pid}` of the route makes it a participation scope).
+	target documents.Target
+	calls  int
 
 	versions    documents.VersionList
 	versionsErr error
 	versionsDoc uuid.UUID
 }
 
-func (f *fakeReader) Versions(_ context.Context, company, actor, draft, doc uuid.UUID) (documents.VersionList, error) {
+func (f *fakeReader) Versions(_ context.Context, company, actor uuid.UUID, target documents.Target, doc uuid.UUID) (documents.VersionList, error) {
 	f.calls++
-	f.company, f.actor, f.v, f.versionsDoc = company, actor, draft, doc
+	f.company, f.actor, f.v, f.versionsDoc, f.target = company, actor, target.DraftID, doc, target
 	return f.versions, f.versionsErr
 }
 
-func (f *fakeReader) List(_ context.Context, company, actor, draft uuid.UUID) (documents.List, error) {
+func (f *fakeReader) List(_ context.Context, company, actor uuid.UUID, target documents.Target) (documents.List, error) {
 	f.calls++
-	f.company, f.actor, f.v = company, actor, draft
+	f.company, f.actor, f.v, f.target = company, actor, target.DraftID, target
 	return f.list, f.err
 }
 

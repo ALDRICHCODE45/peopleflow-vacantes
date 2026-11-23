@@ -11,6 +11,7 @@ import (
 	documents "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
 	documentshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/http"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -26,23 +27,23 @@ type routeFiles struct {
 	replaces, deletes, versionDownloads int
 }
 
-func (f *routeFiles) PreflightReplace(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (int, error) {
+func (f *routeFiles) PreflightReplace(context.Context, uuid.UUID, uuid.UUID, documents.Target, uuid.UUID) (int, error) {
 	f.replaces++
 	return 0, f.err
 }
 func (f *routeFiles) Replace(context.Context, documents.ReplaceCommand) (documents.UploadResponse, error) {
 	return documents.UploadResponse{}, f.err
 }
-func (f *routeFiles) Delete(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (documents.ScopeResponse, error) {
+func (f *routeFiles) Delete(context.Context, uuid.UUID, uuid.UUID, documents.Target, uuid.UUID) (documents.ScopeResponse, error) {
 	f.deletes++
 	return documents.ScopeResponse{}, f.err
 }
-func (f *routeFiles) DownloadVersion(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, int) (documents.File, error) {
+func (f *routeFiles) DownloadVersion(context.Context, uuid.UUID, uuid.UUID, documents.Target, uuid.UUID, int) (documents.File, error) {
 	f.versionDownloads++
 	return documents.File{}, f.err
 }
 
-func (f *routeFiles) PreflightUpload(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+func (f *routeFiles) PreflightUpload(context.Context, uuid.UUID, uuid.UUID, documents.Target) error {
 	f.preflight++
 	return f.err
 }
@@ -53,7 +54,7 @@ func (f *routeFiles) Upload(context.Context, documents.UploadCommand) (documents
 	return documents.UploadResult{}, f.err
 }
 func (f *routeFiles) Discard(context.Context, string) {}
-func (f *routeFiles) Download(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (documents.File, error) {
+func (f *routeFiles) Download(context.Context, uuid.UUID, uuid.UUID, documents.Target, uuid.UUID) (documents.File, error) {
 	f.downloads++
 	return documents.File{}, f.err
 }
@@ -62,18 +63,20 @@ type routeDocumentsReader struct {
 	list                documents.List
 	err                 error
 	company, actor, doc uuid.UUID
-	calls               int
+	// target is the scope the route asked for (P6).
+	target documents.Target
+	calls  int
 }
 
-func (f *routeDocumentsReader) Versions(_ context.Context, company, actor, draft, _ uuid.UUID) (documents.VersionList, error) {
+func (f *routeDocumentsReader) Versions(_ context.Context, company, actor uuid.UUID, target documents.Target, _ uuid.UUID) (documents.VersionList, error) {
 	f.calls++
-	f.company, f.actor, f.doc = company, actor, draft
+	f.company, f.actor, f.doc, f.target = company, actor, target.DraftID, target
 	return documents.VersionList{}, f.err
 }
 
-func (f *routeDocumentsReader) List(_ context.Context, company, actor, draft uuid.UUID) (documents.List, error) {
+func (f *routeDocumentsReader) List(_ context.Context, company, actor uuid.UUID, target documents.Target) (documents.List, error) {
 	f.calls++
-	f.company, f.actor, f.doc = company, actor, draft
+	f.company, f.actor, f.doc, f.target = company, actor, target.DraftID, target
 	return f.list, f.err
 }
 
@@ -327,5 +330,117 @@ func TestDocumentsVersionReadRoutesFailClosedWithoutTheReaderGate(t *testing.T) 
 	}
 	if reader.calls != 0 || files.versionDownloads != 0 {
 		t.Fatalf("the store was reached: reader %d downloads %d", reader.calls, files.versionDownloads)
+	}
+}
+
+// --- P6: participation documents -----------------------------------------------------------------------------------
+
+var documentsParticipationBase = "/v2/me/company/job-drafts/" + routeTestDraftID.String() + "/participations/" + uuid.NewString() + "/documents"
+
+// The participation routes sit behind the same gates as the vacancy ones (D4): writes in the recruiter group (a stakeholder
+// never reaches the service), reads in the reader group (a stakeholder reads and downloads); all NoStore.
+func TestParticipationDocumentRoutesSitBehindTheSameGates(t *testing.T) {
+	files := &routeFiles{err: documents.ErrScopeNotFound}
+	reader := &routeDocumentsReader{err: documents.ErrScopeNotFound}
+	router := documentsRouteRouterWithFiles(reader, files, true, "recruiter")
+	doc := uuid.NewString()
+
+	writes := []struct {
+		method, path string
+		calls        func() int
+	}{
+		{"POST", documentsParticipationBase, func() int { return files.preflight }},
+		{"POST", documentsParticipationBase + "/" + doc + "/versions", func() int { return files.replaces }},
+		{"DELETE", documentsParticipationBase + "/" + doc, func() int { return files.deletes }},
+	}
+	for _, tc := range writes {
+		rec := doRouteRequest(t, router, tc.method, tc.path, "", documentsRouteStakeholder)
+		if rec.Code != 403 || routeCatalogCode(t, rec) != "forbidden" || tc.calls() != 0 {
+			t.Fatalf("stakeholder %s %s: %d %s calls=%d", tc.method, tc.path, rec.Code, rec.Body, tc.calls())
+		}
+		assertDraftRouteNoStore(t, rec)
+		rec = doRouteRequest(t, router, tc.method, tc.path, "", nil)
+		if rec.Code != 401 || routeCatalogCode(t, rec) != "unauthenticated" {
+			t.Fatalf("anonymous %s %s: %d %s", tc.method, tc.path, rec.Code, rec.Body)
+		}
+		rec = doRouteRequest(t, router, tc.method, tc.path, "", documentsRouteAsRole("recruiter"))
+		if rec.Code != 404 || tc.calls() != 1 {
+			t.Fatalf("recruiter %s %s: %d %s calls=%d", tc.method, tc.path, rec.Code, rec.Body, tc.calls())
+		}
+		assertDraftRouteNoStore(t, rec)
+	}
+
+	reads := []string{
+		documentsParticipationBase,
+		documentsParticipationBase + "/" + doc + "/file",
+		documentsParticipationBase + "/" + doc + "/versions",
+		documentsParticipationBase + "/" + doc + "/versions/2/file",
+	}
+	for _, path := range reads {
+		for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+			rec := doRouteRequest(t, router, "GET", path, "", documentsRouteAsRole(role))
+			if rec.Code != 404 {
+				t.Fatalf("%s GET %s: %d %s", role, path, rec.Code, rec.Body)
+			}
+			assertDraftRouteNoStore(t, rec)
+		}
+		if rec := doRouteRequest(t, router, "GET", path, "", documentsRouteAsRole("candidate")); rec.Code != 403 {
+			t.Fatalf("a role outside the three on %s: %d", path, rec.Code)
+		}
+	}
+	// The list route carries the participation target and the same session identity.
+	if reader.target.ParticipationID == nil || reader.target.DraftID != routeTestDraftID {
+		t.Fatalf("the store got %+v", reader.target)
+	}
+}
+
+// Without the reader gate the participation reads are refused to everyone, and a malformed pid never reaches a store.
+func TestParticipationDocumentReadRoutesFailClosedAndRejectABadPid(t *testing.T) {
+	files, reader := &routeFiles{}, &routeDocumentsReader{}
+	closed := documentsRouteRouterWithFiles(reader, files, false, "recruiter")
+	for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+		if rec := doRouteRequest(t, closed, "GET", documentsParticipationBase, "", documentsRouteAsRole(role)); rec.Code != 403 {
+			t.Fatalf("%s: %d", role, rec.Code)
+		}
+	}
+	open := documentsRouteRouterWithFiles(reader, files, true, "recruiter")
+	bad := "/v2/me/company/job-drafts/" + routeTestDraftID.String() + "/participations/nope/documents"
+	for _, tc := range [][2]string{{"GET", bad}, {"POST", bad}, {"DELETE", bad + "/" + uuid.NewString()}} {
+		rec := doRouteRequest(t, open, tc[0], tc[1], "", documentsRouteAsRole("recruiter"))
+		if rec.Code != 400 || routeCatalogCode(t, rec) != "invalid_request" {
+			t.Fatalf("%s %s: %d %s", tc[0], tc[1], rec.Code, rec.Body)
+		}
+	}
+	if reader.calls != 0 || files.preflight != 0 || files.deletes != 0 {
+		t.Fatalf("a store was reached: reader %d preflight %d deletes %d", reader.calls, files.preflight, files.deletes)
+	}
+}
+
+// D5: no route under /v2/me/company/candidates serves a document, whatever its verb: pool access grants nothing because
+// there is nothing to grant. Walks the whole route table of the production router.
+func TestNoDocumentRouteIsRegisteredUnderTheCandidatePool(t *testing.T) {
+	router, ok := documentsRouteRouter(&routeDocumentsReader{}, true).(chi.Routes)
+	if !ok {
+		t.Fatal("the production router is not a chi router")
+	}
+	documentRoutes := 0
+	err := chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if strings.Contains(route, "/documents") {
+			documentRoutes++
+			if strings.HasPrefix(route, "/v2/me/company/candidates") {
+				t.Errorf("%s %s serves documents under the candidate pool", method, route)
+			}
+			if !strings.HasPrefix(route, "/v2/me/company/job-drafts/{id}/documents") && !strings.HasPrefix(route, "/v2/me/company/job-drafts/{id}/participations/{pid}/documents") {
+				t.Errorf("%s %s is a document route outside the two scopes", method, route)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Per scope: list, file, versions, version file (reads) and upload, replace, delete (writes) = 7; two scopes.
+	if documentRoutes != 14 {
+		t.Fatalf("document routes registered: %d, want 14", documentRoutes)
 	}
 }

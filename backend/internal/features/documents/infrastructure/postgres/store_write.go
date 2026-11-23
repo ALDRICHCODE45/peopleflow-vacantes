@@ -18,22 +18,26 @@ import (
 
 // AuthorizeUpload is the pre-flight of an upload: the manage gate in a transaction that is rolled back at once (its gate
 // locks are released and no draft lock is taken), so a caller who may not write never gets a byte stored.
-func (s *Store) AuthorizeUpload(ctx context.Context, companyID, actorID, draftID uuid.UUID) error {
+func (s *Store) AuthorizeUpload(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin documents pre-flight tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	_, err = s.access.AuthorizeDocumentsManage(ctx, tx, companyID, actorID, draftID, false)
+	if _, err = s.access.AuthorizeDocumentsManage(ctx, tx, companyID, actorID, target.DraftID, false); err != nil {
+		return err
+	}
+	// A participation scope: «pid belongs to {id}» is answered before a byte is stored (404 for any other pid).
+	_, err = scopeCanReceiveLinks(ctx, tx, companyID, target)
 	return err
 }
 
-// scopeCounts is what the limit (D15) and the scope object count in the vacancy scope: files plus links.
-func scopeCounts(ctx context.Context, tx pgx.Tx, companyID, draftID uuid.UUID) (docs, links int, err error) {
+// scopeCounts is what the limit (D15) and the scope object count in the scope of target: files plus links.
+func scopeCounts(ctx context.Context, tx pgx.Tx, companyID uuid.UUID, target documents.Target) (docs, links int, err error) {
 	err = tx.QueryRow(ctx, `
-SELECT (SELECT count(*) FROM placement_documents WHERE company_id = $1 AND draft_id = $2 AND participation_id IS NULL),
-       (SELECT count(*) FROM placement_document_links WHERE company_id = $1 AND draft_id = $2 AND participation_id IS NULL)`,
-		companyID, draftID).Scan(&docs, &links)
+SELECT (SELECT count(*) FROM placement_documents WHERE company_id = $1 AND draft_id = $2 AND participation_id IS NOT DISTINCT FROM $3::uuid),
+       (SELECT count(*) FROM placement_document_links WHERE company_id = $1 AND draft_id = $2 AND participation_id IS NOT DISTINCT FROM $3::uuid)`,
+		companyID, target.DraftID, target.ParticipationID).Scan(&docs, &links)
 	if err != nil {
 		return 0, 0, fmt.Errorf("count scope documents: %w", err)
 	}
@@ -51,12 +55,18 @@ func (s *Store) Upload(ctx context.Context, cmd documents.UploadCommand) (docume
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, cmd.CompanyID, cmd.ActorID, cmd.DraftID, true); err != nil {
+	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, cmd.CompanyID, cmd.ActorID, cmd.Target.DraftID, true); err != nil {
+		return documents.UploadResult{}, err
+	}
+	// After the draft lock: the only participation rule (D3). Before the idempotency lookup, so a replay on a pid that is
+	// not (or no longer) of this process is 404 like any other request on it.
+	canLink, err := scopeCanReceiveLinks(ctx, tx, cmd.CompanyID, cmd.Target)
+	if err != nil {
 		return documents.UploadResult{}, err
 	}
 	var fingerprint []byte
 	if cmd.IdempotencyKey != "" {
-		fingerprint = documents.UploadFingerprint(documents.ScopeVacancy, cmd.DraftID, nil, cmd.Name, cmd.Staged.SHA256)
+		fingerprint = documents.UploadFingerprint(cmd.Target.Kind(), cmd.Target.DraftID, cmd.Target.ParticipationID, cmd.Name, cmd.Staged.SHA256)
 		body, found, err := s.idem.Replay(ctx, tx, cmd.CompanyID, cmd.ActorID, cmd.IdempotencyKey, fingerprint)
 		if err != nil {
 			return documents.UploadResult{}, err
@@ -66,11 +76,11 @@ func (s *Store) Upload(ctx context.Context, cmd documents.UploadCommand) (docume
 		}
 	}
 
-	docs, links, err := scopeCounts(ctx, tx, cmd.CompanyID, cmd.DraftID)
+	docs, links, err := scopeCounts(ctx, tx, cmd.CompanyID, cmd.Target)
 	if err != nil {
 		return documents.UploadResult{}, err
 	}
-	if limit := documents.MaxDocuments(documents.ScopeVacancy); docs+links >= limit {
+	if limit := documents.MaxDocuments(cmd.Target.Kind()); docs+links >= limit {
 		return documents.UploadResult{}, &documents.LimitReachedError{Kind: "documents", Limit: limit}
 	}
 
@@ -82,8 +92,8 @@ func (s *Store) Upload(ctx context.Context, cmd documents.UploadCommand) (docume
 	}
 	docID, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO placement_documents(id, company_id, draft_id, participation_id, name, created_at, created_by) VALUES($1,$2,$3,NULL,$4,$5,$6)`,
-		docID, cmd.CompanyID, cmd.DraftID, cmd.Name, now, cmd.ActorID); err != nil {
+		`INSERT INTO placement_documents(id, company_id, draft_id, participation_id, name, created_at, created_by) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+		docID, cmd.CompanyID, cmd.Target.DraftID, cmd.Target.ParticipationID, cmd.Name, now, cmd.ActorID); err != nil {
 		return documents.UploadResult{}, fmt.Errorf("insert document: %w", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -92,21 +102,17 @@ func (s *Store) Upload(ctx context.Context, cmd documents.UploadCommand) (docume
 		return documents.UploadResult{}, fmt.Errorf("insert document version: %w", err)
 	}
 
-	items, err := queryItems(ctx, tx, cmd.CompanyID, cmd.DraftID, &docID, true)
+	items, err := queryItems(ctx, tx, cmd.CompanyID, cmd.Target, &docID, true)
 	if err != nil {
 		return documents.UploadResult{}, err
 	}
 	if len(items) != 1 {
 		return documents.UploadResult{}, errors.New("read back the new document")
 	}
-	var canLink bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vacancy_replacements WHERE process_id=$1 AND company_id=$2)`, cmd.DraftID, cmd.CompanyID).Scan(&canLink); err != nil {
-		return documents.UploadResult{}, fmt.Errorf("read replacement flag: %w", err)
-	}
 	// The scope is computed inside the write transaction, after the change (contract «Conventions»).
 	body, err := json.Marshal(documents.UploadResponse{
 		Item:  items[0],
-		Scope: documents.BuildScope(documents.ScopeInput{Kind: documents.ScopeVacancy, CanManage: true, CanReceiveLinks: canLink, Documents: docs + 1, Links: links}),
+		Scope: documents.BuildScope(documents.ScopeInput{Kind: cmd.Target.Kind(), CanManage: true, CanReceiveLinks: canLink, Documents: docs + 1, Links: links}),
 	})
 	if err != nil {
 		return documents.UploadResult{}, fmt.Errorf("encode upload response: %w", err)
@@ -117,7 +123,7 @@ func (s *Store) Upload(ctx context.Context, cmd documents.UploadCommand) (docume
 		}
 	}
 	// Fail-closed audit: no document without its audit row, and S4's «audit the attachment» holds after closure too.
-	if err := s.audit.Append(ctx, tx, uploadedEvent(cmd.CompanyID, cmd.ActorID, cmd.DraftID, docID, versionID, cmd.Staged.Format)); err != nil {
+	if err := s.audit.Append(ctx, tx, uploadedEvent(cmd.CompanyID, cmd.ActorID, cmd.Target, docID, versionID, cmd.Staged.Format)); err != nil {
 		return documents.UploadResult{}, fmt.Errorf("co-write document upload audit: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -130,25 +136,28 @@ func (s *Store) Upload(ctx context.Context, cmd documents.UploadCommand) (docume
 // (the audited CV download pattern of board/store.go): gates → locate the version (404) → storage disabled (503) → open
 // the object → append the audit row → commit → hand over the stream. Nothing is recorded when the document or its file is
 // missing or storage is unavailable, and a failed audit append or commit closes the object and serves nothing.
-func (s *Store) Download(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (documents.File, error) {
-	return s.download(ctx, companyID, actorID, draftID, docID, 0)
+func (s *Store) Download(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target, docID uuid.UUID) (documents.File, error) {
+	return s.download(ctx, companyID, actorID, target, docID, 0)
 }
 
 // DownloadVersion is Download for the numbered version of a document (D7: every version is downloadable by number, audited
 // like the current one with the version it served). A version the document does not have is ErrScopeNotFound.
-func (s *Store) DownloadVersion(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID, version int) (documents.File, error) {
-	return s.download(ctx, companyID, actorID, draftID, docID, version)
+func (s *Store) DownloadVersion(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target, docID uuid.UUID, version int) (documents.File, error) {
+	return s.download(ctx, companyID, actorID, target, docID, version)
 }
 
 // download serves version of a document, or the highest one when version is 0.
-func (s *Store) download(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID, version int) (documents.File, error) {
+func (s *Store) download(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target, docID uuid.UUID, version int) (documents.File, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return documents.File{}, fmt.Errorf("begin download tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := s.access.AuthorizeDocuments(ctx, tx, companyID, actorID, draftID); err != nil {
+	if _, err := s.access.AuthorizeDocuments(ctx, tx, companyID, actorID, target.DraftID); err != nil {
+		return documents.File{}, err
+	}
+	if _, err := scopeCanReceiveLinks(ctx, tx, companyID, target); err != nil {
 		return documents.File{}, err
 	}
 	var (
@@ -162,8 +171,8 @@ SELECT d.name, v.id, v.version, v.storage_key, v.content_type, v.size
   FROM placement_documents d
   JOIN LATERAL (SELECT id, version, storage_key, content_type, size FROM placement_document_versions
                  WHERE document_id = d.id AND ($4::int = 0 OR version = $4) ORDER BY version DESC LIMIT 1) v ON true
- WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NULL`,
-		docID, companyID, draftID, version).Scan(&name, &versionID, &number, &key, &contentType, &size)
+ WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NOT DISTINCT FROM $5::uuid`,
+		docID, companyID, target.DraftID, version, target.ParticipationID).Scan(&name, &versionID, &number, &key, &contentType, &size)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return documents.File{}, documents.ErrScopeNotFound
 	}
@@ -184,7 +193,7 @@ SELECT d.name, v.id, v.version, v.storage_key, v.content_type, v.size
 		}
 		return documents.File{}, documents.ErrStorageUnavailable
 	}
-	if err := s.audit.Append(ctx, tx, downloadedEvent(companyID, actorID, draftID, docID, versionID, number)); err != nil {
+	if err := s.audit.Append(ctx, tx, downloadedEvent(companyID, actorID, target, docID, versionID, number)); err != nil {
 		_ = reader.Close()
 		return documents.File{}, fmt.Errorf("co-write document download audit: %w", err)
 	}
@@ -197,35 +206,38 @@ SELECT d.name, v.id, v.version, v.storage_key, v.content_type, v.size
 
 // scopeAfter is the scope object of a write, computed inside the write transaction after the change (contract «Conventions»):
 // the caller managed the write, so can_manage is true; the counts are read now.
-func scopeAfter(ctx context.Context, tx pgx.Tx, companyID, draftID uuid.UUID) (documents.Scope, error) {
-	docs, links, err := scopeCounts(ctx, tx, companyID, draftID)
+func scopeAfter(ctx context.Context, tx pgx.Tx, companyID uuid.UUID, target documents.Target) (documents.Scope, error) {
+	docs, links, err := scopeCounts(ctx, tx, companyID, target)
 	if err != nil {
 		return documents.Scope{}, err
 	}
-	var canLink bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vacancy_replacements WHERE process_id=$1 AND company_id=$2)`, draftID, companyID).Scan(&canLink); err != nil {
-		return documents.Scope{}, fmt.Errorf("read replacement flag: %w", err)
+	canLink, err := scopeCanReceiveLinks(ctx, tx, companyID, target)
+	if err != nil {
+		return documents.Scope{}, err
 	}
-	return documents.BuildScope(documents.ScopeInput{Kind: documents.ScopeVacancy, CanManage: true, CanReceiveLinks: canLink, Documents: docs, Links: links}), nil
+	return documents.BuildScope(documents.ScopeInput{Kind: target.Kind(), CanManage: true, CanReceiveLinks: canLink, Documents: docs, Links: links}), nil
 }
 
 // AuthorizeReplace is the pre-flight of a replace: the manage gate without the draft lock (rolled back at once), then the
-// document, which must be a vacancy document of this draft (otherwise ErrScopeNotFound). It returns the document's current
+// document, which must be a document of this scope (otherwise ErrScopeNotFound). It returns the document's current
 // version so the handler can answer a stale `expected_version` before it streams the body.
-func (s *Store) AuthorizeReplace(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (int, error) {
+func (s *Store) AuthorizeReplace(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target, docID uuid.UUID) (int, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("begin replace pre-flight tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, companyID, actorID, draftID, false); err != nil {
+	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, companyID, actorID, target.DraftID, false); err != nil {
+		return 0, err
+	}
+	if _, err := scopeCanReceiveLinks(ctx, tx, companyID, target); err != nil {
 		return 0, err
 	}
 	var current int
 	err = tx.QueryRow(ctx, `
 SELECT COALESCE((SELECT max(v.version) FROM placement_document_versions v WHERE v.document_id = d.id), 0)
   FROM placement_documents d
- WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NULL`, docID, companyID, draftID).Scan(&current)
+ WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NOT DISTINCT FROM $4::uuid`, docID, companyID, target.DraftID, target.ParticipationID).Scan(&current)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, documents.ErrScopeNotFound
 	}
@@ -247,7 +259,10 @@ func (s *Store) Replace(ctx context.Context, cmd documents.ReplaceCommand) (docu
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, cmd.CompanyID, cmd.ActorID, cmd.DraftID, true); err != nil {
+	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, cmd.CompanyID, cmd.ActorID, cmd.Target.DraftID, true); err != nil {
+		return documents.UploadResponse{}, err
+	}
+	if _, err := scopeCanReceiveLinks(ctx, tx, cmd.CompanyID, cmd.Target); err != nil {
 		return documents.UploadResponse{}, err
 	}
 	var (
@@ -257,8 +272,8 @@ func (s *Store) Replace(ctx context.Context, cmd documents.ReplaceCommand) (docu
 	err = tx.QueryRow(ctx, `
 SELECT d.name, COALESCE((SELECT max(v.version) FROM placement_document_versions v WHERE v.document_id = d.id), 0)
   FROM placement_documents d
- WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NULL`,
-		cmd.DocID, cmd.CompanyID, cmd.DraftID).Scan(&name, &current)
+ WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NOT DISTINCT FROM $4::uuid`,
+		cmd.DocID, cmd.CompanyID, cmd.Target.DraftID, cmd.Target.ParticipationID).Scan(&name, &current)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return documents.UploadResponse{}, documents.ErrScopeNotFound
 	}
@@ -290,19 +305,19 @@ SELECT d.name, COALESCE((SELECT max(v.version) FROM placement_document_versions 
 		}
 	}
 
-	items, err := queryItems(ctx, tx, cmd.CompanyID, cmd.DraftID, &cmd.DocID, true)
+	items, err := queryItems(ctx, tx, cmd.CompanyID, cmd.Target, &cmd.DocID, true)
 	if err != nil {
 		return documents.UploadResponse{}, err
 	}
 	if len(items) != 1 {
 		return documents.UploadResponse{}, errors.New("read back the replaced document")
 	}
-	scope, err := scopeAfter(ctx, tx, cmd.CompanyID, cmd.DraftID)
+	scope, err := scopeAfter(ctx, tx, cmd.CompanyID, cmd.Target)
 	if err != nil {
 		return documents.UploadResponse{}, err
 	}
 	// Fail-closed audit; after closure the event is the same (S4).
-	if err := s.audit.Append(ctx, tx, replacedEvent(cmd.CompanyID, cmd.ActorID, cmd.DraftID, cmd.DocID, versionID, previous, number, cmd.Staged.Format, renamed)); err != nil {
+	if err := s.audit.Append(ctx, tx, replacedEvent(cmd.CompanyID, cmd.ActorID, cmd.Target, cmd.DocID, versionID, previous, number, cmd.Staged.Format, renamed)); err != nil {
 		return documents.UploadResponse{}, fmt.Errorf("co-write document replace audit: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -316,14 +331,17 @@ SELECT d.name, COALESCE((SELECT max(v.version) FROM placement_document_versions 
 // keep their row with NULL sources and become «removed», D19), the scope after the change, DocumentDeleted, commit. The rows go
 // first; documents.Service deletes the files after the commit, so a failure there leaves an invisible orphan and never a row
 // whose file is gone. The audit row carries ids and counts only and outlives the document by construction.
-func (s *Store) Delete(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (documents.DeleteResult, error) {
+func (s *Store) Delete(ctx context.Context, companyID, actorID uuid.UUID, target documents.Target, docID uuid.UUID) (documents.DeleteResult, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return documents.DeleteResult{}, fmt.Errorf("begin delete tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, companyID, actorID, draftID, true); err != nil {
+	if _, err := s.access.AuthorizeDocumentsManage(ctx, tx, companyID, actorID, target.DraftID, true); err != nil {
+		return documents.DeleteResult{}, err
+	}
+	if _, err := scopeCanReceiveLinks(ctx, tx, companyID, target); err != nil {
 		return documents.DeleteResult{}, err
 	}
 	var (
@@ -335,8 +353,8 @@ SELECT COALESCE(array_agg(v.storage_key ORDER BY v.version) FILTER (WHERE v.id I
        (SELECT count(*) FROM placement_document_links l WHERE l.source_document_id = d.id)
   FROM placement_documents d
   LEFT JOIN placement_document_versions v ON v.document_id = d.id
- WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NULL
- GROUP BY d.id`, docID, companyID, draftID).Scan(&keys, &linked)
+ WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NOT DISTINCT FROM $4::uuid
+ GROUP BY d.id`, docID, companyID, target.DraftID, target.ParticipationID).Scan(&keys, &linked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return documents.DeleteResult{}, documents.ErrScopeNotFound
 	}
@@ -350,11 +368,11 @@ SELECT COALESCE(array_agg(v.storage_key ORDER BY v.version) FILTER (WHERE v.id I
 	if tag.RowsAffected() != 1 {
 		return documents.DeleteResult{}, documents.ErrScopeNotFound
 	}
-	scope, err := scopeAfter(ctx, tx, companyID, draftID)
+	scope, err := scopeAfter(ctx, tx, companyID, target)
 	if err != nil {
 		return documents.DeleteResult{}, err
 	}
-	if err := s.audit.Append(ctx, tx, deletedFileEvent(companyID, actorID, draftID, docID, len(keys), linked)); err != nil {
+	if err := s.audit.Append(ctx, tx, deletedFileEvent(companyID, actorID, target, docID, len(keys), linked)); err != nil {
 		return documents.DeleteResult{}, fmt.Errorf("co-write document delete audit: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {

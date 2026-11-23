@@ -629,13 +629,13 @@ func TestDocumentsUpload_AuthorizationMatrix(t *testing.T) {
 	// The store agrees with the route group: a stakeholder who got past it is still forbidden (manage mode).
 	t.Run("the store refuses a stakeholder itself", func(t *testing.T) {
 		store := f.newStore(f.storage)
-		if err := store.AuthorizeUpload(context.Background(), f.company.companyID, stakeholder.userID, uuid.MustParse(draft)); !errors.Is(err, documents.ErrForbidden) {
+		if err := store.AuthorizeUpload(context.Background(), f.company.companyID, stakeholder.userID, documents.VacancyTarget(uuid.MustParse(draft))); !errors.Is(err, documents.ErrForbidden) {
 			t.Fatalf("stakeholder pre-flight: %v", err)
 		}
-		if err := store.AuthorizeUpload(context.Background(), f.company.companyID, former.userID, uuid.MustParse(draft)); !errors.Is(err, documents.ErrTeamAccessEnded) {
+		if err := store.AuthorizeUpload(context.Background(), f.company.companyID, former.userID, documents.VacancyTarget(uuid.MustParse(draft))); !errors.Is(err, documents.ErrTeamAccessEnded) {
 			t.Fatalf("former member pre-flight: %v", err)
 		}
-		if err := store.AuthorizeUpload(context.Background(), f.company.companyID, responsible.userID, uuid.MustParse(draft)); err != nil {
+		if err := store.AuthorizeUpload(context.Background(), f.company.companyID, responsible.userID, documents.VacancyTarget(uuid.MustParse(draft))); err != nil {
 			t.Fatalf("team member pre-flight: %v", err)
 		}
 	})
@@ -657,7 +657,7 @@ func TestDocumentsUpload_RevokedBetweenPreflightAndCommit(t *testing.T) {
 	store := f.newStore(f.storage)
 	svc := documents.NewService(f.storage, store)
 	ctx := context.Background()
-	if err := svc.PreflightUpload(ctx, f.company.companyID, collaborator.userID, uuid.MustParse(draft)); err != nil {
+	if err := svc.PreflightUpload(ctx, f.company.companyID, collaborator.userID, documents.VacancyTarget(uuid.MustParse(draft))); err != nil {
 		t.Fatal(err)
 	}
 	staged, err := svc.Stage(ctx, "a.pdf", bytes.NewReader(bytesPDF(100)))
@@ -669,7 +669,7 @@ func TestDocumentsUpload_RevokedBetweenPreflightAndCommit(t *testing.T) {
 	}
 	teamAccessEndCollaborator(t, f.h, assignment, f.owner.userID) // the owner removes them while the body streamed
 
-	_, err = svc.Upload(ctx, documents.UploadCommand{CompanyID: f.company.companyID, ActorID: collaborator.userID, DraftID: uuid.MustParse(draft), Name: "a", Staged: staged})
+	_, err = svc.Upload(ctx, documents.UploadCommand{CompanyID: f.company.companyID, ActorID: collaborator.userID, Target: documents.VacancyTarget(uuid.MustParse(draft)), Name: "a", Staged: staged})
 	if !errors.Is(err, documents.ErrTeamAccessEnded) {
 		t.Fatalf("err = %v", err)
 	}

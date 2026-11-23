@@ -75,12 +75,13 @@ type List struct {
 
 // Reader is the read side of the documents store.
 type Reader interface {
-	// List returns the vacancy-scope documents of draftID for actor. It needs no process row: a never-published draft
-	// lists too. Errors are the Err* sentinels below.
-	List(ctx context.Context, companyID, actorID, draftID uuid.UUID) (List, error)
-	// Versions returns every version of a vacancy document, newest first (the read gate; ErrScopeNotFound for a document that is
-	// not one of this draft's).
-	Versions(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (VersionList, error)
+	// List returns the documents of the scope of target for actor. A vacancy scope needs no process row: a never-published draft
+	// lists too. A participation scope needs the participation to belong to the draft (ErrScopeNotFound otherwise, at any
+	// stage, discarded included). Errors are the Err* sentinels below.
+	List(ctx context.Context, companyID, actorID uuid.UUID, target Target) (List, error)
+	// Versions returns every version of a document of the scope, newest first (the read gate; ErrScopeNotFound for a document
+	// that is not one of this scope's).
+	Versions(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (VersionList, error)
 }
 
 // Access failures of the store, in the vocabulary of the vacancy authorization (D4, D6). The HTTP layer maps each to the

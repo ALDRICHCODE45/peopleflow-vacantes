@@ -82,7 +82,7 @@ type fakeWriter struct {
 	downloadedVer int
 }
 
-func (f *fakeWriter) AuthorizeReplace(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (int, error) {
+func (f *fakeWriter) AuthorizeReplace(context.Context, uuid.UUID, uuid.UUID, Target, uuid.UUID) (int, error) {
 	f.calls = append(f.calls, "authorize-replace")
 	return f.current, f.authErr
 }
@@ -93,18 +93,18 @@ func (f *fakeWriter) Replace(_ context.Context, cmd ReplaceCommand) (UploadRespo
 	return f.replaceResp, f.err
 }
 
-func (f *fakeWriter) Delete(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (DeleteResult, error) {
+func (f *fakeWriter) Delete(context.Context, uuid.UUID, uuid.UUID, Target, uuid.UUID) (DeleteResult, error) {
 	f.calls = append(f.calls, "delete")
 	return f.deleteResult, f.deleteErr
 }
 
-func (f *fakeWriter) DownloadVersion(_ context.Context, _, _, _, _ uuid.UUID, version int) (File, error) {
+func (f *fakeWriter) DownloadVersion(_ context.Context, _, _ uuid.UUID, _ Target, _ uuid.UUID, version int) (File, error) {
 	f.calls = append(f.calls, "download-version")
 	f.downloadedVer = version
 	return File{}, f.err
 }
 
-func (f *fakeWriter) AuthorizeUpload(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+func (f *fakeWriter) AuthorizeUpload(context.Context, uuid.UUID, uuid.UUID, Target) error {
 	f.calls = append(f.calls, "authorize")
 	return f.authErr
 }
@@ -115,7 +115,7 @@ func (f *fakeWriter) Upload(_ context.Context, cmd UploadCommand) (UploadResult,
 	return f.result, f.err
 }
 
-func (f *fakeWriter) Download(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (File, error) {
+func (f *fakeWriter) Download(context.Context, uuid.UUID, uuid.UUID, Target, uuid.UUID) (File, error) {
 	f.calls = append(f.calls, "download")
 	return File{}, f.err
 }
@@ -219,7 +219,7 @@ func staged(storage *memStorage) Staged {
 // context is gone (WithoutCancel).
 func TestUploadKeepsTheObjectOnlyOnAFreshSuccess(t *testing.T) {
 	cmd := func(s Staged) UploadCommand {
-		return UploadCommand{CompanyID: uuid.New(), ActorID: uuid.New(), DraftID: uuid.New(), Name: "n", Staged: s}
+		return UploadCommand{CompanyID: uuid.New(), ActorID: uuid.New(), Target: VacancyTarget(uuid.New()), Name: "n", Staged: s}
 	}
 	for _, tc := range []struct {
 		name     string
@@ -261,8 +261,7 @@ func TestUploadKeepsTheObjectOnlyOnAFreshSuccess(t *testing.T) {
 }
 
 func TestPreflightAuthorizesBeforeLookingAtTheStorage(t *testing.T) {
-	ids := func() (uuid.UUID, uuid.UUID, uuid.UUID) { return uuid.New(), uuid.New(), uuid.New() }
-	a, b, c := ids()
+	a, b, c := uuid.New(), uuid.New(), VacancyTarget(uuid.New())
 	// Denied caller with storage disabled: the usual gate answers first, never 503.
 	if err := NewService(nil, &fakeWriter{authErr: ErrForbidden}).PreflightUpload(context.Background(), a, b, c); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("denied: %v", err)
@@ -301,7 +300,7 @@ func TestUploadFingerprintIsTheCanonicalRequest(t *testing.T) {
 
 func TestDownloadAndLimitErrorsHaveStableShape(t *testing.T) {
 	w := &fakeWriter{err: ErrNotFound}
-	if _, err := NewService(newMemStorage(), w).Download(context.Background(), uuid.New(), uuid.New(), uuid.New(), uuid.New()); !errors.Is(err, ErrNotFound) {
+	if _, err := NewService(newMemStorage(), w).Download(context.Background(), uuid.New(), uuid.New(), VacancyTarget(uuid.New()), uuid.New()); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("download error must pass through: %v", err)
 	}
 	var e error = &LimitReachedError{Kind: "documents", Limit: 50}

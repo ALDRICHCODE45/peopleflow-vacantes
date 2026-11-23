@@ -13,7 +13,7 @@ import (
 // every key inside the catalog's closed set (Append would refuse the row otherwise).
 func TestUploadedEvent(t *testing.T) {
 	company, actor, draft, doc, version := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	e := uploadedEvent(company, actor, draft, doc, version, documents.XLSX)
+	e := uploadedEvent(company, actor, documents.VacancyTarget(draft), doc, version, documents.XLSX)
 	if err := e.Validate(); err != nil {
 		t.Fatalf("catalog refuses the event: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestUploadedEvent(t *testing.T) {
 
 func TestDownloadedEvent(t *testing.T) {
 	company, actor, draft, doc, version := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	e := downloadedEvent(company, actor, draft, doc, version, 3)
+	e := downloadedEvent(company, actor, documents.VacancyTarget(draft), doc, version, 3)
 	if err := e.Validate(); err != nil {
 		t.Fatalf("catalog refuses the event: %v", err)
 	}
@@ -56,8 +56,8 @@ func TestDownloadedEvent(t *testing.T) {
 
 func TestEventsAreUniquelyIdentified(t *testing.T) {
 	id := uuid.New()
-	a := uploadedEvent(id, id, id, id, id, documents.PDF)
-	b := uploadedEvent(id, id, id, id, id, documents.PDF)
+	a := uploadedEvent(id, id, documents.VacancyTarget(id), id, id, documents.PDF)
+	b := uploadedEvent(id, id, documents.VacancyTarget(id), id, id, documents.PDF)
 	if a.ID == b.ID {
 		t.Fatal("two events must never share an id")
 	}
@@ -68,7 +68,7 @@ func TestEventsAreUniquelyIdentified(t *testing.T) {
 func TestReplacedEvent(t *testing.T) {
 	company, actor, draft, doc, version, previous := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	for _, renamed := range []bool{true, false} {
-		e := replacedEvent(company, actor, draft, doc, version, previous, 3, documents.DOCX, renamed)
+		e := replacedEvent(company, actor, documents.VacancyTarget(draft), doc, version, previous, 3, documents.DOCX, renamed)
 		if err := e.Validate(); err != nil {
 			t.Fatalf("catalog refuses the event: %v", err)
 		}
@@ -90,7 +90,7 @@ func TestReplacedEvent(t *testing.T) {
 // DocumentDeleted for a file: the document id is the entity id; version_count and linked_count are numbers, never names.
 func TestDeletedFileEvent(t *testing.T) {
 	company, actor, draft, doc := uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	e := deletedFileEvent(company, actor, draft, doc, 4, 2)
+	e := deletedFileEvent(company, actor, documents.VacancyTarget(draft), doc, 4, 2)
 	if err := e.Validate(); err != nil {
 		t.Fatalf("catalog refuses the event: %v", err)
 	}
@@ -107,5 +107,51 @@ func TestDeletedFileEvent(t *testing.T) {
 	}
 	if _, has := e.Metadata["link_id"]; has {
 		t.Fatal("link_id belongs to the link delete (P7)")
+	}
+}
+
+// P6: a participation document's events carry scope=participation and the participation id (contract «Audit events»), keep the
+// vacancy of the request as the event's vacancy, and stay inside the catalog's closed key set (Validate refuses anything else).
+func TestParticipationDocumentEventsCarryTheParticipation(t *testing.T) {
+	company, actor, draft, pid, doc, version, previous := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	target := documents.ParticipationTarget(draft, pid)
+	base := map[string]string{
+		"company_id": company.String(), "vacancy_id": draft.String(), "scope": "participation", "participation_id": pid.String(),
+		"document_id": doc.String(),
+	}
+	with := func(extra map[string]string) map[string]string {
+		out := map[string]string{}
+		for k, v := range base {
+			out[k] = v
+		}
+		for k, v := range extra {
+			out[k] = v
+		}
+		return out
+	}
+	for name, tc := range map[string]struct {
+		event audit.AuditEvent
+		eType string
+		want  map[string]string
+	}{
+		"uploaded": {uploadedEvent(company, actor, target, doc, version, documents.PNG), audit.EventDocumentUploaded,
+			with(map[string]string{"version_id": version.String(), "version": "1", "format": "png"})},
+		"downloaded": {downloadedEvent(company, actor, target, doc, version, 2), audit.EventDocumentDownloaded,
+			with(map[string]string{"version_id": version.String(), "version": "2"})},
+		"replaced": {replacedEvent(company, actor, target, doc, version, previous, 2, documents.JPG, true), audit.EventDocumentReplaced,
+			with(map[string]string{"version_id": version.String(), "version": "2", "previous_version_id": previous.String(), "format": "jpg", "renamed": "true"})},
+		"deleted": {deletedFileEvent(company, actor, target, doc, 3, 0), audit.EventDocumentDeleted,
+			with(map[string]string{"kind": "file", "version_count": "3", "linked_count": "0"})},
+	} {
+		if err := tc.event.Validate(); err != nil {
+			t.Fatalf("%s: catalog refuses the event: %v", name, err)
+		}
+		if !reflect.DeepEqual(tc.event.Metadata, tc.want) {
+			t.Fatalf("%s: metadata %v", name, tc.event.Metadata)
+		}
+		if tc.event.EventType != tc.eType || tc.event.EntityType != audit.EntityDocument || tc.event.EntityID != doc ||
+			tc.event.VacancyID == nil || *tc.event.VacancyID != draft || tc.event.CompanyID == nil || *tc.event.CompanyID != company {
+			t.Fatalf("%s: event %+v", name, tc.event)
+		}
 	}
 }

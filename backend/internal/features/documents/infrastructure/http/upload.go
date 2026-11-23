@@ -37,7 +37,8 @@ func idempotencyKey(r *http.Request) (canonical string, ok bool) {
 	return parsed.String(), true
 }
 
-// Upload is POST /v2/me/company/job-drafts/{id}/documents (manage gate: owner or recruiter; the store re-checks).
+// Upload is POST P/documents (manage gate: owner or recruiter; the store re-checks), P = /v2/me/company/job-drafts/{id} or
+// …/{id}/participations/{pid}.
 //
 // Order: Idempotency-Key header → pre-flight authorization (before any byte is stored) → storage enabled → the multipart
 // body is streamed to storage (never into memory) → one short write transaction. Whatever was staged is discarded on every
@@ -48,9 +49,8 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid draft id"))
+	t, ok := target(w, r)
+	if !ok {
 		return
 	}
 	idem, ok := idempotencyKey(r)
@@ -58,7 +58,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidIdempotencyKey))
 		return
 	}
-	if err := h.files.PreflightUpload(r.Context(), cc.CompanyID, cc.UserID, id); err != nil {
+	if err := h.files.PreflightUpload(r.Context(), cc.CompanyID, cc.UserID, t); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -142,7 +142,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		name = documents.DefaultName(filename)
 	}
 
-	cmd := documents.UploadCommand{CompanyID: cc.CompanyID, ActorID: cc.UserID, DraftID: id, IdempotencyKey: idem, Name: name, Staged: *file}
+	cmd := documents.UploadCommand{CompanyID: cc.CompanyID, ActorID: cc.UserID, Target: t, IdempotencyKey: idem, Name: name, Staged: *file}
 	file = nil // from here the service owns the object and discards it on every outcome but a fresh success
 	res, err := h.files.Upload(r.Context(), cmd)
 	if err != nil {
@@ -166,7 +166,7 @@ func multipartError(err error) error {
 	return documents.ErrInvalidRequest
 }
 
-// File is GET /v2/me/company/job-drafts/{id}/documents/{doc}/file: the current version as an attachment (read gate:
+// File is GET P/documents/{doc}/file: the current version as an attachment (read gate:
 // owner, recruiter, stakeholder). The store records DocumentDownloaded and commits before it returns the stream, so the
 // audit row exists before the first byte leaves; nothing is recorded when the document or its file is missing or storage
 // is unavailable (D21). Documents are only ever served as downloads, never inline (D10).
@@ -174,19 +174,18 @@ func (h *Handler) File(w http.ResponseWriter, r *http.Request) {
 	h.serveFile(w, r, 0)
 }
 
-// draftAndDocument parses {id} and {doc}; a malformed one is answered 400 invalid_request like every draft route.
-func draftAndDocument(w http.ResponseWriter, r *http.Request) (draft, doc uuid.UUID, ok bool) {
-	draft, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid draft id"))
-		return uuid.Nil, uuid.Nil, false
+// targetAndDocument parses the scope ({id}, {pid}) and {doc}; a malformed one is answered 400 invalid_request like every draft route.
+func targetAndDocument(w http.ResponseWriter, r *http.Request) (t documents.Target, doc uuid.UUID, ok bool) {
+	t, ok = target(w, r)
+	if !ok {
+		return documents.Target{}, uuid.Nil, false
 	}
-	doc, err = uuid.Parse(chi.URLParam(r, "doc"))
+	doc, err := uuid.Parse(chi.URLParam(r, "doc"))
 	if err != nil {
 		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid document id"))
-		return uuid.Nil, uuid.Nil, false
+		return documents.Target{}, uuid.Nil, false
 	}
-	return draft, doc, true
+	return t, doc, true
 }
 
 // serveFile streams a version of {doc}: the numbered one, or the current one when version is 0. A route that carries a version
@@ -197,7 +196,7 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, version int)
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}
-	id, doc, ok := draftAndDocument(w, r)
+	t, doc, ok := targetAndDocument(w, r)
 	if !ok {
 		return
 	}
@@ -206,9 +205,9 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, version int)
 		err  error
 	)
 	if version == 0 {
-		file, err = h.files.Download(r.Context(), cc.CompanyID, cc.UserID, id, doc)
+		file, err = h.files.Download(r.Context(), cc.CompanyID, cc.UserID, t, doc)
 	} else {
-		file, err = h.files.DownloadVersion(r.Context(), cc.CompanyID, cc.UserID, id, doc, version)
+		file, err = h.files.DownloadVersion(r.Context(), cc.CompanyID, cc.UserID, t, doc, version)
 	}
 	if err != nil {
 		writeError(w, err)

@@ -14,7 +14,7 @@ import (
 // success, authorizes before it looks at storage, and deletes the files of a document only AFTER its rows are gone.
 
 func replaceCmd(s Staged) ReplaceCommand {
-	return ReplaceCommand{CompanyID: uuid.New(), ActorID: uuid.New(), DraftID: uuid.New(), DocID: uuid.New(), ExpectedVersion: 1, Staged: s}
+	return ReplaceCommand{CompanyID: uuid.New(), ActorID: uuid.New(), Target: VacancyTarget(uuid.New()), DocID: uuid.New(), ExpectedVersion: 1, Staged: s}
 }
 
 func TestReplaceKeepsTheObjectOnlyOnSuccess(t *testing.T) {
@@ -58,7 +58,7 @@ func TestReplaceKeepsTheObjectOnlyOnSuccess(t *testing.T) {
 }
 
 func TestPreflightReplaceAuthorizesBeforeLookingAtTheStorage(t *testing.T) {
-	c, a, d, doc := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	c, a, d, doc := uuid.New(), uuid.New(), VacancyTarget(uuid.New()), uuid.New()
 	if _, err := NewService(nil, &fakeWriter{authErr: ErrForbidden}).PreflightReplace(context.Background(), c, a, d, doc); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("denied: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestDeleteRemovesTheFilesOnlyAfterTheRowsAreGone(t *testing.T) {
 	writer := &fakeWriter{deleteResult: DeleteResult{Scope: scope, Keys: []string{first.Key, second.Key}}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // the client left after the commit: the files must still go
-	res, err := NewService(storage, writer).Delete(ctx, uuid.New(), uuid.New(), uuid.New(), uuid.New())
+	res, err := NewService(storage, writer).Delete(ctx, uuid.New(), uuid.New(), VacancyTarget(uuid.New()), uuid.New())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestDeleteLeavesTheFilesWhenTheRowsStay(t *testing.T) {
 		storage := newMemStorage()
 		s := staged(storage)
 		writer := &fakeWriter{deleteErr: err, deleteResult: DeleteResult{Keys: []string{s.Key}}}
-		if _, got := NewService(storage, writer).Delete(context.Background(), uuid.New(), uuid.New(), uuid.New(), uuid.New()); !errors.Is(got, err) {
+		if _, got := NewService(storage, writer).Delete(context.Background(), uuid.New(), uuid.New(), VacancyTarget(uuid.New()), uuid.New()); !errors.Is(got, err) {
 			t.Fatalf("err = %v", got)
 		}
 		if _, ok := storage.objects[s.Key]; !ok || len(storage.deletes) != 0 {
@@ -128,7 +128,7 @@ func TestDeleteSwallowsStorageFailuresAfterTheCommit(t *testing.T) {
 	storage := failingDeleteStorage{memStorage: mem, failFor: map[string]bool{first.Key: true}}
 	scope := BuildScope(ScopeInput{Kind: ScopeVacancy, CanManage: true})
 	writer := &fakeWriter{deleteResult: DeleteResult{Scope: scope, Keys: []string{first.Key, second.Key}}}
-	res, err := NewService(storage, writer).Delete(context.Background(), uuid.New(), uuid.New(), uuid.New(), uuid.New())
+	res, err := NewService(storage, writer).Delete(context.Background(), uuid.New(), uuid.New(), VacancyTarget(uuid.New()), uuid.New())
 	if err != nil || !reflect.DeepEqual(res.Scope, scope) {
 		t.Fatalf("res %+v err %v", res, err)
 	}
@@ -142,7 +142,7 @@ func TestDeleteSwallowsStorageFailuresAfterTheCommit(t *testing.T) {
 func TestDeleteWithStorageDisabledStillDeletesTheRows(t *testing.T) {
 	scope := BuildScope(ScopeInput{Kind: ScopeVacancy, CanManage: true})
 	writer := &fakeWriter{deleteResult: DeleteResult{Scope: scope, Keys: []string{"k"}}}
-	res, err := NewService(nil, writer).Delete(context.Background(), uuid.New(), uuid.New(), uuid.New(), uuid.New())
+	res, err := NewService(nil, writer).Delete(context.Background(), uuid.New(), uuid.New(), VacancyTarget(uuid.New()), uuid.New())
 	if err != nil || !reflect.DeepEqual(res.Scope, scope) || len(writer.calls) != 1 {
 		t.Fatalf("res %+v err %v calls %v", res, err, writer.calls)
 	}
@@ -150,7 +150,7 @@ func TestDeleteWithStorageDisabledStillDeletesTheRows(t *testing.T) {
 
 func TestDownloadVersionDelegatesTheNumber(t *testing.T) {
 	w := &fakeWriter{err: ErrNotFound}
-	if _, err := NewService(newMemStorage(), w).DownloadVersion(context.Background(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), 7); !errors.Is(err, ErrNotFound) || w.downloadedVer != 7 {
+	if _, err := NewService(newMemStorage(), w).DownloadVersion(context.Background(), uuid.New(), uuid.New(), VacancyTarget(uuid.New()), uuid.New(), 7); !errors.Is(err, ErrNotFound) || w.downloadedVer != 7 {
 		t.Fatalf("err %v version %d", err, w.downloadedVer)
 	}
 }

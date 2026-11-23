@@ -1,8 +1,9 @@
 // Package http serves the placement and vacancy documents routes
-// (docs/contracts/placement-vacancy-documents-v1.md, «Endpoints»). P3 serves GET V/documents; P4 adds the upload
-// (POST V/documents) and the current-version download (GET V/documents/{doc}/file); P5 adds replace
-// (POST V/documents/{doc}/versions), the version list, the download by version and delete (versions.go); participation
-// documents and links arrive in later slices.
+// (docs/contracts/placement-vacancy-documents-v1.md, «Endpoints»). P3 serves GET P/documents; P4 adds the upload
+// (POST P/documents) and the current-version download (GET P/documents/{doc}/file); P5 adds replace
+// (POST P/documents/{doc}/versions), the version list, the download by version and delete (versions.go); P6 serves the same
+// handlers under P = V/participations/{pid} (the route table decides the scope: a `pid` URL parameter makes it a
+// participation scope); links arrive in a later slice.
 package http
 
 import (
@@ -28,20 +29,41 @@ func NewHandler(reader documents.Reader, files documents.Files) *Handler {
 	return &Handler{reader: reader, files: files}
 }
 
-// List is GET /v2/me/company/job-drafts/{id}/documents (read gate: owner, recruiter, stakeholder; the store re-checks).
-// It reads only the database, so it never raises document_storage_unavailable (contract «GET P/documents»).
+// target reads the scope of the request from the route: `{id}` and, on the participation routes, `{pid}`. A malformed id is
+// answered 400 invalid_request like every draft route; a well-formed `pid` that is not a participation of the draft is the
+// store's 404 (the only participation rule, D3).
+func target(w http.ResponseWriter, r *http.Request) (documents.Target, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid draft id"))
+		return documents.Target{}, false
+	}
+	raw := chi.URLParam(r, "pid")
+	if raw == "" {
+		return documents.VacancyTarget(id), true
+	}
+	pid, err := uuid.Parse(raw)
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid participation id"))
+		return documents.Target{}, false
+	}
+	return documents.ParticipationTarget(id, pid), true
+}
+
+// List is GET P/documents, P = /v2/me/company/job-drafts/{id} or …/{id}/participations/{pid} (read gate: owner, recruiter,
+// stakeholder; the store re-checks). It reads only the database, so it never raises document_storage_unavailable (contract
+// «GET P/documents»).
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
 	if !ok || h == nil || h.reader == nil {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid draft id"))
+	t, ok := target(w, r)
+	if !ok {
 		return
 	}
-	list, err := h.reader.List(r.Context(), cc.CompanyID, cc.UserID, id)
+	list, err := h.reader.List(r.Context(), cc.CompanyID, cc.UserID, t)
 	if err != nil {
 		writeError(w, err)
 		return

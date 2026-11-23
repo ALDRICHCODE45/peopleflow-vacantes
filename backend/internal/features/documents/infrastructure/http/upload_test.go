@@ -35,6 +35,8 @@ type fakeFiles struct {
 	file         documents.File
 	downloadErr  error
 	downloadIDs  []uuid.UUID
+	// target is the scope of the last call that carried one (P6).
+	target documents.Target
 
 	// replace, delete and download by version (P5)
 	current       int
@@ -47,8 +49,9 @@ type fakeFiles struct {
 	versionNumber int
 }
 
-func (f *fakeFiles) PreflightReplace(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (int, error) {
+func (f *fakeFiles) PreflightReplace(_ context.Context, _, _ uuid.UUID, target documents.Target, _ uuid.UUID) (int, error) {
 	f.calls = append(f.calls, "preflight-replace")
+	f.target = target
 	return f.current, f.preflightErr
 }
 
@@ -58,21 +61,24 @@ func (f *fakeFiles) Replace(_ context.Context, cmd documents.ReplaceCommand) (do
 	return f.replaceResp, f.replaceErr
 }
 
-func (f *fakeFiles) Delete(_ context.Context, _, _, draft, doc uuid.UUID) (documents.ScopeResponse, error) {
+func (f *fakeFiles) Delete(_ context.Context, _, _ uuid.UUID, target documents.Target, doc uuid.UUID) (documents.ScopeResponse, error) {
 	f.calls = append(f.calls, "delete")
-	f.deleteIDs = []uuid.UUID{draft, doc}
+	f.target = target
+	f.deleteIDs = []uuid.UUID{target.DraftID, doc}
 	return f.deleteResp, f.deleteErr
 }
 
-func (f *fakeFiles) DownloadVersion(_ context.Context, _, _, draft, doc uuid.UUID, version int) (documents.File, error) {
+func (f *fakeFiles) DownloadVersion(_ context.Context, _, _ uuid.UUID, target documents.Target, doc uuid.UUID, version int) (documents.File, error) {
 	f.calls = append(f.calls, "download-version")
-	f.downloadIDs = []uuid.UUID{draft, doc}
+	f.target = target
+	f.downloadIDs = []uuid.UUID{target.DraftID, doc}
 	f.versionNumber = version
 	return f.file, f.downloadErr
 }
 
-func (f *fakeFiles) PreflightUpload(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+func (f *fakeFiles) PreflightUpload(_ context.Context, _, _ uuid.UUID, target documents.Target) error {
 	f.calls = append(f.calls, "preflight")
+	f.target = target
 	return f.preflightErr
 }
 
@@ -105,9 +111,10 @@ func (f *fakeFiles) Discard(_ context.Context, key string) {
 	f.discarded = append(f.discarded, key)
 }
 
-func (f *fakeFiles) Download(_ context.Context, _, _, draft, doc uuid.UUID) (documents.File, error) {
+func (f *fakeFiles) Download(_ context.Context, _, _ uuid.UUID, target documents.Target, doc uuid.UUID) (documents.File, error) {
 	f.calls = append(f.calls, "download")
-	f.downloadIDs = []uuid.UUID{draft, doc}
+	f.target = target
+	f.downloadIDs = []uuid.UUID{target.DraftID, doc}
 	return f.file, f.downloadErr
 }
 
@@ -178,7 +185,7 @@ func TestUploadHappyPathStreamsThenWritesWithTheNormalizedName(t *testing.T) {
 		t.Fatalf("order: %s", got)
 	}
 	// The client path is reduced to its base; a known extension is stripped from the given name and spaces collapse.
-	if files.filename != "contrato.pdf" || files.cmd.Name != "Contrato marco" || files.cmd.DraftID != draft ||
+	if files.filename != "contrato.pdf" || files.cmd.Name != "Contrato marco" || files.cmd.Target != documents.VacancyTarget(draft) ||
 		files.cmd.CompanyID != sessionCtx.CompanyID || files.cmd.ActorID != sessionCtx.UserID || files.cmd.IdempotencyKey != "" {
 		t.Fatalf("filename %q cmd %+v", files.filename, files.cmd)
 	}

@@ -39,9 +39,10 @@ type Staged struct {
 	SHA256 string
 }
 
-// UploadCommand is the write of one staged file as a new vacancy document.
+// UploadCommand is the write of one staged file as a new document of the scope of Target.
 type UploadCommand struct {
-	CompanyID, ActorID, DraftID uuid.UUID
+	CompanyID, ActorID uuid.UUID
+	Target             Target
 	// IdempotencyKey is the canonical (lower-case hyphenated) UUID, "" when the client sent none.
 	IdempotencyKey string
 	// Name is the display name: normalized, known extension stripped (D11).
@@ -74,35 +75,35 @@ type File struct {
 // Writer is the write and download side of the documents store.
 type Writer interface {
 	// AuthorizeUpload is the cheap pre-flight an upload runs before it stores a byte: the manage gate without the draft
-	// lock. Errors are the Err* access sentinels.
-	AuthorizeUpload(ctx context.Context, companyID, actorID, draftID uuid.UUID) error
+	// lock, then (participation scope) the rule that the participation belongs to the draft. Errors are the Err* access sentinels.
+	AuthorizeUpload(ctx context.Context, companyID, actorID uuid.UUID, target Target) error
 	// Upload runs the short write transaction (gates, draft lock, re-authorization, idempotency, limits, rows, audit).
 	Upload(ctx context.Context, cmd UploadCommand) (UploadResult, error)
 	// Download opens the current version of docID, records DocumentDownloaded and commits BEFORE it returns the stream.
 	// Nothing is recorded when the document or its file is missing or storage is unavailable.
-	Download(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (File, error)
+	Download(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (File, error)
 	// DownloadVersion is Download for the numbered version (404 when the document has no such version).
-	DownloadVersion(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID, version int) (File, error)
+	DownloadVersion(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID, version int) (File, error)
 	// AuthorizeReplace is the pre-flight of a replace: the manage gate without the draft lock, then the document (ErrScopeNotFound
-	// when it is not a vacancy document of this draft). It returns the document's current version.
-	AuthorizeReplace(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (current int, err error)
+	// when it is not a document of this scope). It returns the document's current version.
+	AuthorizeReplace(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (current int, err error)
 	// Replace runs the short write transaction of a replacement (gates, draft lock, expected_version, version cap, rows, audit).
 	Replace(ctx context.Context, cmd ReplaceCommand) (UploadResponse, error)
 	// Delete removes the document's rows and writes DocumentDeleted in one transaction and reports the keys of its files.
-	Delete(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (DeleteResult, error)
+	Delete(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (DeleteResult, error)
 }
 
 // Files is what the HTTP layer needs: the Service.
 type Files interface {
-	PreflightUpload(ctx context.Context, companyID, actorID, draftID uuid.UUID) error
+	PreflightUpload(ctx context.Context, companyID, actorID uuid.UUID, target Target) error
 	Stage(ctx context.Context, filename string, r io.Reader) (Staged, error)
 	Upload(ctx context.Context, cmd UploadCommand) (UploadResult, error)
 	Discard(ctx context.Context, key string)
-	Download(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (File, error)
-	DownloadVersion(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID, version int) (File, error)
-	PreflightReplace(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (current int, err error)
+	Download(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (File, error)
+	DownloadVersion(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID, version int) (File, error)
+	PreflightReplace(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (current int, err error)
 	Replace(ctx context.Context, cmd ReplaceCommand) (UploadResponse, error)
-	Delete(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (ScopeResponse, error)
+	Delete(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (ScopeResponse, error)
 }
 
 // Service orchestrates files and rows: the storage streams, the writer owns the database. A nil storage is the disabled
@@ -121,8 +122,8 @@ func NewService(storage Storage, writer Writer) *Service {
 
 // PreflightUpload authorizes the caller before a byte is stored, so an unauthorized caller cannot write objects (D23),
 // and only then looks at the storage: a denied caller never learns that the storage is down.
-func (s *Service) PreflightUpload(ctx context.Context, companyID, actorID, draftID uuid.UUID) error {
-	if err := s.writer.AuthorizeUpload(ctx, companyID, actorID, draftID); err != nil {
+func (s *Service) PreflightUpload(ctx context.Context, companyID, actorID uuid.UUID, target Target) error {
+	if err := s.writer.AuthorizeUpload(ctx, companyID, actorID, target); err != nil {
 		return err
 	}
 	if s.storage == nil {
@@ -177,8 +178,8 @@ func (s *Service) Upload(ctx context.Context, cmd UploadCommand) (UploadResult, 
 }
 
 // Download delegates to the store, which records the audited download before it returns the stream.
-func (s *Service) Download(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (File, error) {
-	return s.writer.Download(ctx, companyID, actorID, draftID, docID)
+func (s *Service) Download(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (File, error) {
+	return s.writer.Download(ctx, companyID, actorID, target, docID)
 }
 
 // uploadFingerprint is the canonical request the Idempotency-Key is compared against (D26). The struct field order is

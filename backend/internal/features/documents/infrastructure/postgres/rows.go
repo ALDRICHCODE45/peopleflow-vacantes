@@ -9,16 +9,18 @@ import (
 
 // itemRow is one document with its current (highest) version, before the caller-dependent flags.
 type itemRow struct {
-	id           string
-	name         string
-	createdAt    time.Time
-	createdBy    documents.Person
-	version      int
-	versionCount int
-	contentType  string
-	size         int64
-	uploadedAt   time.Time
-	uploadedBy   documents.Person
+	id string
+	// participationID is nil for a vacancy document.
+	participationID *string
+	name            string
+	createdAt       time.Time
+	createdBy       documents.Person
+	version         int
+	versionCount    int
+	contentType     string
+	size            int64
+	uploadedAt      time.Time
+	uploadedBy      documents.Person
 }
 
 // newItem projects a row onto the contract's item. A stored content type outside the closed `format` enum is an error:
@@ -30,7 +32,7 @@ func newItem(r itemRow, canManage bool) (documents.Item, error) {
 	}
 	return documents.Item{
 		ID:              r.id,
-		ParticipationID: nil, // the vacancy scope; always present on the wire as null
+		ParticipationID: r.participationID, // null for the vacancy scope, always present on the wire
 		Name:            r.name,
 		Format:          format,
 		ContentType:     r.contentType,

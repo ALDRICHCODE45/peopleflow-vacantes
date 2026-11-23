@@ -362,7 +362,7 @@ func TestDocumentsReplace_ConflictUnderTheDraftLock(t *testing.T) {
 	draft := publicationFlowReady(t, f.h, f.owner)
 	doc := docID(f.uploadOK(f.owner.token, draft, "a.pdf", bytesPDF(100)))
 	svc, ctx := f.service(), context.Background()
-	d, docUUID := uuid.MustParse(draft), uuid.MustParse(doc)
+	d, docUUID := documents.VacancyTarget(uuid.MustParse(draft)), uuid.MustParse(doc)
 	for i := 0; i < 2; i++ {
 		if current, err := svc.PreflightReplace(ctx, f.company.companyID, f.owner.userID, d, docUUID); err != nil || current != 1 {
 			t.Fatalf("pre-flight %d: current %d err %v", i, current, err)
@@ -377,7 +377,7 @@ func TestDocumentsReplace_ConflictUnderTheDraftLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := func(s documents.Staged) documents.ReplaceCommand {
-		return documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: f.owner.userID, DraftID: d, DocID: docUUID, ExpectedVersion: 1, Staged: s}
+		return documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: f.owner.userID, Target: d, DocID: docUUID, ExpectedVersion: 1, Staged: s}
 	}
 	if res, err := svc.Replace(ctx, cmd(first)); err != nil || res.Item.Version != 2 {
 		t.Fatalf("first: %+v %v", res, err)
@@ -399,7 +399,7 @@ func TestDocumentsReplaceAndDelete_WaitForTheDraftLock(t *testing.T) {
 	draft := publicationFlowReady(t, f.h, f.owner)
 	doc := docID(f.uploadOK(f.owner.token, draft, "a.pdf", bytesPDF(100)))
 	svc, ctx := f.service(), context.Background()
-	d, docUUID := uuid.MustParse(draft), uuid.MustParse(doc)
+	d, docUUID := documents.VacancyTarget(uuid.MustParse(draft)), uuid.MustParse(doc)
 	staged, err := svc.Stage(ctx, "b.pdf", bytes.NewReader(bytesPDF(200)))
 	if err != nil {
 		t.Fatal(err)
@@ -415,7 +415,7 @@ func TestDocumentsReplaceAndDelete_WaitForTheDraftLock(t *testing.T) {
 	}
 	replaced, deleted := make(chan error, 1), make(chan error, 1)
 	go func() {
-		_, err := svc.Replace(ctx, documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: f.owner.userID, DraftID: d, DocID: docUUID, ExpectedVersion: 1, Staged: staged})
+		_, err := svc.Replace(ctx, documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: f.owner.userID, Target: d, DocID: docUUID, ExpectedVersion: 1, Staged: staged})
 		replaced <- err
 	}()
 	go func() {
@@ -467,7 +467,7 @@ func TestDocumentsReplace_DocumentDeletedWhileStreaming(t *testing.T) {
 	draft := publicationFlowReady(t, f.h, f.owner)
 	doc := docID(f.uploadOK(f.owner.token, draft, "a.pdf", bytesPDF(100)))
 	svc, ctx := f.service(), context.Background()
-	d, docUUID := uuid.MustParse(draft), uuid.MustParse(doc)
+	d, docUUID := documents.VacancyTarget(uuid.MustParse(draft)), uuid.MustParse(doc)
 	if _, err := svc.PreflightReplace(ctx, f.company.companyID, f.owner.userID, d, docUUID); err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +478,7 @@ func TestDocumentsReplace_DocumentDeletedWhileStreaming(t *testing.T) {
 	if got := f.deleteDoc(f.owner.token, draft, doc); got.status != 200 {
 		t.Fatalf("delete: %d %s", got.status, got.body)
 	}
-	_, err = svc.Replace(ctx, documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: f.owner.userID, DraftID: d, DocID: docUUID, ExpectedVersion: 1, Staged: staged})
+	_, err = svc.Replace(ctx, documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: f.owner.userID, Target: d, DocID: docUUID, ExpectedVersion: 1, Staged: staged})
 	if !errors.Is(err, documents.ErrScopeNotFound) {
 		t.Fatalf("err = %v", err)
 	}
@@ -1080,7 +1080,7 @@ func TestDocumentsVersions_AuthorizationMatrix(t *testing.T) {
 	})
 	t.Run("the store refuses a stakeholder itself", func(t *testing.T) {
 		store := f.newStore(f.storage)
-		d, docUUID := uuid.MustParse(draft), uuid.MustParse(doc)
+		d, docUUID := documents.VacancyTarget(uuid.MustParse(draft)), uuid.MustParse(doc)
 		if _, err := store.AuthorizeReplace(context.Background(), f.company.companyID, stakeholder.userID, d, docUUID); !errors.Is(err, documents.ErrForbidden) {
 			t.Fatalf("stakeholder pre-flight: %v", err)
 		}
@@ -1106,7 +1106,7 @@ func TestDocumentsReplace_RevokedBetweenPreflightAndCommit(t *testing.T) {
 	doc := docID(f.uploadOK(f.owner.token, draft, "a.pdf", bytesPDF(100)))
 
 	svc, ctx := f.service(), context.Background()
-	d, docUUID := uuid.MustParse(draft), uuid.MustParse(doc)
+	d, docUUID := documents.VacancyTarget(uuid.MustParse(draft)), uuid.MustParse(doc)
 	if _, err := svc.PreflightReplace(ctx, f.company.companyID, collaborator.userID, d, docUUID); err != nil {
 		t.Fatal(err)
 	}
@@ -1115,7 +1115,7 @@ func TestDocumentsReplace_RevokedBetweenPreflightAndCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	teamAccessEndCollaborator(t, f.h, assignment, f.owner.userID)
-	_, err = svc.Replace(ctx, documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: collaborator.userID, DraftID: d, DocID: docUUID, ExpectedVersion: 1, Staged: staged})
+	_, err = svc.Replace(ctx, documents.ReplaceCommand{CompanyID: f.company.companyID, ActorID: collaborator.userID, Target: d, DocID: docUUID, ExpectedVersion: 1, Staged: staged})
 	if !errors.Is(err, documents.ErrTeamAccessEnded) {
 		t.Fatalf("err = %v", err)
 	}

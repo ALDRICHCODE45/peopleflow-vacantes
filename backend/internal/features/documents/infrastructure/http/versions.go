@@ -35,7 +35,7 @@ func parseVersion(raw string) (int, bool) {
 	return n, true
 }
 
-// Replace is POST /v2/me/company/job-drafts/{id}/documents/{doc}/versions (manage gate: owner or recruiter; the store re-checks):
+// Replace is POST P/documents/{doc}/versions (manage gate: owner or recruiter; the store re-checks):
 // a new version of an existing document (D7).
 //
 // Parts: `file` (required, once), `expected_version` (required, once) and `name` (optional, once). Order: pre-flight
@@ -49,11 +49,11 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}
-	id, doc, ok := draftAndDocument(w, r)
+	t, doc, ok := targetAndDocument(w, r)
 	if !ok {
 		return
 	}
-	current, err := h.files.PreflightReplace(r.Context(), cc.CompanyID, cc.UserID, id, doc)
+	current, err := h.files.PreflightReplace(r.Context(), cc.CompanyID, cc.UserID, t, doc)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -168,7 +168,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := documents.ReplaceCommand{CompanyID: cc.CompanyID, ActorID: cc.UserID, DraftID: id, DocID: doc, ExpectedVersion: expected, Name: name, Staged: *staged}
+	cmd := documents.ReplaceCommand{CompanyID: cc.CompanyID, ActorID: cc.UserID, Target: t, DocID: doc, ExpectedVersion: expected, Name: name, Staged: *staged}
 	staged = nil // from here the service owns the object and discards it on every outcome but a fresh success
 	res, err := h.files.Replace(r.Context(), cmd)
 	if err != nil {
@@ -178,7 +178,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusCreated, res)
 }
 
-// Versions is GET /v2/me/company/job-drafts/{id}/documents/{doc}/versions (read gate): every version, newest first. It reads
+// Versions is GET P/documents/{doc}/versions (read gate): every version, newest first. It reads
 // only the database, so it works with the storage disabled, and it is not audited (no content leaves).
 func (h *Handler) Versions(w http.ResponseWriter, r *http.Request) {
 	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
@@ -186,11 +186,11 @@ func (h *Handler) Versions(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}
-	id, doc, ok := draftAndDocument(w, r)
+	t, doc, ok := targetAndDocument(w, r)
 	if !ok {
 		return
 	}
-	list, err := h.reader.Versions(r.Context(), cc.CompanyID, cc.UserID, id, doc)
+	list, err := h.reader.Versions(r.Context(), cc.CompanyID, cc.UserID, t, doc)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -201,7 +201,7 @@ func (h *Handler) Versions(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, list)
 }
 
-// FileVersion is GET /v2/me/company/job-drafts/{id}/documents/{doc}/versions/{n}/file (read gate): the numbered version as an
+// FileVersion is GET P/documents/{doc}/versions/{n}/file (read gate): the numbered version as an
 // attachment, audited before the first byte exactly like the current version. {n} must be a positive decimal integer (400
 // invalid_request otherwise); a version the document does not have is 404 not_found.
 func (h *Handler) FileVersion(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +217,7 @@ func (h *Handler) FileVersion(w http.ResponseWriter, r *http.Request) {
 	h.serveFile(w, r, n)
 }
 
-// Delete is DELETE /v2/me/company/job-drafts/{id}/documents/{doc} (manage gate): a hard delete of the whole document, audited
+// Delete is DELETE P/documents/{doc} (manage gate): a hard delete of the whole document, audited
 // (D13, D14). Answers 200 {scope}; the freed slot may bring `upload` back. A repeated delete is a plain 404 (no If-Match).
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
@@ -225,11 +225,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}
-	id, doc, ok := draftAndDocument(w, r)
+	t, doc, ok := targetAndDocument(w, r)
 	if !ok {
 		return
 	}
-	res, err := h.files.Delete(r.Context(), cc.CompanyID, cc.UserID, id, doc)
+	res, err := h.files.Delete(r.Context(), cc.CompanyID, cc.UserID, t, doc)
 	if err != nil {
 		writeError(w, err)
 		return

@@ -53,7 +53,7 @@ func TestReplaceHappyPathPassesTheCommandAndAnswersItemAndScope(t *testing.T) {
 		t.Fatalf("calls %v", files.calls)
 	}
 	got := files.replaceCmd
-	if got.CompanyID != sessionCtx.CompanyID || got.ActorID != sessionCtx.UserID || got.DraftID != draft || got.DocID != doc || got.ExpectedVersion != 2 {
+	if got.CompanyID != sessionCtx.CompanyID || got.ActorID != sessionCtx.UserID || got.Target != documents.VacancyTarget(draft) || got.DocID != doc || got.ExpectedVersion != 2 {
 		t.Fatalf("command %+v", got)
 	}
 	if got.Name == nil || *got.Name != "Contrato v2" || got.Staged.Size != int64(len("PK data")) {

@@ -55,9 +55,11 @@ type VersionList struct {
 	Versions   []VersionItem `json:"versions"`
 }
 
-// ReplaceCommand is the write of one staged file as version n+1 of an existing vacancy document.
+// ReplaceCommand is the write of one staged file as version n+1 of an existing document of the scope of Target.
 type ReplaceCommand struct {
-	CompanyID, ActorID, DraftID, DocID uuid.UUID
+	CompanyID, ActorID uuid.UUID
+	Target             Target
+	DocID              uuid.UUID
 	// ExpectedVersion is the `version` the client saw; the write only lands when it is still the current one.
 	ExpectedVersion int
 	// Name renames the document when it is set (normalized, known extension stripped, D11); nil keeps the name.
@@ -80,8 +82,8 @@ type DeleteResult struct {
 // PreflightReplace is the cheap check a replace runs before it stores a byte (D23): the manage gate, then the document
 // (404 when it is not one of this scope), then the storage. It returns the document's current version so the handler can
 // answer a stale `expected_version` before it streams the body. A denied caller never learns that the storage is down.
-func (s *Service) PreflightReplace(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (int, error) {
-	current, err := s.writer.AuthorizeReplace(ctx, companyID, actorID, draftID, docID)
+func (s *Service) PreflightReplace(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (int, error) {
+	current, err := s.writer.AuthorizeReplace(ctx, companyID, actorID, target, docID)
 	if err != nil {
 		return 0, err
 	}
@@ -105,8 +107,8 @@ func (s *Service) Replace(ctx context.Context, cmd ReplaceCommand) (UploadRespon
 // Delete removes the document's rows in one transaction (the store) and only then its files, best effort and on a context
 // that outlives the request (D13). A file that could not be deleted is an orphan that Reconcile removes after OrphanGrace; the
 // answer is still the scope, because the delete itself is final. With the storage disabled there is nothing to remove.
-func (s *Service) Delete(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (ScopeResponse, error) {
-	res, err := s.writer.Delete(ctx, companyID, actorID, draftID, docID)
+func (s *Service) Delete(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (ScopeResponse, error) {
+	res, err := s.writer.Delete(ctx, companyID, actorID, target, docID)
 	if err != nil {
 		return ScopeResponse{}, err
 	}
@@ -122,6 +124,6 @@ func (s *Service) Delete(ctx context.Context, companyID, actorID, draftID, docID
 
 // DownloadVersion delegates to the store, which records the audited download of that numbered version before it returns the
 // stream.
-func (s *Service) DownloadVersion(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID, version int) (File, error) {
-	return s.writer.DownloadVersion(ctx, companyID, actorID, draftID, docID, version)
+func (s *Service) DownloadVersion(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID, version int) (File, error) {
+	return s.writer.DownloadVersion(ctx, companyID, actorID, target, docID, version)
 }
