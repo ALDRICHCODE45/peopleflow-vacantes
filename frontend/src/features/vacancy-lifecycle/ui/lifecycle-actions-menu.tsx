@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Replace, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { BLOCKER_COPY } from "@/features/vacancy-replacement/model";
 import { getLifecycleAction } from "../actions";
+import { isReplacementAware } from "../replacement-state";
 import type { CloseCoverage, Lifecycle } from "../model";
 import { LifecycleActionDialog, LIFECYCLE_ACTION_UI, type LifecycleSnapshot, type TransitionAction } from "./lifecycle-action-dialog";
 
@@ -14,6 +16,8 @@ import { LifecycleActionDialog, LIFECYCLE_ACTION_UI, type LifecycleSnapshot, typ
  * No local role/transition table: every opening gets the current actor's allowed_actions.
  * `onStartReplacement` (replacement-processes S2) opens the start-replacement flow for this draft; «Iniciar reemplazo» shows only
  * with it and only when the fresh lifecycle says `can_start_replacement` (the backend already drops `reopen` when closed covered).
+ * A finished, replacement-aware process that cannot start shows the item disabled with the backend's blocker as its reason,
+ * so the menu of a finished original is never empty and says why (T3/S3).
  */
 export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPublish, onStartReplacement, coverage }: {
   coverage?: CloseCoverage; draftId: string; title: string; onChanged: (view: Lifecycle) => void; children?: ReactNode; onPublish?: () => void; onStartReplacement?: () => void;
@@ -23,6 +27,7 @@ export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPu
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const generation = useRef(0);
+  const blockerId = useId();
   useEffect(() => () => { generation.current++; }, [draftId]);
   async function load() {
     const current = ++generation.current;
@@ -39,6 +44,8 @@ export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPu
       if (current === generation.current) setMessage("No pudimos consultar el estado. Vuelve a abrir Acciones para reintentar.");
     } finally { if (current === generation.current) setPending(false); }
   }
+  const fresh = snapshot?.data;
+  const blocked = onStartReplacement && fresh && fresh.process === "finished" && isReplacementAware(fresh) && !fresh.can_start_replacement ? { blocker: fresh.start_replacement_blocker ?? null } : null;
   return <>
     <DropdownMenu onOpenChange={open => { if (open) void load(); }}>
       <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-10 gap-1.5 px-3.5" aria-label={`Acciones de ${title}`} />}>Acciones<ChevronDown aria-hidden="true" data-icon="inline-end" /></DropdownMenuTrigger>
@@ -52,7 +59,9 @@ export function LifecycleActionsMenu({ draftId, title, onChanged, children, onPu
             return <DropdownMenuItem key={action} onClick={() => setSelected(action)}><ui.icon aria-hidden="true" />{ui.label}</DropdownMenuItem>;
           })}
           {onStartReplacement && snapshot?.data.can_start_replacement && <DropdownMenuItem onClick={() => onStartReplacement()}><Replace aria-hidden="true" />Iniciar reemplazo</DropdownMenuItem>}
+          {blocked && <DropdownMenuItem disabled aria-describedby={blockerId}><Replace aria-hidden="true" />Iniciar reemplazo</DropdownMenuItem>}
         </DropdownMenuGroup>
+        {blocked && <p id={blockerId} className="px-2 pb-1.5 text-xs text-muted-foreground">{blocked.blocker ? BLOCKER_COPY[blocked.blocker] : "No se puede iniciar un reemplazo para esta vacante por ahora."}</p>}
       </DropdownMenuContent>
     </DropdownMenu>
     {message && <ActionStatus id={`lifecycle-menu-${draftId}`} tone="error" text={message} />}

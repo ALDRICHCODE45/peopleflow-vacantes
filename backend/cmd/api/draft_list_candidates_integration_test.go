@@ -56,7 +56,7 @@ func draftListCandidateItem(t *testing.T, h *draftFlowHarness, actor draftFlowAc
 	for _, raw := range draftFlowObject(t, response.body)["items"].([]any) {
 		item := raw.(map[string]any)
 		if item["id"] == id {
-			if len(item) != 23 {
+			if len(item) != 24 {
 				t.Fatalf("item keys: %v", item)
 			}
 			return item

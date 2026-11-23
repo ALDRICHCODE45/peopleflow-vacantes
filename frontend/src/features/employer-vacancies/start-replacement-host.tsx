@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context";
 import { StartReplacementDialog } from "@/features/vacancy-replacement/start-replacement-dialog";
 import { vacancyPipelineHref } from "./model";
 import type { ReplacementSource } from "./replacement-source";
@@ -12,7 +13,9 @@ import type { ReplacementSource } from "./replacement-source";
  */
 export function StartReplacementHost({ draftId, title, creditId, source, onClose }: { draftId: string; title?: string; creditId?: string; source: ReplacementSource; onClose: () => void }) {
   const router = useRouter();
-  return <StartReplacementDialog draftId={draftId} title={title} open preselectedCreditId={creditId} stages={source.stages} unavailableHires={source.unavailableHires}
+  const membership = useCompanyMembershipState()?.state;
+  const companyName = membership?.kind === "exists" ? membership.company.name : undefined;
+  return <StartReplacementDialog draftId={draftId} title={title} companyName={companyName} open preselectedCreditId={creditId} stages={source.stages} unavailableHires={source.unavailableHires}
     onOpenChange={open => { if (!open) onClose(); }}
     onStarted={newDraftId => { router.push(vacancyPipelineHref(newDraftId)); router.refresh(); }} />;
 }

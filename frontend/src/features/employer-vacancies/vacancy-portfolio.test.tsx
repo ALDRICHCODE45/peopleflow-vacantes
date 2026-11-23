@@ -242,3 +242,24 @@ describe("VacancyPortfolio interaction and source contract", () => {
     expect(source).toContain("export function VacancyPortfolio()");
   });
 });
+
+describe("closed-as-filled label (S8)", () => {
+  const filled = (coverage?: DraftListRow["coverage"]) => ({ ...base, id: "closed-filled", title: "Contador(a) Senior", status: "closed" as const, process: "finished" as const, close_reason: "filled" as const, closed_at: "2026-03-11T15:00:00Z", process_finished_at: "2026-03-12T15:00:00Z", ...(coverage === undefined ? {} : { coverage }) });
+  it.each([
+    [{ covered: 0, required: 1 }, "Cerrada · Cubierta al cierre"],
+    [{ covered: 1, required: 1 }, "Cerrada · Cubierta"],
+    [{ covered: 1, required: null }, "Cerrada · Cubierta"],
+    [null, "Cerrada · Cubierta"],
+    [undefined, "Cerrada · Cubierta"],
+  ] as const)("coverage %j reads «%s»", (coverage, label) => {
+    vi.mocked(usePortfolioDrafts).mockReturnValue(snapshot([filled(coverage ?? (coverage === null ? null : undefined))]));
+    renderPortfolio();
+    expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    if (label === "Cerrada · Cubierta") expect(screen.queryByText("Cerrada · Cubierta al cierre")).not.toBeInTheDocument();
+  });
+  it("keeps «Cancelada» when coverage fell", () => {
+    vi.mocked(usePortfolioDrafts).mockReturnValue(snapshot([{ ...filled({ covered: 0, required: 2 }), close_reason: "cancelled" }]));
+    renderPortfolio();
+    expect(screen.getAllByText("Cerrada · Cancelada").length).toBeGreaterThan(0);
+  });
+});

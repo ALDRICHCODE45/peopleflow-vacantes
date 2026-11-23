@@ -674,6 +674,10 @@ For an original `kind = original`, `sequence`/`replacement_of` null, `root_proce
 cursor, ordering (`updated_at DESC, id DESC`) and the `status` field (`COALESCE(p.status,'draft')`) do not change, so a
 private replacement lists with `status: "published"` and the badge comes from `kind`/`visibility`.
 
+Every item also carries `coverage: { "covered": int ≥ 0, "required": int ≥ 1 | null } | null` (list-row coverage, `backend/docs/draft-list.md`
+«Live coverage»): the board's live `coverage` for that process, so a closed original whose hire departed (S7) lists `covered < required`;
+`null` for a draft without a process.
+
 **New filter `root_process_id`** (point 10), so the frontend can group an original and its replacements:
 `GET /v2/me/company/job-drafts?root_process_id=<uuid>` returns, within the caller's usual visibility scope (owner: all; otherwise active
 tramo), the drafts whose `root_process_id` equals the value (the original, whose `root_process_id` is its own `id`, plus every

@@ -14,6 +14,13 @@ export const closeBodySchema = z.object({
   : body.reason_note === null, { path: ["reason_note"], message: "Escribe un motivo de hasta 200 caracteres." });
 export type CloseBody = z.infer<typeof closeBodySchema>;
 export const closeReasonLabel = (reason: CloseReason | null) => reason === null ? "Sin motivo registrado" : ({ filled: "Cubierta", cancelled: "Cancelada", other: "Otro" })[reason];
+/**
+ * S8: the close RESULT as shown to employers once the vacancy is closed. A «filled» close whose live coverage fell below the
+ * required places (a departure after closing, REP-7) reads «Cubierta al cierre»; with no coverage, no target or a met target it
+ * stays «Cubierta». The close dialog's options keep using `closeReasonLabel`.
+ */
+export const closeResultLabel = (reason: CloseReason | null, coverage?: Pick<CloseCoverage, "covered" | "required">) =>
+  reason === "filled" && coverage && coverage.required !== null && coverage.covered < coverage.required ? "Cubierta al cierre" : closeReasonLabel(reason);
 export const closeCoverageMessage = (coverage: CloseCoverage) => coverage.required === null
   ? "Esta vacante no tiene un objetivo de posiciones."
   : coverage.required === 1

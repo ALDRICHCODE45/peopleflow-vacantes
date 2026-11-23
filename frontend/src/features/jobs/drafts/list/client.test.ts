@@ -126,3 +126,21 @@ it("accepts the optional replacement keys on a row and still accepts rows withou
  response({ items: [{ ...row, ...keys }, row], next_cursor: null });
  expect(await listDrafts({ token: "x" })).toEqual({ ok: true, data: { items: [{ ...row, ...keys }, row], next_cursor: null } });
 });
+it.each([
+ [{ ...row }, "absent (older backend)"],
+ [{ ...row, coverage: null }, "null on a draft"],
+ [{ ...row, candidates, status: "closed", process: "finished", close_reason: "filled", coverage: { covered: 0, required: 1 } }, "live coverage"],
+ [{ ...row, candidates, status: "published", process: "active", coverage: { covered: 2, required: null } }, "no required places"],
+])("accepts the row coverage %#: %s", async (item, _label) => {
+ void _label;
+ const { listDrafts } = await import("./client");
+ response({ items: [item], next_cursor: null });
+ const result = await listDrafts({ token: "x" });
+ expect(result).toMatchObject({ ok: true });
+ if (result.ok) expect(result.data.items[0].coverage).toEqual((item as { coverage?: unknown }).coverage);
+});
+it.each([{ covered: -1, required: 1 }, { covered: 1, required: 0 }, { covered: 1 }, { covered: 1, required: 1, extra: 1 }])("rejects a malformed row coverage %j", async coverage => {
+ const { listDrafts } = await import("./client");
+ response({ items: [{ ...row, coverage }], next_cursor: null });
+ expect(await listDrafts({ token: "x" })).toMatchObject({ ok: false });
+});

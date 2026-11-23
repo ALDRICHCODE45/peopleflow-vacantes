@@ -19,9 +19,9 @@ describe("candidate profile wire boundary", () => {
     expect(profileReadSchema.safeParse(missing).success).toBe(false);
     expect(profileReadSchema.safeParse({ ...wireProfile, location: { country: location.country } }).success).toBe(false);
   });
-  it("reads a profile with or without a leftover birth_date, and never writes one", () => {
+  it("reads a profile without birth_date, rejects one that carries it, and never writes one", () => {
     expect(profileReadSchema.safeParse(wireProfile).success).toBe(true);
-    for (const birth_date of ["1994-06-18", null]) expect(profileReadSchema.safeParse({ ...wireProfile, birth_date }).success).toBe(true);
+    for (const birth_date of ["1994-06-18", null]) expect(profileReadSchema.safeParse({ ...wireProfile, birth_date }).success).toBe(false);
     expect(profileWriteSchema.safeParse({ birth_date: "1994-06-18" }).success).toBe(false);
   });
   it("rejects legacy and unknown response fields", () => {

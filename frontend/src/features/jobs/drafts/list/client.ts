@@ -48,6 +48,8 @@ const rowSchema = z.object({
   replacement_of: uuid.nullable().optional(),
   root_process_id: uuid.optional(),
   visibility: z.enum(["public", "private"]).nullable().optional(),
+  // Live coverage, same rule as the board's `coverage` (`null` on a draft); optional until the backend that emits it is deployed.
+  coverage: z.object({ covered: z.number().int().nonnegative(), required: z.number().int().positive().nullable() }).strict().nullable().optional(),
 }).strict().refine(row => row.status === "draft" ? row.process === null :
   row.process === "active" || (row.status === "closed" && row.process === "finished"))
   .refine(row => (row.status === "draft") === (row.candidates === null));
