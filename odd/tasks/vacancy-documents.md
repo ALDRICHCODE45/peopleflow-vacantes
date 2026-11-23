@@ -32,6 +32,8 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   documents only.
 - **S11** User: «Pestaña Documentos de solo lectura» → the stakeholder enters the vacancy and sees only the Documentos
   tab (no Pipeline, no Configuración), with download as the only action.
+- **S12** User: stakeholder entry point «Lista de vacantes propia» → a read-only «Vacantes» list in the stakeholder menu
+  leads to the vacancy's Documentos tab (needs a new backend stakeholder vacancy list).
 
 ## Tasks
 
@@ -69,3 +71,19 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   `03-expediente-tabla-unica.html`; 01 and 02 are alternatives. Then: «Usar el rojo más oscuro (Recomendado)» and
   «Pestaña Documentos de solo lectura». Backend asked for an aggregate documents GET (all scopes, owner per item,
   participations that accept uploads, optional `participation_id` filter).
+- **L4** (2026-11-22) Design iteration (T2b, S8–S11), `design/vacancy-documents/`. Changed `03-expediente-tabla-unica.html`
+  (the chosen direction): a searchable «Candidato» selector listing the vacancy's participations (stage, document count,
+  «Descartado» on the discarded ones) combined with Todos · Vacante · Candidatos, a «Quitar filtro» chip, the empty result
+  of a person without documents, the 390 sheet version, the planned `GET …/document-overview` shape (`items`/`links` with
+  `owner`, `participations[]` with `stage`, `discarded`, `scope_allowed_actions`, `upload_blocked_reason`, `truncated`)
+  the header fed by the new `vacancy` block of that read, and the Stakeholder read-only state (only the Documentos tab, «Descargar» as the only action); states 2–4 are new, 14 in
+  total. New `04-pestanas-y-pipeline-con-aire.html` (S9): tabs Pipeline · Documentos · Configuración, identity row above
+  them, one toolbar in the pipeline (Filtros left; Agregar candidato and Acciones right; coverage and delivery as one
+  progress line), a «Hoy» sketch of the current header and the list of what moved where; `design.json` has 04 appended and
+  03's tradeoff updated. 03 stays the chosen artboard; 01 and 02 are alternatives. Open: the vacancy-scope fields and the
+  action names of `document-overview` are illustrative until the backend contract exists; whether `participation_id`
+  returns the full list of a person when `truncated`; whether the title leaves the shared `SiteHeader` for the identity
+  row.
+- **L5** Backend: `document-overview` adds `vacancy: {id, title, publication, process, kind, visibility}` (stakeholder has no
+  other vacancy read; GET draft/lifecycle/publication are recruiter-only); truncation keeps the most recent. User on the
+  stakeholder entry point: «Lista de vacantes propia»; backend asked for a stakeholder vacancy list.

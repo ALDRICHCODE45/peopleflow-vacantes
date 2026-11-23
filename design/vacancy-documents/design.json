@@ -20,7 +20,14 @@
     {
       "file": "03-expediente-tabla-unica.html",
       "title": "03 · Expediente en una tabla · S1–S6",
-      "tradeoff": "Una sola tabla responde «¿qué tenemos de esta vacante?» y sirve para auditar y para el Stakeholder; a cambio subir exige elegir el destino y el contrato solo lista por ámbito, así que juntar todo pide una lectura por candidato o un endpoint de agregado que no existe.",
+      "tradeoff": "Una sola tabla responde «¿qué tenemos de esta vacante?» y el selector «Candidato» acota a una persona (con su etapa, si fue descartada y cuántos documentos tiene); sirve para auditar y para el Stakeholder, que solo ve la pestaña Documentos con «Descargar». A cambio, subir exige elegir el destino (se preselecciona la persona filtrada) y todo depende de la lectura agregada document-overview, que aún no existe y puede venir truncada: entonces hay que filtrar por persona para ver el resto.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "04-pestanas-y-pipeline-con-aire.html",
+      "title": "04 · Pestañas y pipeline con aire · S9",
+      "tradeoff": "Libera la parte alta del pipeline y deja un solo lugar para cada cosa (identidad, secciones, tablero) con la misma navegación en las tres pestañas; a cambio, cobertura y entrega pierden el tamaño de medidor y se leen en una línea, la configuración queda a un clic de una pestaña en vez de un icono y el título sale de la barra superior, lo que toca el encabezado compartido (SiteHeader).",
       "width": 1440,
       "height": 1100
     }

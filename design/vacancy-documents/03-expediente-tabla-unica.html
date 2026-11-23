@@ -132,7 +132,7 @@ html[data-theme=dark] .seg [aria-pressed=true]{background:color-mix(in srgb,var(
 .vtabs a[aria-current]{color:var(--foreground);box-shadow:inset 0 -2px 0 var(--primary)}
 .tbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.tbar .grow{flex:1}
 .sum{font-size:14px;line-height:20px;color:var(--muted-foreground)}.sum b{color:var(--foreground);font-variant-numeric:tabular-nums}
-.search{position:relative;width:260px}.search .i{position:absolute;left:14px;top:14px;color:var(--muted-foreground)}.search .inp{padding-left:40px;min-height:44px}
+.search{position:relative;width:220px}.search .i{position:absolute;left:14px;top:14px;color:var(--muted-foreground)}.search .inp{padding-left:40px;min-height:44px}
 .fseg>*{min-height:36px}
 .tcard{padding:8px 12px}
 table.dt{width:100%;border-collapse:collapse;table-layout:fixed}
@@ -170,13 +170,54 @@ table.dt{width:100%;border-collapse:collapse;table-layout:fixed}
 .scrim.top{z-index:45}.dlg{z-index:50}
 .sel-dest{display:inline-flex;align-items:center;gap:6px;min-height:40px;margin-top:6px;padding:0 12px;border:0;border-radius:18px;background:color-mix(in srgb,var(--input) 55%,transparent);font-weight:500}
 .sk{display:block;border-radius:18px;background:var(--muted);animation:pulse 1.6s ease-in-out infinite}@keyframes pulse{50%{opacity:.5}}
+/* ---------- S8: filter by one candidate ---------- */
+.cb{display:block}
+.cbt{display:inline-flex;align-items:center;gap:8px;width:300px;min-height:44px;padding:0 12px 0 14px;border:0;border-radius:18px;background:color-mix(in srgb,var(--input) 55%,transparent);font-weight:500;cursor:pointer;text-align:left}
+.cbt .cbl{flex:none;font-size:12px;font-weight:600;color:var(--muted-foreground)}
+.cbt .cbv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cbt .i{color:var(--muted-foreground)}
+.cbt.has{background:color-mix(in oklab,var(--primary) 7%,var(--card));box-shadow:inset 0 0 0 2px var(--primary)}
+.cbt[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.cbx{position:absolute;z-index:20;top:50px;left:0;width:400px;max-height:540px;display:flex;flex-direction:column;gap:8px;padding:8px;background:var(--popover);border-radius:22px;box-shadow:0 10px 24px -8px rgb(0 0 0/.25),0 0 0 1px color-mix(in srgb,var(--foreground) 6%,transparent)}
+.cbh{display:none;align-items:center;justify-content:space-between;padding:8px 4px 0 8px;font-weight:600}
+.cbs{position:relative;flex:none}.cbs .i{position:absolute;left:14px;top:14px;color:var(--muted-foreground)}
+.cbi{width:100%;min-height:44px;padding:0 14px 0 40px;border:0;border-radius:18px;background:color-mix(in srgb,var(--input) 55%,transparent);color:var(--foreground)}
+.cbo{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:52px;padding:8px 10px;border-radius:14px;cursor:pointer}
+.cbo:hover{background:var(--muted)}
+.cbo[aria-selected=true]{background:color-mix(in oklab,var(--primary) 7%,var(--card))}
+.cbo.act{box-shadow:inset 0 0 0 2px var(--primary-text)}
+.cbo b{display:block;font-weight:500;overflow-wrap:anywhere}.cbo small{display:block;font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.cbo .cbr{display:flex;gap:6px;align-items:center}.cbo .ck{color:var(--primary-text)}
+.cbo .tile{width:32px;height:32px;border-radius:50%}.cbo .tile .i{width:16px;height:16px}
+.cbl2{display:grid;gap:2px;overflow:auto;min-height:0}
+mark{background:color-mix(in oklab,var(--primary) 16%,var(--card));color:inherit;border-radius:4px;padding:0 1px}
+.cbe{padding:12px;color:var(--muted-foreground)}.cbe button{border:0;background:none;padding:0;color:var(--primary-text);font-weight:500;text-decoration:underline;cursor:pointer;min-height:40px}
+.cbf{flex:none;padding:0 10px 2px}
+.cscrim{display:none}
+.fchip{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.chp{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 4px 0 8px;border-radius:999px;background:color-mix(in oklab,var(--primary) 6%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--primary) 25%,var(--border))}
+.chp .av{width:32px;height:32px}.chp>.chn{min-width:0;overflow-wrap:anywhere}.chp .btn{min-height:40px;padding:0 12px 0 10px;border-radius:999px;color:var(--foreground)}
+.nofown .w2,.nofown .c-own{display:none}.nofown .w1{width:50%}.nofown .w3,.nofown .w4{width:20%}
+.empty .gl{margin-top:8px;justify-content:center}
+.own .badge{margin-top:2px}
+.dt .vcell .badge{height:auto;min-height:20px;padding-block:2px;line-height:16px;white-space:normal}
+code{font:inherit;font-weight:600}
+.shape{max-width:1000px;margin:0 0 16px}.shape summary{display:flex;align-items:center;min-height:40px;font-weight:500;color:var(--primary-text);cursor:pointer}
+.shape pre{margin:6px 0 0;padding:16px;border-radius:14px;background:var(--card);box-shadow:inset 0 0 0 1px var(--border);overflow:auto;font:inherit;font-size:12px;line-height:18px;tab-size:2;white-space:pre}
+.shape p{margin-top:8px}
 @container (max-width:760px){
   .side{display:none}.mbar{display:flex}
   .inset{margin:0;border-radius:0;box-shadow:none}
   .page{padding:16px 16px 24px;gap:16px}
   .tbar{display:grid}.search{width:100%}.tbar .btn.lg{width:100%}.fseg{display:grid;grid-template-columns:repeat(3,1fr)}
-  .fseg>*{padding:0 6px}
+  .fseg>*{padding:0 6px;min-height:40px}.vb{min-height:40px}
   .tcard{padding:4px 12px}
+  .cbt{width:100%}.cb{width:100%}
+  .cscrim{display:block;position:absolute;inset:0;z-index:30;background:rgb(0 0 0/.3);backdrop-filter:blur(4px)}
+  .cbx{position:fixed;z-index:40;left:0;right:0;top:auto;bottom:0;width:auto;max-height:80%;padding:4px 12px 16px;border-radius:24px 24px 0 0}
+  .cbh{display:flex}.cbo{min-height:56px}
+  .fchip{display:grid}.chp{display:flex;width:100%;justify-content:space-between}
+  .empty .gl{display:grid;width:100%}
   .dt thead{display:none}.dt,.dt tbody{display:block}
   .dt tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;padding:12px 0;border-top:1px solid var(--border)}.dt tbody tr:first-child{border-top:0}
   .dt td{display:block;padding:0;border:0;background:none!important;box-shadow:none!important}
@@ -191,7 +232,7 @@ table.dt{width:100%;border-collapse:collapse;table-layout:fixed}
   .menu{position:fixed;left:12px;right:12px;bottom:12px;top:auto}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
-</style></style>
+</style>
 </head>
 <body>
 <svg hidden aria-hidden="true" width="0" height="0"><defs>
@@ -224,13 +265,35 @@ table.dt{width:100%;border-collapse:collapse;table-layout:fixed}
 </defs></svg>
 <main class="ab">
 <header class="ab-top">
-  <div><p class="eyebrow">Dirección 3 · Expediente de la vacante</p><h1 class="h1">Una tabla con todo, filtrable por ámbito</h1>
-  <p>Una pestaña «Documentos» junto a Pipeline y Configuración que reúne en una sola tabla los documentos de la vacante y los de cada persona candidata (también descartadas), con la columna «Pertenece a», filtro Todos · Vacante · Candidatos y el historial de versiones en un panel lateral. Subir pregunta primero el destino.</p></div>
-  <div class="tradeoff"><b>Tradeoff</b>Una sola tabla responde «¿qué tenemos de esta vacante?» de un vistazo, ordenada por fecha y filtrable, y es lo más cómodo para revisar y para el Stakeholder. A cambio, subir exige elegir el destino en un paso más, y el contrato solo lista por ámbito (la vacante o una participación): reunir todo pide una lectura por candidato o un endpoint de agregado que hoy no existe, y los conteos por persona no se conocen sin cargarla.</div>
+  <div><p class="eyebrow">Dirección 3 · Expediente de la vacante</p><h1 class="h1">Una tabla con todo, filtrable por ámbito y por persona</h1>
+  <p>Una pestaña «Documentos» junto a Pipeline y Configuración que reúne en una sola tabla los documentos de la vacante y los de cada persona candidata (también descartadas), con la columna «Pertenece a», el filtro Todos · Vacante · Candidatos, un selector «Candidato» para ver los documentos de una sola persona (también descartadas) y el historial de versiones en un panel lateral. Subir pregunta primero el destino.</p></div>
+  <div class="tradeoff"><b>Tradeoff</b>Una sola tabla responde «¿qué tenemos de esta vacante?» de un vistazo y el selector «Candidato» acota a una persona (con su etapa, si fue descartada y cuántos documentos tiene); es lo más cómodo para revisar y para el Stakeholder, que solo ve la pestaña Documentos. A cambio, subir exige elegir el destino (se preselecciona la persona filtrada) y todo depende de la lectura agregada <code>document-overview</code>, que aún no existe y puede venir truncada: entonces hay que filtrar por persona para ver el resto.</div>
 </header>
 <div class="ctl" id="ctl"></div>
 <div class="tabs" id="tabs" role="group" aria-label="Estado de la maqueta"></div>
 <div class="cap" id="cap" aria-live="polite"></div>
+<details class="shape"><summary>Respuesta planeada de GET …/document-overview que lee esta maqueta</summary>
+<pre>{
+  "vacancy": { "id": "…", "title": "Supervisor(a) de Almacén", "publication": "published", "process": "active", "kind": "original", "visibility": "public" },
+  "scope": { "allowed_actions": ["download", "upload", "replace", "delete", "link"], "upload_blocked_reason": null },
+  "participations": [
+    { "id": "ric", "candidate": { "name": "Ricardo Morales García" }, "stage": { "name": "Placement" },
+      "discarded": false, "scope_allowed_actions": ["download", "upload", "replace", "delete"], "upload_blocked_reason": null },
+    { "id": "mar", "candidate": { "name": "Mariana Cavazos Lozano" }, "stage": { "name": "Entrevista técnica" },
+      "discarded": true,  "scope_allowed_actions": ["download", "upload", "replace", "delete"], "upload_blocked_reason": null },
+    { "id": "lui", "candidate": { "name": "Luis Fernando Garza Peña" }, "stage": { "name": "Entrevista final" },
+      "discarded": false, "scope_allowed_actions": ["download", "upload"], "upload_blocked_reason": null }
+  ],
+  "items": [
+    { "name": "Contrato marco Altavista 2026", "owner": { "type": "vacancy" }, "version": 3, "allowed_actions": ["download", "replace", "delete"] },
+    { "name": "Carta de renuncia", "owner": { "type": "participation", "participation_id": "ric" }, "version": 1, "allowed_actions": ["download", "replace", "delete"] }
+  ],
+  "links": [
+    { "owner": { "type": "vacancy" }, "state": "available", "pinned_version": 1, "newer_version": 3, "origin": "Proceso original" }
+  ],
+  "truncated": false
+}</pre>
+<p class="meta">Forma pedida al backend, todavía no construida: solo <code>vacancy</code>, <code>owner</code>, <code>participations[]</code> (<code>stage</code>, <code>discarded</code>, <code>scope_allowed_actions</code>, <code>upload_blocked_reason</code>), <code>items</code>, <code>links</code> y <code>truncated</code> vienen de ese acuerdo; los demás campos y los nombres de las acciones son ilustrativos. <code>vacancy</code> alimenta el título y las etiquetas del encabezado (el Stakeholder no tiene otra lectura de la vacante). El selector lista <code>participations[]</code>, los conteos salen de <code>items</code> y <code>links</code>, y con <code>truncated: true</code> se ocultan los conteos porque serían parciales.</p></details>
 <div class="frames" id="frames">
   <figure class="fr d" id="f-d"><figcaption>Escritorio · 1440 × 900</figcaption><div class="scaler"><div class="vp" style="--h:900px" role="group" aria-label="Maqueta de escritorio"></div></div></figure>
   <figure class="fr m" id="f-m"><figcaption>Móvil · 390 × 844</figcaption><div class="scaler"><div class="vp m" style="--h:844px" role="group" aria-label="Maqueta móvil"></div></div></figure>
@@ -245,9 +308,12 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 function setMarkup(el,html){const d=new DOMParser().parseFromString(html,'text/html');el.replaceChildren(...d.body.childNodes)}
 const q=new URLSearchParams(location.search);
 document.documentElement.dataset.theme=q.get('theme')==='dark'?'dark':'light';
-const STATES=[['docs','Con documentos'],['cargando','Cargando'],['vacio','Vacío'],['subiendo','Subiendo'],['errores','Errores'],['limite','Límite'],['versiones','Versiones'],['eliminar','Eliminar'],['vinculos','Vínculos'],['vincular','Vincular'],['lectura','Solo lectura']];
+const STATES=[['docs','Con documentos'],['combo','Elegir candidato'],['filtrado','Candidato filtrado'],['sindocs','Candidato sin documentos'],['cargando','Cargando'],['vacio','Vacío'],['subiendo','Subiendo'],['errores','Errores'],['limite','Límite'],['versiones','Versiones'],['eliminar','Eliminar'],['vinculos','Vínculos'],['vincular','Vincular'],['lectura','Solo lectura']];
 const CAP={
  docs:['Con documentos','Una sola tabla con los documentos de la vacante y de cada persona, el más reciente primero; «Pertenece a» dice a quién corresponde. Filtro Todos · Vacante · Candidatos.',['S1','S3','S4','S5']],
+ combo:['Elegir candidato','El selector «Candidato» abre un cuadro con búsqueda que lista las participaciones de la vacante: etapa, cuántos documentos tiene cada una y «Descartado» en las descartadas (también reciben documentos). Escribe para acotar; en móvil se abre como hoja inferior.',['S8','S3']],
+ filtrado:['Candidato filtrado','Elegir a una persona pasa el ámbito a «Candidatos» y deja un chip con «Quitar filtro» sobre la tabla; el filtro y los botones Todos · Vacante · Candidatos se combinan (con «Vacante» el selector no aplica). La columna «Pertenece a» sobra y se oculta; el resumen dice cuántos documentos se muestran de cuántos.',['S8']],
+ sindocs:['Candidato sin documentos','El resultado vacío de una persona sin documentos dice quién es y en qué etapa está, no finge una búsqueda fallida y ofrece subir su primer documento o quitar el filtro.',['S8','S3']],
  cargando:['Cargando','Mientras llega la lista no se muestran acciones ni cifras: el servidor aún no dijo qué puede hacer la persona ni cuántos documentos hay. El esqueleto copia la forma de la lista.',['S1']],
  vacio:['Vacío','Sin documentos en ningún ámbito: el estado vacío explica para qué sirve y ofrece subir el primero.',['S1','S3']],
  subiendo:['Subiendo','Bandeja de carga abajo a la derecha, con progreso por archivo; la fila del documento aparece en la tabla mientras sube.',['S1']],
@@ -257,9 +323,10 @@ const CAP={
  eliminar:['Eliminar','Confirmación sobre la tabla: se borra el documento completo, queda auditado y los vínculos pasan a «Documento eliminado».',['S2','S5','S6']],
  vinculos:['Vínculos del original','En un reemplazo la tabla mezcla archivos propios y vínculos (vacante y persona retomada) con su origen, versión fijada, «hay una versión más nueva», eliminado o sin acceso.',['S6']],
  vincular:['Vincular desde el original','Panel lateral con el destino (vacante o persona retomada), documentos agrupados por origen, sin copiar y con la versión fijada.',['S6','S4']],
- lectura:['Solo lectura (Stakeholder)','La misma tabla, solo con descargar. Los vínculos eliminados o sin acceso no ofrecen acciones.',['S2']]
+ lectura:['Solo lectura (Stakeholder)','El Stakeholder entra a la vacante y solo ve la pestaña Documentos (sin Pipeline ni Configuración); la misma tabla y los mismos filtros, con «Descargar» como única acción. Los vínculos eliminados o sin acceso no ofrecen ninguna.',['S2','S11']]
 };
 let sel=-1;
+let cand=null,qry='',cbOpen=false;
 let state=STATES.some(s=>s[0]===q.get('state'))?q.get('state'):'docs',scope=q.get('scope')==='cand'?'cand':'vac',view=['both','desktop','mobile'].includes(q.get('view'))?q.get('view'):'both';
 /* ---------- data ---------- */
 const FM={pdf:['PDF'],docx:['Word'],xlsx:['Excel'],jpg:['JPG'],png:['PNG']};
@@ -330,18 +397,36 @@ let filt='all';
 function data(){
  const rep=state==='vinculos'||state==='vincular'||state==='lectura';let R=[];
  const add=(arr,o)=>arr.forEach(d=>R.push(Object.assign({o:o},d)));
- if(state==='vacio')return{R:[],rep:false,cnt:{all:0,vac:0,cand:0}};
- if(state==='cargando')return{R:[],rep:false,cnt:{all:'…',vac:'…',cand:'…'},loading:true};
+ if(state==='vacio')return{R:[],rep:false,cnt:{all:0,vac:0,cand:0},per:{}};
+ if(state==='cargando')return{R:[],rep:false,cnt:{all:'…',vac:'…',cand:'…'},per:{},loading:true};
  if(rep){add([OWN],'vac');LINKS.vac.forEach(l=>R.push(Object.assign({o:'vac',lk:1},l)));LINKS.cand.forEach(l=>R.push(Object.assign({o:'mar',lk:1},l)))}
  else{if(state==='limite')add([V25],'vac');add(DOCS.vac,'vac');add(DOCS.ric,'ric');add(DAN,'dan');add(MAR,'mar')}
  R.sort((a,b)=>key(b)-key(a));
  const cnt={all:R.length,vac:R.filter(r=>r.o==='vac').length,cand:R.filter(r=>r.o!=='vac').length};
  if(state==='limite'){cnt.vac=50;cnt.all=cnt.vac+cnt.cand}
- return{R,rep,cnt};
+ const per={};R.forEach(r=>{if(r.o!=='vac')per[r.o]=(per[r.o]||0)+1});
+ return{R,rep,cnt,per,truncated:state==='limite'};
 }
 const OWNER={ric:P.ric,dan:P.dan,mar:{n:P.mar.n,i:'MC',stage:'Retomada del original'}};
 const DISCARDED={mar:1};
-function ownCell(o){if(o==='vac')return '<div class="own">'+ic('brief')+'<b>Vacante</b></div>';const p=OWNER[o];return '<div class="own"><span class="av" aria-hidden="true">'+p.i+'</span><span><b>'+p.n+'</b><small>'+(o==='mar'&&state!=='vinculos'&&state!=='vincular'&&state!=='lectura'?'Descartada':p.stage)+'</small></span></div>'}
+// Planned `participations[]` of GET …/document-overview: the original process, and the replacement (REP-13) where Mariana is back in play.
+const PARTS={orig:[
+ {id:'ric',name:'Ricardo Morales García',stage:'Placement',discarded:false},
+ {id:'dan',name:'Daniela Ibarra Soto',stage:'Placement',discarded:false},
+ {id:'lui',name:'Luis Fernando Garza Peña',stage:'Entrevista final',discarded:false},
+ {id:'and',name:'Andrea Villarreal Cruz',stage:'Oferta',discarded:false},
+ {id:'mar',name:'Mariana Cavazos Lozano',stage:'Entrevista técnica',discarded:true},
+ {id:'jor',name:'Jorge Alberto Salinas Garza',stage:'Revisión de perfil',discarded:true}],
+ rep:[
+ {id:'mar',name:'Mariana Cavazos Lozano',stage:'Entrevista técnica',note:'Retomada del original',discarded:false},
+ {id:'emi',name:'Emilio Barragán Núñez',stage:'Revisión de perfil',discarded:false},
+ {id:'pat',name:'Patricia Domínguez Rivas',stage:'Nuevos',discarded:false}]};
+const isRep=()=>state==='vinculos'||state==='vincular'||state==='lectura';
+const parts=rep=>rep?PARTS.rep:PARTS.orig;
+const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('');
+const norm=t=>[...t].map(ch=>ch.normalize('NFD')[0]).join('').toLowerCase();
+const first=n=>n.split(' ')[0];
+function ownCell(o){if(o==='vac')return '<div class="own">'+ic('brief')+'<b>Vacante</b></div>';const p=PARTS.orig.concat(PARTS.rep).find(x=>x.id===o&&(isRep()?PARTS.rep.includes(x):PARTS.orig.includes(x)));return '<div class="own"><span class="av" aria-hidden="true">'+ini(p.name)+'</span><span><b>'+p.name+'</b><small>'+(p.note||p.stage)+'</small>'+(p.discarded?'<span class="badge b-neutral">Descartado</span>':'')+'</span></div>'}
 function tr(d,mgr,sel){
  const act=(inner)=>'<td class="c-act"><div class="acts">'+inner+'</div></td>';
  if(d.lk&&d.st!=='available'){const rm=d.st==='removed';return '<tr class="ghost"><td class="c-doc"><div class="cd"><span class="ft lk" aria-hidden="true">'+ic(rm?'trash':'lock')+'</span><div><p class="nm">'+(rm?'Documento eliminado':'Documento sin acceso')+'</p><p class="meta">'+(rm?'Se eliminó en el proceso de origen':'Sin acceso al proceso de origen')+'</p></div></div></td><td class="c-own">'+ownCell(d.o)+'</td><td class="c-ver"><span class="badge b-neutral">'+(rm?'Eliminado en el origen':ic('lock')+'Sin acceso')+'</span></td><td class="c-upd"><span class="tn">Vinculado '+d.at+'</span><p class="meta">'+d.by+'</p></td>'+act(mgr?'<button class="btn outline" style="min-height:40px">Quitar vínculo</button>':'')+'</tr>'}
@@ -349,22 +434,43 @@ function tr(d,mgr,sel){
  if(d.lk)return '<tr><td class="c-doc"><div class="cd"><span class="ft '+d.f+'" aria-hidden="true">'+f[0]+'<span class="lkb">'+ic('link')+'</span></span><div><p class="nm">'+esc(d.n)+'</p><p class="meta">'+f[0]+' · '+d.s+'</p></div></div></td><td class="c-own">'+ownCell(d.o)+'<span class="badge b-accent" style="margin-top:4px">'+ic('link')+esc(d.org)+'</span></td><td class="c-ver"><div class="vcell"><span class="tn">v'+d.v+' fijada</span>'+(d.newer?'<span class="badge b-review dot">Hay una versión más nueva (v'+d.newer+')</span>':'')+'</div></td><td class="c-upd"><span class="tn">Vinculado '+d.at+'</span><p class="meta">'+d.by+'</p></td>'+act('<button class="btn ghost icon" aria-label="Descargar '+esc(d.n)+' (versión fijada)">'+ic('download')+'</button>'+(mgr?menu(d,{},true):''))+'</tr>';
  return '<tr'+(sel?' class="sel" aria-selected="true"':'')+'><td class="c-doc"><div class="cd"><span class="ft '+d.f+'" aria-hidden="true">'+f[0]+'</span><div><p class="nm">'+esc(d.n)+'</p><p class="meta">'+f[0]+' · '+d.s+'</p></div></div></td><td class="c-own">'+ownCell(d.o)+'</td><td class="c-ver"><div class="vcell"><span class="tn">v'+d.v+'</span>'+(d.v>1?'<button class="vb" type="button" data-act="open" data-n="'+esc(d.n)+'">'+ic('history')+d.v+' versiones</button>':'')+'</div></td><td class="c-upd"><span class="tn">'+d.at+'</span><p class="meta">'+d.by+'</p></td>'+act('<button class="btn ghost icon" aria-label="Descargar '+esc(d.n)+'">'+ic('download')+'</button>'+(mgr?menu(d,{},false):''))+'</tr>'}
 function upRow(){return '<tr class="up"><td class="c-doc"><div class="cd"><span class="ft pdf" aria-hidden="true">PDF</span><div><p class="nm">Anexo técnico del contrato</p><p class="meta">PDF · 3.6 MB</p></div></div></td><td class="c-own">'+ownCell('vac')+'</td><td class="c-ver"><span class="tn">v1</span></td><td class="c-upd" colspan="1"><p class="meta">Subiendo… 62 %</p><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-label="Progreso de Anexo técnico del contrato"><i style="width:62%"></i></div></td><td class="c-act"></td></tr>'}
-function vh(c){return '<header class="vh"><nav class="crumb" aria-label="Ruta"><a href="#">Vacantes</a>'+ic('chev-r')+'<span aria-current="page">Supervisor(a) de Almacén</span></nav><div class="vh-row"><h2 class="h1">Supervisor(a) de Almacén</h2>'+badges(c)+'</div><p class="meta">Grupo Altavista · Monterrey, N.L. · Presencial · Tiempo completo</p></header><nav aria-label="Secciones de la vacante"><div class="vtabs"><a href="#">Pipeline</a><a href="#" aria-current="page">Documentos</a><a href="#">Configuración</a></div></nav>'}
+function vh(c){return '<header class="vh"><nav class="crumb" aria-label="Ruta"><a href="#">Vacantes</a>'+ic('chev-r')+'<span aria-current="page">Supervisor(a) de Almacén</span></nav><div class="vh-row"><h2 class="h1">Supervisor(a) de Almacén</h2>'+badges(c)+'</div><p class="meta">Grupo Altavista · Monterrey, N.L. · Presencial · Tiempo completo</p></header><nav aria-label="Secciones de la vacante"><div class="vtabs">'+(state==='lectura'?'':'<a href="#">Pipeline</a>')+'<a href="#" aria-current="page">Documentos</a>'+(state==='lectura'?'':'<a href="#">Configuración</a>')+'</div></nav>'}
 const sk=(w,h,r)=>'<span class="sk" style="width:'+w+';height:'+h+(r?';border-radius:'+r:'')+'"></span>';
 function tableCard(D,mgr){
  if(D.loading)return '<section class="card tcard" aria-busy="true" aria-label="Documentos"><span class="sr" role="status">Cargando documentos</span><table class="dt" aria-hidden="true"><thead><tr><th class="w1">Documento</th><th class="w2">Pertenece a</th><th class="w3">Versión</th><th class="w4">Actualizado</th><th class="w5"></th></tr></thead><tbody>'+[0,1,2,3,4].map(()=>'<tr><td class="c-doc"><div class="cd">'+sk('32px','38px','8px')+'<div style="display:grid;gap:6px;flex:1">'+sk('70%','14px')+sk('40%','12px')+'</div></div></td><td class="c-own">'+sk('60%','14px')+'</td><td class="c-ver">'+sk('40px','14px')+'</td><td class="c-upd">'+sk('70%','14px')+'</td><td class="c-act"></td></tr>').join('')+'</tbody></table></section>';
- const rows=D.R.filter(r=>filt==='all'||(filt==='vac'?r.o==='vac':r.o!=='vac'));
+ const rows=D.R.filter(r=>(filt==='all'||(filt==='vac'?r.o==='vac':r.o!=='vac'))&&(!cand||r.o===cand));
+ const person=cand&&parts(D.rep).find(x=>x.id===cand);
+ if(!rows.length&&person&&state!=='subiendo'){
+  const why=person.discarded?'Quedó descartado en '+person.stage+', pero se le pueden subir documentos igual.':'Está en '+person.stage+' y todavía no se ha subido nada.';
+  return '<section class="card" aria-label="Documentos de '+esc(person.name)+'"><div class="empty"><span class="tile" aria-hidden="true">'+ic('file')+'</span><h3 class="h3" style="font-size:18px;line-height:28px">'+esc(person.name)+' todavía no tiene documentos</h3><p>'+why+(mgr?' Los que subas aquí los ven tu equipo y los stakeholders; nunca el candidato.':'')+'</p><div class="gl">'+(mgr?'<button class="btn primary lg" data-act="upload">'+ic('upload')+'Subir documento de '+esc(first(person.name))+'</button>':'')+'<button class="btn outline lg" data-act="clr">Quitar filtro</button></div></div></section>'}
  if(!rows.length&&state!=='subiendo')return '<section class="card" aria-label="Documentos"><div class="empty"><span class="tile" aria-hidden="true">'+ic('file')+'</span><h3 class="h3" style="font-size:18px;line-height:28px">'+(state==='vacio'?'Todavía no hay documentos en esta vacante':'No hay documentos en este filtro')+'</h3><p>'+(state==='vacio'?'Guarda el contrato, el perfil del puesto o los documentos de cada persona candidata. Los ven tu equipo y los stakeholders; nunca el candidato.':'Prueba con «Todos» para ver los de la vacante y los de las personas.')+'</p>'+(state==='vacio'&&mgr?'<button class="btn primary lg" data-act="upload">'+ic('upload')+'Subir documento</button>':'')+(state!=='vacio'?'<button class="btn outline lg" data-act="filt" data-v="all">Mostrar todos</button>':'')+'</div></section>';
  const hi=rows.findIndex(r=>!r.lk&&r.v>1);
  let b=(state==='subiendo'?upRow():'')+rows.map((r,i)=>tr(r,mgr,state==='versiones'&&i===hi)).join('');
- if(state==='limite')b+='<tr><td colspan="5" class="more">Lista abreviada en la maqueta: se muestran '+rows.length+' de '+D.cnt.all+' documentos.</td></tr>';
- return '<section class="card tcard" aria-label="Documentos"><table class="dt"><caption class="sr">Documentos de la vacante y de sus candidatos, el más reciente primero</caption><thead><tr><th scope="col" class="w1">Documento</th><th scope="col" class="w2">Pertenece a</th><th scope="col" class="w3">Versión</th><th scope="col" class="w4">Actualizado</th><th scope="col" class="w5"><span class="sr">Acciones</span></th></tr></thead><tbody>'+b+'</tbody></table></section>'}
+ if(D.truncated&&!cand)b+='<tr><td colspan="5" class="more">Se muestran los '+rows.length+' documentos más recientes de '+D.cnt.all+' (<code>truncated</code>). Filtra por candidato para ver el resto.</td></tr>';
+ return '<section class="card tcard" aria-label="Documentos"><table class="dt'+(cand&&!D.rep?' nofown':'')+'"><caption class="sr">Documentos de la vacante y de sus candidatos, el más reciente primero</caption><thead><tr><th scope="col" class="w1">Documento</th><th scope="col" class="w2">Pertenece a</th><th scope="col" class="w3">Versión</th><th scope="col" class="w4">Actualizado</th><th scope="col" class="w5"><span class="sr">Acciones</span></th></tr></thead><tbody>'+b+'</tbody></table></section>'}
+function combo(D){
+ const P=parts(D.rep),cur=cand&&P.find(p=>p.id===cand),dis=filt==='vac'||D.loading,open=cbOpen&&!dis;
+ const val=D.loading?'Cargando…':filt==='vac'?'No aplica a la vacante':cur?cur.name:'Todas las personas';
+ const trig='<button type="button" class="cbt'+(cur&&!dis?' has':'')+'" data-act="cbtoggle" aria-haspopup="listbox" aria-expanded="'+open+'" aria-label="Candidato: '+esc(val)+'"'+(dis?' aria-disabled="true"':'')+'><span class="cbl">Candidato</span><span class="cbv">'+esc(val)+'</span>'+ic('chev-d')+'</button>';
+ if(!open)return '<div class="mw cb">'+trig+'</div>';
+ const qn=norm(qry.trim()),list=P.filter(p=>!qn||norm(p.name).includes(qn));
+ const hl=n=>{const i=qn?norm(n).indexOf(qn):-1;return i<0?esc(n):esc(n.slice(0,i))+'<mark>'+esc(n.slice(i,i+qn.length))+'</mark>'+esc(n.slice(i+qn.length))};
+ const act=qn?(list[0]&&list[0].id):(cand||'all');
+ const o=(id,sel,inner,badge)=>'<li role="option" id="cbo-'+id+'" class="cbo'+(act===id?' act':'')+'" aria-selected="'+sel+'" data-act="pick" data-id="'+id+'">'+inner+'<span class="cbr">'+(badge||'')+(sel?ic('check','ck'):'')+'</span></li>';
+ const all=qn?'':o('all',!cand,'<span class="tile" aria-hidden="true">'+ic('users')+'</span><span><b>Todas las personas</b><small>Sin filtrar por candidato</small></span>');
+ const opts=list.map(p=>{const n=D.per[p.id]||0;return o(p.id,cand===p.id,'<span class="av" aria-hidden="true">'+ini(p.name)+'</span><span><b>'+hl(p.name)+'</b><small>'+esc(p.note||p.stage)+(D.truncated?'':' · '+(n?pl(n,'documento','documentos'):'Sin documentos'))+'</small></span>',p.discarded?'<span class="badge b-neutral">Descartado</span>':'')}).join('');
+ const none=qn&&!list.length?'<p class="cbe" role="status">Sin coincidencias para «'+esc(qry.trim())+'». <button type="button" data-act="cbclear">Borrar búsqueda</button></p>':'';
+ const pop='<div class="cbx" role="dialog" aria-label="Elegir candidato"><div class="cbh"><span>Elegir candidato</span><button type="button" class="btn ghost icon" data-act="cbclose" aria-label="Cerrar">'+ic('x')+'</button></div><div class="cbs">'+ic('search')+'<input class="cbi" type="search" data-cbi role="combobox" aria-expanded="true" aria-controls="cb-list" aria-activedescendant="'+(act?'cbo-'+act:'')+'" aria-label="Buscar persona" placeholder="Buscar persona…" value="'+esc(qry)+'" autocomplete="off"></div><ul class="cbl2" id="cb-list" role="listbox" aria-label="Personas de la vacante">'+all+opts+'</ul>'+none+'<p class="meta cbf">'+pl(P.length,'persona','personas')+' en la vacante · incluye descartadas</p></div>';
+ return '<div class="mw cb">'+trig+pop+'</div><div class="cscrim" data-act="cbclose"></div>'}
+function chip(D,mgr){if(!cand)return '';const p=parts(D.rep).find(x=>x.id===cand);if(!p)return '';
+ return '<div class="fchip" role="group" aria-label="Filtro activo"><span class="meta">Filtrando por</span><span class="chp"><span class="av" aria-hidden="true">'+ini(p.name)+'</span><span class="chn"><b>'+esc(p.name)+'</b> · '+esc(p.note||p.stage)+(p.discarded?' <span class="badge b-neutral">Descartado</span>':'')+'</span><button type="button" class="btn ghost" data-act="clr">'+ic('x')+'Quitar filtro</button></span></div>'}
 function toolbar(D,mgr){
  const c=D.cnt;
- return '<div class="tbar"><div class="seg fseg" role="group" aria-label="Filtrar por ámbito">'+[['all','Todos',c.all],['vac','Vacante',c.vac],['cand','Candidatos',c.cand]].map(x=>'<button type="button" data-act="filt" data-v="'+x[0]+'" aria-pressed="'+(filt===x[0])+'">'+x[1]+' <span class="badge b-neutral tn">'+x[2]+'</span></button>').join('')+'</div><label class="search"><span class="sr">Buscar por nombre o persona</span>'+ic('search')+'<input class="inp" type="search" placeholder="Buscar por nombre o persona"></label><span class="grow"></span>'+(mgr?(D.rep?'<button class="btn outline lg" data-act="vincular">'+ic('link')+'Vincular del proceso original</button>':'')+'<button class="btn primary lg" data-act="upload">'+ic('upload')+'Subir documento</button>':'')+'</div>'}
+ return '<div class="tbar"><div class="seg fseg" role="group" aria-label="Filtrar por ámbito">'+[['all','Todos',c.all],['vac','Vacante',c.vac],['cand','Candidatos',c.cand]].map(x=>'<button type="button" data-act="filt" data-v="'+x[0]+'" aria-pressed="'+(filt===x[0])+'">'+x[1]+' <span class="badge b-neutral tn">'+x[2]+'</span></button>').join('')+'</div>'+combo(D)+'<label class="search"><span class="sr">Buscar por nombre de documento</span>'+ic('search')+'<input class="inp" type="search" placeholder="Buscar documento"></label><span class="grow"></span>'+(mgr?(D.rep?'<button class="btn outline lg" data-act="vincular">'+ic('link')+'Vincular del proceso original</button>':'')+'<button class="btn primary lg" data-act="upload">'+ic('upload')+'Subir documento</button>':'')+'</div>'}
 function summary(D){const c=D.cnt,p=new Set(D.R.filter(r=>r.o!=='vac').map(r=>r.o)).size;
  if(D.loading)return '<p class="sum">'+sk('320px','14px')+'</p>';
  if(!c.all)return '<p class="sum">Sin documentos todavía</p>';
+ if(cand){const pr=parts(D.rep).find(x=>x.id===cand),n=D.per[cand]||0;return '<p class="sum" role="status" aria-live="polite">'+(n?'Mostrando <b>'+n+'</b> de <b>'+c.all+'</b> documentos · de <b>'+esc(pr.name)+'</b>':'<b>'+esc(pr.name)+'</b> no tiene documentos · la vacante tiene <b>'+c.all+'</b>')+' · Cada descarga queda registrada</p>'}
  return '<p class="sum"><b>'+c.all+'</b> documentos · <b>'+c.vac+'</b> de la vacante · <b>'+c.cand+'</b> de '+p+(p===1?' candidato':' candidatos')+(state==='limite'?' · la vacante llegó a su límite':'')+' · Cada descarga queda registrada</p>'}
 function drawer(D){
  const rows=D.R.filter(r=>!r.lk&&r.v>1),d=rows[0],mgr=state!=='lectura';
@@ -386,7 +492,7 @@ function frame(){
  const D=data(),mgr=state!=='lectura',c={rep:D.rep,link:D.rep};
  const ov=(state==='errores'||state==='limite')?uploadDlg(D):state==='eliminar'?delDlg(D):'';
  const dr=(state==='versiones'||state==='vincular')?'<div class="scrim"></div>'+drawer(D):'';
- return '<div class="app">'+side()+'<div class="inset">'+mbar()+'<div class="page'+(ov||dr?' dim':'')+'">'+vh(c)+'<div class="cmain" style="display:grid;gap:16px">'+(state==='lectura'?'<p class="note">'+ic('lock')+'<span><b>Solo consulta.</b> Tu rol de Stakeholder puede ver y descargar los documentos, incluidos los de vacantes en borrador; no puede subir, reemplazar, vincular ni eliminar.</span></p>':'')+toolbar(D,mgr&&!D.loading)+summary(D)+tableCard(D,mgr)+'</div></div>'+(state==='subiendo'?tray():'')+dr+ov+'</div></div>'}
+ return '<div class="app">'+side()+'<div class="inset">'+mbar()+'<div class="page'+(ov||dr?' dim':'')+'">'+vh(c)+'<div class="cmain" style="display:grid;gap:16px">'+(state==='lectura'?'<p class="note">'+ic('lock')+'<span><b>Solo consulta.</b> Con tu rol de Stakeholder esta vacante solo muestra la pestaña Documentos: puedes ver y descargar, incluso los de vacantes en borrador; no hay subir, reemplazar, vincular ni eliminar.</span></p>':'')+toolbar(D,mgr&&!D.loading)+chip(D,mgr)+summary(D)+tableCard(D,mgr)+'</div></div>'+(state==='subiendo'?tray():'')+dr+ov+'</div></div>'}
 /* ---------- controls and layout ---------- */
 function controls(){
  setMarkup($('#ctl'),'<span class="lbl">Vista</span><div class="seg" role="group" aria-label="Vista">'+[['both','Ambas'],['desktop','Escritorio'],['mobile','Móvil']].map(v=>'<button type="button" data-view="'+v[0]+'" aria-pressed="'+(view===v[0])+'">'+v[1]+'</button>').join('')+'</div>');
@@ -399,13 +505,17 @@ function layout(){
  if(view==='both')sd=stacked?Math.min(1,avail/1440):Math.min(1,(avail-24-390)/1440);if(view==='desktop')sd=Math.min(1,avail/1440);
  [[fd,sd,1440],[fm,Math.min(1,avail/390),390]].forEach(([f,s,w])=>{const vp=$('.vp',f),sc=$('.scaler',f);vp.style.transform='scale('+s+')';sc.style.width=w*s+'px';sc.style.height=vp.offsetHeight*s+'px'});
 }
-const uniq=(h,m)=>h.replace(/\b(id|for|aria-labelledby|aria-describedby)="([^"]+)"/g,'$1="$2-'+m+'"');
+const uniq=(h,m)=>h.replace(/(?<![\w-])(id|for|aria-labelledby|aria-describedby|aria-controls|aria-activedescendant)="([^"]+)"/g,'$1="$2-'+m+'"');
 function render(){controls();['d','m'].forEach(m=>setMarkup($('#f-'+m+' .vp'),uniq(frame(),m)));layout()}
+function preset(s){cand=null;cbOpen=false;qry='';if(s==='combo'){cbOpen=true;filt='all'}else if(s==='filtrado'){cand='ric';filt='cand'}else if(s==='sindocs'){cand='lui';filt='cand'}}
+function focusCb(fr){const i=$('[data-cbi]',fr||document);if(i){i.focus();const n=i.value.length;i.setSelectionRange(n,n)}}
 document.addEventListener('click',e=>{
  const t=e.target.closest('[data-state],[data-view],[data-act]');
+ const fr=e.target.closest('.vp');
+ if(cbOpen&&!e.target.closest('.cb')&&!(t&&(t.dataset.state||t.dataset.view))){cbOpen=false;if(!t||t.dataset.act==='cbclose'){render();return}}
  if(!e.target.closest('.menu'))$$('.menu').forEach(m=>{m.hidden=true;const b=m.previousElementSibling;if(b)b.setAttribute('aria-expanded','false')});
  if(!t)return;
- if(t.dataset.state){state=t.dataset.state;sel=-1;render();return}
+ if(t.dataset.state){state=t.dataset.state;preset(state);sel=-1;render();return}
  if(t.dataset.view){view=t.dataset.view;render();return}
  const a=t.dataset.act;
  if(a==='scope'){scope=t.dataset.v;render()}
@@ -413,12 +523,22 @@ document.addEventListener('click',e=>{
  
  else if(a==='menu'){const m=t.nextElementSibling,open=m.hidden;m.hidden=!open;t.setAttribute('aria-expanded',String(open));if(open){const f=$('.mi',m);if(f)f.focus()}e.stopPropagation()}
  else if(a==='open'){state='versiones';render()}
- else if(a==='filt'){filt=t.dataset.v;render()}
+ else if(a==='filt'){filt=t.dataset.v;if(filt==='vac'){cand=null;if(state==='filtrado'||state==='sindocs'||state==='combo')state='docs'}cbOpen=false;render()}
+ else if(a==='cbtoggle'){if(t.getAttribute('aria-disabled')==='true')return;const was=cbOpen;cbOpen=!was;qry='';render();if(cbOpen)focusCb(fr&&$('#'+fr.parentElement.parentElement.id+' .vp'))}
+ else if(a==='cbclose'){cbOpen=false;render()}
+ else if(a==='cbclear'){qry='';render();focusCb(fr&&$('#'+fr.parentElement.parentElement.id+' .vp'))}
+ else if(a==='pick'){const id=t.dataset.id;cand=id==='all'?null:id;if(cand)filt='cand';cbOpen=false;qry='';if(['docs','combo','filtrado','sindocs'].includes(state))state=!cand?'docs':((data().per[cand]||0)?'filtrado':'sindocs');render()}
+ else if(a==='clr'){cand=null;cbOpen=false;if(state==='filtrado'||state==='sindocs')state='docs';render()}
  else if(a==='upload'){state='errores';render()}
  else if(a==='dest'){scope=t.dataset.v;render()}
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.menu').forEach(m=>{if(!m.hidden){m.hidden=true;const b=m.previousElementSibling;b.setAttribute('aria-expanded','false');b.focus()}})});
+document.addEventListener('input',e=>{const i=e.target.closest('[data-cbi]');if(!i)return;const id=i.closest('.fr').id;qry=i.value;render();focusCb($('#'+id+' .vp'))});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&cbOpen){const id=(e.target.closest&&e.target.closest('.fr')||{}).id;cbOpen=false;render();const b=id&&$('#'+id+' .cbt');if(b)b.focus();return}
+ if(e.key==='Enter'&&e.target.matches&&e.target.matches('[data-cbi]')){e.preventDefault();const o=$('.cbo.act',e.target.closest('.cb'));if(o)o.click();return}
+ if(e.key==='Escape')$$('.menu').forEach(m=>{if(!m.hidden){m.hidden=true;const b=m.previousElementSibling;b.setAttribute('aria-expanded','false');b.focus()}})});
 addEventListener('resize',layout);
+preset(state);
 render();
 })();
 </script>
