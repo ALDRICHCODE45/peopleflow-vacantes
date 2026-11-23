@@ -33,7 +33,7 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T1 S1–S7 — contract draft `docs/contracts/placement-vacancy-documents-v1.md` (writer) — done 377c06d8
 - T2 — contract agreed with the frontend session — done (L8)
 - T3 P1 S1–S7 — migration 00064 and documents domain (writer) — done 3e66837c
-- T4 P2 — storage port, adapters, config (writer; S3 manager dependency needs user OK) — pending
+- T4 P2 — storage port, adapters, config — done bde228ba, 474350fd
 - T5 P3 — errors, read gate, audit catalog, scope, GET list — pending
 - T6 P4 — upload and download — pending
 - T7 P5 — versions and delete — pending
@@ -154,3 +154,36 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
     (`cvs.Inspect` untouched; the OOXML marker rules are re-implemented in the new package over a tail window, as the contract specifies).
 - **L10** 2026-11-22, user: dependency for P2 — «Sí, agregala (Recomendado)» (add
   `github.com/aws/aws-sdk-go-v2/feature/s3/manager` for streaming multipart S3 uploads; no AWS command is run).
+- **L11** 2026-11-22, T4 (P2) done (working tree, not committed: the writer may not run `git add`/`git commit`; the parent commits, the S3 part as a second commit if wanted):
+  streaming documents storage, local and S3 adapters, `DOCUMENT_*` config, `Reconcile`, `cvs` keep-predicate, composition.
+  - Code: `documents/application/storage.go` (`Storage` port `Put(ctx, io.Reader, maxBytes) (key, size, err)` / `Open` / `Delete` / `Objects`, `Object{Key, ModTime}`,
+    `ErrNotFound`, `ErrInvalidKey`, `ErrStorageUnavailable`, `BoundedReader`, `OrphanGrace` = 1 h, `ReconcileOrphans`); `documents/infrastructure/storage/local.go` (`os.Root`,
+    0700 dir, 0600 files, random 64-hex, `O_EXCL`, fsync, partial file removed); `documents/infrastructure/storage/s3/storage.go` (`feature/s3/manager` Uploader, 5 MiB parts,
+    concurrency 2, `GetObject` body returned as is, `ListObjectsV2` paginator, no ACL, endpoint discipline copied from `sites3.New`); `documents/infrastructure/postgres/reconcile.go`
+    (`Reconciler`: keep iff a `placement_document_versions.storage_key` row exists or the object is younger than 1 h; no lock; fails closed);
+    `runtime/config/document_storage.go` (`LoadDocumentStorageConfig`, `DocumentStorageConfig.Enabled()`); `cvs/library.go` keep-predicate `OR EXISTS(placement_document_versions)`;
+    `cmd/api/main.go` builds the storage (`newDocumentStorage`), logs mode/bucket/region/prefix and registers no route (the value is held for P3+); `go.mod`/`go.sum`:
+    `github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.66` (the release whose go.mod pins aws v1.36.3, config v1.29.9, s3 v1.78.2: no other module moved), `go mod tidy` clean.
+  - Env vars (exactly): `DOCUMENT_STORAGE` (`disk` default | `s3`), `DOCUMENT_STORAGE_ROOT` (disk; absolute, unset = documents disabled, must differ from `CV_STORAGE_ROOT`),
+    `DOCUMENT_S3_BUCKET`, `DOCUMENT_S3_REGION` (s3, required), `DOCUMENT_S3_PREFIX` (default `documents/v1`, trailing slash trimmed), `DOCUMENT_S3_ENDPOINT` (non-production only),
+    `DOCUMENT_S3_FORCE_PATH_STYLE` (bool); test-only `DOCUMENT_S3_TEST_ENDPOINT` (loopback MinIO, integration tag). `DOCUMENT_S3_*` with `disk` is an error, as is `DOCUMENT_STORAGE_ROOT` with `s3`.
+  - RED observed (each before its implementation): the application, local, config, `Reconciler` and S3 tests failed to build (`undefined: ...`); the `cvs` predicate test failed with
+    `keep predicate omits document versions`. Mutation check: feeding the S3 uploader a fully read body (`io.ReadAll`) made the streaming test fail (`size=6291456`, the gate never opened)
+    and the over-limit and reader-error tests fail.
+  - Totals: `make test` for documents, `runtime/config`, `cvs`: 163 pass / 0 fail (incl. subtests); `cmd/api` and `internal/tools/archguard` ok; with `-tags=integration -p 1`
+    against a throwaway `postgres:16` (127.0.0.1:55432, draft_test, `go run ./cmd/migrate up` to 64) and a throwaway MinIO (`peopleflow/minio` image, 127.0.0.1:59000,
+    `DOCUMENT_S3_TEST_ENDPOINT`): 174 pass / 0 fail / 0 skip, including the 10 MiB multipart round trip (SHA-256), anonymous GET 403, aborted multipart on over-limit,
+    and `Reconcile` against the real tables (referenced kept, young and foreign files kept, old orphan removed, idempotent). `gofmt`, `go vet ./...` and `-tags=integration` clean. Both containers stopped.
+    No AWS command was run and real AWS was never contacted.
+  - Deviations: (1) `feature/s3/manager` is marked deprecated upstream («superceded by feature/s3/transfermanager»); it is the module L10 approved and it works, switching is a later decision.
+    (2) The port key is the bare 64-hex key (matches the `storage_key` CHECK); the S3 adapter adds `<prefix>/` itself and `Objects` strips it, instead of storing prefixed keys as site media does.
+    (3) `Put` over the limit returns `documents.ErrTooLarge` (the object is removed) instead of returning `size = maxBytes+1`; a failing reader's own error is returned unchanged
+    (`errors.Is`), provider/filesystem failures are `ErrStorageUnavailable`. (4) `Reconcile` lives in `documents/infrastructure/postgres` (`NewReconciler(pool, storage).Reconcile(ctx)`) over the generic
+    `documents.ReconcileOrphans`; undated or future-dated objects are kept. (5) Config also rejects `DOCUMENT_STORAGE_ROOT` with `s3` and the same bucket+prefix as site media. (6) The backend
+    env example file was not edited: the sandbox blocks that path; the parent should add the `DOCUMENT_*` lines (list above). (7) No unit test for `newDocumentStorage` in `cmd/api` (test files there are outside the allowed edit surfaces).
+  - Pending for later slices: Q8 scheduling of `Reconcile` (P8); route and audit wiring (P3+). `Reconcile` is not called anywhere yet.
+- **L12** 2026-11-22, parent: P2 committed bde228ba (port, local, config, reconcile, cvs keep-predicate) and 474350fd (S3 adapter,
+  s3/manager v1.17.66, main.go composition); re-ran unit tests on documents, runtime/config, candidates, cmd/api: 15
+  packages ok. The backend env example file is blocked for agents by the safety policy: the DOCUMENT_* variables are
+  listed in L11 and the contract; the user adds them by hand. `feature/s3/manager` is deprecated upstream in favor of
+  `feature/s3/transfermanager` (follow-up).
