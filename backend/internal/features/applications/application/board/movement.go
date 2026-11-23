@@ -135,6 +135,9 @@ type Item struct {
 	CV               CV                `json:"cv"`
 	MovedAt          time.Time         `json:"moved_at"`
 	Discard          *Discard          `json:"discard"`
+	// CarriedFromParticipationID is the source participation of a row carried into a
+	// replacement (replacement-processes-v1, «Carried candidates»); null for any other row.
+	CarriedFromParticipationID *uuid.UUID `json:"carried_from_participation_id"`
 }
 type Coverage struct {
 	Covered               int64      `json:"covered"`

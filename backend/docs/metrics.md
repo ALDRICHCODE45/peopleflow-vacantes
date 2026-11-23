@@ -269,6 +269,15 @@ Two loader rules keep a carried participation (R3b) honest: `origin` and `applic
 `carried_from_participation_id IS NULL` only (a carry is not an application), and a carried intake at or beyond the cutoff
 is a delivered candidate like a manual intake (A3, the rule delivery fulfillment already uses).
 
+The company dashboard follows the same rule (S2 of the replacement follow-ups). A carried participation is **not an
+application**, so it is excluded from every dashboard figure presented as applications or origin: the `origin`
+by-day chart, the `lists/applications` list (and its CSV and `total`) and the `recent` section («Últimas postulaciones
+y registros»; the five newest are taken among the non-carried participations of each vacancy). It is an **operational**
+participation, so it keeps counting wherever the figure is about who is in the process: the in-process series and
+counts (`summary`, `vacancies`, `lists/vacancies`), the `lists/candidates` list, the `pipeline` stage counts and
+stalled, and the period activity. The history snapshot's `Track` carries a `Carried` flag (one track feeds both kinds
+of figure, so it is filtered in the application layer); `loadRecent` filters in SQL because only `recent` reads it.
+
 ## Metrics snapshot (v2 §2)
 
 Every route except the v1 per-vacancy detail reads computes from a shared snapshot

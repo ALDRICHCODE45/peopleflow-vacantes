@@ -513,7 +513,9 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
     { "candidate": { "kind": "manual", "id": "…", "full_name": "Marta Ruiz" },
       "process_id": "…", "participation_id": "…",
       "stage": { "kind": "in_process", "name": "En proceso" },
-      "discarded": true, "eligible": true }
+      "discarded": true,
+      "discard_reason": { "group": "candidate", "key": "unresponsive" },
+      "eligible": true }
   ],
   "carry_candidates_truncated": false,
   "fallen_credits": [
@@ -525,6 +527,8 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
 }
 ```
 
+- `carry_candidates[].discard_reason` (added 2026-11-22, `odd/tasks/replacement-followups-backend.md` S4): always present;
+  `{group, key}` with the same keys as the board item's `discard.reason` when `discarded` is true, `null` otherwise.
 - `items` ordered original first, then `sequence` ascending; **`sequence` of the original is `0`** and every item carries its `title` (feature doc L11:
   the frontend lists the chain without a second request; the lifecycle view keeps ids only and its `sequence` stays `null` for an original). `started_at` of the original is its `published_at`.
   `coverage` is the live board coverage of that process. `can_open` = the caller may open that draft (owner or active
@@ -581,7 +585,8 @@ the same as `GET V/lifecycle` (owner or active tramo on `{id}`). `{id}` is also 
   (derived from several resources). Same chain payload from any process of the chain; only `start_replacement` and `carry_candidates` depend on `{id}`. A draft that never published has no
   process: `root_process_id` = its own id, `items: []`, `start_replacement.blocker = "source_not_closed"`.
 - **`start_replacement`** `allowed` / `blocker` / `active_replacement_id` are the source's own lifecycle view (`can_start_replacement`, `start_replacement_blocker`, `active_replacement_id`), so the two reads
-  cannot disagree. `startable_credits[]` carry exactly the fields above plus (L11) `participation_id`, `hired_at` and `candidate {kind, id, full_name}`; the board item is unchanged. `left_at` is the departure
+  cannot disagree. `startable_credits[]` carry exactly the fields above plus (L11) `participation_id`, `hired_at` and `candidate {kind, id, full_name}`. The board item gains one key: `carried_from_participation_id` (UUID string, `null` unless the row was carried; always present), on every
+  board-item-shaped response (board list, detail, manual create, move/discard/recover/substate); this supersedes L11's «the board item is unchanged». `left_at` is the departure
   history row's time (else the credit's `status_changed_at`, null when neither exists); `recipients[]` are the credit's frozen recipients ordered by user id.
 - **Items.** `lifecycle` is `{publication, process, close_reason, closed_at}` (`close_reason` only while closed, null otherwise); `coverage.required` is the process' `hiring_headcount` (null when unset; a replacement's
   is its `target_quantity`); `replaced_credit_ids` oldest hire first; `visibility` is `public` with a projection, else `private`.

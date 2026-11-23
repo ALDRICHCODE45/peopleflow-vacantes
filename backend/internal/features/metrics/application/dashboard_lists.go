@@ -546,10 +546,10 @@ func (s *Service) buildDashVacancies(ctx context.Context, l dashListing) (dashbo
 }
 
 // DashboardApplicationList answers GET …/dashboard/lists/applications: the
-// participations of the vacancies in scope (any state) created from from to
-// to (the window by default), per vacancy and channel as metrics §5.6. Its
-// total sums the selected channels: an origin day's organic + manual, or one
-// side with channel.
+// participations of the vacancies in scope (any state, carried ones excluded)
+// created from from to to (the window by default), per vacancy and channel as
+// metrics §5.6. Its total sums the selected channels: an origin day's organic +
+// manual, or one side with channel.
 func (s *Service) DashboardApplicationList(ctx context.Context, company uuid.UUID, viewer Viewer, raw string) (*DashboardList[ApplicationRow, ApplicationFacets], error) {
 	l, err := prepareDashboardList(company, viewer, raw, RouteDashboardApplications, false)
 	if err != nil {
@@ -584,6 +584,9 @@ func (s *Service) buildDashApplications(ctx context.Context, l dashListing) (das
 		}
 		byChannel := map[string]int{}
 		for _, t := range v.Tracks {
+			if t.Carried { // a carried participation is not an application
+				continue
+			}
 			if d := LocalDate(t.CreatedAt); d < from || d > to {
 				continue
 			}

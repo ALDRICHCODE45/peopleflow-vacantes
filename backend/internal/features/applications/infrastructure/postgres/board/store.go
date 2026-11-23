@@ -125,7 +125,8 @@ func itemProjectionSQL(effective bool) string {
  p.questions_snapshot,p.answers_snapshot,
  CASE WHEN p.company_candidate_id IS NULL THEN 'organic' ELSE 'manual' END, ad.id,ad.full_name,
  COALESCE((SELECT jsonb_agg(key ORDER BY key) FROM jsonb_object_keys(COALESCE(o.corrections,'{}'::jsonb)) key),'[]'::jsonb),
- CASE WHEN corrected.id IS NULL THEN 'candidate' ELSE 'company' END
+ CASE WHEN corrected.id IS NULL THEN 'candidate' ELSE 'company' END,
+ p.carried_from_participation_id
  FROM process_participations p
  JOIN vacancy_processes vp ON vp.id=p.process_id
  LEFT JOIN users u ON u.id=p.candidate_id
@@ -149,7 +150,7 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 	var profile, questions, answers, corrections []byte
 	var addedID *uuid.UUID
 	var addedName *string
-	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID, &profile, &questions, &answers, &i.Candidate.Kind, &addedID, &addedName, &corrections, &i.CV.Source)
+	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID, &profile, &questions, &answers, &i.Candidate.Kind, &addedID, &addedName, &corrections, &i.CV.Source, &i.CarriedFromParticipationID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return i, 0, app.ErrNotFound
 	}
