@@ -111,6 +111,8 @@ func TestPublicationFlowReadyPublishReplayVersionsAuditAndList(t *testing.T) {
 		stages = append(stages, map[string]any{"id": stage.ID, "kind": stage.Kind, "name": stage.Name, "count": float64(0)})
 	}
 	items[0].(map[string]any)["candidates"] = map[string]any{"total": float64(0), "in_process": float64(0), "discarded": float64(0), "by_stage": stages}
+	// Publishing creates the process: the row gains its live coverage (headcount 2 in this fixture).
+	items[0].(map[string]any)["coverage"] = map[string]any{"covered": float64(0), "required": float64(2)}
 	if listAfter.status != 200 || !reflect.DeepEqual(pageBefore, pageAfter) {
 		t.Fatalf("list changed beyond lifecycle list keys: %s", listAfter.body)
 	}
