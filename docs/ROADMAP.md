@@ -226,10 +226,30 @@ Fuente de producto: `docs/product/next-three-features.md` (worktree del frontend
 
 - ✅ Quitar fecha de nacimiento/edad del candidato y la carta de presentación — ENTREGADO (2026-11-19, backend `689da412`
   con la migración 00062 que borra las columnas; frontend `d348896b`). Deploy: backup de la base antes de aplicar 00062.
-- 🔲 **Documentos de placement y de vacante**.
-- 🔲 **Procesos de reemplazo**.
+- ✅ **Documentos de placement y de vacante** — ENTREGADO backend (2026-11-23, merge `b8964e32`, migración 00064;
+  contrato `docs/contracts/placement-vacancy-documents-v1.md`, configuración `backend/docs/documents.md`): documentos
+  internos por vacante (desde borrador) y por candidato del proceso (cualquier etapa, también descartados), PDF/DOCX/
+  XLSX/JPG/PNG hasta 10 MB detectados por contenido, versiones (máx. 25), borrado auditado por Propietario y equipo,
+  vínculos explícitos desde reemplazos (sin copia, sin saltar el acceso al original), tabla única `document-overview`,
+  Stakeholder de solo lectura (pestaña Documentos + `GET /v2/me/company/stakeholder/vacancies`), storage en disco o S3,
+  limpieza diaria de huérfanos. Verificación independiente sin bloqueantes; revisión nativa aprobada en los cuatro
+  commits de seguridad. Deploy: definir `DOCUMENT_STORAGE`/`DOCUMENT_*` (agregarlas a `.env.example` a mano) y que el
+  BFF/proxy permita 2 min en subidas y descargas. Frontend en su sesión (`feat/vacancy-documents`).
+- ✅ **Procesos de reemplazo** — ENTREGADO (2026-11-20, backend `df426cbc` migración 00063, frontend `629c08d8`);
+  seguimiento 2026-11-22 backend `fc0fd252` (`carried_from_participation_id` en el tablero, motivo de descarte en
+  `carry_candidates`, las arrastradas no cuentan como postulaciones en el dashboard), frontend `aa93c739` («Retomado»),
+  cobertura en vivo en la lista de vacantes `ad5fa542` («Cubierta al cierre»).
+- 🔲 **Seguimientos de documentos (revisión nativa, no bloqueantes)**: (1) no borrar el archivo cuando falla el
+  `commit` de una subida de forma ambigua (dejarlo a Reconcile) — `documents/application/upload.go`; (2) envolver o
+  loguear la causa de `document_storage_unavailable` en descargas; (3) la legibilidad del original en vínculos repite
+  la regla del borrador en SQL en vez de reusar `authorized` (un reclutador responsable sin fila de asignación lo vería
+  `inaccessible`); (4) lecturas REPEATABLE READ pueden dar 500 por serialización ante cambios concurrentes de
+  membresía; (5) `INNER JOIN users` esconde documentos/vínculos si el autor ya no existe; (6) tests faltantes: mapeo de
+  errores de acceso, rechazo de rol en el store de la lista del Stakeholder, exclusión de borradores v1, precedencia
+  `already_linked` vs versión inexistente; (7) `feature/s3/manager` está deprecado (migrar a `transfermanager`).
 - 🔲 **Precarga del candidato desde CV/LinkedIn/OCC** — pospuesta.
-- 🔲 **Login/AWS** — pospuesto.
+- 🔲 **Login/AWS** — pospuesto; entorno de pruebas (cuenta ****5308, dominio ya comprado, tamaño mínimo ~USD 45–60/mes,
+  Terraform en `infra/`) se revisa al final por pedido del usuario (2026-11-22: «nadie TOQUE NADA DE AWS TODAVIA»).
 
 ## Stack decidido (no re-discutir)
 

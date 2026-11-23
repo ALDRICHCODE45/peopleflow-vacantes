@@ -41,7 +41,7 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T9 P7 S3 — replacement linking — done c4fcb712
 - T11 P7b S1 S2 S3 — GET document-overview (single table + vacancy header) — done d002c0c1
 - T12 P7c — GET stakeholder/vacancies (read-only list) — done 58900c66
-- T10 P8 S7 — hardening, reconcile, independent verify of stakeholder access, full suite — code part done in the working tree (L23); the parent runs the full suite, the independent verify and the merge
+- T10 P8 S7 — hardening, reconcile, independent verify of stakeholder access, full suite — done (L23–L25)
 
 ## Log
 
@@ -444,3 +444,12 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
   for 00064 (gate-sqlc pass); the two list-flow tests that pinned 23 keys were fixed on main (640f8a93) and merged in;
   remaining integration FAILs `identity/infrastructure/postgres` and `jobs/infrastructure/postgres` are the legacy
   pre-existing ones (same on main); archguard keeps only the pre-existing docker/minio violation.
+- **L25** 2026-11-23, parent: merged into local main `b8964e32`; dev DB migrated to v64; :8080 runs it with
+  `DOCUMENT_STORAGE_ROOT=/tmp/pf-documents-storage`. Final full suite: unit exit 0; integration 122 packages ok, only
+  the legacy pre-existing `identity/infrastructure/postgres` and `jobs/infrastructure/postgres` FAIL; archguard only
+  docker/minio. RDD native review: the whole branch exceeded the lens context budget (`lens_context_budget_exceeded`),
+  so the four security commits were reviewed one by one from detached worktrees (user: «Sí, corré el sync y seguí con
+  la revisión»): 58900c66 stakeholder vacancies, a2614f6f read gate, fd6e11d8 upload/download, c4fcb712 links — all
+  approved and acknowledged; advisory findings recorded as follow-ups in docs/ROADMAP.md. The other commits (P1, P2,
+  P5, P6, P7b, P8, fixes) were not natively reviewed (not high risk on their own; covered by the independent verify).
+  T10 done.
