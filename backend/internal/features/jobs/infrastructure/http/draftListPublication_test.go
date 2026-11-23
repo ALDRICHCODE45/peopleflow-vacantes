@@ -21,14 +21,41 @@ func TestListDraftsPublicationKeysAndUTCTimestamp(t *testing.T) {
 	if err := json.Unmarshal(r.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
-	if r.Code != 200 || len(page.Items) != 2 || len(page.Items[0]) != 23 || len(page.Items[1]) != 23 || page.Items[1]["process"] != nil || page.Items[0]["process"] != "active" || page.Items[0]["status"] != "published" || page.Items[0]["published_at"] != "2026-10-16T18:34:56.123456Z" || page.Items[1]["status"] != "draft" || page.Items[1]["published_at"] != nil {
+	if r.Code != 200 || len(page.Items) != 2 || len(page.Items[0]) != 24 || len(page.Items[1]) != 24 || page.Items[1]["process"] != nil || page.Items[0]["process"] != "active" || page.Items[0]["status"] != "published" || page.Items[0]["published_at"] != "2026-10-16T18:34:56.123456Z" || page.Items[1]["status"] != "draft" || page.Items[1]["published_at"] != nil {
 		t.Fatalf("%d %s", r.Code, r.Body.String())
 	}
 	keys := map[string]bool{}
 	for k := range page.Items[0] {
 		keys[k] = true
 	}
-	if !reflect.DeepEqual(keys, map[string]bool{"id": true, "title": true, "work_mode": true, "work_schedule": true, "requester": true, "team": true, "version": true, "status": true, "process": true, "published_at": true, "paused_at": true, "closed_at": true, "close_reason": true, "close_reason_note": true, "process_finished_at": true, "candidates": true, "created_at": true, "updated_at": true, "kind": true, "sequence": true, "replacement_of": true, "root_process_id": true, "visibility": true}) {
+	if !reflect.DeepEqual(keys, map[string]bool{"id": true, "title": true, "work_mode": true, "work_schedule": true, "requester": true, "team": true, "version": true, "status": true, "process": true, "published_at": true, "paused_at": true, "closed_at": true, "close_reason": true, "close_reason_note": true, "process_finished_at": true, "candidates": true, "coverage": true, "created_at": true, "updated_at": true, "kind": true, "sequence": true, "replacement_of": true, "root_process_id": true, "visibility": true}) {
 		t.Fatal(keys)
+	}
+}
+
+func TestListDraftsCoverageKey(t *testing.T) {
+	five := int64(5)
+	store := &fakeDraftLister{page: draftlist.Page{Items: []draftlist.Item{
+		{ID: listDraftID, Status: "published", Process: strPtr("active"), Version: 1, Team: listTestTeam(nil), Kind: "original", RootProcessID: listDraftID, Coverage: &draftlist.Coverage{Covered: 2, Required: &five}},
+		{ID: reqEntryID, Status: "published", Process: strPtr("active"), Version: 1, Team: listTestTeam(nil), Kind: "original", RootProcessID: reqEntryID, Coverage: &draftlist.Coverage{}},
+		{ID: reqCompanyID, Status: "draft", Version: 1, Team: listTestTeam(nil), Kind: "original", RootProcessID: reqCompanyID},
+	}}}
+	r := doDraft(t, draftListRouter(store, true), http.MethodGet, draftListPath, nil, nil)
+	var page struct {
+		Items []map[string]json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(r.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	got := []string{}
+	for _, item := range page.Items {
+		raw, ok := item["coverage"]
+		if !ok {
+			t.Fatalf("coverage key must always be present: %s", r.Body.String())
+		}
+		got = append(got, string(raw))
+	}
+	if want := []string{`{"covered":2,"required":5}`, `{"covered":0,"required":null}`, `null`}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("coverage = %v, want %v", got, want)
 	}
 }

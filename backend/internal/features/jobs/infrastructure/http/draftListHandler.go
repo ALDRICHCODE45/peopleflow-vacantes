@@ -47,6 +47,12 @@ type draftListCandidates struct {
 	ByStage   []draftListCandidateStage `json:"by_stage"`
 }
 
+// draftListCoverage is the board's coverage; required is null without a headcount.
+type draftListCoverage struct {
+	Covered  int64  `json:"covered"`
+	Required *int64 `json:"required"`
+}
+
 type draftListItem struct {
 	ID                string               `json:"id"`
 	Title             *string              `json:"title"`
@@ -64,6 +70,7 @@ type draftListItem struct {
 	ClosedAt          *string              `json:"closed_at"`
 	ProcessFinishedAt *string              `json:"process_finished_at"`
 	Candidates        *draftListCandidates `json:"candidates"`
+	Coverage          *draftListCoverage   `json:"coverage"`
 	CreatedAt         string               `json:"created_at"`
 	UpdatedAt         string               `json:"updated_at"`
 	Kind              string               `json:"kind"`
@@ -153,6 +160,9 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 		for i, stage := range c.ByStage {
 			out.Candidates.ByStage[i] = draftListCandidateStage{ID: stage.ID, Kind: stage.Kind, Name: stage.Name, Count: stage.Count}
 		}
+	}
+	if item.Coverage != nil {
+		out.Coverage = &draftListCoverage{Covered: item.Coverage.Covered, Required: item.Coverage.Required}
 	}
 	if item.Requester != nil {
 		out.Requester = &draftListRequester{Kind: item.Requester.Kind, ID: item.Requester.ID, Name: item.Requester.Name}

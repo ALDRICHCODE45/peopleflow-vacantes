@@ -54,7 +54,7 @@ func TestDraftListReplacementKeys(t *testing.T) {
 		page := f.list(f.owner.token, "?limit=50")
 		byID := map[string]map[string]any{}
 		for _, item := range page.items {
-			if len(item) != 23 {
+			if len(item) != 24 {
 				t.Fatalf("item has %d keys: %v", len(item), item)
 			}
 			byID[item["id"].(string)] = item

@@ -80,6 +80,7 @@ without a cursor shows it again.
       "closed_at": null,
       "process_finished_at": null,
       "candidates": null,
+      "coverage": null,
       "created_at": "2026-10-01T09:00:00.000001Z",
       "updated_at": "2026-10-15T12:30:45.123456Z"
     }
@@ -105,12 +106,14 @@ without a cursor shows it again.
 | `closed_at` | Latest close instant in the same format, or `null` if never closed. Retained after reopen. |
 | `process_finished_at` | Latest process-finish instant (separate finish or close-and-finish) in the same format, or `null` if never finished. Retained after reopen. |
 | `candidates` | Always present: `null` without a `vacancy_processes` row; otherwise live participation counts, described below. |
+| `coverage` | Always present: `null` without a `vacancy_processes` row; otherwise `{covered, required}`, the board's live coverage (see «Live coverage»). |
 | `created_at`, `updated_at` | UTC, six fractional digits, the same values as the draft read envelope. |
 
 P1 added `status` and `published_at`; L2 adds `process`; the candidate-summary
 addition adds `candidates`; the lifecycle-date addition adds `paused_at`,
 `closed_at` and `process_finished_at`; close reasons add `close_reason` and
-`close_reason_note` (18 keys per item).
+`close_reason_note`; the replacement keys (`kind`, `sequence`, `replacement_of`,
+`root_process_id`, `visibility`) and `coverage` bring an item to 24 keys.
 Lifecycle transitions do not change draft versions, `created_at`/`updated_at`, ordering, cursors
 or visibility/filtering. Badges: Borrador, Publicada, Pausada, Cerrada · proceso en
 curso, Cerrada · proceso finalizado. The backend returns every state; see
@@ -188,6 +191,30 @@ and requester names are joined into that statement; there are no per-item
 queries. The three existing transactional gate reads remain. No migration is
 required; ordering, cursors, versions and draft timestamps are unchanged.
 
+## Live coverage
+
+`coverage` lets the list say «Cubierta» / «Cubierta al cierre» without opening the
+board. It has the same value as `board.coverage` (`covered`, `required`) of that
+vacancy, read live:
+
+```json
+{ "covered": 1, "required": 2 }
+```
+
+- `covered`: participations sitting in the **current Placement stage** right now
+  (integer ≥ 0). A hire that departs from a closed or finished process
+  (`placement_exit_reason`) leaves the stage, so `covered` drops below `required`
+  after the close, exactly as on the board. It is not a milestone or delivery count.
+- `required`: the process' hiring headcount (integer ≥ 1), `null` when none is
+  configured, as on the board. A published process normally has one.
+- The whole value is `null` for a draft that never published (no process), like `candidates`.
+
+Both numbers come from the same single page statement: the headcount is a left join
+of `job_draft_management_configs` and the Placement occupants reuse the per-stage
+counts that feed `candidates` (the stage chosen from the page's current pipeline,
+first stage of kind `placement`, as the board does). No extra query per row. No
+migration; filters, order, cursors and the other keys are unchanged.
+
 ## Status codes
 
 | Status | `code` | When |
@@ -218,7 +245,7 @@ recruiter's drafts for a recruiter) are read and skipped. Run `make db-migrate` 
 ## Source map
 
 - `internal/features/jobs/application/draftlist` — limit parsing, cursor codec, `Lister` port.
-- `internal/features/jobs/infrastructure/postgres/draftstore/list_v2.go` — `Store.ListV2`.
+- `internal/features/jobs/infrastructure/postgres/draftstore/list_v2.go` — `Store.ListV2`, `listCoverage`.
 - `internal/features/jobs/infrastructure/http/draftListHandler.go` — HTTP adapter.
 - `cmd/api/router.go` — route in the v2 draft group.
 - `db/migrations/00014_index_job_drafts_company_updated.sql` — list index.
@@ -228,3 +255,4 @@ recruiter's drafts for a recruiter) are read and skipped. Run `make db-migrate` 
   discard/recovery, retirement guards, fulfillment/finished reads and visibility.
 - `internal/features/jobs/infrastructure/postgres/draftstore/list_candidates_integration_test.go`
   — one page aggregation, constant query count for 1/50 items including requesters.
+- `cmd/api/draft_list_coverage_integration_test.go` — row coverage vs the board: draft `null`, published, closed-covered, departure after close.
