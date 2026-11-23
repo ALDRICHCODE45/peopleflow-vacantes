@@ -1,9 +1,19 @@
 # PeopleFlow design system (synced)
 
-Synced read-only from the project sources on 2026-10-28; tokens re-synced with `frontend/src/app/globals.css` on
-2026-11-18 (dashboard tokens, sidebar, chart and ambient tokens). Reviewed again on 2026-11-18 against the implemented
-candidate dashboard and saved vacancies (radius, elevation, buttons, inputs, segmented control, the candidate workspace
-patterns and the dark surface rule). Values are copied as authored; nothing here is invented.
+Synced read-only from the project sources on 2026-10-28; re-synced on **2026-11-22** from exactly these sources:
+
+| Source | What it gave |
+|---|---|
+| `frontend/src/app/globals.css` | every colour, radius, font and ambient token; scheme blocks `:root`, `.dark`, `@media (prefers-color-scheme: dark)`; dashboard tokens, `.pf-hero`, pipeline `--stage`, Sileo toast tokens |
+| `frontend/src/features/company-site/public/theme-tokens.ts` | the public careers-site surfaces and the generated `--site-*` token roles |
+| `frontend/components.json` | shadcn style `base-rhea`, base colour `neutral`, `cssVariables: true`, icon library `lucide`, aliases (`@/components/ui`); no Tailwind config file (Tailwind v4, CSS-first) |
+| `frontend/src/components/ui/**` | component rules (badge, button, card, dialog, alert-dialog, sheet, drawer, popover, tooltip, dropdown-menu, select, input, textarea, input-group, field, tabs, toggle-group, table, progress, switch, checkbox, avatar, item, empty, skeleton, spinner, separator, label); primitives come from `@base-ui/react` |
+
+Values are copied as authored; nothing here is invented. The token **values** of `globals.css` did not change since the
+2026-11-18 sync; what this sync added is the public-site tokens, the careers hero and toast tokens, the `@theme`
+mapping, spacing, and the full component recipes from `components/ui`. The sections «Dashboards and metrics», «Espacio
+del candidato» and «Superficie oscura (hero)» record product rules from earlier reviews of the implemented screens and
+the design research; they were **carried over unchanged** and not re-read against product code in this sync.
 Product rules (composition, density, states) live in `docs/frontend-ui-design-rules.md`; this file only records tokens
 and the component recipes the canvas needs.
 
@@ -102,14 +112,108 @@ The same dark values also apply under `@media (prefers-color-scheme: dark)` with
 `--chart-*` tokens are identical in both themes. Pipeline `.stage-process` uses
 `color-mix(in oklch, var(--primary) 60%, var(--foreground))` in dark mode.
 
-## Typography (`frontend/src/app/globals.css` `@theme inline`, `app/layout.tsx`)
+## Tailwind theme mapping (`frontend/src/app/globals.css` `@theme inline`)
 
-- Family: Inter through `--font-sans`, loaded by `next/font` in `app/layout.tsx`; it is the only app face and
-  `--font-heading` resolves to it too. Canvas fallback: system UI stack.
+The `@theme inline` block (45 entries: 36 colours, 7 radii, 2 fonts) only aliases the semantic tokens to Tailwind
+utilities: `--color-<name>: var(--<name>)` for `background`, `foreground`, `card`, `card-foreground`, `popover`,
+`popover-foreground`, `primary`, `primary-foreground`, `primary-text`, `secondary`, `secondary-foreground`, `muted`,
+`muted-foreground`, `accent`, `accent-foreground`, `destructive`, `border`, `input`, `ring`, `chart-1…5`, the eight
+`sidebar*` tokens and the four `status-info|review|success|danger` tones. Product code uses the utilities
+(`bg-card`, `text-muted-foreground`, `border-status-info/40`), never raw colours.
+
+## Fonts (`frontend/src/app/globals.css` `@theme inline`)
+
+| Token | Value |
+|---|---|
+| `--font-sans` | `var(--font-sans)` (Inter, set by `next/font` in `app/layout.tsx`) |
+| `--font-heading` | `var(--font-sans)` |
+
+## Colors — careers hero (`frontend/src/app/globals.css` `.pf-hero`)
+
+The company careers hero paints from hero-scoped slots. Without a cover they follow the page tokens; with a cover
+(`data-pf-hero-cover="true"`) a fixed dark scrim and light copy, identical in light and dark.
+
+| Token | Value (no cover) | Value (cover) |
+|---|---|---|
+| `--pf-hero-fg` | `var(--foreground)` | `oklch(0.99 0 0)` |
+| `--pf-hero-muted` | `var(--muted-foreground)` | `oklch(0.99 0 0 / 0.88)` |
+| `--pf-hero-scrim` | `transparent` | `oklch(0.14 0.02 292 / 0.66)` |
+| `--pf-hero-cta-bg` | `var(--primary)` | `oklch(0.99 0 0)` |
+| `--pf-hero-cta-fg` | `var(--primary-foreground)` | `oklch(0.2 0.03 292)` |
+| `--pf-hero-cta-hover-bg` | `color-mix(in oklab, var(--primary) 85%, var(--foreground))` | `oklch(0.93 0.01 292)` |
+| `--pf-hero-outline-fg` | `var(--foreground)` | `oklch(0.99 0 0)` |
+| `--pf-hero-outline-border` | `var(--border)` | `oklch(0.99 0 0 / 0.75)` |
+| `--pf-hero-outline-hover-bg` | `var(--muted)` | `oklch(0.99 0 0 / 0.1)` |
+
+## Colors — public careers site (`frontend/src/features/company-site/public/theme-tokens.ts`)
+
+`SITE_THEME_SURFACES` mirrors the app surfaces (a test pins the drift): light page `#F7F5FB`, card `#FFFFFF`; dark page
+`#0C0912`, card `#15121F`. `siteBrandTokens(brand, accent, background)` generates, per theme (`light`, `dark`), the
+roles below as `--site-<role>-<theme>`; brand, accent and page colours come from the company, so only the fixed
+literals are values here, the rest are computed to keep AA contrast.
+
+| Token | Value |
+|---|---|
+| `--site-page-light` / `--site-page-dark` | `#F7F5FB` / `#0C0912` (default; a custom page colour replaces it) |
+| `--site-card-light` / `--site-card-dark` | `#FFFFFF` / `#15121F` (swaps to the opposite pole when the custom page is too dark or light for AA) |
+| `--site-muted-light` / `--site-muted-dark` | `#F1EEF7` / `#171226` (equals the card when a custom page colour is set) |
+| `--site-foreground-light` / `--site-foreground-dark` | `#1A1626` / `#F6F2FF`, adjusted for contrast |
+| `--site-secondary-light` / `--site-secondary-dark` | `#6B6480` / `#A79FBF`, adjusted for contrast |
+| `--site-brand-*`, `--site-on-brand-*`, `--site-brand-text-*` | computed from the company brand colour (fill, readable ink on it, small-text ink) |
+| `--site-band-*` | the brand fill at 7 % over the page, materialised as sRGB |
+| `--site-accent-*`, `--site-on-accent-*`, `--site-banner-accent-*`, `--site-on-banner-accent-*`, `--site-ring-*` | computed from the optional accent colour (default: the brand fill); only emitted once an accent or page colour is set |
+
+14 roles × 2 themes = 28 generated tokens (the base set without accent or page is 4 roles × 2 = 8).
+
+## Colors — toasts (`frontend/src/app/globals.css`, `[data-pf-toaster]`)
+
+Sileo is the approved toast exception; its tokens are scoped to `[data-pf-toaster] [data-sileo-viewport]`.
+
+| Token | Value |
+|---|---|
+| `--sileo-state-success` | `var(--status-success)` |
+| `--sileo-state-error` | `var(--status-danger)` |
+| `--sileo-state-warning` | `var(--status-review)` |
+| `--sileo-state-info` | `var(--status-info)` |
+| `--sileo-state-loading` | `var(--muted-foreground)` |
+| `--sileo-state-action` | `var(--foreground)` |
+| `--sileo-width` | `min(350px, calc(100vw - 3rem))` |
+
+Toasts use `z-index: 100` (above modal backdrops, `z-50`), sit at the bottom right, and lift 6.5 rem above the vacancy
+editor's floating save bar. Below 400 px or with reduced motion the animated canvas is hidden and the toast is a static
+`--popover` surface with `--radius-xl` and `0 0 0 1px var(--border)`.
+
+## Typography (`frontend/src/app/globals.css` `@theme inline`, `frontend/src/components/ui/**`)
+
+- Family: Inter through `--font-sans`, loaded by `next/font` (`globals.css` header comment: «see app/layout.tsx»); it is
+  the only app face and `--font-heading` resolves to it too. Canvas fallback: system UI stack.
+- Roles in `components/ui` (Tailwind sizes): `Card`, `Dialog`, `Sheet`, `Popover` titles `text-base` (16) 500; `AlertDialog`
+  and `Empty` titles `text-lg` (18) 500 (`Empty`: `tracking-tight`); body `text-sm` (14); `Label`, `Button`, `Tabs`
+  trigger, `Progress` label `text-sm` 500; `Badge` and `Tooltip` `text-xs` (12) (badge 500); `Input` `text-base` (16) below
+  `md`, `md:text-sm` (14) from `md`; `Progress` value `text-sm` muted `tabular-nums`; dropdown group labels `text-xs`
+  muted; `Table` text `text-sm`, header 500.
 - Pipeline scale (`docs/frontend-ui-design-rules.md` §14.3): page title 20/600, card name 14/500 (2 lines),
   card metadata 12/400 muted, column counters 11.
 - Company overview scale: «Dashboards and metrics» rule 10 (page title 24/600, `text-2xl`).
 - Candidate workspace scale: «Espacio del candidato» below (page title 24/32, 28/36 from `sm`).
+
+## Spacing (`frontend/src/app/globals.css`, `frontend/src/components/ui/**`)
+
+`globals.css` declares no spacing token: spacing is Tailwind's 4 px step (`--spacing(n)` = n × 4 px). Recipes found in
+`components/ui`:
+
+| Where | Value | Source |
+|---|---|---|
+| Card inner spacing (`--card-spacing`) | 20 px (`size="sm"`: 16 px); vertical padding and gap between card parts | `card.tsx` |
+| Dialog / AlertDialog | `p-6` (24), `gap-6` (24); footer `gap-2`, stacked reverse below `sm` | `dialog.tsx`, `alert-dialog.tsx` |
+| Sheet | header `p-6`, `gap-1.5`; footer `px-6 py-3`, `gap-2`; floating inset `--sheet-inset` 8 px (16 px from `md`) | `sheet.tsx` |
+| Popover | `p-4` (16), `gap-4`, width `w-72` (288 px) | `popover.tsx` |
+| Dropdown menu | content `p-1`; item `px-2 py-1.5`, `gap-2`, min height 28 px | `dropdown-menu.tsx` |
+| Item | default `px-4 py-3.5` `gap-3.5`; `sm` `px-3.5 py-3`; `xs` `px-2.5 py-2` `gap-2` | `item.tsx` |
+| Field | field `gap-3`, field group `gap-6` (checkbox group `gap-3`), content `gap-1` | `field.tsx` |
+| Empty | `p-12`, `gap-4`; header `gap-2`, `max-w-sm` | `empty.tsx` |
+| Table | header cell `h-10 px-2`; body cell `p-2` | `table.tsx` |
+| Chart / dashboard rhythm | see «Dashboards and metrics» rule 3 (card 24 px, gaps 24 / 40 px) | carried over |
 
 ## Radius (`frontend/src/app/globals.css`)
 
@@ -125,6 +229,14 @@ The same dark values also apply under `@media (prefers-color-scheme: dark)` with
 | Pipeline candidate card (`.pf-candidate-card`) | `var(--radius-xl)` = 14 px | `globals.css` |
 | Badge | `rounded-md` = 8 px | `components/ui/badge.tsx` |
 | Chip (reason, section, salary) | `rounded-full` | `saved/queue.tsx`, `candidate-dashboard-overview.tsx` |
+| Dialog, AlertDialog | `rounded-[min(var(--radius-4xl),24px)]` = 24 px | `dialog.tsx`, `alert-dialog.tsx` |
+| Popover | `rounded-3xl` = 22 px | `popover.tsx` |
+| Dropdown / select content, sheet (floating) | `rounded-2xl` = 18 px | `dropdown-menu.tsx`, `select.tsx`, `sheet.tsx` |
+| Dropdown item, tooltip | `rounded-xl` = 14 px | `dropdown-menu.tsx`, `tooltip.tsx` |
+| Select trigger, textarea, item, progress track, skeleton | `rounded-2xl` = 18 px | `select.tsx`, `textarea.tsx`, `item.tsx`, `progress.tsx`, `skeleton.tsx` |
+| Tabs list | `rounded-xl` = 14 px; trigger `rounded-lg` = 10 px | `tabs.tsx` |
+| Empty (dashed frame) | `rounded-3xl` = 22 px; icon tile `rounded-xl` | `empty.tsx` |
+| Checkbox | 5 px; switch, avatar `rounded-full` | `checkbox.tsx`, `switch.tsx`, `avatar.tsx` |
 
 The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipeline card, not the shared card.
 
@@ -136,26 +248,70 @@ The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipe
 - Tinted cards («Siguiente paso», first-use empty state): `0 0 0 1px color-mix(in srgb, var(--primary) 14–16%,
   var(--border))` plus the glow `0 10px 24px -18px color-mix(in srgb, var(--primary) 55%, transparent)`
   (`features/candidate/dashboard/dashboard.module.css` `.next`, `features/candidate/saved/saved.module.css` `.empty`).
+- Dialog / AlertDialog: `shadow-xl` plus `ring-1 ring-foreground/5` (`dark:ring-foreground/10`) on `--popover`; scrim
+  `bg-black/30` with `backdrop-blur-sm` (`dialog.tsx`, `alert-dialog.tsx`).
+- Popover, dropdown and select content: `shadow-lg` plus `ring-1 ring-foreground/5` on `--popover`; tooltip has none
+  (`popover.tsx`, `dropdown-menu.tsx`, `select.tsx`, `tooltip.tsx`).
+- Sheet: floating presentation `shadow-lg` with `border border-border/60`; edge presentation `shadow-xl`
+  (`sheet.tsx`).
 - Dark surface: see «Superficie oscura (hero)».
 - Pipeline candidate card (`globals.css` `.pf-candidate-card`): `0 2px 3px color-mix(in srgb, var(--foreground) 4%, transparent), 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent)`;
   hover `0 4px 8px … 8%`, ring `… 70%`.
 
 ## Component rules
 
-- **Badge** (`frontend/src/components/ui/badge.tsx`): h-5, radius-md, 12/500, px-2. Semantic variants paint text and
-  border with the token over a 10–12% fill of the same token: `accent` (primary/12, text foreground), `info`, `review`,
-  `success`, `danger`, `neutral` (muted fill, muted-foreground text, border).
+- **Badge** (`frontend/src/components/ui/badge.tsx`): h-5, radius-md, 12/500, px-2, 12 px icons. Variants: `default`
+  (primary fill), `secondary`, `outline`, `ghost`, `link`, and the semantic ones that paint text and a 40 % border with
+  the token over a 10 % fill of the same token: `info`, `review`, `success`, `danger` (`destructive` is the same
+  recipe on `--status-danger`), `accent` (primary/40 border, primary/12 fill, text `--foreground`) and `neutral` (muted
+  fill, muted-foreground text, border). `dot` adds a 6 px leading dot in `currentColor`. Never status by colour alone:
+  the label always says the state.
 - **Stage tints** (`globals.css` «Pipeline presentation»): `--stage` per kind (neutral = muted-foreground, info,
   review, process = primary, success, danger); column `color-mix(--stage 4%, --background)`, heading/badge
   `color-mix(--stage 10%, --card)` with `--stage` text, dot `--stage`.
 - **Candidate card** (§14.3): `Card size="sm"`, radius-xl, p-3, gap-3, avatar 32 (secondary fill, 12/500 initials),
   name 14/500 with tooltip, metadata lines with 14px icons, `Separator`, file row (icon + truncated name), drag handle
   40px revealed on hover/focus. Menu: allowed stages → «Ver ficha» → «Descartar».
-- **Button** (`components/ui/button.tsx`): `rounded-2xl` (18 px, not a full pill), 14/500, default `h-8 px-3`; product
-  call sites set `min-h-10` (40 px) and `min-h-11` (44 px) for the main action of a card or any button below `sm`.
-  Variants `default` (primary), `outline`, `ghost` (muted-foreground text for header and card-head links), `link`.
-- **Input / input group** (`input.tsx`, `input-group.tsx`): `rounded-2xl`, fill `bg-input/50`, no border at rest,
-  `ring-3 ring-ring/30` on focus; default `h-8`, forms use `min-h-10`; search fields `h-11`.
+- **Button** (`components/ui/button.tsx`): `rounded-2xl` (18 px, not a full pill), 14/500, 16 px icons, disabled
+  `opacity-50`, `active` nudges 1 px down, focus `ring-3 ring-ring/30`. Sizes `default` `h-8 px-3`, `xs` h-6, `sm` h-7,
+  `lg` h-9 px-4, icons `icon` size-8, `icon-xs` 6, `icon-sm` 7, `icon-lg` 9; product call sites set `min-h-10` (40 px)
+  and `min-h-11` (44 px) for the main action of a card or any button below `sm`. Variants `default` (primary,
+  hover `primary/80`), `outline` (border, `--background` fill), `secondary`, `ghost` (muted-foreground text for header
+  and card-head links), `destructive` (`destructive/10` fill, destructive text), `link`.
+- **Input / textarea / select / input group** (`input.tsx`, `textarea.tsx`, `select.tsx`, `input-group.tsx`):
+  `rounded-2xl`, fill `bg-input/50`, no border at rest, `ring-3 ring-ring/30` on focus, `aria-invalid` paints
+  `border-destructive` + `ring-destructive/20`; default `h-8`, text 16 below `md` and 14 from `md`; textarea `min-h-16`;
+  forms use `min-h-10`; search fields `h-11`.
+- **Field** (`field.tsx`): vertical field `gap-3`; group `gap-6`; label 14/500; an invalid field turns its text
+  `--destructive`; legend 16/500 (`label` variant 14).
+- **Dialog** (`dialog.tsx`): centred, `max-w-[calc(100%-2rem)]`, `sm:max-w-md` (448 px), `--popover`, 24 px radius, `p-6
+  gap-6`; close button 40 px `bg-secondary` top right with `sr-only` «Cerrar»; footer reversed column below `sm`, row
+  right-aligned from `sm`. Title 16/500.
+- **AlertDialog** (`alert-dialog.tsx`): same surface, `max-w-xs`, `sm:max-w-md`; title 18/500; optional 64 px round
+  media; the `sm` size makes the footer a two-column grid. Use for destructive confirmations.
+- **Sheet** (`sheet.tsx`): right/left/top/bottom, default floating presentation (`rounded-2xl`, 8 px inset, 16 px from
+  `md`, width 3/4, `sm:max-w-sm` = 384 px, max height the dynamic viewport minus the insets); `bg-popover`; header
+  `p-6`, footer `px-6 py-3`; title 16/500; description 14 muted; 40 px close button; slides 2.5 rem and fades in
+  200 ms. `edge` presentation is full-bleed (mobile navigation). **Drawer** (`drawer.tsx`) is the swipe-to-dismiss bottom
+  sheet (scrim `bg-black/30`, header `p-4`, footer `p-4 pt-0`).
+- **Popover** (`popover.tsx`): 288 px, `p-4 gap-4`, 22 px radius, title 16/500, description muted. **Tooltip**: `bg-foreground
+  text-background`, 12 px, `rounded-xl`, `px-3 py-1.5`, max 320 px.
+- **Dropdown menu** (`dropdown-menu.tsx`): `rounded-2xl p-1`, items `rounded-xl`, 14 px, focus `bg-accent`, destructive
+  items in `--destructive`, separators `bg-border/50`, labels 12 muted.
+- **Tabs** (`tabs.tsx`): default list `h-9 rounded-xl bg-muted p-1`, trigger `rounded-lg px-3` 14/500 in `foreground/70`, the
+  active one on `--background` with `shadow-sm` (dark `foreground/10`); counts in a trigger are `rounded-full` badges that
+  turn `primary/10` when active; `line` variant: transparent list, 2 px `--foreground` underline.
+- **Table** (`table.tsx`): `text-sm`; header cells `h-10 px-2` 500, rows `border-b` with `hover:bg-muted/50`, selected
+  `bg-muted`, cells `p-2`, no wrapping; wrapper scrolls horizontally.
+- **Progress** (`progress.tsx`): track `h-2 rounded-2xl bg-muted`, indicator `bg-primary` with `transition-all`;
+  label 14/500, value 14 muted `tabular-nums` right-aligned.
+- **Switch** (`switch.tsx`): `h-10 w-14 rounded-full p-1`, `bg-primary` on, `bg-input` off. **Checkbox**: 16 px, 5 px
+  radius, `bg-input/90`, hit area extended 12 × 8 px. **Avatar**: 32 px (`sm` 24, `lg` 40), `rounded-full`, fallback
+  `bg-muted` 14 muted.
+- **Item** (`item.tsx`): list item `rounded-2xl`, variants `default` (transparent border), `outline` (`--border`),
+  `muted` (`bg-muted/50`); sizes `default`, `sm`, `xs`; media `icon` (16 px) or `image` (40 px `rounded-xl`).
+- **Spinner** (`spinner.tsx`): lucide `Loader2` 16 px, `animate-spin`, `role="status"`. **Separator**: 1 px `--border`.
+  **Label**: 14/500.
 - **Segmented control** (`toggle-group.tsx` `variant="segmented"`): `h-9 rounded-xl bg-muted p-1`, items `rounded-lg px-3`
   14/500 in `foreground/70`, the pressed item on `--background` with `shadow-sm` (dark: `foreground/10`, no shadow). Candidate page headers use it at `h-11` (44 px). Use it for one choice among 2–4
   views or sorts; a count sits after the label in a quiet badge.

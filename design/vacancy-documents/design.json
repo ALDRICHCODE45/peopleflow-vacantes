@@ -1,0 +1,28 @@
+{
+  "title": "Documentos de la vacante y de cada candidato (placement)",
+  "brief": "T2 · Tres direcciones estructurales para los documentos internos de la vacante y de la participación de cada candidato en cualquier etapa (placement), juntos en cada artboard: PDF, Word, Excel, JPG y PNG hasta 10 MB; límites 50 por vacante, 20 por candidato y 25 versiones por documento; reemplazar crea una versión; borrar con confirmación y auditoría; vínculos al proceso original en los reemplazos («Proceso original», «Reemplazo 2», «hay una versión más nueva», eliminado, sin acceso); Stakeholder solo consulta. Cada artboard trae 11 estados (con documentos, cargando, vacío, subiendo, errores, límite, versiones, eliminar, vínculos, vincular y solo lectura) en escritorio 1440×900 y móvil 390×844, con selector de ámbito (vacante o candidato) donde aplica. Español de México, datos ilustrativos de Grupo Altavista, acciones inertes y tokens de design/system.md. Ninguna dirección está elegida todavía.",
+  "feature": "odd/tasks/vacancy-documents.md",
+  "artboards": [
+    {
+      "file": "01-modulo-lista-y-panel.html",
+      "title": "01 · Módulo en Configuración, lista y panel · S1–S6",
+      "tradeoff": "Todo se administra en un solo lugar y hay espacio para versiones, reglas y capacidad; a cambio hay que salir del tablero para subir el documento de una persona, elegirla primero y no se ve cuántos documentos tiene cada candidato.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-en-contexto-hoja-y-ficha.html",
+      "title": "02 · En contexto: hoja de la vacante y pestaña en la ficha · S1–S6",
+      "tradeoff": "Se sube y consulta en el momento de contratar sin salir del tablero y reutiliza la ficha y la hoja existentes; a cambio la hoja es angosta (384 px), no hay vista global de la vacante y hay dos puntos de entrada que deben comportarse igual.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-expediente-tabla-unica.html",
+      "title": "03 · Expediente en una tabla · S1–S6",
+      "tradeoff": "Una sola tabla responde «¿qué tenemos de esta vacante?» y sirve para auditar y para el Stakeholder; a cambio subir exige elegir el destino y el contrato solo lista por ámbito, así que juntar todo pide una lectura por candidato o un endpoint de agregado que no existe.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}
