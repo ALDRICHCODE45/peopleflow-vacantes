@@ -45,10 +45,10 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
 | T1 | — | Re-sync `design/system.md` (stale vs `frontend/src/app/globals.css`) | |
 | T2 | S1–S6 | Design directions `design/vacancy-documents/` (vacancy and placement together) | |
 | T2b | S8, S9 | Iterate: 03 with the candidate filter + new artboard for the tabbed pipeline header with more room | |
-| T3a | S9 | Vacancy tabs Pipeline / Documentos / Configuración and the pipeline header with more room (artboard 04) | |
-| T3b | S1–S7 | Documents data layer: schemas, BFF upload/download routes, actions (list, overview, upload, replace, delete, link, unlink); audit ANNEX 70 → 75 | |
-| T3c | S1–S6, S8, S10 | Documentos tab UI from artboard 03 (table, filters, upload, versions, delete, links) | |
-| T3d | S11, S12 | Stakeholder: «Vacantes» list and read-only Documentos tab (waits for backend P7c) | |
+| T3a | S9 | Vacancy tabs Pipeline / Documentos / Configuración and the pipeline header with more room (artboard 04) | `8d69983b`, `2c4abed6` (column hint) |
+| T3b | S1–S7 | Documents data layer: schemas, BFF upload/download routes, actions (list, overview, upload, replace, delete, link, unlink); audit ANNEX 70 → 75 | `8a9946f4` |
+| T3c | S1–S6, S8, S10 | Documentos tab UI from artboard 03 (table, filters, upload, versions, delete, links) | `fc0aed25`, `71453858` |
+| T3d | S11, S12 | Stakeholder: «Vacantes» list and read-only Documentos tab | `db04d41b`, `2c4abed6` (single read) |
 | T3e | S1–S12 | Browser check, full suite, merge to main | |
 
 ## Log
@@ -113,3 +113,9 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   `/tmp/pf-documents-storage`. Upload and download have a 2-minute server deadline («Tu BFF y cualquier proxy tienen que
   permitir al menos eso»); contract §Storage: with storage off only byte-moving routes return 503. Audit ANNEX 70 → 75 is
   already on this branch (`8a9946f4`).
+- **L10** Native review (RDD on, escalate item 2: stakeholder route gate) over `714538588874758f4ff7ed0439a61d4918c0e6ba..2c4abed6`,
+  lenses risk + reliability, untracked canvas files excluded: approved, acknowledged (lineage `review-ca8ef9f634313ff2`).
+  Advisory (SUGGESTION) R3: no test drives a successful overview followed by a failed reload on the stakeholder screen to
+  prove the identity row stays. Upload is one file at a time (multi-file queue and drag-and-drop not built); a failed
+  download reloads the tab once (filters reset); the stakeholder frame shows «Cerrada · proceso …» because the overview
+  header has no close_reason; StakeholderRouteBlocked copy still says «ves las métricas».
