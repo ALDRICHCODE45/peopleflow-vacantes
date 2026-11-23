@@ -202,6 +202,8 @@ describe("company dashboard header phone breadcrumb", () => {
     expect(icon!.getAttribute("class")).toContain("sm:hidden");
     expect(link.className).toContain("max-sm:min-h-10");
     expect(link.className).toContain("max-sm:min-w-10");
+    // A long title must not squeeze the crumb under 40px and cover the back link (browser check D1).
+    expect(within(header).getByRole("navigation", { name: "Ruta de navegación" }).className).toContain("max-sm:shrink-0");
     expect(link.querySelector("span")!.className).toContain("max-sm:sr-only");
   });
 

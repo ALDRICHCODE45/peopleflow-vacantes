@@ -46,7 +46,7 @@ export function SiteHeader({
         {parent ? (
           <nav
             aria-label="Ruta de navegación"
-            className="flex min-w-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-2 max-sm:shrink-0"
           >
             <Link
               href={parent.href}
