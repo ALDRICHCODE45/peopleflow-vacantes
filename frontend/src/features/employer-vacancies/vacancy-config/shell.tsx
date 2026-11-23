@@ -10,6 +10,8 @@ import { DraftEditErrorState } from "@/features/jobs/drafts/reopen/error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publication-client";
+import { readClosedCoverage } from "../use-vacancy-identity";
+import type { CloseCoverage } from "@/features/vacancy-lifecycle/model";
 import { PipelineEditorSkeleton } from "../stage-config/loading";
 import { DeliverySkeleton } from "../delivery-config/loading";
 import { ManagementSkeleton } from "../management-config/loading";
@@ -33,7 +35,7 @@ export function VacancyConfigShell({ draftId, children, teamPrototypeEnabled = f
   const pathname = usePathname();
   const modules = teamPrototypeEnabled ? [...VACANCY_CONFIG_MODULES, { slug: "equipo", title: "Equipo", description: "Personas, funciones y movimientos de la vacante.", icon: Users }] : VACANCY_CONFIG_MODULES;
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication: DraftPublication | null; accessEnded?: boolean } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication: DraftPublication | null; coverage?: CloseCoverage; accessEnded?: boolean } | null>(null);
   const result = loaded?.id === draftId ? loaded.result : null;
   useEffect(() => {
     let current = true;
@@ -49,7 +51,8 @@ export function VacancyConfigShell({ draftId, children, teamPrototypeEnabled = f
           accessEnded = !team.ok && team.code === "team_access_ended";
         } catch { /* Preserve the configuration layout's existing failure handling. */ }
       }
-      if (current) setLoaded({ id: draftId, result, publication: publication?.ok ? publication.publication : null, accessEnded });
+      const coverage = await readClosedCoverage(draftId, result);
+      if (current) setLoaded({ id: draftId, result, publication: publication?.ok ? publication.publication : null, ...(coverage ? { coverage } : {}), accessEnded });
     });
     return () => { current = false; };
   }, [draftId, attempt, teamApiEnabled]);
@@ -59,7 +62,7 @@ export function VacancyConfigShell({ draftId, children, teamPrototypeEnabled = f
   return (
     <VacancyFrame vacancyId={draftId} active="configuracion" fallbackTitle="Configuración" loading={result === null}
       title={result?.ok ? result.seed.model.fields.title || "Sin título" : undefined} lifecycle={result?.ok ? result.seed.lifecycle : undefined}
-      publishedAt={publication?.publishedAt ?? null} showStatus={!!publication} tabs={unavailable ? [] : undefined}>
+      publishedAt={publication?.publishedAt ?? null} coverage={loaded?.id === draftId ? loaded.coverage : undefined} showStatus={!!publication} tabs={unavailable ? [] : undefined}>
       {loaded?.id === draftId && loaded.accessEnded ? <TeamAccessEnded /> : result && !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : (
         <>
           <section aria-labelledby="vacancy-config-heading" className="flex flex-col gap-1.5">

@@ -18,8 +18,8 @@ export function CandidatePicker({ id, label, participations, value, onChange, di
     <ComboboxContent>
       <ComboboxEmpty>Sin coincidencias.</ComboboxEmpty>
       <ComboboxList>{(entry: Participation) => <ComboboxItem key={entry.participation_id} value={entry} disabled={isItemDisabled?.(entry)} className="min-h-10">
-        <span className="flex min-w-0 flex-col"><span className="truncate font-medium">{entry.candidate.full_name}</span><span className="truncate text-xs text-muted-foreground">{entry.stage.name}</span></span>
-        {entry.discarded && <Badge variant="neutral">Descartado</Badge>}
+        <span className="flex min-w-0 flex-1 flex-col"><span className="font-medium [overflow-wrap:anywhere]">{entry.candidate.full_name}</span><span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{entry.stage.name}</span></span>
+        {entry.discarded && <Badge variant="neutral" className="shrink-0">Descartado</Badge>}
       </ComboboxItem>}</ComboboxList>
     </ComboboxContent>
   </Combobox>;

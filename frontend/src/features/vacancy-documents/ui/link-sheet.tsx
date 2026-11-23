@@ -95,7 +95,7 @@ export function LinkSheet({ draftId, overview, chosenParticipationId, onClose, o
   }
 
   return <Sheet open onOpenChange={next => { if (!next && !linking) onClose(); }}>
-    <SheetContent showCloseButton={false} finalFocus={finalFocus} className="w-full gap-0 sm:max-w-md">
+    <SheetContent showCloseButton={false} finalFocus={finalFocus} className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
       <SheetHeader className="border-b">
         <SheetTitle>Vincular del proceso original</SheetTitle>
         <SheetDescription>No se copia ningún archivo: se fija la versión actual. Si el original cambia, verás «hay una versión más nueva».</SheetDescription>
@@ -115,21 +115,25 @@ export function LinkSheet({ draftId, overview, chosenParticipationId, onClose, o
           <ul className="flex flex-col gap-2">{group.documents.map(document => {
             const done = isLinked(document);
             const on = !done && chosen.includes(document.id);
-            return <li key={document.id} className={`flex items-start gap-3 rounded-2xl border p-3 ${done ? "bg-muted/50" : ""}`}>
-              <Checkbox className="mt-1" aria-label={document.name} checked={on} disabled={done || linking} onCheckedChange={next => toggle(document.id, next === true)} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{document.name}</p>
-                <p className="text-xs text-muted-foreground">{`${FORMAT_LABEL[document.format]} · ${sizeLabel(document.size)} · versión actual v${document.version}`}</p>
-                {on && <p className="text-xs text-primary">{`Se fijará la versión ${document.version}`}</p>}
-              </div>
-              {done && <Badge variant="neutral"><Check aria-hidden="true" />Ya vinculado</Badge>}
-            </li>;
+            // The whole row is the click target (≥ 40 px): the name toggles the checkbox, and a long name wraps instead of hiding behind «Ya vinculado».
+            // Not a <label for>: Base UI would then name the checkbox after the whole row, and its own name (the document's) must stay as it is.
+            const clickable = !done && !linking;
+            return <li key={document.id}><div data-pf-link-row="" onClick={() => { if (clickable) toggle(document.id, !on); }}
+              className={`flex min-h-10 items-start gap-3 rounded-2xl border p-3 ${done ? "bg-muted/50" : "cursor-pointer hover:bg-muted/40"}`}>
+              <Checkbox className="mt-1" aria-label={document.name} checked={on} disabled={done || linking} onClick={event => event.stopPropagation()} onCheckedChange={next => toggle(document.id, next === true)} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="font-medium [overflow-wrap:anywhere]">{document.name}</span>
+                <span className="text-xs text-muted-foreground">{`${FORMAT_LABEL[document.format]} · ${sizeLabel(document.size)} · versión actual v${document.version}`}</span>
+                {on && <span className="text-xs text-primary-text">{`Se fijará la versión ${document.version}`}</span>}
+                {done && <Badge variant="neutral" className="mt-1 shrink-0 self-start"><Check aria-hidden="true" />Ya vinculado</Badge>}
+              </span>
+            </div></li>;
           })}</ul>
         </section>)}
         {failure && <p role="alert" className="text-sm text-status-danger">{failure}</p>}
       </div>
-      <SheetFooter className="border-t sm:flex-row sm:items-center">
-        {vacancyTarget && sources.status === "ready" && <span className="text-xs text-muted-foreground tabular-nums sm:mr-auto">{`Quedan ${Math.max(0, free)} de ${overview.scope.limits.max_documents} espacios`}</span>}
+      <SheetFooter className="border-t sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        {vacancyTarget && sources.status === "ready" && <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:w-full">{`Quedan ${Math.max(0, free)} de ${overview.scope.limits.max_documents} espacios`}</span>}
         <SheetClose render={<Button type="button" variant="outline" className="min-h-10" disabled={linking} />}>Cancelar</SheetClose>
         <Button type="button" className="min-h-10" disabled={picked.length === 0 || linking} aria-busy={linking || undefined} onClick={link}>
           {linking ? "Vinculando…" : <><Link2 aria-hidden="true" />{picked.length === 0 ? "Vincular documentos" : `Vincular ${plural(picked.length, "documento", "documentos")}`}</>}

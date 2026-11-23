@@ -56,7 +56,7 @@ export function VersionsSheet({ draftId, item, limits, onClose, onReplaced, onRe
   }
 
   return <Sheet open onOpenChange={next => { if (!next && !sending) onClose(); }}>
-    <SheetContent showCloseButton={false} finalFocus={finalFocus} className="w-full gap-0 sm:max-w-md">
+    <SheetContent showCloseButton={false} finalFocus={finalFocus} className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
       <SheetHeader className="border-b"><SheetTitle>{item.name}</SheetTitle>
         <SheetDescription>{`${FORMAT_LABEL[item.format]} · ${sizeLabel(item.size)} · v${item.version} · ${item.updated_by.name}`}</SheetDescription></SheetHeader>
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">

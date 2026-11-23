@@ -101,7 +101,7 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
   const sections = [...new Set(dimensions.map(dimension => dimension.presentation?.section.key))];
   return <Sheet open={open} onOpenChange={setOpen}>
     {/* S9: the board's one flat toolbar. Filters (and the order/compare controls) lead; the board actions end the same row, outside the filters group. */}
-    <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="group/bar flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
       <div role="group" aria-label="Filtros del pipeline" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <SheetTrigger render={<Button ref={trigger} id="board-filters" type="button" variant="outline" className="min-h-10" />}>
           <SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Filtros{count > 0 && <Badge variant="secondary">{count}</Badge>}
@@ -111,10 +111,11 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
           <BoardFilterChips dimensions={dimensions} selection={selection} onChange={onChange} onEdit={() => setOpen(true)} />
           <Button type="button" variant="ghost" className="min-h-10 shrink-0" onClick={() => onChange(clearFilters(selection))}><RotateCcw aria-hidden="true" data-icon="inline-start" />Limpiar</Button>
         </>}
-        {toolbar && <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">{toolbar}</div>}
+        {toolbar && <div data-pf-board-toolbar="" className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 empty:hidden">{toolbar}</div>}
       </div>
       {actions && <>
-        <Separator orientation="vertical" className="hidden h-6 self-center sm:block" />
+        {/* The divider sits between two non-empty groups: it shows only while the toolbar (Orden/Comparar/Reintentar) has content. */}
+        <Separator orientation="vertical" data-pf-board-divider="" className="hidden h-6 self-center sm:group-has-[[data-pf-board-toolbar]:not(:empty)]/bar:block" />
         <div data-pf-board-actions="" className="flex min-w-0 flex-wrap items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1">{actions}</div>
       </>}
     </div>

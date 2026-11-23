@@ -232,3 +232,20 @@ it("coverage and delivery share label/value/bar/secondary anatomy in one progres
     expect(metric.querySelectorAll('[data-slot="metric-label"], [data-slot="metric-value"], [data-slot="progress"], [data-slot="metric-detail"]')).toHaveLength(4);
   }
 });
+
+it("T3e: the divider before the board actions shows only while the toolbar (Orden/Comparar) has content", async () => {
+  const board = boardFixture(); board.lifecycle.allowed_actions = ["pause"];
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
+  render(<MovementBoard vacancyId="vacancy" />);
+  await screen.findByRole("button", { name: "Filtros" });
+  const divider = document.querySelector("[data-pf-board-divider]")!;
+  const toolbar = document.querySelector("[data-pf-board-toolbar]")!;
+  // Without criteria the toolbar is an empty element: hidden itself, and the divider's only visible variant is «toolbar not empty».
+  expect(toolbar).toBeEmptyDOMElement();
+  expect(toolbar).toHaveClass("empty:hidden");
+  expect(divider).toHaveClass("hidden");
+  expect(divider.className).toContain("group-has-[[data-pf-board-toolbar]:not(:empty)]/bar:block");
+  expect(divider.className).not.toMatch(/(^|\s)sm:block/);
+  expect(divider.parentElement).toHaveClass("group/bar");
+  expect(divider.parentElement).toContainElement(toolbar as HTMLElement);
+});

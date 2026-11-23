@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
+import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import { VACANCY_CONFIG_MODULES, VacancyConfigShell } from "./shell";
 import { loadTeamAction } from "@/features/vacancy-team/actions";
 vi.mock("@/features/vacancy-team/actions", () => ({ loadTeamAction: vi.fn() }));
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: vi.fn(() => `/empresa/vacantes/${read.id}/configuracion/columnas`) }));
 // Like the real header: `title={null}` drops the heading (the vacancy frame owns the h1) and only the crumb remains.
 vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title?: React.ReactNode; parent: { label: string; href: string }; status?: React.ReactNode }) => <header>{title !== null && <h1>{title}</h1>}<a href={parent.href}>{parent.label}</a>{status}</header> }));
@@ -62,6 +64,13 @@ it.each([["paused", "Pausada", "review"], ["closed", "Cerrada · proceso en curs
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
   render(shell());
   expect(await screen.findByText(label)).toHaveAttribute("data-variant", variant);
+});
+it.each([[{ covered: 1, required: 2 }, "Cubierta al cierre"], [{ covered: 2, required: 2 }, "Cubierta"]] as const)("S9: a closed «filled» vacancy words its close result with the live coverage, as the pipeline does (%j → %s)", async (coverage, label) => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication: "closed", process: "finished", close_reason: "filled", closed_at: "2026-10-30T12:00:00Z", root_process_id: read.id } } });
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ id: read.id, coverage }] as never, nextCursor: null });
+  render(shell());
+  expect(await screen.findByText(/Motivo de cierre/)).toHaveTextContent(new RegExp(`^Motivo de cierre: ${label}$`));
+  expect(listDraftsAction).toHaveBeenCalledExactlyOnceWith({ limit: 50, rootProcessId: read.id });
 });
 it("shows the confirmed published state instead of labelling an active vacancy as a draft", async () => {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication: "published", process: "active" } } });

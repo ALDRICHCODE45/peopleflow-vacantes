@@ -54,6 +54,20 @@ describe("a download that failed on the server (the BFF sent the browser back wi
     expect(notifyActionResult).not.toHaveBeenCalled();
     expect(window.location.search).toBe("");
   });
+  it("removes the parameter through Next's synced replaceState (own state, not the router's `__NA` one), so a router refresh cannot restore it; the toast fires once under StrictMode", async () => {
+    const { StrictMode } = await import("react");
+    // What the Next app router leaves in history.state: its patched replaceState skips its own sync for a state carrying `__NA`.
+    window.history.replaceState({ __NA: true, tree: [] }, "", `${PATH}?download_error=server_error&tab=x`);
+    const spy = vi.spyOn(window.history, "replaceState");
+    render(<StrictMode><VacancyDocumentsTab draftId={ids.draft} /></StrictMode>);
+    await screen.findByRole("table");
+    const removal = spy.mock.calls.filter(([, , url]) => typeof url === "string" && !String(url).includes("download_error"));
+    expect(removal).toHaveLength(1);
+    expect(removal[0][0]).toBeNull();
+    expect(window.location.search).toBe("?tab=x");
+    expect(notifyActionResult).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
   it("says nothing on a normal visit", async () => {
     arrive("");
     render(<VacancyDocumentsTab draftId={ids.draft} />);

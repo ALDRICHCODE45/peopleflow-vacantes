@@ -89,6 +89,49 @@ describe("the toolbar button (S2: only what the backend allows)", () => {
   });
 });
 
+describe("T3e layout defects of the sheet", () => {
+  it("10: clicking the document's name (the whole row is the label) toggles its checkbox", async () => {
+    const user = userEvent.setup();
+    await mount();
+    sources.mockResolvedValue({ ok: true, data: chain() });
+    const sheet = await openSheet(user);
+    const checkbox = await within(sheet).findByRole("checkbox", { name: "Convenio original" });
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
+    await user.click(within(sheet).getByText("Convenio original"));
+    expect(checkbox).toHaveAttribute("aria-checked", "true");
+    await user.click(within(sheet).getByText("Word · 89 KB · versión actual v3"));
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
+    const row = within(sheet).getByText("Convenio original").closest("[data-pf-link-row]")!;
+    expect(row).toHaveClass("min-h-10", "cursor-pointer");
+    // The checkbox keeps the document's own name, and clicking it directly toggles once (the row's handler does not double it).
+    await user.click(checkbox);
+    expect(checkbox).toHaveAttribute("aria-checked", "true");
+  });
+  it("10: a long name wraps (no truncate) and «Ya vinculado» sits under it, not beside it; a linked row is not a click target", async () => {
+    const user = userEvent.setup();
+    await mount();
+    sources.mockResolvedValue({ ok: true, data: chain() });
+    const sheet = await openSheet(user);
+    const name = await within(sheet).findByText("Organigrama");
+    expect(name).not.toHaveClass("truncate");
+    expect(name).toHaveClass("[overflow-wrap:anywhere]");
+    const linked = name.closest("[data-pf-link-row]")!;
+    expect(within(linked as HTMLElement).getByText("Ya vinculado")).toHaveClass("self-start");
+    expect(linked).not.toHaveClass("cursor-pointer");
+    await user.click(name);
+    expect(within(sheet).getByRole("checkbox", { name: "Organigrama" })).toHaveAttribute("aria-checked", "false");
+  });
+  it("10: «Quedan N de M espacios» never wraps and takes its own footer row; the sheet is full width on phones", async () => {
+    const user = userEvent.setup();
+    await mount();
+    sources.mockResolvedValue({ ok: true, data: chain() });
+    const sheet = await openSheet(user);
+    const free = await within(sheet).findByText("Quedan 48 de 50 espacios");
+    expect(free).toHaveClass("whitespace-nowrap", "sm:w-full");
+    expect(sheet).toHaveClass("data-[side=right]:w-full");
+  });
+});
+
 describe("the sheet: documents of the original chain", () => {
   it("reads the sources of the vacancy scope and lists them by origin with format, size and current version", async () => {
     const user = userEvent.setup();

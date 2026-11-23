@@ -20,11 +20,11 @@ export function VacancyDocumentsScreen({ vacancyId }: { vacancyId: string }) {
 }
 
 function EmployerDocumentsScreen({ vacancyId }: { vacancyId: string }) {
-  const { result, publication, retry } = useVacancyIdentity(vacancyId);
+  const { result, publication, coverage, retry } = useVacancyIdentity(vacancyId);
   const ok = result?.ok ? result : null;
   return (
     <VacancyFrame vacancyId={vacancyId} active="documentos" fallbackTitle="Documentos" loading={result === null}
-      title={ok ? ok.seed.model.fields.title || "Sin título" : undefined} lifecycle={ok?.seed.lifecycle} publishedAt={publication?.publishedAt ?? null} showStatus={!!publication}
+      title={ok ? ok.seed.model.fields.title || "Sin título" : undefined} lifecycle={ok?.seed.lifecycle} publishedAt={publication?.publishedAt ?? null} coverage={coverage} showStatus={!!publication}
       tabs={result && !result.ok ? [] : undefined}>
       {result && !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : <VacancyDocumentsTab draftId={vacancyId} />}
     </VacancyFrame>

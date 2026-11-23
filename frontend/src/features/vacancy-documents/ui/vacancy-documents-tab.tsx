@@ -134,10 +134,13 @@ export function VacancyDocumentsTab({ draftId, onOverview }: { draftId: string; 
   }
 
   return <section ref={region} tabIndex={-1} aria-labelledby="vacancy-documents-heading" className="flex min-h-0 flex-1 flex-col gap-4 outline-none">
-    <h2 id="vacancy-documents-heading" className="font-heading text-xl font-semibold">Documentos</h2>
+    {/* The actions share the heading's row (at 1440 they did not fit beside scope, candidate and search and wrapped under them); on phones they go full width. */}
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      <h2 id="vacancy-documents-heading" className="font-heading text-xl font-semibold">Documentos</h2>
+      {(linkAction || uploadAction) && <div data-pf-documents-actions="" className="flex flex-wrap items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch">{linkAction}{uploadAction}</div>}
+    </div>
     <DocumentFilters filters={filters} counts={counts} participations={overview.participations}
-      onScope={scope => setFilters(chooseScope(filters, scope))} onCandidate={id => setFilters(chooseCandidate(filters, id))} onSearch={search => setFilters({ ...filters, search })}
-      actions={<>{linkAction}{uploadAction}</>} />
+      onScope={scope => setFilters(chooseScope(filters, scope))} onCandidate={id => setFilters(chooseCandidate(filters, id))} onSearch={search => setFilters({ ...filters, search })} />
     {overview.truncated && <p role="note" className="rounded-2xl bg-muted px-4 py-3 text-sm">Se muestran los documentos más recientes de esta vacante. <strong className="font-medium">Filtra por candidato para ver el resto.</strong></p>}
     {rows.length > 0 ? body : <div className="rounded-2xl border">{body}</div>}
     {upload && <UploadDialog draftId={draftId} overview={overview} initialParticipationId={upload.initial} onClose={() => setUpload(null)} onUploaded={uploaded} onReload={reload}

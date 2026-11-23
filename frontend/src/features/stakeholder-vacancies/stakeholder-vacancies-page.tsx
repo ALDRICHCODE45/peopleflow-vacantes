@@ -108,6 +108,8 @@ export function StakeholderVacanciesPage() {
   for (const item of items) counts[statusFilterOf(item)] += 1;
   const shown = filter === "all" ? items : items.filter(item => statusFilterOf(item) === filter);
   const nextCursor = state.status === "ready" ? state.nextCursor : null;
+  // While more pages exist the counts only cover what is loaded (they grew «Todas 20» → «Todas 41» after «Cargar más»): they read «20+».
+  const partial = nextCursor !== null;
 
   let body;
   if (state.status === "loading") body = <Loading />;
@@ -124,10 +126,11 @@ export function StakeholderVacanciesPage() {
     {ready && items.length > 0 && <Tabs value={filter} onValueChange={value => setFilter(value as StatusFilter)}>
       <div className="max-w-full overflow-x-auto pb-1">
         <TabsList aria-label="Filtrar por estado">
-          {STATUS_FILTERS.map(entry => <TabsTrigger key={entry.value} value={entry.value}>{entry.label}<Badge variant="secondary">{counts[entry.value]}</Badge></TabsTrigger>)}
+          {STATUS_FILTERS.map(entry => <TabsTrigger key={entry.value} value={entry.value}>{entry.label}<Badge variant="secondary">{counts[entry.value]}{partial && "+"}</Badge></TabsTrigger>)}
         </TabsList>
       </div>
     </Tabs>}
+    {ready && items.length > 0 && <p data-pf-stakeholder-shown="" role="status" className={META}>Mostrando {plural(shown.length, "vacante", "vacantes")}{partial && " · hay más por cargar"}</p>}
     <Card aria-busy={state.status === "loading"}>
       <CardContent className="-mx-(--card-spacing)">{body}</CardContent>
     </Card>

@@ -116,6 +116,21 @@ it("loads the next page with the keyset cursor on «Cargar más», appends it on
   expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();
 });
 
+it("S12 (T3e): while more pages exist the counts read «N+» and the list says «Mostrando N vacantes»; once everything is loaded they are exact", async () => {
+  const user = userEvent.setup();
+  load.mockResolvedValueOnce(page(rows(closedRow(), draftRow(), activeRow()), "cursor-1")).mockResolvedValueOnce(page(rows(pausedRow()), null));
+  render(<StakeholderVacanciesPage />);
+  await screen.findByRole("list", { name: "Vacantes" });
+  const tabs = () => within(screen.getByRole("tablist", { name: "Filtrar por estado" })).getAllByRole("tab").map(tab => tab.textContent);
+  expect(tabs()).toEqual(["Todas3+", "Borradores1+", "Activas1+", "Pausadas0+", "Cerradas1+"]);
+  expect(screen.getByText(/Mostrando 3 vacantes/)).toHaveTextContent("Mostrando 3 vacantes · hay más por cargar");
+  await user.click(screen.getByRole("button", { name: "Cargar más" }));
+  await waitFor(() => expect(tabs()).toEqual(["Todas4", "Borradores1", "Activas1", "Pausadas1", "Cerradas1"]));
+  expect(screen.getByText(/Mostrando 4 vacantes/)).toHaveTextContent(/^Mostrando 4 vacantes$/);
+  await user.click(screen.getByRole("tab", { name: /Cerradas/ }));
+  expect(screen.getByText(/Mostrando 1 vacante/)).toHaveTextContent(/^Mostrando 1 vacante$/);
+});
+
 it("keeps «Cargar más» while a filter is on, because the next page can hold more of that state", async () => {
   const user = userEvent.setup();
   load.mockResolvedValue(page(rows(closedRow()), "cursor-1"));

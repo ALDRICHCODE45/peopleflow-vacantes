@@ -142,6 +142,72 @@ describe("table", () => {
   });
 });
 
+describe("T3e layout defects", () => {
+  it("6: the «N versiones» button uses the AA text token of both themes, not --primary (2.16:1 on dark)", async () => {
+    await renderTab();
+    const button = within(row(/Contrato firmado/)).getByRole("button", { name: "2 versiones" });
+    expect(button).toHaveClass("text-primary-text");
+    expect(button).not.toHaveClass("text-primary");
+  });
+  it("7: on phones every row keeps its card border (the body's last-child reset cannot remove it), with the actions on the title row", async () => {
+    await renderTab();
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows.length).toBeGreaterThan(1);
+    for (const entry of rows) {
+      expect(entry).toHaveClass("max-md:border!", "max-md:rounded-2xl");
+      const [name, ...rest] = Array.from(entry.querySelectorAll(":scope > td"));
+      const actions = rest.at(-1)!;
+      // The name and the actions are the first row's two cells; the other cells span both columns under the name.
+      expect(name).toHaveClass("max-md:col-start-1", "max-md:row-start-1");
+      expect(name).not.toHaveClass("max-md:col-span-2");
+      expect(actions).toHaveClass("max-md:col-start-2", "max-md:row-start-1");
+      for (const detail of rest.slice(0, -1)) expect(detail).toHaveClass("max-md:col-span-2", "max-md:pl-11");
+    }
+  });
+  it("11: rows show a format badge colored by its status token (PDF danger, Word info, Excel success, JPG/PNG review), not a generic file icon", async () => {
+    await renderTab(wire(value => {
+      const base = value.items[0];
+      value.items = [{ ...base, format: "pdf" }, { ...value.items[1], format: "docx" }, { ...base, id: "0193c0ee-0000-7000-8000-0000000000a1", name: "Hoja", format: "xlsx" }, { ...base, id: "0193c0ee-0000-7000-8000-0000000000a2", name: "Foto", format: "jpg" }, { ...base, id: "0193c0ee-0000-7000-8000-0000000000a3", name: "Plano", format: "png" }] as never;
+    }));
+    const tone = (name: RegExp) => row(name).querySelector("[data-pf-format]")!;
+    expect(tone(/Contrato firmado/)).toHaveTextContent("PDF");
+    expect(tone(/Contrato firmado/)).toHaveClass("text-status-danger");
+    expect(tone(/Contrato marco/)).toHaveTextContent("Word");
+    expect(tone(/Contrato marco/)).toHaveClass("text-status-info");
+    expect(tone(/Hoja/)).toHaveTextContent("Excel");
+    expect(tone(/Hoja/)).toHaveClass("text-status-success");
+    for (const name of [/Foto/, /Plano/]) expect(tone(name)).toHaveClass("text-status-review");
+    expect(tone(/Foto/)).toHaveAttribute("aria-hidden", "true");
+  });
+  it("11: the upload and link actions share the heading row (they wrapped under the filters at 1440) and are one full-width column on phones", async () => {
+    await renderTab(wire(value => { value.scope = scopeWire({ allowed_actions: ["upload", "link"] }) as never; }));
+    const heading = screen.getByRole("heading", { level: 2, name: "Documentos" });
+    const actions = document.querySelector("[data-pf-documents-actions]") as HTMLElement;
+    expect(heading.parentElement).toContainElement(actions);
+    expect(within(actions).getByRole("button", { name: "Subir documento" })).toBeVisible();
+    expect(within(actions).getByRole("button", { name: "Vincular del proceso original" })).toBeVisible();
+    expect(actions).toHaveClass("max-sm:w-full", "max-sm:flex-col");
+    expect(screen.getByRole("group", { name: "Filtrar por ámbito" }).closest("div[class*=flex-col]")).not.toContainElement(actions);
+  });
+  it("11: at 390 the scope filter fills the row (no overflow) and the Candidato picker takes the full width like the search", async () => {
+    await renderTab();
+    const scope = screen.getByRole("group", { name: "Filtrar por ámbito" });
+    expect(scope).toHaveClass("max-sm:w-full");
+    for (const item of within(scope).getAllByRole("button")) expect(item).toHaveClass("max-sm:min-w-0", "max-sm:flex-1");
+    expect(screen.getByRole("combobox", { name: "Candidato" }).closest("div.flex-col")).toHaveClass("max-sm:w-full");
+    expect(screen.getByRole("searchbox", { name: "Buscar documento" }).parentElement).toHaveClass("max-sm:basis-full");
+  });
+  it("11: a candidate name wraps next to «Descartado» instead of truncating", async () => {
+    const user = userEvent.setup();
+    await renderTab();
+    await user.click(screen.getByRole("combobox", { name: "Candidato" }));
+    const zoe = await screen.findByRole("option", { name: /Zoe Zapata/ });
+    expect(within(zoe).getByText("Zoe Zapata")).not.toHaveClass("truncate");
+    expect(within(zoe).getByText("Zoe Zapata")).toHaveClass("[overflow-wrap:anywhere]");
+    expect(within(zoe).getByText("Descartado")).toHaveClass("shrink-0");
+  });
+});
+
 describe("filters (S13)", () => {
   it("counts the scopes from scope.counts and the rows", async () => {
     await renderTab();

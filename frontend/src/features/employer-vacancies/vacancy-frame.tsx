@@ -46,7 +46,7 @@ type Props = {
   lifecycle?: Lifecycle | undefined;
   /** The publication read's date, used when the lifecycle carries none. */
   publishedAt?: string | null;
-  /** The board's live coverage: «Cubierta al cierre» needs it. Absent outside the pipeline tab. */
+  /** The live coverage «Cubierta al cierre» needs: the board's on the pipeline tab, the draft list row's on the others (`readClosedCoverage`). */
   coverage?: CloseCoverage | undefined;
   /** False while the publication read failed: no state badge is invented. */
   showStatus?: boolean;

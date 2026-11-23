@@ -145,6 +145,10 @@ function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartRepla
     {canAct && <LifecycleActionsMenu coverage={board.coverage} draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} onPublish={onPublish} onStartReplacement={onStartReplacement && (() => onStartReplacement())} />}
     {canIntake && <Button id="manual-intake-open" type="button" className="min-h-10" disabled={stale || state.reading || pending.size > 0 || state.columns.busy} onClick={() => setIntake(true)}><UserPlus aria-hidden="true" data-icon="inline-start" />Agregar candidato</Button>}
   </> : undefined;
+  // The column-order result line; with nothing to say no slot (and no min-height) is rendered, so it cannot wrap onto a row of its own on phones.
+  const columnLine = state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />{state.columns.pending === "preview" ? "Revisando el impacto…" : "Guardando y actualizando columnas…"}</p>
+    : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} action={state.columns.notice.link && <Link className="inline-flex min-h-10 items-center underline" href={state.columns.notice.link.href}>{state.columns.notice.link.title}</Link>} />
+      : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : null;
   return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-3" aria-busy={state.reading}>
     {/* The vacancy frame owns identity, dates and the tabs; the replacement link is one line beside them (inline when the board stands alone). */}
     {board && <InVacancyTabRow><ReplacementLinkBar lifecycle={board.lifecycle} selfId={vacancyId} chain={chain} /></InVacancyTabRow>}
@@ -161,9 +165,7 @@ function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartRepla
           <BoardCoverage coverage={board.coverage} />
           <BoardDelivery delivery={board.delivery} status={state.deliveryStatus} finished={readOnly} />
         </div>
-        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3"><ActionStatusSlot>
-          {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />{state.columns.pending === "preview" ? "Revisando el impacto…" : "Guardando y actualizando columnas…"}</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} action={state.columns.notice.link && <Link className="inline-flex min-h-10 items-center underline" href={state.columns.notice.link.href}>{state.columns.notice.link.title}</Link>} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : null}
-        </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
+        {(columnLine || state.columns.unavailable) && <div data-pf-column-status="" className="ml-auto flex min-w-0 flex-wrap items-center gap-3">{columnLine && <ActionStatusSlot>{columnLine}</ActionStatusSlot>}{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>}
       </div>
       <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} actions={boardActions} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Select items={[{ value: "arrival", label: "Llegada" }, { value: "fit", label: "Mejor ajuste (checklist)" }]} value={bestFit ? "fit" : "arrival"} onValueChange={changeOrder}>

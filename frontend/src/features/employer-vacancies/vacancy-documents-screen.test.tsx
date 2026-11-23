@@ -6,6 +6,7 @@ import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
+import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import { VacancyDocumentsScreen } from "./vacancy-documents-screen";
 import { loadDocumentOverviewAction } from "@/features/vacancy-documents/actions";
 import { overviewSchema } from "@/features/vacancy-documents/model";
@@ -15,6 +16,7 @@ const membership = vi.hoisted(() => ({ state: vi.fn() }));
 vi.mock("@/features/employer-company/company-membership-context", () => ({ useCompanyMembershipState: () => membership.state() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
 vi.mock("@/features/vacancy-documents/actions", () => ({ loadDocumentOverviewAction: vi.fn(), deleteDocumentAction: vi.fn(), deleteDocumentLinkAction: vi.fn(), listDocumentVersionsAction: vi.fn(), listDocumentSourcesAction: vi.fn(), createDocumentLinkAction: vi.fn() }));
 vi.mock("@/components/ui/combobox", async () => (await import("@/features/vacancy-documents/ui/test-support")).comboboxDouble());
 vi.mock("@/components/ui/dropdown-menu", async () => (await import("@/features/vacancy-documents/ui/test-support")).dropdownMenuDouble());
@@ -46,6 +48,28 @@ it("lives in the vacancy frame: identity row, Documentos as the current tab, the
   expect(screen.getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
   expect(loadDraftForEditAction).toHaveBeenCalledExactlyOnceWith(read.id);
   expect(loadDraftPublicationAction).toHaveBeenCalledExactlyOnceWith(read.id);
+});
+// S9 (T3e): the close reason reads the same on every tab. The board's coverage is not read here, so a closed «filled» vacancy takes it
+// from its own row of the draft list (chain of the vacancy only); other vacancies make no extra read.
+const closedFilled = { ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication: "closed", process: "finished", close_reason: "filled", closed_at: "2026-10-30T12:00:00Z", root_process_id: read.id } } } as never;
+it.each([[{ covered: 1, required: 2 }, "Cubierta al cierre"], [{ covered: 2, required: 2 }, "Cubierta"]] as const)("a closed vacancy words its close result with the live coverage from the draft list (%j → %s)", async (coverage, label) => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue(closedFilled);
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ id: "other", coverage: { covered: 0, required: 9 } }, { id: read.id, coverage }] as never, nextCursor: null });
+  render(<VacancyDocumentsScreen vacancyId={read.id} />);
+  expect(await screen.findByText(/Motivo de cierre/)).toHaveTextContent(new RegExp(`^Motivo de cierre: ${label}$`));
+  expect(listDraftsAction).toHaveBeenCalledExactlyOnceWith({ limit: 50, rootProcessId: read.id });
+});
+it("keeps the plain close label when the coverage read fails, and makes no list read for a vacancy that is not closed «filled»", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue(closedFilled);
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+  render(<VacancyDocumentsScreen vacancyId={read.id} />);
+  expect(await screen.findByText(/Motivo de cierre/)).toHaveTextContent("Motivo de cierre: Cubierta");
+  cleanup();
+  vi.mocked(listDraftsAction).mockClear();
+  vi.mocked(loadDraftForEditAction).mockResolvedValue(success);
+  render(<VacancyDocumentsScreen vacancyId={read.id} />);
+  expect(await screen.findByRole("table")).toBeVisible();
+  expect(listDraftsAction).not.toHaveBeenCalled();
 });
 it("shows a draft read failure with a retry instead of the documents", async () => {
   vi.mocked(loadDraftForEditAction).mockResolvedValueOnce({ ok: false, reason: "not_found" });
