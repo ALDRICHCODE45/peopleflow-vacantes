@@ -1,0 +1,110 @@
+package documents
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// TimestampLayout renders every timestamp of the documents API: UTC with microseconds (contract «Endpoints»).
+const TimestampLayout = "2006-01-02T15:04:05.000000Z"
+
+// FormatTime renders t in TimestampLayout.
+func FormatTime(t time.Time) string { return t.UTC().Format(TimestampLayout) }
+
+// Person is a user as the contract shows them: {id, name}.
+type Person struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// Item is one file document of GET P/documents, showing its current (highest) version.
+type Item struct {
+	ID string `json:"id"`
+	// ParticipationID is always present: null for the vacancy scope (never omitted).
+	ParticipationID *string  `json:"participation_id"`
+	Name            string   `json:"name"`
+	Format          Format   `json:"format"`
+	ContentType     string   `json:"content_type"`
+	Size            int64    `json:"size"`
+	Version         int      `json:"version"`
+	VersionCount    int      `json:"version_count"`
+	CreatedAt       string   `json:"created_at"`
+	CreatedBy       Person   `json:"created_by"`
+	UpdatedAt       string   `json:"updated_at"`
+	UpdatedBy       Person   `json:"updated_by"`
+	AllowedActions  []Action `json:"allowed_actions"`
+}
+
+// LinkSource describes the pinned version of a link's source document (D16). It is null for a removed or
+// inaccessible link.
+type LinkSource struct {
+	DocumentID      string  `json:"document_id"`
+	ProcessID       string  `json:"process_id"`
+	Sequence        int     `json:"sequence"`
+	ParticipationID *string `json:"participation_id"`
+	Name            string  `json:"name"`
+	Format          Format  `json:"format"`
+	Size            int64   `json:"size"`
+	// Version is the pinned version number; UploadedAt/UploadedBy are that version's.
+	Version         int    `json:"version"`
+	VersionCount    int    `json:"version_count"`
+	UploadedAt      string `json:"uploaded_at"`
+	UploadedBy      Person `json:"uploaded_by"`
+	HasNewerVersion bool   `json:"has_newer_version"`
+}
+
+// Link is one entry of `links[]`.
+type Link struct {
+	ID             string      `json:"id"`
+	State          LinkState   `json:"state"`
+	LinkedAt       string      `json:"linked_at"`
+	LinkedBy       Person      `json:"linked_by"`
+	AllowedActions []Action    `json:"allowed_actions"`
+	Source         *LinkSource `json:"source"`
+}
+
+// List is the body of GET P/documents: both arrays are always present (empty, never null).
+type List struct {
+	Items []Item `json:"items"`
+	Links []Link `json:"links"`
+	Scope Scope  `json:"scope"`
+}
+
+// Reader is the read side of the documents store.
+type Reader interface {
+	// List returns the documents of the scope of target for actor. A vacancy scope needs no process row: a never-published draft
+	// lists too. A participation scope needs the participation to belong to the draft (ErrScopeNotFound otherwise, at any
+	// stage, discarded included). Errors are the Err* sentinels below.
+	List(ctx context.Context, companyID, actorID uuid.UUID, target Target) (List, error)
+	// Versions returns every version of a document of the scope, newest first (the read gate; ErrScopeNotFound for a document
+	// that is not one of this scope's).
+	Versions(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (VersionList, error)
+	// Sources returns the documents of the earlier processes of the replacement chain (vacancy scope) or of the ancestors of the
+	// carried participation (participation scope) that the caller can read, grouped by origin (D17, D18, D22). A scope that cannot
+	// receive links answers NoSources(), not an error.
+	Sources(ctx context.Context, companyID, actorID uuid.UUID, target Target) (Sources, error)
+	// Overview reads the vacancy header, the vacancy scope, the participations and the documents and links of the vacancy and of every
+	// participation of it from one snapshot taken after the read gate (GET V/document-overview, L20). participationID, when set,
+	// narrows the rows to that participation's (ErrScopeNotFound when it is not one of the vacancy's, after the vacancy gates).
+	Overview(ctx context.Context, companyID, actorID, draftID uuid.UUID, participationID *uuid.UUID) (Overview, error)
+}
+
+// Access failures of the store, in the vocabulary of the vacancy authorization (D4, D6). The HTTP layer maps each to the
+// catalog code of the same name; nothing else crosses the boundary.
+var (
+	// ErrScopeNotFound: the vacancy, participation or document is not visible to the caller (404 not_found).
+	ErrScopeNotFound = errors.New("documents: scope not found")
+	// ErrTeamAccessEnded: a former team member (404 team_access_ended).
+	ErrTeamAccessEnded = errors.New("documents: team access ended")
+	// ErrForbidden: the caller's role may not do this (403 forbidden), e.g. a stakeholder writing.
+	ErrForbidden = errors.New("documents: forbidden")
+	// ErrUnauthenticated: the acting user no longer exists (401 unauthenticated).
+	ErrUnauthenticated = errors.New("documents: unauthenticated")
+	// ErrCompanyInactive: the session company is gone or tombstoned (403 company_inactive).
+	ErrCompanyInactive = errors.New("documents: company inactive")
+	// ErrCompanyNotActive: the company is not active yet (409 company_not_active).
+	ErrCompanyNotActive = errors.New("documents: company not active")
+)

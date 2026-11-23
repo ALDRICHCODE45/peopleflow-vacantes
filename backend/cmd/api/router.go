@@ -19,6 +19,7 @@ import (
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	talentbasehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http/talentbase"
 	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
+	documentshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/http"
 	geohttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/http"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
@@ -51,6 +52,13 @@ type routerDeps struct {
 	requireMetricsViewer func(http.Handler) http.Handler
 	// metricsHandler serves the company metrics read API (§3).
 	metricsHandler *metricshttp.Handler
+	// stakeholderVacanciesHandler serves the stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c) behind requireMetricsViewer.
+	stakeholderVacanciesHandler *jobshttp.StakeholderVacanciesHandler
+	// requireDocumentReader passes owners, recruiters and stakeholders; it guards the read
+	// routes of placement and vacancy documents (placement-vacancy-documents-v1 «Authorization»).
+	requireDocumentReader func(http.Handler) http.Handler
+	// documentHandler serves the documents routes; its store re-checks the vacancy access.
+	documentHandler *documentshttp.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -122,6 +130,10 @@ func newRouter(d routerDeps) chi.Router {
 	// Metrics are never served ungated: a missing gate refuses everyone.
 	if d.requireMetricsViewer == nil {
 		d.requireMetricsViewer = refuseMetrics
+	}
+	// Documents are never served ungated: a missing read gate refuses everyone.
+	if d.requireDocumentReader == nil {
+		d.requireDocumentReader = refuseDocuments
 	}
 	// The public assessment prefix is never served unlimited.
 	if d.publicAssessmentLimit == nil {
@@ -284,6 +296,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/metrics/applications", d.metricsHandler.ApplicationList)
 		r.Get("/v2/me/company/metrics/candidates/export", d.metricsHandler.Export("candidates"))
 		r.Get("/v2/me/company/metrics/applications/export", d.metricsHandler.Export("applications"))
+	})
+
+	// The stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c, L20): every vacancy of the company, never-published drafts
+	// included, with its lifecycle header values, coverage and documents count. Owners and stakeholders read it behind the metrics
+	// viewer gate; a recruiter is refused with the same 403 as on the metrics routes. NoStore runs before both gates.
+	r.Group(func(r chi.Router) {
+		r.Use(jobshttp.NoStore, d.requireAuth, d.requireMetricsViewer)
+		r.Get("/v2/me/company/stakeholder/vacancies", d.stakeholderVacanciesHandler.List)
 	})
 
 	// Company dashboard v2 sections (company-dashboard-v2 §3): owners and
@@ -451,6 +471,49 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/reopen", lifecycleHandlers.Reopen)
 		r.Get("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.List)
 		r.Post("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.Start)
+		// Placement and vacancy documents, WRITE routes (placement-vacancy-documents-v1, D4): the recruiter ladder
+		// refuses a stakeholder with 403 forbidden and the store applies owner-or-active-tramo. The upload is accepted
+		// in every lifecycle state, closed and finished included (S4); it never goes through the board's mutation guard.
+		r.Post("/v2/me/company/job-drafts/{id}/documents", d.documentHandler.Upload)
+		// Replace (a new version, expected_version required) and delete are manage operations too, allowed after closure (S4).
+		r.Post("/v2/me/company/job-drafts/{id}/documents/{doc}/versions", d.documentHandler.Replace)
+		r.Delete("/v2/me/company/job-drafts/{id}/documents/{doc}", d.documentHandler.Delete)
+		// Participation documents (P6, D3, D5): the same handlers and the same gate; the `{pid}` URL parameter makes the scope a
+		// participation, whose only rule is «pid belongs to {id}» (no stage check, discarded included). Pool access
+		// (/v2/me/company/candidates/*) grants nothing and has no route.
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/documents", d.documentHandler.Upload)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions", d.documentHandler.Replace)
+		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}", d.documentHandler.Delete)
+		// Replacement links (P7, S3, D16-D19): linking and unlinking are manage operations too, on a replacement vacancy scope
+		// or a carried participation scope, allowed after closure (S4). The link routes are literal siblings of `documents`.
+		r.Post("/v2/me/company/job-drafts/{id}/document-links", d.documentHandler.Link)
+		r.Delete("/v2/me/company/job-drafts/{id}/document-links/{link}", d.documentHandler.Unlink)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/document-links", d.documentHandler.Link)
+		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/document-links/{link}", d.documentHandler.Unlink)
+	})
+	// Placement and vacancy documents, READ routes (placement-vacancy-documents-v1, D4, D6): owners,
+	// recruiters and stakeholders pass the coarse gate and the store applies the vacancy rule (owner,
+	// active tramo, or stakeholder of the company, never-published drafts included). The write routes
+	// belong in the recruiter group above, which refuses a stakeholder. NoStore runs before both gates.
+	r.Group(func(r chi.Router) {
+		r.Use(jobshttp.NoStore, d.requireAuth, d.requireDocumentReader)
+		r.Get("/v2/me/company/job-drafts/{id}/documents", d.documentHandler.List)
+		r.Get("/v2/me/company/job-drafts/{id}/documents/{doc}/file", d.documentHandler.File)
+		r.Get("/v2/me/company/job-drafts/{id}/documents/{doc}/versions", d.documentHandler.Versions)
+		r.Get("/v2/me/company/job-drafts/{id}/documents/{doc}/versions/{n}/file", d.documentHandler.FileVersion)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents", d.documentHandler.List)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/file", d.documentHandler.File)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions", d.documentHandler.Versions)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions/{n}/file", d.documentHandler.FileVersion)
+		// Replacement links, read side (P7): the sources a replacement can link and the download of a link's pinned version. Both
+		// re-evaluate source access in the store (D18); a stakeholder reads them.
+		r.Get("/v2/me/company/job-drafts/{id}/document-sources", d.documentHandler.Sources)
+		r.Get("/v2/me/company/job-drafts/{id}/document-links/{link}/file", d.documentHandler.FileLink)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/document-sources", d.documentHandler.Sources)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/document-links/{link}/file", d.documentHandler.FileLink)
+		// The vacancy's single table (P7b): the documents and links of the vacancy and of every participation of it, the vacancy
+		// header and the participations, from one snapshot. Vacancy-only: there is no participation-scoped twin.
+		r.Get("/v2/me/company/job-drafts/{id}/document-overview", d.documentHandler.Overview)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)
@@ -486,6 +549,14 @@ func refuseTalentBase(http.Handler) http.Handler {
 // refuseMetrics is the fail-closed default for a router built without the
 // metrics viewer gate.
 func refuseMetrics(http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeForbidden))
+	})
+}
+
+// refuseDocuments is the fail-closed default for a router built without the documents
+// read gate.
+func refuseDocuments(http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeForbidden))
 	})

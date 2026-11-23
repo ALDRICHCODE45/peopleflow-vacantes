@@ -84,6 +84,8 @@ and one row, revalidation included. Rejected requests (400, 401, 403, 404) write
 | `GET /v2/me/company/job-drafts/{id}/participations/{pid}` | `ParticipationViewed` | `process_participation` / `{pid}` | `{}` (`vacancy_id` column = `{id}`) |
 | `GET /v2/me/company/job-drafts/{id}/participations/{pid}/cv` | `ParticipationCVDownloaded` | `process_participation` / `{pid}` | `{variant: "current"}` |
 | `… /{pid}/cv/original` | `ParticipationCVDownloaded` | same | `{variant: "original"}` |
+| `GET /v2/me/company/job-drafts/{id}/documents/{doc}/file`, `…/documents/{doc}/versions/{n}/file` (and the same under `…/participations/{pid}/`) | `DocumentDownloaded` | `document` / `{doc}` | `{company_id, vacancy_id, scope, participation_id, document_id, version_id, version}` (`vacancy_id` column = `{id}`) |
+| `GET …/document-links/{link}/file` | `DocumentDownloaded` | `document` / the source `{doc}` | same keys plus `link_id` |
 
 - The CV row is committed **before** the first byte is streamed. A download interrupted mid-stream stays recorded as
   «descargó» (honest wording on the screen: «inició la descarga»).
@@ -325,6 +327,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `PsychometricResultViewed` | sensitive_read | Vio un resultado psicométrico |
 | `MetricsDetailViewed` | sensitive_read | Detalle de métricas consultado |
 | `MetricsDetailExported` | sensitive_read | Detalle de métricas exportado |
+| `DocumentDownloaded` | sensitive_read | Descargó un documento |
 | `CandidateAccountCreated` | candidate | Creó su cuenta de candidato |
 | `CompanyCandidateEdited` | candidate | Editó los datos de un candidato |
 | `CompanyCandidateCVCorrected` | candidate | Corrigió el CV de un candidato |
@@ -358,6 +361,10 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `VacancyPlacementCredited` | vacancy | Acreditó una colocación |
 | `VacancyPlacementCreditChanged` | vacancy | Cambió el estado de un crédito de colocación |
 | `VacancyReplacementStarted` | vacancy | Inició un proceso de reemplazo |
+| `DocumentUploaded` | vacancy | Subió un documento |
+| `DocumentReplaced` | vacancy | Reemplazó un documento por una nueva versión |
+| `DocumentDeleted` | vacancy | Eliminó un documento o un vínculo a documento |
+| `DocumentLinked` | vacancy | Vinculó un documento del proceso original |
 | `JobDraftPipelineConfigured` | pipeline | Configuró las etapas de una vacante |
 | `JobDraftSubstatesConfigured` | pipeline | Configuró los subestados de una vacante |
 | `ParticipationMoved` | pipeline | Movió a un candidato de etapa |
@@ -386,7 +393,7 @@ accumulating the day it merges, which is the point of doing it early («lo no re
 | `StakeholderInvitationAccepted` | members | Invitación de stakeholder aceptada |
 | `AuditLogExported` | audit | Exportó la auditoría |
 
-The annex lists every catalog type (70) in catalog order; a test fails when a catalog type has no row.
+The annex lists every catalog type (75) in catalog order; a test fails when a catalog type has no row.
 
 ## Decisions (approved 2026-11-04)
 

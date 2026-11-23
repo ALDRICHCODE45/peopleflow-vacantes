@@ -46,6 +46,8 @@ const (
 	EntityJobDraft = "job_draft"
 	// EntityJobDraftRequester is the requester catalog entry entity type.
 	EntityJobDraftRequester = "job_draft_requester"
+	// EntityDocument is a placement or vacancy document (or a link to one) in the DocumentUploaded/Replaced/Deleted/Linked/Downloaded events.
+	EntityDocument = "document"
 	// EntityStakeholderInvitation is one copyable stakeholder invitation link.
 	EntityStakeholderInvitation = "stakeholder_invitation"
 )

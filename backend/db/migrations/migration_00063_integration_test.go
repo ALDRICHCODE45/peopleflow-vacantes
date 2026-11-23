@@ -154,6 +154,7 @@ func TestMigration00063DownRefusesReplacementData(t *testing.T) {
 			db, pool, cleanup := isolatedMigrationDB(t)
 			defer cleanup()
 			gooseUpAll(t, db)
+			gooseDownTo(t, db, 63) // 00064 sits on top; Down below targets 00063 itself
 			tc.seed(newReplacementSeed(t, pool))
 			err := gooseDownOnce(t, db)
 			if err == nil || !strings.Contains(err.Error(), "cannot remove replacement processes: replacements or carried participations exist") {
@@ -173,6 +174,7 @@ func TestMigration00063DownAndUpWithoutReplacementData(t *testing.T) {
 	db, pool, cleanup := isolatedMigrationDB(t)
 	defer cleanup()
 	gooseUpAll(t, db)
+	gooseDownTo(t, db, 63) // 00064 sits on top; Down below targets 00063 itself
 	s := newReplacementSeed(t, pool)
 	s.participation(s.process(), nil)
 	if err := gooseDownOnce(t, db); err != nil {

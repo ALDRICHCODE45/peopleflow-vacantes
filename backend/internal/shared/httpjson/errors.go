@@ -141,6 +141,9 @@ func Resolve(code Code) Definition {
 		if def, ok := resolveReplacementError(code); ok {
 			return def
 		}
+		if def, ok := resolveDocumentError(code); ok {
+			return def
+		}
 		if def, ok := resolveGeoError(code); ok {
 			return def
 		}

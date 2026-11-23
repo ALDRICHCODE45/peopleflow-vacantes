@@ -72,6 +72,7 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 		EntityCompanySite:           true,
 		EntityJobDraft:              true,
 		EntityJobDraftRequester:     true,
+		EntityDocument:              true,
 		EntityStakeholderInvitation: true,
 	}
 	for _, spec := range Catalog() {

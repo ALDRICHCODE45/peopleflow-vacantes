@@ -234,6 +234,51 @@ func TestCatalogReplacementEvents(t *testing.T) {
 	}
 }
 
+// TestCatalogDocumentEvents pins the five placement/vacancy document events
+// (placement-vacancy-documents-v1 «Audit events»): category, company scope and the
+// closed metadata keys. File names never appear in a key set: they may carry personal names.
+func TestCatalogDocumentEvents(t *testing.T) {
+	want := map[string]struct {
+		constant string
+		category Category
+		keys     string
+	}{
+		EventDocumentUploaded:   {"DocumentUploaded", CategoryVacancy, "company_id,vacancy_id,scope,participation_id,document_id,version_id,version,format"},
+		EventDocumentReplaced:   {"DocumentReplaced", CategoryVacancy, "company_id,vacancy_id,scope,participation_id,document_id,version_id,version,previous_version_id,format,renamed"},
+		EventDocumentDeleted:    {"DocumentDeleted", CategoryVacancy, "company_id,vacancy_id,scope,participation_id,kind,document_id,link_id,version_count,linked_count"},
+		EventDocumentLinked:     {"DocumentLinked", CategoryVacancy, "company_id,vacancy_id,scope,participation_id,link_id,source_document_id,source_version_id,source_vacancy_id,source_participation_id"},
+		EventDocumentDownloaded: {"DocumentDownloaded", CategorySensitiveRead, "company_id,vacancy_id,scope,participation_id,document_id,version_id,version,link_id"},
+	}
+	for eventType, w := range want {
+		spec, ok := LookupEvent(eventType)
+		if !ok || eventType != w.constant || spec.Category != w.category || !spec.CompanyScoped || strings.Join(spec.MetadataKeys, ",") != w.keys {
+			t.Errorf("%s = %+v, %v", eventType, spec, ok)
+		}
+		for _, key := range spec.MetadataKeys {
+			switch key {
+			case "name", "filename", "file_name", "original_name", "display_name":
+				t.Errorf("%s: key %q could carry a file name", eventType, key)
+			}
+		}
+	}
+	company, vacancy := companyID(), uuid.New()
+	for name, tc := range map[string]struct {
+		event AuditEvent
+		want  error
+	}{
+		"uploaded, every key": {AuditEvent{EventType: EventDocumentUploaded, CompanyID: company, VacancyID: &vacancy, StructuredMetadata: map[string]any{"company_id": "c", "vacancy_id": "v", "scope": "vacancy", "participation_id": nil, "document_id": "d", "version_id": "x", "version": 1, "format": "pdf"}}, nil},
+		"uploaded, a name":    {AuditEvent{EventType: EventDocumentUploaded, CompanyID: company, StructuredMetadata: map[string]any{"name": "CV Juan"}}, ErrMetadataKeyNotAllowed},
+		"downloaded, link":    {AuditEvent{EventType: EventDocumentDownloaded, CompanyID: company, StructuredMetadata: map[string]any{"document_id": "d", "version_id": "x", "version": 2, "link_id": "l"}}, nil},
+		"deleted, a filename": {AuditEvent{EventType: EventDocumentDeleted, CompanyID: company, StructuredMetadata: map[string]any{"filename": "x.pdf"}}, ErrMetadataKeyNotAllowed},
+		"linked, no company":  {AuditEvent{EventType: EventDocumentLinked}, ErrCompanyRequired},
+		"replaced, renamed":   {AuditEvent{EventType: EventDocumentReplaced, CompanyID: company, StructuredMetadata: map[string]any{"renamed": true, "previous_version_id": "p"}}, nil},
+	} {
+		if err := tc.event.Validate(); !errors.Is(err, tc.want) {
+			t.Errorf("%s: %v, want %v", name, err, tc.want)
+		}
+	}
+}
+
 // TestNoEventTypeLiteralOutsideEntities: emitters use the catalog constants;
 // no production file outside this package may spell a catalog event type.
 func TestNoEventTypeLiteralOutsideEntities(t *testing.T) {
@@ -311,7 +356,9 @@ func eventConstantValues(t *testing.T) map[string]bool {
 // pendingEmitters are catalog types registered ahead of their emitters. Add an
 // entry for a type whose emitter lands in a later slice; remove it when the
 // emitter does, from then on the type must be referenced by production code.
-// Empty since MetricsDetailViewed was emitted by the metrics read API (3c).
+// The five document events were registered ahead of their emitters (placement-vacancy-documents feature doc, T5/P3) and every
+// slice dropped its types as it landed: upload and download (P4), replace and delete (P5), link (P7, which also emits the link
+// flavour of DocumentDeleted and the link flavour of DocumentDownloaded). Nothing is pending now.
 var pendingEmitters = map[string]bool{}
 
 // TestEveryCatalogTypeHasAnEmitter: a catalog type nobody references is either

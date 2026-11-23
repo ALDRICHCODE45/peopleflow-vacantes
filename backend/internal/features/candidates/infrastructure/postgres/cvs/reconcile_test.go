@@ -90,6 +90,20 @@ func TestReconcileRetainsCompanyCVAndRemovesOrphan(t *testing.T) {
 		t.Fatal("lock transaction not released")
 	}
 }
+
+// D25 of docs/contracts/placement-vacancy-documents-v1.md: if CV and document storage ever shared a root, the CV
+// reconciliation must never treat a document file as an orphan.
+func TestReconcileKeepPredicateKnowsDocumentVersions(t *testing.T) {
+	tx := &reconcileTx{t: t}
+	storage := &reconcileStorage{tx: tx, keys: []string{"manual-key"}}
+	library := &Library{pool: reconcilePool{tx}, storage: storage}
+	if err := library.Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tx.query, "placement_document_versions") || !strings.Contains(tx.query, "storage_key=$1") {
+		t.Fatalf("keep predicate omits document versions: %s", tx.query)
+	}
+}
 func TestReconcileLookupFailureKeepsFiles(t *testing.T) {
 	failure := errors.New("lookup unavailable")
 	tx := &reconcileTx{t: t, lookupError: failure}

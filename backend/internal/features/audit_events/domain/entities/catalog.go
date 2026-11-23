@@ -52,6 +52,9 @@ const (
 	// EventMetricsDetailExported: a CSV export of a metrics list with
 	// candidate names (stakeholder-metrics-v2 §6, §8).
 	EventMetricsDetailExported = "MetricsDetailExported"
+	// EventDocumentDownloaded: a placement or vacancy document streamed to the
+	// caller, appended before the first byte (placement-vacancy-documents-v1 D21).
+	EventDocumentDownloaded = "DocumentDownloaded"
 
 	// Candidate.
 	EventCandidateAccountCreated        = "CandidateAccountCreated"
@@ -93,6 +96,12 @@ const (
 	EventVacancyPlacementCreditChanged         = "VacancyPlacementCreditChanged"
 	EventVacancyReplacementStarted             = "VacancyReplacementStarted"
 	EventVacancyCandidateCarried               = "VacancyCandidateCarried"
+	// Placement and vacancy documents (placement-vacancy-documents-v1 «Audit events»):
+	// one set for both scopes, entity type "document", ids and enums only (never a file name).
+	EventDocumentUploaded = "DocumentUploaded"
+	EventDocumentReplaced = "DocumentReplaced"
+	EventDocumentDeleted  = "DocumentDeleted"
+	EventDocumentLinked   = "DocumentLinked"
 
 	// Pipeline.
 	EventJobDraftPipelineConfigured   = "JobDraftPipelineConfigured"
@@ -174,6 +183,7 @@ var catalog = []EventSpec{
 	spec(EventPsychometricResultViewed, CategorySensitiveRead, "vacancy_id", "participation_id"),
 	spec(EventMetricsDetailViewed, CategorySensitiveRead, "report", "vacancy_id", "filters"),
 	spec(EventMetricsDetailExported, CategorySensitiveRead, "report", "vacancy_id", "filters", "row_count"),
+	spec(EventDocumentDownloaded, CategorySensitiveRead, "company_id", "vacancy_id", "scope", "participation_id", "document_id", "version_id", "version", "link_id"),
 
 	// candidate
 	{Type: EventCandidateAccountCreated, Category: CategoryCandidate, CompanyScoped: false},
@@ -212,6 +222,10 @@ var catalog = []EventSpec{
 	spec(EventVacancyPlacementCredited, CategoryVacancy, "company_id", "vacancy_id", "credit_id", "team_mode", "hired_by", "recipients"),
 	spec(EventVacancyPlacementCreditChanged, CategoryVacancy, "company_id", "vacancy_id", "credit_id", "from_status", "to_status", "cause"),
 	spec(EventVacancyReplacementStarted, CategoryVacancy, "company_id", "vacancy_id", "source_process_id", "root_process_id", "sequence", "target_quantity", "credit_ids", "carried_count", "visibility", "responsible_user_id"),
+	spec(EventDocumentUploaded, CategoryVacancy, "company_id", "vacancy_id", "scope", "participation_id", "document_id", "version_id", "version", "format"),
+	spec(EventDocumentReplaced, CategoryVacancy, "company_id", "vacancy_id", "scope", "participation_id", "document_id", "version_id", "version", "previous_version_id", "format", "renamed"),
+	spec(EventDocumentDeleted, CategoryVacancy, "company_id", "vacancy_id", "scope", "participation_id", "kind", "document_id", "link_id", "version_count", "linked_count"),
+	spec(EventDocumentLinked, CategoryVacancy, "company_id", "vacancy_id", "scope", "participation_id", "link_id", "source_document_id", "source_version_id", "source_vacancy_id", "source_participation_id"),
 
 	// pipeline
 	spec(EventJobDraftPipelineConfigured, CategoryPipeline, "version", "previous", "new", "applied_impact"),
