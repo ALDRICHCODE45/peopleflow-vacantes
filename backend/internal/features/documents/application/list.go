@@ -82,6 +82,10 @@ type Reader interface {
 	// Versions returns every version of a document of the scope, newest first (the read gate; ErrScopeNotFound for a document
 	// that is not one of this scope's).
 	Versions(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (VersionList, error)
+	// Sources returns the documents of the earlier processes of the replacement chain (vacancy scope) or of the ancestors of the
+	// carried participation (participation scope) that the caller can read, grouped by origin (D17, D18, D22). A scope that cannot
+	// receive links answers NoSources(), not an error.
+	Sources(ctx context.Context, companyID, actorID uuid.UUID, target Target) (Sources, error)
 }
 
 // Access failures of the store, in the vocabulary of the vacancy authorization (D4, D6). The HTTP layer maps each to the

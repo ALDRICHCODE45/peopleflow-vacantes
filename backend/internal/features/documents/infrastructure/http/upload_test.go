@@ -47,6 +47,14 @@ type fakeFiles struct {
 	deleteResp    documents.ScopeResponse
 	deleteErr     error
 	versionNumber int
+
+	// link, unlink and download through a link (P7)
+	linkCmd        documents.LinkCommand
+	linkResp       documents.LinkResponse
+	linkErr        error
+	unlinkResp     documents.ScopeResponse
+	linkedIDs      []uuid.UUID
+	actor, company uuid.UUID
 }
 
 func (f *fakeFiles) PreflightReplace(_ context.Context, _, _ uuid.UUID, target documents.Target, _ uuid.UUID) (int, error) {

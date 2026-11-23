@@ -26,6 +26,10 @@ type fakeReader struct {
 	versions    documents.VersionList
 	versionsErr error
 	versionsDoc uuid.UUID
+
+	// sources (P7)
+	sources    documents.Sources
+	sourcesErr error
 }
 
 func (f *fakeReader) Versions(_ context.Context, company, actor uuid.UUID, target documents.Target, doc uuid.UUID) (documents.VersionList, error) {

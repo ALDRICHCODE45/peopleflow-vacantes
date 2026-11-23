@@ -75,3 +75,39 @@ func deletedFileEvent(company, actor uuid.UUID, target documents.Target, doc uui
 		"linked_count":  strconv.Itoa(linkedCount),
 	})
 }
+
+// linkedEvent is DocumentLinked: a link of the scope of target to a pinned version of a source document. The entity is the link;
+// the source is named by ids only (document, version, vacancy and, when the source is a participation document, its
+// participation), never by file name.
+func linkedEvent(company, actor uuid.UUID, target documents.Target, link, sourceDoc, sourceVersion, sourceDraft uuid.UUID, sourceParticipation *uuid.UUID) audit.AuditEvent {
+	metadata := map[string]string{
+		"link_id":            link.String(),
+		"source_document_id": sourceDoc.String(),
+		"source_version_id":  sourceVersion.String(),
+		"source_vacancy_id":  sourceDraft.String(),
+	}
+	if sourceParticipation != nil {
+		metadata["source_participation_id"] = sourceParticipation.String()
+	}
+	return documentEvent(audit.EventDocumentLinked, company, actor, target, link, metadata)
+}
+
+// deletedLinkEvent is DocumentDeleted with kind link: the link is the entity and the only id named; the source is untouched.
+func deletedLinkEvent(company, actor uuid.UUID, target documents.Target, link uuid.UUID) audit.AuditEvent {
+	return documentEvent(audit.EventDocumentDeleted, company, actor, target, link, map[string]string{
+		"kind":    "link",
+		"link_id": link.String(),
+	})
+}
+
+// downloadedViaLinkEvent is DocumentDownloaded for the pinned version served through a link: the document and version are the
+// SOURCE's (the entity is the source document) and link_id says which link the bytes came through; the vacancy is the one the
+// request ran against.
+func downloadedViaLinkEvent(company, actor uuid.UUID, target documents.Target, link, sourceDoc, sourceVersion uuid.UUID, number int) audit.AuditEvent {
+	return documentEvent(audit.EventDocumentDownloaded, company, actor, target, sourceDoc, map[string]string{
+		"document_id": sourceDoc.String(),
+		"version_id":  sourceVersion.String(),
+		"version":     strconv.Itoa(number),
+		"link_id":     link.String(),
+	})
+}

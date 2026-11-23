@@ -3,7 +3,7 @@
 // (POST P/documents) and the current-version download (GET P/documents/{doc}/file); P5 adds replace
 // (POST P/documents/{doc}/versions), the version list, the download by version and delete (versions.go); P6 serves the same
 // handlers under P = V/participations/{pid} (the route table decides the scope: a `pid` URL parameter makes it a
-// participation scope); links arrive in a later slice.
+// participation scope); P7 adds the replacement links: the sources list, create, unlink and the download through a link (links.go).
 package http
 
 import (
@@ -85,7 +85,15 @@ func writeError(w http.ResponseWriter, err error) {
 	var mismatch *documents.MismatchError
 	var limit *documents.LimitReachedError
 	var conflict *documents.VersionConflictError
+	var already *documents.AlreadyLinkedError
+	var invalid *documents.LinkInvalidError
 	switch {
+	case errors.As(err, &already):
+		httpjson.WriteDocumentAlreadyLinked(w, already.LinkID.String())
+		return
+	case errors.As(err, &invalid):
+		httpjson.WriteDocumentLinkInvalid(w, invalid.Reason)
+		return
 	case errors.As(err, &conflict):
 		httpjson.WriteDocumentVersionConflict(w, conflict.Current)
 		return

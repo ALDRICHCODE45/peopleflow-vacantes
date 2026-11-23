@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	documents "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -179,9 +180,16 @@ SELECT d.name, v.id, v.version, v.storage_key, v.content_type, v.size
 	if err != nil {
 		return documents.File{}, fmt.Errorf("read document version: %w", err)
 	}
+	return s.serve(ctx, tx, name, key, contentType, size, downloadedEvent(companyID, actorID, target, docID, versionID, number))
+}
+
+// serve is the audited tail every download shares: the stored content type must be inside the format enum, the storage must
+// be enabled (503), the object must open (404 when its file is gone, 503 otherwise), and only then is `event` appended and the
+// transaction committed, BEFORE the stream is handed over. A failed append or commit closes the object and serves nothing.
+func (s *Store) serve(ctx context.Context, tx pgx.Tx, name, key, contentType string, size int64, event audit.AuditEvent) (documents.File, error) {
 	format, ok := documents.FormatFromContentType(contentType)
 	if !ok {
-		return documents.File{}, fmt.Errorf("document %s: content type outside the format enum", docID)
+		return documents.File{}, fmt.Errorf("document %s: content type outside the format enum", event.EntityID)
 	}
 	if s.storage == nil {
 		return documents.File{}, documents.ErrStorageUnavailable
@@ -193,7 +201,7 @@ SELECT d.name, v.id, v.version, v.storage_key, v.content_type, v.size
 		}
 		return documents.File{}, documents.ErrStorageUnavailable
 	}
-	if err := s.audit.Append(ctx, tx, downloadedEvent(companyID, actorID, target, docID, versionID, number)); err != nil {
+	if err := s.audit.Append(ctx, tx, event); err != nil {
 		_ = reader.Close()
 		return documents.File{}, fmt.Errorf("co-write document download audit: %w", err)
 	}

@@ -80,6 +80,9 @@ type fakeWriter struct {
 	deleteResult  DeleteResult
 	deleteErr     error
 	downloadedVer int
+
+	// link, unlink and download through a link (P7)
+	links linkCalls
 }
 
 func (f *fakeWriter) AuthorizeReplace(context.Context, uuid.UUID, uuid.UUID, Target, uuid.UUID) (int, error) {

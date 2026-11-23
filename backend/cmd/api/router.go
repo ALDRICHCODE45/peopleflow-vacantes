@@ -474,6 +474,12 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/documents", d.documentHandler.Upload)
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions", d.documentHandler.Replace)
 		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}", d.documentHandler.Delete)
+		// Replacement links (P7, S3, D16-D19): linking and unlinking are manage operations too, on a replacement vacancy scope
+		// or a carried participation scope, allowed after closure (S4). The link routes are literal siblings of `documents`.
+		r.Post("/v2/me/company/job-drafts/{id}/document-links", d.documentHandler.Link)
+		r.Delete("/v2/me/company/job-drafts/{id}/document-links/{link}", d.documentHandler.Unlink)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/document-links", d.documentHandler.Link)
+		r.Delete("/v2/me/company/job-drafts/{id}/participations/{pid}/document-links/{link}", d.documentHandler.Unlink)
 	})
 	// Placement and vacancy documents, READ routes (placement-vacancy-documents-v1, D4, D6): owners,
 	// recruiters and stakeholders pass the coarse gate and the store applies the vacancy rule (owner,
@@ -489,6 +495,12 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/file", d.documentHandler.File)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions", d.documentHandler.Versions)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions/{n}/file", d.documentHandler.FileVersion)
+		// Replacement links, read side (P7): the sources a replacement can link and the download of a link's pinned version. Both
+		// re-evaluate source access in the store (D18); a stakeholder reads them.
+		r.Get("/v2/me/company/job-drafts/{id}/document-sources", d.documentHandler.Sources)
+		r.Get("/v2/me/company/job-drafts/{id}/document-links/{link}/file", d.documentHandler.FileLink)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/document-sources", d.documentHandler.Sources)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/document-links/{link}/file", d.documentHandler.FileLink)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)

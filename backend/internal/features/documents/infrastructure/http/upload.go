@@ -214,6 +214,11 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, version int)
 		return
 	}
 	defer file.Reader.Close()
+	writeAttachment(w, file)
+}
+
+// writeAttachment serves file as a download: never inline (D10), never sniffed.
+func writeAttachment(w http.ResponseWriter, file documents.File) {
 	header := w.Header()
 	header.Set("Content-Type", file.ContentType)
 	// FormatMediaType quotes an ASCII name and switches to RFC 5987 (filename*=utf-8''…) for any other, with no ASCII fallback.

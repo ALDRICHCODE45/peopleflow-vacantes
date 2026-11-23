@@ -87,7 +87,7 @@ func (s *Store) List(ctx context.Context, companyID, actorID uuid.UUID, target d
 	if err != nil {
 		return documents.List{}, err
 	}
-	links, err := listLinks(ctx, tx, companyID, actorID, target, access)
+	links, err := queryLinks(ctx, tx, companyID, actorID, target, access, nil)
 	if err != nil {
 		return documents.List{}, err
 	}
@@ -191,11 +191,18 @@ SELECT d.id::text, d.participation_id::text, d.name, d.created_at, d.created_by:
 	return items, nil
 }
 
-// listLinks reads the links of the scope of target. The source is resolved through the pinned version; a source the caller
-// may not read (owner or stakeholder of the company, or an active member of the source vacancy's team: D18) is reported as
-// inaccessible without its data. The company equality on every join keeps a foreign row from ever being described.
-func listLinks(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, target documents.Target, access Access) ([]documents.Link, error) {
-	sees := access.Role == "owner" || access.Role == "stakeholder"
+// seesEverySource says whether the caller reads the documents of every vacancy of the company: the owner and a stakeholder do;
+// a recruiter reads only the vacancies they hold an active tramo on (D18). It decides who may read a link's SOURCE.
+func seesEverySource(access Access) bool {
+	return access.Role == "owner" || access.Role == "stakeholder"
+}
+
+// queryLinks reads the links of the scope of target, every one of them or, when linkID is set, just that one. The source is
+// resolved through the pinned version; a source the caller may not read (owner or stakeholder of the company, or an active
+// member of the source vacancy's team: D18) is reported as inaccessible without its data. The company equality on every join
+// keeps a foreign row from ever being described.
+func queryLinks(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, target documents.Target, access Access, linkID *uuid.UUID) ([]documents.Link, error) {
+	sees := seesEverySource(access)
 	rows, err := tx.Query(ctx, `
 SELECT l.id::text, l.linked_at, l.linked_by::text, lu.full_name,
        sd.id::text, sd.draft_id::text, sd.participation_id::text, sd.name,
@@ -210,8 +217,8 @@ SELECT l.id::text, l.linked_at, l.linked_by::text, lu.full_name,
   LEFT JOIN placement_document_versions sv ON sv.id = l.source_version_id AND sv.document_id = sd.id
   LEFT JOIN users su ON su.id = sv.uploaded_by
   LEFT JOIN vacancy_replacements r ON r.process_id = sd.draft_id
- WHERE l.company_id = $1 AND l.draft_id = $2 AND l.participation_id IS NOT DISTINCT FROM $5::uuid
- ORDER BY l.linked_at DESC, l.id DESC`, companyID, target.DraftID, sees, actorID, target.ParticipationID)
+ WHERE l.company_id = $1 AND l.draft_id = $2 AND l.participation_id IS NOT DISTINCT FROM $5::uuid AND ($6::uuid IS NULL OR l.id = $6)
+ ORDER BY l.linked_at DESC, l.id DESC`, companyID, target.DraftID, sees, actorID, target.ParticipationID, linkID)
 	if err != nil {
 		return nil, fmt.Errorf("list document links: %w", err)
 	}

@@ -91,6 +91,13 @@ type Writer interface {
 	Replace(ctx context.Context, cmd ReplaceCommand) (UploadResponse, error)
 	// Delete removes the document's rows and writes DocumentDeleted in one transaction and reports the keys of its files.
 	Delete(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (DeleteResult, error)
+	// Link runs the short write transaction of a link (gates, draft lock, target and source rules, pinned version, limit, row, audit).
+	Link(ctx context.Context, cmd LinkCommand) (LinkResponse, error)
+	// Unlink removes a link of the scope and writes DocumentDeleted (kind link) in one transaction; it returns the scope after.
+	Unlink(ctx context.Context, companyID, actorID uuid.UUID, target Target, linkID uuid.UUID) (Scope, error)
+	// DownloadLink opens the pinned version of a link whose source the caller can still read, records DocumentDownloaded and
+	// commits BEFORE it returns the stream; ErrScopeNotFound for a removed, inaccessible or foreign link.
+	DownloadLink(ctx context.Context, companyID, actorID uuid.UUID, target Target, linkID uuid.UUID) (File, error)
 }
 
 // Files is what the HTTP layer needs: the Service.
@@ -104,6 +111,9 @@ type Files interface {
 	PreflightReplace(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (current int, err error)
 	Replace(ctx context.Context, cmd ReplaceCommand) (UploadResponse, error)
 	Delete(ctx context.Context, companyID, actorID uuid.UUID, target Target, docID uuid.UUID) (ScopeResponse, error)
+	Link(ctx context.Context, cmd LinkCommand) (LinkResponse, error)
+	Unlink(ctx context.Context, companyID, actorID uuid.UUID, target Target, linkID uuid.UUID) (ScopeResponse, error)
+	DownloadLink(ctx context.Context, companyID, actorID uuid.UUID, target Target, linkID uuid.UUID) (File, error)
 }
 
 // Service orchestrates files and rows: the storage streams, the writer owns the database. A nil storage is the disabled
