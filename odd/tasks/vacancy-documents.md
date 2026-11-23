@@ -119,3 +119,14 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   prove the identity row stays. Upload is one file at a time (multi-file queue and drag-and-drop not built); a failed
   download reloads the tab once (filters reset); the stakeholder frame shows «Cerrada · proceso …» because the overview
   header has no close_reason; StakeholderRouteBlocked copy still says «ves las métricas».
+- **L11** Browser check #1 (owner, recruiter): S1, S3–S8, S10, S13 pass; S2 recruiter partial; 11 defects fixed in `b86a6320`
+  (close reason per tab, 390 gap, lone divider, toast on reload, dark contrast, phone cards, link sheet, picker/filters
+  layout, format badges, stakeholder «N+» counts). Stakeholder account `nocheblanca92+altavista-stakeholder@gmail.com`
+  invited by the owner (user: «Invitar una cuenta de prueba»), Cognito confirmed with the user's code, local users row
+  inserted by the backend session with the sub the user gave. Browser check #2: stakeholder S11/S12 pass (only Métricas and
+  Vacantes, «Solo consulta», only Descargar, other routes «Sección no disponible»); fixed defects pass. Found: Configuración →
+  Documentos within ~1 s crashed («Rendered more hooks than during the previous render») because the page-level
+  `redirect()` races a Link navigation; fixed with a `next.config` HTTP redirect (`f23719d3`; 4/10 → 0/20 crashes).
+  Notes: `documents_count` excludes links (contract), so a replacement with only a linked document reads «Sin documentos»;
+  mobile sidebar stays open after a tap (app-wide, out of scope). Test data: «T3e …» / «T3e2 …» documents on Contador(a)
+  Senior.
