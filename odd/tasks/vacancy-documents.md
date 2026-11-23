@@ -21,6 +21,17 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   `["DocumentReplaced", "vacancy", "Reemplazó un documento por una nueva versión"]`, `["DocumentDeleted", "vacancy",
   "Eliminó un documento o un vínculo a documento"]`, `["DocumentLinked", "vacancy", "Vinculó un documento del proceso
   original"]`.
+- **S8** User (L3): «me ire con la tercer opcion, con los filtros por "vacante", candidatos" y tambien para filtrar los
+  documentos por cierto candidato» → artboard `03-expediente-tabla-unica.html`, filters Todos / Vacante / Candidatos plus
+  a filter for one candidate.
+- **S9** User (L3): «me gustaria mantener esa ui de tabs, "pipeline" "documentos" y "configuracion" asi quitamos el boton
+  de configuracion dentro del pipeline y bueno, en general revisa que se mejora con esto, para darle mas "aire" a la ui
+  actual del pipeline» → vacancy-level tabs Pipeline / Documentos / Configuración; the settings button leaves the
+  pipeline header; the pipeline header is re-laid out with more room.
+- **S10** User: delete uses the darker red (`--status-danger`, ~6.5:1) «Usar el rojo más oscuro (Recomendado)», in
+  documents only.
+- **S11** User: «Pestaña Documentos de solo lectura» → the stakeholder enters the vacancy and sees only the Documentos
+  tab (no Pipeline, no Configuración), with download as the only action.
 
 ## Tasks
 
@@ -28,7 +39,8 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
 | --- | --- | --- | --- |
 | T1 | — | Re-sync `design/system.md` (stale vs `frontend/src/app/globals.css`) | |
 | T2 | S1–S6 | Design directions `design/vacancy-documents/` (vacancy and placement together) | |
-| T3 | S1–S7 | Implementation slices (after the user picks an artboard) | |
+| T2b | S8, S9 | Iterate: 03 with the candidate filter + new artboard for the tabbed pipeline header with more room | |
+| T3 | S1–S11 | Implementation slices | |
 
 ## Log
 
@@ -48,3 +60,12 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   Open: Stakeholder has no vacancy route today (contract «Backend facts»), so where it reads documents needs a decision;
   02 and 03 cannot show per-person counts because the board and participation list carry no document keys, and 03 needs
   one read per candidate or an aggregate endpoint.
+- **L3** (2026-11-22) User, verbatim: «Bua, la verdad es que me gusta demasiado la 3er propuesta hermano, de verdad, me gusta
+  mucho en general la ui de la tercer propuesta, que haya "pipeline" "documentos" y "configuracion" pero tambien me encantaa
+  la segunda propuesta, me gustan mucho las dos... pero yo creo que me ire con la tercer opcion, con los filtros por
+  "vacante", candidatos" y tambien para filtrar los documentos por cierto candidato.. me sigues? y me gustaria mantener esa
+  ui de tabs, "pipeline" "documentos" y "configuracion" asi quitamos el boton de configuracion dentro del pipeline y bueno,
+  en general revisa que se mejora con esto, para darle mas "aire" a la ui actual del pipeline, por favor.» Chosen:
+  `03-expediente-tabla-unica.html`; 01 and 02 are alternatives. Then: «Usar el rojo más oscuro (Recomendado)» and
+  «Pestaña Documentos de solo lectura». Backend asked for an aggregate documents GET (all scopes, owner per item,
+  participations that accept uploads, optional `participation_id` filter).
