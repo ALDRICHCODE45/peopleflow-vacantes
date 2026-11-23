@@ -34,7 +34,7 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T2 — contract agreed with the frontend session — done (L8)
 - T3 P1 S1–S7 — migration 00064 and documents domain (writer) — done 3e66837c
 - T4 P2 — storage port, adapters, config — done bde228ba, 474350fd
-- T5 P3 — errors, read gate, audit catalog, scope, GET list — partly done, uncommitted (L13): everything except the `document_*` error family and three one-line pins outside the writer's surfaces
+- T5 P3 — errors, read gate, audit catalog, scope, GET list — done 457ea222, a2614f6f (document_* error family moved to P4)
 - T6 P4 — upload and download — pending
 - T7 P5 — versions and delete — pending
 - T8 P6 — participation documents — pending
@@ -216,3 +216,9 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
     `can_manage = false`. (5) Manage mode (`FOR UPDATE`, ErrForbidden for a stakeholder) is not in `AuthorizeDocuments` yet: P4 adds it with the first write route. (6) The malformed `{id}` answers 400
     `invalid_request` like every other draft route (the contract only lists the 404s).
 
+- **L14** 2026-11-22, parent: P3 committed 457ea222 (audit catalog 70→75, Annex, pendingEmitters) and a2614f6f (read gate, scope,
+  GET list, routes). Parent edited the two pinned tests outside the writer's surfaces (route topology +1 route, audit
+  types 70→75); `cmd/api` unit ok and integration `TestAuditRead|TestDocuments|TestRouteTopology` ok on a throwaway
+  postgres:16. Decisions: the list works with storage disabled (contract list/error tables win over §Storage); a
+  malformed {id} answers 400 invalid_request like other draft routes. The `document_*` error family
+  (httpjson/document_errors.go + Resolve hook) moves to P4. Frontend ANNEX rows relayed to the frontend session.
