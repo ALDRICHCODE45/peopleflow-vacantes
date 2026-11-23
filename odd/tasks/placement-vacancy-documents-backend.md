@@ -152,3 +152,5 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
     ignores trailing whitespace when looking for the extension (`contrato.pdf ` → `contrato`). (4) A file whose bytes are both Word and Excel
     parts, or whose `[Content_Types].xml` is missing, is a mismatch with `detected_format` null. (5) No sqlc queries, no `cvs/content.go` change
     (`cvs.Inspect` untouched; the OOXML marker rules are re-implemented in the new package over a tail window, as the contract specifies).
+- **L10** 2026-11-22, user: dependency for P2 — «Sí, agregala (Recomendado)» (add
+  `github.com/aws/aws-sdk-go-v2/feature/s3/manager` for streaming multipart S3 uploads; no AWS command is run).
