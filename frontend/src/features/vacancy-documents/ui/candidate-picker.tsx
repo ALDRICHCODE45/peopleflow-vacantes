@@ -17,7 +17,7 @@ export function CandidatePicker({ id, label, participations, value, onChange, di
     <ComboboxInput id={id} aria-label={label} className={className ?? "min-h-10 w-full sm:w-64"} placeholder={placeholder} disabled={disabled} showClear={selected !== null && !disabled} clearLabel="Quitar candidato" triggerLabel="Mostrar candidatos" />
     <ComboboxContent>
       <ComboboxEmpty>Sin coincidencias.</ComboboxEmpty>
-      <ComboboxList>{(entry: Participation) => <ComboboxItem key={entry.participation_id} value={entry} disabled={isItemDisabled?.(entry)} className="min-h-10">
+      <ComboboxList>{(entry: Participation) => <ComboboxItem key={entry.participation_id} value={entry} disabled={isItemDisabled?.(entry)} className="min-h-10 max-sm:pr-2 max-sm:aria-selected:pr-8">
         <span className="flex min-w-0 flex-1 flex-col"><span className="font-medium [overflow-wrap:anywhere]">{entry.candidate.full_name}</span><span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{entry.stage.name}</span></span>
         {entry.discarded && <Badge variant="neutral" className="shrink-0">Descartado</Badge>}
       </ComboboxItem>}</ComboboxList>

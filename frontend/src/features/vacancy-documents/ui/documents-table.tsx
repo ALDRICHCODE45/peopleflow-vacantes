@@ -15,9 +15,12 @@ const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(word => wor
 function Owner({ owner, participations }: { owner: DocumentOwner; participations: Participation[] }) {
   if (owner.kind === "vacancy") return <span className="inline-flex items-center gap-2 font-medium"><Briefcase aria-hidden="true" className="size-4 text-muted-foreground" />Vacante</span>;
   const stage = participations.find(entry => entry.participation_id === owner.participation_id)?.stage.name;
-  return <span className="inline-flex items-center gap-2">
-    <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-medium">{initials(owner.candidate.full_name)}</span>
-    <span className="flex min-w-0 flex-col"><span className="truncate font-medium">{owner.candidate.full_name}</span>{stage && <span className="truncate text-xs text-muted-foreground">{stage}</span>}</span>
+  // The badge wraps under the name instead of running past a narrow card's edge.
+  return <span className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1">
+    <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+      <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-medium">{initials(owner.candidate.full_name)}</span>
+      <span className="flex min-w-0 flex-col"><span className="truncate font-medium">{owner.candidate.full_name}</span>{stage && <span className="truncate text-xs text-muted-foreground">{stage}</span>}</span>
+    </span>
     {owner.discarded && <Badge variant="neutral">Descartado</Badge>}
   </span>;
 }
