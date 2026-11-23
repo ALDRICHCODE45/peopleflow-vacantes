@@ -34,7 +34,7 @@ participations, `birth_date` rejected again).
 | T4 | S4 | 390 breadcrumb | `2afa860c`, D1 fix (this commit) |
 | T5 | S5, S7 | «Retomado» mark (`carried_from_participation_id`) and drop the tolerant `birth_date` read | `42d3f674`, `3e1c4aab` |
 | T6 | S1–S6 | Browser check, full suite, local merge to main | `aa93c739` |
-| T7 | S8 | «Cubierta al cierre» label (branch `feat/closed-covered-label`) | |
+| T7 | S8 | «Cubierta al cierre» label (branch `feat/closed-covered-label`) | `97f527cc` (board), `48d3c049` (list rows) |
 
 ## Log
 
@@ -73,3 +73,9 @@ participations, `birth_date` rejected again).
   pide el contrato, S7/REP-7 … La etiqueta muestra el resultado del cierre, que queda congelado, y la cobertura es en
   vivo … es un tema de copy de UI (por ejemplo, «Cubierta al cierre»)». User chose «Sí: «Cubierta al cierre»» with the
   option text «Solo cuando la cobertura de hoy es menor que la del cierre. Si no, sigue diciendo «Cubierta».»
+- **L8** Backend list-row `coverage: {covered, required} | null` (main `ad5fa542`, same rule as board.coverage). Browser
+  check (verifier) on :3000 dev `48d3c049` against `ad5fa542`, Andrea Salinas, 390/1440 light/dark: list rows of the three
+  closed-as-filled vacancies below target (Contador(a) Senior 0/1, Supervisor(a) de Almacén 1/2, Supervisor(a) de Obra 1/2)
+  read «Cerrada · Cubierta al cierre»; the 14 at 1/1 read «Cerrada · Cubierta»; Cancelada/Otro/Sin motivo unchanged; each
+  board's «Motivo de cierre» matches its row; the close dialog still offers «Cubierta» (opened and cancelled). No console
+  errors, no ≥400, no overflow.
