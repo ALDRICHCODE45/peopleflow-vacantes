@@ -1,9 +1,9 @@
 import { CloseReasonNote } from "@/features/vacancy-lifecycle/ui/close-reason-note";
-import { closeReasonLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { closeResultLabel, type CloseCoverage, type Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { MovementDate } from "./board-states";
 
 /** The shell owns the state badge; the board adds closure details and the transition date. */
-export function BoardLifecycle({ lifecycle, publishedAt }: { lifecycle: Lifecycle; publishedAt?: string | null }) {
+export function BoardLifecycle({ lifecycle, publishedAt, coverage }: { lifecycle: Lifecycle; publishedAt?: string | null; coverage?: CloseCoverage }) {
   // A private replacement has a live process but no public listing yet (contract D4): its date is when the process started, and it says so.
   const unpublished = lifecycle.visibility === "private" && (lifecycle.publication === "published" || lifecycle.publication === "paused");
   const transition = lifecycle.process === "finished"
@@ -22,7 +22,7 @@ export function BoardLifecycle({ lifecycle, publishedAt }: { lifecycle: Lifecycl
     </div>
     : valid(transition.at) ? <p className="text-xs text-muted-foreground">{transition.label} el <MovementDate value={transition.at} /></p> : null;
   return <>{lifecycle.publication === "closed" && <>
-    <p className="text-xs text-muted-foreground">Motivo de cierre: {closeReasonLabel(lifecycle.close_reason)}</p>
+    <p className="text-xs text-muted-foreground">Motivo de cierre: {closeResultLabel(lifecycle.close_reason, coverage)}</p>
     {lifecycle.close_reason === "other" && <CloseReasonNote note={lifecycle.close_reason_note} />}
   </>}{date}{unpublished && <p className="text-xs text-muted-foreground">Privada · sin publicar</p>}</>;
 }

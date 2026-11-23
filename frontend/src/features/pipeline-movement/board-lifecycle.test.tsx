@@ -44,3 +44,19 @@ it("a closed replacement keeps the closing date line", () => {
   expect(screen.getByText(/Cerrada el/)).toHaveTextContent("Cerrada el 25 nov 2026");
   expect(screen.queryByText(/Proceso iniciado el/)).not.toBeInTheDocument();
 });
+
+// S8: the closed header reason reads «Cubierta al cierre» when today's coverage fell below the required places.
+const closedFilled = (extra: Partial<Lifecycle> = {}) => base({ publication: "closed", process: "active", close_reason: "filled", closed_at: "2026-11-20T12:00:00Z", ...extra });
+it.each([
+  [{ covered: 1, required: 2 }, "Motivo de cierre: Cubierta al cierre"],
+  [{ covered: 2, required: 2 }, "Motivo de cierre: Cubierta"],
+  [{ covered: 0, required: null }, "Motivo de cierre: Cubierta"],
+  [undefined, "Motivo de cierre: Cubierta"],
+] as const)("closed as filled with coverage %j shows «%s»", (coverage, text) => {
+  render(<BoardLifecycle lifecycle={closedFilled()} coverage={coverage} />);
+  expect(screen.getByText(/Motivo de cierre/)).toHaveTextContent(new RegExp(`^${text}$`));
+});
+it("a closed cancelled vacancy keeps «Cancelada» even with low coverage", () => {
+  render(<BoardLifecycle lifecycle={closedFilled({ close_reason: "cancelled" })} coverage={{ covered: 0, required: 2 }} />);
+  expect(screen.getByText(/Motivo de cierre/)).toHaveTextContent(/^Motivo de cierre: Cancelada$/);
+});

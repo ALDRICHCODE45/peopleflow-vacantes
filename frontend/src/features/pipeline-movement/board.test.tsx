@@ -102,6 +102,13 @@ it.each([
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
   if (process === "active") expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled();
 });
+it.each([[1, "Cubierta al cierre"], [2, "Cubierta"]] as const)("the board header passes its live coverage: filled close with %i of 2 covered reads «%s»", async (covered, label) => {
+  const board = boardFixture();
+  board.coverage = { covered, required: 2, full_coverage_reached_at: null };
+  board.lifecycle = { ...finishedLifecycle, process: "active", close_reason: "filled", allowed_actions: [] };
+  await mount(board);
+  expect(screen.getByText(/Motivo de cierre/)).toHaveTextContent(new RegExp(`^Motivo de cierre: ${label}$`));
+});
 it.each([["finished", true], ["active", false]] as const)("«Acciones» with nothing allowed and the start flow wired: %s process ⇒ shown %s", async (process, shown) => {
   const board = boardFixture();
   board.lifecycle = { ...finishedLifecycle, process, allowed_actions: [] };

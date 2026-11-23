@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { closeBodySchema, lifecycleSchema, closeCoverageMessage, closeReasonLabel } from "./model";
+import { closeBodySchema, lifecycleSchema, closeCoverageMessage, closeReasonLabel, closeResultLabel } from "./model";
 
 it.each(["filled", "cancelled", "other"] as const)("accepts close reason %s", reason => {
   expect(closeBodySchema.parse({ process: "continue", reason, reason_note: reason === "other" ? "  Cambio de planes  " : null })).toEqual({ process: "continue", reason, reason_note: reason === "other" ? "Cambio de planes" : null });
@@ -24,4 +24,27 @@ it("explains coverage and labels historical closures", () => {
   expect(closeReasonLabel("filled")).toBe("Cubierta");
   expect(closeReasonLabel("cancelled")).toBe("Cancelada");
   expect(closeReasonLabel("other")).toBe("Otro");
+});
+
+// S8: «Cubierta al cierre» only when the vacancy closed as filled and today's coverage is below its required places.
+it.each([
+  [{ covered: 1, required: 2 }, "Cubierta al cierre"],
+  [{ covered: 0, required: 1 }, "Cubierta al cierre"],
+  [{ covered: 2, required: 2 }, "Cubierta"],
+  [{ covered: 3, required: 2 }, "Cubierta"],
+  [{ covered: 0, required: null }, "Cubierta"],
+  [undefined, "Cubierta"],
+] as const)("a filled close with coverage %j reads %s", (coverage, label) => {
+  expect(closeResultLabel("filled", coverage)).toBe(label);
+});
+it("keeps the other close reasons unchanged whatever the coverage", () => {
+  for (const coverage of [undefined, { covered: 0, required: 2 }, { covered: 2, required: 2 }]) {
+    expect(closeResultLabel("cancelled", coverage)).toBe("Cancelada");
+    expect(closeResultLabel("other", coverage)).toBe("Otro");
+    expect(closeResultLabel(null, coverage)).toBe("Sin motivo registrado");
+  }
+});
+it("leaves the close dialog options on «Cubierta»: closeReasonLabel ignores coverage", () => {
+  expect(closeReasonLabel("filled")).toBe("Cubierta");
+  expect((closeReasonLabel as (...args: unknown[]) => string)("filled", { covered: 0, required: 2 })).toBe("Cubierta");
 });
