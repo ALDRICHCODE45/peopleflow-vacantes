@@ -21,7 +21,10 @@ async function run<T>(call: (token: string) => Promise<DocumentsResult<T>>): Pro
     const token = await getActionAccessToken();
     if (!token?.trim()) return mapDocumentFailure({ error: { kind: "missing_token" } });
     const result = await call(token);
-    return result.ok ? result : mapDocumentFailure(result);
+    if (result.ok) return result;
+    // «Storage off» (503 document_storage_unavailable) belongs to the routes that move bytes (upload, replace, downloads), which are not
+    // here: from a read or a row write a 503 is unexpected, so its envelope is dropped and it reads as the generic server failure.
+    return mapDocumentFailure(result.error.status === 503 ? { error: result.error } : result);
   } catch {
     return mapDocumentFailure({ error: { kind: "network" } });
   }

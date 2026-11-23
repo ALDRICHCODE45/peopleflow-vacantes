@@ -66,7 +66,7 @@ export function VersionsSheet({ draftId, item, limits, onClose, onReplaced, onRe
           {history.status === "ready" && <ol className="flex flex-col gap-2">{history.history.versions.map(version => <li key={version.version} className="flex items-center gap-3 rounded-2xl border p-3">
             <div className="min-w-0 flex-1"><p className="flex items-center gap-2 font-medium">Versión {version.version}{version.is_current && <Badge variant="success">Vigente</Badge>}</p>
               <p className="text-xs text-muted-foreground">{`${FORMAT_LABEL[version.format]} · ${sizeLabel(version.size)} · ${dateLabel(version.uploaded_at)} · ${version.uploaded_by.name}`}</p></div>
-            {canDownload && <Button variant="ghost" size="icon" className="size-10" nativeButton={false} role="link" render={<a href={versionHref(draftId, participationId, item.id, version.version)} download aria-label={`Descargar la versión ${version.version}`} />}><Download aria-hidden="true" /></Button>}
+            {canDownload && <Button variant="ghost" size="icon" className="size-10" nativeButton={false} role="link" render={<a href={versionHref(draftId, participationId, item.id, version.version)} aria-label={`Descargar la versión ${version.version}`} />}><Download aria-hidden="true" /></Button>}
           </li>)}</ol>}
         </section>
         {canReplace && <section aria-label="Nueva versión" className="flex flex-col gap-3"><h3 className="font-heading text-base font-semibold">Reemplazar con una versión nueva</h3>

@@ -2,7 +2,7 @@ import "server-only";
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { openDocumentFile, postMultipart, type BinaryFailure } from "./binary-client";
-import { mapDocumentFailure, routeEnvelope } from "./failure";
+import { downloadFailureCode, mapDocumentFailure, routeEnvelope } from "./failure";
 import { DOCUMENT_REQUEST_CAP_BYTES, MAX_DOCUMENT_BYTES } from "./model";
 import { backendScopePath, isId, type DocumentScope } from "./paths";
 
@@ -75,7 +75,7 @@ export const uploadDocument = (request: Request, params: Params): Promise<Respon
 export const replaceDocument = (request: Request, params: Params & { documentId: string }): Promise<Response> =>
   writeMultipart(request, params, scope => isId(params.documentId) ? { path: `${scope}/documents/${params.documentId}/versions`, idempotent: false } : undefined);
 
-async function download(params: Params, path: (scope: string) => string | undefined): Promise<Response> {
+async function streamFile(params: Params, path: (scope: string) => string | undefined): Promise<Response> {
   try {
     const ready = await guard(params);
     if (ready instanceof Response) return ready;
@@ -90,12 +90,33 @@ async function download(params: Params, path: (scope: string) => string | undefi
   } catch { return routeError(503, "no_response"); }
 }
 
+/** A link click or an address-bar visit (the only way a browser saves an attachment); `fetch` and XHR say `cors`/`same-origin`. */
+function isNavigation(request: Request | undefined): boolean {
+  if (!request) return false;
+  const mode = request.headers.get("sec-fetch-mode");
+  if (mode !== null) return mode === "navigate";
+  return /\btext\/html\b/i.test(request.headers.get("accept") ?? ""); // Browsers that send no Fetch Metadata still navigate with an HTML Accept.
+}
+
+/**
+ * Streams the file; when it fails for a browser NAVIGATION the browser is sent back to the vacancy's Documentos tab with
+ * `?download_error=<code>` (303, no body) instead of receiving the JSON envelope, which a `download` link would save as the file. The
+ * tab shows the message and clears the parameter. A successful attachment keeps the page where it is. Other callers get the JSON.
+ */
+async function download(params: Params, request: Request | undefined, path: (scope: string) => string | undefined): Promise<Response> {
+  const response = await streamFile(params, path);
+  if (response.ok || !isNavigation(request) || !isId(params.draftId)) return response;
+  const body: unknown = await response.json().catch(() => null);
+  const code = downloadFailureCode(typeof body === "object" && body !== null && "code" in body && typeof body.code === "string" ? body.code : "server_error");
+  return new Response(null, { status: 303, headers: { location: `/empresa/vacantes/${params.draftId}/documentos?download_error=${code}`, "cache-control": "no-store" } });
+}
+
 /** `GET P/documents/{doc}/file`: the current version, always as an attachment (audited by the backend before the first byte). */
-export const downloadDocument = (params: Params & { documentId: string }): Promise<Response> =>
-  download(params, scope => isId(params.documentId) ? `${scope}/documents/${params.documentId}/file` : undefined);
+export const downloadDocument = (params: Params & { documentId: string }, request?: Request): Promise<Response> =>
+  download(params, request, scope => isId(params.documentId) ? `${scope}/documents/${params.documentId}/file` : undefined);
 /** `GET P/documents/{doc}/versions/{n}/file`: one numbered version (S5: history is downloadable). */
-export const downloadDocumentVersion = (params: Params & { documentId: string; version: string }): Promise<Response> =>
-  download(params, scope => isId(params.documentId) && VERSION.test(params.version) ? `${scope}/documents/${params.documentId}/versions/${params.version}/file` : undefined);
+export const downloadDocumentVersion = (params: Params & { documentId: string; version: string }, request?: Request): Promise<Response> =>
+  download(params, request, scope => isId(params.documentId) && VERSION.test(params.version) ? `${scope}/documents/${params.documentId}/versions/${params.version}/file` : undefined);
 /** `GET P/document-links/{link}/file`: the PINNED version of a link (404 when the link is removed or inaccessible). */
-export const downloadDocumentLink = (params: Params & { linkId: string }): Promise<Response> =>
-  download(params, scope => isId(params.linkId) ? `${scope}/document-links/${params.linkId}/file` : undefined);
+export const downloadDocumentLink = (params: Params & { linkId: string }, request?: Request): Promise<Response> =>
+  download(params, request, scope => isId(params.linkId) ? `${scope}/document-links/${params.linkId}/file` : undefined);

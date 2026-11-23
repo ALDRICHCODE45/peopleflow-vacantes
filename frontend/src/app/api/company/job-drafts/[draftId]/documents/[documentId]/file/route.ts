@@ -4,6 +4,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** `GET V/documents/{doc}/file`: the current version, streamed as an attachment. */
-export async function GET(_request: Request, context: { params: Promise<{ draftId: string; documentId: string }> }): Promise<Response> {
-  return downloadDocument(await context.params);
+export async function GET(request: Request, context: { params: Promise<{ draftId: string; documentId: string }> }): Promise<Response> {
+  return downloadDocument(await context.params, request);
 }

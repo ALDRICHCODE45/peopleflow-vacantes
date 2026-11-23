@@ -7,6 +7,7 @@ vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { downloadDocument, downloadDocumentLink, downloadDocumentVersion, replaceDocument, uploadDocument } from "./route-handlers";
 import { DOCUMENT_REQUEST_CAP_BYTES } from "./model";
+import { DOWNLOAD_DEADLINE_MS, UPLOAD_DEADLINE_MS } from "./binary-client";
 import { formatsWire, ids, itemWire, scopeWire } from "./test-fixtures";
 
 const V = `http://localhost:8080/v2/me/company/job-drafts/${ids.draft}`;
@@ -264,5 +265,84 @@ describe("downloads", () => {
     const response = await downloadDocument({ draftId: ids.draft, documentId: ids.document });
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: "no_response", code: "no_response" });
+  });
+});
+
+describe("download failure for a browser navigation (a saved JSON body must never happen)", () => {
+  const navigation = () => new Request("http://localhost/api/company/job-drafts/x/documents/y/file", { headers: { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" } });
+  const back = (code: string) => `/empresa/vacantes/${ids.draft}/documentos?download_error=${code}`;
+  const backendFails = (status: number, envelope: Record<string, unknown>) =>
+    fetchMock.mockImplementation(async () => Response.json({ error: "private-token", ...envelope }, { status, headers: { "set-cookie": "private-cookie" } }));
+
+  it.each([
+    [404, { code: "not_found" }, "not_found"], [404, { code: "team_access_ended" }, "team_access_ended"], [403, { code: "forbidden" }, "forbidden"],
+    [503, { code: "document_storage_unavailable" }, "document_storage_unavailable"], [500, { code: "boom" }, "server_error"],
+  ])("redirects (303) a %s %j back to the Documentos tab with download_error=%s, with no body and no backend text", async (status, envelope, code) => {
+    backendFails(status, envelope);
+    const response = await downloadDocument({ draftId: ids.draft, documentId: ids.document }, navigation());
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(back(code));
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.has("set-cookie")).toBe(false);
+    expect(await response.text()).toBe("");
+  });
+  it("covers every download route: version, link and the participation scope", async () => {
+    backendFails(404, { code: "not_found" });
+    for (const response of [
+      await downloadDocumentVersion({ draftId: ids.draft, participationId: ids.participation, documentId: ids.document, version: "2" }, navigation()),
+      await downloadDocumentLink({ draftId: ids.draft, linkId: ids.link }, navigation()),
+      await downloadDocumentLink({ draftId: ids.draft, participationId: ids.participation, linkId: ids.link }, navigation()),
+    ]) { expect(response.status).toBe(303); expect(response.headers.get("location")).toBe(back("not_found")); }
+  });
+  it("redirects an unreachable backend, a missing session and a malformed document id", async () => {
+    fetchMock.mockRejectedValue(new Error("down"));
+    expect((await downloadDocument({ draftId: ids.draft, documentId: ids.document }, navigation())).headers.get("location")).toBe(back("no_response"));
+    expect((await downloadDocument({ draftId: ids.draft, documentId: "nope" }, navigation())).headers.get("location")).toBe(back("not_found"));
+    vi.mocked(getActionAccessToken).mockResolvedValue(null);
+    expect((await downloadDocument({ draftId: ids.draft, documentId: ids.document }, navigation())).headers.get("location")).toBe(back("unauthenticated"));
+  });
+  it("keeps the JSON envelope for a request that is not a navigation (fetch, no request) and for a malformed draft id", async () => {
+    backendFails(404, { code: "not_found" });
+    const fetched = new Request("http://localhost/x", { headers: { "sec-fetch-mode": "cors" } });
+    expect((await downloadDocument({ draftId: ids.draft, documentId: ids.document }, fetched)).status).toBe(404);
+    expect((await downloadDocument({ draftId: ids.draft, documentId: ids.document })).status).toBe(404);
+    const malformed = await downloadDocument({ draftId: "nope", documentId: ids.document }, navigation());
+    expect(malformed.status).toBe(404);
+    expect(await malformed.json()).toEqual({ error: "not_found", code: "not_found" });
+  });
+  it("recognizes a navigation by an HTML Accept when the browser sends no Fetch Metadata", async () => {
+    backendFails(404, { code: "not_found" });
+    const html = new Request("http://localhost/x", { headers: { accept: "text/html,application/xhtml+xml,*/*;q=0.8" } });
+    expect((await downloadDocument({ draftId: ids.draft, documentId: ids.document }, html)).status).toBe(303);
+    const json = new Request("http://localhost/x", { headers: { accept: "application/json" } });
+    expect((await downloadDocument({ draftId: ids.draft, documentId: ids.document }, json)).status).toBe(404);
+  });
+  it("still streams the file to a navigation when the download works", async () => {
+    fetchMock.mockImplementation(async () => new Response("%PDF-", { headers: { "content-type": "application/pdf", "content-disposition": 'attachment; filename="a.pdf"' } }));
+    const response = await downloadDocument({ draftId: ids.draft, documentId: ids.document }, navigation());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("%PDF-");
+  });
+});
+
+describe("server deadlines (the backend gives an upload and a download 2 minutes; the BFF waits a little longer)", () => {
+  it("names one 130 s constant for each", () => {
+    expect(UPLOAD_DEADLINE_MS).toBe(130_000);
+    expect(DOWNLOAD_DEADLINE_MS).toBe(130_000);
+  });
+  it("arms the upload with the upload deadline", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    fetchMock.mockImplementation(async (_url, init) => { await drain(init.body); return created(); });
+    await uploadDocument(post("x"), { draftId: ids.draft });
+    expect(timeout).toHaveBeenCalledWith(130_000);
+    timeout.mockRestore();
+  });
+  it("arms the download with the download deadline and clears it once the stream ends", async () => {
+    const timer = vi.spyOn(globalThis, "setTimeout");
+    fetchMock.mockImplementation(async () => new Response("%PDF-", { headers: { "content-type": "application/pdf", "content-disposition": 'attachment; filename="a.pdf"' } }));
+    const response = await downloadDocument({ draftId: ids.draft, documentId: ids.document });
+    expect(timer.mock.calls.some(([, delay]) => delay === 130_000)).toBe(true);
+    expect(await response.text()).toBe("%PDF-");
+    timer.mockRestore();
   });
 });

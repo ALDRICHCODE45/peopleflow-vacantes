@@ -96,3 +96,22 @@ describe("failures", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("503 is not an expected answer of a read or a row write (only the routes that move bytes return it)", () => {
+  const storageOff = () => fetchMock.mockImplementation(async () => json({ error: "texto privado", code: "document_storage_unavailable" }, 503));
+  it.each([
+    ["the overview", () => loadDocumentOverviewAction(ids.draft)],
+    ["the list", () => listVacancyDocumentsAction(ids.draft)],
+    ["the sources", () => listDocumentSourcesAction({ draftId: ids.draft })],
+    ["the versions", () => listDocumentVersionsAction({ draftId: ids.draft, documentId: ids.document })],
+    ["a link", () => createDocumentLinkAction({ draftId: ids.draft, sourceDocumentId: ids.source, version: 1 })],
+    ["an unlink", () => deleteDocumentLinkAction({ draftId: ids.draft, linkId: ids.link })],
+    ["a delete", () => deleteDocumentAction({ draftId: ids.draft, documentId: ids.document })],
+  ])("%s answers the generic server failure, not the storage-off copy", async (_name, call) => {
+    storageOff();
+    expect(await call()).toMatchObject({
+      ok: false, reason: "server_error", uncertain: true, reference: { status: 503 },
+      message: "No pudimos completar la operación. Actualiza la lista para ver si se aplicó antes de volver a intentarlo.",
+    });
+  });
+});

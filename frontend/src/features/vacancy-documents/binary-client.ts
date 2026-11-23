@@ -17,9 +17,12 @@ export type BinaryFailure = {
   tooLarge?: boolean;
 };
 export type UploadSuccess = { ok: true; data: ItemWrite; replayed?: "true" | "false" };
-/** The backend's own deadline for a 10 MB body on a slow link is generous; this one only stops a stalled connection. */
-export const UPLOAD_DEADLINE_MS = 120_000;
-export const DOWNLOAD_DEADLINE_MS = 60_000;
+/**
+ * The backend gives an upload and a download a 2-minute server deadline (120 s). The BFF must wait at least that long, so each deadline
+ * is 130 s: the backend's own answer (success or its timeout error) always arrives before this one, which only stops a stalled connection.
+ */
+export const UPLOAD_DEADLINE_MS = 130_000;
+export const DOWNLOAD_DEADLINE_MS = 130_000;
 const RESPONSE_JSON_MAX_BYTES = 65_536;
 const ERROR_JSON_MAX_BYTES = 8192;
 

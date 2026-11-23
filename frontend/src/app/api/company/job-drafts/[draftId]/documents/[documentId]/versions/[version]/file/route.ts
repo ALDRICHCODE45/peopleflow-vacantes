@@ -4,6 +4,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** `GET V/documents/{doc}/versions/{n}/file`: one numbered version, streamed as an attachment. */
-export async function GET(_request: Request, context: { params: Promise<{ draftId: string; documentId: string; version: string }> }): Promise<Response> {
-  return downloadDocumentVersion(await context.params);
+export async function GET(request: Request, context: { params: Promise<{ draftId: string; documentId: string; version: string }> }): Promise<Response> {
+  return downloadDocumentVersion(await context.params, request);
 }

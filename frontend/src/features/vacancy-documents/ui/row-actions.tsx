@@ -10,7 +10,11 @@ import type { DocRow } from "./rows";
 
 const base = (draftId: string, participationId: string | null) =>
   `/api/company/job-drafts/${draftId}${participationId ? `/participations/${participationId}` : ""}`;
-/** BFF download of the current version of an item, or the pinned version of a link (always an attachment). */
+/**
+ * BFF download of the current version of an item, or the pinned version of a link (always an attachment). The anchors have NO `download`
+ * attribute on purpose: the route answers a failure to a navigation with a redirect back to the tab (`?download_error=`), and a
+ * `download` link would save that redirect target, or the JSON body, as the file.
+ */
 export function fileHref(draftId: string, row: DocRow): string {
   const prefix = base(draftId, participationIdOf(row.owner));
   return row.kind === "item" ? `${prefix}/documents/${row.id}/file` : `${prefix}/document-links/${row.id}/file`;
@@ -32,7 +36,7 @@ export function RowActions({ draftId, row, limits, onIntent }: { draftId: string
   const menu = entries.filter(entry => entry !== false);
   return <div className="flex items-center justify-end gap-1">
     {allowed.includes("download") && <Button variant="ghost" size="icon" className="size-10" nativeButton={false} role="link"
-      render={<a href={fileHref(draftId, row)} download aria-label={`Descargar ${name}${row.kind === "link" ? " (versión fijada)" : ""}`} />}><Download aria-hidden="true" /></Button>}
+      render={<a href={fileHref(draftId, row)} aria-label={`Descargar ${name}${row.kind === "link" ? " (versión fijada)" : ""}`} />}><Download aria-hidden="true" /></Button>}
     {menu.length > 0 && <DropdownMenu>
       <DropdownMenuTrigger render={<Button ref={trigger} variant="ghost" size="icon" className="size-10" aria-label={`Más acciones de ${name}`} />}><MoreHorizontal aria-hidden="true" /></DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-56">

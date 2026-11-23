@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { DocumentFormat, DocumentOwner, Scope } from "../model";
 import type { Participation } from "./candidate-picker";
-import { dateLabel, FORMAT_LABEL, sizeLabel } from "./format";
+import { dateLabel, FORMAT_LABEL, originLabel, sizeLabel } from "./format";
 import { RowActions, type RowIntent } from "./row-actions";
 import type { DocRow } from "./rows";
 
@@ -14,7 +14,6 @@ const FormatIcon = ({ format }: { format: DocumentFormat }) => {
   return <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><Icon className="size-5" /></span>;
 };
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(word => word[0]).join("").toUpperCase();
-const originLabel = (sequence: number) => sequence === 0 ? "Proceso original" : `Reemplazo ${sequence}`;
 
 function Owner({ owner, participations }: { owner: DocumentOwner; participations: Participation[] }) {
   if (owner.kind === "vacancy") return <span className="inline-flex items-center gap-2 font-medium"><Briefcase aria-hidden="true" className="size-4 text-muted-foreground" />Vacante</span>;

@@ -1,22 +1,25 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileText, FilterX, SearchX, TriangleAlert, Upload } from "lucide-react";
+import { FileText, FilterX, Link2, SearchX, TriangleAlert, Upload } from "lucide-react";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { deleteDocumentAction, deleteDocumentLinkAction } from "../actions";
-import type { DocumentOverview, ItemWrite } from "../model";
+import type { DocumentOverview, ItemWrite, LinkWrite } from "../model";
 import { DangerConfirmDialog } from "./confirm-dialog";
 import { DocumentFilters } from "./documents-filters";
 import { DocumentsTable } from "./documents-table";
-import { participationIdOf, withItem, withoutRow, withScope } from "./overview-state";
+import { plural } from "./format";
+import { LinkSheet, linkDestinations } from "./link-sheet";
+import { participationIdOf, withItem, withLink, withoutRow, withScope } from "./overview-state";
 import type { RowIntent } from "./row-actions";
 import { buildRows, chooseCandidate, chooseScope, filterRows, NO_FILTERS, scopeCounts, type DocRow, type Filters } from "./rows";
 import { UploadDialog } from "./upload-dialog";
 import { VersionsSheet } from "./versions-sheet";
 import { useDocumentOverview } from "./use-document-overview";
+import { useDownloadNotice } from "./use-download-notice";
 
 type Removal = { kind: "delete" | "unlink"; row: DocRow };
 const canUploadSomewhere = (overview: DocumentOverview) => overview.scope.allowed_actions.includes("upload") || overview.participations.some(entry => entry.scope_allowed_actions.includes("upload"));
@@ -36,8 +39,11 @@ export function VacancyDocumentsTab({ draftId }: { draftId: string }) {
   const [removing, setRemoving] = useState<{ pending: boolean; error: string | null }>({ pending: false, error: null });
   const [upload, setUpload] = useState<{ initial: string | null } | null>(null);
   const [versionsOf, setVersionsOf] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
+  useDownloadNotice();
   const focusTrigger = useRef<HTMLElement | null>(null);
   const uploadButton = useRef<HTMLButtonElement>(null);
+  const linkButton = useRef<HTMLButtonElement>(null);
   const region = useRef<HTMLElement>(null);
 
   const intent = (what: RowIntent, row: DocRow, trigger: HTMLElement | null) => {
@@ -58,6 +64,12 @@ export function VacancyDocumentsTab({ draftId }: { draftId: string }) {
   function replaced(write: ItemWrite, participationId: string | null) {
     apply(overview => withItem(overview, write.item, participationId, write.scope));
     notifyActionResult({ key: "vacancy-documents", type: "success", title: `Versión ${write.item.version} subida` });
+  }
+
+  /** Same rule as an upload: the link joins the table unless the read is narrowed to another person; its `scope` always updates the flags. */
+  function linked(write: LinkWrite, participationId: string | null) {
+    apply(overview => filters.participationId !== null && filters.participationId !== participationId
+      ? withScope(overview, participationId, write.scope) : withLink(overview, write.link, participationId, write.scope));
   }
 
   async function confirmRemoval() {
@@ -90,6 +102,8 @@ export function VacancyDocumentsTab({ draftId }: { draftId: string }) {
   const chosen = overview.participations.find(entry => entry.participation_id === filters.participationId);
   const canUpload = canUploadSomewhere(overview);
   const uploadAction = canUpload && <Button ref={uploadButton} type="button" className="min-h-11" onClick={() => openUpload(filters.participationId)}><Upload aria-hidden="true" />Subir documento</Button>;
+  const canLink = linkDestinations(overview, filters.participationId).length > 0;
+  const linkAction = canLink && <Button ref={linkButton} type="button" variant="outline" className="min-h-11" onClick={() => setLinking(true)}><Link2 aria-hidden="true" />Vincular del proceso original</Button>;
   const versioned = overview.items.find(entry => entry.id === versionsOf);
   const searching = filters.search.trim() !== "";
 
@@ -116,11 +130,14 @@ export function VacancyDocumentsTab({ draftId }: { draftId: string }) {
     <h2 id="vacancy-documents-heading" className="font-heading text-xl font-semibold">Documentos</h2>
     <DocumentFilters filters={filters} counts={counts} participations={overview.participations}
       onScope={scope => setFilters(chooseScope(filters, scope))} onCandidate={id => setFilters(chooseCandidate(filters, id))} onSearch={search => setFilters({ ...filters, search })}
-      actions={uploadAction} />
+      actions={<>{linkAction}{uploadAction}</>} />
     {overview.truncated && <p role="note" className="rounded-2xl bg-muted px-4 py-3 text-sm">Se muestran los documentos más recientes de esta vacante. <strong className="font-medium">Filtra por candidato para ver el resto.</strong></p>}
     {rows.length > 0 ? body : <div className="rounded-2xl border">{body}</div>}
     {upload && <UploadDialog draftId={draftId} overview={overview} initialParticipationId={upload.initial} onClose={() => setUpload(null)} onUploaded={uploaded} onReload={reload}
       finalFocus={() => uploadButton.current?.isConnected ? uploadButton.current : region.current} />}
+    {linking && <LinkSheet draftId={draftId} overview={overview} chosenParticipationId={filters.participationId} onClose={() => setLinking(false)} onLinked={linked} onReload={reload}
+      onDone={count => notifyActionResult({ key: "vacancy-documents", type: "success", title: `${count === 1 ? "Se vinculó" : "Se vincularon"} ${plural(count, "documento", "documentos")}` })}
+      finalFocus={() => linkButton.current?.isConnected ? linkButton.current : region.current} />}
     {versioned && <VersionsSheet draftId={draftId} item={versioned} limits={overview.scope.limits} onClose={() => setVersionsOf(null)} onReplaced={replaced} onReload={reload}
       finalFocus={() => focusTrigger.current?.isConnected ? focusTrigger.current : region.current} />}
     <DangerConfirmDialog open={removal !== null} onOpenChange={open => { if (!open) setRemoval(null); }} pending={removing.pending} error={removing.error} onConfirm={confirmRemoval}

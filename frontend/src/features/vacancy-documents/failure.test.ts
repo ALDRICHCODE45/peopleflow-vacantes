@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeDocumentEnvelope, mapDocumentFailure, routeEnvelope } from "./failure";
+import { decodeDocumentEnvelope, downloadFailureCode, downloadFailureMessage, mapDocumentFailure, routeEnvelope } from "./failure";
 import { formatsWire, ids } from "./test-fixtures";
 
 const status = (httpStatus: number, envelope?: unknown) => mapDocumentFailure({ error: { kind: "status", status: httpStatus }, ...(envelope === undefined ? {} : { envelope }) });
@@ -176,5 +176,29 @@ describe("decodeDocumentEnvelope and routeEnvelope", () => {
   it("a route envelope decodes back to the same Spanish message (BFF round trip)", () => {
     const wire = { error: "payload_too_large", code: "payload_too_large", data: { max_bytes: 10485760 } };
     expect(status(413, wire).message).toBe("El archivo es demasiado grande. El máximo es de 10 MB.");
+  });
+});
+
+describe("download failures (the Documentos tab says why a download did not start)", () => {
+  it.each([
+    ["unauthenticated", "Inicia sesión para continuar."],
+    ["forbidden", "No tienes permiso para descargar este documento."],
+    ["not_found", "No encontramos este documento o ya no tienes acceso."],
+    ["team_access_ended", "Tu acceso al equipo de esta vacante terminó."],
+    ["document_storage_unavailable", "El almacenamiento de documentos no está disponible por ahora. Vuelve a intentarlo en unos minutos."],
+    ["server_error", "No pudimos descargar el archivo. Vuelve a intentarlo en unos minutos."],
+    ["no_response", "No pudimos descargar el archivo. Vuelve a intentarlo en unos minutos."],
+    ["unrecognized_response", "No pudimos descargar el archivo. Vuelve a intentarlo en unos minutos."],
+  ])("%s reads as download copy, never as «actualiza la lista»", (code, message) => {
+    expect(downloadFailureMessage(code)).toBe(message);
+  });
+  it("says nothing for a code it does not know (a hand-edited address), an absent one or a non-string", () => {
+    for (const value of ["", "nope", "document_limit_reached", "__proto__", "toString", null, undefined]) expect(downloadFailureMessage(value)).toBeNull();
+  });
+  it("downloadFailureCode keeps the codes a download can end with and folds any other reason into server_error", () => {
+    expect(downloadFailureCode("not_found")).toBe("not_found");
+    expect(downloadFailureCode("document_storage_unavailable")).toBe("document_storage_unavailable");
+    expect(downloadFailureCode("invalid_request")).toBe("server_error");
+    expect(downloadFailureCode("document_limit_reached")).toBe("server_error");
   });
 });

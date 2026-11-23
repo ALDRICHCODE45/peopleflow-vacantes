@@ -29,6 +29,7 @@ const post = () => new Request("http://localhost/api/company/job-drafts/x", {
   method: "POST", body: "x", headers: { "content-type": "multipart/form-data; boundary=b" }, duplex: "half",
 } as RequestInit);
 const get = () => new Request("http://localhost/api/company/job-drafts/x");
+const nav = () => new Request("http://localhost/api/company/job-drafts/x", { headers: { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" } });
 const ctx = <T extends Record<string, string>>(params: T) => ({ params: Promise.resolve(params) });
 
 beforeEach(() => {
@@ -67,4 +68,18 @@ it("runs on the Node runtime and is never statically cached", () => {
   expect(uploadModule.dynamic).toBe("force-dynamic");
   expect(fileModule.runtime).toBe("nodejs");
   expect(fileModule.dynamic).toBe("force-dynamic");
+});
+
+it.each([
+  ["vacancy download", () => file(nav(), ctx({ draftId, documentId }))],
+  ["vacancy version download", () => versionFile(nav(), ctx({ draftId, documentId, version: "3" }))],
+  ["vacancy link download", () => linkFile(nav(), ctx({ draftId, linkId }))],
+  ["participation download", () => pFile(nav(), ctx({ draftId, participationId, documentId }))],
+  ["participation version download", () => pVersionFile(nav(), ctx({ draftId, participationId, documentId, version: "3" }))],
+  ["participation link download", () => pLinkFile(nav(), ctx({ draftId, participationId, linkId }))],
+])("%s sends a failed browser navigation back to the Documentos tab instead of a JSON body", async (_name, call) => {
+  fetchMock.mockImplementation(async () => Response.json({ error: "x", code: "not_found" }, { status: 404 }));
+  const response = await call();
+  expect(response.status).toBe(303);
+  expect(response.headers.get("location")).toBe(`/empresa/vacantes/${draftId}/documentos?download_error=not_found`);
 });

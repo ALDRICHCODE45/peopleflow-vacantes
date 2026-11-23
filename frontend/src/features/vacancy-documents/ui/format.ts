@@ -26,3 +26,5 @@ export function checkFile(file: File, limits: Scope["limits"]): string | null {
   if (file.size > limits.max_bytes) return `${file.name} pesa ${sizeLabel(file.size)} y el máximo es ${sizeLabel(limits.max_bytes)}.`;
   return null;
 }
+/** Where a source document comes from: sequence 0 is the original process, then «Reemplazo n». */
+export const originLabel = (sequence: number): string => sequence === 0 ? "Proceso original" : `Reemplazo ${sequence}`;

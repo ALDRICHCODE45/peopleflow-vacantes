@@ -202,3 +202,25 @@ const STATUS: Record<DocumentEnvelope["code"], number> = {
   idempotency_conflict: 409, document_storage_unavailable: 503, validation_error: 400, payload_too_large: 413, unsupported_media_type: 415,
   document_content_mismatch: 400, document_limit_reached: 409, document_version_conflict: 409, document_already_linked: 409, document_link_invalid: 422,
 };
+
+/**
+ * The codes a failed DOWNLOAD can end with. A browser navigation to a BFF file route that fails is sent back to the Documentos tab with
+ * `?download_error=<code>` (it must never save the JSON error body as a file); the tab reads the code through `downloadFailureMessage`.
+ */
+const downloadMessages = {
+  unauthenticated: messages.unauthenticated,
+  forbidden: "No tienes permiso para descargar este documento.",
+  not_found: messages.not_found,
+  team_access_ended: messages.team_access_ended,
+  document_storage_unavailable: messages.document_storage_unavailable,
+  server_error: "No pudimos descargar el archivo. Vuelve a intentarlo en unos minutos.",
+  no_response: "No pudimos descargar el archivo. Vuelve a intentarlo en unos minutos.",
+  unrecognized_response: "No pudimos descargar el archivo. Vuelve a intentarlo en unos minutos.",
+} as const;
+export type DownloadFailureCode = keyof typeof downloadMessages;
+const isDownloadCode = (value: unknown): value is DownloadFailureCode => typeof value === "string" && Object.hasOwn(downloadMessages, value);
+
+/** Any other reason (a limit, a conflict…) cannot happen on a download: it reads as a generic server failure. */
+export const downloadFailureCode = (reason: string): DownloadFailureCode => isDownloadCode(reason) ? reason : "server_error";
+/** `null` for an absent or unknown code (a hand-edited address): the tab then says nothing. */
+export const downloadFailureMessage = (code: string | null | undefined): string | null => isDownloadCode(code) ? downloadMessages[code] : null;
