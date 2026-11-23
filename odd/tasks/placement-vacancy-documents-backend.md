@@ -36,8 +36,8 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T4 P2 — storage port, adapters, config — done bde228ba, 474350fd
 - T5 P3 — errors, read gate, audit catalog, scope, GET list — done 457ea222, a2614f6f (document_* error family moved to P4)
 - T6 P4 S2 S4 S5 — `document_*` errors, manage authorization, upload and download — done in the working tree, parent commits (L15)
-- T7 P5 S4 S5 S6 — versions and delete — done in the working tree, parent commits (L17)
-- T8 P6 S1 S4 S6 — participation documents — done in the working tree, parent commits (L18)
+- T7 P5 S4 S5 S6 — versions and delete — done e29e0be2
+- T8 P6 S1 S4 S6 — participation documents — done 9fb20351
 - T9 P7 — replacement linking — pending
 - T10 P8 — hardening, reconcile, full suite — pending
 
