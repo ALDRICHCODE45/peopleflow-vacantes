@@ -87,27 +87,67 @@ async function mount(board?: Board) {
 }
 const finishedLifecycle = { close_reason: null, close_reason_note: null, publication: "closed" as const, process: "finished" as const, version: "2", published_at: null, paused_at: null, closed_at: "2026-10-19T12:00:00Z", process_finished_at: "2026-10-20T12:00:00Z", allowed_actions: ["reopen" as const] };
 const readOnlyNotice = "El proceso de esta vacante finalizó. El tablero está en solo lectura; reábrela para volver a editarlo.";
+// S9: the identity dates and close reason moved to the vacancy frame (vacancy-frame.test.tsx); the board only reports its lifecycle and coverage upward.
 it.each([
-  ["published", "active", "Publicada", "Publicada el"],
-  ["paused", "active", "Pausada", "Pausada el"],
-  ["closed", "active", "Cerrada · proceso en curso", "Cerrada el"],
-  ["closed", "finished", "Cerrada · proceso finalizado", "Proceso finalizado el"],
-] as const)("renders the lifecycle state and transition date for %s/%s", async (publication, process, label, prefix) => {
+  ["published", "active", "Publicada el"],
+  ["paused", "active", "Pausada el"],
+  ["closed", "active", "Cerrada el"],
+  ["closed", "finished", "Proceso finalizado el"],
+] as const)("reports the lifecycle %s/%s to the frame and renders no date lines itself", async (publication, process, prefix) => {
   const board = boardFixture();
   board.lifecycle = { ...finishedLifecycle, publication, process, published_at: "2026-10-20T12:00:00Z", paused_at: "2026-10-20T12:00:00Z", closed_at: "2026-10-20T12:00:00Z", allowed_actions: [] };
-  await mount(board);
-  // The shell owns the sole lifecycle badge; the board only owns the date.
-  expect(screen.queryByText(label, { selector: '[data-slot="badge"]' })).toBeNull();
-  expect(screen.getByText(new RegExp(prefix))).toHaveTextContent(/20 oct 2026/);
+  const onLifecycleChange = vi.fn();
+  vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board });
+  render(<MovementBoard vacancyId={vacancyId} onLifecycleChange={onLifecycleChange} />);
+  await screen.findByRole("heading", { name: "Entrada" });
+  expect(onLifecycleChange).toHaveBeenCalledWith(expect.objectContaining({ publication, process }));
+  expect(screen.queryByText(new RegExp(prefix))).not.toBeInTheDocument();
+  expect(screen.queryByText(/Motivo de cierre/)).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
   if (process === "active") expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled();
 });
-it.each([[1, "Cubierta al cierre"], [2, "Cubierta"]] as const)("the board header passes its live coverage: filled close with %i of 2 covered reads «%s»", async (covered, label) => {
+it.each([1, 2])("reports its live coverage (%i of 2) to the frame, which words the close result", async covered => {
   const board = boardFixture();
   board.coverage = { covered, required: 2, full_coverage_reached_at: null };
   board.lifecycle = { ...finishedLifecycle, process: "active", close_reason: "filled", allowed_actions: [] };
+  const onBoardChange = vi.fn();
+  vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board });
+  render(<MovementBoard vacancyId={vacancyId} onBoardChange={onBoardChange} />);
+  await screen.findByRole("heading", { name: "Entrada" });
+  expect(onBoardChange).toHaveBeenCalledWith(expect.objectContaining({ coverage: expect.objectContaining({ covered, required: 2 }) }));
+});
+it("S9: the board has no «Pipeline» h2 and no «Configuración de la vacante» button or link (the Configuración tab replaces it)", async () => {
+  await mount();
+  expect(screen.queryByRole("heading", { level: 2, name: "Pipeline" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Configuración de la vacante" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Configuración de la vacante" })).not.toBeInTheDocument();
+  expect(document.querySelector('a[href$="/configuracion/columnas"]')).toBeNull();
+});
+it("S9: one toolbar reads Filtros → (Orden, Comparar) → Acciones → Agregar candidato, with no bordered card around the filters", async () => {
+  const board = boardFixture(); board.lifecycle.allowed_actions = ["pause"];
   await mount(board);
-  expect(screen.getByText(/Motivo de cierre/)).toHaveTextContent(new RegExp(`^Motivo de cierre: ${label}$`));
+  const filters = screen.getByRole("group", { name: "Filtros del pipeline" });
+  expect(filters).not.toHaveAttribute("data-slot", "card");
+  const toolbar = filters.parentElement as HTMLElement;
+  const filtros = within(filters).getByRole("button", { name: "Filtros" });
+  const acciones = within(toolbar).getByRole("button", { name: "Acciones de la vacante" });
+  const agregar = within(toolbar).getByRole("button", { name: "Agregar candidato" });
+  expect(agregar).toHaveAttribute("id", "manual-intake-open");
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(before(filtros, acciones)).toBe(true);
+  expect(before(acciones, agregar)).toBe(true);
+  // Both actions sit at the right of the same row, outside the filters group.
+  expect(filters).not.toContainElement(acciones);
+  expect(filters).not.toContainElement(agregar);
+});
+it("S9: coverage, delivery and the candidate count are one quiet progress line placed before the toolbar", async () => {
+  await mount();
+  const line = screen.getByRole("group", { name: "Progreso de la vacante" });
+  expect(within(line).getByText(/candidato en el pipeline/)).toBeVisible();
+  expect(within(line).getByLabelText("Cobertura")).toBeVisible();
+  expect(within(line).getByLabelText("Entrega")).toBeVisible();
+  expect(within(line).getByRole("progressbar", { name: "Progreso de entrega" })).toBeVisible();
+  expect(line.compareDocumentPosition(screen.getByRole("group", { name: "Filtros del pipeline" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 it.each([["finished", true], ["active", false]] as const)("«Acciones» with nothing allowed and the start flow wired: %s process ⇒ shown %s", async (process, shown) => {
   const board = boardFixture();
@@ -220,10 +260,15 @@ it("wires lifecycle actions and adopts their response without reloading candidat
   const board = boardFixture(); board.lifecycle.allowed_actions = ["pause"];
   vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, data: board.lifecycle, etag: "lifecycle-tag" });
   vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: true, data: { ...board.lifecycle, publication: "paused", paused_at: "2026-10-20T12:00:00Z", version: "2", allowed_actions: ["resume"] }, etag: "next" });
-  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Acciones de la vacante" }));
+  const onLifecycleChange = vi.fn();
+  vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board });
+  render(<MovementBoard vacancyId={vacancyId} onLifecycleChange={onLifecycleChange} />);
+  await screen.findByRole("heading", { name: "Entrada" });
+  fireEvent.click(screen.getByRole("button", { name: "Acciones de la vacante" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Pausar" }));
   fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
-  expect(await screen.findByText(/Pausada el/)).toBeVisible();
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Pausar" })).not.toBeInTheDocument());
+  expect(onLifecycleChange).toHaveBeenLastCalledWith(expect.objectContaining({ publication: "paused" }));
   expect(loadBoardAction).toHaveBeenCalledTimes(1);
   expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ draftId: vacancyId, action: "pause", ifMatch: "lifecycle-tag" }));
 });

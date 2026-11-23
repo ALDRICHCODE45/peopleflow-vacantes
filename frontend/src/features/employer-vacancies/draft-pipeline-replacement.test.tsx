@@ -44,7 +44,7 @@ vi.mock("@/features/vacancy-lifecycle/actions", () => ({ getLifecycleAction: vi.
 vi.mock("@/features/manual-intake/actions", () => ({ checkDuplicatesAction: vi.fn() }));
 vi.mock("@/features/manual-intake/upload", () => ({ submitManualCandidate: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
-vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title }: { title: ReactNode }) => <header><h1>{title}</h1></header> }));
+vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title }: { title?: ReactNode }) => <header>{title !== null && <h1>{title}</h1>}</header> }));
 vi.mock("@/components/ui/combobox", () => ({
   Combobox: ({ children }: { children: ReactNode }) => <>{children}</>, ComboboxInput: ({ id }: { id: string }) => <input id={id} />,
   ComboboxContent: () => null, ComboboxEmpty: () => null, ComboboxList: () => null, ComboboxItem: () => null, useComboboxAnchor: () => ({ current: null }),
@@ -217,6 +217,16 @@ it("S6: the board says «Proceso iniciado» and «Privada · sin publicar» inst
   expect(screen.getByText("Privada · sin publicar")).toBeVisible();
   expect(screen.queryByText(/Publicada el/)).not.toBeInTheDocument();
 });
+it("S9: the link to the original is one line in the tab row (next to the tabs), not a bar above the toolbar", async () => {
+  await mountPrivate();
+  const link = await screen.findByRole("link", { name: /Ver original/ });
+  const tabs = screen.getByRole("navigation", { name: "Secciones de la vacante" });
+  expect(tabs.parentElement).toContainElement(link);
+  expect(tabs).not.toContainElement(link);
+  expect(link.closest('[data-slot="card"]')).toBeNull();
+  // The board no longer carries it: the toolbar group is not in the tab row.
+  expect(tabs.parentElement).not.toContainElement(screen.getByRole("group", { name: "Filtros del pipeline" }));
+});
 it("S6: a real draft (lifecycle without a publication) keeps today's draft screen even if the publication read says published", async () => {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: null, process: null, allowed_actions: [] } }, identity: { draftId: read.id, etag: '"etag"' } });
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
@@ -253,9 +263,9 @@ it("S5/S6: after publishing, the board keeps «Proceso iniciado el <inicio>» an
   fireEvent.click(await screen.findByRole("menuitem", { name: "Publicar" }));
   const confirm = await screen.findByRole("alertdialog", { name: `¿Publicar ${read.fields.title}?` });
   fireEvent.click(within(confirm).getByRole("button", { name: "Publicar vacante" }));
-  // While the board re-reads (no board yet) the header falls back to the publication date alone, so wait for the board's own lines.
-  await waitFor(() => expect(screen.getByText(/Proceso iniciado el/)).toHaveTextContent("Proceso iniciado el 19 nov 2026"));
-  expect(screen.getByText(/Publicada el/)).toHaveTextContent("Publicada el 21 nov 2026");
+  // While the board re-reads the identity row keeps the last lifecycle it knew (no flash); once the public board arrives it adds the listing date.
+  await waitFor(() => expect(screen.getByText(/Publicada el/)).toHaveTextContent("Publicada el 21 nov 2026"));
+  expect(screen.getByText(/Proceso iniciado el/)).toHaveTextContent("Proceso iniciado el 19 nov 2026");
   expect(screen.queryByText("Privada · sin publicar")).not.toBeInTheDocument();
 });
 it("S5: a public replacement's «Acciones» (lifecycle without «publish») never lists «Publicar»", async () => {

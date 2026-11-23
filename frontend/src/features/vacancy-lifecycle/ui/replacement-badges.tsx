@@ -29,7 +29,7 @@ export function ReplacementBadges({ lifecycle }: { lifecycle: Lifecycle }) {
 }
 
 /**
- * S6 link bar under the page header: a replacement points back to its original, a process with an active replacement points forward.
+ * S6 link line beside the vacancy tabs (S9): a replacement points back to its original, a process with an active replacement points forward.
  * With the chain (the board's single `GET V/replacements`) it names the processes; without it (old backend, failed read, a process the
  * chain does not list) it keeps the unnamed copy. A process the caller cannot open (`canOpen: false`) is named but not linked.
  * When the chain also says which departed hires a replacement covers (`replaces`, from the fallen credits) the bar names them; otherwise the generic copy stays.
@@ -43,7 +43,7 @@ export function ReplacementLinkBar({ lifecycle, selfId, chain = [] }: { lifecycl
   const root = chain.find(process => process.kind === "original") ?? self;
   const selfWho = self?.replaces?.length ? nameList(self.replaces) : null;
   const activeWho = active?.replaces?.length ? nameList(active.replaces) : null;
-  return <div className="flex shrink-0 flex-col gap-2" data-pf-replacement-links="">
+  return <div className="flex min-w-0 flex-col" data-pf-replacement-links="">
     {toOriginal && <LinkBar href={source?.canOpen === false ? undefined : vacancyPipelineHref(replacementOf)} action={source && source.kind !== "original" ? `Ver ${chainLabel(source)}` : "Ver original"}>
       {self && root
         ? selfWho ? <><strong className="font-medium text-foreground">{chainLabel(self)}</strong> · Reemplaza a {selfWho} en {root.title}.</> : <>Este proceso es el <strong className="font-medium text-foreground">{chainLabel(self)}</strong> de {root.title}.</>
@@ -55,9 +55,9 @@ export function ReplacementLinkBar({ lifecycle, selfId, chain = [] }: { lifecycl
   </div>;
 }
 function LinkBar({ href, action, children }: { href?: string; action: string; children: React.ReactNode }) {
-  return <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-2.5 text-sm text-muted-foreground dark:border-primary-text/30 dark:bg-primary-text/10">
-    {/* Dark `--primary` is a deep button fill (~2:1 on the dark card): the tint and the icon take the brand tone (system.md «Colors — dark»). */}
-    <p className="flex min-w-0 items-center gap-2"><GitFork aria-hidden="true" className="size-4 shrink-0 text-primary-text" /><span>{children}</span></p>
-    {href && <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={href} />}>{action}<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Button>}
+  // S9: one quiet line (no tinted card) that sits beside the vacancy tabs; the icon takes the brand tone (system.md «Colors — dark»).
+  return <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+    <p className="flex min-w-0 items-start gap-2"><GitFork aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary-text" /><span>{children}</span></p>
+    {href && <Button nativeButton={false} role="link" variant="link" className="min-h-10 px-2.5 text-primary-text" render={<Link href={href} />}>{action}<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Button>}
   </div>;
 }

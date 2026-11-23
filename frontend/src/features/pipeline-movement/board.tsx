@@ -1,14 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Info, Settings2, Tags, UserPlus, UsersRound } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Info, Tags, UserPlus, UsersRound } from "lucide-react";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { ImpactDetails } from "@/features/employer-vacancies/stage-config/impact-details";
 import { Spinner } from "@/components/ui/spinner";
-import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
 import { plural } from "@/features/employer-vacancies/plural";
 import { ManualIntakeSheet } from "@/features/manual-intake/sheet";
@@ -17,13 +16,13 @@ import type { Board, Participation } from "./model";
 import { isBackwardMove } from "./helpers";
 import { BoardDelivery } from "./board-delivery";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
-import { BoardLifecycle } from "./board-lifecycle";
 import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
 import { ReplacementLinkBar } from "@/features/vacancy-lifecycle/ui/replacement-badges";
+import { InVacancyTabRow } from "@/features/employer-vacancies/vacancy-frame-slot";
 import { useReplacementSummary } from "./use-departure-credits";
 import type { LateActions } from "./departure";
 import { BoardColumns } from "./board-columns";
-import { BoardCoverage, BoardError, BoardSkeleton, MovementDate } from "./board-states";
+import { BoardCoverage, BoardError, BoardSkeleton } from "./board-states";
 import { CandidateSheet } from "./candidate-sheet";
 import { PlacementExitField } from "./placement-exit-field";
 import { DispositionDialog } from "./disposition-dialog";
@@ -39,7 +38,7 @@ import { InvitationsProvider } from "@/features/psychometrics/sheet/state";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
 type Props = {
-  vacancyId: string; vacancyTitle?: string; publishedAt?: string | null; onLifecycleChange?: (lifecycle: Lifecycle) => void;
+  vacancyId: string; vacancyTitle?: string; onLifecycleChange?: (lifecycle: Lifecycle) => void;
   /** Opens the start-replacement flow (S1/S2): from a card's «Iniciar reemplazo» with that hire's credit, or from «Acciones» without one. Absent ⇒ no entry point. */
   onStartReplacement?: (creditId?: string) => void;
   /** The authoritative board after every read and confirmed write: the screen owner derives what the start-replacement dialog needs (source stages, hires still placed). */
@@ -54,7 +53,7 @@ function BoardSession(props: Props) {
   const state = useMovementBoard(props.vacancyId);
   return <InvitationsProvider vacancyId={props.vacancyId} movementKey={state.board?.participations.map(item => `${item.id}:${item.stage_id}:${item.moved_at}`).join("|")}><ChecklistProvider vacancyId={props.vacancyId} readOnly={state.board?.lifecycle.process === "finished"}><BoardContent {...props} state={state} /></ChecklistProvider></InvitationsProvider>;
 }
-function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange, onStartReplacement, onBoardChange, onPublish, state }: Props & { state: ReturnType<typeof useMovementBoard> }) {
+function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartReplacement, onBoardChange, onPublish, state }: Props & { state: ReturnType<typeof useMovementBoard> }) {
   const checklist = useBoardChecklist()!;
   const [bestFit, setBestFit] = useState(false);
   const [sortNotice, setSortNotice] = useState("");
@@ -139,12 +138,16 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
     <p className="text-sm">Queda {column.position}.</p>
     <ImpactDetails preview={column.preview} baseline={column.next.baseline} />
   </ConfirmActionDialog>;
-  return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-busy={state.reading}>
-    <div className="flex shrink-0 flex-col items-start justify-between gap-4 pb-2 lg:flex-row lg:items-center">
-      <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{board ? <BoardLifecycle lifecycle={board.lifecycle} publishedAt={publishedAt} coverage={board.coverage} /> : publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
-      <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto">{board && !readOnly && board.lifecycle.publication !== null && <Button id="manual-intake-open" type="button" className="min-h-10" disabled={stale || state.reading || pending.size > 0 || state.columns.busy} onClick={() => setIntake(true)}><UserPlus aria-hidden="true" data-icon="inline-start" />Agregar candidato</Button>}{board && (board.lifecycle.allowed_actions.some(action => action !== "publish" || !!onPublish) || (onStartReplacement && (board.lifecycle.can_start_replacement || readOnly))) && <LifecycleActionsMenu coverage={board.coverage} draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} onPublish={onPublish} onStartReplacement={onStartReplacement && (() => onStartReplacement())} />}{board && <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-start gap-4"><BoardCoverage coverage={board.coverage} /><Separator orientation="vertical" className="hidden sm:block" /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} finished={readOnly} /></div>}<Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
-    </div>
-    {board && <ReplacementLinkBar lifecycle={board.lifecycle} selfId={vacancyId} chain={chain} />}
+  // S9: «Agregar candidato» and «Acciones» end the one board toolbar (below), in the artboard's order: the primary action last.
+  const canIntake = !!board && !readOnly && board.lifecycle.publication !== null;
+  const canAct = !!board && (board.lifecycle.allowed_actions.some(action => action !== "publish" || !!onPublish) || (!!onStartReplacement && (board.lifecycle.can_start_replacement || readOnly)));
+  const boardActions = board && (canIntake || canAct) ? <>
+    {canAct && <LifecycleActionsMenu coverage={board.coverage} draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} onPublish={onPublish} onStartReplacement={onStartReplacement && (() => onStartReplacement())} />}
+    {canIntake && <Button id="manual-intake-open" type="button" className="min-h-10" disabled={stale || state.reading || pending.size > 0 || state.columns.busy} onClick={() => setIntake(true)}><UserPlus aria-hidden="true" data-icon="inline-start" />Agregar candidato</Button>}
+  </> : undefined;
+  return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-3" aria-busy={state.reading}>
+    {/* The vacancy frame owns identity, dates and the tabs; the replacement link is one line beside them (inline when the board stands alone). */}
+    {board && <InVacancyTabRow><ReplacementLinkBar lifecycle={board.lifecycle} selfId={vacancyId} chain={chain} /></InVacancyTabRow>}
     {readOnly && <ActionStatus id="board-process-finished" tone="info" text={`El proceso de esta vacante finalizó. El tablero está en solo lectura${board.lifecycle.allowed_actions.includes("reopen") ? "; reábrela para volver a editarlo." : "."}`} />}
     {!board && state.reading && !state.failure && <BoardSkeleton columnCount={state.columns.editor ? state.columns.editor.stages.length + 1 : undefined} />}
     {state.failure && <BoardError failure={state.failure} reading={state.reading} notice={state.readNotice} retry={() => void state.retry()} />}
@@ -152,12 +155,17 @@ function BoardContent({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange,
     {state.stale && state.reading && !state.columns.busy && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Comprobando el estado del tablero…</p>}
     {board && <>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <p className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"><UsersRound aria-hidden="true" className="size-4" /><span><strong className="font-medium text-foreground tabular-nums">{board.participations.length}</strong> {plural(board.participations.length, "candidato", "candidatos").split(" ")[1]} en el pipeline</span></p>
+        {/* One quiet progress line: the candidate count, coverage and delivery (their accessible text and data are unchanged). */}
+        <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-4">
+          <p className="flex shrink-0 items-center gap-2 max-sm:col-span-full"><UsersRound aria-hidden="true" className="size-4" /><span><strong className="font-medium text-foreground tabular-nums">{board.participations.length}</strong> {plural(board.participations.length, "candidato", "candidatos").split(" ")[1]} en el pipeline</span></p>
+          <BoardCoverage coverage={board.coverage} />
+          <BoardDelivery delivery={board.delivery} status={state.deliveryStatus} finished={readOnly} />
+        </div>
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3"><ActionStatusSlot>
           {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />{state.columns.pending === "preview" ? "Revisando el impacto…" : "Guardando y actualizando columnas…"}</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} action={state.columns.notice.link && <Link className="inline-flex min-h-10 items-center underline" href={state.columns.notice.link.href}>{state.columns.notice.link.title}</Link>} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : !state.columns.locked && <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground lg:flex"><GripVertical aria-hidden="true" className="size-3.5" />Reordena columnas y revisa el impacto antes de guardar</span>}
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
-      <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} actions={boardActions} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Select items={[{ value: "arrival", label: "Llegada" }, { value: "fit", label: "Mejor ajuste (checklist)" }]} value={bestFit ? "fit" : "arrival"} onValueChange={changeOrder}>
           <SelectTrigger aria-label="Orden" className="min-h-10"><span>Orden: </span><SelectValue /></SelectTrigger>
           <SelectContent alignItemWithTrigger={false}><SelectGroup><SelectItem value="arrival">Llegada</SelectItem><SelectItem value="fit">Mejor ajuste (checklist)</SelectItem></SelectGroup></SelectContent>

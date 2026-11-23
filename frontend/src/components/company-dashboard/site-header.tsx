@@ -25,13 +25,17 @@ export type SiteHeaderParent = {
  * an optional linked `parent` crumb, and optional `status` context while still
  * reusing the same shell controls (sidebar trigger, separator, theme toggle)
  * instead of re-implementing them.
+ *
+ * `title={null}` (distinct from omitting it, which keeps «Dashboard») drops the
+ * heading and the crumb's trailing separator: the vacancy frame owns the page
+ * `h1` in its identity row and the bar keeps only menu, back crumb and theme.
  */
 export function SiteHeader({
   title = "Dashboard",
   parent,
   status,
 }: {
-  title?: string
+  title?: string | null
   parent?: SiteHeaderParent
   status?: React.ReactNode
 }) {
@@ -59,21 +63,25 @@ export function SiteHeader({
               />
               <span className="max-sm:sr-only">{parent.label}</span>
             </Link>
-            <span
-              aria-hidden="true"
-              className="text-muted-foreground max-sm:hidden"
-            >
-              /
-            </span>
+            {title !== null ? (
+              <span
+                aria-hidden="true"
+                className="text-muted-foreground max-sm:hidden"
+              >
+                /
+              </span>
+            ) : null}
           </nav>
         ) : null}
-        <h1
-          aria-current={parent ? "page" : undefined}
-          title={title}
-          className="truncate text-base font-medium max-sm:line-clamp-2 max-sm:min-w-0 max-sm:text-sm max-sm:leading-tight max-sm:whitespace-normal"
-        >
-          {title}
-        </h1>
+        {title !== null ? (
+          <h1
+            aria-current={parent ? "page" : undefined}
+            title={title}
+            className="truncate text-base font-medium max-sm:line-clamp-2 max-sm:min-w-0 max-sm:text-sm max-sm:leading-tight max-sm:whitespace-normal"
+          >
+            {title}
+          </h1>
+        ) : null}
         {status ? (
           <span className="flex shrink-0 items-center gap-1">{status}</span>
         ) : null}

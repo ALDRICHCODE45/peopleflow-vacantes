@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
@@ -12,13 +12,16 @@ vi.mock("@/features/pipeline-movement/actions", () => ({ loadBoardAction: vi.fn(
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
-vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
+// Like the real header: `title={null}` drops the heading (the vacancy frame owns the h1) and nothing but the crumb is passed.
+const headerProps = vi.hoisted(() => ({ calls: [] as { title?: string | null; status?: unknown }[] }));
+vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title?: React.ReactNode; parent: { label: string; href: string }; status?: React.ReactNode }) => { headerProps.calls.push({ title: title as string | null | undefined, status }); return <header>{title !== null && <h1>{title}</h1>}<a href={parent.href}>{parent.label}</a>{status}</header>; } }));
 const read = filledDraftRead();
 const success = { ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: null, process: null } }, identity: { draftId: read.id, etag: '"etag"' } } as const;
 /** A board with the given lifecycle, for screens that open the board (the lifecycle has a process). */
 const boardWith = (lifecycle: unknown) => ({ ok: true, data: { lifecycle, screening_filters: [], retired_stages: [], delivery: { state: "pending", delivered: 0, target: 3 }, substates: [], stages: [{ id: read.id, kind: "new", name: "Entrada actual", count: 0 }], exit: { id: "exit", kind: "discarded", name: "Fuera actual", count: 0 }, coverage: { covered: 0, required: null, full_coverage_reached_at: null }, participations: [] } }) as unknown as Awaited<ReturnType<typeof loadBoardAction>>;
 beforeEach(() => {
   vi.resetAllMocks();
+  headerProps.calls.length = 0;
   vi.mocked(loadDraftForEditAction).mockResolvedValue(success);
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
   vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: false, reason: "not_found", reference: {} });
@@ -64,7 +67,9 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
   expect(within(header as HTMLElement).getByText("Vacante en borrador")).toBeVisible();
   const columns = within(header.querySelector('[data-slot="card-action"]') as HTMLElement).getByRole("link", { name: "Configurar columnas" });
   expect(columns).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/columnas`);
-  expect(screen.getAllByRole("link", { name: /Configura/ })).toHaveLength(1);
+  // Besides the «Configuración» tab (navigation of the frame), the draft card has this one entry point.
+  expect(screen.getAllByRole("link", { name: /Configurar/ })).toHaveLength(1);
+  expect(screen.getByRole("link", { name: "Configuración" })).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion`);
   expect(screen.queryByRole("link", { name: "Configuración de la vacante" })).not.toBeInTheDocument();
   expect(within(container.querySelector('[data-slot="card-footer"]') as HTMLElement).getByText("Puedes configurar las columnas de tu proceso antes de publicar.")).toBeVisible();
   // Leaving the screen is navigation, outside the card.
@@ -131,29 +136,54 @@ it("ignores stale results when the id changes", async () => {
   await act(async () => resolve(success));
   expect(screen.queryByText("Esta vacante todavía no tiene pipeline")).not.toBeInTheDocument();
 });
-it("S6: the header of a replacement carries «Reemplazo» and «Privada» next to its state", async () => {
+it("S6/S9: the identity row of a replacement carries «Reemplazo» and «Privada» next to its state, wrapping with the title", async () => {
   const lifecycle = { ...success.seed.lifecycle, publication: "published" as const, process: "active" as const, kind: "replacement" as const, replacement_of: "223e4567-e89b-42d3-a456-426614174000", visibility: "private" as const };
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle } });
   // Private replacement: the publication read says «draft» (contract D4) and the screen still opens the board from the lifecycle.
   vi.mocked(loadBoardAction).mockResolvedValue(boardWith(lifecycle));
   render(<DraftPipelineState draftId={read.id} />);
   await screen.findByRole("heading", { name: "Entrada actual" });
-  const header = (await screen.findByRole("heading", { level: 1 })).closest("header") as HTMLElement;
-  expect(within(header).getByText("Activa")).toBeVisible();
-  expect(within(header).getByText("Reemplazo")).toHaveAttribute("data-slot", "badge");
-  expect(within(header).getByText("Privada")).toHaveAttribute("data-slot", "badge");
+  const row = (await screen.findByRole("heading", { level: 1 })).parentElement as HTMLElement;
+  expect(row).toHaveClass("flex-wrap");
+  expect(within(row).getByText("Activa")).toBeVisible();
+  expect(within(row).getByText("Reemplazo")).toHaveAttribute("data-slot", "badge");
+  expect(within(row).getByText("Privada")).toHaveAttribute("data-slot", "badge");
+  // The top bar keeps only the back crumb: neither title nor badges.
+  const header = screen.getByRole("link", { name: "Vacantes" }).closest("header") as HTMLElement;
+  expect(within(header).queryByText("Activa")).not.toBeInTheDocument();
+  expect(within(header).queryByRole("heading")).not.toBeInTheDocument();
 });
-it("on a phone the state and replacement badges leave the header (it truncated the title) and wrap in a row below it", async () => {
-  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
-  const lifecycle = { ...success.seed.lifecycle, publication: "published" as const, process: "active" as const, kind: "replacement" as const, replacement_of: "223e4567-e89b-42d3-a456-426614174000", visibility: "private" as const };
-  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle } });
-  vi.mocked(loadBoardAction).mockResolvedValue(boardWith(lifecycle));
+it("S9: the pipeline route renders the vacancy tabs with Pipeline current, and passes the SiteHeader no title or status", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication: "published", process: "active" } } });
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-16T12:00:00Z", missing: [] } });
+  vi.mocked(loadBoardAction).mockResolvedValue(boardWith({ ...success.seed.lifecycle, publication: "published", process: "active", published_at: "2026-10-16T12:00:00Z" }));
   render(<DraftPipelineState draftId={read.id} />);
   await screen.findByRole("heading", { name: "Entrada actual" });
-  const header = screen.getByRole("heading", { level: 1 }).closest("header") as HTMLElement;
-  expect(within(header).queryByText("Activa")).not.toBeInTheDocument();
-  expect(within(header).queryByText("Reemplazo")).not.toBeInTheDocument();
-  for (const label of ["Activa", "Reemplazo", "Privada"]) expect(screen.getByText(label)).toHaveAttribute("data-slot", "badge");
-  expect(screen.getByText("Activa").parentElement).toHaveClass("flex-wrap");
-  vi.unstubAllGlobals();
+  const tabs = within(screen.getByRole("navigation", { name: "Secciones de la vacante" })).getAllByRole("link");
+  expect(tabs.map(link => [link.textContent, link.getAttribute("href"), link.getAttribute("aria-current")])).toEqual([
+    ["Pipeline", `/empresa/vacantes/${read.id}/pipeline`, "page"],
+    ["Documentos", `/empresa/vacantes/${read.id}/documentos`, null],
+    ["Configuración", `/empresa/vacantes/${read.id}/configuracion`, null],
+  ]);
+  expect(headerProps.calls.length).toBeGreaterThan(0);
+  for (const call of headerProps.calls) expect(call).toEqual({ title: null, status: undefined });
+  expect(screen.queryByRole("heading", { level: 2, name: "Pipeline" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Configuración de la vacante" })).not.toBeInTheDocument();
+});
+it("S9: a closed process shows «Proceso finalizado el» and «Motivo de cierre» (with the board's live coverage) in the identity row, and the notice stays in the board", async () => {
+  const lifecycle = { ...success.seed.lifecycle, publication: "closed" as const, process: "finished" as const, close_reason: "filled" as const, closed_at: "2026-10-19T12:00:00Z", process_finished_at: "2026-10-20T12:00:00Z", allowed_actions: [] };
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle } });
+  const board = boardWith(lifecycle);
+  if (board.ok) board.data.coverage = { covered: 1, required: 2, full_coverage_reached_at: null };
+  vi.mocked(loadBoardAction).mockResolvedValue(board);
+  render(<DraftPipelineState draftId={read.id} />);
+  await screen.findByRole("heading", { name: "Entrada actual" });
+  const row = screen.getByRole("heading", { level: 1 }).parentElement!.parentElement as HTMLElement;
+  expect(within(row).getByText(/Proceso finalizado el/)).toHaveTextContent("Proceso finalizado el 20 oct 2026");
+  await waitFor(() => expect(within(row).getByText(/Motivo de cierre/)).toHaveTextContent("Motivo de cierre: Cubierta al cierre"));
+  const region = screen.getByRole("region", { name: "Tablero de candidatos" });
+  expect(region).not.toContainElement(within(row).getByText(/Proceso finalizado el/));
+  expect(region).not.toContainElement(within(row).getByText(/Motivo de cierre/));
+  expect(within(region).getByText(/El proceso de esta vacante finalizó/)).toBeVisible();
+  expect(screen.getAllByText(/Motivo de cierre/)).toHaveLength(1);
 });

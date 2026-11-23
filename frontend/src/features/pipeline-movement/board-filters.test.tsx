@@ -101,7 +101,9 @@ it("toolbar keeps long chips in one scrolling row and exposes full text", async 
   render(<MovementBoard vacancyId="vacancy" />);
   const trigger = await screen.findByRole("button", { name: "Filtros" });
   const toolbar = screen.getByRole("group", { name: "Filtros del pipeline" });
-  expect(toolbar).toHaveAttribute("data-slot", "card");
+  // S9: the toolbar is flat (no bordered card) and flows into the one board toolbar.
+  expect(toolbar).not.toHaveAttribute("data-slot", "card");
+  expect(toolbar).not.toHaveClass("border", "rounded-xl");
   expect(within(toolbar).getAllByRole("button")).toEqual([trigger]);
   expect(screen.queryByRole("button", { name: "Editar filtros" })).not.toBeInTheDocument();
   fireEvent.click(trigger);

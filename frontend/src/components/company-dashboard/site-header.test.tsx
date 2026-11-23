@@ -121,6 +121,24 @@ describe("company dashboard header route context", () => {
     expect(heading).not.toHaveAttribute("aria-current");
   });
 
+  it("with title={null} keeps only menu, back crumb and theme toggle: no heading and no status", () => {
+    renderHeaderWith({ title: null, parent: { label: "Vacantes", href: "/empresa/vacantes" }, status: undefined });
+
+    const header = document.querySelector("header")!;
+    expect(within(header).queryByRole("heading")).toBeNull();
+    expect(within(header).getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+    expect(within(header).getByRole("button", { name: /toggle sidebar/i })).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-pf-theme-toggle]")).toHaveLength(1);
+    // Without a title the crumb is the last item: no dangling «/» separator.
+    expect(within(header).queryByText("/")).toBeNull();
+  });
+
+  it("a missing title still defaults to Dashboard (backward compatible)", () => {
+    renderHeaderWith({ title: undefined });
+
+    expect(within(document.querySelector("header")!).getByRole("heading", { level: 1 })).toHaveTextContent("Dashboard");
+  });
+
   it("accepts a route title", () => {
     renderHeaderWith({ title: "Equipo" });
 

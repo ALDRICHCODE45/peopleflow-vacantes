@@ -12,7 +12,8 @@ import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publ
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: vi.fn(() => `/empresa/vacantes/${read.id}/configuracion/columnas`) }));
-vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
+// Like the real header: `title={null}` drops the heading (the vacancy frame owns the h1) and only the crumb remains.
+vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title?: React.ReactNode; parent: { label: string; href: string }; status?: React.ReactNode }) => <header>{title !== null && <h1>{title}</h1>}<a href={parent.href}>{parent.label}</a>{status}</header> }));
 const read = filledDraftRead();
 const success = { ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: null, process: null } }, identity: { draftId: read.id, etag: '"etag"' } } as const;
 const shell = () => <VacancyConfigShell draftId={read.id}><p>Contenido del apartado</p></VacancyConfigShell>;
@@ -23,17 +24,39 @@ beforeEach(() => {
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
 });
 afterEach(cleanup);
-it.each([read.fields.title, null])("owns one header with the draft title %s, badge and Pipeline parent", async title => {
+it.each([read.fields.title, null])("owns one header with the «Vacantes» crumb and the vacancy frame with the draft title %s and badge", async title => {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, model: { ...success.seed.model, fields: { ...success.seed.model.fields, title } } } });
   const { container } = render(shell());
   expect(await screen.findByRole("heading", { level: 1, name: title || "Sin título" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Pipeline" })).toHaveAttribute("href", `/empresa/vacantes/${read.id}/pipeline`);
+  expect(screen.getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
   expect(container.querySelectorAll("header")).toHaveLength(1);
+  expect(container.querySelector("header")!.querySelector("h1")).toBeNull();
   expect(screen.getByText("Borrador")).toHaveAttribute("data-variant", "info");
   expect(screen.getByText("Borrador")).toHaveAttribute("data-dot");
   expect(screen.getByRole("heading", { level: 2, name: "Configuración de la vacante" })).toBeVisible();
   expect(screen.getByText("Ajusta cómo funciona esta vacante. Los cambios de cada apartado se guardan por separado.")).toBeVisible();
   expect(screen.getByText("Contenido del apartado")).toBeVisible();
+});
+it("S9: Configuración is the current tab of the vacancy tabs, and its module nav stays inside it", async () => {
+  render(shell());
+  const tabs = await screen.findByRole("navigation", { name: "Secciones de la vacante" });
+  expect(within(tabs).getAllByRole("link").map(link => [link.textContent, link.getAttribute("href"), link.getAttribute("aria-current")])).toEqual([
+    ["Pipeline", `/empresa/vacantes/${read.id}/pipeline`, null],
+    ["Documentos", `/empresa/vacantes/${read.id}/documentos`, null],
+    ["Configuración", `/empresa/vacantes/${read.id}/configuracion`, "page"],
+  ]);
+  const modules = screen.getByRole("navigation", { name: "Apartados de configuración de la vacante" });
+  expect(modules).not.toContainElement(tabs);
+  expect(tabs.compareDocumentPosition(modules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(within(modules).getByRole("link", { name: /Columnas del pipeline/ })).toHaveAttribute("aria-current", "page");
+});
+it("S9: shows the publication date in the identity row from the existing publication read", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication: "published", process: "active", published_at: null } } });
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-18T12:00:00Z", missing: [] } });
+  render(shell());
+  expect(await screen.findByText(/Publicada el/)).toHaveTextContent("Publicada el 18 oct 2026");
+  expect(loadDraftPublicationAction).toHaveBeenCalledTimes(1);
+  expect(loadDraftForEditAction).toHaveBeenCalledTimes(1);
 });
 it.each([["paused", "Pausada", "review"], ["closed", "Cerrada · proceso en curso", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
