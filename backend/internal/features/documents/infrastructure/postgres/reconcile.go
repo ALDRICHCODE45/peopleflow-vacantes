@@ -1,4 +1,4 @@
-// Package postgres holds the SQL side of the documents feature. P2 only has Reconcile; the store arrives with the routes.
+// Package postgres holds the SQL side of the documents feature: Reconcile (P2) and the read store (P3); writes arrive with their routes.
 package postgres
 
 import (

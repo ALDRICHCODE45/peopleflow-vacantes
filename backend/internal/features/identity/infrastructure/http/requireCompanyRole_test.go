@@ -952,3 +952,42 @@ func TestRequireCompanyRole_AuxLogOmitsRequestIDWithoutRequestIDMiddleware(t *te
 		t.Errorf("auxiliary code_class: want internal_error, got %q", got)
 	}
 }
+
+// RequireDocumentReader (placement-vacancy-documents-v1 «Authorization») admits every
+// member role that may read documents: owner, recruiter and stakeholder. It is the read
+// gate only; writes stay behind RequireCompanyRole(recruiter), which refuses a stakeholder.
+func TestRequireDocumentReader_AdmitsOwnerRecruiterAndStakeholder(t *testing.T) {
+	gate := func(u *stubUserRepo, m *stubMemberRepo, l *stubLivenessRepo) func(http.Handler) http.Handler {
+		return RequireDocumentReader(u, m, l)
+	}
+	for _, role := range []valueobjects.MemberRole{valueobjects.OwnerRole, valueobjects.RecruiterRole, valueobjects.StakeholderRole} {
+		rec, invoked, seen := gateWith(t, role, gate)
+		if rec.Code != http.StatusOK || !invoked || seen != role {
+			t.Fatalf("%v: %d invoked=%v seen=%v", role, rec.Code, invoked, seen)
+		}
+	}
+	// A role outside the three never reaches the handler.
+	rec, invoked, _ := gateWith(t, valueobjects.UnknownMemberRole, gate)
+	assertInsufficientRole(t, rec, invoked)
+}
+
+// Every step of the shared chain still runs: unknown subject 401, non-member 403, inactive company 403.
+func TestRequireDocumentReader_KeepsTheSharedChain(t *testing.T) {
+	never := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("handler ran") })
+
+	unknown := httptest.NewRecorder()
+	RequireDocumentReader(&stubUserRepo{}, &stubMemberRepo{}, &stubLivenessRepo{live: true})(never).ServeHTTP(unknown, reqWithSub(http.MethodGet, "/x", "ghost"))
+	assertCatalogEnvelope(t, unknown, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
+
+	users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.New(), CognitoSub: "sub"}}
+	stranger := httptest.NewRecorder()
+	RequireDocumentReader(users, &stubMemberRepo{}, &stubLivenessRepo{live: true})(never).ServeHTTP(stranger, reqWithSub(http.MethodGet, "/x", "sub"))
+	assertCatalogEnvelope(t, stranger, httpjson.CodeForbidden, http.StatusForbidden)
+
+	userID := uuid.New()
+	users = &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub"}}
+	members := &stubMemberRepo{resolvedMember: &entities.CompanyMember{ID: uuid.New(), UserID: userID, CompanyID: uuid.New(), Role: valueobjects.StakeholderRole}}
+	inactive := httptest.NewRecorder()
+	RequireDocumentReader(users, members, &stubLivenessRepo{live: false})(never).ServeHTTP(inactive, reqWithSub(http.MethodGet, "/x", "sub"))
+	assertCatalogEnvelope(t, inactive, httpjson.CodeCompanyInactive, http.StatusForbidden)
+}

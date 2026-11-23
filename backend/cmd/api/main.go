@@ -47,6 +47,8 @@ import (
 	sitespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/postgres"
 	sitess3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/storage/s3"
 	documentsapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
+	documentshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/http"
+	documentspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/postgres"
 	documentsstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/storage"
 	documentss3 "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/storage/s3"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
@@ -57,6 +59,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
@@ -70,6 +73,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/requestmeta"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -304,14 +308,13 @@ func run() error {
 	// Explicit allowlist; never log the SDK config, endpoint or credentials.
 	slog.Info("site media storage", "mode", siteConfig.Mode, "bucket", siteConfig.Bucket, "region", siteConfig.Region, "prefix", siteConfig.Prefix)
 	// Placement and vacancy documents: the storage is built from DOCUMENT_* (its own root/prefix, never the CV or
-	// site-media ones) but no route uses it yet; the document routes arrive in later slices and answer 503
-	// document_storage_unavailable while it is nil.
+	// site-media ones). The list route reads only the database and works without it; the routes that move files (later
+	// slices) answer 503 document_storage_unavailable while it is nil.
 	documentStorage, closeDocumentStorage, err := newDocumentStorage(ctx, documentConfig)
 	if err != nil {
 		return err
 	}
 	defer closeDocumentStorage()
-	_ = documentStorage
 	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.
@@ -384,6 +387,8 @@ func run() error {
 	requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.OwnerRole)
 	// Owners and stakeholders only (stakeholder-metrics-v1 §1.2): the metrics routes.
 	requireMetricsViewer := identityhttp.RequireMetricsViewer(identityUserRepo, memberRepo, companyRepo)
+	// Owners, recruiters and stakeholders (placement-vacancy-documents-v1): the documents read routes.
+	requireDocumentReader := identityhttp.RequireDocumentReader(identityUserRepo, memberRepo, companyRepo)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -411,6 +416,8 @@ func run() error {
 		siteHandler: newCompanySiteHandler(pool, auditRepo, siteStorage),
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		requireMetricsViewer:         requireMetricsViewer,
+		requireDocumentReader:        requireDocumentReader,
+		documentHandler:              newDocumentHandler(pool, draftStore, documentStorage),
 		metricsHandler:               newMetricsHandler(newMetricsService(pool, auditRepo)),
 		stakeholderInvitationHandler: companieshttp.NewStakeholderInvitationHandler(usecases.NewStakeholderInvitationService(postgres.NewStakeholderInvitationRepository(pool, auditRepo), identityUserRepo)),
 		requireCandidate:             requireCandidate, identityHandler: identityHandler, sessionHandler: newSessionHandler(pool, auditRepo),
@@ -491,6 +498,44 @@ func logStartupConfig(logger *slog.Logger, cfg runtimeconfig.ServerConfig, maxBo
 		"drain_timeout", cfg.DrainTimeout.String(),
 		"max_json_body_bytes", maxBodyBytes,
 	)
+}
+
+// documentAccess adapts the draft store's vacancy authorization to the documents store's port. The documents feature cannot
+// import the jobs feature (archguard), so this composition root translates the result and the draft errors into the
+// documents sentinels the HTTP layer maps to the catalog.
+type documentAccess struct{ drafts *draftstore.Store }
+
+func (a documentAccess) AuthorizeDocuments(ctx context.Context, tx pgx.Tx, companyID, actorID, draftID uuid.UUID) (documentspostgres.Access, error) {
+	access, err := a.drafts.AuthorizeDocuments(ctx, tx, companyID, actorID, draftID)
+	if err != nil {
+		return documentspostgres.Access{}, mapDocumentAccessError(err)
+	}
+	return documentspostgres.Access{Role: access.Role, CanManage: access.CanManage}, nil
+}
+
+// mapDocumentAccessError maps the draft authorization errors onto the documents sentinels; any other error (a failed
+// query) passes through and becomes the generic 500.
+func mapDocumentAccessError(err error) error {
+	switch {
+	case errors.Is(err, drafts.ErrNotFound):
+		return documentsapp.ErrScopeNotFound
+	case errors.Is(err, drafts.ErrTeamAccessEnded):
+		return documentsapp.ErrTeamAccessEnded
+	case errors.Is(err, drafts.ErrForbidden):
+		return documentsapp.ErrForbidden
+	case errors.Is(err, drafts.ErrUnauthenticated):
+		return documentsapp.ErrUnauthenticated
+	case errors.Is(err, drafts.ErrCompanyInactive):
+		return documentsapp.ErrCompanyInactive
+	case errors.Is(err, drafts.ErrCompanyNotActive):
+		return documentsapp.ErrCompanyNotActive
+	}
+	return err
+}
+
+// newDocumentHandler composes the documents routes over the pool, the draft authorization and the (possibly nil) storage.
+func newDocumentHandler(pool *pgxpool.Pool, draftStore *draftstore.Store, storage documentsapp.Storage) *documentshttp.Handler {
+	return documentshttp.NewHandler(documentspostgres.NewStore(pool, documentAccess{drafts: draftStore}, storage))
 }
 
 // newDocumentStorage builds the documents storage of cfg. A disabled configuration returns a nil storage and a

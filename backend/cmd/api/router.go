@@ -19,6 +19,7 @@ import (
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	talentbasehttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http/talentbase"
 	siteshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companysites/infrastructure/http"
+	documentshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/http"
 	geohttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/http"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
@@ -51,6 +52,11 @@ type routerDeps struct {
 	requireMetricsViewer func(http.Handler) http.Handler
 	// metricsHandler serves the company metrics read API (§3).
 	metricsHandler *metricshttp.Handler
+	// requireDocumentReader passes owners, recruiters and stakeholders; it guards the read
+	// routes of placement and vacancy documents (placement-vacancy-documents-v1 «Authorization»).
+	requireDocumentReader func(http.Handler) http.Handler
+	// documentHandler serves the documents routes; its store re-checks the vacancy access.
+	documentHandler *documentshttp.Handler
 	// stakeholderInvitationHandler serves the invitation routes (§1.3).
 	stakeholderInvitationHandler *companieshttp.StakeholderInvitationHandler
 	companyHandler               *companieshttp.CompanyHandler
@@ -122,6 +128,10 @@ func newRouter(d routerDeps) chi.Router {
 	// Metrics are never served ungated: a missing gate refuses everyone.
 	if d.requireMetricsViewer == nil {
 		d.requireMetricsViewer = refuseMetrics
+	}
+	// Documents are never served ungated: a missing read gate refuses everyone.
+	if d.requireDocumentReader == nil {
+		d.requireDocumentReader = refuseDocuments
 	}
 	// The public assessment prefix is never served unlimited.
 	if d.publicAssessmentLimit == nil {
@@ -452,6 +462,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.List)
 		r.Post("/v2/me/company/job-drafts/{id}/replacements", replacementHandlers.Start)
 	})
+	// Placement and vacancy documents, READ routes (placement-vacancy-documents-v1, D4, D6): owners,
+	// recruiters and stakeholders pass the coarse gate and the store applies the vacancy rule (owner,
+	// active tramo, or stakeholder of the company, never-published drafts included). The write routes
+	// belong in the recruiter group above, which refuses a stakeholder. NoStore runs before both gates.
+	r.Group(func(r chi.Router) {
+		r.Use(jobshttp.NoStore, d.requireAuth, d.requireDocumentReader)
+		r.Get("/v2/me/company/job-drafts/{id}/documents", d.documentHandler.List)
+	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)
 		r.Get("/v2/me/company/candidates", d.candidatePoolHandler.List)
@@ -486,6 +504,14 @@ func refuseTalentBase(http.Handler) http.Handler {
 // refuseMetrics is the fail-closed default for a router built without the
 // metrics viewer gate.
 func refuseMetrics(http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeForbidden))
+	})
+}
+
+// refuseDocuments is the fail-closed default for a router built without the documents
+// read gate.
+func refuseDocuments(http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeForbidden))
 	})

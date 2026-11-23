@@ -85,6 +85,21 @@ func RequireMetricsViewer(
 	})
 }
 
+// RequireDocumentReader passes owners, recruiters and stakeholders; it guards the read
+// routes of placement and vacancy documents (placement-vacancy-documents-v1
+// «Authorization»). It is only the coarse gate: the documents store re-checks the
+// vacancy (owner, active team member or stakeholder of the company) and the write
+// routes stay behind RequireCompanyRole(recruiter), which refuses a stakeholder.
+func RequireDocumentReader(
+	users identityrepositories.UserRepository,
+	members companiesrepositories.CompanyMemberRepository,
+	liveness companiesrepositories.CompanyLivenessRepository,
+) func(http.Handler) http.Handler {
+	return requireCompanyMember(users, members, liveness, func(role valueobjects.MemberRole) bool {
+		return role == valueobjects.OwnerRole || role == valueobjects.RecruiterRole || role == valueobjects.StakeholderRole
+	})
+}
+
 // requireCompanyMember is the shared resolver chain; allowed decides the role.
 func requireCompanyMember(
 	users identityrepositories.UserRepository,

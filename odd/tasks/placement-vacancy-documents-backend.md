@@ -34,7 +34,7 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T2 — contract agreed with the frontend session — done (L8)
 - T3 P1 S1–S7 — migration 00064 and documents domain (writer) — done 3e66837c
 - T4 P2 — storage port, adapters, config — done bde228ba, 474350fd
-- T5 P3 — errors, read gate, audit catalog, scope, GET list — pending
+- T5 P3 — errors, read gate, audit catalog, scope, GET list — partly done, uncommitted (L13): everything except the `document_*` error family and three one-line pins outside the writer's surfaces
 - T6 P4 — upload and download — pending
 - T7 P5 — versions and delete — pending
 - T8 P6 — participation documents — pending
@@ -187,3 +187,32 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
   packages ok. The backend env example file is blocked for agents by the safety policy: the DOCUMENT_* variables are
   listed in L11 and the contract; the user adds them by hand. `feature/s3/manager` is deprecated upstream in favor of
   `feature/s3/transfermanager` (follow-up).
+- **L13** 2026-11-22, T5 (P3) writer result, working tree (nothing staged or committed: the writer may not run `git add`/`git commit`). S1, S2 and S6 covered
+  for the read side (GET V/documents, scope flags, `can_manage`, allowed actions); S4 read side (every lifecycle state, no process guard).
+  - Code: `documents/application/scope.go` (`BuildScope`, `ItemActions`, `LinkActions`, closed enums `Action`, `LinkState`, `BlockedReason`, `ScopeKind`, `MaxDocuments`) and `list.go`
+    (`Item`, `Link`, `LinkSource`, `List`, `Reader` port, the `Err*` access sentinels, `FormatTime`); `documents/infrastructure/postgres/store.go` + `rows.go` (`Store.List`: one REPEATABLE READ
+    snapshot after the authorization, items with their current version, vacancy-level links with the pinned source, `state` removed/inaccessible/available, `can_link` from `vacancy_replacements`);
+    `documents/infrastructure/http/handler.go` (`GET V/documents`, nil-safe, access sentinels → catalog, never a driver string); `draftstore/documents_access.go` (`AuthorizeDocuments` = `lockGates` +
+    `readDraft(lock=false)` + `authorizedRead` + `draftAccessError` + `requireV2ReadDocument`; `authorizedRead` = `authorized` OR stakeholder, no process row; `authorizedManage` = `authorized`
+    and never a stakeholder); `identityhttp.RequireDocumentReader` (owner, recruiter, stakeholder); `cmd/api/router.go` (new read group `NoStore + requireAuth + requireDocumentReader`, fail-closed
+    `refuseDocuments` when the gate is nil) and `main.go` (`documentAccess` adapter draft errors → `documents.Err*`, `newDocumentHandler`, `requireDocumentReader`; the storage is passed to the store and
+    held for P4+).
+  - Audit, four places: constants + `spec` rows for `DocumentUploaded/Replaced/Deleted/Linked` (vacancy) and `DocumentDownloaded` (sensitive_read) in `catalog.go`, `EntityDocument = "document"`,
+    Annex rows and the §2 sensitive-read rows in `docs/contracts/audit-log-v1.md` («(70)» → «(75)»), `catalog_test.go` (`TestCatalogDocumentEvents`) and the entity-vocabulary pin in `auditEvent_test.go`.
+    All five types are in `pendingEmitters` (`catalog_test.go`) because `TestEveryCatalogTypeHasAnEmitter` demands a production reference: P4 drops Uploaded and Downloaded, P5 Replaced and Deleted, P7 Linked.
+    The frontend ANNEX (`frontend/src/features/audit-log/model.ts`) was NOT edited; rows to add are in the report.
+  - RED observed: `RequireDocumentReader`, `scope`/`list`, `authorizedRead`/`authorizedManage`, handler and store builders failed to build (`undefined: …`) before their code; the catalog tests failed with
+    `annex has no row for Document…` and `… is in the catalog but no production code references its constant` until the Annex rows and `pendingEmitters`; the pinned vocabulary failed (`want exactly 81 values … got 82`)
+    when `EntityDocument` was added. Mutation checks on the integration matrix: stakeholder removed from `authorizedRead` → 404 on the stakeholder rows; `participation_id IS NULL` dropped from the item query →
+    the participation document appeared in the vacancy list; every source treated as readable → the inaccessible link showed its source.
+  - Totals: unit (`make test`) documents, audit_events, identity http, draftstore, archguard: 463 pass / 0 fail incl. subtests; integration (`-tags=integration -p 1`, throwaway `postgres:16` on 127.0.0.1, `draft_test`,
+    migrate to 64, geoimport, container stopped): the documents integration suite (8 tests, 26 with subtests: matrix, pool, v1 draft, five lifecycle states with a byte-identical snapshot, shape, limits, participation
+    exclusion, replacement scope and link states) and 3 route tests pass; audit_events, documents, identity http, draftstore integration pass. `gofmt`, `go vet ./...` and `-tags=integration` clean.
+  - Deviations / open points (all reported to the parent): (1) the `document_*` error family (contract «Error codes»: `internal/shared/httpjson/document_errors.go` + the `Resolve` hook in `errors.go` + tests)
+    was NOT written: `internal/shared/httpjson` is outside the writer's allowed surfaces; GET list needs none of those codes. (2) `TestRouteTopology_ExactRegistrations` (`cmd/api/main_test.go`) fails until it lists
+    `Get /v2/me/company/job-drafts/{id}/documents`, and `TestAuditRead_Types` (`cmd/api/audit_read_integration_test.go:685`) fails until `70` becomes `75`: both files are outside the surfaces; each is a one-line change.
+    (3) The list works with storage disabled (the contract's endpoint and error tables say the list never raises `document_storage_unavailable`; the generic sentence «every document route answers 503» in §Storage
+    contradicts them), so P3 does not 503 the list; the routes that move files will. (4) The stakeholder gate (`RequireDocumentReader`) is the coarse gate only; a stakeholder holding a stale tramo still gets
+    `can_manage = false`. (5) Manage mode (`FOR UPDATE`, ErrForbidden for a stakeholder) is not in `AuthorizeDocuments` yet: P4 adds it with the first write route. (6) The malformed `{id}` answers 400
+    `invalid_request` like every other draft route (the contract only lists the 404s).
+
