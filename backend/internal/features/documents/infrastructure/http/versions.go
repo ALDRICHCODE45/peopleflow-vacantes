@@ -59,6 +59,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	extendTransferDeadline(w, true)
 	r.Body = http.MaxBytesReader(w, r.Body, documents.MaxRequestBytes)
 	reader, err := r.MultipartReader()
 	if err != nil {

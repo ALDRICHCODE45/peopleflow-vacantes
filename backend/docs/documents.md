@@ -162,3 +162,10 @@ make test PKG="./internal/features/documents/... ./cmd/api" TEST_FLAGS="-tags=in
 `TestDocumentsEndToEnd_LocalStorage` and `TestDocumentsEndToEnd_S3Storage` (the latter only with
 `DOCUMENT_S3_TEST_ENDPOINT`) run the same flow through the production router: upload, list, overview, replace, versions,
 download a version, link from a replacement, delete, and a reconcile that leaves no orphan.
+
+## Transfer timeouts
+
+The API server keeps a 10 s whole-request read timeout and a 30 s write timeout. Document uploads (upload, replace)
+raise the read deadline, and file downloads raise the write deadline, to 2 minutes (`documents.TransferTimeout`), so a
+10 MB file still fits on a link of about 0.7 Mbit/s. A load balancer or the frontend BFF in front of the API must allow
+at least as long for these routes.

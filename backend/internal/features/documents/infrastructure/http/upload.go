@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	documents "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
@@ -64,6 +65,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The whole request is capped (file plus multipart overhead) without spooling any byte into a temporary directory.
+	extendTransferDeadline(w, true)
 	r.Body = http.MaxBytesReader(w, r.Body, documents.MaxRequestBytes)
 	reader, err := r.MultipartReader()
 	if err != nil {
@@ -219,6 +221,7 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, version int)
 
 // writeAttachment serves file as a download: never inline (D10), never sniffed.
 func writeAttachment(w http.ResponseWriter, file documents.File) {
+	extendTransferDeadline(w, false)
 	header := w.Header()
 	header.Set("Content-Type", file.ContentType)
 	// FormatMediaType quotes an ASCII name and switches to RFC 5987 (filename*=utf-8''…) for any other, with no ASCII fallback.
@@ -231,4 +234,18 @@ func writeAttachment(w http.ResponseWriter, file documents.File) {
 	header.Set("Content-Length", strconv.FormatInt(file.Size, 10))
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, file.Reader)
+}
+
+// extendTransferDeadline lifts the server-wide timeouts for one document transfer
+// (documents.TransferTimeout): the read deadline for an upload body, the write
+// deadline for a download. A writer that does not support deadlines (tests) keeps
+// the server defaults.
+func extendTransferDeadline(w http.ResponseWriter, upload bool) {
+	rc := http.NewResponseController(w)
+	deadline := time.Now().Add(documents.TransferTimeout)
+	if upload {
+		_ = rc.SetReadDeadline(deadline)
+		return
+	}
+	_ = rc.SetWriteDeadline(deadline)
 }

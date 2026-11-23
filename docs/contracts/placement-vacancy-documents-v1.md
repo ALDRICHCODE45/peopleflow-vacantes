@@ -292,7 +292,7 @@ type Storage interface {
   | `DOCUMENT_S3_ENDPOINT` | `s3`: non-production only (MinIO), forbidden in production |
   | `DOCUMENT_S3_FORCE_PATH_STYLE` | `s3`: boolean, default false |
 
-  `DOCUMENT_S3_*` with `DOCUMENT_STORAGE=disk` is a configuration error (as `SITE_MEDIA_S3_*`). With storage disabled (disk without root) every document route answers 503
+  `DOCUMENT_S3_*` with `DOCUMENT_STORAGE=disk` is a configuration error (as `SITE_MEDIA_S3_*`). With storage disabled (disk without root) the routes that move file bytes (upload, replace, download, link download) answer 503 `document_storage_unavailable`; lists, versions, delete, sources, link and unlink only touch rows and keep working (implementation and tests, P3–P8)
   `document_storage_unavailable` after its usual gates and **the rest of the API is unaffected**.
 - **Reconcile** (D25): `Reconcile(ctx)` keeps an object iff `placement_document_versions.storage_key` references it **or** it is younger than 1 hour; everything else is deleted; a failed
   lookup fails closed. The existing `cvs` `Reconcile` keep-predicate gains `OR EXISTS(placement_document_versions …)`. Scheduling is the accepted default of Q8, implemented in P8: the API runs it once right after startup and then every 24 hours in a background goroutine, each run under a Postgres session advisory lock (`pg_try_advisory_lock`, key `0x646f63735f726563`) so only one instance sweeps; failures are logged without detail and never stop the process; it is not started while the storage is disabled. Operator documentation (variables, local and S3 setup, reconcile behavior, limits and formats): [`backend/docs/documents.md`](../../backend/docs/documents.md).
@@ -881,7 +881,7 @@ Proposed labels (es-MX): `DocumentUploaded` → «Subió un documento»; `Docume
    and the frontend does **not** need an «optional keys first» step (unlike replacement-processes-v1). The new audit event types render with a generic label in the audit screen until the frontend annex gets them.
 2. **Environment before routes are used.** Set the `DOCUMENT_*` variables per environment: local `DOCUMENT_STORAGE=disk` + `DOCUMENT_STORAGE_ROOT`; the AWS test environment (Fargate, ephemeral disk)
    `DOCUMENT_STORAGE=s3` + bucket/region/prefix, an IAM task role with `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on the prefix and `s3:ListBucket` for it, no static keys, and a lifecycle rule that
-   aborts incomplete multipart uploads. Until configured, the document routes answer 503 `document_storage_unavailable` and nothing else changes.
+   aborts incomplete multipart uploads. Until configured, the byte-moving document routes answer 503 `document_storage_unavailable` and nothing else changes.
 3. **Frontend after**: BFF routes for upload (streaming multipart, request cap exactly 10 485 760 + 65 536 = 10 551 296 bytes), download (streaming, no buffering; pass through `Content-Disposition`, which carries `filename*` for
    non-ASCII names, and `Content-Length`) and the JSON ones; the screens; the audit `ANNEX` labels. The frontend may start against the contract with mocks; it merges **after** the backend branch.
 4. **Deployment note: adding a `format` value requires the frontend to accept it first.** The enum `format` (`pdf | docx | xlsx | jpg | png`) is closed in v1 (Q1). If `.doc`/`.xls` or any other format is ever added, the frontend schema must
@@ -952,3 +952,8 @@ decisions above. Q2, Q4 and Q8 were not contested: their recommendation stands a
 Public or candidate-visible documents; automatic copying of documents into a replacement (S3 forbids); inline preview or thumbnails; standalone rename (D12); per-version delete and retention timers (Q2); folders, tags, descriptions, search or sorting
 options; bulk upload (one file per request) and resumable uploads; presigned URLs; image re-encoding or EXIF stripping (D10); legacy `.doc` / `.xls` / `.ppt` (Q1, closed); malware scanning (Q9, decided before the first real customer); e-signature; stakeholder writes; notifications;
 documents on the candidate-managed profile or the global talent pool; changes to the CV library, the manual intake CV or any existing response shape.
+
+**Transfer timeouts (parent, after the independent verify).** The server-wide `ReadTimeout` (10 s) and `WriteTimeout`
+(30 s) would cut a 10 MB transfer on a slow link. Upload and replace extend the read deadline, and every file download
+extends the write deadline, to `documents.TransferTimeout` (2 minutes) through `http.ResponseController`; other routes
+keep the server defaults.

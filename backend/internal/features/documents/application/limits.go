@@ -4,6 +4,8 @@
 // no storage, HTTP or SQL; those arrive in later slices.
 package documents
 
+import "time"
+
 const (
 	// MaxBytes is the size limit of one file (D8): 10 MB.
 	MaxBytes = 10_485_760
@@ -11,6 +13,11 @@ const (
 	RequestOverhead = 65_536
 	// MaxRequestBytes caps the whole request body (http.MaxBytesReader).
 	MaxRequestBytes = MaxBytes + RequestOverhead
+
+	// TransferTimeout replaces the server's whole-request read timeout (10 s) for an
+	// upload body and its whole-response write timeout (30 s) for a file download, so
+	// a 10 MB file still fits on a slow link (about 0.7 Mbit/s).
+	TransferTimeout = 2 * time.Minute
 
 	// MaxVacancyDocuments and MaxParticipationDocuments bound files plus links per scope (D15).
 	MaxVacancyDocuments       = 50
