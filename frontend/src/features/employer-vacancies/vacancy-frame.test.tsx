@@ -127,3 +127,35 @@ it("lets the tab's content place one line (the replacement link) in the tab row,
   render(<InVacancyTabRow><p>Aviso suelto</p></InVacancyTabRow>);
   expect(screen.getByText("Aviso suelto")).toBeVisible();
 });
+
+// S11/S12: the stakeholder audience. Documentos is the only tab, the back crumb returns to the stakeholder list, and the identity row
+// is fed by the `vacancy` header of document-overview (the stakeholder has no lifecycle read).
+it("S11: the stakeholder audience offers Documentos only and points the back crumb at the stakeholder list", () => {
+  frame({ audience: "stakeholder", active: "documentos" });
+  expect(within(tabsNav()).getAllByRole("link").map(link => link.textContent)).toEqual(["Documentos"]);
+  expect(within(tabsNav()).getByRole("link", { name: "Documentos" })).toHaveAttribute("href", `/empresa/vacantes/${id}/documentos`);
+  expect(within(screen.getByTestId("site-header")).getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/stakeholder/vacantes");
+});
+it("keeps the employer audience as it was: three tabs and the portfolio crumb", () => {
+  frame({ audience: "employer" });
+  expect(within(tabsNav()).getAllByRole("link")).toHaveLength(3);
+  expect(within(screen.getByTestId("site-header")).getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+});
+it("builds the identity row from the overview header: state, «Reemplazo» and «Privada», no lifecycle dates", () => {
+  frame({ audience: "stakeholder", active: "documentos", title: "Analista contable", lifecycle: undefined, vacancy: { id, title: "Analista contable", publication: "published", process: "active", kind: "replacement", visibility: "private" } });
+  expect(screen.getByRole("heading", { level: 1, name: "Analista contable" })).toBeVisible();
+  expect(screen.getByText("Activa")).toHaveAttribute("data-slot", "badge");
+  expect(screen.getByText("Reemplazo")).toHaveAttribute("data-slot", "badge");
+  expect(screen.getByText("Privada", { selector: '[data-slot="badge"]' })).toBeVisible();
+  expect(screen.queryByText(/Publicada el|Proceso iniciado el|Motivo de cierre/)).toBeNull();
+});
+it("reads a never-published draft from the overview header as «Borrador» and no title as the fallback", () => {
+  frame({ audience: "stakeholder", active: "documentos", title: undefined, lifecycle: undefined, fallbackTitle: "Sin título", vacancy: { id, title: null, publication: null, process: null, kind: "original", visibility: null } });
+  expect(screen.getByRole("heading", { level: 1, name: "Sin título" })).toBeVisible();
+  expect(screen.getByText("Borrador")).toHaveAttribute("data-slot", "badge");
+  expect(screen.queryByText("Reemplazo")).toBeNull();
+});
+it("says «Cerrada · proceso finalizado» for a closed vacancy of the overview header", () => {
+  frame({ audience: "stakeholder", active: "documentos", title: "Cerrada", lifecycle: undefined, vacancy: { id, title: "Cerrada", publication: "closed", process: "finished", kind: "original", visibility: "public" } });
+  expect(screen.getByText("Cerrada · proceso finalizado")).toHaveAttribute("data-slot", "badge");
+});

@@ -63,6 +63,33 @@ it("lets a stakeholder into Métricas", async () => {
   expect(await screen.findByText("Contenido privado")).toBeInTheDocument();
 });
 
+// S11/S12: exactly two extra routes open to a stakeholder; every other vacancy route keeps the unavailable screen.
+const VACANCY = "123e4567-e89b-42d3-a456-426614174000";
+it.each(["/empresa/stakeholder/vacantes", `/empresa/vacantes/${VACANCY}/documentos`])("lets a stakeholder into %s", async path => {
+  mocks.pathname = path;
+  mocks.loadCompany.mockResolvedValue(membership("stakeholder"));
+  mount();
+  expect(await screen.findByText("Contenido privado")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Esta sección no está disponible para tu rol" })).toBeNull();
+  expect(mocks.replace).not.toHaveBeenCalled();
+});
+
+it.each(["/empresa/vacantes", `/empresa/vacantes/${VACANCY}/pipeline`, `/empresa/vacantes/${VACANCY}/configuracion`, `/empresa/vacantes/${VACANCY}`])("still blocks a stakeholder from %s", async path => {
+  mocks.pathname = path;
+  mocks.loadCompany.mockResolvedValue(membership("stakeholder"));
+  mount();
+  expect(await screen.findByRole("heading", { name: "Esta sección no está disponible para tu rol" })).toBeInTheDocument();
+  expect(screen.queryByText("Contenido privado")).toBeNull();
+});
+
+it.each(["owner", "recruiter"] as const)("keeps the stakeholder vacancy routes open to a %s (the API decides)", async role => {
+  mocks.pathname = "/empresa/stakeholder/vacantes";
+  mocks.loadCompany.mockResolvedValue(membership(role));
+  mount();
+  expect(await screen.findByText("Contenido privado")).toBeInTheDocument();
+  expect(mocks.replace).not.toHaveBeenCalled();
+});
+
 it.each(["owner", "recruiter"] as const)("keeps every employer route open to a %s (previous behavior)", async role => {
   mocks.loadCompany.mockResolvedValue(membership(role));
   mount();
