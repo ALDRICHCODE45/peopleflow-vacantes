@@ -714,6 +714,58 @@ Read, **vacancy only** (`V`; there is no participation-scoped twin). The same re
 - **`?participation_id={uuid}`** (optional) narrows `items` and `links` to the rows owned by that participation (the cap then applies to what is left); `vacancy`, `scope` and `participations` are never filtered. Exactly one canonical (dashed) uuid: anything else (empty, repeated, another spelling, an unparseable query string) is **400 `invalid_request`**, answered before anything is read. A well-formed id that is **not a participation of this vacancy** (another vacancy, another company, unknown, the vacancy id) is **404 `not_found`**, evaluated **after** the vacancy gates, so a caller who may not read the vacancy gets the vacancy's answer whatever the filter. Unknown query parameters are ignored.
 - Errors: 404 `not_found` / `team_access_ended` (and the generic gate answers), 400 `invalid_request` (malformed `{id}` or `participation_id`), as `GET P/documents`. `Cache-Control: no-store` like the other reads.
 
+### `GET /v2/me/company/stakeholder/vacancies`
+
+The stakeholder's own list of vacancies, for the read-only «Documentos» tab (L20: «Lista de vacantes propia»). **Not under `V`**: it lists the company's vacancies, one row each, with the number of documents. Gate: **owner + stakeholder** (`RequireMetricsViewer`, the metrics routes' gate); a **recruiter** (on a team or not) is **403 `forbidden`** exactly like on `GET /v2/me/company/metrics/*`, a user of no company 403, no token 401. `NoStore` runs before both gates. It reads only the database and writes nothing, no audit event (the metrics reads that audit are the ones that show candidate names; this list shows none).
+
+Every vacancy of the session company (schema-2 job drafts, the scope of the job-drafts list) **including never-published drafts** (L5 Q3); another company's vacancies never show. The owner and the stakeholder get the same rows. **No filters in v1**: an unknown query parameter, `root_process_id` included, is ignored.
+
+```json
+{
+  "items": [
+    {
+      "id": "0193c000-0000-7000-8000-000000000001",
+      "title": "Analista contable",
+      "publication": "closed",
+      "process": "finished",
+      "kind": "original",
+      "visibility": "public",
+      "close_reason": "filled",
+      "coverage": { "covered": 2, "required": 2 },
+      "documents_count": 7
+    },
+    {
+      "id": "0193c000-0000-7000-8000-000000000002",
+      "title": "Diseñador UX",
+      "publication": "published",
+      "process": "active",
+      "kind": "replacement",
+      "visibility": "private",
+      "close_reason": null,
+      "coverage": { "covered": 0, "required": null },
+      "documents_count": 0
+    },
+    {
+      "id": "0193c000-0000-7000-8000-000000000003",
+      "title": null,
+      "publication": null,
+      "process": null,
+      "kind": "original",
+      "visibility": null,
+      "close_reason": null,
+      "coverage": null,
+      "documents_count": 1
+    }
+  ],
+  "next_cursor": "eyJ2ZXJzaW9uIjoxLC4uLn0"
+}
+```
+
+- **Row**: exactly nine keys, all always present. `publication`, `process`, `kind` and `visibility` have **the values of the lifecycle and of the `GET V/document-overview` header** (`publication` `published | paused | closed`, `process` `active | finished`, `kind` `original | replacement`, `visibility` `public | private`; `publication`, `process` and `visibility` are `null` for a draft that never published). `close_reason` is the lifecycle's name of the close reason (`GET V/lifecycle` `close_reason`, e.g. `filled`, `cancelled`), `null` unless the vacancy is closed (a reopened vacancy has none). `title` is nullable.
+- **`coverage`** is the job-drafts list row's: `null` exactly when the draft has never been published, otherwise `{ "covered", "required" }` with the board's live definition (participations in the current Placement stage against the process' hiring headcount; `required` is `null` without a headcount). It is computed with the same function and aggregate as the list (`listCoverage`), and a test compares every row with the owner's `GET /v2/me/company/job-drafts` row.
+- **`documents_count`** is the vacancy's documents **plus those of its participations** (discarded participations included), each document once however many versions it has; **links are not documents** and never count (a replacement that only links shows 0). It is computed in the same statement as the page, for the page's vacancies only.
+- **Pagination mirrors the job-drafts list**: query `limit` (default 20, 1..50, plain digits) and `cursor`; each at most once, an unparseable query string, a repeated or malformed parameter is 400 `invalid_request`; order `updated_at` descending, then `id` descending; the envelope is `{ "items", "next_cursor" }` with `next_cursor` `null` on the last page and `items` `[]` (never `null`) when there is nothing. The cursor is **the job-drafts list's opaque cursor** (same format, bound to the session company and user, so another user's or company's cursor is 400 `invalid_request`; a cursor issued for a `root_process_id` filter is 400 `invalid_cursor`). A vacancy created or saved between two pages sorts before the cursor, so the walk neither repeats nor loses a row; restart it to see the new one.
+
 ### Route summary
 
 | Method | Path under `P` | Gate | Event |
@@ -729,6 +781,7 @@ Read, **vacancy only** (`V`; there is no participation-scoped twin). The same re
 | DELETE | `/document-links/{link}` | manage | `DocumentDeleted` (`kind = link`) |
 | GET | `/document-links/{link}/file` | read | `DocumentDownloaded` |
 | GET | `V/document-overview` (vacancy only) | read | — |
+| GET | `/v2/me/company/stakeholder/vacancies` (not under `V`) | owner + stakeholder (metrics viewer) | — |
 
 Success bodies: upload and replace 201 `{item, scope}`; link 201 `{link, scope}`; both deletes 200 `{scope}`; lists and downloads as above. Upload alone takes the optional `Idempotency-Key`; replace takes the required `expected_version` part.
 
@@ -760,6 +813,11 @@ The `document-sources` / `document-links` segments are literal siblings of `docu
 - **Cap.** Items and links are each read with `LIMIT cap + 1` and merged newest first in Go, so the read is bounded and `truncated` is exact. The cap is `documents.MaxOverviewRows = 2000`; the store takes a smaller one in tests (`WithOverviewCap`).
 - **Stage names** come from the vacancy's stored pipeline configuration (default pipeline when there is none), resolved by a function `cmd/api` composes (`documentStages`) because the documents feature may not import the jobs feature; a stage that is not in the pipeline fails the read (500) rather than invent a name.
 - **Interpretation of L20 left open there:** (1) `participation_id` narrows the rows only; the header, the vacancy scope and `participations[]` stay complete so a table can keep its filter control. (2) Ties and the secondary order are `id` **descending**, like the lists. (3) `participations[]` is ordered by candidate name, then id (L20 gave no order). (4) `title` is nullable (a draft may have none). (5) `participations[]` is not capped.
+
+**P7c notes (implemented): stakeholder vacancies.** One route, `GET /v2/me/company/stakeholder/vacancies`, in its own `NoStore` group behind `requireAuth` and `requireMetricsViewer` (a router built without that gate refuses everyone with 403, like the metrics routes). It lives in the jobs feature (`stakeholdervacancies` port, `draftstore.ListStakeholderVacancies`, `jobshttp.StakeholderVacanciesHandler`) because the draft store owns `job_drafts` and the list SQL; the documents feature neither imports it nor is imported by it.
+
+- **One statement.** After the live user/company/membership gates (owner or stakeholder, else `forbidden`) a single statement reads the page (`LIMIT limit + 1`, the list's `visibleV2Drafts` scope as the owner), the Placement occupants of the page's vacancies and `count(*)` of `placement_documents` for the page's ids. No lock, no write.
+- **Reuse, not a copy.** The cursor helpers (`draftlist.ParseLimit`, `EncodeCursor`, `DecodeCursor`), the scope and ordering of the list, `listCoverage`, `decodeStoredPipeline` and `requireV2ReadDocument` are the list's own; kind and visibility are the list's rule (`stakeholderKindVisibility`).
 
 ## Error codes
 
@@ -850,6 +908,7 @@ write responses grew (scope object, `allowed_actions`, idempotency, `expected_ve
 7. **P7 · Replacement linking** (~400; implemented, see «P7 notes» above «Error codes»): `document-sources`, `document-links` (create, delete, file) with `{link, scope}` / `{scope}` responses, chain/ancestor resolution, `state` rules and link `allowed_actions`, `links[].source` with `uploaded_at`, `uploaded_by`, `version_count`,
    `DocumentLinked`, tests (source deleted → removed, source access lost → inaccessible, pinned version, limits, links of links impossible, `link` in the scope `allowed_actions`).
 7b. **P7b · Document overview** (~350; implemented, see «P7b notes»): `GET V/document-overview` (header, vacancy scope, items and links of the vacancy and of every participation with `owner`, `participations[]`, `truncated`, optional `participation_id`), tests (owner, team recruiter, stakeholder on a never-published draft, non-team recruiter and other company 404, pool access grants nothing, filter, truncation order, links of a replacement with owner and states, discarded participation, fixed statement count).
+7c. **P7c · Stakeholder vacancies** (~250; implemented, see «P7c notes»): `GET /v2/me/company/stakeholder/vacancies` (owner + stakeholder gate, every vacancy of the company incl. never-published drafts, row `{id, title, publication, process, kind, visibility, close_reason, coverage, documents_count}`, keyset like the job-drafts list), tests (owner and stakeholder, recruiter 403, other company, pagination over more rows than the limit, coverage equal to the list row, links excluded and participation documents counted, read leaves rows and audit unchanged).
 8. **P8 · Hardening and reconciliation** (~200): `Reconcile` wiring decision (Q8), configuration docs, end-to-end test through the router with the local and the S3 adapters, final run of the full backend suite.
 
 ## Decisions status

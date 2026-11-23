@@ -52,6 +52,8 @@ type routerDeps struct {
 	requireMetricsViewer func(http.Handler) http.Handler
 	// metricsHandler serves the company metrics read API (§3).
 	metricsHandler *metricshttp.Handler
+	// stakeholderVacanciesHandler serves the stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c) behind requireMetricsViewer.
+	stakeholderVacanciesHandler *jobshttp.StakeholderVacanciesHandler
 	// requireDocumentReader passes owners, recruiters and stakeholders; it guards the read
 	// routes of placement and vacancy documents (placement-vacancy-documents-v1 «Authorization»).
 	requireDocumentReader func(http.Handler) http.Handler
@@ -294,6 +296,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/metrics/applications", d.metricsHandler.ApplicationList)
 		r.Get("/v2/me/company/metrics/candidates/export", d.metricsHandler.Export("candidates"))
 		r.Get("/v2/me/company/metrics/applications/export", d.metricsHandler.Export("applications"))
+	})
+
+	// The stakeholder's own vacancy list (placement-vacancy-documents-v1, P7c, L20): every vacancy of the company, never-published drafts
+	// included, with its lifecycle header values, coverage and documents count. Owners and stakeholders read it behind the metrics
+	// viewer gate; a recruiter is refused with the same 403 as on the metrics routes. NoStore runs before both gates.
+	r.Group(func(r chi.Router) {
+		r.Use(jobshttp.NoStore, d.requireAuth, d.requireMetricsViewer)
+		r.Get("/v2/me/company/stakeholder/vacancies", d.stakeholderVacanciesHandler.List)
 	})
 
 	// Company dashboard v2 sections (company-dashboard-v2 §3): owners and
