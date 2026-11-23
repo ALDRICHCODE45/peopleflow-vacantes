@@ -19,6 +19,10 @@ participations, `birth_date` rejected again).
 - **S7** Backend: «el PUT /me/profile ahora lo rechaza con 400 invalid_request (ff3b7888). El GET ya no lo devolvía desde
   00062, así que podés sacar la lectura tolerante cuando quieras.» → `profileReadSchema` no longer accepts `birth_date`.
 - **S6** «the publish dialog plural «1 candidato» is checked only by a unit test» → verified in the browser.
+- **S8** User choice (L7): «Sí: «Cubierta al cierre»» — «Solo cuando la cobertura de hoy es menor que la del cierre. Si
+  no, sigue diciendo «Cubierta».» → a vacancy closed as filled whose live coverage is now below its required places
+  (REP-7: a departure lowers coverage, the close result stays) reads «Cubierta al cierre» wherever the close reason
+  shows; otherwise «Cubierta».
 
 ## Tasks
 
@@ -29,7 +33,8 @@ participations, `birth_date` rejected again).
 | T3 | S3 | «Acciones» on the finished original | `c0a0cc1a` |
 | T4 | S4 | 390 breadcrumb | `2afa860c`, D1 fix (this commit) |
 | T5 | S5, S7 | «Retomado» mark (`carried_from_participation_id`) and drop the tolerant `birth_date` read | `42d3f674`, `3e1c4aab` |
-| T6 | S1–S6 | Browser check, full suite, local merge to main | |
+| T6 | S1–S6 | Browser check, full suite, local merge to main | `aa93c739` |
+| T7 | S8 | «Cubierta al cierre» label (branch `feat/closed-covered-label`) | |
 
 ## Log
 
@@ -64,3 +69,7 @@ participations, `birth_date` rejected again).
   browser. S6 not verifiable without editing data (the only private replacement misses publish fields; «1 candidato»
   stays unit-tested). No console errors, no ≥400, no page overflow. Out of scope, noted: original «Contador(a) Senior»
   shows «Cerrada · Cubierta» with «Cobertura 0 de 1» after the departure.
+- **L7** Merged to local main `aa93c739` (not pushed). Backend on «Cerrada · Cubierta» + «Cobertura 0 de 1»: «es lo que
+  pide el contrato, S7/REP-7 … La etiqueta muestra el resultado del cierre, que queda congelado, y la cobertura es en
+  vivo … es un tema de copy de UI (por ejemplo, «Cubierta al cierre»)». User chose «Sí: «Cubierta al cierre»» with the
+  option text «Solo cuando la cobertura de hoy es menor que la del cierre. Si no, sigue diciendo «Cubierta».»
