@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Lock } from "lucide-react";
 import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context";
 import { DraftEditErrorState } from "@/features/jobs/drafts/reopen/error-state";
-import { loadDocumentOverviewAction } from "@/features/vacancy-documents/actions";
 import type { DocumentOverview } from "@/features/vacancy-documents/model";
 import { VacancyDocumentsTab } from "@/features/vacancy-documents/ui/vacancy-documents-tab";
 import { useVacancyIdentity } from "./use-vacancy-identity";
@@ -34,18 +33,17 @@ function EmployerDocumentsScreen({ vacancyId }: { vacancyId: string }) {
 
 type Header = { status: "loading" } | { status: "failed" } | { status: "ready"; vacancy: DocumentOverview["vacancy"] };
 
-/** The identity row's source for a stakeholder: the `vacancy` block of `document-overview`, the only vacancy read the role has. */
-function useOverviewHeader(vacancyId: string): Header {
+/**
+ * The identity row's source for a stakeholder: the `vacancy` block of `document-overview`, the only vacancy read the role has. The read is
+ * the tab's own (`onOverview`), so the screen makes no second one; a later failed read keeps the identity already shown.
+ */
+function useOverviewHeader(vacancyId: string): { header: Header; onOverview: (overview: DocumentOverview | null) => void } {
   const [loaded, setLoaded] = useState<{ id: string; header: Header } | null>(null);
-  useEffect(() => {
-    let current = true;
-    loadDocumentOverviewAction(vacancyId)
-      .then((result): Header => result.ok ? { status: "ready", vacancy: result.data.vacancy } : { status: "failed" })
-      .catch((): Header => ({ status: "failed" }))
-      .then(header => { if (current) setLoaded({ id: vacancyId, header }); });
-    return () => { current = false; };
-  }, [vacancyId]);
-  return loaded?.id === vacancyId ? loaded.header : { status: "loading" };
+  const onOverview = useCallback((overview: DocumentOverview | null) => setLoaded(previous => {
+    if (overview) return { id: vacancyId, header: { status: "ready", vacancy: overview.vacancy } };
+    return previous?.id === vacancyId && previous.header.status === "ready" ? previous : { id: vacancyId, header: { status: "failed" } };
+  }), [vacancyId]);
+  return { header: loaded?.id === vacancyId ? loaded.header : { status: "loading" }, onOverview };
 }
 
 /**
@@ -54,7 +52,7 @@ function useOverviewHeader(vacancyId: string): Header {
  * upload, link, replace or delete action to this role; the note says so, as in artboard 03.
  */
 function StakeholderDocumentsScreen({ vacancyId }: { vacancyId: string }) {
-  const header = useOverviewHeader(vacancyId);
+  const { header, onOverview } = useOverviewHeader(vacancyId);
   const vacancy = header.status === "ready" ? header.vacancy : undefined;
   return (
     <VacancyFrame vacancyId={vacancyId} active="documentos" audience="stakeholder" fallbackTitle="Documentos" loading={header.status === "loading"}
@@ -63,7 +61,7 @@ function StakeholderDocumentsScreen({ vacancyId }: { vacancyId: string }) {
         <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span><strong className="font-medium">Solo consulta.</strong> Con tu rol de stakeholder esta vacante solo muestra la pestaña Documentos: puedes ver y descargar, incluso los de vacantes en borrador; no hay subir, reemplazar, vincular ni eliminar.</span>
       </p>
-      <VacancyDocumentsTab draftId={vacancyId} />
+      <VacancyDocumentsTab draftId={vacancyId} onOverview={onOverview} />
     </VacancyFrame>
   );
 }

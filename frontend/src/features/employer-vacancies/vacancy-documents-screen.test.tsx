@@ -94,6 +94,13 @@ it("S11: the identity row comes from the overview header (title, state, «Reempl
   expect(screen.getByText("Reemplazo")).toBeVisible();
   expect(screen.getByText("Privada", { selector: '[data-slot="badge"]' })).toBeVisible();
 });
+it("S11: the stakeholder screen reads document-overview once and the identity row still comes from it", async () => {
+  asStakeholder();
+  render(<VacancyDocumentsScreen vacancyId={read.id} />);
+  expect(await screen.findByRole("heading", { level: 1, name: "Analista contable" })).toBeVisible();
+  expect(await screen.findByRole("table")).toBeVisible();
+  expect(loadDocumentOverviewAction).toHaveBeenCalledExactlyOnceWith(read.id, undefined);
+});
 it("S2/S11: a never-published draft of the stakeholder reads «Sin título» and «Borrador»", async () => {
   asStakeholder(readOnlyOverview(value => { value.vacancy = { ...value.vacancy, title: null, publication: null, process: null, visibility: null, kind: "original" } as never; }));
   render(<VacancyDocumentsScreen vacancyId={read.id} />);

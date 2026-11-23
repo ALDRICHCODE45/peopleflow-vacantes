@@ -63,6 +63,12 @@ vi.mock("@/components/ui/select", async () => {
     SelectItem: ({ value, children }: { value: string; children: ReactNode }) => { const context = React.useContext(Context); return <button role="option" aria-selected={context.value === value} onClick={() => context.change(value)}>{children}</button>; },
   };
 });
+// The column-order read is the real action unless a test installs its own (the board header must stay free of the reorder hint).
+const pipelineRead = vi.hoisted(() => ({ impl: null as null | ((...args: unknown[]) => unknown) }));
+vi.mock("@/features/jobs/drafts/pipeline/actions", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/features/jobs/drafts/pipeline/actions")>();
+  return { ...actual, loadDraftPipelineAction: (...args: Parameters<typeof actual.loadDraftPipelineAction>) => pipelineRead.impl ? pipelineRead.impl(...args) : actual.loadDraftPipelineAction(...args) };
+});
 const drag = vi.hoisted(() => ({ props: {} as Record<string, (event: unknown) => void>, drops: new Map<string, boolean>() }));
 vi.mock("@dnd-kit/core", () => ({
   DndContext: ({ children, ...props }: { children: ReactNode }) => { drag.props = props; return <>{children}</>; },
@@ -78,7 +84,7 @@ beforeEach(() => {
   vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: historyFixture() });
   vi.mocked(moveParticipationAction).mockImplementation(async input => ({ ok: true, data: { delivery: boardFixture().delivery, ...boardFixture().participations[0], stage_id: (input.body as { to_stage_id: string }).to_stage_id, version: "5", etag: '"next-tag"', coverage: boardFixture().coverage } }));
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); pipelineRead.impl = null; });
 async function mount(board?: Board) {
   if (board) vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board });
   const view = render(<MovementBoard vacancyId={vacancyId} />);
@@ -198,6 +204,13 @@ it("adds a manual card in place, focuses it and shows its origin in the sheet", 
   await waitFor(() => expect(within(sheet).queryByText("Cargando detalle e historial")).not.toBeInTheDocument());
   expect(within(sheet).getByText(/Agregado por Luis López el/)).toBeVisible();
   expect(within(sheet).queryByText(/postul/i)).not.toBeInTheDocument();
+});
+it("keeps the column-order hint out of the board header once the columns are editable (it lives in each column's menu)", async () => {
+ const current = boardFixture();
+ pipelineRead.impl = async () => ({ ok: true, etag: '"pipeline-1"', pipeline: { version: "1", structure_locked: false, retired: [], stages: current.stages.map(({ id, kind, name }) => ({ id, kind, name })), exit: { id: current.exit.id, kind: current.exit.kind, name: current.exit.name }, limits: { maxCustomStages: 5, nameMaxLength: 80 } } });
+ await mount();
+ expect(await screen.findByRole("button", { name: "Orden de Revisión" })).toBeEnabled();
+ expect(screen.queryByText(/Reordena columnas/)).not.toBeInTheDocument();
 });
 it("E2 uses singular candidate counts", async () => {
  await mount();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, FilterX, Link2, SearchX, TriangleAlert, Upload } from "lucide-react";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { SectionEmpty } from "@/components/feedback/state-card";
@@ -31,10 +31,17 @@ function Loading() {
   </div>;
 }
 
-/** The employer's Documentos tab (artboard 03): one table of the vacancy's and every candidate's documents and links, with the S13 filters. */
-export function VacancyDocumentsTab({ draftId }: { draftId: string }) {
+/**
+ * The employer's Documentos tab (artboard 03): one table of the vacancy's and every candidate's documents and links, with the S13 filters.
+ * `onOverview` hands the screen the tab's own read (the overview, or `null` when it failed) so the screen needs no second `document-overview` read.
+ */
+export function VacancyDocumentsTab({ draftId, onOverview }: { draftId: string; onOverview?: (overview: DocumentOverview | null) => void }) {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const { state, reload, apply } = useDocumentOverview(draftId, filters.participationId);
+  const report = useRef(onOverview);
+  report.current = onOverview;
+  const reported = state.status === "ready" ? state.overview : state.status === "error" ? null : undefined;
+  useEffect(() => { if (reported !== undefined) report.current?.(reported); }, [reported]);
   const [removal, setRemoval] = useState<Removal | null>(null);
   const [removing, setRemoving] = useState<{ pending: boolean; error: string | null }>({ pending: false, error: null });
   const [upload, setUpload] = useState<{ initial: string | null } | null>(null);
