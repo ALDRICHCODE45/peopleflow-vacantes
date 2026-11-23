@@ -86,6 +86,10 @@ type Reader interface {
 	// carried participation (participation scope) that the caller can read, grouped by origin (D17, D18, D22). A scope that cannot
 	// receive links answers NoSources(), not an error.
 	Sources(ctx context.Context, companyID, actorID uuid.UUID, target Target) (Sources, error)
+	// Overview reads the vacancy header, the vacancy scope, the participations and the documents and links of the vacancy and of every
+	// participation of it from one snapshot taken after the read gate (GET V/document-overview, L20). participationID, when set,
+	// narrows the rows to that participation's (ErrScopeNotFound when it is not one of the vacancy's, after the vacancy gates).
+	Overview(ctx context.Context, companyID, actorID, draftID uuid.UUID, participationID *uuid.UUID) (Overview, error)
 }
 
 // Access failures of the store, in the vocabulary of the vacancy authorization (D4, D6). The HTTP layer maps each to the

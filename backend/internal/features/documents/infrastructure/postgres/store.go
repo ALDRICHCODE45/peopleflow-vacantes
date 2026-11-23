@@ -52,6 +52,9 @@ type Store struct {
 	idem    Idempotency
 	audit   auditport.AuditEventRepository
 	storage documents.Storage
+	// stages and overviewCap serve GET V/document-overview (overview.go); both are optional.
+	stages      documents.StageResolver
+	overviewCap int
 }
 
 var (
@@ -157,7 +160,18 @@ SELECT d.name, v.version, v.content_type, v.size, v.uploaded_at, v.uploaded_by::
 // matches only NULL, a participation scope only its own id), so a foreign document is never described and the two scopes
 // never show each other's documents.
 func queryItems(ctx context.Context, tx pgx.Tx, companyID uuid.UUID, target documents.Target, docID *uuid.UUID, canManage bool) ([]documents.Item, error) {
-	rows, err := tx.Query(ctx, `
+	rows, err := tx.Query(ctx, itemSelectSQL+`
+ WHERE d.company_id = $1 AND d.draft_id = $2 AND d.participation_id IS NOT DISTINCT FROM $4::uuid AND ($3::uuid IS NULL OR d.id = $3)
+ ORDER BY v.uploaded_at DESC, d.id DESC`, companyID, target.DraftID, docID, target.ParticipationID)
+	if err != nil {
+		return nil, fmt.Errorf("list documents: %w", err)
+	}
+	return scanItems(rows, canManage)
+}
+
+// itemSelectSQL is the projection of a document with its current version, shared by the list, the write read-backs and the
+// overview so the three can never disagree; each adds its own WHERE and ORDER BY.
+const itemSelectSQL = `
 SELECT d.id::text, d.participation_id::text, d.name, d.created_at, d.created_by::text, cu.full_name,
        v.version, v.content_type, v.size, v.uploaded_at, v.uploaded_by::text, uu.full_name,
        (SELECT count(*) FROM placement_document_versions x WHERE x.document_id = d.id)
@@ -165,12 +179,10 @@ SELECT d.id::text, d.participation_id::text, d.name, d.created_at, d.created_by:
   JOIN LATERAL (SELECT version, content_type, size, uploaded_at, uploaded_by FROM placement_document_versions
                  WHERE document_id = d.id ORDER BY version DESC LIMIT 1) v ON true
   JOIN users cu ON cu.id = d.created_by
-  JOIN users uu ON uu.id = v.uploaded_by
- WHERE d.company_id = $1 AND d.draft_id = $2 AND d.participation_id IS NOT DISTINCT FROM $4::uuid AND ($3::uuid IS NULL OR d.id = $3)
- ORDER BY v.uploaded_at DESC, d.id DESC`, companyID, target.DraftID, docID, target.ParticipationID)
-	if err != nil {
-		return nil, fmt.Errorf("list documents: %w", err)
-	}
+  JOIN users uu ON uu.id = v.uploaded_by`
+
+// scanItems reads the rows of itemSelectSQL and closes them.
+func scanItems(rows pgx.Rows, canManage bool) ([]documents.Item, error) {
 	defer rows.Close()
 	items := []documents.Item{}
 	for rows.Next() {
@@ -202,48 +214,63 @@ func seesEverySource(access Access) bool {
 // member of the source vacancy's team: D18) is reported as inaccessible without its data. The company equality on every join
 // keeps a foreign row from ever being described.
 func queryLinks(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, target documents.Target, access Access, linkID *uuid.UUID) ([]documents.Link, error) {
-	sees := seesEverySource(access)
-	rows, err := tx.Query(ctx, `
+	rows, err := tx.Query(ctx, linkSelectSQL+`
+ WHERE l.company_id = $1 AND l.draft_id = $2 AND l.participation_id IS NOT DISTINCT FROM $5::uuid AND ($6::uuid IS NULL OR l.id = $6)
+ ORDER BY l.linked_at DESC, l.id DESC`, companyID, target.DraftID, seesEverySource(access), actorID, target.ParticipationID, linkID)
+	if err != nil {
+		return nil, fmt.Errorf("list document links: %w", err)
+	}
+	links, _, err := scanLinks(rows, access)
+	return links, err
+}
+
+// linkSelectSQL is the projection of a link with its pinned source, shared by the list, the write read-backs and the overview.
+// $1 is the company, $2 the draft, $3 whether the caller reads every source (owner or stakeholder) and $4 the caller; each user
+// adds its WHERE and ORDER BY (and its own parameters from $5 on). The last column is the link's own participation (null for a
+// vacancy-level link).
+const linkSelectSQL = `
 SELECT l.id::text, l.linked_at, l.linked_by::text, lu.full_name,
        sd.id::text, sd.draft_id::text, sd.participation_id::text, sd.name,
        sv.version, sv.content_type, sv.size, sv.uploaded_at, sv.uploaded_by::text, su.full_name,
        (SELECT count(*) FROM placement_document_versions x WHERE x.document_id = sd.id),
        (SELECT max(x.version) FROM placement_document_versions x WHERE x.document_id = sd.id),
        COALESCE(r.sequence, 0),
-       ($3::boolean OR EXISTS (SELECT 1 FROM vacancy_assignments a WHERE a.draft_id = sd.draft_id AND a.user_id = $4 AND a.ended_at IS NULL))
+       ($3::boolean OR EXISTS (SELECT 1 FROM vacancy_assignments a WHERE a.draft_id = sd.draft_id AND a.user_id = $4 AND a.ended_at IS NULL)),
+       l.participation_id::text
   FROM placement_document_links l
   JOIN users lu ON lu.id = l.linked_by
   LEFT JOIN placement_documents sd ON sd.id = l.source_document_id AND sd.company_id = l.company_id
   LEFT JOIN placement_document_versions sv ON sv.id = l.source_version_id AND sv.document_id = sd.id
   LEFT JOIN users su ON su.id = sv.uploaded_by
-  LEFT JOIN vacancy_replacements r ON r.process_id = sd.draft_id
- WHERE l.company_id = $1 AND l.draft_id = $2 AND l.participation_id IS NOT DISTINCT FROM $5::uuid AND ($6::uuid IS NULL OR l.id = $6)
- ORDER BY l.linked_at DESC, l.id DESC`, companyID, target.DraftID, sees, actorID, target.ParticipationID, linkID)
-	if err != nil {
-		return nil, fmt.Errorf("list document links: %w", err)
-	}
+  LEFT JOIN vacancy_replacements r ON r.process_id = sd.draft_id`
+
+// scanLinks reads the rows of linkSelectSQL and closes them. The second result is each link's own participation id (nil for a
+// vacancy-level link), in row order.
+func scanLinks(rows pgx.Rows, access Access) ([]documents.Link, []*string, error) {
 	defer rows.Close()
 	links := []documents.Link{}
+	owners := []*string{}
 	for rows.Next() {
 		var r linkRow
-		var uploadedBy, uploadedByName *string
+		var uploadedBy, uploadedByName, owner *string
 		if err := rows.Scan(&r.id, &r.linkedAt, &r.linkedBy.ID, &r.linkedBy.Name,
 			&r.sourceDocumentID, &r.sourceProcessID, &r.sourceParticipationID, &r.sourceName,
 			&r.pinnedVersion, &r.sourceContentType, &r.size, &r.uploadedAt, &uploadedBy, &uploadedByName,
-			&r.versionCount, &r.newestVersion, &r.sequence, &r.readable); err != nil {
-			return nil, fmt.Errorf("scan document link: %w", err)
+			&r.versionCount, &r.newestVersion, &r.sequence, &r.readable, &owner); err != nil {
+			return nil, nil, fmt.Errorf("scan document link: %w", err)
 		}
 		if uploadedBy != nil && uploadedByName != nil {
 			r.uploadedBy = &documents.Person{ID: *uploadedBy, Name: *uploadedByName}
 		}
 		link, err := newLink(r, access.CanManage)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		links = append(links, link)
+		owners = append(owners, owner)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list document links: %w", err)
+		return nil, nil, fmt.Errorf("list document links: %w", err)
 	}
-	return links, nil
+	return links, owners, nil
 }

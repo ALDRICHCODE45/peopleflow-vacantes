@@ -85,6 +85,15 @@ type routeDocumentsReader struct {
 	// target is the scope the route asked for (P6).
 	target documents.Target
 	calls  int
+	// P7b: the overview read and the filter it was asked for
+	overview       documents.Overview
+	overviewFilter *uuid.UUID
+}
+
+func (f *routeDocumentsReader) Overview(_ context.Context, company, actor, draft uuid.UUID, participation *uuid.UUID) (documents.Overview, error) {
+	f.calls++
+	f.company, f.actor, f.doc, f.target, f.overviewFilter = company, actor, draft, documents.VacancyTarget(draft), participation
+	return f.overview, f.err
 }
 
 func (f *routeDocumentsReader) Sources(_ context.Context, company, actor uuid.UUID, target documents.Target) (documents.Sources, error) {
@@ -465,9 +474,9 @@ func TestNoDocumentRouteIsRegisteredUnderTheCandidatePool(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Per scope: list, file, versions, version file (reads) and upload, replace, delete (writes) = 7, plus the replacement links of
-	// P7 (sources, link file, link, unlink) = 4; two scopes.
-	if documentRoutes != 22 {
-		t.Fatalf("document routes registered: %d, want 22", documentRoutes)
+	// P7 (sources, link file, link, unlink) = 4; two scopes; plus the vacancy-only document-overview (P7b).
+	if documentRoutes != 23 {
+		t.Fatalf("document routes registered: %d, want 23", documentRoutes)
 	}
 }
 
@@ -543,5 +552,81 @@ func TestLinkReadRoutesFailClosedWithoutTheReaderGate(t *testing.T) {
 	}
 	if reader.calls != 0 || files.linkDownloads != 0 {
 		t.Fatalf("a store was reached: reader %d downloads %d", reader.calls, files.linkDownloads)
+	}
+}
+
+// --- P7b: GET V/document-overview ---------------------------------------------------------------------------------------------
+
+var documentsOverviewPath = documentsLinkBase + "/document-overview"
+
+// The overview sits in the read group: owners, recruiters and stakeholders pass the coarse gate (the store applies the vacancy
+// rule), the answer is NoStore, the filter reaches the store, and a gate that refuses never reaches it.
+func TestDocumentOverviewRouteSitsInTheReadGroup(t *testing.T) {
+	reader := &routeDocumentsReader{overview: documents.Overview{Scope: documents.BuildScope(documents.ScopeInput{Kind: documents.ScopeVacancy})}}
+	router := documentsRouteRouter(reader, true)
+	for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+		reader.calls, reader.overviewFilter = 0, nil
+		rec := doRouteRequest(t, router, "GET", documentsOverviewPath, "", documentsRouteAsRole(role))
+		if rec.Code != 200 || reader.calls != 1 || reader.overviewFilter != nil {
+			t.Fatalf("%s: %d %s calls=%d", role, rec.Code, rec.Body, reader.calls)
+		}
+		assertDraftRouteNoStore(t, rec)
+		if reader.company != routeTestCompanyID || reader.actor != routeTestActorID || reader.doc != routeTestDraftID {
+			t.Fatalf("%s: the store got %+v", role, reader)
+		}
+		for _, fragment := range []string{`"items":[]`, `"links":[]`, `"participations":[]`, `"truncated":false`} {
+			if !strings.Contains(rec.Body.String(), fragment) {
+				t.Fatalf("%s: missing %s in %s", role, fragment, rec.Body)
+			}
+		}
+	}
+	pid := uuid.New()
+	if rec := doRouteRequest(t, router, "GET", documentsOverviewPath+"?participation_id="+pid.String(), "", documentsRouteAsRole("stakeholder")); rec.Code != 200 ||
+		reader.overviewFilter == nil || *reader.overviewFilter != pid {
+		t.Fatalf("filter: %d %s %v", rec.Code, rec.Body, reader.overviewFilter)
+	}
+	calls := reader.calls
+	for name, tc := range map[string]struct {
+		path    string
+		headers map[string]string
+		status  int
+		code    string
+	}{
+		"anonymous":    {documentsOverviewPath, nil, 401, "unauthenticated"},
+		"other role":   {documentsOverviewPath, documentsRouteAsRole("candidate"), 403, "forbidden"},
+		"bad filter":   {documentsOverviewPath + "?participation_id=nope", documentsRouteAsRole("owner"), 400, "invalid_request"},
+		"bad draft id": {"/v2/me/company/job-drafts/nope/document-overview", documentsRouteAsRole("owner"), 400, "invalid_request"},
+	} {
+		rec := doRouteRequest(t, router, "GET", tc.path, "", tc.headers)
+		if rec.Code != tc.status || routeCatalogCode(t, rec) != tc.code {
+			t.Fatalf("%s: %d %s", name, rec.Code, rec.Body)
+		}
+		assertDraftRouteNoStore(t, rec)
+	}
+	if reader.calls != calls {
+		t.Fatalf("a refused request reached the store (%d calls, was %d)", reader.calls, calls)
+	}
+	// read-only: no other verb is registered
+	for _, method := range []string{"POST", "PUT", "PATCH", "DELETE"} {
+		if rec := doRouteRequest(t, router, method, documentsOverviewPath, "", documentsRouteAsRole("owner")); rec.Code != 405 && rec.Code != 404 {
+			t.Fatalf("%s: %d", method, rec.Code)
+		}
+	}
+	// the vacancy table has no participation-scoped twin
+	if rec := doRouteRequest(t, router, "GET", documentsLinkParts+"/document-overview", "", documentsRouteAsRole("owner")); rec.Code != 404 {
+		t.Fatalf("participation prefix: %d", rec.Code)
+	}
+}
+
+func TestDocumentOverviewRouteFailsClosedWithoutTheReaderGate(t *testing.T) {
+	reader := &routeDocumentsReader{}
+	router := documentsRouteRouter(reader, false)
+	for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+		if rec := doRouteRequest(t, router, "GET", documentsOverviewPath, "", documentsRouteAsRole(role)); rec.Code != 403 {
+			t.Fatalf("%s: %d", role, rec.Code)
+		}
+	}
+	if reader.calls != 0 {
+		t.Fatalf("the store was reached %d times", reader.calls)
 	}
 }

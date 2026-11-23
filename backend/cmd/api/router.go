@@ -501,6 +501,9 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/document-links/{link}/file", d.documentHandler.FileLink)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/document-sources", d.documentHandler.Sources)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/document-links/{link}/file", d.documentHandler.FileLink)
+		// The vacancy's single table (P7b): the documents and links of the vacancy and of every participation of it, the vacancy
+		// header and the participations, from one snapshot. Vacancy-only: there is no participation-scoped twin.
+		r.Get("/v2/me/company/job-drafts/{id}/document-overview", d.documentHandler.Overview)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(identityhttp.NoStore, d.requireAuth, d.requireRecruiter, d.requireTalentBase)

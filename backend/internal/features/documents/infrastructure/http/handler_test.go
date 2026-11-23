@@ -32,6 +32,11 @@ type fakeReader struct {
 	sourcesErr error
 }
 
+// Overview is the base stub (the routes that do not read the overview never call it); overview_test.go overrides it.
+func (f *fakeReader) Overview(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, *uuid.UUID) (documents.Overview, error) {
+	return documents.Overview{}, errors.New("fakeReader: overview not stubbed")
+}
+
 func (f *fakeReader) Versions(_ context.Context, company, actor uuid.UUID, target documents.Target, doc uuid.UUID) (documents.VersionList, error) {
 	f.calls++
 	f.company, f.actor, f.v, f.versionsDoc, f.target = company, actor, target.DraftID, doc, target

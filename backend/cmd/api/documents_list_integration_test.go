@@ -17,6 +17,7 @@ import (
 	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
 	documents "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/application"
+	documentspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/documents/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -50,7 +51,7 @@ func newDocsFlow(t *testing.T) *docsFlow { return newDocsFlowWith(t, nil) }
 
 // newDocsFlowWith builds the drafts harness plus a second server over the SAME pool and signer
 // whose router carries the documents routes wired exactly as main.go wires them.
-func newDocsFlowWith(t *testing.T, storage documents.Storage) *docsFlow {
+func newDocsFlowWith(t *testing.T, storage documents.Storage, tune ...func(*documentspostgres.Store)) *docsFlow {
 	t.Helper()
 	f := &docsFlow{replFlow: newReplFlow(t)}
 	t.Cleanup(func() { // documents created through the API, before the draft, user and company fixtures go (LIFO)
@@ -70,7 +71,7 @@ func newDocsFlowWith(t *testing.T, storage documents.Storage) *docsFlow {
 		requireRecruiter:      identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.RecruiterRole),
 		requireOwner:          identityhttp.RequireCompanyRole(users, members, companies, companiesvalueobjects.OwnerRole),
 		requireDocumentReader: identityhttp.RequireDocumentReader(users, members, companies),
-		documentHandler:       newDocumentHandler(h.pool, h.store, storage),
+		documentHandler:       newDocumentHandler(h.pool, h.store, storage, tune...),
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)

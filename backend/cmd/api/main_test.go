@@ -1647,6 +1647,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/documents",
 		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}/versions",
 		"Delete /v2/me/company/job-drafts/{id}/participations/{pid}/documents/{doc}",
+		"Get /v2/me/company/job-drafts/{id}/document-overview",
 		"Get /v2/me/company/job-drafts/{id}/document-sources",
 		"Post /v2/me/company/job-drafts/{id}/document-links",
 		"Delete /v2/me/company/job-drafts/{id}/document-links/{link}",

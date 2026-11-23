@@ -576,6 +576,144 @@ Manage. **200** `{ "scope": <scope object> }`; the source is untouched; audited 
 Read. Streams the **pinned** version through the same audited path as a normal download (the event's `document_id`/`version_id` name the source; `link_id` is added; the download file name follows the same rule, built from the source's name and the pinned version's format). 404 `not_found` when the link is
 `removed` or `inaccessible` (D18, D19), when it is not in this scope, or when the caller cannot read the source.
 
+### `GET V/document-overview`
+
+Read, **vacancy only** (`V`; there is no participation-scoped twin). The same read gate as `GET V/documents` (owner, active team member, stakeholder of the company; a never-published draft reads too). The documents and the links of the vacancy **and of every participation of it** as one newest-first table, plus the vacancy header and the participations, from **one `REPEATABLE READ` snapshot** taken after the read gate. It reads only the database (no `document_storage_unavailable`) and writes nothing (no audit row). Query: `?participation_id={uuid}` (optional, below). No pagination.
+
+```json
+{
+  "vacancy": {
+    "id": "0193c000-0000-7000-8000-000000000001",
+    "title": "Analista contable",
+    "publication": "published",
+    "process": "active",
+    "kind": "replacement",
+    "visibility": "private"
+  },
+  "scope": {
+    "can_manage": true,
+    "allowed_actions": ["upload", "link"],
+    "upload_blocked_reason": null,
+    "limits": {
+      "max_bytes": 10485760, "max_documents": 50, "max_versions": 25,
+      "formats": [
+        { "format": "pdf",  "extensions": [".pdf"],          "content_type": "application/pdf" },
+        { "format": "docx", "extensions": [".docx"],         "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+        { "format": "xlsx", "extensions": [".xlsx"],         "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+        { "format": "jpg",  "extensions": [".jpg", ".jpeg"], "content_type": "image/jpeg" },
+        { "format": "png",  "extensions": [".png"],          "content_type": "image/png" }
+      ]
+    },
+    "counts": { "documents": 1, "links": 1 }
+  },
+  "items": [
+    {
+      "id": "0193c0aa-0000-7000-8000-000000000011",
+      "participation_id": "0193c0bb-0000-7000-8000-000000000021",
+      "name": "Contrato firmado",
+      "format": "pdf",
+      "content_type": "application/pdf",
+      "size": 183204,
+      "version": 2,
+      "version_count": 2,
+      "created_at": "2026-11-20T15:02:11.482910Z",
+      "created_by": { "id": "0193c0cc-0000-7000-8000-000000000031", "name": "Ana López" },
+      "updated_at": "2026-11-22T09:40:03.100200Z",
+      "updated_by": { "id": "0193c0cc-0000-7000-8000-000000000032", "name": "Luis Ortega" },
+      "allowed_actions": ["download", "replace", "delete"],
+      "owner": {
+        "kind": "participation",
+        "participation_id": "0193c0bb-0000-7000-8000-000000000021",
+        "candidate": { "kind": "manual", "id": "0193c0dd-0000-7000-8000-000000000041", "full_name": "Marta Ruiz" },
+        "discarded": false
+      }
+    },
+    {
+      "id": "0193c0aa-0000-7000-8000-000000000012",
+      "participation_id": null,
+      "name": "Contrato marco",
+      "format": "docx",
+      "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "size": 91200,
+      "version": 1,
+      "version_count": 1,
+      "created_at": "2026-11-20T15:02:11.482910Z",
+      "created_by": { "id": "0193c0cc-0000-7000-8000-000000000031", "name": "Ana López" },
+      "updated_at": "2026-11-20T15:02:11.482910Z",
+      "updated_by": { "id": "0193c0cc-0000-7000-8000-000000000031", "name": "Ana López" },
+      "allowed_actions": ["download", "replace", "delete"],
+      "owner": { "kind": "vacancy" }
+    }
+  ],
+  "links": [
+    {
+      "id": "0193c0ee-0000-7000-8000-000000000051",
+      "state": "available",
+      "linked_at": "2026-11-22T10:00:00.000000Z",
+      "linked_by": { "id": "0193c0cc-0000-7000-8000-000000000031", "name": "Ana López" },
+      "allowed_actions": ["download", "unlink"],
+      "source": {
+        "document_id": "0193c0ff-0000-7000-8000-000000000061",
+        "process_id": "0193bfff-0000-7000-8000-000000000001",
+        "sequence": 0,
+        "participation_id": null,
+        "name": "Contrato original",
+        "format": "docx",
+        "size": 91200,
+        "version": 1,
+        "version_count": 3,
+        "uploaded_at": "2026-10-03T12:00:00.000000Z",
+        "uploaded_by": { "id": "0193c0cc-0000-7000-8000-000000000031", "name": "Ana López" },
+        "has_newer_version": true
+      },
+      "owner": { "kind": "vacancy" }
+    },
+    {
+      "id": "0193c0ee-0000-7000-8000-000000000052",
+      "state": "removed",
+      "linked_at": "2026-11-21T08:30:00.000000Z",
+      "linked_by": { "id": "0193c0cc-0000-7000-8000-000000000031", "name": "Ana López" },
+      "allowed_actions": ["unlink"],
+      "source": null,
+      "owner": {
+        "kind": "participation",
+        "participation_id": "0193c0bb-0000-7000-8000-000000000021",
+        "candidate": { "kind": "manual", "id": "0193c0dd-0000-7000-8000-000000000041", "full_name": "Marta Ruiz" },
+        "discarded": false
+      }
+    }
+  ],
+  "participations": [
+    {
+      "participation_id": "0193c0bb-0000-7000-8000-000000000021",
+      "candidate": { "kind": "manual", "id": "0193c0dd-0000-7000-8000-000000000041", "full_name": "Marta Ruiz" },
+      "discarded": false,
+      "stage": { "kind": "placement", "name": "Placement" },
+      "scope_allowed_actions": ["upload", "link"],
+      "upload_blocked_reason": null
+    },
+    {
+      "participation_id": "0193c0bb-0000-7000-8000-000000000022",
+      "candidate": { "kind": "organic", "id": "0193c0dd-0000-7000-8000-000000000042", "full_name": "Zoe Zapata" },
+      "discarded": true,
+      "stage": { "kind": "screening", "name": "Screening" },
+      "scope_allowed_actions": [],
+      "upload_blocked_reason": "limit_reached"
+    }
+  ],
+  "truncated": false
+}
+```
+
+- **`vacancy`** is the header, with the **lifecycle vocabulary of `GET V/lifecycle`** (nothing is renamed): `publication` is `published | paused | closed` and `process` is `active | finished`, both `null` for a draft that never published (no process row); `kind` is `original | replacement` (`replacement` exactly when the vacancy is in a replacement chain at sequence ≥ 1); `visibility` is `null` for a draft that never published, otherwise `public`, except that a replacement without a public ad is `private`. `title` is the draft's title, `null` while it has none. A test compares all four against `GET V/lifecycle` for every state.
+- **`scope`** is the **vacancy scope exactly as `GET V/documents` answers it**: `counts` are the vacancy's own files and links (not the rows of the participations, not the capped or filtered rows), `allowed_actions` / `upload_blocked_reason` follow the same rules.
+- **`items[]` and `links[]`** are the shapes of `GET P/documents` (§«`GET P/documents`») **plus `owner`**, with their own `allowed_actions` (a manager: `download`, `replace`, `delete` / `download`, `unlink`; a stakeholder: `download` only; link states `available`, `removed`, `inaccessible` as in the list, evaluated for the caller). They cover the documents and links of the vacancy **and of every participation of it, discarded included**; a row equals the row of the list of its own scope (`GET V/documents` or `GET V/participations/{pid}/documents`) minus `owner`.
+- **`owner`** says where the row lives: `{ "kind": "vacancy" }` (no other key) or `{ "kind": "participation", "participation_id", "candidate": { "kind", "id", "full_name" }, "discarded" }`. `candidate` is the board's company view (`kind` `manual | organic`, `id` the company candidate or the candidate's user id; the name is the company's correction of an organic candidate when there is one, otherwise the account's), `discarded` the participation's state. For an `items[]` row, `participation_id` (top level, as in the list) and `owner.participation_id` agree.
+- **`participations[]`**: **every** participation of the vacancy, **discarded ones included** (a never-published draft has none), ordered by candidate name, then participation id. `stage` is `{ kind, name }` of the stage the participation sits in or, when `discarded`, **the stage it was discarded from** (as `carry_candidates[].stage`; named from the vacancy's pipeline, retired stages included). `scope_allowed_actions` and `upload_blocked_reason` are the **participation scope's** flags for the caller (`upload`, plus `link` on a carried participation, while files plus links are below 20; `[]` and `limit_reached` for a manager at 20; `[]` and `null` for a stakeholder), so the table can enable or disable the per-participation upload without another request. There is no cap on this list.
+- **Order and cap.** `items` by the current version's `uploaded_at` (= `updated_at`) descending, then `id` descending; `links` by `linked_at` descending, then `id` descending. **The cap is 2000 rows across `items` plus `links`**: when more match, the **newest** 2000 (by those timestamps, items and links together, ties by `id` descending) are kept, each array stays newest first, and `truncated` is `true` (otherwise `false`). There is no cursor: a client that sees `truncated` narrows with `participation_id`.
+- **`?participation_id={uuid}`** (optional) narrows `items` and `links` to the rows owned by that participation (the cap then applies to what is left); `vacancy`, `scope` and `participations` are never filtered. Exactly one canonical (dashed) uuid: anything else (empty, repeated, another spelling, an unparseable query string) is **400 `invalid_request`**, answered before anything is read. A well-formed id that is **not a participation of this vacancy** (another vacancy, another company, unknown, the vacancy id) is **404 `not_found`**, evaluated **after** the vacancy gates, so a caller who may not read the vacancy gets the vacancy's answer whatever the filter. Unknown query parameters are ignored.
+- Errors: 404 `not_found` / `team_access_ended` (and the generic gate answers), 400 `invalid_request` (malformed `{id}` or `participation_id`), as `GET P/documents`. `Cache-Control: no-store` like the other reads.
+
 ### Route summary
 
 | Method | Path under `P` | Gate | Event |
@@ -590,6 +728,7 @@ Read. Streams the **pinned** version through the same audited path as a normal d
 | POST | `/document-links` | manage | `DocumentLinked` |
 | DELETE | `/document-links/{link}` | manage | `DocumentDeleted` (`kind = link`) |
 | GET | `/document-links/{link}/file` | read | `DocumentDownloaded` |
+| GET | `V/document-overview` (vacancy only) | read | — |
 
 Success bodies: upload and replace 201 `{item, scope}`; link 201 `{link, scope}`; both deletes 200 `{scope}`; lists and downloads as above. Upload alone takes the optional `Idempotency-Key`; replace takes the required `expected_version` part.
 
@@ -614,6 +753,13 @@ The `document-sources` / `document-links` segments are literal siblings of `docu
 - **No storage needed** to list sources, link, unlink or list: they only touch rows. `GET …/file` is 404 (unknown, other scope, `removed`, `inaccessible`) first, then 503 `document_storage_unavailable` when the storage is disabled or failing, then 404 when the file is gone.
 - **Audit.** `DocumentLinked` (entity = the link id; `source_document_id`, `source_version_id`, `source_vacancy_id` and, for a participation document, `source_participation_id`), `DocumentDeleted` `kind = link` (entity = the link id; only `link_id`, no document id) and `DocumentDownloaded` through a link (entity = the SOURCE document; `document_id`/`version_id` are the source's, `link_id` is added, `scope`/`participation_id` are the target's) are written in the same transaction as the change; a failed append rolls the link, the unlink or the download back. Linking and unlinking after closure are audited the same way and leave the vacancy byte-identical (S4).
 - **Unlink** is `DELETE …/document-links/{link}` → 200 `{ "scope": … }` (the freed slot brings `upload` and `link` back); a link of another scope, another vacancy or another company, a malformed-but-unknown id and a repeated unlink are 404 `not_found` (a malformed id is 400 `invalid_request`). The source, its versions and its files are never touched.
+
+**P7b notes (implemented): document overview.** `GET V/document-overview` is registered once (vacancy prefix only), in the read group, `NoStore`: with it the route table has **23** `/document…` routes (22 under the two scopes + this one). It reuses the read path of `GET P/documents` instead of copying it: the read gate (`AuthorizeDocuments`, so a stakeholder reads a never-published draft), the item and link SQL projections (one shared SELECT each, with their `allowed_actions` and the link states, source readability included), the vacancy `scope` builder and the participation scope builder.
+
+- **Statements.** One snapshot, a fixed number of statements whatever the data (authorization; header; vacancy counts and link flag; participations with candidate names and per-scope counts; the pipeline; items; links; ≈ 11 in all): no per-participation query. A test counts the statements with 1 and with 13 participations.
+- **Cap.** Items and links are each read with `LIMIT cap + 1` and merged newest first in Go, so the read is bounded and `truncated` is exact. The cap is `documents.MaxOverviewRows = 2000`; the store takes a smaller one in tests (`WithOverviewCap`).
+- **Stage names** come from the vacancy's stored pipeline configuration (default pipeline when there is none), resolved by a function `cmd/api` composes (`documentStages`) because the documents feature may not import the jobs feature; a stage that is not in the pipeline fails the read (500) rather than invent a name.
+- **Interpretation of L20 left open there:** (1) `participation_id` narrows the rows only; the header, the vacancy scope and `participations[]` stay complete so a table can keep its filter control. (2) Ties and the secondary order are `id` **descending**, like the lists. (3) `participations[]` is ordered by candidate name, then id (L20 gave no order). (4) `title` is nullable (a draft may have none). (5) `participations[]` is not capped.
 
 ## Error codes
 
@@ -703,6 +849,7 @@ write responses grew (scope object, `allowed_actions`, idempotency, `expected_ve
 6. **P6 · Participation documents** (~250; implemented, see «P6 notes» under the route summary): the same endpoints under `V/participations/{pid}`, the «`pid` belongs to `{id}`» rule (no stage check, D3), tests (every stage including discarded, after closure and finished, wrong `pid` → 404, stakeholder read, pool grants nothing).
 7. **P7 · Replacement linking** (~400; implemented, see «P7 notes» above «Error codes»): `document-sources`, `document-links` (create, delete, file) with `{link, scope}` / `{scope}` responses, chain/ancestor resolution, `state` rules and link `allowed_actions`, `links[].source` with `uploaded_at`, `uploaded_by`, `version_count`,
    `DocumentLinked`, tests (source deleted → removed, source access lost → inaccessible, pinned version, limits, links of links impossible, `link` in the scope `allowed_actions`).
+7b. **P7b · Document overview** (~350; implemented, see «P7b notes»): `GET V/document-overview` (header, vacancy scope, items and links of the vacancy and of every participation with `owner`, `participations[]`, `truncated`, optional `participation_id`), tests (owner, team recruiter, stakeholder on a never-published draft, non-team recruiter and other company 404, pool access grants nothing, filter, truncation order, links of a replacement with owner and states, discarded participation, fixed statement count).
 8. **P8 · Hardening and reconciliation** (~200): `Reconcile` wiring decision (Q8), configuration docs, end-to-end test through the router with the local and the S3 adapters, final run of the full backend suite.
 
 ## Decisions status

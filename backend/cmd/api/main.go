@@ -554,9 +554,13 @@ func mapDocumentAccessError(err error) error {
 }
 
 // newDocumentHandler composes the documents routes over the pool, the draft authorization and the (possibly nil) storage.
-func newDocumentHandler(pool *pgxpool.Pool, draftStore *draftstore.Store, storage documentsapp.Storage) *documentshttp.Handler {
+// tune adjusts the store before it is shared (tests use it for a small overview cap).
+func newDocumentHandler(pool *pgxpool.Pool, draftStore *draftstore.Store, storage documentsapp.Storage, tune ...func(*documentspostgres.Store)) *documentshttp.Handler {
 	access := documentAccess{drafts: draftStore}
-	store := documentspostgres.NewStore(pool, access, access, auditpostgres.NewAuditEventRepository(), storage)
+	store := documentspostgres.NewStore(pool, access, access, auditpostgres.NewAuditEventRepository(), storage).WithStages(documentStages)
+	for _, adjust := range tune {
+		adjust(store)
+	}
 	return documentshttp.NewHandler(store, documentsapp.NewService(storage, store))
 }
 
