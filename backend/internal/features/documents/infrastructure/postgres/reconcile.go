@@ -26,6 +26,13 @@ func NewReconciler(db rowQuerier, storage documents.Storage) *Reconciler {
 	return &Reconciler{db: db, storage: storage, now: time.Now}
 }
 
+// WithClock sets the clock the grace window is judged against and returns r. Production keeps time.Now; a test that cannot age
+// an object (one in S3 has a provider-set modification time) moves «now» forward instead.
+func (r *Reconciler) WithClock(now func() time.Time) *Reconciler {
+	r.now = now
+	return r
+}
+
 // Reconcile keeps an object iff a placement_document_versions row references its key or it is younger than
 // documents.OrphanGrace; everything else is deleted. No lock is taken and no transaction is held open: an in-flight upload
 // is protected by its age, not by blocking the database. A failed lookup fails closed (the run stops, nothing more is deleted).

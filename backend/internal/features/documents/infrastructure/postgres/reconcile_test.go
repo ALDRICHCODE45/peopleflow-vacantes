@@ -90,3 +90,21 @@ func TestReconcileLookupFailureDeletesNothing(t *testing.T) {
 		t.Fatalf("err=%v deleted=%v", err, st.deleted)
 	}
 }
+
+// WithClock replaces the clock the grace window is judged against (tests that cannot age an object, such as one in S3, move
+// «now» forward instead) and returns the reconciler for chaining.
+func TestReconcileWithClockJudgesTheGraceWindowAgainstTheInjectedNow(t *testing.T) {
+	stored := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	st := &listedStorage{objects: []documents.Object{{Key: "orphan", ModTime: stored}}}
+	r := NewReconciler(&lookupDB{}, st)
+	r.now = func() time.Time { return stored.Add(10 * time.Minute) }
+	if err := r.Reconcile(context.Background()); err != nil || len(st.deleted) != 0 {
+		t.Fatalf("young: err=%v deleted=%v", err, st.deleted)
+	}
+	if got := r.WithClock(func() time.Time { return stored.Add(documents.OrphanGrace + time.Minute) }); got != r {
+		t.Fatal("WithClock must return the receiver")
+	}
+	if err := r.Reconcile(context.Background()); err != nil || strings.Join(st.deleted, ",") != "orphan" {
+		t.Fatalf("old: err=%v deleted=%v", err, st.deleted)
+	}
+}

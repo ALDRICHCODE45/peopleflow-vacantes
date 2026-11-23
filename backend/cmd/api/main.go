@@ -315,6 +315,10 @@ func run() error {
 		return err
 	}
 	defer closeDocumentStorage()
+	// Q8: reconcile once at startup and then every 24 h, one instance at a time (advisory lock). Stopped, and waited for, on
+	// shutdown before the storage and the pool are closed (deferred calls run last-in first); nil storage = disabled.
+	stopDocumentReconcile := startDocumentReconcile(ctx, newDocumentReconcileScheduler(pool, documentStorage))
+	defer stopDocumentReconcile()
 	slog.Info("document storage", "enabled", documentConfig.Enabled(), "mode", documentConfig.Mode, "bucket", documentConfig.Bucket, "region", documentConfig.Region, "prefix", documentConfig.Prefix)
 	draftStore := draftstore.NewStore(pool, auditRepo).WithMemberMutationGuard(postgres.LockMemberMutation)
 	// Carried replacement candidates trigger the same stage-entry effects (psychometric auto-send) as an intake.
