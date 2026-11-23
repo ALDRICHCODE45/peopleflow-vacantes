@@ -109,3 +109,7 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   "documents_count":1}],"next_cursor":null}`; `limit` 1..50 (default 20), `cursor`; order updated_at DESC, id DESC; empty →
   `items: []`. `publication` is null for a never-published draft (lifecycle semantics, unlike the job-drafts list's
   `draft`). P8 (closure), stakeholder permission verification and local merge next. T3d unblocked.
+- **L9** Backend documents merged to local main `b8964e32` (not pushed); dev DB v64 (00064); :8080 runs it with disk storage
+  `/tmp/pf-documents-storage`. Upload and download have a 2-minute server deadline («Tu BFF y cualquier proxy tienen que
+  permitir al menos eso»); contract §Storage: with storage off only byte-moving routes return 503. Audit ANNEX 70 → 75 is
+  already on this branch (`8a9946f4`).
