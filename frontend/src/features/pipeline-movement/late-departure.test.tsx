@@ -200,12 +200,24 @@ it("S3: the header «Acciones» menu offers «Iniciar reemplazo» once the depar
   resolveSummary();
   vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: startable() });
   await mount(hireBoard(), start);
-  expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
+  // A finished original with the start flow wired always carries «Acciones», startable or not (T3/S3).
+  expect(screen.getByRole("button", { name: "Acciones de la vacante" })).toBeInTheDocument();
   fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
   fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Marcar «No se sostuvo»" }));
   fireEvent.click(await screen.findByRole("button", { name: "Acciones de la vacante" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Iniciar reemplazo" }));
   expect(start).toHaveBeenCalledExactlyOnceWith();
+});
+it("T3/S3: a finished original whose replacement is active keeps «Acciones» with a disabled «Iniciar reemplazo» and the reason", async () => {
+  vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: activeBlocked() });
+  await mount(hireBoard(activeBlocked()), vi.fn());
+  fireEvent.click(screen.getByRole("button", { name: "Acciones de la vacante" }));
+  expect(await screen.findByRole("menuitem", { name: "Iniciar reemplazo" })).toBeDisabled();
+  expect(screen.getByText("Ya hay un reemplazo activo para esta vacante.")).toBeVisible();
+});
+it("T3/S3: a finished original without the start flow wired (no handler) shows no «Acciones» when nothing is allowed", async () => {
+  await mount(hireBoard(activeBlocked()));
+  expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
 });
 it("S3: a failed late departure leaves the hire where it was and explains it", async () => {
   vi.mocked(discardParticipationAction).mockResolvedValue({ ok: false, reason: "forbidden", reference: { status: 403 } });

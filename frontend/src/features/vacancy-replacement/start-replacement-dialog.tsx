@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, RefreshCw, Repeat } from "lucide-react";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +18,8 @@ export type StartReplacementDialogProps = {
   draftId: string;
   /** Vacancy title, shown under «Iniciar reemplazo». */
   title?: string;
+  /** Company name, shown after the title as «<title> · <company>»; omitted while unknown. */
+  companyName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Set when the flow starts from a person's card «⋯» menu; ignored unless that credit is still startable. */
@@ -34,6 +36,18 @@ const STEPS = ["Bajas", "Condiciones", "Candidatos"] as const;
 
 export function StartReplacementDialog(props: StartReplacementDialogProps) {
   return props.open ? <Session key={props.draftId} {...props} /> : null;
+}
+
+/** Icon tile + «Iniciar reemplazo» + «<title> · <company>» (artboard 04); either part of the meta may be missing. */
+function TitleBlock({ title, companyName, titleRef }: { title?: string; companyName?: string; titleRef: RefObject<HTMLHeadingElement | null> }) {
+  const meta = [title, companyName].filter(Boolean).join(" · ");
+  return <div className="flex items-start gap-3.5">
+    <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary"><Repeat className="size-5" /></span>
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <DialogTitle ref={titleRef} tabIndex={-1} className="outline-none">Iniciar reemplazo</DialogTitle>
+      {meta && <DialogDescription>{meta}</DialogDescription>}
+    </div>
+  </div>;
 }
 
 function Session(props: StartReplacementDialogProps) {
@@ -61,7 +75,7 @@ function Session(props: StartReplacementDialogProps) {
       {load.status === "ready"
         ? <Flow {...props} ctx={load.ctx} titleRef={title} reload={refresh} onBusy={setBusy} />
         : <>
-          <DialogHeader className="pr-10"><DialogTitle ref={title} tabIndex={-1} className="outline-none">Iniciar reemplazo</DialogTitle>{props.title && <DialogDescription>{props.title}</DialogDescription>}</DialogHeader>
+          <DialogHeader className="pr-10"><TitleBlock title={props.title} companyName={props.companyName} titleRef={title} /></DialogHeader>
           {load.status === "loading"
             ? <div role="status" aria-label="Cargando bajas" className="flex flex-col gap-3"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
             : <div className="flex flex-col items-start gap-3"><p role="alert" className="text-sm text-destructive">{load.message}</p><Button type="button" variant="outline" className="min-h-10" onClick={retry}><RefreshCw aria-hidden="true" data-icon="inline-start" />Reintentar</Button></div>}
@@ -81,7 +95,7 @@ function failureStep(failure: StartFailure, current: 1 | 2 | 3): 1 | 2 | 3 {
   return current;
 }
 
-function Flow({ ctx, draftId, title, stages, unavailableHires = [], preselectedCreditId, titleRef, reload, onBusy, onOpenChange, onStarted }:
+function Flow({ ctx, draftId, title, companyName, stages, unavailableHires = [], preselectedCreditId, titleRef, reload, onBusy, onOpenChange, onStarted }:
   StartReplacementDialogProps & { ctx: StartContext; titleRef: RefObject<HTMLHeadingElement | null>; reload: () => Promise<unknown>; onBusy: (busy: boolean) => void }) {
   const view = ctx.replacements; const start = view.start_replacement;
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -192,8 +206,7 @@ function Flow({ ctx, draftId, title, stages, unavailableHires = [], preselectedC
   }
 
   const header = <DialogHeader className="gap-2 pr-10">
-    <DialogTitle ref={titleRef} tabIndex={-1} className="outline-none">Iniciar reemplazo</DialogTitle>
-    {title && <DialogDescription>{title}</DialogDescription>}
+    <TitleBlock title={title} companyName={companyName} titleRef={titleRef} />
     {/* Three bars (artboard 04): the current and finished steps are filled. On a phone the label is the step's name alone so nothing wraps; «Paso N» stays in the list's name and the live status. */}
     <ol aria-label={`Paso ${step} de 3`} className="mt-1 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
       {STEPS.map((label, index) => <li key={label} aria-current={step === index + 1 ? "step" : undefined} className={cn("flex min-w-0 flex-col gap-1.5 font-medium", step === index + 1 && "text-foreground")}>

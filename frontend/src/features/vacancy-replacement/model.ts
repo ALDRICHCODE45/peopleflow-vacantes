@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { lifecycleSchema, startReplacementBlockerSchema, type StartReplacementBlocker } from "@/features/vacancy-lifecycle/model";
 import type { Delivery } from "@/features/jobs/drafts/pipeline/delivery-model";
+import { discardReasonSchema } from "@/features/pipeline-movement/model";
 
 /**
  * replacement-processes-v1 «GET V/replacements» and «POST V/replacements». Pure schemas (no `server-only`): shared by the
@@ -26,6 +27,8 @@ export const carryCandidateSchema = z.object({
   /** Previous stage by `kind` and `name` only: its id belongs to another process of the chain. */
   stage: z.object({ kind: text, name: text }),
   discarded: z.boolean(), eligible: z.boolean(), reason: z.string().optional(),
+  /** R5: the board's `discard.reason` while `discarded`, else `null`. Absent before R5; a malformed one reads as absent, never as a broken read. */
+  discard_reason: discardReasonSchema.nullable().optional().catch(undefined),
 });
 export type CarryCandidate = z.infer<typeof carryCandidateSchema>;
 

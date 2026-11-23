@@ -1,5 +1,6 @@
 import type * as React from "react"
 import Link from "next/link"
+import { ArrowLeftIcon } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/theme/theme-toggle"
@@ -45,22 +46,31 @@ export function SiteHeader({
         {parent ? (
           <nav
             aria-label="Ruta de navegación"
-            className="flex min-w-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-2 max-sm:shrink-0"
           >
             <Link
               href={parent.href}
-              className="truncate rounded-sm text-sm text-muted-foreground outline-hidden transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="truncate rounded-sm text-sm text-muted-foreground outline-hidden transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:inline-flex max-sm:min-h-10 max-sm:min-w-10 max-sm:items-center max-sm:justify-center max-sm:text-foreground"
             >
-              {parent.label}
+              {/* Phones: compact back arrow; the parent label stays the accessible name. */}
+              <ArrowLeftIcon
+                aria-hidden="true"
+                className="size-4 shrink-0 sm:hidden"
+              />
+              <span className="max-sm:sr-only">{parent.label}</span>
             </Link>
-            <span aria-hidden="true" className="text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className="text-muted-foreground max-sm:hidden"
+            >
               /
             </span>
           </nav>
         ) : null}
         <h1
           aria-current={parent ? "page" : undefined}
-          className="truncate text-base font-medium"
+          title={title}
+          className="truncate text-base font-medium max-sm:line-clamp-2 max-sm:min-w-0 max-sm:text-sm max-sm:leading-tight max-sm:whitespace-normal"
         >
           {title}
         </h1>

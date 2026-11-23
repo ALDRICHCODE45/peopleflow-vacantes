@@ -52,7 +52,28 @@ it("keeps «Reabrir» only when the backend allows it, even next to «Iniciar re
 it("never invents «Reabrir» from the closed-covered flag", async () => {
  open({ kind: "original", closed_covered: true, can_start_replacement: false, start_replacement_blocker: "no_startable_credits", allowed_actions: ["finish_process"] }, vi.fn());
  expect(await screen.findByRole("menuitem", { name: "Finalizar proceso" })).toBeVisible();
- expect(screen.queryByRole("menuitem", { name: "Reabrir" })).not.toBeInTheDocument(); expect(screen.queryByRole("menuitem", { name: "Iniciar reemplazo" })).not.toBeInTheDocument();
+ expect(screen.queryByRole("menuitem", { name: "Reabrir" })).not.toBeInTheDocument();
+ // The blocked offer is a disabled item, never a clickable one (T3/S3).
+ expect(screen.getByRole("menuitem", { name: "Iniciar reemplazo" })).toBeDisabled();
+});
+it.each([
+ ["replacement_active", "Ya hay un reemplazo activo para esta vacante."],
+ ["no_startable_credits", "No hay bajas pendientes de reemplazo. Marca «No se sostuvo» a quien se fue para iniciarlo."],
+ [null, "No se puede iniciar un reemplazo para esta vacante por ahora."],
+] as const)("a finished original that cannot start (%s) shows a disabled «Iniciar reemplazo» and why, so the menu is never empty", async (blocker, reason) => {
+ const start = vi.fn();
+ open({ kind: "original", can_start_replacement: false, start_replacement_blocker: blocker, startable_credits_count: 0 }, start);
+ const item = await screen.findByRole("menuitem", { name: "Iniciar reemplazo" });
+ expect(item).toBeDisabled(); expect(screen.getByText(reason)).toBeVisible();
+ fireEvent.click(item); expect(start).not.toHaveBeenCalled();
+});
+it("does not offer the blocked «Iniciar reemplazo» before the lifecycle loads, without a handler, or outside a finished process", async () => {
+ open({ kind: "original", can_start_replacement: false, start_replacement_blocker: "no_startable_credits" });
+ await waitFor(() => expect(getLifecycleAction).toHaveBeenCalled()); expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+ cleanup();
+ open({ kind: "original", process: "active", can_start_replacement: false, start_replacement_blocker: "source_not_closed", allowed_actions: ["close"] }, vi.fn());
+ expect(await screen.findByRole("menuitem", { name: "Cerrar" })).toBeVisible();
+ expect(screen.queryByRole("menuitem", { name: "Iniciar reemplazo" })).not.toBeInTheDocument();
 });
 it("hides «Iniciar reemplazo» without a handler (nothing to open)", async () => {
  open({ kind: "original", can_start_replacement: true });

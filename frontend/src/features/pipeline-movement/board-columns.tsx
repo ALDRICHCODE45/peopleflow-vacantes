@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, type RefObject } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from "@dnd-kit/core";
-import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole, UserPlus } from "lucide-react";
+import { CalendarDays, Clock3, FileText, FileType2, GripVertical, History, ListFilter, LockKeyhole, UserPlus } from "lucide-react";
 import { cn } from "cn";
 import { plural } from "@/features/employer-vacancies/plural";
 import { ActionStatus } from "@/components/feedback/action-status";
@@ -84,6 +84,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
         {confirming && <DepartureConfirm item={item} board={board} pending={confirming.pending} onConfirm={confirming.confirm} onCancel={confirming.cancel} />}</span></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
+      {typeof item.carried_from_participation_id === "string" && <Hint text="Retomado de un proceso anterior"><Badge variant="neutral" className="w-fit"><History aria-hidden="true" />Retomado</Badge></Hint>}
       <ChecklistFit item={item} />
       <PsychometricCardStatus participationId={item.id} />
       {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}

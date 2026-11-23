@@ -14,6 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { BusinessDateField } from "@/features/employer-vacancies/delivery-config/date-field";
 import { groupMissing } from "@/features/jobs/drafts/pipeline/publication-model";
+import { discardReasonLabel } from "@/features/pipeline-movement/discard-text";
 import { MAX_BAJAS, MAX_CARRIED, businessDaysUntil, candidateKey, startingStages, type CarryCandidate, type SourceStage, type StartContext, type StartableCredit, type UnavailableHire } from "./model";
 
 const dayFormat = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "America/Mexico_City" });
@@ -178,7 +179,7 @@ export function CandidatesStep({ headingRef, candidates, truncated, stages, chos
               <Person name={item.candidate.full_name} />
               <FieldContent>
                 <FieldLabel htmlFor={base} id={`${base}-name`} className="font-medium">{item.candidate.full_name}</FieldLabel>
-                <span id={`${base}-meta`} className="text-xs text-muted-foreground">{item.discarded ? "Descartado" : "En proceso"} · antes: {item.stage.name}</span>
+                <span id={`${base}-meta`} className="text-xs text-muted-foreground">{item.discarded ? ["Descartado", ...(item.discard_reason ? [discardReasonLabel(item.discard_reason)] : [])].join(" · ") : "En proceso"} · antes: {item.stage.name}</span>
                 {errors[key] && <FieldError id={`${base}-error`}>{errors[key]}</FieldError>}
               </FieldContent>
             </Field>

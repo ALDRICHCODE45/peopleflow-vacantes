@@ -33,6 +33,9 @@ const mutationParticipationSchema = z.object({
   added_by: z.object({ id: uuidSchema, name: text }).strict().nullable(),
   cv: z.object({ id: uuidSchema, name: text, source: z.enum(["candidate", "company"]) }).strict(), corrected_fields: z.array(correctedFieldSchema),
   moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
+  // Source participation of a carried (retomado) candidate. Optional so the current backend (absent) and the new one
+  // (always present, UUID or null) both parse; shared by list, detail, move/discard/recover/substate and manual intake.
+  carried_from_participation_id: uuidSchema.nullable().optional(),
 }).strict();
 export const profileSchema = z.object({
   location: locationReadSchema.refine(location => location === null || location.postal_code === null), skills: z.array(z.string()),
