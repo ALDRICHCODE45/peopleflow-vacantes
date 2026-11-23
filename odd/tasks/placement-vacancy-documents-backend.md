@@ -32,7 +32,7 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 
 - T1 S1–S7 — contract draft `docs/contracts/placement-vacancy-documents-v1.md` (writer) — done 377c06d8
 - T2 — contract agreed with the frontend session — done (L8)
-- T3 P1 — migration 00064 and documents domain (writer) — pending
+- T3 P1 S1–S7 — migration 00064 and documents domain (writer) — done 3e66837c
 - T4 P2 — storage port, adapters, config (writer; S3 manager dependency needs user OK) — pending
 - T5 P3 — errors, read gate, audit catalog, scope, GET list — pending
 - T6 P4 — upload and download — pending
@@ -133,3 +133,22 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - **L8** 2026-11-22, frontend final OK on the revised contract: (a) «`expected_version` obligatorio en el replace: OK»;
   (b) «`{item, scope}` / `{link, scope}` y los deletes 200 `{scope}`: OK»; (c) «Sin `can_upload` ni
   `link_blocked_reason` [...]: OK»; (d) user, relayed verbatim: «Sí, también descartados». Contract agreed; T2 done.
+- **L9** 2026-11-22, T3 (P1) done in `3e66837c`: migration `00064_placement_vacancy_documents.sql` exactly as the contract's Data model plus a
+  guarded Down (locks the three tables `ACCESS EXCLUSIVE`, raises `cannot remove placement documents: documents, versions or links exist`);
+  `migration_00064_integration_test.go` (version 64, document/version/link constraints, `SET NULL` cascade, Down guard per table, round trip);
+  new package `backend/internal/features/documents/application/` (`limits.go`, `formats.go`, `inspect.go`, `name.go` + tests): limits
+  10 485 760 / 10 551 296 request / 50 / 20 / 25, `Formats()` descriptors, `Collector` (head 16 B + rolling 2 MiB tail) and
+  `Inspect(filename, Sample)` (PDF/JPG/PNG magic, DOCX vs XLSX from the central directory over the tail only, `*MismatchError{Detected,
+  Extension}`, `ErrEmpty`, `ErrTooLarge`, `ErrUnsupportedType`), `StripKnownExtension`, `NormalizeGivenName`, `DefaultName`, `DownloadName`.
+  - RED observed: migration tests failed with `relation "placement_documents" does not exist` / `version=63` before the SQL existed; the
+    documents tests failed to build (package without sources) before the implementation. Mutation check: allowing 1025 entries or reads outside
+    the tail window made the hardening and window tests fail.
+  - Totals: documents package 23 tests pass; `make test PKG=./db/...` ok; migrations integration (`-tags=integration -p 1`, throwaway
+    `postgres:16` on 127.0.0.1, container stopped) 101 pass / 0 fail incl. subtests; `gofmt`, `go vet` (also `-tags=integration`) clean;
+    archguard ok; `go.mod` untouched.
+  - Deviations: (1) `migration_00063_integration_test.go` now calls `gooseDownTo(63)` before its two single-step Down tests (they assumed 00063
+    was the latest). (2) `DefaultName` never fails: base of either path separator, known extension stripped, an over-long base cut to 120 runes,
+    nothing left or control characters → `Documento` (the contract only says «nothing left → Documento»; P4 should confirm). (3) `StripKnownExtension`
+    ignores trailing whitespace when looking for the extension (`contrato.pdf ` → `contrato`). (4) A file whose bytes are both Word and Excel
+    parts, or whose `[Content_Types].xml` is missing, is a mismatch with `detected_format` null. (5) No sqlc queries, no `cvs/content.go` change
+    (`cvs.Inspect` untouched; the OOXML marker rules are re-implemented in the new package over a tail window, as the contract specifies).
