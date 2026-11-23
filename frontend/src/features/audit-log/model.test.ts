@@ -72,9 +72,26 @@ describe("labels (contract Annex)", () => {
     expect(eventLabel("StakeholderInvitationAccepted")).toBe("Aceptó una invitación de stakeholder");
     expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "StakeholderInvitationAccepted", category: "members" });
     expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "MetricsDetailExported", category: "sensitive_read" });
-    expect(KNOWN_EVENT_TYPES).toHaveLength(70);
-    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(70);
+    expect(KNOWN_EVENT_TYPES).toHaveLength(75);
+    expect(new Set(KNOWN_EVENT_TYPES.map(type => type.event_type)).size).toBe(75);
     expect(KNOWN_EVENT_TYPES.filter(type => eventLabel(type.event_type) === UNKNOWN_EVENT_LABEL)).toEqual([]);
+  });
+
+  it("labels the five document events (placement-vacancy-documents-v1 «Audit events») in order, one sensitive read and four vacancy", () => {
+    const types = KNOWN_EVENT_TYPES.map(type => type.event_type);
+    expect(types[types.indexOf("MetricsDetailExported") + 1]).toBe("DocumentDownloaded");
+    expect(types.slice(types.indexOf("VacancyReplacementStarted") + 1, types.indexOf("VacancyReplacementStarted") + 5)).toEqual([
+      "DocumentUploaded", "DocumentReplaced", "DocumentDeleted", "DocumentLinked",
+    ]);
+    expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: "DocumentDownloaded", category: "sensitive_read" });
+    for (const type of ["DocumentUploaded", "DocumentReplaced", "DocumentDeleted", "DocumentLinked"]) {
+      expect(KNOWN_EVENT_TYPES).toContainEqual({ event_type: type, category: "vacancy" });
+    }
+    expect(eventLabel("DocumentDownloaded")).toBe("Descargó un documento");
+    expect(eventLabel("DocumentUploaded")).toBe("Subió un documento");
+    expect(eventLabel("DocumentReplaced")).toBe("Reemplazó un documento por una nueva versión");
+    expect(eventLabel("DocumentDeleted")).toBe("Eliminó un documento o un vínculo a documento");
+    expect(eventLabel("DocumentLinked")).toBe("Vinculó un documento del proceso original");
   });
 
   it("labels the replacement events (replacement-processes-v1 «Audit events») in their contract categories", () => {
