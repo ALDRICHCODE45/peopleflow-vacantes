@@ -11,7 +11,7 @@ import { signOutWithAudit } from "@/lib/audit/sign-out"
 import { useIdentity } from "@/features/identity/identity-session"
 import { useCompanyMembership } from "@/features/employer-company/use-company-membership"
 import { useCompanyMembershipState } from "@/features/employer-company/company-membership-context"
-import { STAKEHOLDER_HOME, isInvitationRoute } from "@/features/identity/stakeholder-routes"
+import { STAKEHOLDER_HOME, STAKEHOLDER_VACANCIES, isInvitationRoute } from "@/features/identity/stakeholder-routes"
 import { NavUser } from "./nav-user"
 import {
   Sidebar,
@@ -42,6 +42,8 @@ type NavItem = {
   title: string
   url: string
   icon: React.ReactNode
+  /** Extra routes that keep this entry lit besides `url` and what is nested below it. */
+  alsoActiveOn?: (pathname: string) => boolean
 }
 
 /** Recruiting navigation: every visible destination has an implemented page. */
@@ -97,6 +99,17 @@ const METRICS_ITEM: NavItem = {
 }
 
 /**
+ * S12: the stakeholder's read-only vacancy list. It also stays lit on the Documentos tab of a vacancy (`/empresa/vacantes/:id/…`),
+ * the only vacancy route a stakeholder can open. Owners and recruiters never see this entry; they keep the portfolio above.
+ */
+const STAKEHOLDER_VACANCIES_ITEM: NavItem = {
+  title: "Vacantes",
+  url: STAKEHOLDER_VACANCIES,
+  icon: <IconBriefcase />,
+  alsoActiveOn: (pathname) => pathname.startsWith("/empresa/vacantes/"),
+}
+
+/**
  * A destination is active on its own route and on any route nested below it, so
  * `/empresa/vacantes/borradores/nuevo` and `/empresa/vacantes/:id/pipeline`
  * keep `Vacantes` lit. Unknown pathnames stay inactive.
@@ -117,7 +130,7 @@ function NavLink({
     <SidebarMenuItem>
       <SidebarMenuButton
         tooltip={item.title}
-        isActive={isActiveDestination(item.url, pathname)}
+        isActive={isActiveDestination(item.url, pathname) || (!!pathname && !!item.alsoActiveOn?.(pathname))}
         render={<Link href={item.url} />}
       >
         {item.icon}
@@ -214,7 +227,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {showNavigation && stakeholder && <NavGroup label={account.company} items={[METRICS_ITEM]} pathname={pathname} />}
+        {showNavigation && stakeholder && <NavGroup label={account.company} items={[METRICS_ITEM, STAKEHOLDER_VACANCIES_ITEM]} pathname={pathname} />}
         {showNavigation && !stakeholder && <>
         <SidebarGroup>
           <SidebarGroupLabel>Principal</SidebarGroupLabel>

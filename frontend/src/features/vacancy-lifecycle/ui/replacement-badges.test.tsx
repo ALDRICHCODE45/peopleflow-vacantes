@@ -100,8 +100,15 @@ it("keeps the generic copy when the chain has no names for the process", () => {
   expect(screen.getByText(/Este proceso es el/)).toBeVisible();
   expect(screen.queryByText(/Reemplaza a/)).not.toBeInTheDocument();
 });
-it("tints the bar so it shows in dark mode too (brand tone, not the deep --primary fill)", () => {
-  const { container } = render(<ReplacementLinkBar lifecycle={{ ...base, kind: "original", active_replacement_id: replacement }} selfId={original} chain={named} />);
-  const bar = container.querySelector("[data-pf-replacement-links] > div");
-  expect(bar).toHaveClass("dark:bg-primary-text/10", "dark:border-primary-text/30");
+it("S9: each link is one quiet line (icon, text and link together), not a tinted full-width card", () => {
+  const { container } = render(<ReplacementLinkBar lifecycle={{ ...base, kind: "replacement", replacement_of: original, active_replacement_id: replacement }} selfId={replacement} chain={named} />);
+  const holder = container.querySelector("[data-pf-replacement-links]")!;
+  const lines = [...holder.children] as HTMLElement[];
+  expect(lines.length).toBeGreaterThan(0);
+  for (const line of lines) {
+    expect(line.className).not.toMatch(/(^|\s)(border|rounded-xl|bg-primary\/5|dark:bg-primary-text\/10)(\s|$)/);
+    expect(line).toHaveClass("flex-wrap");
+    expect(line.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  }
+  expect(screen.getByRole("link", { name: /Ver original/ })).toHaveClass("min-h-10");
 });

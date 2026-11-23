@@ -1,0 +1,9 @@
+import { downloadDocumentLink } from "@/features/vacancy-documents/route-handlers";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** `GET V/document-links/{link}/file`: the pinned version of a link, streamed as an attachment. */
+export async function GET(request: Request, context: { params: Promise<{ draftId: string; linkId: string }> }): Promise<Response> {
+  return downloadDocumentLink(await context.params, request);
+}

@@ -54,6 +54,8 @@ describe("single application-facing request path", () => {
       "features/stakeholder-invitations/client.ts",
       // Bodyless DELETE 204 (clear a checklist mark), same-origin guarded like employer-team.
       "features/vacancy-checklist/client.ts",
+      // Document upload/download (multipart stream and attachment), server-only to the configured origin.
+      "features/vacancy-documents/binary-client.ts",
       "lib/api/requestJson.ts",
     ]);
   });
@@ -113,11 +115,17 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
-  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/company-metrics/export-client.ts", "features/employer-dashboard/export-client.ts", "features/stakeholder-invitations/client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
+  it.each(["features/employer-team/client.ts", "features/org-candidates/cv/cv-client.ts", "features/org-candidates/detail/file-client.ts", "features/psychometrics/client.ts", "features/saved-vacancies/client.ts", "features/audit-log/client.ts", "features/company-metrics/export-client.ts", "features/employer-dashboard/export-client.ts", "features/stakeholder-invitations/client.ts", "features/vacancy-documents/binary-client.ts"])("keeps the %s fetch adapter server-only with the same fetch guards", file => {
     const adapter = source(join(SRC, file));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');
     expect(adapter).toContain('cache: "no-store"');
+  });
+
+  it("keeps document browser uploads on the same-origin BFF routes, without credentials of their own", () => {
+    const upload = source(join(SRC, "features/vacancy-documents/ui/upload-client.ts"));
+    expect(upload).toContain("/api/company/job-drafts/");
+    expect(upload).not.toMatch(/https?:\/\/|lib\/api\/|lib\/auth|authorization|cookie:/i);
   });
 
   it("keeps the recruiter participation CV adapter server-only with the same fetch guards", () => {
@@ -306,9 +314,11 @@ describe("single application-facing request path", () => {
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
       "features/stakeholder-invitations/client.ts",
+      "features/stakeholder-vacancies/client.ts",
       "features/talent-base-visibility/client.ts",
       "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
+      "features/vacancy-documents/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "features/vacancy-replacement/client.ts",
       "features/vacancy-team/api-client.ts",
@@ -357,9 +367,11 @@ describe("single application-facing request path", () => {
       "features/pipeline-movement/client.ts",
       "features/psychometrics/client.ts",
       "features/stakeholder-invitations/client.ts",
+      "features/stakeholder-vacancies/client.ts",
       "features/talent-base-visibility/client.ts",
       "features/vacancy-assignments/api-client.ts",
       "features/vacancy-checklist/client.ts",
+      "features/vacancy-documents/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "features/vacancy-replacement/client.ts",
       "features/vacancy-team/api-client.ts",
@@ -385,6 +397,16 @@ describe("single application-facing request path", () => {
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/original/route.ts",
       "app/api/company/candidates/[kind]/[id]/participations/[participationId]/cv/route.ts",
       "app/api/company/dashboard/[kind]/export/route.ts",
+      "app/api/company/job-drafts/[draftId]/document-links/[linkId]/file/route.ts",
+      "app/api/company/job-drafts/[draftId]/documents/[documentId]/file/route.ts",
+      "app/api/company/job-drafts/[draftId]/documents/[documentId]/versions/[version]/file/route.ts",
+      "app/api/company/job-drafts/[draftId]/documents/[documentId]/versions/route.ts",
+      "app/api/company/job-drafts/[draftId]/documents/route.ts",
+      "app/api/company/job-drafts/[draftId]/participations/[participationId]/document-links/[linkId]/file/route.ts",
+      "app/api/company/job-drafts/[draftId]/participations/[participationId]/documents/[documentId]/file/route.ts",
+      "app/api/company/job-drafts/[draftId]/participations/[participationId]/documents/[documentId]/versions/[version]/file/route.ts",
+      "app/api/company/job-drafts/[draftId]/participations/[participationId]/documents/[documentId]/versions/route.ts",
+      "app/api/company/job-drafts/[draftId]/participations/[participationId]/documents/route.ts",
       "app/api/company/manual-candidates/[vacancyId]/route.ts",
       "app/api/company/metrics/[kind]/export/route.ts",
       "app/api/company/site/media/route.ts",

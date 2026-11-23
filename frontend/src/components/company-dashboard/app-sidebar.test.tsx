@@ -759,13 +759,38 @@ describe("company dashboard sidebar metrics (stakeholder-metrics-v1 §1.2, D2, F
   it("reduces the stakeholder shell to Métricas plus the account menu, with no recruiting entry or create action", async () => {
     companyMock.mockResolvedValue({ ...realCompany, role: "stakeholder", canViewTalentBase: false, canViewMetrics: true });
     await act(async () => { renderSidebar("/empresa/metricas"); });
-    expect(groupDestinations("Empresa Real")).toEqual(["Métricas"]);
+    expect(groupDestinations("Empresa Real")).toEqual(["Métricas", "Vacantes"]);
     expect(screen.getByRole("link", { name: "Métricas" })).toHaveAttribute("data-active");
-    for (const label of [...PRINCIPAL_ITEMS, ...ORGANIZATION_ITEMS, "Auditoría"]) expect(screen.queryByRole("link", { name: label })).toBeNull();
+    expect(screen.getByRole("link", { name: "Vacantes" })).not.toHaveAttribute("data-active");
+    for (const label of [...PRINCIPAL_ITEMS.filter(item => item !== "Vacantes"), ...ORGANIZATION_ITEMS, "Auditoría"]) expect(screen.queryByRole("link", { name: label })).toBeNull();
     expect(screen.queryByRole("button", { name: "Nueva vacante" })).toBeNull();
     expect(screen.getByRole("link", { name: "PeopleFlow" })).toHaveAttribute("href", "/empresa/metricas");
     expect(screen.getByText("Stakeholder · Empresa Real")).toBeInTheDocument();
     expect(screen.getByTestId("account-logout")).toBeInTheDocument();
+  });
+
+  // S12: the stakeholder's own read-only «Vacantes» list; owners and recruiters keep the portfolio entry only.
+  it("gives the stakeholder a «Vacantes» entry that opens the read-only list, not the recruiter portfolio", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "stakeholder", canViewTalentBase: false, canViewMetrics: true });
+    await act(async () => { renderSidebar("/empresa/stakeholder/vacantes"); });
+    expect(screen.getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/stakeholder/vacantes");
+    expect(screen.getByRole("link", { name: "Vacantes" })).toHaveAttribute("data-active");
+    expect(screen.getByRole("link", { name: "Métricas" })).not.toHaveAttribute("data-active");
+    expect(document.querySelector('a[href="/empresa/vacantes"]')).toBeNull();
+  });
+
+  it("keeps «Vacantes» lit while a stakeholder reads the Documentos tab of one vacancy", async () => {
+    companyMock.mockResolvedValue({ ...realCompany, role: "stakeholder", canViewTalentBase: false, canViewMetrics: true });
+    await act(async () => { renderSidebar("/empresa/vacantes/123e4567-e89b-42d3-a456-426614174000/documentos"); });
+    expect(screen.getByRole("link", { name: "Vacantes" })).toHaveAttribute("data-active");
+  });
+
+  it.each(["owner", "recruiter"] as const)("keeps one «Vacantes» entry, the portfolio, for a %s", async role => {
+    companyMock.mockResolvedValue({ ...realCompany, role, canViewTalentBase: true, canViewMetrics: role === "owner" });
+    await act(async () => { renderSidebar(); });
+    expect(screen.getAllByRole("link", { name: "Vacantes" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+    expect(document.querySelector('a[href="/empresa/stakeholder/vacantes"]')).toBeNull();
   });
 
   it("shows no employer navigation on the invitation page to someone who is not a stakeholder yet", async () => {

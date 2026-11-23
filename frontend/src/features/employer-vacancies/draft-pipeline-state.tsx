@@ -3,9 +3,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, FilePen, GitBranch, SlidersHorizontal } from "lucide-react";
-import { SiteHeader } from "@/components/company-dashboard/site-header";
-import { DashboardPageContent } from "@/components/dashboard-page-content";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -18,14 +15,11 @@ import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publicati
 import { PublishButton, PublishDialog } from "./publication/publish-dialog";
 import { MovementBoard } from "@/features/pipeline-movement/board";
 import type { Board } from "@/features/pipeline-movement/model";
-import { cn } from "@/lib/utils";
-import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
-import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
-import { ReplacementBadges } from "@/features/vacancy-lifecycle/ui/replacement-badges";
-import { useCompactViewport } from "@/features/vacancy-lifecycle/ui/use-compact-viewport";
+import type { CloseCoverage, Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { useStartReplacementRequest } from "./use-start-replacement-request";
 import { replacementSource, type ReplacementSource } from "./replacement-source";
 import { StartReplacementHost } from "./start-replacement-host";
+import { VacancyFrame } from "./vacancy-frame";
 
 /** Reads readiness alongside the draft; published processes load their real board independently. */
 export function DraftPipelineState({ draftId }: { draftId: string }) {
@@ -36,12 +30,14 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
   const [boardAttempt, setBoardAttempt] = useState(0);
   const [boardLifecycle, setBoardLifecycle] = useState<{ id: string; value: Lifecycle }>();
   const onLifecycleChange = useCallback((value: Lifecycle) => setBoardLifecycle({ id: draftId, value }), [draftId]);
+  // The board's live coverage lets the identity row word the close result («Cubierta al cierre»); it is the board's own read, not a new one.
+  const [boardCoverage, setBoardCoverage] = useState<{ id: string; value: CloseCoverage }>();
   const result = loaded?.id === draftId ? loaded.result : null;
   // «Iniciar reemplazo» (card «⋯» menu with its credit, header «Acciones» without one) lands in `startReplacement.open(draftId, creditId?)`.
   // The dialog needs the SOURCE board's stages and hires still in Placement, so the board reports what it loaded.
   const startReplacement = useStartReplacementRequest();
   const [source, setSource] = useState<{ id: string; value: ReplacementSource }>();
-  const onBoardChange = useCallback((board: Board) => setSource({ id: draftId, value: replacementSource(board) }), [draftId]);
+  const onBoardChange = useCallback((board: Board) => { setSource({ id: draftId, value: replacementSource(board) }); setBoardCoverage({ id: draftId, value: board.coverage }); }, [draftId]);
   useEffect(() => {
     let current = true;
     async function load() {
@@ -71,67 +67,60 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
   const published = (loaded?.id === draftId && loaded.publication?.status === "published") || hasProcess;
   const publishedAt = loaded?.id === draftId ? loaded.publication?.publishedAt ?? null : null;
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Pipeline";
-  const lifecycle = boardLifecycle?.id === draftId ? boardLifecycle.value : result?.ok ? result.seed.lifecycle : undefined;
-  const status = publicationStatus(lifecycle?.publication, "accent", lifecycle?.process);
-  // On a phone the header bar has no room for the state and replacement badges beside the title (it truncated to «Su…»): they wrap in a row below it instead.
-  const compact = useCompactViewport();
-  const badges = result?.ok ? <><Badge variant={status.variant} dot>{status.label}</Badge>{lifecycle && <ReplacementBadges lifecycle={lifecycle} />}</> : undefined;
+  // The identity row (title, badges, dates) lives in the vacancy frame: it shows the board's live lifecycle once the board reports it, the seed's before.
+  const lifecycle = result?.ok ? boardLifecycle?.id === draftId ? boardLifecycle.value : result.seed.lifecycle : undefined;
+  const coverage = boardCoverage?.id === draftId ? boardCoverage.value : undefined;
   const configHref = `/empresa/vacantes/${draftId}/configuracion/columnas`;
   return (
     // The inset shell has 8px above and below it on desktop. Only the live
     // board owns a viewport frame; drafts and mobile retain page scrolling.
-    <div className={cn("flex min-h-0 flex-1 flex-col", published && "md:h-[calc(100dvh-1rem)] md:flex-none md:overflow-hidden")} aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? compact ? undefined : badges : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
-      <div className="@container/main flex min-h-0 flex-1 flex-col">
-        <DashboardPageContent width="screen-2xl" className="min-h-0 flex-1 gap-5 md:gap-6">
-          {compact && badges && <div className="flex shrink-0 flex-wrap items-center gap-1.5">{badges}</div>}
-          {!published && <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <h2 id="draft-pipeline-heading" className="font-heading text-[20px] font-semibold text-foreground">Pipeline</h2>
-              <p className="max-w-prose text-[13.5px] text-muted-foreground">Da seguimiento a los candidatos de esta vacante.</p>
-            </div>
-          </section>}
-          {result === null ? (
-            <>
-              <span role="status" className="sr-only">Cargando borrador</span>
-              <DraftPipelineCard aria-hidden="true"
-                state={<Skeleton className="h-7 w-40 rounded-full" />}
-                settings={<Skeleton className="h-10 w-44" />}
-                icon={<Skeleton className="size-10" />}
-                title={<Skeleton className="h-7 w-96 max-w-full" />}
-                description={<Skeleton className="h-16 w-full max-w-md"><span className="invisible">&nbsp;</span></Skeleton>}
-                actions={<><Skeleton className="h-10 w-full sm:w-40" /><Skeleton className="h-10 w-full sm:w-44" /></>}
-                hint={<Skeleton className="h-5 w-96 max-w-full" />}
-              />
-              <Skeleton aria-hidden="true" className="h-10 w-40" />
-            </>
-          ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
-            <>
-              <MovementBoard key={boardAttempt} vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} onBoardChange={onBoardChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} onPublish={() => setPublishOpen(true)} />
-              {publishOpen && <PublishDialog draftId={draftId} open onOpenChange={setPublishOpen} onPublished={() => { setBoardAttempt(value => value + 1); void refreshPublication(); }} />}
-              {startReplacement.request?.draftId === draftId && source?.id === draftId && <StartReplacementHost key={draftId} draftId={draftId} title={title} creditId={startReplacement.request.creditId} source={source.value} onClose={startReplacement.close} />}
-            </>
-          ) : (
-            <>
-              <DraftPipelineCard
-                state={<span className="flex items-center gap-1.5"><FilePen aria-hidden="true" className="size-4" />Vacante en borrador</span>}
-                settings={<Button nativeButton={false} role="link" variant="ghost" render={<Link href={configHref} />} className="min-h-10"><SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Configurar columnas</Button>}
-                icon={<GitBranch aria-hidden="true" />}
-                title="Esta vacante todavía no tiene pipeline"
-                description="Los candidatos aparecerán aquí una vez que publiques la vacante. Mientras tanto, puedes continuar editándola y preparar todo antes de publicar."
-                actions={<>
-                  <PublishButton draftId={draftId} variant="default" label="Publicar vacante" onPublished={retry} />
-                  <Button nativeButton={false} role="link" variant="outline" render={<Link href={`/empresa/vacantes/borradores/${draftId}`} />} className="min-h-10">Continuar editando<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>
-                </>}
-                hint={<><GitBranch aria-hidden="true" className="size-4 shrink-0" />Puedes configurar las columnas de tu proceso antes de publicar.</>}
-              />
-              {/* Leaving the screen is navigation, kept outside the card so it never competes with the task. */}
-              <Button nativeButton={false} role="link" variant="ghost" render={<Link href="/empresa/vacantes" />} className="min-h-10 self-start"><ArrowLeft aria-hidden="true" data-icon="inline-start" />Volver a Vacantes</Button>
-            </>
-          )}
-        </DashboardPageContent>
-      </div>
-    </div>
+    <VacancyFrame vacancyId={draftId} active="pipeline" fallbackTitle="Pipeline" fill={published} loading={result === null}
+      title={result?.ok ? title : undefined} lifecycle={lifecycle} publishedAt={publishedAt} coverage={coverage} tabs={result && !result.ok ? [] : undefined}>
+      {!published && <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h2 id="draft-pipeline-heading" className="font-heading text-[20px] font-semibold text-foreground">Pipeline</h2>
+          <p className="max-w-prose text-[13.5px] text-muted-foreground">Da seguimiento a los candidatos de esta vacante.</p>
+        </div>
+      </section>}
+      {result === null ? (
+        <>
+          <span role="status" className="sr-only">Cargando borrador</span>
+          <DraftPipelineCard aria-hidden="true"
+            state={<Skeleton className="h-7 w-40 rounded-full" />}
+            settings={<Skeleton className="h-10 w-44" />}
+            icon={<Skeleton className="size-10" />}
+            title={<Skeleton className="h-7 w-96 max-w-full" />}
+            description={<Skeleton className="h-16 w-full max-w-md"><span className="invisible">&nbsp;</span></Skeleton>}
+            actions={<><Skeleton className="h-10 w-full sm:w-40" /><Skeleton className="h-10 w-full sm:w-44" /></>}
+            hint={<Skeleton className="h-5 w-96 max-w-full" />}
+          />
+          <Skeleton aria-hidden="true" className="h-10 w-40" />
+        </>
+      ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
+        <>
+          <MovementBoard key={boardAttempt} vacancyId={draftId} vacancyTitle={title} onLifecycleChange={onLifecycleChange} onBoardChange={onBoardChange} onStartReplacement={creditId => startReplacement.open(draftId, creditId)} onPublish={() => setPublishOpen(true)} />
+          {publishOpen && <PublishDialog draftId={draftId} open onOpenChange={setPublishOpen} onPublished={() => { setBoardAttempt(value => value + 1); void refreshPublication(); }} />}
+          {startReplacement.request?.draftId === draftId && source?.id === draftId && <StartReplacementHost key={draftId} draftId={draftId} title={title} creditId={startReplacement.request.creditId} source={source.value} onClose={startReplacement.close} />}
+        </>
+      ) : (
+        <>
+          <DraftPipelineCard
+            state={<span className="flex items-center gap-1.5"><FilePen aria-hidden="true" className="size-4" />Vacante en borrador</span>}
+            settings={<Button nativeButton={false} role="link" variant="ghost" render={<Link href={configHref} />} className="min-h-10"><SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Configurar columnas</Button>}
+            icon={<GitBranch aria-hidden="true" />}
+            title="Esta vacante todavía no tiene pipeline"
+            description="Los candidatos aparecerán aquí una vez que publiques la vacante. Mientras tanto, puedes continuar editándola y preparar todo antes de publicar."
+            actions={<>
+              <PublishButton draftId={draftId} variant="default" label="Publicar vacante" onPublished={retry} />
+              <Button nativeButton={false} role="link" variant="outline" render={<Link href={`/empresa/vacantes/borradores/${draftId}`} />} className="min-h-10">Continuar editando<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>
+            </>}
+            hint={<><GitBranch aria-hidden="true" className="size-4 shrink-0" />Puedes configurar las columnas de tu proceso antes de publicar.</>}
+          />
+          {/* Leaving the screen is navigation, kept outside the card so it never competes with the task. */}
+          <Button nativeButton={false} role="link" variant="ghost" render={<Link href="/empresa/vacantes" />} className="min-h-10 self-start"><ArrowLeft aria-hidden="true" data-icon="inline-start" />Volver a Vacantes</Button>
+        </>
+      )}
+    </VacancyFrame>
   );
 }
 

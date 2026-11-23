@@ -3,7 +3,6 @@ import { Fragment, useRef, useState } from "react";
 import { ArrowRight, Briefcase, ChevronDown, ChevronRight, Columns3, GraduationCap, Info, MapPin, MessageSquareText, RotateCcw, Search, SlidersHorizontal, Sparkles, Tags, UserX, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -17,7 +16,7 @@ import { cn } from "@/lib/utils";
 import type { BoardFilterDimension } from "./board-filter-dimensions";
 import { activeFilterCount, clearFilters, filterChips, dimensionOptions, optionCount, toggleFilter, type FilterSelection } from "./filters";
 
-type Props<Item> = { toolbar?: React.ReactNode; items: readonly Item[]; dimensions: BoardFilterDimension<Item>[]; selection: FilterSelection; onChange: (selection: FilterSelection) => void; resultCount: number };
+type Props<Item> = { toolbar?: React.ReactNode; actions?: React.ReactNode; items: readonly Item[]; dimensions: BoardFilterDimension<Item>[]; selection: FilterSelection; onChange: (selection: FilterSelection) => void; resultCount: number };
 
 function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Props<Item>, "items" | "selection" | "onChange"> & { dimension: BoardFilterDimension<Item> }) {
   const [search, setSearch] = useState("");
@@ -95,15 +94,15 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
   </Field>;
 }
 
-export function BoardFilters<Item>({ items, dimensions, selection, onChange, resultCount, toolbar }: Props<Item>) {
+export function BoardFilters<Item>({ items, dimensions, selection, onChange, resultCount, toolbar, actions }: Props<Item>) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const count = activeFilterCount(selection);
   const sections = [...new Set(dimensions.map(dimension => dimension.presentation?.section.key))];
   return <Sheet open={open} onOpenChange={setOpen}>
-    {/* Toolbar-only Card: no heading/footer; its accessible group names the controls. */}
-    <Card role="group" aria-label="Filtros del pipeline" className="min-w-0 shrink-0 rounded-xl border [--card-spacing:--spacing(2)]">
-      <CardContent className="flex min-w-0 flex-nowrap items-center gap-2">
+    {/* S9: the board's one flat toolbar. Filters (and the order/compare controls) lead; the board actions end the same row, outside the filters group. */}
+    <div className="group/bar flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
+      <div role="group" aria-label="Filtros del pipeline" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <SheetTrigger render={<Button ref={trigger} id="board-filters" type="button" variant="outline" className="min-h-10" />}>
           <SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Filtros{count > 0 && <Badge variant="secondary">{count}</Badge>}
         </SheetTrigger>
@@ -112,9 +111,14 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
           <BoardFilterChips dimensions={dimensions} selection={selection} onChange={onChange} onEdit={() => setOpen(true)} />
           <Button type="button" variant="ghost" className="min-h-10 shrink-0" onClick={() => onChange(clearFilters(selection))}><RotateCcw aria-hidden="true" data-icon="inline-start" />Limpiar</Button>
         </>}
-        {toolbar && <div className="ml-auto flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{toolbar}</div>}
-      </CardContent>
-    </Card>
+        {toolbar && <div data-pf-board-toolbar="" className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 empty:hidden">{toolbar}</div>}
+      </div>
+      {actions && <>
+        {/* The divider sits between two non-empty groups: it shows only while the toolbar (Orden/Comparar/Reintentar) has content. */}
+        <Separator orientation="vertical" data-pf-board-divider="" className="hidden h-6 self-center sm:group-has-[[data-pf-board-toolbar]:not(:empty)]/bar:block" />
+        <div data-pf-board-actions="" className="flex min-w-0 flex-wrap items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1">{actions}</div>
+      </>}
+    </div>
     {count > 0 && <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <p role="status" aria-live="polite" className="text-xs text-muted-foreground"><span aria-hidden="true" className="text-primary">● </span>Vista filtrada · Mostrando {resultCount} de {plural(items.length, "candidato", "candidatos")}</p>
       <Button type="button" variant="link" className="ml-auto min-h-10" onClick={() => setOpen(true)}>Editar filtros<ChevronRight aria-hidden="true" data-icon="inline-end" /></Button>
