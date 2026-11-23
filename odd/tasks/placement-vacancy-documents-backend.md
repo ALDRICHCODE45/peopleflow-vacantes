@@ -39,7 +39,7 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T7 P5 S4 S5 S6 — versions and delete — done e29e0be2
 - T8 P6 S1 S4 S6 — participation documents — done 9fb20351
 - T9 P7 S3 — replacement linking — done c4fcb712
-- T11 P7b S1 S2 S3 — GET document-overview (single table + vacancy header) — done in the working tree, parent commits (L21)
+- T11 P7b S1 S2 S3 — GET document-overview (single table + vacancy header) — done d002c0c1
 - T12 P7c — GET stakeholder/vacancies (read-only list) — pending
 - T10 P8 — hardening, reconcile, independent verify of stakeholder access, full suite — pending
 
