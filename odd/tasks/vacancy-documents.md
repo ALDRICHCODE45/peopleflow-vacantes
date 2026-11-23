@@ -102,3 +102,10 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   there: `participation_id` narrows only `items`/`links` (`vacancy`, `scope`, `participations[]` stay whole);
   `participations[]` ordered by candidate name then id, no cap; `vacancy.title` may be null; `scope.counts` are the real
   vacancy counts; secondary order id DESC. P7c (stakeholder vacancies) next.
+- **L8** Backend P7c `58900c66`, verbatim envelope: `GET /v2/me/company/stakeholder/vacancies` (owner + stakeholder; recruiter
+  403) → `{"items":[{"id":"…","title":"Analista contable","publication":"closed","process":"finished","kind":"original",
+  "visibility":"public","close_reason":"filled","coverage":{"covered":2,"required":2},"documents_count":7},{"id":"…",
+  "title":null,"publication":null,"process":null,"kind":"original","visibility":null,"close_reason":null,"coverage":null,
+  "documents_count":1}],"next_cursor":null}`; `limit` 1..50 (default 20), `cursor`; order updated_at DESC, id DESC; empty →
+  `items: []`. `publication` is null for a never-published draft (lifecycle semantics, unlike the job-drafts list's
+  `draft`). P8 (closure), stakeholder permission verification and local merge next. T3d unblocked.
