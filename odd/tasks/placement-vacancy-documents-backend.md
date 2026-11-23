@@ -36,7 +36,7 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T4 P2 — storage port, adapters, config — done bde228ba, 474350fd
 - T5 P3 — errors, read gate, audit catalog, scope, GET list — done 457ea222, a2614f6f (document_* error family moved to P4)
 - T6 P4 S2 S4 S5 — `document_*` errors, manage authorization, upload and download — done in the working tree, parent commits (L15)
-- T7 P5 — versions and delete — pending
+- T7 P5 S4 S5 S6 — versions and delete — done in the working tree, parent commits (L17)
 - T8 P6 — participation documents — pending
 - T9 P7 — replacement linking — pending
 - T10 P8 — hardening, reconcile, full suite — pending
@@ -264,3 +264,41 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
   candidates/application/cvs): `normalizeName` is now a local copy of the CV display-label rules in
   `documents/application/name.go`; documents unit packages ok. `go run ./cmd/archguard` keeps one violation
   (`docker/minio/Dockerfile` matches the locked non-goal `docker`), identical on main: pre-existing.
+- **L17** 2026-11-22, T7 (P5) writer result, working tree (nothing staged or committed: the writer may not run `git add`/`git commit`). S6 (delete by owner and recruiters, audited, the stakeholder only
+  reads), S4 (replace and delete after closure, audited, lifecycle rows byte-identical) and S5 (the replacement goes through the same magic-byte inspection and 10 MB limit) covered.
+  - Code: `documents/application/versions.go` (`VersionConflictError`, `CheckReplaceable` = stale value first then the 25 cap, `VersionItem`/`VersionList`, `ReplaceCommand`, `ScopeResponse`, `DeleteResult`,
+    `ErrExpectedVersionRequired/Invalid`; `Service.PreflightReplace` authorizes then looks at storage and returns the current version, `Replace` discards the staged object on every failure,
+    `Delete` removes the files only after the store committed (WithoutCancel, a failed file delete is logged and swallowed), `DownloadVersion`); `Writer`/`Files`/`Reader` ports extended (`list.go`, `upload.go`).
+    `documents/infrastructure/postgres/store_write.go`: `AuthorizeReplace` (manage gate without lock + the document, returns the current version), `Replace` (manage gate WITH the draft lock, document lookup,
+    `CheckReplaceable`, version row `max+1` with `clock_timestamp()`, optional rename, read-back item, `scopeAfter`, `DocumentReplaced`, commit), `Delete` (lock, keys of every version + links that will lose their source,
+    `DELETE` of the row, scope after, `DocumentDeleted` kind file, commit), `download` shared by `Download` and `DownloadVersion` (lateral join on the number); `store.go` `Versions` (read gate, one statement, ordered by version
+    number); `events.go` `replacedEvent`, `deletedFileEvent`; `rows.go` `versionRow`/`newVersionItem`. `documents/infrastructure/http/versions.go`: `Replace` (pre-flight, then a streaming multipart loop with `expected_version`
+    before the file checked at once, `name` optional, parts after the file honored, staged object discarded on every early return), `Versions`, `FileVersion` (`{n}` = 1-9 digits ≥ 1 else 400), `Delete` (200 `{scope}`);
+    `upload.go` `File` now shares `serveFile`/`draftAndDocument`; `handler.go` maps `VersionConflictError` and the two `expected_version` sentinels. `cmd/api/router.go`: `POST …/{doc}/versions` and
+    `DELETE …/{doc}` in the recruiter group, `GET …/{doc}/versions` and `GET …/{doc}/versions/{n}/file` in the read group; `main.go` needed no change (the ports were already composed). `audit_events` `catalog_test.go`:
+    `pendingEmitters` lost `DocumentReplaced` and `DocumentDeleted` (only `DocumentLinked` remains; P7 adds the link flavour of `DocumentDeleted`). Contract: «P5 notes (implemented)» under replace, versions, download and delete.
+  - RED observed (before each implementation): application (`undefined: ReplaceCommand`, `DeleteResult`, `VersionConflictError`, `Service.Replace/PreflightReplace` …), http (`undefined: documents.VersionList`, `ReplaceCommand`,
+    `ScopeResponse`), postgres (`undefined: replacedEvent`, `deletedFileEvent`, `versionRow`, `newVersionItem`), `cmd/api` route tests and the integration file did not build. The integration suite was written before the code
+    but, because it needs the new application types, its RED is the build failure, not a behavior failure. Mutation checks (each caught, then reverted): no `CheckReplaceable` under the lock (stale, lock-path and cap tests fail),
+    the handler never pre-checks before the file (the HTTP unit test and the «invalid file after a stale value» integration case fail), `linked_count` forced to 0, the delete query without `participation_id IS NULL`
+    (participation document deleted through the vacancy route), draft lock off in `Replace` and in `Delete`. The first mutation run showed that the concurrent-replace HTTP test alone does NOT catch a missing lock (the window is
+    too small), so `TestDocumentsReplaceAndDelete_WaitForTheDraftLock` holds the draft row from another transaction and asserts both writes wait; with it, both lock mutations fail.
+  - Integration tests through the production router (`cmd/api/documents_versions_integration_test.go`, 22 tests): replace success (item/scope equal the list, version 1 intact, rows, `DocumentReplaced` ids only, `renamed` true/false/false,
+    format change), stale `expected_version` (behind, ahead, before the file, after the file, before an invalid file: never inspected), 21 validation/file failure cases storing nothing, six concurrent replaces (one 201, five 409, two objects),
+    the lock path deterministically (both staged, second gets `VersionConflictError{Current:2}`), replace racing a delete, the 25-version cap (`replace` leaves `allowed_actions` on the 25th, the 26th is `document_limit_reached`
+    kind versions, stale wins over the cap, delete still works), version list order/shape/read by stakeholder, ordering by number with a reversed clock, scope exclusion (other vacancy, participation document, other company, bad ids),
+    download by version (per-version format and file name, one audit row per download with its version, nothing recorded for unknown/malformed/missing/storage down/audit failure, stream closed on audit failure), delete
+    (rows, every file, `{scope}` only, freed slot brings `upload` back, audit ids and counts only, repeated delete 404), delete with a storage failure (200 `{scope}`, orphans stay, young orphans survive `Reconcile`, old ones go, audit survives),
+    audit failure rolls back delete and replace, links to a deleted source become `removed` with `linked_count`, racing deletes (one 200), authorization matrix (owner, responsible, collaborator manage; stakeholder 403 on writes and reads
+    fine; never-on-team 404; former member 404 `team_access_ended`; other company 404; 401; v1 draft 404; bad ids 400; the store refuses a stakeholder itself), revoked between pre-flight and commit, six lifecycle states after closure
+    (replace and delete accepted, vacancy snapshot byte-identical, exactly one audit row each, stakeholder 403), storage disabled (503 after the gates, list and delete still work).
+  - Totals: unit (`make test`, `-v`) cmd/api, documents, audit_events, httpjson, archguard tool: 13 packages ok, 1 666 pass / 0 fail incl. subtests. Integration (`-tags=integration -p 1`, throwaway `postgres:16` on 127.0.0.1:60609, `draft_test`,
+    `migrate up` to 64, `geoimport -skip-postal-codes`, container stopped): `./cmd/api -run 'TestDocuments|TestAudit|TestRouteTopology'` 334 pass / 0 fail / 0 skip (the P5 set also stable at `-count=3`); documents, audit_events, identity http,
+    draftstore, httpjson, archguard tool 1 303 pass / 0 fail / 4 skip (the MinIO tests without `DOCUMENT_S3_TEST_ENDPOINT`). `gofmt` clean; `go vet ./...` and `-tags=integration` clean; `go run ./cmd/archguard` keeps only the pre-existing
+    `docker/minio/Dockerfile` violation. `go.mod` untouched.
+  - Deviations / decisions (all reported to the parent): (1) delete works with the storage DISABLED (the contract's error table does not list `document_storage_unavailable` for delete; S6 must always be possible; the files, if any, are orphans for Reconcile).
+    (2) `renamed` is true only when the name was sent and differs. (3) `expected_version` syntax is strict (digits only, 1-9 of them, ≥ 1; a leading `+`, spaces or decimals are `invalid`); a duplicate or file-carrying part is `invalid_request`.
+    (4) `{n}` that is not a positive decimal integer is 400 `invalid_request` (the contract was silent); an integer the document does not have is 404. (5) The pre-flight `AuthorizeReplace` also answers 404 for an unknown or foreign document before any
+    byte is read (not only the stale value). (6) Files are deleted by `Service.Delete`, not the store, so the store stays transaction-only; a failed file delete is logged (`slog.Warn`, storage key and error, never a name) and swallowed.
+    (7) `docsStorage` (`documents_upload_integration_test.go`) gained a `deleteErr` hook for the orphan test. (8) Not covered: the frontend `ANNEX` rows (still the frontend session's), `go test -race`, a real S3 delete failure
+    (the `Storage.Delete` contract is exercised with a failing wrapper over the local adapter).

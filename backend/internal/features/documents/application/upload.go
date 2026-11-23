@@ -81,6 +81,15 @@ type Writer interface {
 	// Download opens the current version of docID, records DocumentDownloaded and commits BEFORE it returns the stream.
 	// Nothing is recorded when the document or its file is missing or storage is unavailable.
 	Download(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (File, error)
+	// DownloadVersion is Download for the numbered version (404 when the document has no such version).
+	DownloadVersion(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID, version int) (File, error)
+	// AuthorizeReplace is the pre-flight of a replace: the manage gate without the draft lock, then the document (ErrScopeNotFound
+	// when it is not a vacancy document of this draft). It returns the document's current version.
+	AuthorizeReplace(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (current int, err error)
+	// Replace runs the short write transaction of a replacement (gates, draft lock, expected_version, version cap, rows, audit).
+	Replace(ctx context.Context, cmd ReplaceCommand) (UploadResponse, error)
+	// Delete removes the document's rows and writes DocumentDeleted in one transaction and reports the keys of its files.
+	Delete(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (DeleteResult, error)
 }
 
 // Files is what the HTTP layer needs: the Service.
@@ -90,6 +99,10 @@ type Files interface {
 	Upload(ctx context.Context, cmd UploadCommand) (UploadResult, error)
 	Discard(ctx context.Context, key string)
 	Download(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (File, error)
+	DownloadVersion(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID, version int) (File, error)
+	PreflightReplace(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (current int, err error)
+	Replace(ctx context.Context, cmd ReplaceCommand) (UploadResponse, error)
+	Delete(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (ScopeResponse, error)
 }
 
 // Service orchestrates files and rows: the storage streams, the writer owns the database. A nil storage is the disabled

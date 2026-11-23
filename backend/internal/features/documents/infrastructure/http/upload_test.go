@@ -35,6 +35,40 @@ type fakeFiles struct {
 	file         documents.File
 	downloadErr  error
 	downloadIDs  []uuid.UUID
+
+	// replace, delete and download by version (P5)
+	current       int
+	replaceCmd    documents.ReplaceCommand
+	replaceResp   documents.UploadResponse
+	replaceErr    error
+	deleteIDs     []uuid.UUID
+	deleteResp    documents.ScopeResponse
+	deleteErr     error
+	versionNumber int
+}
+
+func (f *fakeFiles) PreflightReplace(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (int, error) {
+	f.calls = append(f.calls, "preflight-replace")
+	return f.current, f.preflightErr
+}
+
+func (f *fakeFiles) Replace(_ context.Context, cmd documents.ReplaceCommand) (documents.UploadResponse, error) {
+	f.calls = append(f.calls, "replace")
+	f.replaceCmd = cmd
+	return f.replaceResp, f.replaceErr
+}
+
+func (f *fakeFiles) Delete(_ context.Context, _, _, draft, doc uuid.UUID) (documents.ScopeResponse, error) {
+	f.calls = append(f.calls, "delete")
+	f.deleteIDs = []uuid.UUID{draft, doc}
+	return f.deleteResp, f.deleteErr
+}
+
+func (f *fakeFiles) DownloadVersion(_ context.Context, _, _, draft, doc uuid.UUID, version int) (documents.File, error) {
+	f.calls = append(f.calls, "download-version")
+	f.downloadIDs = []uuid.UUID{draft, doc}
+	f.versionNumber = version
+	return f.file, f.downloadErr
 }
 
 func (f *fakeFiles) PreflightUpload(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {

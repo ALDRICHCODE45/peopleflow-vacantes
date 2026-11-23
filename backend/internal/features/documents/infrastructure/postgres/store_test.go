@@ -145,3 +145,25 @@ func TestNewLinkSourceOfAParticipationDocument(t *testing.T) {
 		t.Fatalf("%+v %v", link, err)
 	}
 }
+
+func TestNewVersionItemMapsAVersionRow(t *testing.T) {
+	row := versionRow{version: 2, contentType: "application/pdf", size: 183204, uploadedAt: t1, uploadedBy: person("u2", "Luis Ortega")}
+	got, err := newVersionItem(row, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := documents.VersionItem{Version: 2, Format: documents.PDF, ContentType: "application/pdf", Size: 183204, UploadedAt: "2026-11-22T09:40:03.100200Z", UploadedBy: person("u2", "Luis Ortega"), IsCurrent: true}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got  %+v\nwant %+v", got, want)
+	}
+	older, err := newVersionItem(versionRow{version: 1, contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 9, uploadedAt: t0, uploadedBy: person("u1", "Ana López")}, 2)
+	if err != nil || older.IsCurrent || older.Format != documents.DOCX {
+		t.Fatalf("older version: %+v %v", older, err)
+	}
+}
+
+func TestNewVersionItemFailsClosedOnAFormatOutsideTheEnum(t *testing.T) {
+	if _, err := newVersionItem(versionRow{version: 1, contentType: "application/msword"}, 1); err == nil {
+		t.Fatal("a content type outside the closed format enum must not reach the frontend")
+	}
+}

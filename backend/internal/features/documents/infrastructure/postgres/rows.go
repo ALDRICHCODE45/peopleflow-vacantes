@@ -116,3 +116,30 @@ func newLinkSource(r linkRow) (documents.LinkSource, error) {
 		HasNewerVersion: *r.newestVersion > *r.pinnedVersion,
 	}, nil
 }
+
+// versionRow is one version of a document, as GET …/versions lists it.
+type versionRow struct {
+	version     int
+	contentType string
+	size        int64
+	uploadedAt  time.Time
+	uploadedBy  documents.Person
+}
+
+// newVersionItem projects a row onto the contract's version entry; current is the document's highest version number. A stored
+// content type outside the closed `format` enum fails closed, like the list.
+func newVersionItem(r versionRow, current int) (documents.VersionItem, error) {
+	format, ok := documents.FormatFromContentType(r.contentType)
+	if !ok {
+		return documents.VersionItem{}, fmt.Errorf("document version %d: content type outside the format enum", r.version)
+	}
+	return documents.VersionItem{
+		Version:     r.version,
+		Format:      format,
+		ContentType: r.contentType,
+		Size:        r.size,
+		UploadedAt:  documents.FormatTime(r.uploadedAt),
+		UploadedBy:  r.uploadedBy,
+		IsCurrent:   r.version == current,
+	}, nil
+}

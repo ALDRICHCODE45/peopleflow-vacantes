@@ -42,6 +42,26 @@ type docsStorage struct {
 	openErr     error
 	opened      int
 	closed      int
+	// deleteErr makes Delete fail AFTER it removed nothing: the object stays, as with a provider outage (P5 orphans).
+	deleteErr error
+	deletes   int
+}
+
+func (s *docsStorage) Delete(ctx context.Context, key string) error {
+	s.mu.Lock()
+	s.deletes++
+	failing := s.deleteErr
+	s.mu.Unlock()
+	if failing != nil {
+		return failing
+	}
+	return s.Storage.Delete(ctx, key)
+}
+
+func (s *docsStorage) failDeletes(err error) {
+	s.mu.Lock()
+	s.deleteErr = err
+	s.mu.Unlock()
 }
 
 func (s *docsStorage) Open(ctx context.Context, key string) (io.ReadCloser, error) {

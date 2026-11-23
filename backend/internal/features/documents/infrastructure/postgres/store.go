@@ -100,6 +100,57 @@ func (s *Store) List(ctx context.Context, companyID, actorID, draftID uuid.UUID)
 	}, nil
 }
 
+// Versions implements documents.Reader: every version of a vacancy document, newest first, after the read gate. It reads only
+// the database (the list of versions works with storage disabled) and writes no audit row: no content leaves.
+func (s *Store) Versions(ctx context.Context, companyID, actorID, draftID, docID uuid.UUID) (documents.VersionList, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return documents.VersionList{}, fmt.Errorf("begin document versions tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := s.access.AuthorizeDocuments(ctx, tx, companyID, actorID, draftID); err != nil {
+		return documents.VersionList{}, err
+	}
+	// One statement: the name and the versions come from the same snapshot. The company, draft and scope equalities keep a
+	// foreign or participation document from ever being described.
+	rows, err := tx.Query(ctx, `
+SELECT d.name, v.version, v.content_type, v.size, v.uploaded_at, v.uploaded_by::text, u.full_name
+  FROM placement_documents d
+  JOIN placement_document_versions v ON v.document_id = d.id
+  JOIN users u ON u.id = v.uploaded_by
+ WHERE d.id = $1 AND d.company_id = $2 AND d.draft_id = $3 AND d.participation_id IS NULL
+ ORDER BY v.version DESC`, docID, companyID, draftID)
+	if err != nil {
+		return documents.VersionList{}, fmt.Errorf("list document versions: %w", err)
+	}
+	defer rows.Close()
+	list := documents.VersionList{DocumentID: docID.String(), Versions: []documents.VersionItem{}}
+	var raw []versionRow
+	for rows.Next() {
+		var r versionRow
+		if err := rows.Scan(&list.Name, &r.version, &r.contentType, &r.size, &r.uploadedAt, &r.uploadedBy.ID, &r.uploadedBy.Name); err != nil {
+			return documents.VersionList{}, fmt.Errorf("scan document version: %w", err)
+		}
+		raw = append(raw, r)
+	}
+	if err := rows.Err(); err != nil {
+		return documents.VersionList{}, fmt.Errorf("list document versions: %w", err)
+	}
+	if len(raw) == 0 {
+		return documents.VersionList{}, documents.ErrScopeNotFound
+	}
+	current := raw[0].version // newest first: the first row is the highest version
+	for _, r := range raw {
+		item, err := newVersionItem(r, current)
+		if err != nil {
+			return documents.VersionList{}, err
+		}
+		list.Versions = append(list.Versions, item)
+	}
+	return list, nil
+}
+
 // queryItems reads the vacancy-scope documents of draftID with their current version, every one of them or, when docID is
 // set, just that one. The company and draft equality scope it, so a foreign document is never described.
 func queryItems(ctx context.Context, tx pgx.Tx, companyID, draftID uuid.UUID, docID *uuid.UUID, canManage bool) ([]documents.Item, error) {

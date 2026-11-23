@@ -22,6 +22,24 @@ import (
 type routeFiles struct {
 	preflight, downloads int
 	err                  error
+	// P5: replace pre-flights, deletes and downloads of a numbered version
+	replaces, deletes, versionDownloads int
+}
+
+func (f *routeFiles) PreflightReplace(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (int, error) {
+	f.replaces++
+	return 0, f.err
+}
+func (f *routeFiles) Replace(context.Context, documents.ReplaceCommand) (documents.UploadResponse, error) {
+	return documents.UploadResponse{}, f.err
+}
+func (f *routeFiles) Delete(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (documents.ScopeResponse, error) {
+	f.deletes++
+	return documents.ScopeResponse{}, f.err
+}
+func (f *routeFiles) DownloadVersion(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, int) (documents.File, error) {
+	f.versionDownloads++
+	return documents.File{}, f.err
 }
 
 func (f *routeFiles) PreflightUpload(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
@@ -45,6 +63,12 @@ type routeDocumentsReader struct {
 	err                 error
 	company, actor, doc uuid.UUID
 	calls               int
+}
+
+func (f *routeDocumentsReader) Versions(_ context.Context, company, actor, draft, _ uuid.UUID) (documents.VersionList, error) {
+	f.calls++
+	f.company, f.actor, f.doc = company, actor, draft
+	return documents.VersionList{}, f.err
 }
 
 func (f *routeDocumentsReader) List(_ context.Context, company, actor, draft uuid.UUID) (documents.List, error) {
@@ -225,5 +249,83 @@ func TestDocumentsFileRouteFailsClosedWithoutTheReaderGate(t *testing.T) {
 		if rec.Code != 403 || files.downloads != 0 {
 			t.Fatalf("%s: %d %s", role, rec.Code, rec.Body)
 		}
+	}
+}
+
+var (
+	documentsVersionsPath    = documentsListPath + "/" + uuid.NewString() + "/versions"
+	documentsVersionFilePath = documentsVersionsPath + "/2/file"
+	documentsDeletePath      = documentsListPath + "/" + uuid.NewString()
+	documentsRouteAsRole     = func(role string) map[string]string {
+		return map[string]string{"X-Test-Sub": "sub", "X-Test-Role": role}
+	}
+	documentsRouteStakeholder = documentsRouteAsRole("stakeholder")
+)
+
+// P5: replace and delete sit in the recruiter group (a stakeholder never reaches the service: the ladder's 403); the version
+// list and the download by version sit in the read group (a stakeholder reads and downloads). All NoStore.
+func TestDocumentsVersionRoutesSitBehindTheirGates(t *testing.T) {
+	files := &routeFiles{err: documents.ErrScopeNotFound}
+	reader := &routeDocumentsReader{err: documents.ErrScopeNotFound}
+	router := documentsRouteRouterWithFiles(reader, files, true, "recruiter")
+
+	for _, tc := range []struct {
+		method, path string
+		calls        func() int
+	}{
+		{"POST", documentsVersionsPath, func() int { return files.replaces }},
+		{"DELETE", documentsDeletePath, func() int { return files.deletes }},
+	} {
+		rec := doRouteRequest(t, router, tc.method, tc.path, "", documentsRouteStakeholder)
+		if rec.Code != 403 || routeCatalogCode(t, rec) != "forbidden" || tc.calls() != 0 {
+			t.Fatalf("stakeholder %s %s: %d %s calls=%d", tc.method, tc.path, rec.Code, rec.Body, tc.calls())
+		}
+		assertDraftRouteNoStore(t, rec)
+		rec = doRouteRequest(t, router, tc.method, tc.path, "", nil)
+		if rec.Code != 401 || routeCatalogCode(t, rec) != "unauthenticated" {
+			t.Fatalf("anonymous %s: %d %s", tc.method, rec.Code, rec.Body)
+		}
+		rec = doRouteRequest(t, router, tc.method, tc.path, "", documentsRouteAsRole("recruiter"))
+		if rec.Code != 404 || tc.calls() != 1 {
+			t.Fatalf("recruiter %s: %d %s calls=%d", tc.method, rec.Code, rec.Body, tc.calls())
+		}
+		assertDraftRouteNoStore(t, rec)
+	}
+
+	for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+		before := reader.calls
+		rec := doRouteRequest(t, router, "GET", documentsVersionsPath, "", documentsRouteAsRole(role))
+		if rec.Code != 404 || reader.calls != before+1 {
+			t.Fatalf("%s versions: %d %s", role, rec.Code, rec.Body)
+		}
+		assertDraftRouteNoStore(t, rec)
+		beforeFiles := files.versionDownloads
+		rec = doRouteRequest(t, router, "GET", documentsVersionFilePath, "", documentsRouteAsRole(role))
+		if rec.Code != 404 || files.versionDownloads != beforeFiles+1 {
+			t.Fatalf("%s version download: %d %s", role, rec.Code, rec.Body)
+		}
+		assertDraftRouteNoStore(t, rec)
+	}
+	for _, path := range []string{documentsVersionsPath, documentsVersionFilePath} {
+		if rec := doRouteRequest(t, router, "GET", path, "", documentsRouteAsRole("candidate")); rec.Code != 403 {
+			t.Fatalf("a role outside the three on %s: %d", path, rec.Code)
+		}
+	}
+}
+
+// Without the reader gate the two new GET routes are refused to everyone, like the list and the download.
+func TestDocumentsVersionReadRoutesFailClosedWithoutTheReaderGate(t *testing.T) {
+	files := &routeFiles{}
+	reader := &routeDocumentsReader{}
+	router := documentsRouteRouterWithFiles(reader, files, false, "recruiter")
+	for _, role := range []string{"owner", "recruiter", "stakeholder"} {
+		for _, path := range []string{documentsVersionsPath, documentsVersionFilePath} {
+			if rec := doRouteRequest(t, router, "GET", path, "", documentsRouteAsRole(role)); rec.Code != 403 {
+				t.Fatalf("%s %s: %d", role, path, rec.Code)
+			}
+		}
+	}
+	if reader.calls != 0 || files.versionDownloads != 0 {
+		t.Fatalf("the store was reached: reader %d downloads %d", reader.calls, files.versionDownloads)
 	}
 }

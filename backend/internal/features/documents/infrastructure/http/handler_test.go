@@ -20,6 +20,16 @@ type fakeReader struct {
 	err               error
 	company, actor, v uuid.UUID
 	calls             int
+
+	versions    documents.VersionList
+	versionsErr error
+	versionsDoc uuid.UUID
+}
+
+func (f *fakeReader) Versions(_ context.Context, company, actor, draft, doc uuid.UUID) (documents.VersionList, error) {
+	f.calls++
+	f.company, f.actor, f.v, f.versionsDoc = company, actor, draft, doc
+	return f.versions, f.versionsErr
 }
 
 func (f *fakeReader) List(_ context.Context, company, actor, draft uuid.UUID) (documents.List, error) {

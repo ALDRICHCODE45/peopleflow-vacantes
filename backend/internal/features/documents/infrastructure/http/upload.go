@@ -171,22 +171,45 @@ func multipartError(err error) error {
 // audit row exists before the first byte leaves; nothing is recorded when the document or its file is missing or storage
 // is unavailable (D21). Documents are only ever served as downloads, never inline (D10).
 func (h *Handler) File(w http.ResponseWriter, r *http.Request) {
+	h.serveFile(w, r, 0)
+}
+
+// draftAndDocument parses {id} and {doc}; a malformed one is answered 400 invalid_request like every draft route.
+func draftAndDocument(w http.ResponseWriter, r *http.Request) (draft, doc uuid.UUID, ok bool) {
+	draft, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid draft id"))
+		return uuid.Nil, uuid.Nil, false
+	}
+	doc, err = uuid.Parse(chi.URLParam(r, "doc"))
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid document id"))
+		return uuid.Nil, uuid.Nil, false
+	}
+	return draft, doc, true
+}
+
+// serveFile streams a version of {doc}: the numbered one, or the current one when version is 0. A route that carries a version
+// number validates it before it gets here.
+func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, version int) {
 	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
 	if !ok || h == nil || h.files == nil {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return
 	}
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid draft id"))
+	id, doc, ok := draftAndDocument(w, r)
+	if !ok {
 		return
 	}
-	doc, err := uuid.Parse(chi.URLParam(r, "doc"))
-	if err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid document id"))
-		return
+	var (
+		file documents.File
+		err  error
+	)
+	if version == 0 {
+		file, err = h.files.Download(r.Context(), cc.CompanyID, cc.UserID, id, doc)
+	} else {
+		file, err = h.files.DownloadVersion(r.Context(), cc.CompanyID, cc.UserID, id, doc, version)
 	}
-	file, err := h.files.Download(r.Context(), cc.CompanyID, cc.UserID, id, doc)
 	if err != nil {
 		writeError(w, err)
 		return

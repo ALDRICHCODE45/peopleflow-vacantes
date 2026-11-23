@@ -72,6 +72,36 @@ type fakeWriter struct {
 	err     error
 	cmd     UploadCommand
 	calls   []string
+
+	// replace, delete and download by version (P5)
+	current       int
+	replaceResp   UploadResponse
+	replaceCmd    ReplaceCommand
+	deleteResult  DeleteResult
+	deleteErr     error
+	downloadedVer int
+}
+
+func (f *fakeWriter) AuthorizeReplace(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (int, error) {
+	f.calls = append(f.calls, "authorize-replace")
+	return f.current, f.authErr
+}
+
+func (f *fakeWriter) Replace(_ context.Context, cmd ReplaceCommand) (UploadResponse, error) {
+	f.calls = append(f.calls, "replace")
+	f.replaceCmd = cmd
+	return f.replaceResp, f.err
+}
+
+func (f *fakeWriter) Delete(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (DeleteResult, error) {
+	f.calls = append(f.calls, "delete")
+	return f.deleteResult, f.deleteErr
+}
+
+func (f *fakeWriter) DownloadVersion(_ context.Context, _, _, _, _ uuid.UUID, version int) (File, error) {
+	f.calls = append(f.calls, "download-version")
+	f.downloadedVer = version
+	return File{}, f.err
 }
 
 func (f *fakeWriter) AuthorizeUpload(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {

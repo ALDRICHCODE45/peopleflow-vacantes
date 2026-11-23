@@ -466,6 +466,13 @@ The client should send `expected_version` and `name` before `file` so a stale re
 - Response **201** `{ "item": <updated document item, version n+1>, "scope": <scope object> }`. No `Idempotency-Key` (the version check makes a retry after a lost answer a visible 409, never a duplicate).
 - Errors: those of upload (without the idempotency codes), plus 404 `not_found` when `{doc}` is not a document of this scope, 409 `document_version_conflict`, and 409 `document_limit_reached` (`data.kind = "versions"`). There is no eligibility check (D3).
 
+**P5 notes (implemented).**
+
+- **`expected_version` syntax**: ASCII digits only, 1 to 9 of them, value ≥ 1 (no sign, no space, no decimal point; `007` is 7). Anything else, including an empty part, is `validation_error` `expected_version`/`invalid`; only a missing part is `required`. A repeated `expected_version` part, or one that carries a file name, is 400 `invalid_request` (as a repeated `name`). With the file missing too, `invalid_request` wins (the structure is wrong before the value is).
+- **Order of answers**: gates → `{doc}` is a vacancy document of this draft (404) → storage disabled (503) → the stream. An `expected_version` that arrives **before** the file is compared with the current version at once: stale → 409 `document_version_conflict`, then at the cap → 409 `document_limit_reached`, both without reading the file (an invalid file after a stale value is never inspected). One that arrives after the file is checked under the draft lock, after the object was stored (the object is then deleted). The check under the lock is the authority in both cases; the stale value always wins over the cap.
+- **`renamed`** in `DocumentReplaced` is `true` only when a `name` was sent **and** differs from the stored name (the same name sent again is `false`). The name itself never goes in the audit row.
+- A document deleted while its replacement streamed answers 404 `not_found` and the object is removed. The draft lock serializes a replace with every other write on the vacancy (another replace, a delete, an upload, a team change, a lifecycle move).
+
 ### `GET P/documents/{doc}/versions`
 
 Read.
@@ -484,6 +491,8 @@ Read.
 ```
 
 Newest first. 404 `not_found` for a foreign document.
+
+**P5 notes (implemented).** Read gate (stakeholders included); it reads only the database, so it works with the storage disabled; it is not audited. Ordered by version **number**, not by time (`is_current` is the highest number). A document of another vacancy or company, a participation document, or an unknown id is 404 `not_found`; a malformed `{id}`/`{doc}` is 400 `invalid_request`.
 
 ### `GET P/documents/{doc}/file` and `GET P/documents/{doc}/versions/{n}/file`
 
@@ -506,11 +515,15 @@ Cache-Control: no-store
 
 A failure after the 200 (the connection or storage drops mid-stream) leaves a truncated body against `Content-Length` and the audit row recorded, as for CVs.
 
+**P5 notes (implemented).** `GET …/{doc}/versions/{n}/file` follows exactly the same order, headers and audit as the current-version download; `DocumentDownloaded` carries the `version_id` and `version` it served. `{n}` must be a positive decimal integer of at most 9 digits (otherwise 400 `invalid_request`, nothing recorded); a version the document does not have, however high, is 404 `not_found` (nothing recorded). The download name uses the format of **that** version (a PDF that was replaced by a DOCX downloads as `….pdf` for version 1 and `….docx` for version 2).
+
 **P4 notes (implemented).** `{doc}` that is not a uuid is 400 `invalid_request` (as a malformed `{id}`); a document that is not in this vacancy scope (another vacancy, another company, a participation document) is 404 `not_found`; a document whose file is **missing from storage** is 404 `not_found` (nothing recorded); storage disabled or failing is 503 `document_storage_unavailable` after the gates (nothing recorded); a failed audit append serves nothing, closes the opened stream and answers the generic 500.
 
 ### `DELETE P/documents/{doc}`
 
 Manage. **200** `{ "scope": <scope object> }` (D13). Errors: 404 `not_found` / `team_access_ended`, 403 `forbidden` (stakeholder). No `If-Match`: a delete of an already deleted document is a plain 404 (no precondition needed).
+
+**P5 notes (implemented).** One transaction: gates, draft lock, authorization, the storage keys of every version and the number of links that will lose their source, `DELETE` of the document row (versions cascade, links keep their row with `NULL` sources and become `removed`), the scope after the change, `DocumentDeleted` (`kind = file`, `version_count`, `linked_count`, ids only), commit. **Only after the commit** the service deletes each file (best effort, `context.WithoutCancel`); a file that cannot be deleted is logged and left as an orphan for `Reconcile` (after the 1 hour grace) and the answer is still `200 {scope}`: the delete is final and the audit row outlives the file. A failed audit append rolls the whole delete back (rows and files stay). Delete works with the **storage disabled** (the rows go; nothing to remove), unlike the routes that move a file: S6 must always be possible. The scope in the answer reflects the freed slot (`upload` returns, `upload_blocked_reason` becomes `null`). Racing deletes: one 200, the others 404, one audit event.
 
 ### `GET P/document-sources`
 

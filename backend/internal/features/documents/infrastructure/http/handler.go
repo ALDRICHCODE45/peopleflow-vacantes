@@ -1,7 +1,8 @@
 // Package http serves the placement and vacancy documents routes
 // (docs/contracts/placement-vacancy-documents-v1.md, «Endpoints»). P3 serves GET V/documents; P4 adds the upload
-// (POST V/documents) and the current-version download (GET V/documents/{doc}/file); replace, delete, versions and links
-// arrive in later slices.
+// (POST V/documents) and the current-version download (GET V/documents/{doc}/file); P5 adds replace
+// (POST V/documents/{doc}/versions), the version list, the download by version and delete (versions.go); participation
+// documents and links arrive in later slices.
 package http
 
 import (
@@ -61,7 +62,11 @@ func writeError(w http.ResponseWriter, err error) {
 	var tooLarge *http.MaxBytesError
 	var mismatch *documents.MismatchError
 	var limit *documents.LimitReachedError
+	var conflict *documents.VersionConflictError
 	switch {
+	case errors.As(err, &conflict):
+		httpjson.WriteDocumentVersionConflict(w, conflict.Current)
+		return
 	case errors.As(err, &mismatch):
 		httpjson.WriteDocumentContentMismatch(w, string(mismatch.Detected), mismatch.Extension)
 		return
@@ -79,6 +84,12 @@ func writeError(w http.ResponseWriter, err error) {
 		return
 	case errors.Is(err, documents.ErrInvalidName):
 		httpjson.WriteValidationError(w, []httpjson.ValidationField{{Field: "name", Code: "invalid"}})
+		return
+	case errors.Is(err, documents.ErrExpectedVersionRequired):
+		httpjson.WriteValidationError(w, []httpjson.ValidationField{{Field: "expected_version", Code: "required"}})
+		return
+	case errors.Is(err, documents.ErrExpectedVersionInvalid):
+		httpjson.WriteValidationError(w, []httpjson.ValidationField{{Field: "expected_version", Code: "invalid"}})
 		return
 	}
 	code := httpjson.CodeInternalError
