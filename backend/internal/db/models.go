@@ -484,6 +484,38 @@ type PlacementCreditRecipient struct {
 	Kind         string    `json:"kind"`
 }
 
+type PlacementDocument struct {
+	ID              uuid.UUID          `json:"id"`
+	CompanyID       uuid.UUID          `json:"company_id"`
+	DraftID         uuid.UUID          `json:"draft_id"`
+	ParticipationID pgtype.UUID        `json:"participation_id"`
+	Name            string             `json:"name"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	CreatedBy       uuid.UUID          `json:"created_by"`
+}
+
+type PlacementDocumentLink struct {
+	ID               uuid.UUID          `json:"id"`
+	CompanyID        uuid.UUID          `json:"company_id"`
+	DraftID          uuid.UUID          `json:"draft_id"`
+	ParticipationID  pgtype.UUID        `json:"participation_id"`
+	SourceDocumentID pgtype.UUID        `json:"source_document_id"`
+	SourceVersionID  pgtype.UUID        `json:"source_version_id"`
+	LinkedAt         pgtype.Timestamptz `json:"linked_at"`
+	LinkedBy         uuid.UUID          `json:"linked_by"`
+}
+
+type PlacementDocumentVersion struct {
+	ID          uuid.UUID          `json:"id"`
+	DocumentID  uuid.UUID          `json:"document_id"`
+	Version     int32              `json:"version"`
+	StorageKey  string             `json:"storage_key"`
+	ContentType string             `json:"content_type"`
+	Size        int64              `json:"size"`
+	UploadedAt  pgtype.Timestamptz `json:"uploaded_at"`
+	UploadedBy  uuid.UUID          `json:"uploaded_by"`
+}
+
 type ProcessCoverageMilestone struct {
 	ID        uuid.UUID          `json:"id"`
 	ProcessID uuid.UUID          `json:"process_id"`
