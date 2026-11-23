@@ -31,8 +31,15 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 ## Tasks
 
 - T1 S1–S7 — contract draft `docs/contracts/placement-vacancy-documents-v1.md` (writer) — done 377c06d8
-- T2 — contract agreed with the frontend session — contract revised (uncommitted), pending frontend final OK
-- T3+ — implementation slices from the contract's «Slices» — pending
+- T2 — contract agreed with the frontend session — done (L8)
+- T3 P1 — migration 00064 and documents domain (writer) — pending
+- T4 P2 — storage port, adapters, config (writer; S3 manager dependency needs user OK) — pending
+- T5 P3 — errors, read gate, audit catalog, scope, GET list — pending
+- T6 P4 — upload and download — pending
+- T7 P5 — versions and delete — pending
+- T8 P6 — participation documents — pending
+- T9 P7 — replacement linking — pending
+- T10 P8 — hardening, reconcile, full suite — pending
 
 ## Log
 
@@ -123,3 +130,6 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
     (adding a `format` value needs the frontend to accept it first).
   - Slices re-cut to P1-P8 (old P3 split into P3 foundations/list and P4 upload/download; P5 versions/delete; P6 participation documents shrank to ~250; P7 linking; P8 hardening).
   Decisions taken by the backend where L5/L6 left a gap: `expected_version` is required (not optional); deletes answer 200 `{scope}`; `can_upload` dropped; no `link_blocked_reason`.
+- **L8** 2026-11-22, frontend final OK on the revised contract: (a) «`expected_version` obligatorio en el replace: OK»;
+  (b) «`{item, scope}` / `{link, scope}` y los deletes 200 `{scope}`: OK»; (c) «Sin `can_upload` ni
+  `link_blocked_reason` [...]: OK»; (d) user, relayed verbatim: «Sí, también descartados». Contract agreed; T2 done.
