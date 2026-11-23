@@ -38,8 +38,10 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
 - T6 P4 S2 S4 S5 — `document_*` errors, manage authorization, upload and download — done in the working tree, parent commits (L15)
 - T7 P5 S4 S5 S6 — versions and delete — done e29e0be2
 - T8 P6 S1 S4 S6 — participation documents — done 9fb20351
-- T9 P7 S3 — replacement linking — done in the working tree, parent commits (L19)
-- T10 P8 — hardening, reconcile, full suite — pending
+- T9 P7 S3 — replacement linking — done c4fcb712
+- T11 P7b — GET document-overview (single table + vacancy header) — pending
+- T12 P7c — GET stakeholder/vacancies (read-only list) — pending
+- T10 P8 — hardening, reconcile, independent verify of stakeholder access, full suite — pending
 
 ## Log
 
@@ -372,3 +374,16 @@ Contract: `docs/contracts/placement-vacancy-documents-v1.md` (draft first, revie
     (6) A link route with a malformed `{link}` is 400 `invalid_request`, an unknown one 404. (7) The existing fakes (`fakeWriter`, `fakeFiles`, `fakeReader`, `routeFiles`, `routeDocumentsReader`) gained the new methods; `Writer`, `Files` and `Reader` grew
     (`Link`/`Unlink`/`DownloadLink`/`Sources`). (8) Not covered: a real S3 run (MinIO tests skipped), `go test -race`, the frontend `ANNEX`/UI. (9) **A stray `backend/api` binary (output of my `go build ./cmd/api` at the backend root) is left untracked:
     the writer may not delete files; the parent should remove it before committing.**
+- **L20** 2026-11-23, frontend session with user decisions relayed: UI direction «Expediente en una tabla»
+  (design/vacancy-documents/03-expediente-tabla-unica.html, frontend branch feat/vacancy-documents); stakeholder
+  «Pestaña Documentos de solo lectura» and «Lista de vacantes propia». Agreed shapes:
+  P7b `GET /v2/me/company/job-drafts/{id}/document-overview` → `{vacancy:{id,title,publication,process,kind,visibility}`
+  (lifecycle enums), `scope` (vacancy scope as today), `items[]`, `links[]` (same shapes + `owner`: `{kind:"vacancy"}` |
+  `{kind:"participation", participation_id, candidate:{kind,id,full_name}, discarded}`, own allowed_actions),
+  `participations[]` (`{participation_id, candidate, discarded, stage:{kind,name}, scope_allowed_actions,
+  upload_blocked_reason}`), `truncated}`; optional `?participation_id` (foreign → 404, malformed → 400); no
+  pagination, cap 2000, newest first (uploaded_at DESC, id) and truncation keeps the newest; same read gate.
+  P7c `GET /v2/me/company/stakeholder/vacancies`: gate owner + stakeholder (like RequireMetricsViewer; recruiter
+  403), every vacancy of the company incl. never-published drafts, row `{id, title, publication, process, kind,
+  visibility, close_reason, coverage, documents_count}` (coverage as the job-drafts list; documents_count = vacancy +
+  participation documents, no links), keyset like job-drafts (updated_at DESC, id; limit + cursor), no filters in v1.
