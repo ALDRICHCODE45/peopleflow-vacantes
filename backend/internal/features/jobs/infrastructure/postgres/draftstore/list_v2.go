@@ -38,12 +38,13 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields,
  d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at, p.paused_at, p.closed_at, p.process_finished_at,
  c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note, ` + teamSummarySQL + ` AS team,
- COALESCE(vr.root_process_id, d.id) AS root_process_id, vr.sequence, vr.source_process_id, pp.id IS NOT NULL AS has_projection
+ COALESCE(vr.root_process_id, d.id) AS root_process_id, vr.sequence, vr.source_process_id, pp.id IS NOT NULL AS has_projection, mc.hiring_headcount
  FROM job_drafts d
  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
  LEFT JOIN vacancy_replacements vr ON vr.process_id = d.id AND vr.company_id = d.company_id
  LEFT JOIN vacancy_public_projections pp ON pp.id = d.id
  LEFT JOIN job_draft_pipeline_configs c ON c.draft_id = d.id
+ LEFT JOIN job_draft_management_configs mc ON mc.draft_id = d.id
  LEFT JOIN LATERAL (
   SELECT reason, reason_note FROM vacancy_lifecycle_events
   WHERE process_id = p.id AND action = 'close' AND p.status = 'closed'
@@ -72,7 +73,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
  ), candidate_counts AS (
   SELECT process_id, jsonb_build_object(
    'total', sum(total), 'discarded', sum(discarded),
-   'by_stage', jsonb_agg(jsonb_build_object('id', stage_id, 'count', active))) AS summary
+   'by_stage', jsonb_agg(jsonb_build_object('id', stage_id, 'count', active, 'occupants', total))) AS summary
   FROM stage_counts GROUP BY process_id
  )
  SELECT page.*, cc.summary, r.name FROM page
@@ -93,12 +94,13 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 		sequence                         *int32
 		source                           *uuid.UUID
 		hasProjection                    bool
+		headcount                        *int32
 	}
 	projections := make([]projection, 0, req.Limit+1)
 	for rows.Next() {
 		var item draftlist.Item
 		var p projection
-		if err := rows.Scan(&item.ID, &p.document, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.team, &item.RootProcessID, &p.sequence, &p.source, &p.hasProjection, &p.counts, &p.requesterName); err != nil {
+		if err := rows.Scan(&item.ID, &p.document, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.team, &item.RootProcessID, &p.sequence, &p.source, &p.hasProjection, &p.headcount, &p.counts, &p.requesterName); err != nil {
 			rows.Close()
 			return draftlist.Page{}, fmt.Errorf("scan list v2 draft: %w", err)
 		}
@@ -153,6 +155,10 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 				}
 			}
 			page.Items[i].Candidates, err = listCandidates(config, p.counts)
+			if err != nil {
+				return draftlist.Page{}, err
+			}
+			page.Items[i].Coverage, err = listCoverage(config, p.counts, p.headcount)
 			if err != nil {
 				return draftlist.Page{}, err
 			}
@@ -225,6 +231,42 @@ func listCandidates(c pipelineconfig.Configuration, raw []byte) (*draftlist.Cand
 		if out.ByStage[i].Kind != "new" {
 			out.InProcess += stage.Count
 		}
+	}
+	return out, nil
+}
+
+// listCoverage is the board's coverage (board.coverage) for a list row: covered
+// is the number of participations sitting in the current Placement stage (the
+// same count db.ReadPlacementCoverage takes, from the page's stage counts), and
+// required is the process' hiring headcount, nil while none is configured. Both
+// are live, so a hire that departs after the close lowers covered.
+func listCoverage(c pipelineconfig.Configuration, raw []byte, headcount *int32) (*draftlist.Coverage, error) {
+	var counts struct {
+		ByStage []struct {
+			ID        string `json:"id"`
+			Occupants int64  `json:"occupants"`
+		} `json:"by_stage"`
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &counts); err != nil {
+			return nil, fmt.Errorf("decode list coverage counts: %w", err)
+		}
+	}
+	out := &draftlist.Coverage{}
+	if headcount != nil {
+		required := int64(*headcount)
+		out.Required = &required
+	}
+	for _, stage := range c.Stages {
+		if stage.Kind != "placement" {
+			continue
+		}
+		for _, counted := range counts.ByStage {
+			if counted.ID == stage.ID {
+				out.Covered = counted.Occupants
+			}
+		}
+		break
 	}
 	return out, nil
 }

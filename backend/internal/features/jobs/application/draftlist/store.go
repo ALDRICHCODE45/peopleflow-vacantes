@@ -42,6 +42,14 @@ type Candidates struct {
 	ByStage   []CandidateStage
 }
 
+// Coverage is the live Placement coverage of a process, the board's definition:
+// participations in the current Placement stage against the process' hiring
+// headcount. Required is nil when the process has no headcount.
+type Coverage struct {
+	Covered  int64
+	Required *int64
+}
+
 // Item is one draft row of the list. Title, WorkMode and Schedule are nil
 // when the draft has none; their values are the draft field codes.
 type Item struct {
@@ -61,6 +69,7 @@ type Item struct {
 	ClosedAt          *time.Time
 	ProcessFinishedAt *time.Time
 	Candidates        *Candidates // nil exactly when the draft has never been published
+	Coverage          *Coverage   // nil exactly when the draft has never been published
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 
