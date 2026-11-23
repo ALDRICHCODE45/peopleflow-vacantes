@@ -98,3 +98,7 @@ slices P1–P8) and rules DOC-1…DOC-9 / REP-13 in `docs/recruitment-business-r
   the chosen artboard (01 and 02 are alternatives); `04-pestanas-y-pipeline-con-aire.html` specifies the tabbed layout.
   Backend status: P3 list, P4 upload/download, P5 versions/delete (pending confirmation), P7 links (`c4fcb712`) committed on
   `feat/placement-vacancy-documents-backend`; P7b `document-overview` and P7c `stakeholder/vacancies` in progress.
+- **L7** Backend P7b `d002c0c1`: `GET …/document-overview` documented in the contract («GET V/document-overview»). Decided
+  there: `participation_id` narrows only `items`/`links` (`vacancy`, `scope`, `participations[]` stay whole);
+  `participations[]` ordered by candidate name then id, no cap; `vacancy.title` may be null; `scope.counts` are the real
+  vacancy counts; secondary order id DESC. P7c (stakeholder vacancies) next.
