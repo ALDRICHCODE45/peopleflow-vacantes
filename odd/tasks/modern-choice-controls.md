@@ -64,3 +64,8 @@ Documentos.
   (no «Listo para subir», wrong-format state, duplicated «Sigue en Placement»), D5 psychometrics popover hides «Placement».
   Apply flow not verifiable (no candidate account). Data: «T5 verificacion controles» PDF on `01a20a4d-e12c-…`. Fixes
   delegated before merge.
+- **L6** D1–D5 fixed (`c7da41bd`; D4 wrong-format state and «Listo para subir» not done: FileField gets no format signal).
+  Clean full suite at `c7da41bd` in a separate worktree (the main worktree held a parallel writer's WIP): 626 files /
+  11521 tests passed, tsc 0, lint 0 errors (12 pre-existing warnings). Browser re-check of the focus ring and the stages
+  popover waits for the production build of `feat/audit-public-fixes` (a temp worktree cannot build: `.env.local` is
+  private and the safety policy blocks linking it).
