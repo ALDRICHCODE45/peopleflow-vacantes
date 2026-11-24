@@ -58,3 +58,9 @@ merges to `main` allowed (no push).
   to its sort) and response `total: {count, capped}` (same filters, cap 1000 → «1000+ vacantes»); salary sorts use only the
   salary the listing already shows, hidden salaries go last in both directions by recency. No candidate test account
   exists (F18): candidate logged-in flows wait for the user.
+- **L3** Audit D done (`odd/discovery/overnight-audit-D.md`, 21 findings); frontend fixes delegated in the linked worktree
+  `/tmp/pf-wt-admin` (`feat/audit-admin-fixes`). Backend takes tonight on `feat/admin-audit-gaps-backend`: D5 team
+  `workload: {active_vacancies}` per member (same for every viewer); D20 `counts_by_status` on the first stakeholder
+  vacancies page; D11 optional invitation `note` (≤80, migration 00065, shown from the invitations list, not in audit
+  metadata). Left for the user's decision: D2 recruiter invitations (security), D3 company edit + logo (backend proposes
+  PNG/JPG/WebP only, no SVG), D15 audit CSV headers (changes a downloaded format).
