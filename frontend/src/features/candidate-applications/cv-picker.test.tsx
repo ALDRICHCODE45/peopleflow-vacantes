@@ -46,3 +46,38 @@ it("preserves choosing an existing CV and the existing upload control", async ()
   expect(screen.getByLabelText("Subir un CV nuevo")).toBeEnabled();
   expect(uploadCv).not.toHaveBeenCalled();
 });
+it("shows the styled file field (no visible native input) when the library has CVs", async () => {
+  const { container } = render(<Picker initial={library} />);
+  const input = screen.getByLabelText("Subir un CV nuevo");
+  expect(input).toHaveAttribute("type", "file");
+  expect(input).toHaveClass("sr-only");
+  expect(input).toHaveAttribute("accept", expect.stringContaining(".docx"));
+  expect(input).toHaveAccessibleDescription(expect.stringMatching(/PDF o Word \(\.docx\), hasta 5 MB\. 1 de 10 CVs/));
+  expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeEnabled();
+  expect(container.querySelectorAll('input[type="file"]')).toHaveLength(1);
+});
+it("uploads the chosen file once, clears the card and selects the new CV", async () => {
+  const user = userEvent.setup();
+  vi.mocked(uploadCv).mockResolvedValue({ ok: true, data: { ...cv, id: "cv-new", name: "Nuevo.pdf" } });
+  render(<Picker initial={library} />);
+  const file = new File(["pdf"], "Nuevo.pdf", { type: "application/pdf" });
+  await user.upload(screen.getByLabelText("Subir un CV nuevo"), file);
+  await waitFor(() => expect(uploadCv).toHaveBeenCalledWith(file, library.limits));
+  expect(await screen.findByRole("button", { name: "Nuevo.pdf" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.queryByRole("group", { name: "Archivo elegido" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeVisible();
+});
+it("rejects an invalid file before uploading, keeps it visible with the error and focuses the field button", async () => {
+  const user = userEvent.setup();
+  render(<Picker initial={library} />);
+  // fireEvent: user.upload would move focus back to the input after the change, which a real file dialog does not.
+  fireEvent.change(screen.getByLabelText("Subir un CV nuevo"), { target: { files: [new File(["x"], "bad.exe", { type: "text/plain" })] } });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Sube un PDF o un documento de Word (.docx).");
+  expect(uploadCv).not.toHaveBeenCalled();
+  expect(screen.getByRole("group", { name: "Archivo elegido" })).toHaveTextContent("bad.exe");
+  expect(screen.getByLabelText("Subir un CV nuevo")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("button", { name: "Cambiar" })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Quitar" }));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeVisible();
+});

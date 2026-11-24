@@ -224,7 +224,8 @@ const validateButton = () =>
   screen.getByRole("button", { name: /^(Validar borrador|Guardar borrador|Guardar cambios)$/ });
 const continueButton = () => screen.getByRole("button", { name: "Siguiente sección" });
 const backButton = () => screen.getByRole("button", { name: "Anterior" });
-const successStatus = () => screen.queryByRole("status");
+// The benefits ChoiceList also announces its count through a polite status, so skip the screen-reader-only one.
+const successStatus = () => screen.queryAllByRole("status").find(node => !node.classList.contains("sr-only")) ?? null;
 /** Only the selected section is exposed; all field panels remain mounted. */
 function currentStep(): number {
   const panel = document.querySelector("[data-pf-draft-step]:not([hidden])");
@@ -246,13 +247,6 @@ const captured = (index: number) => hoisted.serialized[index] as DraftModel;
 /** The accepted write schema normalizes the captured raw candidate. */
 const normalizedFields = (index: number) =>
   draftPostBodySchema.parse({ fields: captured(index).fields }).fields;
-
-function toggleCheckbox(name: string) {
-  const control = screen.getByRole("checkbox", { name });
-  const native = control.parentElement?.querySelector("input[type='checkbox']");
-  expect(native, `${name} native input`).not.toBeNull();
-  fireEvent.click(native as HTMLElement);
-}
 
 beforeEach(() => {
   hoisted.serialized.length = 0;
@@ -849,11 +843,16 @@ describe("LocalDraftForm compensation", () => {
     expect(hoisted.serialized).toHaveLength(0);
   });
 
-  it("toggles the honest public visibility checkbox", () => {
+  it("toggles the honest public visibility as a switch", () => {
+    vi.stubGlobal("PointerEvent", MouseEvent); // Base UI's switch reads it on click; jsdom has none
     render(<LocalDraftForm initialModel={createDraftModel()} />);
     goToStep(3);
 
-    toggleCheckbox("Mostrar la compensación cuando se publique la vacante");
+    const visibility = screen.getByRole("switch", { name: "Mostrar la compensación cuando se publique la vacante" });
+    expect(visibility).not.toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: /Mostrar la compensación/ })).toBeNull();
+    fireEvent.click(visibility);
+    expect(visibility).toBeChecked();
     validateDraft();
 
     expect(normalizedFields(0).compensation.public_visible).toBe(true);

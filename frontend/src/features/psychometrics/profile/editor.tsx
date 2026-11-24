@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ChoiceList } from "@/components/ui/choice-list";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
@@ -32,7 +32,7 @@ const noResponse = (): Result<Profile> => ({ ok: false, reason: "no_response", r
 type Notice = { tone: "success" | "error" | "info"; title: string; description?: string };
 
 /** Master/detail keeps the full profile visible while editing one competency.
- * Segmented choices use the installed Base UI value-array API; stages compose Popover + Checkbox. */
+ * Segmented choices use the installed Base UI value-array API; stages compose Popover + ChoiceList. */
 export function ProfileEditor({ draftId, profile, etag: initialEtag, stages }: { draftId: string; profile: Profile; etag: string; stages: DraftPipelineStage[] }) {
   const [body, setBody] = useState(() => bodyOf(profile));
   const [selected, setSelected] = useState(0);
@@ -140,7 +140,7 @@ export function ProfileEditor({ draftId, profile, etag: initialEtag, stages }: {
         <Field data-invalid={!!errors.auto_send_stage_ids}><FieldLabel htmlFor="psychometric-stages">Crear invitación al entrar a estas etapas</FieldLabel>
           <Popover open={stagesOpen && !disabled} onOpenChange={setStagesOpen}>
             <PopoverTrigger render={<Button id="psychometric-stages" size="lg" type="button" variant="outline" className="w-full min-w-0 justify-between" disabled={disabled} {...errorProps("auto_send_stage_ids")} />}><span className="truncate">{stageSummary}</span><ChevronDown aria-hidden="true" className="size-4" /></PopoverTrigger>
-            <PopoverContent align="start" className="max-h-80 max-w-[calc(100vw-2rem)] overflow-y-auto"><PopoverHeader><PopoverTitle>Etapas automáticas</PopoverTitle></PopoverHeader><FieldGroup data-slot="checkbox-group">{stages.map(stage => <Field key={stage.id} orientation="horizontal"><Checkbox id={`auto-${stage.id}`} disabled={disabled} checked={body.auto_send_stage_ids.includes(stage.id)} onCheckedChange={checked => edit({ ...body, auto_send_stage_ids: checked ? [...body.auto_send_stage_ids, stage.id] : body.auto_send_stage_ids.filter(id => id !== stage.id) })} /><FieldLabel htmlFor={`auto-${stage.id}`} className="min-h-10">{stage.name}</FieldLabel></Field>)}</FieldGroup></PopoverContent>
+            <PopoverContent align="start" className="max-h-80 max-w-[calc(100vw-2rem)] overflow-y-auto"><PopoverHeader><PopoverTitle>Etapas automáticas</PopoverTitle></PopoverHeader><ChoiceList multiple hideLegend legend="Etapas automáticas" disabled={disabled} value={body.auto_send_stage_ids} options={stages.map(stage => ({ value: stage.id, title: stage.name }))} onValueChange={auto_send_stage_ids => edit({ ...body, auto_send_stage_ids })} /></PopoverContent>
           </Popover>{error("auto_send_stage_ids")}
         </Field>
         <Field data-invalid={!!errors.expires_in_days}><FieldLabel htmlFor="psychometric-expiry">Vigencia del enlace</FieldLabel><InputGroup className="min-h-10"><InputGroupInput className="min-h-10" id="psychometric-expiry" type="number" min={1} max={30} step={1} value={Number.isNaN(body.expires_in_days) ? "" : body.expires_in_days} disabled={disabled} {...errorProps("expires_in_days")} onChange={event => edit({ ...body, expires_in_days: event.target.value === "" ? NaN : Number(event.target.value) })} /></InputGroup><FieldDescription>Días · de 1 a 30</FieldDescription>{error("expires_in_days")}</Field>

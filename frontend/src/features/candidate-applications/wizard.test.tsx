@@ -229,7 +229,7 @@ it("validates files before uploading and chooses the newly uploaded library CV",
   vi.mocked(uploadCv).mockResolvedValue({ ok: true, data: { ...cv, id: key, name: "Nuevo.docx" } }); mount(); await toCv();
   const input = screen.getByLabelText("Subir un CV nuevo");
   fireEvent.change(input, { target: { files: [new File(["x"], "bad.exe", { type: "text/plain" })] } });
-  expect(await screen.findByText("Sube un PDF o un documento de Word (.docx).")).toBeVisible(); expect(input).toHaveFocus(); expect(uploadCv).not.toHaveBeenCalled();
+  expect(await screen.findByText("Sube un PDF o un documento de Word (.docx).")).toBeVisible(); expect(screen.getByRole("button", { name: "Cambiar" })).toHaveFocus(); expect(uploadCv).not.toHaveBeenCalled();
   fireEvent.change(input, { target: { files: [new File(["x"], "Nuevo.docx")] } });
   const picked = await screen.findByRole("button", { name: "Nuevo.docx" }); expect(picked).toHaveAttribute("aria-pressed", "true");
 });
@@ -243,7 +243,7 @@ it("does not blindly repeat an uncertain CV upload and can check the library", a
 it.each(["cv_too_large", "cv_unsupported_type", "cv_content_mismatch", "cv_library_full"] as const)("retains upload rejection %s next to the file", async reason => {
   vi.mocked(uploadCv).mockResolvedValue({ ok: false, reason, reference: {} }); mount(); await toCv();
   fireEvent.change(screen.getByLabelText("Subir un CV nuevo"), { target: { files: [new File(["x"], "Nuevo.pdf", { type: "application/pdf" })] } });
-  await waitFor(() => expect(screen.getByLabelText("Subir un CV nuevo")).toHaveAttribute("aria-invalid", "true")); expect(screen.getByRole("alert")).toBeVisible(); expect(screen.getByLabelText("Subir un CV nuevo")).toHaveFocus();
+  await waitFor(() => expect(screen.getByLabelText("Subir un CV nuevo")).toHaveAttribute("aria-invalid", "true")); expect(screen.getByRole("alert")).toBeVisible(); expect(screen.getByRole("button", { name: "Cambiar" })).toHaveFocus();
 });
 it("shows unavailable CV storage and retries only explicitly", async () => {
   vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "storage_unavailable", reference: { status: 503, code: "cv_storage_unavailable" } });

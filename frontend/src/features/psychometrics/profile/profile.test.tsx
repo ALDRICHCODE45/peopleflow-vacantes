@@ -57,6 +57,16 @@ it("shows only the supporting fields required by each row's importance", () => {
   expect(screen.getByText("Sin banda", { selector: "p" })).toBeVisible();
   expect(saveProfileAction).not.toHaveBeenCalled();
 });
+it("lists the automatic stages as a labelled group of checkbox rows (no bare checkbox)", async () => {
+  mount(); fireEvent.click(screen.getByRole("switch"));
+  const group = await screen.findByRole("group", { name: "Etapas automáticas" });
+  const row = within(group).getByRole("checkbox", { name: "Entrevista" });
+  expect(row).toHaveAttribute("aria-checked", "false");
+  expect(group.querySelector("input[type='checkbox']:not([aria-hidden])")).toBeNull();
+  fireEvent.click(row);
+  expect(row).toBeChecked();
+  expect(screen.getByRole("button", { name: "Crear invitación al entrar a estas etapas" })).toHaveTextContent("Entrevista");
+});
 it("saves full replacement with opaque If-Match and adopts the new version", async () => {
   mount(); fireEvent.click(screen.getByRole("switch")); fireEvent.click(screen.getByRole("button", { name: "Crear invitación al entrar a estas etapas" })); fireEvent.click(await screen.findByRole("checkbox", { name: "Entrevista" })); fireEvent.click(screen.getByRole("button", { name: "Crear invitación al entrar a estas etapas" }));
   fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "30" } });

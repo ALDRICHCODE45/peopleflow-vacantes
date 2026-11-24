@@ -156,6 +156,21 @@ describe("step 1 · Bajas", () => {
     expect(screen.getByRole("checkbox", { name: /Daniela Ibarra Soto/ })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Sigue en Placement. Solo se reemplaza a quien no se sostuvo.")).toBeVisible();
   });
+  it("is a labelled group of rows (no bare checkbox): name, dates and badge on the row, the reason on the disabled one", async () => {
+    await toStep2();
+    const group = screen.getByRole("group", { name: "Bajas" });
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(3);
+    expect(group.querySelector("input[type='checkbox']:not([aria-hidden])")).toBeNull();
+    const ricardo = screen.getByRole("checkbox", { name: "Ricardo Morales García" });
+    expect(ricardo).toHaveAccessibleDescription(expect.stringContaining("No se sostuvo"));
+    expect(within(ricardo).getByText("No se sostuvo")).toBeVisible();
+    const daniela = screen.getByRole("checkbox", { name: "Daniela Ibarra Soto" });
+    expect(daniela).toHaveAccessibleDescription(expect.stringContaining("Sigue en Placement. Solo se reemplaza a quien no se sostuvo."));
+    expect(within(daniela).getByText("Sigue en Placement")).toBeVisible();
+    fireEvent.click(daniela);
+    expect(daniela).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Siguiente" })).toBeEnabled();
+  });
   it("keeps «Siguiente» disabled with a written reason until one baja is checked", async () => {
     await toStep2(null);
     const nextButton = screen.getByRole("button", { name: "Siguiente" });
@@ -289,15 +304,23 @@ describe("step 3 · Candidatos", () => {
     expect(screen.getByRole("button", { name: "Iniciar reemplazo" })).toBeEnabled();
     expect(screen.getByText("0 candidatos")).toBeVisible();
   });
-  it("shows the previous stage as reference and keeps the stage selector off until the candidate is checked", async () => {
+  it("shows the previous stage as reference and offers the stage selector only once the candidate is checked", async () => {
     await toStep3();
     expect(screen.getByText("En proceso · antes: Entrevista")).toBeVisible();
     expect(screen.getByText("En proceso · antes: En revisión")).toBeVisible();
     expect(screen.getByText("Descartado · antes: Oferta")).toBeVisible();
-    expect(screen.getByLabelText(/Empieza en Mauricio Peña Gil/)).toBeDisabled();
+    expect(screen.queryByLabelText(/Empieza en Mauricio Peña Gil/)).not.toBeInTheDocument();
     check(/Mauricio Peña Gil/);
     expect(screen.getByLabelText(/Empieza en Mauricio Peña Gil/)).toBeEnabled();
     expect(screen.getByText("1 candidato")).toBeVisible();
+  });
+  it("lists the candidates as a labelled group of rows, and without «Seleccionar todo» (it would skip the MAX_CARRIED cap)", async () => {
+    await toStep3();
+    const group = screen.getByRole("group", { name: "Candidatos del proceso original" });
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(3);
+    expect(within(group).queryByRole("checkbox", { name: "Seleccionar todo" })).not.toBeInTheDocument();
+    expect(group.querySelector("input[type='checkbox']:not([aria-hidden])")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Mauricio Peña Gil" })).toHaveAccessibleDescription("En proceso · antes: Entrevista");
   });
   it("names the discard reason of a discarded row when the backend sends it, and keeps the plain row without it", async () => {
     const base = context();
@@ -447,9 +470,9 @@ describe("failures", () => {
       candidates: [{ index: 1, message: "Esta persona sigue en Placement; no se puede retomar." }],
     }));
     await toSubmit(); submit();
-    const karen = (await screen.findByRole("checkbox", { name: /Karen Ortiz Lara/ })).closest("li")!;
+    const karen = await screen.findByRole("checkbox", { name: /Karen Ortiz Lara/ });
     expect(within(karen).getByText("Esta persona sigue en Placement; no se puede retomar.")).toBeVisible();
-    const mauricio = screen.getByRole("checkbox", { name: /Mauricio Peña Gil/ }).closest("li")!;
+    const mauricio = screen.getByRole("checkbox", { name: /Mauricio Peña Gil/ });
     expect(within(mauricio).queryByText(/Placement; no se puede/)).not.toBeInTheDocument();
   });
   it("shows a rejected stage next to its candidate", async () => {
@@ -458,7 +481,7 @@ describe("failures", () => {
       candidates: [{ index: 0, message: "Esa etapa ya no existe en la vacante original. Elige otra." }],
     }));
     await toSubmit(); submit();
-    const row = (await screen.findByRole("checkbox", { name: /Mauricio Peña Gil/ })).closest("li")!;
+    const row = await screen.findByRole("checkbox", { name: /Mauricio Peña Gil/ });
     expect(within(row).getByText("Esa etapa ya no existe en la vacante original. Elige otra.")).toBeVisible();
   });
   it("explains a publication that is not ready, turns the switch off and keeps the form", async () => {

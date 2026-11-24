@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CEFR_LEVELS, EDUCATION_LEVEL_LABELS, SENIORITY_LABELS } from "@/features/candidate/model";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
@@ -62,7 +62,7 @@ export function CriterionFields({ draft, questions, errors = {}, onChange }: { d
           <ChoiceField label="Tipo de criterio" options={entries(KIND_LABELS)} value={draft.kind} onChange={kind => { const next = { ...draft, kind, params: defaults[kind as Criterion["kind"]] } as Criterion; onChange({ ...next, label: automatic ? automaticLabel(next, questions, languages, states, countries) : draft.label }); }} />
           {draft.kind === "min_years_experience" && <Field data-invalid={!!errors.min}><FieldLabel htmlFor="criterion-years">Años mínimos</FieldLabel><Input id="criterion-years" type="number" min="0" step="0.1" className="min-h-10" value={draft.params.min} onChange={event => update({ min: event.target.value })} aria-invalid={!!errors.min} />{errors.min && <FieldError>{errors.min}</FieldError>}</Field>}
           {draft.kind === "seniority" && <MultiChoiceField label="Niveles aceptados" options={entries(SENIORITY_LABELS)} value={draft.params.accepted} onChange={accepted => update({ accepted })} error={errors.accepted} />}
-          {draft.kind === "education" && <><ChoiceField label="Escolaridad mínima" options={entries(EDUCATION_LEVEL_LABELS)} value={draft.params.min_level} onChange={min_level => update({ min_level })} error={errors.min_level} /><Field orientation="horizontal"><Checkbox id="criterion-progress" checked={draft.params.accepts_in_progress} onCheckedChange={accepts_in_progress => update({ accepts_in_progress })} /><FieldLabel htmlFor="criterion-progress" className="min-h-10">Acepta en curso</FieldLabel></Field></>}
+          {draft.kind === "education" && <><ChoiceField label="Escolaridad mínima" options={entries(EDUCATION_LEVEL_LABELS)} value={draft.params.min_level} onChange={min_level => update({ min_level })} error={errors.min_level} /><Field orientation="horizontal"><Switch id="criterion-progress" checked={draft.params.accepts_in_progress} onCheckedChange={accepts_in_progress => update({ accepts_in_progress })} /><FieldLabel htmlFor="criterion-progress" className="min-h-10">Acepta en curso</FieldLabel></Field></>}
           {draft.kind === "language" && <LanguageControls value={draft.params} onChange={update} errors={errors} />}
           {draft.kind === "skill" && <Field data-invalid={!!errors.name}><FieldLabel htmlFor="criterion-skill">Habilidad</FieldLabel><Input id="criterion-skill" className="min-h-10" value={draft.params.name} onChange={event => update({ name: event.target.value })} aria-invalid={!!errors.name} />{errors.name && <FieldError>{errors.name}</FieldError>}</Field>}
           {draft.kind === "location" && <LocationControls value={draft.params} onChange={update} errors={errors} />}

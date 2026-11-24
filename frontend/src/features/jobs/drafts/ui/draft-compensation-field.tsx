@@ -2,7 +2,7 @@
 
 import type { ComponentProps } from "react";
 import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Field,
   FieldDescription,
@@ -237,10 +237,10 @@ export function DraftCompensationField({
 
       <Separator />
       <Field orientation="horizontal" className="min-h-10">
-        <Checkbox
+        <Switch
           id="draft-compensation-visible"
           checked={value.public_visible}
-          onCheckedChange={(checked) => onChange({ public_visible: checked === true })}
+          onCheckedChange={(checked) => onChange({ public_visible: checked })}
         />
         <FieldLabel htmlFor="draft-compensation-visible" className="font-normal">
           Mostrar la compensación cuando se publique la vacante
