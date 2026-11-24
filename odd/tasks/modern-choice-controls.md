@@ -56,3 +56,11 @@ Documentos.
   anotalo en pendientes porque eso tenemos que hacerlo funcionar eventualmente» → left as is (login-page styled
   checkbox), logged in frontend-backlog.md. Left by design: filter popovers, table row selection, consent; checklist
   board compare list (`vacancy-checklist/board/ui.tsx:154`) not changed.
+- **L5** Full suite at `ad858640`+docs: 625 files / 11518 tests passed, tsc 0, lint 0 errors. Browser check (verifier) on the
+  production build :3000, owner, 390/1440 light/dark: Documentos, draft benefits and switches, talent access, replacement
+  steps (dialog fits 1440×900 on all steps), checklist switch and psychometrics stages pass, except D1 (blocker): no
+  visible keyboard focus on ChoiceList rows (`outline-none` + `focus-visible:outline-2` without an outline style in
+  Tailwind v4). Minor: D2 focus after «Quitar», D3 «Ya vinculado» not in aria-describedby, D4 artboard differences
+  (no «Listo para subir», wrong-format state, duplicated «Sigue en Placement»), D5 psychometrics popover hides «Placement».
+  Apply flow not verifiable (no candidate account). Data: «T5 verificacion controles» PDF on `01a20a4d-e12c-…`. Fixes
+  delegated before merge.
