@@ -1,20 +1,17 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("./actions", () => ({ loadTalentBaseVisibilityAction: vi.fn(), saveTalentBaseVisibilityAction: vi.fn() }));
-vi.mock("@/features/employer-company/actions", () => ({ loadCompanyStateAction: vi.fn() }));
 vi.mock("@/features/employer-team/actions", () => ({ listTeamMembersAction: vi.fn() }));
-import { loadCompanyStateAction } from "@/features/employer-company/actions";
-import type { CompanyState } from "@/features/employer-company/actions";
+vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "tb-success"), error: vi.fn(() => "tb-error"), dismiss: vi.fn() } }));
+import { sileo } from "sileo";
 import { listTeamMembersAction } from "@/features/employer-team/actions";
 import { loadTalentBaseVisibilityAction, saveTalentBaseVisibilityAction } from "./actions";
-import { TalentBaseVisibilitySection } from "./talent-base-visibility-section";
+import { TalentBaseVisibilityRow } from "./talent-base-visibility-section";
 import type { TalentBaseFailure } from "./model";
 import { anaId, companyMembers, luisId, martaId, ownerId, selectedByAna, visibility } from "./test-fixtures";
 
-const company = { id: "c", name: "Empresa", rfc: "ABC123456789", industry_id: "i", status: "active" as const, location: null, updated_at: "2026-10-20T12:00:00Z" };
-const asRole = (role: "owner" | "recruiter"): CompanyState => ({ kind: "exists", company, role, industryLabel: "Tecnología", canViewTalentBase: true });
 const failure = (reason: TalentBaseFailure["reason"], extra: Partial<TalentBaseFailure> = {}): TalentBaseFailure => ({ ok: false, reason, reference: {}, ...extra });
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 
@@ -22,7 +19,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   // Base UI forwards clicks to its native inputs using PointerEvent (absent in jsdom).
   vi.stubGlobal("PointerEvent", MouseEvent);
-  vi.mocked(loadCompanyStateAction).mockResolvedValue(asRole("owner"));
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.mocked(loadTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: visibility() });
   vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: companyMembers });
 });
@@ -31,10 +29,20 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const radio = (name: string) => screen.getByRole("radio", { name: new RegExp(`^${name}`) });
 const box = (name: string) => screen.getByRole("checkbox", { name: new RegExp(name) });
 const save = () => screen.getByRole("button", { name: /Guardar/ });
+const SHEET = "Base de talento visible para";
+const SAVED_TOAST = expect.objectContaining({ title: "Cambio guardado", description: expect.stringContaining("Queda registrado en la auditoría") });
+/** The row is one `li` of the settings groups. */
+const renderRow = () => render(<ul><TalentBaseVisibilityRow /></ul>);
+const rowButton = () => screen.findByRole("button", { name: "Cambiar" });
+async function openSheet(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await rowButton());
+  await screen.findByRole("dialog", { name: SHEET });
+}
+/** Renders the row, waits for its data and opens the sheet: the editor of the owner. */
 async function renderOwner() {
   const user = userEvent.setup();
-  render(<TalentBaseVisibilitySection />);
-  await screen.findByRole("heading", { name: "Base de talento visible para" });
+  renderRow();
+  await openSheet(user);
   return user;
 }
 async function openPicker(user: ReturnType<typeof userEvent.setup>) {
@@ -49,6 +57,7 @@ it("shows the owner the default «Todos los reclutadores» with no picker, nothi
   expect(radio("Usuarios seleccionados")).not.toBeChecked();
   expect(screen.queryByRole("group", { name: "Reclutadores con acceso" })).not.toBeInTheDocument();
   expect(save()).toBeDisabled();
+  expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
   expect(screen.getByText("Cada cambio queda registrado en la auditoría de la empresa.")).toBeInTheDocument();
   expect(screen.getByText("El dueño siempre tiene acceso a la Base de talento.")).toBeInTheDocument();
   expect(saveTalentBaseVisibilityAction).not.toHaveBeenCalled();
@@ -87,10 +96,14 @@ it("saves the chosen users with the loaded version, then adopts the returned doc
   await user.click(save());
   expect(saveTalentBaseVisibilityAction).toHaveBeenCalledTimes(1);
   expect(saveTalentBaseVisibilityAction).toHaveBeenCalledWith({ mode: "selected_users", userIds: [anaId], version: 1 });
-  expect(await screen.findByText("Cambio guardado · queda registrado en la auditoría")).toBeInTheDocument();
-  expect(save()).toBeDisabled();
+  // Saving closes the sheet, confirms with the audit note and the row shows the new value.
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(sileo.success).toHaveBeenLastCalledWith(SAVED_TOAST);
+  expect(screen.getByText("1 reclutador")).toBeInTheDocument();
   // The next change is made against the version the backend just returned.
   vi.mocked(saveTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: { ...next, version: 3 } });
+  await openSheet(user);
+  expect(save()).toBeDisabled();
   await user.click(box("Luis Soto"));
   await user.click(save());
   expect(saveTalentBaseVisibilityAction).toHaveBeenLastCalledWith({ mode: "selected_users", userIds: [anaId, luisId], version: 2 });
@@ -109,7 +122,8 @@ it("warns before saving that only the owner will see the base when no user is se
   expect(saveTalentBaseVisibilityAction).not.toHaveBeenCalled();
   await user.click(save());
   expect(saveTalentBaseVisibilityAction).toHaveBeenCalledWith({ mode: "selected_users", userIds: [], version: 1 });
-  expect(await screen.findByText("Cambio guardado · queda registrado en la auditoría")).toBeInTheDocument();
+  await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(SAVED_TOAST));
+  expect(screen.getByText("Solo el dueño")).toBeInTheDocument();
 });
 
 it("returns to «Todos los reclutadores» without carrying the selection, and the warning disappears", async () => {
@@ -136,7 +150,7 @@ it("treats reverting a change as no change and keeps a single submit in flight",
   expect(screen.getByRole("button", { name: /Guardando/ })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: /Guardando/ }));
   pending.resolve({ ok: true, document: visibility({ mode: "selected_users", version: 2 }) });
-  await screen.findByText("Cambio guardado · queda registrado en la auditoría");
+  await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(SAVED_TOAST));
   expect(saveTalentBaseVisibilityAction).toHaveBeenCalledTimes(1);
 });
 
@@ -156,7 +170,8 @@ function expectDraftKept() {
   expect(box("Ana Pérez")).toBeChecked();
   expect(box("Luis Soto")).toBeChecked();
   expect(box("Marta Ruiz")).not.toBeChecked();
-  expect(screen.queryByText("Cambio guardado · queda registrado en la auditoría")).not.toBeInTheDocument();
+  expect(sileo.success).not.toHaveBeenCalled();
+  expect(screen.getByRole("dialog", { name: SHEET })).toBeInTheDocument();
 }
 
 it("on a version conflict keeps the owner's choice, shows the current setting and retries against the current version", async () => {
@@ -170,7 +185,7 @@ it("on a version conflict keeps the owner's choice, shows the current setting an
   vi.mocked(saveTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: visibility({ mode: "selected_users", version: 8 }) });
   await user.click(save());
   expect(saveTalentBaseVisibilityAction).toHaveBeenLastCalledWith({ mode: "selected_users", userIds: [anaId, luisId], version: 7 });
-  expect(await screen.findByText("Cambio guardado · queda registrado en la auditoría")).toBeInTheDocument();
+  await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(SAVED_TOAST));
 });
 
 it("on a version conflict without a document asks to reload and does not guess a version", async () => {
@@ -246,52 +261,42 @@ it.each([
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
 });
 
-it("offers a retry when the setting or the members cannot be loaded, and never shows the editor", async () => {
+it("offers a retry in the row when the setting or the members cannot be loaded, and never offers the editor", async () => {
   vi.mocked(loadTalentBaseVisibilityAction).mockResolvedValueOnce(failure("server_error"));
   const user = userEvent.setup();
-  render(<TalentBaseVisibilitySection />);
+  renderRow();
   expect(await screen.findByRole("alert")).toHaveTextContent("No pudimos cargar quién ve la Base de talento.");
+  expect(screen.queryByRole("button", { name: "Cambiar" })).not.toBeInTheDocument();
   expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Reintentar" }));
+  await openSheet(user);
   expect(await screen.findByRole("radio", { name: /^Todos los reclutadores/ })).toBeChecked();
   cleanup();
   vi.mocked(listTeamMembersAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 500 } });
-  render(<TalentBaseVisibilitySection />);
+  renderRow();
   expect(await screen.findByRole("alert")).toHaveTextContent("No pudimos cargar quién ve la Base de talento.");
+  expect(screen.queryByRole("button", { name: "Cambiar" })).not.toBeInTheDocument();
   expect(screen.queryByRole("radio")).not.toBeInTheDocument();
 });
 
-// S2: owner only. A recruiter sees nothing: the entry gating and the restricted message already tell them,
-// and a settings card they cannot use would only be noise.
-it.each(["recruiter"] as const)("renders nothing for a %s and never reads the setting or the members", async role => {
-  vi.mocked(loadCompanyStateAction).mockResolvedValue(asRole(role));
-  const { container } = render(<TalentBaseVisibilitySection />);
-  await waitFor(() => expect(loadCompanyStateAction).toHaveBeenCalled());
-  await new Promise(resolve => setTimeout(resolve, 0));
-  expect(container).toBeEmptyDOMElement();
-  expect(loadTalentBaseVisibilityAction).not.toHaveBeenCalled();
-  expect(listTeamMembersAction).not.toHaveBeenCalled();
-});
-
-it.each([
-  [{ kind: "none", industries: [] }], [{ kind: "unauthenticated", reference: {} }], [{ kind: "server_error", reference: {} }],
-] as const)("renders nothing while the company membership is unknown (%j)", async state => {
-  vi.mocked(loadCompanyStateAction).mockResolvedValue(state as CompanyState);
-  const { container } = render(<TalentBaseVisibilitySection />);
-  await waitFor(() => expect(loadCompanyStateAction).toHaveBeenCalled());
-  await new Promise(resolve => setTimeout(resolve, 0));
-  expect(container).toBeEmptyDOMElement();
-  expect(loadTalentBaseVisibilityAction).not.toHaveBeenCalled();
-});
-
-it("shows a loading state for the owner without showing the form first", async () => {
+it("shows a loading state in the row without offering the editor first", async () => {
   const pending = deferred<Awaited<ReturnType<typeof loadTalentBaseVisibilityAction>>>();
   vi.mocked(loadTalentBaseVisibilityAction).mockReturnValue(pending.promise);
-  render(<TalentBaseVisibilitySection />);
+  renderRow();
   expect(await screen.findByRole("status")).toHaveTextContent("Cargando visibilidad de la Base de talento");
-  expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  expect(screen.getByText(SHEET)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Cambiar" })).not.toBeInTheDocument();
   pending.resolve({ ok: true, document: visibility() });
-  expect(await screen.findByRole("radio", { name: /^Todos los reclutadores/ })).toBeChecked();
+  expect(await rowButton()).toBeEnabled();
+  expect(screen.getByText("Todos los reclutadores")).toBeInTheDocument();
+});
+
+// The row only exists for the owner: the page does not render it for anyone else, so it reads nothing on its own account.
+it("reads the setting and the members once, never the company membership", async () => {
+  renderRow();
+  await rowButton();
+  expect(loadTalentBaseVisibilityAction).toHaveBeenCalledTimes(1);
+  expect(listTeamMembersAction).toHaveBeenCalledTimes(1);
 });
 
 it("«Seleccionar todo» chooses every recruiter and saves them in team order", async () => {
@@ -327,7 +332,7 @@ it("warns on reload or close only while the visibility has unsaved changes", asy
   await user.click(box("Ana Pérez"));
   expect(unloadPrevented()).toBe(true);
   await user.click(save());
-  await screen.findByText("Cambio guardado · queda registrado en la auditoría");
+  await waitFor(() => expect(sileo.success).toHaveBeenCalled());
   expect(unloadPrevented()).toBe(false);
 });
 
@@ -335,15 +340,99 @@ it("asks before following an in-app link away with unsaved changes, and lets the
   const user = await renderOwner();
   const outside = document.createElement("a");
   outside.href = "/empresa/equipo"; outside.textContent = "Equipo"; document.body.append(outside);
-  // jsdom cannot navigate: the clean click is only observed, never followed.
+  // jsdom cannot navigate: the clean click is only observed, never followed. The sheet is modal, so the click is dispatched directly.
   outside.addEventListener("click", event => event.preventDefault());
-  await user.click(outside);
+  fireEvent.click(outside);
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   await user.click(radio("Usuarios seleccionados"));
-  await user.click(outside);
+  fireEvent.click(outside);
   const dialog = await screen.findByRole("alertdialog", { name: "Tienes cambios sin guardar" });
   await user.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
   await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
   expect(radio("Usuarios seleccionados")).toBeChecked();
   outside.remove();
+});
+
+// S5: the row and its sheet (bottom sheet on phones) replace the old standalone card.
+it("is a row with the current mode as its value, the description and a «Cambiar» button, with the sheet closed", async () => {
+  vi.mocked(loadTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: selectedByAna });
+  const { container } = renderRow();
+  const button = await rowButton();
+  const row = container.querySelector("li")!;
+  expect(within(row).getByText(SHEET)).toBeInTheDocument();
+  expect(within(row).getByText(/Quién puede usar la búsqueda global/)).toBeInTheDocument();
+  expect(within(row).getByText("1 reclutador")).toBeInTheDocument();
+  expect(button).toHaveAttribute("aria-haspopup", "dialog");
+  expect(container.querySelector("[data-slot='card']")).toBeNull();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+});
+
+it("opens a sheet with the title, the description, the ChoiceList and its own «Guardar cambios»", async () => {
+  await renderOwner();
+  const sheet = screen.getByRole("dialog", { name: SHEET });
+  expect(sheet).toHaveAttribute("data-slot", "sheet-content");
+  expect(sheet).toHaveAttribute("data-side", "right");
+  expect(within(sheet).getByText(/Define quién puede usar la búsqueda global/)).toBeInTheDocument();
+  expect(within(sheet).getByRole("radiogroup", { name: "Quién ve la Base de talento" })).toHaveAttribute("data-slot", "choice-list");
+  expect(within(sheet).getByRole("button", { name: "Cancelar" })).toBeEnabled();
+  expect(within(sheet).getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
+});
+
+it("is a bottom sheet on phones", async () => {
+  vi.stubGlobal("innerWidth", 390);
+  vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+  await renderOwner();
+  expect(screen.getByRole("dialog", { name: SHEET })).toHaveAttribute("data-side", "bottom");
+});
+
+it("shows «Cambios sin guardar» next to «Guardar cambios» only while the draft differs from the saved setting", async () => {
+  const user = await renderOwner();
+  expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
+  await openPicker(user);
+  const badge = screen.getByText("Cambios sin guardar");
+  expect(badge).toBeVisible();
+  expect(badge.closest("[data-slot='sheet-footer']")).not.toBeNull();
+  expect(save()).toBeEnabled();
+  await user.click(radio("Todos los reclutadores"));
+  expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
+});
+
+it("closes a clean sheet at once, without asking", async () => {
+  const user = await renderOwner();
+  await user.click(screen.getByRole("button", { name: "Cancelar" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+it.each(["Cancelar", "Cerrar", "Escape"] as const)("asks before closing a sheet with unsaved changes (%s) and lets the owner keep editing", async how => {
+  const user = await renderOwner();
+  await openPicker(user);
+  await user.click(box("Ana Pérez"));
+  if (how === "Escape") await user.keyboard("{Escape}"); else await user.click(screen.getByRole("button", { name: how }));
+  const ask = await screen.findByRole("alertdialog", { name: "¿Salir sin guardar los cambios?" });
+  expect(ask).toHaveTextContent("Cambiaste quién ve la Base de talento y todavía no lo guardas. Si sales ahora, se pierden.");
+  await user.click(within(ask).getByRole("button", { name: "Seguir editando" }));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  // The sheet and the draft are untouched.
+  expect(screen.getByRole("dialog", { name: SHEET })).toBeInTheDocument();
+  expect(box("Ana Pérez")).toBeChecked();
+  expect(save()).toBeEnabled();
+  expect(saveTalentBaseVisibilityAction).not.toHaveBeenCalled();
+});
+
+it("discarding closes the sheet, keeps the saved value in the row and reopens on the saved setting", async () => {
+  const user = await renderOwner();
+  await openPicker(user);
+  await user.click(box("Ana Pérez"));
+  await user.click(screen.getByRole("button", { name: "Cancelar" }));
+  await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Descartar cambios" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(saveTalentBaseVisibilityAction).not.toHaveBeenCalled();
+  expect(sileo.success).not.toHaveBeenCalled();
+  expect(screen.getByText("Todos los reclutadores")).toBeInTheDocument();
+  expect(unloadPrevented()).toBe(false);
+  await openSheet(user);
+  expect(radio("Todos los reclutadores")).toBeChecked();
+  expect(save()).toBeDisabled();
 });

@@ -61,20 +61,25 @@ it.each(["server_error", "no_response", "unrecognized_response"] as const)("show
   expect(await screen.findByRole("button", {name:"Crear empresa"})).toBeVisible();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
-it("keeps context and accessible skeleton while initial load waits", async () => {
+it("shows an accessible skeleton with the shape of the identity strip and the rows while the initial load waits", async () => {
   const pending = deferred<CompanyState>(); vi.mocked(loadCompanyStateAction).mockReturnValue(pending.promise);
   const { container } = render(<CompanySection />);
-  expect(screen.getByRole("heading", { level: 2, name: "Tu empresa" })).toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent("Cargando empresa");
-  expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(2);
   expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-  const cardSlots = () => [...container.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
-  const loadingSlots = cardSlots();
-  expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(4);
-  expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(1);
-  expect(container.querySelector('[data-slot="card-footer"] [data-slot="skeleton"]')).toHaveClass("h-10");
+  expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(6);
+  // A strip and a group of rows, not the old form: no fields, no card header or footer.
+  expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(0);
+  expect(container.querySelectorAll('[data-slot="card-header"], [data-slot="card-footer"]')).toHaveLength(0);
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
   await act(async () => pending.resolve(none)); expect(await screen.findByLabelText("RFC")).toBeInTheDocument(); expect(sileo.success).not.toHaveBeenCalled();
-  expect(cardSlots()).toEqual(loadingSlots);
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+it("registers the company in a card titled «Tu empresa» when there is none", async () => {
+  render(<CompanySection />);
+  expect(await screen.findByRole("heading", { level: 2, name: "Tu empresa" })).toBeInTheDocument();
+  expect(screen.getByText("Registra tu empresa para preparar tus procesos de reclutamiento.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Crear empresa" })).toBeInTheDocument();
+  expect(screen.queryByText("Tu rol")).not.toBeInTheDocument();
 });
 it("composes the company creation action in the footer without detaching form submission", async () => {
   render(<CompanySection />);
@@ -102,7 +107,7 @@ it("disables pending submit, prevents duplicates, toasts only confirmation and s
   expect(await screen.findByText("Empresa confirmada")).toBeInTheDocument(); expect(screen.getByText("En verificación")).toBeInTheDocument();
   expect(screen.getByText("Dueño")).toBeInTheDocument();
   // A registered company is never asked to «Registra tu empresa» again.
-  expect(screen.getByRole("heading", { level: 2, name: "Datos de tu empresa" })).toBeInTheDocument(); expect(screen.queryByText(/Registra tu empresa/)).not.toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Tu empresa" })).toBeInTheDocument(); expect(screen.queryByRole("heading", { name: "Datos de tu empresa" })).not.toBeInTheDocument(); expect(screen.queryByText(/Registra tu empresa/)).not.toBeInTheDocument();
   expect(screen.queryByLabelText("RFC")).not.toBeInTheDocument(); expect(sileo.success).toHaveBeenCalledTimes(1);
 });
 it.each([

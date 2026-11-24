@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { MapPin } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
@@ -76,7 +76,8 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
       if (next) { setValue(locationReadToValue(company.location)); setUpdatedAt(company.updated_at); }
       setOpen(next);
     }}>
-      <DialogTrigger render={<Button type="button" variant="outline" className="min-h-10 w-fit" />}><MapPin data-icon="inline-start" aria-hidden="true" />Editar ubicación</DialogTrigger>
+      {/* The quiet link-style action of the identity strip (artboard settings-redesign/02): same dialog, no extra card. */}
+      <DialogTrigger render={<Button type="button" variant="link" className="h-auto min-h-10 w-fit justify-start px-0 text-[13px]" />}><Pencil data-icon="inline-start" aria-hidden="true" className="size-3" />Editar ubicación</DialogTrigger>
       <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-md">
         <DialogHeader><DialogTitle>Ubicación de la empresa</DialogTitle><DialogDescription>Elige dónde se encuentra tu empresa. Puedes dejarla sin ubicación.</DialogDescription></DialogHeader>
         <form ref={form} id="company-location-edit" onSubmit={submit} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" noValidate>
@@ -91,6 +92,7 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
         </DialogFooter>
       </DialogContent>
     </Dialog>
-    {result?.kind === "updated" && <ActionStatus id="company-location-saved" tone="success" text="Ubicación actualizada." />}
+    {/* The toast is the visible confirmation; the strip stays slim, so this line only serves assistive technology. */}
+    {result?.kind === "updated" && <div className="sr-only"><ActionStatus id="company-location-saved" tone="success" text="Ubicación actualizada." /></div>}
   </>;
 }

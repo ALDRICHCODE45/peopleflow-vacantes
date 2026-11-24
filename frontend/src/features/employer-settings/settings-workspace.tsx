@@ -3,140 +3,73 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "cn";
-import { BellRing, BriefcaseBusiness, Building2, CalendarClock, ClipboardList, Clock3, Globe2, KeyRound, Palette, ShieldCheck, UsersRound } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ArrowUpRight, BellRing, ClipboardList, Globe2, Info, Palette, ShieldCheck, UsersRound } from "lucide-react";
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { buttonVariants } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { applyThemeMode, readStoredThemeMode } from "@/components/theme/theme-preferences";
 import type { ThemeMode } from "@/components/theme/theme-preferences";
+import { CompanySection } from "@/features/employer-company/company-section";
+import { TalentBaseVisibilityRow } from "@/features/talent-base-visibility/talent-base-visibility-section";
+import { SettingsGroup, SettingsRow } from "./settings-row";
 
-const SECTIONS = [
-  { id: "empresa-organizacion", title: "Organización", description: "Administra el equipo y la presencia pública de tu empresa.", icon: Building2 },
-  { id: "empresa-reclutamiento", title: "Reclutamiento", description: "Define las preferencias para recibir postulaciones.", icon: BriefcaseBusiness },
-  { id: "empresa-notificaciones", title: "Notificaciones", description: "Elige los avisos que quieres tener presentes.", icon: BellRing },
-  { id: "empresa-apariencia", title: "Apariencia", description: "Elige el tema de la interfaz para este dispositivo.", icon: Palette },
-  { id: "empresa-seguridad", title: "Seguridad", description: "Controles de acceso de tu cuenta.", icon: ShieldCheck },
-] as const;
-
-type Section = (typeof SECTIONS)[number];
-const RECRUITMENT = [
-  { key: "screening_questions", title: "Incluir preguntas de filtro", description: "Considera preguntas iniciales al preparar una vacante.", icon: ClipboardList },
-] as const;
-const NOTIFICATIONS = [
-  { key: "new_applications", title: "Nuevas postulaciones", description: "Avisos cuando una persona se postule a tus vacantes.", icon: BriefcaseBusiness },
-  { key: "interviews", title: "Cambios en entrevistas", description: "Actualizaciones de horarios y etapas del proceso.", icon: CalendarClock },
-  { key: "team_activity", title: "Actividad del equipo", description: "Novedades sobre las asignaciones de reclutamiento.", icon: UsersRound },
-  { key: "weekly_summary", title: "Resumen semanal", description: "Un repaso de las vacantes y postulaciones de la semana.", icon: BellRing },
-] as const;
-type Preference = Readonly<{ key: string; title: string; description: string; icon: LucideIcon }>;
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
   { value: "system", label: "Sistema" }, { value: "light", label: "Claro" }, { value: "dark", label: "Oscuro" },
 ];
+/** Not persisted by any backend yet: one text row each, with the reason visible and nothing to switch. */
+const COMING_SOON = [
+  { id: "recruitment", icon: ClipboardList, title: "Reclutamiento", description: "Incluir preguntas de filtro al preparar una vacante." },
+  { id: "notifications", icon: BellRing, title: "Notificaciones", description: "Nuevas postulaciones, cambios en entrevistas, actividad del equipo y resumen semanal." },
+  { id: "security", icon: ShieldCheck, title: "Seguridad", description: "Autenticación en dos pasos y cambio de contraseña." },
+] as const;
+const linkAction = cn(buttonVariants({ variant: "outline", className: "min-h-10" }));
 
-function SettingsSection({ section, children }: { section: Section; children: React.ReactNode }) {
-  return (
-    <section id={section.id} aria-labelledby={`${section.id}-heading`} className="scroll-mt-4">
-      <Card>
-        <CardHeader className="border-b border-border/60">
-          <CardTitle><h2 id={`${section.id}-heading`} className="font-heading text-xl font-semibold">{section.title}</h2></CardTitle>
-          <CardDescription>{section.description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ItemGroup role="presentation"><ul className="flex w-full flex-col gap-4">{children}</ul></ItemGroup>
-        </CardContent>
-      </Card>
-    </section>
-  );
-}
-
-/** `comingSoon` rows are not wired to anything yet: the control is disabled and the reason stays visible next to it. */
-function SettingRow({ id, icon: Icon, title, description, comingSoon = false, children }: {
-  id: string; icon: LucideIcon; title: string; description: string; comingSoon?: boolean; children: React.ReactNode;
-}) {
-  return (
-    <li className="min-w-0">
-      <Item className="items-start">
-        <ItemMedia><span aria-hidden="true" className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary"><Icon className="size-4" /></span></ItemMedia>
-        <ItemContent className="min-w-0">
-          <ItemTitle id={`${id}-label`}>{title}</ItemTitle>
-          <ItemDescription id={`${id}-description`}>{description}</ItemDescription>
-          {comingSoon && <span id={`${id}-soon`} className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground"><Clock3 aria-hidden="true" className="size-3 shrink-0" />Próximamente</span>}
-        </ItemContent>
-        <ItemActions className="w-full justify-end sm:w-auto">{children}</ItemActions>
-      </Item>
-    </li>
-  );
-}
-
-/** Recruitment, notification and security controls are not persisted by any backend yet: they render disabled and say «Próximamente». */
-export function EmployerSettingsWorkspace() {
+function ThemeRow() {
   const [theme, setTheme] = React.useState<ThemeMode>("system");
   React.useEffect(() => { setTheme(readStoredThemeMode(window.localStorage)); }, []);
-
-  const preferenceRows = (items: readonly Preference[]) => items.map(item => {
-    const id = `pf-employer-settings-${item.key}`;
-    return (
-      <SettingRow key={item.key} id={id} icon={item.icon} title={item.title} description={item.description} comingSoon>
-        <Switch
-          checked={false}
-          disabled
-          aria-labelledby={`${id}-label`}
-          aria-describedby={`${id}-description ${id}-soon`}
-        />
-      </SettingRow>
-    );
-  });
-
   return (
-    <DashboardPageContent data-pf-employer-settings-workspace width="screen-2xl" className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
-      <nav aria-label="Secciones de configuración de empresa" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
-        <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">
-          {SECTIONS.map(({ id, title, icon: Icon }) => (
-            <li key={id} className="min-w-0">
-              <a href={`#${id}`} className="flex min-h-10 min-w-0 items-center gap-2 rounded-2xl px-3 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30">
-                <Icon aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 truncate">{title}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="flex min-w-0 flex-col gap-5">
-        <SettingsSection section={SECTIONS[0]}>
-          <SettingRow id="pf-employer-settings-team" icon={UsersRound} title="Equipo y permisos" description="Consulta las personas y los roles de tu equipo de reclutamiento.">
-            <Link href="/empresa/equipo" data-slot="button" className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>Administrar equipo</Link>
-          </SettingRow>
-          <SettingRow id="pf-employer-settings-site" icon={Globe2} title="Sitio de empleo" description="Edita la información que ven los candidatos sobre tu empresa.">
-            <Link href="/empresa/sitio" data-slot="button" className={cn(buttonVariants({ variant: "outline", className: "min-h-10" }))}>Editar sitio</Link>
-          </SettingRow>
-        </SettingsSection>
-        <SettingsSection section={SECTIONS[1]}>{preferenceRows(RECRUITMENT)}</SettingsSection>
-        <SettingsSection section={SECTIONS[2]}>{preferenceRows(NOTIFICATIONS)}</SettingsSection>
-        <SettingsSection section={SECTIONS[3]}>
-          <SettingRow id="pf-employer-settings-theme" icon={Palette} title="Tema de la interfaz" description="Se aplica al instante en toda la aplicación.">
-            <Select items={THEME_OPTIONS} value={theme} onValueChange={next => {
-              if (next !== "system" && next !== "light" && next !== "dark") return;
-              applyThemeMode(next);
-              setTheme(next);
-            }}>
-              <SelectTrigger aria-labelledby="pf-employer-settings-theme-label" aria-describedby="pf-employer-settings-theme-description" className="min-h-10"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectGroup>{THEME_OPTIONS.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
-            </Select>
-          </SettingRow>
-        </SettingsSection>
-        <SettingsSection section={SECTIONS[4]}>
-          <SettingRow id="pf-employer-settings-2fa" icon={ShieldCheck} title="Autenticación en dos pasos" description="Una verificación adicional para proteger tu cuenta." comingSoon>
-            <Switch checked={false} disabled aria-labelledby="pf-employer-settings-2fa-label" aria-describedby="pf-employer-settings-2fa-description pf-employer-settings-2fa-soon" />
-          </SettingRow>
-          <SettingRow id="pf-employer-settings-password" icon={KeyRound} title="Contraseña" description="Clave de acceso a tu cuenta." comingSoon>
-            <Button type="button" variant="outline" disabled aria-describedby="pf-employer-settings-password-description pf-employer-settings-password-soon" className="min-h-10">Cambiar contraseña</Button>
-          </SettingRow>
-        </SettingsSection>
-      </div>
+    <SettingsRow id="pf-employer-settings-theme" icon={Palette} title="Apariencia" description="Tema de la interfaz en este dispositivo. Se aplica al instante.">
+      <ToggleGroup variant="segmented" aria-label="Tema de la interfaz" className="h-11! max-md:w-full" value={[theme]} onValueChange={values => {
+        const next = values[0];
+        if (next !== "system" && next !== "light" && next !== "dark") return;
+        applyThemeMode(next);
+        setTheme(next);
+      }}>
+        {THEME_OPTIONS.map(option => <ToggleGroupItem key={option.value} value={option.value} className="max-md:flex-1">{option.label}</ToggleGroupItem>)}
+      </ToggleGroup>
+    </SettingsRow>
+  );
+}
+
+/**
+ * Configuración de empresa (artboard `settings-redesign/02`): the identity strip, then rows grouped as Organización, Preferencias and
+ * Próximamente. Editing happens in a sheet (Base de talento) or a dialog (location); the owner-only rows disappear for everyone else.
+ */
+export function EmployerSettingsWorkspace() {
+  return (
+    <DashboardPageContent data-pf-employer-settings-workspace width="full" className="mx-auto flex w-full max-w-[65rem] flex-col gap-6">
+      <CompanySection>{({ role }) => {
+        const owner = role === "owner";
+        return (
+          <>
+            <SettingsGroup id="pf-employer-settings-organization" title="Organización">
+              {owner && <TalentBaseVisibilityRow />}
+              <SettingsRow id="pf-employer-settings-team" icon={UsersRound} title="Equipo y permisos" description="Consulta las personas y los roles de tu equipo de reclutamiento.">
+                <Link href="/empresa/equipo" data-slot="button" aria-describedby="pf-employer-settings-team" className={linkAction}>Administrar equipo<ArrowUpRight aria-hidden="true" /></Link>
+              </SettingsRow>
+              <SettingsRow id="pf-employer-settings-site" icon={Globe2} title="Sitio de empleo" description="Edita la información que ven los candidatos sobre tu empresa.">
+                <Link href="/empresa/sitio" data-slot="button" aria-describedby="pf-employer-settings-site" className={linkAction}>Editar sitio<ArrowUpRight aria-hidden="true" /></Link>
+              </SettingsRow>
+            </SettingsGroup>
+            <SettingsGroup id="pf-employer-settings-preferences" title="Preferencias"><ThemeRow /></SettingsGroup>
+            <SettingsGroup id="pf-employer-settings-soon" title="Próximamente">
+              {COMING_SOON.map(item => <SettingsRow key={item.id} id={`pf-employer-settings-${item.id}`} icon={item.icon} title={item.title} description={item.description} soon />)}
+            </SettingsGroup>
+            {!owner && <p className="flex items-start gap-2.5 rounded-2xl bg-muted p-3 text-xs leading-4 text-foreground"><Info aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" /><span>Solo el dueño puede editar la ubicación de la empresa y elegir quién ve la Base de talento.</span></p>}
+          </>
+        );
+      }}</CompanySection>
     </DashboardPageContent>
   );
 }
