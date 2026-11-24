@@ -49,3 +49,7 @@ Additive change to the public vacancies listing so the frontend can sort and sho
   (`publicJobsHandler_test.go` «list», `public_jobs_flow_integration_test.go`); updated to 3 keys + `total` shape, no
   other existing test changed; (3) sqlc row now carries `sort_group`, `sort_salary`, `total_count`, and the
   geo-index test's direct `SearchPublicJobs` call keeps passing with an empty `sort_order` (= recent).
+- **L4** 2026-11-24, parent: committed e30e9183. Full backend suite on the branch (throwaway postgres:16): unit exit 0;
+  integration 122 packages ok, only the legacy pre-existing `identity/infrastructure/postgres` and
+  `jobs/infrastructure/postgres` FAIL (same on main); archguard only docker/minio. Frontend agreed contract and the
+  unit blocks; merge waits for the frontend (its listing schema must accept `total` first; deployment order).
