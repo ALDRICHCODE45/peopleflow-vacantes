@@ -101,9 +101,9 @@ export function DraftEditorShell({ state, published, publication = published ===
         <TabsList activateOnFocus aria-label="Secciones de la vacante" className="h-auto gap-1 bg-transparent p-0 lg:w-full lg:items-stretch">
           {EDITOR_SECTIONS.map((title, index) => {
             const Icon = icons[index]; const invalid = stepInvalid[index] === true; const complete = readiness.sectionComplete[index] === true && !invalid;
-            return <TabsTrigger key={title} value={index} aria-label={title} data-complete={complete} data-invalid={invalid || undefined} className="min-h-11 justify-start gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-normal text-muted-foreground hover:bg-muted hover:text-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-primary data-active:shadow-none">
+            return <TabsTrigger key={title} value={index} aria-label={invalid ? `${title}, hay errores por corregir` : complete ? `${title}, completo` : title} data-complete={complete} data-invalid={invalid || undefined} className="min-h-11 justify-start gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-normal text-muted-foreground hover:bg-muted hover:text-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-primary data-active:shadow-none">
               <Icon aria-hidden="true" /><span className="flex-1 whitespace-nowrap text-left">{title}</span>
-              {invalid ? <AlertCircle aria-label="Hay errores por corregir" data-icon="inline-end" className="text-destructive" /> : complete && <Check aria-label="Requisitos completos" data-icon="inline-end" />}
+              {invalid ? <AlertCircle aria-hidden="true" data-icon="inline-end" className="text-destructive" /> : complete && <Check aria-hidden="true" data-icon="inline-end" />}
               {index === 4 && readiness.pending > 0 && <Badge variant="secondary">{readiness.pending}</Badge>}
             </TabsTrigger>;
           })}

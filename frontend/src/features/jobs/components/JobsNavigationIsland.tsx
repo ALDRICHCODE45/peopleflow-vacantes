@@ -164,7 +164,8 @@ export function JobsNavigationIsland({ children, routeKey, query, total }: { chi
             </div>
             <SheetTrigger render={<Button variant="outline" className="h-11 md:hidden">Filtros{activeCount ? ` (${activeCount})` : ""}</Button>} />
           </div>
-          {total?.count !== 0 && <ToggleGroup variant="segmented" aria-label="Ordenar vacantes" className="h-11! max-sm:grid max-sm:w-full max-sm:grid-cols-3" value={[jobsSortOf(query)]} onValueChange={(values: string[]) => { const sort = values[0] as JobsSort | undefined; if (sort) startNavigation(buildFilterCommitUrl(routeKey, { sort }), null, null); }}>
+          {/* Only a response that carries `total` comes from a backend that sorts; without it the sort control would offer orders the listing cannot apply. */}
+          {total !== undefined && total.count > 0 && <ToggleGroup variant="segmented" aria-label="Ordenar vacantes" className="h-11! max-sm:grid max-sm:w-full max-sm:grid-cols-3" value={[jobsSortOf(query)]} onValueChange={(values: string[]) => { const sort = values[0] as JobsSort | undefined; if (sort) startNavigation(buildFilterCommitUrl(routeKey, { sort }), null, null); }}>
             {JOBS_SORTS.map(sort => <ToggleGroupItem key={sort} value={sort} className="max-sm:px-2">{SORT_LABELS[sort]}</ToggleGroupItem>)}
           </ToggleGroup>}
           {excludesLegacy && <p role="note" className="flex items-start gap-2 text-sm text-muted-foreground"><InfoIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />Algunas vacantes del catálogo anterior no tienen este dato y no aparecen con este filtro.</p>}

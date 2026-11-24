@@ -60,7 +60,7 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
                     <FieldLabel className="min-h-11 w-full items-center rounded-lg px-2 transition-colors hover:bg-muted has-data-checked:bg-primary/5" htmlFor={`${id}-${option.value}`}>
                       <Checkbox id={`${id}-${option.value}`} checked={selection[dimension.key]?.has(option.value) ?? false} onCheckedChange={() => onChange(toggleFilter(selection, dimension.key, option.value))} />
                       <span className="min-w-0 flex-1 break-words">{option.label}</span>
-                      <span data-slot="option-count" className={cn("text-muted-foreground tabular-nums", count === 0 && "opacity-50")}>{count}</span>
+                      <span data-slot="option-count" className={cn("tabular-nums", count === 0 ? "text-muted-foreground" : "text-foreground")}>{count}</span>
                     </FieldLabel>
                   </Field>;
                 })}

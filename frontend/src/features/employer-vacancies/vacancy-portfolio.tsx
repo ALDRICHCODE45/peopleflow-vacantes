@@ -37,6 +37,8 @@ const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
 const STATUS_VARIANT: Readonly<Record<EmployerVacancyState, BadgeVariant>> = { active: "accent", paused: "review", closed: "neutral" };
 const PIPELINE_BAR: Readonly<Record<VacancyPipelineStage, string>> = { submitted: "bg-primary", in_review: "bg-primary/60", hired: "bg-primary/35", rejected: "bg-muted-foreground/40" };
 const META = "text-[12.5px] text-muted-foreground";
+/** The tab list paints counts `text-muted-foreground` on a 6% foreground tint (4.33:1 in light); inactive counts take a stronger foreground, the active one keeps the list's primary tint. */
+const INACTIVE_COUNT = "text-foreground/75!";
 // Reserve the same action column for every row, including the contextual disclosure.
 const GRID = "grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_11rem] lg:items-center";
 const HEADER = "hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_11rem] items-center gap-4 border-b border-border px-5 py-3 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase lg:grid";
@@ -109,7 +111,7 @@ function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onSt
         </div>
       </div>
       <div data-pf-vacancy-zone="action" className="flex items-center gap-1 [&>a]:w-full [&>a]:lg:w-auto [&>button]:w-full [&>button]:lg:w-auto">
-        <LifecycleActionsMenu draftId={draft.id} title={title} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" || privateLive ? () => setPublishOpen(true) : undefined} onStartReplacement={() => onStartReplacement(draft.id)}>
+        <LifecycleActionsMenu draftId={draft.id} title={title} coverage={draft.coverage ?? undefined} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" || privateLive ? () => setPublishOpen(true) : undefined} onStartReplacement={() => onStartReplacement(draft.id)}>
           <DropdownMenuGroup>
             {portfolioRowActions(draft.id, draft.status === "draft" ? "draft" : "published", { editable: isEditablePublication(draft.status), publicPage }).filter(action => action.kind !== "publish").map(action => {
               const Icon = action.kind === "pipeline" ? SquareKanban : action.kind === "public" ? ExternalLink : FilePenLine;
@@ -227,7 +229,7 @@ export function VacancyPortfolio() {
           </div>
           <div className="max-w-full overflow-x-auto pb-1">
             <TabsList aria-label="Filtrar por estado">
-              {STATUS_FILTERS.map(filter => <TabsTrigger key={filter.value} value={filter.value} data-pf-vacancy-filter={filter.value}>{filter.label}<Badge variant="secondary">{noSnapshot ? drafts.pending ? <Skeleton aria-hidden="true" className="size-3" /> : <span aria-label="No disponible">—</span> : counts[filter.value]}</Badge></TabsTrigger>)}
+              {STATUS_FILTERS.map(filter => <TabsTrigger key={filter.value} value={filter.value} data-pf-vacancy-filter={filter.value}>{filter.label}<Badge variant="secondary" className={filter.value === status ? undefined : INACTIVE_COUNT}>{noSnapshot ? drafts.pending ? <Skeleton aria-hidden="true" className="size-3" /> : <span aria-label="No disponible">—</span> : counts[filter.value]}</Badge></TabsTrigger>)}
             </TabsList>
           </div>
         </div>

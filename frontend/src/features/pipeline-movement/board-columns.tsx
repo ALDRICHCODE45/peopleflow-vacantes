@@ -114,7 +114,7 @@ function Column({ stage, countLabel = String(stage.count), disabled, dragging, c
     {insertion && <span className="sr-only">Insertar {insertion === "left" ? "antes" : "después"} de {stage.name}</span>}
     <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-2"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={candidateLabel}>{countLabel}</Badge>
       {order && <ColumnOrderControls stage={stage} order={order} drag={drag} finished={finished} />}
-      {stage.kind === "discarded" && <Hint text="Se llega descartando, no moviendo"><span tabIndex={0} aria-label="Se llega descartando, no moviendo" className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>}
+      {stage.kind === "discarded" && <Hint text="Se llega descartando, no moviendo"><span role="img" tabIndex={0} aria-label="Se llega descartando, no moviendo" className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>}
     </div>
     {dragging && <p id={`drop-status-${stage.id}`} className="sr-only">{disabled ? "Destino no permitido para este movimiento." : "Suelta aquí para solicitar el movimiento."}</p>}
     <ScrollArea role="region" aria-label={`Candidatos en ${stage.name}`} className="pf-column-scroll min-h-0 flex-1">

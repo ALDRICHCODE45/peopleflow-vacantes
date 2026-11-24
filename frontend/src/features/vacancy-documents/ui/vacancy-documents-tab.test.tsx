@@ -14,10 +14,14 @@ vi.mock("../actions", () => ({
   listDocumentVersionsAction: vi.fn(), listDocumentSourcesAction: vi.fn(), createDocumentLinkAction: vi.fn(),
 }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+// The Next router is what the tab reads `?candidato=` from; a test moves it by changing `routerSearch` and rendering again.
+let routerSearch = "";
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(routerSearch) }));
 vi.mock("@/components/ui/combobox", async () => (await import("./test-support")).comboboxDouble());
 vi.mock("@/components/ui/dropdown-menu", async () => (await import("./test-support")).dropdownMenuDouble());
 // jsdom has neither; the combobox and the sheet read them while they lay out.
 beforeEach(() => {
+  routerSearch = "";
   vi.resetAllMocks();
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, media: "", addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() })));
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -36,14 +40,44 @@ const renderTab = async (overview = wire()) => {
 const row = (name: string | RegExp) => screen.getByRole("row", { name });
 const failure = (reason: string) => ({ ok: false as const, reason, message: "No pudimos cargar los documentos.", reference: {} }) as never;
 
-describe("initial candidate filter", () => {
+describe("candidate filter from ?candidato=", () => {
   afterEach(() => window.history.replaceState(null, "", "/"));
+  const PATH = `/empresa/vacantes/${ids.draft}/documentos`;
   it("opens narrowed to the participation named by ?candidato=", async () => {
-    window.history.replaceState(null, "", `/empresa/vacantes/${ids.draft}/documentos?candidato=${ids.participation}`);
+    routerSearch = `?candidato=${ids.participation}`;
     ready();
     render(<VacancyDocumentsTab draftId={ids.draft} />);
     await screen.findByRole("table");
     expect(load).toHaveBeenCalledWith(ids.draft, ids.participation);
+  });
+  it("applies ?candidato= when a client navigation adds it to a tab that is already mounted", async () => {
+    ready();
+    const { rerender } = render(<VacancyDocumentsTab draftId={ids.draft} />);
+    await screen.findByRole("table");
+    expect(load).toHaveBeenLastCalledWith(ids.draft, undefined);
+    routerSearch = `?candidato=${ids.participation}`;
+    rerender(<VacancyDocumentsTab draftId={ids.draft} />);
+    await waitFor(() => expect(load).toHaveBeenLastCalledWith(ids.draft, ids.participation));
+    expect(await screen.findByRole("group", { name: "Filtro activo" })).toBeVisible();
+  });
+  it("drops the filter when a navigation removes ?candidato=", async () => {
+    routerSearch = `?candidato=${ids.participation}`;
+    ready();
+    const { rerender } = render(<VacancyDocumentsTab draftId={ids.draft} />);
+    await screen.findByRole("table");
+    routerSearch = "";
+    rerender(<VacancyDocumentsTab draftId={ids.draft} />);
+    await waitFor(() => expect(load).toHaveBeenLastCalledWith(ids.draft, undefined));
+  });
+  it("«Quitar filtro» removes ?candidato= from the address and keeps the other parameters", async () => {
+    window.history.replaceState(null, "", `${PATH}?candidato=${ids.participation}&tab=x`);
+    routerSearch = `?candidato=${ids.participation}&tab=x`;
+    ready();
+    render(<VacancyDocumentsTab draftId={ids.draft} />);
+    await screen.findByRole("table");
+    await userEvent.click(await screen.findByRole("button", { name: "Quitar filtro" }));
+    await waitFor(() => expect(load).toHaveBeenLastCalledWith(ids.draft, undefined));
+    expect(window.location.pathname + window.location.search).toBe(`${PATH}?tab=x`);
   });
 });
 describe("states", () => {

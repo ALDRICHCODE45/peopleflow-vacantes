@@ -28,7 +28,8 @@ it("distinguishes current coverage from a historical milestone and omits unknown
 it("keeps compact empty columns, exit guidance and card actions, without persistent success", async () => {
   await act(async () => render(<BoardColumns board={boardFixture()} pending={new Set()} locked={false} notices={{ person: { tone: "success", text: "Candidato movido" } }} onMove={vi.fn()} onDetail={vi.fn()} onDisposition={vi.fn()} />));
   expect(screen.getAllByText("Sin candidatos en esta etapa")).toHaveLength(4);
-  expect(screen.getByLabelText("Se llega descartando, no moviendo")).toHaveAttribute("tabindex", "0");
+  // A named span needs a role (axe aria-prohibited-attr): the lock is an image with a text alternative, still focusable for its tooltip.
+  expect(screen.getByRole("img", { name: "Se llega descartando, no moviendo" })).toHaveAttribute("tabindex", "0");
   expect(screen.getByRole("button", { name: "Acciones de Ana Pérez" })).toBeEnabled();
   expect(screen.queryByText("Candidato movido")).not.toBeInTheDocument();
   const card = screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }).closest('[data-slot="card"]')!;

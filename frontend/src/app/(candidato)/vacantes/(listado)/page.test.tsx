@@ -171,7 +171,7 @@ describe("/vacantes synchronous boundaries", () => {
     expect(read).toHaveBeenCalledOnce();
   });
   it("offers the three sorts, marks the current one, and changing it navigates without the cursor", () => {
-    render(<JobsNavigationIsland routeKey="/vacantes?q=Go&sort=salary_desc&cursor=old" query={{ q: "Go", sort: "salary_desc", cursor: "old" }}>{vacancyList}</JobsNavigationIsland>);
+    render(<JobsNavigationIsland routeKey="/vacantes?q=Go&sort=salary_desc&cursor=old" query={{ q: "Go", sort: "salary_desc", cursor: "old" }} total={{ count: 12, capped: false }}>{vacancyList}</JobsNavigationIsland>);
     const group = screen.getByRole("group", { name: "Ordenar vacantes" });
     expect(within(group).getAllByRole("button").map(item => item.textContent)).toEqual(["Recientes", "Mayor salario", "Menor salario"]);
     expect(within(group).getByRole("button", { name: "Mayor salario" })).toHaveAttribute("aria-pressed", "true");
@@ -179,11 +179,16 @@ describe("/vacantes synchronous boundaries", () => {
     expect(push).toHaveBeenCalledWith("/vacantes?q=Go&sort=salary_asc");
   });
   it("choosing «Recientes» drops sort from the URL; the sort is not a filter (Todas stays active, no count)", () => {
-    render(<JobsNavigationIsland routeKey="/vacantes?sort=salary_asc" query={{ sort: "salary_asc" }}>{vacancyList}</JobsNavigationIsland>);
+    render(<JobsNavigationIsland routeKey="/vacantes?sort=salary_asc" query={{ sort: "salary_asc" }} total={{ count: 12, capped: false }}>{vacancyList}</JobsNavigationIsland>);
     expect(within(screen.getByRole("group", { name: "Filtros rápidos" })).getByRole("button", { name: "Todas" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Filtros" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Recientes" }));
     expect(push).toHaveBeenCalledWith("/vacantes");
+  });
+  it("hides the sort control when the response carries no total (a backend without sort), even with ?sort= in the URL", () => {
+    render(<JobsNavigationIsland routeKey="/vacantes?sort=salary_desc" query={{ sort: "salary_desc" }}>{vacancyList}</JobsNavigationIsland>);
+    expect(screen.queryByRole("group", { name: "Ordenar vacantes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mayor salario" })).toBeNull();
   });
   it("hides the sort control when the total is zero", () => {
     render(<JobsNavigationIsland routeKey="/vacantes" query={{}} total={{ count: 0, capped: false }}>{vacancyList}</JobsNavigationIsland>);

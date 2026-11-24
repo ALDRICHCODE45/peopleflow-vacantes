@@ -244,11 +244,11 @@ async function a5BasisRequired() {
   expect(document.getElementById("draft-compensation-basis")).toHaveAttribute("aria-invalid", "true");
   expect(saveDraftV2Action).not.toHaveBeenCalled();
   // A-F13: the step carries an error marker (and no tick); correcting the choice clears it.
-  expect(nav("Compensación y beneficios")).toHaveAttribute("data-invalid", "true");
-  expect(within(nav("Compensación y beneficios")).getByLabelText("Hay errores por corregir")).toBeInTheDocument();
+  // The marker is announced through the tab's own name, not through an icon label the name would override.
+  expect(nav("Compensación y beneficios, hay errores por corregir")).toHaveAttribute("data-invalid", "true");
   fireEvent.click(document.getElementById("draft-compensation-visible")!);
   expect(nav("Compensación y beneficios")).not.toHaveAttribute("data-invalid");
-  expect(within(nav("Compensación y beneficios")).queryByLabelText("Hay errores por corregir")).not.toBeInTheDocument();
+  expect(screen.queryByRole("tab", { name: /hay errores por corregir/ })).toBeNull();
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledOnce());
 }
@@ -265,10 +265,9 @@ it("A-F13: a tick shows only for a complete, error-free step; an invalid step sh
   render(<LocalDraftForm />);
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "x".repeat(201) } });
   fireEvent.click(save());
-  await waitFor(() => expect(nav("Información básica")).toHaveAttribute("data-invalid", "true"));
-  expect(nav("Información básica")).toHaveAttribute("data-complete", "false");
-  expect(within(nav("Información básica")).queryByLabelText("Requisitos completos")).not.toBeInTheDocument();
-  expect(within(nav("Información básica")).getByLabelText("Hay errores por corregir")).toBeInTheDocument();
+  await waitFor(() => expect(nav("Información básica, hay errores por corregir")).toHaveAttribute("data-invalid", "true"));
+  expect(nav("Información básica, hay errores por corregir")).toHaveAttribute("data-complete", "false");
+  expect(screen.queryByRole("tab", { name: /completo/ })).toBeNull();
 });
 it("A-F20: on phones the tabs scroll sideways with a fade on the edge and the save actions share one row", () => {
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -278,4 +277,13 @@ it("A-F20: on phones the tabs scroll sideways with a fade on the edge and the sa
   expect(actions).toHaveClass("flex-row", "max-sm:[&>*]:flex-1");
   expect(container.querySelector("[data-pf-draft-save-bar]")!.textContent).toContain("Sin guardado automático");
   expect(Array.from(container.querySelector("[data-pf-draft-save-bar]")!.querySelectorAll("p")).find(p => p.textContent === "Sin guardado automático")).toHaveClass("max-sm:hidden");
+});
+it("A-F13: a step with its requirements met announces «completo» in its tab name, once, with the tick hidden from assistive tech", () => {
+  const model = createDraftModel();
+  model.fields.description = { schema_version: 1, document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Buscamos talento" }] }] } } as never;
+  render(<LocalDraftForm initialModel={model} initialScreeningQuestionsV2={[]} />);
+  const tab = nav("Descripción y perfil, completo");
+  expect(tab).toHaveAttribute("data-complete", "true");
+  expect(tab.querySelector("svg:not([aria-hidden=true])")).toBeNull();
+  expect(screen.getAllByRole("tab", { name: /completo/ })).toEqual([tab]);
 });
