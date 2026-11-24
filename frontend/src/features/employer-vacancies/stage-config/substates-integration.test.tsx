@@ -30,6 +30,12 @@ it.each([0, 1, 3])("counts %i saved substates as secondary text on the in_proces
   expect(badge).toHaveClass("text-muted-foreground");
   expect(badge.closest("li")).toContainElement(column());
 });
+it("labels the columns Card as a region so aria-labelledby is allowed (axe aria-prohibited-attr)", () => {
+  render(<PipelineStageEditor draftId={draftId} pipeline={pipelineFixture()} etag='"pipeline-0"' substates={substatesFixture()} substatesEtag='"substates-0"' />);
+  const card = screen.getByRole("heading", { name: "Columnas del pipeline", level: 3 }).closest('[data-slot="card"]')!;
+  expect(card).toHaveAttribute("role", "region");
+  expect(screen.getByRole("region", { name: "Columnas del pipeline" })).toBe(card);
+});
 it("opens with the typed normalized name despite unsaved columns, saves independently and updates the saved count", async () => {
   const catalog = { ...substatesFixture(), version: "1", substates: [{ id: "new", name: "Primera entrevista", in_use: false }] };
   vi.mocked(saveDraftSubstatesAction).mockResolvedValue({ ok: true, catalog, etag: '"substates-1"' });

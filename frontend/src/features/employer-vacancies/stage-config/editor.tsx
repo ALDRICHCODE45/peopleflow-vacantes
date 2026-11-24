@@ -207,7 +207,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
   </Button> : notice?.link ? <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link ref={statusLink} href={notice.link.href} target="_blank" rel="noopener noreferrer" />}>{notice.link.title}</Button> : undefined;
   return (
     <>
-      <Card aria-labelledby="pipeline-columns-heading">
+      <Card role="region" aria-labelledby="pipeline-columns-heading">
         <CardHeader className="border-b has-data-[slot=card-action]:grid-cols-1 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
           <CardTitle><h3 id="pipeline-columns-heading">Columnas del pipeline</h3></CardTitle>
           <CardDescription className="max-w-prose">Nuevos va primero y Placement al final. Puedes agregar hasta {state.limits.maxCustomStages} columnas propias.</CardDescription>

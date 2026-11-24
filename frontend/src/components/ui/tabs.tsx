@@ -33,7 +33,7 @@ const tabsListVariants = cva(
         // Segmented track. Counts inside a trigger share one look: neutral at
         // rest, primary tint on the active tab (close to accentTabCount, token-only).
         default:
-          "bg-muted [&_[data-slot=badge]]:h-5 [&_[data-slot=badge]]:min-w-5 [&_[data-slot=badge]]:rounded-full [&_[data-slot=badge]]:border-0 [&_[data-slot=badge]]:bg-foreground/[0.06] [&_[data-slot=badge]]:px-1.5 [&_[data-slot=badge]]:text-muted-foreground [&_[data-slot=badge]]:tabular-nums [&_[data-active]_[data-slot=badge]]:bg-primary/10 [&_[data-active]_[data-slot=badge]]:text-primary dark:[&_[data-slot=badge]]:bg-foreground/10 dark:[&_[data-active]_[data-slot=badge]]:bg-primary/30 dark:[&_[data-active]_[data-slot=badge]]:text-foreground",
+          "bg-muted [&_[data-slot=badge]]:h-5 [&_[data-slot=badge]]:min-w-5 [&_[data-slot=badge]]:rounded-full [&_[data-slot=badge]]:border-0 [&_[data-slot=badge]]:bg-foreground/[0.06] [&_[data-slot=badge]]:px-1.5 [&_[data-slot=badge]]:text-foreground/75 [&_[data-slot=badge]]:tabular-nums [&_[data-active]_[data-slot=badge]]:bg-primary/10 [&_[data-active]_[data-slot=badge]]:text-primary dark:[&_[data-slot=badge]]:bg-foreground/10 dark:[&_[data-active]_[data-slot=badge]]:bg-primary/30 dark:[&_[data-active]_[data-slot=badge]]:text-foreground",
         line: "gap-1 bg-transparent",
       },
     },

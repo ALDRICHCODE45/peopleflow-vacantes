@@ -70,7 +70,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
   // Frozen at application (T13). With a title the name keeps one line, so both still fit the 40 px name button.
   const professionalTitle = item.profile.professional_title || null;
   const titleId = professionalTitle ? `candidate-title-${item.id}` : undefined;
-  return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55", unsustained && "bg-status-review/5")}
+  return <Card ref={setNodeRef} id={`candidate-card-${item.id}`} tabIndex={-1} size="sm" aria-busy={pending} className={cn("pf-candidate-card group/candidate cursor-pointer rounded-xl gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (isDragging || pending) && "opacity-55", unsustained && "bg-status-review/5 [--muted-foreground:color-mix(in_oklab,var(--foreground)_80%,var(--card))]")}
     onClick={event => {
       if (suppressClick.current || (event.target as HTMLElement).closest("button,a,[role='menu'],[role='checkbox'],[data-slot='popover-content']")) return;
       onDetail(item.id);

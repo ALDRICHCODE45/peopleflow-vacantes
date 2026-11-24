@@ -118,3 +118,24 @@ merges to `main` allowed (no push).
   aplicar los filtros» until the backend sort merges. Also: close dialog from the list row menu lacks coverage («Cubierta»
   enabled); step tabs don't announce ✓/error; board tooltip spans aria-prohibited-attr ×3 and contrast ×7; vacancy list
   secondary badges 4.32:1 (light). Data: one stakeholder invitation «Auditoría Verif» (revoked).
+- **L11** Fix rounds: `b4f6a258` (ItemGroup roles/separator, checklist first save, invalid_id copy, dead settings path)
+  and `57b30aea` (documents link on client navigation, sort control only with `total`, close from list knows coverage,
+  step tab names, board tooltip roles, list count contrast 6.75:1). Targeted browser re-check on prod `57b30aea`: item.tsx
+  axe criticals gone on all six screens, documents link, no sort control without total, «Cubierta» disabled from the
+  list, step tab names, count contrast — pass. Remaining (pre-existing, small): «No se sostuvo» card meta text 4.49:1,
+  substates sheet Card aria-labelledby without role, draft title error red 4.19:1 → one small round.
+- **L12** Full suite at `57b30aea`: 639 files / 11693 passed, tsc 0, lint 0 errors. Merged to local main `de0f914b`
+  (not pushed). Backend told to merge `feat/public-jobs-sort-total` and `feat/admin-audit-gaps-backend` (00065) and
+  restart :8080; small a11y round in progress.
+- **L13** Backend merged sort/total (`cfaf90c7`) and admin fields (`44c15189`, DB v65). Browser on prod `57b30aea`:
+  «14 vacantes», sort by salary both ways (matches /v2/jobs; MXN·monthly·gross block first, so «MXN Mensual · Neto» cards
+  come after it — product question), filter keeps sort and drops the cursor; team «Carga» identical for owner and recruiter
+  and equal to the DB; stakeholder tabs exact (58/4/22/2/30) across pages; invitation note shown, 81 chars rejected inline,
+  test invitation `01a20d2c-…` created and revoked. «Ver más vacantes» not reachable with 14 public vacancies (cursor URL
+  checked directly). Axe: TabsList inactive count badges 4.32:1 and invalid Field text 4.19:1 (shared components) → fixed
+  at the shared level next. A11y round `a701d2ed` committed.
+- **L14** A11y round `a701d2ed` (suite 640 / 11697) and shared contrast `4f1702b3` (TabsList badges, invalid Field
+  text). Full suite at `4f1702b3`: 641 files / 11699 passed, tsc 0, lint 0 errors. Axe on the production build of
+  `4f1702b3` (1440 light/dark, 390 light): 0 violations on the «No se sostuvo» card, substates sheet, draft errors,
+  stakeholder tabs, invitation note error, vacancy list and Base de talento tabs. Morning report:
+  `odd/discovery/overnight-audit-report.md`. Merged to local main.
