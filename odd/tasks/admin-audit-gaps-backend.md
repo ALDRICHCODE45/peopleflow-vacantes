@@ -51,3 +51,7 @@ recruiters), D3 (company edit + logo upload) and D15 (audit CSV headers/labels) 
   vacancies whose process continues (the frontend's old local rule counted only published/paused); body-less create
   still works. Docs: stakeholder-metrics-v1 §1.3, vacancy-team-v1 «Member workload», placement-vacancy-documents-v1
   stakeholder vacancies, backend/docs company-members and stakeholder-invitations.
+- **L4** 2026-11-24, parent: committed 362e467d. Full backend suite on the branch (throwaway postgres:16, migrated to
+  v65): unit exit 0; integration 122 packages ok, only the legacy pre-existing `identity/infrastructure/postgres` and
+  `jobs/infrastructure/postgres` FAIL (same on main); archguard only docker/minio. Frontend accepts the new keys as
+  optional on feat/audit-admin-fixes (6e2b23c5); merge (and 00065 on the dev DB) waits for that branch on main.
