@@ -30,6 +30,8 @@ import { useMovementBoard } from "./use-movement-board";
 import { BoardFilters } from "./board-filters";
 import { activeFilterCount, applyFilters, type FilterSelection } from "./filters";
 import { boardFilterDimensions } from "./board-filter-dimensions";
+import { substateConfigHref } from "./substates";
+import { matchesSearch, useBoardSearch } from "./board-search";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { ChecklistProvider, useBoardChecklist } from "@/features/vacancy-checklist/board/state";
 import { ChecklistComparison, ChecklistReminder, ChecklistRetry } from "@/features/vacancy-checklist/board/ui";
@@ -59,6 +61,7 @@ function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartRepla
   const [sortNotice, setSortNotice] = useState("");
   const languages = useLanguageCatalog();
   const [filters, setFilters] = useState<FilterSelection>({});
+  const [query, setQuery] = useBoardSearch();
   const [selected, setSelected] = useState<string | null>(null);
   const [sheetTab, setSheetTab] = useState<{ id: string; tab: string } | undefined>();
   const [intake, setIntake] = useState(false);
@@ -69,7 +72,8 @@ function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartRepla
   const readOnly = board?.lifecycle.process === "finished";
   const { chain, creditOf, fallenOf, fallenKnown } = useReplacementSummary(vacancyId, board);
   const dimensions = board ? boardFilterDimensions(board, languages.data?.items, checklist.checklist?.criteria, checklist.marks) : [];
-  const matchingItems = applyFilters(board?.participations ?? [], dimensions, filters);
+  const searching = query.trim().length > 0;
+  const matchingItems = applyFilters(board?.participations ?? [], dimensions, filters).filter(item => matchesSearch(item.candidate.full_name, query));
   const visibleItems = bestFit && checklist.checklist?.criteria.length ? orderByFit(matchingItems, checklist.checklist.criteria, checklist.marks) : matchingItems;
   function changeOrder(value: string | null) {
     const nextBestFit = value === "fit";
@@ -167,18 +171,22 @@ function BoardContent({ vacancyId, vacancyTitle, onLifecycleChange, onStartRepla
         </div>
         {(columnLine || state.columns.unavailable) && <div data-pf-column-status="" className="ml-auto flex min-w-0 flex-wrap items-center gap-3">{columnLine && <ActionStatusSlot>{columnLine}</ActionStatusSlot>}{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>}
       </div>
-      <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} actions={boardActions} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} search={{ value: query, onChange: setQuery }} resultCount={visibleItems.length} actions={boardActions} toolbar={<><ChecklistRetry />{checklist.checklist?.criteria.length ? <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Select items={[{ value: "arrival", label: "Llegada" }, { value: "fit", label: "Mejor ajuste (checklist)" }]} value={bestFit ? "fit" : "arrival"} onValueChange={changeOrder}>
           <SelectTrigger aria-label="Orden" className="min-h-10"><span>Orden: </span><SelectValue /></SelectTrigger>
           <SelectContent alignItemWithTrigger={false}><SelectGroup><SelectItem value="arrival">Llegada</SelectItem><SelectItem value="fit">Mejor ajuste (checklist)</SelectItem></SelectGroup></SelectContent>
         </Select>
         <Hint text="Ordena cada columna por los criterios de la checklist: obligatorios cumplidos, luego deseables. No mueve ni descarta candidatos."><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Cómo se ordenan los candidatos"><Info aria-hidden="true" /></Button></Hint>
       </div> : null}<ChecklistComparison vacancyId={vacancyId} /></>} />
-      <p role={sortNotice ? "status" : undefined} aria-label="Orden de candidatos" aria-live="polite" aria-atomic="true" className="sr-only">{sortNotice}</p>
-      <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition || !!state.departure} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} late={late} />
+      <p role="status" aria-label="Orden de candidatos" aria-live="polite" aria-atomic="true" className="sr-only">{sortNotice}</p>
+      {searching && !visibleItems.length && <div role="status" aria-label="Sin coincidencias" className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+        <p><strong className="font-medium text-foreground">Sin coincidencias.</strong> Ningún candidato coincide con «{query.trim()}»{activeFilterCount(filters) > 0 ? " y los filtros activos" : ""}.</p>
+        <Button type="button" variant="outline" className="min-h-10" onClick={() => setQuery("")}>Limpiar búsqueda</Button>
+      </div>}
+      <BoardColumns configHref={substateConfigHref(vacancyId)} visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0 || searching} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition || !!state.departure} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} late={late} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
       {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} tabRequest={sheetTab?.id === selectedItem.id ? sheetTab : undefined} onClose={() => { setSelected(null); setSheetTab(undefined); }} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition || !!state.departure} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
-      {intake && <ManualIntakeSheet vacancyId={vacancyId} stages={board.stages} disabled={readOnly || stale} onClose={() => setIntake(false)} onSuccess={value => { state.addCandidate(value); setFilters({}); }} onViewExisting={async id => {
+      {intake && <ManualIntakeSheet vacancyId={vacancyId} stages={board.stages} disabled={readOnly || stale} onClose={() => setIntake(false)} onSuccess={value => { state.addCandidate(value); setFilters({}); setQuery(""); }} onViewExisting={async id => {
         const known = board.participations.find(item => item.id === id);
         if (known) { setSelected(id); setIntake(false); return; }
         const result = await loadParticipationAction(vacancyId, id);

@@ -13,6 +13,7 @@ import { DocumentFilters } from "./documents-filters";
 import { DocumentsTable } from "./documents-table";
 import { plural } from "./format";
 import { LinkSheet, linkDestinations } from "./link-sheet";
+import { initialDocumentFilters } from "./candidate-documents";
 import { participationIdOf, withItem, withLink, withoutRow, withScope } from "./overview-state";
 import type { RowIntent } from "./row-actions";
 import { buildRows, chooseCandidate, chooseScope, filterRows, NO_FILTERS, scopeCounts, type DocRow, type Filters } from "./rows";
@@ -36,7 +37,8 @@ function Loading() {
  * `onOverview` hands the screen the tab's own read (the overview, or `null` when it failed) so the screen needs no second `document-overview` read.
  */
 export function VacancyDocumentsTab({ draftId, onOverview }: { draftId: string; onOverview?: (overview: DocumentOverview | null) => void }) {
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // `?candidato=` (the candidate sheet's «Documentos» link) opens the tab already narrowed to that participation. The first paint is the skeleton either way.
+  const [filters, setFilters] = useState<Filters>(() => typeof window === "undefined" ? NO_FILTERS : initialDocumentFilters(window.location.search));
   const { state, reload, apply } = useDocumentOverview(draftId, filters.participationId);
   const report = useRef(onOverview);
   report.current = onOverview;

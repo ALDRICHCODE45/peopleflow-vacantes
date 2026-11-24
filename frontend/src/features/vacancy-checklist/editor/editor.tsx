@@ -37,8 +37,10 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
   const { readOnly: lifecycleReadOnly } = useConfigLifecycle(lifecycle);
   const [finished, setFinished] = useState(false);
   const readOnly = lifecycleReadOnly || finished;
-  const [baseline, setBaseline] = useState(() => bodyOf(checklist));
-  const [body, setBody] = useState<ChecklistBody>(() => ({ criteria: checklist.criteria, reminder_stage_ids: checklist.version === "0" ? stages.filter(stage => stage.kind !== "new").map(stage => stage.id) : checklist.reminder_stage_ids }));
+  // A checklist never saved (version 0) opens with the reminders preselected; those defaults are the starting point, not an unsaved edit, so the form loads clean.
+  const [initialBody] = useState<ChecklistBody>(() => ({ criteria: checklist.criteria, reminder_stage_ids: checklist.version === "0" ? stages.filter(stage => stage.kind !== "new").map(stage => stage.id) : checklist.reminder_stage_ids }));
+  const [baseline, setBaseline] = useState<ChecklistBody>(() => checklist.version === "0" ? initialBody : bodyOf(checklist));
+  const [body, setBody] = useState<ChecklistBody>(initialBody);
   const [etag, setEtag] = useState(initialEtag);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [errors, setErrors] = useState<{ rows: Record<number, string>; reminders?: string }>({ rows: {} });

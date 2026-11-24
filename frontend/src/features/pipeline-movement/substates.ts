@@ -17,3 +17,5 @@ export function isInProcess(board: Board, item: Participation): boolean {
 export function substateName(board: Board, id: string | null): string {
   return id === null ? "Sin subestado" : board.substates.find(substate => substate.id === id)?.name ?? "Subestado no disponible";
 }
+/** Where substates are defined: the vacancy's «Columnas del pipeline» configuration. */
+export const substateConfigHref = (vacancyId: string) => `/empresa/vacantes/${vacancyId}/configuracion/columnas`;

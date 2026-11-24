@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { assignableMembers, memberRoleSchema, membersSchema, memberWorkload, memberRowActions } from "./members-model";
+import { assignableMembers, hasBackendWorkload, memberRoleSchema, membersSchema, memberWorkload, memberRowActions } from "./members-model";
 import { members, selfId, draft } from "./test-fixtures";
 
 it("strictly accepts real members, multiple owners and deleted users", () => {
@@ -45,4 +45,20 @@ it("never writes the stakeholder role through the role-change schema", () => {
 });
 it("filters stakeholders out of every person a vacancy can be handed to", () => {
   expect(assignableMembers([...members, stakeholder]).map(member => member.id)).toEqual(members.map(member => member.id));
+});
+
+it("accepts today's members (no workload) and the new ones (workload.active_vacancies), strictly (D5)", () => {
+  const withWorkload = members.map((member, index) => ({ ...member, workload: { active_vacancies: index } }));
+  expect(membersSchema.parse({ members }).members[0].workload).toBeUndefined();
+  expect(membersSchema.parse({ members: withWorkload }).members.map(member => member.workload)).toEqual([{ active_vacancies: 0 }, { active_vacancies: 1 }]);
+  for (const bad of [{ active_vacancies: -1 }, { active_vacancies: 1.5 }, { active_vacancies: 1, extra: 1 }, {}, null])
+    expect(membersSchema.safeParse({ members: [{ ...members[0], workload: bad }] }).success).toBe(false);
+});
+it("prefers the backend workload (same number for every viewer) over the local draft count, and falls back when absent (D5)", () => {
+  const rows = [draft("a"), draft("b", { status: "paused" })];
+  expect(memberWorkload({ ...members[1], workload: { active_vacancies: 4 } }, rows)).toEqual({ ownedVacancies: 4, inProcessCandidates: null });
+  expect(memberWorkload({ ...members[1], workload: { active_vacancies: 0 } }, [])).toEqual({ ownedVacancies: 0, inProcessCandidates: null });
+  expect(memberWorkload(members[1], rows)).toEqual({ ownedVacancies: 2, inProcessCandidates: 6 });
+  expect(hasBackendWorkload({ ...members[1], workload: { active_vacancies: 4 } })).toBe(true);
+  expect(hasBackendWorkload(members[1])).toBe(false);
 });

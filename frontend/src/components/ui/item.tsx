@@ -6,17 +6,22 @@ import { cn } from "cn"
 
 import { Separator } from "@/components/ui/separator"
 
+/** True inside an `ItemGroup` (role=list): its rows are list items and its separators are presentational (axe aria-required-children). */
+const ItemListContext = React.createContext(false)
+
 function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div
-      role="list"
-      data-slot="item-group"
-      className={cn(
-        "group/item-group flex w-full flex-col gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2",
-        className
-      )}
-      {...props}
-    />
+    <ItemListContext.Provider value>
+      <div
+        role="list"
+        data-slot="item-group"
+        className={cn(
+          "group/item-group flex w-full flex-col gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2",
+          className
+        )}
+        {...props}
+      />
+    </ItemListContext.Provider>
   )
 }
 
@@ -24,8 +29,10 @@ function ItemSeparator({
   className,
   ...props
 }: React.ComponentProps<typeof Separator>) {
+  const inList = React.useContext(ItemListContext)
   return (
     <Separator
+      {...(inList ? { role: "presentation" } : null)}
       data-slot="item-separator"
       orientation="horizontal"
       className={cn("my-2", className)}
@@ -63,11 +70,13 @@ function Item({
   render,
   ...props
 }: useRender.ComponentProps<"div"> & VariantProps<typeof itemVariants>) {
+  const inList = React.useContext(ItemListContext)
   return useRender({
     defaultTagName: "div",
     props: mergeProps<"div">(
       {
         className: cn(itemVariants({ variant, size, className })),
+        ...(inList ? { role: "listitem" } : null),
       },
       props
     ),

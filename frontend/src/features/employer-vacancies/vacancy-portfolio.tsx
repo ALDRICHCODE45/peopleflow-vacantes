@@ -77,7 +77,7 @@ function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onSt
         <div className="min-w-0">
           {/* A draft has no pipeline: its title opens the editor; every published vacancy's opens the pipeline. */}
           <p className="break-words text-[14.5px] font-semibold text-foreground"><Link href={draft.status === "draft" ? vacancyEditorHref(draft.id) : vacancyPipelineHref(draft.id)} className="rounded-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/30">{title}</Link></p>
-          <p className={cn(META, "mt-0.5")}>{draft.team.mode === "shared" && !draft.team.responsible ? `Equipo · ${plural(draft.team.members_count, "persona", "personas")}` : <><span className="sr-only">Reclutador: </span>{draft.team.responsible?.name ?? "Usuario dado de baja"}</>}</p>
+          <p className={cn(META, "mt-0.5")}>{draft.team.mode === "shared" && !draft.team.responsible ? `Equipo · ${plural(draft.team.members_count, "persona", "personas")}` : <><span className="sr-only">Responsable: </span>{draft.team.responsible?.name ?? "Usuario dado de baja"}</>}</p>
           {draft.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
           {toggle && <div className="mt-2">{toggle}</div>}
         </div>

@@ -11,9 +11,11 @@ const instant = z.string().datetime({ offset: true });
 const TOKEN = /^[A-Za-z0-9_-]+$/;
 const MAX_TOKEN_LENGTH = 256;
 
-export const createdInvitationSchema = z.object({ id: uuid, url_token: z.string().min(16).max(MAX_TOKEN_LENGTH).regex(TOKEN), expires_at: instant, created_at: instant }).strict();
+/** Optional «Para quién es» label (D11): `string | null` from the new backend, absent from the previous one. */
+const note = z.string().nullable().optional();
+export const createdInvitationSchema = z.object({ id: uuid, url_token: z.string().min(16).max(MAX_TOKEN_LENGTH).regex(TOKEN), expires_at: instant, created_at: instant, note }).strict();
 // `created_by` is the owner's user id (backend 280d75bf); the name comes from the members list.
-export const pendingInvitationSchema = z.object({ id: uuid, created_at: instant, created_by: uuid, expires_at: instant }).strict();
+export const pendingInvitationSchema = z.object({ id: uuid, created_at: instant, created_by: uuid, expires_at: instant, note }).strict();
 export const pendingListSchema = z.object({ items: z.array(pendingInvitationSchema) }).strict();
 export const acceptedSchema = z.object({ company_id: uuid, member_id: uuid, role: z.literal("stakeholder") }).strict();
 export const errorEnvelopeSchema = z.object({ error: z.string(), code: z.string() }).passthrough();
@@ -25,7 +27,7 @@ export type Accepted = z.infer<typeof acceptedSchema>;
 type Reference = { status?: number; code?: string };
 export type InvitationFailure = {
   ok: false;
-  reason: "unauthenticated" | "forbidden" | "limit_reached" | "invalid_request" | "server_error" | "no_response" | "unrecognized_response";
+  reason: "unauthenticated" | "forbidden" | "limit_reached" | "invalid_note" | "invalid_request" | "server_error" | "no_response" | "unrecognized_response";
   reference: Reference;
 };
 export type CreateInvitationResult = { ok: true; invitation: CreatedInvitation } | InvitationFailure;
@@ -46,6 +48,18 @@ export const outcomeFor = (result: AcceptInvitationResult): AcceptOutcome | null
       : result.reason === "unauthenticated" && result.reference.status === 401 ? "cuenta-no-lista" : null;
 export const parseOutcome = (value: string | null | undefined): AcceptOutcome | null =>
   (ACCEPT_OUTCOMES as readonly string[]).includes(value ?? "") ? value as AcceptOutcome : null;
+
+export const NOTE_MAX_LENGTH = 80;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/u;
+export type NoteParse = { ok: true; note: string | undefined } | { ok: false; reason: "too_long" | "control" };
+/** Same rule as the API (1..80, no control characters) after trimming; blank means «no note», which is simply not sent. */
+export function parseNote(raw: string | undefined): NoteParse {
+  const value = (raw ?? "").trim();
+  if (value === "") return { ok: true, note: undefined };
+  if (CONTROL.test(value)) return { ok: false, reason: "control" };
+  if ([...value].length > NOTE_MAX_LENGTH) return { ok: false, reason: "too_long" };
+  return { ok: true, note: value };
+}
 
 export function invitationUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/u, "")}${INVITATION_PATH}/${token}`;

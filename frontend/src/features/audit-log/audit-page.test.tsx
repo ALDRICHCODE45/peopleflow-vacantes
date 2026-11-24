@@ -51,7 +51,7 @@ it("shows a recruiter the restricted card and reads no audit data at all", async
   load.mockResolvedValue(asRole("recruiter"));
   render(<AuditPage />);
   expect(await screen.findByText("Auditoría restringida")).toBeInTheDocument();
-  expect(screen.getByText("Solo el owner de la empresa puede consultar la auditoría.")).toBeInTheDocument();
+  expect(screen.getByText("Solo el dueño de la empresa puede consultar la auditoría.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Ir al dashboard" })).toHaveAttribute("href", "/empresa/dashboard");
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Exportar/ })).not.toBeInTheDocument();

@@ -834,3 +834,57 @@ it("sheet starts discard and refreshes current detail/history after successful d
   expect(loadParticipationAction).toHaveBeenCalledTimes(2); expect(loadHistoryAction).toHaveBeenCalledTimes(2);
   expect(within(screen.getByRole("dialog", { name: "Ana Pérez" })).getByRole("button", { name: "Recuperar" })).toBeEnabled();
 });
+function manualBoard(): Board {
+  const board = boardFixture();
+  board.participations[0] = { ...board.participations[0], source: "manual", added_by: { id: "recruiter", name: "Luis López" }, candidate: { ...board.participations[0].candidate, kind: "manual" } };
+  return board;
+}
+it("discarding a manual candidate (no account) says so and offers no candidate message", async () => {
+  vi.mocked(discardParticipationAction).mockReturnValue(new Promise(() => {}));
+  const dialog = await openDiscard(manualBoard());
+  expect(within(dialog).queryByRole("textbox", { name: /Mensaje para el candidato/ })).not.toBeInTheDocument();
+  expect(dialog).toHaveTextContent("No tiene cuenta en PeopleFlow: no verá mensajes ni cambios de estado.");
+  expect(dialog).not.toHaveTextContent("no se comparten con el candidato");
+  fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
+  fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
+  await waitFor(() => expect(discardParticipationAction).toHaveBeenCalledTimes(1));
+  expect(vi.mocked(discardParticipationAction).mock.calls[0][0].body).not.toHaveProperty("candidate_message");
+});
+it("an organic candidate keeps the candidate message field", async () => {
+  const dialog = await openDiscard();
+  expect(within(dialog).getByRole("textbox", { name: /Mensaje para el candidato/ })).toBeInTheDocument();
+  expect(dialog).not.toHaveTextContent("No tiene cuenta en PeopleFlow");
+});
+it("recovering a manual candidate does not promise that a message stops showing", async () => {
+  const board = manualBoard();
+  board.participations[0].stage_id = "exit";
+  board.participations[0].discard = { reason: { group: "recruiter", key: "requirements_not_met" }, previous_stage_id: "new", recovery_stage_id: "new", discarded_at: "2026-10-18T12:00:00Z" };
+  await mount(board);
+  fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Recuperar a Ana Pérez?" });
+  expect(dialog).not.toHaveTextContent("el mensaje deja de verse");
+});
+function inProcessWithoutSubstates(): Board {
+  const board = boardFixture();
+  board.stages[2].kind = "in_process";
+  board.participations[0].stage_id = board.stages[2].id;
+  board.substates = [];
+  return board;
+}
+it("with no substates configured the card menu and the sheet lead to Configuración → Columnas", async () => {
+  await mount(inProcessWithoutSubstates());
+  expect(within(menu()).getByRole("menuitem", { name: "Configurar subestados…" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(within(sheet).getByRole("link", { name: "Configurar subestados…" })).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/configuracion/columnas`);
+});
+it("with substates configured there is no configuration shortcut", async () => {
+  const board = inProcessWithoutSubstates();
+  board.substates = [{ id: "tech", name: "Entrevista técnica" }];
+  await mount(board);
+  expect(within(menu()).queryByRole("menuitem", { name: "Configurar subestados…" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(within(sheet).queryByRole("link", { name: "Configurar subestados…" })).not.toBeInTheDocument();
+});

@@ -100,7 +100,10 @@ it("disables pending submit, prevents duplicates, toasts only confirmation and s
   fireEvent.click(button); expect(createCompanyAction).toHaveBeenCalledTimes(1); expect(sileo.success).not.toHaveBeenCalled();
   await act(async () => pending.resolve({ kind: "created", company }));
   expect(await screen.findByText("Empresa confirmada")).toBeInTheDocument(); expect(screen.getByText("En verificación")).toBeInTheDocument();
-  expect(screen.getByText("Propietario")).toBeInTheDocument(); expect(screen.queryByLabelText("RFC")).not.toBeInTheDocument(); expect(sileo.success).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Dueño")).toBeInTheDocument();
+  // A registered company is never asked to «Registra tu empresa» again.
+  expect(screen.getByRole("heading", { level: 2, name: "Datos de tu empresa" })).toBeInTheDocument(); expect(screen.queryByText(/Registra tu empresa/)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("RFC")).not.toBeInTheDocument(); expect(sileo.success).toHaveBeenCalledTimes(1);
 });
 it.each([
   [{ kind: "forbidden", reference: {} }, "Necesitas una cuenta de reclutador para crear una empresa."],

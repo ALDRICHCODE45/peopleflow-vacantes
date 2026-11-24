@@ -18,7 +18,7 @@ vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraf
 afterEach(cleanup);
 
 it.each([
-  ["team", <TeamWorkspace key="team" members={[]} />, "data-pf-team-metric", 3],
+  ["team", <TeamWorkspace key="team" members={[]} />, "data-pf-team-metric", 4],
   ["vacancies", <VacancyPortfolio key="vacancies" />, "data-pf-vacancy-metric", 5],
 ] as const)("composes %s metrics with title headings and supporting labels", (_name, view, attribute, count) => {
   const { container } = render(view);

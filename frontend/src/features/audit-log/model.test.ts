@@ -170,7 +170,7 @@ describe("export range (D7: required, ≤ 366 days)", () => {
 
 describe("failure messages (es-MX)", () => {
   it("explains each list failure without backend text", () => {
-    expect(listFailureMessage({ ok: false, reason: "forbidden", reference: {} })).toMatch(/Solo el owner/);
+    expect(listFailureMessage({ ok: false, reason: "forbidden", reference: {} })).toMatch(/Solo el dueño/);
     expect(listFailureMessage({ ok: false, reason: "unauthenticated", reference: {} })).toMatch(/sesión expiró/);
     expect(listFailureMessage({ ok: false, reason: "invalid_filter", reference: {} })).toMatch(/filtros/);
     expect(listFailureMessage({ ok: false, reason: "invalid_filter", fields: [{ field: "from", code: "range" }], reference: {} })).toMatch(/«Desde»/);
@@ -181,7 +181,7 @@ describe("failure messages (es-MX)", () => {
     expect(exportErrorMessage({ status: 422, code: "audit_export_too_large", row_count: 60123, limit: 50000 })).toBe(
       "La exportación tiene 60,123 registros y el límite es 50,000. Acorta el rango de fechas o agrega filtros; no se descargó ningún archivo.");
     expect(exportErrorMessage({ status: 422, code: "audit_export_too_large" })).toMatch(/supera el límite/);
-    expect(exportErrorMessage({ status: 403, code: "forbidden" })).toMatch(/Solo el owner/);
+    expect(exportErrorMessage({ status: 403, code: "forbidden" })).toMatch(/Solo el dueño/);
     expect(exportErrorMessage({ status: 422, code: "invalid_filter" })).toMatch(/366 días/);
     expect(exportErrorMessage({ status: 401, code: "unauthenticated" })).toMatch(/sesión expiró/);
     expect(exportErrorMessage({ status: 503 })).toMatch(/No se descargó ningún archivo/);

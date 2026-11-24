@@ -11,7 +11,7 @@ const view: Lifecycle = { close_reason: null, close_reason_note: null, publicati
 const snapshot = { ok: true as const, data: view, etag: '"vl-id-v1"' };
 const changed = vi.fn();
 function mount(action: "close" | "pause" | "reopen" | "resume" | "finish_process" = "close") { return render(<LifecycleActionDialog draftId="id" title="Analista" action={action} snapshot={{ ...snapshot, data: { ...view, allowed_actions: [action] } }} open onOpenChange={vi.fn()} onChanged={changed} />); }
-beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))); vi.mocked(getLifecycleAction).mockResolvedValue(snapshot); vi.mocked(transitionLifecycleAction).mockResolvedValue({ ...snapshot, data: { ...view, publication: "closed" } }); });
+beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal("PointerEvent", MouseEvent); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))); vi.mocked(getLifecycleAction).mockResolvedValue(snapshot); vi.mocked(transitionLifecycleAction).mockResolvedValue({ ...snapshot, data: { ...view, publication: "closed" } }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it.each([
  ["pause", "Pausar", "Vacante pausada"],
@@ -21,50 +21,51 @@ it.each([
  ["reopen", "Reabrir", "Vacante reabierta"],
 ] as const)("announces the result of %s", async (action, button, title) => {
  mount(action);
- if (action === "close") fireEvent.click(screen.getByRole("button", { name: "Cancelada" }));
+ if (action === "close") fireEvent.click(screen.getByRole("radio", { name: "Cancelada" }));
  fireEvent.click(screen.getByRole("button", { name: button }));
  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title })));
 });
 it("requires a reason and focuses the first invalid field", () => {
  mount(); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  expect(transitionLifecycleAction).not.toHaveBeenCalled();
- expect(screen.getByText("Elige un motivo de cierre.")).toHaveAttribute("data-slot", "field-error");
- expect(screen.getByRole("button", { name: "Cubierta" })).toHaveFocus();
+ expect(screen.getByText("Elige un motivo de cierre.")).toHaveAttribute("role", "alert");
+ expect(screen.getByRole("radio", { name: "Cubierta" })).toHaveFocus();
 });
 it.each([["Cubierta", "filled"], ["Cancelada", "cancelled"], ["Otro", "other"]] as const)("sends reason %s", async (label, reason) => {
- mount(); fireEvent.click(screen.getByRole("button", { name: label }));
+ mount(); fireEvent.click(screen.getByRole("radio", { name: label }));
  if (reason === "other") fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "  Cambio de planes  " } });
  fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ body: { process: "continue", reason, reason_note: reason === "other" ? "Cambio de planes" : null } })));
 });
 it.each(["   ", "a".repeat(201)])("rejects invalid other note", note => {
- mount(); fireEvent.click(screen.getByRole("button", { name: "Otro" }));
+ mount(); fireEvent.click(screen.getByRole("radio", { name: "Otro" }));
  const input = screen.getByLabelText("Motivo"); fireEvent.change(input, { target: { value: note } });
  fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  expect(transitionLifecycleAction).not.toHaveBeenCalled(); expect(input).toHaveFocus(); expect(input).toHaveAttribute("aria-invalid", "true");
 });
 it.each([2, null])("disables filled with insufficient target %s", required => {
  render(<LifecycleActionDialog draftId="id" title="Analista" action="close" coverage={{ covered: 1, required }} snapshot={snapshot} open onOpenChange={vi.fn()} onChanged={changed} />);
- expect(screen.getByRole("button", { name: "Cubierta" })).toBeDisabled();
+ expect(screen.getByRole("radio", { name: "Cubierta" })).toHaveAttribute("aria-disabled", "true");
+ expect(screen.getByRole("radio", { name: "Cubierta" })).toHaveAccessibleDescription(required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Hay 1 de 2 posiciones cubiertas.");
  expect(screen.getByText(required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Hay 1 de 2 posiciones cubiertas.")).toBeVisible();
 });
 it("keeps the form and refreshes lifecycle after coverage rejection", async () => {
  vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required: 2 }, message: "Hay 1 de 2 posiciones cubiertas.", reference: { status: 422 } });
- mount(); fireEvent.click(screen.getByRole("button", { name: "Cubierta" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
+ mount(); fireEvent.click(screen.getByRole("radio", { name: "Cubierta" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(getLifecycleAction).toHaveBeenCalledWith("id"));
  expect(screen.getByRole("alertdialog")).toBeVisible(); expect(screen.getByText("Hay 1 de 2 posiciones cubiertas.")).toBeVisible();
- expect(screen.getByRole("button", { name: "Cubierta" })).toBeDisabled(); expect(transitionLifecycleAction).toHaveBeenCalledTimes(1);
+ expect(screen.getByRole("radio", { name: "Cubierta" })).toHaveAttribute("aria-disabled", "true"); expect(transitionLifecycleAction).toHaveBeenCalledTimes(1);
 
  // The explanation sits in the dialog; a toast would repeat it (and land under the backdrop).
  expect(notifyActionResult).not.toHaveBeenCalled();
  // Only the error text is red: the remaining choices keep their normal look.
- expect(screen.getByRole("button", { name: "Cancelada" }).closest("[data-invalid]")).toBeNull();
+ expect(screen.getByRole("radio", { name: "Cancelada" }).closest("[data-invalid]")).toBeNull();
 });
 it("counts trimmed Unicode notes and clears them from non-other bodies", async () => {
- mount(); fireEvent.click(screen.getByRole("button", { name: "Otro" }));
+ mount(); fireEvent.click(screen.getByRole("radio", { name: "Otro" }));
  fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: `  ${"😀".repeat(200)}  ` } });
  expect(screen.getByText("200 / 200 caracteres")).toBeVisible();
- fireEvent.click(screen.getByRole("button", { name: "Cancelada" }));
+ fireEvent.click(screen.getByRole("radio", { name: "Cancelada" }));
  expect(screen.queryByLabelText("Motivo")).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ body: { process: "continue", reason: "cancelled", reason_note: null } })));
@@ -72,10 +73,10 @@ it("counts trimmed Unicode notes and clears them from non-other bodies", async (
 it("uses a fresh intent only after the user corrects a rejected reason", async () => {
  vi.mocked(transitionLifecycleAction).mockResolvedValueOnce({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required: 2 }, message: "Hay 1 de 2 posiciones cubiertas.", reference: { status: 422 } });
  vi.mocked(getLifecycleAction).mockResolvedValue({ ...snapshot, etag: "fresh-tag" });
- mount(); fireEvent.click(screen.getByRole("button", { name: "Cubierta" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
- await waitFor(() => expect(screen.getByRole("button", { name: "Cancelada" })).toBeEnabled());
+ mount(); fireEvent.click(screen.getByRole("radio", { name: "Cubierta" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
+ await waitFor(() => expect(screen.getByRole("radio", { name: "Cancelada" })).toBeEnabled());
  expect(transitionLifecycleAction).toHaveBeenCalledTimes(1);
- fireEvent.click(screen.getByRole("button", { name: "Cancelada" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
+ fireEvent.click(screen.getByRole("radio", { name: "Cancelada" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(transitionLifecycleAction).toHaveBeenCalledTimes(2));
  const calls = vi.mocked(transitionLifecycleAction).mock.calls;
  expect(calls[1][0]).toMatchObject({ ifMatch: "fresh-tag", body: { process: "continue", reason: "cancelled", reason_note: null } });
@@ -105,7 +106,7 @@ it("ignores empty close choice and cancellation never writes", () => {
 it.each(["continue", "finish"] as const)("confirms close with %s process choice", async process => {
  mount();
  expect(screen.getByRole("button", { name: "Seguir con el proceso" })).toHaveAttribute("aria-pressed", "true");
- fireEvent.click(screen.getByRole("button", { name: "Cancelada" }));
+ fireEvent.click(screen.getByRole("radio", { name: "Cancelada" }));
  if (process === "finish") fireEvent.click(screen.getByRole("button", { name: "Finalizar el proceso" }));
  fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ action: "close", body: { process, reason: "cancelled", reason_note: null }, ifMatch: snapshot.etag, idempotencyKey: expect.any(String) })));
@@ -115,7 +116,7 @@ it.each(["continue", "finish"] as const)("confirms close with %s process choice"
 it.each(["pause", "close"] as const)("checks an uncertain %s and replays the exact intent with the same key", async action => {
  vi.mocked(transitionLifecycleAction).mockResolvedValueOnce({ ok: false, reason: "no_response", uncertain: true, message: "Resultado incierto", reference: {} });
  mount(action);
- if (action === "close") { fireEvent.click(screen.getByRole("button", { name: "Cancelada" })); fireEvent.click(screen.getByRole("button", { name: "Finalizar el proceso" })); }
+ if (action === "close") { fireEvent.click(screen.getByRole("radio", { name: "Cancelada" })); fireEvent.click(screen.getByRole("button", { name: "Finalizar el proceso" })); }
  fireEvent.click(screen.getByRole("button", { name: action === "close" ? "Cerrar vacante" : "Pausar" }));
  const check = await screen.findByRole("button", { name: "Comprobar" });
  expect(transitionLifecycleAction).toHaveBeenCalledTimes(1);
@@ -159,10 +160,12 @@ it("marks the chosen close option visibly and left-aligns both options (seen in 
   expect(finish.querySelector('[data-pf-close-choice-check]')).not.toBeNull();
   expect(keep.querySelector('[data-pf-close-choice-check]')).toBeNull();
 });
-it("marks the chosen close reason with the primary accent, readable in dark mode too", () => {
- mount(); const other = screen.getByRole("button", { name: "Otro" });
- expect(other.className).toContain("aria-pressed:border-primary");
- expect(other.className).toContain("aria-pressed:bg-primary/10");
- // §13.1: primary text on a dark primary tint is hard to read; the label keeps the foreground color.
- expect(other.className).toContain("aria-pressed:text-foreground");
+it("offers the close reason as a single choice list with one chosen row", () => {
+ mount();
+ expect(screen.getByRole("radiogroup", { name: "Motivo de cierre" })).toBeVisible();
+ const other = screen.getByRole("radio", { name: "Otro" });
+ expect(screen.queryAllByRole("radio", { checked: true })).toHaveLength(0);
+ fireEvent.click(other);
+ expect(other).toBeChecked();
+ expect(screen.getByRole("radio", { name: "Cancelada" })).not.toBeChecked();
 });

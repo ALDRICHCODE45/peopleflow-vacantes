@@ -36,6 +36,16 @@ const renderTab = async (overview = wire()) => {
 const row = (name: string | RegExp) => screen.getByRole("row", { name });
 const failure = (reason: string) => ({ ok: false as const, reason, message: "No pudimos cargar los documentos.", reference: {} }) as never;
 
+describe("initial candidate filter", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+  it("opens narrowed to the participation named by ?candidato=", async () => {
+    window.history.replaceState(null, "", `/empresa/vacantes/${ids.draft}/documentos?candidato=${ids.participation}`);
+    ready();
+    render(<VacancyDocumentsTab draftId={ids.draft} />);
+    await screen.findByRole("table");
+    expect(load).toHaveBeenCalledWith(ids.draft, ids.participation);
+  });
+});
 describe("states", () => {
   it("shows a loading skeleton with no figures or actions while the overview loads", () => {
     load.mockReturnValue(new Promise(() => {}));

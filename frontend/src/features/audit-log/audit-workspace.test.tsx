@@ -141,7 +141,7 @@ describe("states", () => {
   it("shows forbidden (the API said the caller is not the owner) with no retry and no rows", async () => {
     list.mockResolvedValue(failure("forbidden", { reference: { status: 403 } }));
     render(<AuditWorkspace />);
-    expect(await screen.findByText("Solo el owner de la empresa puede consultar la auditoría.")).toBeInTheDocument();
+    expect(await screen.findByText("Solo el dueño de la empresa puede consultar la auditoría.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
   });
@@ -480,11 +480,16 @@ describe("export (owner only, requires from/to, ≤ 366 days)", () => {
   const exportButton = () => screen.getByRole("button", { name: /Exportar CSV|Exportando/ });
   const csv = () => new Response("﻿occurred_at\r\n", { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="auditoria-2026-11-04.csv"' } });
 
-  it("asks for both dates before calling anything", async () => {
-    render(<AuditWorkspace />);
+  it("keeps the export disabled with a visible hint until both dates are set, without moving the toolbar", async () => {
+    const { container } = render(<AuditWorkspace />);
     await screen.findByRole("table");
+    expect(exportButton()).toBeDisabled();
+    const hint = screen.getByText("Elige las fechas «Desde» y «Hasta» para exportar.");
+    expect(exportButton()).toHaveAccessibleDescription("Elige las fechas «Desde» y «Hasta» para exportar.");
+    expect(hint.closest("[data-pf-audit-export-slot]")).toHaveClass("min-h-10");
+    expect(container.querySelectorAll("[data-pf-audit-export-slot]")).toHaveLength(1);
     await userEvent.click(exportButton());
-    expect(screen.getByRole("alert")).toHaveTextContent("Elige las fechas «Desde» y «Hasta» para exportar.");
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(created).toHaveLength(0);
   });
@@ -493,8 +498,8 @@ describe("export (owner only, requires from/to, ≤ 366 days)", () => {
     at("?from=2025-01-01&to=2026-11-04");
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    await userEvent.click(exportButton());
-    expect(screen.getByRole("alert")).toHaveTextContent("El rango no puede pasar de 366 días.");
+    expect(exportButton()).toBeDisabled();
+    expect(screen.getByText(/El rango no puede pasar de 366 días\./)).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -502,8 +507,8 @@ describe("export (owner only, requires from/to, ≤ 366 days)", () => {
     at("?from=2026-11-05&to=2026-11-04");
     render(<AuditWorkspace />);
     await screen.findByRole("table");
-    await userEvent.click(exportButton());
-    expect(screen.getByRole("alert")).toHaveTextContent("La fecha «Desde» debe ser anterior o igual a «Hasta».");
+    expect(exportButton()).toBeDisabled();
+    expect(screen.getByText("La fecha «Desde» debe ser anterior o igual a «Hasta».")).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -534,7 +539,7 @@ describe("export (owner only, requires from/to, ≤ 366 days)", () => {
   });
 
   it.each([
-    [403, { code: "forbidden" }, "Solo el owner de la empresa puede exportar la auditoría."],
+    [403, { code: "forbidden" }, "Solo el dueño de la empresa puede exportar la auditoría."],
     [503, { code: "no_response" }, "No pudimos generar la exportación. No se descargó ningún archivo"],
   ])("maps a %s to a clear message and downloads nothing", async (status, body, message) => {
     at("?from=2026-11-01&to=2026-11-04");

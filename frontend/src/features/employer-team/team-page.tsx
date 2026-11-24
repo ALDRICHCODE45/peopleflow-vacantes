@@ -10,7 +10,7 @@ import { useIdentity } from "@/features/identity/identity-session";
 import { useCompanyMembership } from "@/features/employer-company/use-company-membership";
 import { usePortfolioDrafts } from "@/features/employer-vacancies/use-portfolio-drafts";
 import { changeTeamRoleAction, removeTeamMemberAction, type TeamFailure } from "./actions";
-import { memberName, memberRowActions, type CompanyMember, type MemberRowAction } from "./members-model";
+import { hasBackendWorkload, memberName, memberRowActions, type CompanyMember, type MemberRowAction } from "./members-model";
 import type { TeamMemberRole } from "./model";
 import { useTeamMembers } from "./use-team-members";
 import { TeamWorkspace } from "./team-workspace";
@@ -150,7 +150,9 @@ function ConnectedTeam({ userId, role, companyId }: { userId: string; role: Team
   }
   if (!team.result) return <TeamWorkspace members={[]} loading />;
   if (!team.result.ok) return <TeamReadFailure failure={team.result} retry={() => { void team.refresh(); }} />;
-  const workloadUnavailable = drafts.failure !== null || drafts.capped;
+  // Members carrying the backend workload (D5) never depend on the drafts read: only the others can be left without «Carga».
+  const needsDrafts = members.some(member => member.role !== "stakeholder" && member.user !== null && !hasBackendWorkload(member));
+  const workloadUnavailable = needsDrafts && (drafts.failure !== null || drafts.capped);
   return <>
     {workloadUnavailable && <StateCard icon={Users} tone="error" title="No pudimos cargar la carga de trabajo" description={drafts.capped ? "La consulta no incluye todas las vacantes. No mostramos conteos incompletos." : "Los miembros siguen disponibles. Vuelve a consultar las vacantes para ver la carga real."} primaryAction={{ label: "Reintentar carga", disabled: drafts.pending, onClick: drafts.retry }} />}
     <TeamWorkspace members={members} drafts={drafts.items} workloadPending={drafts.pending} workloadUnavailable={workloadUnavailable}

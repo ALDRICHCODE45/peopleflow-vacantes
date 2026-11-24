@@ -53,25 +53,23 @@ describe("employer settings", () => {
     expect(screen.queryByText("Plan y facturación")).toBeNull();
   });
 
-  it("changes recruitment and notification preferences only for the current visit", () => {
+  it("renders recruitment and notification preferences disabled with a visible «Próximamente» reason", () => {
     const persist = vi.spyOn(Storage.prototype, "setItem");
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
-    const { unmount } = render(<EmployerSettingsWorkspace />);
-    const screening = screen.getByRole("switch", { name: "Incluir preguntas de filtro" });
-    const alerts = screen.getByRole("switch", { name: "Nuevas postulaciones" });
-    expect(screening).not.toBeChecked();
-    expect(alerts).toBeChecked();
-    fireEvent.click(screening);
-    fireEvent.click(alerts);
-    expect(screening).toBeChecked();
-    expect(alerts).not.toBeChecked();
+    render(<EmployerSettingsWorkspace />);
+    const names = ["Incluir preguntas de filtro", "Nuevas postulaciones", "Cambios en entrevistas", "Actividad del equipo", "Resumen semanal"];
+    for (const name of names) {
+      const control = screen.getByRole("switch", { name });
+      expect(control).toBeDisabled();
+      expect(control).not.toBeChecked();
+      const reason = document.getElementById(control.getAttribute("aria-describedby")!.split(" ")[1])!;
+      expect(reason).toHaveTextContent("Próximamente");
+      fireEvent.click(control);
+      expect(control).not.toBeChecked();
+    }
     expect(persist).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
-    unmount();
-    render(<EmployerSettingsWorkspace />);
-    expect(screen.getByRole("switch", { name: "Incluir preguntas de filtro" })).not.toBeChecked();
-    expect(screen.getByRole("switch", { name: "Nuevas postulaciones" })).toBeChecked();
   });
 
   it("offers no exemption from the CV: every application requires one (INT-17)", () => {
@@ -90,15 +88,20 @@ describe("employer settings", () => {
     expect(document.documentElement).toHaveAttribute("data-theme", "light");
   });
 
-  it("keeps security presentation controls enabled and inert without success claims", () => {
+  it("disables security controls with a visible «Próximamente» reason and no success claims", () => {
     const persist = vi.spyOn(Storage.prototype, "setItem");
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
     render(<EmployerSettingsWorkspace />);
     const security = screen.getByRole("switch", { name: "Autenticación en dos pasos" });
     const password = screen.getByRole("button", { name: "Cambiar contraseña" });
-    expect(security).toBeEnabled();
-    expect(password).toBeEnabled();
+    expect(security).toBeDisabled();
+    expect(password).toBeDisabled();
+    for (const control of [security, password]) {
+      const ids = control.getAttribute("aria-describedby")!.split(" ");
+      expect(ids).toHaveLength(2);
+      expect(document.getElementById(ids[1])).toHaveTextContent("Próximamente");
+    }
     fireEvent.click(security);
     fireEvent.click(password);
     expect(security).not.toBeChecked();

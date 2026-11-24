@@ -25,14 +25,33 @@ function setupUser() {
 }
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const mount = (stakeholderCount = 0) => render(<StakeholderInvitationsCard members={[owner]} stakeholderCount={stakeholderCount} />);
+/** Opens the create dialog from the card and submits it (the note is optional). */
+async function create(user: ReturnType<typeof setupUser>, note?: string) {
+  await user.click(await screen.findByRole("button", { name: "Crear enlace de invitación" }));
+  const dialog = await screen.findByRole("dialog", { name: "Nueva invitación" });
+  if (note !== undefined) await user.type(within(dialog).getByLabelText("Para quién es (opcional)"), note);
+  await user.click(within(dialog).getByRole("button", { name: "Crear enlace" }));
+  return dialog;
+}
 const many = (count: number) => Array.from({ length: count }, (_, i) => pendingInvitation({ id: `80000000-0000-4000-8000-${String(i).padStart(12, "0")}` }));
 
 it("explains the role and offers one entry when there are no stakeholders nor invitations", async () => {
   vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
   mount();
   expect(await screen.findByRole("heading", { name: "Aún no hay stakeholders" })).toBeInTheDocument();
-  expect(screen.getByText("Un stakeholder ve las métricas de la empresa en solo lectura, por ejemplo un director. Crea un enlace y envíaselo.")).toBeInTheDocument();
+  expect(screen.getByText("Un stakeholder ve las métricas y los documentos de las vacantes en solo lectura, por ejemplo un director. Crea un enlace y envíaselo.")).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Crear enlace de invitación" })).toHaveLength(1);
+});
+
+it("stacks the create action under the title on phones and describes what a stakeholder sees", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [pendingInvitation()] });
+  mount(1);
+  const button = await screen.findByRole("button", { name: "Crear enlace de invitación" });
+  expect(document.querySelector("[data-slot='card-header']")).toHaveClass("max-sm:grid-cols-1");
+  expect(button.closest("[data-slot='card-action']")).toHaveClass("max-sm:col-start-1", "max-sm:row-start-auto", "max-sm:justify-self-stretch");
+  expect(button).toHaveClass("max-sm:w-full");
+  expect(screen.getByText(/^Ven Métricas y los documentos de las vacantes \(solo lectura\)/)).toBeInTheDocument();
+  expect(screen.queryByText(/Solo ven Métricas/)).toBeNull();
 });
 
 it("lists pending invitations by creation date, creator resolved from members, expiry and count of 20", async () => {
@@ -66,11 +85,11 @@ it("shows the link once with an honest copy button, then refreshes the list", as
   writeText.mockResolvedValue();
   const user = setupUser();
   mount();
-  await user.click(await screen.findByRole("button", { name: "Crear enlace de invitación" }));
+  await create(user);
   const dialog = await screen.findByRole("dialog", { name: "Copia el enlace ahora" });
   expect(within(dialog).getByText("Por seguridad no lo volveremos a mostrar. Envíalo por WhatsApp o chat a la persona que quieres invitar. Sirve una sola vez y vence el 14 nov 2026 a las 10:42.")).toBeInTheDocument();
   expect(within(dialog).getByLabelText("Enlace de invitación")).toHaveValue(link);
-  expect(within(dialog).getByText("Quien use este enlace verá las métricas de toda la empresa y los nombres de candidatos en el detalle auditado.")).toBeInTheDocument();
+  expect(within(dialog).getByText("Quien use este enlace verá las métricas de toda la empresa, los documentos de las vacantes y los nombres de candidatos en el detalle auditado.")).toBeInTheDocument();
   await user.click(within(dialog).getByRole("button", { name: "Copiar enlace" }));
   expect(writeText).toHaveBeenCalledExactlyOnceWith(link);
   expect(await within(dialog).findByText("Enlace copiado. Pégalo en el mensaje para la persona invitada.")).toBeInTheDocument();
@@ -79,7 +98,7 @@ it("shows the link once with an honest copy button, then refreshes the list", as
   await user.click(within(dialog).getByRole("button", { name: "Listo, ya lo copié" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(document.body.textContent).not.toContain(urlToken);
-  expect(createStakeholderInvitationAction).toHaveBeenCalledTimes(1);
+  expect(createStakeholderInvitationAction).toHaveBeenCalledExactlyOnceWith({});
 });
 
 it("says so when the browser refuses to copy and leaves the link selected", async () => {
@@ -88,8 +107,8 @@ it("says so when the browser refuses to copy and leaves the link selected", asyn
   writeText.mockRejectedValue(new Error("denied"));
   const user = setupUser();
   mount();
-  await user.click(await screen.findByRole("button", { name: "Crear enlace de invitación" }));
-  const dialog = await screen.findByRole("dialog");
+  await create(user);
+  const dialog = await screen.findByRole("dialog", { name: "Copia el enlace ahora" });
   await user.click(within(dialog).getByRole("button", { name: "Copiar enlace" }));
   expect(await within(dialog).findByText("No se pudo copiar. El enlace quedó seleccionado: cópialo con Ctrl+C.")).toBeInTheDocument();
   const input = within(dialog).getByLabelText("Enlace de invitación") as HTMLInputElement;
@@ -102,7 +121,7 @@ it("reports the 422 limit without showing a link and re-reads the list", async (
   vi.mocked(createStakeholderInvitationAction).mockResolvedValue({ ok: false, reason: "limit_reached", reference: { status: 422, code: "invitation_limit_reached" } });
   const user = setupUser();
   mount();
-  await user.click(await screen.findByRole("button", { name: "Crear enlace de invitación" }));
+  await create(user);
   expect(await screen.findByText("Llegaste al máximo de 20 invitaciones pendientes. Revoca alguna para crear otra.")).toBeInTheDocument();
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(listStakeholderInvitationsAction).toHaveBeenCalledTimes(2);
@@ -114,7 +133,7 @@ it("never claims a link on an uncertain create and tells the owner how to recove
   vi.mocked(createStakeholderInvitationAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
   const user = setupUser();
   mount();
-  await user.click(await screen.findByRole("button", { name: "Crear enlace de invitación" }));
+  await create(user);
   expect(await screen.findByText("No pudimos confirmar si se creó el enlace. Si aparece una invitación nueva en la lista, revócala y crea otra.")).toBeInTheDocument();
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(createStakeholderInvitationAction).toHaveBeenCalledTimes(1);
@@ -167,4 +186,61 @@ it("offers a retry when the list cannot be read", async () => {
   expect(await screen.findByText("No pudimos cargar las invitaciones. Es seguro reintentar.")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Reintentar" }));
   expect(await screen.findByRole("heading", { name: "Aún no hay stakeholders" })).toBeInTheDocument();
+});
+
+it("D11: the create dialog sends the trimmed note only when filled, and an empty one sends nothing", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
+  vi.mocked(createStakeholderInvitationAction).mockResolvedValue({ ok: true, invitation: createdInvitation({ note: "Para Luis" }) });
+  const user = setupUser();
+  mount();
+  await create(user, "  Para Luis  ");
+  await screen.findByRole("dialog", { name: "Copia el enlace ahora" });
+  expect(createStakeholderInvitationAction).toHaveBeenCalledExactlyOnceWith({ note: "Para Luis" });
+  expect(screen.queryByRole("dialog", { name: "Nueva invitación" })).toBeNull();
+});
+it("D11: validates the note on the client (1..80, no control characters) without calling the action", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
+  const user = setupUser();
+  mount();
+  const dialog = await create(user, "a".repeat(81));
+  expect(await within(dialog).findByText("Usa 80 caracteres o menos.")).toBeInTheDocument();
+  expect(within(dialog).getByLabelText("Para quién es (opcional)")).toBeInvalid();
+  expect(createStakeholderInvitationAction).not.toHaveBeenCalled();
+  await user.clear(within(dialog).getByLabelText("Para quién es (opcional)"));
+  await user.type(within(dialog).getByLabelText("Para quién es (opcional)"), "ok");
+  expect(within(dialog).queryByText("Usa 80 caracteres o menos.")).toBeNull();
+});
+it("D11: maps the backend's 400 note error onto the field and keeps the dialog open to fix it", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
+  vi.mocked(createStakeholderInvitationAction).mockResolvedValue({ ok: false, reason: "invalid_note", reference: { status: 400, code: "validation_error" } });
+  const user = setupUser();
+  mount();
+  const dialog = await create(user, "Luis");
+  expect(await within(dialog).findByText("La nota no es válida. Escribe entre 1 y 80 caracteres, sin saltos de línea.")).toBeInTheDocument();
+  expect(within(dialog).getByLabelText("Para quién es (opcional)")).toBeInvalid();
+  expect(screen.getByRole("dialog", { name: "Nueva invitación" })).toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "Crear enlace" })).toBeEnabled();
+});
+it("D11: cancelling the create dialog writes nothing", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
+  const user = setupUser();
+  mount();
+  await user.click(await screen.findByRole("button", { name: "Crear enlace de invitación" }));
+  await user.click(within(await screen.findByRole("dialog", { name: "Nueva invitación" })).getByRole("button", { name: "Cancelar" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(createStakeholderInvitationAction).not.toHaveBeenCalled();
+});
+it("D11: pending rows show the note and fall back to the date alone when there is none (note absent or null)", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [
+    pendingInvitation({ note: "Para Luis, Dirección" }),
+    pendingInvitation({ id: secondInvitationId, note: null, created_at: "2026-11-07T16:42:00Z" }),
+    pendingInvitation({ id: "80000000-0000-4000-8000-000000000003", created_at: "2026-11-06T16:42:00Z" }),
+  ] });
+  mount(1);
+  const rows = (await screen.findAllByRole("row")).slice(1);
+  expect(within(rows[0]).getByText("Para Luis, Dirección")).toBeInTheDocument();
+  expect(within(rows[0]).getByText("5 nov 2026, 09:14")).toBeInTheDocument();
+  expect(within(rows[1]).getByText("7 nov 2026, 10:42")).toBeInTheDocument();
+  expect(within(rows[1]).queryByText(/Para Luis/)).toBeNull();
+  expect(within(rows[2]).getByText("6 nov 2026, 10:42")).toBeInTheDocument();
 });

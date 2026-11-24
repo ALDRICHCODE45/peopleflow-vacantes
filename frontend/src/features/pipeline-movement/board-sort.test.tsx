@@ -64,6 +64,8 @@ function chooseFit() { fireEvent.click(screen.getByRole("option", { name: "Mejor
 it("shows the active order, sorts cards locally and restores arrival order", async () => {
   await mount();
   const original = names();
+  // The live region exists (named, empty) before any change, so its `aria-label` is allowed and the first announcement is read.
+  expect(screen.getByRole("status", { name: "Orden de candidatos" })).toBeEmptyDOMElement();
   expect(screen.getByRole("combobox", { name: "Orden" })).toHaveTextContent("Orden: Llegada");
   chooseFit();
   expect(screen.getByRole("combobox", { name: "Orden" })).toHaveTextContent("Orden: Mejor ajuste");

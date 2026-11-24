@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CircleAlert, Download } from "lucide-react";
+import { CircleAlert, Download, Info } from "lucide-react";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -45,12 +45,19 @@ export function ExportAuditButton({ filters }: { filters: AuditFilters }) {
     finally { setPending(false); }
   }
 
+  // Until the range is valid the button stays disabled and says why, in the same reserved line the result uses afterwards.
+  const rangeError = exportRangeError(filters.from, filters.to);
+  const hintId = "audit-export-hint";
   return <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
-    <Button type="button" variant="outline" className="min-h-10" disabled={pending} aria-busy={pending} onClick={() => void run()}>
+    <Button type="button" variant="outline" className="min-h-10" disabled={pending || rangeError !== undefined} aria-busy={pending}
+      aria-describedby={rangeError && !message ? hintId : undefined} onClick={() => void run()}>
       {pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Download data-icon="inline-start" aria-hidden="true" />}
       {pending ? "Exportando…" : "Exportar CSV"}
     </Button>
-    {message?.tone === "error" && <p role="alert" className="flex max-w-md items-center gap-2 text-sm text-status-danger sm:text-right"><CircleAlert aria-hidden="true" className="size-4 shrink-0" />{message.text}</p>}
-    {message?.tone === "success" && <ActionStatus id="audit-export-status" tone="success" text={message.text} />}
+    <div data-pf-audit-export-slot="" className="flex min-h-10 w-full max-w-md items-start sm:justify-end">
+      {message?.tone === "error" ? <p role="alert" className="flex items-start gap-2 text-sm text-status-danger sm:text-right"><CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{message.text}</p>
+        : message?.tone === "success" ? <ActionStatus id="audit-export-status" tone="success" text={message.text} />
+          : rangeError ? <p id={hintId} className="flex items-start gap-2 text-xs text-muted-foreground sm:text-right"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{EXPORT_RANGE_MESSAGES[rangeError]}</p> : null}
+    </div>
   </div>;
 }

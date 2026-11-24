@@ -92,7 +92,7 @@ export function ConditionsStep({ headingRef, ctx, responsible, onResponsible, ta
   return <div className="flex flex-col gap-4">
     <StepHeading ref={headingRef}>Condiciones del reemplazo</StepHeading>
     <Field data-invalid={!!errors.responsible || undefined}>
-      <FieldLabel htmlFor="replacement-responsible">Reclutador responsable</FieldLabel>
+      <FieldLabel htmlFor="replacement-responsible">Responsable</FieldLabel>
       <Select items={items} value={responsible} onValueChange={next => { if (next) onResponsible(next); }}>
         <SelectTrigger id="replacement-responsible" className="min-h-10 w-full" disabled={pending} aria-invalid={!!errors.responsible || undefined} aria-describedby={`replacement-responsible-help${errors.responsible ? " replacement-responsible-error" : ""}`}><SelectValue placeholder="Elige a una persona" /></SelectTrigger>
         <SelectContent><SelectGroup>{items.map(item => <SelectItem key={item.value} value={item.value} className="min-h-10">{item.label}</SelectItem>)}</SelectGroup></SelectContent>
@@ -146,14 +146,14 @@ export function CandidatesStep({ headingRef, candidates, truncated, stages, chos
     <p className="text-sm text-muted-foreground">Opcional. Elige personas descartadas o que siguen en el proceso original. Empiezan en la etapa que confirmes, menos Placement.</p>
     {candidates.length === 0 ? <p className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">No hay candidatos del proceso original para retomar.</p> : <>
       <ToggleGroup aria-label="Filtrar candidatos" variant="outline" value={[filter]} disabled={pending} className="flex-wrap" onValueChange={values => { const next = values[0]; if (next === "all" || next === "in_process" || next === "discarded") onFilter(next); }}>
-        {([["all", "Todos"], ["in_process", "En proceso"], ["discarded", "Descartados"]] as const).map(([value, label]) =>
+        {([["all", "Todos"], ["in_process", "Activos"], ["discarded", "Descartados"]] as const).map(([value, label]) =>
           <ToggleGroupItem key={value} value={value} className="min-h-10 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground">{label} <span className="text-muted-foreground">{counts[value]}</span></ToggleGroupItem>)}
       </ToggleGroup>
       <ChoiceList multiple hideLegend selectAll={false} legend="Candidatos del proceso original" disabled={pending} value={Object.keys(chosen)}
         options={visible.map(item => {
           const key = candidateKey(item.candidate); const checked = key in chosen;
           return { value: key, title: item.candidate.full_name, leading: <Person name={item.candidate.full_name} />, disabled: !checked && full, error: errors[key],
-            description: `${item.discarded ? ["Descartado", ...(item.discard_reason ? [discardReasonLabel(item.discard_reason)] : [])].join(" · ") : "En proceso"} · antes: ${item.stage.name}` };
+            description: `${item.discarded ? ["Descartado", ...(item.discard_reason ? [discardReasonLabel(item.discard_reason)] : [])].join(" · ") : "Activo"} · antes: ${item.stage.name}` };
         })}
         onValueChange={next => {
           const now = new Set(next);

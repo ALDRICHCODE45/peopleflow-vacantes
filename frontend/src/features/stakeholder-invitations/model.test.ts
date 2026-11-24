@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import {
-  MAX_PENDING_INVITATIONS, acceptedSchema, outcomeFor, parseOutcome, createdInvitationSchema, creatorName, daysUntil, invitationUrl, pendingListSchema,
+  MAX_PENDING_INVITATIONS, acceptedSchema, outcomeFor, parseOutcome, createdInvitationSchema, creatorName, daysUntil, invitationUrl, pendingListSchema, NOTE_MAX_LENGTH, parseNote,
 } from "./model";
 import { acceptBody, createdInvitation, ownerUserId, pendingInvitation, urlToken } from "./test-fixtures";
 
@@ -45,4 +45,26 @@ it("sends a backend 401 with a session to its own outcome, and a missing session
   expect(outcomeFor({ ok: false, reason: "unauthenticated", reference: {} })).toBeNull();
   expect(outcomeFor({ ok: false, reason: "no_response", reference: {} })).toBeNull();
   expect(parseOutcome("cuenta-no-lista")).toBe("cuenta-no-lista");
+});
+
+it("accepts today's invitation shapes (no note key) and the new ones (note: string | null) (D11)", () => {
+  expect(createdInvitationSchema.parse({ ...createdInvitation(), note: "Dirección" }).note).toBe("Dirección");
+  expect(createdInvitationSchema.parse({ ...createdInvitation(), note: null }).note).toBeNull();
+  expect(createdInvitationSchema.parse(createdInvitation()).note).toBeUndefined();
+  expect(pendingListSchema.parse({ items: [{ ...pendingInvitation(), note: "Para Luis" }, { ...pendingInvitation(), note: null }, pendingInvitation()] }).items.map(item => item.note)).toEqual(["Para Luis", null, undefined]);
+  expect(pendingListSchema.safeParse({ items: [{ ...pendingInvitation(), note: 3 }] }).success).toBe(false);
+});
+it("validates the optional note on the client: trimmed, 1..80, no control characters (D11)", () => {
+  expect(NOTE_MAX_LENGTH).toBe(80);
+  expect(parseNote(undefined)).toEqual({ ok: true, note: undefined });
+  expect(parseNote("")).toEqual({ ok: true, note: undefined });
+  expect(parseNote("   ")).toEqual({ ok: true, note: undefined });
+  expect(parseNote("  Para Luis, Dirección  ")).toEqual({ ok: true, note: "Para Luis, Dirección" });
+  expect(parseNote("a".repeat(80))).toEqual({ ok: true, note: "a".repeat(80) });
+  expect(parseNote("a".repeat(81))).toEqual({ ok: false, reason: "too_long" });
+  expect(parseNote(" " + "a".repeat(80) + " ")).toEqual({ ok: true, note: "a".repeat(80) });
+  expect(parseNote("línea\nsiguiente")).toEqual({ ok: false, reason: "control" });
+  expect(parseNote("tab\there")).toEqual({ ok: false, reason: "control" });
+  expect(parseNote("nul\u0000")).toEqual({ ok: false, reason: "control" });
+  expect(parseNote("del\u007f")).toEqual({ ok: false, reason: "control" });
 });

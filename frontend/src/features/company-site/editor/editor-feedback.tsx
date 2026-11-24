@@ -8,7 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { autosaveLabel, type AutosaveStatus } from "../autosave";
 
 export function SaveStatus({ status, dirty, onLoadLatest, onRetry }: { status: AutosaveStatus; dirty: boolean; onLoadLatest: () => void; onRetry?: () => void }) {
-  const label = status.kind === "saving" ? "Guardando…" : status.kind === "offline" ? "Sin conexión — reintentaremos" : status.kind === "conflict" ? "Otra persona editó el sitio" : status.kind === "invalid" ? "Revisa los campos marcados" : status.kind === "error" ? autosaveLabel(status) : dirty ? "Cambios pendientes" : status.kind === "saved" ? "Cambios guardados" : "Sin cambios pendientes";
+  const label = status.kind === "saving" ? "Guardando…" : status.kind === "offline" ? "Sin conexión — reintentaremos" : status.kind === "conflict" ? "Otra persona editó el sitio" : status.kind === "invalid" ? "Revisa los campos marcados" : status.kind === "error" ? autosaveLabel(status) : dirty ? "Cambios sin guardar" : "Borrador guardado";
   const Icon = status.kind === "saving" ? Spinner : ["offline", "conflict", "invalid", "error"].includes(status.kind) ? CircleAlert : CloudCheck;
   return <div className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1">
     <p role="status" aria-label="Estado del guardado" aria-live="polite" aria-atomic="true" className="flex items-center gap-2 text-sm text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</p>

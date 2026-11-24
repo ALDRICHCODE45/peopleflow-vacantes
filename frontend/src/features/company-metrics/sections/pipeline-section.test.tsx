@@ -77,8 +77,8 @@ describe("Pipeline por etapa (artboard 07)", () => {
   it("tints only stalled counts above 0 with the alarm tone", () => {
     show();
     const rows = within(card("Candidatos por etapa")).getAllByRole("listitem");
-    expect(within(rows[3]).getByText("7 detenidos")).toHaveClass("text-destructive");
-    expect(within(rows[4]).getByText("Al día")).not.toHaveClass("text-destructive");
+    expect(within(rows[3]).getByText("7 detenidos")).toHaveClass("text-status-danger", "bg-status-danger/10"); // D17: 7.1:1 in light, 4.6:1 in dark (text-destructive was 3.98:1)
+    expect(within(rows[4]).getByText("Al día")).not.toHaveClass("text-status-danger");
   });
 
   it("opens each stage, its stalled people and the total per contract §4.4; a 0 is never a link", () => {

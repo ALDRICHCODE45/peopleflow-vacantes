@@ -20,6 +20,17 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 describe("comparison page", () => {
+ it("sizes the criteria table from CSS variables so a 390 px phone shows candidate columns, not just the criterion", async () => {
+  render(<ComparisonPage jobId={id(90)} ids={ids} />);
+  const table = (await screen.findAllByRole("table"))[0];
+  expect(table.style.width).toBe("");
+  expect(table.style.getPropertyValue("--count")).toBe("2");
+  expect(table.className).toContain("[--crit:6.5rem]");
+  expect(table.className).toContain("sm:[--crit:20rem]");
+  const [criterion, ...people] = within(table).getAllByRole("columnheader");
+  expect(criterion.className).toContain("w-(--crit)");
+  for (const person of people) expect(person.className).toContain("w-(--cand)");
+ });
  it("summarizes each person and exposes the legend, evidence names and checklist-only order", async () => {
   mocks.board.mockResolvedValue({ ok: true, data: { ...board, participations: [item, { ...item, id: id(15), candidate: { ...item.candidate, full_name: "Bea" }, profile: { ...item.profile, skills: ["SQL"] } }] } });
   render(<ComparisonPage jobId={id(90)} ids={ids} />);
@@ -34,7 +45,8 @@ describe("comparison page", () => {
   expect(within(cards[1]).getByText("1 sin evaluar · No equivale a no cumplir")).toBeTruthy();
   for (const card of cards) expect(within(card).getByText(board.stages[0].name)).toBeTruthy();
   expect(screen.getByRole("group", { name: "Leyenda" }).textContent).toMatch(/Cumple.*No cumple.*Sin evaluar/);
-  expect(screen.getByLabelText("Cumple · fuente: perfil")).toBeTruthy();
+  // A named span needs a role (axe aria-prohibited-attr): the read-only result is an image with a text alternative.
+  expect(screen.getByRole("img", { name: "Cumple · fuente: perfil" })).toBeTruthy();
   expect(screen.getByLabelText("Sin evaluar")).toBeTruthy();
   expect(screen.getByText("El checklist informa; no descarta ni mueve candidatos.")).toBeTruthy();
   expect(screen.getByText("Ordenados por mejor ajuste del checklist · No incluye psicometría")).toBeTruthy();

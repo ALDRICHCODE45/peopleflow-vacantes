@@ -9,6 +9,7 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { StateCard } from "@/components/feedback/state-card";
+import { ForbiddenCard } from "./forbidden-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -81,7 +82,7 @@ export function IdentityError({ retry }: { retry: () => void }) {
 
 /** A stakeholder (read-only, stakeholder-metrics-v1 §1.2) opened an employer route outside Métricas. */
 export function StakeholderRouteBlocked() {
-  return <StateCard icon={ShieldLock} tone="forbidden" title="Esta sección no está disponible para tu rol"
-    description="Como stakeholder ves las métricas de la empresa en solo lectura. Si necesitas algo más, pídelo a la persona dueña de la cuenta."
+  return <ForbiddenCard title="Esta sección no está disponible para tu rol"
+    description="Como stakeholder ves Métricas y los documentos de las vacantes (solo lectura). Si necesitas algo más, pídelo a la persona dueña de la cuenta."
     primaryAction={{ label: "Ir a Métricas", href: "/empresa/metricas" }} />;
 }

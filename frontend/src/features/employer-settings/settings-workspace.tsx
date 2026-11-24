@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "cn";
-import { BellRing, BriefcaseBusiness, Building2, CalendarClock, ClipboardList, Globe2, KeyRound, Palette, ShieldCheck, UsersRound } from "lucide-react";
+import { BellRing, BriefcaseBusiness, Building2, CalendarClock, ClipboardList, Clock3, Globe2, KeyRound, Palette, ShieldCheck, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -33,12 +33,7 @@ const NOTIFICATIONS = [
   { key: "team_activity", title: "Actividad del equipo", description: "Novedades sobre las asignaciones de reclutamiento.", icon: UsersRound },
   { key: "weekly_summary", title: "Resumen semanal", description: "Un repaso de las vacantes y postulaciones de la semana.", icon: BellRing },
 ] as const;
-type PreferenceKey = (typeof RECRUITMENT)[number]["key"] | (typeof NOTIFICATIONS)[number]["key"];
-type Preference = Readonly<{ key: PreferenceKey; title: string; description: string; icon: LucideIcon }>;
-const DEFAULT_PREFERENCES: Readonly<Record<PreferenceKey, boolean>> = {
-  screening_questions: false, new_applications: true,
-  interviews: true, team_activity: true, weekly_summary: false,
-};
+type Preference = Readonly<{ key: string; title: string; description: string; icon: LucideIcon }>;
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
   { value: "system", label: "Sistema" }, { value: "light", label: "Claro" }, { value: "dark", label: "Oscuro" },
 ];
@@ -59,8 +54,9 @@ function SettingsSection({ section, children }: { section: Section; children: Re
   );
 }
 
-function SettingRow({ id, icon: Icon, title, description, children }: {
-  id: string; icon: LucideIcon; title: string; description: string; children: React.ReactNode;
+/** `comingSoon` rows are not wired to anything yet: the control is disabled and the reason stays visible next to it. */
+function SettingRow({ id, icon: Icon, title, description, comingSoon = false, children }: {
+  id: string; icon: LucideIcon; title: string; description: string; comingSoon?: boolean; children: React.ReactNode;
 }) {
   return (
     <li className="min-w-0">
@@ -69,6 +65,7 @@ function SettingRow({ id, icon: Icon, title, description, children }: {
         <ItemContent className="min-w-0">
           <ItemTitle id={`${id}-label`}>{title}</ItemTitle>
           <ItemDescription id={`${id}-description`}>{description}</ItemDescription>
+          {comingSoon && <span id={`${id}-soon`} className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground"><Clock3 aria-hidden="true" className="size-3 shrink-0" />Próximamente</span>}
         </ItemContent>
         <ItemActions className="w-full justify-end sm:w-auto">{children}</ItemActions>
       </Item>
@@ -76,21 +73,20 @@ function SettingRow({ id, icon: Icon, title, description, children }: {
   );
 }
 
-/** Recruitment/notification controls own view state only; no backend save is claimed. */
+/** Recruitment, notification and security controls are not persisted by any backend yet: they render disabled and say «Próximamente». */
 export function EmployerSettingsWorkspace() {
-  const [preferences, setPreferences] = React.useState(() => ({ ...DEFAULT_PREFERENCES }));
   const [theme, setTheme] = React.useState<ThemeMode>("system");
   React.useEffect(() => { setTheme(readStoredThemeMode(window.localStorage)); }, []);
 
   const preferenceRows = (items: readonly Preference[]) => items.map(item => {
     const id = `pf-employer-settings-${item.key}`;
     return (
-      <SettingRow key={item.key} id={id} icon={item.icon} title={item.title} description={item.description}>
+      <SettingRow key={item.key} id={id} icon={item.icon} title={item.title} description={item.description} comingSoon>
         <Switch
-          checked={preferences[item.key]}
-          onCheckedChange={checked => setPreferences(previous => ({ ...previous, [item.key]: checked }))}
+          checked={false}
+          disabled
           aria-labelledby={`${id}-label`}
-          aria-describedby={`${id}-description`}
+          aria-describedby={`${id}-description ${id}-soon`}
         />
       </SettingRow>
     );
@@ -133,11 +129,11 @@ export function EmployerSettingsWorkspace() {
           </SettingRow>
         </SettingsSection>
         <SettingsSection section={SECTIONS[4]}>
-          <SettingRow id="pf-employer-settings-2fa" icon={ShieldCheck} title="Autenticación en dos pasos" description="Una verificación adicional para proteger tu cuenta.">
-            <Switch checked={false} aria-labelledby="pf-employer-settings-2fa-label" aria-describedby="pf-employer-settings-2fa-description" />
+          <SettingRow id="pf-employer-settings-2fa" icon={ShieldCheck} title="Autenticación en dos pasos" description="Una verificación adicional para proteger tu cuenta." comingSoon>
+            <Switch checked={false} disabled aria-labelledby="pf-employer-settings-2fa-label" aria-describedby="pf-employer-settings-2fa-description pf-employer-settings-2fa-soon" />
           </SettingRow>
-          <SettingRow id="pf-employer-settings-password" icon={KeyRound} title="Contraseña" description="Clave de acceso a tu cuenta.">
-            <Button type="button" variant="outline" className="min-h-10">Cambiar contraseña</Button>
+          <SettingRow id="pf-employer-settings-password" icon={KeyRound} title="Contraseña" description="Clave de acceso a tu cuenta." comingSoon>
+            <Button type="button" variant="outline" disabled aria-describedby="pf-employer-settings-password-description pf-employer-settings-password-soon" className="min-h-10">Cambiar contraseña</Button>
           </SettingRow>
         </SettingsSection>
       </div>
