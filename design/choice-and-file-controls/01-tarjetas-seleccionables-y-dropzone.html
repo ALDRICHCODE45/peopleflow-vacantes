@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Controles de elección y archivo · 01 Tarjetas seleccionables y dropzone amplio</title>
+<style>
+:root{color-scheme:light;--background:#F7F5FB;--foreground:#1A1626;--card:#FFFFFF;--popover:#FFFFFF;--primary:oklch(0.491 0.27 292.581);--primary-foreground:oklch(0.969 0.016 293.756);--secondary:#F1EEF7;--muted:#F1EEF7;--muted-foreground:#6B6480;--border:#E4DFF0;--input:#E4DFF0;--destructive:oklch(0.577 0.245 27.325);--primary-text:var(--primary);--status-info:oklch(0.45 0.16 250);--status-review:oklch(0.47 0.12 70);--status-success:oklch(0.46 0.13 152);--status-danger:oklch(0.45 0.2 25);--sidebar:oklch(0.985 0 0);--ring:oklch(0.708 0 0);--sel:var(--primary);--on-sel:var(--primary-foreground);--edge:color-mix(in oklab,var(--foreground) 50%,var(--card))}
+html[data-theme=dark]{color-scheme:dark;--background:#0C0912;--foreground:#F6F2FF;--card:#15121F;--popover:#1A1626;--primary:oklch(0.432 0.232 292.759);--secondary:#171226;--muted:#171226;--muted-foreground:#A79FBF;--border:#262233;--input:#262233;--destructive:oklch(0.704 0.191 22.216);--primary-text:oklch(0.70 0.14 292.759);--status-info:oklch(0.78 0.12 245);--status-review:oklch(0.82 0.12 78);--status-success:oklch(0.78 0.14 155);--status-danger:oklch(0.75 0.15 22);--sidebar:oklch(0.205 0 0);--ring:oklch(0.556 0 0);--sel:var(--primary-text);--on-sel:var(--card)}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--background);color:var(--foreground);font:14px/20px Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h2,h3,p,ul,ol,figure{margin:0;padding:0}ul,ol{list-style:none}
+button,input,table{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--primary-text);outline-offset:2px}
+.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.meta{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+[hidden]{display:none!important}
+b{font-weight:600}
+/* ---------- artboard chrome ---------- */
+.ab{max-width:1440px;margin:0 auto;padding:24px 24px 48px}
+.ab-top{display:flex;flex-wrap:wrap;gap:16px 40px;justify-content:space-between;align-items:flex-end}
+.ab-top p{max-width:800px;margin-top:6px;color:var(--muted-foreground)}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--primary-text);margin:0 0 4px!important}
+.h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.01em}
+.tradeoff{max-width:520px;padding:12px 14px;border-radius:14px;background:color-mix(in oklab,var(--primary) 6%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--primary) 15%,transparent);font-size:12px;line-height:16px}
+.tradeoff b{display:block;margin-bottom:2px}
+.ctl{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;margin-top:20px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--muted);border-radius:14px;padding:4px}
+.seg>button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 12px;border:0;border-radius:10px;background:transparent;font-weight:500;color:color-mix(in srgb,var(--foreground) 70%,transparent);cursor:pointer}
+.seg>button:hover{color:var(--foreground)}
+.seg [aria-pressed=true]{background:var(--background);color:var(--foreground);box-shadow:0 1px 2px color-mix(in srgb,var(--foreground) 14%,transparent)}
+html[data-theme=dark] .seg [aria-pressed=true]{background:color-mix(in srgb,var(--foreground) 10%,transparent);box-shadow:none}
+.lbl{font-size:12px;font-weight:600;color:var(--muted-foreground);margin-right:-12px}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
+.tabs button{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border-radius:14px;border:0;background:var(--card);box-shadow:0 0 0 1px var(--border);cursor:pointer;font-weight:500}
+.tabs button:hover{background:var(--muted)}
+.tabs [aria-pressed=true]{box-shadow:0 0 0 2px var(--primary);background:color-mix(in oklab,var(--primary) 7%,var(--card))}
+.cap{display:grid;gap:4px;margin:16px 0 12px;max-width:1000px}
+.cap h2{font-size:18px;line-height:28px;font-weight:600}.cap p{color:var(--muted-foreground)}
+.frames{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.fr{display:grid;gap:8px}.fr>figcaption{font-size:12px;color:var(--muted-foreground)}
+.scaler{position:relative}
+.vp{position:relative;width:1440px;height:var(--h);transform-origin:0 0;border-radius:18px;overflow:hidden;box-shadow:0 0 0 1px var(--border),0 18px 40px -22px rgb(26 22 38/.45);background:var(--background)}
+.vp.m{width:390px;border-radius:34px}
+/* ---------- buttons, badges, shared bits ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border:0;border-radius:18px;background:var(--primary);color:var(--primary-foreground);font-weight:500;cursor:pointer;white-space:nowrap}
+.btn:hover{background:color-mix(in oklab,var(--primary) 80%,var(--background))}
+.btn.outline{background:var(--background);color:var(--foreground);box-shadow:0 0 0 1px var(--border)}
+.btn.outline:hover{background:var(--muted)}
+.btn.ghost{background:transparent;color:var(--muted-foreground)}
+.btn.ghost:hover{background:var(--muted);color:var(--foreground)}
+.btn.icon{width:40px;padding:0}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:8px;border:1px solid color-mix(in srgb,var(--c) 40%,transparent);background:color-mix(in srgb,var(--c) 10%,transparent);color:var(--c);font-size:12px;font-weight:500;white-space:nowrap}
+.bdg.dot::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.bdg.success{--c:var(--status-success)}.bdg.review{--c:var(--status-review)}.bdg.danger{--c:var(--status-danger)}.bdg.info{--c:var(--status-info)}
+.bdg.neutral{--c:var(--muted-foreground);background:var(--muted);border-color:var(--border)}
+.f-pdf{--t:var(--status-danger)}.f-docx{--t:var(--status-info)}.f-xlsx{--t:var(--status-success)}.f-jpg{--t:var(--status-review)}.f-png{--t:var(--primary-text)}
+.ft{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:14px;font-size:11px;font-weight:600;color:var(--t);background:color-mix(in oklab,var(--t) 10%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--t) 35%,transparent)}
+.fbx{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:8px;font-size:12px;font-weight:500;color:var(--t);background:color-mix(in oklab,var(--t) 10%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--t) 35%,transparent)}
+.av{display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:50%;background:var(--secondary);font-size:12px;font-weight:500}
+.er{display:flex;gap:6px;align-items:flex-start;color:var(--status-danger);font-size:14px;line-height:20px}
+.er .i{margin-top:2px}
+.lg{font-size:14px;font-weight:500}
+.hint{font-size:14px;color:var(--muted-foreground)}
+/* ---------- catalog ---------- */
+.cat{height:100%;overflow:auto;padding:32px 40px 40px}
+.m .cat{padding:20px 16px 28px}
+.cat-h{display:grid;gap:4px;margin-bottom:24px;max-width:860px}
+.cat-h h2{font-size:18px;line-height:28px;font-weight:600}.cat-h p{color:var(--muted-foreground)}
+.grid{display:grid;gap:28px 32px;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}
+.m .grid{grid-template-columns:minmax(0,1fr);gap:24px}
+.span2{grid-column:span 2}.span3{grid-column:1/-1}
+.m .span2,.m .span3{grid-column:auto}
+.pn{display:grid;gap:10px;align-content:start;min-width:0}
+.pn-t{display:flex;gap:8px;align-items:baseline;font-size:12px;line-height:16px;font-weight:600;color:var(--muted-foreground)}
+.pn-t b{color:var(--foreground)}
+.pn-b{display:grid;gap:16px;padding:20px;border-radius:24px;background:var(--popover);box-shadow:0 0 0 1px color-mix(in oklab,var(--foreground) 6%,transparent),0 1px 2px color-mix(in oklab,var(--foreground) 6%,transparent)}
+.m .pn-b{padding:16px}
+.note{display:flex;gap:10px;padding:12px 14px;border-radius:14px;background:color-mix(in oklab,var(--status-info) 8%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--status-info) 30%,transparent);font-size:14px}
+.note .i{margin-top:2px;color:var(--status-info)}
+/* ---------- table-row checkbox (data tables keep checkboxes, styled) ---------- */
+.tw{overflow:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:0 8px;height:48px;text-align:left;white-space:nowrap;border-bottom:1px solid color-mix(in oklab,var(--border) 60%,transparent)}
+th{font-weight:500;color:var(--muted-foreground);height:40px}
+tr.on td{background:var(--muted)}
+.m .hm{display:none}
+.tck{position:relative;display:grid;place-items:center;width:40px;height:40px;cursor:pointer}
+.tck input{position:absolute;inset:0;margin:0;opacity:0;cursor:pointer}
+.bx{display:grid;place-items:center;width:16px;height:16px;border-radius:5px;background:color-mix(in oklab,var(--input) 90%,transparent);box-shadow:inset 0 0 0 1px var(--edge);color:var(--on-sel)}
+.bx .i{width:12px;height:12px;stroke-width:3;opacity:0}
+.tck input:checked+.bx,.tck input:indeterminate+.bx{background:var(--sel);box-shadow:none}
+.tck input:checked+.bx .i,.tck input:indeterminate+.bx .i{opacity:1}
+.tck input:focus-visible+.bx{outline:2px solid var(--primary-text);outline-offset:2px}
+.tck input:indeterminate+.bx .ck-i{display:none}.tck input:not(:indeterminate)+.bx .mn-i{display:none}
+/* ---------- D1 · selectable cards ---------- */
+.ch{display:grid;gap:10px}
+.cards{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.stk .cards,.m .cards{grid-template-columns:minmax(0,1fr)}
+.span3 .cards.n4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.m .span3 .cards.n4{grid-template-columns:minmax(0,1fr)}
+.dlg .cards{grid-template-columns:minmax(0,1fr)}
+.sc,.mc{position:relative;display:flex;align-items:flex-start;gap:12px;min-height:72px;padding:14px;border-radius:18px;background:var(--card);box-shadow:0 0 0 1px var(--border);cursor:pointer}
+.sc input,.mc input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:inherit}
+.sc-i{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:14px;background:var(--muted);color:var(--muted-foreground)}
+.sc-i .i{width:20px;height:20px}
+.sc-t{display:grid;gap:2px;min-width:0;flex:1}
+.sc-t b{font-size:14px;line-height:20px;font-weight:600}
+.sc-t small{font-size:12px;line-height:16px;color:var(--muted-foreground)}
+.sc-t .why{display:flex;gap:4px;align-items:flex-start}.sc-t .why .i{width:12px;height:12px;margin-top:2px}
+.sc-r,.ck{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--edge);color:var(--on-sel);margin-top:2px}
+.ck{width:22px;height:22px;border-radius:7px;position:absolute;top:12px;right:12px;margin:0}
+.sc-r .i,.ck .i{width:12px;height:12px;stroke-width:3;opacity:0}
+.sc:hover,.sc.is-hover,.mc:hover,.mc.is-hover{background:color-mix(in oklab,var(--foreground) 3%,var(--card));box-shadow:0 0 0 1px color-mix(in oklab,var(--foreground) 28%,var(--border))}
+.sc:has(:checked),.mc:has(:checked){background:color-mix(in oklab,var(--primary) 7%,var(--card));box-shadow:0 0 0 1px color-mix(in oklab,var(--sel) 50%,var(--border))}
+.sc:has(:checked) .sc-i,.mc:has(:checked) .sc-i{background:color-mix(in oklab,var(--primary) 14%,var(--card));color:var(--primary-text)}
+.sc:has(:checked) .sc-r,.mc:has(:checked) .ck{background:var(--sel);box-shadow:none}
+.sc:has(:checked) .sc-r .i,.mc:has(:checked) .ck .i{opacity:1}
+.sc:has(:focus-visible),.sc.is-focus,.mc:has(:focus-visible),.mc.is-focus{outline:2px solid var(--primary-text);outline-offset:2px}
+.sc:has(:disabled),.mc:has(:disabled){cursor:not-allowed;background:var(--muted);box-shadow:0 0 0 1px var(--border)}
+.sc:has(:disabled) .sc-t b,.mc:has(:disabled) .sc-t b{color:var(--muted-foreground);font-weight:500}
+.sc:has(:disabled) .sc-r,.mc:has(:disabled) .ck{background:transparent;box-shadow:inset 0 0 0 1.5px var(--border)}
+.bad .sc:not(:has(:checked)),.bad .mc:not(:has(:checked)){box-shadow:0 0 0 1px var(--destructive)}
+.mc.p{padding-right:48px;min-height:64px;align-items:center}
+.mc.p .ck{top:50%;margin-top:-11px}
+.mc.p .sc-t .row{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px}
+.cnt{font-size:14px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}.cnt b{color:var(--foreground)}
+.sh .btn{min-height:40px;padding:0 10px}
+.plist{display:grid;gap:8px}
+.plist .er{margin:6px 4px 0}
+/* ---------- D1 · dropzone ---------- */
+.fld{display:grid;gap:8px}
+.dz{position:relative;display:grid;justify-items:center;gap:12px;padding:28px 20px;border-radius:18px;border:2px dashed var(--edge);background:color-mix(in oklab,var(--muted) 55%,var(--card));text-align:center;cursor:pointer}
+.dz input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer}
+.dz-i{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--border);color:var(--primary-text)}
+.dz-i .i{width:24px;height:24px}
+.dz b{font-size:15px;line-height:22px;font-weight:600}
+.dz .fmts{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.dz:hover{border-color:var(--primary-text);background:color-mix(in oklab,var(--primary) 4%,var(--card))}
+.dz:has(:focus-visible){outline:2px solid var(--primary-text);outline-offset:2px}
+.dz.drag{border-style:solid;border-color:var(--sel);background:color-mix(in oklab,var(--primary) 9%,var(--card))}
+.dz.drag .dz-i{background:var(--sel);color:var(--on-sel);box-shadow:none}
+.dz.bad{border-color:var(--destructive);background:color-mix(in oklab,var(--destructive) 6%,var(--card))}
+.dz.bad .dz-i{color:var(--destructive)}
+.dz.bad .er{justify-content:center;text-align:left;max-width:420px}
+.dz.c{display:flex;align-items:center;gap:12px;padding:10px 12px;text-align:left;min-height:64px}
+.dz.c .dz-i{width:40px;height:40px;flex:none}.dz.c .dz-i .i{width:20px;height:20px}
+.dz.c .tx{display:grid;gap:0;flex:1;min-width:0}.dz.c b{font-size:14px;line-height:20px}
+.dz.c .btn{position:relative}
+.fc{display:flex;align-items:center;gap:12px;padding:14px;border-radius:18px;background:var(--card);box-shadow:0 0 0 1px var(--border)}
+.fc{flex-wrap:wrap}
+.fc-t{display:grid;gap:2px;min-width:0;flex:1 1 170px}
+.nm{font-weight:600;overflow-wrap:anywhere}
+.fc-a{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+.m .fc-a{width:100%;justify-content:flex-end}
+.m .fc-a .btn{flex:1}
+.fc.sm{padding:10px 12px}
+.pg{height:8px;border-radius:18px;background:var(--muted);overflow:hidden}
+.pg i{display:block;height:100%;border-radius:18px;background:var(--sel)}
+.pgl{display:flex;justify-content:space-between;gap:8px;font-size:12px;line-height:16px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.q{display:grid;gap:10px}
+.q-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.q ul{display:grid;gap:8px}
+.dz.mini{padding:14px;grid-auto-flow:column;justify-content:center;gap:8px;min-height:48px}
+.later{display:inline-flex;gap:6px;align-items:center}
+/* ---------- mock app + dialogs ---------- */
+.app{display:flex;height:100%;filter:saturate(.9)}
+.side{width:232px;flex:none;display:grid;align-content:start;gap:8px;padding:16px 12px;background:var(--sidebar)}
+.side i{display:block;height:36px;border-radius:12px;background:var(--muted)}
+.side i:first-child{height:28px;width:120px;background:var(--primary)}
+.inset{flex:1;min-width:0;padding:24px 32px;display:grid;gap:16px;align-content:start}
+.m .inset{padding:16px}
+.inset h3{font-size:24px;line-height:32px;font-weight:600}
+.m .inset h3{font-size:20px;line-height:28px}
+.bd-row{height:60px;border-radius:18px;background:var(--card);box-shadow:0 0 0 1px var(--border)}
+.bd-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.m .bd-cols{grid-template-columns:repeat(2,1fr)}
+.bd-cols i{display:block;height:360px;border-radius:18px;background:var(--muted)}
+.scrim{position:absolute;inset:0;background:rgb(0 0 0/.30);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.dlg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(var(--w,512px),calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;display:grid;gap:24px;padding:24px;border-radius:24px;background:var(--popover);box-shadow:0 0 0 1px color-mix(in oklab,var(--foreground) 5%,transparent),0 20px 25px -5px rgb(0 0 0/.1),0 8px 10px -6px rgb(0 0 0/.1)}
+.dlg-h{display:grid;gap:4px;padding-right:40px}
+.dlg-h h2{font-size:16px;line-height:24px;font-weight:500}
+.dlg-h p{color:var(--muted-foreground)}
+.dlg-x{position:absolute;top:12px;right:12px;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:18px;background:var(--secondary);cursor:pointer}
+.dlg-f{display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.m .dlg-f{flex-direction:column-reverse;align-items:stretch}.m .dlg-f .btn{min-height:44px}
+.dlg-f.sp{justify-content:space-between}
+.m .dlg-f.sp{flex-direction:column;align-items:stretch}
+.dlg-f.sp .btns{display:flex;gap:8px}.m .dlg-f.sp .btns{display:grid;grid-template-columns:1fr 1fr}
+.cb{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:18px;background:color-mix(in oklab,var(--input) 50%,transparent);color:var(--muted-foreground)}
+.cb:focus-within{outline:2px solid var(--primary-text);outline-offset:2px}
+.cb.has{color:var(--foreground)}
+.ci{flex:1;min-width:0;height:40px;border:0;background:transparent;outline:0;font-size:16px}.ci::placeholder{color:var(--muted-foreground)}@media (min-width:0){.vp:not(.m) .ci{font-size:14px}}
+.cb .btn{min-height:40px;width:40px;padding:0}
+.lb{display:grid;gap:2px;padding:4px;border-radius:18px;box-shadow:0 0 0 1px var(--border);background:var(--popover)}
+.lb button{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 10px;border:0;border-radius:14px;background:transparent;text-align:left;cursor:pointer}
+.lb button:hover{background:var(--muted)}
+.lb button[aria-disabled=true]{cursor:not-allowed;color:var(--muted-foreground)}
+.lb button[aria-disabled=true]:hover{background:transparent}
+.lb .tx{display:grid;min-width:0;flex:1}
+.stp{display:flex;gap:8px;flex-wrap:wrap}
+.stp li{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted-foreground);font-weight:500}
+.stp b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--muted);font-size:11px}
+.stp .cur{color:var(--foreground)}.stp .cur b{background:var(--sel);color:var(--on-sel)}
+.rb{display:grid;gap:12px;min-height:0}
+.rb h3{font-size:14px;line-height:20px;font-weight:500}
+.banner{padding:12px;border-radius:18px;border:1px solid color-mix(in srgb,var(--status-danger) 40%,transparent);background:color-mix(in srgb,var(--status-danger) 10%,transparent);color:var(--status-danger)}
+@media (prefers-reduced-motion:no-preference){
+ .sc,.mc,.dz,.btn,.seg>button{transition:background-color .15s,box-shadow .15s,border-color .15s,color .15s}
+ .dz.drag .dz-i{animation:bob .9s ease-in-out infinite}
+ .pg i{transition:width .3s}
+}
+@keyframes bob{50%{transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M12 13v8"/><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2"/><path d="m8 17 4-4 4 4"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="i-replace" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5"/></symbol>
+<symbol id="i-arrow-r" viewBox="0 0 24 24"><path d="M5 12h14m-7-7 7 7-7 7"/></symbol>
+<symbol id="i-check-c" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m9 11 3 3L22 4"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+<symbol id="i-x-c" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+</defs></svg>
+<main class="ab">
+<header class="ab-top">
+  <div><p class="eyebrow">Dirección 1 · Tarjetas seleccionables y dropzone amplio</p><h1 class="h1">Elegir con tarjetas, subir con una zona de arrastre grande</h1>
+  <p>La opción se lee entera antes de elegirla: icono, título y una línea de ayuda dentro de una tarjeta de 72 px. Las listas de personas usan la misma tarjeta con una insignia de verificación cuadrada (múltiple) en lugar del círculo (única). El archivo se arrastra a una zona amplia que muestra los formatos con su color y, ya elegido, se vuelve una tarjeta con «Cambiar» y «Quitar».</p>
+  <p>Semántica real debajo: <code>input type=radio</code> dentro de <code>role=radiogroup</code> y <code>input type=checkbox</code> (equivalen a <code>role=radio/checkbox</code> con <code>aria-checked</code>; en la app, <code>RadioGroup</code> de Base UI), flechas y Espacio nativos, <code>input type=file</code> real y enfocable dentro de la zona.</p></div>
+  <div class="tradeoff"><b>Tradeoff</b>La más explicativa y la que mejor enseña qué hace cada opción (ideal en diálogos y para elecciones poco frecuentes); a cambio gasta altura —el diálogo «Subir documento» crece ~130 px— y una lista larga de personas en tarjetas se vuelve pesada frente a una fila compacta.</div>
+</header>
+<div class="ctl" id="ctl"></div>
+<div class="tabs" id="tabs" role="group" aria-label="Pantalla de la maqueta"></div>
+<div class="cap" id="cap" aria-live="polite"></div>
+<div class="frames" id="frames">
+  <figure class="fr d" id="f-d"><figcaption>Escritorio · 1440 × 900 (desplázate dentro del marco)</figcaption><div class="scaler"><div class="vp" style="--h:900px" role="group" aria-label="Maqueta de escritorio"></div></div></figure>
+  <figure class="fr m" id="f-m"><figcaption>Móvil · 390 × 844</figcaption><div class="scaler"><div class="vp m" style="--h:844px" role="group" aria-label="Maqueta móvil"></div></div></figure>
+</div>
+</main>
+<script>
+(function(){
+// Design only: nothing is uploaded or saved. Fixed templates are parsed, then attached.
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const ic=(n,c='')=>'<svg class="i '+c+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+function setMarkup(el,html){const d=new DOMParser().parseFromString(html,'text/html');el.replaceChildren(...d.body.childNodes)}
+const q=new URLSearchParams(location.search),pk=(v,a,d)=>a.includes(v)?v:d;
+const SCREENS=[['single','Elección única'],['multi','Elección múltiple'],['file','Archivo'],['upload','Subir documento'],['replace','¿A quién reemplaza?']];
+const FS=[['empty','Vacío'],['drag','Arrastrando'],['picked','Elegido'],['uploading','Subiendo'],['errfmt','Error de formato'],['errsize','Error de tamaño']];
+const CAP={
+ single:['Elección única','Reemplaza al radio suelto. Seis estados con la misma opción: reposo, elegida, hover, foco con teclado, deshabilitada con motivo visible y error; abajo, el caso de cuatro opciones.'],
+ multi:['Elección múltiple','Reemplaza al checkbox suelto en listas de opciones. Con «Seleccionar todo» y contador. La selección de filas en tablas de datos conserva el checkbox, estilizado (nota al final).'],
+ file:['Archivo','Reemplaza al «Browse… No file selected.». Vacío, arrastrando, elegido, subiendo y los dos errores; más la variante compacta (versión nueva en una hoja) y la cola de varios archivos para después.'],
+ upload:['Subir documento (pantalla real)','El diálogo de vacancy-documents/ui/upload-dialog.tsx: destino, búsqueda de persona y archivo. Es interactivo: elige el destino, busca a una persona y pulsa la zona de archivo. Cambia el estado del archivo y el límite de la vacante abajo.'],
+ replace:['¿A quién reemplaza? (pantalla real)','Paso 1 de «Iniciar reemplazo» (vacancy-replacement/steps.tsx): bajas con selección múltiple, dos personas no disponibles con su motivo, cobertura y contador. Interactivo.']};
+const S={theme:pk(q.get('theme'),['light','dark'],'light'),view:pk(q.get('view'),['both','desktop','mobile'],'both'),screen:pk(q.get('screen'),SCREENS.map(s=>s[0]),'single'),fs:pk(q.get('fs'),FS.map(s=>s[0]),'empty'),limit:q.get('limit')==='1',dest:null,person:null,picked:new Set(['ric']),rerr:q.get('rerr')==='1'};
+document.documentElement.dataset.theme=S.theme;
+let FK='d';const nm=p=>FK+'-'+p;
+/* ---------- data ---------- */
+const FM={pdf:'PDF',docx:'Word',xlsx:'Excel',jpg:'JPG',png:'PNG'};
+const ft=f=>'<span class="ft f-'+f+'" aria-hidden="true">'+FM[f]+'</span>';
+const bdg=(t,x,d)=>'<span class="bdg '+t+(d?' dot':'')+'">'+x+'</span>';
+const HINT='PDF, Word, Excel, JPG o PNG · máximo 10 MB';
+const FILE={n:'Contrato marco Altavista 2026.pdf',f:'pdf',s:'179 KB'};
+const PPL=[
+ {id:'ric',n:'Ricardo Morales García',i:'RM',m:'Placement el 24 oct · se fue el 17 nov'},
+ {id:'dan',n:'Daniela Ibarra Soto',i:'DI',m:'Placement el 3 nov · se fue el 19 nov'},
+ {id:'lui',n:'Luis Fernando Ochoa',i:'LO',m:'Placement el 28 oct · se fue el 20 nov'},
+ {id:'mar',n:'Mariana Cavazos Lozano',i:'MC',m:'',dis:'Sigue en Placement. Solo se reemplaza a quien no se sostuvo.',b:['success','Sigue en Placement']},
+ {id:'jor',n:'Jorge Salinas Treviño',i:'JS',m:'',dis:'Ya tiene un reemplazo.'}];
+const ENABLED=PPL.filter(p=>!p.dis).map(p=>p.id);
+const CAND=[{id:'ric',n:'Ricardo Morales García',i:'RM',st:'Placement'},{id:'ana',n:'Ana Paola Treviño',i:'AT',st:'Entrevista'},{id:'dan',n:'Daniela Ibarra Soto',i:'DI',st:'Placement'},{id:'hug',n:'Hugo Cantú Lara',i:'HC',st:'Oferta',dis:'Llegó al límite de 20 documentos.'}];
+const FORMATS=[['pdf','PDF','12 documentos'],['docx','Word','5 documentos'],['xlsx','Excel','3 documentos'],['jpg','JPG','4 documentos'],['png','PNG','2 documentos']];
+const DEST=[{v:'vacancy',i:'briefcase',t:'La vacante',h:'Contratos, tabuladores y solicitudes del cliente'},{v:'candidate',i:'user',t:'Una persona candidata',h:'Carta de renuncia, alta IMSS y su expediente'}];
+const LIMIT='Esta vacante llegó al límite de 50 documentos (archivos y vínculos). Elimina uno para subir otro.';
+const REASON=[{v:'cubierta',i:'check-c',t:'Se cubrió',h:'La vacante se cubrió con una contratación'},{v:'cancelada',i:'x-c',t:'Se canceló',h:'El cliente canceló el requerimiento'},{v:'pausa',i:'pause',t:'Se pausó',h:'Se detuvo por presupuesto o prioridad'},{v:'otro',i:'dots',t:'Otro motivo',h:'Cuéntanos qué pasó en una nota'}];
+/* ---------- D1 components ---------- */
+const N={s2:'tarjeta rellena + círculo con palomita',s3:'borde y fondo sutiles',s4:'anillo de 2 px, distinto de la selección',s5:'motivo visible en la tarjeta',s6:'borde destructivo + mensaje con role=alert',m3:'el botón pasa a «Quitar selección»'};
+function single(c){
+ const L=nm(c.n+'-l'),E=nm(c.n+'-e');
+ return '<div class="ch'+(c.err?' bad':'')+'" role="radiogroup" aria-labelledby="'+L+'"'+(c.err?' aria-describedby="'+E+'" aria-invalid="true"':'')+'><span class="lg" id="'+L+'">'+c.legend+'</span><div class="cards n'+c.opts.length+'">'+
+  c.opts.map(o=>{const on=c.v===o.v,s=(c.sim&&c.sim[o.v])||'';
+   return '<label class="sc '+s+'"><input type="radio" name="'+nm(c.n)+'" value="'+o.v+'"'+(on?' checked':'')+(o.dis?' disabled':'')+(c.g?' data-g="'+c.g+'"':'')+' data-fk="'+nm(c.n+o.v)+'"><span class="sc-i">'+ic(o.i)+'</span><span class="sc-t"><b>'+o.t+'</b>'+(o.dis?'<small class="why">'+ic('lock')+'<span>'+o.dis+'</span></small>':'<small>'+o.h+'</small>')+'</span><span class="sc-r" aria-hidden="true">'+ic('check')+'</span></label>'}).join('')+'</div>'+
+  (c.err?'<p class="er" id="'+E+'" role="alert">'+ic('alert')+c.err+'</p>':'')+'</div>'}
+function selHead(c,tot,unit){const k=c.sel.size,all=k===tot;
+ return '<div class="sh"><span class="cnt" role="status" aria-live="polite">'+(k?'<b>'+k+'</b> de '+tot+' '+unit:'Ninguna elegida')+'</span><button type="button" class="btn ghost"'+(c.g?' data-act="all" data-fk="'+nm(c.n+'-all')+'"':'')+'>'+(all?'Quitar selección':'Seleccionar todo')+'</button></div>'}
+function people(c){ // {n,sel:Set,err,items:{id:msg},sim:{id:cls},g,unit}
+ const enabled=PPL.filter(p=>!p.dis).length;
+ return '<div class="ch'+(c.err?' bad':'')+'" role="group" aria-labelledby="'+nm(c.n+'-l')+'">'+'<span class="lg" id="'+nm(c.n+'-l')+'" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Bajas</span>'+selHead(c,enabled,'bajas elegidas')+'<ul class="plist" aria-label="Bajas">'+
+ PPL.map(p=>{const on=c.sel.has(p.id),er=c.items&&c.items[p.id],s=(c.sim&&c.sim[p.id])||'',id=nm(c.n+p.id);
+  return '<li><label class="mc p '+s+'"><input type="checkbox" name="'+nm(c.n)+'" value="'+p.id+'"'+(on?' checked':'')+(p.dis?' disabled':'')+(c.g?' data-g="'+c.g+'"':'')+' data-fk="'+id+'"'+(er?' aria-describedby="'+id+'-e" aria-invalid="true"':'')+'><span class="av" aria-hidden="true">'+p.i+'</span><span class="sc-t"><b>'+p.n+'</b>'+(p.dis?'<small class="why">'+ic('lock')+'<span>'+p.dis+'</span></small>'+(p.b?'<span class="row">'+bdg(p.b[0],p.b[1],1)+'</span>':''):'<span class="row"><small>'+p.m+'</small>'+bdg('review','No se sostuvo',1)+'</span>')+'</span><span class="ck" aria-hidden="true">'+ic('check')+'</span></label>'+(er?'<p class="er" id="'+id+'-e" role="alert">'+ic('alert')+er+'</p>':'')+'</li>'}).join('')+'</ul>'+
+ (c.err?'<p class="er" role="alert">'+ic('alert')+c.err+'</p>':'')+'</div>'}
+function formats(c){ // {n,sel:Set}
+ return '<div class="ch" role="group" aria-labelledby="'+nm(c.n+'-l')+'"><span class="lg" id="'+nm(c.n+'-l')+'">Tipo de archivo</span>'+selHead(c,FORMATS.length,'formatos')+'<div class="cards">'+FORMATS.map(f=>
+  '<label class="mc" style="min-height:64px;align-items:center;padding-right:44px"><input type="checkbox" name="'+nm(c.n)+'" value="'+f[0]+'"'+(c.sel.has(f[0])?' checked':'')+'>'+ft(f[0])+'<span class="sc-t"><b>'+f[1]+'</b><small>'+f[2]+'</small></span><span class="ck" style="top:50%;margin-top:-11px" aria-hidden="true">'+ic('check')+'</span></label>').join('')+'</div></div>'}
+function file(st,o){o=o||{};const id=nm('file'+(o.k||'')),live=o.live?' data-live="1"':'';
+ const lab='<label class="lg" for="'+id+'">Archivo</label>';
+ const inp='<input type="file" id="'+id+'" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" data-fk="'+id+'" aria-describedby="'+id+'-h'+(st.startsWith('err')?' '+id+'-e':'')+'"'+(st==='uploading'?' disabled':'')+'>';
+ const fmts='<span class="fmts" id="'+id+'-h"><span class="meta" style="width:100%">Formatos permitidos · máximo 10 MB</span>'+Object.keys(FM).map(f=>'<span class="fbx f-'+f+'">'+FM[f]+'</span>').join('')+'</span>';
+ if(st==='empty')return '<div class="fld">'+lab+'<label class="dz" data-act="pick"'+live+'>'+inp+'<span class="dz-i">'+ic('cloud')+'</span><b>'+(FK==='m'?'Elige un archivo':'Arrastra un archivo o elígelo')+'</b><span class="btn outline" aria-hidden="true">Elegir archivo</span>'+fmts+'</label></div>';
+ if(st==='drag')return '<div class="fld">'+lab+'<label class="dz drag" data-act="pick"'+live+'>'+inp+'<span class="dz-i">'+ic('cloud')+'</span><b>Suelta el archivo para elegirlo</b><span class="meta" id="'+id+'-h">PDF, Word, Excel, JPG o PNG · máximo 10 MB</span></label></div>';
+ if(st==='picked')return '<div class="fld">'+lab.replace(/<label/,'<span').replace('</label>','</span>').replace(/ for="[^"]+"/,'')+'<div class="fc" role="group" aria-label="Archivo elegido">'+ft(FILE.f)+'<div class="fc-t"><span class="nm">'+FILE.n+'</span><span class="meta">'+FM[FILE.f]+' · '+FILE.s+' · '+bdg('success','Listo para subir',1)+'</span></div><div class="fc-a"><button type="button" class="btn outline" data-act="change" data-fk="'+id+'-c">'+ic('replace')+'Cambiar</button><button type="button" class="btn ghost" data-act="remove">Quitar</button></div></div></div>';
+ if(st==='uploading')return '<div class="fld"><span class="lg">Archivo</span><div class="fc" role="group" aria-label="Subiendo archivo">'+ft(FILE.f)+'<div class="fc-t"><span class="nm">'+FILE.n+'</span><div class="pg" role="progressbar" aria-label="Subiendo '+FILE.n+'" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62"><i style="width:62%"></i></div><span class="pgl"><span>Subiendo… no cierres esta ventana</span><span>62 % · 111 de 179 KB</span></span></div><div class="fc-a"><button type="button" class="btn ghost" data-act="remove">Cancelar</button></div></div></div>';
+ const msg=st==='errfmt'?'No aceptamos archivos .zip. Formatos permitidos: PDF (.pdf), Word (.docx), Excel (.xlsx), JPG (.jpg, .jpeg), PNG (.png).':'Presupuesto-obra-2026.xlsx pesa 14,2 MB y el máximo es 10 MB.';
+ return '<div class="fld">'+lab+'<label class="dz bad" data-act="pick"'+live+'>'+inp+'<span class="dz-i">'+ic('alert')+'</span><p class="er" id="'+id+'-e" role="alert">'+msg+'</p><span class="btn outline" aria-hidden="true">Elegir otro archivo</span><span class="meta" id="'+id+'-h">Se descartó el archivo; el resto del formulario sigue igual.</span></label></div>'}
+function fileCompact(st){const id=nm('fc'+st);
+ const lab=st==='empty'?'<span class="lg">Subir una versión nueva</span>':'';
+ if(st==='empty')return '<div class="fld">'+lab+'<label class="dz c" data-act="noop"><input type="file" id="'+id+'" aria-describedby="'+id+'-h" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png"><span class="dz-i">'+ic('cloud')+'</span><span class="tx"><b>'+(FK==='m'?'Elige un archivo':'Arrastra un archivo o elígelo')+'</b><span class="meta" id="'+id+'-h">'+HINT+'</span></span><span class="btn outline" aria-hidden="true">Elegir</span></label></div>';
+ if(st==='picked')return '<div class="fld">'+lab+'<div class="fc sm" role="group" aria-label="Archivo elegido">'+ft('docx')+'<div class="fc-t"><span class="nm">Perfil del puesto v2.docx</span><span class="meta">Word · 96 KB</span></div><div class="fc-a"><button type="button" class="btn ghost icon" aria-label="Cambiar archivo">'+ic('replace')+'</button><button type="button" class="btn ghost icon" aria-label="Quitar archivo">'+ic('x')+'</button></div></div></div>';
+ return '<div class="fld">'+lab+'<div class="fc sm" role="group" aria-label="Subiendo archivo">'+ft('docx')+'<div class="fc-t"><span class="nm">Perfil del puesto v2.docx</span><div class="pg" role="progressbar" aria-label="Subiendo Perfil del puesto v2.docx" aria-valuemin="0" aria-valuemax="100" aria-valuenow="38"><i style="width:38%"></i></div></div><span class="meta" style="flex:none">38 %</span></div></div>'}
+function fileQueue(){const id=nm('queue');
+ const row=(f,n,s,st)=>'<li class="fc sm">'+ft(f)+'<div class="fc-t"><span class="nm">'+n+'</span>'+st+'</div></li>';
+ return '<div class="q"><div class="q-h"><span class="lg">3 archivos</span><span class="meta">1 listo · 1 subiendo · 1 con error</span></div><ul aria-label="Archivos en cola">'+
+  row('pdf','Contrato marco Altavista 2026.pdf','179 KB','<span class="meta">PDF · 179 KB · '+bdg('success','Listo',1)+'</span>')+
+  row('xlsx','Tabulador salarial 2026.xlsx','214 KB','<div class="pg" role="progressbar" aria-label="Subiendo Tabulador salarial 2026.xlsx" aria-valuemin="0" aria-valuemax="100" aria-valuenow="41"><i style="width:41%"></i></div><span class="meta">Excel · 214 KB · 41 %</span>')+
+  row('png','Organigrama CEDIS Apodaca.png','12,4 MB','<span class="meta">PNG · 12,4 MB · '+bdg('danger','Supera 10 MB',1)+'</span>')+
+  '</ul><label class="dz mini" data-act="noop"><input type="file" multiple aria-label="Agregar más archivos" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png">'+ic('plus')+'<b style="font-size:14px">Agregar más archivos</b></label><p class="meta later">'+ic('info')+'Variante para después: hoy «Subir documento» acepta un archivo por vez.</p></div>'}
+/* ---------- shared screens ---------- */
+const pn=(t,n,body,cls)=>'<section class="pn '+(cls||'')+'"><h3 class="pn-t"><b>'+t+'</b><span>'+n+'</span></h3><div class="pn-b">'+body+'</div></section>';
+const cat=(k,body)=>'<div class="cat scr"><header class="cat-h"><h2>'+CAP[k][0]+'</h2><p>'+CAP[k][1]+'</p></header><div class="grid">'+body+'</div></div>';
+function tbl(){const rows=[['Contrato marco Altavista 2026','PDF','v3',1],['Tabulador salarial 2026','Excel','v3',0],['Organigrama CEDIS Apodaca','PNG','v1',1]];
+ const bx=(l,on,ind)=>'<label class="tck"><input type="checkbox" aria-label="'+l+'"'+(on?' checked':'')+' '+(ind?'data-ind="1"':'')+'><span class="bx">'+ic('check','ck-i')+ic('minus','mn-i')+'</span></label>';
+ return '<div class="tw"><table><thead><tr><th style="width:48px">'+bx('Seleccionar todas las filas',0,1)+'</th><th>Documento</th><th class="hm">Formato</th><th class="hm">Versión</th></tr></thead><tbody>'+rows.map(r=>'<tr'+(r[3]?' class="on"':'')+'><td>'+bx('Seleccionar '+r[0],r[3])+'</td><td>'+r[0]+'</td><td class="hm">'+r[1]+'</td><td class="hm">'+r[2]+'</td></tr>').join('')+'</tbody></table></div>'}
+function scrSingle(){const L='¿A quién pertenece?',o=(a)=>Object.assign({legend:L,opts:DEST,v:null},a);
+ return cat('single',
+  pn('1 · Reposo','nada elegido',single(o({n:'a'})),'stk')+
+  pn('2 · Elegida',N.s2,single(o({n:'b',v:'vacancy'})),'stk')+
+  pn('3 · Hover (simulado)',N.s3,single(o({n:'c',sim:{candidate:'is-hover'}})),'stk')+
+  pn('4 · Foco con teclado (simulado)',N.s4,single(o({n:'d',v:'vacancy',sim:{candidate:'is-focus'}})),'stk')+
+  pn('5 · Deshabilitada con motivo',N.s5,single(o({n:'e',v:'candidate',opts:[Object.assign({},DEST[0],{dis:LIMIT}),DEST[1]]})),'stk')+
+  pn('6 · Error',N.s6,single(o({n:'f',err:'Elige a quién pertenece el documento.'})),'stk')+
+  pn('7 · Cuatro opciones','Motivo de cierre de una vacante (ilustrativo)',single({n:'g',legend:'Motivo de cierre',opts:REASON,v:'cubierta'}),'span3'))}
+function scrMulti(){const s=a=>new Set(a);
+ return cat('multi',
+  pn('1 · Reposo','ninguna baja elegida',people({n:'a',sel:s([]),g:0}),'')+
+  pn('2 · Parcial con contador','«2 de 3» y «Seleccionar todo»',people({n:'b',sel:s(['ric','dan'])}),'')+
+  pn('3 · Todo elegido',N.m3,people({n:'c',sel:s(ENABLED)}),'')+
+  pn('4 · Hover y foco (simulados)','hover en Daniela, foco en Luis Fernando',people({n:'d',sel:s(['ric']),sim:{dan:'is-hover',lui:'is-focus'}}),'')+
+  pn('5 · Error','de grupo y de una opción',people({n:'e',sel:s([]),err:'Elige al menos una baja para continuar.',items:{ric:'Esta persona ya tiene un reemplazo en curso.'}}),'')+
+  pn('6 · Opciones cortas','Tipo de archivo, con conteo',formats({n:'f',sel:s(['pdf','xlsx'])}),'')+
+  pn('Tablas de datos','La selección de filas en una tabla conserva el checkbox, por convención, pero con el estilo del sistema: 16 px, radio 5 px, fondo input/90 con borde de 1 px para llegar a 3:1, área de toque de 40 px, y fila elegida en bg-muted. Casilla de cabecera con estado indeterminado.',tbl(),'span3'))}
+function scrFile(){
+ return cat('file',
+  pn('1 · Vacío','reposo',file('empty',{k:'1'}),'')+
+  pn('2 · Arrastrando encima','borde sólido, fondo tintado',file('drag',{k:'2'}),'')+
+  pn('3 · Archivo elegido','tarjeta con insignia por formato',file('picked',{k:'3'}),'')+
+  pn('4 · Subiendo','progreso con role=progressbar',file('uploading',{k:'4'}),'')+
+  pn('5 · Error de formato','mensaje con formatos permitidos',file('errfmt',{k:'5'}),'')+
+  pn('6 · Error de tamaño','dice cuánto pesa y el máximo',file('errsize',{k:'6'}),'')+
+  pn('7 · Compacta','versión nueva en una hoja o fila',fileCompact('empty')+fileCompact('picked')+fileCompact('up'),'')+
+  pn('8 · Varios archivos (cola)','para después',fileQueue(),'span2'))}
+/* ---------- real screens ---------- */
+const bd=kind=>'<div class="app" aria-hidden="true">'+(FK==='d'?'<aside class="side"><i></i><i></i><i></i><i></i><i></i></aside>':'')+'<div class="inset"><h3>'+(kind==='docs'?'Supervisor(a) de Almacén':'Pipeline · Supervisor(a) de Almacén')+'</h3>'+(kind==='docs'?'<div class="bd-row"></div><div class="bd-row"></div><div class="bd-row"></div>':'<div class="bd-cols"><i></i><i></i><i></i><i></i></div>')+'</div></div><div class="scrim"></div>';
+function person(){
+ const p=CAND.find(x=>x.id===S.person),id=nm('cand');
+ if(p)return '<div class="fld"><label class="lg" for="'+id+'">Candidato</label><div class="cb has"><span class="av" aria-hidden="true">'+p.i+'</span><input class="ci" id="'+id+'" value="'+p.n+'" readonly role="combobox" aria-expanded="false" aria-controls="'+id+'-lb"><button type="button" class="btn ghost icon" data-act="clearp" data-fk="'+id+'-x" aria-label="Quitar a '+p.n+'">'+ic('x')+'</button></div></div>';
+ return '<div class="fld"><label class="lg" for="'+id+'">Candidato</label><div class="cb">'+ic('search')+'<input class="ci" id="'+id+'" placeholder="Busca a una persona" role="combobox" aria-expanded="true" aria-controls="'+id+'-lb" aria-autocomplete="list"></div><div class="lb" id="'+id+'-lb" role="listbox" aria-label="Personas candidatas">'+CAND.map(x=>'<button type="button" role="option" aria-selected="false"'+(x.dis?' aria-disabled="true"':' data-act="pickp" data-v="'+x.id+'" data-fk="'+nm('cp'+x.id)+'"')+'><span class="av" aria-hidden="true">'+x.i+'</span><span class="tx"><b style="font-weight:500">'+x.n+'</b><span class="meta">'+(x.dis?x.dis:x.st)+'</span></span>'+(x.dis?ic('lock'):'')+'</button>').join('')+'</div></div>'}
+function dlgUpload(){
+ const dest=S.limit?'candidate':(S.dest||'vacancy');
+ const opts=[Object.assign({},DEST[0],{dis:S.limit?LIMIT:null}),DEST[1]];
+ const ready=S.fs==='picked'&&(dest==='vacancy'||S.person),busy=S.fs==='uploading';
+ return bd('docs')+'<div class="dlg scr" role="dialog" aria-modal="true" aria-labelledby="'+nm('t')+'"><button type="button" class="dlg-x" aria-label="Cerrar">'+ic('x')+'</button><div class="dlg-h"><h2 id="'+nm('t')+'">Subir documento</h2><p>Los ven tu equipo y los stakeholders de la empresa; el candidato nunca.</p></div>'+
+  single({n:'dest',g:'dest',legend:'¿A quién pertenece?',opts:opts,v:dest})+(dest==='candidate'?person():'')+file(S.fs,{live:1,k:'u'})+
+  '<div class="dlg-f"><button type="button" class="btn outline"'+(busy?' disabled':'')+'>Cancelar</button><button type="button" class="btn"'+(ready?' data-act="up"':' disabled')+'>'+ic('upload')+'Subir</button></div></div>'}
+function dlgReplace(){
+ const k=S.picked.size,items=S.rerr&&S.picked.has('dan')?{dan:'Esta persona ya tiene un reemplazo en curso. Actualiza la lista.'}:null;
+ return bd('board')+'<div class="dlg scr" style="--w:560px;gap:16px" role="dialog" aria-modal="true" aria-labelledby="'+nm('t')+'"><button type="button" class="dlg-x" aria-label="Cerrar">'+ic('x')+'</button><div class="dlg-h"><h2 id="'+nm('t')+'">Iniciar reemplazo</h2><p>Supervisor(a) de Almacén · Grupo Altavista</p><ol class="stp" aria-label="Pasos" style="margin-top:8px"><li class="cur" aria-current="step"><b>1</b>Bajas</li><li><b>2</b>Condiciones</li><li><b>3</b>Candidatos</li></ol></div>'+
+  '<div class="rb">'+(items?'<p class="banner" role="alert">No pudimos validar una de las bajas. Revisa el mensaje marcado.</p>':'')+'<h3 tabindex="-1">¿A quién reemplaza?</h3><p class="hint">Ricardo Morales García viene marcado porque iniciaste el reemplazo desde su tarjeta. Si otra persona también se fue, márcala para sumarla: un mismo reemplazo puede cubrir varias bajas.</p>'+
+  people({n:'rep',g:'pp',sel:S.picked,items:items})+
+  '<p class="note">'+ic('info')+'<span>Cobertura actual: <b style="font-weight:500">2 de 3 plazas</b>. Cada baja que elijas suma una plaza al objetivo del reemplazo; el proceso original no se modifica.</span></p>'+(k?'':'<p class="hint" id="'+nm('nb')+'">Elige al menos una baja para continuar.</p>')+'</div>'+
+  '<div class="dlg-f sp"><span class="hint" role="status">'+(k===1?'1 baja elegida':k+' bajas elegidas')+'</span><div class="btns"><button type="button" class="btn outline">Cancelar</button><button type="button" class="btn"'+(k?'':' disabled aria-describedby="'+nm('nb')+'"')+'>Siguiente'+ic('arrow-r')+'</button></div></div></div>'}
+function screenHTML(){return {single:scrSingle,multi:scrMulti,file:scrFile,upload:dlgUpload,replace:dlgReplace}[S.screen]()}
+/* ---------- chrome, layout, events ---------- */
+const sg=(l,act,arr,cur)=>'<span class="lbl">'+l+'</span><div class="seg" role="group" aria-label="'+l+'">'+arr.map(a=>'<button type="button" data-act="'+act+'" data-v="'+a[0]+'" aria-pressed="'+(String(cur)===String(a[0]))+'">'+a[1]+'</button>').join('')+'</div>';
+function controls(){
+ let h=sg('Tema','theme',[['light','Claro'],['dark','Oscuro']],S.theme)+sg('Vista','view',[['both','Ambas'],['desktop','Escritorio'],['mobile','Móvil']],S.view);
+ if(S.screen==='upload')h+=sg('Archivo','fs',FS,S.fs)+sg('Vacante','limit',[[0,'Con cupo'],[1,'En el límite']],S.limit?1:0);
+ if(S.screen==='replace')h+=sg('Servidor','rerr',[[0,'Sin error'],[1,'Error en una baja']],S.rerr?1:0);
+ setMarkup($('#ctl'),h);
+ setMarkup($('#tabs'),SCREENS.map(s=>'<button type="button" data-act="screen" data-v="'+s[0]+'" aria-pressed="'+(S.screen===s[0])+'">'+s[1]+'</button>').join(''));
+ setMarkup($('#cap'),'<h2>'+CAP[S.screen][0]+'</h2><p>'+CAP[S.screen][1]+'</p>');
+}
+function layout(){
+ const avail=Math.max(320,$('.ab').clientWidth-48),fd=$('#f-d'),fm=$('#f-m');fd.hidden=S.view==='mobile';fm.hidden=S.view==='desktop';
+ const stacked=S.view==='both'&&avail<1100;let sd=1;
+ if(S.view==='both')sd=stacked?Math.min(1,avail/1440):Math.min(1,(avail-24-390)/1440);if(S.view==='desktop')sd=Math.min(1,avail/1440);
+ [[fd,sd,1440],[fm,Math.min(1,avail/390),390]].forEach(([f,s,w])=>{const vp=$('.vp',f),sc=$('.scaler',f);vp.style.transform='scale('+s+')';sc.style.width=w*s+'px';sc.style.height=vp.offsetHeight*s+'px'});
+}
+let lastScreen=null;
+function render(){
+ const a=document.activeElement,fk=a&&a.dataset&&a.dataset.fk,top={};
+ ['d','m'].forEach(k=>{const e=$('#f-'+k+' .scr');top[k]=e&&lastScreen===S.screen?e.scrollTop:0});
+ controls();
+ ['d','m'].forEach(k=>{FK=k;setMarkup($('#f-'+k+' .vp'),screenHTML());const e=$('#f-'+k+' .scr');if(e)e.scrollTop=top[k];$$('#f-'+k+' input[data-ind]').forEach(i=>{i.indeterminate=true})});
+ lastScreen=S.screen;layout();
+ if(fk){const e=document.querySelector('[data-fk="'+fk+'"]');if(e)e.focus({preventScroll:true})}
+}
+document.addEventListener('click',e=>{
+ if(e.target.matches&&e.target.matches('input[type=file]')&&!e.target.closest('[data-act]')){e.preventDefault();if(e.target.dataset.live){S.fs='picked';render()}return}
+ const t=e.target.closest('[data-act]');if(!t)return;
+ const a=t.dataset.act,v=t.dataset.v;
+ if(a==='pick'||a==='change'||a==='noop'){e.preventDefault();if(t.dataset.live||a==='change'){S.fs=a==='change'?'empty':'picked';render()}return}
+ if(a==='theme'){S.theme=v;document.documentElement.dataset.theme=v;render()}
+ else if(a==='view'){S.view=v;render()}
+ else if(a==='screen'){S.screen=v;render()}
+ else if(a==='fs'){S.fs=v;render()}
+ else if(a==='limit'){S.limit=v==='1';render()}
+ else if(a==='rerr'){S.rerr=v==='1';render()}
+ else if(a==='remove'){S.fs='empty';render()}
+ else if(a==='up'){S.fs='uploading';render()}
+ else if(a==='pickp'){S.person=v;render()}
+ else if(a==='clearp'){S.person=null;render()}
+ else if(a==='all'){S.picked=S.picked.size===ENABLED.length?new Set():new Set(ENABLED);render()}
+});
+document.addEventListener('change',e=>{
+ const t=e.target;if(!t.dataset||!t.dataset.g)return;
+ if(t.dataset.g==='dest'){S.dest=t.value;if(S.dest==='vacancy')S.person=null}
+ if(t.dataset.g==='all'){S.picked=t.checked?new Set(ENABLED):new Set()}
+ if(t.dataset.g==='pp'){t.checked?S.picked.add(t.value):S.picked.delete(t.value)}
+ render();
+});
+window.addEventListener('resize',layout);
+render();
+})();
+</script>
+</body>
+</html>
