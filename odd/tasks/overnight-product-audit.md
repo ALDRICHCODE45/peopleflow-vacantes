@@ -118,3 +118,9 @@ merges to `main` allowed (no push).
   aplicar los filtros» until the backend sort merges. Also: close dialog from the list row menu lacks coverage («Cubierta»
   enabled); step tabs don't announce ✓/error; board tooltip spans aria-prohibited-attr ×3 and contrast ×7; vacancy list
   secondary badges 4.32:1 (light). Data: one stakeholder invitation «Auditoría Verif» (revoked).
+- **L11** Fix rounds: `b4f6a258` (ItemGroup roles/separator, checklist first save, invalid_id copy, dead settings path)
+  and `57b30aea` (documents link on client navigation, sort control only with `total`, close from list knows coverage,
+  step tab names, board tooltip roles, list count contrast 6.75:1). Targeted browser re-check on prod `57b30aea`: item.tsx
+  axe criticals gone on all six screens, documents link, no sort control without total, «Cubierta» disabled from the
+  list, step tab names, count contrast — pass. Remaining (pre-existing, small): «No se sostuvo» card meta text 4.49:1,
+  substates sheet Card aria-labelledby without role, draft title error red 4.19:1 → one small round.
