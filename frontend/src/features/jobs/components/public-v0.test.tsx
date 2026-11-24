@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { legacyDetail, listItem, vacancyDetail } from "../api/public-fixtures";
 import { PublicVacancyCard } from "./PublicVacancyCard";
@@ -96,11 +96,8 @@ it("preserves authored rich lists, ordered starts and paragraph-only requirement
   view.unmount();
 });
 
-it.each([true, false])("reports the actual clipboard outcome (success %s)", async (success) => {
-  const writeText = success ? vi.fn().mockResolvedValue(undefined) : vi.fn().mockRejectedValue(new Error("denied"));
-  vi.stubGlobal("navigator", { clipboard: { writeText } });
+it("offers the share menu in the detail card (its options are covered by share-menu.test.tsx)", () => {
   render(<PublicJobDetailView job={vacancyDetail} />);
-  fireEvent.click(screen.getByRole("button", { name: "Compartir vacante" }));
-  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(success ? "Enlace copiado" : "Copia la dirección de esta página para compartirla."));
-  expect(writeText).toHaveBeenCalledWith(window.location.href);
+  expect(screen.getByRole("button", { name: "Compartir vacante" })).toHaveAttribute("aria-haspopup", "menu");
+  expect(screen.getByRole("status")).toBeEmptyDOMElement();
 });

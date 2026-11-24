@@ -11,9 +11,9 @@ vi.mock("./actions", () => ({ loadScreeningAction: vi.fn(), submitApplicationAct
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoResource: vi.fn(() => ({ status: "success", data: { items: [{ id: "CA", name: "Canadá" }] }, retry: vi.fn() })) }));
 import { useGeoResource } from "@/features/geo/use-geo-catalog";
 vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
-vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
 import { signIn } from "next-auth/react";
-import { notifyActionResult } from "@/components/feedback/notify";
+import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { loadMeAction } from "@/features/identity/actions";
 import { loadCvsAction } from "@/features/candidate-cvs/actions";
 import { uploadCv } from "@/features/candidate-cvs/upload";
@@ -23,6 +23,7 @@ import { CandidateApplicationWizard } from "./wizard";
 import { id, key, screening, submitted, questionId, optionId } from "./test-fixtures";
 const user = () => userEvent.setup();
 beforeEach(() => {
+  vi.stubGlobal("PointerEvent", MouseEvent); // Base UI radios read it; jsdom has none
   vi.resetAllMocks();
   vi.mocked(loadProfileAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
   vi.mocked(loadMeAction).mockResolvedValue({ ok: true, data: { role: "candidate", user: { id, full_name: "Ana Pérez", email: "ana@example.test" } } });
@@ -30,7 +31,7 @@ beforeEach(() => {
   vi.mocked(loadScreeningAction).mockResolvedValue({ ok: true, data: screening });
   vi.mocked(submitApplicationAction).mockResolvedValue({ ok: true, data: submitted });
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const restrictedJob = { id, title: "Backend Go", company: { name: "Acme" }, work_mode: "remote", remote_scope: { kind: "countries" as const, countries: [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }] } };
 function profileCountry(country: { id: string; name: string } | null) {
   vi.mocked(loadProfileAction).mockResolvedValue({ ok: true, data: { languages: { languages: [] }, profile: { user_id: id, salary_currency: "MXN", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", location: country ? { country, state: null, municipality: null, postal_code: null, label: country.name } : null } } });
@@ -113,9 +114,9 @@ it("disables submission after the vacancy stops accepting applications", async (
   expect(screen.getByRole("link", { name: "Ver otras vacantes" })).toHaveAttribute("href", "/vacantes");
 });
 const mount = () => render(<CandidateApplicationWizard job={{ id, title: "Backend Go", company: { name: "Acme" } }} />);
-async function toCv() { await screen.findByDisplayValue("Ana Pérez"); await user().click(screen.getByRole("button", { name: "Continuar" })); await screen.findByRole("button", { name: cv.name }); }
-async function toQuestions() { await toCv(); await user().click(screen.getByRole("button", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); }
-async function toSummary() { await toQuestions(); fireEvent.change(screen.getByLabelText("Cuéntanos tu experiencia"), { target: { value: "Experiencia Go" } }); await user().click(screen.getByRole("button", { name: "Inmediata" })); await user().click(screen.getByRole("button", { name: "Continuar" })); }
+async function toCv() { await screen.findByDisplayValue("Ana Pérez"); await user().click(screen.getByRole("button", { name: "Continuar" })); await screen.findByRole("radio", { name: cv.name }); }
+async function toQuestions() { await toCv(); await user().click(screen.getByRole("radio", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); }
+async function toSummary() { await toQuestions(); fireEvent.change(screen.getByLabelText("Cuéntanos tu experiencia"), { target: { value: "Experiencia Go" } }); await user().click(screen.getByRole("radio", { name: "Inmediata" })); await user().click(screen.getByRole("button", { name: "Continuar" })); }
 it("mirrors the Datos card slots and two identity fields while initially loading", async () => {
   let finish!: (result: Awaited<ReturnType<typeof loadMeAction>>) => void;
   vi.mocked(loadMeAction).mockReturnValue(new Promise(resolve => { finish = resolve; }));
@@ -178,6 +179,34 @@ it("shows the Datos sign-in card without a form and preserves the callback URL",
   expect(signIn).toHaveBeenCalledWith("cognito", { callbackUrl: `/vacantes/${id}/postular` });
   expect(screen.queryByRole("textbox")).toBeNull();
 });
+it("answers single-choice screening questions through a ChoiceList radiogroup", async () => {
+  mount(); await toQuestions();
+  const group = screen.getByRole("radiogroup", { name: "Disponibilidad" });
+  expect(group.closest('[data-slot="choice-list"]')).not.toBeNull();
+  await user().click(screen.getByRole("radio", { name: "Inmediata" }));
+  expect(screen.getByRole("radio", { name: "Inmediata" })).toBeChecked();
+});
+it("titles the anonymous card «Ingresa para postularte» and offers «Crear cuenta» back to the wizard", async () => {
+  vi.mocked(loadMeAction).mockResolvedValue({ ok: false, reason: "unauthenticated", reference: {} }); mount();
+  expect(await screen.findByRole("heading", { name: "Ingresa para postularte" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Datos" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Ingresar como candidato" })).toBeVisible();
+  const signUp = screen.getByRole("link", { name: "Crear cuenta" });
+  expect(signUp).toHaveAttribute("href", `/candidato/ingresar?next=${encodeURIComponent(`/vacantes/${id}/postular`)}`);
+  expect(signUp).toHaveClass("border-border", "w-full", "sm:w-auto");
+});
+it("titles the pending-account card by what to do, not «Datos»", async () => {
+  vi.mocked(loadMeAction).mockResolvedValue({ ok: true, data: { role: null, user: null } }); mount();
+  expect(await screen.findByRole("heading", { name: "Completa tu cuenta para postularte" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Datos" })).toBeNull();
+});
+it("does not toast a success when a read retry loads the application, and clears the earlier error toast", async () => {
+  vi.mocked(loadScreeningAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
+  mount(); await user().click(await screen.findByRole("button", { name: "Reintentar" }));
+  await toCv();
+  expect(notifyActionResult).not.toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Postulación cargada" }));
+  expect(dismissActionResult).toHaveBeenCalledWith("application-load");
+});
 it("blocks recruiter and unregistered identities", async () => {
   vi.mocked(loadMeAction).mockResolvedValue({ ok: true, data: { role: "recruiter", user: { id, full_name: "Empresa", email: "e@example.test" } } });
   mount(); expect(await screen.findByText("Las postulaciones son para cuentas de candidato")).toBeVisible();
@@ -189,11 +218,11 @@ it("blocks recruiter and unregistered identities", async () => {
 it("renders readonly identity, mandatory CV, required answers, counter and exact summary/submit", async () => {
   mount(); expect(await screen.findByDisplayValue("Ana Pérez")).toHaveAttribute("readonly"); expect(screen.getByDisplayValue("ana@example.test")).toHaveAttribute("readonly");
   await toCv(); await user().click(screen.getByRole("button", { name: "Continuar" })); expect(await screen.findByText("Elige un CV para continuar.")).toBeVisible();
-  await user().click(screen.getByRole("button", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" }));
+  await user().click(screen.getByRole("radio", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" }));
   await user().click(screen.getByRole("button", { name: "Continuar" })); expect(screen.getByLabelText("Cuéntanos tu experiencia")).toHaveFocus();
   const input = screen.getByLabelText("Cuéntanos tu experiencia"); expect(input).toHaveAttribute("maxlength", "4000");
   fireEvent.change(input, { target: { value: "Experiencia Go" } }); expect(screen.getByText("14 de 2000 caracteres")).toBeVisible();
-  await user().click(screen.getByRole("button", { name: "Inmediata" })); await user().click(screen.getByRole("button", { name: "Continuar" }));
+  await user().click(screen.getByRole("radio", { name: "Inmediata" })); await user().click(screen.getByRole("button", { name: "Continuar" }));
   expect(screen.getByRole("heading", { name: "Resumen" })).toBeVisible(); expect(screen.getByText("Experiencia Go")).toBeVisible(); expect(screen.getByText(cv.name)).toBeVisible();
   await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
   expect(submitApplicationAction).toHaveBeenCalledWith(id, expect.stringMatching(/^[\da-f-]{36}$/), { cv_id: cv.id, questionnaire_revision: screening.questionnaire_revision, answers: [{ question_id: id, text: "Experiencia Go" }, { question_id: questionId, option_id: optionId }] });
@@ -209,7 +238,7 @@ it.each(["a".repeat(1999) + "😀", "😀".repeat(2000)])("accepts and submits a
   // jsdom change does not enforce native maxlength; emulate the browser's UTF-16 cap.
   fireEvent.change(input, { target: { value: answer.slice(0, (input as HTMLTextAreaElement).maxLength) } });
   expect(screen.getByText("2000 de 2000 caracteres")).toBeVisible();
-  await user().click(screen.getByRole("button", { name: "Inmediata" }));
+  await user().click(screen.getByRole("radio", { name: "Inmediata" }));
   await user().click(screen.getByRole("button", { name: "Continuar" }));
   await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
   expect(submitApplicationAction).toHaveBeenCalledWith(id, expect.any(String), expect.objectContaining({ answers: [{ question_id: id, text: answer }, { question_id: questionId, option_id: optionId }] }));
@@ -219,7 +248,7 @@ it("rejects 2001 code points with FieldError and sends nothing", async () => {
   const input = screen.getByLabelText("Cuéntanos tu experiencia");
   fireEvent.change(input, { target: { value: "a".repeat(2000) + "😀" } });
   expect(screen.getByText("2001 de 2000 caracteres")).toBeVisible();
-  await user().click(screen.getByRole("button", { name: "Inmediata" }));
+  await user().click(screen.getByRole("radio", { name: "Inmediata" }));
   await user().click(screen.getByRole("button", { name: "Continuar" }));
   expect(screen.getByRole("alert")).toHaveTextContent("Tu respuesta supera el límite de caracteres.");
   expect(input).toHaveFocus(); expect(input).toHaveAttribute("aria-invalid", "true");
@@ -229,9 +258,9 @@ it("validates files before uploading and chooses the newly uploaded library CV",
   vi.mocked(uploadCv).mockResolvedValue({ ok: true, data: { ...cv, id: key, name: "Nuevo.docx" } }); mount(); await toCv();
   const input = screen.getByLabelText("Subir un CV nuevo");
   fireEvent.change(input, { target: { files: [new File(["x"], "bad.exe", { type: "text/plain" })] } });
-  expect(await screen.findByText("Sube un PDF o un documento de Word (.docx).")).toBeVisible(); expect(input).toHaveFocus(); expect(uploadCv).not.toHaveBeenCalled();
+  expect(await screen.findByText("Sube un PDF o un documento de Word (.docx).")).toBeVisible(); expect(screen.getByRole("button", { name: "Cambiar" })).toHaveFocus(); expect(uploadCv).not.toHaveBeenCalled();
   fireEvent.change(input, { target: { files: [new File(["x"], "Nuevo.docx")] } });
-  const picked = await screen.findByRole("button", { name: "Nuevo.docx" }); expect(picked).toHaveAttribute("aria-pressed", "true");
+  const picked = await screen.findByRole("radio", { name: "Nuevo.docx" }); expect(picked).toHaveAttribute("aria-checked", "true");
 });
 it("does not blindly repeat an uncertain CV upload and can check the library", async () => {
   vi.mocked(uploadCv).mockResolvedValue({ ok: false, reason: "no_response", reference: {} }); mount(); await toCv();
@@ -243,7 +272,7 @@ it("does not blindly repeat an uncertain CV upload and can check the library", a
 it.each(["cv_too_large", "cv_unsupported_type", "cv_content_mismatch", "cv_library_full"] as const)("retains upload rejection %s next to the file", async reason => {
   vi.mocked(uploadCv).mockResolvedValue({ ok: false, reason, reference: {} }); mount(); await toCv();
   fireEvent.change(screen.getByLabelText("Subir un CV nuevo"), { target: { files: [new File(["x"], "Nuevo.pdf", { type: "application/pdf" })] } });
-  await waitFor(() => expect(screen.getByLabelText("Subir un CV nuevo")).toHaveAttribute("aria-invalid", "true")); expect(screen.getByRole("alert")).toBeVisible(); expect(screen.getByLabelText("Subir un CV nuevo")).toHaveFocus();
+  await waitFor(() => expect(screen.getByLabelText("Subir un CV nuevo")).toHaveAttribute("aria-invalid", "true")); expect(screen.getByRole("alert")).toBeVisible(); expect(screen.getByRole("button", { name: "Cambiar" })).toHaveFocus();
 });
 it("shows unavailable CV storage and retries only explicitly", async () => {
   vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "storage_unavailable", reference: { status: 503, code: "cv_storage_unavailable" } });
@@ -277,10 +306,10 @@ it("keeps answers and selected CV when the CV-step upload is unavailable", async
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title, description }));
   expect(uploadCv).toHaveBeenCalledTimes(1); expect(loadCvsAction).toHaveBeenCalledTimes(1);
   await user().click(screen.getByRole("button", { name: "Reintentar" }));
-  expect(await screen.findByRole("button", { name: cv.name })).toHaveAttribute("aria-pressed", "true");
+  expect(await screen.findByRole("radio", { name: cv.name })).toHaveAttribute("aria-checked", "true");
   await user().click(screen.getByRole("button", { name: "Continuar" }));
   expect(screen.getByLabelText("Cuéntanos tu experiencia")).toHaveValue("Experiencia Go");
-  expect(screen.getByRole("button", { name: "Inmediata" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("radio", { name: "Inmediata" })).toHaveAttribute("aria-checked", "true");
   expect(submitApplicationAction).not.toHaveBeenCalled();
 });
 it("keeps written answers across unavailable CV reloads after a stale-CV rejection", async () => {
@@ -291,10 +320,10 @@ it("keeps written answers across unavailable CV reloads after a stale-CV rejecti
   expect(await screen.findByRole("heading", { name: "Los CVs no están disponibles en este momento" })).toBeVisible();
   expect(loadCvsAction).toHaveBeenCalledTimes(2); expect(submitApplicationAction).toHaveBeenCalledTimes(1);
   await user().click(screen.getByRole("button", { name: "Reintentar" }));
-  await user().click(await screen.findByRole("button", { name: cv.name }));
+  await user().click(await screen.findByRole("radio", { name: cv.name }));
   await user().click(screen.getByRole("button", { name: "Continuar" }));
   expect(screen.getByLabelText("Cuéntanos tu experiencia")).toHaveValue("Experiencia Go");
-  expect(screen.getByRole("button", { name: "Inmediata" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("radio", { name: "Inmediata" })).toHaveAttribute("aria-checked", "true");
   expect(loadScreeningAction).toHaveBeenCalledTimes(1); expect(submitApplicationAction).toHaveBeenCalledTimes(1);
 });
 it.each(["cvs", "upload", "apply"] as const)("shows the existing company-account state on %s wrong_role", async source => {
@@ -318,7 +347,7 @@ it("keeps the actual vacancy and company next to the final submission, not just 
   expect(footer).not.toHaveTextContent("Salario no publicado"); // This prop carries no salary projection.
 });
 it("skips empty questions", async () => {
-  vi.mocked(loadScreeningAction).mockResolvedValue({ ok: true, data: { ...screening, questions: [] } }); mount(); await toCv(); await user().click(screen.getByRole("button", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); expect(screen.getByRole("heading", { name: "Resumen" })).toBeVisible();
+  vi.mocked(loadScreeningAction).mockResolvedValue({ ok: true, data: { ...screening, questions: [] } }); mount(); await toCv(); await user().click(screen.getByRole("radio", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); expect(screen.getByRole("heading", { name: "Resumen" })).toBeVisible();
 });
 it.each(["no_response", "server_error", "unrecognized_response"] as const)("explicitly retries %s with the same key and body", async reason => {
   vi.mocked(submitApplicationAction).mockResolvedValueOnce({ ok: false, reason, reference: {} }).mockResolvedValueOnce({ ok: true, data: submitted });
@@ -334,7 +363,7 @@ it("reloads changed questions preserving CV and rotates the key", async () => {
   vi.mocked(submitApplicationAction).mockResolvedValueOnce({ ok: false, reason: "questionnaire_changed", reference: {} }).mockResolvedValueOnce({ ok: true, data: submitted });
   mount(); await toSummary(); vi.mocked(loadScreeningAction).mockResolvedValue({ ok: true, data: { ...screening, questionnaire_revision: "revision-2" } });
   await user().click(screen.getByRole("button", { name: "Enviar postulación" })); expect(await screen.findByText("Las preguntas cambiaron. Revisa tus respuestas.")).toBeVisible();
-  fireEvent.change(screen.getByLabelText("Cuéntanos tu experiencia"), { target: { value: "Actualizada" } }); await user().click(screen.getByRole("button", { name: "Inmediata" })); await user().click(screen.getByRole("button", { name: "Continuar" }));
+  fireEvent.change(screen.getByLabelText("Cuéntanos tu experiencia"), { target: { value: "Actualizada" } }); await user().click(screen.getByRole("radio", { name: "Inmediata" })); await user().click(screen.getByRole("button", { name: "Continuar" }));
   expect(screen.getByText(cv.name)).toBeVisible(); await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
   const calls = vi.mocked(submitApplicationAction).mock.calls; expect(calls[1][1]).not.toBe(calls[0][1]); expect(calls[1][2]).toMatchObject({ questionnaire_revision: "revision-2", cv_id: cv.id });
 });

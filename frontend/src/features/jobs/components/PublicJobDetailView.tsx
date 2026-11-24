@@ -103,15 +103,18 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
             <PublicSalary job={job} detail />
             <Separator />
             {companyLoading ? <div className="flex flex-col gap-3"><Skeleton aria-hidden="true" className="h-5 w-48 max-w-full" /><Skeleton aria-hidden="true" className="h-10 w-full" /></div> : company && job.source !== "legacy" && <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {company.name}.</p></div>}
-            <div className="flex flex-col gap-2">
+            {/* The empty status slot under the apply row reserves 40 px: hidden until it has a message. */}
+            <div data-public-actions="" className="flex flex-col gap-2 [&_[data-pf-action-status-slot]:empty]:hidden">
               {/* Legacy catalog rows have no apply endpoint: an honest note, never a dead-end CTA. */}
               {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : job.source === "legacy" ? <>
                 <p className="text-sm text-muted-foreground">Esta vacante no recibe postulaciones en línea.</p>
                 <SavedJobControl jobId={job.id} title={job.title} placement="detail" />
               </> : <SavedJobControl jobId={job.id} title={job.title} placement="detail"><PublicApplyLink jobId={job.id} /></SavedJobControl>}
-              {!preview && <PublicShareButton />}
-              <PublicApplicants applicants={job.applicants} />
-              <PublicScreeningInfo count={job.screening_questions} />
+              {!preview && <PublicShareButton title={job.title} company={company?.name} />}
+              {(job.applicants !== null || job.screening_questions !== null) && <div data-public-application-info="" className="flex flex-col items-center gap-1.5 pt-1 text-sm text-muted-foreground">
+                <PublicApplicants applicants={job.applicants} />
+                <PublicScreeningInfo count={job.screening_questions} />
+              </div>}
             </div>
           </CardContent>
           {hasCompanySlot && <CardFooter className={PUBLIC_COMPANY_FOOTER}>{companyLoading ? <><Skeleton aria-hidden="true" className="size-5 shrink-0" /><div className="flex min-w-0 flex-col gap-1"><Skeleton aria-hidden="true" className="h-5 w-36 max-w-full" /><Skeleton aria-hidden="true" className="h-5 w-44 max-w-full" /></div></> : company && <><Building2Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" /><div data-public-company-footer="" className="flex min-w-0 flex-col gap-1"><p className="text-sm font-medium break-words">{company.name}</p>{companyContext && <p className="text-sm text-muted-foreground">{companyContext}</p>}</div></>}</CardFooter>}

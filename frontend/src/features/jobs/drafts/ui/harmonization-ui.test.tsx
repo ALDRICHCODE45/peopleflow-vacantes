@@ -25,7 +25,7 @@ it("places minimum experience and education in requirements without publication 
   expect(screen.getByText("Mínimo requerido; puedes usar decimales, por ejemplo 1.5.")).toBeVisible();
   expect(screen.getByRole("combobox", { name: "Estudios mínimos" })).toBeVisible();
   // Without a minimum education level there is nothing to accept in progress.
-  expect(screen.queryByRole("checkbox", { name: "Acepta estudios en curso" })).toBeNull();
+  expect(screen.queryByRole("switch", { name: "Acepta estudios en curso" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
   expect(screen.getByRole("combobox", { name: "Idioma 1" })).toBeVisible();
   expect(screen.getByRole("combobox", { name: "Nivel mínimo del idioma 1" })).toBeVisible();
@@ -73,7 +73,7 @@ it.each([
   vi.mocked(saveDraftV2Action).mockResolvedValue({ ok: false, reason: "invalid_request", reference: { status: 400, code: "validation_error" }, fields: [{ field, code: "invalid" }] });
   render(<LocalDraftForm initialModel={model} initialScreeningQuestionsV2={[]} />);
   fireEvent.click(screen.getByRole("button", { name: "Guardar borrador" }));
-  const control = await screen.findByRole(label === "Acepta estudios en curso" ? "checkbox" : label === "Idiomas requeridos" ? "group" : "combobox", { name: label });
+  const control = await screen.findByRole(label === "Acepta estudios en curso" ? "switch" : label === "Idiomas requeridos" ? "group" : "combobox", { name: label });
   await waitFor(() => expect(control).toHaveFocus());
   expect(control).toHaveAttribute("aria-invalid", "true");
   expect(screen.getByText("Revisa este dato.")).toHaveAttribute("data-slot", "field-error");
@@ -91,5 +91,5 @@ it("offers «Acepta estudios en curso» only once a minimum education level is c
   const model = createDraftModel(); model.fields.min_education_level = "bachelor"; model.fields.accepts_in_progress_education = true;
   render(<LocalDraftForm initialModel={model} />);
   fireEvent.click(screen.getByRole("tab", { name: "Descripción y perfil" }));
-  expect(screen.getByRole("checkbox", { name: "Acepta estudios en curso" })).toBeChecked();
+  expect(screen.getByRole("switch", { name: "Acepta estudios en curso" })).toBeChecked();
 });

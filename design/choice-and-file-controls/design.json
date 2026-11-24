@@ -1,0 +1,28 @@
+{
+  "title": "Controles de elección y de archivo (reemplazo de radios, checkboxes e input file)",
+  "brief": "T2 · Tres direcciones estructurales para sustituir el radio suelto, el checkbox de opciones y el «Browse… No file selected.» nativo (S1, S2, S5). Cada artboard trae, en escritorio 1440×900 y móvil 390×844 con modo claro y oscuro: elección única (reposo, elegida, hover, foco con teclado, deshabilitada con motivo visible, error; 2 y 4 opciones), elección múltiple (con «Seleccionar todo» y contador, errores, y la nota de que la selección de filas en tablas de datos conserva el checkbox estilizado), archivo (vacío, arrastrando, elegido con insignia por formato, subiendo con progreso, error de formato y de tamaño, variante compacta y cola de varios archivos) y dos pantallas reales interactivas: «Subir documento» (destino La vacante / Una persona candidata, búsqueda de persona y archivo; con estado de archivo y límite de la vacante) y el paso 1 «¿A quién reemplaza?» del diálogo de reemplazo (bajas con dos personas no disponibles y su motivo). Semántica real debajo (input radio/checkbox/file dentro de role=radiogroup/group), flechas y Espacio nativos, objetivos de 40 px o más, anillos de foco, prefers-reduced-motion. Español de México, tú, límites de documentos: PDF, Word, Excel, JPG y PNG hasta 10 MB. Datos ilustrativos de Grupo Altavista, acciones inertes y tokens de design/system.md. Ninguna dirección está elegida todavía.",
+  "feature": "odd/tasks/modern-choice-controls.md",
+  "artboards": [
+    {
+      "file": "01-tarjetas-seleccionables-y-dropzone.html",
+      "title": "01 · Tarjetas seleccionables y dropzone amplio · S1 S2 S5",
+      "tradeoff": "La más explicativa: cada opción trae icono, título y una línea de ayuda, y el archivo se arrastra a una zona grande con los formatos en color; a cambio gasta altura (el diálogo «Subir documento» crece ~130 px y 5 bajas en tarjetas pesan frente a una fila compacta).",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-segmentado-chips-y-franja.html",
+      "title": "02 · Control segmentado, chips y franja de archivo · S1 S2 S5",
+      "tradeoff": "La más compacta y la más cercana al lenguaje que ya existe (segmentado h-11, chips de motivo): el diálogo casi no crece y la franja de archivo no cambia de alto entre estados; a cambio exige etiquetas cortas, la ayuda de cada opción solo aparece al elegirla, las opciones no disponibles necesitan una línea de motivo aparte y la franja invita menos a arrastrar.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-lista-con-palomita-y-tarjeta.html",
+      "title": "03 · Lista con palomita al final y botón de archivo con tarjeta · S1 S2 S5",
+      "tradeoff": "La más escalable (igual de clara con 3 que con 30 opciones, «Seleccionar todo» como primera fila, barra de selección ya usada en Guardadas) y la fila entera es el área de toque; a cambio es la más sobria: explica menos que las tarjetas, dos opciones se ven parcas y el campo con botón invita menos al arrastre que una zona grande.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}

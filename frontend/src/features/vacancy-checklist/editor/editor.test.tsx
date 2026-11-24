@@ -90,7 +90,8 @@ it("explains the internal empty state, suggests criteria and preselects reminder
   expect(screen.getByRole("button", { name: "Agregar criterio" }).closest('[data-slot="empty-content"]')).not.toBeNull();
   expect(screen.getByRole("checkbox", { name: "Nuevos" })).not.toBeChecked();
   expect(screen.getByRole("checkbox", { name: "Entrevista" })).toBeChecked();
-  expect(screen.getByRole("checkbox", { name: "Entrevista" }).closest('[data-slot="checkbox-group"]')).not.toBeNull();
+  expect(screen.getByRole("checkbox", { name: "Entrevista" }).closest('[data-slot="choice-list"]')).not.toBeNull();
+  expect(screen.getByRole("group", { name: "Etapas con recordatorio" })).toContainElement(screen.getByRole("checkbox", { name: "Nuevos" }));
   expect(screen.getByRole("button", { name: "Sugerir desde la vacante" }).parentElement).toHaveClass("flex-col", "sm:flex-row");
   fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" }));
   expect(screen.getByRole("button", { name: "Seleccionar Al menos 3 años de experiencia" })).toBeVisible();
@@ -122,6 +123,18 @@ it.each([
   expect(sent.params).toEqual(params[kind as keyof typeof params]);
   if (kind === "language") expect(sent.label).toBe("Idioma: Inglés · mínimo B2");
   if (kind === "location") expect(sent.label).toContain("México");
+});
+it("sets «Acepta en curso» of an education criterion with a switch, not a checkbox", async () => {
+  editor(); fireEvent.click(screen.getByRole("button", { name: "Agregar criterio" }));
+  await choose("Tipo de criterio", "Estudios");
+  expect(screen.queryByRole("checkbox", { name: "Acepta en curso" })).toBeNull();
+  const progress = screen.getByRole("switch", { name: "Acepta en curso" });
+  expect(progress).not.toBeChecked();
+  fireEvent.click(progress);
+  expect(progress).toBeChecked();
+  fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  await waitFor(() => expect(saveChecklistAction).toHaveBeenCalled());
+  expect((vi.mocked(saveChecklistAction).mock.calls[0][0].body as Checklist).criteria[0].params).toMatchObject({ accepts_in_progress: true });
 });
 it("preserves identity on label/importance edits and replaces it on parameter changes", async () => {
   const criterion: Criterion = { ...manual, kind: "min_years_experience", params: { min: "3" } };
@@ -185,6 +198,7 @@ it.each([
   editor(); fireEvent.click(screen.getByRole("button", { name: "Sugerir desde la vacante" })); fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   expect(await screen.findByText(message)).toBeVisible();
   if (field.startsWith("criteria")) expect(within(screen.getAllByRole("listitem")[0]).getByText(message)).toBeVisible();
+  if (field.startsWith("reminder")) expect(screen.getByRole("group", { name: "Etapas con recordatorio" })).toHaveAccessibleDescription(message);
 });
 it("checks uncertain writes by reading only and preserves edits when the check fails", async () => {
   vi.mocked(saveChecklistAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });

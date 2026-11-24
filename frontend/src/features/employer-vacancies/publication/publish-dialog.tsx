@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { ShareMenu } from "@/features/jobs/components/share-menu";
 import { plural } from "../plural";
 import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
@@ -194,7 +195,11 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
             }} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>
           </Fragment>)}</ItemGroup>
         </section>;
-      }) : already ? <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p> : <>
+      }) : already ? <>
+        <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p>
+        {/* A private (replacement) vacancy has no public page: only a public published one can be shared. */}
+        {!snapshot.later && <ShareMenu title={snapshot.title} url={`/vacantes/${draftId}`} variant="outline" visibleStatus />}
+      </> : <>
         <PublicationSummary snapshot={snapshot} />
       </>)}
     </div>}

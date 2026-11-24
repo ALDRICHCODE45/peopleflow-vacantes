@@ -1,14 +1,14 @@
 "use client";
 
 import { useRef, useState, type ComponentProps } from "react";
-import { Upload } from "lucide-react";
+import { Briefcase, Upload, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ChoiceList, type ChoiceOption } from "@/components/ui/choice-list";
 import type { DocumentOverview, ItemWrite } from "../model";
 import { CandidatePicker } from "./candidate-picker";
-import { FileField } from "./file-field";
+import { DocumentFileField } from "./file-field";
 import { checkFile, plural } from "./format";
 import { uploadDocumentFile } from "./upload-client";
 
@@ -32,6 +32,13 @@ export function UploadDialog({ draftId, overview, initialParticipationId, onClos
   const [progress, setProgress] = useState<number | null>(null);
   const intent = useRef<{ file: File; target: string | null; key: string } | null>(null);
 
+  const canUploadToPerson = participations.some(entry => entry.scope_allowed_actions.includes("upload"));
+  const destinations: ChoiceOption[] = [
+    { value: "vacancy", title: "La vacante", description: "Contratos, tabuladores y solicitudes del cliente", leading: <Briefcase />, disabled: !vacancyOk,
+      disabledReason: blocked(scope.upload_blocked_reason, "Esta vacante", scope.limits.max_documents) ?? "No puedes subir documentos a la vacante." },
+    { value: "candidate", title: "Una persona candidata", description: "Carta de renuncia, alta IMSS y su expediente", leading: <User />, disabled: !canUploadToPerson,
+      disabledReason: "Ninguna persona candidata puede recibir documentos ahora." },
+  ];
   const person = participations.find(entry => entry.participation_id === participationId);
   const target = dest === "vacancy" ? null : participationId;
   const personBlocked = dest === "candidate" && person && !person.scope_allowed_actions.includes("upload") ? blocked(person.upload_blocked_reason, "Esta persona", scope.limits.max_documents) : null;
@@ -52,17 +59,13 @@ export function UploadDialog({ draftId, overview, initialParticipationId, onClos
   return <Dialog open onOpenChange={next => { if (!next && progress === null) onClose(); }}>
     <DialogContent finalFocus={finalFocus} className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
       <DialogHeader><DialogTitle>Subir documento</DialogTitle><DialogDescription>Los ven tu equipo y los stakeholders de la empresa; el candidato nunca.</DialogDescription></DialogHeader>
-      <fieldset className="flex flex-col gap-3"><legend className="mb-2 text-sm font-medium">¿A quién pertenece?</legend>
-        <RadioGroup value={dest} onValueChange={next => { setDest(next as Dest); setFailure(null); }} className="gap-3">
-          <label className="flex min-h-10 items-start gap-3"><RadioGroupItem value="vacancy" disabled={!vacancyOk} /><span className="flex flex-col"><span className="font-medium">La vacante</span>
-            {!vacancyOk && <span className="text-sm text-muted-foreground">{blocked(scope.upload_blocked_reason, "Esta vacante", scope.limits.max_documents) ?? "No puedes subir documentos a la vacante."}</span>}</span></label>
-          <label className="flex min-h-10 items-start gap-3"><RadioGroupItem value="candidate" disabled={!participations.some(entry => entry.scope_allowed_actions.includes("upload"))} /><span className="font-medium">Una persona candidata</span></label>
-        </RadioGroup>
+      <div className="flex flex-col gap-3">
+        <ChoiceList legend="¿A quién pertenece?" value={dest} onValueChange={next => { setDest(next as Dest); setFailure(null); }} options={destinations} />
         {dest === "candidate" && <div className="flex flex-col gap-2"><CandidatePicker id="upload-candidate" label="Candidato" participations={participations} value={participationId} onChange={setParticipationId}
           placeholder="Busca a una persona" className="min-h-10 w-full" isItemDisabled={entry => !entry.scope_allowed_actions.includes("upload")} />
           {personBlocked && <p className="text-sm text-muted-foreground">{personBlocked}</p>}</div>}
-      </fieldset>
-      <FileField limits={scope.limits} error={fileError} disabled={progress !== null}
+      </div>
+      <DocumentFileField limits={scope.limits} file={file} error={fileError} disabled={progress !== null}
         onFile={next => { setFile(next); setFailure(null); setFileError(next ? checkFile(next, scope.limits) : null); }} />
       {progress !== null && <Progress value={Math.round(progress * 100)}><ProgressLabel>Subiendo {file?.name}</ProgressLabel><ProgressValue /></Progress>}
       {failure && <p role="alert" className="text-sm text-status-danger">{failure}</p>}

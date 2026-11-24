@@ -4,12 +4,13 @@ import { useEffect, useState, type ComponentProps } from "react";
 import { Check, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ChoiceList, type ChoiceOption } from "@/components/ui/choice-list";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createDocumentLinkAction, listDocumentSourcesAction } from "../actions";
 import { mapDocumentFailure } from "../failure";
 import type { DocumentOverview, DocumentSources, LinkWrite } from "../model";
+import { FormatBadge } from "./format-badge";
 import { FORMAT_LABEL, originLabel, plural, sizeLabel } from "./format";
 
 type Sources = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; sources: DocumentSources };
@@ -62,10 +63,6 @@ export function LinkSheet({ draftId, overview, chosenParticipationId, onClose, o
   const vacancyTarget = destination === null;
   const free = overview.scope.limits.max_documents - overview.scope.counts.documents - overview.scope.counts.links;
 
-  function toggle(id: string, on: boolean) {
-    setFailure(null);
-    setChosen(current => on ? [...current.filter(entry => entry !== id), id] : current.filter(entry => entry !== id));
-  }
   function changeDestination(next: string | null) {
     if (next === destination || linking) return;
     setDestination(next); setChosen([]); setLinked([]); setFailure(null);
@@ -112,23 +109,15 @@ export function LinkSheet({ draftId, overview, chosenParticipationId, onClose, o
         {sources.status === "ready" && canLink && documents.length === 0 && <p className="text-sm text-muted-foreground">El proceso original no tiene documentos para vincular.</p>}
         {sources.status === "ready" && canLink && groups.map(group => <section key={`${group.process_id}-${group.participation_id ?? "v"}`} aria-label={originLabel(group.sequence)} className="flex flex-col gap-2">
           <h3 className="font-heading text-sm font-semibold">{originLabel(group.sequence)}</h3>
-          <ul className="flex flex-col gap-2">{group.documents.map(document => {
-            const done = isLinked(document);
-            const on = !done && chosen.includes(document.id);
-            // The whole row is the click target (≥ 40 px): the name toggles the checkbox, and a long name wraps instead of hiding behind «Ya vinculado».
-            // Not a <label for>: Base UI would then name the checkbox after the whole row, and its own name (the document's) must stay as it is.
-            const clickable = !done && !linking;
-            return <li key={document.id}><div data-pf-link-row="" onClick={() => { if (clickable) toggle(document.id, !on); }}
-              className={`flex min-h-10 items-start gap-3 rounded-2xl border p-3 ${done ? "bg-muted/50" : "cursor-pointer hover:bg-muted/40"}`}>
-              <Checkbox className="mt-1" aria-label={document.name} checked={on} disabled={done || linking} onClick={event => event.stopPropagation()} onCheckedChange={next => toggle(document.id, next === true)} />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="font-medium [overflow-wrap:anywhere]">{document.name}</span>
-                <span className="text-xs text-muted-foreground">{`${FORMAT_LABEL[document.format]} · ${sizeLabel(document.size)} · versión actual v${document.version}`}</span>
-                {on && <span className="text-xs text-primary-text">{`Se fijará la versión ${document.version}`}</span>}
-                {done && <Badge variant="neutral" className="mt-1 shrink-0 self-start"><Check aria-hidden="true" />Ya vinculado</Badge>}
-              </span>
-            </div></li>;
-          })}</ul>
+          <ChoiceList multiple legend={originLabel(group.sequence)} hideLegend disabled={linking} value={chosen.filter(id => group.documents.some(entry => entry.id === id && !isLinked(entry)))}
+            countLabel={(selected, total) => selected === 0 ? "Ningún documento elegido" : `${selected} de ${total} documentos elegidos`}
+            onValueChange={next => { setFailure(null); setChosen(current => [...current.filter(id => !group.documents.some(entry => entry.id === id)), ...next]); }}
+            options={group.documents.map((document): ChoiceOption => {
+              const done = isLinked(document);
+              return { value: document.id, title: document.name, leading: <FormatBadge format={document.format} />, disabled: done, disabledReason: done ? <Badge variant="neutral" className="shrink-0"><Check aria-hidden="true" />Ya vinculado</Badge> : undefined,
+                description: `${FORMAT_LABEL[document.format]} · ${sizeLabel(document.size)} · versión actual v${document.version}`,
+                meta: !done && chosen.includes(document.id) ? <span className="text-primary-text">{`Se fijará la versión ${document.version}`}</span> : undefined };
+            })} />
         </section>)}
         {failure && <p role="alert" className="text-sm text-status-danger">{failure}</p>}
       </div>

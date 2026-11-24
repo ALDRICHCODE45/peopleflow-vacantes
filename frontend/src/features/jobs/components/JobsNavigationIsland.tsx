@@ -196,11 +196,12 @@ function ComposedSearchField({ icon: Icon, id, label, name, defaultValue, placeh
   </Field>;
 }
 
+/** Quick chips are the modality only; the schedule («Jornada») lives in the filter panel. */
 const QUICK_FILTERS = [
   { label: "Todas", patch: { ...CLEAR_SALARY_FILTER, ...CLEAR_PROFILE_FILTERS, q: "", state: [], municipality: [], applicant_country: "", work_mode: [], work_schedule: "", contract_type: "", professional_area: "" }, isActive: (query: JobsQuery) => Object.keys(query).length === 0 },
-  { label: "Remoto", patch: { work_mode: "remote" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("remote") },
+  { label: "Presencial", patch: { work_mode: "onsite" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("onsite") },
   { label: "Híbrido", patch: { work_mode: "hybrid" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("hybrid") },
-  { label: "Tiempo completo", patch: { work_schedule: "full_time" }, isActive: (query: JobsQuery) => query.work_schedule === "full_time" },
+  { label: "Remoto", patch: { work_mode: "remote" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("remote") },
 ] satisfies { label: string; patch: JobsFilterPatch; isActive: (query: JobsQuery) => boolean }[];
 
 const FILTERS = [

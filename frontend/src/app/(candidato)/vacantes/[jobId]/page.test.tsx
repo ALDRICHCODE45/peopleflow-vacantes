@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -26,6 +26,14 @@ describe("public detail route", () => {
     render(await Page({ params: params(data.id) }));
     expect(screen.getByRole("heading", { name: availability === "paused" ? "Vacante pausada" : "Vacante cerrada" }).closest('[data-slot="card"]')).not.toBeNull();
     expect(screen.getByText(new RegExp(data.title))).toBeVisible();
+    expect(screen.getByRole("link", { name: "Ver otras vacantes" })).toHaveAttribute("href", "/vacantes");
+  });
+  it("adds «Ver vacantes de <empresa>» to the closed vacancy when the company has a careers site", async () => {
+    const data = { id: vacancyDetail.id, title: vacancyDetail.title, company: { id: vacancyDetail.company.id, name: "Acme" }, availability: "closed" };
+    const company = { id: vacancyDetail.company.id, name: "Acme", industry_id: "industry", location: null, site_slug: "acme" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(response({ error: "Unavailable", code: "vacancy_unavailable", data }, 410)).mockResolvedValue(response(company)));
+    render(await Page({ params: params(data.id) }));
+    expect(screen.getByRole("link", { name: "Ver vacantes de Acme" })).toHaveAttribute("href", "/empresas/acme");
     expect(screen.getByRole("link", { name: "Ver otras vacantes" })).toHaveAttribute("href", "/vacantes");
   });
   it.each([409, 500])("does not treat a lifecycle envelope on HTTP %i as an unavailable vacancy", async status => {
@@ -63,6 +71,22 @@ describe("public detail route", () => {
     expect(meta.title).toBe(vacancyDetail.title);
     expect(meta.description).toBe(vacancyDetail.description_plain);
     expect(meta.alternates?.canonical).toBe(`http://127.0.0.1:3000/vacantes/${vacancyDetail.id}`);
+  });
+  it("adds Open Graph and Twitter cards to published vacancies only", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(vacancyDetail)));
+    const meta = await generateMetadata({ params: params(vacancyDetail.id) });
+    expect(meta.openGraph).toMatchObject({ title: "Backend Go · Acme", description: vacancyDetail.description_plain, url: `http://127.0.0.1:3000/vacantes/${vacancyDetail.id}` });
+    expect(meta.twitter).toMatchObject({ card: "summary", title: "Backend Go · Acme" });
+    const data = { id: vacancyDetail.id, title: vacancyDetail.title, company: { id: vacancyDetail.company.id, name: "Acme" }, availability: "closed" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ error: "Unavailable", code: "vacancy_unavailable", data }, 410)));
+    expect(await generateMetadata({ params: params(data.id) })).not.toHaveProperty("openGraph");
+  });
+  it("renders the JobPosting JSON-LD script for a published vacancy (details in job-posting-script.test.tsx)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(vacancyDetail)));
+    let view!: ReturnType<typeof render>;
+    const ui = await Page({ params: params(vacancyDetail.id) });
+    await act(async () => { view = render(ui); });
+    expect(JSON.parse(view.container.querySelector('script[type="application/ld+json"]')!.textContent!)).toMatchObject({ "@type": "JobPosting", title: "Backend Go", url: `http://127.0.0.1:3000/vacantes/${vacancyDetail.id}` });
   });
   it("rejects malformed and backend 404 ids but never masks schema/service errors as 404", async () => {
     const fetchMock = vi.fn();

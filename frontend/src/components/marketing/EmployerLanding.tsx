@@ -884,15 +884,16 @@ function ShowcaseCard({ card }: { card: ShowcaseCardModel }) {
   );
 }
 
-// The candidate board illustrates the journey, not fabricated application data.
-// Only vacancy cards link out, using the exact existing fixture identifiers.
+// The candidate board illustrates the journey, not fabricated application data. The example vacancies are
+// prototype fixtures that do not exist in the public API, so their cards never link (the real entry points are
+// the «Explorar vacantes» actions).
 const CANDIDATE_SHOWCASE_COLUMNS: ShowcaseColumnModel[] = [
   {
     dot: "bg-brand", title: "Explora", count: String(ACME_PROTOTYPE_JOBS.length),
     cards: ACME_PROTOTYPE_JOBS.map((job) => ({
-      name: job.title, role: job.company.name, href: `/vacantes/${job.id}`,
+      name: job.title, role: job.company.name,
       color: SHOWCASE_COLUMNS[0].cards[0].color, borderClass: "border-line",
-      hoverClass: "hover:border-brand/50", tags: [workModeLabel(job.work_mode)],
+      tags: [workModeLabel(job.work_mode)],
     })),
   },
   {

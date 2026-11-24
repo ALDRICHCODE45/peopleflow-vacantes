@@ -11,7 +11,7 @@ import type { IdentityResult } from "@/features/identity/model";
 import { loadCvsAction } from "@/features/candidate-cvs/actions";
 import type { CvFailure, CvLibrary } from "@/features/candidate-cvs/model";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
-import { notifyActionResult } from "@/components/feedback/notify";
+import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { StateCard } from "@/components/feedback/state-card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -22,13 +22,14 @@ import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ChoiceList } from "@/components/ui/choice-list";
 import { loadScreeningAction, submitApplicationAction } from "./actions";
 import { CvPicker } from "./cv-picker";
 import { UnavailableVacancyCard } from "./unavailable-vacancy";
 import { failureCopy, uncertain } from "./feedback";
 import type { ApplicationBody, ApplicationChannel, Failure, Result, Screening } from "./model";
 import { vacancyApplicationHref } from "@/features/jobs/application/application-draft";
+import { candidateAuthHref } from "@/features/identity/return-to";
 
 import { useCountryGate, type CountryScope } from "./country-gate";
 import { cn } from "@/lib/utils";
@@ -50,7 +51,7 @@ function Loading({ step = "Datos", questions = [] }: { step?: Step; questions?: 
       <CardHeader className="border-b"><CardTitle><Skeleton className="h-7 w-32" /></CardTitle><CardDescription><Skeleton className="h-5 w-80 max-w-full" /></CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-6"><FieldGroup>
         {step === "Datos" ? [0, 1].map(index => <Field key={index}><Skeleton className="w-32"><FieldLabel>&nbsp;</FieldLabel></Skeleton><Skeleton><Input disabled tabIndex={-1} className="invisible min-h-10" /></Skeleton></Field>) : questions.map(question => <Field key={question.id}>
-          {question.type === "open" ? <><Skeleton><FieldLabel className="invisible">{question.prompt}</FieldLabel></Skeleton><Skeleton><Textarea disabled tabIndex={-1} className="invisible min-h-32" /></Skeleton><Skeleton className="w-40"><FieldDescription>&nbsp;</FieldDescription></Skeleton></> : <FieldSet><FieldLegend variant="label"><Skeleton><span className="invisible">{question.prompt}</span></Skeleton></FieldLegend><Skeleton><ToggleGroup disabled variant="outline" orientation="vertical" className="invisible w-full">{question.options.map(option => <ToggleGroupItem key={option.id} value={option.id} tabIndex={-1} className="min-h-10 justify-start whitespace-normal break-words">{option.label}</ToggleGroupItem>)}</ToggleGroup></Skeleton></FieldSet>}
+          {question.type === "open" ? <><Skeleton><FieldLabel className="invisible">{question.prompt}</FieldLabel></Skeleton><Skeleton><Textarea disabled tabIndex={-1} className="invisible min-h-32" /></Skeleton><Skeleton className="w-40"><FieldDescription>&nbsp;</FieldDescription></Skeleton></> : <FieldSet><FieldLegend variant="label"><Skeleton><span className="invisible">{question.prompt}</span></Skeleton></FieldLegend><Skeleton><ChoiceList legend={question.prompt} hideLegend disabled className="invisible" value={null} onValueChange={() => undefined} options={question.options.map(option => ({ value: option.id, title: option.label }))} /></Skeleton></FieldSet>}
         </Field>)}
       </FieldGroup></CardContent>
       <CardFooter className="flex-col items-stretch gap-3 border-t sm:flex-row sm:items-start">
@@ -93,7 +94,7 @@ export function CandidateApplicationWizard({ job, channel }: { job: Job; channel
   const loadingQuestions = useRef<Screening["questions"]>([]);
   function go(next: Step) { transition.current = true; setStep(next); }
   useEffect(() => {
-    if (focusTarget.current) { root.current?.querySelector<HTMLElement>(`[data-question-id="${focusTarget.current}"] textarea, [data-question-id="${focusTarget.current}"] button`)?.focus(); focusTarget.current = undefined; }
+    if (focusTarget.current) { root.current?.querySelector<HTMLElement>(`[data-question-id="${focusTarget.current}"] textarea, [data-question-id="${focusTarget.current}"] [role="radio"]`)?.focus(); focusTarget.current = undefined; }
     else if (transition.current) { heading.current?.focus(); transition.current = false; }
   }, [step, errors, screening]);
   useEffect(() => { let active = true; void loadMeAction().catch(() => noResponse).then(result => { if (active) setIdentity(result); }); return () => { active = false; }; }, []);
@@ -143,7 +144,8 @@ export function CandidateApplicationWizard({ job, channel }: { job: Job; channel
     try {
       if (!candidate) {
         const me = await loadMeAction(); setIdentity(me); setFailure(undefined);
-        notifyActionResult(me.ok ? { key: "application-load", type: "success", title: "Cuenta cargada", description: "Comprobamos el acceso de tu cuenta." } : { key: "application-load", type: "error", title: "No pudimos cargar tu cuenta", description: "Puedes reintentar sin enviar una postulación.", reference: { ...me.reference, at: new Date().toISOString() } });
+        // Loading is not a completed action: a success clears the earlier error toast instead of adding its own.
+        if (me.ok) dismissActionResult("application-load"); else notifyActionResult({ key: "application-load", type: "error", title: "No pudimos cargar tu cuenta", description: "Puedes reintentar sin enviar una postulación.", reference: { ...me.reference, at: new Date().toISOString() } });
         return;
       }
       {
@@ -154,7 +156,7 @@ export function CandidateApplicationWizard({ job, channel }: { job: Job; channel
         setFailure(error);
         const readFailure = !form.ok ? form : !cvs.ok ? cvs : undefined;
         const readCopy = !form.ok ? failureCopy(form) : !cvs.ok ? cvFailureCopy(cvs) : undefined;
-        notifyActionResult(readFailure && readCopy ? { key: "application-load", type: "error", ...readCopy, reference: { ...readFailure.reference, at: new Date().toISOString() } } : { key: "application-load", type: "success", title: "Postulación cargada", description: "Ya puedes continuar con tu postulación." });
+        if (readFailure && readCopy) notifyActionResult({ key: "application-load", type: "error", ...readCopy, reference: { ...readFailure.reference, at: new Date().toISOString() } }); else dismissActionResult("application-load");
       }
     } catch { report(noResponse); }
     finally { locked.current = false; setLoading(false); }
@@ -162,7 +164,7 @@ export function CandidateApplicationWizard({ job, channel }: { job: Job; channel
   function next() {
     if (step === "Datos") { go("CV"); return; }
     if (step === "CV") {
-      if (!library?.items.some(cv => cv.id === selected)) { setCvError("Elige un CV para continuar."); root.current?.querySelector<HTMLElement>('[aria-label="CV de tu biblioteca"] button, #apply-cv-upload')?.focus(); return; }
+      if (!library?.items.some(cv => cv.id === selected)) { setCvError("Elige un CV para continuar."); root.current?.querySelector<HTMLElement>('[data-slot="choice-list"] [role="radio"], #apply-cv-upload')?.focus(); return; }
       setCvError(undefined); go(screening?.questions.length ? "Preguntas" : "Resumen"); return;
     }
     if (step === "Preguntas" && screening) {
@@ -209,10 +211,10 @@ export function CandidateApplicationWizard({ job, channel }: { job: Job; channel
   if (failure?.reason === "already_applied") return <ResultCard title="Ya te postulaste a esta vacante" state="Ya enviada" tone="info" description="Consulta tu postulación en Mis postulaciones.">{applicationsLink}</ResultCard>;
   if (failure?.reason === "not_found") return <ResultCard title="Esta vacante ya no está disponible" state="No disponible" description="No puedes enviar una postulación a esta vacante. Puedes explorar otras oportunidades."><Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link></ResultCard>;
   if (!identity) return <Loading />;
-  if ((!identity.ok && identity.reason === "unauthenticated") || failure?.reason === "unauthenticated") return <ResultCard title="Datos" state="Sesión requerida" tone="review" description="Ingresa con tu cuenta de candidato para postularte."><Button className="min-h-10 w-full sm:w-auto" onClick={() => void signIn("cognito", { callbackUrl: vacancyApplicationHref(job.id, channel) })}>Ingresar como candidato</Button></ResultCard>;
+  if ((!identity.ok && identity.reason === "unauthenticated") || failure?.reason === "unauthenticated") return <ResultCard title="Ingresa para postularte" state="Sesión requerida" tone="review" description="Ingresa con tu cuenta de candidato para postularte."><div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row"><Button className="min-h-10 w-full sm:w-auto" onClick={() => void signIn("cognito", { callbackUrl: vacancyApplicationHref(job.id, channel) })}>Ingresar como candidato</Button><Link href={candidateAuthHref("ingresar", vacancyApplicationHref(job.id, channel))} className={cn(buttonVariants({ variant: "outline" }), "min-h-10 w-full sm:w-auto")}>Crear cuenta</Link></div></ResultCard>;
   if ((identity.ok && identity.data.role === "recruiter") || failure?.reason === "wrong_role" || libraryError?.reason === "wrong_role") return <StateCard icon={Building2} tone="forbidden" title="Las postulaciones son para cuentas de candidato" description="Puedes explorar las vacantes o continuar en tu panel de empresa."><div className="flex flex-col items-center gap-2 sm:flex-row"><Link href="/empresa/dashboard" className={buttonVariants({ className: "min-h-10" })}>Ir a mi panel</Link><LogoutButton area="candidate" /></div></StateCard>;
   if (libraryError?.reason === "storage_unavailable") return <CvStorageUnavailable retry={() => void retryCvs()} pending={loading} status={<ActionStatus id="application-cvs-status" tone="error" text={cvFailureStatus(libraryError, cvFailureCopy(libraryError))} />} statusId="application-cvs-status" />;
-  if (identity.ok && identity.data.role === null) return <ResultCard title="Datos" state="Cuenta pendiente" tone="review" description="Completa tu cuenta antes de postularte."><Link href="/candidato/ingresar" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Completar mi cuenta de candidato</Link></ResultCard>;
+  if (identity.ok && identity.data.role === null) return <ResultCard title="Completa tu cuenta para postularte" state="Cuenta pendiente" tone="review" description="Completa tu cuenta antes de postularte."><Link href="/candidato/ingresar" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Completar mi cuenta de candidato</Link></ResultCard>;
   if (!candidate || !library || !screening) {
     if ((!failure || loading) && identity.ok) return <Loading step={step} questions={loadingQuestions.current} />;
     return <ResultCard title="No pudimos cargar la postulación" state="Error de carga" tone="danger" description="Tus datos siguen aquí. Puedes reintentar sin enviar una postulación."><ActionBar status={<ActionStatus id="application-read-status" tone="error" text={copy?.title ?? "No pudimos cargar tu cuenta"} />}><Button disabled={loading} aria-describedby="application-read-status" className="min-h-10 w-full sm:w-auto" onClick={() => void retryRead()}>{loading && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</Button></ActionBar></ResultCard>;
@@ -230,8 +232,8 @@ export function CandidateApplicationWizard({ job, channel }: { job: Job; channel
         {step === "Datos" && <FieldGroup><Field><FieldLabel htmlFor="apply-name">Nombre completo</FieldLabel><Input id="apply-name" readOnly value={candidate.full_name} className="min-h-10" /></Field><Field><FieldLabel htmlFor="apply-email">Correo electrónico</FieldLabel><Input id="apply-email" readOnly value={candidate.email} className="min-h-10" /></Field></FieldGroup>}
         {step === "CV" && <CvPicker library={library} selected={selected} onSelect={value => { setSelected(value); setCvError(undefined); }} onLibrary={setLibrary} error={cvError} onBusy={setUploading} onWrongRole={setLibraryError} />}
         {step === "Preguntas" && <FieldGroup>{screening.questions.map(question => <Field key={question.id} data-question-id={question.id} data-invalid={!!errors[question.id]}>
-          {question.type === "open" ? <><FieldLabel htmlFor={`answer-${question.id}`}>{question.prompt}</FieldLabel><Textarea id={`answer-${question.id}`} required maxLength={2 * screening.limits.open_answer_max_length} value={answers[question.id] ?? ""} aria-invalid={!!errors[question.id]} aria-describedby={`counter-${question.id} error-${question.id}`} className="min-h-32" onChange={event => { setAnswers(current => ({ ...current, [question.id]: event.target.value })); setErrors(current => ({ ...current, [question.id]: "" })); }} /><FieldDescription id={`counter-${question.id}`} aria-live="polite">{Array.from(answers[question.id] ?? "").length} de {screening.limits.open_answer_max_length} caracteres</FieldDescription></> : <FieldSet><FieldLegend id={`label-${question.id}`} variant="label">{question.prompt}</FieldLegend><ToggleGroup variant="outline" orientation="vertical" className="w-full" aria-labelledby={`label-${question.id}`} aria-invalid={!!errors[question.id]} aria-describedby={`error-${question.id}`} value={answers[question.id] ? [answers[question.id]] : []} onValueChange={values => { if (values[0]) { setAnswers(current => ({ ...current, [question.id]: values[0] })); setErrors(current => ({ ...current, [question.id]: "" })); } }}>{question.options.map(option => <ToggleGroupItem key={option.id} value={option.id} className="min-h-10 justify-start whitespace-normal break-words">{option.label}</ToggleGroupItem>)}</ToggleGroup></FieldSet>}
-          {errors[question.id] && <FieldError id={`error-${question.id}`}>{errors[question.id]}</FieldError>}
+          {question.type === "open" ? <><FieldLabel htmlFor={`answer-${question.id}`}>{question.prompt}</FieldLabel><Textarea id={`answer-${question.id}`} required maxLength={2 * screening.limits.open_answer_max_length} value={answers[question.id] ?? ""} aria-invalid={!!errors[question.id]} aria-describedby={`counter-${question.id} error-${question.id}`} className="min-h-32" onChange={event => { setAnswers(current => ({ ...current, [question.id]: event.target.value })); setErrors(current => ({ ...current, [question.id]: "" })); }} /><FieldDescription id={`counter-${question.id}`} aria-live="polite">{Array.from(answers[question.id] ?? "").length} de {screening.limits.open_answer_max_length} caracteres</FieldDescription></> : <ChoiceList legend={question.prompt} error={errors[question.id] || undefined} value={answers[question.id] || null} options={question.options.map(option => ({ value: option.id, title: option.label }))} onValueChange={value => { setAnswers(current => ({ ...current, [question.id]: value })); setErrors(current => ({ ...current, [question.id]: "" })); }} />}
+          {question.type === "open" && errors[question.id] && <FieldError id={`error-${question.id}`}>{errors[question.id]}</FieldError>}
         </Field>)}</FieldGroup>}
         {step === "Resumen" && <dl className="flex flex-col gap-5">
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><UserRound aria-hidden="true" className="size-4" />Nombre completo</dt><dd>{candidate.full_name}</dd></div>

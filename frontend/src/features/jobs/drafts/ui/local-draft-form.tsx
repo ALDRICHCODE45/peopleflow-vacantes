@@ -48,7 +48,7 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { EDUCATION_LEVELS, EDUCATION_LEVEL_LABELS } from "@/features/candidate/model";
 import { DraftEditorShell, EDITOR_SECTIONS, EDITOR_DESCRIPTIONS } from "./draft-editor-shell";
 import { DraftLeaveGuard, type DraftLeaveGuardHandle } from "./draft-leave-guard";
@@ -755,7 +755,7 @@ export function LocalDraftForm({
                   {/* Only meaningful once a minimum level exists; kept visible when checked or reported by the server. */}
                   {(state.min_education_level || state.accepts_in_progress_education || errors.accepts_in_progress_education) && <Field data-invalid={!!errors.accepts_in_progress_education}>
                     <Field orientation="horizontal">
-                      <Checkbox id="draft-accepts-in-progress" checked={state.accepts_in_progress_education} aria-invalid={!!errors.accepts_in_progress_education} aria-describedby="draft-accepts-in-progress-error" onCheckedChange={checked => applyState(previous => ({ ...previous, accepts_in_progress_education: checked }), ["accepts_in_progress_education"])} />
+                      <Switch id="draft-accepts-in-progress" checked={state.accepts_in_progress_education} aria-invalid={!!errors.accepts_in_progress_education} aria-describedby="draft-accepts-in-progress-error" onCheckedChange={checked => applyState(previous => ({ ...previous, accepts_in_progress_education: checked }), ["accepts_in_progress_education"])} />
                       <FieldLabel htmlFor="draft-accepts-in-progress">Acepta estudios en curso</FieldLabel>
                     </Field>
                     <FieldError id="draft-accepts-in-progress-error">{errors.accepts_in_progress_education}</FieldError>

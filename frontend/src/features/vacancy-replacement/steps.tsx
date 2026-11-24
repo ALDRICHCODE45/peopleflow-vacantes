@@ -5,13 +5,12 @@ import { History, Info, Minus, Plus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ChoiceList, type ChoiceOption } from "@/components/ui/choice-list";
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { cn } from "@/lib/utils";
 import { BusinessDateField } from "@/features/employer-vacancies/delivery-config/date-field";
 import { groupMissing } from "@/features/jobs/drafts/pipeline/publication-model";
 import { discardReasonLabel } from "@/features/pipeline-movement/discard-text";
@@ -27,7 +26,6 @@ const initials = (name: string) => name.trim().split(/\s+/u).slice(0, 2).map(par
 const Person = ({ name }: { name: string }) => <Avatar aria-hidden="true" className="size-8 shrink-0"><AvatarFallback className="bg-secondary text-xs font-medium text-muted-foreground">{initials(name)}</AvatarFallback></Avatar>;
 /** Tinted note (artboard 04 `.note`): coverage and audit remarks read as information, not as body copy. */
 const Note = ({ icon: Icon, children }: { icon: typeof Info; children: ReactNode }) => <p className="flex items-start gap-2.5 rounded-2xl bg-primary/5 p-3 text-xs leading-4 text-foreground"><Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" /><span>{children}</span></p>;
-const itemClass = "flex min-w-0 flex-col gap-2 rounded-2xl border p-3 has-[[data-checked]]:border-primary has-[[data-checked]]:bg-primary/5";
 
 /** Every step opens with a focusable heading: the dialog moves focus to it so the change of step is announced. */
 export const StepHeading = forwardRef<HTMLHeadingElement, { children: ReactNode }>(function StepHeading({ children }, ref) {
@@ -45,6 +43,17 @@ export function BajasStep({ headingRef, credits, unavailable, selected, errors, 
   errors: Readonly<Record<string, string>>; preselected: StartableCredit | undefined; coverage: { covered: number; required: number | null } | undefined;
   hint: ReactNode; onToggle: (creditId: string, checked: boolean) => void;
 }) {
+  const creditOptions: ChoiceOption[] = credits.map(credit => {
+    const hired = day(credit.hired_at); const left = day(credit.left_at);
+    return {
+      value: credit.credit_id, title: credit.candidate.full_name, leading: <Person name={credit.candidate.full_name} />, error: errors[credit.credit_id],
+      meta: <><span>{[hired && `Placement el ${hired}`, left && `se fue el ${left}`].filter(Boolean).join(" · ")}</span><Badge variant="review" dot>No se sostuvo</Badge></>,
+    };
+  });
+  const unavailableOptions: ChoiceOption[] = unavailable.map(hire => ({
+    value: `unavailable-${hire.id}`, title: hire.name, leading: <Person name={hire.name} />, disabled: true,
+    disabledReason: REASON_COPY[hire.reason],
+  }));
   return <FieldSet className="gap-3">
     <StepHeading ref={headingRef}>¿A quién reemplaza?</StepHeading>
     <p className="text-sm text-muted-foreground">
@@ -52,40 +61,11 @@ export function BajasStep({ headingRef, credits, unavailable, selected, errors, 
         ? `${preselected.candidate.full_name} viene marcado porque iniciaste el reemplazo desde su tarjeta. Si otra persona también se fue, márcala para sumarla: un mismo reemplazo puede cubrir varias bajas.`
         : "Elige a quién se fue. Un mismo reemplazo puede cubrir varias bajas."}
     </p>
-    <ul aria-label="Bajas" className="flex flex-col gap-2">
-      {credits.map(credit => {
-        const base = `replacement-credit-${credit.credit_id}`;
-        const hired = day(credit.hired_at); const left = day(credit.left_at);
-        return <li key={credit.credit_id} className={itemClass}>
-          <Field orientation="horizontal" className="items-start">
-            <Checkbox id={base} aria-labelledby={`${base}-name`} aria-describedby={`${base}-meta${errors[credit.credit_id] ? ` ${base}-error` : ""}`} checked={selected.has(credit.credit_id)} onCheckedChange={checked => onToggle(credit.credit_id, checked)} />
-            <Person name={credit.candidate.full_name} />
-            <FieldContent>
-              <FieldLabel htmlFor={base} id={`${base}-name`} className="font-medium">{credit.candidate.full_name}</FieldLabel>
-              <span id={`${base}-meta`} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {[hired && `Placement el ${hired}`, left && `se fue el ${left}`].filter(Boolean).join(" · ")}
-                <Badge variant="review" dot>No se sostuvo</Badge>
-              </span>
-              {errors[credit.credit_id] && <FieldError id={`${base}-error`}>{errors[credit.credit_id]}</FieldError>}
-            </FieldContent>
-          </Field>
-        </li>;
-      })}
-      {unavailable.map(hire => {
-        const base = `replacement-unavailable-${hire.id}`;
-        return <li key={hire.id} className={`${itemClass} opacity-80`}>
-          <Field orientation="horizontal" className="items-start" data-disabled>
-            <Checkbox id={base} disabled aria-labelledby={`${base}-name`} aria-describedby={`${base}-reason`} checked={false} />
-            <Person name={hire.name} />
-            <FieldContent>
-              <FieldLabel htmlFor={base} id={`${base}-name`} className="font-medium">{hire.name}</FieldLabel>
-              <span id={`${base}-reason`} className="text-xs text-muted-foreground">{REASON_COPY[hire.reason]}</span>
-              {hire.reason === "still_placed" && <Badge variant="success" dot>Sigue en Placement</Badge>}
-            </FieldContent>
-          </Field>
-        </li>;
-      })}
-    </ul>
+    <ChoiceList multiple hideLegend legend="Bajas" value={[...selected]} options={[...creditOptions, ...unavailableOptions]}
+      onValueChange={next => {
+        const chosen = new Set(next);
+        for (const credit of credits) if (chosen.has(credit.credit_id) !== selected.has(credit.credit_id)) onToggle(credit.credit_id, chosen.has(credit.credit_id));
+      }} />
     {coverage && <Note icon={Info}>
       Cobertura actual: <b className="font-medium">{coverage.required === null ? `${coverage.covered} plazas` : `${coverage.covered} de ${coverage.required} plazas`}</b>. Cada baja que elijas suma una plaza al objetivo del reemplazo; el proceso original no se modifica.
     </Note>}
@@ -160,6 +140,7 @@ export function CandidatesStep({ headingRef, candidates, truncated, stages, chos
   const counts = { all: candidates.length, in_process: candidates.filter(item => !item.discarded).length, discarded: candidates.filter(item => item.discarded).length };
   const visible = candidates.filter(item => filter === "all" || (filter === "discarded") === item.discarded);
   const full = Object.keys(chosen).length >= MAX_CARRIED;
+  const picked = candidates.filter(item => candidateKey(item.candidate) in chosen);
   return <div className="flex flex-col gap-3">
     <StepHeading ref={headingRef}>Candidatos que retomas</StepHeading>
     <p className="text-sm text-muted-foreground">Opcional. Elige personas descartadas o que siguen en el proceso original. Empiezan en la etapa que confirmes, menos Placement.</p>
@@ -168,31 +149,32 @@ export function CandidatesStep({ headingRef, candidates, truncated, stages, chos
         {([["all", "Todos"], ["in_process", "En proceso"], ["discarded", "Descartados"]] as const).map(([value, label]) =>
           <ToggleGroupItem key={value} value={value} className="min-h-10 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground">{label} <span className="text-muted-foreground">{counts[value]}</span></ToggleGroupItem>)}
       </ToggleGroup>
-      <ul aria-label="Candidatos del proceso original" className="flex flex-col gap-2">
-        {visible.map(item => {
+      <ChoiceList multiple hideLegend selectAll={false} legend="Candidatos del proceso original" disabled={pending} value={Object.keys(chosen)}
+        options={visible.map(item => {
+          const key = candidateKey(item.candidate); const checked = key in chosen;
+          return { value: key, title: item.candidate.full_name, leading: <Person name={item.candidate.full_name} />, disabled: !checked && full, error: errors[key],
+            description: `${item.discarded ? ["Descartado", ...(item.discard_reason ? [discardReasonLabel(item.discard_reason)] : [])].join(" · ") : "En proceso"} · antes: ${item.stage.name}` };
+        })}
+        onValueChange={next => {
+          const now = new Set(next);
+          for (const item of candidates) { const key = candidateKey(item.candidate); if (now.has(key) !== (key in chosen)) onToggle(item, now.has(key)); }
+        }} />
+      {/* A select cannot live inside a checkbox row, so each chosen person's starting stage is set here, right under the list. */}
+      {picked.length > 0 && <ul aria-label="Etapa inicial de cada candidato" className="flex flex-col gap-2">
+        {picked.map(item => {
           const key = candidateKey(item.candidate); const base = `replacement-candidate-${item.candidate.kind}-${item.candidate.id}`;
-          const checked = key in chosen;
-          // Desktop: who they are on the left, the starting stage on the right; a phone stacks them (artboard 04).
-          return <li key={key} className={cn(itemClass, "sm:flex-row sm:items-center sm:justify-between sm:gap-4")}>
-            <Field orientation="horizontal" className="min-w-0 flex-1 items-start">
-              <Checkbox id={base} aria-labelledby={`${base}-name`} aria-describedby={`${base}-meta${errors[key] ? ` ${base}-error` : ""}`} checked={checked} disabled={pending || (!checked && full)} onCheckedChange={next => onToggle(item, next)} />
-              <Person name={item.candidate.full_name} />
-              <FieldContent>
-                <FieldLabel htmlFor={base} id={`${base}-name`} className="font-medium">{item.candidate.full_name}</FieldLabel>
-                <span id={`${base}-meta`} className="text-xs text-muted-foreground">{item.discarded ? ["Descartado", ...(item.discard_reason ? [discardReasonLabel(item.discard_reason)] : [])].join(" · ") : "En proceso"} · antes: {item.stage.name}</span>
-                {errors[key] && <FieldError id={`${base}-error`}>{errors[key]}</FieldError>}
-              </FieldContent>
-            </Field>
+          return <li key={key} className="flex min-w-0 flex-col gap-1 rounded-2xl border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <span className="flex min-w-0 items-center gap-3 text-sm font-medium"><Person name={item.candidate.full_name} /><span id={`${base}-name`} className="[overflow-wrap:anywhere]">{item.candidate.full_name}</span></span>
             <div className="flex flex-col gap-1 sm:w-56 sm:shrink-0">
               <span id={`${base}-stage-label`} className="text-xs font-medium text-muted-foreground">Empieza en</span>
               <Select items={options} value={chosen[key] ?? null} onValueChange={next => { if (next) onStage(key, next); }}>
-                <SelectTrigger className="min-h-10 w-full" disabled={pending || !checked} aria-labelledby={`${base}-stage-label ${base}-name`} aria-invalid={!!errors[key] || undefined}><SelectValue placeholder="Elige una etapa" /></SelectTrigger>
+                <SelectTrigger className="min-h-10 w-full" disabled={pending} aria-labelledby={`${base}-stage-label ${base}-name`} aria-invalid={!!errors[key] || undefined}><SelectValue placeholder="Elige una etapa" /></SelectTrigger>
                 <SelectContent><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value} className="min-h-10">{option.label}</SelectItem>)}</SelectGroup></SelectContent>
               </Select>
             </div>
           </li>;
         })}
-      </ul>
+      </ul>}
       {full && <p className="text-xs text-muted-foreground">Puedes retomar hasta {MAX_CARRIED} candidatos por reemplazo.</p>}
       {truncated && <p className="text-xs text-muted-foreground">Mostramos los primeros 1000 candidatos del proceso original.</p>}
     </>}

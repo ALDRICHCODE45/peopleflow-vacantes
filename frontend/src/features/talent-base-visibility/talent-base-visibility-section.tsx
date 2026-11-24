@@ -6,8 +6,8 @@ import { Library, TriangleAlert } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
+import { ChoiceList } from "@/components/ui/choice-list";
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -112,9 +112,11 @@ export function TalentBaseVisibilitySection() {
   const emptySelection = mode === "selected_users" && selected.length === 0;
   const disabled = pending || locked;
 
-  function toggle(id: string, checked: boolean) {
-    setSelected(current => checked ? (current.includes(id) ? current : [...current, id]) : current.filter(item => item !== id));
-    setRowErrors(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+  function choose(next: string[]) {
+    // Clear the row error of whoever was toggled; the rest keep theirs until the next save.
+    const changed = new Set([...next.filter(id => !selected.includes(id)), ...selected.filter(id => !next.includes(id))]);
+    setSelected(next);
+    setRowErrors(current => Object.fromEntries(Object.entries(current).filter(([key]) => !changed.has(key))));
     setSaved(false);
   }
 
@@ -167,24 +169,10 @@ export function TalentBaseVisibilitySection() {
                 </Field>
               </FieldLabel>)}
             </RadioGroup>
-            {mode === "selected_users" && <FieldSet disabled={disabled}>
-              <FieldLegend variant="label">Reclutadores con acceso</FieldLegend>
-              {ready.recruiters.length === 0
-                ? <p className="text-sm text-muted-foreground">Todavía no hay reclutadores en tu empresa. Invítalos desde Equipo.</p>
-                : <div className="flex flex-col gap-3">
-                  {ready.recruiters.map(recruiter => {
-                    const error = rowErrors[recruiter.id];
-                    return <Field key={recruiter.id} orientation="horizontal" data-invalid={error ? true : undefined} className="items-start gap-3">
-                      <Checkbox id={`talent-base-user-${recruiter.id}`} checked={selected.includes(recruiter.id)} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={error ? `talent-base-user-${recruiter.id}-error` : undefined} onCheckedChange={checked => toggle(recruiter.id, checked)} />
-                      <FieldContent>
-                        <FieldLabel htmlFor={`talent-base-user-${recruiter.id}`}>{recruiter.name}</FieldLabel>
-                        <FieldDescription>{recruiter.email}</FieldDescription>
-                        {error && <p id={`talent-base-user-${recruiter.id}-error`} className="text-sm text-destructive">{error}</p>}
-                      </FieldContent>
-                    </Field>;
-                  })}
-                </div>}
-            </FieldSet>}
+            {mode === "selected_users" && (ready.recruiters.length === 0
+              ? <p className="text-sm text-muted-foreground">Todavía no hay reclutadores en tu empresa. Invítalos desde Equipo.</p>
+              : <ChoiceList multiple legend="Reclutadores con acceso" disabled={disabled} value={selected} onValueChange={choose}
+                options={ready.recruiters.map(recruiter => ({ value: recruiter.id, title: recruiter.name, description: recruiter.email, error: rowErrors[recruiter.id] }))} />)}
             {emptySelection && <p className="flex items-start gap-2 text-sm text-status-review"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{EMPTY_WARNING}</p>}
             <div className="flex flex-col gap-1 text-[12.5px] text-muted-foreground">
               <p>El owner siempre tiene acceso a la Base de talento.</p>

@@ -4,9 +4,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ExploreDetail } from "../../../../features/jobs/related/ui";
-import { readCompanyVacancies, readRelatedCompany, readSimilarVacancies } from "../../../../features/jobs/related/read";
+import { readCompanyCareersHref, readCompanyVacancies, readRelatedCompany, readSimilarVacancies } from "../../../../features/jobs/related/read";
 import { createVacanteDetailScope } from "./page-data";
 import { applicationChannel } from "../../../../features/jobs/application/application-draft";
+import { jobSocialMetadata } from "../../../../features/jobs/seo/job-posting";
+import { JobPostingScript } from "../../../../features/jobs/seo/job-posting-script";
 import { ApplicationChannelProvider } from "../../../../features/jobs/application/application-channel";
 
 // The detail read is request-scoped: it must run on the Node server on every
@@ -47,12 +49,13 @@ export async function generateMetadata({
     // Loaded lazily so route collection during offline builds never triggers
     // the eager environment validation.
     const { serverEnv } = await import("../../../../lib/env/server");
+    const description = metaDescription(result.job.description_plain);
+    const canonical = new URL(`/vacantes/${jobId}`, serverEnv.siteUrl).toString();
     return {
       title: result.job.title,
-      description: metaDescription(result.job.description_plain),
-      alternates: {
-        canonical: new URL(`/vacantes/${jobId}`, serverEnv.siteUrl).toString(),
-      },
+      description,
+      alternates: { canonical },
+      ...jobSocialMetadata(result.job, canonical, description),
       robots: { index: true, follow: true },
     };
   }
@@ -83,7 +86,10 @@ export default async function VacanteDetailPage({
     throw new Error("La vacante no pudo cargarse");
   }
 
-  if (result.kind === "unavailable_vacancy") return <UnavailableVacancyCard vacancy={result.vacancy} headingLevel={1} />;
+  if (result.kind === "unavailable_vacancy") return <UnavailableVacancyCard vacancy={result.vacancy} headingLevel={1} careersHref={await readCompanyCareersHref(result.vacancy.company.id)} />;
   const channel = applicationChannel((await searchParams)?.origen);
-  return <ApplicationChannelProvider channel={channel}><ExploreDetail job={result.job} company={readRelatedCompany(result.job)} companyVacancies={readCompanyVacancies(result.job)} similar={readSimilarVacancies(result.job)} /></ApplicationChannelProvider>;
+  const { serverEnv } = await import("../../../../lib/env/server");
+  // One company read feeds the «Sobre la empresa» card and the JSON-LD careers URL.
+  const company = readRelatedCompany(result.job);
+  return <ApplicationChannelProvider channel={channel}><JobPostingScript job={result.job} company={company} siteUrl={serverEnv.siteUrl} /><ExploreDetail job={result.job} company={company} companyVacancies={readCompanyVacancies(result.job)} similar={readSimilarVacancies(result.job)} /></ApplicationChannelProvider>;
 }

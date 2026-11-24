@@ -1,6 +1,7 @@
 import * as React from "react";
 import { SavedJobReturnIntent } from "@/features/saved-vacancies/return-intent";
 import { QueryClient } from "@tanstack/react-query";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { listJobsQueryOptions } from "../../../../features/jobs/api/listJobs";
@@ -17,6 +18,12 @@ import type { JobsQuery } from "../../../../features/jobs/url";
 // request with live search params, never prerendered or cached.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** The root template adds «| PeopleFlow»: the tab reads «Vacantes de empleo | PeopleFlow». */
+export const metadata: Metadata = {
+  title: "Vacantes de empleo",
+  description: "Explora vacantes publicadas y filtra por ubicación, modalidad, jornada, tipo de contrato y área profesional.",
+};
 
 /** Flattens Next's scalar-or-repeated search params into raw query text. */
 function rawSearchText(

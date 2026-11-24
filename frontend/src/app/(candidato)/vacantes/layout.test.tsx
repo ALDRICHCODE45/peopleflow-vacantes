@@ -68,3 +68,13 @@ it("the companies route group renders children without PeopleFlow chrome or the 
   expect(document.querySelector("footer")).toBeNull();
   expect(document.querySelector("[data-slot=sidebar-wrapper]")).toBeNull();
 });
+it("offers «Ir al contenido» before the header, pointing at the content container", async () => {
+  render(await GroupLayout({ children: <VacancyLayout><h1>Contenido de la página</h1></VacancyLayout> }));
+  const skip = screen.getByRole("link", { name: "Ir al contenido" });
+  expect(skip).toHaveAttribute("href", "#contenido-vacantes");
+  expect(skip).toHaveClass("sr-only", "focus:not-sr-only");
+  const content = document.getElementById("contenido-vacantes")!;
+  expect(content).toContainElement(screen.getByRole("heading", { level: 1 }));
+  expect(content).toHaveAttribute("tabindex", "-1");
+  expect(skip.compareDocumentPosition(document.querySelector("header")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

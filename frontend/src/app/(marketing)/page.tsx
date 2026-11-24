@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import "@/components/marketing/reference-landing.css";
 
 import {
@@ -6,6 +7,12 @@ import {
 } from "@/components/marketing/EmployerLanding";
 import { ReferenceLandingMotion } from "@/components/marketing/ReferenceLandingMotion";
 import { PeopleFlowNavbar } from "@/components/navigation/PeopleFlowNavbar";
+
+/** The root is the employer landing: its title and description say so (`absolute` skips the «| PeopleFlow» template). */
+export const metadata: Metadata = {
+  title: { absolute: "PeopleFlow para empresas" },
+  description: "Publica vacantes y llega a candidatos. Cada postulación entra directo a tu pipeline: screening con IA, scoring, entrevistas y decisiones del equipo en un solo lugar.",
+};
 
 /**
  * Root marketing page — faithful replica of design/landing-preview.

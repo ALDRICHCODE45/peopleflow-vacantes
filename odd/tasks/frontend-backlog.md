@@ -21,6 +21,10 @@ prefill from CV/LinkedIn/OCC (postponed: feasibility and terms), login and cloud
 
 ## Product gaps
 
+- **«Mantener sesión iniciada» does nothing** (login, `components/auth/LoginScreen.tsx:125`, 2026-11-24): user: «Por el
+  momento dejalo sin efecto, pero anotalo en pendientes porque eso tenemos que hacerlo funcionar eventualmente». Needs a
+  real long-session option (next-auth session maxAge / Cognito refresh) designed with the backend.
+
 - **Replacement processes follow-ups** (`replacement-processes.md` L12–L13, 2026-11-20): «Retomado» mark on carried
   cards (needs `carried_from_participation_id` on board items; same optional-first deployment order); company dashboard
   participation charts still count carried participations (backend); carry rows do not show the discard reason; the

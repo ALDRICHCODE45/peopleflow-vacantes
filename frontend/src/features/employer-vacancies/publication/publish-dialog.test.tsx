@@ -205,3 +205,14 @@ it("S5 publish later: a private replacement's confirmation says the delivery clo
  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Vacante publicada", description: expect.stringContaining("no se reinició") })));
  expect(publishDraftAction).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: {} }));
 });
+it("offers «Compartir vacante» with the public path once the vacancy is published, and never for a private one", async () => {
+ vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: date, missing: [] } });
+ const view = mount();
+ expect(await screen.findByRole("button", { name: "Compartir vacante" })).toHaveAttribute("aria-haspopup", "menu");
+ view.unmount();
+ const seed = draftEditSeedFromRead(draft);
+ vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: { ...seed, lifecycle: { ...seed.lifecycle, visibility: "private", publication: "published" } }, identity: { draftId: draft.id, etag: '"draft-etag"' } });
+ mount();
+ await screen.findByText(/Publicada el/u);
+ expect(screen.queryByRole("button", { name: "Compartir vacante" })).toBeNull();
+});

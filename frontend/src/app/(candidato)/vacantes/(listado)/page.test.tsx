@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,6 +16,11 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const vacancyList = <ul aria-label="Listado de vacantes" />;
 
 describe("/vacantes v2 page", () => {
+  it("titles the tab «Vacantes de empleo» (the root template appends «| PeopleFlow»)", async () => {
+    const { metadata } = await import("./page");
+    expect(metadata.title).toBe("Vacantes de empleo");
+    expect(metadata.description).toMatch(/filtra por ubicación/u);
+  });
   it("describes the actual public filters without claiming a tech-only catalog", () => {
     const source = readFileSync(join(process.cwd(), "src/app/(candidato)/vacantes/(listado)/page.tsx"), "utf8").replace(/\s+/g, " ");
     expect(source).toContain("Bolsa de trabajo");
@@ -51,9 +56,15 @@ describe("/vacantes v2 page", () => {
   });
   it("renders only supported quick filters through the installed toggle group", () => {
     const { container } = render(<JobsNavigationIsland routeKey="/vacantes" query={{}}>{vacancyList}</JobsNavigationIsland>);
-    for (const label of ["Todas", "Remoto", "Híbrido", "Tiempo completo"]) expect(screen.getByRole("button", { name: label })).toBeVisible();
-    for (const label of ["Medio", "Senior"]) expect(screen.queryByRole("button", { name: label })).toBeNull();
+    const chips = within(screen.getByRole("group", { name: "Filtros rápidos" })).getAllByRole("button").map(chip => chip.textContent);
+    expect(chips).toEqual(["Todas", "Presencial", "Híbrido", "Remoto"]);
+    for (const label of ["Medio", "Senior", "Tiempo completo"]) expect(screen.queryByRole("button", { name: label })).toBeNull();
     expect(container.querySelector('[data-slot="toggle-group"]')).not.toBeNull();
+  });
+  it("commits «Presencial» as the onsite modality", () => {
+    render(<JobsNavigationIsland routeKey="/vacantes" query={{}}>{vacancyList}</JobsNavigationIsland>);
+    fireEvent.click(screen.getByRole("button", { name: "Presencial" }));
+    expect(push).toHaveBeenCalledWith("/vacantes?work_mode=onsite");
   });
   it("makes quick filter state reflect the URL and commits without a stale cursor", () => {
     render(<JobsNavigationIsland routeKey="/vacantes?contract_type=indefinite&cursor=old" query={{ contract_type: "indefinite", cursor: "old" }}>{vacancyList}</JobsNavigationIsland>);

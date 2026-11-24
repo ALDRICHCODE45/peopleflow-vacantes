@@ -58,7 +58,12 @@ it("lists only current recruiters in the picker: the owner and offboarded member
   const user = await renderOwner();
   await openPicker(user);
   const group = screen.getByRole("group", { name: "Reclutadores con acceso" });
-  expect(within(group).getAllByRole("checkbox").map(item => item.getAttribute("aria-label") ?? item.id)).toHaveLength(3);
+  // «Seleccionar todo» first, then one row per recruiter (3+ options), each named by the person and described by the email.
+  const rows = within(group).getAllByRole("checkbox");
+  expect(rows).toHaveLength(4);
+  expect(rows[0]).toHaveAccessibleName("Seleccionar todo");
+  expect(box("Ana Pérez")).toHaveAccessibleDescription("ana@empresa.mx");
+  expect(group.querySelector("input[type='checkbox']:not([aria-hidden])")).toBeNull();
   for (const name of ["Ana Pérez", "Luis Soto", "Marta Ruiz"]) expect(box(name)).not.toBeChecked();
   expect(screen.queryByText(/Olga Dueña/)).not.toBeInTheDocument();
   expect(screen.getByText("ana@empresa.mx")).toBeInTheDocument();
@@ -181,8 +186,10 @@ it("on a version conflict without a document asks to reload and does not guess a
 
 it("flags selected users the backend says are not members, keeps the rest and lets the owner fix it", async () => {
   const user = await failingSave(failure("viewer_not_member", { reference: { status: 422, code: "talent_base_viewer_not_member" }, userIds: [luisId] }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Alguien de tu selección ya no pertenece a la empresa. Quítalo para guardar.");
-  expect(within(box("Luis Soto").closest("[data-slot='field']") as HTMLElement).getByText("Ya no es parte de la empresa")).toBeInTheDocument();
+  expect((await screen.findAllByRole("alert")).map(alert => alert.textContent)).toContain("Alguien de tu selección ya no pertenece a la empresa. Quítalo para guardar.");
+  expect(box("Luis Soto")).toHaveAccessibleDescription(expect.stringContaining("Ya no es parte de la empresa"));
+  expect(box("Luis Soto")).toHaveAttribute("aria-invalid", "true");
+  expect(within(box("Luis Soto")).getByRole("alert")).toHaveTextContent("Ya no es parte de la empresa");
   expectDraftKept();
   await user.click(box("Luis Soto"));
   expect(screen.queryByText("Ya no es parte de la empresa")).not.toBeInTheDocument();
@@ -193,17 +200,17 @@ it("flags selected users the backend says are not members, keeps the rest and le
 
 it("flags a user who became owner and explains the owner always sees the base", async () => {
   await failingSave(failure("viewer_is_owner", { reference: { status: 422, code: "talent_base_viewer_is_owner" }, userIds: [anaId] }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("El owner siempre ve la Base de talento y no se puede seleccionar. Quita a esa persona para guardar.");
-  expect(within(box("Ana Pérez").closest("[data-slot='field']") as HTMLElement).getByText("Ahora es owner: ya tiene acceso")).toBeInTheDocument();
+  expect((await screen.findAllByRole("alert")).map(alert => alert.textContent)).toContain("El owner siempre ve la Base de talento y no se puede seleccionar. Quita a esa persona para guardar.");
+  expect(within(box("Ana Pérez")).getByRole("alert")).toHaveTextContent("Ahora es owner: ya tiene acceso");
   expectDraftKept();
 });
 
 it("explains a validation_error per field and marks a repeated user", async () => {
   await failingSave(failure("validation_error", { reference: { status: 400, code: "validation_error" }, fields: ["mode", "user_ids"], userIds: [luisId] }));
-  const alert = await screen.findByRole("alert");
+  const alert = (await screen.findAllByRole("alert")).find(node => node.textContent?.includes("Elige quién"));
   expect(alert).toHaveTextContent("Elige quién puede ver la Base de talento.");
   expect(alert).toHaveTextContent("La selección de usuarios no es válida.");
-  expect(within(box("Luis Soto").closest("[data-slot='field']") as HTMLElement).getByText("Aparece repetido en la selección")).toBeInTheDocument();
+  expect(within(box("Luis Soto")).getByRole("alert")).toHaveTextContent("Aparece repetido en la selección");
   expectDraftKept();
 });
 
@@ -285,4 +292,14 @@ it("shows a loading state for the owner without showing the form first", async (
   expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   pending.resolve({ ok: true, document: visibility() });
   expect(await screen.findByRole("radio", { name: /^Todos los reclutadores/ })).toBeChecked();
+});
+
+it("«Seleccionar todo» chooses every recruiter and saves them in team order", async () => {
+  const user = await renderOwner();
+  await openPicker(user);
+  vi.mocked(saveTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: selectedByAna });
+  await user.click(screen.getByRole("checkbox", { name: "Seleccionar todo" }));
+  for (const name of ["Ana Pérez", "Luis Soto", "Marta Ruiz"]) expect(box(name)).toBeChecked();
+  await user.click(save());
+  expect(saveTalentBaseVisibilityAction).toHaveBeenLastCalledWith({ mode: "selected_users", userIds: [anaId, luisId, martaId], version: 1 });
 });

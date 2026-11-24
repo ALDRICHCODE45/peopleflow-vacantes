@@ -1,0 +1,71 @@
+# Modern choice and file controls (frontend)
+
+Replace raw native-looking radios, selection checkboxes and file inputs across the app with PeopleFlow patterns, and
+write the rule in the design system. Design first (canvas), then implementation in reviewable slices starting with
+Documentos.
+
+## Specs
+
+- **S1** User: «algo que no me gusta nada es ocupar los checkboxes asi en "crudo" para seleccionar algo, no me gusta nada
+  de nada (y eso tal vez hay que ponerlo en el system design), yo creo que seria mucho mejor otras opciones de ui
+  modernas» → choices (single and multiple selection) use modern patterns instead of bare radio/checkbox rows.
+- **S2** User: «tambien algo que no me gusta nada son los inputs de tipo imagen que se ven asi, no tienen estilo, son
+  genericos, en las paginas del gobierno se ven asi, pero en pf no» → file inputs use a styled PeopleFlow control, never
+  the browser's «Browse… No file selected.».
+- **S3** The rule goes into `design/system.md` (component rules).
+- **S4** Scope: the whole app (user: «Toda la app (Recomendado)»), in reviewable slices starting with Documentos.
+- **S5** Design first: «Sí, 2–3 variantes primero» on the canvas before implementation.
+- **S6** Chosen direction (canvas handoff, L3): `design/choice-and-file-controls/03-lista-con-palomita-y-tarjeta.html` —
+  `divide-y` rows with the 3 px selection bar and a trailing check (single and multiple), «Seleccionar todo» as the
+  first row of multi lists (3+ options; the user did not answer the threshold question, so the artboard's behaviour
+  stands), the whole row as touch target; file as an input-group field with «Elegir archivo» and a document card once
+  chosen. Data-table row selection keeps a styled checkbox.
+
+## Tasks
+
+| ID | Specs | Task | Commit |
+| --- | --- | --- | --- |
+| T1 | S1, S2, S4 | Audit every bare radio, selection checkbox and file input in frontend/src | |
+| T2 | S1, S2, S5 | Design 2–3 variants (`design/choice-and-file-controls/`) | |
+| T3 | S3, S6 | Design-system rule and tokens from artboard 03 | `41780f6b` |
+| T4a | S1, S2, S6 | Shared `ChoiceList` (single/multi rows with trailing check, «Seleccionar todo» row) and `FileField` (button + document card) from artboard 03; applied to Documentos (upload dialog, versions sheet, link sheet) | `41780f6b` |
+| T4b | S1, S2, S4, S6 | Rest of the audit (`odd/discovery/modern-choice-controls-audit.md`): apply cv-picker, benefits, recruiters with access, login «Recordarme», replacement steps, single on/off → Switch | `ad858640` |
+| T5 | S1–S4 | Browser check, full suite, merge to main | |
+
+## Log
+
+- **L1** (2026-11-23) User, with a screenshot of the «Subir documento» dialog (radio «La vacante / Una persona candidata»
+  and native file input «Browse… No file selected.»), verbatim: «Mira: la verdad, algo que no me gusta nada es ocupar los
+  checkboxes asi en "crudo" para seleccionar algo, no me gusta nada de nada (y eso tal vez hay que ponerlo en el system
+  design), yo creo que seria mucho mejor otras opciones de ui modernas, tambien algo que no me gusta nada son los inputs de
+  tipo imagen que se ven asi, no tienen estilo, son genericos, en las paginas del gobierno se ven asi, pero en pf no, me
+  sigues?» Then: «Toda la app (Recomendado)» and «Sí, 2–3 variantes primero».
+- **L2** (2026-11-23) T2: tres direcciones en `design/choice-and-file-controls/` (1440×900 y 390×844, claro y oscuro), cada
+  una con elección única, múltiple, archivo (vacío, arrastrando, elegido, subiendo, errores, compacta, cola) y dos
+  pantallas reales («Subir documento» y «¿A quién reemplaza?»): `01-tarjetas-seleccionables-y-dropzone.html`,
+  `02-segmentado-chips-y-franja.html` y `03-lista-con-palomita-y-tarjeta.html`. Ninguna elegida todavía; las otras
+  quedan como alternativas hasta que la persona decida (T3 y T4 esperan esa elección).
+- **L3** (2026-11-23) Canvas handoff: implement `03-lista-con-palomita-y-tarjeta.html` (01 and 02 are alternatives). The
+  local aliases `--sel`, `--on-sel`, `--edge` from the artboards become design-system tokens (proposed to the user, no
+  objection).
+- **L4** T4a `41780f6b` (ChoiceList, FileField, tokens `--selection`/`--selection-foreground`/`--control-edge` additive in
+  globals.css, rule in design/system.md; Documentos) — related 9 files / 118 tests. T4b `ad858640` (cv-picker FileField,
+  benefits, talent access recruiters, replacement bajas and carried candidates — «Empieza en» selects moved under the rows —,
+  psychometrics and checklist stages; compensation visibility, in-progress education and criterion «acepta en curso» →
+  Switch) — related 35 files / 562 tests. Login «Mantener sesión iniciada»: user «Por el momento dejalo sin efecto, pero
+  anotalo en pendientes porque eso tenemos que hacerlo funcionar eventualmente» → left as is (login-page styled
+  checkbox), logged in frontend-backlog.md. Left by design: filter popovers, table row selection, consent; checklist
+  board compare list (`vacancy-checklist/board/ui.tsx:154`) not changed.
+- **L5** Full suite at `ad858640`+docs: 625 files / 11518 tests passed, tsc 0, lint 0 errors. Browser check (verifier) on the
+  production build :3000, owner, 390/1440 light/dark: Documentos, draft benefits and switches, talent access, replacement
+  steps (dialog fits 1440×900 on all steps), checklist switch and psychometrics stages pass, except D1 (blocker): no
+  visible keyboard focus on ChoiceList rows (`outline-none` + `focus-visible:outline-2` without an outline style in
+  Tailwind v4). Minor: D2 focus after «Quitar», D3 «Ya vinculado» not in aria-describedby, D4 artboard differences
+  (no «Listo para subir», wrong-format state, duplicated «Sigue en Placement»), D5 psychometrics popover hides «Placement».
+  Apply flow not verifiable (no candidate account). Data: «T5 verificacion controles» PDF on `01a20a4d-e12c-…`. Fixes
+  delegated before merge.
+- **L6** D1–D5 fixed (`c7da41bd`; D4 wrong-format state and «Listo para subir» not done: FileField gets no format signal).
+  Clean full suite at `c7da41bd` in a separate worktree (the main worktree held a parallel writer's WIP): 626 files /
+  11521 tests passed, tsc 0, lint 0 errors (12 pre-existing warnings). Browser re-check of the focus ring and the stages
+  popover waits for the production build of `feat/audit-public-fixes` (a temp worktree cannot build: `.env.local` is
+  private and the safety policy blocks linking it).

@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { ChoiceList } from "@/components/ui/choice-list";
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { SectionEmpty } from "@/components/feedback/state-card";
@@ -144,9 +144,8 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
     {readOnly && <ConfigReadOnlyNotice />}
     <Card role="region" aria-labelledby="checklist-reminders-title">
       <CardHeader className="border-b"><CardTitle><h4 id="checklist-reminders-title" className="flex items-center gap-2"><Bell aria-hidden="true" className="size-4" />Recordatorio al mover</h4></CardTitle><CardDescription>Te recordaremos los criterios obligatorios sin evaluar al mover a estas etapas. Puedes continuar sin marcarlos.</CardDescription><CardAction><Badge variant="neutral">{body.reminder_stage_ids.length} {body.reminder_stage_ids.length === 1 ? "etapa" : "etapas"}</Badge></CardAction></CardHeader>
-      <CardContent><FieldSet disabled={disabled}><FieldLegend className="sr-only">Etapas con recordatorio</FieldLegend><FieldGroup data-slot="checkbox-group" className="flex-row flex-wrap gap-2">
-        {stages.map(stage => <Field key={stage.id} orientation="horizontal" data-invalid={!!errors.reminders} className="w-auto"><FieldLabel className="min-h-10 rounded-xl border px-3 has-data-checked:border-primary/40 has-data-checked:bg-primary/10"><Checkbox id={`reminder-${stage.id}`} disabled={disabled} checked={body.reminder_stage_ids.includes(stage.id)} aria-invalid={!!errors.reminders} aria-describedby={errors.reminders ? "reminders-error" : undefined} onCheckedChange={checked => edit({ ...body, reminder_stage_ids: checked ? [...body.reminder_stage_ids, stage.id] : body.reminder_stage_ids.filter(id => id !== stage.id) })} />{stage.name}</FieldLabel></Field>)}
-      </FieldGroup>{errors.reminders && <FieldError id="reminders-error">{errors.reminders}</FieldError>}</FieldSet></CardContent>
+      <CardContent><ChoiceList multiple hideLegend legend="Etapas con recordatorio" disabled={disabled} value={body.reminder_stage_ids} error={errors.reminders}
+        options={stages.map(stage => ({ value: stage.id, title: stage.name }))} onValueChange={reminder_stage_ids => edit({ ...body, reminder_stage_ids })} /></CardContent>
     </Card>
     <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(20rem,1fr)_minmax(0,1.2fr)]">
     <Card aria-labelledby="checklist-master-title">

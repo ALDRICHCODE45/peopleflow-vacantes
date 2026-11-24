@@ -37,14 +37,14 @@ export function PublicVacancyCard({ job }: PublicVacancyCardProps) {
         </div>}
         {benefits.length > 0 && <p aria-label="Beneficios" className="flex items-start gap-2 text-sm leading-relaxed text-muted-foreground">
           <GiftIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          <span>{benefits.join(" · ")}{moreBenefits > 0 && <> <Link href={`/vacantes/${job.id}#beneficios`} className="pf-public-accent rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">y {moreBenefits} beneficios más</Link></>}</span>
+          <span>{benefits.join(" · ")}{moreBenefits > 0 && <> <Link href={`/vacantes/${job.id}#beneficios`} className="pf-public-accent rounded-sm text-primary-text underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">y {moreBenefits} beneficios más</Link></>}</span>
         </p>}
       </CardContent>
       <CardFooter className={PUBLIC_VACANCY_RAIL}>
         <PublicSalary job={job} />
         <div className={PUBLIC_VACANCY_CTA}>
           <SavedJobControl jobId={job.id} title={job.title}>
-            <Link href={`/vacantes/${job.id}`} className={cn(buttonVariants(), "min-h-11 px-5")}>Ver vacante<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link>
+            <Link href={`/vacantes/${job.id}`} className={cn(buttonVariants(), "min-h-11 px-5 max-sm:flex-1")}>Ver vacante<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link>
           </SavedJobControl>
           <PublicScreeningInfo count={job.screening_questions} />
         </div>
