@@ -80,3 +80,13 @@ merges to `main` allowed (no push).
   → basis required in the form when the switch is on. F21 no duplicate (replacement clone is reusable backend work, S–M).
   F22 exists for owners: GET /v2/me/company/audit-events?vacancy_id=… (+ …/audit-events/vacancies); recruiters would need
   a new piece.
+- **L6** Merged to local main `1dbb4350` (`feat/audit-public-fixes` at `134e2352`: modern choice/file controls + public
+  fixes). Evidence: full suite at `16df9591` 629 files / 11552 passed, 2 failed → `button-variants-merge` real (fixed in
+  `134e2352`: «Crear cuenta» through `cn`), `delivery-config` focus test passes in isolation (load flake); tsc 0, lint 0
+  errors. Browser (prod build of `16df9591`): focus ring, Quitar focus, «Ya vinculado» description, single «Sigue en
+  Placement», share menu (copy/WhatsApp/Correo/LinkedIn + origen=compartido), OG + JobPosting JSON-LD, anonymous apply
+  card, dark link contrast 6.61:1, listing chips/titles/card, closed-vacancy company link — pass; minor: stages popover at
+  390 clips 17 px when opened low, skip link 5th stop on desktop, `/candidatos` title doubled, employer share not
+  reachable (fixed in the A tranche). Native review (escalate item 3, shared Button link variant) approved, lineage
+  `review-4157357d02f219f6`, 11 advisories (status slot live region, closed-page read timeout, JSON-LD null bounds, share
+  helpers, publish share gate, choice-question validation test) → follow-up sent to the A-tranche worker.
