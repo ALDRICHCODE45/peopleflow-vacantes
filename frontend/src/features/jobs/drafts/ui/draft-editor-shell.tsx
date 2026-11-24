@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useEffect, useRef, useState, useSyncExternalStore, type MouseEventHandler, type ReactNode } from "react";
-import { ArrowRight, Banknote, BriefcaseBusiness, Check, ClipboardCheck, Eye, FileText, Info, LockKeyhole, MessageSquare } from "lucide-react";
+import { AlertCircle, ArrowRight, Banknote, BriefcaseBusiness, Check, ClipboardCheck, Eye, FileText, Info, LockKeyhole, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import type { editorReadiness } from "../pipeline/publication-model";
 import type { DraftFormState } from "./draft-form-state";
 import { DraftPublicDetail } from "./draft-public-detail";
+import { publicCompensationGaps, publicCompensationGapsMessage } from "./draft-preview";
 import { loadCompanyStateAction } from "@/features/employer-company/actions";
 import type { PublicJobDetail } from "../../types";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
@@ -33,11 +34,19 @@ function subscribeDesktop(onChange: () => void) {
 const desktopSnapshot = () => window.matchMedia?.(desktopQuery).matches ?? false;
 const serverSnapshot = () => false;
 
-export function DraftEditorShell({ state, published, publication = published === null ? undefined : published ? "published" : null, process, step, onStep, readiness, children }: {
+export function DraftEditorShell({ state, published, publication = published === null ? undefined : published ? "published" : null, process, step, onStep, readiness, stepInvalid = [], actions, children }: {
   state: DraftFormState; published: boolean | null; publication?: Lifecycle["publication"]; process?: Lifecycle["process"]; step: number; onStep: (step: number) => void;
-  readiness: ReturnType<typeof editorReadiness>; children: ReactNode;
+  readiness: ReturnType<typeof editorReadiness>;
+  /** Steps whose last validation reported an error: they show an error marker instead of a tick. */
+  stepInvalid?: readonly boolean[];
+  /** Page-level actions of a published vacancy (pipeline, share, public page), next to the preview. */
+  actions?: ReactNode;
+  children: ReactNode;
 }) {
   const status = publicationStatus(publication, "success", process);
+  // A record that was ever published is a vacancy, not a draft, whatever its state now.
+  const salaryGaps = publicCompensationGaps(state.compensation);
+  const live = publication !== undefined && publication !== null;
   const [preview, setPreview] = useState(false);
   const [company, setCompany] = useState<PublicJobDetail["company"] | null>(null);
   const [companyLoading, setCompanyLoading] = useState(false);
@@ -75,22 +84,26 @@ export function DraftEditorShell({ state, published, publication = published ===
     <header className="flex flex-wrap items-start justify-between gap-5">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-heading text-xl font-semibold">Construye tu próxima oportunidad</h1>
+          <h1 className="font-heading text-xl font-semibold">{live ? "Editar vacante" : "Construye tu próxima oportunidad"}</h1>
           <Badge variant={status.variant} dot={publication !== undefined}>{status.label}</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">Una buena contratación empieza con una vacante clara. Dale forma a la tuya.</p>
+        <p className="text-sm text-muted-foreground">{live ? "Ajusta los datos de tu vacante y guarda para conservar los cambios." : "Una buena contratación empieza con una vacante clara. Dale forma a la tuya."}</p>
       </div>
-      <Button type="button" variant="outline" className="min-h-10" onClick={openPreview} aria-haspopup="dialog"><Eye aria-hidden="true" data-icon="inline-start" />Vista previa</Button>
+      <div className="flex flex-wrap items-center gap-2">
+        {actions}
+        <Button type="button" variant="outline" className="min-h-10" onClick={openPreview} aria-haspopup="dialog"><Eye aria-hidden="true" data-icon="inline-start" />Vista previa</Button>
+      </div>
     </header>
     <Tabs value={step} onValueChange={value => { if (typeof value === "number") onStep(value); }} orientation={desktop ? "vertical" : "horizontal"} className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-6">
-        <div className="overflow-x-auto p-1 lg:overflow-visible">
+        {/* Phones scroll the tabs sideways; the fade on the right edge says there is more. */}
+        <div className="overflow-x-auto p-1 max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] lg:overflow-visible">
         <TabsList activateOnFocus aria-label="Secciones de la vacante" className="h-auto gap-1 bg-transparent p-0 lg:w-full lg:items-stretch">
           {EDITOR_SECTIONS.map((title, index) => {
-            const Icon = icons[index]; const complete = readiness.sectionComplete[index];
-            return <TabsTrigger key={title} value={index} aria-label={title} data-complete={complete === true} className="min-h-11 justify-start gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-normal text-muted-foreground hover:bg-muted hover:text-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-primary data-active:shadow-none">
+            const Icon = icons[index]; const invalid = stepInvalid[index] === true; const complete = readiness.sectionComplete[index] === true && !invalid;
+            return <TabsTrigger key={title} value={index} aria-label={title} data-complete={complete} data-invalid={invalid || undefined} className="min-h-11 justify-start gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-normal text-muted-foreground hover:bg-muted hover:text-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-primary data-active:shadow-none">
               <Icon aria-hidden="true" /><span className="flex-1 whitespace-nowrap text-left">{title}</span>
-              {complete && <Check aria-label="Requisitos completos" data-icon="inline-end" />}
+              {invalid ? <AlertCircle aria-label="Hay errores por corregir" data-icon="inline-end" className="text-destructive" /> : complete && <Check aria-label="Requisitos completos" data-icon="inline-end" />}
               {index === 4 && readiness.pending > 0 && <Badge variant="secondary">{readiness.pending}</Badge>}
             </TabsTrigger>;
           })}
@@ -111,6 +124,7 @@ export function DraftEditorShell({ state, published, publication = published ===
     <Dialog open={preview} onOpenChange={changePreview}>
       <DialogContent finalFocus={previewOpener} showCloseButton={false} className="flex h-dvh max-h-dvh max-w-full flex-col rounded-none sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-[min(64rem,calc(100vw-2rem))] sm:rounded-2xl">
         <DialogHeader><DialogTitle>Vista previa pública</DialogTitle><DialogDescription>Así verán esta oportunidad las personas candidatas.</DialogDescription></DialogHeader>
+        {salaryGaps.length > 0 && <p role="note" data-pf-salary-hidden="" className="flex items-start gap-2 rounded-2xl bg-muted/50 px-3 py-2 text-sm text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{publicCompensationGapsMessage(salaryGaps)} Elígelo en «Compensación y beneficios».</p>}
         <div data-slot="draft-preview-body" className="min-h-0 flex-1 overflow-y-auto"><DraftPublicDetail state={state} company={company} companyLoading={companyLoading} /></div>
         <DialogFooter>
           <p className="flex flex-1 items-start gap-2 text-sm text-muted-foreground"><LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{published === null ? "Solo tú puedes ver esta vista previa. El estado de publicación está por confirmar." : published ? "Solo tú puedes ver esta vista previa. Esta vacante ya está publicada." : "Solo tú puedes ver esta vista previa. Aún no está publicada."}</p>

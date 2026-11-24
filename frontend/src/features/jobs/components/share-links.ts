@@ -5,8 +5,7 @@ export const SHARED_ORIGIN = "compartido";
 export function shareUrl(href: string, base?: string): string {
   const url = new URL(href, base);
   url.hash = "";
-  url.searchParams.set("origen", SHARED_ORIGIN);
-  // `set` keeps an existing `origen` position; move the tag last so shared links read the same everywhere.
+  // Drop any `origen` and append ours last, so shared links carry exactly one tag in the same position everywhere.
   const params = [...url.searchParams].filter(([key]) => key !== "origen");
   url.search = "";
   for (const [key, value] of params) url.searchParams.append(key, value);

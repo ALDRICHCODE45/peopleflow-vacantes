@@ -19,7 +19,7 @@ import { publicDetailBenefits, publicDetailSections } from "./public-detail-cont
 import { PublicRequirementsProfile } from "./public-requirements-profile";
 import { PublicSalary } from "./public-salary";
 import { PublicShareButton } from "./public-share-button";
-import { PUBLIC_ACTION_CARD, PUBLIC_COMPANY_FOOTER, PUBLIC_DETAIL_ASIDE, PUBLIC_DETAIL_BENEFITS, PUBLIC_DETAIL_BODY, PUBLIC_DETAIL_CARD, PUBLIC_DETAIL_GRID, PUBLIC_DETAIL_HEADER, PUBLIC_DETAIL_HERO, PUBLIC_DETAIL_SECTION } from "./public-vacancy-layout";
+import { PUBLIC_ACTION_CARD, PUBLIC_COMPANY_FOOTER, PUBLIC_DETAIL_ASIDE, PUBLIC_DETAIL_BENEFITS, PUBLIC_DETAIL_BODY, PUBLIC_DETAIL_CARD, PUBLIC_DETAIL_GRID, PUBLIC_DETAIL_HEADER, PUBLIC_DETAIL_HERO, PUBLIC_DETAIL_SECTION, IDLE_STATUS_SLOT_COLLAPSED } from "./public-vacancy-layout";
 
 /** The modal owns the surface in previews: semantic groups, not nested Cards. */
 function PreviewSection({ children }: ComponentProps<"div">) { return <section className="flex min-w-0 flex-col gap-5 [overflow-wrap:anywhere]">{children}</section>; }
@@ -103,8 +103,8 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
             <PublicSalary job={job} detail />
             <Separator />
             {companyLoading ? <div className="flex flex-col gap-3"><Skeleton aria-hidden="true" className="h-5 w-48 max-w-full" /><Skeleton aria-hidden="true" className="h-10 w-full" /></div> : company && job.source !== "legacy" && <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {company.name}.</p></div>}
-            {/* The empty status slot under the apply row reserves 40 px: hidden until it has a message. */}
-            <div data-public-actions="" className="flex flex-col gap-2 [&_[data-pf-action-status-slot]:empty]:hidden">
+            {/* The idle status slot under the apply row reserves 40 px: it gives that height back (never display:none, so its live region stays mounted). */}
+            <div data-public-actions="" className={cn("flex flex-col gap-2", IDLE_STATUS_SLOT_COLLAPSED)}>
               {/* Legacy catalog rows have no apply endpoint: an honest note, never a dead-end CTA. */}
               {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : job.source === "legacy" ? <>
                 <p className="text-sm text-muted-foreground">Esta vacante no recibe postulaciones en línea.</p>

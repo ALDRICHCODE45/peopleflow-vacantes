@@ -139,9 +139,15 @@ const publicVacancy = z.object({
 });
 const publicScopeMatchesMode = (job: { work_mode: string; remote_scope: z.infer<typeof publicRemoteScopeSchema> }) => job.work_mode === "remote" || job.remote_scope === null;
 export const publicJobItemSchema = z.discriminatedUnion("source", [publicLegacy.strict(), publicVacancy.strict()]).refine(publicScopeMatchesMode, { path: ["remote_scope"], message: "remote scope requires remote work" });
+/** Count of the rows matching the same filters; `capped` means «more than 1000». Optional: the backend adds it to every response, today's one omits it. */
+export const publicJobsTotalSchema = z.object({
+  count: z.number().int().min(0),
+  capped: z.boolean(),
+}).strict();
 export const publicJobsListSchema = z.object({
   items: z.array(publicJobItemSchema),
   next_cursor: nonEmptyString.nullable(),
+  total: publicJobsTotalSchema.optional(),
 }).strict();
 
 export const publicJobDetailSchema = z.discriminatedUnion("source", [

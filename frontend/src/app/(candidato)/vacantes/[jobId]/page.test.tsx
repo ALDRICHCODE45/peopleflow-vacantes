@@ -75,8 +75,8 @@ describe("public detail route", () => {
   it("adds Open Graph and Twitter cards to published vacancies only", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(vacancyDetail)));
     const meta = await generateMetadata({ params: params(vacancyDetail.id) });
-    expect(meta.openGraph).toMatchObject({ title: "Backend Go · Acme", description: vacancyDetail.description_plain, url: `http://127.0.0.1:3000/vacantes/${vacancyDetail.id}` });
-    expect(meta.twitter).toMatchObject({ card: "summary", title: "Backend Go · Acme" });
+    expect(meta.openGraph).toMatchObject({ title: "Backend Go — Acme", description: vacancyDetail.description_plain, url: `http://127.0.0.1:3000/vacantes/${vacancyDetail.id}` });
+    expect(meta.twitter).toMatchObject({ card: "summary", title: "Backend Go — Acme" });
     const data = { id: vacancyDetail.id, title: vacancyDetail.title, company: { id: vacancyDetail.company.id, name: "Acme" }, availability: "closed" };
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ error: "Unavailable", code: "vacancy_unavailable", data }, 410)));
     expect(await generateMetadata({ params: params(data.id) })).not.toHaveProperty("openGraph");

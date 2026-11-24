@@ -215,7 +215,14 @@ it("already published editor keeps saving content but hides Publicar", async () 
   await waitFor(() => expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument());
   expect(save()).toBeEnabled();
   await waitFor(() => expect(document.querySelector('header [data-slot="badge"]')).toHaveTextContent("Activa"));
-  expect(screen.getByRole("button", { name: "Activa" })).toBeDisabled();
+  // A published vacancy's editor is «Editar vacante»: no disabled «Activa» primary, and the next steps are offered.
+  expect(screen.queryByRole("button", { name: "Activa" })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Editar vacante");
+  expect(screen.getByRole("link", { name: "Ver pipeline" })).toHaveAttribute("href", `/empresa/vacantes/${key}/pipeline`);
+  expect(screen.getByRole("button", { name: "Compartir" })).toBeInTheDocument();
+  const publicPage = screen.getByRole("link", { name: /Ver página pública/ });
+  expect(publicPage).toHaveAttribute("href", `/vacantes/${key}`);
+  expect(publicPage).toHaveAttribute("target", "_blank");
 });
 function saveDraftForm() {return document.querySelector("[data-pf-local-draft-form] form")!;}
 it("keeps the create key after uncertainty, even after an edit and explicit retry", async () => {

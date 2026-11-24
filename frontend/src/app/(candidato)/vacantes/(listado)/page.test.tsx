@@ -146,4 +146,47 @@ describe("/vacantes synchronous boundaries", () => {
     expect(screen.getByRole("list", { name: "Listado de vacantes" }).parentElement).not.toHaveClass("opacity-50");
     expect(screen.getByRole("status")).toHaveTextContent("Cargando vacantes");
   });
+  it("shows the total in the heading only when the payload has it («1000+» when capped)", async () => {
+    const Page = (await import("./page")).default;
+    read.mockResolvedValue({ ok: true, data: { items: [listItem(legacyDetail)], next_cursor: null } });
+    const { container, unmount } = render(await Page({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByRole("heading", { name: "Vacantes disponibles" })).toBeVisible();
+    expect(container.querySelector("[data-jobs-total]")).toBeNull();
+    unmount();
+    read.mockResolvedValue({ ok: true, data: { items: [listItem(legacyDetail)], next_cursor: null, total: { count: 137, capped: false } } });
+    const withTotal = render(await Page({ searchParams: Promise.resolve({}) }));
+    expect(withTotal.container.querySelector("[data-jobs-total]")).toHaveTextContent("137 vacantes");
+    withTotal.unmount();
+    read.mockResolvedValue({ ok: true, data: { items: [listItem(legacyDetail)], next_cursor: null, total: { count: 1000, capped: true } } });
+    const capped = render(await Page({ searchParams: Promise.resolve({}) }));
+    expect(capped.container.querySelector("[data-jobs-total]")).toHaveTextContent("1000+ vacantes");
+  });
+  it("redirects an invalid sort to the canonical URL and reads with a valid one", async () => {
+    const Page = (await import("./page")).default;
+    await expect(Page({ searchParams: Promise.resolve({ q: "Go", sort: "price" }) })).rejects.toThrow("redirect:/vacantes?q=Go");
+    await expect(Page({ searchParams: Promise.resolve({ sort: "recent" }) })).rejects.toThrow("redirect:/vacantes");
+    expect(read).not.toHaveBeenCalled();
+    read.mockResolvedValue({ ok: true, data: { items: [listItem(legacyDetail)], next_cursor: null } });
+    render(await Page({ searchParams: Promise.resolve({ sort: "salary_desc" }) }));
+    expect(read).toHaveBeenCalledOnce();
+  });
+  it("offers the three sorts, marks the current one, and changing it navigates without the cursor", () => {
+    render(<JobsNavigationIsland routeKey="/vacantes?q=Go&sort=salary_desc&cursor=old" query={{ q: "Go", sort: "salary_desc", cursor: "old" }}>{vacancyList}</JobsNavigationIsland>);
+    const group = screen.getByRole("group", { name: "Ordenar vacantes" });
+    expect(within(group).getAllByRole("button").map(item => item.textContent)).toEqual(["Recientes", "Mayor salario", "Menor salario"]);
+    expect(within(group).getByRole("button", { name: "Mayor salario" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(group).getByRole("button", { name: "Menor salario" }));
+    expect(push).toHaveBeenCalledWith("/vacantes?q=Go&sort=salary_asc");
+  });
+  it("choosing «Recientes» drops sort from the URL; the sort is not a filter (Todas stays active, no count)", () => {
+    render(<JobsNavigationIsland routeKey="/vacantes?sort=salary_asc" query={{ sort: "salary_asc" }}>{vacancyList}</JobsNavigationIsland>);
+    expect(within(screen.getByRole("group", { name: "Filtros rápidos" })).getByRole("button", { name: "Todas" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Filtros" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Recientes" }));
+    expect(push).toHaveBeenCalledWith("/vacantes");
+  });
+  it("hides the sort control when the total is zero", () => {
+    render(<JobsNavigationIsland routeKey="/vacantes" query={{}} total={{ count: 0, capped: false }}>{vacancyList}</JobsNavigationIsland>);
+    expect(screen.queryByRole("group", { name: "Ordenar vacantes" })).toBeNull();
+  });
 });

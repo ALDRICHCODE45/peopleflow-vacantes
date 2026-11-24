@@ -208,8 +208,8 @@ export function DraftCompensationField({
           </Select>
         </Field>
 
-        <Field>
-          <FieldTitle id="draft-compensation-basis-label">Base</FieldTitle>
+        <Field data-invalid={errors["compensation.basis"] !== undefined}>
+          <FieldTitle id="draft-compensation-basis-label">Base{value.public_visible && <span aria-hidden="true" className="text-primary"> *</span>}</FieldTitle>
           <Select
             value={value.basis === "" ? null : value.basis}
             items={BASIS_OPTIONS}
@@ -218,6 +218,9 @@ export function DraftCompensationField({
             <SelectTrigger
               id="draft-compensation-basis"
               aria-labelledby="draft-compensation-basis-label"
+              aria-required={value.public_visible || undefined}
+              aria-invalid={errors["compensation.basis"] !== undefined}
+              aria-describedby={errors["compensation.basis"] === undefined ? undefined : "draft-compensation-basis-error"}
               className="h-10 w-full"
             >
               <SelectValue placeholder="Sin definir" />
@@ -232,6 +235,7 @@ export function DraftCompensationField({
               </SelectGroup>
             </SelectContent>
           </Select>
+          <FieldError id="draft-compensation-basis-error">{errors["compensation.basis"]}</FieldError>
         </Field>
       </FieldGroup>
 
@@ -247,6 +251,7 @@ export function DraftCompensationField({
         </FieldLabel>
       </Field>
       {!value.public_visible && <FieldDescription>Las personas verán «Salario no publicado».</FieldDescription>}
+      {value.public_visible && <FieldDescription>Para mostrarlo se necesitan modo, moneda, periodo de pago y si el monto es bruto o neto.</FieldDescription>}
     </FieldGroup>
   );
 }

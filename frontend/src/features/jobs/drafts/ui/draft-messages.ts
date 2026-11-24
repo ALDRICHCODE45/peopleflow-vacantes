@@ -52,6 +52,8 @@ export const COMPENSATION_AMOUNT_ERROR =
   "Usa solo números con hasta 2 decimales, sin espacios (por ejemplo, 30000.50).";
 export const COMPENSATION_RANGE_ERROR =
   "El máximo debe ser mayor o igual que el mínimo.";
+/** A salary marked «visible» needs its basis: the public page only shows it with bruto/neto (backend rule). */
+export const COMPENSATION_BASIS_REQUIRED_ERROR = "Elige si el monto es bruto o neto para mostrarlo";
 export const COMPENSATION_ERROR = "Revisa la compensación.";
 export const DESCRIPTION_ERROR = "La descripción no cumple el formato permitido.";
 export const GENERIC_ERROR = "Revisa este campo.";

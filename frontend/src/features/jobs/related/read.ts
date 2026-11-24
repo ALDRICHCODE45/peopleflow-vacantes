@@ -71,12 +71,22 @@ function careersHrefFor(siteSlug: unknown): string | null {
   return typeof siteSlug === "string" && siteSlug === siteSlug.trim() && validateSlug(siteSlug) === null ? `/empresas/${siteSlug}` : null;
 }
 
-/** The careers site of a company, or `null` when it has none or the profile cannot be read (never blocks the page). */
-export async function readCompanyCareersHref(companyId: string): Promise<string | null> {
+/** How long the closed-vacancy page waits for the optional careers link before rendering without it. */
+export const CAREERS_HREF_TIMEOUT_MS = 1500;
+
+/** `null` when `read` has not settled within `ms`; the late result is ignored. */
+function withTimeout<T>(read: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), ms); });
+  return Promise.race([read, late]).finally(() => clearTimeout(timer));
+}
+
+/** The careers site of a company, or `null` when it has none, the profile cannot be read or the read is slow (never blocks the page). */
+export async function readCompanyCareersHref(companyId: string, timeoutMs = CAREERS_HREF_TIMEOUT_MS): Promise<string | null> {
   try {
     const { serverEnv } = await import("@/lib/env/server");
     if (serverEnv.sampleJobs) return null;
-    const result = await getCompanyProfile(companyId);
-    return result.ok ? careersHrefFor(result.company.site_slug) : null;
+    const result = await withTimeout(getCompanyProfile(companyId), timeoutMs);
+    return result?.ok ? careersHrefFor(result.company.site_slug) : null;
   } catch { return null; }
 }

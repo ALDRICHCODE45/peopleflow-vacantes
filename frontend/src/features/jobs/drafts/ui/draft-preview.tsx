@@ -6,6 +6,23 @@ function labelOf(options: DraftOption[], value: string): string | null {
   return options.find(option => option.value === value)?.label ?? null;
 }
 
+/**
+ * What keeps a salary the user marked «visible» from showing publicly. The backend publishes a salary only with
+ * `public_visible` and a mode, a currency, a pay period and a basis (gross/net); anything else stays hidden.
+ * Empty when the salary is not meant to be shown or nothing is missing.
+ */
+export function publicCompensationGaps(state: DraftCompensationState): string[] {
+  if (!state.public_visible) return [];
+  return [[state.mode, "el modo de compensación"], [state.currency, "la moneda"], [state.pay_period, "el periodo de pago"], [state.basis, "si el monto es bruto o neto"]]
+    .flatMap(([value, label]) => value ? [] : [label]);
+}
+
+/** «El salario no se mostrará: falta la moneda y el periodo de pago.» */
+export function publicCompensationGapsMessage(gaps: readonly string[]): string {
+  const list = gaps.length > 1 ? `${gaps.slice(0, -1).join(", ")} y ${gaps[gaps.length - 1]}` : gaps[0];
+  return `El salario no se mostrará: falta ${list}.`;
+}
+
 /** Internal-only exact money; never feed this projection to the public preview. */
 export function internalCompensationView(state: DraftCompensationState) {
   const mode = state.mode || null;

@@ -13,6 +13,7 @@ import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { ShareMenu } from "@/features/jobs/components/share-menu";
+import { hasPublicPage, vacancyPublicHref } from "../model";
 import { plural } from "../plural";
 import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
@@ -20,11 +21,12 @@ import { loadDraftDeliveryAction } from "@/features/jobs/drafts/pipeline/deliver
 import { loadDraftPublicationAction, publishDraftAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 import type { DraftPipelineActionFailure } from "@/features/jobs/drafts/pipeline/failure";
 import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publication-client";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { formatPublicationDate, groupMissing, MISSING_GROUP_LABELS } from "@/features/jobs/drafts/pipeline/publication-model";
 
 type Props = { draftId: string; open: boolean; onOpenChange: (open: boolean) => void; onPublished: (publishedAt: string) => void; unsavedChanges?: boolean };
 /** `later`: a private replacement being published after the fact (contract D4): its delivery clock has been running since it started and does not restart. */
-type Snapshot = { etag: string; title: string; publication: DraftPublication; cutoff: string; target: number | null; commitmentDate: string | null; later: boolean };
+type Snapshot = { etag: string; title: string; publication: DraftPublication; cutoff: string; target: number | null; commitmentDate: string | null; later: boolean; visibility: Lifecycle["visibility"] };
 type Mode = "loading" | "loaded" | "load_error" | "conflict" | "uncertain" | "rejected";
 type Notice = { tone: "error" | "info" | "success"; text: string };
 const GROUP_ICONS = { editor: FileText, solicitud: ClipboardList, entrega: Flag };
@@ -68,7 +70,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
     notifyActionResult({ key: "vacancy-publication", type: tone, title: text, description, ...(tone === "error" ? { reference: { ...reference, at: new Date().toISOString() } } : {}) });
   }
   function complete(publishedAt: string, already = false) {
-    report(already ? "info" : "success", already ? "Esta vacante ya está publicada" : "Vacante publicada", snapshot?.later ? "El tiempo de entrega no se reinició: sigue contando desde que inició el reemplazo." : "El tiempo de entrega ya está en marcha. La publicación en el sitio llega en el siguiente paso.");
+    report(already ? "info" : "success", already ? "Esta vacante ya está publicada" : "Vacante publicada", snapshot?.later ? "El tiempo de entrega no se reinició: sigue contando desde que inició el reemplazo." : "El tiempo de entrega ya está en marcha y la vacante ya se puede ver en el sitio.");
     onOpenChange(false);
     onPublished(publishedAt);
   }
@@ -93,7 +95,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
         setSnapshot({ etag: draft.identity.etag, title: draft.seed.model.fields.title || "Sin título", publication: publication.publication,
           cutoff: pipeline.pipeline.stages.find(stage => stage.id === delivery.delivery.cutoffStageId)?.name ?? "Sin definir",
           target: delivery.delivery.targetQuantity, commitmentDate: delivery.delivery.commitmentDate,
-          later: draft.seed.lifecycle.visibility === "private" && draft.seed.lifecycle.publication !== null });
+          later: draft.seed.lifecycle.visibility === "private" && draft.seed.lifecycle.publication !== null, visibility: draft.seed.lifecycle.visibility });
         setMode("loaded");
         if (attempt > 0) {
           setNotice({ tone: "info", text: "Datos actualizados" });
@@ -197,8 +199,9 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
         </section>;
       }) : already ? <>
         <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p>
-        {/* A private (replacement) vacancy has no public page: only a public published one can be shared. */}
-        {!snapshot.later && <ShareMenu title={snapshot.title} url={`/vacantes/${draftId}`} variant="outline" visibleStatus />}
+        {/* Only a published, public vacancy has a page to share (never a private replacement). The public page lives at `/vacantes/<draft id>`:
+            the vacancy keeps the id of the draft it was published from, and the publication client rejects a response whose `id` differs from the draft's. */}
+        {hasPublicPage({ status: "published", visibility: snapshot.visibility }) && <ShareMenu title={snapshot.title} url={vacancyPublicHref(draftId)} variant="outline" visibleStatus />}
       </> : <>
         <PublicationSummary snapshot={snapshot} />
       </>)}

@@ -84,7 +84,7 @@ export default async function VacantesPage({
         </p>
       </section>
       <React.Suspense fallback={null}><SavedJobReturnIntent /></React.Suspense>
-      <JobsNavigationIsland key={routeKey} routeKey={routeKey} query={query}>
+      <JobsNavigationIsland key={routeKey} routeKey={routeKey} query={query} total={result.ok ? result.data.total : undefined}>
         <JobsResults result={result} query={query} />
       </JobsNavigationIsland>
     </div>

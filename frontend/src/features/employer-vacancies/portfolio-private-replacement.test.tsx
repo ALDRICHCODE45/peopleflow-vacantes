@@ -32,6 +32,10 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
     DropdownMenuTrigger: ({ render: trigger, children }: { render: ReactElement; children: ReactNode }) => React.cloneElement(trigger, { "aria-haspopup": "menu", children } as ComponentProps<"button">),
     DropdownMenuContent: ({ children }: { children: ReactNode }) => React.useContext(Menu) ? <div role="menu">{children}</div> : null,
     DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
+    // «Compartir» submenu of a public row (A-F4): rendered inline, not under test here.
+    DropdownMenuSub: ({ children }: { children: ReactNode }) => <>{children}</>,
+    DropdownMenuSubTrigger: ({ children }: { children: ReactNode }) => <button role="menuitem">{children}</button>,
+    DropdownMenuSubContent: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
     DropdownMenuItem: ({ children, onClick, disabled, render }: ComponentProps<"button"> & { render?: ReactElement<Record<string, unknown>> }) => render
       ? React.cloneElement(render, { role: "menuitem", children }) : <button role="menuitem" disabled={disabled} onClick={onClick}>{children}</button>,
   };

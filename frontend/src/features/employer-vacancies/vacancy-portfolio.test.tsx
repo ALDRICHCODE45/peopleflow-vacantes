@@ -104,7 +104,8 @@ describe("VacancyPortfolio vacancy rows", () => {
       const action = within(row).getByRole("button", { name: `Acciones de ${item.title}` });
       expect(action).toHaveAttribute("aria-haspopup", "menu");
       expect(action.querySelector("button, a")).toBeNull();
-      expect(within(row).queryAllByRole("link")).toHaveLength(0);
+      // The only link in a row is its title (the pipeline, or a draft's editor); the row itself is never one.
+      expect(within(row).getAllByRole("link").map(link => link.textContent)).toEqual([item.title]);
     }
     expect(container.querySelectorAll('[role="tab"]')).toHaveLength(5);
   });

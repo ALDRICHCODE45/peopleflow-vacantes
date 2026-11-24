@@ -18,3 +18,4 @@ export type JobsList = z.infer<typeof jobsListSchema>;
 export type PublicJobItem = z.infer<typeof publicJobItemSchema>;
 export type PublicJobDetail = z.infer<typeof publicJobDetailSchema>;
 export type PublicJobsList = z.infer<typeof publicJobsListSchema>;
+export type PublicJobsTotal = NonNullable<PublicJobsList["total"]>;

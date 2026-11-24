@@ -907,7 +907,10 @@ describe("LocalDraftForm requester", () => {
     );
     const nameSelector = screen.getByRole("combobox", { name: "Área o cliente" });
     expect(nameSelector).not.toBeDisabled();
-    expect(nameSelector).toHaveAttribute("placeholder", "Cliente Ejemplo");
+    // The selected name is shown once, as text; the input's hint then invites a different search.
+    expect(screen.getAllByText("Seleccionado: Cliente Ejemplo")).toHaveLength(1);
+    expect(nameSelector).not.toHaveAttribute("placeholder", "Cliente Ejemplo");
+    expect(screen.getByRole("button", { name: "Quitar selección" })).toHaveClass("text-foreground");
 
     validateDraft();
 

@@ -15,7 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { CONTRACT_TYPE_OPTIONS, PROFESSIONAL_AREA_OPTIONS, WORK_SCHEDULE_OPTIONS } from "../drafts/ui/draft-labels";
-import { buildFilterCommitUrl, selectedValues, type JobsQuery, type JobsFilterPatch } from "../url";
+import { buildFilterCommitUrl, JOBS_SORTS, jobsSortOf, selectedValues, type JobsQuery, type JobsFilterPatch, type JobsSort } from "../url";
+import type { PublicJobsTotal } from "../types";
 import { JobsGeoFields, JobsFilterChips, useJobsGeo } from "./JobsGeoFilters";
 import { CLEAR_SALARY_FILTER, hasSalaryFilter, JobsSalaryFilter, JobsSalaryFilterChip, validateSalaryFilter, type SalaryErrors } from "./JobsSalaryFilter";
 
@@ -23,7 +24,7 @@ import { useLanguageCatalog } from "@/features/languages/use-language-catalog";
 import { CLEAR_PROFILE_FILTERS, JobsProfileFilters, JobsProfileFilterChips, validateProfileFilters, type ProfileErrors } from "./JobsProfileFilters";
 
 /** URL-owned navigation; server-rendered results remain mounted during navigation. */
-export function JobsNavigationIsland({ children, routeKey, query }: { children: React.ReactNode; routeKey: string; query?: JobsQuery }) {
+export function JobsNavigationIsland({ children, routeKey, query, total }: { children: React.ReactNode; routeKey: string; query?: JobsQuery; total?: PublicJobsTotal }) {
   const router = useRouter();
   const [, startTransition] = React.useTransition();
   const [pending, setPending] = React.useState<{ routeKey: string; submitter: HTMLButtonElement | null; link: HTMLAnchorElement | null } | null>(null);
@@ -102,8 +103,8 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
   if (query === undefined) return <div onSubmitCapture={handleRootSubmitCapture} onClickCapture={handleRootClickCapture}>{status}{children}</div>;
 
   const excludesLegacy = Boolean(query.work_schedule || query.contract_type || query.professional_area || selectedValues(query.state).length || selectedValues(query.municipality).length || selectedValues(query.language).length || hasSalaryFilter(query));
-  const activeCount = Object.entries(query).filter(([key]) => key !== "cursor" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).length, 0) + Number(hasSalaryFilter(query));
-  const draftCount = Object.entries(draft).filter(([key]) => key !== "cursor" && key !== "q" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).filter(Boolean).length, 0) + Number(hasSalaryFilter(draft));
+  const activeCount = Object.entries(query).filter(([key]) => key !== "cursor" && key !== "sort" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).length, 0) + Number(hasSalaryFilter(query));
+  const draftCount = Object.entries(draft).filter(([key]) => key !== "cursor" && key !== "sort" && key !== "q" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).filter(Boolean).length, 0) + Number(hasSalaryFilter(draft));
   const filterFields = (idPrefix: string) => <FieldGroup className="gap-4">
     <FieldSet><FieldLegend variant="label"><MapPinIcon aria-hidden="true" className="inline size-4" /> Ubicación y modalidad</FieldLegend><FieldGroup><JobsGeoFields idPrefix={idPrefix} query={draft} onChange={updateDraft} geo={geo} /></FieldGroup></FieldSet>
     <Separator />
@@ -157,9 +158,15 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">Vacantes disponibles</h2>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">Vacantes disponibles</h2>
+              {total && <span data-jobs-total className="text-sm tabular-nums text-muted-foreground">{jobsTotalLabel(total)}</span>}
+            </div>
             <SheetTrigger render={<Button variant="outline" className="h-11 md:hidden">Filtros{activeCount ? ` (${activeCount})` : ""}</Button>} />
           </div>
+          {total?.count !== 0 && <ToggleGroup variant="segmented" aria-label="Ordenar vacantes" className="h-11! max-sm:grid max-sm:w-full max-sm:grid-cols-3" value={[jobsSortOf(query)]} onValueChange={(values: string[]) => { const sort = values[0] as JobsSort | undefined; if (sort) startNavigation(buildFilterCommitUrl(routeKey, { sort }), null, null); }}>
+            {JOBS_SORTS.map(sort => <ToggleGroupItem key={sort} value={sort} className="max-sm:px-2">{SORT_LABELS[sort]}</ToggleGroupItem>)}
+          </ToggleGroup>}
           {excludesLegacy && <p role="note" className="flex items-start gap-2 text-sm text-muted-foreground"><InfoIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />Algunas vacantes del catálogo anterior no tienen este dato y no aparecen con este filtro.</p>}
           <div data-jobs-results aria-busy={pending ? true : undefined} className="relative min-w-0">
             <div className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", replacingResults && "opacity-50")}>{children}</div>
@@ -196,9 +203,17 @@ function ComposedSearchField({ icon: Icon, id, label, name, defaultValue, placeh
   </Field>;
 }
 
+const SORT_LABELS: Record<JobsSort, string> = { recent: "Recientes", salary_desc: "Mayor salario", salary_asc: "Menor salario" };
+
+/** «137 vacantes», «1 vacante»; a capped count reads «1000+ vacantes». */
+export function jobsTotalLabel(total: PublicJobsTotal): string {
+  if (total.capped) return `${total.count}+ vacantes`;
+  return total.count === 1 ? "1 vacante" : `${total.count} vacantes`;
+}
+
 /** Quick chips are the modality only; the schedule («Jornada») lives in the filter panel. */
 const QUICK_FILTERS = [
-  { label: "Todas", patch: { ...CLEAR_SALARY_FILTER, ...CLEAR_PROFILE_FILTERS, q: "", state: [], municipality: [], applicant_country: "", work_mode: [], work_schedule: "", contract_type: "", professional_area: "" }, isActive: (query: JobsQuery) => Object.keys(query).length === 0 },
+  { label: "Todas", patch: { ...CLEAR_SALARY_FILTER, ...CLEAR_PROFILE_FILTERS, q: "", state: [], municipality: [], applicant_country: "", work_mode: [], work_schedule: "", contract_type: "", professional_area: "" }, isActive: (query: JobsQuery) => Object.keys(query).every(key => key === "sort") },
   { label: "Presencial", patch: { work_mode: "onsite" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("onsite") },
   { label: "Híbrido", patch: { work_mode: "hybrid" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("hybrid") },
   { label: "Remoto", patch: { work_mode: "remote" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("remote") },

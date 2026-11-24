@@ -92,4 +92,19 @@ describe("public salary filter in the URL", () => {
     expect(buildFilterCommitUrl(current, { salary_min: "35000" })).toBe(`/vacantes?q=Go&salary_min=35000&${units}`);
     expect(buildFilterCommitUrl(current, { salary_min: "", salary_max: "" })).toBe("/vacantes?q=Go");
   });
+  it("keeps sort in the URL only when it is not the default, and falls back to recent when invalid", () => {
+    expect(buildJobsUrl({ q: "Go", sort: "salary_desc", cursor: "c" })).toBe("/vacantes?q=Go&sort=salary_desc&cursor=c");
+    expect(buildJobsUrl({ sort: "recent" })).toBe("/vacantes");
+    expect(parseJobsQuery("sort=salary_asc")).toEqual({ sort: "salary_asc" });
+    for (const bad of ["recent", "SALARY_DESC", "price", ""]) expect(parseJobsQuery(`sort=${bad}`)).toEqual({});
+    expect(parseJobsQuery("sort=salary_asc&sort=salary_desc")).toEqual({});
+    expect(isCanonicalJobsQuery("sort=salary_desc")).toBe(true);
+    for (const text of ["sort=recent", "sort=price", "sort="]) expect(isCanonicalJobsQuery(text)).toBe(false);
+  });
+  it("resets the cursor when the sort changes and preserves the filters", () => {
+    const current = "/vacantes?q=Go&work_mode=remote&sort=salary_desc&cursor=old";
+    expect(buildFilterCommitUrl(current, { sort: "salary_asc" })).toBe("/vacantes?q=Go&work_mode=remote&sort=salary_asc");
+    expect(buildFilterCommitUrl(current, { sort: "recent" })).toBe("/vacantes?q=Go&work_mode=remote");
+    expect(buildNextJobsUrl("/vacantes?sort=salary_desc", "next")).toBe("/vacantes?sort=salary_desc&cursor=next");
+  });
 });

@@ -122,7 +122,7 @@ it("fills the viewport only when asked (the live board), keeping page scroll oth
 it("lets the tab's content place one line (the replacement link) in the tab row, and inline when there is no frame", () => {
   const { container } = render(<VacancyFrame vacancyId={id} active="pipeline" title="T" lifecycle={lifecycle()}><InVacancyTabRow><p>Aviso de reemplazo</p></InVacancyTabRow></VacancyFrame>);
   expect(tabsNav().parentElement).toContainElement(screen.getByText("Aviso de reemplazo"));
-  expect(container.querySelectorAll("p")).toHaveLength(2); // the date line and the notice
+  expect(container.querySelectorAll("p:not([role=status])")).toHaveLength(2); // the date line and the notice (the share menu keeps its own live region)
   cleanup();
   render(<InVacancyTabRow><p>Aviso suelto</p></InVacancyTabRow>);
   expect(screen.getByText("Aviso suelto")).toBeVisible();
@@ -158,4 +158,36 @@ it("reads a never-published draft from the overview header as «Borrador» and n
 it("says «Cerrada · proceso finalizado» for a closed vacancy of the overview header", () => {
   frame({ audience: "stakeholder", active: "documentos", title: "Cerrada", lifecycle: undefined, vacancy: { id, title: "Cerrada", publication: "closed", process: "finished", kind: "original", visibility: "public" } });
   expect(screen.getByText("Cerrada · proceso finalizado")).toHaveAttribute("data-slot", "badge");
+});
+
+// A-F3/A-F4: the way back to the editor and sharing live in the identity row of a live vacancy.
+const identity = () => document.querySelector("[data-pf-vacancy-identity]") as HTMLElement;
+it("a published public vacancy offers «Editar publicación», «Compartir» and «Ver página pública» (new tab) in the identity row", () => {
+  frame({ lifecycle: lifecycle({ visibility: "public" }) });
+  const row = within(identity());
+  expect(row.getByRole("link", { name: "Editar publicación" })).toHaveAttribute("href", `/empresa/vacantes/borradores/${id}`);
+  expect(row.getByRole("button", { name: "Compartir" })).toBeInTheDocument();
+  const publicPage = row.getByRole("link", { name: /Ver página pública/ });
+  expect(publicPage).toHaveAttribute("href", `/vacantes/${id}`);
+  expect(publicPage).toHaveAttribute("target", "_blank");
+  expect(publicPage).toHaveAttribute("rel", "noopener noreferrer");
+});
+it.each([
+  ["a private replacement", { visibility: "private" as const }, true],
+  ["a paused vacancy", { publication: "paused" as const, visibility: "public" as const }, true],
+  ["a closed vacancy", { publication: "closed" as const, process: "finished" as const, closed_at: "2026-11-10T12:00:00Z", process_finished_at: "2026-11-10T12:00:00Z", visibility: "public" as const }, false],
+  ["a draft", { publication: null, process: null, published_at: null, visibility: null }, false],
+])("%s has no public page or share in the identity row (editor: %s)", (_name, extra, editor) => {
+  frame({ lifecycle: lifecycle(extra) });
+  const row = within(identity());
+  expect(row.queryByRole("link", { name: /Ver página pública/ })).not.toBeInTheDocument();
+  expect(row.queryByRole("button", { name: "Compartir" })).not.toBeInTheDocument();
+  expect(Boolean(row.queryByRole("link", { name: "Editar publicación" }))).toBe(editor);
+});
+it("a stakeholder, or a frame still loading, gets none of these actions", () => {
+  frame({ audience: "stakeholder", lifecycle: lifecycle({ visibility: "public" }) });
+  expect(within(identity()).queryByRole("link", { name: "Editar publicación" })).not.toBeInTheDocument();
+  cleanup();
+  frame({ loading: true, lifecycle: lifecycle({ visibility: "public" }) });
+  expect(within(identity()).queryByRole("button", { name: "Compartir" })).not.toBeInTheDocument();
 });

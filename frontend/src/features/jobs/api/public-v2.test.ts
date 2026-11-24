@@ -16,6 +16,14 @@ describe("public v2 contract", () => {
     expect(schemas.publicJobItemSchema.parse(listItem(detail))).toEqual(listItem(detail));
     expect(schemas.publicJobDetailSchema.parse(detail)).toEqual(detail);
   });
+  it("parses the list with and without the optional total, and rejects a malformed one", () => {
+    const items = [listItem(legacyDetail)];
+    expect(schemas.publicJobsListSchema.parse({ items, next_cursor: null })).toEqual({ items, next_cursor: null });
+    expect(schemas.publicJobsListSchema.parse({ items, next_cursor: "c", total: { count: 137, capped: false } }).total).toEqual({ count: 137, capped: false });
+    expect(schemas.publicJobsListSchema.parse({ items: [], next_cursor: null, total: { count: 1000, capped: true } }).total).toEqual({ count: 1000, capped: true });
+    for (const total of [{ count: -1, capped: false }, { count: 1.5, capped: false }, { count: 3 }, { count: 3, capped: false, extra: 1 }, null])
+      expect(schemas.publicJobsListSchema.safeParse({ items, next_cursor: null, total }).success).toBe(false);
+  });
   it("requires every list key and strict enum values", () => {
     const item = listItem(vacancyDetail);
     for (const key of Object.keys(item)) {

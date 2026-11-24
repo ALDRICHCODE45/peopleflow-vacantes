@@ -7,7 +7,7 @@ import { getCompanyProfile } from "@/features/company-site/api/client";
 import { listItem, vacancyDetail, legacyDetail } from "../api/public-fixtures";
 import { listJobs } from "../api/listJobs";
 import type { PublicJobItem } from "../types";
-import { readCompanyVacancies, readSimilarVacancies, readRelatedCompany } from "./read";
+import { CAREERS_HREF_TIMEOUT_MS, readCompanyCareersHref, readCompanyVacancies, readSimilarVacancies, readRelatedCompany } from "./read";
 
 const env = serverEnv as { sampleJobs: boolean };
 const item = (suffix: number, own = false) => ({ ...listItem(vacancyDetail), id: `0198f5a2-7c1b-7ddd-9c2e-${String(suffix).padStart(12, "0")}`, company: own ? vacancyDetail.company : { ...vacancyDetail.company, id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c80b1" } });
@@ -100,4 +100,37 @@ it("sample mode is offline, including company filtering and absent legacy area",
   expect(await readSimilarVacancies(job)).toEqual({ ok: true, data: [] });
   expect(await readRelatedCompany(job)).toEqual({ ok: true, data: { ...job.company, description: null, sector: null, size: null, careersHref: null } });
   expect(fetch).not.toHaveBeenCalled(); expect(getCompanyProfile).not.toHaveBeenCalled();
+});
+
+const profile = (site_slug: string | null) => ({ ok: true as const, company: { ...vacancyDetail.company, description: null, location: null, website: null, linkedin_url: null, instagram_url: null, facebook_url: null, twitter_url: null, site_slug } });
+it("reads the careers link of a closed vacancy's company, and falls back to none on a failed read", async () => {
+  vi.mocked(getCompanyProfile).mockResolvedValue(profile("acme") as never);
+  expect(await readCompanyCareersHref(vacancyDetail.company.id)).toBe("/empresas/acme");
+  vi.mocked(getCompanyProfile).mockResolvedValue({ ok: false } as never);
+  expect(await readCompanyCareersHref(vacancyDetail.company.id)).toBeNull();
+  vi.mocked(getCompanyProfile).mockRejectedValue(new Error("boom"));
+  expect(await readCompanyCareersHref(vacancyDetail.company.id)).toBeNull();
+});
+it("gives up on a slow profile read after the short timeout instead of hanging the closed-vacancy page", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.mocked(getCompanyProfile).mockReturnValue(new Promise(() => undefined));
+    const href = readCompanyCareersHref(vacancyDetail.company.id);
+    await vi.advanceTimersByTimeAsync(CAREERS_HREF_TIMEOUT_MS - 1);
+    let settled = false;
+    void href.then(() => { settled = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await href).toBeNull();
+    expect(CAREERS_HREF_TIMEOUT_MS).toBe(1500);
+  } finally { vi.useRealTimers(); }
+});
+it("a read that answers inside the timeout still wins, and its timer is cleared", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.mocked(getCompanyProfile).mockResolvedValue(profile("acme") as never);
+    expect(await readCompanyCareersHref(vacancyDetail.company.id)).toBe("/empresas/acme");
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
 });
