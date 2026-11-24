@@ -127,3 +127,10 @@ merges to `main` allowed (no push).
 - **L12** Full suite at `57b30aea`: 639 files / 11693 passed, tsc 0, lint 0 errors. Merged to local main `de0f914b`
   (not pushed). Backend told to merge `feat/public-jobs-sort-total` and `feat/admin-audit-gaps-backend` (00065) and
   restart :8080; small a11y round in progress.
+- **L13** Backend merged sort/total (`cfaf90c7`) and admin fields (`44c15189`, DB v65). Browser on prod `57b30aea`:
+  «14 vacantes», sort by salary both ways (matches /v2/jobs; MXN·monthly·gross block first, so «MXN Mensual · Neto» cards
+  come after it — product question), filter keeps sort and drops the cursor; team «Carga» identical for owner and recruiter
+  and equal to the DB; stakeholder tabs exact (58/4/22/2/30) across pages; invitation note shown, 81 chars rejected inline,
+  test invitation `01a20d2c-…` created and revoked. «Ver más vacantes» not reachable with 14 public vacancies (cursor URL
+  checked directly). Axe: TabsList inactive count badges 4.32:1 and invalid Field text 4.19:1 (shared components) → fixed
+  at the shared level next. A11y round `a701d2ed` committed.
