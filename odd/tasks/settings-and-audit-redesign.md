@@ -21,6 +21,10 @@ truncated select values). Design first with options on the canvas, then implemen
   chips, cells wrap up to 3 lines, export always available through a date-range panel. Choosing it accepts the artboard's
   deviations from design/system.md listed in `design/audit-log-redesign/self-check.md` (multi-line table cells for this
   table, 360–460 px popovers, multi-line chips); design/system.md gets those as documented exceptions.
+- **S5** Chosen for Configuración (canvas handoff, L4): `02-resumen-compacto-y-secciones.html` — slim identity strip
+  (company initials, name, RFC, industry, location, role) instead of the two big cards; settings as rows with their
+  action; Base de talento in a sheet (bottom sheet on phones) with its own save and leave guard; location in a dialog;
+  «Próximamente» items in one card at the end; recruiter variant without talent visibility and location edit.
 
 ## Tasks
 
@@ -29,7 +33,7 @@ truncated select values). Design first with options on the canvas, then implemen
 | T1 | S1, S3 | Design directions for Configuración (`design/settings-redesign/`) | |
 | T2 | S2, S3 | Design directions for the audit log (`design/audit-log-redesign/`) | |
 | T3a | S2, S4 | Audit log from artboard `audit-log-redesign/01-barra-de-filtros-en-linea-con-chips.html` | |
-| T3b | S1 | Settings page from the chosen artboard (pending the user's pick) | |
+| T3b | S1, S5 | Settings page from artboard `settings-redesign/02-resumen-compacto-y-secciones.html` | |
 | T4 | S1, S2 | Browser check, full suite, merge to main | |
 
 ## Log
@@ -49,3 +53,5 @@ truncated select values). Design first with options on the canvas, then implemen
   mono para IP e identificadores, exportación siempre habilitada con panel de rango).
 - **L3** (2026-11-24) Canvas handoff: implement `audit-log-redesign/01-barra-de-filtros-en-linea-con-chips.html` (02 and 03
   are alternatives). Settings direction not picked yet.
+- **L4** (2026-11-24) Canvas handoff: implement `settings-redesign/02-resumen-compacto-y-secciones.html` (01 and 03 are
+  alternatives).
