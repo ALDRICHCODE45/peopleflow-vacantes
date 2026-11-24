@@ -64,3 +64,10 @@ merges to `main` allowed (no push).
   vacancies page; D11 optional invitation `note` (≤80, migration 00065, shown from the invitations list, not in audit
   metadata). Left for the user's decision: D2 recruiter invitations (security), D3 company edit + logo (backend proposes
   PNG/JPG/WebP only, no SVG), D15 audit CSV headers (changes a downloaded format).
+- **L4** Audit A done (`odd/discovery/overnight-audit-A.md`, 23 findings). F1 (team page dev-only) is a pending user
+  decision since `vacancy-team.md` L37 («Production ships nothing new until NEXT_PUBLIC_VACANCY_TEAM_PROTOTYPE handling is
+  removed (user decision pending)») → prepare on its own branch, do not merge; morning decision. Backend asked about the
+  team API completeness (F1), responsible at creation (F2), salary basis rule (F5), duplicate/history (F21/F22).
+  Backend F3 committed (`e30e9183`, contract `docs/contracts/public-jobs-sort-total-v1.md`): salary sorts by blocks
+  (MXN·mensual·bruto first, other units in a fixed order, legacy salaries, then hidden/no salary). Asked to hold its merge
+  until the frontend accepts the always-present `total` (deployment order).
