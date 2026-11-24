@@ -103,3 +103,10 @@ merges to `main` allowed (no push).
   twice (needs a viewer id from the backend), inline CV preview in the sheet (no reusable preview for participation CVs),
   board search by email (board payload has no email). Merges cleanly into main; integration (with the A tranche) gets the
   full suite and a browser check before merging.
+- **L9** Integration `e013f5ff` (public + sort/editor `ff17270c` + admin/pipeline `9da444a9`; conflicts in vacancy-frame
+  imports and vacancy-portfolio responsible line resolved by hand): full suite 638 files / 11673 passed, tsc 0, lint 0
+  errors. Native review of `9da444a9` (escalate item 3, shared ItemGroup roles) approved, lineage
+  `review-9c2864f028aca702`, 12 advisories; two are likely regressions and are fixed before merging (ItemGroup listitem on
+  nested/interactive Items; never-saved checklist defaults shown as saved), plus invalid_id copy, dead settings toggle
+  path, orphan help id. Remaining advisories go to the report (audit entity regex, intake FileField coupling, lifecycle
+  message equality, psychometrics label source, documents read unmocked in other sheet tests).
