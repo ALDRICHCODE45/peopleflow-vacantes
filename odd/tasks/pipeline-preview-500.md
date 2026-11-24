@@ -53,3 +53,7 @@ Branch `fix/pipeline-preview-500` (worktree `../peopleflow-vacantes-pipefix`).
   forbidden; the manifest needs 19, direct 10 and
   `backend/internal/features/jobs/infrastructure/http/pipelineHandler.go|ErrorContext|direct_literal_keys: 1`.
   gofmt/vet (+integration) clean; archguard only docker/minio; no SQL files changed (no sqlc gate).
+- **L3** 2026-11-24, parent: kept the cause logging (driver errors log only SQLSTATE; other causes are internal
+  invariant/scan errors without row values) and registered the new slog call in the census test
+  `task63_logging_security_a1h_test.go` (19 calls, 10 direct). `make test` on ./cmd/api and ./internal/features/jobs/...
+  green; removed the writer's stray .orig.bak and /tmp log. Merged into local main; :8080 restarted.
