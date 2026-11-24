@@ -100,14 +100,23 @@ it("explains the internal empty state, suggests criteria and preselects reminder
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(saveChecklistAction).toHaveBeenCalledWith(expect.objectContaining({ vacancyId: id, ifMatch: '"loaded"', body: expect.objectContaining({ reminder_stage_ids: [nextId] }) })));
 });
-it("loads clean: the preselected reminders of a never-saved checklist are not «Cambios sin guardar»", () => {
+it("a never-saved checklist does not look saved: the preselected reminders are pending, with honest first-setup copy", async () => {
   editor();
-  expect(screen.getByText("No hay cambios pendientes.")).toBeVisible();
-  expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
+  expect(screen.getByText("Revisa y guarda la configuración inicial")).toBeVisible();
+  expect(screen.queryByText("No hay cambios pendientes.")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
   fireEvent.click(screen.getByRole("checkbox", { name: "Nuevos" }));
   expect(screen.getByText("Cambios sin guardar")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+  expect(screen.queryByText("Revisa y guarda la configuración inicial")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Nuevos" }));
+  expect(screen.getByText("Revisa y guarda la configuración inicial")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  await waitFor(() => expect(saveChecklistAction).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ reminder_stage_ids: [nextId] }) })));
+});
+it("a saved checklist loads clean with the neutral status", () => {
+  editor({ ...empty, version: "1" });
+  expect(screen.getByText("No hay cambios pendientes.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
 });
 it("does not preselect stages for an already saved empty checklist", () => { editor({ ...empty, version: "1" }); expect(screen.getByRole("checkbox", { name: "Entrevista" })).not.toBeChecked(); });
 it.each([

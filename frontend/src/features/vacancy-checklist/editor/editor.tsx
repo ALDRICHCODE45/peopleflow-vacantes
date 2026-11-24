@@ -37,9 +37,9 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
   const { readOnly: lifecycleReadOnly } = useConfigLifecycle(lifecycle);
   const [finished, setFinished] = useState(false);
   const readOnly = lifecycleReadOnly || finished;
-  // A checklist never saved (version 0) opens with the reminders preselected; those defaults are the starting point, not an unsaved edit, so the form loads clean.
+  // A checklist never saved (version 0) opens with the reminders preselected, but the server stores nothing for it: the defaults stay unsaved changes (baseline = what the server has) so the form never looks saved.
   const [initialBody] = useState<ChecklistBody>(() => ({ criteria: checklist.criteria, reminder_stage_ids: checklist.version === "0" ? stages.filter(stage => stage.kind !== "new").map(stage => stage.id) : checklist.reminder_stage_ids }));
-  const [baseline, setBaseline] = useState<ChecklistBody>(() => checklist.version === "0" ? initialBody : bodyOf(checklist));
+  const [baseline, setBaseline] = useState<ChecklistBody>(() => bodyOf(checklist));
   const [body, setBody] = useState<ChecklistBody>(initialBody);
   const [etag, setEtag] = useState(initialEtag);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -61,6 +61,7 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const dirty = !equal(body, baseline);
+  const firstSetup = checklist.version === "0" && equal(baseline, bodyOf(checklist)) && equal(body, initialBody);
   function report(next: Notice, reference?: { status?: number; code?: string }) {
     setNotice(next);
     notifyActionResult({ key: "checklist-save", type: next.tone, title: next.title, description: next.description, ...(next.tone === "error" ? { reference: { ...reference, at: new Date().toISOString() } } : {}) });
@@ -172,7 +173,7 @@ export function ChecklistEditor({ draftId, checklist, etag: initialEtag, stages,
     </> : <><CardHeader className="border-b"><CardTitle><h4>Detalle del criterio</h4></CardTitle></CardHeader><CardContent><SectionEmpty icon={ListChecks} tone="info" title="Selecciona un criterio para verlo aquí" description="Agrega un criterio en la lista para empezar. Sus datos aparecerán en este panel." /></CardContent></>}
     </Card>
     </div>
-    <Card role="region" aria-label="Guardar checklist" size="sm" className="sticky bottom-3 z-10"><CardContent className="[&_[data-pf-action-bar]]:max-sm:flex-wrap [&_[data-pf-action-bar-actions]]:max-sm:w-full [&_[data-pf-action-bar]>div:last-child]:max-sm:basis-full"><ActionBar status={<div className="flex flex-col gap-2"><p className="text-sm font-medium">{summary}</p>{notice ? <ActionStatus id="checklist-save-status" tone={notice.tone} text={notice.title} action={recovery && <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => void recover()}>{recovery === "reload" ? "Cargar versión actual" : "Comprobar"}</Button>} /> : <span className="text-xs text-muted-foreground max-sm:sr-only">{dirty ? "Cambios sin guardar" : "No hay cambios pendientes."}</span>}</div>}> 
+    <Card role="region" aria-label="Guardar checklist" size="sm" className="sticky bottom-3 z-10"><CardContent className="[&_[data-pf-action-bar]]:max-sm:flex-wrap [&_[data-pf-action-bar-actions]]:max-sm:w-full [&_[data-pf-action-bar]>div:last-child]:max-sm:basis-full"><ActionBar status={<div className="flex flex-col gap-2"><p className="text-sm font-medium">{summary}</p>{notice ? <ActionStatus id="checklist-save-status" tone={notice.tone} text={notice.title} action={recovery && <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => void recover()}>{recovery === "reload" ? "Cargar versión actual" : "Comprobar"}</Button>} /> : <span className="text-xs text-muted-foreground max-sm:sr-only">{dirty ? (firstSetup ? "Revisa y guarda la configuración inicial" : "Cambios sin guardar") : "No hay cambios pendientes."}</span>}</div>}> 
         <Button type="button" variant="ghost" className="min-h-10" disabled={!dirty || disabled} onClick={() => edit(baseline)}>Descartar cambios</Button>
         <Button type="button" className="min-h-10" disabled={!dirty || disabled} aria-describedby={notice ? "checklist-save-status" : undefined} aria-busy={pending} onClick={() => void persist()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Guardando…" : "Guardar cambios"}</Button>
       </ActionBar></CardContent></Card>

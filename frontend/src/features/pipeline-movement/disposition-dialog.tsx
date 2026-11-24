@@ -92,7 +92,7 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
           <FieldError id="discard-comment-error">{internalError}</FieldError>
         </Field>
         {noAccount
-          ? <p id="discard-message-help" className="flex items-start gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground"><MessageSquare aria-hidden="true" className="mt-0.5 size-4 shrink-0" />No tiene cuenta en PeopleFlow: no verá mensajes ni cambios de estado.</p>
+          ? <p className="flex items-start gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground"><MessageSquare aria-hidden="true" className="mt-0.5 size-4 shrink-0" />No tiene cuenta en PeopleFlow: no verá mensajes ni cambios de estado.</p>
           : <Field data-invalid={!!candidateError} data-disabled={pending}>
           <div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="discard-message"><MessageSquare aria-hidden="true" className="size-3.5" />Mensaje para el candidato (opcional)</FieldLabel><FieldDescription id="discard-message-count" className="shrink-0 text-xs tabular-nums">{candidate.count} / 500</FieldDescription></div>
           <Textarea className="min-h-24 resize-none" placeholder="Escribe un mensaje para el candidato…" id="discard-message" ref={messageControl} disabled={pending} value={message} onChange={event => setMessage(event.target.value)} aria-invalid={!!candidateError} aria-describedby={`discard-message-help discard-message-count${candidateError ? " discard-message-error" : ""}`} />

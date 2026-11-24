@@ -40,3 +40,8 @@ it.each(["not_found", "forbidden"] as const)("%s tells a recruiter outside the v
   render(<DraftEditErrorState reason={reason} />);
   expect(screen.getByText(/pídele acceso al responsable o al dueño/)).toBeVisible();
 });
+it("invalid_id points to the listing and does not suggest missing access", () => {
+  const {container} = render(<DraftEditErrorState reason="invalid_id" />);
+  expect(screen.getByText(/El enlace de este borrador no es válido/)).toBeVisible();
+  expect(container).not.toHaveTextContent(/acceso/);
+});

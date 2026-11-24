@@ -845,6 +845,7 @@ it("discarding a manual candidate (no account) says so and offers no candidate m
   expect(within(dialog).queryByRole("textbox", { name: /Mensaje para el candidato/ })).not.toBeInTheDocument();
   expect(dialog).toHaveTextContent("No tiene cuenta en PeopleFlow: no verá mensajes ni cambios de estado.");
   expect(dialog).not.toHaveTextContent("no se comparten con el candidato");
+  expect(dialog.querySelector("#discard-message-help")).toBeNull();
   fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));

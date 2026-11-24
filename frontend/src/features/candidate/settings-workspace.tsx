@@ -49,10 +49,8 @@ const NOTIFICATIONS: readonly NotificationSpec[] = [
   { key: "weekly_summary", label: "Resumen semanal", description: "Un repaso de tu actividad de la semana.", icon: BellRing },
 ];
 
-/** Initial state: the three continuous alerts start on, the weekly digest starts off. */
+/** Display-only defaults: the three continuous alerts show on, the weekly digest off. Nothing is stored, so there is no state behind them. */
 const NOTIFICATION_DEFAULTS: Readonly<Record<NotificationKey, boolean>> = { matching_vacancies: true, application_updates: true, recruiter_messages: true, weekly_summary: false };
-/** Fresh mutable copy per mount so the frozen defaults are never shared. */
-const initialNotifications = (): Record<NotificationKey, boolean> => ({ ...NOTIFICATION_DEFAULTS });
 
 /** Theme vocabulary for the Select; every value crosses to the shared theme helper. */
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
@@ -120,10 +118,7 @@ function SettingRow({ icon: Icon, titleId, title, descriptionId, description, co
   );
 }
 
-function NotificationsSection({ notifications, onToggle }: {
-  readonly notifications: Readonly<Record<NotificationKey, boolean>>;
-  readonly onToggle: (key: NotificationKey, checked: boolean) => void;
-}) {
+function NotificationsSection() {
   return (
     <SettingsSection section={NOTIFICATIONS_SECTION}>
       <SettingsGroup>
@@ -134,8 +129,7 @@ function NotificationsSection({ notifications, onToggle }: {
             <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description} compact comingSoon>
               {/* Preferences are not stored anywhere yet: the switch shows the defaults, inert, with «Próximamente» (same pattern as 2FA). */}
               <Switch
-                checked={notifications[notification.key]}
-                onCheckedChange={(checked) => onToggle(notification.key, checked)}
+                checked={NOTIFICATION_DEFAULTS[notification.key]}
                 disabled
                 aria-labelledby={labelId}
                 aria-describedby={`${descriptionId} ${descriptionId}-soon`}
@@ -187,17 +181,12 @@ function SecuritySection() {
 
 /** Candidate settings surface: responsive rail plus grouped section cards. */
 export function SettingsWorkspace() {
-  const [notifications, setNotifications] = React.useState<Record<NotificationKey, boolean>>(initialNotifications);
   const [themeMode, setThemeMode] = React.useState<ThemeMode>("system");
 
   // The server carries no browser state, so the stored mode is read once after hydration.
   React.useEffect(() => {
     setThemeMode(readStoredThemeMode(window.localStorage));
   }, []);
-
-  const toggleNotification = (key: NotificationKey, checked: boolean): void => {
-    setNotifications((previous) => ({ ...previous, [key]: checked }));
-  };
 
   const changeThemeMode = (next: ThemeMode): void => {
     applyThemeMode(next);
@@ -227,7 +216,7 @@ export function SettingsWorkspace() {
         </ul>
       </nav>
       <div className="flex min-w-0 flex-col gap-5">
-        <NotificationsSection notifications={notifications} onToggle={toggleNotification} />
+        <NotificationsSection />
         <AppearanceSection mode={themeMode} onModeChange={changeThemeMode} />
         <SecuritySection />
       </div>
