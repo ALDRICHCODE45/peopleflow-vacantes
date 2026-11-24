@@ -37,8 +37,8 @@ function SectionRow({ block, index, incomplete, ...props }: Omit<ListProps, "onA
         36px slots retain 40px hit targets by extending into Item's own inset. */}
     <div className="flex w-full items-center gap-0.5">
     <ItemMedia className="relative h-10 w-9 shrink-0"><Button variant="ghost" size="icon" className="absolute top-0 -left-1 size-10 touch-none" ref={drag.setActivatorNodeRef} {...drag.listeners} {...drag.attributes} aria-label={`Arrastrar ${label}`}><GripVertical aria-hidden="true" /></Button></ItemMedia>
-    <ItemContent className="pointer-events-none relative min-w-0">
-      <div data-section-identity="" className="flex min-w-0 flex-row items-center gap-1"><Icon data-section-type-icon="" className="size-3.5 shrink-0" aria-hidden="true" /><div data-section-copy="" className="flex min-w-0 flex-col gap-0.5"><ItemTitle className="line-clamp-none whitespace-nowrap">{label}</ItemTitle><span className="text-xs text-muted-foreground">{VARIANT_LABELS[block.variant]}</span></div></div>
+    <ItemContent className="pointer-events-none relative min-w-0 overflow-hidden">
+      <div data-section-identity="" className="flex min-w-0 flex-row items-center gap-1"><Icon data-section-type-icon="" className="size-3.5 shrink-0" aria-hidden="true" /><div data-section-copy="" className="flex min-w-0 flex-col gap-0.5"><ItemTitle title={label} className="line-clamp-none block max-w-full truncate whitespace-nowrap">{label}</ItemTitle><span className="text-xs text-muted-foreground">{VARIANT_LABELS[block.variant]}</span></div></div>
     </ItemContent>
     <ItemActions className="relative"><div className="flex items-center gap-1">
       <span data-section-indicators="" className="flex shrink-0 items-center gap-1 text-muted-foreground">{required && <Lock className="size-3.5" aria-label="Sección obligatoria" />}{block.hidden && <><EyeOff className="size-3.5" aria-hidden="true" /><span className="sr-only">Oculta</span></>}{incomplete && <><Circle className="size-1.5 fill-current" aria-hidden="true" /><span className="sr-only">Incompleta</span></>}</span>

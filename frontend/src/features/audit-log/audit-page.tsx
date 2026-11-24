@@ -23,10 +23,11 @@ export function AuditPage() {
   }, [attempt]);
 
   if (state?.kind === "exists" && state.role === "owner") return <AuditWorkspace />;
+  // Centred in the page like «Métricas restringidas» and the stakeholder's «Sección no disponible».
+  if (state?.kind === "exists" || state?.kind === "none") return <DashboardPageContent className="flex-1 items-center justify-center"><AuditRestricted /></DashboardPageContent>;
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
     {!state && <div role="status" aria-label="Cargando auditoría" aria-busy="true" className="flex flex-col gap-2"><Skeleton aria-hidden="true" className="h-24 w-full" /><Skeleton aria-hidden="true" className="h-48 w-full" /></div>}
-    {(state?.kind === "exists" || state?.kind === "none") && <AuditRestricted />}
     {state?.kind === "unauthenticated" && <StateCard icon={TriangleAlert} tone="error" title="Tu sesión terminó" description="Tu sesión expiró. Inicia sesión de nuevo para consultar la auditoría." primaryAction={{ label: "Iniciar sesión", href: "/empresa/login" }} />}
-    {(state?.kind === "server_error" || state?.kind === "no_response" || state?.kind === "unrecognized_response") && <StateCard icon={TriangleAlert} tone="error" title="No pudimos verificar tu rol" description="Necesitamos confirmar que eres el owner antes de mostrar la auditoría. Puedes volver a intentarlo." primaryAction={{ label: "Reintentar", onClick: () => setAttempt(value => value + 1) }} />}
+    {(state?.kind === "server_error" || state?.kind === "no_response" || state?.kind === "unrecognized_response") && <StateCard icon={TriangleAlert} tone="error" title="No pudimos verificar tu rol" description="Necesitamos confirmar que eres el dueño antes de mostrar la auditoría. Puedes volver a intentarlo." primaryAction={{ label: "Reintentar", onClick: () => setAttempt(value => value + 1) }} />}
   </DashboardPageContent>;
 }

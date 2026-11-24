@@ -31,8 +31,19 @@ it("explains the role and offers one entry when there are no stakeholders nor in
   vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
   mount();
   expect(await screen.findByRole("heading", { name: "Aún no hay stakeholders" })).toBeInTheDocument();
-  expect(screen.getByText("Un stakeholder ve las métricas de la empresa en solo lectura, por ejemplo un director. Crea un enlace y envíaselo.")).toBeInTheDocument();
+  expect(screen.getByText("Un stakeholder ve las métricas y los documentos de las vacantes en solo lectura, por ejemplo un director. Crea un enlace y envíaselo.")).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Crear enlace de invitación" })).toHaveLength(1);
+});
+
+it("stacks the create action under the title on phones and describes what a stakeholder sees", async () => {
+  vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [pendingInvitation()] });
+  mount(1);
+  const button = await screen.findByRole("button", { name: "Crear enlace de invitación" });
+  expect(document.querySelector("[data-slot='card-header']")).toHaveClass("max-sm:grid-cols-1");
+  expect(button.closest("[data-slot='card-action']")).toHaveClass("max-sm:col-start-1", "max-sm:row-start-auto", "max-sm:justify-self-stretch");
+  expect(button).toHaveClass("max-sm:w-full");
+  expect(screen.getByText(/^Ven Métricas y los documentos de las vacantes \(solo lectura\)/)).toBeInTheDocument();
+  expect(screen.queryByText(/Solo ven Métricas/)).toBeNull();
 });
 
 it("lists pending invitations by creation date, creator resolved from members, expiry and count of 20", async () => {
@@ -70,7 +81,7 @@ it("shows the link once with an honest copy button, then refreshes the list", as
   const dialog = await screen.findByRole("dialog", { name: "Copia el enlace ahora" });
   expect(within(dialog).getByText("Por seguridad no lo volveremos a mostrar. Envíalo por WhatsApp o chat a la persona que quieres invitar. Sirve una sola vez y vence el 14 nov 2026 a las 10:42.")).toBeInTheDocument();
   expect(within(dialog).getByLabelText("Enlace de invitación")).toHaveValue(link);
-  expect(within(dialog).getByText("Quien use este enlace verá las métricas de toda la empresa y los nombres de candidatos en el detalle auditado.")).toBeInTheDocument();
+  expect(within(dialog).getByText("Quien use este enlace verá las métricas de toda la empresa, los documentos de las vacantes y los nombres de candidatos en el detalle auditado.")).toBeInTheDocument();
   await user.click(within(dialog).getByRole("button", { name: "Copiar enlace" }));
   expect(writeText).toHaveBeenCalledExactlyOnceWith(link);
   expect(await within(dialog).findByText("Enlace copiado. Pégalo en el mensaje para la persona invitada.")).toBeInTheDocument();

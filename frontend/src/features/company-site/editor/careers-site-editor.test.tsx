@@ -54,6 +54,27 @@ it.each([[false, false, "Sin publicar", "neutral"], [true, false, "Publicado", "
     expect(screen.getByText("Cambios sin publicar")).toHaveAttribute("data-variant", "review");
   }
 });
+it.each([
+  [false, false, "Solo tu equipo puede ver este borrador. Aún no está publicado."],
+  [true, false, "Así se ve tu sitio publicado."],
+  [true, true, "Solo tu equipo puede ver este borrador. Tu sitio publicado todavía no incluye estos cambios."],
+] as const)("describes the visitor preview by publication state (published=%s, changes=%s)", async (published, changes, copy) => {
+  const props = fixture();
+  props.initialSite.published = published ? { version: 7, slug: "nexo-labs", published_at: "2026-01-01T00:00:00Z" } : null;
+  props.initialSite.has_unpublished_changes = changes;
+  render(<CareersSiteEditor {...props} />);
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Ver como visitante" }));
+  const visitor = await screen.findByRole("dialog", { name: "Vista previa pública" });
+  expect(within(visitor).getByText(copy)).toBeInTheDocument();
+  if (published) expect(within(visitor).queryByText(/Aún no está publicado/)).toBeNull();
+});
+it("keeps a long section name from running under its indicators", async () => {
+  render(<CareersSiteEditor {...fixture()} />); await screen.findByRole("heading", { name: "Tu página" });
+  const row = screen.getByRole("button", { name: "Seleccionar Vacantes abiertas" }).closest('[role="listitem"]') as HTMLElement;
+  const name = within(row).getByText("Vacantes abiertas");
+  expect(name).toHaveClass("truncate", "max-w-full");
+  expect(name.closest("[data-slot='item-content']")).toHaveClass("overflow-hidden", "min-w-0");
+});
 it("shows only the selected section heading and description in the mobile properties Sheet", async () => {
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   render(<CareersSiteEditor {...fixture()} />);
@@ -148,7 +169,7 @@ it("edits the selected section through reducer, preview and autosave", async () 
   vi.useFakeTimers();
   fireEvent.change(input, { target: { value: "Crece con nuestro equipo" } });
   expect(frame().getByRole("heading", { level: 1 })).toHaveTextContent("Crece con nuestro equipo");
-  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios pendientes");
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios sin guardar");
   await act(() => vi.advanceTimersByTimeAsync(1500));
   expect(saveDraftAction).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ blocks: expect.arrayContaining([expect.objectContaining({ type: "hero", content: expect.objectContaining({ title: "Crece con nuestro equipo" }) })]) }) }));
 });
@@ -247,12 +268,12 @@ it.each([
   ["invalid", "Revisa los campos marcados"],
   ["error", "No se pudieron guardar los cambios"],
   ["conflict", "Otra persona editó el sitio"],
-  ["success", "Cambios guardados"],
+  ["success", "Borrador guardado"],
 ] as const)("announces real autosave %s state and preserves the draft on conflict", async (kind, label) => {
   let complete!: (result: SiteResult) => void;
   vi.mocked(saveDraftAction).mockImplementation(() => new Promise(resolve => { complete = resolve; }));
   const props = await mount();
-  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Sin cambios pendientes");
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Borrador guardado");
   fireEvent.click(within(list()).getByRole("button", { name: "Seleccionar Portada" }));
   vi.useFakeTimers();
   fireEvent.click(screen.getByRole("button", { name: "Diseño Centrada" }));
@@ -267,7 +288,7 @@ it.each([
     fireEvent.click(screen.getByRole("button", { name: "Cargar la versión más reciente" }));
     const dialog = screen.getByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Cargar versión" }));
-    expect(status).toHaveTextContent("Sin cambios pendientes");
+    expect(status).toHaveTextContent("Borrador guardado");
     expect(frame().getByRole("heading", { level: 1 }).closest("section")).toHaveAttribute("data-variant", "photo");
   }
 });

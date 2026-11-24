@@ -65,7 +65,7 @@ function PlacementsTable({ items }: { items: Extract<AuditedDetail, { report: "p
 function Outcome({ step, target, onRetry }: { step: Extract<Step, { kind: "done" }>; target: AuditedTarget; onRetry: () => void }) {
   const { result } = step;
   if (!result.ok) {
-    if (result.reason === "forbidden") return <SheetState icon={Lock} tone="error" title="Consulta restringida" description="Solo el owner y los stakeholders de la empresa pueden ver este detalle." />;
+    if (result.reason === "forbidden") return <SheetState icon={Lock} tone="error" title="Consulta restringida" description="Solo el dueño y los stakeholders de la empresa pueden ver este detalle." />;
     if (result.reason === "unauthenticated") return <SheetState icon={TriangleAlert} tone="error" title="Tu sesión terminó" description="Inicia sesión de nuevo para consultar este detalle." />;
     // A rejected request (the period) is not an unrecorded read: nothing was written, and no names either.
     if (result.reason === "invalid_filter" || result.reference.status === 400 || result.reference.status === 422) return <SheetState icon={TriangleAlert} tone="error" title="No pudimos abrir este detalle con el periodo elegido" description="Revisa el periodo e inténtalo de nuevo. No se mostró ningún dato." />;
@@ -107,7 +107,7 @@ export function AuditedDetailSheet({ target, period, onClose }: { target: Audite
         {step.kind === "notice" && <>
           <div role="note" className="flex items-start gap-3 rounded-xl bg-muted p-4 text-sm">
             <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div className="flex flex-col gap-1"><strong className="font-medium">Esta consulta queda registrada en la auditoría de la empresa.</strong><p className="text-muted-foreground">Se guarda tu nombre, la vacante y la hora. El owner de la empresa puede verlo en Auditoría.</p></div>
+            <div className="flex flex-col gap-1"><strong className="font-medium">Esta consulta queda registrada en la auditoría de la empresa.</strong><p className="text-muted-foreground">Se guarda tu nombre, la vacante y la hora. El dueño de la empresa puede verlo en Auditoría.</p></div>
           </div>
           <p className="text-sm text-muted-foreground">{copy.scope}</p>
         </>}

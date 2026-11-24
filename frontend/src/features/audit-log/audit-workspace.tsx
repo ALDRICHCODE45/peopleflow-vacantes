@@ -85,7 +85,7 @@ export function AuditWorkspace() {
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
         <p className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="size-3.5" aria-hidden="true" />
-          Solo el owner
+          Solo el dueño
         </p>
       </div>
       <CardHeader className="gap-4">

@@ -18,7 +18,7 @@ import { STATUS_FILTERS, statusFilterOf, statusLabelOf, type StakeholderVacancy,
 
 const MESSAGES: Record<StakeholderVacanciesFailureReason, string> = {
   unauthenticated: "Tu sesión expiró. Inicia sesión para ver las vacantes.",
-  forbidden: "No tienes permiso para ver estas vacantes. Usa la cuenta de stakeholder o de propietario de la empresa.",
+  forbidden: "No tienes permiso para ver estas vacantes. Usa la cuenta de stakeholder o de dueño de la empresa.",
   invalid_request: "No pudimos completar la consulta. Intenta cargar las vacantes de nuevo.",
   server_error: "Hubo un problema en el servidor. Es seguro reintentar; no se modificó ninguna vacante.",
   no_response: "No hubo respuesta del servidor. Revisa tu conexión y reintenta.",

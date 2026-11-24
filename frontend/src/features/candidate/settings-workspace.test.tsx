@@ -183,7 +183,7 @@ describe("settings workspace boundaries", () => {
 });
 
 describe("settings notification state", () => {
-  it("renders four enabled notification switches plus the enabled inert 2FA switch with the approved defaults", () => {
+  it("renders four enabled notification switches plus the disabled 2FA switch with the approved defaults", () => {
     const { container } = renderWorkspace();
     expect(screen.getAllByRole("switch")).toHaveLength(5);
     const rows = notificationSwitches(container);
@@ -194,7 +194,7 @@ describe("settings notification state", () => {
       expect(screen.getByRole("switch", { name: label })).toBe(rows[index]);
     }
     const twoFactor = container.querySelector("[data-pf-settings-2fa]") as HTMLElement;
-    expect(twoFactor).toBeEnabled();
+    expect(twoFactor).toBeDisabled();
     expect(twoFactor).toHaveAttribute("aria-checked", "false");
   });
 
@@ -257,12 +257,14 @@ describe("settings appearance and security", () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it("keeps 2FA and the password action enabled, labelled and inert", async () => {
+  it("disables 2FA and the password action with a visible «Próximamente» reason", async () => {
     const user = userEvent.setup();
     const { container } = renderWorkspace();
     const twoFactor = container.querySelector("[data-pf-settings-2fa]") as HTMLElement;
-    expect(twoFactor).toBeEnabled();
+    expect(twoFactor).toBeDisabled();
     expect(twoFactor.getAttribute("aria-labelledby")).toBe("pf-settings-2fa-label");
+    expect(document.getElementById("pf-settings-2fa-description-soon")).toHaveTextContent("Próximamente");
+    expect(twoFactor.getAttribute("aria-describedby")).toContain("pf-settings-2fa-description-soon");
     expect(screen.getByText("Autenticación en dos pasos")).toHaveAttribute("id", "pf-settings-2fa-label");
     // Activation never flips the controlled value: the switch stays inert.
     await user.click(twoFactor);
@@ -275,7 +277,9 @@ describe("settings appearance and security", () => {
     expect(container.querySelector("[data-pf-settings-2fa-status]")).toBeNull();
 
     const button = screen.getByRole("button", { name: "Cambiar contraseña" });
-    expect(button).toBeEnabled();
+    expect(button).toBeDisabled();
+    expect(document.getElementById("pf-settings-password-description-soon")).toHaveTextContent("Próximamente");
+    expect(button.getAttribute("aria-describedby")).toContain("pf-settings-password-description-soon");
     expect(button).toHaveAttribute("type", "button");
     expect(button.getAttribute("class")).toContain("min-h-10");
     expect(button.getAttribute("class")).toContain("border");

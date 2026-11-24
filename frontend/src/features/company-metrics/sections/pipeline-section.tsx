@@ -99,7 +99,7 @@ function StageRow({ stage, max, hot, href }: { stage: Stage; max: number; hot: b
       {stage.kind === "placement" ? <span className="text-xs text-muted-foreground">No aplica</span>
         : stage.stalled > 0
           ? <Figure href={stalledHref} label={see(stage.stalled, "candidato detenido", "candidatos detenidos", ` en ${label}`)}
-            className={cn(badge, "border-destructive/30 bg-destructive/10 text-destructive")}>{plural(stage.stalled, "detenido", "detenidos")}</Figure>
+            className={cn(badge, "border-status-danger/40 bg-status-danger/10 text-status-danger")}>{plural(stage.stalled, "detenido", "detenidos")}</Figure>
           : <span className={cn(badge, "bg-muted text-muted-foreground")}>Al día</span>}
     </span>
   </li>;

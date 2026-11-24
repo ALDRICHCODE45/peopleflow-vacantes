@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "cn";
 import { Ban, Eye, Link2, MailX, TriangleAlert } from "lucide-react";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
@@ -102,22 +103,23 @@ export function StakeholderInvitationsCard({ members, stakeholderCount }: Props)
   const items = list?.ok ? list.items : [];
   const atLimit = items.length >= MAX_PENDING_INVITATIONS;
   const empty = list?.ok === true && items.length === 0 && stakeholderCount === 0;
-  const createButton = (attributes: { describedBy?: string } = {}) => <Button type="button" className="min-h-10" disabled={pending !== null || atLimit}
+  const createButton = (attributes: { describedBy?: string; className?: string } = {}) => <Button type="button" className={cn("min-h-10", attributes.className)} disabled={pending !== null || atLimit}
     aria-describedby={[attributes.describedBy, status ? statusId : undefined].filter(Boolean).join(" ") || undefined} onClick={() => void create()}>
     {pending === "create" ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Link2 data-icon="inline-start" aria-hidden="true" />}
     {pending === "create" ? "Creando enlace…" : "Crear enlace de invitación"}
   </Button>;
 
   return <Card data-pf-stakeholder-invitations="">
-    <CardHeader className="border-b">
+    <CardHeader className="border-b max-sm:grid-cols-1">
       <div className="flex items-start gap-3">
         <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Eye className="size-5" /></span>
         <div className="flex min-w-0 flex-col gap-1">
           <CardTitle><h2>Stakeholders</h2></CardTitle>
-          <CardDescription>Solo ven Métricas, incluidos nombres de candidatos en el detalle auditado. No trabajan vacantes ni reciben créditos.</CardDescription>
+          <CardDescription>Ven Métricas y los documentos de las vacantes (solo lectura), incluidos nombres de candidatos en el detalle auditado. No trabajan vacantes ni reciben créditos.</CardDescription>
         </div>
       </div>
-      {list?.ok && !empty && <CardAction>{createButton({ describedBy: atLimit ? limitId : undefined })}</CardAction>}
+      {/* On phones the action stacks under the title at full width instead of squeezing the description. */}
+      {list?.ok && !empty && <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-auto max-sm:justify-self-stretch">{createButton({ describedBy: atLimit ? limitId : undefined, className: "max-sm:w-full" })}</CardAction>}
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
       {list === null ? <div aria-busy="true" className="flex flex-col gap-3"><span role="status" className="sr-only">Cargando invitaciones</span>
@@ -127,7 +129,7 @@ export function StakeholderInvitationsCard({ members, stakeholderCount }: Props)
           <Button type="button" variant="outline" className="min-h-10" onClick={() => { setList(null); void refresh(); }}>Reintentar</Button>
         </div>
           : empty ? <SectionEmpty icon={Eye} tone="info" title="Aún no hay stakeholders"
-            description="Un stakeholder ve las métricas de la empresa en solo lectura, por ejemplo un director. Crea un enlace y envíaselo." />
+            description="Un stakeholder ve las métricas y los documentos de las vacantes en solo lectura, por ejemplo un director. Crea un enlace y envíaselo." />
             : <>
               {atLimit && <p id={limitId} className="flex gap-2 text-sm"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-status-review" /><span>Tienes 20 invitaciones pendientes, el máximo. Revoca alguna que ya no uses para crear otra.</span></p>}
               {items.length === 0 ? <SectionEmpty icon={MailX} tone="empty" title="No hay invitaciones pendientes"
@@ -146,7 +148,7 @@ export function StakeholderInvitationsCard({ members, stakeholderCount }: Props)
                   </TableRow>)}</TableBody>
                 </Table>}
             </>}
-      {empty && <div className="flex justify-center">{createButton()}</div>}
+      {empty && <div className="flex justify-center">{createButton({ className: "max-sm:w-full" })}</div>}
       <ActionStatusSlot>{status && <ActionStatus id={statusId} tone={status.tone} text={status.text} />}</ActionStatusSlot>
     </CardContent>
     {list?.ok && !empty && <CardFooter className="border-t">

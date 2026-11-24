@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "cn";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -82,6 +83,8 @@ export function VacancyFrame({ vacancyId, active, title, fallbackTitle = "Vacant
       <SiteHeader title={null} parent={{ label: "Vacantes", href: audience === "stakeholder" ? STAKEHOLDER_VACANCIES : "/empresa/vacantes" }} />
       <div className="@container/main flex min-h-0 flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="min-h-0 flex-1 gap-0">
+          {/* The top-bar crumb reads as plain text on desktop: a stakeholder, who has no tabs to leave by, gets an explicit way back. */}
+          {audience === "stakeholder" && <Link href={STAKEHOLDER_VACANCIES} data-pf-vacancy-back="" className="mb-2 inline-flex min-h-10 w-fit shrink-0 items-center gap-1.5 rounded-sm text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"><ArrowLeft aria-hidden="true" className="size-4" />Volver a Vacantes</Link>}
           <div data-pf-vacancy-identity="" className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-1 pb-1 max-sm:pb-3">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
               {loading

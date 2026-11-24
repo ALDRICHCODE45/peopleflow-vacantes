@@ -54,7 +54,7 @@ export function InviteLinkDialog({ url, expiresAt, onClose }: Props) {
       </Field>
       <p className="flex gap-2.5 rounded-xl bg-status-review/10 p-3 text-sm text-foreground">
         <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-status-review" />
-        <span>Quien use este enlace verá las métricas de toda la empresa y los nombres de candidatos en el detalle auditado.</span>
+        <span>Quien use este enlace verá las métricas de toda la empresa, los documentos de las vacantes y los nombres de candidatos en el detalle auditado.</span>
       </p>
       <DialogFooter>
         <Button type="button" className="min-h-10" onClick={onClose}>Listo, ya lo copié</Button>

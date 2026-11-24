@@ -148,8 +148,8 @@ export function CompanySection() {
     <section aria-labelledby="company-heading" id="empresa-identidad">
       <Card>
         <CardHeader className="border-b border-border/60">
-          <CardTitle><h2 id="company-heading" className="flex items-center gap-3 text-xl font-semibold"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Building2 className="size-5" /></span>Tu empresa</h2></CardTitle>
-          <CardDescription>Registra tu empresa para preparar tus procesos de reclutamiento.</CardDescription>
+          <CardTitle><h2 id="company-heading" className="flex items-center gap-3 text-xl font-semibold"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Building2 className="size-5" /></span>{state.kind === "exists" ? "Datos de tu empresa" : "Tu empresa"}</h2></CardTitle>
+          <CardDescription>{state.kind === "exists" ? "Así está registrada tu empresa en PeopleFlow." : "Registra tu empresa para preparar tus procesos de reclutamiento."}</CardDescription>
           {state.kind === "exists" && <CardAction><Badge variant={STATUS[state.company.status].variant} dot>{STATUS[state.company.status].label}</Badge></CardAction>}
         </CardHeader>
         <CardContent>
@@ -163,7 +163,7 @@ export function CompanySection() {
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Fingerprint aria-hidden="true" className="size-3.5" />RFC</dt><dd>{state.company.rfc}</dd></div>
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Factory aria-hidden="true" className="size-3.5" />Industria</dt><dd>{state.industryLabel}</dd></div>
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><MapPin aria-hidden="true" className="size-3.5" />Ubicación</dt><dd className={state.company.location ? undefined : "text-muted-foreground"}>{state.company.location?.label ?? "Sin ubicación"}</dd></div>
-              <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><UsersRound aria-hidden="true" className="size-3.5" />Tu rol</dt><dd>{state.role === "owner" ? "Propietario" : "Reclutador"}</dd></div>
+              <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><UsersRound aria-hidden="true" className="size-3.5" />Tu rol</dt><dd>{state.role === "owner" ? "Dueño" : state.role === "stakeholder" ? "Stakeholder" : "Reclutador"}</dd></div>
             </dl>
             {state.role === "owner" && <CompanyLocationDialog company={state.company} onAdopt={company => setState(current => current.kind === "exists" ? { ...current, company: { ...current.company, ...company } } : current)} />}
           </div>}

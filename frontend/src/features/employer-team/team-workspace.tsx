@@ -53,11 +53,12 @@ export function TeamWorkspace({ members, drafts = [], workloadPending = false, w
     { key: "total", singular: "Miembro", plural: "Miembros", value: members.length },
     { key: "owners", singular: "Dueño", plural: "Dueños", value: members.filter(member => member.role === "owner").length },
     { key: "recruiters", singular: "Reclutador", plural: "Reclutadores", value: members.filter(member => member.role === "recruiter").length },
+    { key: "stakeholders", singular: "Stakeholder", plural: "Stakeholders", value: members.filter(member => member.role === "stakeholder").length },
   ];
   return (
     <div data-pf-team-workspace aria-busy={loading || undefined} className="flex flex-col gap-5">
       {loading && <span role="status" className="sr-only">Cargando equipo</span>}
-      <section data-pf-team-summary aria-label="Resumen del equipo" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <section data-pf-team-summary aria-label="Resumen del equipo" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {cards.map(card => (
           <Card key={card.key} data-pf-team-metric={card.key} size="sm">
             <CardHeader>
@@ -103,7 +104,7 @@ export function TeamWorkspace({ members, drafts = [], workloadPending = false, w
               <time dateTime={member.created_at} className={META}>Miembro desde {dateFormat.format(new Date(member.created_at))}</time>
               <div data-pf-team-workload aria-busy={workloadPending || undefined} className="min-w-0">
                 <span className={NARROW_LABEL}>Carga</span>
-                {member.role === "stakeholder" ? <p className={cn(META, "mt-0.5 lg:mt-0")}>Solo ve Métricas</p> : workloadPending ? <><span className="sr-only">Cargando carga de trabajo</span><Skeleton aria-hidden="true" className="h-4 w-full" /></> : <p className={cn(META, "mt-0.5 lg:mt-0")}>{workload ? workloadCopy(workload) : "Carga no disponible"}</p>}
+                {member.role === "stakeholder" ? <p className={cn(META, "mt-0.5 lg:mt-0")}>Ven Métricas y los documentos de las vacantes (solo lectura)</p> : workloadPending ? <><span className="sr-only">Cargando carga de trabajo</span><Skeleton aria-hidden="true" className="h-4 w-full" /></> : <p className={cn(META, "mt-0.5 lg:mt-0")}>{workload ? workloadCopy(workload) : "Carga no disponible"}</p>}
               </div>
               <div className="flex justify-end">{actions.length > 0 && onAction && <DropdownMenu>
                 <DropdownMenuTrigger disabled={disabled} aria-label={`Acciones de ${name}`} aria-describedby={actionStatusId} render={<Button type="button" variant="ghost" size="icon" className="size-10" />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>

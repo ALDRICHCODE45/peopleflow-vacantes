@@ -136,6 +136,13 @@ it("S11: the stakeholder audience offers Documentos only and points the back cru
   expect(within(tabsNav()).getByRole("link", { name: "Documentos" })).toHaveAttribute("href", `/empresa/vacantes/${id}/documentos`);
   expect(within(screen.getByTestId("site-header")).getByRole("link", { name: "Vacantes" })).toHaveAttribute("href", "/empresa/stakeholder/vacantes");
 });
+it("D20: the stakeholder gets a visible «Volver a Vacantes» link to their list, the employer does not", () => {
+  const { unmount } = frame({ audience: "stakeholder", active: "documentos" });
+  expect(screen.getByRole("link", { name: "Volver a Vacantes" })).toHaveAttribute("href", "/empresa/stakeholder/vacantes");
+  unmount();
+  frame({ active: "pipeline" });
+  expect(screen.queryByRole("link", { name: "Volver a Vacantes" })).toBeNull();
+});
 it("keeps the employer audience as it was: three tabs and the portfolio crumb", () => {
   frame({ audience: "employer" });
   expect(within(tabsNav()).getAllByRole("link")).toHaveLength(3);
