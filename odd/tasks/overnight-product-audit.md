@@ -97,3 +97,9 @@ merges to `main` allowed (no push).
   «No aplica» marks for them → product/backend decision; dialog says «Ningún candidato cambia de columna» but lists
   «Nombre → Columna» rows; toast overlaps the inline success; board header truncates long column names. Admin branch:
   backend admin fields accepted as optional (`6e2b23c5`).
+- **L8** Admin/pipeline branch `feat/audit-admin-fixes` at `9da444a9` (B fixes + non-public A fixes; related 173 files /
+  2707 tests, tsc clean). Not done: «No encontramos este borrador» heading (description now mentions missing access; the
+  heading is asserted in 6 other suites), «Abrir tablero» hiding (no access flag in the ficha data), A-F16 starter listed
+  twice (needs a viewer id from the backend), inline CV preview in the sheet (no reusable preview for participation CVs),
+  board search by email (board payload has no email). Merges cleanly into main; integration (with the A tranche) gets the
+  full suite and a browser check before merging.
