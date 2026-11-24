@@ -32,6 +32,14 @@ export function serverErrors(issues: FieldIssue[]): Errors {
  }
  return errors;
 }
+/** What is wrong, not just «revisa»: the fields whose format the person can mistype. */
+const specificMessages: Record<string, string> = {
+ email: "Escribe un correo válido, por ejemplo nombre@empresa.com.",
+ phone: "Escribe un teléfono válido, solo con dígitos.",
+ linkedin_url: "Escribe un enlace válido que empiece con https://.",
+ portfolio_url: "Escribe un enlace válido que empiece con https://.",
+ skills: "Cada habilidad debe tener entre 1 y 60 caracteres, hasta 30 en total.",
+};
 export function prepare(draft: Draft, stage: string, existing: IntakeBody["existing"], distinct: boolean, file: File | null, stages: readonly string[]): { errors: Errors; body: IntakeBody } {
  const errors: Errors = {};
  if (!stages.includes(stage)) errors.stage_id = "Elige una etapa activa.";
@@ -53,7 +61,7 @@ export function prepare(draft: Draft, stage: string, existing: IntakeBody["exist
   if (!parsed.success) for (const issue of parsed.error.issues) {
    const path = issue.path.map((part, index) => typeof part === "number" ? `[${part}]` : `${index ? "." : ""}${part}`).join("");
    const key = path.startsWith("skills") ? "skills" : path;
-   errors[key] ??= issue.code === "custom" ? issue.message : "Revisa este dato.";
+   errors[key] ??= issue.code === "custom" ? issue.message : specificMessages[key] ?? "Revisa este dato.";
   }
  }
  const fileError = file ? uploadValidation(file, cvLimits) : "Selecciona un CV.";

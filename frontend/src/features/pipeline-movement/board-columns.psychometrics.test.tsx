@@ -10,7 +10,7 @@ import { invitationSchema } from "@/features/psychometrics/model";
 vi.mock("@/features/psychometrics/actions", () => ({ loadInvitationsAction: vi.fn() }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 it.each([
-  ["created", "Enviada · vence 4 nov"], ["in_progress", "En curso · 17 de 63"], ["finished", "Finalizado"], ["expired", "Vencida"], ["revoked", "Revocada"],
+  ["created", "Pendiente · vence 4 nov"], ["in_progress", "En curso · 17 de 63"], ["finished", "Finalizado"], ["expired", "Vencida"], ["revoked", "Revocada"],
 ] as const)("renders %s from the board-scoped server status without cluttering other cards", async (status, label) => {
   const board = boardFixture();
   board.participations.push({ ...board.participations[0], id: "other", candidate: { ...board.participations[0].candidate, full_name: "Otra persona" } });

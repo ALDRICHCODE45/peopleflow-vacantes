@@ -15,7 +15,8 @@ import { checkDuplicatesAction } from "./actions";
 import { submitManualCandidate } from "./upload";
 import { contact, emptyDraft, prepare, serverErrors, type Draft, type Errors } from "./draft";
 import { failureMessage } from "./failure";
-import type { DuplicateMatch, IntakeFailure, IntakeResponse } from "./model";
+import { cvLimits, type DuplicateMatch, type IntakeFailure, type IntakeResponse } from "./model";
+import { uploadValidation } from "@/features/candidate-cvs/model";
 import { IntakeFields } from "./fields";
 
 type Props = { vacancyId: string; stages: Board["stages"]; onClose: () => void; onSuccess: (value: IntakeResponse) => void; onViewExisting: (id: string) => void; disabled?: boolean };
@@ -58,6 +59,12 @@ export function ManualIntakeSheet({ vacancyId, stages, onClose, onSuccess, onVie
   }
   setDraft(next); setDirty(true); setFailure(null);
  }
+ // The type and size are known on choose, so the mistake is flagged now (and counted) instead of on submit.
+ function chooseCv(value: File | null) {
+  setFile(value); setDirty(true);
+  const problem = value ? uploadValidation(value, cvLimits) : undefined;
+  setErrors(current => { const rest = { ...current }; delete rest.cv; return problem ? { ...rest, cv: problem } : rest; });
+ }
  function close() { if (busy.current) return; if (dirty) setDiscard(true); else onClose(); }
  function check() {
   const value = contact(draft);
@@ -74,6 +81,8 @@ export function ManualIntakeSheet({ vacancyId, stages, onClose, onSuccess, onVie
  }
  function firstInvalid() {
   const first = bodyRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+  // The native file input is hidden: the visible picker («Elegir archivo» / «Cambiar») takes the focus instead.
+  if (first?.matches('input[type="file"]')) return first.parentElement?.querySelector<HTMLElement>('[data-slot="file-field-zone"] button:not(:disabled)') ?? first;
   // Prefer an editable field for collection errors, not the header's remove action.
   // An empty collection falls back to its add button.
   return first?.matches("[data-intake-education], [data-intake-languages]") ? first.querySelector<HTMLElement>('[data-pf-profile-field]:not(:disabled)') ?? first.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)') ?? first : first;
@@ -125,7 +134,7 @@ export function ManualIntakeSheet({ vacancyId, stages, onClose, onSuccess, onVie
      {errors.existing && <FieldError tabIndex={-1} aria-invalid>{errors.existing}</FieldError>}
      {/* Remount on the new/existing switch: Chromium does not re-lay out a flex <fieldset> when the
          existing-record card is inserted before these fields, leaving stage and CV at zero height. */}
-     <IntakeFields key={existing ? "existing" : "new"} draft={draft} onChange={change} errors={errors} stages={stages} stage={stage} onStage={value => { setStage(value); setDirty(true); }} existing={!!existing} file={file} onFile={value => { setFile(value); setDirty(true); if (value) setErrors(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== "cv"))); }} onContactBlur={check} contactNotice={<>{checkNote && <p role="status" className="text-sm text-muted-foreground">{checkNote}</p>}{matches.length > 0 && !existing && !distinct && <section aria-label="Posibles coincidencias" className="flex flex-col gap-3 rounded-2xl border bg-muted/40 p-4"><h3 className="text-sm font-semibold">Posibles coincidencias</h3><p className="text-sm text-muted-foreground">Ya hay registros con estos datos en tu empresa. Tú decides cuál usar.</p><ItemGroup>{matches.map(match => <Item key={`${match.kind}-${match.id}`} variant="outline"><ItemContent><ItemTitle>{match.full_name}</ItemTitle><ItemDescription>{[match.email_masked, match.phone_masked, match.last_vacancy && `Última vacante: ${match.last_vacancy.title}`].filter(Boolean).join(" · ")}</ItemDescription>{match.in_this_process && <Badge variant="neutral">Ya está en este proceso</Badge>}</ItemContent><ItemActions><Button type="button" variant="outline" className="min-h-10" disabled={pending || match.in_this_process} onClick={() => { sequence.current++; setExisting(match); setDistinct(false); setDirty(true); setErrors({}); setFailure(null); }}>Usar el existente</Button></ItemActions></Item>)}</ItemGroup><Button type="button" variant="outline" className="min-h-10 w-fit" disabled={pending} onClick={() => { sequence.current++; setDistinct(true); setDirty(true); setFailure(null); }}>Es otra persona, crear</Button></section>}{distinct && <p role="status" className="text-sm">Crearás un registro de otra persona.</p>}</>} />
+     <IntakeFields key={existing ? "existing" : "new"} draft={draft} onChange={change} errors={errors} stages={stages} stage={stage} onStage={value => { setStage(value); setDirty(true); }} existing={!!existing} file={file} onFile={chooseCv} onContactBlur={check} contactNotice={<>{checkNote && <p role="status" className="text-sm text-muted-foreground">{checkNote}</p>}{matches.length > 0 && !existing && !distinct && <section aria-label="Posibles coincidencias" className="flex flex-col gap-3 rounded-2xl border bg-muted/40 p-4"><h3 className="text-sm font-semibold">Posibles coincidencias</h3><p className="text-sm text-muted-foreground">Ya hay registros con estos datos en tu empresa. Tú decides cuál usar.</p><ItemGroup>{matches.map(match => <Item key={`${match.kind}-${match.id}`} variant="outline"><ItemContent><ItemTitle>{match.full_name}</ItemTitle><ItemDescription>{[match.email_masked, match.phone_masked, match.last_vacancy && `Última vacante: ${match.last_vacancy.title}`].filter(Boolean).join(" · ")}</ItemDescription>{match.in_this_process && <Badge variant="neutral">Ya está en este proceso</Badge>}</ItemContent><ItemActions><Button type="button" variant="outline" className="min-h-10" disabled={pending || match.in_this_process} onClick={() => { sequence.current++; setExisting(match); setDistinct(false); setDirty(true); setErrors({}); setFailure(null); }}>Usar el existente</Button></ItemActions></Item>)}</ItemGroup><Button type="button" variant="outline" className="min-h-10 w-fit" disabled={pending} onClick={() => { sequence.current++; setDistinct(true); setDirty(true); setFailure(null); }}>Es otra persona, crear</Button></section>}{distinct && <p role="status" className="text-sm">Crearás un registro de otra persona.</p>}</>} />
     </FieldSet>
    </form>
   </div>

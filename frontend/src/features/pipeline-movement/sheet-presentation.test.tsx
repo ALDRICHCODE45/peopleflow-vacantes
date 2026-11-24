@@ -21,7 +21,9 @@ it("prioritizes moving forward over the destructive alternative", async () => {
   expect(decision?.querySelector('[data-slot="badge"]')).not.toBeNull();
   const discard = within(sheet).getByRole("button", { name: "Descartar" });
   expect(discard).not.toHaveClass("bg-primary");
-  expect(discard).toHaveClass("text-destructive");
+  // `--destructive` is ~4.1:1 on the card; the status tone (oklch .45 light) clears 4.5:1 (audit B-F14).
+  expect(discard).toHaveClass("text-status-danger");
+  expect(discard).not.toHaveClass("text-destructive");
   fireEvent.click(discard);
   expect(disposition).toHaveBeenCalledWith(board.participations[0].id, "discard");
   expect(move).not.toHaveBeenCalled();

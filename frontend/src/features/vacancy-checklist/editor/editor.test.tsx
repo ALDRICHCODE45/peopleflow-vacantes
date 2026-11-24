@@ -100,6 +100,15 @@ it("explains the internal empty state, suggests criteria and preselects reminder
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
   await waitFor(() => expect(saveChecklistAction).toHaveBeenCalledWith(expect.objectContaining({ vacancyId: id, ifMatch: '"loaded"', body: expect.objectContaining({ reminder_stage_ids: [nextId] }) })));
 });
+it("loads clean: the preselected reminders of a never-saved checklist are not «Cambios sin guardar»", () => {
+  editor();
+  expect(screen.getByText("No hay cambios pendientes.")).toBeVisible();
+  expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Nuevos" }));
+  expect(screen.getByText("Cambios sin guardar")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+});
 it("does not preselect stages for an already saved empty checklist", () => { editor({ ...empty, version: "1" }); expect(screen.getByRole("checkbox", { name: "Entrevista" })).not.toBeChecked(); });
 it.each([
   ["Años de experiencia", "min_years_experience"], ["Seniority", "seniority"], ["Estudios", "education"], ["Idioma", "language"], ["Habilidad", "skill"], ["Ubicación", "location"], ["Respuesta de filtro", "screening_answer"], ["Manual", "manual"],

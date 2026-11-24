@@ -73,7 +73,7 @@ function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onSt
         <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-[13px] font-bold text-foreground">{initials(title)}</span>
         <div className="min-w-0">
           <p className="break-words text-[14.5px] font-semibold text-foreground">{title}</p>
-          <p className={cn(META, "mt-0.5")}>{draft.team.mode === "shared" && !draft.team.responsible ? `Equipo · ${plural(draft.team.members_count, "persona", "personas")}` : <><span className="sr-only">Reclutador: </span>{draft.team.responsible?.name ?? "Usuario dado de baja"}</>}</p>
+          <p className={cn(META, "mt-0.5")}>{draft.team.mode === "shared" && !draft.team.responsible ? `Equipo · ${plural(draft.team.members_count, "persona", "personas")}` : <><span className="sr-only">Responsable: </span>{draft.team.responsible?.name ?? "Usuario dado de baja"}</>}</p>
           {draft.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
           {toggle && <div className="mt-2">{toggle}</div>}
         </div>

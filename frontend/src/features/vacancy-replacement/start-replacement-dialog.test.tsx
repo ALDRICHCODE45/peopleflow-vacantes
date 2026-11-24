@@ -238,7 +238,7 @@ describe("step 2 · Condiciones", () => {
   });
   it("lists the company members, with the person who starts as the default responsible", async () => {
     await toStep2(); next();
-    const responsible = await screen.findByLabelText("Reclutador responsable");
+    const responsible = await screen.findByLabelText("Responsable");
     expect(options(responsible)).toEqual(["Yo, quien inicia el reemplazo", "Ana López", "Sofía Ramírez"]);
     expect(responsible).toHaveValue("me");
   });
@@ -308,8 +308,8 @@ describe("step 3 · Candidatos", () => {
   });
   it("shows the previous stage as reference and offers the stage selector only once the candidate is checked", async () => {
     await toStep3();
-    expect(screen.getByText("En proceso · antes: Entrevista")).toBeVisible();
-    expect(screen.getByText("En proceso · antes: En revisión")).toBeVisible();
+    expect(screen.getByText("Activo · antes: Entrevista")).toBeVisible();
+    expect(screen.getByText("Activo · antes: En revisión")).toBeVisible();
     expect(screen.getByText("Descartado · antes: Oferta")).toBeVisible();
     expect(screen.queryByLabelText(/Empieza en Mauricio Peña Gil/)).not.toBeInTheDocument();
     check(/Mauricio Peña Gil/);
@@ -322,7 +322,7 @@ describe("step 3 · Candidatos", () => {
     expect(within(group).getAllByRole("checkbox")).toHaveLength(3);
     expect(within(group).queryByRole("checkbox", { name: "Seleccionar todo" })).not.toBeInTheDocument();
     expect(group.querySelector("input[type='checkbox']:not([aria-hidden])")).toBeNull();
-    expect(screen.getByRole("checkbox", { name: "Mauricio Peña Gil" })).toHaveAccessibleDescription("En proceso · antes: Entrevista");
+    expect(screen.getByRole("checkbox", { name: "Mauricio Peña Gil" })).toHaveAccessibleDescription("Activo · antes: Entrevista");
   });
   it("names the discard reason of a discarded row when the backend sends it, and keeps the plain row without it", async () => {
     const base = context();
@@ -335,7 +335,7 @@ describe("step 3 · Candidatos", () => {
     await toStep3(ids.creditRicardo, withReason);
     expect(screen.getByText("Descartado · Aceptó otra oferta · antes: Oferta")).toBeVisible();
     expect(screen.getByText("Descartado · antes: En revisión")).toBeVisible();
-    expect(screen.getByText("En proceso · antes: Entrevista")).toBeVisible();
+    expect(screen.getByText("Activo · antes: Entrevista")).toBeVisible();
   });
   it("offers the SOURCE stages and never Placement; the default is the previous stage", async () => {
     await toStep3();
@@ -362,7 +362,7 @@ describe("step 3 · Candidatos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Descartados 1" }));
     expect(screen.getByRole("checkbox", { name: /Karen Ortiz Lara/ })).toBeVisible();
     expect(screen.queryByRole("checkbox", { name: /Mauricio Peña Gil/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "En proceso 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Activos 2" }));
     expect(screen.queryByRole("checkbox", { name: /Karen Ortiz Lara/ })).not.toBeInTheDocument();
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
@@ -383,7 +383,7 @@ describe("submit", () => {
     const handlers = await toStep2();
     check(/Luis Pérez/); next();
     await screen.findByLabelText("Objetivo");
-    fireEvent.change(screen.getByLabelText("Reclutador responsable"), { target: { value: ids.ana } });
+    fireEvent.change(screen.getByLabelText("Responsable"), { target: { value: ids.ana } });
     fireEvent.change(screen.getByLabelText("Objetivo"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("switch", { name: /Publicar al iniciar/ }));
     await fillStep2();

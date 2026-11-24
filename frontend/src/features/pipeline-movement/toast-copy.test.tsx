@@ -141,3 +141,12 @@ it("a late departure announces the coverage and that the original result is unto
   const move = { ...item, stage_id: "exit", coverage: { covered: 1, required: 2, full_coverage_reached_at: null }, delivery: board.delivery } as Move;
   expect(boardSuccessCopy(board, item, { kind: "departure" }, move)).toEqual({ title: "Ana Pérez quedó como «No se sostuvo»", description: "Se liberó una plaza: 1 de 2 cubiertas. El resultado original del proceso no cambia." });
 });
+it("a discard toast never promises a message to a manual candidate (no account)", async () => {
+  const { boardSuccessCopy } = await import("./board-toast-copy");
+  const board = boardFixture();
+  const manual = { ...board.participations[0], source: "manual" as const, candidate: { ...board.participations[0].candidate, kind: "manual" as const } };
+  const move = { ...manual, stage_id: "exit", coverage: board.coverage, delivery: board.delivery } as Move;
+  const body = { reason, candidate_message: "Gracias" };
+  expect(boardSuccessCopy(board, manual, { kind: "discard", body }, move).description).toBe("Motivo: No cumple requisitos. Puedes recuperar su postulación desde Descartados.");
+  expect(boardSuccessCopy(board, board.participations[0], { kind: "discard", body }, move).description).toBe("Motivo: No cumple requisitos. Verá el estado Finalizada con tu mensaje.");
+});

@@ -209,3 +209,30 @@ it("offers one quiet read retry after load failure", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Reintentar checklist" }));
   expect(await screen.findByLabelText(/Ajuste al checklist/)).toBeVisible();
 });
+it("saves an edited note on its own, keeping the verdict, and only once there is a change to save", async () => {
+  vi.mocked(loadChecklistMarksAction).mockResolvedValue({ ok: true, data: { items: [mark] } });
+  mount("other");
+  fireEvent.click(await screen.findByRole("button", { name: "Editar nota: Entrevista" }));
+  const save = screen.getByRole("button", { name: "Guardar nota" });
+  expect(save).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Nota de Entrevista"), { target: { value: "  Habló con claridad " } });
+  expect(save).toBeEnabled();
+  fireEvent.click(save);
+  await waitFor(() => expect(setChecklistMarkAction).toHaveBeenCalledWith(expect.objectContaining({ body: { verdict: "met", note: "Habló con claridad" } })));
+});
+it("a criterion without a mark has no «Guardar nota»: the note is saved with the first verdict", async () => {
+  mount("other");
+  fireEvent.click(await screen.findByRole("button", { name: "Agregar nota: Entrevista" }));
+  expect(screen.queryByRole("button", { name: "Guardar nota" })).not.toBeInTheDocument();
+  expect(screen.getByText(/Se guarda al marcar un resultado/)).toBeVisible();
+});
+it("the pressed ✓ and ✗ are filled in different tones, not just outlined", async () => {
+  vi.mocked(loadChecklistMarksAction).mockResolvedValue({ ok: true, data: { items: [mark] } });
+  mount("other");
+  const met = await screen.findByRole("button", { name: "Marcar cumple: Entrevista" });
+  const notMet = screen.getByRole("button", { name: "Marcar no cumple: Entrevista" });
+  expect(met).toHaveAttribute("aria-pressed", "true");
+  expect(met.className).toContain("aria-pressed:bg-status-success/15");
+  expect(notMet.className).toContain("aria-pressed:bg-status-review/15");
+  expect(notMet.className).not.toContain("status-success");
+});

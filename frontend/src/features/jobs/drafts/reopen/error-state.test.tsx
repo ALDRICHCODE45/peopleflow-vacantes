@@ -36,3 +36,7 @@ it.each([
   expect(primary).toHaveClass("min-h-10", "bg-primary");
   expect(container).not.toHaveTextContent(/token|cookie|internal_error|invalid_id/);
 });
+it.each(["not_found", "forbidden"] as const)("%s tells a recruiter outside the vacancy how to get access", reason => {
+  render(<DraftEditErrorState reason={reason} />);
+  expect(screen.getByText(/pídele acceso al responsable o al dueño/)).toBeVisible();
+});

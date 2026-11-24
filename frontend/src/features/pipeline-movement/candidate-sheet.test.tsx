@@ -7,6 +7,7 @@ import { loadHistoryAction, loadParticipationAction } from "./actions";
 import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
 import type { History, Result } from "./model";
 vi.mock("./actions", () => ({ loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn() }));
+vi.mock("@/features/vacancy-documents/actions", () => ({ loadDocumentOverviewAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "en", name: "Inglés" }, { code: "es", name: "Español" }] } }) }));
 beforeEach(() => {
@@ -131,4 +132,9 @@ it("keeps a free-text organic phone as written but dials only its digits", async
   render(<SheetHarness />);
   const contact = await screen.findByRole("region", { name: "Contacto" });
   expect(within(contact).getByRole("link", { name: "33 1234 5678" })).toHaveAttribute("href", "tel:3312345678");
+});
+it("the summary links to this candidate's documents in the vacancy Documentos tab", async () => {
+  render(<SheetHarness />);
+  const link = await screen.findByRole("link", { name: "Documentos" });
+  expect(link).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/documentos?candidato=person`);
 });

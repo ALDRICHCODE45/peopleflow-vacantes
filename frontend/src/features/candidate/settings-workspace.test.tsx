@@ -183,43 +183,35 @@ describe("settings workspace boundaries", () => {
 });
 
 describe("settings notification state", () => {
-  it("renders four enabled notification switches plus the disabled 2FA switch with the approved defaults", () => {
+  it("renders four disabled notification switches (not persisted yet, «Próximamente») plus the disabled 2FA switch with the approved defaults", () => {
     const { container } = renderWorkspace();
     expect(screen.getAllByRole("switch")).toHaveLength(5);
     const rows = notificationSwitches(container);
     expect(rows.map((node) => node.getAttribute("data-pf-settings-notification"))).toEqual([...KEYS]);
     expect(checkedStates(rows)).toEqual(["true", "true", "true", "false"]);
     for (const [index, label] of LABELS.entries()) {
-      expect(rows[index]).toBeEnabled();
+      expect(rows[index]).toBeDisabled();
       expect(screen.getByRole("switch", { name: label })).toBe(rows[index]);
+      const soon = document.getElementById(`${rows[index].getAttribute("aria-describedby")!.split(" ")[1]}`);
+      expect(soon).toHaveTextContent("Próximamente");
     }
     const twoFactor = container.querySelector("[data-pf-settings-2fa]") as HTMLElement;
     expect(twoFactor).toBeDisabled();
     expect(twoFactor).toHaveAttribute("aria-checked", "false");
   });
 
-  it("toggles notifications in component memory without touching the theme path or storage", () => {
-    const setItem = vi.spyOn(Storage.prototype, "setItem");
-    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
-    const { container } = renderWorkspace();
-
-    fireEvent.click(notificationSwitch(container, "weekly_summary"));
-    fireEvent.click(notificationSwitch(container, "recruiter_messages"));
-    fireEvent.click(notificationSwitch(container, "weekly_summary"));
-
-    expect(checkedStates([notificationSwitch(container, "weekly_summary"), notificationSwitch(container, "recruiter_messages"), notificationSwitch(container, "matching_vacancies")])).toEqual(["false", "false", "true"]);
-    expect(vi.mocked(applyThemeMode)).not.toHaveBeenCalled();
-    expect([setItem.mock.calls.length, removeItem.mock.calls.length, window.localStorage.length, document.documentElement.getAttribute("data-theme")]).toEqual([0, 0, 0, null]);
-  });
-
-  it("toggles a notification from the keyboard", async () => {
+  it("keeps the notification switches inert: a click or the keyboard changes nothing and nothing is stored", async () => {
     const user = userEvent.setup();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
     const { container } = renderWorkspace();
+    const before = checkedStates(notificationSwitches(container));
+    fireEvent.click(notificationSwitch(container, "weekly_summary"));
+    await user.click(notificationSwitch(container, "recruiter_messages"));
     notificationSwitch(container, "weekly_summary").focus();
     await user.keyboard(" ");
-    expect(notificationSwitch(container, "weekly_summary")).toHaveAttribute("aria-checked", "true");
-    await user.keyboard("{Enter}");
-    expect(notificationSwitch(container, "weekly_summary")).toHaveAttribute("aria-checked", "false");
+    expect(checkedStates(notificationSwitches(container))).toEqual(before);
+    expect(vi.mocked(applyThemeMode)).not.toHaveBeenCalled();
+    expect([setItem.mock.calls.length, window.localStorage.length]).toEqual([0, 0]);
   });
 });
 

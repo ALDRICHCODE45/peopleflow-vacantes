@@ -133,7 +133,7 @@ it("S3: only a hire in Placement gets the late action; every other card stays re
 it("S3: the confirmation states the coverage before/after and that the original result does not change", async () => {
   await mount(hireBoard());
   fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
-  const dialog = await screen.findByRole("dialog", { name: "¿Marcar a Ana como «No se sostuvo»?" });
+  const dialog = await screen.findByRole("dialog", { name: "¿Marcar a Ana Pérez como «No se sostuvo»?" });
   expect(dialog).toHaveTextContent("El candidato se fue");
   expect(dialog).toHaveTextContent("2 de 2 → 1 de 2");
   expect(dialog).toHaveTextContent("Resultado original");
@@ -146,7 +146,7 @@ it("S3: the confirmation states the coverage before/after and that the original 
 it("S3: on desktop the confirmation keeps both actions on one row and checks the single option", async () => {
   await mount(hireBoard());
   fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
-  const dialog = await screen.findByRole("dialog", { name: "¿Marcar a Ana como «No se sostuvo»?" });
+  const dialog = await screen.findByRole("dialog", { name: "¿Marcar a Ana Pérez como «No se sostuvo»?" });
   const actions = within(dialog).getByRole("button", { name: "Cancelar" }).parentElement as HTMLElement;
   expect(actions).toContainElement(within(dialog).getByRole("button", { name: "Marcar «No se sostuvo»" }));
   expect(actions).not.toHaveClass("flex-wrap");
@@ -160,7 +160,7 @@ it("S3: at phone width the confirmation is a bottom sheet with the same facts, a
   vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: departureResponse(startable()) });
   await mount(hireBoard());
   fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
-  const sheet = await screen.findByRole("dialog", { name: "¿Marcar a Ana como «No se sostuvo»?" });
+  const sheet = await screen.findByRole("dialog", { name: "¿Marcar a Ana Pérez como «No se sostuvo»?" });
   expect(sheet).toHaveAttribute("data-slot", "drawer-popup");
   expect(sheet).toHaveTextContent("2 de 2 → 1 de 2");
   expect(sheet).toHaveTextContent("Sin cambios");
@@ -177,11 +177,11 @@ it("S3: late departure on a finished board sends the discard body and refreshes 
   vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, etag: "lifecycle-tag", data: startable() });
   await mount(hireBoard(), start);
   fireEvent.click(within(openMenu()).getByRole("menuitem", { name: "No se sostuvo…" }));
-  const dialog = await screen.findByRole("dialog", { name: "¿Marcar a Ana como «No se sostuvo»?" });
+  const dialog = await screen.findByRole("dialog", { name: "¿Marcar a Ana Pérez como «No se sostuvo»?" });
   fireEvent.click(within(dialog).getByRole("button", { name: "Marcar «No se sostuvo»" }));
   await waitFor(() => expect(discardParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: { reason: { group: "candidate", key: "no_longer_interested" }, placement_exit_reason: "candidate_left" } }));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez quedó como «No se sostuvo»" })));
-  expect(screen.queryByRole("dialog", { name: "¿Marcar a Ana como «No se sostuvo»?" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog", { name: "¿Marcar a Ana Pérez como «No se sostuvo»?" })).not.toBeInTheDocument();
   // Coverage follows the confirmed write; everything else on the board stays read-only.
   expect(screen.getByText("1 de 2 plazas cubiertas")).toBeVisible();
   // The card now carries the badge and the departure date, and the menu offers the start with its credit.

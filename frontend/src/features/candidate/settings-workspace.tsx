@@ -131,12 +131,14 @@ function NotificationsSection({ notifications, onToggle }: {
           const labelId = `pf-settings-${notification.key}-label`;
           const descriptionId = `pf-settings-${notification.key}-description`;
           return (
-            <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description} compact>
+            <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description} compact comingSoon>
+              {/* Preferences are not stored anywhere yet: the switch shows the defaults, inert, with «Próximamente» (same pattern as 2FA). */}
               <Switch
                 checked={notifications[notification.key]}
                 onCheckedChange={(checked) => onToggle(notification.key, checked)}
+                disabled
                 aria-labelledby={labelId}
-                aria-describedby={descriptionId}
+                aria-describedby={`${descriptionId} ${descriptionId}-soon`}
                 data-pf-settings-notification={notification.key}
               />
             </SettingRow>
