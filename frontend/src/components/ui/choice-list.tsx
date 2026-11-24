@@ -53,9 +53,9 @@ const ROW = cn(
   "group/row relative flex min-h-14 w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left outline-none select-none",
   "not-first:border-t not-first:border-border/60 hover:bg-muted/70 motion-reduce:transition-none",
   "data-checked:bg-primary/7 data-indeterminate:bg-primary/7",
-  // The 3 px selection bar; the keyboard focus is a separate 2 px outline inside the row, so focus never looks like selection.
+  // The 3 px selection bar; the keyboard focus is a separate 2 px outline inside the row (`outline-solid` is explicit: `outline-none` sets the style to none in Tailwind v4), so focus never looks like selection.
   "before:pointer-events-none before:absolute before:inset-y-3.5 before:left-0 before:w-[3px] before:rounded-full before:bg-selection before:opacity-0 data-checked:before:opacity-100 data-indeterminate:before:opacity-100",
-  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-text",
+  "focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-primary-text",
   "data-disabled:cursor-not-allowed data-disabled:bg-muted data-disabled:hover:bg-muted",
 );
 const MARK = "ml-auto grid size-6 shrink-0 place-items-center bg-card text-selection-foreground shadow-[inset_0_0_0_1.5px_var(--control-edge)] group-data-checked/row:bg-selection group-data-checked/row:shadow-none group-data-indeterminate/row:bg-selection group-data-indeterminate/row:shadow-none group-data-disabled/row:bg-transparent group-data-disabled/row:shadow-[inset_0_0_0_1.5px_var(--border)] [&>svg]:size-3.5 [&>svg]:opacity-0 [&>svg]:stroke-[3] group-data-checked/row:[&>svg]:opacity-100 group-data-indeterminate/row:[&>svg]:opacity-100 group-data-disabled/row:[&>svg]:opacity-0";

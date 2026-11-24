@@ -114,10 +114,9 @@ export function LinkSheet({ draftId, overview, chosenParticipationId, onClose, o
             onValueChange={next => { setFailure(null); setChosen(current => [...current.filter(id => !group.documents.some(entry => entry.id === id)), ...next]); }}
             options={group.documents.map((document): ChoiceOption => {
               const done = isLinked(document);
-              return { value: document.id, title: document.name, leading: <FormatBadge format={document.format} />, disabled: done,
+              return { value: document.id, title: document.name, leading: <FormatBadge format={document.format} />, disabled: done, disabledReason: done ? <Badge variant="neutral" className="shrink-0"><Check aria-hidden="true" />Ya vinculado</Badge> : undefined,
                 description: `${FORMAT_LABEL[document.format]} · ${sizeLabel(document.size)} · versión actual v${document.version}`,
-                meta: done ? <Badge variant="neutral" className="shrink-0"><Check aria-hidden="true" />Ya vinculado</Badge>
-                  : chosen.includes(document.id) ? <span className="text-primary-text">{`Se fijará la versión ${document.version}`}</span> : undefined };
+                meta: !done && chosen.includes(document.id) ? <span className="text-primary-text">{`Se fijará la versión ${document.version}`}</span> : undefined };
             })} />
         </section>)}
         {failure && <p role="alert" className="text-sm text-status-danger">{failure}</p>}

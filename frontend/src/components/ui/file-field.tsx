@@ -38,9 +38,13 @@ const defaultMeta = (file: File) => [extensionOf(file), bytesLabel(file.size)].f
 export function FileField({ value, onChange, label = "Archivo", hint, accept, error, disabled, badge = defaultBadge, meta = defaultMeta, className }: FileFieldProps) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
+  const choose = useRef<HTMLButtonElement>(null);
+  const refocus = useRef(false);
   const [dragging, setDragging] = useState(false);
   // Clearing must also clear the native value: choosing the same file again fires no change event otherwise.
   useEffect(() => { if (value === null && input.current) input.current.value = ""; }, [value]);
+  // «Quitar» unmounts the card that held focus (it would fall to the dialog): move it to «Elegir archivo» once that renders.
+  useEffect(() => { if (value === null && refocus.current) { refocus.current = false; choose.current?.focus(); } }, [value]);
 
   const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
   const pick = () => input.current?.click();
@@ -68,7 +72,7 @@ export function FileField({ value, onChange, label = "Archivo", hint, accept, er
         <span className="text-xs text-muted-foreground">{meta(value)}</span>
         <div className="-mb-2 -ml-2.5 mt-1 flex flex-wrap gap-1 max-sm:[&>button]:min-h-11 max-sm:[&>button]:flex-1">
           <Button type="button" variant="ghost" className="min-h-10" disabled={disabled} onClick={pick}><RefreshCw aria-hidden="true" />Cambiar</Button>
-          <Button type="button" variant="ghost" className="min-h-10 text-status-danger hover:bg-status-danger/10 hover:text-status-danger" disabled={disabled} onClick={() => onChange(null)}><X aria-hidden="true" />Quitar</Button>
+          <Button type="button" variant="ghost" className="min-h-10 text-status-danger hover:bg-status-danger/10 hover:text-status-danger" disabled={disabled} onClick={() => { refocus.current = true; onChange(null); }}><X aria-hidden="true" />Quitar</Button>
         </div>
       </div>
     </div> : <div data-slot="file-field-zone" data-drag={dragging || undefined}
@@ -80,7 +84,7 @@ export function FileField({ value, onChange, label = "Archivo", hint, accept, er
         <span className="text-sm font-medium">{dragging ? "Suelta el archivo para elegirlo" : <><span className="sm:hidden">Elige un archivo</span><span className="hidden sm:inline">Arrastra un archivo o elígelo</span></>}</span>
         {hint && <span id={`${id}-hint`} className="text-xs text-muted-foreground">{hint}</span>}
       </span>
-      <Button type="button" variant="outline" className="min-h-10 shrink-0 max-sm:min-h-11 max-sm:basis-full" disabled={disabled} aria-describedby={describedBy} onClick={pick}><Upload aria-hidden="true" />Elegir archivo</Button>
+      <Button ref={choose} type="button" variant="outline" className="min-h-10 shrink-0 max-sm:min-h-11 max-sm:basis-full" disabled={disabled} aria-describedby={describedBy} onClick={pick}><Upload aria-hidden="true" />Elegir archivo</Button>
     </div>}
     {value && hint && <span id={`${id}-hint`} className="text-xs text-muted-foreground">{hint}</span>}
     {error && <p id={`${id}-error`} role="alert" className="flex items-start gap-1.5 text-sm text-status-danger"><AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{error}</p>}

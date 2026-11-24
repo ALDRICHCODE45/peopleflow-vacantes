@@ -116,6 +116,7 @@ describe("T3e layout defects of the sheet", () => {
     expect(name).toHaveClass("[overflow-wrap:anywhere]");
     const linked = within(sheet).getByRole("checkbox", { name: "Organigrama" });
     expect(within(linked).getByText("Ya vinculado")).toBeVisible();
+    expect(linked).toHaveAccessibleDescription(expect.stringContaining("Ya vinculado"));
     expect(linked).toHaveClass("data-disabled:cursor-not-allowed");
     await user.click(name);
     expect(within(sheet).getByRole("checkbox", { name: "Organigrama" })).toHaveAttribute("aria-checked", "false");

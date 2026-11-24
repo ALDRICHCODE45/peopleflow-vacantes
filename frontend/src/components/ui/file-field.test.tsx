@@ -56,6 +56,20 @@ describe("selected", () => {
     await user.upload(screen.getByLabelText("Archivo"), file);
     expect(onChange).toHaveBeenLastCalledWith(file);
   });
+  it("«Quitar» moves focus to «Elegir archivo», which replaces the card that held it", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.upload(screen.getByLabelText("Archivo"), pdf());
+    await user.click(screen.getByRole("button", { name: "Quitar" }));
+    expect(screen.getByRole("button", { name: "Elegir archivo" })).toHaveFocus();
+  });
+  it("does not steal focus on mount or when a file is chosen", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    expect(document.body).toHaveFocus();
+    await user.upload(screen.getByLabelText("Archivo"), pdf());
+    expect(screen.getByRole("button", { name: "Quitar" })).not.toHaveFocus();
+  });
   it("«Cambiar» re-opens the file input", async () => {
     const user = userEvent.setup();
     render(<Harness />);

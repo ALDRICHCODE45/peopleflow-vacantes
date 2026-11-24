@@ -166,7 +166,9 @@ describe("step 1 · Bajas", () => {
     expect(within(ricardo).getByText("No se sostuvo")).toBeVisible();
     const daniela = screen.getByRole("checkbox", { name: "Daniela Ibarra Soto" });
     expect(daniela).toHaveAccessibleDescription(expect.stringContaining("Sigue en Placement. Solo se reemplaza a quien no se sostuvo."));
-    expect(within(daniela).getByText("Sigue en Placement")).toBeVisible();
+    // «Sigue en Placement» is said once (the reason), not again as a badge.
+    expect(within(daniela).getAllByText(/Sigue en Placement/)).toHaveLength(1);
+    expect(within(daniela).getByText("Sigue en Placement. Solo se reemplaza a quien no se sostuvo.")).toBeVisible();
     fireEvent.click(daniela);
     expect(daniela).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Siguiente" })).toBeEnabled();

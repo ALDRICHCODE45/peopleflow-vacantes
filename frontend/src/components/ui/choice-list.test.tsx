@@ -78,6 +78,9 @@ describe("single (radio semantics)", () => {
     const row = screen.getByRole("radio", { name: "La vacante" });
     expect(row.className).toMatch(/min-h-1[0-9]|min-h-\[?(4|5|6)/);
     expect(row.className).toContain("focus-visible:outline-primary-text");
+    // Tailwind v4: `outline-none` sets --tw-outline-style:none, so `outline-2` alone draws nothing; the style must be explicit.
+    expect(row.className).toContain("focus-visible:outline-solid");
+    expect(row.className).toContain("focus-visible:outline-2");
     expect(row.className).toContain("before:bg-selection");
   });
 });

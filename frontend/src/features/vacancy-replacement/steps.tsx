@@ -52,7 +52,7 @@ export function BajasStep({ headingRef, credits, unavailable, selected, errors, 
   });
   const unavailableOptions: ChoiceOption[] = unavailable.map(hire => ({
     value: `unavailable-${hire.id}`, title: hire.name, leading: <Person name={hire.name} />, disabled: true,
-    disabledReason: <>{REASON_COPY[hire.reason]}{hire.reason === "still_placed" && <> <Badge variant="success" dot>Sigue en Placement</Badge></>}</>,
+    disabledReason: REASON_COPY[hire.reason],
   }));
   return <FieldSet className="gap-3">
     <StepHeading ref={headingRef}>¿A quién reemplaza?</StepHeading>
