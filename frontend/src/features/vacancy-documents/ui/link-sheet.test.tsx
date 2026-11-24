@@ -101,8 +101,7 @@ describe("T3e layout defects of the sheet", () => {
     expect(checkbox).toHaveAttribute("aria-checked", "true");
     await user.click(within(sheet).getByText("Word · 89 KB · versión actual v3"));
     expect(checkbox).toHaveAttribute("aria-checked", "false");
-    const row = within(sheet).getByText("Convenio original").closest("[data-pf-link-row]")!;
-    expect(row).toHaveClass("min-h-10", "cursor-pointer");
+    expect(checkbox).toHaveClass("min-h-14", "cursor-pointer"); // the whole row is the checkbox: 56 px target
     // The checkbox keeps the document's own name, and clicking it directly toggles once (the row's handler does not double it).
     await user.click(checkbox);
     expect(checkbox).toHaveAttribute("aria-checked", "true");
@@ -115,9 +114,9 @@ describe("T3e layout defects of the sheet", () => {
     const name = await within(sheet).findByText("Organigrama");
     expect(name).not.toHaveClass("truncate");
     expect(name).toHaveClass("[overflow-wrap:anywhere]");
-    const linked = name.closest("[data-pf-link-row]")!;
-    expect(within(linked as HTMLElement).getByText("Ya vinculado")).toHaveClass("self-start");
-    expect(linked).not.toHaveClass("cursor-pointer");
+    const linked = within(sheet).getByRole("checkbox", { name: "Organigrama" });
+    expect(within(linked).getByText("Ya vinculado")).toBeVisible();
+    expect(linked).toHaveClass("data-disabled:cursor-not-allowed");
     await user.click(name);
     expect(within(sheet).getByRole("checkbox", { name: "Organigrama" })).toHaveAttribute("aria-checked", "false");
   });
@@ -141,9 +140,9 @@ describe("the sheet: documents of the original chain", () => {
     expect(sources).toHaveBeenCalledExactlyOnceWith({ draftId: ids.draft });
     expect(await within(sheet).findByRole("heading", { name: "Proceso original" })).toBeVisible();
     expect(within(sheet).getByRole("heading", { name: "Reemplazo 1" })).toBeVisible();
-    const original = within(sheet).getByRole("checkbox", { name: "Convenio original" }).closest("li")!;
+    const original = within(sheet).getByRole("checkbox", { name: "Convenio original" });
     expect(original).toHaveTextContent("Word · 89 KB · versión actual v3");
-    expect(within(sheet).getByRole("checkbox", { name: "Tabulador salarial" }).closest("li")).toHaveTextContent("Excel · 214 KB · versión actual v1");
+    expect(within(sheet).getByRole("checkbox", { name: "Tabulador salarial" })).toHaveTextContent("Excel · 214 KB · versión actual v1");
     expect(within(sheet).getByRole("checkbox", { name: "Perfil del puesto" })).toBeVisible();
     expect(within(sheet).getByText("No se copia ningún archivo: se fija la versión actual. Si el original cambia, verás «hay una versión más nueva».")).toBeVisible();
     expect(within(sheet).getByText("Quedan 48 de 50 espacios")).toBeVisible();
@@ -153,7 +152,7 @@ describe("the sheet: documents of the original chain", () => {
     await mount();
     sources.mockResolvedValue({ ok: true, data: chain() });
     const sheet = await openSheet(user);
-    const linked = (await within(sheet).findByRole("checkbox", { name: "Organigrama" })).closest("li")!;
+    const linked = (await within(sheet).findByRole("checkbox", { name: "Organigrama" }));
     expect(within(linked).getByText("Ya vinculado")).toBeVisible();
     expect(within(sheet).getByRole("checkbox", { name: "Organigrama" })).toHaveAttribute("aria-disabled", "true");
     expect(within(sheet).getByRole("button", { name: "Vincular documentos" })).toBeDisabled();
@@ -289,7 +288,7 @@ describe("failures", () => {
     expect(await within(sheet).findByRole("alert")).toHaveTextContent("Tabulador salarial: Este espacio ya tiene 50 documentos, que es el máximo. Elimina o desvincula alguno para continuar.");
     expect(create).toHaveBeenCalledTimes(2);
     expect(within(sheet).getByRole("checkbox", { name: "Convenio original" })).toHaveAttribute("aria-disabled", "true");
-    expect(within(within(sheet).getByRole("checkbox", { name: "Convenio original" }).closest("li")!).getByText("Ya vinculado")).toBeVisible();
+    expect(within(within(sheet).getByRole("checkbox", { name: "Convenio original" })).getByText("Ya vinculado")).toBeVisible();
     expect(within(sheet).getByRole("checkbox", { name: "Tabulador salarial" })).toBeChecked();
     expect(within(sheet).getByRole("checkbox", { name: "Perfil del puesto" })).toBeChecked();
     expect(within(sheet).getByRole("button", { name: "Vincular 2 documentos" })).toBeEnabled();

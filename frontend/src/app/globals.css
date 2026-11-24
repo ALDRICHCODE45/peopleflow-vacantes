@@ -153,6 +153,9 @@
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
     --color-primary-text: var(--primary-text);
+    --color-selection: var(--selection);
+    --color-selection-foreground: var(--selection-foreground);
+    --color-control-edge: var(--control-edge);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -603,6 +606,28 @@ body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport][data-
     --pf-tone-late: color-mix(in oklab, var(--brand-decorative-strong) 70%, var(--card));
     --pf-tone-on-time: var(--brand-decorative-strong);
     --primary-text: var(--brand-decorative-strong);
+  }
+}
+/* Selection tokens (`design/system.md` «Component rules» → choice controls; artboard
+   `design/choice-and-file-controls/03-…`). `--selection` paints the 3 px bar, the trailing check and a checked
+   table checkbox; `--selection-foreground` is the glyph on it; `--control-edge` is the 3:1 outline of an empty
+   control (foreground 50 % over the card). Dark `--primary` is a deep fill (~2:1 on the card), so dark mode
+   selects with the violet text tone and a card-coloured glyph. */
+:root {
+  --selection: var(--primary);
+  --selection-foreground: var(--primary-foreground);
+  --control-edge: color-mix(in oklab, var(--foreground) 50%, var(--card));
+}
+.dark {
+  --selection: var(--primary-text);
+  --selection-foreground: var(--card);
+  --control-edge: color-mix(in oklab, var(--foreground) 50%, var(--card));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --selection: var(--primary-text);
+    --selection-foreground: var(--card);
+    --control-edge: color-mix(in oklab, var(--foreground) 50%, var(--card));
   }
 }
 /* The hero KPI tile is inverted (`bg-foreground text-background`). In dark mode that is a near-white block, so the

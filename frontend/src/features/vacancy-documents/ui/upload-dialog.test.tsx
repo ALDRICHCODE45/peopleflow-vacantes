@@ -57,6 +57,36 @@ describe("destination (S3)", () => {
   });
 });
 
+describe("shared choice and file controls (S1, S2, S6)", () => {
+  it("offers the destination as a named radiogroup of rows with their description, not bare radios", async () => {
+    const { dialog } = await open();
+    const group = within(dialog).getByRole("radiogroup", { name: "¿A quién pertenece?" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(2);
+    expect(within(group).getByText("Contratos, tabuladores y solicitudes del cliente")).toBeVisible();
+    expect(within(dialog).getByRole("radio", { name: "La vacante" })).toHaveAccessibleDescription("Contratos, tabuladores y solicitudes del cliente");
+  });
+  it("shows the chosen file as a card with its format and size, and «Quitar» empties the field and blocks sending", async () => {
+    const { user, dialog } = await open();
+    expect(within(dialog).getByRole("button", { name: "Elegir archivo" })).toBeVisible();
+    await user.upload(within(dialog).getByLabelText("Archivo"), pdf("Oferta.pdf", 2048));
+    const card = within(dialog).getByRole("group", { name: "Archivo elegido" });
+    expect(within(card).getByText("Oferta.pdf")).toBeVisible();
+    expect(within(card).getByText("PDF · 2 KB")).toBeVisible();
+    expect(card.querySelector("[data-pf-format=pdf]")).not.toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Subir" })).toBeEnabled();
+    await user.click(within(card).getByRole("button", { name: "Quitar" }));
+    expect(within(dialog).queryByRole("group", { name: "Archivo elegido" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Subir" })).toBeDisabled();
+  });
+  it("keeps a rejected file on screen next to its error so it can be changed", async () => {
+    const overview = wire(value => { value.scope = scopeWire({ limits: { max_bytes: 4096, max_documents: 50, max_versions: 25, formats: overviewWire().scope.limits.formats } }) as never; });
+    const { user, dialog } = await open(overview);
+    await user.upload(within(dialog).getByLabelText("Archivo"), pdf("Grande.pdf", 5000));
+    expect(within(within(dialog).getByRole("group", { name: "Archivo elegido" })).getByRole("button", { name: "Cambiar" })).toBeVisible();
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Grande.pdf pesa 5 KB y el máximo es 4 KB.");
+  });
+});
+
 describe("destination from the filter", () => {
   it("preselects the candidate the table is filtered by", async () => {
     const user = userEvent.setup();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { Download, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { listDocumentVersionsAction } from "../actions";
 import { mapDocumentFailure } from "../failure";
 import type { ItemWrite, OverviewItem, Scope, VersionHistory } from "../model";
-import { FileField } from "./file-field";
+import { DocumentFileField } from "./file-field";
 import { checkFile, dateLabel, FORMAT_LABEL, sizeLabel } from "./format";
 import { participationIdOf } from "./overview-state";
 import { versionHref } from "./row-actions";
@@ -32,7 +32,6 @@ export function VersionsSheet({ draftId, item, limits, onClose, onReplaced, onRe
   const [fileError, setFileError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const input = useRef(0);
   useEffect(() => {
     let current = true;
     setHistory({ status: "loading" });
@@ -50,7 +49,7 @@ export function VersionsSheet({ draftId, item, limits, onClose, onReplaced, onRe
     setFailure(null); setSending(true);
     const result = await replaceDocumentFile({ draftId, participationId, file, documentId: item.id, expectedVersion: item.version });
     setSending(false);
-    if (result.ok) { setFile(null); input.current += 1; onReplaced(result.data, participationId); return; }
+    if (result.ok) { setFile(null); onReplaced(result.data, participationId); return; }
     if (result.fields?.file) setFileError(result.fields.file); else setFailure(result.message);
     if (result.reload) onReload();
   }
@@ -71,7 +70,7 @@ export function VersionsSheet({ draftId, item, limits, onClose, onReplaced, onRe
         </section>
         {canReplace && <section aria-label="Nueva versión" className="flex flex-col gap-3"><h3 className="font-heading text-base font-semibold">Reemplazar con una versión nueva</h3>
           {atMax ? <p className="text-sm text-muted-foreground">{`No disponible: llegó a ${limits.max_versions} de ${limits.max_versions} versiones.`}</p> : <>
-            <FileField key={input.current} limits={limits} error={fileError} disabled={sending} onFile={next => { setFile(next); setFailure(null); setFileError(next ? checkFile(next, limits) : null); }} />
+            <DocumentFileField limits={limits} file={file} error={fileError} disabled={sending} onFile={next => { setFile(next); setFailure(null); setFileError(next ? checkFile(next, limits) : null); }} />
             <p className="text-xs text-muted-foreground">{`Reemplazas la versión ${item.version}. Si otra persona sube una nueva antes que tú, te avisaremos para que revises.`}</p>
             {failure && <p role="alert" className="text-sm text-status-danger">{failure}</p>}
             <Button type="button" className="min-h-10 self-start" disabled={!file || fileError !== null || sending} aria-busy={sending || undefined} onClick={send}><Upload aria-hidden="true" />{`Subir como versión ${item.version + 1}`}</Button></>}

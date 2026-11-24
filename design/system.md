@@ -4,7 +4,7 @@ Synced read-only from the project sources on 2026-10-28; re-synced on **2026-11-
 
 | Source | What it gave |
 |---|---|
-| `frontend/src/app/globals.css` | every colour, radius, font and ambient token; scheme blocks `:root`, `.dark`, `@media (prefers-color-scheme: dark)`; dashboard tokens, `.pf-hero`, pipeline `--stage`, Sileo toast tokens |
+| `frontend/src/app/globals.css` | every colour, radius, font and ambient token; the selection tokens (2026-11-23); scheme blocks `:root`, `.dark`, `@media (prefers-color-scheme: dark)`; dashboard tokens, `.pf-hero`, pipeline `--stage`, Sileo toast tokens |
 | `frontend/src/features/company-site/public/theme-tokens.ts` | the public careers-site surfaces and the generated `--site-*` token roles |
 | `frontend/components.json` | shadcn style `base-rhea`, base colour `neutral`, `cssVariables: true`, icon library `lucide`, aliases (`@/components/ui`); no Tailwind config file (Tailwind v4, CSS-first) |
 | `frontend/src/components/ui/**` | component rules (badge, button, card, dialog, alert-dialog, sheet, drawer, popover, tooltip, dropdown-menu, select, input, textarea, input-group, field, tabs, toggle-group, table, progress, switch, checkbox, avatar, item, empty, skeleton, spinner, separator, label); primitives come from `@base-ui/react` |
@@ -57,6 +57,18 @@ Derived tokens for rules 6 and 9 and for violet text. Light values below; dark v
 | `--pf-tone-on-time` | `var(--primary)` | «A tiempo» segment and dot (rule 9) |
 | `--pf-tone-late` | `color-mix(in oklab, var(--primary) 45%, var(--pf-tint-base))` | «Tarde» segment and dot (rule 9) |
 | `--pf-tone-none` | `var(--border)` | «Sin meta» / «Por cubrir» segment (rule 9) |
+
+## Colors — selection tokens (`frontend/src/app/globals.css`, «Selection tokens» block; artboard `design/choice-and-file-controls/03-lista-con-palomita-y-tarjeta.html`)
+
+Added 2026-11-23 for the choice and file controls («Component rules» → Choice controls). They are derived from existing
+tokens, so no earlier token changed value. Tailwind utilities: `bg-selection`, `text-selection-foreground`,
+`shadow-[inset_0_0_0_1.5px_var(--control-edge)]` (colours `selection`, `selection-foreground`, `control-edge` in `@theme inline`).
+
+| Token | Light | Dark | Usage |
+|---|---|---|---|
+| `--selection` | `var(--primary)` | `var(--primary-text)` | 3 px selection bar, filled trailing mark, checked table checkbox, drag-over ring; dark `--primary` is a deep fill, so dark takes the violet text tone |
+| `--selection-foreground` | `var(--primary-foreground)` | `var(--card)` | check glyph on `--selection` |
+| `--control-edge` | `color-mix(in oklab, var(--foreground) 50%, var(--card))` | same expression | 1.5 px outline of an empty trailing mark and of an empty table checkbox (≥ 3:1 on the card) |
 
 `.pf-kpi-hero` (inverted hero KPI tile, `bg-foreground text-background`) swaps its tokens in dark mode:
 `--foreground: color-mix(in oklab, var(--primary) 30%, var(--card))`, `--background: var(--card-foreground)`.
@@ -114,9 +126,9 @@ The same dark values also apply under `@media (prefers-color-scheme: dark)` with
 
 ## Tailwind theme mapping (`frontend/src/app/globals.css` `@theme inline`)
 
-The `@theme inline` block (45 entries: 36 colours, 7 radii, 2 fonts) only aliases the semantic tokens to Tailwind
+The `@theme inline` block (48 entries: 39 colours, 7 radii, 2 fonts) only aliases the semantic tokens to Tailwind
 utilities: `--color-<name>: var(--<name>)` for `background`, `foreground`, `card`, `card-foreground`, `popover`,
-`popover-foreground`, `primary`, `primary-foreground`, `primary-text`, `secondary`, `secondary-foreground`, `muted`,
+`popover-foreground`, `primary`, `primary-foreground`, `primary-text`, `selection`, `selection-foreground`, `control-edge`, `secondary`, `secondary-foreground`, `muted`,
 `muted-foreground`, `accent`, `accent-foreground`, `destructive`, `border`, `input`, `ring`, `chart-1…5`, the eight
 `sidebar*` tokens and the four `status-info|review|success|danger` tones. Product code uses the utilities
 (`bg-card`, `text-muted-foreground`, `border-status-info/40`), never raw colours.
@@ -316,6 +328,28 @@ The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipe
   14/500 in `foreground/70`, the pressed item on `--background` with `shadow-sm` (dark: `foreground/10`, no shadow). Candidate page headers use it at `h-11` (44 px). Use it for one choice among 2–4
   views or sorts; a count sits after the label in a quiet badge.
 - **Skeleton** (`components/ui/skeleton.tsx`): `rounded-2xl bg-muted animate-pulse`.
+- **Choice and file controls** (binding since 2026-11-23, S1–S3; artboard `design/choice-and-file-controls/03-lista-con-palomita-y-tarjeta.html`;
+  `frontend/src/components/ui/choice-list.tsx`, `frontend/src/components/ui/file-field.tsx`; tokens in «Colors — selection tokens»).
+  Never show a bare radio, an option checkbox or a native `<input type="file">` («Browse… No file selected.») to choose something.
+  - **Choose one or several options → `ChoiceList`.** Rows of a `divide-y` list in a 18 px frame (`bg-card`, 1 px `--border`), min 56 px
+    tall, **the whole row is the target**; title 14/500, optional description / meta 12 muted, optional icon or avatar before the text,
+    a 3 px `--selection` bar on the left edge (inset 14 px, `rounded-full`) and `bg-primary/7` when chosen, and a trailing 24 px check
+    (circle = single, square 7 px = multiple) that fills with `--selection`. Single = `role="radiogroup"`, arrow keys move and select;
+    multiple = checkboxes in a labelled group (Tab and Space). Lists of **3 or more selectable options** in multiple mode start with a
+    **«Seleccionar todo»** row (muted fill): indeterminate when some are chosen, with a count («2 de 3 elegidas», announced politely).
+    A disabled option stays visible, muted, with its **reason shown in the row** and linked with `aria-describedby`; an error is a
+    destructive frame plus a `role="alert"` line (per option or for the group). Keyboard focus is a 2 px `--primary-text` outline
+    inside the row, never the bar or the tint, so focus and selection never look alike.
+  - **A single on/off setting → `Switch`** (never a lone checkbox).
+  - **A styled `Checkbox`** only for **data-table row selection** (16 px, 5 px radius, `bg-input/90` with a `--control-edge` edge,
+    40 px hit area, header checkbox indeterminate, chosen row `bg-muted`) and for **consent** («Acepto…»).
+  - **Choose a file → `FileField`.** An input-group field (`bg-input/50`, `rounded-2xl`, 56 px) with a file glyph, the prompt («Arrastra un
+    archivo o elígelo»; phones «Elige un archivo»), the formats and maximum size as a visible hint, and an outline **«Elegir archivo»**
+    button (full width, 44 px on phones). Chosen, it becomes a **document card**: a format-coloured badge, the name (wraps), «PDF · 179 KB»
+    and the ghost buttons **«Cambiar»** and **«Quitar»**. The native input stays in the DOM, labelled and described, only visually
+    hidden. Dropping a file on the field chooses it (drag-over tints the field and ring in `--selection`). Disabled dims it; an error
+    paints the destructive frame and a `role="alert"` message that says what failed and what is allowed. The field never validates:
+    the caller checks format and size and passes `error`.
 - **Targets** ≥ 40px for independent controls; semantic tokens only, no raw colors in product code (§3).
 
 ## Empty states (`frontend/src/components/feedback/state-card.tsx`, `components/ui/empty.tsx`, rules §22)
