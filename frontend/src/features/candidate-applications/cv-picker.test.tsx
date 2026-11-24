@@ -16,8 +16,8 @@ function Picker({ initial = { ...library, items: [] } }: { initial?: CvLibrary }
   const [selected, setSelected] = useState("");
   return <CvPicker library={data} selected={selected} onSelect={setSelected} onLibrary={setData} onBusy={onBusy} onWrongRole={onWrongRole} />;
 }
-beforeEach(() => { vi.clearAllMocks(); vi.mocked(uploadCv).mockResolvedValue({ ok: true, data: cv }); });
-afterEach(cleanup);
+beforeEach(() => { vi.stubGlobal("PointerEvent", MouseEvent); /* Base UI radios read it; jsdom has none */ vi.clearAllMocks(); vi.mocked(uploadCv).mockResolvedValue({ ok: true, data: cv }); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("explains the empty library and opens the existing upload, selecting the resulting CV", async () => {
   const { container } = render(<Picker />);
   expect(screen.getByRole("heading", { level: 3, name: "Todavía no tienes un CV" })).toBeVisible();
@@ -33,16 +33,22 @@ it("explains the empty library and opens the existing upload, selecting the resu
   const file = new File(["pdf"], "cv.pdf", { type: "application/pdf" });
   fireEvent.change(input, { target: { files: [file] } });
   await waitFor(() => expect(uploadCv).toHaveBeenCalledWith(file, library.limits));
-  expect(await screen.findByRole("button", { name: cv.name })).toHaveAttribute("aria-pressed", "true");
+  expect(await screen.findByRole("radio", { name: cv.name })).toHaveAttribute("aria-checked", "true");
   expect(screen.queryByRole("heading", { name: "Todavía no tienes un CV" })).toBeNull();
   expect(onBusy.mock.calls).toEqual([[true], [false]]);
   expect(onWrongRole).not.toHaveBeenCalled();
 });
+it("lists the library as a single-choice ChoiceList (radiogroup), not a toggle group", () => {
+  const { container } = render(<Picker initial={library} />);
+  expect(screen.getByRole("radiogroup", { name: "CV de tu biblioteca" })).toBeVisible();
+  expect(container.querySelector('[data-slot="choice-list"]')).not.toBeNull();
+  expect(container.querySelector('[data-slot="toggle-group"]')).toBeNull();
+});
 it("preserves choosing an existing CV and the existing upload control", async () => {
   render(<Picker initial={library} />);
   expect(screen.getByText("Elige un CV de tu biblioteca. Es obligatorio.")).toBeVisible();
-  await userEvent.setup().click(screen.getByRole("button", { name: cv.name }));
-  expect(screen.getByRole("button", { name: cv.name })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.setup().click(screen.getByRole("radio", { name: cv.name }));
+  expect(screen.getByRole("radio", { name: cv.name })).toHaveAttribute("aria-checked", "true");
   expect(screen.getByLabelText("Subir un CV nuevo")).toBeEnabled();
   expect(uploadCv).not.toHaveBeenCalled();
 });
@@ -63,7 +69,7 @@ it("uploads the chosen file once, clears the card and selects the new CV", async
   const file = new File(["pdf"], "Nuevo.pdf", { type: "application/pdf" });
   await user.upload(screen.getByLabelText("Subir un CV nuevo"), file);
   await waitFor(() => expect(uploadCv).toHaveBeenCalledWith(file, library.limits));
-  expect(await screen.findByRole("button", { name: "Nuevo.pdf" })).toHaveAttribute("aria-pressed", "true");
+  expect(await screen.findByRole("radio", { name: "Nuevo.pdf" })).toHaveAttribute("aria-checked", "true");
   expect(screen.queryByRole("group", { name: "Archivo elegido" })).toBeNull();
   expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeVisible();
 });

@@ -34,3 +34,14 @@ it("fades the section nav at the edge where tabs are hidden instead of cutting �
   // Browsers without scroll timelines get a static right fade with room to scroll the last tab clear of it.
   expect(css).toMatch(/@supports not \(animation-timeline: scroll\(\)\)\s*\{\s*\.pf-job-section-nav\s*\{[^}]*padding-inline-end:\s*48px;[^}]*--pf-fade-end:\s*48px;/u);
 });
+
+it("keeps the actions column tight and aligned under «Postularme»: hidden empty status slot, centred application facts", () => {
+  const { container } = render(<PublicJobDetailView job={vacancyDetail} />);
+  const actions = container.querySelector("[data-public-actions]")!;
+  expect(actions.className).toContain("[&_[data-pf-action-status-slot]:empty]:hidden");
+  const info = actions.querySelector("[data-public-application-info]")!;
+  expect(info).toHaveClass("items-center");
+  expect(info).toHaveTextContent("Menos de 10 postulantes");
+  expect(info).toHaveTextContent("Postulación rápida");
+  expect(screen.getByRole("status")).toHaveClass("empty:h-0");
+});

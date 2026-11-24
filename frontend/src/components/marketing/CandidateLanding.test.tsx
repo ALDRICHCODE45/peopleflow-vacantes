@@ -46,10 +46,12 @@ describe("candidate marketing landing", () => {
     const { container } = render(<CandidateLanding />);
     for (const link of screen.getAllByRole("link", { name: /explorar vacantes/i })) expect(link).toHaveAttribute("href", "/vacantes");
     for (const link of screen.getAllByRole("link", { name: /ingresar a mi perfil/i })) expect(link).toHaveAttribute("href", "/candidato/login");
+    // The example vacancies are fixtures that 404 in the public API: shown as text, never as links.
     for (const job of ACME_PROTOTYPE_JOBS) {
-      expect(screen.getByRole("link", { name: job.title })).toHaveAttribute("href", `/vacantes/${job.id}`);
+      expect(screen.getAllByText(job.title).length).toBeGreaterThan(0);
+      expect(screen.queryByRole("link", { name: job.title })).toBeNull();
     }
-    for (const link of container.querySelectorAll("a")) expect(link.getAttribute("href")).toMatch(/^(\/vacantes(?:\/[^/]+)?|\/candidato\/login)$/);
+    for (const link of container.querySelectorAll("a")) expect(link.getAttribute("href")).toMatch(/^(\/vacantes|\/candidato\/login)$/);
     expect(container.querySelector("form")).toBeNull();
     expect(container.textContent).toMatch(/vista de ejemplo/i);
     expect(container.textContent).toContain("no son postulaciones reales");

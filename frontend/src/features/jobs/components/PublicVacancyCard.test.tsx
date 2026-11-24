@@ -120,3 +120,15 @@ it("leaves no enrichment placeholders for absent legacy content", () => {
   expect(container.querySelector('[data-slot="separator"]')).toBeNull();
   expect(container).not.toHaveTextContent(/Habilidades|Beneficios|Postulación rápida/);
 });
+
+it("underlines «y N beneficios más» (never colour alone) and stretches «Ver vacante» across the footer below sm", () => {
+  const job = { ...listItem(vacancyDetail), benefits_total: 5 };
+  const { container } = render(<ul><PublicVacancyCard job={job} /></ul>);
+  expect(screen.getByRole("link", { name: "y 3 beneficios más" })).toHaveClass("underline", "text-primary-text");
+  const cta = screen.getByRole("link", { name: "Ver vacante" });
+  expect(cta).toHaveClass("min-h-11", "max-sm:flex-1");
+  // The save/status bar yields the whole row to the CTA on phones; an empty status slot takes no room.
+  const group = container.querySelector('[data-slot="card-footer"] > div:last-child')!;
+  expect(group.className).toContain("max-sm:[&_[data-pf-action-bar-actions]]:basis-full");
+  expect(group.className).toContain("max-sm:[&_[data-pf-action-bar-actions]>a]:flex-1");
+});

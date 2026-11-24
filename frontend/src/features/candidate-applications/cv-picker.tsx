@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Upload } from "lucide-react";
+import { ChoiceList } from "@/components/ui/choice-list";
 import { FileField } from "@/components/ui/file-field";
 import { SectionEmpty } from "@/components/feedback/state-card";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -10,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { loadCvsAction } from "@/features/candidate-cvs/actions";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { uploadCv } from "@/features/candidate-cvs/upload";
 import { uploadValidation, type CvFailure, type CvLibrary } from "@/features/candidate-cvs/model";
 import { CvStorageUnavailable } from "@/features/candidate-cvs/storage-unavailable";
@@ -83,10 +83,8 @@ export function CvPicker({ library, selected, onSelect, onLibrary, error, onBusy
         description="Sube tu CV para completar esta postulación. Se agregará a tu biblioteca y quedará seleccionado para esta vacante."
         primaryAction={{ label: "Subir CV", disabled: busy || needsCheck, onClick: () => nativeInput()?.click() }} /> : <FieldDescription>Elige un CV de tu biblioteca. Es obligatorio.</FieldDescription>}
       <Field data-invalid={!!error}>
-        {library.items.length > 0 && <ToggleGroup aria-label="CV de tu biblioteca" aria-invalid={!!error} aria-describedby={error ? "cv-choice-error" : undefined} variant="outline" orientation="vertical" className="w-full" value={selected ? [selected] : []} onValueChange={values => { if (values[0]) onSelect(values[0]); }} disabled={busy}>
-          {library.items.map(cv => <ToggleGroupItem key={cv.id} value={cv.id} aria-label={cv.name} className="min-h-10 justify-start whitespace-normal break-words"><FileText aria-hidden="true" data-icon="inline-start" />{cv.name}</ToggleGroupItem>)}
-        </ToggleGroup>}
-        {error && <FieldError id="cv-choice-error">{error}</FieldError>}
+        {library.items.length > 0 && <ChoiceList legend="CV de tu biblioteca" hideLegend disabled={busy} error={error} value={selected || null} onValueChange={onSelect}
+          options={library.items.map(cv => ({ value: cv.id, title: cv.name, leading: <FileText /> }))} />}
       </Field>
     </FieldSet>
     <Field ref={box} data-invalid={!!fileError} data-disabled={uploadDisabled}>

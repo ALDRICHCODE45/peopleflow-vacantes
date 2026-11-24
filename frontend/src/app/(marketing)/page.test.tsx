@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import MarketingPage from "./page";
+import MarketingPage, { metadata } from "./page";
 
 // The navbar's «Ingresar» entry reads the same-origin NextAuth session in the browser
 // (covered in IngresarMenu.test.tsx); this page itself must still make no API call.
@@ -466,5 +466,13 @@ describe("employer marketing page (reference replica)", () => {
     expect(pageSource).not.toMatch(/['"]use client['"]/);
     expect(pageSource).not.toMatch(/fetch\(/);
     expect(pageSource).not.toMatch(/useState|useEffect|useContext/);
+  });
+});
+
+describe("root metadata", () => {
+  it("titles the employer landing «PeopleFlow para empresas» with an employer description", () => {
+    expect(metadata.title).toEqual({ absolute: "PeopleFlow para empresas" });
+    expect(metadata.description).toMatch(/Publica vacantes/u);
+    expect(metadata.description).not.toMatch(/Descubre vacantes|próxima oportunidad/u);
   });
 });

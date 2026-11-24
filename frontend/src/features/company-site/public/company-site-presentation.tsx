@@ -15,6 +15,7 @@ import type { SiteBlock } from "../model";
 import { siteBrandTokens } from "./theme-tokens";
 import { editorial, modern } from "./fonts";
 import { SiteNavigation } from "./site-navigation";
+import { ShareMenu } from "@/features/jobs/components/share-menu";
 import { SiteBlockContent, SocialLinks } from "./site-blocks";
 import type { CompanySitePresentationProps } from "./presentation-types";
 import { SitePortalContext } from "./site-portal";
@@ -64,7 +65,11 @@ export function CompanySitePresentation({ site, company, jobs, jobsAvailable = t
     <Link href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:rounded-xl focus:bg-background focus:px-4 focus:py-3 focus:text-foreground focus:outline-2 focus:outline-ring">Saltar al contenido</Link>
     <header className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-6 sm:px-10 lg:px-16">
       <div className="flex min-w-0 shrink-0 items-center gap-3"><Avatar className="size-10"><AvatarImage src={company.logo_url ?? undefined} alt={`Logo de ${company.name}`} /><AvatarFallback>{company.name.slice(0, 1)}</AvatarFallback></Avatar><p className="max-w-[16ch] text-lg font-semibold tracking-tight [overflow-wrap:anywhere]">{company.name}</p></div>
-      <SiteNavigation blocks={blocks} companyName={company.name} />
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        <SiteNavigation blocks={blocks} companyName={company.name} />
+        {/* Only the live page is shareable: the editor preview has no public URL. */}
+        {!onSelectBlock && previewContainer === undefined && <ShareMenu title={`Trabaja en ${company.name}`} intro="Conoce esta empresa" label="Compartir sitio de empleo" iconOnly />}
+      </div>
     </header>
     <main id="contenido" tabIndex={-1} className="min-w-0 outline-none">
     {blocks.map(block => <section key={block.id} id={anchor(block)} aria-labelledby={`${anchor(block)}-title`} data-block-type={block.type} data-variant={block.variant}

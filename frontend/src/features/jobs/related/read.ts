@@ -61,10 +61,22 @@ export async function readRelatedCompany(job: PublicJobDetail): Promise<RelatedR
     if (serverEnv.sampleJobs) return { ok: true, data: { ...job.company, ...absent } };
     const result = await getCompanyProfile(job.company.id);
     if (!result.ok) return { ok: false };
-    // Only the published locator proves a careers site exists, never the website.
     const { id, name, logo_url, description, site_slug } = result.company;
-    const careersHref = typeof site_slug === "string" && site_slug === site_slug.trim() && validateSlug(site_slug) === null
-      ? `/empresas/${site_slug}` : null;
-    return { ok: true, data: { ...absent, id, name, logo_url, description, careersHref } };
+    return { ok: true, data: { ...absent, id, name, logo_url, description, careersHref: careersHrefFor(site_slug) } };
   } catch { return { ok: false }; }
+}
+
+/** Only the published locator proves a careers site exists, never the website. */
+function careersHrefFor(siteSlug: unknown): string | null {
+  return typeof siteSlug === "string" && siteSlug === siteSlug.trim() && validateSlug(siteSlug) === null ? `/empresas/${siteSlug}` : null;
+}
+
+/** The careers site of a company, or `null` when it has none or the profile cannot be read (never blocks the page). */
+export async function readCompanyCareersHref(companyId: string): Promise<string | null> {
+  try {
+    const { serverEnv } = await import("@/lib/env/server");
+    if (serverEnv.sampleJobs) return null;
+    const result = await getCompanyProfile(companyId);
+    return result.ok ? careersHrefFor(result.company.site_slug) : null;
+  } catch { return null; }
 }

@@ -289,7 +289,8 @@ The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipe
   `lg` h-9 px-4, icons `icon` size-8, `icon-xs` 6, `icon-sm` 7, `icon-lg` 9; product call sites set `min-h-10` (40 px)
   and `min-h-11` (44 px) for the main action of a card or any button below `sm`. Variants `default` (primary,
   hover `primary/80`), `outline` (border, `--background` fill), `secondary`, `ghost` (muted-foreground text for header
-  and card-head links), `destructive` (`destructive/10` fill, destructive text), `link`.
+  and card-head links), `destructive` (`destructive/10` fill, destructive text), `link` (text `--primary-text`, never `--primary`: dark
+  `--primary` is a ~2:1 fill; underline on hover, and a link inside running text is underlined at rest).
 - **Input / textarea / select / input group** (`input.tsx`, `textarea.tsx`, `select.tsx`, `input-group.tsx`):
   `rounded-2xl`, fill `bg-input/50`, no border at rest, `ring-3 ring-ring/30` on focus, `aria-invalid` paints
   `border-destructive` + `ring-destructive/20`; default `h-8`, text 16 below `md` and 14 from `md`; textarea `min-h-16`;
@@ -310,6 +311,7 @@ The 14 px card corner in older artboards (`calc(var(--radius)*1.4)`) is the pipe
   text-background`, 12 px, `rounded-xl`, `px-3 py-1.5`, max 320 px.
 - **Dropdown menu** (`dropdown-menu.tsx`): `rounded-2xl p-1`, items `rounded-xl`, 14 px, focus `bg-accent`, destructive
   items in `--destructive`, separators `bg-border/50`, labels 12 muted.
+- **Share menu** (`frontend/src/features/jobs/components/share-menu.tsx`, `share-links.ts`): one `DropdownMenu` behind a «Compartir …» button (detail card: ghost, `min-h-11`, full width, copy outcome in a visible `role="status"` line below; headers: icon-only 40 px with the label as its accessible name, outcome as toast + `sr-only` status). Items `min-h-10`: **Copiar enlace**, **WhatsApp** (`https://wa.me/?text=<título — empresa — url>`), **Correo** (`mailto:?subject=&body=`), **LinkedIn** (`/sharing/share-offsite/?url=`), and **Más opciones…** only where `navigator.share` exists. External links open in a new tab with `rel="noopener noreferrer"`. The shared URL is absolute, hash-free and ends in `origen=compartido`. Use the same menu on the public vacancy detail, the careers-site header (live page only, never the editor preview) and the employer's published public vacancy; never for a private or unpublished one.
 - **Tabs** (`tabs.tsx`): default list `h-9 rounded-xl bg-muted p-1`, trigger `rounded-lg px-3` 14/500 in `foreground/70`, the
   active one on `--background` with `shadow-sm` (dark `foreground/10`); counts in a trigger are `rounded-full` badges that
   turn `primary/10` when active; `line` variant: transparent list, 2 px `--foreground` underline.

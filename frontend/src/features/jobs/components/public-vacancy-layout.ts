@@ -6,7 +6,9 @@ export const PUBLIC_VACANCY_DESCRIPTION = "col-start-2 row-start-2 min-w-0 break
 export const PUBLIC_VACANCY_CONTENT = "flex min-w-0 flex-col gap-5";
 export const PUBLIC_VACANCY_CHIPS = "flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 text-sm";
 export const PUBLIC_VACANCY_RAIL = "min-w-0 rounded-b-[18px] justify-between gap-6 border-t bg-muted/40 -mb-(--card-spacing) pb-(--card-spacing) max-[480px]:flex-col max-[480px]:items-stretch max-[480px]:gap-5";
-export const PUBLIC_VACANCY_CTA = "flex min-w-0 flex-col items-end gap-2 max-[480px]:items-stretch";
+/** Below sm the save control and the CTA share one full row; an empty status slot is hidden so it takes no room. */
+const PUBLIC_VACANCY_CTA_PHONE = "max-sm:[&_[data-pf-action-bar]]:flex-wrap max-sm:[&_[data-pf-action-bar-actions]]:basis-full max-sm:[&_[data-pf-action-bar-actions]]:flex-nowrap max-sm:[&_[data-pf-action-bar-actions]>a]:flex-1 max-sm:[&_[data-pf-action-bar]>.order-first:has([data-pf-action-status-slot]:empty)]:hidden";
+export const PUBLIC_VACANCY_CTA = `flex min-w-0 flex-col items-end gap-2 max-[480px]:items-stretch ${PUBLIC_VACANCY_CTA_PHONE}`;
 export const PUBLIC_DETAIL_CARD = "min-w-0 rounded-[18px] [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(7)] [overflow-wrap:anywhere]";
 export const PUBLIC_DETAIL_HERO = "min-w-0 rounded-[18px] [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)] [overflow-wrap:anywhere]";
 export const PUBLIC_DETAIL_HEADER = "min-w-0 grid-cols-[4rem_minmax(0,1fr)] gap-x-5";
