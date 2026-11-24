@@ -16,6 +16,11 @@ truncated select values). Design first with options on the canvas, then implemen
 - **S3** «me gustaria ver mas opciones revisando y basandote en tu system design y evidentemente en las revisiones
   pertinentes necesarias y tambien en tu revision visual» → 2–3 directions per screen on the canvas, grounded in
   design/system.md, reviewed visually before showing them.
+- **S4** Chosen for the audit log (canvas handoff, L3): `01-barra-de-filtros-en-linea-con-chips.html` — full table with
+  its columns (incl. IP y navegador), one filter bar whose selectors open wide searchable panels, full values in removable
+  chips, cells wrap up to 3 lines, export always available through a date-range panel. Choosing it accepts the artboard's
+  deviations from design/system.md listed in `design/audit-log-redesign/self-check.md` (multi-line table cells for this
+  table, 360–460 px popovers, multi-line chips); design/system.md gets those as documented exceptions.
 
 ## Tasks
 
@@ -23,7 +28,8 @@ truncated select values). Design first with options on the canvas, then implemen
 | --- | --- | --- | --- |
 | T1 | S1, S3 | Design directions for Configuración (`design/settings-redesign/`) | |
 | T2 | S2, S3 | Design directions for the audit log (`design/audit-log-redesign/`) | |
-| T3 | S1, S2 | Implementation of the chosen artboards | |
+| T3a | S2, S4 | Audit log from artboard `audit-log-redesign/01-barra-de-filtros-en-linea-con-chips.html` | |
+| T3b | S1 | Settings page from the chosen artboard (pending the user's pick) | |
 | T4 | S1, S2 | Browser check, full suite, merge to main | |
 
 ## Log
@@ -41,3 +47,5 @@ truncated select values). Design first with options on the canvas, then implemen
   `03-linea-de-tiempo-agrupada-por-dia`. Cada carpeta trae `design.json` y `self-check.md` (UX y sistema); las
   desviaciones de `design/system.md` por decidir están en el segundo (tabla con texto que se parte, popover más ancho,
   mono para IP e identificadores, exportación siempre habilitada con panel de rango).
+- **L3** (2026-11-24) Canvas handoff: implement `audit-log-redesign/01-barra-de-filtros-en-linea-con-chips.html` (02 and 03
+  are alternatives). Settings direction not picked yet.
