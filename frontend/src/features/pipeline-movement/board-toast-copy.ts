@@ -23,7 +23,7 @@ export function boardSuccessCopy(board: Board, item: Participation, write: Board
   if (write.kind === "departure") return { title: `${name} quedó como «No se sostuvo»`, description: `Se liberó una plaza: ${coverage}. El resultado original del proceso no cambia.` };
   if (write.kind === "discard") {
     const freed = `se liberó una plaza: ${coverage}.`;
-    const consequence = write.body.candidate_message
+    const consequence = write.body.candidate_message && item.candidate.kind !== "manual"
       ? `Verá el estado Finalizada con tu mensaje${from?.kind === "placement" ? `; ${freed}` : "."}`
       : from?.kind === "placement" ? `Se liberó una plaza: ${coverage}.` : "Puedes recuperar su postulación desde Descartados.";
     return { title: `Descartaste a ${name}`, description: `Motivo: ${discardReasonLabel(write.body.reason)}. ${consequence}` };

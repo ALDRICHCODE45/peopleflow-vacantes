@@ -7,6 +7,7 @@ import type { DraftRichDescription } from "../rich/grammar";
 import {
   BENEFITS_ERROR,
   COMPENSATION_AMOUNT_ERROR,
+  COMPENSATION_BASIS_REQUIRED_ERROR,
   COMPENSATION_ERROR,
   COMPENSATION_RANGE_ERROR,
   DESCRIPTION_ERROR,
@@ -253,8 +254,11 @@ export function validateDraftFormState(
     fields: composeDraftFields(state) as DraftModel["fields"],
     requesterName: state.requester.changed ? state.requester.name : baseModel.requesterName,
   };
+  // Showing the salary publicly needs gross/net (the schema allows it empty for drafts that keep the salary private).
+  const basisMissing = state.compensation.public_visible && state.compensation.basis === "";
   try {
     const body = draftModelToPostBody(candidate);
+    if (basisMissing) return { ok: false, errors: { "compensation.basis": COMPENSATION_BASIS_REQUIRED_ERROR } };
     return {
       ok: true,
       model: {
@@ -265,7 +269,7 @@ export function validateDraftFormState(
       },
     };
   } catch (error) {
-    if (error instanceof ZodError) return { ok: false, errors: mapZodError(error) };
+    if (error instanceof ZodError) return { ok: false, errors: { ...(basisMissing ? { "compensation.basis": COMPENSATION_BASIS_REQUIRED_ERROR } : {}), ...mapZodError(error) } };
     return { ok: false, errors: { model: MODEL_ERROR } };
   }
 }

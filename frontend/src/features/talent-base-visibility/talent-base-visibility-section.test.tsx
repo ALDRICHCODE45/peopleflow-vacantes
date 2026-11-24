@@ -50,7 +50,7 @@ it("shows the owner the default «Todos los reclutadores» with no picker, nothi
   expect(screen.queryByRole("group", { name: "Reclutadores con acceso" })).not.toBeInTheDocument();
   expect(save()).toBeDisabled();
   expect(screen.getByText("Cada cambio queda registrado en la auditoría de la empresa.")).toBeInTheDocument();
-  expect(screen.getByText("El owner siempre tiene acceso a la Base de talento.")).toBeInTheDocument();
+  expect(screen.getByText("El dueño siempre tiene acceso a la Base de talento.")).toBeInTheDocument();
   expect(saveTalentBaseVisibilityAction).not.toHaveBeenCalled();
 });
 
@@ -100,11 +100,11 @@ it("warns before saving that only the owner will see the base when no user is se
   const user = await renderOwner();
   vi.mocked(saveTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: visibility({ mode: "selected_users", version: 2 }) });
   await openPicker(user);
-  expect(screen.getByText("Solo el owner verá la Base de talento. Ningún reclutador tendrá acceso hasta que elijas a alguien.")).toBeInTheDocument();
+  expect(screen.getByText("Solo el dueño verá la Base de talento. Ningún reclutador tendrá acceso hasta que elijas a alguien.")).toBeInTheDocument();
   await user.click(box("Ana Pérez"));
-  expect(screen.queryByText(/Solo el owner verá la Base de talento/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Solo el dueño verá la Base de talento/)).not.toBeInTheDocument();
   await user.click(box("Ana Pérez"));
-  expect(screen.getByText(/Solo el owner verá la Base de talento/)).toBeInTheDocument();
+  expect(screen.getByText(/Solo el dueño verá la Base de talento/)).toBeInTheDocument();
   expect(save()).toBeEnabled();
   expect(saveTalentBaseVisibilityAction).not.toHaveBeenCalled();
   await user.click(save());
@@ -118,7 +118,7 @@ it("returns to «Todos los reclutadores» without carrying the selection, and th
   vi.mocked(saveTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: visibility({ version: 4 }) });
   await user.click(radio("Todos los reclutadores"));
   expect(screen.queryByRole("group", { name: "Reclutadores con acceso" })).not.toBeInTheDocument();
-  expect(screen.queryByText(/Solo el owner verá la Base de talento/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Solo el dueño verá la Base de talento/)).not.toBeInTheDocument();
   await user.click(save());
   expect(saveTalentBaseVisibilityAction).toHaveBeenCalledWith({ mode: "all_recruiters", userIds: [], version: 3 });
 });
@@ -200,8 +200,8 @@ it("flags selected users the backend says are not members, keeps the rest and le
 
 it("flags a user who became owner and explains the owner always sees the base", async () => {
   await failingSave(failure("viewer_is_owner", { reference: { status: 422, code: "talent_base_viewer_is_owner" }, userIds: [anaId] }));
-  expect((await screen.findAllByRole("alert")).map(alert => alert.textContent)).toContain("El owner siempre ve la Base de talento y no se puede seleccionar. Quita a esa persona para guardar.");
-  expect(within(box("Ana Pérez")).getByRole("alert")).toHaveTextContent("Ahora es owner: ya tiene acceso");
+  expect((await screen.findAllByRole("alert")).map(alert => alert.textContent)).toContain("El dueño siempre ve la Base de talento y no se puede seleccionar. Quita a esa persona para guardar.");
+  expect(within(box("Ana Pérez")).getByRole("alert")).toHaveTextContent("Ahora es dueño: ya tiene acceso");
   expectDraftKept();
 });
 
@@ -222,7 +222,7 @@ it("explains users_not_applicable without clearing what was chosen", async () =>
 
 it("on 403 forbidden says only the owner can change it and locks the form", async () => {
   await failingSave(failure("forbidden", { reference: { status: 403, code: "forbidden" } }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Solo el owner puede cambiar quién ve la Base de talento. Tu rol pudo haber cambiado; recarga la página.");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Solo el dueño puede cambiar quién ve la Base de talento. Tu rol pudo haber cambiado; recarga la página.");
   expect(save()).toBeDisabled();
   expect(radio("Todos los reclutadores")).toHaveAttribute("aria-disabled", "true");
   expect(box("Ana Pérez")).toHaveAttribute("aria-disabled", "true");
@@ -302,4 +302,48 @@ it("«Seleccionar todo» chooses every recruiter and saves them in team order", 
   for (const name of ["Ana Pérez", "Luis Soto", "Marta Ruiz"]) expect(box(name)).toBeChecked();
   await user.click(save());
   expect(saveTalentBaseVisibilityAction).toHaveBeenLastCalledWith({ mode: "selected_users", userIds: [anaId, luisId, martaId], version: 1 });
+});
+
+// D8: the visibility mode is a ChoiceList (single), like the recruiter list below it.
+it("offers the visibility mode as a single-choice list, never bare radio cards", async () => {
+  const user = await renderOwner();
+  const group = screen.getByRole("radiogroup", { name: "Quién ve la Base de talento" });
+  expect(group).toHaveAttribute("data-slot", "choice-list");
+  expect(within(group).getAllByRole("radio")).toHaveLength(2);
+  expect(radio("Todos los reclutadores")).toHaveAccessibleDescription(/Cualquier reclutador de tu empresa/);
+  await user.click(radio("Usuarios seleccionados"));
+  expect(radio("Usuarios seleccionados")).toBeChecked();
+  expect(radio("Todos los reclutadores")).not.toBeChecked();
+});
+
+// D14: unsaved changes are never lost silently.
+const unloadPrevented = () => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; };
+it("warns on reload or close only while the visibility has unsaved changes", async () => {
+  const user = await renderOwner();
+  expect(unloadPrevented()).toBe(false);
+  const next = visibility({ mode: "selected_users", version: 2, viewers: selectedByAna.viewers, updated_by: { user_id: ownerId, full_name: "Olga Dueña" } });
+  vi.mocked(saveTalentBaseVisibilityAction).mockResolvedValue({ ok: true, document: next });
+  await openPicker(user);
+  await user.click(box("Ana Pérez"));
+  expect(unloadPrevented()).toBe(true);
+  await user.click(save());
+  await screen.findByText("Cambio guardado · queda registrado en la auditoría");
+  expect(unloadPrevented()).toBe(false);
+});
+
+it("asks before following an in-app link away with unsaved changes, and lets the owner keep editing", async () => {
+  const user = await renderOwner();
+  const outside = document.createElement("a");
+  outside.href = "/empresa/equipo"; outside.textContent = "Equipo"; document.body.append(outside);
+  // jsdom cannot navigate: the clean click is only observed, never followed.
+  outside.addEventListener("click", event => event.preventDefault());
+  await user.click(outside);
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  await user.click(radio("Usuarios seleccionados"));
+  await user.click(outside);
+  const dialog = await screen.findByRole("alertdialog", { name: "Tienes cambios sin guardar" });
+  await user.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  expect(radio("Usuarios seleccionados")).toBeChecked();
+  outside.remove();
 });

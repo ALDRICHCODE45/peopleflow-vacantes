@@ -28,7 +28,7 @@ it("shows the route-outside-role screen to a stakeholder instead of mounting the
   mocks.loadCompany.mockResolvedValue(membership("stakeholder"));
   mount();
   expect(await screen.findByRole("heading", { name: "Esta sección no está disponible para tu rol" })).toBeInTheDocument();
-  expect(screen.getByText("Como stakeholder ves las métricas de la empresa en solo lectura. Si necesitas algo más, pídelo a la persona dueña de la cuenta.")).toBeInTheDocument();
+  expect(screen.getByText("Como stakeholder ves Métricas y los documentos de las vacantes (solo lectura). Si necesitas algo más, pídelo a la persona dueña de la cuenta.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Ir a Métricas" })).toHaveAttribute("href", "/empresa/metricas");
   expect(screen.queryByText("Contenido privado")).toBeNull();
   expect(mocks.replace).not.toHaveBeenCalled();

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { shareHeadline } from "../components/share-links";
 import type { PublicJobDetail } from "../types";
 
 type Vacancy = Extract<PublicJobDetail, { source: "vacancy" }>;
@@ -7,10 +8,20 @@ const EMPLOYMENT_TYPE = { full_time: "FULL_TIME", part_time: "PART_TIME" } as co
 // schema.org has no semi-monthly unit: the salary is left out rather than misreported.
 const SALARY_UNIT = { hourly: "HOUR", weekly: "WEEK", monthly: "MONTH", yearly: "YEAR" } as const;
 
+/** Characters of plain description a social card shows when the vacancy has no excerpt. */
+const SOCIAL_DESCRIPTION_LIMIT = 160;
+
+/** Only the amounts the vacancy states: `Number(null)` is `0`, which would publish a salary or a bound nobody offered. `null` when none is stated. */
+function stated(amounts: Record<string, string | null>): Record<string, number> | null {
+  const present = Object.entries(amounts).flatMap(([key, amount]) => amount === null ? [] : [[key, Number(amount)] as const]);
+  return present.length ? Object.fromEntries(present) : null;
+}
+
 function baseSalary(job: Vacancy) {
   const pay = job.compensation;
   if (pay === null || pay.pay_period === "semimonthly") return null;
-  const value = pay.mode === "fixed" ? { value: Number(pay.amount) } : { minValue: Number(pay.min), maxValue: Number(pay.max) };
+  const value = stated(pay.mode === "fixed" ? { value: pay.amount } : { minValue: pay.min, maxValue: pay.max });
+  if (value === null) return null;
   return { "@type": "MonetaryAmount", currency: pay.currency, value: { "@type": "QuantitativeValue", ...value, unitText: SALARY_UNIT[pay.pay_period] } };
 }
 
@@ -46,9 +57,9 @@ export function jobPostingJsonLd(job: PublicJobDetail, { siteUrl, careersHref }:
   };
 }
 
-/** Open Graph and Twitter cards: the headline names the company, the logo is the only image (never invented). */
-export function jobSocialMetadata(job: PublicJobDetail, url: string, description = job.excerpt ?? job.description_plain.slice(0, 160)): Pick<Metadata, "openGraph" | "twitter"> {
-  const title = `${job.title} · ${job.company.name}`;
+/** Open Graph and Twitter cards: the headline (the same one the share links use) names the company, the logo is the only image (never invented). */
+export function jobSocialMetadata(job: PublicJobDetail, url: string, description = job.excerpt ?? job.description_plain.slice(0, SOCIAL_DESCRIPTION_LIMIT)): Pick<Metadata, "openGraph" | "twitter"> {
+  const title = shareHeadline({ title: job.title, company: job.company.name });
   const logo = job.company.logo_url;
   return {
     openGraph: { type: "website", title, description, url, siteName: "PeopleFlow", locale: "es_MX", ...(logo ? { images: [{ url: logo }] } : {}) },

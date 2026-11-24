@@ -36,11 +36,13 @@ type Props = {
   onSubstate?: (id: string, substateId: string | null) => void; visibleItems?: Participation[]; filtered?: boolean;
   /** Replacement entry points (S1/S3/S6); absent for an old backend, which sends none of the lifecycle keys. */
   late?: LateActions;
+  /** Vacancy configuration for the columns: with no substates defined the card menu links here. */
+  configHref?: string;
 };
 // Draggable board-card exception (§14.3): compact handle/menu anatomy owns its spacing.
-function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, onSubstate, board, suppressClick, late }: {
+function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, onSubstate, board, suppressClick, late, configHref }: {
   item: Participation; targets: Board["stages"]; disabled: boolean; pending: boolean; notice?: Notice; late?: LateActions;
-  onMove: Props["onMove"]; onDetail: Props["onDetail"]; onDisposition: Props["onDisposition"]; onSubstate: Props["onSubstate"]; board: Board; suppressClick: RefObject<boolean>;
+  onMove: Props["onMove"]; onDetail: Props["onDetail"]; onDisposition: Props["onDisposition"]; onSubstate: Props["onSubstate"]; board: Board; suppressClick: RefObject<boolean>; configHref?: string;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: item.id, disabled: disabled || !!item.discard, attributes: { roleDescription: "Tarjeta de candidato" },
@@ -80,7 +82,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
           id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} aria-describedby={titleId} onClick={() => onDetail(item.id)}><span className="flex min-w-0 flex-col"><span className={cn("break-words leading-5", professionalTitle ? "line-clamp-1" : "line-clamp-2")}>{item.candidate.full_name}</span>
             {professionalTitle && <span id={titleId} data-candidate-title title={professionalTitle} className="truncate text-xs font-normal leading-4 text-muted-foreground">{professionalTitle}</span>}</span></Button></Hint></CardTitle>
       </div>
-      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><span className="relative flex"><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={menuDisabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} finished={lateOnly} leave={leave} start={start} />
+      <CardAction className="row-span-1 flex items-center gap-2 self-center"><ChecklistSelection item={item} /><span className="relative flex"><CandidateMenu item={item} targets={targets} isBackward={stage => isBackwardMove(board, item, stage)} disabled={menuDisabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} configHref={configHref} finished={lateOnly} leave={leave} start={start} />
         {confirming && <DepartureConfirm item={item} board={board} pending={confirming.pending} onConfirm={confirming.confirm} onCancel={confirming.cancel} />}</span></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
@@ -112,7 +114,7 @@ function Column({ stage, countLabel = String(stage.count), disabled, dragging, c
     {insertion && <span className="sr-only">Insertar {insertion === "left" ? "antes" : "después"} de {stage.name}</span>}
     <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-2"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={candidateLabel}>{countLabel}</Badge>
       {order && <ColumnOrderControls stage={stage} order={order} drag={drag} finished={finished} />}
-      {stage.kind === "discarded" && <Hint text="Se llega descartando, no moviendo"><span tabIndex={0} aria-label="Se llega descartando, no moviendo" className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>}
+      {stage.kind === "discarded" && <Hint text="Se llega descartando, no moviendo"><span role="img" tabIndex={0} aria-label="Se llega descartando, no moviendo" className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>}
     </div>
     {dragging && <p id={`drop-status-${stage.id}`} className="sr-only">{disabled ? "Destino no permitido para este movimiento." : "Suelta aquí para solicitar el movimiento."}</p>}
     <ScrollArea role="region" aria-label={`Candidatos en ${stage.name}`} className="pf-column-scroll min-h-0 flex-1">
@@ -120,7 +122,7 @@ function Column({ stage, countLabel = String(stage.count), disabled, dragging, c
     </ScrollArea>
   </section>;
 }
-export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, onSubstate, visibleItems = board.participations, filtered = false, columnOrder, late }: Props) {
+export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, onSubstate, visibleItems = board.participations, filtered = false, columnOrder, late, configHref }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [columnId, setColumnId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
           const countLabel = filtered ? `${items.length} de ${allItems.length}` : String(stage.count);
           return <Column key={stage.id} stage={stage} countLabel={countLabel} order={columnOrder} finished={board.lifecycle.process === "finished"} lifted={columnId === stage.id} insertion={overId === stage.id && canDropColumn(stage.id) ? (columnIndex(columnId!) < columnIndex(stage.id) ? "right" : "left") : null} dragging={!!active} disabled={columnId ? !canDropColumn(stage.id) : locked || !targets.some(target => target.id === stage.id)}>
             {items.length ? <ul className="flex flex-col gap-3">{items.map(item => <li key={item.id}>
-              <CandidateCard item={item} board={board} onSubstate={onSubstate} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
+              <CandidateCard item={item} board={board} configHref={configHref} onSubstate={onSubstate} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
                 pending={pending.has(item.id)} notice={notices[item.id]} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} suppressClick={suppressClick} late={late} />
             </li>)}</ul> : filtered ? <Empty className="rounded-lg border p-6 text-muted-foreground">
               <EmptyHeader>

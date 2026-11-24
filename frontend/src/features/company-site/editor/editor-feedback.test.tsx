@@ -19,7 +19,7 @@ it("offers retry for a generic error and saves the current draft successfully", 
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reintentar" })); });
   expect(save).toHaveBeenCalledTimes(2);
   expect(save.mock.calls[1][0].body.slug).toBe("mi-empresa");
-  expect(screen.getByRole("status").textContent).toBe("Cambios guardados");
+  expect(screen.getByRole("status").textContent).toBe("Borrador guardado");
   expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
   await expect(controller.flush()).resolves.toEqual({ ok: true, version: 2 });
   controller.dispose();

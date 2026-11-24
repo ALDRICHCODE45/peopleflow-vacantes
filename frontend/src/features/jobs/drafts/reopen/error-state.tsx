@@ -3,9 +3,17 @@ import { StateCard } from "@/components/feedback/state-card";
 import type { DraftEditFailureReason } from "./load";
 
 const back = {href:"/empresa/vacantes",label:"Volver a Vacantes"};
+// The API answers 404 both for a vacancy that does not exist and for one this recruiter cannot see (a recruiter outside its team), so the description names the likely cause and the way out.
+// The heading stays shared with invalid_id: several suites outside this feature assert it.
 const missing = {
   title:"No encontramos este borrador",
-  description:"Puede que ya no exista o que no esté disponible para tu cuenta. Revisa los borradores a los que tienes acceso.",
+  description:"Es posible que no tengas acceso a esta vacante: pídele acceso al responsable o al dueño de la empresa. Si ya no existe, vuelve al listado.",
+  action:back,
+};
+// A malformed id never reached the API, so access is not the cause: point to the listing instead.
+const invalid = {
+  title:"No encontramos este borrador",
+  description:"El enlace de este borrador no es válido. Vuelve al listado y ábrelo desde ahí.",
   action:back,
 };
 const company = {
@@ -14,10 +22,10 @@ const company = {
   action:{href:"/empresa/configuracion",label:"Revisar empresa"},
 };
 const messages = {
-  invalid_id:missing,
+  invalid_id:invalid,
   not_found:missing,
   unauthenticated:{title:"Tu sesión expiró",description:"Inicia sesión para abrir el borrador guardado en tu cuenta. No se modificó su contenido.",action:{href:"/empresa/login",label:"Iniciar sesión"}},
-  forbidden:{title:"No tienes permiso para abrirlo",description:"Abre este borrador con la cuenta del reclutador responsable o de la persona propietaria de la empresa.",action:back},
+  forbidden:{title:"No tienes permiso para abrirlo",description:"No tienes acceso a esta vacante: pídele acceso al responsable o al dueño de la empresa, o ábrela con su cuenta.",action:back},
   company_inactive:company,
   company_not_active:company,
   server_error:{title:"El servidor tuvo un problema",description:"No pudimos cargar el borrador. No se modificó su contenido. Vuelve al listado y ábrelo de nuevo; es seguro intentarlo.",action:back},

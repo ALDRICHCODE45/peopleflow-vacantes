@@ -6,17 +6,42 @@ import { cn } from "cn"
 
 import { Separator } from "@/components/ui/separator"
 
-function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
+/** True only for the direct children of an `ItemGroup` that is a real list (role=list): its rows are list items and its separators are presentational (axe aria-required-children). Every `Item` resets it to false for its descendants, and `ItemGroup` only sets it for non-host children, so nested Items, Items inside native `<ul><li>` wrappers and portaled content never claim a list role. */
+const ItemListContext = React.createContext(false)
+
+/** Marks each direct child of the group: components (Item, ItemSeparator, row wrappers) are list children; host elements such as `<ul>` are not. Fragments are transparent. */
+function markDirectChildren(children: React.ReactNode, inList: boolean): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) return child
+    if (child.type === React.Fragment) {
+      return React.cloneElement(child, undefined, markDirectChildren(child.props.children, inList))
+    }
+    return (
+      <ItemListContext.Provider value={inList && typeof child.type !== "string"}>
+        {child}
+      </ItemListContext.Provider>
+    )
+  })
+}
+
+function ItemGroup({
+  className,
+  children,
+  role = "list",
+  ...props
+}: React.ComponentProps<"div">) {
   return (
     <div
-      role="list"
+      role={role}
       data-slot="item-group"
       className={cn(
         "group/item-group flex w-full flex-col gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2",
         className
       )}
       {...props}
-    />
+    >
+      {markDirectChildren(children, role === "list")}
+    </div>
   )
 }
 
@@ -24,8 +49,11 @@ function ItemSeparator({
   className,
   ...props
 }: React.ComponentProps<typeof Separator>) {
+  const inList = React.useContext(ItemListContext)
   return (
     <Separator
+      // A presentational separator carries no separator semantics, so it must not keep aria-orientation either (axe aria-allowed-attr).
+      {...(inList ? { role: "presentation", "aria-orientation": undefined } : null)}
       data-slot="item-separator"
       orientation="horizontal"
       className={cn("my-2", className)}
@@ -63,11 +91,17 @@ function Item({
   render,
   ...props
 }: useRender.ComponentProps<"div"> & VariantProps<typeof itemVariants>) {
-  return useRender({
+  const inList = React.useContext(ItemListContext)
+  // An Item rendered as a link, button or any other element keeps its native role; only plain/div rows are list items.
+  const plainRow =
+    render === undefined ||
+    (React.isValidElement(render) && render.type === "div")
+  const element = useRender({
     defaultTagName: "div",
     props: mergeProps<"div">(
       {
         className: cn(itemVariants({ variant, size, className })),
+        ...(inList && plainRow ? { role: "listitem" } : null),
       },
       props
     ),
@@ -78,6 +112,7 @@ function Item({
       size,
     },
   })
+  return <ItemListContext.Provider value={false}>{element}</ItemListContext.Provider>
 }
 
 const itemMediaVariants = cva(

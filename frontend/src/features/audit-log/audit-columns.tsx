@@ -43,14 +43,21 @@ function Origin({ event }: { event: AuditEvent }) {
   </div>;
 }
 
+/** «Sobre» repeats «Vacante» when the event is about the vacancy itself: same id, or a vacancy-typed entity carrying the same title. */
+function isTheVacancy({ entity, vacancy }: AuditEvent) {
+  return !!vacancy && (entity.id === vacancy.id || (/vacancy|job_draft/.test(entity.type) && !!entity.label && entity.label === vacancy.title));
+}
+
 /** Same column anatomy as the talent base: identity column pinned first, muted secondary lines, semantic badges. */
 export const auditColumns: RichColumnDef<AuditEvent>[] = [
   { id: "when", size: 150, meta: { label: "Cuándo" }, enableHiding: false, cell: ({ row }) => <When event={row.original} /> },
   { id: "actor", size: 240, meta: { label: "Quién" }, enableHiding: false, cell: ({ row }) => <Who actor={row.original.actor} eventType={row.original.event_type} /> },
   { id: "action", size: 220, meta: { label: "Acción" }, enableHiding: false, cell: ({ row }) => <Action event={row.original} /> },
-  { id: "entity", size: 180, meta: { label: "Sobre" }, cell: ({ row }) => row.original.entity.label
-    ? <TruncatedText text={row.original.entity.label} className="text-sm font-medium text-foreground" />
-    : <TwoLineCell primary="Sin etiqueta" missing /> },
+  { id: "entity", size: 180, meta: { label: "Sobre" }, cell: ({ row }) => isTheVacancy(row.original)
+    ? <TwoLineCell primary="—" missing />
+    : row.original.entity.label
+      ? <TruncatedText text={row.original.entity.label} className="text-sm font-medium text-foreground" />
+      : <TwoLineCell primary="Sin etiqueta" missing /> },
   { id: "vacancy", size: 180, meta: { label: "Vacante", grow: true }, cell: ({ row }) => row.original.vacancy
     ? <VacancyTitle title={row.original.vacancy.title} />
     : <TwoLineCell primary="—" missing /> },

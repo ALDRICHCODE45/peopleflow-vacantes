@@ -56,3 +56,7 @@ it("leaves the hint out while the columns are locked (busy, unavailable or finis
   open();
   expect(screen.queryByText(hint)).not.toBeInTheDocument();
 });
+it.each([[0, "Nuevos: posición fija"], [3, "Placement: posición fija"]])("marks a fixed column with a focusable image that has a text alternative (a named span needs a role for axe): %s", (index, name) => {
+  render(<ColumnOrderControls stage={{ ...stages[index], count: 0 } as unknown as Board["stages"][number]} order={order()} drag={drag} />);
+  expect(screen.getByRole("img", { name })).toHaveAttribute("tabindex", "0");
+});

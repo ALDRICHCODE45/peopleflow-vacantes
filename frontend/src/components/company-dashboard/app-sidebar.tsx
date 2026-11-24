@@ -184,7 +184,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const account = {
     name: user?.full_name ?? "Mi cuenta",
     email: user?.email ?? "",
-    role: membership ? (membership.role === "owner" ? "Propietario" : stakeholder ? "Stakeholder" : "Reclutador") : result?.ok && result.data.role === "candidate" ? "Candidato" : "Empresa",
+    role: membership ? (membership.role === "owner" ? "Dueño" : stakeholder ? "Stakeholder" : "Reclutador") : result?.ok && result.data.role === "candidate" ? "Candidato" : "Empresa",
     company: membership?.company.name ?? "",
   }
   const organization = [...data.navOrganization, ...(membership?.role === "owner" && membership.canViewMetrics === true ? [METRICS_ITEM] : []), ...(membership?.role === "owner" ? [AUDIT_ITEM] : [])]

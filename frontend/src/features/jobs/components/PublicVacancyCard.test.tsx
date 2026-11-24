@@ -131,4 +131,8 @@ it("underlines «y N beneficios más» (never colour alone) and stretches «Ver 
   const group = container.querySelector('[data-slot="card-footer"] > div:last-child')!;
   expect(group.className).toContain("max-sm:[&_[data-pf-action-bar-actions]]:basis-full");
   expect(group.className).toContain("max-sm:[&_[data-pf-action-bar-actions]>a]:flex-1");
+  // An idle status slot collapses its height and the row gap but is never display:none (its live region stays in the accessibility tree).
+  expect(group.className).toContain("[&_[data-pf-action-status-slot]:empty]:min-h-0");
+  expect(group.className).toContain("max-sm:[&_[data-pf-action-bar:has([data-pf-action-status-slot]:empty)]]:gap-y-0");
+  expect(group.className).not.toMatch(/\):hidden|:empty\]:hidden/u);
 });

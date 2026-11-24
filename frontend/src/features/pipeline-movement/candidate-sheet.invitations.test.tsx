@@ -71,7 +71,7 @@ it("creates or adopts an existing invitation only after confirmation, without mi
   expect(screen.getByText("Aún no hay evaluación")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Invitar a evaluación" }));
   expect(actions.createInvitationAction).not.toHaveBeenCalled();
-  await confirm("Enviar evaluación");
+  await confirm("Crear invitación");
   expect(await screen.findByRole("button", { name: /Acciones de la invitación/ })).toBeVisible();
   expect(menuAction("Copiar enlace")).toBeVisible();
   expect(actions.createInvitationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: boardFixture().participations[0].id });
@@ -131,7 +131,7 @@ it.each(["already_finished", "participation_inactive", "process_finished", "prof
   vi.mocked(actions.loadInvitationsAction).mockResolvedValue({ ok: true, data: { items: [] } });
   vi.mocked(actions.createInvitationAction).mockResolvedValue({ ok: false, reason, reference: { status: 409, code: reason } });
   render(<Harness />); await openTab();
-  fireEvent.click(screen.getByRole("button", { name: "Invitar a evaluación" })); await confirm("Enviar evaluación");
+  fireEvent.click(screen.getByRole("button", { name: "Invitar a evaluación" })); await confirm("Crear invitación");
   expect(await screen.findByText("No se creó la invitación")).toBeVisible();
   expect(screen.getByText("Aún no hay evaluación")).toBeVisible();
   if (reason === "profile_disabled") expect(screen.getByRole("link", { name: "Configurar psicometría" })).toHaveAttribute("href", `/empresa/vacantes/${vacancyId}/configuracion/psicometria`);
@@ -171,4 +171,24 @@ it("keeps management read-only on a finished process", async () => {
   expect(screen.getByRole("menuitem", { name: "Copiar enlace" })).toBeDisabled();
   expect(screen.getByRole("menuitem", { name: "Recordar" })).toBeDisabled();
   expect(screen.getByRole("menuitem", { name: "Revocar" })).toBeDisabled();
+});
+it("«Copiar enlace» is a visible button for an active invitation and asks for the same confirmation (no email is sent)", async () => {
+  render(<Harness />); await openTab();
+  const copy = await screen.findByRole("button", { name: "Copiar enlace" });
+  expect(copy).toBeVisible();
+  fireEvent.click(copy);
+  expect(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Copiar enlace" })).toBeVisible();
+  expect(actions.mintLinkAction).not.toHaveBeenCalled();
+});
+it.each(["revoked", "expired"] as const)("a %s invitation has no visible «Copiar enlace»", async status => {
+  vi.mocked(actions.loadInvitationsAction).mockResolvedValue({ ok: true, data: { items: [current({ status })] } });
+  render(<Harness />); await openTab();
+  await screen.findByRole("button", { name: /Acciones de la invitación/ });
+  expect(screen.queryByRole("button", { name: "Copiar enlace" })).not.toBeInTheDocument();
+});
+it("names the status of a created invitation by what exists, not by an email that was never sent", async () => {
+  vi.mocked(actions.loadInvitationsAction).mockResolvedValue({ ok: true, data: { items: [current({ status: "created" })] } });
+  render(<Harness />); await openTab();
+  expect((await screen.findAllByText(/Enlace creado/)).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Enviad[oa]/)).not.toBeInTheDocument();
 });

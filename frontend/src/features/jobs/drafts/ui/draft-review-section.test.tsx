@@ -121,3 +121,26 @@ it("keeps the existing dirty publication guard for the review CTA", async () => 
   expect(await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" })).toBeVisible();
   expect(loadDraftPublicationAction).toHaveBeenCalledTimes(1);
 });
+
+// A-F5: the review says so when a «visible» salary cannot be shown (backend: public_visible + mode, currency, pay_period and basis).
+function reviewWith(compensation: Partial<ReturnType<typeof createDraftModel>["fields"]["compensation"]>) {
+  const model = createDraftModel();
+  model.fields.compensation = { ...model.fields.compensation, ...compensation };
+  render(<LocalDraftForm initialModel={model} />); review();
+  return screen.getByText("Compensación").closest("div") as HTMLElement;
+}
+it.each([
+  [{ mode: "fixed" as const, amount: "30000.00", currency: "MXN" as const, pay_period: "monthly" as const, basis: null }, "El salario no se mostrará: falta si el monto es bruto o neto."],
+  [{ mode: null, currency: "MXN" as const, pay_period: "monthly" as const, basis: "gross" as const }, "El salario no se mostrará: falta el modo de compensación."],
+  [{ mode: "fixed" as const, amount: "30000.00", currency: null, pay_period: null, basis: "net" as const }, "El salario no se mostrará: falta la moneda y el periodo de pago."],
+  [{ mode: null, currency: null, pay_period: null, basis: null }, "El salario no se mostrará: falta el modo de compensación, la moneda, el periodo de pago y si el monto es bruto o neto."],
+])("says the visible salary will not be shown when something is missing (%j)", (compensation, message) => {
+  const cell = reviewWith({ ...compensation, public_visible: true });
+  expect(cell).toHaveTextContent(message);
+  expect(cell).not.toHaveTextContent("Visible públicamente");
+});
+it("says «Visible públicamente» only when mode, currency, period and basis are all set, and the private choice stays as it was", () => {
+  expect(reviewWith({ mode: "fixed", amount: "30000.00", currency: "MXN", pay_period: "monthly", basis: "gross", public_visible: true })).toHaveTextContent("Visible públicamente");
+  cleanup();
+  expect(reviewWith({ mode: null, public_visible: false })).toHaveTextContent("No se mostrará en la vista pública");
+});

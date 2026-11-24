@@ -80,3 +80,41 @@ merges to `main` allowed (no push).
   → basis required in the form when the switch is on. F21 no duplicate (replacement clone is reusable backend work, S–M).
   F22 exists for owners: GET /v2/me/company/audit-events?vacancy_id=… (+ …/audit-events/vacancies); recruiters would need
   a new piece.
+- **L6** Merged to local main `1dbb4350` (`feat/audit-public-fixes` at `134e2352`: modern choice/file controls + public
+  fixes). Evidence: full suite at `16df9591` 629 files / 11552 passed, 2 failed → `button-variants-merge` real (fixed in
+  `134e2352`: «Crear cuenta» through `cn`), `delivery-config` focus test passes in isolation (load flake); tsc 0, lint 0
+  errors. Browser (prod build of `16df9591`): focus ring, Quitar focus, «Ya vinculado» description, single «Sigue en
+  Placement», share menu (copy/WhatsApp/Correo/LinkedIn + origen=compartido), OG + JobPosting JSON-LD, anonymous apply
+  card, dark link contrast 6.61:1, listing chips/titles/card, closed-vacancy company link — pass; minor: stages popover at
+  390 clips 17 px when opened low, skip link 5th stop on desktop, `/candidatos` title doubled, employer share not
+  reachable (fixed in the A tranche). Native review (escalate item 3, shared Button link variant) approved, lineage
+  `review-4157357d02f219f6`, 11 advisories (status slot live region, closed-page read timeout, JSON-LD null bounds, share
+  helpers, publish share gate, choice-question validation test) → follow-up sent to the A-tranche worker.
+- **L7** Backend F0 fix merged (`102be62c`: pipeline impact joined users, so manual candidates were dropped and their
+  history panicked → 500 without log; apply had the same bug). Browser retest on :3000: add column, save, reorder and the
+  demo preview (cancelled) pass; impact lists both manual candidates. New findings: the impact list also flags earlier
+  stages a candidate never reached (`pipelineconfig/impact.go:138`; 34 rows on the demo for one new column) and writes
+  «No aplica» marks for them → product/backend decision; dialog says «Ningún candidato cambia de columna» but lists
+  «Nombre → Columna» rows; toast overlaps the inline success; board header truncates long column names. Admin branch:
+  backend admin fields accepted as optional (`6e2b23c5`).
+- **L8** Admin/pipeline branch `feat/audit-admin-fixes` at `9da444a9` (B fixes + non-public A fixes; related 173 files /
+  2707 tests, tsc clean). Not done: «No encontramos este borrador» heading (description now mentions missing access; the
+  heading is asserted in 6 other suites), «Abrir tablero» hiding (no access flag in the ficha data), A-F16 starter listed
+  twice (needs a viewer id from the backend), inline CV preview in the sheet (no reusable preview for participation CVs),
+  board search by email (board payload has no email). Merges cleanly into main; integration (with the A tranche) gets the
+  full suite and a browser check before merging.
+- **L9** Integration `e013f5ff` (public + sort/editor `ff17270c` + admin/pipeline `9da444a9`; conflicts in vacancy-frame
+  imports and vacancy-portfolio responsible line resolved by hand): full suite 638 files / 11673 passed, tsc 0, lint 0
+  errors. Native review of `9da444a9` (escalate item 3, shared ItemGroup roles) approved, lineage
+  `review-9c2864f028aca702`, 12 advisories; two are likely regressions and are fixed before merging (ItemGroup listitem on
+  nested/interactive Items; never-saved checklist defaults shown as saved), plus invalid_id copy, dead settings toggle
+  path, orphan help id. Remaining advisories go to the report (audit entity regex, intake FileField coupling, lifecycle
+  message equality, psychometrics label source, documents read unmocked in other sheet tests).
+- **L10** Browser check of `e013f5ff` (prod :3000, owner/recruiter/stakeholder): A, B (except one), D pass. Failures:
+  (1) shared `item.tsx` — presentational ItemSeparator keeps aria-orientation (axe aria-allowed-attr critical ×8) and Items
+  inside native <li> get role=listitem (aria-required-parent ×10 on Configuración) → sent to the running fix worker;
+  (2) sheet «Documentos (n)» link: `?candidato=` ignored on client navigation (works on reload);
+  (3) sort control shows without `total` (condition `total?.count !== 0`), and «Mayor salario» shows «No se pudieron
+  aplicar los filtros» until the backend sort merges. Also: close dialog from the list row menu lacks coverage («Cubierta»
+  enabled); step tabs don't announce ✓/error; board tooltip spans aria-prohibited-attr ×3 and contrast ×7; vacancy list
+  secondary badges 4.32:1 (light). Data: one stakeholder invitation «Auditoría Verif» (revoked).

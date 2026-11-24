@@ -20,6 +20,9 @@ import { loadHistoryAction, loadParticipationAction } from "./actions";
 import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
 import { SubstateSelect } from "./substate-controls";
+import { substateConfigHref } from "./substates";
+import { CandidateDocuments } from "@/features/vacancy-documents/ui/candidate-documents";
+import { scrollFade, useScrollHint } from "./scroll-hint";
 import { discardGroupLabel, discardReasonLabel } from "./discard-text";
 import { allowedMoveTargets, isBackwardMove } from "./helpers";
 import { participationCvHref } from "./cv-href";
@@ -44,6 +47,7 @@ export function CandidateSheet(props: Props) {
 }
 function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, tabRequest, children }: Props) {
   const checklist = useBoardChecklist();
+  const tabsRail = useScrollHint<HTMLDivElement>();
   const manual = item.source === "manual";
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [tab, setTab] = useState(tabRequest?.tab ?? "summary");
@@ -121,8 +125,8 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       {/* Evaluation context and its action stay together above the scrolling tabs. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-wrap">
         {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} isBackward={stage => isBackwardMove(board, item, stage)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
-        {onSubstate && <SubstateSelect board={board} item={item} onChange={onSubstate} disabled={locked} describedBy={errorNotice ? "detail-action-status" : undefined} />}
-        {onDisposition && <Button id={`candidate-disposition-${item.id}`} type="button" variant="outline" className={cn("h-10", !item.discard && "border-destructive/25 text-destructive")} disabled={locked} aria-label={item.discard ? "Recuperar" : "Descartar"} aria-describedby={errorNotice ? "detail-action-status" : undefined} onClick={() => onDisposition(item.id, item.discard ? "recover" : "discard")}>
+        {onSubstate && <SubstateSelect board={board} item={item} configHref={substateConfigHref(vacancyId)} onChange={onSubstate} disabled={locked} describedBy={errorNotice ? "detail-action-status" : undefined} />}
+        {onDisposition && <Button id={`candidate-disposition-${item.id}`} type="button" variant="outline" className={cn("h-10", !item.discard && "border-status-danger/30 text-status-danger hover:text-status-danger")} disabled={locked} aria-label={item.discard ? "Recuperar" : "Descartar"} aria-describedby={errorNotice ? "detail-action-status" : undefined} onClick={() => onDisposition(item.id, item.discard ? "recover" : "discard")}>
           {item.discard ? <RotateCcw aria-hidden="true" data-icon="inline-start" /> : <UserRoundX aria-hidden="true" data-icon="inline-start" />}{item.discard ? "Recuperar" : "Descartar"}
         </Button>}
       </div>
@@ -132,7 +136,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       {invitations?.failed && <div className="px-4 pb-2 sm:px-6"><Button type="button" variant="ghost" className="min-h-10" disabled={invitations.reading} onClick={invitations.retry}>Actualizar psicometría</Button></div>}
       {/* Five full labels cannot fit a 390px sheet. Scroll the rail, not the panel;
           keep native target geometry, keyboard navigation and an inset for focus. */}
-      <div className={cn("min-w-0 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:thin] sm:px-6", expanded && "hidden")}><TabsList activateOnFocus={false} aria-label="Secciones de la ficha" className={cn("group-data-horizontal/tabs:h-11", showPsychometrics ? "w-max min-w-full" : "w-full max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]")}>
+      <div ref={tabsRail.ref} {...tabsRail.hint} className={cn("min-w-0 overflow-x-auto px-4 pb-5 pt-1 [scrollbar-width:thin] sm:px-6", scrollFade, expanded && "hidden")}><TabsList activateOnFocus={false} aria-label="Secciones de la ficha" className={cn("group-data-horizontal/tabs:h-11", showPsychometrics ? "w-max min-w-full sm:[&_[data-slot=tabs-trigger]]:px-2" : "w-full max-sm:[&_[data-slot=tabs-trigger]]:px-1 max-sm:[&_[data-slot=tabs-trigger]]:gap-1 max-sm:[&_[data-slot=tabs-trigger]]:text-[13px]")}>
         <TabsTrigger value="summary">Resumen</TabsTrigger>
         <TabsTrigger value="answers">Respuestas <Badge variant="secondary">{loaded?.detail.screening.length ?? "…"}</Badge></TabsTrigger>
         {checklist && <TabsTrigger value="checklist">Checklist</TabsTrigger>}
@@ -164,6 +168,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
                   <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={participationCvHref(vacancyId, item.id)} download role="link" />}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV</Button>
                   {detail.cv.source === "company" && loaded.detail.original_cv && <Button variant="outline" size="sm" className="min-h-10" nativeButton={false} render={<a href={participationCvHref(vacancyId, item.id, "original")} download role="link" />}><ArrowDownToLine aria-hidden="true" data-icon="inline-start" />Descargar CV original</Button>}
                 </>} /></section>
+              <Separator /><section className="flex flex-col gap-3"><SectionTitle>Documentos</SectionTitle><CandidateDocuments vacancyId={vacancyId} participationId={item.id} /></section>
               {loaded.detail.discard && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><SectionTitle>Descarte</SectionTitle></CardTitle><CardDescription><p className="text-sm font-medium text-status-danger">{discardReasonLabel(loaded.detail.discard.reason)}</p><p className="text-xs">{discardGroupLabel(loaded.detail.discard.reason)}</p></CardDescription></CardHeader>
                 <CardContent className="flex flex-col gap-4"><p className="text-xs text-muted-foreground">Etapa anterior: <strong className="text-foreground">{stageName(loaded.detail.discard.previous_stage_id)}</strong></p>
                 <DiscardNotes comment={loaded.detail.comment} message={loaded.detail.candidate_message} showEmpty /></CardContent>

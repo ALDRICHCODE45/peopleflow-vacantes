@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Check, Download, Info, ListChecks, Minus, Printer, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,7 +40,7 @@ function EvidenceCell({ cell }: { cell: Comparison["groups"][number]["rows"][num
   const name = `${labels[cell.result]}${cell.source ? ` · fuente: ${cell.source}` : ""}`;
   return <TableCell className="text-center">
     {/* A focusable read-only result, not an action. Tooltip supports pointer and keyboard. */}
-    <Tooltip><TooltipTrigger render={<span tabIndex={0} aria-label={name} className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" />}><ResultSymbol result={cell.result} /></TooltipTrigger>
+    <Tooltip><TooltipTrigger render={<span role="img" tabIndex={0} aria-label={name} className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" />}><ResultSymbol result={cell.result} /></TooltipTrigger>
       <TooltipContent className="flex-col items-start"><span>{name}</span>{cell.note && <span className="whitespace-pre-wrap break-words">{cell.note}</span>}</TooltipContent>
     </Tooltip>
     <div className="comparison-print-evidence hidden text-xs"><p>{name}</p>{cell.note && <p className="whitespace-pre-wrap break-words">{cell.note}</p>}</div>
@@ -57,9 +57,9 @@ function CriteriaSection({ group, candidates }: { group: Comparison["groups"][nu
     </CardHeader>
     <CardContent>
       <ScrollArea className="w-full min-w-0 pb-3 [&_[data-slot=table-container]]:overflow-visible" aria-label={`Comparación de ${group.label.toLowerCase()}`}>
-        <Table id={sectionId} className="comparison-table min-w-full table-fixed" style={{ width: 320 + candidates.length * 176 }}>
+        <Table id={sectionId} className="comparison-table min-w-full table-fixed [--cand:7.5rem] [--crit:6.5rem] sm:[--cand:11rem] sm:[--crit:20rem] w-[calc(var(--crit)+var(--count)*var(--cand))]" style={{ "--count": candidates.length } as CSSProperties}>
           <TableCaption className="sr-only">Comparación de candidatos por criterio · {group.label}</TableCaption>
-          <TableHeader><TableRow><TableHead scope="col" className="criterion-column sticky left-0 z-10 w-44 bg-card sm:w-80">Criterio</TableHead>{candidates.map(candidate => <TableHead scope="col" key={candidate.id} className="w-44 whitespace-normal text-center text-xs">{candidate.name}</TableHead>)}</TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead scope="col" className="criterion-column sticky left-0 z-10 w-(--crit) bg-card">Criterio</TableHead>{candidates.map(candidate => <TableHead scope="col" key={candidate.id} className="w-(--cand) whitespace-normal break-words text-center text-xs">{candidate.name}</TableHead>)}</TableRow></TableHeader>
           <TableBody>{group.rows.map(row => <TableRow key={row.id}>
             <TableHead scope="row" className="criterion-column sticky left-0 z-10 bg-card"><span title={row.label} className={`comparison-criterion whitespace-normal break-words text-xs font-normal ${expanded ? "" : "line-clamp-2"}`}>{row.label}</span></TableHead>
             {row.cells.map((cell, index) => <EvidenceCell key={candidates[index].id} cell={cell} />)}

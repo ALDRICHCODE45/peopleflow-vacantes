@@ -6,7 +6,7 @@ import { invitationStatusLabels as statusLabels } from "../sheet/invitation-labe
 import type { Invitation } from "../model";
 
 export function invitationStatusText(invitation: Invitation) {
-  if (invitation.status === "created") return `Enviada · vence ${new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "America/Mexico_City" }).format(new Date(invitation.expires_at)).replace(/\./g, "")}`;
+  if (invitation.status === "created") return `Pendiente · vence ${new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "America/Mexico_City" }).format(new Date(invitation.expires_at)).replace(/\./g, "")}`;
   if (invitation.status === "in_progress") return `En curso · ${invitation.answered_count} de ${invitation.total_count}`;
   return statusLabels[invitation.status];
 }

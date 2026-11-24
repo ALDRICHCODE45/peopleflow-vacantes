@@ -11,7 +11,7 @@ import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } f
 import { DraftPreviewContext } from "./draft-editor-shell";
 import { groupMissing, type editorReadiness } from "../pipeline/publication-model";
 import type { DraftFormState } from "./draft-form-state";
-import { internalCompensationView } from "./draft-preview";
+import { internalCompensationView, publicCompensationGaps, publicCompensationGapsMessage } from "./draft-preview";
 
 /** Presentation of the same readiness projection used by the navigation, not a publication gate. */
 export function DraftReviewSection({ state, readiness, draftId, published, questionCount, questionnaireAction, onComplete }: {
@@ -26,6 +26,7 @@ export function DraftReviewSection({ state, readiness, draftId, published, quest
   const openPreview = useContext(DraftPreviewContext);
   const groups = groupMissing(readiness.missing);
   const salary = internalCompensationView(state.compensation);
+  const salaryGaps = publicCompensationGaps(state.compensation);
   const title = published ? "Tu vacante está activa" : readiness.pending ? "Cada detalle cuenta" : readiness.serverKnown ? "Todo listo para publicar" : "Revisa tu vacante";
   return <div className="flex flex-col gap-5">
     <Card>
@@ -61,7 +62,7 @@ export function DraftReviewSection({ state, readiness, draftId, published, quest
       <CardContent><dl className="grid gap-5 sm:grid-cols-2 [&>*]:min-w-0">
         <div><dt className="flex items-center gap-2 text-sm text-muted-foreground"><UserRound aria-hidden="true" className="size-4" />Solicitante</dt><dd className="mt-1 break-words text-sm">{state.requester.name || (state.requester.id ? "Nombre no disponible" : "Sin seleccionar")}</dd></div>
         <div><dt className="flex items-center gap-2 text-sm text-muted-foreground"><MessageSquare aria-hidden="true" className="size-4" />Cuestionario</dt><dd className="mt-1 flex flex-col items-start text-sm">{questionCount} {questionCount === 1 ? "pregunta" : "preguntas"}{questionnaireAction}</dd></div>
-        <div><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Eye aria-hidden="true" className="size-4" />Compensación</dt><dd className="mt-1 text-sm">{state.compensation.public_visible ? "Visible públicamente" : "No se mostrará en la vista pública"}</dd></div>
+        <div><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Eye aria-hidden="true" className="size-4" />Compensación</dt><dd className="mt-1 text-sm">{!state.compensation.public_visible ? "No se mostrará en la vista pública" : salaryGaps.length ? <span data-pf-salary-hidden="">{publicCompensationGapsMessage(salaryGaps)}</span> : "Visible públicamente"}</dd></div>
         <div><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Banknote aria-hidden="true" className="size-4" />Monto interno</dt><dd className="mt-1 break-words text-sm">{salary ? <>{salary.amount}<p className="text-xs text-muted-foreground">{salary.meta}</p></> : "Compensación por revisar"}</dd></div>
       </dl></CardContent>
     </Card>

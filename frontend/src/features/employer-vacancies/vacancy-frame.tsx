@@ -2,10 +2,12 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { ArrowLeft, ExternalLink, FilePenLine } from "lucide-react";
 import { cn } from "cn";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STAKEHOLDER_VACANCIES } from "@/features/identity/stakeholder-routes";
 import { BoardLifecycle } from "@/features/pipeline-movement/board-lifecycle";
@@ -13,7 +15,8 @@ import type { CloseCoverage, Lifecycle } from "@/features/vacancy-lifecycle/mode
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 import { ReplacementBadges, ReplacementTags } from "@/features/vacancy-lifecycle/ui/replacement-badges";
 import type { DocumentOverview } from "@/features/vacancy-documents/model";
-import { vacancyPipelineHref } from "./model";
+import { ShareMenu } from "@/features/jobs/components/share-menu";
+import { hasPublicPage, isEditablePublication, vacancyEditorHref, vacancyPipelineHref, vacancyPublicHref } from "./model";
 import { VacancyTabRowContext } from "./vacancy-frame-slot";
 
 export type VacancyTab = "pipeline" | "documentos" | "configuracion";
@@ -76,12 +79,18 @@ export function VacancyFrame({ vacancyId, active, title, fallbackTitle = "Vacant
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const status = lifecycle ? publicationStatus(lifecycle.publication, "accent", lifecycle.process)
     : vacancy ? publicationStatus(vacancy.publication, "accent", vacancy.process ?? undefined) : undefined;
+  // The way back to the editor, and sharing, belong to a live vacancy; a stakeholder gets neither. A private replacement has no public page.
+  const live = audience === "employer" && !loading && lifecycle?.publication ? lifecycle.publication : null;
+  const editable = live !== null && isEditablePublication(live);
+  const publicPage = live !== null && hasPublicPage({ status: live, visibility: lifecycle?.visibility });
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", fill && "md:h-[calc(100dvh-1rem)] md:flex-none md:overflow-hidden")} aria-busy={loading}>
       {/* `title={null}` (not omitted: that reads «Dashboard») leaves only menu, back crumb and theme toggle. */}
       <SiteHeader title={null} parent={{ label: "Vacantes", href: audience === "stakeholder" ? STAKEHOLDER_VACANCIES : "/empresa/vacantes" }} />
       <div className="@container/main flex min-h-0 flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="min-h-0 flex-1 gap-0">
+          {/* The top-bar crumb reads as plain text on desktop: a stakeholder, who has no tabs to leave by, gets an explicit way back. */}
+          {audience === "stakeholder" && <Link href={STAKEHOLDER_VACANCIES} data-pf-vacancy-back="" className="mb-2 inline-flex min-h-10 w-fit shrink-0 items-center gap-1.5 rounded-sm text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"><ArrowLeft aria-hidden="true" className="size-4" />Volver a Vacantes</Link>}
           <div data-pf-vacancy-identity="" className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-1 pb-1 max-sm:pb-3">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
               {loading
@@ -89,6 +98,13 @@ export function VacancyFrame({ vacancyId, active, title, fallbackTitle = "Vacant
                 : <h1 className="font-heading text-xl font-semibold tracking-tight [overflow-wrap:anywhere]">{title ?? fallbackTitle}</h1>}
               {!loading && showStatus && status && (lifecycle || vacancy) && <><Badge variant={status.variant} dot>{status.label}</Badge>{lifecycle ? <ReplacementBadges lifecycle={lifecycle} /> : <ReplacementTags kind={vacancy?.kind} visibility={vacancy?.visibility} />}</>}
             </div>
+            {(editable || publicPage) && <div data-pf-vacancy-actions="" className="flex flex-wrap items-center gap-2">
+              {editable && <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={vacancyEditorHref(vacancyId)} />}><FilePenLine aria-hidden="true" data-icon="inline-start" />Editar publicación</Button>}
+              {publicPage && <>
+                <ShareMenu title={title ?? fallbackTitle} url={vacancyPublicHref(vacancyId)} label="Compartir" variant="outline" className="min-h-10 w-auto" />
+                <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={vacancyPublicHref(vacancyId)} target="_blank" rel="noopener noreferrer" />}><ExternalLink aria-hidden="true" data-icon="inline-start" />Ver página pública<span className="sr-only"> (se abre en una pestaña nueva)</span></Button>
+              </>}
+            </div>}
             <div className="flex min-w-0 flex-col gap-0.5 text-xs text-muted-foreground empty:hidden sm:text-right">
               {lifecycle && <BoardLifecycle lifecycle={lifecycle} publishedAt={publishedAt} {...(coverage ? { coverage } : {})} />}
             </div>

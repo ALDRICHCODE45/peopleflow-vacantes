@@ -68,7 +68,7 @@ it("focuses the visible picker when CV is the only missing requirement", async (
 it("composes the CV picker with change and remove actions", () => {
  mount(); expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeVisible();
  expect(screen.getByText("PDF o Word (.docx), máximo 5 MB.")).toBeVisible();
- fill(); expect(screen.getByText("cv.pdf").closest('[data-slot="item"]')).not.toBeNull();
+ fill(); expect(screen.getByText("cv.pdf").closest('[role="group"]')).toBe(screen.getByRole("group", { name: "Archivo elegido" }));
  expect(screen.getByRole("button", { name: "Cambiar" })).toBeVisible();
  fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
  expect(screen.queryByText("cv.pdf")).not.toBeInTheDocument();
@@ -396,4 +396,30 @@ it("shows a hidden-history duplicate without its last vacancy and still allows c
  expect(screen.queryByText(/Última vacante/)).toBeNull();
  fireEvent.click(screen.getByRole("button", { name: "Usar el existente" }));
  expect(screen.queryByLabelText("Nombre completo")).not.toBeInTheDocument();
+});
+it.each([["cv.exe", "application/x-msdownload", 5, "Sube un PDF o un documento de Word (.docx)."], ["cv.pdf", "application/pdf", 5_242_881, "El archivo pesa más de 5 MB."]])("flags a wrong CV (%s) the moment it is chosen and keeps the counter in step", async (name, type, size, message) => {
+ mount(); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ await waitFor(() => expect(screen.getByText("Selecciona un CV.")).toBeVisible());
+ const before = Number(/Revisa (\d+) datos/.exec(screen.getByText(/Revisa \d+ datos marcados\./).textContent ?? "")?.[1]);
+ fireEvent.change(screen.getByLabelText("CV"), { target: { files: [new File([new Uint8Array(size)], name, { type })] } });
+ expect(screen.getByText(message)).toBeVisible();
+ expect(screen.getByLabelText("CV")).toHaveAttribute("aria-invalid", "true");
+ expect(screen.getByText(`Revisa ${before} datos marcados.`)).toBeVisible();
+ fireEvent.change(screen.getByLabelText("CV"), { target: { files: [new File(["%PDF"], "cv.pdf", { type: "application/pdf" })] } });
+ expect(screen.queryByText(message)).toBeNull();
+ expect(screen.getByText(`Revisa ${before - 1} datos marcados.`)).toBeVisible();
+});
+it("flags a wrong CV before any submit and clears it when the file is removed", () => {
+ mount();
+ fireEvent.change(screen.getByLabelText("CV"), { target: { files: [new File(["x"], "cv.exe", { type: "application/x-msdownload" })] } });
+ expect(screen.getByText("Sube un PDF o un documento de Word (.docx).")).toBeVisible();
+ expect(screen.getByText("Revisa 1 dato marcado.")).toBeVisible();
+ fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
+ expect(screen.queryByText("Sube un PDF o un documento de Word (.docx).")).toBeNull();
+});
+it("says what is wrong with a malformed email instead of a vague «Revisa este dato»", async () => {
+ mount(); fill(); change("Correo electrónico", "no-es-correo");
+ fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ expect(await screen.findByText("Escribe un correo válido, por ejemplo nombre@empresa.com.")).toBeVisible();
+ expect(screen.queryByText("Revisa este dato.")).toBeNull();
 });

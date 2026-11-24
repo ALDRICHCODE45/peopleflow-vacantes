@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Field, FieldSet, FieldLegend, FieldGroup, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ChoiceList } from "@/components/ui/choice-list";
 import { Item, ItemGroup, ItemContent, ItemTitle, ItemActions, ItemSeparator } from "@/components/ui/item";
 import { groupMissing, MISSING_GROUP_LABELS } from "@/features/jobs/drafts/pipeline/publication-model";
 import { getLifecycleAction, transitionLifecycleAction, type LifecycleActionResult, type LifecycleTransitionActionInput } from "../actions";
@@ -51,7 +52,9 @@ function ActionSession({ draftId, title, action, snapshot, coverage, onOpenChang
   const filledDisabled = !!currentCoverage && (currentCoverage.required === null || currentCoverage.covered < currentCoverage.required);
   const reasonGroup = useRef<HTMLDivElement>(null);
   const noteInput = useRef<HTMLTextAreaElement>(null);
-  function focusReason() { reasonGroup.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus(); }
+  function focusReason() { reasonGroup.current?.querySelector<HTMLElement>('[role="radio"]:not([data-disabled])')?.focus(); }
+  // A coverage rejection repeats the message the disabled «Cubierta» row already carries, so only other messages become the group error.
+  const reasonError = fieldError?.field === "reason" && !(filledDisabled && currentCoverage && fieldError.message === closeCoverageMessage(currentCoverage)) ? fieldError.message : undefined;
   const [process, setProcess] = useState<"continue" | "finish">("continue");
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<LifecycleActionFailure | null>(null);
@@ -129,12 +132,10 @@ function ActionSession({ draftId, title, action, snapshot, coverage, onOpenChang
   </Dialog>;
   return <ConfirmActionDialog open onOpenChange={onOpenChange} onConfirm={() => void confirm()} icon={ui.icon} title={action === "finish_process" ? `¿Finalizar el proceso de ${title}?` : `¿${ui.label} ${title}?`} description={ui.description} confirmLabel={action === "close" ? "Cerrar vacante" : ui.label} pendingLabel="Aplicando…" pending={pending} confirmDisabled={!currentSnapshot.data.allowed_actions.includes(action)} finalFocus={() => heading.current ?? true} tone={action === "finish_process" || (action === "close" && process === "finish") ? "destructive" : "default"}>
     {action === "close" && <FieldGroup>
-      <FieldSet><FieldLegend>Motivo de cierre</FieldLegend><Field>
-        <ToggleGroup ref={reasonGroup} aria-label="Motivo de cierre" aria-required="true" aria-invalid={fieldError?.field === "reason" || undefined} aria-describedby={fieldError?.field === "reason" ? "close-reason-error" : filledDisabled ? "close-coverage" : undefined} variant="outline" className="grid w-full grid-cols-1 sm:grid-cols-3" value={reason ? [reason] : []} disabled={pending} onValueChange={values => { const value = values[0]; if (value === "filled" || value === "cancelled" || value === "other") { setReason(value); setFieldError(null); } }}>
-          {(["filled", "cancelled", "other"] as const).map(value => <ToggleGroupItem key={value} value={value} disabled={pending || (value === "filled" && filledDisabled)} className="min-h-10 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground">{closeReasonLabel(value)}</ToggleGroupItem>)}
-        </ToggleGroup>
-        {fieldError?.field === "reason" ? <FieldError id="close-reason-error">{fieldError.message}</FieldError> : filledDisabled && currentCoverage && <FieldDescription id="close-coverage">{closeCoverageMessage(currentCoverage)}</FieldDescription>}
-      </Field></FieldSet>
+      <div ref={reasonGroup}><ChoiceList legend="Motivo de cierre" disabled={pending} value={reason} error={reasonError}
+        onValueChange={value => { if (value === "filled" || value === "cancelled" || value === "other") { setReason(value); setFieldError(null); } }}
+        options={(["filled", "cancelled", "other"] as const).map(value => ({ value, title: closeReasonLabel(value),
+          ...(value === "filled" && filledDisabled && currentCoverage ? { disabled: true, disabledReason: closeCoverageMessage(currentCoverage) } : {}) }))} /></div>
       {reason === "other" && <Field data-invalid={fieldError?.field === "note" || undefined}>
         <FieldLabel htmlFor="close-note">Motivo</FieldLabel>
         <Textarea ref={noteInput} id="close-note" className="min-h-24" required value={note} disabled={pending} aria-invalid={fieldError?.field === "note" || undefined} aria-describedby={fieldError?.field === "note" ? "close-note-error close-note-count" : "close-note-count"} onChange={event => { setNote(event.target.value); setFieldError(null); }} />

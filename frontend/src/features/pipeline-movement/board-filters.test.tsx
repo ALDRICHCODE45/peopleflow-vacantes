@@ -167,7 +167,10 @@ it("searchable multiselect applies live, keeps quiet zero counts, clears chips a
   fireEvent.change(search, { target: { value: "oferta" } });
   expect(screen.queryByRole("checkbox", { name: "Entrevista técnica 1" })).not.toBeInTheDocument();
   const option = screen.getByRole("checkbox", { name: "Oferta 0" });
-  expect(option.closest("label")?.querySelector("[data-slot='option-count']")).toHaveClass("text-muted-foreground", "tabular-nums", "opacity-50");
+  // Quiet means muted text, never faded: opacity on muted text left ~2:1 against the sheet (axe color-contrast).
+  const zeroCount = option.closest("label")?.querySelector("[data-slot='option-count']");
+  expect(zeroCount).toHaveClass("text-muted-foreground", "tabular-nums");
+  expect(zeroCount).not.toHaveClass("opacity-50");
   // Hover and checked rows are rounded menu-like highlights with inner padding, never the
   // square edge-to-edge tint FieldLabel applies to checked choices by default.
   const row = option.closest("label")!;

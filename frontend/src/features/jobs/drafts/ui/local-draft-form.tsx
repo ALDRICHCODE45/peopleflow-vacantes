@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import type { GeographyErrors, LocationValue } from "@/features/geo/model";
 import { draftValidationErrors } from "../validation-errors";
 import { DraftGeographyField } from "./draft-geography-field";
@@ -8,9 +9,11 @@ import {
   CheckCircle2Icon,
   InfoIcon,
   BriefcaseBusiness,
+  ExternalLink,
   MapPin,
   LockKeyhole,
   Play,
+  SquareKanban,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PublicationRequired } from "./publication-required";
@@ -100,10 +103,12 @@ import {
   type LocalDraftV2Snapshot,
 } from "./draft-screening-v2-state";
 import { PublishButton } from "@/features/employer-vacancies/publication/publish-dialog";
+import { hasPublicPage, vacancyPipelineHref, vacancyPublicHref } from "@/features/employer-vacancies/model";
+import { ShareMenu } from "../../components/share-menu";
+import { useReportDraftPageState } from "./draft-page-chrome";
 import { loadDraftPublicationAction } from "../pipeline/publication-actions";
 import type { ScreeningQuestionV2 } from "../screening-v2/model";
 import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
-import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 
 /**
  * Complete local private-draft editor over the accepted 17-field model, shown
@@ -425,7 +430,10 @@ export function LocalDraftForm({
   const [savedDraftId, setSavedDraftId] = React.useState(initialIdentity?.draftId);
   const [published, setPublished] = React.useState<boolean | null>(initialLifecycle ? initialLifecycle.publication !== null : initialIdentity ? null : false);
   const publication = initialLifecycle?.publication ?? (published === null ? undefined : published ? "published" : null);
-  const status = publicationStatus(publication, "success", initialLifecycle?.process);
+  // The editor of a vacancy already published is not a draft: the page chrome and the actions follow it.
+  useReportDraftPageState(published === null ? "unknown" : published ? "vacancy" : "draft");
+  const [justPublished, setJustPublished] = React.useState(false);
+  const markPublished = () => { setJustPublished(true); setPublished(true); };
   const [serverMissing, setServerMissing] = React.useState<readonly string[] | null>(null);
   const [publishNotice, setPublishNotice] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -598,6 +606,16 @@ export function LocalDraftForm({
     setValidated(result.model);
   }
 
+  const stepInvalid = Array.from({ length: STEP_COUNT }, (_, index) => Object.keys(errors).some(key => errorStep(key) === index));
+  // A vacancy that is live offers the next steps; a public page exists only for a published, public one (never a private replacement or a paused one).
+  const publicPage = savedDraftId !== undefined && hasPublicPage({ status: publication === "published" ? "published" : publication === undefined || publication === null ? "draft" : publication, visibility: justPublished ? "public" : initialLifecycle?.visibility });
+  const publishedActions = published === true && savedDraftId ? <>
+    <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={vacancyPipelineHref(savedDraftId)} />}><SquareKanban aria-hidden="true" data-icon="inline-start" />Ver pipeline</Button>
+    {publicPage && <>
+      <ShareMenu title={state.title.trim() || "Vacante"} url={vacancyPublicHref(savedDraftId)} label="Compartir" variant="outline" className="min-h-10 w-auto" />
+      <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={vacancyPublicHref(savedDraftId)} target="_blank" rel="noopener noreferrer" />}><ExternalLink aria-hidden="true" data-icon="inline-start" />Ver página pública<span className="sr-only"> (se abre en una pestaña nueva)</span></Button>
+    </>}
+  </> : null;
   return (
     <div data-pf-local-draft-form="" className="flex flex-col gap-5">
       {!isV2 && <div
@@ -610,7 +628,7 @@ export function LocalDraftForm({
       </div>}
 
       <form ref={formRef} noValidate aria-describedby="draft-publication-footnote" onSubmit={handleValidate} className="flex flex-col gap-6">
-        <DraftEditorShell state={state} published={published} publication={publication} process={initialLifecycle?.process} step={step} onStep={goToStep} readiness={readiness}>
+        <DraftEditorShell state={state} published={published} publication={publication} process={initialLifecycle?.process} step={step} onStep={goToStep} readiness={readiness} stepInvalid={stepInvalid} actions={publishedActions}>
 
         <TabsContent value={0} keepMounted
           data-pf-draft-step="1"
@@ -944,7 +962,7 @@ export function LocalDraftForm({
         <div className="mt-6 flex items-center justify-between gap-3">
           <Button type="button" variant="ghost" className="min-h-10" disabled={step === 0} onClick={() => goToStep(step - 1)}>Anterior</Button>
           {step < LAST_STEP && <Button type="button" variant="outline" className="min-h-10" onClick={() => goToStep(step + 1)}>Siguiente sección</Button>}
-          {step === LAST_STEP && isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Revisar y publicar" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? publication === "published" ? "Vacante activa" : status.label : "Revisar y publicar"}</Button>)}
+          {step === LAST_STEP && isV2 && published !== true && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Revisar y publicar" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={markPublished} /> : <Button type="button" className="min-h-10" onClick={() => setPublishNotice(true)}>Revisar y publicar</Button>)}
         </div>
         <p id="draft-publication-footnote" className="mt-5 text-center text-sm text-muted-foreground"><span className="text-primary">*</span> Necesario para publicar, no para guardar tu borrador.</p>
         </DraftEditorShell>
@@ -955,16 +973,16 @@ export function LocalDraftForm({
           <ActionBar status={<div className="flex flex-col gap-1">
             {isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : null}
             {!draftSave.result && <p className="text-sm text-muted-foreground">{draftSave.dirty ? "Cambios sin guardar" : draftSave.saved ? "Sin cambios pendientes" : "Borrador sin guardar"}</p>}
-            <p className="text-xs text-muted-foreground">Sin guardado automático</p>
+            <p className="text-xs text-muted-foreground max-sm:hidden">Sin guardado automático</p>
           </div>}>
             <FieldError id="draft-model-error">{errors.model}</FieldError>
             {validated !== null && <p role="status" className="flex items-center gap-2 text-sm text-status-success"><CheckCircle2Icon aria-hidden="true" className="size-4" />{VALIDATION_SUCCESS}</p>}
-            <div data-pf-draft-save-actions="" className="flex w-full flex-col gap-2 sm:flex-row">
-              {isV2 ? <Button type="submit" variant="outline" className="min-h-10" disabled={draftSave.pending} aria-busy={draftSave.pending} aria-describedby={draftSave.result ? "draft-save-status" : undefined}>
+            <div data-pf-draft-save-actions="" className="flex w-full flex-row gap-2 max-sm:[&>*]:flex-1">
+              {isV2 ? <Button type="submit" variant={published === true ? "default" : "outline"} className="min-h-10" disabled={draftSave.pending} aria-busy={draftSave.pending} aria-describedby={draftSave.result ? "draft-save-status" : undefined}>
                 {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
                 {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
               </Button> : <Button type="submit" variant="outline" className="min-h-10">Validar borrador</Button>}
-              {isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Publicar vacante" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? status.label : "Publicar vacante"}</Button>)}
+              {isV2 && published !== true && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Publicar vacante" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={markPublished} /> : <Button type="button" className="min-h-10" onClick={() => setPublishNotice(true)}>Publicar vacante</Button>)}
             </div>
           </ActionBar>
           </CardContent>

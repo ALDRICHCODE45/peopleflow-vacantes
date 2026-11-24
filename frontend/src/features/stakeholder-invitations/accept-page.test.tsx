@@ -23,8 +23,8 @@ afterEach(cleanup);
 
 it("asks a visitor to sign in as an employer, keeping the token only in the login callback", () => {
   mount(<AcceptInvitationPage token={urlToken} />, visitor);
-  expect(screen.getByRole("heading", { name: "Te invitaron a ver métricas en PeopleFlow" })).toBeInTheDocument();
-  expect(screen.getByText("Inicia sesión o crea una cuenta de empresa para aceptar. Al terminar volverás aquí y la invitación se confirmará sola.")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Te invitaron a PeopleFlow como stakeholder" })).toBeInTheDocument();
+  expect(screen.getByText("Verás Métricas y los documentos de las vacantes (solo lectura). Inicia sesión o crea una cuenta de empresa para aceptar. Al terminar volverás aquí y la invitación se confirmará sola.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", `/empresa/login?callbackUrl=${encodeURIComponent(`/empresa/invitacion/${urlToken}`)}`);
   expect(mocks.accept).not.toHaveBeenCalled();
   expect(mocks.replace).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ it("welcomes a stakeholder to its company with the way to Métricas", async () =
   mocks.loadCompany.mockResolvedValue({ kind: "exists", company, role: "stakeholder", industryLabel: "Tec", canViewTalentBase: false, canViewMetrics: true });
   mount(<AcceptOutcomePage outcome="unido" />);
   expect(await screen.findByRole("heading", { name: "Te uniste a Talentia Consultores" })).toBeInTheDocument();
-  expect(screen.getByText("Tienes acceso de solo lectura a las métricas de la empresa. Puedes ver nombres de candidatos en el detalle; cada consulta queda registrada.")).toBeInTheDocument();
+  expect(screen.getByText("Ves Métricas y los documentos de las vacantes (solo lectura). Puedes ver nombres de candidatos en el detalle; cada consulta queda registrada.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Ver métricas" })).toHaveAttribute("href", "/empresa/metricas");
 });
 
@@ -162,11 +162,18 @@ it("never claims a join the membership does not confirm", async () => {
 it.each([
   ["invalida", "Este enlace ya no es válido", "Puede haber vencido, haberse revocado o ya se usó. Pide a quien te invitó un enlace nuevo.", ["Ir al inicio"]],
   ["cuenta-candidato", "Este enlace es para cuentas de empresa", "Entraste con una cuenta de candidato. Cierra sesión, entra con una cuenta de empresa (o crea una) y vuelve a abrir el enlace que te enviaron.", ["Cerrar sesión"]],
-  ["ya-miembro", "Ya perteneces a una empresa", "Tu cuenta ya es parte de otra empresa y solo puede pertenecer a una. Para ver estas métricas, usa otra cuenta de empresa.", ["Ir a mi empresa", "Cerrar sesión"]],
+  ["ya-miembro", "Ya perteneces a una empresa", "Tu cuenta ya es parte de otra empresa y solo puede pertenecer a una. Para aceptar esta invitación, usa otra cuenta de empresa.", ["Ir a mi empresa", "Cerrar sesión"]],
   [null, "Abre tu enlace de invitación", "Para unirte como stakeholder necesitas el enlace que te envió la persona dueña de la cuenta.", ["Ir al inicio"]],
 ] as const)("explains the %s outcome with its way out", (outcome, title, description, actions) => {
   mount(<AcceptOutcomePage outcome={outcome} />);
   expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
   expect(screen.getByText(description)).toBeInTheDocument();
   for (const name of actions) expect(screen.getAllByRole(name === "Cerrar sesión" ? "button" : "link", { name }).length).toBe(1);
+});
+
+it("lines «Cerrar sesión» up under the primary action at full width on phones", () => {
+  mount(<AcceptOutcomePage outcome="ya-miembro" />);
+  const bar = screen.getByRole("button", { name: "Cerrar sesión" }).closest("[data-pf-action-bar-actions]")!;
+  expect(bar.parentElement?.parentElement).toHaveClass("[&>[data-pf-action-bar]]:w-full");
+  expect(bar.parentElement?.parentElement).toHaveClass("flex", "w-full", "justify-center", "[&_[data-pf-action-bar-actions]]:w-full");
 });

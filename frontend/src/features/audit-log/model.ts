@@ -217,7 +217,7 @@ export const EXPORT_RANGE_MESSAGES = {
 
 export function listFailureMessage(failure: AuditFailure): string {
   switch (failure.reason) {
-    case "forbidden": return "Solo el owner de la empresa puede consultar la auditoría.";
+    case "forbidden": return "Solo el dueño de la empresa puede consultar la auditoría.";
     case "unauthenticated": return "Tu sesión expiró. Inicia sesión de nuevo para consultar la auditoría.";
     case "invalid_filter": return failure.fields?.some(issue => issue.code === "range") ? RANGE_MESSAGE
       : "No pudimos aplicar los filtros. Limpia los filtros para volver a consultar la auditoría.";
@@ -234,7 +234,7 @@ export function exportErrorMessage(error: ExportError): string {
       : "La exportación supera el límite de registros.";
     return `${size} Acorta el rango de fechas o agrega filtros; no se descargó ningún archivo.`;
   }
-  if (error.status === 403 || error.code === "forbidden") return "Solo el owner de la empresa puede exportar la auditoría.";
+  if (error.status === 403 || error.code === "forbidden") return "Solo el dueño de la empresa puede exportar la auditoría.";
   if (error.status === 401 || error.code === "unauthenticated") return "Tu sesión expiró. Inicia sesión de nuevo e inténtalo otra vez.";
   if (error.status === 422 || error.code === "invalid_filter") return `Revisa las fechas: elige «Desde» y «Hasta», con un máximo de ${EXPORT_MAX_DAYS} días.`;
   return "No pudimos generar la exportación. No se descargó ningún archivo; inténtalo de nuevo.";

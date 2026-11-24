@@ -4,12 +4,12 @@ import { z } from "zod";
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { acceptInvitation, createInvitation, listInvitations, revokeInvitation, type InvitationClientFailure } from "./client";
 import {
-  type AcceptInvitationResult, type CreateInvitationResult, type InvitationFailure, type ListInvitationsResult, type RevokeInvitationResult,
+  parseNote, type AcceptInvitationResult, type CreateInvitationResult, type InvitationFailure, type ListInvitationsResult, type RevokeInvitationResult,
 } from "./model";
 
 const unauthenticated = { ok: false as const, reason: "unauthenticated" as const, reference: {} };
 const noResponse = { ok: false as const, reason: "no_response" as const, reference: {} };
-const SAFE_CODES = new Set(["unauthenticated", "forbidden", "invitation_limit_reached", "invitation_invalid", "candidate_account", "already_company_member", "invalid_request", "internal_error"]);
+const SAFE_CODES = new Set(["unauthenticated", "forbidden", "invitation_limit_reached", "invitation_invalid", "candidate_account", "already_company_member", "invalid_request", "validation_error", "internal_error"]);
 
 function reference({ error, code }: InvitationClientFailure) {
   const status = "status" in error ? error.status : undefined;
@@ -25,16 +25,18 @@ function unavailable(result: InvitationClientFailure): { reason: "unauthenticate
 }
 function ownerFailure(result: InvitationClientFailure): InvitationFailure {
   const status = "status" in result.error ? result.error.status : undefined;
-  const reason = status === 403 ? "forbidden" : status === 422 && result.code === "invitation_limit_reached" ? "limit_reached" : unavailable(result).reason;
+  const reason = status === 400 && result.noteInvalid ? "invalid_note" : status === 403 ? "forbidden" : status === 422 && result.code === "invitation_limit_reached" ? "limit_reached" : unavailable(result).reason;
   return { ok: false, reason, reference: reference(result) };
 }
 
 /** Owner only (§1.3); the API answers 403 to anyone else. */
-export async function createStakeholderInvitationAction(): Promise<CreateInvitationResult> {
+export async function createStakeholderInvitationAction(input: { note?: string } = {}): Promise<CreateInvitationResult> {
   try {
+    const parsed = parseNote(typeof input?.note === "string" ? input.note : undefined);
+    if (!parsed.ok) return { ok: false, reason: "invalid_note", reference: {} };
     const token = await getActionAccessToken();
     if (!token?.trim()) return unauthenticated;
-    const result = await createInvitation(token);
+    const result = await createInvitation(token, parsed.note);
     return result.ok ? { ok: true, invitation: result.data } : ownerFailure(result);
   } catch { return noResponse; }
 }

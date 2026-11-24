@@ -33,7 +33,7 @@ it("uses a fresh, working autosave session under StrictMode and never saves sele
   fireEvent.click(screen.getByRole("button", { name: "Diseño Centrada" }));
   await act(async () => vi.advanceTimersByTime(1500));
   expect(saveDraftAction).toHaveBeenCalledOnce();
-  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios guardados");
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Borrador guardado");
 });
 it("waits for online rather than timer-retrying an uncertain write, then saves the same draft", async () => {
   const props = fixture();
@@ -45,7 +45,7 @@ it("waits for online rather than timer-retrying an uncertain write, then saves t
   await act(async () => vi.advanceTimersByTime(60000)); expect(saveDraftAction).toHaveBeenCalledOnce();
   await act(async () => fireEvent.online(window)); expect(saveDraftAction).toHaveBeenCalledTimes(2);
   expect(vi.mocked(saveDraftAction).mock.calls[1][0]).toEqual(vi.mocked(saveDraftAction).mock.calls[0][0]);
-  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Cambios guardados");
+  expect(screen.getByRole("status", { name: "Estado del guardado" })).toHaveTextContent("Borrador guardado");
 });
 it("collapses side panels into Sheets on mobile and keeps preview on the page", async () => {
   vi.mocked(window.matchMedia).mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as MediaQueryList);

@@ -53,6 +53,18 @@ describe("VacancyPortfolio summary metrics", () => {
   });
 });
 
+describe("VacancyPortfolio status filter counts", () => {
+  // TabsList paints every count `text-muted-foreground` on a 6% foreground tint: 4.33:1 in light (axe color-contrast).
+  // Inactive counts take a darker foreground at the call site; the active one keeps the tabs' own primary tint.
+  it("paints inactive counts with a stronger foreground and leaves the active one to the tab list", () => {
+    renderPortfolio();
+    const count = (name: RegExp) => within(filterButton(name)).getByText(/^\d+$/);
+    expect(filterButton(/^Todas/)).toHaveAttribute("aria-selected", "true");
+    expect(count(/^Todas/).className).not.toContain("text-foreground");
+    for (const name of [/^Borradores/, /^Activas/, /^Pausadas/, /^Cerradas/]) expect(count(name).className).toContain("text-foreground/75!");
+  });
+});
+
 describe("VacancyPortfolio search and status filters", () => {
   it("exposes a labelled search input and five counted status filters", () => {
     const { container } = renderPortfolio();
@@ -104,7 +116,8 @@ describe("VacancyPortfolio vacancy rows", () => {
       const action = within(row).getByRole("button", { name: `Acciones de ${item.title}` });
       expect(action).toHaveAttribute("aria-haspopup", "menu");
       expect(action.querySelector("button, a")).toBeNull();
-      expect(within(row).queryAllByRole("link")).toHaveLength(0);
+      // The only link in a row is its title (the pipeline, or a draft's editor); the row itself is never one.
+      expect(within(row).getAllByRole("link").map(link => link.textContent)).toEqual([item.title]);
     }
     expect(container.querySelectorAll('[role="tab"]')).toHaveLength(5);
   });

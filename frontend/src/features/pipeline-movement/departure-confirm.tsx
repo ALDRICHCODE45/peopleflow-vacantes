@@ -17,8 +17,7 @@ const coverageCopy = ({ covered, required }: { covered: number; required: number
  */
 export function DepartureConfirm({ item, board, pending, onConfirm, onCancel }: { item: Participation; board: Board; pending: boolean; onConfirm: () => void; onCancel: () => void }) {
   const compact = useCompactViewport();
-  const first = item.candidate.full_name.split(/\s+/u)[0];
-  const title = `¿Marcar a ${first} como «No se sostuvo»?`;
+  const title = `¿Marcar a ${item.candidate.full_name} como «No se sostuvo»?`;
   const { covered, required } = board.coverage;
   const description = `Sale de la cobertura.${board.lifecycle.process === "finished" ? " El tablero sigue en solo lectura y el" : " El"} cambio queda en el historial.`;
   const finalFocus = () => document.getElementById(`candidate-move-${item.id}`);

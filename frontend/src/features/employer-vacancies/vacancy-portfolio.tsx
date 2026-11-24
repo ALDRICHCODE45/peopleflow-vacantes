@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, CirclePause, ChevronDown, FilePenLine, GitFork, SearchIcon, SearchX, SquareKanban, Users, CircleCheck } from "lucide-react";
+import { BriefcaseBusiness, CirclePause, ChevronDown, ExternalLink, FilePenLine, GitFork, SearchIcon, SearchX, SquareKanban, Users, CircleCheck } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,7 +16,8 @@ import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-sta
 import type { DraftListRow } from "@/features/jobs/drafts/list/client";
 import { listDraftsAction } from "@/features/jobs/drafts/list/actions";
 import { cn } from "@/lib/utils";
-import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_WORK_MODE_LABELS, VACANCY_PIPELINE_STAGES, vacancyPipelineHref } from "./model";
+import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_WORK_MODE_LABELS, hasPublicPage, isEditablePublication, VACANCY_PIPELINE_STAGES, vacancyEditorHref, vacancyPipelineHref } from "./model";
+import { ShareSubmenu } from "@/features/jobs/components/share-menu";
 import type { EmployerVacancyState, VacancyPipelineStage } from "./model";
 import { CloseReasonNote } from "@/features/vacancy-lifecycle/ui/close-reason-note";
 import { closeResultLabel, lifecycleLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
@@ -36,6 +37,8 @@ const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
 const STATUS_VARIANT: Readonly<Record<EmployerVacancyState, BadgeVariant>> = { active: "accent", paused: "review", closed: "neutral" };
 const PIPELINE_BAR: Readonly<Record<VacancyPipelineStage, string>> = { submitted: "bg-primary", in_review: "bg-primary/60", hired: "bg-primary/35", rejected: "bg-muted-foreground/40" };
 const META = "text-[12.5px] text-muted-foreground";
+/** The tab list paints counts `text-muted-foreground` on a 6% foreground tint (4.33:1 in light); inactive counts take a stronger foreground, the active one keeps the list's primary tint. */
+const INACTIVE_COUNT = "text-foreground/75!";
 // Reserve the same action column for every row, including the contextual disclosure.
 const GRID = "grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_11rem] lg:items-center";
 const HEADER = "hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_11rem] items-center gap-4 border-b border-border px-5 py-3 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase lg:grid";
@@ -60,6 +63,8 @@ function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onSt
   const state = draft.status === "published" ? "active" : draft.status;
   // A private replacement is live (published axis) without a public listing: «Publicar» stays available and no publication date is claimed (contract D4).
   const privateLive = draft.visibility === "private" && (draft.status === "published" || draft.status === "paused");
+  // «Ver página pública» and «Compartir» only exist for a published public vacancy: not a draft, a paused or closed one, nor a private replacement.
+  const publicPage = hasPublicPage({ status: draft.status, visibility: draft.visibility });
   const candidates = draft.candidates;
   const transition = draft.status === "paused" ? { label: "Pausada el", at: draft.paused_at }
     : draft.status === "closed" ? draft.process === "finished"
@@ -72,8 +77,9 @@ function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onSt
       <div data-pf-vacancy-zone="identity" className="flex min-w-0 items-start gap-3">
         <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-[13px] font-bold text-foreground">{initials(title)}</span>
         <div className="min-w-0">
-          <p className="break-words text-[14.5px] font-semibold text-foreground">{title}</p>
-          <p className={cn(META, "mt-0.5")}>{draft.team.mode === "shared" && !draft.team.responsible ? `Equipo · ${plural(draft.team.members_count, "persona", "personas")}` : <><span className="sr-only">Reclutador: </span>{draft.team.responsible?.name ?? "Usuario dado de baja"}</>}</p>
+          {/* A draft has no pipeline: its title opens the editor; every published vacancy's opens the pipeline. */}
+          <p className="break-words text-[14.5px] font-semibold text-foreground"><Link href={draft.status === "draft" ? vacancyEditorHref(draft.id) : vacancyPipelineHref(draft.id)} className="rounded-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/30">{title}</Link></p>
+          <p className={cn(META, "mt-0.5")}>{draft.team.mode === "shared" && !draft.team.responsible ? `Equipo · ${plural(draft.team.members_count, "persona", "personas")}` : <><span className="sr-only">Responsable: </span>{draft.team.responsible?.name ?? "Usuario dado de baja"}</>}</p>
           {draft.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
           {toggle && <div className="mt-2">{toggle}</div>}
         </div>
@@ -105,12 +111,13 @@ function VacancyRow({ draft, onPublished, onMadePublic, onLifecycleChanged, onSt
         </div>
       </div>
       <div data-pf-vacancy-zone="action" className="flex items-center gap-1 [&>a]:w-full [&>a]:lg:w-auto [&>button]:w-full [&>button]:lg:w-auto">
-        <LifecycleActionsMenu draftId={draft.id} title={title} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" || privateLive ? () => setPublishOpen(true) : undefined} onStartReplacement={() => onStartReplacement(draft.id)}>
+        <LifecycleActionsMenu draftId={draft.id} title={title} coverage={draft.coverage ?? undefined} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" || privateLive ? () => setPublishOpen(true) : undefined} onStartReplacement={() => onStartReplacement(draft.id)}>
           <DropdownMenuGroup>
-            {portfolioRowActions(draft.id, draft.status === "draft" ? "draft" : "published").filter(action => action.kind !== "publish").map(action => {
-              const Icon = action.kind === "pipeline" ? SquareKanban : FilePenLine;
-              return <DropdownMenuItem key={action.kind} className="min-h-10" render={<Link href={action.href!} />}><Icon aria-hidden="true" />{action.label}</DropdownMenuItem>;
+            {portfolioRowActions(draft.id, draft.status === "draft" ? "draft" : "published", { editable: isEditablePublication(draft.status), publicPage }).filter(action => action.kind !== "publish").map(action => {
+              const Icon = action.kind === "pipeline" ? SquareKanban : action.kind === "public" ? ExternalLink : FilePenLine;
+              return <DropdownMenuItem key={action.kind} className="min-h-10" render={action.kind === "public" ? <Link href={action.href!} target="_blank" rel="noopener noreferrer" /> : <Link href={action.href!} />}><Icon aria-hidden="true" />{action.label}{action.kind === "public" && <span className="sr-only"> (se abre en una pestaña nueva)</span>}</DropdownMenuItem>;
             })}
+            {publicPage && <ShareSubmenu title={title} url={`/vacantes/${draft.id}`} />}
           </DropdownMenuGroup>
         </LifecycleActionsMenu>
       </div>
@@ -209,8 +216,8 @@ export function VacancyPortfolio() {
   const recoveryHref = failure?.reason === "unauthenticated" ? "/empresa/login" : failure?.reason.startsWith("company_") ? "/empresa/configuracion" : null;
   return (
     <div data-pf-vacancy-portfolio className="flex flex-col gap-5">
-      <section data-pf-vacancy-summary aria-label="Resumen de vacantes" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {cards.map(card => <Card key={card.key} size="sm" data-pf-vacancy-metric={card.key} className="last:sm:col-span-2 last:xl:col-span-1">
+      <section data-pf-vacancy-summary aria-label="Resumen de vacantes" className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        {cards.map(card => <Card key={card.key} size="sm" data-pf-vacancy-metric={card.key} className="last:col-span-2 last:xl:col-span-1">
           <CardHeader><CardTitle><h3 className="text-[26px] font-bold tabular-nums">{noSnapshot ? drafts.pending ? <Skeleton aria-hidden="true" className="h-8 w-10" /> : <span aria-label="No disponible">—</span> : card.value}</h3></CardTitle><CardDescription className="flex items-center gap-1.5"><card.icon aria-hidden="true" className="size-3.5" />{card.label}</CardDescription></CardHeader>
         </Card>)}
       </section>
@@ -222,7 +229,7 @@ export function VacancyPortfolio() {
           </div>
           <div className="max-w-full overflow-x-auto pb-1">
             <TabsList aria-label="Filtrar por estado">
-              {STATUS_FILTERS.map(filter => <TabsTrigger key={filter.value} value={filter.value} data-pf-vacancy-filter={filter.value}>{filter.label}<Badge variant="secondary">{noSnapshot ? drafts.pending ? <Skeleton aria-hidden="true" className="size-3" /> : <span aria-label="No disponible">—</span> : counts[filter.value]}</Badge></TabsTrigger>)}
+              {STATUS_FILTERS.map(filter => <TabsTrigger key={filter.value} value={filter.value} data-pf-vacancy-filter={filter.value}>{filter.label}<Badge variant="secondary" className={filter.value === status ? undefined : INACTIVE_COUNT}>{noSnapshot ? drafts.pending ? <Skeleton aria-hidden="true" className="size-3" /> : <span aria-label="No disponible">—</span> : counts[filter.value]}</Badge></TabsTrigger>)}
             </TabsList>
           </div>
         </div>

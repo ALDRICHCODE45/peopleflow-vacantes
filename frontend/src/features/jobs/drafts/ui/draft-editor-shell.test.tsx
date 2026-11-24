@@ -108,7 +108,7 @@ it("keeps explicit save status and publish controls in the sticky bar", async ()
   const card = footer.querySelector('[data-slot="card"]')!;
   expect(card).toHaveClass("rounded-xl", "bg-card/95", "backdrop-blur", "ring-1", "ring-foreground/10", "shadow-sm");
   expect(card.querySelector('[data-slot="card-content"] [data-pf-action-bar]')).not.toBeNull();
-  expect(footer.querySelector('[data-pf-draft-save-actions]')).toHaveClass("flex-col", "sm:flex-row", "w-full");
+  expect(footer.querySelector('[data-pf-draft-save-actions]')).toHaveClass("flex-row", "w-full"); // compact on phones: the two actions share one row
   expect(container.querySelector('[data-pf-local-draft-notice]')).toBeNull();
   expect(footer).toHaveTextContent("Sin guardado automático");
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Backend" } });
@@ -227,4 +227,63 @@ it("blocks unload only with unsaved edits and removes the guard after saving", a
   expect(unload().defaultPrevented).toBe(true);
   fireEvent.click(save()); await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
   expect(unload().defaultPrevented).toBe(false);
+});
+const visibleSalary = () => { const model = createDraftModel(); model.fields.compensation = { ...model.fields.compensation, public_visible: true }; return model; };
+it("A-F5: «mostrar salario» without bruto/neto blocks saving with the exact error on the basis field and marks its step", async () => {
+  vi.stubGlobal("PointerEvent", MouseEvent); // Base UI's switch reads it on click; jsdom has none
+  // Routing focus to the invalid Select trigger makes Base UI's floating layer spin for ~40 s in jsdom (it cannot settle positioning, §13.7); focus is not what this test checks.
+  const focus = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => undefined);
+  try { await a5BasisRequired(); } finally { focus.mockRestore(); }
+}, 20_000);
+async function a5BasisRequired() {
+  render(<LocalDraftForm initialModel={visibleSalary()} initialScreeningQuestionsV2={[]} />);
+  fireEvent.click(nav("Información básica"));
+  fireEvent.click(save());
+  const error = await screen.findByText("Elige si el monto es bruto o neto para mostrarlo");
+  expect(error).toBeVisible();
+  expect(document.getElementById("draft-compensation-basis")).toHaveAttribute("aria-invalid", "true");
+  expect(saveDraftV2Action).not.toHaveBeenCalled();
+  // A-F13: the step carries an error marker (and no tick); correcting the choice clears it.
+  // The marker is announced through the tab's own name, not through an icon label the name would override.
+  expect(nav("Compensación y beneficios, hay errores por corregir")).toHaveAttribute("data-invalid", "true");
+  fireEvent.click(document.getElementById("draft-compensation-visible")!);
+  expect(nav("Compensación y beneficios")).not.toHaveAttribute("data-invalid");
+  expect(screen.queryByRole("tab", { name: /hay errores por corregir/ })).toBeNull();
+  fireEvent.click(save());
+  await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledOnce());
+}
+it("A-F5: the public preview says the salary will not be shown while a required piece is missing", async () => {
+  vi.stubGlobal("PointerEvent", MouseEvent); // Base UI's switch reads it on click; jsdom has none
+  render(<LocalDraftForm />);
+  fireEvent.click(nav("Compensación y beneficios"));
+  fireEvent.click(document.getElementById("draft-compensation-visible")!);
+  fireEvent.click(screen.getByRole("button", { name: "Vista previa" }));
+  const dialog = await screen.findByRole("dialog", { name: "Vista previa pública" });
+  expect(within(dialog).getByRole("note")).toHaveTextContent("El salario no se mostrará: falta el modo de compensación y si el monto es bruto o neto.");
+});
+it("A-F13: a tick shows only for a complete, error-free step; an invalid step shows the error marker instead", async () => {
+  render(<LocalDraftForm />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "x".repeat(201) } });
+  fireEvent.click(save());
+  await waitFor(() => expect(nav("Información básica, hay errores por corregir")).toHaveAttribute("data-invalid", "true"));
+  expect(nav("Información básica, hay errores por corregir")).toHaveAttribute("data-complete", "false");
+  expect(screen.queryByRole("tab", { name: /completo/ })).toBeNull();
+});
+it("A-F20: on phones the tabs scroll sideways with a fade on the edge and the save actions share one row", () => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  const { container } = render(<LocalDraftForm />);
+  expect(screen.getByRole("tablist", { name: "Secciones de la vacante" }).parentElement).toHaveClass("overflow-x-auto", "max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]");
+  const actions = container.querySelector("[data-pf-draft-save-actions]")!;
+  expect(actions).toHaveClass("flex-row", "max-sm:[&>*]:flex-1");
+  expect(container.querySelector("[data-pf-draft-save-bar]")!.textContent).toContain("Sin guardado automático");
+  expect(Array.from(container.querySelector("[data-pf-draft-save-bar]")!.querySelectorAll("p")).find(p => p.textContent === "Sin guardado automático")).toHaveClass("max-sm:hidden");
+});
+it("A-F13: a step with its requirements met announces «completo» in its tab name, once, with the tick hidden from assistive tech", () => {
+  const model = createDraftModel();
+  model.fields.description = { schema_version: 1, document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Buscamos talento" }] }] } } as never;
+  render(<LocalDraftForm initialModel={model} initialScreeningQuestionsV2={[]} />);
+  const tab = nav("Descripción y perfil, completo");
+  expect(tab).toHaveAttribute("data-complete", "true");
+  expect(tab.querySelector("svg:not([aria-hidden=true])")).toBeNull();
+  expect(screen.getAllByRole("tab", { name: /completo/ })).toEqual([tab]);
 });

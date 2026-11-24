@@ -8,6 +8,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldTitle } from "@/c
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox, ComboboxInput, ComboboxList, ComboboxItem, ComboboxEmpty, ComboboxContent } from "@/components/ui/combobox";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { XIcon } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -210,7 +211,7 @@ export function DraftRequesterField({ requester, error, publicationRequired = fa
             onFocus={() => setActive(true)}
             aria-labelledby="draft-requester-name-label" aria-invalid={nameError !== undefined}
             aria-describedby="draft-requester-error draft-requester-status"
-            placeholder={requester.name ?? "Busca un área o cliente"} disabled={creating}
+            placeholder={requester.name ? "Busca otra área o cliente" : "Busca un área o cliente"} disabled={creating}
             className="min-h-10 [&_input]:min-h-10"
           />
           <ComboboxContent>
@@ -225,7 +226,7 @@ export function DraftRequesterField({ requester, error, publicationRequired = fa
         </Combobox>
         {requester.name && <FieldDescription>Seleccionado: {requester.name}</FieldDescription>}
         <FieldError id="draft-requester-error">{nameError}</FieldError>
-        {requester.id && <Button type="button" variant="ghost" className="min-h-10" onClick={() => { onSelect(null); setQuery(""); }} disabled={creating}>Quitar selección</Button>}
+        {requester.id && <Button type="button" variant="ghost" className="min-h-10 self-start text-foreground" onClick={() => { onSelect(null); setQuery(""); }} disabled={creating}><XIcon aria-hidden="true" data-icon="inline-start" />Quitar selección</Button>}
         {confirm !== null && (
           <FieldGroup>
             <FieldDescription>{REQUESTER_CREATE_WARNING}</FieldDescription>

@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
-import { Lock, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { assignmentHistoryMenuItem } from "@/components/company-dashboard/nav-user";
 import { StateCard } from "@/components/feedback/state-card";
+import { ForbiddenCard } from "@/features/identity/forbidden-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loadMetricsAccessAction } from "./actions";
 import type { MetricsAccess } from "./model";
@@ -14,8 +15,8 @@ import type { MetricsAccess } from "./model";
  */
 export function MetricsRestricted() {
   const history = assignmentHistoryMenuItem("recruiter");
-  const description = `Solo el owner y los stakeholders de la empresa pueden consultar las métricas.${history ? ` Tus propios números están en «${history.title}».` : ""}`;
-  return <StateCard icon={Lock} tone="forbidden" title="Métricas restringidas" description={description} primaryAction={{ label: "Ir al dashboard", href: "/empresa/dashboard" }} />;
+  const description = `Solo el dueño y los stakeholders de la empresa pueden consultar las métricas.${history ? ` Tus propios números están en «${history.title}».` : ""}`;
+  return <ForbiddenCard title="Métricas restringidas" description={description} primaryAction={{ label: "Ir al dashboard", href: "/empresa/dashboard" }} />;
 }
 
 /**
@@ -36,7 +37,7 @@ export function MetricsAccessGate({ label, children }: { label: string; children
   if (access && "kind" in access && access.kind === "allowed") return <>{typeof children === "function" ? children(access.role) : children}</>;
   // Centred in the page like the stakeholder's «Sección no disponible» (identity `IdentityFrame`).
   if (access && "kind" in access && access.kind === "restricted") return <DashboardPageContent className="flex-1 items-center justify-center">
-    <div className="w-full max-w-xl"><MetricsRestricted /></div>
+    <MetricsRestricted />
   </DashboardPageContent>;
   return <DashboardPageContent width="screen-2xl" className="min-w-0 gap-5 md:gap-6">
     {!access && <div role="status" aria-label={label} aria-busy="true" className="flex flex-col gap-2"><Skeleton aria-hidden="true" className="h-24 w-full" /><Skeleton aria-hidden="true" className="h-48 w-full" /></div>}

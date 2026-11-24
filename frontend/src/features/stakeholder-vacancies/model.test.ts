@@ -64,3 +64,15 @@ describe("status of a row", () => {
     expect(statusLabelOf(row({ close_reason: reason, coverage: null }))).toBe(`Cerrada · ${label}`);
   });
 });
+
+describe("counts_by_status (D20)", () => {
+  const counts = { all: 9, draft: 1, active: 5, paused: 1, closed: 2 };
+  it("parses both today's envelope (key absent) and the new one (object on the first page, null on cursor pages)", () => {
+    expect(stakeholderVacanciesSchema.parse({ items: [], next_cursor: null }).counts_by_status).toBeUndefined();
+    expect(stakeholderVacanciesSchema.parse({ items: [], next_cursor: "c", counts_by_status: counts }).counts_by_status).toEqual(counts);
+    expect(stakeholderVacanciesSchema.parse({ items: [], next_cursor: null, counts_by_status: null }).counts_by_status).toBeNull();
+  });
+  it.each([{ ...counts, extra: 1 }, { ...counts, all: -1 }, { all: 1 }, { ...counts, draft: 1.5 }])("rejects malformed counts %j", bad => {
+    expect(stakeholderVacanciesSchema.safeParse({ items: [], next_cursor: null, counts_by_status: bad }).success).toBe(false);
+  });
+});

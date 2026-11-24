@@ -142,13 +142,13 @@ it.each(["offboard_unresolved_vacancies", "offboard_reassignment_not_applicable"
   expect(removeTeamMemberAction).not.toHaveBeenCalled();
   if (code === "offboard_unresolved_vacancies") expect(screen.getAllByText("Elige a otra persona para esta vacante.")).toHaveLength(2);
 });
-it("renders only real members, role labels, dates and three factual summaries", async () => {
+it("renders only real members, role labels, dates and four factual summaries", async () => {
   mount();
   expect(await screen.findByText("José Real")).toBeInTheDocument();
   expect(screen.getByText("jose@example.test")).toBeInTheDocument();
   expect(within(row(members[0].id)).getByText("Dueño")).toBeInTheDocument();
   expect(within(row(members[1].id)).getByText(/Miembro desde/)).toHaveTextContent(/2026/);
-  expect(document.querySelectorAll("[data-pf-team-metric]")).toHaveLength(3);
+  expect(document.querySelectorAll("[data-pf-team-metric]")).toHaveLength(4);
   expect(screen.queryByRole("group", { name: "Filtrar por estado" })).not.toBeInTheDocument();
   expect(screen.queryByText(/Tomás Ríos|Valeria Ortiz|Invitación pendiente/)).not.toBeInTheDocument();
 });
@@ -340,7 +340,7 @@ it("lists a stakeholder with its label, no workload and only «Quitar» (D5), le
   vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [...members, stakeholder] });
   const user = userEvent.setup(); mount(); await screen.findByText("Jorge Treviño");
   expect(within(row(stakeholder.id)).getByText("Stakeholder")).toBeInTheDocument();
-  expect(within(row(stakeholder.id)).getByText("Solo ve Métricas")).toBeInTheDocument();
+  expect(within(row(stakeholder.id)).getByText("Ven Métricas y los documentos de las vacantes (solo lectura)")).toBeInTheDocument();
   expect(within(row(members[1].id)).getByText("Reclutador")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Acciones de Jorge Treviño" }));
   expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Quitar"]);
@@ -373,6 +373,14 @@ it("places the owner-only «Stakeholders» invitations card under the members li
   const list = document.querySelector("[data-pf-team-workspace]")!;
   expect(list.compareDocumentPosition(document.querySelector("[data-pf-stakeholder-invitations]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
+it("counts stakeholders in their own summary tile", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [...members, stakeholder] });
+  mount(); await screen.findByText("Jorge Treviño");
+  const tile = document.querySelector("[data-pf-team-metric='stakeholders']")!;
+  expect(tile).toHaveTextContent("1");
+  expect(tile).toHaveTextContent("Stakeholder");
+  expect(tile).not.toHaveTextContent("Stakeholders");
+});
 it("counts current stakeholders so the card skips the first-time empty state", async () => {
   vi.mocked(listStakeholderInvitationsAction).mockResolvedValue({ ok: true, items: [] });
   vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [...members, stakeholder] });
@@ -384,4 +392,30 @@ it("never shows the invitations card nor reads invitations for a recruiter", asy
   mount(); await screen.findByText("José Real");
   expect(screen.queryByRole("heading", { name: "Stakeholders" })).toBeNull();
   expect(listStakeholderInvitationsAction).not.toHaveBeenCalled();
+});
+
+it("D5: shows the backend workload for every viewer, with no skeleton, no draft dependency and no failure card", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [{ ...members[0], workload: { active_vacancies: 0 } }, { ...members[1], workload: { active_vacancies: 3 } }, { ...stakeholder, workload: { active_vacancies: 0 } }] });
+  vi.mocked(listDraftsAction).mockReturnValue(new Promise(() => {}));
+  mount(); await screen.findByText("José Real");
+  expect(within(row(members[1].id)).getByText("3 vacantes activas")).toBeInTheDocument();
+  expect(within(row(members[0].id)).getByText("Sin vacantes asignadas")).toBeInTheDocument();
+  expect(row(members[1].id).querySelector('[data-slot="skeleton"]')).toBeNull();
+  expect(within(row(stakeholder.id)).getByText("Ven Métricas y los documentos de las vacantes (solo lectura)")).toBeInTheDocument();
+});
+it("D5: the backend workload survives a failed drafts read; members without it keep «Carga no disponible»", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [{ ...members[0], workload: { active_vacancies: 1 } }, members[1]] });
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: false, reason: "server_error", reference: { status: 500 } });
+  mount(); await screen.findByText("José Real");
+  expect(await screen.findByText("No pudimos cargar la carga de trabajo")).toBeInTheDocument();
+  expect(within(row(members[0].id)).getByText("1 vacante activa")).toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("Carga no disponible")).toBeInTheDocument();
+});
+it("D5: no failure card when every non-stakeholder member carries the backend workload and drafts fail", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: members.map(member => ({ ...member, workload: { active_vacancies: 2 } })) });
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: false, reason: "server_error", reference: { status: 500 } });
+  mount(); await screen.findByText("José Real");
+  await waitFor(() => expect(listDraftsAction).toHaveBeenCalled());
+  expect(screen.queryByText("No pudimos cargar la carga de trabajo")).not.toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("2 vacantes activas")).toBeInTheDocument();
 });

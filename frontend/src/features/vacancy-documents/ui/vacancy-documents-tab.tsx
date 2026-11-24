@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { FileText, FilterX, Link2, SearchX, TriangleAlert, Upload } from "lucide-react";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { SectionEmpty } from "@/components/feedback/state-card";
@@ -13,9 +14,10 @@ import { DocumentFilters } from "./documents-filters";
 import { DocumentsTable } from "./documents-table";
 import { plural } from "./format";
 import { LinkSheet, linkDestinations } from "./link-sheet";
+import { initialDocumentFilters } from "./candidate-documents";
 import { participationIdOf, withItem, withLink, withoutRow, withScope } from "./overview-state";
 import type { RowIntent } from "./row-actions";
-import { buildRows, chooseCandidate, chooseScope, filterRows, NO_FILTERS, scopeCounts, type DocRow, type Filters } from "./rows";
+import { buildRows, chooseCandidate, chooseScope, filterRows, scopeCounts, type DocRow, type Filters } from "./rows";
 import { UploadDialog } from "./upload-dialog";
 import { VersionsSheet } from "./versions-sheet";
 import { useDocumentOverview } from "./use-document-overview";
@@ -36,7 +38,28 @@ function Loading() {
  * `onOverview` hands the screen the tab's own read (the overview, or `null` when it failed) so the screen needs no second `document-overview` read.
  */
 export function VacancyDocumentsTab({ draftId, onOverview }: { draftId: string; onOverview?: (overview: DocumentOverview | null) => void }) {
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // `?candidato=` (the candidate sheet's «Documentos» link) opens the tab already narrowed to that participation. It is read from the router, not
+  // from `window.location` once: a client navigation renders this tab before the address changes and may reuse a tab that is already mounted.
+  const search = useSearchParams()?.toString() ?? "";
+  const candidateInUrl = initialDocumentFilters(search).participationId;
+  const [filters, setFilters] = useState<Filters>(() => initialDocumentFilters(search));
+  const seenInUrl = useRef(candidateInUrl);
+  useEffect(() => {
+    if (seenInUrl.current === candidateInUrl) return;
+    seenInUrl.current = candidateInUrl;
+    setFilters(previous => chooseCandidate(previous, candidateInUrl));
+  }, [candidateInUrl]);
+  /** A candidate picked or cleared in the tab keeps an existing `?candidato=` in step (and never adds one), so «Quitar filtro» does not leave it in the address. */
+  const chooseInTab = (id: string | null) => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("candidato")) {
+      if (id) url.searchParams.set("candidato", id); else url.searchParams.delete("candidato");
+      seenInUrl.current = id;
+      // `null` state for the same reason as in `useDownloadNotice`: Next syncs its router with a state of our own.
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    setFilters(previous => chooseCandidate(previous, id));
+  };
   const { state, reload, apply } = useDocumentOverview(draftId, filters.participationId);
   const report = useRef(onOverview);
   report.current = onOverview;
@@ -122,7 +145,7 @@ export function VacancyDocumentsTab({ draftId, onOverview }: { draftId: string; 
     body = <SectionEmpty icon={FileText} tone="empty" title={`${chosen.candidate.full_name} todavía no tiene documentos`}
       description={chosen.discarded ? `Quedó descartado en ${chosen.stage.name}, pero se le pueden subir documentos igual.` : `Está en ${chosen.stage.name} y todavía no se ha subido nada.`}
       primaryAction={chosen.scope_allowed_actions.includes("upload") ? { label: `Subir documento de ${first}`, onClick: () => openUpload(chosen.participation_id) } : undefined}
-      secondaryAction={{ label: "Quitar filtro", onClick: () => setFilters(chooseCandidate(filters, null)) }} />;
+      secondaryAction={{ label: "Quitar filtro", onClick: () => chooseInTab(null) }} />;
   } else if (allRows.length === 0 && !narrowed && !searching && filters.scope === "all") {
     body = <SectionEmpty icon={FileText} tone="empty" title="Todavía no hay documentos en esta vacante"
       description="Guarda el contrato, el perfil del puesto o los documentos de cada persona candidata. Los ven tu equipo y los stakeholders; nunca el candidato."
@@ -140,7 +163,7 @@ export function VacancyDocumentsTab({ draftId, onOverview }: { draftId: string; 
       {(linkAction || uploadAction) && <div data-pf-documents-actions="" className="flex flex-wrap items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch">{linkAction}{uploadAction}</div>}
     </div>
     <DocumentFilters filters={filters} counts={counts} participations={overview.participations}
-      onScope={scope => setFilters(chooseScope(filters, scope))} onCandidate={id => setFilters(chooseCandidate(filters, id))} onSearch={search => setFilters({ ...filters, search })} />
+      onScope={scope => setFilters(chooseScope(filters, scope))} onCandidate={chooseInTab} onSearch={search => setFilters({ ...filters, search })} />
     {overview.truncated && <p role="note" className="rounded-2xl bg-muted px-4 py-3 text-sm">Se muestran los documentos más recientes de esta vacante. <strong className="font-medium">Filtra por candidato para ver el resto.</strong></p>}
     {rows.length > 0 ? body : <div className="rounded-2xl border">{body}</div>}
     {upload && <UploadDialog draftId={draftId} overview={overview} initialParticipationId={upload.initial} onClose={() => setUpload(null)} onUploaded={uploaded} onReload={reload}

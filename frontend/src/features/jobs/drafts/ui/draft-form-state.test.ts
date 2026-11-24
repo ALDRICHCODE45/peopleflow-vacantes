@@ -22,6 +22,7 @@ import {
 } from "./draft-form-state";
 import {
   COMPENSATION_AMOUNT_ERROR,
+  COMPENSATION_BASIS_REQUIRED_ERROR,
   COMPENSATION_RANGE_ERROR,
   DESCRIPTION_ERROR,
   LIST_ITEM_DUPLICATE_ERROR,
@@ -440,5 +441,30 @@ describe("row and catalog helpers", () => {
 
   it("publishes exactly the contract language levels and no CEFR mapping", () => {
     expect([...CEFR_LEVELS]).toEqual(["A1", "A2", "B1", "B2", "C1", "C2", "native"]);
+  });
+});
+
+describe("public salary needs its basis (A-F5)", () => {
+  const withCompensation = (patch: Parameters<typeof updateCompensation>[1]) => {
+    const model = populatedModel();
+    return { model, state: updateCompensation(initialDraftFormState(model), patch) };
+  };
+  it("rejects «mostrar salario» without gross/net, with the exact message, on the basis field", () => {
+    const { model, state } = withCompensation({ public_visible: true, basis: "" });
+    const result = validateDraftFormState(state, model);
+    expect(result).toEqual({ ok: false, errors: { "compensation.basis": "Elige si el monto es bruto o neto para mostrarlo" } });
+    expect(COMPENSATION_BASIS_REQUIRED_ERROR).toBe("Elige si el monto es bruto o neto para mostrarlo");
+  });
+  it("keeps the other compensation errors next to it", () => {
+    const { model, state } = withCompensation({ public_visible: true, basis: "", mode: "fixed", amount: "12,5" });
+    const result = validateDraftFormState(state, model);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors).toEqual({ "compensation.basis": COMPENSATION_BASIS_REQUIRED_ERROR, "compensation.amount": COMPENSATION_AMOUNT_ERROR });
+  });
+  it("accepts a private salary without a basis, and a visible one with it", () => {
+    const hidden = withCompensation({ public_visible: false, basis: "" });
+    expect(validateDraftFormState(hidden.state, hidden.model).ok).toBe(true);
+    const visible = withCompensation({ public_visible: true, basis: "net" });
+    expect(validateDraftFormState(visible.state, visible.model).ok).toBe(true);
   });
 });

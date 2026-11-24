@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
-import { BellRing, CalendarClock, KeyRound, MessagesSquare, Palette, ShieldCheck, Sparkles } from "lucide-react";
+import { BellRing, CalendarClock, Clock3, KeyRound, MessagesSquare, Palette, ShieldCheck, Sparkles } from "lucide-react";
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Button } from "@/components/ui/button";
@@ -49,10 +49,8 @@ const NOTIFICATIONS: readonly NotificationSpec[] = [
   { key: "weekly_summary", label: "Resumen semanal", description: "Un repaso de tu actividad de la semana.", icon: BellRing },
 ];
 
-/** Initial state: the three continuous alerts start on, the weekly digest starts off. */
+/** Display-only defaults: the three continuous alerts show on, the weekly digest off. Nothing is stored, so there is no state behind them. */
 const NOTIFICATION_DEFAULTS: Readonly<Record<NotificationKey, boolean>> = { matching_vacancies: true, application_updates: true, recruiter_messages: true, weekly_summary: false };
-/** Fresh mutable copy per mount so the frozen defaults are never shared. */
-const initialNotifications = (): Record<NotificationKey, boolean> => ({ ...NOTIFICATION_DEFAULTS });
 
 /** Theme vocabulary for the Select; every value crosses to the shared theme helper. */
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
@@ -89,7 +87,7 @@ function SettingsGroup({ children }: { readonly children: React.ReactNode }) {
 }
 
 /** One setting row: contextual medallion, labelled copy and the control slot. */
-function SettingRow({ icon: Icon, titleId, title, descriptionId, description, compact = false, children }: {
+function SettingRow({ icon: Icon, titleId, title, descriptionId, description, compact = false, comingSoon = false, children }: {
   readonly icon: LucideIcon;
   readonly titleId: string;
   readonly title: string;
@@ -97,6 +95,8 @@ function SettingRow({ icon: Icon, titleId, title, descriptionId, description, co
   readonly description: string;
   /** A switch-sized control stays beside the copy at every width; wide controls drop below it on phones. */
   readonly compact?: boolean;
+  /** Not wired to anything yet: the reason «Próximamente» stays visible under the description (the control links to `${descriptionId}` and `${descriptionId}-soon`). */
+  readonly comingSoon?: boolean;
   readonly children: React.ReactNode;
 }) {
   return (
@@ -110,6 +110,7 @@ function SettingRow({ icon: Icon, titleId, title, descriptionId, description, co
         <ItemContent className="min-w-0">
           <ItemTitle id={titleId} className="line-clamp-none break-words">{title}</ItemTitle>
           <ItemDescription id={descriptionId} className="max-w-prose line-clamp-none">{description}</ItemDescription>
+          {comingSoon && <span id={`${descriptionId}-soon`} className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground"><Clock3 aria-hidden="true" className="size-3 shrink-0" />Próximamente</span>}
         </ItemContent>
         <ItemActions className={compact ? "shrink-0 justify-end" : "w-full justify-start sm:w-auto sm:justify-end [&_[data-slot=button]]:w-full [&_[data-slot=select-trigger]]:w-full sm:[&_[data-slot=button]]:w-auto sm:[&_[data-slot=select-trigger]]:w-auto"}>{children}</ItemActions>
       </Item>
@@ -117,10 +118,7 @@ function SettingRow({ icon: Icon, titleId, title, descriptionId, description, co
   );
 }
 
-function NotificationsSection({ notifications, onToggle }: {
-  readonly notifications: Readonly<Record<NotificationKey, boolean>>;
-  readonly onToggle: (key: NotificationKey, checked: boolean) => void;
-}) {
+function NotificationsSection() {
   return (
     <SettingsSection section={NOTIFICATIONS_SECTION}>
       <SettingsGroup>
@@ -128,12 +126,13 @@ function NotificationsSection({ notifications, onToggle }: {
           const labelId = `pf-settings-${notification.key}-label`;
           const descriptionId = `pf-settings-${notification.key}-description`;
           return (
-            <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description} compact>
+            <SettingRow key={notification.key} icon={notification.icon} titleId={labelId} title={notification.label} descriptionId={descriptionId} description={notification.description} compact comingSoon>
+              {/* Preferences are not stored anywhere yet: the switch shows the defaults, inert, with «Próximamente» (same pattern as 2FA). */}
               <Switch
-                checked={notifications[notification.key]}
-                onCheckedChange={(checked) => onToggle(notification.key, checked)}
+                checked={NOTIFICATION_DEFAULTS[notification.key]}
+                disabled
                 aria-labelledby={labelId}
-                aria-describedby={descriptionId}
+                aria-describedby={`${descriptionId} ${descriptionId}-soon`}
                 data-pf-settings-notification={notification.key}
               />
             </SettingRow>
@@ -169,12 +168,11 @@ function SecuritySection() {
   return (
     <SettingsSection section={SECURITY_SECTION}>
       <SettingsGroup>
-        <SettingRow icon={ShieldCheck} titleId="pf-settings-2fa-label" title="Autenticación en dos pasos" descriptionId="pf-settings-2fa-description" description="Segundo factor para iniciar sesión." compact>
-          {/* Controlled `false` keeps the switch enabled, focusable and inert. */}
-          <Switch checked={false} aria-labelledby="pf-settings-2fa-label" aria-describedby="pf-settings-2fa-description" data-pf-settings-2fa />
+        <SettingRow icon={ShieldCheck} titleId="pf-settings-2fa-label" title="Autenticación en dos pasos" descriptionId="pf-settings-2fa-description" description="Segundo factor para iniciar sesión." compact comingSoon>
+          <Switch checked={false} disabled aria-labelledby="pf-settings-2fa-label" aria-describedby="pf-settings-2fa-description pf-settings-2fa-description-soon" data-pf-settings-2fa />
         </SettingRow>
-        <SettingRow icon={KeyRound} titleId="pf-settings-password-label" title="Contraseña" descriptionId="pf-settings-password-description" description="Clave de acceso a tu cuenta.">
-          <Button type="button" variant="outline" data-pf-settings-password className="min-h-10">Cambiar contraseña</Button>
+        <SettingRow icon={KeyRound} titleId="pf-settings-password-label" title="Contraseña" descriptionId="pf-settings-password-description" description="Clave de acceso a tu cuenta." comingSoon>
+          <Button type="button" variant="outline" disabled aria-describedby="pf-settings-password-description pf-settings-password-description-soon" data-pf-settings-password className="min-h-10">Cambiar contraseña</Button>
         </SettingRow>
       </SettingsGroup>
     </SettingsSection>
@@ -183,17 +181,12 @@ function SecuritySection() {
 
 /** Candidate settings surface: responsive rail plus grouped section cards. */
 export function SettingsWorkspace() {
-  const [notifications, setNotifications] = React.useState<Record<NotificationKey, boolean>>(initialNotifications);
   const [themeMode, setThemeMode] = React.useState<ThemeMode>("system");
 
   // The server carries no browser state, so the stored mode is read once after hydration.
   React.useEffect(() => {
     setThemeMode(readStoredThemeMode(window.localStorage));
   }, []);
-
-  const toggleNotification = (key: NotificationKey, checked: boolean): void => {
-    setNotifications((previous) => ({ ...previous, [key]: checked }));
-  };
 
   const changeThemeMode = (next: ThemeMode): void => {
     applyThemeMode(next);
@@ -223,7 +216,7 @@ export function SettingsWorkspace() {
         </ul>
       </nav>
       <div className="flex min-w-0 flex-col gap-5">
-        <NotificationsSection notifications={notifications} onToggle={toggleNotification} />
+        <NotificationsSection />
         <AppearanceSection mode={themeMode} onModeChange={changeThemeMode} />
         <SecuritySection />
       </div>

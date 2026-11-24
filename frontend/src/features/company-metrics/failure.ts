@@ -50,7 +50,7 @@ export function filterIssueMessages(fields: MetricsFailure["fields"] = []): stri
 
 export function failureMessage(failure: MetricsFailure, subject = "las métricas"): string {
   switch (failure.reason) {
-    case "forbidden": return "Solo el owner y los stakeholders de la empresa pueden consultar las métricas.";
+    case "forbidden": return "Solo el dueño y los stakeholders de la empresa pueden consultar las métricas.";
     case "unauthenticated": return `Tu sesión expiró. Inicia sesión de nuevo para consultar ${subject}.`;
     case "invalid_filter": return "No pudimos aplicar el periodo o los filtros. Revísalos o restablece la vista.";
     case "invalid_cursor": return "La lista se actualizó. Volvimos a la primera página.";

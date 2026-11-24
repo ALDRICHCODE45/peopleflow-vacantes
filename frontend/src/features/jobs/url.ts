@@ -9,13 +9,19 @@ type MultiKey = (typeof MULTI_KEYS)[number];
 export const SALARY_AMOUNT_KEYS = ["salary_min", "salary_max"] as const;
 export const SALARY_UNIT_KEYS = ["salary_currency", "salary_period", "salary_basis"] as const;
 const SALARY_KEYS = [...SALARY_AMOUNT_KEYS, ...SALARY_UNIT_KEYS] as const;
-const SINGLE_KEYS = ["q", "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "years_of_experience", "education_level", "cursor"] as const;
+const SINGLE_KEYS = ["q", "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "years_of_experience", "education_level", "sort", "cursor"] as const;
 type SingleKey = (typeof SINGLE_KEYS)[number];
 export type JobsQueryKey = MultiKey | SingleKey;
 // Scalar inputs remain accepted for existing single-value links and callers.
 export type JobsQuery = Partial<Record<SingleKey, string> & Record<MultiKey, string | readonly string[]>>;
 export type JobsFilterPatch = Omit<JobsQuery, "cursor">;
-const ORDER: readonly JobsQueryKey[] = ["q", ...MULTI_KEYS, "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "years_of_experience", "education_level", "cursor"];
+const ORDER: readonly JobsQueryKey[] = ["q", ...MULTI_KEYS, "applicant_country", "work_schedule", "contract_type", "professional_area", ...SALARY_KEYS, "years_of_experience", "education_level", "sort", "cursor"];
+/** Public listing orders (`sort` of `GET /v2/jobs`). `recent` is the default and never travels in the URL. */
+export const JOBS_SORTS = ["recent", "salary_desc", "salary_asc"] as const;
+export type JobsSort = (typeof JOBS_SORTS)[number];
+export function jobsSortOf(query: JobsQuery): JobsSort {
+  return (JOBS_SORTS as readonly string[]).includes(query.sort ?? "") ? (query.sort as JobsSort) : "recent";
+}
 /** SAL-8: units a salary amount falls back to when the link omits them. */
 export const DEFAULT_SALARY_UNITS = { salary_currency: "MXN", salary_period: "monthly", salary_basis: "gross" } as const;
 // Salary units and amounts use the compensation catalogs and money grammar
@@ -28,6 +34,8 @@ function validState(value: string) { return stateCodeSchema.safeParse(value).suc
 function canonicalValue(key: JobsQueryKey, value: string): string | undefined {
   if (key === "q") return value.trim() || undefined;
   if (key === "cursor") return value || undefined;
+  // Default order omitted; an unknown order falls back to it instead of breaking the page.
+  if (key === "sort") return value !== "recent" && (JOBS_SORTS as readonly string[]).includes(value) ? value : undefined;
   // Codes stay opaque; as with geography, catalog membership is server-owned.
   if (key === "language") return /^[a-z]{2,3}$/.test(value) ? value : undefined;
   if (key === "years_of_experience") return yearsOfExperienceSchema.safeParse(value).success ? value : undefined;

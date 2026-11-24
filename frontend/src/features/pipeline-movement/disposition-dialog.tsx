@@ -37,6 +37,8 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
   const internalError = attempted ? textError(internal.error, 1000) : null;
   const candidateError = attempted ? textError(candidate.error, 500) : null;
   const discarding = disposition.kind === "discard";
+  // A manual candidate has no PeopleFlow account: nothing they could read is ever shown to them.
+  const noAccount = disposition.item.candidate.kind === "manual";
   const previous = [...board.stages, ...board.retired_stages].find(stage => stage.id === disposition.item.discard?.previous_stage_id);
   const recovery = recoverySelection(board, disposition.item, disposition.recoveryRequired);
   const returnStage = recovery.stages.some(stage => stage.id === returnChoice) ? returnChoice : recovery.defaultId;
@@ -57,15 +59,15 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
     setAttempted(true);
     if (!reason) { reasonControl.current?.focus(); return; }
     if (internal.error) { commentControl.current?.focus(); return; }
-    if (candidate.error) { messageControl.current?.focus(); return; }
+    if (!noAccount && candidate.error) { messageControl.current?.focus(); return; }
     if (disposition.placementConfirmation && !exitReason) return;
-    onConfirm(buildDiscardBody(reason, comment, message, disposition.placementConfirmation ? exitReason : undefined));
+    onConfirm(buildDiscardBody(reason, comment, noAccount ? "" : message, disposition.placementConfirmation ? exitReason : undefined));
   }
   const consequence = discarding
-    ? "Su postulación pasa a Finalizada. El motivo y el comentario interno no se comparten con el candidato."
+    ? `Su postulación pasa a Finalizada. El motivo y el comentario interno ${noAccount ? "son solo para tu equipo" : "no se comparten con el candidato"}.`
     : recovery.required
-      ? `Su columna anterior, «${previous?.name ?? "Columna eliminada"}», ya no existe. Elige dónde regresar; se conserva el historial y el mensaje deja de verse en sus postulaciones.`
-      : `Vuelve a ${previous?.name ?? "su etapa anterior"}. Se conserva el historial y el mensaje deja de verse en sus postulaciones.`;
+      ? `Su columna anterior, «${previous?.name ?? "Columna eliminada"}», ya no existe. Elige dónde regresar; se conserva el historial${noAccount ? "." : " y el mensaje deja de verse en sus postulaciones."}`
+      : `Vuelve a ${previous?.name ?? "su etapa anterior"}. Se conserva el historial${noAccount ? "." : " y el mensaje deja de verse en sus postulaciones."}`;
   const coverage = !disposition.placementConfirmation ? "" : discarding
     ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación y los hitos de cobertura."
     : " Vuelve a ocupar una plaza y se registra una nueva contratación.";
@@ -89,12 +91,14 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
           <Textarea className="min-h-24 resize-none" placeholder="Agrega contexto para tu equipo…" id="discard-comment" ref={commentControl} disabled={pending} value={comment} onChange={event => setComment(event.target.value)} aria-invalid={!!internalError} aria-describedby={`discard-comment-count${internalError ? " discard-comment-error" : ""}`} />
           <FieldError id="discard-comment-error">{internalError}</FieldError>
         </Field>
-        <Field data-invalid={!!candidateError} data-disabled={pending}>
+        {noAccount
+          ? <p className="flex items-start gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground"><MessageSquare aria-hidden="true" className="mt-0.5 size-4 shrink-0" />No tiene cuenta en PeopleFlow: no verá mensajes ni cambios de estado.</p>
+          : <Field data-invalid={!!candidateError} data-disabled={pending}>
           <div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="discard-message"><MessageSquare aria-hidden="true" className="size-3.5" />Mensaje para el candidato (opcional)</FieldLabel><FieldDescription id="discard-message-count" className="shrink-0 text-xs tabular-nums">{candidate.count} / 500</FieldDescription></div>
           <Textarea className="min-h-24 resize-none" placeholder="Escribe un mensaje para el candidato…" id="discard-message" ref={messageControl} disabled={pending} value={message} onChange={event => setMessage(event.target.value)} aria-invalid={!!candidateError} aria-describedby={`discard-message-help discard-message-count${candidateError ? " discard-message-error" : ""}`} />
           <FieldDescription id="discard-message-help">El candidato verá «Finalizada» y este mensaje, nunca el motivo ni el comentario interno. No se enviará una notificación.</FieldDescription>
           <FieldError id="discard-message-error">{candidateError}</FieldError>
-        </Field>
+        </Field>}
       </FieldGroup>{feedback}</> : recovery.required ? <>
         <FieldGroup><Field data-disabled={pending}>
           <FieldLabel htmlFor="recovery-stage">Columna de regreso</FieldLabel>

@@ -16,13 +16,42 @@ export function vacancyPipelineHref(jobId: string): string {
   return `/empresa/vacantes/${jobId}/pipeline`;
 }
 
-/** Pure menu contract; portal rendering is verified in the browser. */
-export function portfolioRowActions(id: string, status: "draft" | "published") {
+/** Public page of a published vacancy (the candidate side's route). */
+export function vacancyPublicHref(jobId: string): string {
+  return `/vacantes/${jobId}`;
+}
+
+/** Editor route for a draft and for a vacancy already published (same editor). */
+export function vacancyEditorHref(id: string): string {
+  return `/empresa/vacantes/borradores/${id}`;
+}
+
+/**
+ * A public page exists only for a published vacancy that is not a private replacement: never for a draft,
+ * a paused or a closed one. An older backend without `visibility` means public.
+ */
+export function hasPublicPage(vacancy: { status: "draft" | "published" | "paused" | "closed"; visibility?: "public" | "private" | null | undefined }): boolean {
+  return vacancy.status === "published" && vacancy.visibility !== "private";
+}
+
+/** The editor stays reachable while the vacancy is live (published or paused), never once it is closed. */
+export function isEditablePublication(status: "draft" | "published" | "paused" | "closed"): boolean {
+  return status === "published" || status === "paused";
+}
+
+/**
+ * Pure menu contract; portal rendering is verified in the browser. `editable` adds «Editar publicación» (a live vacancy's
+ * way back to the editor) and `publicPage` adds «Ver página pública» (opens in a new tab); «Compartir» is a submenu the
+ * list renders itself, under the same `publicPage` condition.
+ */
+export function portfolioRowActions(id: string, status: "draft" | "published", options: { editable?: boolean; publicPage?: boolean } = {}) {
   return [
     ...(status === "draft" ? [
-      { label: "Continuar editando", kind: "edit" as const, href: `/empresa/vacantes/borradores/${id}` },
+      { label: "Continuar editando", kind: "edit" as const, href: vacancyEditorHref(id) },
       { label: "Publicar", kind: "publish" as const, href: undefined },
     ] : []),
+    ...(status === "published" && options.editable ? [{ label: "Editar publicación", kind: "edit" as const, href: vacancyEditorHref(id) }] : []),
     { label: "Ver pipeline", kind: "pipeline" as const, href: vacancyPipelineHref(id) },
+    ...(status === "published" && options.publicPage ? [{ label: "Ver página pública", kind: "public" as const, href: vacancyPublicHref(id) }] : []),
   ];
 }

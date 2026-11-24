@@ -57,6 +57,11 @@ function CriterionRow({ criterion, item }: { criterion: Criterion; item: Partici
   const mark = state.marks.find(mark => mark.participation_id === item.id && mark.criterion_id === criterion.id);
   return <CriterionEditor key={`${criterion.id}:${mark?.note ?? ""}`} criterion={criterion} item={item} mark={mark} />;
 }
+/** The pressed ✓ / ✗ read as a state and not only as a border: filled with the result's tone (same tones as the result badge). */
+const PRESSED = {
+  met: "aria-pressed:border-status-success aria-pressed:bg-status-success/15 aria-pressed:text-status-success",
+  not_met: "aria-pressed:border-status-review aria-pressed:bg-status-review/15 aria-pressed:text-status-review",
+} as const;
 function CriterionEditor({ criterion, item, mark }: { criterion: Criterion; item: Participation; mark?: Mark }) {
   const state = useBoardChecklist()!;
   const [note, setNote] = useState(mark?.note ?? "");
@@ -79,8 +84,8 @@ function CriterionEditor({ criterion, item, mark }: { criterion: Criterion; item
       </>
     </ItemContent>
     <ItemActions>
-      <Button type="button" variant="outline" size="icon" className="size-10" aria-label={`Marcar cumple: ${criterion.label}`} aria-pressed={mark?.verdict === "met"} disabled={disabled || tooLong} onClick={() => void state.update(item.id, criterion.id, { verdict: "met", note: note.trim() || null })}><Check aria-hidden="true" /></Button>
-      <Button type="button" variant="outline" size="icon" className="size-10" aria-label={`Marcar no cumple: ${criterion.label}`} aria-pressed={mark?.verdict === "not_met"} disabled={disabled || tooLong} onClick={() => void state.update(item.id, criterion.id, { verdict: "not_met", note: note.trim() || null })}><X aria-hidden="true" /></Button>
+      <Button type="button" variant="outline" size="icon" aria-label={`Marcar cumple: ${criterion.label}`} aria-pressed={mark?.verdict === "met"} disabled={disabled || tooLong} className={cn("size-10", PRESSED.met)} onClick={() => void state.update(item.id, criterion.id, { verdict: "met", note: note.trim() || null })}><Check aria-hidden="true" /></Button>
+      <Button type="button" variant="outline" size="icon" aria-label={`Marcar no cumple: ${criterion.label}`} aria-pressed={mark?.verdict === "not_met"} disabled={disabled || tooLong} className={cn("size-10", PRESSED.not_met)} onClick={() => void state.update(item.id, criterion.id, { verdict: "not_met", note: note.trim() || null })}><X aria-hidden="true" /></Button>
     </ItemActions>
     <ItemFooter className="basis-full flex-wrap justify-start">
       {/* Controlled disclosure: Button exposes its expanded state and the associated note Field. */}
@@ -89,8 +94,9 @@ function CriterionEditor({ criterion, item, mark }: { criterion: Criterion; item
       {editingNote && <Field data-invalid={tooLong || undefined}>
         <FieldLabel htmlFor={noteId}>Nota de {criterion.label}</FieldLabel>
         <Textarea id={noteId} value={note} disabled={disabled} aria-invalid={tooLong} aria-describedby={`${noteId}-help`} onChange={event => setNote(event.target.value)} />
-        <FieldDescription id={`${noteId}-help`}>Opcional, hasta 500 caracteres. Se guarda al marcar un resultado.</FieldDescription>
+        <FieldDescription id={`${noteId}-help`}>{mark ? "Opcional, hasta 500 caracteres. Guarda la nota sin cambiar el resultado." : "Opcional, hasta 500 caracteres. Se guarda al marcar un resultado."}</FieldDescription>
         {tooLong && <FieldError>La nota no puede superar 500 caracteres.</FieldError>}
+        {mark && <Button type="button" variant="outline" className="min-h-10 self-start" disabled={disabled || tooLong || note.trim() === (mark.note ?? "")} onClick={() => void state.update(item.id, criterion.id, { verdict: mark.verdict, note: note.trim() || null })}>Guardar nota</Button>}
       </Field>}
     </ItemFooter>
   </Item>;

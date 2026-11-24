@@ -40,3 +40,13 @@ it("turns a thrown error into «no_response»", async () => {
   vi.mocked(listStakeholderVacancies).mockRejectedValue(new Error("secret"));
   expect(await loadStakeholderVacanciesAction()).toEqual({ ok: false, reason: "no_response", reference: {} });
 });
+
+it("forwards the first page's counts_by_status as countsByStatus and null when absent or null (D20)", async () => {
+  const counts = { all: 3, draft: 1, active: 1, paused: 0, closed: 1 };
+  vi.mocked(listStakeholderVacancies).mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: null, counts_by_status: counts } });
+  expect(await loadStakeholderVacanciesAction()).toMatchObject({ ok: true, countsByStatus: counts });
+  vi.mocked(listStakeholderVacancies).mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: "c", counts_by_status: null } });
+  expect(await loadStakeholderVacanciesAction({ cursor: "c" })).toMatchObject({ ok: true, countsByStatus: null });
+  vi.mocked(listStakeholderVacancies).mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: null } });
+  expect(await loadStakeholderVacanciesAction()).toMatchObject({ ok: true, countsByStatus: null });
+});

@@ -2,11 +2,11 @@
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { listStakeholderVacancies, type StakeholderVacanciesFailure } from "./client";
-import type { StakeholderVacancy } from "./model";
+import type { StakeholderVacancy, StatusCounts } from "./model";
 
 export type StakeholderVacanciesFailureReason = "unauthenticated" | "forbidden" | "invalid_request" | "server_error" | "no_response" | "unrecognized_response";
 export type StakeholderVacanciesActionResult =
-  | { ok: true; items: StakeholderVacancy[]; nextCursor: string | null }
+  | { ok: true; items: StakeholderVacancy[]; nextCursor: string | null; countsByStatus?: StatusCounts | null }
   | { ok: false; reason: StakeholderVacanciesFailureReason; reference: { status?: number; code?: string } };
 
 const safeCodes = new Set(["invalid_request", "unauthenticated", "forbidden", "internal_error"]);
@@ -30,7 +30,7 @@ export async function loadStakeholderVacanciesAction(input: { cursor?: string } 
     const token = await getActionAccessToken();
     if (!token?.trim()) return { ok: false, reason: "unauthenticated", reference: {} };
     const result = await listStakeholderVacancies({ token, ...(input?.cursor === undefined ? {} : { cursor: input.cursor }) });
-    return result.ok ? { ok: true, items: result.data.items, nextCursor: result.data.next_cursor } : failure(result);
+    return result.ok ? { ok: true, items: result.data.items, nextCursor: result.data.next_cursor, countsByStatus: result.data.counts_by_status ?? null } : failure(result);
   } catch {
     return { ok: false, reason: "no_response", reference: {} };
   }

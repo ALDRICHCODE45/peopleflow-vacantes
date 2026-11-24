@@ -13,13 +13,18 @@ export const companyMemberSchema = z.object({
   created_at: timestamp,
   updated_at: timestamp,
   user: z.object({ id: memberIdSchema, full_name: z.string(), email: z.string().email() }).strict().nullable(),
+  /** Backend-computed «Carga» (D5). Optional so today's backend (no key) and the new one both parse. */
+  workload: z.object({ active_vacancies: z.number().int().nonnegative().safe() }).strict().optional(),
 }).strict();
 export const membersSchema = z.object({ members: z.array(companyMemberSchema) }).strict();
 export type CompanyMember = z.infer<typeof companyMemberSchema>;
 export const memberName = (member: CompanyMember) => member.user?.full_name || "Usuario dado de baja";
 
 /** Membership ids belong to company_members; team responsible ids belong to users. */
+export const hasBackendWorkload = (member: CompanyMember) => member.workload !== undefined;
+/** The backend number is identical for every viewer; the local draft count (only the viewer's visible drafts) is the fallback when absent. */
 export function memberWorkload(member: CompanyMember, drafts: readonly DraftListRow[]): TeamMemberWorkload | null {
+  if (member.workload) return { ownedVacancies: member.workload.active_vacancies, inProcessCandidates: null };
   if (!member.user) return null;
   // Shared-team summaries do not identify their members, so they cannot count toward a member's workload.
   const active = drafts.filter(draft => draft.team.responsible?.id === member.user!.id &&

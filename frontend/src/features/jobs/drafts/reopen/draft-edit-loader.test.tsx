@@ -32,11 +32,16 @@ it.each(["paused", "closed"] as const)("passes %s lifecycle to the editor badge"
   expect(container.querySelector('header [data-slot="badge"]')).toHaveTextContent(publication === "paused" ? "Pausada" : "Cerrada");
   expect(container.querySelector('header [data-slot="badge"]')).toHaveAttribute("data-variant", publication === "paused" ? "review" : "neutral");
 });
-it.each(["paused", "closed"] as const)("labels the disabled primary action for %s", async publication => {
+it.each(["paused", "closed"] as const)("has no disabled status button as primary action for %s and reads «Editar vacante»", async publication => {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
   render(<DraftEditLoader draftId={read.id} />);
   await screen.findByRole("textbox", { name: "Título" });
-  expect(screen.getByRole("button", { name: publication === "paused" ? "Pausada" : "Cerrada · proceso en curso" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: publication === "paused" ? "Pausada" : "Cerrada · proceso en curso" })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Editar vacante");
+  expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+  // No public page for a paused or closed vacancy: only the pipeline is offered.
+  expect(screen.getByRole("link", { name: "Ver pipeline" })).toHaveAttribute("href", `/empresa/vacantes/${read.id}/pipeline`);
+  expect(screen.queryByRole("link", { name: /Ver página pública/ })).not.toBeInTheDocument();
 });
 it.each([
   ["paused", "Esta vacante está pausada. Los cambios se guardan y se verán al reanudarla."],
@@ -45,7 +50,7 @@ it.each([
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
   render(<DraftEditLoader draftId={read.id} />);
   await screen.findByRole("textbox", { name: "Título" });
-  expect(screen.getByText(copy)).toBeInTheDocument();
+  expect(screen.getAllByText(copy).length).toBeGreaterThan(0);
 });
 it("shows editor-shaped Skeletons with one accessible status while loading", async () => {
   const pending = deferred();
@@ -77,7 +82,7 @@ it("loads the real seeded editor and first saves every stored field by PATCH wit
   fireEvent.click(screen.getByRole("tab", { name: "Revisión y publicación" }));
   fireEvent.click(screen.getByRole("button",{name:"Guardar cambios"}));
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledExactlyOnceWith({draftId:read.id,etag:'"get-etag"',body:{fields:storedWriteFields(read)}}));
-  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 8"));
+  await waitFor(() => expect(screen.getByText(/Guardado · versión 8/)).toBeVisible());
   expect(loadDraftForEditAction).toHaveBeenCalledTimes(1);
 });
 it.each(["not_found","unauthenticated","forbidden","company_inactive","company_not_active","server_error","no_response","unrecognized_response"] as const)("shows %s with its real link and explicit retry", async reason => {

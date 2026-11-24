@@ -12,11 +12,18 @@ import { STAKEHOLDER_HOME } from "@/features/identity/stakeholder-routes";
 import { acceptStakeholderInvitationAction } from "./actions";
 import { INVITATION_PATH, outcomeFor, type AcceptInvitationResult, type AcceptOutcome } from "./model";
 
+/** «Cerrar sesión» sits under the primary action at the same width on phones and centred beside it from `sm`. */
+function SignOut({ area }: { area: "candidate" | "employer" }) {
+  return <div className="flex w-full justify-center [&>[data-pf-action-bar]]:w-full sm:[&>[data-pf-action-bar]]:w-auto [&_[data-pf-action-bar-actions]]:w-full sm:[&_[data-pf-action-bar-actions]]:w-auto">
+    <LogoutButton area={area} />
+  </div>;
+}
+
 function NoSession({ token }: { token: string }) {
   // The token rides only in the login callback; the employer login accepts this same-site path (§1.3).
   const login = `/empresa/login?callbackUrl=${encodeURIComponent(`${INVITATION_PATH}/${token}`)}`;
-  return <StateCard icon={LogIn} tone="info" title="Te invitaron a ver métricas en PeopleFlow"
-    description="Inicia sesión o crea una cuenta de empresa para aceptar. Al terminar volverás aquí y la invitación se confirmará sola."
+  return <StateCard icon={LogIn} tone="info" title="Te invitaron a PeopleFlow como stakeholder"
+    description="Verás Métricas y los documentos de las vacantes (solo lectura). Inicia sesión o crea una cuenta de empresa para aceptar. Al terminar volverás aquí y la invitación se confirmará sola."
     primaryAction={{ label: "Iniciar sesión", href: login }} />;
 }
 
@@ -94,7 +101,7 @@ export function AcceptOutcomePage({ outcome }: { outcome: AcceptOutcome | null }
       primaryAction={{ label: "Reintentar", onClick: () => { setSlow(false); void membership?.reload(); } }} />;
     if (pending) return <Confirming />;
     if (state?.kind === "exists" && state.role === "stakeholder") return <StateCard icon={CircleCheck} tone="info" title={`Te uniste a ${state.company.name}`}
-      description="Tienes acceso de solo lectura a las métricas de la empresa. Puedes ver nombres de candidatos en el detalle; cada consulta queda registrada."
+      description="Ves Métricas y los documentos de las vacantes (solo lectura). Puedes ver nombres de candidatos en el detalle; cada consulta queda registrada."
       primaryAction={{ label: "Ver métricas", href: STAKEHOLDER_HOME }} />;
   }
   if (outcome === "invalida") return <StateCard icon={Hourglass} tone="empty" title="Este enlace ya no es válido"
@@ -102,16 +109,16 @@ export function AcceptOutcomePage({ outcome }: { outcome: AcceptOutcome | null }
     primaryAction={{ label: "Ir al inicio", href: "/" }} />;
   if (outcome === "cuenta-candidato") return <StateCard icon={ShieldLock} tone="forbidden" title="Este enlace es para cuentas de empresa"
     description="Entraste con una cuenta de candidato. Cierra sesión, entra con una cuenta de empresa (o crea una) y vuelve a abrir el enlace que te enviaron.">
-    <LogoutButton area="candidate" />
+    <SignOut area="candidate" />
   </StateCard>;
   if (outcome === "ya-miembro") return <StateCard icon={Building2} tone="info" title="Ya perteneces a una empresa"
-    description="Tu cuenta ya es parte de otra empresa y solo puede pertenecer a una. Para ver estas métricas, usa otra cuenta de empresa."
+    description="Tu cuenta ya es parte de otra empresa y solo puede pertenecer a una. Para aceptar esta invitación, usa otra cuenta de empresa."
     primaryAction={{ label: "Ir a mi empresa", href: "/empresa/dashboard" }}>
-    <LogoutButton area="employer" />
+    <SignOut area="employer" />
   </StateCard>;
   if (outcome === "cuenta-no-lista") return <StateCard icon={UserRoundX} tone="forbidden" title="Tu cuenta todavía no está lista para PeopleFlow"
     description="Cierra sesión e inténtalo más tarde o contacta a soporte.">
-    <LogoutButton area="employer" />
+    <SignOut area="employer" />
   </StateCard>;
   return <StateCard icon={Link2} tone="empty" title="Abre tu enlace de invitación"
     description="Para unirte como stakeholder necesitas el enlace que te envió la persona dueña de la cuenta."

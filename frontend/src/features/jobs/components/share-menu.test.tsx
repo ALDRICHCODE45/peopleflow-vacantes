@@ -16,6 +16,8 @@ afterEach(() => { cleanup(); stubNavigator({}); });
 it("appends origen=compartido, drops the hash and replaces another origen", () => {
   expect(shareUrl("https://x.test/vacantes/1?origen=sitio&q=2#beneficios")).toBe("https://x.test/vacantes/1?q=2&origen=compartido");
   expect(shareUrl("/vacantes/1", "https://x.test")).toBe("https://x.test/vacantes/1?origen=compartido");
+  // Any number of other `origen` values collapse into the single trailing tag.
+  expect(shareUrl("https://x.test/v?origen=a&q=1&origen=b")).toBe("https://x.test/v?q=1&origen=compartido");
 });
 
 it("builds the WhatsApp, mail and LinkedIn links from title, company and url", () => {

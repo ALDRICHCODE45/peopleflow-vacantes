@@ -7,7 +7,7 @@ const OWNER_PATH = "/v2/me/company/stakeholder-invitations";
 const ACCEPT_PATH = "/v2/me/stakeholder-invitations/accept";
 
 /** Only the status and the backend code cross into the actions; the backend text never does. */
-export type InvitationClientFailure = { ok: false; error: RequestJsonError; code?: string };
+export type InvitationClientFailure = { ok: false; error: RequestJsonError; code?: string; noteInvalid?: boolean };
 export type InvitationClientResult<T> = { ok: true; data: T } | InvitationClientFailure;
 
 async function call<T>(token: string, path: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>, method: "GET" | "POST", expectedStatus: number, body?: unknown): Promise<InvitationClientResult<T>> {
@@ -19,10 +19,15 @@ async function call<T>(token: string, path: string, schema: z.ZodType<T, z.ZodTy
     timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
     decoder: value => schema.parse(value), errorDecoder: value => errorEnvelopeSchema.parse(value),
   });
-  return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error, ...(result.envelope ? { code: result.envelope.code } : {}) };
+  return result.ok ? { ok: true, data: result.data } : { ok: false, error: result.error, ...(result.envelope ? { code: result.envelope.code } : {}), ...(result.envelope && noteRejected(result.envelope) ? { noteInvalid: true } : {}) };
 }
+/** `400 validation_error` names the field: only «note» is ever sent, and only its flag leaves the client (never the backend text). */
+const noteRejected = (envelope: Record<string, unknown>) => envelope.code === "validation_error" && Array.isArray(envelope.fields)
+  && envelope.fields.some(field => typeof field === "object" && field !== null && (field as { field?: unknown }).field === "note");
 
-export const createInvitation = (token: string): Promise<InvitationClientResult<CreatedInvitation>> => call(token, OWNER_PATH, createdInvitationSchema, "POST", 201);
+/** No `note` sends no body at all, as before; with one, `{ note }` (already validated by the action). */
+export const createInvitation = (token: string, note?: string): Promise<InvitationClientResult<CreatedInvitation>> =>
+  call(token, OWNER_PATH, createdInvitationSchema, "POST", 201, note === undefined ? undefined : { note });
 export const listInvitations = async (token: string): Promise<InvitationClientResult<PendingInvitation[]>> => {
   const result = await call(token, OWNER_PATH, pendingListSchema, "GET", 200);
   return result.ok ? { ok: true, data: result.data.items } : result;

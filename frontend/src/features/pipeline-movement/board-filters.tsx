@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +16,9 @@ import { cn } from "@/lib/utils";
 import type { BoardFilterDimension } from "./board-filter-dimensions";
 import { activeFilterCount, clearFilters, filterChips, dimensionOptions, optionCount, toggleFilter, type FilterSelection } from "./filters";
 
-type Props<Item> = { toolbar?: React.ReactNode; actions?: React.ReactNode; items: readonly Item[]; dimensions: BoardFilterDimension<Item>[]; selection: FilterSelection; onChange: (selection: FilterSelection) => void; resultCount: number };
+type Props<Item> = { toolbar?: React.ReactNode; actions?: React.ReactNode; items: readonly Item[]; dimensions: BoardFilterDimension<Item>[]; selection: FilterSelection; onChange: (selection: FilterSelection) => void; resultCount: number;
+  /** Free-text search over the loaded items (name); the board owns the value and keeps it in the URL. */
+  search?: { value: string; onChange: (value: string) => void } };
 
 function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Props<Item>, "items" | "selection" | "onChange"> & { dimension: BoardFilterDimension<Item> }) {
   const [search, setSearch] = useState("");
@@ -58,7 +60,7 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
                     <FieldLabel className="min-h-11 w-full items-center rounded-lg px-2 transition-colors hover:bg-muted has-data-checked:bg-primary/5" htmlFor={`${id}-${option.value}`}>
                       <Checkbox id={`${id}-${option.value}`} checked={selection[dimension.key]?.has(option.value) ?? false} onCheckedChange={() => onChange(toggleFilter(selection, dimension.key, option.value))} />
                       <span className="min-w-0 flex-1 break-words">{option.label}</span>
-                      <span data-slot="option-count" className={cn("text-muted-foreground tabular-nums", count === 0 && "opacity-50")}>{count}</span>
+                      <span data-slot="option-count" className={cn("tabular-nums", count === 0 ? "text-muted-foreground" : "text-foreground")}>{count}</span>
                     </FieldLabel>
                   </Field>;
                 })}
@@ -94,15 +96,21 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
   </Field>;
 }
 
-export function BoardFilters<Item>({ items, dimensions, selection, onChange, resultCount, toolbar, actions }: Props<Item>) {
+export function BoardFilters<Item>({ items, dimensions, selection, onChange, resultCount, toolbar, actions, search }: Props<Item>) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const count = activeFilterCount(selection);
+  const searching = !!search?.value.trim();
   const sections = [...new Set(dimensions.map(dimension => dimension.presentation?.section.key))];
   return <Sheet open={open} onOpenChange={setOpen}>
     {/* S9: the board's one flat toolbar. Filters (and the order/compare controls) lead; the board actions end the same row, outside the filters group. */}
     <div className="group/bar flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
       <div role="group" aria-label="Filtros del pipeline" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        {search && <InputGroup className="h-10 w-full sm:w-64">
+          <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
+          <InputGroupInput type="search" aria-label="Buscar candidato" placeholder="Buscar por nombre…" autoComplete="off" value={search.value} onChange={event => search.onChange(event.target.value)} />
+          {search.value && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-sm" aria-label="Borrar búsqueda" onClick={() => search.onChange("")}><X aria-hidden="true" /></InputGroupButton></InputGroupAddon>}
+        </InputGroup>}
         <SheetTrigger render={<Button ref={trigger} id="board-filters" type="button" variant="outline" className="min-h-10" />}>
           <SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Filtros{count > 0 && <Badge variant="secondary">{count}</Badge>}
         </SheetTrigger>
@@ -119,9 +127,9 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
         <div data-pf-board-actions="" className="flex min-w-0 flex-wrap items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1">{actions}</div>
       </>}
     </div>
-    {count > 0 && <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+    {(count > 0 || searching) && <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <p role="status" aria-live="polite" className="text-xs text-muted-foreground"><span aria-hidden="true" className="text-primary">● </span>Vista filtrada · Mostrando {resultCount} de {plural(items.length, "candidato", "candidatos")}</p>
-      <Button type="button" variant="link" className="ml-auto min-h-10" onClick={() => setOpen(true)}>Editar filtros<ChevronRight aria-hidden="true" data-icon="inline-end" /></Button>
+      {count > 0 && <Button type="button" variant="link" className="ml-auto min-h-10" onClick={() => setOpen(true)}>Editar filtros<ChevronRight aria-hidden="true" data-icon="inline-end" /></Button>}
     </div>}
     <SheetContent side="right" showCloseButton={false} finalFocus={trigger} className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
       <SheetHeader className="shrink-0 border-b p-6">
