@@ -52,3 +52,9 @@ merges to `main` allowed (no push).
   comclusion de qje hay que extender el system design, adelante, busca errores, cosas que podria hacer el ususario, que
   feedback le daria el sistema, me sigues?? asi que si tienes alfuna pregunta que hacerle antes de irmw a doemor,
   adelante, hazla ya». Answers: S6.
+- **L2** Audit C done (`odd/discovery/overnight-audit-C.md`, 18 findings); fixes delegated on `feat/audit-public-fixes`
+  (based on `feat/modern-choice-controls`). Backend F3 agreed (`feat/public-jobs-sort-total`, in progress): public listing
+  `?sort=recent|salary_desc|salary_asc` (`recent` default = today's order; invalid → 400 list validation error; cursor bound
+  to its sort) and response `total: {count, capped}` (same filters, cap 1000 → «1000+ vacantes»); salary sorts use only the
+  salary the listing already shows, hidden salaries go last in both directions by recency. No candidate test account
+  exists (F18): candidate logged-in flows wait for the user.
