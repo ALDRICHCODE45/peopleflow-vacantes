@@ -208,7 +208,9 @@ func TestPublicJobsHTTPStrictAnonymousAndCacheHeaders(t *testing.T) {
 				t.Fatal("invalid request reached reader")
 			}
 			if tc.name == "list" {
-				if len(body) != 2 || body["next_cursor"] != nil {
+				// public-jobs-sort-total S4 adds the always-present total.
+				total, _ := body["total"].(map[string]any)
+				if len(body) != 3 || body["next_cursor"] != nil || len(total) != 2 || total["count"] != float64(1) || total["capped"] != false {
 					t.Fatal("list envelope")
 				}
 				item := body["items"].([]any)[0].(map[string]any)

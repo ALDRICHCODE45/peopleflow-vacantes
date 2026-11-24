@@ -13,10 +13,18 @@ import (
 )
 
 const searchPublicJobs = `-- name: SearchPublicJobs :many
-WITH catalog AS (
+WITH catalog AS NOT MATERIALIZED (
+ -- NOT MATERIALIZED: ranked feeds both the page and the bounded total, and
+ -- must stay inlined so the total never builds or buffers card bodies.
  SELECT j.id, 'legacy'::text AS source, j.published_at, j.location AS location_label,
         j.work_mode, NULL::text AS work_schedule, NULL::text AS contract_type,
         NULL::text AS professional_area, j.search_vector,
+        CASE WHEN j.seniority='mid' THEN 'semi_senior' ELSE j.seniority END AS seniority,
+        -- Sort tiers (public-jobs-sort-total S3): legacy salaries are public
+        -- but have no pay period or basis, so they follow every projection unit.
+        CASE WHEN j.salary_min IS NULL AND j.salary_max IS NULL THEN 1000 ELSE 100 END AS salary_group,
+        COALESCE(j.salary_max,j.salary_min)::numeric AS salary_high,
+        COALESCE(j.salary_min,j.salary_max)::numeric AS salary_low,
         jsonb_build_object(
           'id',j.id,'source','legacy','title',j.title,
           'company',jsonb_build_object('id',c.id,'name',c.name,'logo_url',c.logo_url),
@@ -39,18 +47,30 @@ WITH catalog AS (
  FROM jobs j JOIN companies c ON c.id=j.company_id
  WHERE j.status='published' AND j.deleted_at IS NULL AND j.published_at IS NOT NULL
    AND c.status='active' AND c.deleted_at IS NULL
-   AND ($6::uuid IS NULL OR j.company_id=$6::uuid)
+   AND ($1::uuid IS NULL OR j.company_id=$1::uuid)
    -- Legacy has no structured geography or declared remote scope.
-   AND COALESCE(cardinality($7::text[]),0)=0
-   AND COALESCE(cardinality($8::text[]),0)=0
-   AND ($9::text='' OR j.work_mode<>'remote')
+   AND COALESCE(cardinality($2::text[]),0)=0
+   AND COALESCE(cardinality($3::text[]),0)=0
+   AND ($4::text='' OR j.work_mode<>'remote')
    -- Legacy salaries have no pay period or gross/net basis (SAL-6).
-   AND $10::text=''
+   AND $5::text=''
    -- Legacy has no language requirements; years/education minima are absent.
-   AND COALESCE(cardinality($11::text[]),0)=0
+   AND COALESCE(cardinality($6::text[]),0)=0
  UNION ALL
  SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
-        p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
+        p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,p.seniority,
+        -- Projection compensation is NULL whenever the salary is hidden or
+        -- incomplete, so a hidden amount never reaches the sort key. Amounts
+        -- compare only within identical units (SAL-6): MXN·monthly·gross is
+        -- tier 0, every other unit combination its own fixed tier 1-20.
+        CASE WHEN p.compensation IS NULL THEN 1000
+             WHEN p.compensation->>'currency'='MXN' AND p.compensation->>'pay_period'='monthly' AND p.compensation->>'basis'='gross' THEN 0
+             ELSE COALESCE(1 + (array_position(ARRAY['MXN','USD']::text[],p.compensation->>'currency')-1)*10
+                             + (array_position(ARRAY['hourly','weekly','semimonthly','monthly','yearly']::text[],p.compensation->>'pay_period')-1)*2
+                             + (array_position(ARRAY['gross','net']::text[],p.compensation->>'basis')-1),99) END AS salary_group,
+        -- The same figures as the salary filters: hi=max|amount, lo=min|amount.
+        COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric AS salary_high,
+        COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric AS salary_low,
         jsonb_build_object(
           'id',p.id,'source','vacancy','title',p.title,
           'company',jsonb_build_object('id',c.id,'name',c.name,'logo_url',c.logo_url),
@@ -91,67 +111,85 @@ WITH catalog AS (
  JOIN vacancy_processes v ON v.id=p.id AND v.company_id=p.company_id
  JOIN companies c ON c.id=p.company_id
  WHERE v.status='published' AND c.status='active' AND c.deleted_at IS NULL
-   AND ($6::uuid IS NULL OR p.company_id=$6::uuid)
+   AND ($1::uuid IS NULL OR p.company_id=$1::uuid)
    -- Cast parameters, not indexed columns. Codes are validated before search.
-   AND (COALESCE(cardinality($7::text[]),0)=0 OR
-        (p.country_code='MX' AND p.state_code=ANY($7::text[]::char(2)[])))
-   AND (COALESCE(cardinality($8::text[]),0)=0 OR
-        (p.country_code='MX' AND p.municipality_code=ANY($8::text[]::char(5)[])))
-   AND ($9::text='' OR p.work_mode<>'remote' OR
+   AND (COALESCE(cardinality($2::text[]),0)=0 OR
+        (p.country_code='MX' AND p.state_code=ANY($2::text[]::char(2)[])))
+   AND (COALESCE(cardinality($3::text[]),0)=0 OR
+        (p.country_code='MX' AND p.municipality_code=ANY($3::text[]::char(5)[])))
+   AND ($4::text='' OR p.work_mode<>'remote' OR
         p.remote_scope_kind='anywhere' OR
-        (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[$9::text::char(2)]))
-   AND (COALESCE(cardinality($11::text[]),0)=0 OR EXISTS (
+        (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[$4::text::char(2)]))
+   AND (COALESCE(cardinality($6::text[]),0)=0 OR EXISTS (
         SELECT 1 FROM jsonb_array_elements(p.requirements_profile->'languages') AS required_language
-        WHERE required_language->>'code'=ANY($11::text[])))
+        WHERE required_language->>'code'=ANY($6::text[])))
    -- "What I have": an absent minimum matches; equality is inclusive.
    -- NULLIF prevents casting the inactive empty parameter to numeric.
-   AND (NULLIF($12::text,'')::numeric IS NULL OR
+   AND (NULLIF($7::text,'')::numeric IS NULL OR
         p.requirements_profile->>'min_years_of_experience' IS NULL OR
-        (p.requirements_profile->>'min_years_of_experience')::numeric <= NULLIF($12::text,'')::numeric)
-   AND ($13::text='' OR
+        (p.requirements_profile->>'min_years_of_experience')::numeric <= NULLIF($7::text,'')::numeric)
+   AND ($8::text='' OR
         p.requirements_profile->>'min_education_level' IS NULL OR
         array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], p.requirements_profile->>'min_education_level') <=
-        array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], $13::text))
+        array_position(ARRAY['secondary','high_school','technical','tsu','bachelor','specialty','master','phd']::text[], $8::text))
    -- SAL-5..SAL-8: compare only the published projection compensation, which
    -- is NULL when hidden or incomplete, in identical units. Offer [lo,hi]
    -- (fixed: lo=hi=amount) overlaps the requested bounds inclusively; an empty
    -- bound is open. Amounts are canonical two-decimal strings.
-   AND ($10::text='' OR (
-        p.compensation->>'currency'=$10::text
-    AND p.compensation->>'pay_period'=$14::text
-    AND p.compensation->>'basis'=$15::text
+   AND ($5::text='' OR (
+        p.compensation->>'currency'=$5::text
+    AND p.compensation->>'pay_period'=$9::text
+    AND p.compensation->>'basis'=$10::text
     -- NULLIF, not OR, keeps an open bound from ever casting '' to numeric.
-    AND (NULLIF($16::text,'')::numeric IS NULL OR
-         COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric >= NULLIF($16::text,'')::numeric)
-    AND (NULLIF($17::text,'')::numeric IS NULL OR
-         COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric <= NULLIF($17::text,'')::numeric)))
-), ranked AS (
- SELECT catalog.id, catalog.source, catalog.published_at, catalog.location_label, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$18::text))::float8 AS search_rank
+    AND (NULLIF($11::text,'')::numeric IS NULL OR
+         COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric >= NULLIF($11::text,'')::numeric)
+    AND (NULLIF($12::text,'')::numeric IS NULL OR
+         COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric <= NULLIF($12::text,'')::numeric)))
+), ranked AS NOT MATERIALIZED (
+ SELECT catalog.id, catalog.source, catalog.published_at, catalog.location_label, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.seniority, catalog.salary_group, catalog.salary_high, catalog.salary_low, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$13::text))::float8 AS search_rank
  FROM catalog
- WHERE ($18::text='' OR search_vector @@ websearch_to_tsquery('spanish',$18::text))
-   AND (COALESCE(cardinality($19::text[]),0)=0 OR work_mode=ANY($19::text[]))
-   AND ($20::text='' OR work_schedule=$20::text)
-   AND ($21::text='' OR contract_type=$21::text)
-   AND ($22::text='' OR professional_area=$22::text)
-   -- The UNION body already maps legacy mid to semi_senior.
-   AND (COALESCE(cardinality($23::text[]),0)=0 OR body->>'seniority'=ANY($23::text[]))
-   AND ($24::uuid IS NULL OR id=$24::uuid)
+ WHERE ($13::text='' OR search_vector @@ websearch_to_tsquery('spanish',$13::text))
+   AND (COALESCE(cardinality($14::text[]),0)=0 OR work_mode=ANY($14::text[]))
+   AND ($15::text='' OR work_schedule=$15::text)
+   AND ($16::text='' OR contract_type=$16::text)
+   AND ($17::text='' OR professional_area=$17::text)
+   -- Same value as body->>'seniority' (legacy mid already maps to
+   -- semi_senior), read from a column so the total never builds bodies.
+   AND (COALESCE(cardinality($18::text[]),0)=0 OR seniority=ANY($18::text[]))
+   AND ($19::uuid IS NULL OR id=$19::uuid)
+), keyed AS (
+ -- One all-descending keyset for every sort. recent: both sort keys are 0,
+ -- leaving exactly the historical order. Salary sorts: tier ascending (hidden
+ -- and absent salaries last, keyed 0), then the amount (desc: hi; asc: -lo),
+ -- then the recent order as tie-break.
+ SELECT body,search_rank,published_at,source,id,
+        CASE WHEN $20::text IN ('salary_desc','salary_asc') THEN salary_group ELSE 0 END AS sort_group,
+        CASE $20::text WHEN 'salary_desc' THEN COALESCE(salary_high,0)
+                                          WHEN 'salary_asc' THEN -COALESCE(salary_low,0)
+                                          ELSE 0 END::numeric AS sort_salary
+ FROM ranked
+), page AS (
+ SELECT body,search_rank,published_at,source,id,sort_group,sort_salary FROM keyed
+ WHERE ($21::timestamptz IS NULL OR
+        (-sort_group,sort_salary,search_rank,published_at,source COLLATE "C",id) <
+        (-$22::int,COALESCE(NULLIF($23::text,''),'0')::numeric,$24::float8,
+         $21::timestamptz,$25::text COLLATE "C",$26::uuid))
+ ORDER BY sort_group ASC,sort_salary DESC,search_rank DESC,published_at DESC,source COLLATE "C" DESC,id DESC
+ LIMIT $27::int
+), total AS (
+ -- public-jobs-sort-total S4: the page's filters without sort or cursor,
+ -- bounded at count_limit (cap+1) so counting stops early; 0 skips it.
+ SELECT count(*)::int AS total_count FROM (SELECT 1 FROM ranked LIMIT $28::int) bounded
 )
-SELECT body,search_rank FROM ranked
-WHERE ($1::timestamptz IS NULL OR
-       (search_rank,published_at,source COLLATE "C",id) <
-       ($2::float8,$1::timestamptz,
-        $3::text COLLATE "C",$4::uuid))
-ORDER BY search_rank DESC,published_at DESC,source COLLATE "C" DESC,id DESC
-LIMIT $5::int
+SELECT page.body,COALESCE(page.search_rank,0)::float8 AS search_rank,COALESCE(page.sort_group,0)::int AS sort_group,
+       COALESCE(page.sort_salary::text,'')::text AS sort_salary,total.total_count
+FROM total LEFT JOIN page ON true
+ -- The LEFT JOIN keeps one row (NULL body) when the page is empty, so the
+ -- total survives an empty page or a cursor past the end.
+ORDER BY page.sort_group ASC,page.sort_salary DESC,page.search_rank DESC,page.published_at DESC,page.source COLLATE "C" DESC,page.id DESC
 `
 
 type SearchPublicJobsParams struct {
-	CursorTs          pgtype.Timestamptz `json:"cursor_ts"`
-	CursorRank        float64            `json:"cursor_rank"`
-	CursorSource      string             `json:"cursor_source"`
-	CursorID          uuid.UUID          `json:"cursor_id"`
-	PageLimit         int32              `json:"page_limit"`
 	CompanyID         pgtype.UUID        `json:"company_id"`
 	States            []string           `json:"states"`
 	Municipalities    []string           `json:"municipalities"`
@@ -171,11 +209,23 @@ type SearchPublicJobsParams struct {
 	ProfessionalArea  string             `json:"professional_area"`
 	Seniorities       []string           `json:"seniorities"`
 	DetailID          pgtype.UUID        `json:"detail_id"`
+	SortOrder         string             `json:"sort_order"`
+	CursorTs          pgtype.Timestamptz `json:"cursor_ts"`
+	CursorGroup       int32              `json:"cursor_group"`
+	CursorSalary      string             `json:"cursor_salary"`
+	CursorRank        float64            `json:"cursor_rank"`
+	CursorSource      string             `json:"cursor_source"`
+	CursorID          uuid.UUID          `json:"cursor_id"`
+	PageLimit         int32              `json:"page_limit"`
+	CountLimit        int32              `json:"count_limit"`
 }
 
 type SearchPublicJobsRow struct {
 	Body       []byte  `json:"body"`
 	SearchRank float64 `json:"search_rank"`
+	SortGroup  int32   `json:"sort_group"`
+	SortSalary string  `json:"sort_salary"`
+	TotalCount int32   `json:"total_count"`
 }
 
 // Explicit public allowlists. Legacy dimensions are deliberately NULL: an
@@ -183,11 +233,6 @@ type SearchPublicJobsRow struct {
 // sides of the keyset comparison so cursor round-trips lose no precision.
 func (q *Queries) SearchPublicJobs(ctx context.Context, arg SearchPublicJobsParams) ([]SearchPublicJobsRow, error) {
 	rows, err := q.db.Query(ctx, searchPublicJobs,
-		arg.CursorTs,
-		arg.CursorRank,
-		arg.CursorSource,
-		arg.CursorID,
-		arg.PageLimit,
 		arg.CompanyID,
 		arg.States,
 		arg.Municipalities,
@@ -207,6 +252,15 @@ func (q *Queries) SearchPublicJobs(ctx context.Context, arg SearchPublicJobsPara
 		arg.ProfessionalArea,
 		arg.Seniorities,
 		arg.DetailID,
+		arg.SortOrder,
+		arg.CursorTs,
+		arg.CursorGroup,
+		arg.CursorSalary,
+		arg.CursorRank,
+		arg.CursorSource,
+		arg.CursorID,
+		arg.PageLimit,
+		arg.CountLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -215,7 +269,13 @@ func (q *Queries) SearchPublicJobs(ctx context.Context, arg SearchPublicJobsPara
 	var items []SearchPublicJobsRow
 	for rows.Next() {
 		var i SearchPublicJobsRow
-		if err := rows.Scan(&i.Body, &i.SearchRank); err != nil {
+		if err := rows.Scan(
+			&i.Body,
+			&i.SearchRank,
+			&i.SortGroup,
+			&i.SortSalary,
+			&i.TotalCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

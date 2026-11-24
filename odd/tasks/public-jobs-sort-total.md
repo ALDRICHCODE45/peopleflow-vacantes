@@ -21,7 +21,7 @@ Additive change to the public vacancies listing so the frontend can sort and sho
 
 ## Tasks
 
-- T1 S1-S5 — sort + total (writer) — pending
+- T1 S1-S5 — sort + total (writer) — done, uncommitted (L3)
 - T2 — suite, merge, notify frontend — pending
 
 ## Log
@@ -30,3 +30,22 @@ Additive change to the public vacancies listing so the frontend can sort and sho
   el frontend para realizar lo que se tenga que realizar (tu haciendo el backend y el haciendo el frontend)».
 - **L2** 2026-11-24, frontend session (overnight audit; relays that the user, asleep, authorized coordinating backend
   gaps): request quoted in S1. S3 and the 1000 cap are backend decisions pending the user's confirmation.
+- **L3** 2026-11-24, writer (T1): `sort` + `total` on `GET /v2/jobs`, contract `docs/contracts/public-jobs-sort-total-v1.md`,
+  backend doc `backend/docs/public-jobs-v2.md` § «Sort and total». RED: unit `sort_total_test.go` failed to compile
+  (no `Query.Sort`, `Position.Salary*`, `Page.Total`); integration `TestPublicJobsSortAndTotal`/`TestPublicJobsTotalCap`
+  through the production router failed on the old code (`sort=…` → 400 `invalid_request`, `total` absent). GREEN:
+  unit `make test` of `./internal/features/jobs/... ./cmd/api ./internal/db`; integration (`-tags=integration -p 1`,
+  throwaway postgres:16 `draft_test`) of `./cmd/api`, `applications/.../postgres/v2`, `jobs/.../draftstore`,
+  `jobs/.../savedjobs`, `publicjobs`, `http`: all ok; gofmt, vet (both tags), `make gate-sqlc` pass; archguard only
+  the known docker/minio violation. Salary bound (S3): `salary_desc` uses the top (`max`, fixed `amount`; the figure
+  `salary_min` compares), `salary_asc` the bottom (`min`, fixed `amount`; the figure `salary_max` compares). Totals
+  (S4): one statement, `total` CTE = `count(*)` over `SELECT 1 FROM ranked LIMIT 1001`, `LEFT JOIN`ed to the page so
+  empty pages keep it; `ranked` is `NOT MATERIALIZED` and seniority is read from a column, so the count branch builds
+  no card bodies (checked with `EXPLAIN (GENERIC_PLAN, VERBOSE)`). Seeded 1000 → `{1000,false}`, 1001 → `{1000,true}`.
+  Deviations: (1) units — S3 does not say how to compare unlike units; to honour SAL-6 (no conversion) salary sorts
+  order by tier: MXN·monthly·gross first, each other unit combination its own fixed tier, then legacy salaries (no
+  period/basis), then hidden/absent, with the amount compared only within a tier (needs user/frontend confirmation);
+  (2) S5 vs S4 — two existing tests pinned the list envelope at exactly 2 keys
+  (`publicJobsHandler_test.go` «list», `public_jobs_flow_integration_test.go`); updated to 3 keys + `total` shape, no
+  other existing test changed; (3) sqlc row now carries `sort_group`, `sort_salary`, `total_count`, and the
+  geo-index test's direct `SearchPublicJobs` call keeps passing with an empty `sort_order` (= recent).

@@ -7,8 +7,9 @@ legacy applications remain unchanged. Applying to a vacancy is P2b, not this cut
 
 ## Browse/search
 
-`GET /v2/jobs` → `200 {"items": [...], "next_cursor": string | null}`.
-Both keys are always present; empty items is `[]`, never null.
+`GET /v2/jobs` → `200 {"items": [...], "next_cursor": string | null, "total": {"count": int, "capped": bool}}`.
+All three keys are always present; empty items is `[]`, never null. See
+[Sort and total](#sort-and-total-public-jobs-sort-total).
 
 Every query key is optional. Only `state`, `municipality`, `work_mode`, `language`, and `seniority` may
 repeat (one exact value per parameter, not comma-separated):
@@ -32,12 +33,13 @@ repeat (one exact value per parameter, not comma-separated):
 | `seniority` | Repeatable distinct `intern`, `junior`, `semi_senior`, `senior`, `lead`, `manager`, `director` |
 | `years_of_experience` | One decimal string, `^(0\|[1-9][0-9]?)(\.[0-9])?$`, inclusive 0–60; “what I have” |
 | `education_level` | One of `secondary`, `high_school`, `technical`, `tsu`, `bachelor`, `specialty`, `master`, `phd`; “what I have” |
+| `sort` | `recent` (default), `salary_desc`, `salary_asc`; single-valued |
 | `limit` | Decimal integer 1–50, default 20 |
 | `cursor` | Opaque `next_cursor` from the previous page |
 
 The old `location` substring parameter is removed (now `400 invalid_request`).
 Unknown keys, repeated single-valued keys (except the filters documented below), invalid
-`q`/enum/limit/cursor encoding or values return `400 invalid_request`. Invalid
+`q`/enum/limit/sort/cursor encoding or values return `400 invalid_request`. Invalid
 `state`, `municipality`, `work_mode`, or `applicant_country` values/encoding return
 `400 invalid_filter`, including unknown catalog codes, blanks, duplicate selected
 values, and repeated `applicant_country` (even identical). Codes/enums are exact:
@@ -122,7 +124,56 @@ With `q`, order is rank descending; ties (and browse mode) use `published_at`
 descending, source descending in C collation, then UUID descending. The keyset
 anchors the last visible row across **both** sources; a newer insertion does not
 shift the next page. Rank is round-tripped at the same float8 precision as SQL.
-There is no offset paging or total count.
+This is the `recent` sort. There is no offset paging; the bounded total is below.
+
+### Sort and total (public-jobs-sort-total)
+
+`sort` is optional and single-valued: `recent` (default), `salary_desc` or
+`salary_asc`. Absent and `sort=recent` are byte-for-byte the order, pages and
+cursors described above. Any other value (blank, case variants, unknown, or a
+repeated key, even identical) returns `400 invalid_request`, never
+`invalid_filter`.
+
+Salary sorts order only by the salary the public card already shows:
+
+1. **Tier**, always ascending, in both directions:
+   - `0` published `compensation` in MXN · monthly · gross;
+   - `1–20` published `compensation` in any other unit combination, one tier per
+     combination: `1 + 10·currency + 2·period + basis`, with the indexes
+     `MXN=0, USD=1`; `hourly=0, weekly=1, semimonthly=2, monthly=3, yearly=4`;
+     `gross=0, net=1` (an unexpected unit would be `99`);
+   - `100` legacy rows with a `legacy_salary` (it has no pay period or basis);
+   - `1000` hidden, incomplete or absent salaries: projection `compensation` and
+     legacy salary both null.
+   Amounts are compared only within one tier, never across currencies, periods
+   or bases (no conversion, as SAL-6). Tier 0 is the UI's default units.
+2. **Amount** within the tier, using the same figures as the salary filters:
+   `salary_desc` orders by the offer's top, `max` (fixed: `amount`; legacy:
+   `max`, else `min`) descending — the figure `salary_min` compares;
+   `salary_asc` orders by the offer's bottom, `min` (fixed: `amount`; legacy:
+   `min`, else `max`) ascending — the figure `salary_max` compares. So a
+   `30000–38000` range sorts as 38000 descending and 30000 ascending.
+3. **The `recent` order** (rank when `q` is set, `published_at`, source, id)
+   breaks ties and orders the whole hidden tier.
+
+A hidden salary is null in the projection, so it never reaches the sort key: a
+hidden vacancy sorts after every public salary, in both directions, keyed 0,
+and its position reveals nothing about its amount. Filters combine with any sort;
+with an active salary filter every row is in tier 0 and the amount alone orders.
+
+Cursors stay opaque, version 2. A salary sort binds its cursor to the sort (a
+keyed `["sort", value]` hash suffix) and adds its tier and signed amount to the
+anchor; `recent` adds nothing, so historical cursors stay valid. A cursor used
+with a different sort, including `recent` ↔ salary, returns
+`400 invalid_request`.
+
+`total` is `{"count": int, "capped": bool}`, always present. It counts the
+rows matching the same filters as the page, independently of `sort`, `cursor`
+and `limit`; a page past the end still reports it. The count is bounded: it
+stops after 1001 rows, and more than 1000 matches return
+`{"count": 1000, "capped": true}` (exactly 1000 is `capped: false`). The total is
+read in the same statement as the page (a `LEFT JOIN` keeps it on an empty page)
+from the same inlined `ranked` CTE; the counting branch builds no card bodies.
 
 Schedule/contract/area filters exclude legacy rows, whose values are null.
 Legacy `employment_type` is never mapped to a schedule or contract type.
@@ -334,6 +385,8 @@ Paths below are relative to `backend/`.
 | `application/publicjobs/profile_filter_test.go` — `TestParseQueryProfileFilters`, `TestProfileCursorBindingIsCanonicalAndBackwardCompatible` | H5 accepted vocabularies/decimals, strict invalid_filter cases, canonical selection/year cursor binding, changed/dropped dimensions rejected, frozen pre-H5 hashes with and without salary |
 | `cmd/api/public_profile_search_integration_test.go` — `TestPublicProfileSearchFilters` | H5 real-router/SQL per-dimension matches, OR/AND, legacy mapping and minima, nulls, inclusive year/education boundaries, education ordering and ongoing exclusion, invalid_filter bodies, equivalent-years paging |
 | `application/publicjobs/salary_filter_test.go` | SAL-8 salary keys: accepted one-sided/two-sided/zero/max amounts and every unit, each `invalid_filter` case, normalized cursor binding, unchanged binding without salary keys |
+| `application/publicjobs/sort_total_test.go` | public-jobs-sort-total: `sort` values and `invalid_request` cases; recent hash/bytes unchanged; cursor bound to its sort; forged anchors rejected; total via one read, bounded at cap+1, capped, injectable cap, fallback count and 3-key envelope |
+| `cmd/api/public_sort_total_integration_test.go` — `TestPublicJobsSortAndTotal`, `TestPublicJobsTotalCap` | public-jobs-sort-total over the production router and real SQL: recent byte-for-byte, salary desc/asc with ties, unit tiers, legacy and hidden last in both directions, paging at limits 1/2/4 without duplicates per sort, no hidden amount in cursors, cross-sort cursors and invalid sort 400, total with filters, cursor, empty page and past the end; 1000 → `capped:false`, 1001 → `capped:true` for every sort |
 | `cmd/api/public_salary_search_integration_test.go` | SAL-5..SAL-8 over real SQL: the SAL-7 example, inclusive bounds, one-sided bounds, exact cents, identical units, hidden/absent/legacy excluded only while active, HTTP `invalid_filter`, paging with equivalent amounts and rejected changed or dropped filters |
 | `application/publicjobs/filters_test.go` | G5 imported-catalog membership, independent dimensions, fail-closed catalog outages |
 | `cmd/api/public_geo_search_integration_test.go` | G5 state/municipality/work-mode OR and dimension AND, applicant-country eligibility and conservative legacy/migrated behavior, invalid filters on empty results, canonical cursor continuation, actual generated SQL state/municipality index capability and GIN containment-arm capability |
