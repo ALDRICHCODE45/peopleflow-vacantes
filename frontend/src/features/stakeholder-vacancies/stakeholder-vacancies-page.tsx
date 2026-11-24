@@ -14,7 +14,7 @@ import { plural } from "@/features/employer-vacancies/plural";
 import { ReplacementTags } from "@/features/vacancy-lifecycle/ui/replacement-badges";
 import { cn } from "@/lib/utils";
 import { loadStakeholderVacanciesAction, type StakeholderVacanciesFailureReason } from "./actions";
-import { STATUS_FILTERS, statusFilterOf, statusLabelOf, type StakeholderVacancy, type StatusFilter } from "./model";
+import { STATUS_FILTERS, statusFilterOf, statusLabelOf, type StakeholderVacancy, type StatusCounts, type StatusFilter } from "./model";
 
 const MESSAGES: Record<StakeholderVacanciesFailureReason, string> = {
   unauthenticated: "Tu sesión expiró. Inicia sesión para ver las vacantes.",
@@ -28,7 +28,8 @@ const VARIANT: Readonly<Record<Exclude<StatusFilter, "all">, BadgeVariant>> = { 
 const META = "text-[12.5px] text-muted-foreground";
 const initials = (title: string) => title.split(/\s+/u).slice(0, 2).map(word => word.charAt(0)).join("").toUpperCase();
 
-type Loaded = { status: "ready"; items: StakeholderVacancy[]; nextCursor: string | null };
+/** `totals` are the first page's exact counts (D20); cursor pages never replace them. */
+type Loaded = { status: "ready"; items: StakeholderVacancy[]; nextCursor: string | null; totals: StatusCounts | null };
 type State = { status: "loading" } | { status: "error"; reason: StakeholderVacanciesFailureReason } | Loaded;
 /** The result of an action that rejects is the same «no response» the action itself reports. */
 const safe = (cursor?: string) => (cursor === undefined ? loadStakeholderVacanciesAction() : loadStakeholderVacanciesAction({ cursor })).catch(() => ({ ok: false as const, reason: "no_response" as const, reference: {} }));
@@ -46,7 +47,7 @@ function useStakeholderVacancies() {
     void safe().then(result => {
       if (!current) return;
       if (!result.ok) { setState({ status: "error", reason: result.reason }); return; }
-      latest.current = { status: "ready", items: result.items, nextCursor: result.nextCursor };
+      latest.current = { status: "ready", items: result.items, nextCursor: result.nextCursor, totals: result.countsByStatus ?? null };
       setState(latest.current);
     });
     return () => { current = false; };
@@ -61,7 +62,7 @@ function useStakeholderVacancies() {
     if (latest.current !== base) return;
     if (!result.ok) { setMore({ pending: false, failure: result.reason }); return; }
     const seen = new Set(base.items.map(item => item.id));
-    latest.current = { status: "ready", items: [...base.items, ...result.items.filter(item => !seen.has(item.id))], nextCursor: result.nextCursor };
+    latest.current = { status: "ready", items: [...base.items, ...result.items.filter(item => !seen.has(item.id))], nextCursor: result.nextCursor, totals: base.totals };
     setState(latest.current);
     setMore({ pending: false, failure: null });
   }, []);
@@ -104,12 +105,14 @@ export function StakeholderVacanciesPage() {
   const { state, more, retry, loadMore } = useStakeholderVacancies();
   const [filter, setFilter] = useState<StatusFilter>("all");
   const items = state.status === "ready" ? state.items : [];
-  const counts: Record<StatusFilter, number> = { all: items.length, draft: 0, active: 0, paused: 0, closed: 0 };
-  for (const item of items) counts[statusFilterOf(item)] += 1;
+  const totals = state.status === "ready" ? state.totals : null;
+  const counts: Record<StatusFilter, number> = totals ?? { all: items.length, draft: 0, active: 0, paused: 0, closed: 0 };
+  if (!totals) for (const item of items) counts[statusFilterOf(item)] += 1;
   const shown = filter === "all" ? items : items.filter(item => statusFilterOf(item) === filter);
   const nextCursor = state.status === "ready" ? state.nextCursor : null;
-  // While more pages exist the counts only cover what is loaded (they grew «Todas 20» → «Todas 41» after «Cargar más»): they read «20+».
+  // Without the backend totals, while more pages exist the counts only cover what is loaded (they grew «Todas 20» → «Todas 41» after «Cargar más»): they read «20+».
   const partial = nextCursor !== null;
+  const exactCounts = totals !== null || !partial;
 
   let body;
   if (state.status === "loading") body = <Loading />;
@@ -126,7 +129,7 @@ export function StakeholderVacanciesPage() {
     {ready && items.length > 0 && <Tabs value={filter} onValueChange={value => setFilter(value as StatusFilter)}>
       <div className="max-w-full overflow-x-auto pb-1">
         <TabsList aria-label="Filtrar por estado">
-          {STATUS_FILTERS.map(entry => <TabsTrigger key={entry.value} value={entry.value}>{entry.label}<Badge variant="secondary">{counts[entry.value]}{partial && "+"}</Badge></TabsTrigger>)}
+          {STATUS_FILTERS.map(entry => <TabsTrigger key={entry.value} value={entry.value}>{entry.label}<Badge variant="secondary">{counts[entry.value]}{!exactCounts && "+"}</Badge></TabsTrigger>)}
         </TabsList>
       </div>
     </Tabs>}

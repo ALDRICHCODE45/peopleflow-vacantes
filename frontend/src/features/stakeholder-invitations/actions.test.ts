@@ -138,3 +138,33 @@ it.each([
   expect(url).toBe("https://api.example.test/v2/me/stakeholder-invitations/accept");
   expect(init).toMatchObject({ method: "POST", body: JSON.stringify({ token: "abc/def?x=1" }) });
 });
+
+it("D11: creates with an empty body without a note and sends {note} only when filled (trimmed)", async () => {
+  fetchMock.mockImplementation(async () => Response.json(createdInvitation(), { status: 201 }));
+  await createStakeholderInvitationAction();
+  expect(call(0).init.body).toBeUndefined();
+  await createStakeholderInvitationAction({});
+  await createStakeholderInvitationAction({ note: "   " });
+  expect(call(1).init.body).toBeUndefined();
+  expect(call(2).init.body).toBeUndefined();
+  expect(await createStakeholderInvitationAction({ note: "  Para Luis  " })).toEqual({ ok: true, invitation: createdInvitation() });
+  expect(call(3).init).toMatchObject({ method: "POST", body: JSON.stringify({ note: "Para Luis" }) });
+});
+it("D11: returns the note from the create response and the list when the backend sends it", async () => {
+  fetchMock.mockResolvedValueOnce(Response.json({ ...createdInvitation(), note: "Para Luis" }, { status: 201 }));
+  expect(await createStakeholderInvitationAction({ note: "Para Luis" })).toMatchObject({ ok: true, invitation: { note: "Para Luis" } });
+  fetchMock.mockResolvedValueOnce(Response.json({ items: [{ ...pendingInvitation(), note: null }, { ...pendingInvitation(), note: "Para Luis" }] }));
+  expect(await listStakeholderInvitationsAction()).toMatchObject({ ok: true, items: [{ note: null }, { note: "Para Luis" }] });
+});
+it.each(["a".repeat(81), "con\nsalto"])("D11: never calls the API for the invalid note %j", async note => {
+  expect(await createStakeholderInvitationAction({ note })).toEqual({ ok: false, reason: "invalid_note", reference: {} });
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+it("D11: maps the backend 400 validation_error on the note field to «invalid_note», and other 400s stay generic", async () => {
+  fetchMock.mockResolvedValueOnce(Response.json({ error: "private backend message", code: "validation_error", fields: [{ field: "note", code: "invalid" }] }, { status: 400 }));
+  const result = await createStakeholderInvitationAction({ note: "x" });
+  expect(result).toEqual({ ok: false, reason: "invalid_note", reference: { status: 400, code: "validation_error" } });
+  expect(JSON.stringify(result)).not.toContain("private backend message");
+  fetchMock.mockResolvedValueOnce(Response.json({ error: "m", code: "validation_error", fields: [{ field: "other", code: "invalid" }] }, { status: 400 }));
+  expect(await createStakeholderInvitationAction({ note: "x" })).toMatchObject({ ok: false, reason: "unrecognized_response" });
+});

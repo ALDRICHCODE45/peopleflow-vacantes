@@ -23,10 +23,18 @@ export const stakeholderVacancySchema = z.object({
 }).strict().refine(row => row.publication === null ? row.process === null : row.process === "active" || (row.publication === "closed" && row.process === "finished"),
   { message: "publication and process disagree.", path: ["process"] });
 
+/**
+ * Exact company-wide totals per state (D20): the object on the first page, `null` on cursor pages. Optional so the previous
+ * backend (no key) and the new one both parse; without it the tabs keep the «N+» of what is loaded.
+ */
+export const statusCountsSchema = z.object({ all: count, draft: count, active: count, paused: count, closed: count }).strict();
+export type StatusCounts = z.infer<typeof statusCountsSchema>;
+
 /** Keyset page: at most 50 rows (`limit` 1..50, default 20), `next_cursor` opaque and null on the last page. */
 export const stakeholderVacanciesSchema = z.object({
   items: z.array(stakeholderVacancySchema).max(50),
   next_cursor: z.string().nullable(),
+  counts_by_status: statusCountsSchema.nullable().optional(),
 }).strict();
 
 export type StakeholderVacancy = z.infer<typeof stakeholderVacancySchema>;

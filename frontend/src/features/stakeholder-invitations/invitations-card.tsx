@@ -11,9 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createStakeholderInvitationAction, listStakeholderInvitationsAction, revokeStakeholderInvitationAction } from "./actions";
+import { CreateInvitationDialog } from "./create-invitation-dialog";
 import { formatDay, formatInstant, formatRemaining } from "./format";
 import { InviteLinkDialog } from "./invite-link-dialog";
 import { MAX_PENDING_INVITATIONS, creatorName, invitationUrl, type CreatedInvitation, type InvitationFailure, type ListInvitationsResult, type PendingInvitation } from "./model";
@@ -40,6 +40,8 @@ const revokeFailure = (failure: InvitationFailure) => failure.reason === "forbid
  */
 export function StakeholderInvitationsCard({ members, stakeholderCount }: Props) {
   const [list, setList] = React.useState<ListInvitationsResult | null>(null);
+  const [creating, setCreating] = React.useState(false);
+  const [noteRejected, setNoteRejected] = React.useState(0);
   const [created, setCreated] = React.useState<CreatedInvitation | null>(null);
   const [fresh, setFresh] = React.useState<string | null>(null);
   const [revoking, setRevoking] = React.useState<PendingInvitation | null>(null);
@@ -64,11 +66,18 @@ export function StakeholderInvitationsCard({ members, stakeholderCount }: Props)
     return () => { active.current = false; reads.current++; };
   }, [refresh]);
 
-  async function create() {
+  async function create(note?: string) {
     if (lock.current) return;
     lock.current = true; setPending("create"); setStatus(null);
-    const result = await createStakeholderInvitationAction().catch((): InvitationFailure => ({ ok: false, reason: "no_response", reference: {} }));
+    const result = await createStakeholderInvitationAction(note === undefined ? {} : { note }).catch((): InvitationFailure => ({ ok: false, reason: "no_response", reference: {} }));
     if (!active.current) return;
+    if (!result.ok && result.reason === "invalid_note") {
+      // The owner can fix the note in the open dialog: nothing was created, so there is nothing to re-read.
+      setNoteRejected(count => count + 1);
+      lock.current = false; setPending(null);
+      return;
+    }
+    setCreating(false);
     if (result.ok) {
       setCreated(result.invitation);
       setFresh(result.invitation.id);
@@ -104,9 +113,8 @@ export function StakeholderInvitationsCard({ members, stakeholderCount }: Props)
   const atLimit = items.length >= MAX_PENDING_INVITATIONS;
   const empty = list?.ok === true && items.length === 0 && stakeholderCount === 0;
   const createButton = (attributes: { describedBy?: string; className?: string } = {}) => <Button type="button" className={cn("min-h-10", attributes.className)} disabled={pending !== null || atLimit}
-    aria-describedby={[attributes.describedBy, status ? statusId : undefined].filter(Boolean).join(" ") || undefined} onClick={() => void create()}>
-    {pending === "create" ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Link2 data-icon="inline-start" aria-hidden="true" />}
-    {pending === "create" ? "Creando enlace…" : "Crear enlace de invitación"}
+    aria-describedby={[attributes.describedBy, status ? statusId : undefined].filter(Boolean).join(" ") || undefined} onClick={() => { setStatus(null); setNoteRejected(0); setCreating(true); }}>
+    <Link2 data-icon="inline-start" aria-hidden="true" />Crear enlace de invitación
   </Button>;
 
   return <Card data-pf-stakeholder-invitations="">
@@ -140,7 +148,10 @@ export function StakeholderInvitationsCard({ members, stakeholderCount }: Props)
                   </TableCaption>
                   <TableHeader><TableRow><TableHead>Invitación</TableHead><TableHead>Creada por</TableHead><TableHead>Vence</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader>
                   <TableBody className="tabular-nums">{items.map(item => <TableRow key={item.id}>
-                    <TableCell><span className="flex flex-wrap items-center gap-2">{formatInstant(item.created_at)}{item.id === fresh && <Badge variant="accent">Nueva</Badge>}</span></TableCell>
+                    <TableCell>
+                      <span className="flex flex-wrap items-center gap-2">{item.note ? <span className="font-medium break-words">{item.note}</span> : formatInstant(item.created_at)}{item.id === fresh && <Badge variant="accent">Nueva</Badge>}</span>
+                      {item.note && <span className="block text-xs text-muted-foreground">{formatInstant(item.created_at)}</span>}
+                    </TableCell>
                     <TableCell>{creatorName(item.created_by, members)}</TableCell>
                     <TableCell><span className="block">{formatDay(item.expires_at)}</span><span className="block text-xs text-muted-foreground">{formatRemaining(item.expires_at)}</span></TableCell>
                     <TableCell className="text-right"><Button type="button" variant="ghost" className="min-h-10" disabled={pending !== null}
@@ -154,6 +165,7 @@ export function StakeholderInvitationsCard({ members, stakeholderCount }: Props)
     {list?.ok && !empty && <CardFooter className="border-t">
       <p className="text-xs text-muted-foreground">Por seguridad el enlace no se vuelve a mostrar. Si se perdió, revoca la invitación y crea otra. Quitar a un stakeholder se hace desde «Acciones» en la lista de miembros; para cambiarle el rol hay que quitarlo e invitarlo de nuevo.</p>
     </CardFooter>}
+    {creating && <CreateInvitationDialog pending={pending === "create"} noteRejections={noteRejected} onSubmit={note => void create(note)} onClose={() => setCreating(false)} />}
     {created && <InviteLinkDialog url={invitationUrl(window.location.origin, created.url_token)} expiresAt={created.expires_at} onClose={() => setCreated(null)} />}
     <ConfirmActionDialog open={revoking !== null} onOpenChange={open => { if (!open && pending !== "revoke") setRevoking(null); }} onConfirm={() => void revoke()}
       icon={Ban} tone="destructive" title={revoking ? `¿Revocar la invitación del ${formatInstant(revoking.created_at)}?` : "¿Revocar la invitación?"}

@@ -180,3 +180,23 @@ it("turns a thrown action into the no-response error instead of a blank page", a
   render(<StakeholderVacanciesPage />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Revisa tu conexión");
 });
+
+it("D20: the first page's counts_by_status gives exact tab counts, without «+», even while more pages exist and after «Cargar más»", async () => {
+  const user = userEvent.setup();
+  const countsByStatus = { all: 9, draft: 1, active: 5, paused: 1, closed: 2 };
+  load.mockResolvedValueOnce({ ...page(rows(closedRow(), draftRow(), activeRow()), "cursor-1"), countsByStatus }).mockResolvedValueOnce({ ...page(rows(pausedRow()), null), countsByStatus: null });
+  render(<StakeholderVacanciesPage />);
+  await screen.findByRole("list", { name: "Vacantes" });
+  const tabs = () => within(screen.getByRole("tablist", { name: "Filtrar por estado" })).getAllByRole("tab").map(tab => tab.textContent);
+  expect(tabs()).toEqual(["Todas9", "Borradores1", "Activas5", "Pausadas1", "Cerradas2"]);
+  expect(screen.getByText(/Mostrando 3 vacantes/)).toHaveTextContent("Mostrando 3 vacantes · hay más por cargar");
+  await user.click(screen.getByRole("button", { name: "Cargar más" }));
+  await screen.findByText(/Mostrando 4 vacantes/);
+  expect(tabs()).toEqual(["Todas9", "Borradores1", "Activas5", "Pausadas1", "Cerradas2"]);
+});
+it("D20: a null or absent counts_by_status keeps the «N+» tab counts", async () => {
+  load.mockResolvedValueOnce({ ...page(rows(closedRow(), draftRow()), "cursor-1"), countsByStatus: null });
+  render(<StakeholderVacanciesPage />);
+  await screen.findByRole("list", { name: "Vacantes" });
+  expect(within(screen.getByRole("tablist", { name: "Filtrar por estado" })).getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Todas2+", "Borradores1+", "Activas0+", "Pausadas0+", "Cerradas1+"]);
+});

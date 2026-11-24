@@ -393,3 +393,29 @@ it("never shows the invitations card nor reads invitations for a recruiter", asy
   expect(screen.queryByRole("heading", { name: "Stakeholders" })).toBeNull();
   expect(listStakeholderInvitationsAction).not.toHaveBeenCalled();
 });
+
+it("D5: shows the backend workload for every viewer, with no skeleton, no draft dependency and no failure card", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [{ ...members[0], workload: { active_vacancies: 0 } }, { ...members[1], workload: { active_vacancies: 3 } }, { ...stakeholder, workload: { active_vacancies: 0 } }] });
+  vi.mocked(listDraftsAction).mockReturnValue(new Promise(() => {}));
+  mount(); await screen.findByText("José Real");
+  expect(within(row(members[1].id)).getByText("3 vacantes activas")).toBeInTheDocument();
+  expect(within(row(members[0].id)).getByText("Sin vacantes asignadas")).toBeInTheDocument();
+  expect(row(members[1].id).querySelector('[data-slot="skeleton"]')).toBeNull();
+  expect(within(row(stakeholder.id)).getByText("Ven Métricas y los documentos de las vacantes (solo lectura)")).toBeInTheDocument();
+});
+it("D5: the backend workload survives a failed drafts read; members without it keep «Carga no disponible»", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: [{ ...members[0], workload: { active_vacancies: 1 } }, members[1]] });
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: false, reason: "server_error", reference: { status: 500 } });
+  mount(); await screen.findByText("José Real");
+  expect(await screen.findByText("No pudimos cargar la carga de trabajo")).toBeInTheDocument();
+  expect(within(row(members[0].id)).getByText("1 vacante activa")).toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("Carga no disponible")).toBeInTheDocument();
+});
+it("D5: no failure card when every non-stakeholder member carries the backend workload and drafts fail", async () => {
+  vi.mocked(listTeamMembersAction).mockResolvedValue({ ok: true, members: members.map(member => ({ ...member, workload: { active_vacancies: 2 } })) });
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: false, reason: "server_error", reference: { status: 500 } });
+  mount(); await screen.findByText("José Real");
+  await waitFor(() => expect(listDraftsAction).toHaveBeenCalled());
+  expect(screen.queryByText("No pudimos cargar la carga de trabajo")).not.toBeInTheDocument();
+  expect(within(row(members[1].id)).getByText("2 vacantes activas")).toBeInTheDocument();
+});

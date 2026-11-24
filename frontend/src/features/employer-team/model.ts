@@ -24,5 +24,8 @@ export const COMPANY_MEMBER_ROLE_LABELS: Readonly<Record<CompanyMemberRole, stri
   stakeholder: "Stakeholder",
 });
 
-/** Recruiting workload of one member, derived from the company's vacancy list. */
-export type TeamMemberWorkload = { readonly ownedVacancies: number; readonly inProcessCandidates: number };
+/**
+ * Recruiting workload of one member: the backend's `workload.active_vacancies` (no candidate count, so `null`) or, as a fallback,
+ * derived from the company's vacancy list.
+ */
+export type TeamMemberWorkload = { readonly ownedVacancies: number; readonly inProcessCandidates: number | null };
