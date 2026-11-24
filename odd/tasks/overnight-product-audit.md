@@ -90,3 +90,10 @@ merges to `main` allowed (no push).
   reachable (fixed in the A tranche). Native review (escalate item 3, shared Button link variant) approved, lineage
   `review-4157357d02f219f6`, 11 advisories (status slot live region, closed-page read timeout, JSON-LD null bounds, share
   helpers, publish share gate, choice-question validation test) → follow-up sent to the A-tranche worker.
+- **L7** Backend F0 fix merged (`102be62c`: pipeline impact joined users, so manual candidates were dropped and their
+  history panicked → 500 without log; apply had the same bug). Browser retest on :3000: add column, save, reorder and the
+  demo preview (cancelled) pass; impact lists both manual candidates. New findings: the impact list also flags earlier
+  stages a candidate never reached (`pipelineconfig/impact.go:138`; 34 rows on the demo for one new column) and writes
+  «No aplica» marks for them → product/backend decision; dialog says «Ningún candidato cambia de columna» but lists
+  «Nombre → Columna» rows; toast overlaps the inline success; board header truncates long column names. Admin branch:
+  backend admin fields accepted as optional (`6e2b23c5`).
