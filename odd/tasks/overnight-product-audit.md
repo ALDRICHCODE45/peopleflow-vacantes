@@ -124,3 +124,6 @@ merges to `main` allowed (no push).
   axe criticals gone on all six screens, documents link, no sort control without total, «Cubierta» disabled from the
   list, step tab names, count contrast — pass. Remaining (pre-existing, small): «No se sostuvo» card meta text 4.49:1,
   substates sheet Card aria-labelledby without role, draft title error red 4.19:1 → one small round.
+- **L12** Full suite at `57b30aea`: 639 files / 11693 passed, tsc 0, lint 0 errors. Merged to local main `de0f914b`
+  (not pushed). Backend told to merge `feat/public-jobs-sort-total` and `feat/admin-audit-gaps-backend` (00065) and
+  restart :8080; small a11y round in progress.
