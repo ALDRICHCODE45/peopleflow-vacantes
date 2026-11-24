@@ -54,14 +54,12 @@ describe("VacancyPortfolio summary metrics", () => {
 });
 
 describe("VacancyPortfolio status filter counts", () => {
-  // TabsList paints every count `text-muted-foreground` on a 6% foreground tint: 4.33:1 in light (axe color-contrast).
-  // Inactive counts take a darker foreground at the call site; the active one keeps the tabs' own primary tint.
-  it("paints inactive counts with a stronger foreground and leaves the active one to the tab list", () => {
+  // The shared TabsList owns the count contrast (text-foreground/75, 6.8:1 in light); the call site adds no colour override.
+  it("leaves count colours to the shared tab list", () => {
     renderPortfolio();
     const count = (name: RegExp) => within(filterButton(name)).getByText(/^\d+$/);
     expect(filterButton(/^Todas/)).toHaveAttribute("aria-selected", "true");
-    expect(count(/^Todas/).className).not.toContain("text-foreground");
-    for (const name of [/^Borradores/, /^Activas/, /^Pausadas/, /^Cerradas/]) expect(count(name).className).toContain("text-foreground/75!");
+    for (const name of [/^Todas/, /^Borradores/, /^Activas/, /^Pausadas/, /^Cerradas/]) expect(count(name).className).not.toContain("text-foreground/75");
   });
 });
 
