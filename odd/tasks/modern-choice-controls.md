@@ -27,9 +27,9 @@ Documentos.
 | --- | --- | --- | --- |
 | T1 | S1, S2, S4 | Audit every bare radio, selection checkbox and file input in frontend/src | |
 | T2 | S1, S2, S5 | Design 2–3 variants (`design/choice-and-file-controls/`) | |
-| T3 | S3, S6 | Design-system rule and tokens from artboard 03 | |
-| T4a | S1, S2, S6 | Shared `ChoiceList` (single/multi rows with trailing check, «Seleccionar todo» row) and `FileField` (button + document card) from artboard 03; applied to Documentos (upload dialog, versions sheet, link sheet) | |
-| T4b | S1, S2, S4, S6 | Rest of the audit (`odd/discovery/modern-choice-controls-audit.md`): apply cv-picker, benefits, recruiters with access, login «Recordarme», replacement steps, single on/off → Switch | |
+| T3 | S3, S6 | Design-system rule and tokens from artboard 03 | `41780f6b` |
+| T4a | S1, S2, S6 | Shared `ChoiceList` (single/multi rows with trailing check, «Seleccionar todo» row) and `FileField` (button + document card) from artboard 03; applied to Documentos (upload dialog, versions sheet, link sheet) | `41780f6b` |
+| T4b | S1, S2, S4, S6 | Rest of the audit (`odd/discovery/modern-choice-controls-audit.md`): apply cv-picker, benefits, recruiters with access, login «Recordarme», replacement steps, single on/off → Switch | `ad858640` |
 | T5 | S1–S4 | Browser check, full suite, merge to main | |
 
 ## Log
@@ -48,3 +48,11 @@ Documentos.
 - **L3** (2026-11-23) Canvas handoff: implement `03-lista-con-palomita-y-tarjeta.html` (01 and 02 are alternatives). The
   local aliases `--sel`, `--on-sel`, `--edge` from the artboards become design-system tokens (proposed to the user, no
   objection).
+- **L4** T4a `41780f6b` (ChoiceList, FileField, tokens `--selection`/`--selection-foreground`/`--control-edge` additive in
+  globals.css, rule in design/system.md; Documentos) — related 9 files / 118 tests. T4b `ad858640` (cv-picker FileField,
+  benefits, talent access recruiters, replacement bajas and carried candidates — «Empieza en» selects moved under the rows —,
+  psychometrics and checklist stages; compensation visibility, in-progress education and criterion «acepta en curso» →
+  Switch) — related 35 files / 562 tests. Login «Mantener sesión iniciada»: user «Por el momento dejalo sin efecto, pero
+  anotalo en pendientes porque eso tenemos que hacerlo funcionar eventualmente» → left as is (login-page styled
+  checkbox), logged in frontend-backlog.md. Left by design: filter popovers, table row selection, consent; checklist
+  board compare list (`vacancy-checklist/board/ui.tsx:154`) not changed.
