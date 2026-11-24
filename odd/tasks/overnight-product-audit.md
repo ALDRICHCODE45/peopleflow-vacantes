@@ -71,3 +71,12 @@ merges to `main` allowed (no push).
   Backend F3 committed (`e30e9183`, contract `docs/contracts/public-jobs-sort-total-v1.md`): salary sorts by blocks
   (MXN·mensual·bruto first, other units in a fixed order, legacy salaries, then hidden/no salary). Asked to hold its merge
   until the frontend accepts the always-present `total` (deployment order).
+- **L5** Backend answers (audit A): F1 team backend complete and merged (vacancy-team-v1: GET team, team/history, POST
+  team/members, POST team/members/{user_id}/remove, POST team/leave, PATCH team/members/{user_id}, owner-only POST
+  team/reassign-responsible and PUT team/mode; commitment, placement credits, assignment history, offboarding); the only
+  production gate is the frontend `teamDataSource`. F2 create body is exactly `{"fields":{...}}`; the creator becomes the
+  responsible; choosing another needs PUT team/mode and/or POST team/reassign-responsible after create. F5 backend rule:
+  public salary needs public_visible + mode, currency, pay_period and basis (gross|net) (`publicjobs/projection.go:119-124`)
+  → basis required in the form when the switch is on. F21 no duplicate (replacement clone is reusable backend work, S–M).
+  F22 exists for owners: GET /v2/me/company/audit-events?vacancy_id=… (+ …/audit-events/vacancies); recruiters would need
+  a new piece.
