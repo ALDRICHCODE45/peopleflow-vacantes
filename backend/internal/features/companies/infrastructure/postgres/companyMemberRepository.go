@@ -333,6 +333,8 @@ func memberListRowToEntity(row db.ListByCompanyIDRow) entities.MemberListRow {
 		Role:      row.Role,
 		CreatedAt: pgTimestamptzToTime(row.CreatedAt).UTC().Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: pgTimestamptzToTime(row.UpdatedAt).UTC().Format("2006-01-02T15:04:05Z07:00"),
+
+		ActiveVacancies: row.ActiveVacancies,
 	}
 	if row.UserID.Valid {
 		item.User = &entities.MemberUser{

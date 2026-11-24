@@ -36,9 +36,21 @@ type stakeholderVacancyRow struct {
 	DocumentsCount int64              `json:"documents_count"`
 }
 
+// stakeholderVacancyCounts is counts_by_status (audit gap D20): exact counts over the whole list for the tabs, bucketed by
+// `publication` (null → draft, published → active, paused → paused, closed → closed).
+type stakeholderVacancyCounts struct {
+	All    int64 `json:"all"`
+	Draft  int64 `json:"draft"`
+	Active int64 `json:"active"`
+	Paused int64 `json:"paused"`
+	Closed int64 `json:"closed"`
+}
+
+// stakeholderVacancyPage: counts_by_status is always present, an object on the first page and null on cursor pages.
 type stakeholderVacancyPage struct {
-	Items      []stakeholderVacancyRow `json:"items"`
-	NextCursor *string                 `json:"next_cursor"`
+	Items          []stakeholderVacancyRow   `json:"items"`
+	NextCursor     *string                   `json:"next_cursor"`
+	CountsByStatus *stakeholderVacancyCounts `json:"counts_by_status"`
 }
 
 // List serves GET /v2/me/company/stakeholder/vacancies?limit=&cursor=. Each parameter appears at most once and unknown parameters
@@ -82,6 +94,9 @@ func (h *StakeholderVacanciesHandler) List(w http.ResponseWriter, r *http.Reques
 	if page.NextCursor != "" {
 		next := page.NextCursor
 		out.NextCursor = &next
+	}
+	if c := page.CountsByStatus; c != nil {
+		out.CountsByStatus = &stakeholderVacancyCounts{All: c.All, Draft: c.Draft, Active: c.Active, Paused: c.Paused, Closed: c.Closed}
 	}
 	httpjson.WriteJSON(w, http.StatusOK, out)
 }

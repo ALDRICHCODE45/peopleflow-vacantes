@@ -7,11 +7,12 @@ SELECT count(*) FROM stakeholder_invitations
 WHERE company_id = $1 AND revoked_at IS NULL AND used_at IS NULL AND expires_at > $2;
 
 -- name: CreateStakeholderInvitation :exec
-INSERT INTO stakeholder_invitations (id, company_id, token_sha256, created_by, created_at, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6);
+-- note is NULL or already trimmed and NFC (1..80 code points, migration 00065).
+INSERT INTO stakeholder_invitations (id, company_id, token_sha256, created_by, created_at, expires_at, note)
+VALUES ($1, $2, $3, $4, $5, $6, $7);
 
 -- name: ListPendingStakeholderInvitations :many
-SELECT id, created_at, created_by, expires_at FROM stakeholder_invitations
+SELECT id, created_at, created_by, expires_at, note FROM stakeholder_invitations
 WHERE company_id = $1 AND revoked_at IS NULL AND used_at IS NULL AND expires_at > $2
 ORDER BY created_at DESC, id DESC;
 

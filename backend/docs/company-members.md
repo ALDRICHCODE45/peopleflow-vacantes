@@ -40,6 +40,12 @@ and `POST /v2/me/stakeholder-invitations/accept` (see
   and stakeholder, false for recruiter; `view_talent_base` keeps its rule for
   owner and recruiter and is always false for a stakeholder.
 - `GET /me/company/members` lists stakeholders with `role: "stakeholder"`.
+- Every member carries `workload: {active_vacancies}` (audit gap D5): open
+  tramos on schema-2 vacancies whose process is active, computed in the
+  `ListByCompanyID` statement itself (no per-member query), identical for every
+  viewer; a stakeholder's is 0. Contract:
+  [`vacancy-team-v1.md`](../../docs/contracts/vacancy-team-v1.md) «Member
+  workload»; test `cmd/api/company_members_workload_integration_test.go`.
 - `POST /me/company/members` accepts `role: "stakeholder"` (owner fallback for
   tests and local scripts), audited as `CompanyMemberAdded` with that role.
 - `PATCH` with `role: "stakeholder"`, or on a stakeholder target, returns 422

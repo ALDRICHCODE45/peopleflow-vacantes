@@ -31,6 +31,10 @@ type StakeholderInvitation struct {
 	CreatedBy uuid.UUID
 	CreatedAt time.Time
 	ExpiresAt time.Time
+	// Note is the owner's optional label (audit gap D11), already normalized
+	// by valueobjects.ParseInvitationNote; nil when there is none. It is never
+	// copied into audit metadata.
+	Note *string
 }
 
 // StakeholderAcceptance is the membership an accept created (or a replay found).

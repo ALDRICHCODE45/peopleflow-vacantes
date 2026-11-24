@@ -218,6 +218,13 @@ type memberListItemResponse struct {
 	CreatedAt string          `json:"created_at"`
 	UpdatedAt string          `json:"updated_at"`
 	User      *userSummaryDTO `json:"user"`
+	Workload  memberWorkload  `json:"workload"`
+}
+
+// memberWorkload is a member's recruiting workload (audit gap D5), always
+// present and identical for every viewer: only a count, never titles.
+type memberWorkload struct {
+	ActiveVacancies int64 `json:"active_vacancies"`
 }
 
 // userSummaryDTO is the public identity of a member's user on the list
@@ -468,6 +475,7 @@ func toListMembersResponse(in []entities.MemberListRow) listMembersResponse {
 			CreatedAt: m.CreatedAt,
 			UpdatedAt: m.UpdatedAt,
 			User:      toUserSummary(m.User),
+			Workload:  memberWorkload{ActiveVacancies: m.ActiveVacancies},
 		})
 	}
 	return out

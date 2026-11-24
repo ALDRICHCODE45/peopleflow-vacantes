@@ -70,7 +70,8 @@ The system is not in production and all data is disposable: migrations may backf
 - One company per user, like every member. A stakeholder is not a recruiter: it cannot be added to a team, made
   responsible, or chosen as a reassignment target — team writes naming a stakeholder answer 422
   `not_company_member`, the code they already use for non-members.
-- `GET /me/company/members` (owners and recruiters) lists stakeholders with `role: "stakeholder"` (F1). There is no
+- `GET /me/company/members` (owners and recruiters) lists stakeholders with `role: "stakeholder"` (F1); a stakeholder's
+  `workload.active_vacancies` is always 0 (vacancy-team-v1 «Member workload»). There is no
   backend "assignable members" endpoint: team and responsible pickers are built from that list, so the frontend
   filters `role === "stakeholder"` out, and the team writes above reject it anyway.
 
@@ -104,12 +105,20 @@ A **copyable invitation link** the owner creates and sends by any channel (Whats
 local, dev and production, and needs no email provider (D4).
 
 - `POST /v2/me/company/stakeholder-invitations` (owner) → 201
-  `{ "id", "url_token", "expires_at", "created_at" }`. `url_token` is 32 random bytes, base64url, **shown once**;
+  `{ "id", "url_token", "expires_at", "created_at", "note" }`. `url_token` is 32 random bytes, base64url, **shown once**;
   the database stores only its SHA-256. The frontend builds `https://<app>/empresa/invitacion/<url_token>`.
   Expiry 7 days; single use; at most 20 pending invitations per company (422 `invitation_limit_reached`).
+- **Optional note** (audit gap D11, migration `00065`): the create body is optional; `{ "note": "Consejo directivo" }`
+  labels the invitation so pending ones can be told apart. The note is trimmed and NFC-normalized, must then be 1..80
+  code points with no control character (inner tabs and newlines included); absent, `null`, `""` or only white space
+  means no note (`"note": null`). No body and `{}` keep working. An invalid note (too long, control character, or a
+  non-string value) is 400 `{ "error": "validation failed", "code": "validation_error", "fields": [{ "field": "note",
+  "code": "invalid" }] }` and writes nothing; a body that is not one JSON object is 400 `invalid_request`. Unknown keys
+  are ignored. The note is **not** copied into audit metadata (the catalog allows only ids and enums, §1.4): the
+  frontend shows it from the invitation list.
 - `GET /v2/me/company/stakeholder-invitations` (owner) → pending invitations
-  `{ "items": [{ "id", "created_at", "created_by", "expires_at" }] }` (no token; `created_by` is the owner's
-  user id string).
+  `{ "items": [{ "id", "created_at", "created_by", "expires_at", "note" }] }` (no token; `created_by` is the owner's
+  user id string; `note` is the stored note or `null`).
 - `DELETE /v2/me/company/stakeholder-invitations/{id}` (owner) → 204; revoking an already used, expired or revoked
   invitation, or an unknown or other-company id, also answers 204 and writes nothing (idempotent, reveals nothing).
 - `POST /v2/me/stakeholder-invitations/accept` (any signed-in user) body `{ "token" }`:

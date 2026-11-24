@@ -37,10 +37,23 @@ type Row struct {
 	DocumentsCount int64
 }
 
-// Page is one page of rows; NextCursor is the opaque token of the next page, empty on the last one.
+// StatusCounts are exact counts over the list's whole scope (audit gap D20), one bucket per tab of the list, derived from the
+// row's Publication alone: nil → Draft, published → Active, paused → Paused, closed → Closed (process active or finished).
+// All is the scope's size and always equals the sum of the four buckets.
+type StatusCounts struct {
+	All    int64
+	Draft  int64
+	Active int64
+	Paused int64
+	Closed int64
+}
+
+// Page is one page of rows; NextCursor is the opaque token of the next page, empty on the last one. CountsByStatus is set on
+// the first page (no cursor) only, read in the same statement as the rows; it is nil on every cursor page.
 type Page struct {
-	Items      []Row
-	NextCursor string
+	Items          []Row
+	NextCursor     string
+	CountsByStatus *StatusCounts
 }
 
 // Lister reads one page for the caller. Implementations authorize the caller as owner or stakeholder of companyID.

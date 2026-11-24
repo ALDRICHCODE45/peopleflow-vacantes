@@ -11,6 +11,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
@@ -52,8 +53,14 @@ func (s *StakeholderInvitationService) clock() time.Time {
 	return s.now().UTC().Truncate(time.Microsecond)
 }
 
-// Create issues a single-use invitation for the caller's company.
-func (s *StakeholderInvitationService) Create(ctx context.Context, companyID, actor uuid.UUID) (IssuedStakeholderInvitation, error) {
+// Create issues a single-use invitation for the caller's company. note is the
+// raw optional label: it is normalized by valueobjects.ParseInvitationNote and
+// an invalid one (valueobjects.ErrInvalidInvitationNote) stores nothing.
+func (s *StakeholderInvitationService) Create(ctx context.Context, companyID, actor uuid.UUID, note *string) (IssuedStakeholderInvitation, error) {
+	normalized, err := valueobjects.ParseInvitationNote(note)
+	if err != nil {
+		return IssuedStakeholderInvitation{}, err
+	}
 	raw := make([]byte, stakeholderTokenBytes)
 	if _, err := io.ReadFull(s.random, raw); err != nil {
 		return IssuedStakeholderInvitation{}, err
@@ -64,7 +71,7 @@ func (s *StakeholderInvitationService) Create(ctx context.Context, companyID, ac
 		return IssuedStakeholderInvitation{}, err
 	}
 	now := s.clock()
-	inv := entities.StakeholderInvitation{ID: id, CompanyID: companyID, CreatedBy: actor, CreatedAt: now, ExpiresAt: now.Add(StakeholderInvitationTTL)}
+	inv := entities.StakeholderInvitation{ID: id, CompanyID: companyID, CreatedBy: actor, CreatedAt: now, ExpiresAt: now.Add(StakeholderInvitationTTL), Note: normalized}
 	if err := s.repo.Create(ctx, inv, tokenHash(token), StakeholderInvitationPendingLimit); err != nil {
 		return IssuedStakeholderInvitation{}, err
 	}

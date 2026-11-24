@@ -26,6 +26,13 @@ WHERE user_id = $1;
 -- columns, so the adapter can render `user: null` instead of dropping the
 -- row. Ordered by created_at for stable rendering; backed by
 -- `company_members_company_id_idx` B-tree.
+-- active_vacancies is the member's workload, the same for every viewer: the
+-- schema-2 vacancies of the company where the member holds an open team
+-- assignment (vacancy_assignments.ended_at IS NULL) and whose process is
+-- active (vacancy_processes.process_status = 'active'; a never-published draft
+-- has no process and does not count). It is computed in this one statement
+-- (the correlated count reads `vacancy_assignments_active_by_user`), never
+-- per member from the caller.
 SELECT
     cm.id,
     cm.company_id,
@@ -34,7 +41,18 @@ SELECT
     cm.updated_at,
     u.id AS user_id,
     u.full_name AS user_full_name,
-    u.email AS user_email
+    u.email AS user_email,
+    (
+        SELECT count(DISTINCT a.draft_id)
+        FROM vacancy_assignments a
+        JOIN vacancy_processes p ON p.id = a.draft_id AND p.company_id = a.company_id
+        JOIN job_drafts d ON d.id = a.draft_id AND d.company_id = a.company_id
+        WHERE a.user_id = cm.user_id
+          AND a.company_id = cm.company_id
+          AND a.ended_at IS NULL
+          AND p.process_status = 'active'
+          AND convert_from(d.fields, 'UTF8')::jsonb ->> 'schema_version' = '2'
+    )::bigint AS active_vacancies
 FROM company_members cm
 LEFT JOIN users u ON u.id = cm.user_id AND u.deleted_at IS NULL
 WHERE cm.company_id = $1

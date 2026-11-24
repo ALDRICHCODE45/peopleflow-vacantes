@@ -27,7 +27,7 @@ recruiters), D3 (company edit + logo upload) and D15 (audit CSV headers/labels) 
 
 ## Tasks
 
-- T1 S1, S2, S3 — writer — pending
+- T1 S1, S2, S3 — writer — done (L3)
 - T2 — suite, merge, notify frontend — pending
 
 ## Log
@@ -38,3 +38,16 @@ recruiters), D3 (company edit + logo upload) and D15 (audit CSV headers/labels) 
   items D2, D3, D5, D11, D15, D20. Tonight: D5, D20, D11 (additive, low risk). Waiting for the user: D2 (new way to
   grant recruiter membership: security), D3 (company edit + logo upload; SVG is a script vector), D15 (changes CSV
   headers users already consume).
+- **L3** 2026-11-24, writer T1 (uncommitted): S1 `GET /me/company/members` members gain
+  `workload: {"active_vacancies": int}` (7 keys per member), counted in `ListByCompanyID` itself (correlated count, no
+  N+1): open tramo (`vacancy_assignments.ended_at IS NULL`) on a schema-2 vacancy whose `process_status = 'active'`
+  (published, paused, or closed while the process continues; finished and never-published excluded), same for every
+  viewer. S2 stakeholder vacancies envelope gains `counts_by_status` `{all, draft, active, paused, closed}` (exact, same
+  statement as the page) on the first page, `null` on cursor pages (key always present); buckets by `publication`: null
+  → draft, published → active, paused → paused, closed → closed. S3 migration `00065_stakeholder_invitation_note`
+  (nullable `note`, `CHECK (char_length(note) BETWEEN 1 AND 80)`, guarded Down); `note` optional on create (trimmed,
+  NFC, 1..80, no control characters, blank = null), returned by create and list, invalid = 400 `validation_error`
+  `fields [{note, invalid}]`, never in audit metadata (deviation from D11 as planned). Deviations: S1 counts closed
+  vacancies whose process continues (the frontend's old local rule counted only published/paused); body-less create
+  still works. Docs: stakeholder-metrics-v1 §1.3, vacancy-team-v1 «Member workload», placement-vacancy-documents-v1
+  stakeholder vacancies, backend/docs company-members and stakeholder-invitations.
