@@ -9,11 +9,11 @@ const defaultPinning = { start: ["actor"], end: [] };
 /** The card content is edge to edge; the outer cells take the card's own inset so text never touches the table edge. */
 const EDGE_INSET = "[&_tr>*:first-child]:pl-(--card-spacing) [&_tr>*:last-child]:pr-(--card-spacing)";
 
-/** One row per recorded event, in the talent base's rich table; every nullable of the contract has an honest, neutral reading. */
-export function AuditTable({ items, toolbar, loading = false }: { items: AuditEvent[]; toolbar?: RichDataTableProps<AuditEvent>["toolbar"]; loading?: boolean }) {
+/** One row per recorded event, in the talent base's rich table; clicking a row or pressing Enter on it opens the event detail; every nullable of the contract has an honest, neutral reading. */
+export function AuditTable({ items, toolbar, loading = false, onOpen }: { items: AuditEvent[]; toolbar?: RichDataTableProps<AuditEvent>["toolbar"]; loading?: boolean; onOpen?: (event: AuditEvent) => void }) {
   // While another page loads, the skeleton replaces the rows and the column controls stay in the toolbar.
   return <div data-audit-table className={EDGE_INSET}>
-    <RichDataTable id="audit-log" columns={auditColumns} data={items} getRowId={event => event.id} defaultPinning={defaultPinning} emptyState={null} toolbar={toolbar} compactControls content={loading ? <AuditTableSkeleton /> : undefined} />
+    <RichDataTable id="audit-log" columns={auditColumns} data={items} getRowId={event => event.id} defaultPinning={defaultPinning} onRowActivate={onOpen} emptyState={null} toolbar={toolbar} compactControls content={loading ? <AuditTableSkeleton /> : undefined} />
   </div>;
 }
 
