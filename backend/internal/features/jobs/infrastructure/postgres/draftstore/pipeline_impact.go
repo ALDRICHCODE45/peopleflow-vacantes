@@ -2,6 +2,7 @@ package draftstore
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	pc "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -48,7 +49,16 @@ func pipelineImpact(ctx context.Context, tx pgx.Tx, id uuid.UUID, previous, next
 	people := []pc.Participation{}
 	// Lock every participation in id order after draft and process. All supported
 	// mutations and intake share the draft lock, including before this read.
-	rows, err := tx.Query(ctx, `SELECT p.id::text,u.id::text,u.full_name,p.stage_id::text,COALESCE(p.previous_stage_id::text,'') FROM process_participations p JOIN users u ON u.id=p.candidate_id WHERE p.process_id=$1 ORDER BY p.id FOR UPDATE OF p`, id)
+	// Every participation counts: organic ones point at users, company-added
+	// (manual) ones at company_candidates with a NULL candidate_id. Identity and
+	// display name mirror the board projection (corrected name for organic).
+	rows, err := tx.Query(ctx, `SELECT p.id::text,COALESCE(cc.id,u.id)::text,CASE WHEN o.corrections ? 'full_name' THEN o.corrections->>'full_name' ELSE COALESCE(cc.full_name,u.full_name) END,p.stage_id::text,COALESCE(p.previous_stage_id::text,'')
+ FROM process_participations p
+ JOIN vacancy_processes vp ON vp.id=p.process_id
+ LEFT JOIN users u ON u.id=p.candidate_id
+ LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
+ LEFT JOIN company_candidate_corrections o ON p.company_candidate_id IS NULL AND o.user_id=p.candidate_id AND o.company_id=vp.company_id
+ WHERE p.process_id=$1 ORDER BY p.id FOR UPDATE OF p`, id)
 	if err != nil {
 		return empty, err
 	}
@@ -82,7 +92,12 @@ func pipelineImpact(ctx context.Context, tx pgx.Tx, id uuid.UUID, previous, next
 			history.Close()
 			return empty, err
 		}
-		p := &people[byID[pid]]
+		index, known := byID[pid]
+		if !known {
+			history.Close()
+			return empty, errors.New("pipeline impact: history for participation outside the locked set")
+		}
+		p := &people[index]
 		if kind == "not_applicable" {
 			p.Marked[stage] = true
 		} else {

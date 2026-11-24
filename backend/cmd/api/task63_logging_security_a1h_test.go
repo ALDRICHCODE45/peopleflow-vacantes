@@ -28,8 +28,8 @@ func TestTask63A1h_RuntimeHandlerSlogCallCensus(t *testing.T) {
 		t.Fatalf("lifecycle must add zero handler log calls: %+v", calls)
 	}
 	calls := t63A1hProductCensus(t)
-	if len(calls) != 18 {
-		t.Fatalf("slog terminal calls = %d, want 18", len(calls))
+	if len(calls) != 19 {
+		t.Fatalf("slog terminal calls = %d, want 19", len(calls))
 	}
 	manifest := map[string]int{}
 	direct, uninspected := 0, 0
@@ -44,13 +44,14 @@ func TestTask63A1h_RuntimeHandlerSlogCallCensus(t *testing.T) {
 			uninspected++
 		}
 	}
-	if direct != 9 || uninspected != 9 {
-		t.Fatalf("direct/uninspected = %d/%d, want 9/9", direct, uninspected)
+	if direct != 10 || uninspected != 9 {
+		t.Fatalf("direct/uninspected = %d/%d, want 10/9", direct, uninspected)
 	}
 	want := map[string]int{
 		"backend/internal/features/applications/infrastructure/http/pool/handler.go|Error|" + t63A1hDirect:              1,
 		"backend/internal/features/geo/infrastructure/http/handler.go|Error|" + t63A1hUninspected:                       1,
 		"backend/internal/features/jobs/infrastructure/http/publicJobsHandler.go|Error|" + t63A1hDirect:                 1,
+		"backend/internal/features/jobs/infrastructure/http/pipelineHandler.go|ErrorContext|" + t63A1hDirect:            1,
 		"backend/internal/runtime/health/health.go|ErrorContext|" + t63A1hDirect:                                        1,
 		"backend/internal/runtime/middleware/request.go|Info|" + t63A1hDirect:                                           1,
 		"backend/internal/runtime/server/server.go|Info|" + t63A1hDirect:                                                1,
