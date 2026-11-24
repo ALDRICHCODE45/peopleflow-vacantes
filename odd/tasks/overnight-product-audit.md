@@ -134,3 +134,8 @@ merges to `main` allowed (no push).
   test invitation `01a20d2c-…` created and revoked. «Ver más vacantes» not reachable with 14 public vacancies (cursor URL
   checked directly). Axe: TabsList inactive count badges 4.32:1 and invalid Field text 4.19:1 (shared components) → fixed
   at the shared level next. A11y round `a701d2ed` committed.
+- **L14** A11y round `a701d2ed` (suite 640 / 11697) and shared contrast `4f1702b3` (TabsList badges, invalid Field
+  text). Full suite at `4f1702b3`: 641 files / 11699 passed, tsc 0, lint 0 errors. Axe on the production build of
+  `4f1702b3` (1440 light/dark, 390 light): 0 violations on the «No se sostuvo» card, substates sheet, draft errors,
+  stakeholder tabs, invitation note error, vacancy list and Base de talento tabs. Morning report:
+  `odd/discovery/overnight-audit-report.md`. Merged to local main.
