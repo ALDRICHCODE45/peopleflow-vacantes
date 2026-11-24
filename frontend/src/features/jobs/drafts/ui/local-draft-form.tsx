@@ -651,7 +651,7 @@ export function LocalDraftForm({
                     id="draft-title"
                     name="title"
                     aria-label="Título"
-                    className="min-h-10"
+                    className="min-h-10 aria-invalid:text-status-danger"
                     value={state.title}
                     autoComplete="off"
                     placeholder="Ej. Diseñador/a de producto"

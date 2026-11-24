@@ -88,6 +88,15 @@ it("counts readiness rather than visited sections and discloses unknown server r
   expect(screen.getByText("La solicitud y la entrega se suman al progreso cuando guardas el borrador.")).toBeVisible();
   expect(nav("Información básica")).not.toHaveAttribute("data-complete", "true");
 });
+// axe color-contrast: the Field's inherited text-destructive (#e7000b) on the #f2eff7 input is 4.19:1; the typed text takes the AA status-danger token.
+it("renders an invalid title with the status-danger text token, not the inherited destructive one", () => {
+  render(<LocalDraftForm />);
+  const title = screen.getByRole("textbox", { name: "Título" });
+  fireEvent.change(title, { target: { value: "x".repeat(201) } });
+  fireEvent.click(nav("Compensación y beneficios")); fireEvent.click(save());
+  expect(title).toHaveAttribute("aria-invalid", "true");
+  expect(title).toHaveClass("aria-invalid:text-status-danger");
+});
 it("saves from any section and routes invalid values to the first field", async () => {
   render(<LocalDraftForm />);
   const title = screen.getByRole("textbox", { name: "Título" });
